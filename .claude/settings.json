@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \"import docx\")",
+      "Bash(pandoc -t plain \"Volume_03_Kubernetes_and_Platform_Engineering\\(3\\).docx\")",
+      "Bash(ls \"/Users/jithinpjoseph/Documents/GitHub/nvidia-devops/claude_generated_files/\" && mkdir -p /tmp/vol03_media)",
+      "Bash(pandoc -t markdown --extract-media=/tmp/vol03_media \"SOURCE_FILES/Volume_03_Kubernetes_and_Platform_Engineering\\(3\\).docx\" -o /tmp/vol03_source.md)",
+      "Bash(pandoc -t markdown --extract-media=/tmp/vol04_media \"/Users/jithinpjoseph/Documents/GitHub/nvidia-devops/SOURCE_FILES/Volume_04_GPU_and_Accelerated_Computing_Foundations\\(2\\).docx\" -o /tmp/vol04_source.md)",
+      "Bash(pandoc -t markdown --extract-media=/tmp/vol06_media \"/Users/jithinpjoseph/Documents/GitHub/nvidia-devops/SOURCE_FILES/Volume_06_HPC,_Networking_and_Storage_for_AI\\(2\\).docx\" -o /tmp/vol06_source.md)",
+      "Bash(mkdir -p /tmp/vol05_media)",
+      "Bash(pandoc -t markdown --extract-media=/tmp/vol05_media \"/Users/jithinpjoseph/Documents/GitHub/nvidia-devops/SOURCE_FILES/Volume_05_AI_Workloads_and_AI_Platform_Architecture\\(2\\).docx\" -o /tmp/vol05_source.md)",
+      "Bash(pandoc -t markdown --extract-media=/tmp/vol07_media \"/Users/jithinpjoseph/Documents/GitHub/nvidia-devops/SOURCE_FILES/Volume_07_Observability,_Reliability_and_Troubleshooting\\(2\\).docx\" -o /tmp/vol07_source.md)",
+      "Bash(mkdir -p /tmp/vol08_media)",
+      "Bash(pandoc -t markdown --extract-media=/tmp/vol08_media \"/Users/jithinpjoseph/Documents/GitHub/nvidia-devops/SOURCE_FILES/Volume_08_Senior_Solutions_Architecture_Practice\\(2\\).docx\" -o /tmp/vol08_source.md)",
+      "Bash(mkdir -p /tmp/vol09_media)",
+      "Bash(pandoc -t markdown --extract-media=/tmp/vol09_media \"/Users/jithinpjoseph/Documents/GitHub/nvidia-devops/SOURCE_FILES/Volume_09_JR2018680_Interview_Preparation\\(2\\).docx\" -o /tmp/vol09_source.md)"
+    ],
+    "additionalDirectories": [
+      "/tmp"
+    ]
+  }
+}
