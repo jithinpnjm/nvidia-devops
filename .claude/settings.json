@@ -13,7 +13,11 @@
       "Bash(mkdir -p /tmp/vol08_media)",
       "Bash(pandoc -t markdown --extract-media=/tmp/vol08_media \"/Users/jithinpjoseph/Documents/GitHub/nvidia-devops/SOURCE_FILES/Volume_08_Senior_Solutions_Architecture_Practice\\(2\\).docx\" -o /tmp/vol08_source.md)",
       "Bash(mkdir -p /tmp/vol09_media)",
-      "Bash(pandoc -t markdown --extract-media=/tmp/vol09_media \"/Users/jithinpjoseph/Documents/GitHub/nvidia-devops/SOURCE_FILES/Volume_09_JR2018680_Interview_Preparation\\(2\\).docx\" -o /tmp/vol09_source.md)"
+      "Bash(pandoc -t markdown --extract-media=/tmp/vol09_media \"/Users/jithinpjoseph/Documents/GitHub/nvidia-devops/SOURCE_FILES/Volume_09_JR2018680_Interview_Preparation\\(2\\).docx\" -o /tmp/vol09_source.md)",
+      "Bash(cat > *)",
+      "Bash(cat)",
+      "Bash(cat claude_generated_files/Volume_03_Chapter_04_Networking_Enhanced.md)",
+      "Bash(python3 -)"
     ],
     "additionalDirectories": [
       "/tmp"

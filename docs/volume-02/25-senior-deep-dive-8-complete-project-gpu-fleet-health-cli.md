@@ -53,3 +53,30 @@ def classify\_gpu(s: GpuSample) -> Health:
     if s.temperature\_c >= 85:
         return Health.DEGRADED
     return Health.HEALTHY
+
+## Senior addendum
+
+➕ **`UNKNOWN is not HEALTHY` — this is the single most important line in this entire volume for the actual job, worth its own callout:**
+```python
+def classify_gpu(s: GpuSample) -> Health:
+    if s.xid_errors is None or s.temperature_c is None:
+        return Health.UNKNOWN     # missing telemetry — NOT the same claim as "healthy"
+    if s.xid_errors > 0:
+        return Health.FAILED
+    if s.temperature_c >= 85:
+        return Health.DEGRADED
+    return Health.HEALTHY
+```
+A monitoring tool that defaults missing data to "healthy" (because the code just falls through an if-chain without an explicit check) will silently hide a fleet of nodes whose telemetry agent crashed — those nodes look green in every dashboard while being completely unobserved. **This exact bug class — "absence of bad news presented as good news" — is one of the most realistic production incidents to bring up unprompted in an SA interview about monitoring design**, and this code is the textbook correct pattern to defend against it: a fourth explicit state (`UNKNOWN`) that can never be silently conflated with `HEALTHY`.
+
+➕ **Visual model — health is a state lattice, not a boolean:**
+```
+telemetry present? ── no ──► UNKNOWN  (page/investigate observability)
+        │ yes
+        ▼
+threshold breached? ── yes ─► DEGRADED / UNHEALTHY
+        │ no
+        ▼
+HEALTHY
+```
+**Memory hook:** *"No evidence is unknown, never healthy."* This one rule avoids the most dangerous false-green dashboard failure.

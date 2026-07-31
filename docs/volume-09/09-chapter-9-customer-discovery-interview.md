@@ -5,15 +5,9 @@ sidebar_position: 9
 description: "Chapter 9 - Customer discovery interview — JR2018680 Interview Preparation."
 source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 ---
-<!-- source-table:1 -->
-
 > Learning outcome Practice consultative questions that reveal constraints instead of demonstrating jargon.
 
-
-Use a funnel: business outcome -> workload/SLO -> current state -> constraints -> risks -> decision. Ask follow-ups based on answers. If the customer says “on-prem because security,” clarify which data/residency/control requirement prevents cloud; do not accept or challenge the premise without understanding it.
-
-
-<!-- source-table:2 -->
+Use a funnel: business outcome -> workload/SLO -> current state -> constraints -> risks -> decision. Ask follow-ups based on answers. If the customer says "on-prem because security," clarify which data/residency/control requirement prevents cloud; do not accept or challenge the premise without understanding it.
 
 | Customer statement | Useful follow-up |
 | --- | --- |
@@ -21,3 +15,30 @@ Use a funnel: business outcome -> workload/SLO -> current state -> constraints -
 | We need high availability | Which workload SLO and failure domains? What RTO/RPO for state/checkpoints? |
 | We want Kubernetes | Which existing operational strengths or platform integration drive that choice? |
 | We need low cost | Cost per what outcome—job completion, tokens, request SLO? What utilization/headroom is acceptable? |
+
+## ➕ Additions
+
+➕ **The discovery funnel as a diagram:**
+```
+Business outcome ("why does this project exist")
+        │
+        ▼
+Workload / SLO ("what does success look like, measurably")
+        │
+        ▼
+Current state ("what exists today, what works, what doesn't")
+        │
+        ▼
+Constraints ("security, budget, skills, data residency, timeline")
+        │
+        ▼
+Risks ("what could make this fail, who owns that risk")
+        │
+        ▼
+Decision (recommendation the customer can act on)
+```
+➕ **Memory hook:** *"BWCCRD — Business, Workload, Current-state, Constraints, Risks, Decision."* The funnel narrows on purpose — never open a discovery call at "Kubernetes or Slurm," always open at "why does this project exist."
+
+➕ **Interview-ready line for the "customer states a premise" trap (the "on-prem because security" example, generalized):**
+> "When a customer states a conclusion — 'we need on-prem,' 'we need Kubernetes,' 'we need 32 GPUs' — I treat it as a data point about their constraints, not a requirement to execute literally. I ask what's behind it before agreeing or pushing back."
+This line works for literally any premature-conclusion statement a customer makes, which is exactly why it's worth having verbatim.

@@ -27,3 +27,25 @@ class FleetReport:
         return sum(n.allocatable\_gpus for n in self.nodes)
 
 Dataclasses are useful when a tool has domain objects such as Node, GPU, Incident or Deployment. Composition usually produces clearer infrastructure code than deep inheritance: an ApiClient owns a RetryPolicy and AuthProvider; a ClusterInspector owns clients for Kubernetes, Prometheus and DCGM. Each piece can be replaced in a test.
+
+## Senior addendum
+
+➕ **`slots=True` — the detail worth being able to explain, not just copy:**
+```python
+@dataclass(frozen=True, slots=True)
+class Node:
+    name: str
+    labels: Mapping[str, str]
+    allocatable_gpus: int
+```
+Without `slots=True`, every instance carries a `__dict__` (arbitrary attribute storage) — with it, Python allocates fixed slots instead, which is both faster to access and meaningfully smaller in memory. For a `FleetReport` holding thousands of `Node` objects (a real GPU fleet), `slots=True` is a genuine memory-and-speed win, not a style preference — worth naming the *why*, not just using it because the example does.
+
+➕ **Visual model — names point at objects; mutation travels through aliases:**
+```
+config_a ─┐
+          ├──► {"zones": ["a"]}  ◄── mutation is seen by every alias
+config_b ─┘
+
+immutable replacement: old value ─► new value (other names still see old value)
+```
+**Memory hook:** *"A variable is a label, not a box."* Copy or freeze at boundaries when a caller must not share mutable state with your policy.

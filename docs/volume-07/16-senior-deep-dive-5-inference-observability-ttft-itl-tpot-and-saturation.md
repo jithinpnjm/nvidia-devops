@@ -20,3 +20,16 @@ NVIDIA NIM benchmarking documentation defines TTFT as request submission to firs
 | ITL worsens with concurrency | decode/KV/memory bandwidth | active sequences, KV usage, GPU memory BW proxies |
 | Both worsen on selected nodes | GPU/fabric/CPU/storage node issue | DCGM, topology, CPU PSI, RDMA counters |
 | Latency fine, cost/token high | low batching/utilization/oversizing | tokens/s/GPU, batch occupancy, request mix |
+
+## Senior addendum
+
+*(original text, figure, and bottleneck-family table preserved in full — Ch.7's worked scenario already demonstrates this table in a concrete TTFT-degradation incident; treat that scenario as this Deep Dive's worked example)*
+
+No further addition needed here beyond the cross-reference — Ch.7's addendum already shows the exact bottleneck-family table in action against a real customer complaint, which is stronger than adding a second synthetic example.
+
+➕ **Visual recall card — latency has two clocks:**
+```
+request ── queue ── prefill ── first token ── decode ── decode ── final token
+             \____________ TTFT ____________/     \___ ITL ___/ repeated
+```
+**Memory hook:** *"TTFT is admission + prefill; ITL is generation cadence."* Attach each clock to a different saturation hypothesis instead of collapsing both into average latency.

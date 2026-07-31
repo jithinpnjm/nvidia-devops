@@ -5,7 +5,8 @@ sidebar_position: 17
 description: "Final Python checklist — Python for Production Infrastructure."
 source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 ---
-<!-- source-table:1 -->
+
+*(preserved as-is)*
 
 | You can... | Evidence you should produce |
 | --- | --- |
@@ -15,11 +16,7 @@ source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 | Operate the tool | structured logs + exit codes + metrics where appropriate |
 | Ship it | pytest + typing + package + CLI + CI |
 
-
-<!-- source-table:2 -->
-
 > FOURTH EDITION — SENIOR ENGINEERING EXPANSION · VOLUME 2
-
 
 **Production Python for infrastructure automation, diagnostics and control planes**
 
@@ -30,3 +27,14 @@ The practitioner material used to shape the scope is a signal, not an authority.
 ![](pathname:///img/generated/volume-02-07.png)
 
 _Figure A. A production tool is a bounded reconciliation loop with validation and observability._
+
+➕ **One line to add to this checklist:** *Can you say, out loud, which chapter of this volume each row maps to, without looking?* (Ch2/Ch12 → algorithm design; Ch7/Ch8 → resilient I/O; Ch3/Ch9 → testable decisions; Ch6/Ch14 → operate; Ch12/Ch13 → ship.) If any mapping is fuzzy, that's your re-read list before Volume 3.
+
+➕ **Visual recall card — a production tool's four questions:**
+```
+Can it decide correctly? ──► pure policy + types + tests
+Can it reach dependencies safely? ──► timeout + retry + bounded concurrency
+Can an operator explain it? ──► structured logs + metrics + exit codes
+Can a team change it safely? ──► packaging + CI + clear boundaries
+```
+**Memory hook:** *"Correct, safe, visible, changeable."*

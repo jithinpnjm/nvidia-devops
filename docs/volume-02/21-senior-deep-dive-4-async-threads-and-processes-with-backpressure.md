@@ -26,3 +26,15 @@ with ThreadPoolExecutor(max\_workers=16) as pool:
             results\[name\] = report
         except Exception as exc:
             results\[node\] = &#123;"ok": False, "error": str(exc)&#125;
+
+## Senior addendum
+
+➕ **Backpressure, stated as the one-sentence definition worth having ready:** "backpressure is deliberately limiting how much work is in flight so the *producer* slows down to match what the *consumer* (or the target system) can actually handle" — `max_workers=16` in the fan-out example isn't a performance knob, it's backpressure: capping in-flight requests to 16 protects both this process (fd/memory limits) and the 200 remote nodes being queried from being hit by 200 simultaneous connections at once.
+
+➕ **Visual model — choose concurrency by the waiting shape:**
+```
+CPU-bound work ─► processes (parallel CPU) ─► bounded worker count
+blocking I/O    ─► threads   (hide waits)   ─► bounded pool
+async I/O       ─► event loop (many waits)  ─► semaphore + deadline
+```
+**Memory hook:** *"CPU parallelizes; I/O overlaps."* The execution model follows the bottleneck, not fashion.

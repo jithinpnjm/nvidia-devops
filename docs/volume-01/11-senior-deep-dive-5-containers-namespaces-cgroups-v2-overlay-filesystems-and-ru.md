@@ -22,3 +22,45 @@ sudo nsenter -t &lt;PID> -n ss -lntp
 cat /proc/&lt;PID>/cgroup
 cat /sys/fs/cgroup/&lt;path>/memory.max
 cat /sys/fs/cgroup/&lt;path>/memory.events
+
+➕ **Diagram: a "container" is a process wrapped in independent kernel mechanisms, not one object**
+```
+┌───────────────────────────────────────────────────────────────┐
+│ cgroup boundary — CPU/memory/IO accounting & limits             │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │ namespaces — PID/NET/MNT/UTS/IPC/USER views              │  │
+│  │  ┌───────────────────────────────────────────────────┐  │  │
+│  │  │ capabilities/seccomp/LSM — what syscalls/privileges │  │  │
+│  │  │ this process is actually allowed to use             │  │  │
+│  │  │        ┌───────────────────────────┐                │  │  │
+│  │  │        │  the process (just a PID)  │                │  │  │
+│  │  │        └───────────────────────────┘                │  │  │
+│  │  └───────────────────────────────────────────────────┘  │  │
+│  └─────────────────────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────────────────┘
+```
+Each ring is independently inspectable and independently bypassable if misconfigured — a container with the right namespaces but excess capabilities (e.g. `CAP_SYS_ADMIN`) is not actually isolated in the way its "containerness" implies, which is why `lsns`/`cat /proc/<PID>/cgroup`/capability inspection are three separate checks, not one.
+
+➕ **Diagram: image → running process, who does what**
+```
+OCI image (layers + config)
+        │  containerd pulls, unpacks layers
+        ▼
+containerd  ──gRPC (CRI)──▶  kubelet requested this
+        │  hands off container spec
+        ▼
+runc (OCI runtime) ── does the actual clone()/unshare()/pivot_root() calls
+        │
+        ▼
+namespaces created, cgroup assigned, overlay rootfs mounted, capabilities dropped
+        │
+        ▼
+running process (PID 1 inside its own PID namespace)
+```
+`runc` is the only component in this chain that actually invokes the kernel primitives — containerd and kubelet are orchestration; the kernel enforcement happens at the `runc` → syscall boundary, which is the layer `nsenter`/`lsns` verify directly.
+
+## ➕ Senior addendum
+
+*(extends Chapter 5, which now covers the pause-container mechanism, user-namespace tradeoffs, requests-vs-limits enforcement split and the OverlayFS upperdir/lowerdir model in depth. This Deep Dive's genuinely new material beyond that chapter is the runtime-boundary framing below.)*
+
+➕ For Deep Dive 5 specifically: the kernel mechanisms this Deep Dive lists (namespaces, cgroups, capabilities/LSMs, overlay filesystems) are exactly the "runtime chain" Chapter 5 traces from `kubelet → CRI → containerd/CRI-O → runc`, with the NVIDIA Container Toolkit's OCI prestart hook as the concrete place GPU device access is injected into that chain — worth citing this Deep Dive's `nsenter`/`lsns` commands as the verification step for that chain, not just the theory.

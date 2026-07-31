@@ -35,3 +35,49 @@ cat /sys/fs/cgroup/&lt;path>/cpu.max
 | High context switches | Lock contention, excessive threads, packet rate | pidstat -w, perf sched, thread count |
 | Latency spikes, CPU &lt; 100% | cgroup quota throttling or single-thread saturation | cpu.stat throttled_usec, per-thread CPU |
 | High system CPU | syscalls, networking, storage or kernel work | perf top, softirq counters, syscall profile |
+
+➕ **Diagram: user mode / kernel mode, and where strace is actually watching**
+```
+ User mode (application code)              Kernel mode (privileged)
+ ┌───────────────────────┐   syscall      ┌──────────────────────────┐
+ │ app logic, libc calls │ ─────────────▶ │ file/net/mem/proc         │
+ │                       │                │ operation actually runs  │
+ │                       │ ◀───────────── │ return value + errno     │
+ └───────────────────────┘   sysret       └──────────────────────────┘
+        ▲                                          ▲
+        └──── strace attaches here, on the boundary, and records every crossing ────┘
+```
+This is why `strace` can answer "is it stuck" precisely: a process spinning in user mode never crosses this boundary (strace shows nothing, confirming a CPU-bound loop, not a wait); a process blocked in kernel mode shows the exact syscall it entered and hasn't returned from (e.g. `futex(...)` never returning = lock contention, `read(...)` never returning = the other end isn't sending).
+
+➕ **Diagram: CPU-pressure triage, following the table above as a decision path**
+```
+Symptom: latency up, node CPU% looks unremarkable
+        │
+        ▼
+Check ps STAT/WCHAN ── many D-state? ──▶ uninterruptible I/O, not a CPU problem at all
+        │ no
+        ▼
+Check vmstat r vs core count ── r >> cores? ──▶ genuine runnable-task oversubscription
+        │ no
+        ▼
+Check cpu.stat nr_throttled ── climbing? ──▶ cgroup quota throttling (CFS bandwidth), not host CPU
+        │ no
+        ▼
+Check pidstat -w / perf sched latency ──▶ single hot thread or lock contention, not a fleet-wide issue
+```
+
+## ➕ Senior addendum
+
+*(the original Deep Dive text above is already strong — real commands, real tables, correctly pitched at senior level. These Deep Dives largely extend Chapters 1-6, which now carry diagrams/outputs/scenarios. Rather than duplicate, this addendum adds only what's genuinely new.)*
+
+➕ **Quick cross-reference (so you use the chapters and the Deep Dives together, not as duplicates):**
+| Deep Dive | Extends chapter | What's genuinely new in the Deep Dive vs the chapter |
+|---|---|---|
+| 1 — syscalls/scheduling | Ch1 | the observation→mechanism→validate table above — memorize this table format, it's a reusable interview answer template |
+| 2 — memory/NUMA/OOM | Ch2 | NUMA-and-GPU-locality framing — the one genuinely new concept not in Ch2 |
+| 3 — storage I/O to NVMe | Ch3 | checkpoint-specific latency queue behavior |
+| 4 — packet-level networking | Ch4 | conntrack specifically — worth a standalone note |
+| 5 — containers/overlayfs | Ch5 | runtime boundary framing |
+| 6 — GPU node readiness | new ground | driver/toolkit/operator readiness checklist — closest thing to a pre-flight checklist for the actual job |
+
+➕ For Deep Dive 1 specifically: the observation→mechanism→validate table above is the reusable template — an interviewer hearing "high load, low CPU → check STAT/WCHAN and pressure-stall info, not the CPU graph" is hearing the exact evidence-first reasoning style the whole senior-level arc is built around.

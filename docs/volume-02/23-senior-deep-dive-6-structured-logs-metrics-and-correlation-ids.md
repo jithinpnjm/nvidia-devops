@@ -33,3 +33,23 @@ log.addHandler(handler); log.setLevel(logging.INFO)
 cid = str(uuid.uuid4())
 log.info("gpu check started", extra=&#123;"correlation\_id": cid,
                                      "node": "gpu-node-07"&#125;)
+
+## Senior addendum
+
+➕ **Sample output from the `JsonFormatter` above, and why each field earns its place:**
+```json
+{"ts":1738245600.123,"level":"INFO","message":"gpu check started","logger":"fleetcheck","correlation_id":"a1b2c3d4-...","node":"gpu-node-07"}
+```
+Every field here answers a specific incident-review question: `ts` — when; `correlation_id` — which run, so you can grep every log line from one invocation across a distributed fan-out; `node` — which GPU host, so you're not grepping 200 nodes' worth of interleaved output by hand. **The logs/metrics/traces distinction from the text, memorized as one line:** "logs say what happened once, metrics say how often across everything, traces say where the time went within one request" — three different questions, three different tools, don't try to answer all three with one of them.
+
+➕ **Visual model — correlation is the join key across evidence planes:**
+```
+one CLI run / request id
+      ├── structured logs: exact event + node
+      ├── metrics: rate / duration across fleet
+      └── trace: ordered latency path
+                 │
+                 ▼
+          one explainable incident narrative
+```
+**Memory hook:** *"Same ID, different questions."*

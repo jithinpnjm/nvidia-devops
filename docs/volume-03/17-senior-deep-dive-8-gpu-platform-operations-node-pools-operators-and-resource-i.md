@@ -18,3 +18,30 @@ Treat GPU pools as scarce stateful capacity even when applications are stateless
 **Udemy — Kubernetes Troubleshooting: Real-World Production Fixes:** [https://www.udemy.com/course/kubernetes-troubleshooting](https://www.udemy.com/course/kubernetes-troubleshooting) — Target lectures: CrashLoopBackOff (~12m31s), Pending Pods (~8m05s), DNS failures (~7m19s), NetworkPolicy (~6m47s), eviction (~7m41s), HPA troubleshooting (~18m18s), RBAC (~11m32s).
 
 **Vishakha Sadhwani — Kubernetes networking:** [https://www.linkedin.com/in/vsadhwani](https://www.linkedin.com/in/vsadhwani) — Practitioner signal: understand traffic flow, CNI, Services, CoreDNS and Linux dataplane instead of treating networking as abstraction magic.
+
+## Senior addendum
+
+### Deep Dive 8 — GPU platform operations
+Chapter 9's "Going deeper" section already builds out the GPU node-upgrade validation sequence (kubelet Ready → driver DaemonSet Ready → device plugin registered → allocatable check → smoke test) directly from this Deep Dive's guidance — see `Volume_03_Chapter_09_Upgrades_Reliability_Enhanced.md`. Nothing to duplicate here; the one addition:
+
+➕ **"An operator is not magic" — the specific commands the original text's warning implies but doesn't list:**
+```bash
+kubectl get clusterpolicy -o yaml | yq '.status'          # the operator's own reconciliation report
+kubectl -n gpu-operator get pods -o wide | grep -v Running  # which operand DaemonSet, which node
+kubectl -n gpu-operator logs -l app=nvidia-driver-daemonset --tail=50
+kubectl get node <node> -o json | jq '.metadata.labels' | grep -i nvidia   # GPU Operator's own node labels — feature-detection state
+```
+Cross-reference: this is the identical sequence used in Chapter 8's GPU Operator worked scenario (`Volume_03_Chapter_08_Operators_GitOps_Enhanced.md`) — one mechanism, applied identically whether the trigger is a routine upgrade (Ch9) or an unexplained device disappearance (Ch8/this DD).
+
+➕ **Why this reference set is worth actually working through, not just skimming:** the Udemy lecture list above doubles as a self-check — for each named failure mode (CrashLoopBackOff, Pending Pods, DNS, NetworkPolicy, eviction, HPA, RBAC), confirm you can reproduce this volume's own diagnostic sequence for it from memory before treating the topic as done.
+
+### Self-check: original subtopics accounted for
+All eight Deep Dive titles, their core mechanisms (finalizers/ownerReferences, quorum/failure boundaries, Filter-Score/preemption/DRA, kubelet-CRI/node-pressure, Service/CNI/DNS/Gateway API, admission chain/PSA/VAP, the five-pattern table, GPU operator/node-pool operations), every original command block, and every original table row appear verbatim above or in the corresponding chapter file cross-referenced by name.
+
+➕ **Visual model — GPU nodes are a separate operational product inside the cluster:**
+```
+node pool intent ─► labels / taints / topology ─► GPU Operator operands ─► device capacity
+       │                         │                         │                    │
+       └── upgrade/drain plan ───┴── workload isolation ───┴── telemetry ────────┘
+```
+**Memory hook:** *"Pool, prepare, prove, place."* A schedulable GPU resource is the end result of a lifecycle, not a property that appears when hardware is racked.

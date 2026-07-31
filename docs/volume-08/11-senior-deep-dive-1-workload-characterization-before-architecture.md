@@ -18,3 +18,79 @@ Do not start a customer conversation with products. Characterize workload: train
 | Availability | RTO/RPO, multi-zone/rack, maintenance windows, failover behavior? |
 | Tenancy | hard isolation or fair-share? chargeback? reservations? priorities? |
 | Operations | Kubernetes or Slurm skills? GitOps? on-call ownership? air-gap? |
+
+## Senior addendum
+
+**Front matter (original text preserved)**
+
+**FOURTH EDITION — SENIOR ENGINEERING EXPANSION · VOLUME 8**
+
+**Customer discovery, AI factory architecture, PoCs and senior trade-off decisions**
+
+This expansion keeps the Fourth Edition teaching flow and adds the depth expected from a senior infrastructure engineer and customer-facing Solutions Architect. The emphasis is mechanism first: understand what the system is doing, observe it with concrete tools, then reason about failure, scale, reliability, performance and trade-offs.
+
+The practitioner material used to shape the scope is a signal, not an authority. Technical behavior is anchored in official documentation and first-principles systems reasoning. Your Staff Engineer study guide contributes useful patterns around Kubernetes, observability, distributed systems, platform design and failure isolation; the NVIDIA material adds GPU systems, AI workloads, accelerated networking and customer architecture.
+
+![](pathname:///img/generated/volume-08-02.png)
+
+_Figure A. A senior SA turns ambiguity into evidence, then into a decision._
+
+➕ **What Figure A's caption is actually claiming, made checkable:** "ambiguity into evidence" is Chapter 1's discovery method (questions that eliminate options); "evidence into a decision" is Chapter 3's weighted trade-off matrix. Figure A is effectively the one-sentence summary of the entire volume's arc — every chapter from here on is either producing evidence (discovery, workload characterization, PoC results, TCO math) or converting evidence into a decision (trade-off matrices, decision workshops, migration gates). If a chapter's content doesn't map to one of those two verbs, that's worth noticing.
+
+**Cross-reference table — which chapter each Deep Dive extends**
+
+| Deep Dive | Extends chapter(s) | New content here vs. full re-derivation |
+|---|---|---|
+| 1. Workload characterization before architecture | Ch.1 (Discovery) | New discovery-area table (performance/scale/data/availability/tenancy/ops) — genuinely additive, cross-ref Ch.1's W-S-S-D-S-O-E areas |
+| 2. AI factory layered architecture | Ch.2 (Data/control paths) | Extends Ch.2's six-path diagram to a full layered-system view — new diagram added |
+| 3. Capacity and TCO: convert SLO into resources | Ch.5 (GPU sharing), Ch.7 (TCO) | Mostly restates Ch.7's formulas at portfolio level — cross-referenced, new content is the utilization-vs-isolation trade explicit framing |
+| 4. PoC design: test the uncertainty | Ch.6 (PoC design) | Same hypothesis-first method as Ch.6, applied to 5 new named uncertainty domains — new pass/fail table is genuinely additive |
+| 5. Security and governance for GPU/AI platforms | Ch.8 (Security) | Same identity/boundary method as Ch.8 — cross-referenced, new content is air-gap/mirroring specifics |
+| 6. Decision workshops: K8s, Slurm, Run:ai, NIM, Dynamo | Ch.3 (Trade-off matrices), Ch.4 (K8s vs Slurm) | Extends Ch.4's binary decision to a 5-component composition — new layering diagram added |
+| 7. Communicate at three levels | Ch.10 (Customer communication) | Nearly identical to Ch.10's four-audience ladder (3 vs 4 levels) — cross-referenced, not re-derived |
+| 8. Practitioner role model: SA vs implementation engineer | Ch.1, Ch.10 | New content: a scored self-check rubric |
+
+**Deep Dive 1 — additions**
+
+➕ **Cross-reference:** this is Chapter 1's discovery method (the W-S-S-D-S-O-E mnemonic) applied with AI-workload-specific vocabulary. Don't re-derive "why discovery matters" here — that's Ch.1. What's new: this table's questions are more workload-technical (TTFT/ITL, checkpoint frequency, small-file count) than Ch.1's, because this Deep Dive assumes discovery has already established that an AI workload of some kind is in scope, and is now going one layer deeper into *which* AI workload.
+
+➕ **The "one GPU vs hundreds of nodes" claim, made concrete with the actual branching variable:** the single highest-leverage discovery answer here is *training-vs-inference*, because it changes the failure-domain shape, not just the GPU count. Inference at low concurrency genuinely can run on one GPU in Kubernetes. Training at scale needs a dedicated fabric because a single stalled NCCL ring stalls the *entire* job — there's no "the other replicas keep serving" grace period like there is for inference. This is the same control/data-plane distinction from Ch.2, applied to why training and inference are architecturally different animals even on identical hardware.
+
+➕ **Diagram: the training-vs-inference branch, drawn as the decision this Deep Dive's opening question actually is:**
+```
+                    "What kind of AI workload is this?"
+                              │
+              ┌────────────────┴────────────────┐
+              ▼                                  ▼
+      TRAINING (esp. at scale)            INFERENCE (esp. low concurrency)
+              │                                  │
+      needs dedicated fabric               can run on ONE GPU in
+      (a stalled NCCL ring stalls          Kubernetes — a failed
+      the WHOLE job, no partial            replica just drops out;
+      credit for other ranks)              the others keep serving
+              │                                  │
+              ▼                                  ▼
+   Same GPU hardware, but a COMPLETELY    Same GPU hardware, a much
+   different failure-domain shape          smaller failure-domain
+   and architecture requirement            footprint per unit lost
+```
+Both branches can be the correct answer to "we need an LLM platform" — the diagram is the reminder that the words in the request never determine which branch applies; only the training-vs-inference discovery answer does.
+
+➕ **Diagram: the six discovery areas as a gate before naming any product:**
+```
+"We need an LLM platform" (the request, still ambiguous)
+        │
+        ▼
+┌──────────────────────────────────────────────────────────┐
+│ Characterize BEFORE naming products:                      │
+│ Performance │ Scale │ Data │ Availability │ Tenancy │ Ops  │
+└──────────────────────────────────────────────────────────┘
+        │
+        ▼
+   The SAME requirement resolves to wildly different architectures:
+   ┌────────────────────────┐        ┌──────────────────────────────┐
+   │ 1 GPU, single K8s pod    │  OR   │ Hundreds of nodes, dedicated  │
+   │ (low-concurrency          │       │ fabric, topology-aware        │
+   │  inference)                │       │ scheduling (large training)   │
+   └────────────────────────┘        └──────────────────────────────┘
+```

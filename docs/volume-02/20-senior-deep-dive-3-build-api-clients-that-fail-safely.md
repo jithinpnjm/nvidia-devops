@@ -57,3 +57,25 @@ class JsonApi:
         raise RuntimeError("API request exhausted retries") from last\_error
 
 A senior engineer also thinks about budgets. If a CLI checks 500 nodes and each call can wait 8 seconds with four retries, the worst-case runtime is unacceptable. Bound concurrency, set a global deadline, cache immutable responses when appropriate, and expose retry counts and latency in logs/metrics.
+
+## Senior addendum
+
+➕ **The budget math the paragraph mentions, worked with real numbers (this is the calculation a Senior SA is expected to do out loud):**
+```
+500 nodes, worst case: 4 attempts × 8s read timeout = 32s per node if every attempt times out
+Sequential: 500 × 32s = 4.4 HOURS worst case  ← unacceptable, exactly as the text says
+With ThreadPoolExecutor(max_workers=16): 500/16 ≈ 32 batches × 32s = ~17 minutes worst case
+With a global deadline (e.g. 60s) that cancels remaining work: bounded regardless of per-node worst case
+```
+This is the actual arithmetic behind "senior engineers think about budgets" — being able to produce these three numbers live, from the retry policy's own parameters, is a stronger signal than reciting "use a thread pool."
+
+➕ **Visual model — every fan-out needs two budgets:**
+```
+overall deadline (60s)
+ ├── concurrency budget (16 in flight)
+ └── per-request budget (connect + read + retry)
+          │
+          ▼
+      partial results + explicit failures
+```
+**Memory hook:** *"Limit width, limit time."* A client that eventually succeeds after the caller gave up is still an operational failure.

@@ -21,3 +21,17 @@ find /var/run/cdi /etc/cdi -maxdepth 1 -type f 2>/dev/null
 # Container smoke test
 ctr -n k8s.io containers list | head
 # or run a vendor-supported CUDA container through your normal runtime
+
+## Senior addendum
+
+*(original text — driver ownership, user-space CUDA libraries, NVIDIA Container Toolkit, the host/runtime/container boundary-proving command sequence — preserved above; Chapter 3's enhanced content already has the layered-stack diagram and the annotated driver-vs-CUDA-version failure output.)*
+
+➕ **The one boundary this Deep Dive's command list names that Chapter 3 doesn't drill into — the CDI (Container Device Interface) spec files themselves:**
+```
+$ find /var/run/cdi /etc/cdi -maxdepth 1 -type f 2>/dev/null
+/var/run/cdi/nvidia.com-gpu.json
+
+$ cat /var/run/cdi/nvidia.com-gpu.json | jq '.devices[0].containerEdits.deviceNodes'
+[{"path": "/dev/nvidia0"}, {"path": "/dev/nvidiactl"}, {"path": "/dev/nvidia-uvm"}]
+```
+This file is the *actual mechanism* by which "the container gets the GPU device" happens under the modern CDI-based runtime path (as opposed to the older `nvidia-container-runtime` prestart-hook path) — an empty or missing CDI file here, with `nvidia-ctk --version` still reporting healthy, is a specific and different failure mode from a driver-version mismatch: the toolkit is installed but hasn't (re)generated the device spec, often after a driver upgrade that didn't trigger `nvidia-ctk cdi generate` again.

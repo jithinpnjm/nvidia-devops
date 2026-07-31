@@ -19,3 +19,37 @@ KV cache is operational state. Longer context, higher concurrency and more layer
 | End-to-end latency | complete request duration | queue + prefill + decode length |
 | Tokens/s | throughput | batching, parallelism, utilization |
 | Concurrent users | capacity at SLO | memory/KV + latency budget |
+
+## Senior addendum
+
+➕ **Cross-reference:** Chapter 3's enhanced version already fully derives the prefill/decode timeline diagram, the KV cache growth arithmetic, and a vLLM metrics sample with `gpu_cache_usage_perc` — this metric table is the same content as Chapter 3's, so don't re-study it twice; the one genuinely new idea here is prefix caching's routing implication, expanded below.
+
+➕ **Prefix caching → LLM-aware routing, made concrete (the paragraph's key sentence, unpacked):**
+```
+Round-robin router:                    KV-cache-aware router:
+  req1 (shares prefix with req0) →       req1 (shares prefix with req0) →
+  sent to least-loaded worker            sent to the worker that already
+  → prefix recomputed from scratch       holds req0's prefix KV cache
+  → full prefill cost paid again         → only the NEW suffix needs
+                                           prefill — TTFT drops sharply
+```
+The tradeoff this introduces: KV-aware routing needs the router to track *which worker holds which prefix's cache*, and that map goes stale the instant a worker evicts cache under memory pressure or restarts — a routing decision based on stale cache-location state sends a request to a worker that has to recompute anyway, paying routing complexity cost without the latency win. This is precisely the "senior design question" the Deep Dive 4 text poses for Dynamo specifically, but it's true of any KV-aware router.
+
+➕ **Diagram: continuous batching — why it beats fixed/static batching**
+```
+Static batching (wait for a fixed batch of 4, run together, all must finish):
+ batch: [reqA][reqB][reqC][reqD] ──▶ run together ──▶ ALL 4 return together
+                                       even if reqA finished decoding early,
+                                       its GPU slot sits idle until reqD ends
+
+Continuous batching (admit/evict per-step, not per-batch):
+ step N:   [reqA][reqB][reqC][reqD]
+ step N+1: [ ---][reqB][reqC][reqD][reqE]  ← reqA finished & left, reqE admitted
+ step N+2: [reqF][reqB][ ---][reqD][reqE]  ← reqC finished, reqF admitted
+                    ▲
+                    every step, the scheduler re-evaluates who's in the
+                    batch — no request holds a GPU slot idle waiting for
+                    the slowest peer, and new requests join without
+                    waiting for the whole batch to drain
+```
+This is the mechanism behind "admitting and interleaving requests dynamically instead of waiting for fixed batches" — the GPU-utilization win comes from never leaving a slot idle just because one sequence in the batch finished before the others.

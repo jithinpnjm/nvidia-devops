@@ -26,3 +26,11 @@ Use the Udemy course as reinforcement after reading the matching chapter. The in
 
 
 [Open the Udemy course](https://www.udemy.com/course/python-devops) and search by the exact lecture titles above.
+
+➕ **Visual study loop — turn the map into retained skill:**
+```
+academy chapter ─► targeted lecture ─► modify the example ─► break it safely ─► explain the failure
+       ▲                                                                            │
+       └────────────────────── revisit only the weak mechanism ───────────────────┘
+```
+**Memory hook:** *"Watch less; change more."* A lecture is reinforcement only after you can predict and test the mechanism locally.

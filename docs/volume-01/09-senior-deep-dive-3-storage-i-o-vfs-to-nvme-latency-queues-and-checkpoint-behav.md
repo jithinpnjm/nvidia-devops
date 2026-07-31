@@ -23,3 +23,29 @@ lsof +D /path/to/checkpoint 2>/dev/null | head
 
 # Quick latency test - never run destructive tests on production devices
 fio --name=readcheck --filename=/safe/testfile --rw=randread     --bs=4k --iodepth=32 --size=1G --runtime=30 --time\_based
+
+➕ **Diagram: the write path, and where "fast" stops meaning "durable"**
+```
+app write()
+   │
+   ▼
+libc buffer ──▶ VFS ──▶ filesystem ──▶ page cache (dirty page, marked but not yet on disk)
+                                             │
+                            write() returns here ── looks instant, data is NOT on disk yet
+                                             │
+                             ┌───────────────┴───────────────┐
+                             ▼                                ▼
+                    fsync()/fdatasync() called        no fsync — kernel writeback
+                    → blocks until data reaches        thread flushes dirty pages
+                    the device, durability proven      on its own schedule (dirty_ratio,
+                             │                          periodic timer) — durable
+                             ▼                          eventually, not on your timeline
+                    block layer → I/O scheduler → driver → physical device
+```
+A checkpoint write that skips `fsync()` can report "done" in milliseconds while the actual bytes are still only in page cache — a node crash before writeback completes silently loses that checkpoint despite the application having already logged success. This is precisely why checkpoint code paths call `fsync()` explicitly rather than trusting `write()`'s return.
+
+## ➕ Senior addendum
+
+*(extends Chapter 3, which now covers the VFS-to-disk mechanism, `iostat` reading order and inode exhaustion in depth. This Deep Dive's genuinely new material beyond that chapter is the checkpoint-specific latency/queue behavior called out below.)*
+
+➕ For Deep Dive 3 specifically: the layer list at the top of this Deep Dive (runtime → libc → VFS → filesystem → page cache → block layer → I/O scheduler → driver → device) is the same VFS dispatch mechanism Chapter 3 draws out, applied to the checkpoint-storm failure pattern — many training nodes hitting `fsync()` simultaneously stresses the *metadata* path long before the *data* path saturates, which is why per-node `iostat` looks idle even while the shared filesystem is the actual bottleneck (see Chapter 3's checkpoint-storm worked scenario for the full trace).

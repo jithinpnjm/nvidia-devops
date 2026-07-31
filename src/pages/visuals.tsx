@@ -2,6 +2,8 @@ import React from 'react';
 import Layout from '@theme/Layout';
 import InteractiveGpuTopology from '@site/src/components/diagrams/InteractiveGpuTopology';
 import FlowDiagram from '@site/src/components/diagrams/FlowDiagram';
+import VisualMemoryBoard from '@site/src/components/diagrams/VisualMemoryBoard';
+import useBaseUrl from '@docusaurus/useBaseUrl';
 
 const groups: [string, [string, string[]][]][] = [
   ['Linux & containers', [
@@ -34,6 +36,16 @@ const groups: [string, [string, string[]][]][] = [
     ['USE / RED',['resource or service','utilization / rate','saturation / errors','errors / duration','hypothesis']], ['AI factory',['data + models','compute fabric','scheduler/platform','serving/training','operations + governance']],
     ['Hybrid scheduling',['shared identity/data','Kubernetes pools','capacity boundary','Slurm partitions','shared telemetry']],
   ]],
+  ['Solutions architecture', [
+    ['Discovery to design',['stakeholder interview','requirements + unknowns','constraints','trade-off matrix','recommended design']], ['TCO / capacity model',['demand forecast','per-request cost','utilization + headroom','GPU-hour estimate','sensitivity range']],
+    ['PoC design',['risky assumption','hypothesis','representative workload','acceptance threshold','go/no-go decision']], ['Migration and adoption',['current state','target state','phased cutover','rollback plan','steady state']],
+    ['Kubernetes vs Slurm call',['workload mix','scheduler fit per workload','shared identity/telemetry','capacity handoff','hybrid platform']],
+  ]],
+  ['Interview practice', [
+    ['Answer framework',['clarify','model','hypothesize','test','recommend']], ['Customer discovery',['stated ask','probing questions','workload profile','constraints','PoC scope']],
+    ['Whiteboard method',['requirements','data/control paths','component choices','trade-offs','open risks']], ['Behavioral story (STAR)',['situation','task','action','result','lesson']],
+    ['Troubleshooting narration',['symptom','competing hypotheses','high-information check','root cause','safe mitigation']],
+  ]],
 ];
 
-export default function Visuals() { return <Layout title="Visual learning"><main className="pageShell"><header className="pageHeader"><span className="eyebrow">Systems atlas</span><h1>Visual learning</h1><p>Compact flows expose boundaries, control loops, data paths, and failure domains. Use them alongside—not instead of—the full curriculum.</p></header><section><h2>Interactive GPU / NUMA / fabric topology</h2><InteractiveGpuTopology/></section>{groups.map(([name, flows]) => <section key={name}><h2>{name}</h2><div className="flowGrid">{flows.map(([title, nodes]) => <FlowDiagram key={title} title={title} nodes={nodes}/>)}</div></section>)}</main></Layout>; }
+export default function Visuals() { const heroImage = useBaseUrl('/img/visuals/ai-factory-memory-anchor.png'); return <Layout title="Visual learning"><main className="pageShell"><header className="pageHeader visualsHero"><div><span className="eyebrow">Systems atlas</span><h1>Visual learning</h1><p>Compact flows expose boundaries, control loops, data paths, and failure domains. Use them alongside—not instead of—the full curriculum.</p></div><img src={heroImage} alt="Original illustration of GPU servers connected to storage and high-speed AI infrastructure fabric."/></header><section><h2>Ten models worth remembering</h2><p>Choose a model, trace the arrows, then restate the memory hook before moving to the detailed lesson.</p><VisualMemoryBoard/></section><section><h2>Interactive GPU / NUMA / fabric topology</h2><InteractiveGpuTopology/></section>{groups.map(([name, flows]) => <section key={name}><h2>{name}</h2><div className="flowGrid">{flows.map(([title, nodes]) => <FlowDiagram key={title} title={title} nodes={nodes}/>)}</div></section>)}</main></Layout>; }

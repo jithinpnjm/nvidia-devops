@@ -17,3 +17,16 @@ The GPU Operator automates the NVIDIA driver, Container Toolkit, Kubernetes devi
 | GPU exists, wrong labels | feature discovery | GFD/NFD pods, node labels |
 | metrics absent | DCGM/DCGM exporter/ServiceMonitor | exporter logs, /metrics endpoint, Prometheus target |
 | operator stuck upgrading | ClusterPolicy/operand rollout | CSV/Helm status, DaemonSet readiness, node conditions |
+
+## Senior addendum
+
+*(original text — ClusterPolicy as desired state, the operand list, and the failure/boundary/evidence table — preserved above in full; this table is already the strongest artifact in this Deep Dive and Chapter 4's enhanced content builds its own 8-step diagram and MIG-resource-naming worked scenario around the same reconciliation model.)*
+
+➕ **Reading the operator's own reconciliation state directly — the command this Deep Dive implies ("inspect operator state") but doesn't spell out:**
+```bash
+kubectl get clusterpolicy -o jsonpath='{.items[0].status.state}'
+# Ready              ← the whole operand set has converged; if any operand DaemonSet isn't
+                        Ready, ClusterPolicy status typically shows "notReady" with a reason,
+                        which is your entry point into the failure table's five rows above
+```
+**Interview-ready line:** "ClusterPolicy status is the single top-level health check for the whole GPU software stack — if it's not `Ready`, don't chase individual operand pods yet, read *why* first."
