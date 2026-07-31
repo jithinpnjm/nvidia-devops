@@ -12,10 +12,11 @@
     "serve": "node scripts/serve-build.mjs",
     "serve:docusaurus": "docusaurus serve",
     "clear": "docusaurus clear",
+    "generate-study-context": "node scripts/generate-study-context.mjs",
     "generate-content": "node scripts/generate-content.mjs",
     "validate-content": "node scripts/validate-content.mjs",
     "typecheck": "tsc --noEmit",
-    "check": "npm run validate-content && npm run typecheck && npm run build",
+    "check": "npm run generate-study-context && npm run validate-content && npm run typecheck && npm run build",
     "check:source": "npm run generate-content && npm run validate-content && npm run typecheck && npm run build"
   },
   "dependencies": {

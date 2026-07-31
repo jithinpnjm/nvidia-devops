@@ -58,8 +58,9 @@ First explain the production context and constraints. Then guide me one step at 
 
   return <section className="pythonPlayground">
     <div className="playgroundHeader"><div><span className="eyebrow">Browser Python lab</span><h2>{exercise.title}</h2><p>{exercise.prompt}</p></div><span className="runtimeBadge">Pyodide · client-side only</span></div>
+    <section className="chatgptCoachPanel"><div><span className="eyebrow">Interactive ChatGPT coach</span><h3>Need a guided explanation or complete solution?</h3><p>This prompt includes this lab’s exact challenge, starter code, expected result, production context, edge cases, and test expectations.</p></div><details><summary>Preview the lab-specific prompt</summary><pre className="promptPreview">{tutorPrompt}</pre></details><ChatGPTStudyLink prompt={tutorPrompt} label="Open this exact lab in ChatGPT ↗"/></section>
     <Editor height="360px" language="python" theme="vs-dark" value={code} onChange={(value) => setCode(value || '')} options={{fontSize: 14, minimap: {enabled: false}, automaticLayout: true, scrollBeyondLastLine: false}}/>
-    <div className="buttonRow"><button disabled={running} onClick={() => execute(false)}>Run</button><button disabled={running} onClick={() => execute(true)}>Run tests</button><button className="secondary" onClick={() => setCode(exercise.starter)}>Reset</button><ChatGPTStudyLink compact prompt={tutorPrompt} label="Get a guided solution in ChatGPT ↗"/></div>
+    <div className="buttonRow"><button disabled={running} onClick={() => execute(false)}>Run</button><button disabled={running} onClick={() => execute(true)}>Run tests</button><button className="secondary" onClick={() => setCode(exercise.starter)}>Reset</button></div>
     <div className="console"><strong>Output</strong><pre>{output}</pre></div>
     <details><summary>Hint</summary><p>{exercise.hint}</p></details>
     <p><strong>Expected:</strong> <code>{exercise.expected}</code></p>
