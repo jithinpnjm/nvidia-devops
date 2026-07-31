@@ -64,7 +64,7 @@ const totals = rows.reduce((acc, row) => ({
 
 const report = `# Content coverage report
 
-Generated deterministically from the canonical \`source_files/\` DOCX curriculum. Counts are based on the normalized conversion model used to generate the site.
+Generated deterministically from the canonical \`SOURCE_FILES/\` DOCX curriculum. Counts are based on the normalized conversion model used to generate the site.
 
 | Source | Lessons | Source words | Generated words | Coverage | Tables | Code blocks | Images |
 |---|---:|---:|---:|---:|---:|---:|---:|

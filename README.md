@@ -7,7 +7,7 @@ This is an independent learning project based on public technical knowledge. It 
 ## Architecture
 
 ```text
-source_files/*.docx
+SOURCE_FILES/*.docx
         │
         ▼
 Mammoth OOXML extraction ── embedded media → public/img/generated
@@ -54,7 +54,7 @@ Or run the complete gate:
 npm run check
 ```
 
-`generate-content` treats lowercase `source_files/` as canonical, converts every DOCX, splits volumes at source Heading 1 boundaries, emits stable slugs/front matter/category metadata, extracts media, and records conversion metadata. `validate-content` fails on a missing volume, missing major heading, empty chapter, suspicious word loss, or lost table/code/image accounting.
+`generate-content` treats `SOURCE_FILES/` as canonical, converts every DOCX, splits volumes at source Heading 1 boundaries, emits stable slugs/front matter/category metadata, extracts media, and records conversion metadata. `validate-content` fails on a missing volume, missing major heading, empty chapter, suspicious word loss, or lost table/code/image accounting.
 
 To update content, replace the applicable canonical DOCX without renaming its volume prefix, run `npm run generate-content`, inspect the generated lesson changes and `CONTENT_COVERAGE_REPORT.md`, then run `npm run check`. Do not hand-edit generated volume lessons; change the source or generator.
 
@@ -84,4 +84,4 @@ Expected URL: <https://jithinpnjm.github.io/nvidia-devops/>
 
 ## Source limitations
 
-The prompt referenced `sources/SKILL.md` and `sources/SOURCE_MAP.md`, but neither exists in the repository. Tutor behavior follows the flow stated in the master request, and the resource layer uses vetted official landing/documentation URLs instead of inventing source-map entries. Both duplicate DOCX directories are preserved; `SOURCE_FILES/` was already untracked and is not modified.
+The source bundle includes `SOURCE_FILES/SKILL(4).md` and `SOURCE_FILES/SOURCE_MAP.md`. Tutor behavior follows the flow stated in the master request, and the resource layer uses vetted official landing/documentation URLs.

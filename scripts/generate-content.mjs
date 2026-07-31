@@ -5,7 +5,7 @@ import TurndownService from 'turndown';
 import {gfm} from 'turndown-plugin-gfm';
 
 const root = process.cwd();
-const sourceDir = path.join(root, 'source_files');
+const sourceDir = path.join(root, 'SOURCE_FILES');
 const docsDir = path.join(root, 'docs');
 const mediaDir = path.join(root, 'public', 'img', 'generated');
 const manifestPath = path.join(root, 'content-manifest.json');
@@ -135,7 +135,7 @@ turndown.addRule('caption', {
 
 const manifest = {
   generatedAt: new Date().toISOString(),
-  canonicalSource: 'source_files',
+  canonicalSource: 'SOURCE_FILES',
   sources: [],
 };
 
