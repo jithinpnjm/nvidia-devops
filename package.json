@@ -1,0 +1,45 @@
+{
+  "name": "nvidia-sa-academy",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NVIDIA Senior DevOps / AI Infrastructure Solutions Architect Academy",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "docusaurus start",
+    "build": "docusaurus build",
+    "serve": "node scripts/serve-build.mjs",
+    "serve:docusaurus": "docusaurus serve",
+    "clear": "docusaurus clear",
+    "generate-content": "node scripts/generate-content.mjs",
+    "validate-content": "node scripts/validate-content.mjs",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run generate-content && npm run validate-content && npm run typecheck && npm run build"
+  },
+  "dependencies": {
+    "@docusaurus/core": "^3.9.2",
+    "@docusaurus/preset-classic": "^3.9.2",
+    "@docusaurus/theme-mermaid": "^3.9.2",
+    "@easyops-cn/docusaurus-search-local": "^0.52.0",
+    "@mdx-js/react": "^3.1.1",
+    "@mermaid-js/layout-elk": "^0.1.9",
+    "@monaco-editor/react": "^4.7.0",
+    "clsx": "^2.1.1",
+    "mammoth": "^1.10.0",
+    "prism-react-renderer": "^2.4.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "turndown": "^7.2.1",
+    "turndown-plugin-gfm": "^1.0.2"
+  },
+  "devDependencies": {
+    "@docusaurus/module-type-aliases": "^3.9.2",
+    "@docusaurus/tsconfig": "^3.9.2",
+    "@docusaurus/types": "^3.9.2",
+    "@types/node": "^22.18.0",
+    "@types/react": "^18.3.24",
+    "@types/react-dom": "^18.3.7",
+    "typescript": "~5.6.3"
+  }
+}
