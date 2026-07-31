@@ -1,7 +1,36 @@
 export type Scenario = {
   id: string; title: string; description: string; expectedRootCause: string; learningObjectives: string[];
   evidence: {action: string; output: string; interpretation: string}[]; mitigation: string; prevention: string;
+  runbook: {containment: string; commands: {label: string; command: string; why: string}[]; escalation: string};
 };
+
+const kubectlPodCommands = [
+  {label: 'Object and events', command: 'kubectl describe pod <pod> -n <namespace>', why: 'Read the scheduler, lifecycle, probe, and termination evidence before changing the workload.'},
+  {label: 'Previous container output', command: 'kubectl logs <pod> -n <namespace> -c <container> --previous', why: 'A restarted container may have lost its only useful application-level error.'},
+  {label: 'Scoped live state', command: 'kubectl get pod <pod> -n <namespace> -o yaml', why: 'Compare intended spec, status, resource limits, node placement, and recent conditions.'},
+];
+const gpuCommands = [
+  {label: 'GPU inventory', command: 'kubectl describe node <node> | sed -n \'/Allocatable:/,/System Info:/p\'', why: 'Confirm the resource the scheduler actually sees; do not infer it from a dashboard.'},
+  {label: 'Driver and hardware evidence', command: 'sudo dmesg -T | grep -Ei \'NVRM|Xid\' && nvidia-smi -q', why: 'Correlate host driver/hardware events with the affected GPU UUID.'},
+  {label: 'Operator operands', command: 'kubectl get pods -n gpu-operator -o wide && kubectl logs -n gpu-operator -l app=nvidia-device-plugin --tail=200', why: 'Separate a device-plugin/driver failure from a workload scheduling issue.'},
+];
+const fabricCommands = [
+  {label: 'NCCL signal', command: 'NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=NET,INIT <launch-command>', why: 'Capture interface and peer-selection evidence before changing NCCL knobs.'},
+  {label: 'Link and topology', command: 'ibstatus; ibstat; nvidia-smi topo -m', why: 'Verify active ports, expected rate/layer, and GPU-to-NIC locality.'},
+  {label: 'RoCE counters', command: 'ethtool -S <nic> | grep -Ei \'drop|err|pause|pfc|ecn\'', why: 'Rising drops, pause, PFC, or ECN signals point to fabric configuration or congestion, not an application bug.'},
+];
+const nodeCommands = [
+  {label: 'Node conditions', command: 'kubectl describe node <node>', why: 'Check Ready, MemoryPressure, DiskPressure, PIDPressure, taints, and recent events.'},
+  {label: 'Runtime filesystem', command: 'sudo df -h /var/lib/containerd; sudo df -i /var/lib/containerd', why: 'Check both bytes and inodes before reclaiming images or restarting kubelet.'},
+  {label: 'Kubelet evidence', command: 'sudo journalctl -u kubelet --since \'30 min ago\' --no-pager', why: 'Find the mechanism behind a NotReady transition, rather than treating it as a generic node failure.'},
+];
+
+function runbookFor(id: string): Scenario['runbook'] {
+  if (['gpu-unavailable', 'driver-mismatch', 'mig', 'xid', 'low-gpu', 'topology'].includes(id)) return {containment: 'Avoid rescheduling blindly onto the same suspect node. Cordon it for a node-local driver or hardware signal; drain only when workload disruption is approved and a checkpoint/redundancy plan exists.', commands: gpuCommands, escalation: 'Escalate with node name, GPU UUID/PCI bus ID, driver and CUDA versions, Xid/NVRM excerpt, device-plugin logs, and the exact workload image digest.'};
+  if (['nccl', 'roce', 'rdma-perf', 'scaling'].includes(id)) return {containment: 'Stop expanding the affected distributed job and preserve logs. Do not change global fabric PFC/ECN, routing, or NCCL defaults without network-owner approval and a rollback plan.', commands: fabricCommands, escalation: 'Escalate with affected node pairs/rack or rail, NCCL log timestamps, interface/IP mapping, link state/rate, counter deltas, and a known-good baseline.'};
+  if (id === 'notready') return {containment: 'Cordon the node first to prevent new placement. Preserve disk and journal evidence before deleting images, restarting containerd, or rebooting.', commands: nodeCommands, escalation: 'Escalate with node conditions, filesystem byte/inode use, kubelet/container-runtime logs, image-GC state, and scope of affected workloads.'};
+  return {containment: 'Start with a canary or the smallest affected scope. Prefer reversible configuration changes; do not delete Pods, PVCs, or data to make the symptom disappear.', commands: kubectlPodCommands, escalation: 'Escalate with impact and timeline, exact object events, manifests or relevant diff, logs/metrics for the failing window, changes already attempted, and a safe rollback point.'};
+}
 
 const make = (id: string, title: string, description: string, root: string, evidence: string[], mitigation: string, prevention: string): Scenario => ({
   id, title, description, expectedRootCause: root,
@@ -11,7 +40,7 @@ const make = (id: string, title: string, description: string, root: string, evid
     {action: 'Inspect workload and control-plane evidence', output: evidence[1], interpretation: 'Object state narrows the failing lifecycle boundary.'},
     {action: 'Inspect node, runtime, and dependency evidence', output: evidence[2], interpretation: 'Correlate host evidence with the workload symptom.'},
     {action: 'Run the targeted validation', output: evidence[3], interpretation: 'Validate the leading hypothesis before mitigation.'},
-  ], mitigation, prevention,
+  ], mitigation, prevention, runbook: runbookFor(id),
 });
 
 export const scenarios: Scenario[] = [

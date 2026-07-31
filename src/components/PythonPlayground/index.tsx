@@ -1,6 +1,7 @@
 import React, {useEffect, useRef, useState} from 'react';
 import Editor from '@monaco-editor/react';
 import {progressStore} from '@site/src/components/learning/progressStore';
+import ChatGPTStudyLink from '@site/src/components/learning/ChatGPTStudyLink';
 
 export type PythonExercise = {id: string; title: string; prompt: string; starter: string; expected: string; tests: string; hint: string; solution: string; explanation: string};
 const PYODIDE_URL = 'https://cdn.jsdelivr.net/pyodide/v0.27.7/full/';
@@ -11,6 +12,18 @@ export default function PythonPlayground({exercise}: {exercise: PythonExercise})
   const [running, setRunning] = useState(false);
   const [showSolution, setShowSolution] = useState(false);
   const workerRef = useRef<Worker>();
+  const tutorPrompt = `Act as a senior Python and DevOps mentor. Help me solve this browser lab without skipping the reasoning.
+
+Lab: ${exercise.title}
+Challenge: ${exercise.prompt}
+Expected outcome: ${exercise.expected}
+
+My starter code:
+\`\`\`python
+${exercise.starter}
+\`\`\`
+
+First explain the production context and constraints. Then guide me one step at a time: ask me for my approach, identify edge cases and test cases, and only reveal a complete solution after I attempt it or explicitly ask. When you provide code, give a complete runnable solution, explain every important line, show representative results, and name the operational risks or assumptions.`;
   useEffect(() => { setCode(exercise.starter); setOutput('Ready.'); setShowSolution(false); }, [exercise]);
   useEffect(() => () => workerRef.current?.terminate(), []);
 
@@ -46,7 +59,7 @@ export default function PythonPlayground({exercise}: {exercise: PythonExercise})
   return <section className="pythonPlayground">
     <div className="playgroundHeader"><div><span className="eyebrow">Browser Python lab</span><h2>{exercise.title}</h2><p>{exercise.prompt}</p></div><span className="runtimeBadge">Pyodide · client-side only</span></div>
     <Editor height="360px" language="python" theme="vs-dark" value={code} onChange={(value) => setCode(value || '')} options={{fontSize: 14, minimap: {enabled: false}, automaticLayout: true, scrollBeyondLastLine: false}}/>
-    <div className="buttonRow"><button disabled={running} onClick={() => execute(false)}>Run</button><button disabled={running} onClick={() => execute(true)}>Run tests</button><button className="secondary" onClick={() => setCode(exercise.starter)}>Reset</button></div>
+    <div className="buttonRow"><button disabled={running} onClick={() => execute(false)}>Run</button><button disabled={running} onClick={() => execute(true)}>Run tests</button><button className="secondary" onClick={() => setCode(exercise.starter)}>Reset</button><ChatGPTStudyLink compact prompt={tutorPrompt} label="Get a guided solution in ChatGPT ↗"/></div>
     <div className="console"><strong>Output</strong><pre>{output}</pre></div>
     <details><summary>Hint</summary><p>{exercise.hint}</p></details>
     <p><strong>Expected:</strong> <code>{exercise.expected}</code></p>
