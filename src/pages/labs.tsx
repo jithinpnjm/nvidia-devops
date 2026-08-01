@@ -253,14 +253,227 @@ print('PASS')`,hint:'Return a new list; do not mutate source records. Validate r
         raise ValueError('timeline record missing required fields')
     ordered = sorted(records, key=lambda record: (record['ts'], record['source']))
     return [f"{record['ts']} | {record['source']} | {record['message']}" for record in ordered]`,explanation:'Production timestamps need timezone and preferably UTC/ISO-8601. Preserve raw evidence separately; the human timeline should link observations to queries, deploy IDs, tickets, and decisions.'},
+  {id:'bmc-sensors',title:'17 · Classify BMC sensor health from a Redfish/IPMI sweep',prompt:'Turn a raw `sensor list` sweep into a single health verdict before paging anyone. A discrete PSU sensor reading 0 is not “temperature zero”—misreading it sends someone chasing the wrong fault.',starter:`def node_health(sensors: list[dict]) -> str:
+    # Each sensor is either {'type':'threshold','reading':..,'unc':..,'ucr':..}
+    # or {'type':'discrete','value':..}. 0x0180 is the only healthy discrete bitmap.
+    return ''
+
+sample = [
+    {'name':'CPU1 Temp','type':'threshold','reading':70,'unc':92,'ucr':95},
+    {'name':'PSU1 Status','type':'discrete','value':0x0180},
+    {'name':'PSU2 Status','type':'discrete','value':0},
+]
+print(node_health(sample))`,expected:"'critical', because PSU2's discrete bitmap 0x0 means no AC input, not a zero reading",tests:`ok = [{'name':'CPU1 Temp','type':'threshold','reading':70,'unc':92,'ucr':95}, {'name':'PSU1 Status','type':'discrete','value':0x0180}, {'name':'PSU2 Status','type':'discrete','value':0x0180}]
+assert node_health(ok) == 'healthy'
+psu_fault = [{'name':'CPU1 Temp','type':'threshold','reading':70,'unc':92,'ucr':95}, {'name':'PSU1 Status','type':'discrete','value':0x0180}, {'name':'PSU2 Status','type':'discrete','value':0}]
+assert node_health(psu_fault) == 'critical'
+warn = [{'name':'CPU2 Temp','type':'threshold','reading':93,'unc':92,'ucr':95}, {'name':'PSU1 Status','type':'discrete','value':0x0180}, {'name':'PSU2 Status','type':'discrete','value':0x0180}]
+assert node_health(warn) == 'warning'
+print('PASS')`,hint:'Decode discrete sensors by exact bitmap match, never by numeric comparison; threshold sensors compare reading against unc/ucr.',solution:`def node_health(sensors):
+    statuses = []
+    for sensor in sensors:
+        if sensor['type'] == 'discrete':
+            statuses.append('healthy' if sensor['value'] == 0x0180 else 'critical')
+        else:
+            reading, unc, ucr = sensor['reading'], sensor['unc'], sensor['ucr']
+            if reading >= ucr:
+                statuses.append('critical')
+            elif reading >= unc:
+                statuses.append('warning')
+            else:
+                statuses.append('healthy')
+    if 'critical' in statuses:
+        return 'critical'
+    if 'warning' in statuses:
+        return 'warning'
+    return 'healthy'`,explanation:'The next real step is `ipmitool sensor list` plus the SDR to confirm the bitmap decode, then check the PDU/breaker feeding that PSU before assuming a server-side fault.'},
+  {id:'firmware-drift',title:'18 · Detect firmware baseline drift across a fleet',prompt:'Compare installed component versions against the qualified baseline manifest before a coordinated change window opens. A node one revision behind is a normal backlog item; three revisions behind on BMC firmware is a blocker.',starter:`def firmware_drift(installed: dict[str, dict[str, str]], baseline: dict[str, str]) -> list[str]:
+    # installed: {node: {component: version}}. Return "node/component: installed < baseline"
+    # for every component below baseline, sorted by node then component.
+    return []
+
+installed = {'gpu-node-02': {'bios':'1.2.0','bmc':'2.16.0'}, 'gpu-node-01': {'bios':'1.3.0','bmc':'2.14.3'}}
+baseline = {'bios':'1.3.0','bmc':'2.16.0'}
+print(firmware_drift(installed, baseline))`,expected:"['gpu-node-01/bmc: 2.14.3 < 2.16.0', 'gpu-node-02/bios: 1.2.0 < 1.3.0']",tests:`installed = {'gpu-node-02': {'bios':'1.2.0','bmc':'2.16.0'}, 'gpu-node-01': {'bios':'1.3.0','bmc':'2.14.3'}}
+baseline = {'bios':'1.3.0','bmc':'2.16.0'}
+assert firmware_drift(installed, baseline) == ['gpu-node-01/bmc: 2.14.3 < 2.16.0', 'gpu-node-02/bios: 1.2.0 < 1.3.0']
+assert firmware_drift({'gpu-node-03': {'bios':'1.3.0'}}, baseline) == []
+assert firmware_drift({'gpu-node-04': {'nic':'22.35.1012'}}, baseline) == []
+print('PASS')`,hint:'Compare dotted version strings as tuples of ints, not lexicographically, and skip components absent from the baseline.',solution:`def parse_version(v):
+    return tuple(int(part) for part in v.split('.'))
+
+def firmware_drift(installed, baseline):
+    drift = []
+    for node in sorted(installed):
+        for component in sorted(installed[node]):
+            if component not in baseline:
+                continue
+            if parse_version(installed[node][component]) < parse_version(baseline[component]):
+                drift.append(f"{node}/{component}: {installed[node][component]} < {baseline[component]}")
+    return drift`,explanation:'This is the read-only half of change management; pair it with the compatibility matrix from Volume 10 before deciding which nodes are safe to include in a canary wave.'},
+  {id:'ansible-idempotency',title:'19 · Spot false idempotency in an Ansible --check --diff run',prompt:'Classify repeated `--check --diff` results per module before trusting “changed” as a signal. A module reporting changed=True every run on a semantically identical diff is noise that will bury the one node with a real drift.',starter:`def classify_idempotency(runs: dict[str, list[tuple[bool, str]]]) -> dict[str, str]:
+    # runs: {module: [(changed, diff_or_None), ...]} across consecutive check runs.
+    # Return 'idempotent', 'false-idempotency', or 'real-drift' per module.
+    return {}
+
+runs = {
+    'ntp_config': [(True, 'server=ntp1,timeout=5'), (True, 'timeout=5,server=ntp1'), (True, 'server=ntp1,timeout=5')],
+    'kernel_module': [(True, 'state=absent'), (False, None), (False, None)],
+    'motd': [(False, None), (False, None)],
+}
+print(classify_idempotency(runs))`,expected:"{'ntp_config': 'false-idempotency', 'kernel_module': 'real-drift', 'motd': 'idempotent'}",tests:`runs = {
+    'ntp_config': [(True, 'server=ntp1,timeout=5'), (True, 'timeout=5,server=ntp1'), (True, 'server=ntp1,timeout=5')],
+    'kernel_module': [(True, 'state=absent'), (False, None), (False, None)],
+    'motd': [(False, None), (False, None)],
+}
+result = classify_idempotency(runs)
+assert result['ntp_config'] == 'false-idempotency'
+assert result['kernel_module'] == 'real-drift'
+assert result['motd'] == 'idempotent'
+print('PASS')`,hint:'Normalize each diff (e.g. split and sort its key=value pairs) before comparing runs for sameness; a reordered diff is not a new diff.',solution:`def normalize_diff(diff):
+    if diff is None:
+        return None
+    return sorted(part.strip() for part in diff.split(','))
+
+def classify_idempotency(runs):
+    result = {}
+    for module, entries in runs.items():
+        changed_flags = [changed for changed, _ in entries]
+        diffs = [normalize_diff(diff) for _, diff in entries]
+        if not any(changed_flags):
+            result[module] = 'idempotent'
+        elif all(changed_flags) and all(diff == diffs[0] for diff in diffs):
+            result[module] = 'false-idempotency'
+        else:
+            result[module] = 'real-drift'
+    return result`,explanation:'A real fix replaces the offending module invocation (often a raw `command`/`shell` task) with an idempotent module; this classifier just tells you which resource to inspect first.'},
+  {id:'terraform-risk',title:'20 · Classify Terraform plan risk before apply',prompt:'Reduce a `terraform plan` action list to one risk verdict so a reviewer knows whether to read every line or just skim it. A `-/+` destroy-and-recreate or a bare `-` outweighs any number of plain creates.',starter:`def plan_risk(actions: list[str]) -> str:
+    # Each action looks like "+ create", "~ update in-place", "-/+ destroy and re-create", "- destroy".
+    # Return 'safe', 'review', or 'dangerous'.
+    return ''
+
+print(plan_risk(['+ create', '~ update in-place', '-/+ destroy and re-create']))`,expected:"'dangerous', because a -/+ action outweighs the create and update in the same plan",tests:`assert plan_risk(['+ create', '+ create']) == 'safe'
+assert plan_risk(['+ create', '~ update in-place']) == 'review'
+assert plan_risk(['~ update in-place', '-/+ destroy and re-create']) == 'dangerous'
+assert plan_risk(['+ create', '- destroy']) == 'dangerous'
+assert plan_risk([]) == 'safe'
+print('PASS')`,hint:'Score each action by its worst-case symbol, then take the maximum across the whole plan; do not average.',solution:`def plan_risk(actions):
+    if not actions:
+        return 'safe'
+    weights = []
+    for action in actions:
+        if action.startswith('-/+') or action.startswith('- '):
+            weights.append(2)
+        elif action.startswith('~'):
+            weights.append(1)
+        elif action.startswith('+'):
+            weights.append(0)
+        else:
+            raise ValueError(f'unknown plan action: {action!r}')
+    worst = max(weights)
+    if worst >= 2:
+        return 'dangerous'
+    if worst == 1:
+        return 'review'
+    return 'safe'`,explanation:'Treat this as a merge-gate signal only; still read the actual resource addresses in a dangerous plan—a destroy on a stateful resource (a volume, a DNS record) needs a human decision, not just a risk label.'},
+  {id:'slurm-fairshare',title:'21 · Flag Slurm fairshare starvation risk versus a normal burst',prompt:'Distinguish an account that is sustainably over its allocated share—the kind of misconfiguration that quietly starves everyone else for weeks—from a single busy day that self-corrects.',starter:`def fairshare_status(allocated_share: float, usage_by_day: list[float]) -> str:
+    # allocated_share and each usage_by_day entry are fractions of total cluster GPU-hours.
+    # Return 'starvation-risk', 'normal-burst', or 'within-share'.
+    return ''
+
+print(fairshare_status(0.20, [0.30, 0.32, 0.29, 0.31, 0.30]))`,expected:"'starvation-risk' when every day is well over the allocated share, not just one",tests:`assert fairshare_status(0.20, [0.30, 0.32, 0.29, 0.31, 0.30]) == 'starvation-risk'
+assert fairshare_status(0.20, [0.19, 0.20, 0.55, 0.18, 0.20]) == 'normal-burst'
+assert fairshare_status(0.20, [0.18, 0.19, 0.20, 0.21, 0.19]) == 'within-share'
+try: fairshare_status(0.20, [])
+except ValueError: pass
+else: raise AssertionError('must reject empty usage history')
+print('PASS')`,hint:'Compute a usage/allocated ratio per day; sustained means every ratio crosses the threshold, a burst means only the max does.',solution:`def fairshare_status(allocated_share, usage_by_day):
+    if not usage_by_day:
+        raise ValueError('usage history is required')
+    ratios = [usage / allocated_share for usage in usage_by_day]
+    if all(ratio >= 1.4 for ratio in ratios):
+        return 'starvation-risk'
+    if max(ratios) >= 1.4:
+        return 'normal-burst'
+    return 'within-share'`,explanation:'Confirm with `sshare -l`: FairShare near 1.0 for the flagged account alongside near-0.2 for peers means the allocated share itself is miscalibrated, which `sacctmgr modify account ... set fairshare=` fixes—this function only tells you where to look.'},
+  {id:'mpi-ranks',title:'22 · Validate an MPI/PMIx launch against expected rank layout',prompt:'Diff observed “Hello from rank” output against the expected per-node rank layout before assuming a hung job is a NCCL problem—half the ranks may simply never have launched.',starter:`import re
+
+def missing_ranks(expected: dict[str, list[int]], observed: list[str]) -> dict[str, list[int]]:
+    # expected: {node: [rank, ...]}. observed lines look like "Hello from rank 3 on node gpu-a".
+    # Return {node: [missing ranks]} only for nodes with at least one missing rank.
+    return {}
+
+expected = {'node-a': [0, 1, 2, 3], 'node-b': [4, 5, 6, 7]}
+observed = ['Hello from rank 0 on node node-a', 'Hello from rank 1 on node node-a', 'Hello from rank 3 on node node-a',
+            'Hello from rank 4 on node node-b', 'Hello from rank 5 on node node-b', 'Hello from rank 6 on node node-b', 'Hello from rank 7 on node node-b']
+print(missing_ranks(expected, observed))`,expected:"{'node-a': [2]}",tests:`expected = {'node-a': [0, 1, 2, 3], 'node-b': [4, 5, 6, 7]}
+observed = ['Hello from rank 0 on node node-a', 'Hello from rank 1 on node node-a', 'Hello from rank 3 on node node-a',
+            'Hello from rank 4 on node node-b', 'Hello from rank 5 on node node-b', 'Hello from rank 6 on node node-b', 'Hello from rank 7 on node node-b']
+assert missing_ranks(expected, observed) == {'node-a': [2]}
+assert missing_ranks(expected, observed + ['Hello from rank 2 on node node-a']) == {}
+assert missing_ranks({'node-c': [8, 9]}, []) == {'node-c': [8, 9]}
+print('PASS')`,hint:'Parse each line with a strict regex into (rank, node) pairs, build a set of seen ranks per node, then set-subtract from expected.',solution:`def missing_ranks(expected, observed):
+    seen = {}
+    for line in observed:
+        match = re.fullmatch(r'Hello from rank (\\d+) on node (\\S+)', line)
+        if not match:
+            continue
+        seen.setdefault(match.group(2), set()).add(int(match.group(1)))
+    result = {}
+    for node, ranks in expected.items():
+        missing = sorted(set(ranks) - seen.get(node, set()))
+        if missing:
+            result[node] = missing
+    return result`,explanation:'Missing ranks concentrated on one node points at that node—PMIx launch failure, SSH/hostfile issue, or a GRES/cgroup binding rejection—rather than a collective-communication bug; correlate with the launcher exit code before touching NCCL.'},
+  {id:'enroot-gpu',title:'23 · Diagnose why GPUs are not visible inside an Enroot/Pyxis container',prompt:'Given the exact launch configuration, name the single specific missing piece—not a generic “check your container setup”—so the fix is one command, not a debugging session.',starter:`def diagnose_gpu_visibility(config: dict) -> str:
+    # config keys: visible_devices_env (str|None), cdi_spec_present (bool), driver_mount_present (bool)
+    return ''
+
+print(diagnose_gpu_visibility({'visible_devices_env': None, 'cdi_spec_present': True, 'driver_mount_present': True}))`,expected:'A specific cause: missing env var, missing CDI spec, or missing driver mount—checked in that order',tests:`assert diagnose_gpu_visibility({'visible_devices_env': None, 'cdi_spec_present': True, 'driver_mount_present': True}) == 'NVIDIA_VISIBLE_DEVICES not set or empty'
+assert diagnose_gpu_visibility({'visible_devices_env': 'all', 'cdi_spec_present': False, 'driver_mount_present': True}) == 'CDI spec file missing'
+assert diagnose_gpu_visibility({'visible_devices_env': 'all', 'cdi_spec_present': True, 'driver_mount_present': False}) == 'container-mounts missing the NVIDIA driver path'
+assert diagnose_gpu_visibility({'visible_devices_env': 'all', 'cdi_spec_present': True, 'driver_mount_present': True}) == 'configuration looks correct, check nvidia-smi inside the container'
+print('PASS')`,hint:'Check the most fundamental prerequisite first: an unset visibility env var makes CDI and mount configuration irrelevant.',solution:`def diagnose_gpu_visibility(config):
+    env = config.get('visible_devices_env')
+    if not env or env == 'none':
+        return 'NVIDIA_VISIBLE_DEVICES not set or empty'
+    if not config.get('cdi_spec_present', True):
+        return 'CDI spec file missing'
+    if not config.get('driver_mount_present', True):
+        return 'container-mounts missing the NVIDIA driver path'
+    return 'configuration looks correct, check nvidia-smi inside the container'`,explanation:'Once the pure diagnosis narrows the cause, confirm live with `enroot start --root ... nvidia-smi` and `nvidia-ctk cdi generate` output rather than trusting the launch flags alone.'},
+  {id:'canary-check',title:'24 · Check whether a canary wave actually represents the fleet',prompt:'A canary that passes every gate item is only evidence about the hardware/firmware combinations it contains. Find exactly which combinations in the fleet the proposed canary group does not cover before it ships to wave two.',starter:`def canary_representativeness(fleet_combos: list[tuple], canary_combos: list[tuple]) -> dict:
+    # combos look like ('ConnectX-7', 'fw-22.35'). Return {'representative': bool, 'missing': [...]}.
+    return {}
+
+fleet = [('ConnectX-6', 'fw-20.1'), ('ConnectX-7', 'fw-22.35'), ('ConnectX-7', 'fw-22.36')]
+canary = [('ConnectX-6', 'fw-20.1'), ('ConnectX-6', 'fw-20.1')]
+print(canary_representativeness(fleet, canary))`,expected:"{'representative': False, 'missing': [('ConnectX-7', 'fw-22.35'), ('ConnectX-7', 'fw-22.36')]}",tests:`fleet = [('ConnectX-6', 'fw-20.1'), ('ConnectX-7', 'fw-22.35'), ('ConnectX-7', 'fw-22.36')]
+canary = [('ConnectX-6', 'fw-20.1'), ('ConnectX-6', 'fw-20.1')]
+result = canary_representativeness(fleet, canary)
+assert result == {'representative': False, 'missing': [('ConnectX-7', 'fw-22.35'), ('ConnectX-7', 'fw-22.36')]}
+full_canary = fleet + [('ConnectX-6', 'fw-20.1')]
+assert canary_representativeness(fleet, full_canary) == {'representative': True, 'missing': []}
+print('PASS')`,hint:'Reduce both lists to sets of distinct combinations first; representativeness is a set-coverage question, not a count question.',solution:`def canary_representativeness(fleet_combos, canary_combos):
+    fleet_set = set(fleet_combos)
+    canary_set = set(canary_combos)
+    missing = sorted(fleet_set - canary_set)
+    return {'representative': len(missing) == 0, 'missing': missing}`,explanation:'This is the exact “canary passed but 20% of the fleet had different NIC firmware” failure mode—stratify canary node selection by NIC model, firmware revision, and GPU SKU explicitly, not by whichever nodes happened to be idle.'},
+];
+
+const labGroups: {name: string; ids: string[]}[] = [
+  {name: 'Production Python', ids: ['regex', 'retry', 'gpu', 'subprocess', 'retry-storm']},
+  {name: 'Linux & Kubernetes evidence', ids: ['oom', 'scheduling', 'prometheus', 'runbook', 'linux-load', 'reconcile', 'timeline']},
+  {name: 'GPU & distributed training', ids: ['capacity', 'xid-correlation', 'nccl-ranks', 'inference-slo']},
+  {name: 'Bare-metal, IaC & HPC ops', ids: ['bmc-sensors', 'firmware-drift', 'ansible-idempotency', 'terraform-risk', 'slurm-fairshare', 'mpi-ranks', 'enroot-gpu', 'canary-check']},
 ];
 
 export default function Labs() {
   const [index, setIndex] = useState(0);
   return <Layout title="Senior DevOps labs" description="Executable Python exercises for production operations">
-    <main className="pageShell"><header className="pageHeader"><span className="eyebrow">Production Python</span><h1>Senior DevOps engineering labs</h1><p>Sixteen executable challenges spanning production Python, Linux evidence, Kubernetes control loops, GPU faults, NCCL stragglers, inference SLOs, retry storms, capacity, and incident response. Every lab includes tests, a complete reference solution, explanation, and an exact ChatGPT coaching prompt.</p></header>
+    <main className="pageShell"><header className="pageHeader"><span className="eyebrow">Production Python</span><h1>Senior DevOps engineering labs</h1><p>Twenty-four executable challenges spanning production Python, Linux evidence, Kubernetes control loops, GPU faults, NCCL stragglers, inference SLOs, retry storms, capacity, incident response, bare-metal/BMC lifecycle, BCM-adjacent firmware drift, Ansible idempotency, Terraform plan risk, Slurm fairshare, MPI launch validation, Enroot/Pyxis GPU visibility, and coordinated cluster-wide change management. Every lab includes tests, a complete reference solution, explanation, and an exact ChatGPT coaching prompt.</p></header>
       <div className="prompt"><strong>How to practise:</strong> write the smallest deterministic decision first, run its contract tests, then explain which real command or metric would supply each input. The reveal contains one reference implementation—not the only valid design.</div>
-      <div className="labLayout"><aside className="scenarioList">{labs.map((lab, i) => <button className={i === index ? 'active' : ''} onClick={() => setIndex(i)} key={lab.id}>{lab.title}</button>)}</aside><PythonPlayground exercise={labs[index]}/></div>
+      <div className="labLayout"><aside className="scenarioList">{labGroups.map(group => <div key={group.name}><h4>{group.name}</h4>{group.ids.map(id => { const i = labs.findIndex(lab => lab.id === id); return <button className={i === index ? 'active' : ''} onClick={() => setIndex(i)} key={id}>{labs[i].title}</button>; })}</div>)}</aside><PythonPlayground exercise={labs[index]}/></div>
     </main>
   </Layout>;
 }
