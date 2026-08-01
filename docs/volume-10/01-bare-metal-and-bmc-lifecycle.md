@@ -1,0 +1,158 @@
+---
+title: "Chapter 1 - Bare-metal and BMC/Redfish lifecycle"
+slug: "chapter-1-bare-metal-and-bmc-lifecycle"
+sidebar_position: 1
+description: "Chapter 1 - Bare-metal and BMC/Redfish lifecycle — Bare-Metal, HPC Operations and Infrastructure-as-Code."
+source_document: "Authored directly for the JR2018680 gap-coverage volume — no DOCX source."
+---
+**Learning outcome:** Understand what happens to a physical GPU server between "racked and cabled" and "ready for an OS image" — BMC access, firmware baselining, and network boot — and be able to diagnose why a specific node refuses to PXE boot.
+
+## Why this layer exists
+
+Everything above Kubernetes or Slurm assumes a node that boots, reports sane sensors, and takes an OS image. That assumption is not free. A GPU node arriving from the factory or returning from RMA is a pile of firmware revisions, BIOS settings, and RAID/BMC defaults that have to be brought into a known state before any cluster manager touches it. In an NVIDIA DGX/HGX-class deployment this matters more than on commodity compute: GPU VBIOS, NVSwitch firmware, NIC firmware (ConnectX/BlueField), and BIOS/BMC firmware all have compatibility matrices against the driver and CUDA stack, and a mismatched revision is a common root cause of "GPU falls off the bus" or "NCCL init hangs" tickets that look like software bugs three layers up.
+
+Rack/power/cooling context, briefly: at GPU node densities (8-10kW+ per node for HGX systems), the constraint is often power and cooling delivery, not floor space — PDU circuit capacity and rack-level airflow (or direct liquid cooling loops) get sized before racking, and a node that trips a breaker or hits a thermal ceiling under full tensor-core load is a facilities problem, not a firmware one. That context sets the boundary of this chapter: everything below is what happens once power and cooling are already provisioned to the rack.
+
+## IPMI vs Redfish
+
+Both are out-of-band management protocols talked to the Baseboard Management Controller (BMC) — a service processor on the motherboard with its own CPU, memory, network port, and power feed, independent of the host OS. The BMC is alive whenever the node has AC power, even if the host CPU is off.
+
+| | IPMI | Redfish |
+|---|---|---|
+| Transport | Binary protocol over LAN (RMCP+), UDP 623 | HTTPS REST/JSON, standard HTTP verbs |
+| Data model | Opaque byte-packed records (SDR, sensor thresholds by numeric offset) | Self-describing JSON resources with a schema |
+| Tooling | `ipmitool` | `redfishtool`, `curl`, any HTTP client |
+| Scriptability | Awkward — fixed binary field offsets, vendor OEM extensions common | Native — JSON, discoverable via `$metadata`/schema links |
+| Status | Legacy, DCMI subset still widely deployed | DMTF standard, the direction every major vendor (Dell iDRAC, HPE iLO, Lenovo XCC, Supermicro, NVIDIA/Mellanox BMC) has moved |
+
+Redfish did not replace IPMI overnight — most BMCs today run both, and IPMI's `chassis power` and `sol` (serial-over-LAN) commands are still the fastest path for a quick power-cycle or console grab. But firmware inventory, structured event logs, and anything you want to automate at scale should go through Redfish: it returns typed JSON you can parse without knowing vendor-specific IPMI OEM byte layouts.
+
+## Accessing the BMC
+
+```
+# IPMI — direct LAN access, or via ipmitool's "lan" interface
+ipmitool -I lanplus -H <bmc-ip> -U admin -P <pass> chassis status
+ipmitool -I lanplus -H <bmc-ip> -U admin -P <pass> power status
+ipmitool -I lanplus -H <bmc-ip> -U admin -P <pass> power cycle
+ipmitool -I lanplus -H <bmc-ip> -U admin -P <pass> sol activate       # serial-over-LAN console
+ipmitool -I lanplus -H <bmc-ip> -U admin -P <pass> sensor list
+ipmitool -I lanplus -H <bmc-ip> -U admin -P <pass> fru print          # field-replaceable unit inventory
+
+# Redfish — HTTPS REST, works with curl or redfishtool
+redfishtool -r <bmc-ip> -u admin -p <pass> raw GET /redfish/v1/Systems/1
+curl -sk -u admin:<pass> https://<bmc-ip>/redfish/v1/Systems/1 | jq .
+curl -sk -u admin:<pass> https://<bmc-ip>/redfish/v1/Systems/1/Processors | jq .
+curl -sk -u admin:<pass> https://<bmc-ip>/redfish/v1/UpdateService/FirmwareInventory | jq .
+```
+
+Annotated `ipmitool sensor list` output — this is the first thing to pull when a node is reported "unhealthy" before you even try to log into the OS:
+
+```
+$ ipmitool -I lanplus -H 10.0.1.15 -U admin -P *** sensor list
+CPU1 Temp        | 52.000     | degrees C  | ok    | 0.000  | 3.000  | 5.000  | 92.000 | 95.000 | 98.000
+CPU2 Temp        | 108.000    | degrees C  | ncr   | 0.000  | 3.000  | 5.000  | 92.000 | 95.000 | 98.000   ← non-critical high, near upper-non-recoverable
+GPU1 Temp        | 61.000     | degrees C  | ok    | 0.000  | 3.000  | 5.000  | 88.000 | 92.000 | 95.000
+FAN1             | 8400.000   | RPM        | ok    | 500.00 | 700.00 | 900.00 | na     | na     | na
+PSU1 Status      | 0x1        | discrete   | 0x0180| na     | na     | na     | na     | na     | na       ← discrete sensor, decode bitmap not a number
+PSU2 Status      | 0x0        | discrete   | 0x0180| na     | na     | na     | na     | na     | na       ← PSU2 reading 0 — likely no input power, check PDU/breaker
+```
+Reading this correctly: the six threshold columns are `lnr/lcr/lnc/unc/ucr/unr` (lower/upper non-recoverable, critical, non-critical). `CPU2 Temp` at `ncr` status with a reading of 108°C against an upper-non-critical threshold of 92°C is already past non-critical and closing on `ucr` (95) — this node should be pulled from scheduling before it thermally throttles or shuts down. `PSU2 Status` reading `0x0` on a discrete sensor is not "temperature is zero," it is a bitmap that needs decoding against the SDR — in practice, a PSU reporting nothing usually means no AC input, which is a facilities/PDU check, not a server fault.
+
+The Redfish equivalent returns the same class of information as structured JSON — a `GET /redfish/v1/Systems/1` gives `PowerState`, `Status.Health`, `ProcessorSummary`, `MemorySummary`, and links to `/Processors`, `/Memory`, `/EthernetInterfaces`, `/SecureBoot` — no field-offset guessing required, which is why fleet-scale health polling is built on Redfish, not IPMI, in any modern shop.
+
+## Firmware inventory and update workflow
+
+A GPU node's firmware surface is wider than a general-purpose server's:
+
+- **BIOS/UEFI** — boot mode, PCIe link training parameters, IOMMU/SR-IOV settings, NUMA/memory interleave — all of which affect GPU-to-GPU and GPU-to-NIC bandwidth.
+- **BMC firmware** — the management controller's own firmware; a BMC firmware bug can cause false sensor readings or SOL hangs.
+- **NIC firmware** — ConnectX/BlueField firmware revisions gate RoCE/InfiniBand feature support and interact with the driver (MLNX_OFED) version.
+- **GPU VBIOS** — gates ECC modes, power limits, and ties to the driver's supported VBIOS range; a stale VBIOS is a frequent cause of Xid errors that look like driver bugs.
+- **NVSwitch/NVLink firmware** on multi-GPU baseboards — affects fabric topology discovery.
+
+Workflow, in order, for bringing a node's firmware to baseline:
+
+```
+1. Inventory   : curl .../UpdateService/FirmwareInventory   (or vendor tool, e.g. dcgm/nvidia-smi -q for GPU VBIOS)
+2. Compare      : diff against the site's firmware baseline manifest (a pinned version per component per HW generation)
+3. Stage image  : push firmware payload to BMC (Redfish SimpleUpdate action, or vendor USC/Lifecycle Controller)
+4. Apply        : trigger update, most require a reboot; some (BMC-only) apply live
+5. Verify       : re-read inventory, confirm version matches baseline; check POST completes cleanly
+6. Log          : record serial + component + old/new version in the fleet firmware ledger (audit trail for driver compatibility claims later)
+```
+
+The reason step 2 (baseline manifest) matters operationally: NVIDIA driver releases publish a supported VBIOS/firmware compatibility range. If a fleet has mixed VBIOS revisions across nodes in the same Slurm partition, you get node-to-node inconsistency in ECC behavior or power capping that shows up as unexplained run-to-run variance in benchmark numbers — a support case that traces back to "we never enforced a firmware baseline" more often than teams expect.
+
+## PXE/network boot fundamentals
+
+Network boot is the mechanism by which a bare node with no OS on disk gets an installer or a stateless image without anyone touching a USB drive.
+
+```
+Boot sequence: DHCP → TFTP/HTTP → kernel/initrd handoff
+
+ [Node powers on, NIC PXE ROM initializes]
+        │
+        ▼
+ DHCPDISCOVER (broadcast) ──────────────► DHCP server
+        │                                  responds with DHCPOFFER:
+        │◄─────────────────────────────────  IP, next-server (TFTP/HTTP IP),
+        │                                     bootfile-name (e.g. undionly.kpxe /
+        │                                     grubx64.efi / snponly.efi)
+        ▼
+ DHCPREQUEST/ACK completes → node now has an IP + knows where to boot from
+        │
+        ▼
+ TFTP or HTTP GET of bootloader ────────► TFTP/HTTP server (often same box as DHCP)
+        │  (legacy BIOS: TFTP + PXELINUX/undionly;
+        │   UEFI HTTPBoot: straight HTTP GET, faster, no TFTP block-size games)
+        ▼
+ Bootloader fetches boot menu/config ───► (pxelinux.cfg/<mac> or grub.cfg)
+        │
+        ▼
+ Bootloader GETs kernel (vmlinuz) + initrd ► kernel decompresses, initrd loads
+        │
+        ▼
+ initrd mounts install source / stateless image (NFS root, squashfs, or kickstart/
+ cloud-init http source) → OS installer or stateless runtime takes over
+```
+
+Two failure classes dominate PXE troubleshooting: nothing offered (DHCP scope exhausted, PXE options not set on the DHCP server, or a rogue DHCP server on the segment answering first with wrong options), or offered-but-nothing-loads (TFTP blocked by a firewall/ACL, wrong `next-server` IP, boot filename mismatched to the node's firmware mode — legacy BIOS asking for an EFI bootloader or vice versa). `tcpdump -i <iface> port 67 or port 68 or port 69` on the boot network is the fastest way to see exactly where in this chain a specific node stalls.
+
+## RAID/boot-drive configuration before OS install
+
+Before any OS deployment tool can lay down a filesystem, the boot drive's RAID (or no-RAID/JBOD) topology has to exist as a block device the installer can see. This is configured either interactively in BIOS/RAID controller setup, or — for automation at scale — via the vendor's out-of-band RAID configuration API (often exposed through Redfish's `Storage` resource, or a vendor Lifecycle Controller/RACADM-equivalent tool) so it can be scripted as part of node bring-up rather than requiring a technician at a console. Common patterns for GPU nodes: RAID1 mirrored boot/OS drives for resilience, with local NVMe scratch left un-RAIDed (JBOD) since it's ephemeral job-local storage and mirroring it would only cost write bandwidth for no durability benefit anyone needs.
+
+## From bare node to "provisionable"
+
+A node is not ready for a cluster manager or Slurm/Kubernetes to claim it just because it powers on. "Provisionable" means:
+
+1. BMC reachable and authenticated (Redfish/IPMI credentials rotated off vendor defaults).
+2. Sensor health clean — no active critical/non-recoverable alarms.
+3. Firmware at or above the site's pinned baseline (BIOS, BMC, NIC, GPU VBIOS, NVSwitch).
+4. RAID/boot device configured and visible to the boot loader.
+5. PXE path validated — DHCP scope has an entry (or the node's MAC is in the provisioning system), TFTP/HTTP boot artifacts reachable from that node's boot VLAN.
+6. A health-check pass (burn-in/diagnostic — GPU memory test, NIC link test, storage SMART check) completed and recorded.
+
+Only after all six is a node handed to the next layer up — in this book's context, that is NVIDIA Base Command Manager (Chapter 2), which owns the actual OS image push and ongoing category-based configuration.
+
+## Worked scenario — a node that fails to PXE boot
+
+**Situation:** Node `gpu-node-14` was just RMA'd (new mainboard) and reinserted into the rack. It never appears in the provisioning system's "installing" state; the console shows it sitting at "PXE-E51: No DHCP or proxyDHCP offers were received."
+
+1. **Confirm the BMC/console is reachable at all.** `ipmitool -I lanplus -H <bmc-ip> ... sol activate` — if this fails, the problem is BMC network config, not PXE; fix that first, it's a prerequisite for diagnosing anything else.
+2. **Check whether the NIC is even asking.** From a span port or another box on the same VLAN: `tcpdump -i eth0 port 67 or port 68`. No DHCPDISCOVER seen at all from that MAC → the problem is upstream of the network: cabling, switch port not on the correct VLAN, or the PXE NIC port itself disabled in BIOS (common after a mainboard swap — BIOS defaults may re-enable a different NIC as primary, or disable PXE ROM on the intended port).
+3. **DHCPDISCOVER seen but no OFFER returned** → check the DHCP server's scope utilization and whether the node's MAC is registered (many provisioning systems require MAC pre-registration before offering a PXE-specific option set) — this is the single most common cause after a mainboard swap, since the RMA changed the MAC address and the old registration no longer matches.
+4. **OFFER received, but TFTP/HTTP fetch fails** (`PXE-E32`, `PXE-E11`, or an HTTPBoot TLS/404 error) → check firewall/ACL on the TFTP/HTTP path from that VLAN, and confirm boot-mode match (UEFI node requesting `grubx64.efi`/HTTPBoot vs. a scope only configured to hand out a legacy `undionly.kpxe` filename).
+5. **Files fetch but boot fails after kernel/initrd load** → likely not a PXE problem at all anymore; check the kickstart/cloud-init source reachability and RAID/boot-drive visibility — a fresh mainboard may have reset the RAID controller to a different default mode than the disks were configured under.
+
+**Interview-ready line:** "PXE failures decompose cleanly into four stages — no DHCP offer, offer but no file transfer, file transfer but boot-mode mismatch, and boot succeeds but the install source is unreachable — and `tcpdump` on the DHCP/TFTP ports tells you which stage you're actually in before you start guessing at firmware or cabling."
+
+**Mnemonic:** **"D-T-B-I"** — **D**HCP, **T**FTP/HTTP, **B**oot-mode match, **I**nstall source. Walk it in that order; each stage assumes the previous one succeeded.
+
+## Practice
+
+1. Explain the difference between IPMI and Redfish to someone who has only ever used `ipmitool`, and name one concrete reason a fleet-scale automation team would prefer Redfish.
+2. A `sensor list` shows a PSU status of `0x0` on a discrete sensor. Why is treating this as "PSU reads zero" the wrong interpretation, and what's the correct way to read a discrete sensor?
+3. Walk through, in order, the six checks that make a bare node "provisionable" rather than merely "powered on."
+4. A node PXE-boots successfully but lands in the wrong OS image. Which stage of the DHCP→TFTP/HTTP→kernel/initrd chain does this point to, and what specifically would you check first?
+5. Why does a GPU cluster need a firmware baseline manifest (pinned versions per component) rather than "just keep everything updated to latest," specifically with respect to driver/CUDA compatibility?

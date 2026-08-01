@@ -43,3 +43,18 @@ GPU 0: NVIDIA H100 80GB HBM3
                                 not a topology-configuration issue — this is health evidence, not placement evidence
 ```
 `topo -m` tells you the *intended* wiring; `nvlink --status` tells you whether each link is *actually* passing traffic at expected bandwidth right now — a down link changes the effective topology at runtime without changing what `topo -m` reports, which is why both commands belong in the same triage, not just one.
+
+➕ **Diagram: two GPUs, two ways home — the topology decides which one you pay for**
+```
+NUMA node 0                                    NUMA node 1
+┌────────────────────────────┐               ┌────────────────────────────┐
+│ CPU 0-15 + local RAM        │               │ CPU 16-31 + local RAM      │
+│      │                      │               │      │                    │
+│  PCIe root complex A        │──cross-node──▶│  PCIe root complex B       │
+│      │                      │  QPI/UPI hop  │      │                    │
+│  GPU0 ══NVLink══ GPU1       │  (slow, shared)│  GPU2 ══NVLink══ GPU3    │
+└────────────────────────────┘               └────────────────────────────┘
+        GPU0 ↔ GPU1 : one NVLink hop, no CPU involved   ← fast path
+        GPU0 ↔ GPU2 : PCIe → cross-node interconnect → PCIe  ← slow path
+```
+A process pinned to Node-0 CPUs feeding GPU2 (Node-1) pays the cross-node hop on every host-to-device copy — invisible to `nvidia-smi` utilization numbers, which only show the GPU side. `numactl --hardware` plus this chapter's `topo -m` is how you catch it before it shows up as an unexplained multi-GPU slowdown.

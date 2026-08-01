@@ -30,3 +30,29 @@ kubectl get clusterpolicy -o jsonpath='{.items[0].status.state}'
                         which is your entry point into the failure table's five rows above
 ```
 **Interview-ready line:** "ClusterPolicy status is the single top-level health check for the whole GPU software stack — if it's not `Ready`, don't chase individual operand pods yet, read *why* first."
+
+➕ **Diagram: ClusterPolicy's operand dependency order — why "not Ready" always has one specific bottom-most cause**
+```
+ClusterPolicy (desired state)
+        │
+        ▼
+ ┌─────────────────┐
+ │ Driver DaemonSet │  ← must be Ready first; nothing below can succeed without it
+ └────────┬─────────┘
+          ▼
+ ┌─────────────────┐
+ │ Toolkit DaemonSet│  ← configures container runtime for GPU access
+ └────────┬─────────┘
+          ▼
+ ┌───────────────────┐
+ │ Device plugin      │  ← advertises nvidia.com/gpu to the scheduler
+ └────────┬───────────┘
+          ▼
+ ┌───────────────────┐
+ │ DCGM / GFD / MIG   │  ← telemetry and labels; can lag without blocking scheduling
+ │ manager operands   │
+ └────────┬───────────┘
+          ▼
+   ClusterPolicy.status.state = Ready
+```
+Because each operand depends on the one above it, a stuck Driver DaemonSet cascades into every operand below reporting "not Ready" for a *different* reason each — reading the failure table top-down (driver first) instead of alphabetically or by pod-restart-count is what turns a five-operand outage into a one-line root cause.

@@ -41,3 +41,22 @@ _Figure A. GPU problems can originate in application, runtime, container integra
 *(original text — arithmetic intensity, SM/warp/Tensor Core model, prefill vs decode — preserved above; Chapter 1's enhanced content already has the full diagram, annotated `nvidia-smi`/`dmon` output, and the worked prefill/decode scenario for this exact material. Cross-reference rather than re-deriving.)*
 
 ➕ **The one genuinely new framing here vs Chapter 1: arithmetic intensity as a single number, not just a category.** Arithmetic intensity = FLOPs performed ÷ bytes moved from HBM. A GPU's own "balance point" (peak FLOPs ÷ peak HBM bandwidth) tells you the arithmetic intensity threshold above which you're compute-bound and below which you're memory-bandwidth-bound — e.g. an H100's balance point is roughly in the hundreds of FLOPs/byte. Large GEMMs in prefill comfortably exceed it; single-token decode matrix-vector operations fall well below it. This is the quantitative version of the qualitative "prefill is compute-bound, decode is memory-bound" claim — worth having the *shape* of this argument (a ratio compared against a hardware constant) ready, even without memorizing the exact balance-point number for a given GPU generation.
+
+➕ **Diagram: the roofline — where a kernel lands decides what "optimize" means**
+```
+ achievable
+ FLOPs/s
+    ▲
+    │              ┌──────────────────────────  peak compute (flat ceiling)
+    │             ╱│   ← large prefill GEMMs land here: compute-bound,
+    │            ╱ │     more bandwidth won't help, only more FLOPs/s will
+    │           ╱  │
+    │          ╱   │
+    │         ╱    │◀── the "balance point": FLOPs/s = bandwidth × arithmetic intensity
+    │        ╱     │
+    │       ╱      │   ← single-token decode matvecs land here: memory-bound,
+    │      ╱       │     more compute won't help, only more HBM bandwidth will
+    │     ╱ (slope = peak HBM bandwidth)
+    └────────────────────────────────────────▶ arithmetic intensity (FLOPs/byte)
+```
+The slope region and the flat ceiling need opposite fixes: a kernel under the slope wants less data movement (fusion, caching, batching), a kernel against the ceiling wants fewer FLOPs (lower precision, algorithmic reduction) — misdiagnosing which side of the roofline a kernel sits on is the single most common wasted-optimization-effort mistake.
