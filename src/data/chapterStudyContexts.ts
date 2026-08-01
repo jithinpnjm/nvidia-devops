@@ -13,10 +13,106 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
     "learningOutcome": "Curriculum map and guided learning flow for the NVIDIA Senior DevOps and AI Infrastructure Solutions Architect Academy.",
     "sections": [
+      "How the curriculum is now layered",
+      "Start with these bridges",
       "Guided tutor flow",
       "Source architecture"
     ],
-    "codeLanguages": []
+    "codeLanguages": [
+      "text"
+    ]
+  },
+  "Foundation learning path — start here if the domain is new": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "A prerequisite-first path through Linux, Python, AI, GPU, HPC, security and the senior curriculum.",
+    "sections": [
+      "Foundation learning path",
+      "Do not study in volume-number order yet",
+      "The six-pass chapter method",
+      "Learning levels used throughout the academy",
+      "Recommended routes",
+      "Route A — new to Linux, GPU, AI and HPC",
+      "Route B — experienced DevOps engineer, new to accelerated computing",
+      "Route C — interview refresh",
+      "Readiness gates",
+      "Before Kubernetes",
+      "Before Python infrastructure automation",
+      "Before NVIDIA/GPU operations",
+      "Before AI/HPC architecture",
+      "Before senior scenarios"
+    ],
+    "codeLanguages": [
+      "text"
+    ]
+  },
+  "Systems foundation — Linux, networking and security language": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "A beginner bridge for the operating-system, network and security terms used throughout the curriculum.",
+    "sections": [
+      "Systems foundation",
+      "One machine, five connected views",
+      "Linux nouns you need first",
+      "Trace one command",
+      "Networking without skipping the layers",
+      "Storage without treating every path as a local disk",
+      "Security as identity, permission, policy, and evidence",
+      "A safe service investigation",
+      "First evidence ladder for any Linux incident",
+      "Readiness check"
+    ],
+    "codeLanguages": [
+      "text",
+      "bash"
+    ]
+  },
+  "AI, GPU and HPC foundation — the language before the architecture": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "A beginner mental model for AI/ML workloads, NVIDIA GPU software and distributed HPC systems.",
+    "sections": [
+      "AI, GPU and HPC foundation",
+      "AI and ML in plain language",
+      "Why GPUs help",
+      "The compatibility stack",
+      "Performance: capacity, movement, and computation",
+      "From one GPU to many",
+      "One node, multiple GPUs",
+      "Multiple nodes",
+      "What HPC adds",
+      "Trace one distributed training step",
+      "First safe observations",
+      "Readiness check"
+    ],
+    "codeLanguages": [
+      "text",
+      "bash"
+    ]
+  },
+  "Python foundation lab — from zero to a safe health check": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "A gentle, runnable Python path for infrastructure engineers before the production Python volume.",
+    "sections": [
+      "Python foundation lab",
+      "Lab rules",
+      "Step 1 — values, names, and output",
+      "Step 2 — decisions",
+      "Step 3 — collections and loops",
+      "Step 4 — functions separate decisions from effects",
+      "Step 5 — read JSON as untrusted input",
+      "Step 6 — make the program operational",
+      "Step 7 — test the decision without touching files",
+      "What you built",
+      "Readiness gate for Volume 2"
+    ],
+    "codeLanguages": [
+      "bash",
+      "text",
+      "python",
+      "json"
+    ]
   },
   "Chapter 1 - Processes, threads, CPU scheduling and load": {
     "volume": "Volume 1",
@@ -224,7 +320,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "volume": "Volume 2",
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Book map — Python for Production Infrastructure.",
-    "sections": [],
+    "sections": [
+      "A gentler three-stage route",
+      "Stage 1 — become comfortable writing small programs",
+      "Stage 2 — cross operational boundaries safely",
+      "Stage 3 — make the tool maintainable and production-ready"
+    ],
     "codeLanguages": [
       "text"
     ]
@@ -901,7 +1002,9 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Quick cross-reference (so you use both halves together, not as duplicates)",
       "Deep Dive 1 — GPU execution model without CUDA-programming overload"
     ],
-    "codeLanguages": []
+    "codeLanguages": [
+      "text"
+    ]
   },
   "Senior Deep Dive 2 — Topology: PCIe, NVLink, NVSwitch and NUMA": {
     "volume": "Volume 4",
@@ -2043,6 +2146,337 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Current role-family signals to be able to discuss — JR2018680 Interview Preparation.",
     "sections": [
       "➕ Additions"
+    ],
+    "codeLanguages": [
+      "text"
+    ]
+  },
+  "Chapter 1 - Bare-metal and BMC/Redfish lifecycle": {
+    "volume": "Volume 10",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Understand what happens to a physical GPU server between \"racked and cabled\" and \"ready for an OS image\" — BMC access, firmware baselining, and network boot — and be able to diagnose why a specific node refuses to PXE boot.",
+    "sections": [
+      "Start here — build the physical-server mental model",
+      "Vocabulary before commands",
+      "Why this layer exists",
+      "IPMI vs Redfish",
+      "Accessing the BMC",
+      "IPMI — direct LAN access, or via ipmitool's \"lan\" interface",
+      "Redfish — HTTPS REST, works with curl or redfishtool",
+      "Firmware inventory and update workflow",
+      "PXE/network boot fundamentals",
+      "RAID/boot-drive configuration before OS install",
+      "From bare node to \"provisionable\"",
+      "Worked scenario — a node that fails to PXE boot",
+      "Practice"
+    ],
+    "codeLanguages": [
+      "text"
+    ]
+  },
+  "Chapter 2 - NVIDIA Base Command Manager (BCM)": {
+    "volume": "Volume 10",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Understand where a cluster-management layer like BCM sits relative to bare metal below it and Slurm/Kubernetes/Ansible/Terraform above and beside it, and be able to reason about a category-based rolling image upgrade without inventing exact CLI syntax you haven't verified.",
+    "sections": [
+      "Start here — BCM is the cluster's lifecycle manager",
+      "What BCM is, honestly",
+      "Architecture",
+      "Representative cmsh interaction",
+      "Upgrade/patch workflow for a BCM-managed cluster",
+      "Where BCM sits relative to Ansible/Terraform",
+      "Worked scenario — rolling a new image to a GPU category without an all-at-once outage",
+      "Practice"
+    ],
+    "codeLanguages": [
+      "text"
+    ]
+  },
+  "Chapter 3 - OS provisioning and Linux security hardening (RHEL/Ubuntu)": {
+    "volume": "Volume 10",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Understand automated OS provisioning (kickstart/cloud-init), the SELinux/AppArmor enforcement model and triage flow, a CIS-style hardening baseline, and why patch strategy on a GPU cluster is constrained by driver/kernel coupling in ways a stateless web-tier fleet is not.",
+    "sections": [
+      "Start here — installation, configuration, and hardening are different stages",
+      "A practical beginner investigation order",
+      "Automated OS provisioning",
+      "SELinux vs AppArmor",
+      "SELinux triage flow (real, not aspirational)",
+      "AppArmor triage flow",
+      "CIS-benchmark-style hardening baseline",
+      "Patch/update strategy on a GPU cluster",
+      "The hardening-vs-HPC-operations tension",
+      "Worked scenario — a routine kernel patch broke the GPU driver DKMS build fleet-wide",
+      "Practice"
+    ],
+    "codeLanguages": [
+      "text"
+    ]
+  },
+  "Chapter 4 - Ansible for infrastructure automation": {
+    "volume": "Volume 10",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Explain how Ansible's push model, inventory, and idempotency guarantees are used to make configuration changes across a GPU fleet safely and predictably — including why \"idempotent\" is a claim you verify, not one you assume.",
+    "sections": [
+      "Start here — read an Ansible run as a sentence",
+      "Push model and inventory",
+      "static inventory: /etc/ansible/hosts.ini",
+      "Playbooks, roles, and idempotency",
+      "Handlers and change notification",
+      "Ansible Vault for secrets",
+      "Dry-run and safe verification: --check and --diff",
+      "Rolling rollout with serial: — limiting blast radius",
+      "Annotated real run",
+      "Worked scenario — a playbook that looked idempotent but wasn't",
+      "Mnemonic",
+      "Practice"
+    ],
+    "codeLanguages": [
+      "text",
+      "yaml"
+    ]
+  },
+  "Chapter 5 - Terraform for infrastructure as code": {
+    "volume": "Volume 10",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Explain what Terraform state actually is, why it is the dangerous part of the tool rather than the syntax, and where the ownership boundary sits between Terraform and node-configuration tools like Ansible/BCM on a GPU-cluster-adjacent stack.",
+    "sections": [
+      "Start here — Terraform manages API objects, not arbitrary commands",
+      "Providers, resources, and the state file",
+      "Why state needs locking and a remote backend",
+      "Blast radius of a bad apply, and why -/+ is the line to fear",
+      "Mandatory plan review before apply",
+      "Modules for reusable GPU-cluster building blocks",
+      "Lifecycle and taint handling for a cloud GPU instance fleet",
+      "The ownership boundary: what Terraform should and shouldn't own",
+      "Worked scenario — manual console change, corrected destructively",
+      "Mnemonic",
+      "Practice"
+    ],
+    "codeLanguages": [
+      "text",
+      "hcl"
+    ]
+  },
+  "Chapter 6 - Slurm administration: HA, accounting and upgrades": {
+    "volume": "Volume 10",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Operate Slurm as a production service — controller/accounting-database high availability, multi-tenant fairshare via associations and QoS, node-state administration, safe version upgrades, and the cgroup/GRES configuration that binds jobs to specific GPUs.",
+    "sections": [
+      "Start here — follow one job through Slurm",
+      "slurmctld/slurmdbd high availability",
+      "slurm.conf",
+      "Accounting: associations and QoS for multi-tenant fairshare",
+      "Worked scenario — a fairshare misconfiguration that starved the fleet for weeks",
+      "Node state management",
+      "Version upgrades: why order and skew rules matter",
+      "cgroup and GRES configuration for GPU binding",
+      "/etc/slurm/gres.conf (on gpu-node-14, an 8-GPU node)",
+      "/etc/slurm/cgroup.conf",
+      "Mnemonic",
+      "Practice"
+    ],
+    "codeLanguages": [
+      "text"
+    ]
+  },
+  "Chapter 7 - MPI fundamentals for HPC/AI workloads": {
+    "volume": "Volume 10",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Explain what MPI actually is, how it bootstraps multi-node jobs under Slurm, how it differs from NCCL, and how to tell an MPI-level hang apart from an NCCL-level hang under time pressure.",
+    "sections": [
+      "Start here — one program, many cooperating processes",
+      "hello mpi.py — requires mpi4py and an MPI implementation",
+      "Ranks, communicators, point-to-point vs. collective",
+      "mpirun/mpiexec, PMI/PMIx, and Slurm",
+      "MPI collectives vs. NCCL collectives",
+      "Common failure modes",
+      "Debugging tools",
+      "Worked scenario",
+      "Practice"
+    ],
+    "codeLanguages": [
+      "text",
+      "python"
+    ]
+  },
+  "Chapter 8 - Enroot and Pyxis: unprivileged containers for HPC": {
+    "volume": "Volume 10",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Explain why HPC clusters run containers differently from Kubernetes, walk the Enroot/Pyxis workflow end to end, and diagnose a container that can't see the GPU.",
+    "sections": [
+      "Start here — separate the image, runtime, and scheduler integration",
+      "A safe progression for your first container job",
+      "Why not just run Docker on the cluster",
+      "What Enroot solves",
+      "→ downloads image, flattens layers, writes:",
+      "nvidia+pytorch+24.05-py3.sqsh (squashed rootless filesystem)",
+      "→ unpacks/registers a named, runnable container \"pt2405\" from the squash file",
+      "→ runs a command inside the container as the invoking user; --rw makes the",
+      "container filesystem writable for this invocation, --root maps the user to",
+      "container-root (still unprivileged on the host) for install-time operations",
+      "Pyxis: the Slurm SPANK plugin",
+      "Common failure modes",
+      "Worked scenario",
+      "Practice"
+    ],
+    "codeLanguages": [
+      "text"
+    ]
+  },
+  "Chapter 9 - Job provisioning, health gating and workflow orchestration": {
+    "volume": "Volume 10",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Trace the full chain from \"cluster exists\" to \"a job is safely running,\" explain why health gating sits between cluster-join and scheduling eligibility, and design a health-check gate that catches degraded — not just dead — hardware.",
+    "sections": [
+      "Start here — availability is not readiness",
+      "The full readiness pipeline",
+      "Why an unhealthy node accepting jobs is worse than running short",
+      "Prolog/epilog health gating in Slurm",
+      "Simplified Prolog/NHC-style health-check logic (pseudocode-realistic, not a full script)",
+      "Runs on a timer (HealthCheckInterval) AND/OR as Slurm Prolog before each job.",
+      "1. GPU count sanity — did a GPU silently fall off the PCIe bus?",
+      "2. DCGM diagnostic — deeper GPU health than a bare device count",
+      "3. NVLink status — link training/degradation the driver won't surface as a hard failure",
+      "4. Required filesystem mounts present (dataset/checkpoint paths a job will assume exist)",
+      "Job-provisioning patterns for AI/HPC",
+      "Worked scenario",
+      "Practice"
+    ],
+    "codeLanguages": [
+      "text",
+      "python",
+      "bash"
+    ]
+  },
+  "Chapter 10 - Coordinated cluster-wide software change management": {
+    "volume": "Volume 10",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Given a proposed change at any single layer of a GPU/AI cluster's software stack, build the compatibility matrix that change touches, design a canary that is actually representative of the fleet, and sequence a maintenance window that respects long-running HPC jobs instead of just evicting everything.",
+    "sections": [
+      "Start here — a change is a hypothesis with a blast radius",
+      "The problem: no layer changes alone",
+      "The compatibility matrix as the artifact you protect",
+      "Change sequencing: why order is not arbitrary",
+      "Canary at cluster scale, not Deployment scale",
+      "drain-when-idle, not evict-now — see maintenance-window planning below",
+      "apply firmware + OS + driver + CUDA + NCCL bump to gpu-node-{041..048} only",
+      "run canary-validation gate (below)",
+      "only on full pass: proceed to next wave",
+      "Canary-validation gate — a realistic checklist",
+      "Maintenance-window planning for HPC: you cannot just evict everything",
+      "Rollback planning when the change touches firmware",
+      "Worked scenario: the canary that wasn't representative",
+      "Mnemonic"
+    ],
+    "codeLanguages": [
+      "text"
+    ]
+  },
+  "Chapter 11 - CI/CD for infrastructure and cluster configuration": {
+    "volume": "Volume 10",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Design a CI/CD pipeline whose artifact is cluster state (node config, driver/CUDA image, Kubernetes/Slurm manifests) rather than an application binary, with the specific gates that make destructive infrastructure changes safe to automate instead of merely fast.",
+    "sections": [
+      "Start here — CI produces evidence; delivery controls mutation",
+      "Broader than application CI/CD",
+      "GitOps for cluster configuration",
+      "Pipeline stages for infrastructure changes",
+      "Annotated example: a merge-blocking plan-review gate",
+      "Golden node images as a CI pipeline output",
+      "Testing infrastructure changes safely: canary as the test environment",
+      "Worked scenario: the override that made the gate meaningless",
+      "Mnemonic",
+      "Interview-ready line",
+      "Practice"
+    ],
+    "codeLanguages": [
+      "text"
+    ]
+  },
+  "Chapter 12 - Customer runbooks, onboarding and best-practice documentation": {
+    "volume": "Volume 10",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Produce a runbook that a customer's on-call engineer can execute correctly at 3am under pressure without you in the room, and an onboarding guide that gives a new customer team enough context to make good decisions on day one — and know why these are two different documents, not one document written twice.",
+    "sections": [
+      "Start here — choose the document by the reader's task",
+      "Two documents, two audiences, two timeframes",
+      "Runbook template: symptom → verification → decision tree → mitigation → escalation → follow-up",
+      "Annotated example: \"Slurm node stuck in DRAIN state\"",
+      "Onboarding / best-practices guide template: overview → access → workflows → troubleshooting → contacts",
+      "Closing the loop with the rest of Volume 10",
+      "Worked scenario: the runbook that was actually a prose essay",
+      "Mnemonic",
+      "Interview-ready line",
+      "Practice"
+    ],
+    "codeLanguages": [
+      "text"
+    ]
+  },
+  "Senior Deep Dive 1 — BCM at fleet scale: node categories, image drift and health-check design": {
+    "volume": "Volume 10",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Senior Deep Dive 1 — BCM at fleet scale: node categories, image drift and health-check design — Bare-Metal, HPC Operations and Infrastructure-as-Code.",
+    "sections": [
+      "Before this deep dive — convert the basics into operational questions",
+      "Category inheritance and drift",
+      "Health-check taxonomy: three tiers, three remediation actions",
+      "Single head-node architecture: the SPOF problem",
+      "Worked scenario",
+      "diff shows: /etc/modprobe.d/nvidia.conf modified, /usr/lib/... nvidia-persistenced binary older",
+      "Interview-ready line"
+    ],
+    "codeLanguages": [
+      "text"
+    ]
+  },
+  "Senior Deep Dive 2 — Slurm HA and accounting internals": {
+    "volume": "Volume 10",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Senior Deep Dive 2 — Slurm HA and accounting internals — Bare-Metal, HPC Operations and Infrastructure-as-Code.",
+    "sections": [
+      "Before this deep dive — separate availability, durability, and correctness",
+      "What must be consistent for failover to be safe",
+      "Fairshare mechanics beyond \"there's a fairshare score\"",
+      "Account User RawShares NormShares RawUsage EffectvUsage FairShare",
+      "team-vision - 0.20 0.20 842391 0.34 0.62",
+      "Multi-cluster federation, briefly",
+      "Worked scenario",
+      "Interview-ready line"
+    ],
+    "codeLanguages": [
+      "text"
+    ]
+  },
+  "Senior Deep Dive 3 — MPI and NCCL joint debugging": {
+    "volume": "Volume 10",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Senior Deep Dive 3 — MPI and NCCL joint debugging — Bare-Metal, HPC Operations and Infrastructure-as-Code.",
+    "sections": [
+      "Before this deep dive — establish a known-good ladder",
+      "The layered decision tree",
+      "Environment-variable interactions that cause silent misconfiguration",
+      "Why \"worked with 2 nodes, hangs with 8\"",
+      "Worked scenario",
+      "Interview-ready line"
+    ],
+    "codeLanguages": [
+      "text"
+    ]
+  },
+  "Senior Deep Dive 4 — Coordinated firmware, driver and OS rollout across compute, network and storage": {
+    "volume": "Volume 10",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Senior Deep Dive 4 — Coordinated firmware, driver and OS rollout across compute, network and storage — Bare-Metal, HPC Operations and Infrastructure-as-Code.",
+    "sections": [
+      "Before this deep dive — map failure domains and dependency owners",
+      "Why network and storage firmware need their own validation track",
+      "Change windows sized to the job-length distribution, not the calendar",
+      "... compute p50/p90/p99 elapsed time from this",
+      "Blast-radius containment: sequencing by failure domain, not node list",
+      "Worked scenario",
+      "Interview-ready line"
     ],
     "codeLanguages": [
       "text"

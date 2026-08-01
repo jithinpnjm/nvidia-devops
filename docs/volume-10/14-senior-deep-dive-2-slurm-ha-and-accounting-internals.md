@@ -8,6 +8,18 @@ source_document: "Authored directly for the JR2018680 gap-coverage volume — no
 
 `docs/volume-10/06-slurm-administration-ha-accounting-and-upgrades.md` covers the operational surface of Slurm HA (primary/backup `slurmctld`), fairshare, and version upgrades. This deep dive covers the state-consistency mechanics that make failover *safe* rather than merely configured, the actual fairshare math, and multi-cluster federation.
 
+## Before this deep dive — separate availability, durability, and correctness
+
+These properties are related but not interchangeable:
+
+- **Availability:** clients can submit/query jobs and the scheduler can make progress.
+- **Durability:** queue, node, reservation, and accounting state survives failure.
+- **Correctness:** no resources are double-allocated and policy is applied consistently.
+
+An HA configuration file proves none of them by itself. Before continuing, be able to trace `sbatch → slurmctld → slurmd` and explain the separate role of `slurmdbd`. For every failover design, identify the authoritative state, consistency mechanism, failure detector, fencing/split-brain protection, recovery objective, and test method.
+
+A safe exercise uses a non-production cluster: submit a long sleep job and queued jobs, capture `squeue`, node state, controller logs, and accounting state, fail the primary through the supported procedure, then compare job IDs, allocations, reasons, and records after takeover. "Backup process started" is not the acceptance criterion; preserved behavior and state are.
+
 ## What must be consistent for failover to be safe
 
 A backup `slurmctld` is not a cold standby that simply starts scheduling when the primary disappears — if it started from empty state, every running job's allocation record, every pending job's position in the queue, and every node's current state would be lost or reconstructed wrong, and Slurm would either double-allocate resources or drop jobs. Failover is safe only because both controllers read and write the same `StateSaveLocation`:

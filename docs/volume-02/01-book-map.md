@@ -11,6 +11,28 @@ source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 
 From scripting syntax to reliable infrastructure tooling
 
+> **Prerequisite check:** If variables, `if`, loops, functions, tracebacks, JSON files, the main guard, or exit codes are not yet comfortable, complete the [Python foundation lab](../intro/05-python-foundation-lab.md) first. This volume should deepen a working beginner model, not force you to learn syntax and production design simultaneously.
+
+## A gentler three-stage route
+
+### Stage 1 — become comfortable writing small programs
+
+Complete the foundation lab, then Chapters 1–4. Run every example and change one input. Your goal is to predict behavior, read errors, and separate data from decisions—not to memorize Python terminology.
+
+**Gate:** Build a script that reads a JSON inventory, classifies each node, prints a result, and returns a documented exit code.
+
+### Stage 2 — cross operational boundaries safely
+
+Study Chapters 5–8: exceptions, resource cleanup, logging, subprocess, and HTTP. These chapters teach what happens when code touches files, processes, networks, credentials, and unreliable external systems.
+
+**Gate:** For each external operation, identify timeout, expected failure types, retry policy, sensitive data, observable log fields, and exit behavior.
+
+### Stage 3 — make the tool maintainable and production-ready
+
+Study Chapters 9–14, then the capstone. Classes, generators, decorators, concurrency, typing, tests, packaging, and CI/CD are introduced because the tool now has enough complexity to need them. Do not add them merely to appear advanced.
+
+**Gate:** Another engineer can install the tool, understand its CLI, run tests, diagnose a failure from logs, and modify one rule without invoking a real cluster.
+
 
 <!-- source-table:1 -->
 
@@ -29,6 +51,7 @@ Independent study guide based on public documentation and public practitioner ma
 
 | Part | What you learn | What you build |
 | --- | --- | --- |
+| 0. Beginner bridge | values, decisions, loops, functions, files, tracebacks, tests | one safe node-health script |
 | I. Python mental model | references, mutability, execution, functions | small inventory and log tools |
 | II. Infrastructure I/O | files, regex, JSON/YAML, environment, subprocess | config reader and diagnostics runner |
 | III. Reliability | exceptions, logging, APIs, retries | resilient API client |

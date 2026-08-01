@@ -8,6 +8,19 @@ source_document: "Authored directly for the JR2018680 gap-coverage volume — no
 
 `docs/volume-10/10-coordinated-cluster-wide-software-change-management.md` covers the compatibility matrix and canary rollout pattern for cluster-wide software changes. That chapter's model is largely compute-node-centric: driver/CUDA/container-toolkit versions validated on a canary node, then rolled forward. This deep dive covers what breaks when the change surface extends past compute nodes into network fabric and storage — because those two subsystems have compatibility matrices and blast radii that the compute canary process does not exercise at all.
 
+## Before this deep dive — map failure domains and dependency owners
+
+Draw the service path before planning the window:
+
+```text
+job → compute node → NIC/HCA → leaf/spine fabric → storage network → target/controller
+        firmware       firmware    switch OS/FW       client          array/FS
+```
+
+Annotate each component with owner, current and target version, redundancy/failover behavior, affected racks/tenants, validation test, rollback support, and recovery time. A component list is not enough: the important information is which workload paths share each component and can therefore fail together.
+
+Classify evidence at three levels. **Component health** says devices and links report healthy. **Path health** proves packets and I/O traverse the intended redundant paths. **Workload health** proves representative communication, checkpoint, restart, correctness, and performance. A rollout gate needs all three; green switch ports cannot prove that distributed checkpoints still meet their latency objective.
+
 ## Why network and storage firmware need their own validation track
 
 The compute-side compatibility matrix (driver × CUDA × container toolkit × kernel) is validated by running representative workloads on a canary node and checking for crashes, wrong results, or performance regressions on *that node*. This validates nothing about switch firmware, NIC firmware, or storage-controller firmware, because:

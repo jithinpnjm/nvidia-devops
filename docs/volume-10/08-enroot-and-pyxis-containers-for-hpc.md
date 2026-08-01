@@ -7,6 +7,32 @@ source_document: "Authored directly for the JR2018680 gap-coverage volume — no
 ---
 **Learning outcome:** Explain why HPC clusters run containers differently from Kubernetes, walk the Enroot/Pyxis workflow end to end, and diagnose a container that can't see the GPU.
 
+## Start here — separate the image, runtime, and scheduler integration
+
+The word "container" hides three different responsibilities:
+
+- An **image** is a packaged user-space filesystem plus metadata. It does not run by itself.
+- A **runtime** creates an isolated process view from that image. Enroot fills this role without a permanent privileged daemon.
+- A **scheduler integration** starts that runtime inside resources already allocated to a job. Pyxis connects Slurm to Enroot through Slurm's SPANK plugin interface.
+
+```text
+registry image → Enroot import/cache → unpacked root filesystem
+                                      ↓
+Slurm allocation → Pyxis options → Enroot process → host driver exposes assigned GPUs
+```
+
+The host still owns the kernel, NVIDIA kernel driver, devices, cgroups, network, and mounted storage. The image supplies user-space libraries and the application. This explains two frequent surprises: a container cannot carry its own Linux kernel, and shipping CUDA user-space libraries does not eliminate the need for a compatible host driver.
+
+### A safe progression for your first container job
+
+1. Prove the image can be imported and started without a GPU.
+2. Print identity, mounts, working directory, and environment inside it.
+3. Request one GPU through Slurm and run `nvidia-smi` inside the container.
+4. Run a tiny CUDA/framework device check.
+5. Only then add multiple GPUs, nodes, MPI/PMIx, NCCL, and production storage.
+
+At each step compare host, Slurm allocation, and container views. If Slurm allocates no GPU, Enroot cannot create one. If `/dev/nvidia*` is present but a framework fails, compare host driver and container user-space compatibility. If an image repeatedly downloads or extraction fills a filesystem, inspect Enroot cache/data paths and permissions. If a mount is absent, distinguish "source path missing on host" from "mount not requested" from "policy denied it."
+
 ## Why not just run Docker on the cluster
 
 Docker's architecture assumes a persistent, root-owned daemon (`dockerd`) that every container launch talks to over a socket. On a shared multi-tenant HPC node — where dozens of different research groups' jobs land on the same physical machine via Slurm, often back-to-back within minutes of each other — that model is a security and operational liability: any user who can reach the Docker socket can, in practice, get root on the host (mount `/`, `--privileged`, escape via a known daemon CVE), and running a long-lived daemon per compute node adds an attack surface and a failure mode (`dockerd` wedged = every container on that node is stuck) that HPC operators have historically refused to accept on shared supercomputing-style infrastructure. This is why traditional HPC sites containerized late and cautiously, and why Singularity/Apptainer and later Enroot emerged specifically to give researchers containers *without* a privileged daemon in the loop.

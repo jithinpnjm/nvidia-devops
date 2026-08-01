@@ -11,6 +11,35 @@ source_document: "00_Master_Index.docx"
 
 Fourth Edition curriculum — Senior Engineering Expansion
 
+> **New to one or more domains? Do not begin with the senior deep dives.** Start with the [Foundation learning path](./02-foundation-learning-path.md), then use the readiness gates to enter each volume at the right level. Senior professional experience does not imply prior Linux-kernel, Python, NVIDIA GPU, AI/ML, or HPC knowledge.
+
+## How the curriculum is now layered
+
+```text
+FOUNDATION BRIDGE
+systems language → Python starter lab → AI/GPU/HPC language
+        ↓
+CORE CHAPTERS
+normal path → vocabulary → observation → guided practice
+        ↓
+OPERATIONAL PRACTICE
+failure boundaries → troubleshooting → safe changes
+        ↓
+SENIOR DEPTH
+architecture → scale → trade-offs → customer/interview scenarios
+```
+
+Use the core chapters to learn a technology. Use senior deep dives only after you can explain and observe its normal path. Volume 9 tests communication and Volume 10 integrates many layers; neither should be used as the first explanation of those layers.
+
+### Start with these bridges
+
+| If this feels unfamiliar | Study first |
+|---|---|
+| Processes, memory, files, ports, DNS, systemd, permissions | [Systems foundation](./03-systems-foundation.md), then Volume 1 core chapters |
+| Python syntax, tracebacks, files, functions, tests | [Python foundation lab](./05-python-foundation-lab.md), then Volume 2 Chapters 1–8 |
+| Training, inference, CUDA, GPU memory, NCCL, MPI, Slurm, RDMA | [AI, GPU and HPC foundation](./04-ai-gpu-hpc-foundation.md), then Volumes 4–6 |
+| How to choose an order | [Foundation learning path](./02-foundation-learning-path.md) |
+
 
 <!-- source-table:1 -->
 
@@ -38,6 +67,7 @@ Independent study guide based on public documentation and public practitioner ma
 | 7 | Observability/reliability | question -> evidence -> hypothesis -> experiment |
 | 8 | Solutions architecture | discovery -> constraints -> options -> trade-offs -> recommendation |
 | 9 | Interview preparation | reasoning structure -> coding -> architecture -> customer scenarios |
+| 10 | Bare-metal and HPC operations | BMC/BCM -> OS/IaC -> Slurm/MPI/containers -> fleet change |
 
 
 # Guided tutor flow

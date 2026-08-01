@@ -7,6 +7,39 @@ source_document: "Authored directly for the JR2018680 gap-coverage volume — no
 ---
 **Learning outcome:** Understand what happens to a physical GPU server between "racked and cabled" and "ready for an OS image" — BMC access, firmware baselining, and network boot — and be able to diagnose why a specific node refuses to PXE boot.
 
+## Start here — build the physical-server mental model
+
+A server is really two computers sharing one chassis:
+
+- The **host** is the powerful machine that runs Linux, Slurm jobs, containers, and GPU workloads.
+- The **BMC** is a small management computer that watches and controls the host. It has its own network address and remains available when the host is powered off, provided the chassis still has AC power.
+
+This distinction explains a common beginner confusion: `ping` to the host OS can fail while the BMC still works. That is useful, not contradictory. You can use the BMC to inspect temperatures, read hardware events, open a remote console, or request a power cycle when Linux is unreachable.
+
+Learn the boot path as a sequence of owners:
+
+```text
+AC power → BMC starts → host power-on → BIOS/UEFI hardware checks
+         → boot device selected → PXE downloads boot files
+         → Linux kernel starts → systemd starts services → node joins cluster
+```
+
+When a node fails, first locate the last successful boundary. No BMC response points toward power, cabling, BMC configuration, or the management network. A visible BIOS screen but no PXE offer points toward boot order, DHCP, VLAN, or PXE services. A downloaded kernel that later panics is no longer a PXE discovery problem; investigate the image, kernel arguments, driver, or storage path.
+
+### Vocabulary before commands
+
+| Term | Plain-language meaning | Why you care |
+|---|---|---|
+| In-band | Management through the running host OS | Fails when Linux or the host network fails |
+| Out-of-band | Management through the independent BMC | Recovery path when the host is down |
+| BIOS/UEFI | Firmware that initializes hardware and chooses what boots | Wrong settings can hide devices or skip PXE |
+| PXE | Network-assisted boot process | Lets a fleet install an OS without local media |
+| DHCP | Supplies an address and tells a client where to boot | A wrong scope/VLAN can stop the process immediately |
+| TFTP/HTTP | Delivers bootloader, kernel, and installer/image data | A client may get DHCP yet fail during download |
+| Firmware | Low-level software inside BMCs, NICs, GPUs, switches, and drives | Versions form a compatibility set, not isolated upgrades |
+
+**Safety rule:** inventory and sensor reads are normally low risk. Power operations, firmware updates, BIOS changes, virtual-media mounts, and RAID changes are disruptive. Always identify the node, workload state, redundancy, and rollback path before using them.
+
 ## Why this layer exists
 
 Everything above Kubernetes or Slurm assumes a node that boots, reports sane sensors, and takes an OS image. That assumption is not free. A GPU node arriving from the factory or returning from RMA is a pile of firmware revisions, BIOS settings, and RAID/BMC defaults that have to be brought into a known state before any cluster manager touches it. In an NVIDIA DGX/HGX-class deployment this matters more than on commodity compute: GPU VBIOS, NVSwitch firmware, NIC firmware (ConnectX/BlueField), and BIOS/BMC firmware all have compatibility matrices against the driver and CUDA stack, and a mismatched revision is a common root cause of "GPU falls off the bus" or "NCCL init hangs" tickets that look like software bugs three layers up.

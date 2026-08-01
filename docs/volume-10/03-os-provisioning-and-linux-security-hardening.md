@@ -7,6 +7,34 @@ source_document: "Authored directly for the JR2018680 gap-coverage volume — no
 ---
 **Learning outcome:** Understand automated OS provisioning (kickstart/cloud-init), the SELinux/AppArmor enforcement model and triage flow, a CIS-style hardening baseline, and why patch strategy on a GPU cluster is constrained by driver/kernel coupling in ways a stateless web-tier fleet is not.
 
+## Start here — installation, configuration, and hardening are different stages
+
+For a beginner, "build the server" sounds like one action. Operations teams separate it into stages because each has a different failure mode and rollback:
+
+```text
+install OS → first-boot identity/network → configure role → harden → validate → admit work
+Kickstart     cloud-init/installer          Ansible       policy     tests      Slurm/BCM
+```
+
+- **Provisioning** gets a repeatable base operating system onto a machine.
+- **Configuration management** turns that base into a login node, controller, GPU worker, or storage client.
+- **Hardening** reduces attack surface and adds controls without breaking the node's required function.
+- **Validation** proves the machine can still boot, join identity services, see GPUs/network/storage, and run a representative job.
+
+Linux security is layered. File ownership and Unix permissions answer "which user can access this object?" `sudo` controls privileged commands. SSH controls remote entry. A host firewall controls network paths. SELinux or AppArmor adds **mandatory access control**: even a process running as the expected user can be denied an operation outside its policy. `auditd` records security-relevant events. None replaces the others.
+
+### A practical beginner investigation order
+
+When a hardened service fails, do not disable controls until it works. Record the exact failure and move upward through evidence:
+
+1. Is the service running, and what did systemd report? `systemctl status NAME` and `journalctl -u NAME`.
+2. Are identity, ownership, permissions, and paths correct? `id`, `namei -l PATH`, `getfacl PATH`.
+3. Is the expected port listening and reachable? `ss -lntup`, then test from the actual client network.
+4. Did SELinux/AppArmor deny it? Inspect the audit or kernel log and explain the denied action.
+5. Did a kernel, driver, or library change alter prerequisites? Compare the node with a known-good peer.
+
+The senior skill is preserving the control while correcting policy or configuration. Turning off SELinux, AppArmor, or the firewall proves only that a control participates in the symptom; it is not a production solution.
+
 ## Automated OS provisioning
 
 Once a node is provisionable (Chapter 1) and, if using a cluster manager, assigned to a category with a target image (Chapter 2), the actual OS install/config is driven by a declarative answer file rather than an interactive installer:

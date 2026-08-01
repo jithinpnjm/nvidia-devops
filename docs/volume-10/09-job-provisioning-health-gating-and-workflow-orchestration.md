@@ -7,6 +7,33 @@ source_document: "Authored directly for the JR2018680 gap-coverage volume — no
 ---
 **Learning outcome:** Trace the full chain from "cluster exists" to "a job is safely running," explain why health gating sits between cluster-join and scheduling eligibility, and design a health-check gate that catches degraded — not just dead — hardware.
 
+## Start here — availability is not readiness
+
+A node can answer SSH and still be unsafe for a distributed GPU job. It may have a missing GPU, a degraded fabric link, a stale mount, the wrong driver, or residue from the previous job. The purpose of health gating is to convert many low-level facts into one scheduling decision: **may this node receive work now?**
+
+```text
+provisioned → booted → configured → health-validated → scheduler-active
+                                                       ↓
+request → admitted → allocated → prolog → workload → epilog → accounted
+```
+
+Each arrow needs an owner, observable evidence, a timeout, and a failure action. A useful check is specific (one contract), bounded (cannot hang), actionable (expected and observed values), safe (critical uncertainty rejects work), and stable (does not drain a node for one noisy sample).
+
+Treat orchestration as a state machine, not a long shell script. Persist the current state and make transitions idempotent so a retry resumes safely:
+
+```python
+TRANSIENT = {"registry_timeout", "scheduler_busy", "temporary_dns"}
+
+def next_action(state: str, reason: str) -> str:
+    if state == "validated":
+        return "admit"
+    if reason in TRANSIENT:
+        return "retry_with_backoff"
+    return "quarantine_and_escalate"
+```
+
+Retries are for temporary failures, with a limit and backoff. A deterministic GPU diagnostic failure, incompatible driver, corrupt image, or failed firmware check should quarantine the node and preserve evidence. Blind retries turn a clear fault into queue delay and log noise.
+
 ## The full readiness pipeline
 
 A node being physically racked, powered, and network-cabled is nowhere near a node being safe to schedule jobs onto. Every layer this volume has covered up to this point — bare-metal provisioning, BCM/OS imaging, cluster-manager join, Slurm/Kubernetes membership — has to complete *and be verified* before a node should ever appear as schedulable capacity:

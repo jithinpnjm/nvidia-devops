@@ -7,6 +7,30 @@ source_document: "Authored directly for the JR2018680 gap-coverage volume — no
 ---
 **Learning outcome:** Explain what Terraform state actually is, why it is the dangerous part of the tool rather than the syntax, and where the ownership boundary sits between Terraform and node-configuration tools like Ansible/BCM on a GPU-cluster-adjacent stack.
 
+## Start here — Terraform manages API objects, not arbitrary commands
+
+Terraform compares a declaration of what should exist with what it previously managed and what the provider now observes. Four nouns unlock the rest:
+
+| Noun | Meaning | Example |
+|---|---|---|
+| Provider | Plugin that speaks an external API | AWS, Azure, Kubernetes, Vault |
+| Resource | One object Terraform owns | subnet, VM, IAM role, DNS record |
+| Configuration | Your desired declaration in `.tf` files | "this subnet must exist" |
+| State | Terraform's mapping between declarations and real object IDs | `aws_subnet.train` → `subnet-123` |
+
+The normal learning loop is deliberately small:
+
+```text
+terraform init → terraform validate → terraform plan → review → terraform apply
+get providers       syntax/schema         proposed diff      human       mutation
+```
+
+Suppose configuration says a subnet should use `10.20.0.0/24`. State says Terraform manages API object `subnet-123`. The provider reports that someone changed it outside Terraform. The plan reconciles those three views; it does not merely "run the file." That is why a plan must be read for creates (`+`), in-place changes (`~`), deletes (`-`), and replacements (`-/+`). A replacement is especially important for stateful or scarce GPU infrastructure because it destroys one object and creates another.
+
+Terraform state can contain identifiers and sensitive values. Store team state in an access-controlled remote backend with locking and encryption; do not commit it to Git or paste it casually into incident tickets. A saved plan is also sensitive and time-bound: review and apply the same artifact before the surrounding infrastructure changes.
+
+Finally, Terraform needs an API/provider. It cannot magically configure an arbitrary physical server. It can create API-managed networks, IAM, DNS, cloud GPU instances, and perhaps DCIM/BMC objects where suitable providers exist; BCM or Ansible usually owns the OS and node configuration after that boundary.
+
 ## Providers, resources, and the state file
 
 A provider (`aws`, `google`, `azurerm`, but also non-cloud providers like `vault`, `kubernetes`, or a colo/DCIM provider) is a plugin translating HCL resource blocks into API calls against a specific system. A resource block declares one managed object — a VPC, an IAM role, a storage bucket, a cloud GPU instance:

@@ -8,6 +8,29 @@ source_document: "Authored directly for the JR2018680 gap-coverage volume — no
 
 **Learning outcome:** Given a proposed change at any single layer of a GPU/AI cluster's software stack, build the compatibility matrix that change touches, design a canary that is actually representative of the fleet, and sequence a maintenance window that respects long-running HPC jobs instead of just evicting everything.
 
+## Start here — a change is a hypothesis with a blast radius
+
+Every production change asserts: "this new state will improve or preserve service." The change plan must say how you will test that assertion before exposing the whole fleet.
+
+| Question | Beginner answer | Production-quality answer |
+|---|---|---|
+| What changes? | "Upgrade the driver" | Exact current/target versions, packages, configs, images, and dependencies |
+| Where? | "GPU nodes" | Named categories, hardware generations, racks, partitions, and tenant impact |
+| How validated? | "`nvidia-smi` works" | Boot, diagnostics, representative training, network/storage, correctness, and performance thresholds |
+| When stop? | "If it fails" | Measurable abort conditions and decision owner |
+| How recover? | "Roll back" | Tested steps, retained artifacts/state, firmware downgrade constraints, and recovery time |
+
+Use four rollout stages:
+
+```text
+lab/reproduction → representative canary → limited failure-domain wave → fleet waves
+       evidence          compatibility          blast-radius check          scale
+```
+
+A canary must represent the compatibility dimensions affected by the change: GPU and NIC model, firmware, OS/kernel, rack/fabric path, storage path, workload type, and security policy. One convenient spare server is not representative merely because it is available.
+
+Before touching nodes, write entry conditions and backups, drain behavior, measurable success and abort thresholds, decision ownership, rollback steps, and a hold period between waves. Rollback is not always symmetric: configuration may revert quickly; database schema, firmware, filesystem metadata, and security material may not. When reversal is unsafe, plan roll-forward recovery, redundant capacity, or a vendor-supported restore before approval.
+
 ## The problem: no layer changes alone
 
 A Kubernetes Deployment rollout has one axis of versioning that matters operationally — the container image tag — and the platform (ReplicaSet, PDB, readiness probes) absorbs the rest. A GPU/AI cluster has no such single axis. The stack that has to agree with itself, node by node, looks like this:

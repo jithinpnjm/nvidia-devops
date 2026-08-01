@@ -8,6 +8,25 @@ source_document: "Authored directly for the JR2018680 gap-coverage volume — no
 
 **Learning outcome:** Produce a runbook that a customer's on-call engineer can execute correctly at 3am under pressure without you in the room, and an onboarding guide that gives a new customer team enough context to make good decisions on day one — and know why these are two different documents, not one document written twice.
 
+## Start here — choose the document by the reader's task
+
+Documentation is part of the operating system of a team. Choose its form from the decision the reader must make:
+
+| Document | Reader's question | Required shape |
+|---|---|---|
+| Concept/explanation | "How does this system work?" | Mental model, boundaries, examples |
+| Tutorial | "Can you teach me once, safely?" | Guided end-to-end learning exercise |
+| How-to/SOP | "How do I perform this known task?" | Preconditions, ordered procedure, validation |
+| Runbook | "How do I respond to this symptom now?" | Triage, decision branches, mitigation, escalation |
+| Reference | "What exactly does this field/command mean?" | Precise, searchable facts |
+| Design record | "Why did we choose this architecture?" | Context, options, decision, consequences |
+
+An operational step needs five things: **action, purpose, expected result, branch on unexpected result, and risk**. "Run `scontrol show node node042`" is incomplete. Say which fields matter, what healthy looks like, whether it is read-only, and where each result sends the responder next.
+
+Test documentation like code. Give it to an engineer who did not write it in a safe environment; begin with only the documented symptom and access; record ambiguity, missing prerequisites, unsafe copy/paste, and dead ends; then verify ownership, review date, supported versions, contacts, and links.
+
+For a new learner, onboarding should progress from architecture and vocabulary to read-only observation, a sandbox task, a controlled change, troubleshooting, and on-call shadowing. Access alone is not readiness. Define observable completion criteria such as: "can submit and explain a Slurm job, locate its logs/accounting, and diagnose three safe failure exercises."
+
 ## Two documents, two audiences, two timeframes
 
 ```

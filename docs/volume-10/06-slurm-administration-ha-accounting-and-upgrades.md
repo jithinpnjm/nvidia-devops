@@ -7,7 +7,29 @@ source_document: "Authored directly for the JR2018680 gap-coverage volume — no
 ---
 **Learning outcome:** Operate Slurm as a production service — controller/accounting-database high availability, multi-tenant fairshare via associations and QoS, node-state administration, safe version upgrades, and the cgroup/GRES configuration that binds jobs to specific GPUs.
 
-This chapter is the administrative layer on top of the scheduling model covered in `docs/volume-06/07-chapter-7-slurm-scheduling-model.md` and `docs/volume-06/13-senior-deep-dive-5-slurm-concepts-beyond-sbatch.md` — those establish jobs/allocations/steps, GRES vs TRES, and prolog/epilog behavior from a user-facing angle; this chapter does not re-derive any of that and assumes it as background.
+## Start here — follow one job through Slurm
+
+You do not need to master scheduler mathematics before operating the basics. Follow one submitted script:
+
+```text
+sbatch → slurmctld validates request → pending queue → scheduler selects nodes
+       → slurmd launches job step → task uses CPU/GPU/memory → accounting records result
+```
+
+- A **job** is the user's resource request and work description.
+- A **partition** is a scheduling pool with rules and eligible nodes; it is not a disk partition.
+- `slurmctld` is the controller that owns scheduling decisions and cluster state.
+- `slurmd` is the daemon on each compute node that launches and supervises work.
+- `slurmdbd` connects Slurm to the accounting database for historical usage and policy.
+- **GRES** describes generic resources such as particular GPUs on a node.
+- **TRES** is Slurm's countable accounting/scheduling model for CPU, memory, node, GPU, and other resources.
+- An **association** connects cluster, account, user, and optionally partition policy. A **QoS** adds limits and priority behavior.
+
+When a job is pending, begin with `squeue -j JOBID -o '%.18i %.9T %.30R'`: the reason field is evidence, not decoration. `Resources` means an eligible allocation is not currently free; `Priority` means other jobs rank higher; an association/QoS reason points toward policy; a node/configuration reason points toward eligibility. Do not "fix" every pending job by raising priority.
+
+When a node is `DRAIN`, preserve the recorded reason and inspect the node, daemon, hardware, GPU, network, and recent prolog/health output. Return it to service only after the fault is corrected and a validation job passes. `scontrol update NodeName=... State=RESUME` changes scheduler state; it does not repair hardware.
+
+This chapter builds on the deeper scheduling model in Volume 6, but the mental model above is enough to begin the administrative sections safely.
 
 ## slurmctld/slurmdbd high availability
 

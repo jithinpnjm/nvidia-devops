@@ -7,6 +7,42 @@ source_document: "Authored directly for the JR2018680 gap-coverage volume — no
 ---
 **Learning outcome:** Explain how Ansible's push model, inventory, and idempotency guarantees are used to make configuration changes across a GPU fleet safely and predictably — including why "idempotent" is a claim you verify, not one you assume.
 
+## Start here — read an Ansible run as a sentence
+
+Ansible answers: **on these machines, make these facts true**. Its basic nouns fit together like this:
+
+```text
+inventory group → play → ordered tasks → module → changed result → optional handler
+which hosts?       scope   desired actions   implementation            restart/reload
+```
+
+- An **inventory** names hosts and groups such as `gpu_nodes` or `login_nodes`.
+- A **play** maps a group to tasks and execution settings.
+- A **task** calls a **module** such as `package`, `template`, `service`, or `user`.
+- A **role** packages tasks, templates, defaults, handlers, and tests around one responsibility.
+- A **handler** runs only when notified by a task that actually changed something, commonly to restart a service.
+
+Prefer a purpose-built module over `shell` or `command`. A module can inspect current state and report `ok` when no action is needed. A shell command usually cannot know that unless you implement the detection yourself.
+
+```yaml
+- name: Keep chrony installed and running
+  hosts: gpu_nodes
+  become: true
+  tasks:
+    - name: Install the package
+      ansible.builtin.package:
+        name: chrony
+        state: present
+
+    - name: Enable and start the service
+      ansible.builtin.service:
+        name: chronyd
+        enabled: true
+        state: started
+```
+
+Run it twice in a disposable environment. The first run may report changes; the second should report none. That is the simplest idempotency test. `--check --diff` is valuable preview evidence, but modules and external commands do not all simulate perfectly. Production safety also needs syntax/lint tests, a small canary group, `serial`, explicit health checks, and an abort threshold.
+
 ## Push model and inventory
 
 Ansible has no persistent agent on managed hosts. A control node connects over SSH, pushes a Python-based module payload, executes it, and disconnects. There is nothing running on a compute node between runs — no daemon polling a server, no local state cache. This is the operational contrast worth having ready against BCM or Puppet: those run a resident agent that periodically re-converges toward a desired state on its own schedule; Ansible only acts when someone (or something) invokes `ansible-playbook`. That means Ansible cannot self-heal drift between runs — a node that gets manually changed at 2am stays changed until the next scheduled or manual run — but it also means there is no agent process consuming resources on every GPU node, no agent to patch/upgrade fleet-wide, and no agent-based attack surface to reason about.

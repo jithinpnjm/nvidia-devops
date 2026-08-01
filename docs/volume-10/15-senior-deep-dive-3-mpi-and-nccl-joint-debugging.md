@@ -8,6 +8,19 @@ source_document: "Authored directly for the JR2018680 gap-coverage volume — no
 
 `docs/volume-10/07-mpi-fundamentals-for-hpc-ai-workloads.md` covers MPI's process model and its relationship to NCCL (MPI for launch/coordination, NCCL for the actual GPU collective bandwidth). Volume 6's collective-communication material covers what NCCL rings/trees are and why they matter for AI training. This deep dive is the diagnostic procedure for the single most common senior-level incident in multi-node GPU training: **the job hangs at startup and neither team's first instinct (MPI logs, NCCL logs) is checked in the right order.**
 
+## Before this deep dive — establish a known-good ladder
+
+Do not begin with the full training command. Record a known-good result for each increasing layer:
+
+1. one process imports required libraries and sees its assigned GPU;
+2. all local MPI ranks start and complete a CPU barrier;
+3. ranks across two nodes complete a CPU collective;
+4. one node completes an NCCL collective on assigned GPUs;
+5. two nodes complete `nccl-tests` with expected topology and bandwidth;
+6. the smallest framework workload runs before scaling to the failing size.
+
+For every test, capture allocation, hosts, rank count, CPU/GPU binding, library versions, chosen interfaces/transports, exit status, duration, and relevant logs. Change one dimension at a time. This turns "distributed training hangs" into the first rung that changes from pass to fail and gives the network, scheduler, platform, or application owner a reproducible handoff.
+
 ## The layered decision tree
 
 A multi-node GPU job that hangs before producing any training output is failing at exactly one of four layers, and each layer has one diagnostic command that definitively rules it in or out. Debugging out of order — e.g., staring at `NCCL_DEBUG=INFO` output when the real problem is that half the MPI ranks never launched — wastes the most time on this class of incident.

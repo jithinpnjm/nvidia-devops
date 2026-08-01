@@ -8,6 +8,17 @@ source_document: "Authored directly for the JR2018680 gap-coverage volume — no
 
 `docs/volume-10/02-nvidia-base-command-manager.md` covers BCM's architecture — head node, node categories, software images, and the provisioning lifecycle. This deep dive covers three things that only surface once a fleet has been running for months rather than days: category drift, health-check taxonomy, and head-node HA.
 
+## Before this deep dive — convert the basics into operational questions
+
+Be comfortable explaining **head node, compute node, software image, category, desired state, and live state** from Chapter 2. Then ask the questions scale introduces:
+
+- If one node differs from its category, how will we detect it before a user's job does?
+- Which health failure should warn, drain, quarantine, reimage, or page a human?
+- Which BCM services and data must survive a head-node failure, and how is failover tested?
+- Can an operator reproduce every emergency fix from version-controlled desired state?
+
+Read this chapter with an evidence ladder in mind: fleet summary → category comparison → node-level observation → service/image logs → controlled remediation → post-remediation workload test. A dashboard showing green is the beginning of evidence, not the end.
+
 ## Category inheritance and drift
 
 A node category in BCM is a template: software image, kernel modules, roles, and a set of category-level configuration overlays that every member node inherits. The model only holds if every node's live state is *derived* from the category, never edited directly. In practice this breaks the first time someone SSHes into a struggling node and hand-fixes it under pressure — a driver downgrade to unblock a job, a `/etc/security/limits.conf` tweak to raise a file-descriptor cap, a manually-added udev rule for a flaky NIC.

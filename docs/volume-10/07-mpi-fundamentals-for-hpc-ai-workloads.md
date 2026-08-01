@@ -7,6 +7,41 @@ source_document: "Authored directly for the JR2018680 gap-coverage volume — no
 ---
 **Learning outcome:** Explain what MPI actually is, how it bootstraps multi-node jobs under Slurm, how it differs from NCCL, and how to tell an MPI-level hang apart from an NCCL-level hang under time pressure.
 
+## Start here — one program, many cooperating processes
+
+A normal Python or C program starts as one operating-system process. Distributed HPC programs start many copies of a program and give each process an identity called a **rank**. MPI provides the communication rules and library calls that let those ranks exchange data.
+
+Use this three-layer distinction:
+
+```text
+Slurm allocates machines/resources
+  └─ PMIx/launcher starts ranks and exchanges connection information
+       └─ MPI moves messages between ranks
+            └─ NCCL may move GPU tensors with GPU-optimized collectives
+```
+
+Slurm is not MPI: it decides where work may run. MPI is not NCCL: MPI is a broad process-communication standard, while NCCL specializes in GPU collectives. A training job may use all three.
+
+Start with a tiny experiment before a framework-sized workload:
+
+```python
+# hello_mpi.py — requires mpi4py and an MPI implementation
+from mpi4py import MPI
+
+comm = MPI.COMM_WORLD
+rank = comm.Get_rank()
+size = comm.Get_size()
+host = MPI.Get_processor_name()
+print(f"rank={rank}/{size} host={host}", flush=True)
+comm.Barrier()
+if rank == 0:
+    print("all ranks reached the barrier", flush=True)
+```
+
+Run locally with `mpirun -n 4 python hello_mpi.py`, then under a small Slurm allocation using the launcher approved for that cluster. Predict four unique ranks before running it. If fewer lines appear, debug process launch before CUDA or NCCL. If every rank prints but the barrier never completes, investigate rendezvous, network reachability, library consistency, and whether a rank exited. Only after MPI initialization and a CPU collective work should you move to GPU visibility and NCCL tests.
+
+This reduction method—one process, then many ranks on one node, then two nodes, then GPUs, then the real framework—is more valuable than memorizing dozens of debug variables.
+
 MPI (Message Passing Interface) is a **standard**, not a scheduler and not a single piece of software. It defines an API for process-to-process communication — point-to-point sends/receives and collective operations (broadcast, reduce, allreduce, gather, scatter, barrier) — that multiple vendors implement as libraries: OpenMPI, MVAPICH2, Intel MPI, Cray MPICH, NVIDIA's HPC-X (an OpenMPI-based distribution tuned for InfiniBand/NVLink). Code written against the MPI API (`MPI_Init`, `MPI_Send`, `MPI_Allreduce`, `MPI_Finalize`) can be linked against any of these implementations largely unmodified, but the implementations are not wire-compatible with each other — a process built against OpenMPI cannot join a communicator with a process built against MVAPICH2. That single fact explains most "it works on node A, hangs on node B" MPI incidents: a mismatched library version or vendor between nodes.
 
 ## Ranks, communicators, point-to-point vs. collective

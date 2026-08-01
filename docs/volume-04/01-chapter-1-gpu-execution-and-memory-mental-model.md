@@ -97,7 +97,7 @@ Every "GPU is slow" ticket in this role reduces to figuring out which of these f
         │ Host (DRAM)  │  hundreds of GB-TB, slowest tier, crossed only
         └─────────────┘  for transfers this chapter calls out as bottleneck #4
 ```
-Each step down this pyramid trades capacity for bandwidth and latency — a kernel that keeps its working set in registers/L1/shared memory never touches the HBM bandwidth ceiling from the diagram above; one that spills to HBM on every access is exactly the "memory-bandwidth-bound" case Chapter 1 diagnoses with `dmon`.
+Each step down this pyramid trades capacity against latency and available bandwidth. Frequent HBM traffic can contribute to a memory-bound workload, but `dmon` alone cannot prove that diagnosis. Confirm it with workload throughput/latency and a profiler such as Nsight Systems or Nsight Compute, using metrics appropriate to the actual kernel.
 
 ➕ **Annotated real `nvidia-smi` output (single-GPU node, field by field):**
 ```
@@ -114,7 +114,7 @@ $ nvidia-smi
 |                                          |                        |             Disabled |
 +-----------------------------------------------------------------------------------------+
 ```
-Reading order that matters in an incident: **`GPU-Util 97%`** looks great in isolation — but check **`Memory-Usage 71232/81559MiB`** (87% of HBM used, close to OOM headroom) and **`Pwr:Usage/Cap 312W/700W`** (only 45% of power budget) *together*. High util + low power draw + high memory pressure is the classic signature of a **memory-bandwidth-bound kernel** (SMs are busy waiting on HBM fetches, not doing FLOPs) — not a compute-bound one. `Perf P0` means the GPU is at its highest performance state (not throttled by power/thermal); if you saw `P2`/`P3` here instead, that's a different investigation entirely (clock throttling, covered in Chapter 6).
+Reading order that matters in an incident: **`GPU-Util 97%`** only says the sampling window observed GPU activity. **`Memory-Usage 71232/81559MiB`** describes allocated capacity, not memory bandwidth, and **`Pwr:Usage/Cap 312W/700W`** is another clue rather than a verdict. This combination justifies investigating memory traffic, workload starvation, clocks, power policy, and kernel behavior; it does not distinguish them by itself. `Perf P0` is a performance-state clue, but it also does not prove the absence of every throttle. Correlate application outcomes and profiler evidence before naming the bottleneck.
 
 ➕ **Annotated `nvidia-smi dmon -s pucvmet` output (the flag string is not arbitrary — `p`=power, `u`=utilization, `c`=clocks, `v`=violations/voltage, `m`=memory, `e`=ECC, `t`=temperature):**
 ```
@@ -139,10 +139,10 @@ The third sample is the interesting one: **`sm=22%`, `mem=8%`, `pclk` (SM clock)
 ```bash
 nvidia-smi --query-gpu=utilization.gpu,power.draw,power.limit,memory.used,memory.total --format=csv,noheader,nounits | \
   awk -F',' '{util=$1; pw=$2/$3*100; mem=$4/$5*100; printf "util=%s%% power=%.0f%% mem=%.0f%%", util, pw, mem;
-  if (util+0>85 && pw<60) print "  <- HIGH UTIL / LOW POWER = memory-bandwidth-bound, not compute-bound"; else print ""}'
+  if (util+0>85 && pw<60) print "  <- investigate: this pattern is a clue, not a bottleneck diagnosis"; else print ""}'
 ```
 
 ➕ **Practice (added — original chapter had no dedicated Practice section; this one anchors the chapter's core distinction):**
-1. Given only `nvidia-smi dmon -s pucvmet` output with `sm=98%`, `pclk` at max, and `power.draw` near `power.limit`, argue whether the kernel is compute-bound or memory-bandwidth-bound, and name the one additional metric that would prove it either way.
+1. Given only `nvidia-smi dmon -s pucvmet` output with `sm=98%`, `pclk` at max, and `power.draw` near `power.limit`, explain why you cannot yet decide whether the kernel is compute-bound or memory-bound. Name the workload metric and profiler evidence you would collect next.
 2. Explain to an interviewer why "GPU utilization" as reported by `nvidia-smi` is a *busy/idle* signal, not a FLOPs-achieved signal, using the prefill/decode scenario above without reciting it verbatim.
 3. ➕ Write the one-line `awk` triage above from memory during a mock interview; explain why `power.draw/power.limit` is a better throttling proxy than `temperature.gpu` alone (power caps trigger before thermal caps on most data-center GPUs under sustained load).

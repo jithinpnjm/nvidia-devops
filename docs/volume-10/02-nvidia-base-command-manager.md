@@ -7,6 +7,30 @@ source_document: "Authored directly for the JR2018680 gap-coverage volume — no
 ---
 **Learning outcome:** Understand where a cluster-management layer like BCM sits relative to bare metal below it and Slurm/Kubernetes/Ansible/Terraform above and beside it, and be able to reason about a category-based rolling image upgrade without inventing exact CLI syntax you haven't verified.
 
+## Start here — BCM is the cluster's lifecycle manager
+
+Imagine receiving 200 empty physical servers. Installing Linux manually, copying configuration to each node, and remembering which node has which image will not scale. BCM provides a control plane that turns those individual machines into a consistently managed cluster.
+
+Keep the tool boundaries clear:
+
+| Layer | Question it answers | Typical owner |
+|---|---|---|
+| BMC/Redfish | Can I power, inspect, and console the physical server? | Hardware lifecycle tooling |
+| BCM | Which image and cluster role should this node receive, and is it healthy? | Cluster lifecycle management |
+| Slurm | Which queued job gets which healthy resources? | Batch scheduling |
+| Kubernetes | Which declared services/pods should run and remain available? | Container orchestration |
+| Ansible | Which files, packages, users, and services should be configured? | Configuration management |
+| Terraform | Which API-managed infrastructure objects should exist? | Infrastructure provisioning |
+
+A **software image** is the reusable OS filesystem and installed stack. A **category** is a policy grouping: nodes in the same category inherit an image and common settings. A **head node** holds and serves that desired state; a **compute node** boots the result and runs work. This gives you a crucial diagnostic question: is the problem in the desired image, distribution of that image, or a node's live state after boot?
+
+```text
+category policy → software image → provisioning service → compute-node disk/RAM
+       desired state                                  observed state
+```
+
+Do not memorize `cmsh` snippets without checking your installed BCM release. Learn the object model and change workflow first, then verify syntax in the matching administrator manual. In BCM 11, provisioning behavior and external package ownership differ from older Bright/BCM releases; operational procedures must therefore be version-qualified rather than copied blindly from an older cluster.
+
 ## What BCM is, honestly
 
 NVIDIA Base Command Manager is a commercial cluster-management product (the descendant of Bright Cluster Manager, which NVIDIA acquired and rebranded) that automates the lifecycle of a bare-metal HPC/AI cluster: provisioning nodes from a head node, managing OS images centrally, monitoring health, and provisioning workload managers (Slurm, Kubernetes) on top. It is one layer above what Chapter 1 covered — BCM assumes nodes are already powered, BMC-reachable, and PXE-capable, and it owns everything from "here is a golden image" through "this node is now a healthy member of the Slurm partition."

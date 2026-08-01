@@ -8,6 +8,29 @@ source_document: "Authored directly for the JR2018680 gap-coverage volume — no
 
 **Learning outcome:** Design a CI/CD pipeline whose artifact is cluster state (node config, driver/CUDA image, Kubernetes/Slurm manifests) rather than an application binary, with the specific gates that make destructive infrastructure changes safe to automate instead of merely fast.
 
+## Start here — CI produces evidence; delivery controls mutation
+
+For infrastructure, a pipeline is not automatically safe because it is automated. **Continuous integration** checks a proposed change and produces reviewable evidence. **Delivery/deployment** promotes an approved, immutable artifact into increasingly important environments.
+
+```text
+pull request → lint/schema → unit/policy/security tests → plan/render evidence
+             → peer approval → canary apply → health gate → production waves
+```
+
+Different sources need different evidence:
+
+| Source | Artifact/evidence to promote |
+|---|---|
+| Terraform | Reviewed saved plan tied to commit and target workspace |
+| Ansible | Versioned role plus inventory diff and check/test results |
+| Golden image | Immutable image ID, package manifest, SBOM, signature, test report |
+| Kubernetes | Rendered manifests, policy results, signed container digests |
+| Slurm config | Validated bundle, semantic diff, controller/canary test |
+
+Do not rebuild between test and production; promote the same immutable artifact or digest. Keep credentials short-lived and environment-scoped. Protect logs and plan files because they can contain sensitive values.
+
+Rollback is pipeline logic, not a sentence in a ticket. Define whether recovery means Git revert plus reconciliation, applying the previous image/config artifact, restoring state, or rolling forward. Then test that path on a canary. A green syntax check cannot prove that a driver loads after reboot or a Slurm change preserves running jobs, so post-change operational gates remain mandatory.
+
 ## Broader than application CI/CD
 
 Volume 2's CI/CD chapter covers the pipeline for a Python package — lint, unit tests, build, publish — where the artifact is a wheel or a container image and the risk of a bad merge is a bad application release, cheaply rolled back. This chapter is about CI/CD applied to the infrastructure itself: Ansible playbooks, Terraform modules, and Kubernetes/Slurm manifests that describe cluster state, where the artifact is a *change to physical or near-physical reality* — a node's OS image, a driver version, a NIC firmware setting, a Slurm partition definition. The risk profile is different in kind, not just degree: a bad application release loses you a rollback window; a bad Terraform apply against a cloud VPC or a bad Ansible run against 200 bare-metal nodes can be destructive and only partially reversible, which is exactly the class of mistake this chapter's gates exist to prevent.
