@@ -100,4 +100,4 @@ It's tempting to read "Util: 80%" and conclude "this GPU is being used efficient
 - Explain why version compatibility between the driver, toolkit, and application matters, in terms of that stack.
 - Look at a `GPU Util` number from `nvidia-smi` and state what it does and doesn't prove, without treating it as a final verdict.
 
-**Continue to:** [Volume 4, Chapter 1 — GPU execution and memory mental model](/curriculum/volume-04/chapter-1-gpu-execution-and-memory-mental-model)
+**Continue to:** [Volume 4, Chapter 1 — GPU execution and memory mental model](/curriculum/volume-04/chapter-1-gpu-execution-and-memory-mental-model) *(quick-reference companion: [AI, GPU and HPC foundation](/curriculum/intro/ai-gpu-hpc-foundation))*

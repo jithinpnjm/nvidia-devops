@@ -85,4 +85,4 @@ And once it's just a count of numbers, "bigger models need more GPU memory" stop
 - Explain what a token is and why one-token-at-a-time generation is the reason prefill and decode exist as separate phases.
 - Explain why a model with more parameters requires more GPU memory, using the "more numbers to store and compute" logic rather than an appeal to complexity.
 
-**Continue to:** [Volume 5, Chapter 1 — Classify the AI workload before designing infrastructure](/curriculum/volume-05/chapter-1-classify-the-ai-workload-before-designing-infrastructure)
+**Continue to:** [Volume 5, Chapter 1 — Classify the AI workload before designing infrastructure](/curriculum/volume-05/chapter-1-classify-the-ai-workload-before-designing-infrastructure) *(quick-reference companion: [AI, GPU and HPC foundation](/curriculum/intro/ai-gpu-hpc-foundation))*

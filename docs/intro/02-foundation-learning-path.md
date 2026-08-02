@@ -60,21 +60,32 @@ Do not call a subject "complete" because you read it. Mark the highest level you
 
 ## Recommended routes
 
+### Volume 0 is the fully-explained version of this path
+
+The stages above are taught in full, narrative, one-concept-at-a-time form as **Volume 0: Foundations Primer** — start there, in order, chapter by chapter. It builds every mental model from zero with plain-language definitions, concrete analogies, worked "evidence versus proof" examples, check-your-understanding questions with immediate answers, and a closing glossary and readiness checklist per chapter, ending each chapter with a direct link into the matching advanced volume.
+
+The three pages linked below ([Systems foundation](./03-systems-foundation.md), [AI, GPU and HPC language](./04-ai-gpu-hpc-foundation.md), [Python foundation lab](./05-python-foundation-lab.md)) are **compressed reference companions** — dense tables and a hands-on guided lab, good for a fast lookup or a second pass once the concept is already familiar, but not the place to meet a brand-new concept for the first time. Read the matching Volume 0 chapter first; come back to these for a quick refresher before an interview.
+
 ### Route A — new to Linux, GPU, AI and HPC
 
-1. [Systems language for Linux, networking and security](./03-systems-foundation.md)
-2. Volume 1, Chapters 1–6 only; postpone its senior deep dives.
-3. [Python from zero to safe automation](./05-python-foundation-lab.md)
-4. Volume 2, Chapters 1–8; build the small exercises before advanced Python.
-5. Volume 3, Chapters 1–6 for Kubernetes fundamentals.
-6. [AI, GPU and HPC language](./04-ai-gpu-hpc-foundation.md)
-7. Volume 4, Chapters 1–6; then Volume 5, Chapters 1–5.
-8. Volume 6, Chapters 1–8; then Volume 7 incident chapters.
-9. Return to deep dives, Volume 10, architecture, and interview volumes.
+1. [Volume 0, Chapter 1 — How to use this book: evidence, not proof](/curriculum/volume-00/1-how-to-use-this-book-evidence-not-proof)
+2. [Volume 0, Chapter 2 — Linux fundamentals](/curriculum/volume-00/2-linux-fundamentals-before-volume-1) *(companion reference: [Systems foundation](./03-systems-foundation.md))*
+3. [Volume 0, Chapter 3 — Networking fundamentals](/curriculum/volume-00/3-networking-fundamentals-before-volume-1-and-6) *(companion reference: [Systems foundation](./03-systems-foundation.md))*
+4. [Volume 0, Chapter 10 — Storage and filesystem fundamentals](/curriculum/volume-00/10-storage-and-filesystem-fundamentals-before-volume-1-and-6) *(companion reference: [Systems foundation](./03-systems-foundation.md))*
+5. Volume 1, Chapters 1–6 only; postpone its senior deep dives.
+6. [Volume 0, Chapter 9 — Python fundamentals](/curriculum/volume-00/9-python-fundamentals-before-the-labs) *(hands-on companion lab: [Python from zero to safe automation](./05-python-foundation-lab.md))*
+7. Volume 2, Chapters 1–8; build the small exercises before advanced Python — or start at [Senior DevOps labs, Tier 1](/labs) if you'd rather learn by doing.
+8. [Volume 0, Chapter 4 — Containers and Kubernetes fundamentals](/curriculum/volume-00/4-containers-and-kubernetes-fundamentals-before-volume-3)
+9. Volume 3, Chapters 1–6 for Kubernetes fundamentals.
+10. [Volume 0, Chapter 5 — NVIDIA GPU and CUDA fundamentals](/curriculum/volume-00/5-nvidia-gpu-and-cuda-fundamentals-before-volume-4), [Chapter 6 — AI and machine learning fundamentals](/curriculum/volume-00/6-ai-and-machine-learning-fundamentals-before-volume-5), and [Chapter 7 — HPC fundamentals](/curriculum/volume-00/7-hpc-fundamentals-before-volume-6-and-10) *(companion reference: [AI, GPU and HPC language](./04-ai-gpu-hpc-foundation.md))*
+11. Volume 4, Chapters 1–6; then Volume 5, Chapters 1–5.
+12. Volume 6, Chapters 1–8; then Volume 7 incident chapters.
+13. [Volume 0, Chapter 8 — Linux and cluster security fundamentals](/curriculum/volume-00/8-linux-and-cluster-security-fundamentals-before-volume-10) before Volume 10's security chapter.
+14. Return to deep dives, Volume 10, architecture, and interview volumes.
 
 ### Route B — experienced DevOps engineer, new to accelerated computing
 
-Skim the systems foundation and prove its readiness checks. Then study the AI/GPU/HPC foundation, Volume 4, Volume 5, Volume 6, and Volume 10. Use Volumes 1–3 only when a readiness check exposes a gap.
+Skim Volume 0 Chapters 5–7 (GPU/CUDA, AI/ML, HPC) and prove their readiness checks — use the [AI, GPU and HPC language](./04-ai-gpu-hpc-foundation.md) companion page as a fast second-pass reference. Then study Volume 4, Volume 5, Volume 6, and Volume 10. Use Volume 0 Chapters 1–3, 8, 10 and Volumes 1–3 only when a readiness check exposes a gap.
 
 ### Route C — interview refresh
 

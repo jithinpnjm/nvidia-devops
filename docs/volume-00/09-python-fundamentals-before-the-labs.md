@@ -417,4 +417,4 @@ You now have every basic building block — variables, types, lists, dicts, cond
 - Explain what a `try`/`except KeyError:` block does, and why catching a specific exception type is better than catching everything.
 - Explain what a lab's "Run tests" button is actually checking, in terms of `assert` statements comparing your function's return value to an expected one.
 
-**Continue to:** [Senior DevOps engineering labs](/labs) — start with Tier 1.
+**Continue to:** [Senior DevOps engineering labs](/labs) — start with Tier 1. *(hands-on companion: [Python foundation lab](/curriculum/intro/python-foundation-lab), which builds one complete health-check program step by step)*

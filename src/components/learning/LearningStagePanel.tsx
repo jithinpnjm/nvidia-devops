@@ -10,10 +10,18 @@ type Stage = {
 function stageFor(title: string, route: string): Stage {
   const normalized = title.toLowerCase();
 
+  if (route.includes('/volume-00/')) {
+    return {
+      label: 'Volume 0 — Foundations Primer',
+      summary: 'No prior domain knowledge is assumed. This chapter builds one mental model from zero before naming any advanced term.',
+      action: 'Finish this chapter\'s readiness checklist before moving into the advanced volume it links to.',
+    };
+  }
+
   if (route.includes('/intro/') && normalized.includes('foundation')) {
     return {
-      label: 'Foundation bridge',
-      summary: 'No prior domain knowledge is assumed. Learn the nouns, normal path, and first safe observations here.',
+      label: 'Foundation bridge (compressed reference)',
+      summary: 'This is a dense reference companion, not the first explanation of these terms. Read the matching Volume 0 chapter first if this is genuinely new.',
     };
   }
 

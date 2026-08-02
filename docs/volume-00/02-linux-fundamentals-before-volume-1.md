@@ -145,4 +145,4 @@ A: A language-level dependency manager such as npm or pip — same core problem 
 - Explain why the shell is a program and not the kernel.
 - State, in one sentence, what problem a package manager solves beyond "installing files."
 
-**Continue to:** [Volume 1, Chapter 1 — Processes, threads, CPU scheduling and load](/curriculum/volume-01/chapter-1-processes-threads-cpu-scheduling-and-load)
+**Continue to:** [Volume 1, Chapter 1 — Processes, threads, CPU scheduling and load](/curriculum/volume-01/chapter-1-processes-threads-cpu-scheduling-and-load) *(quick-reference companion: [Systems foundation](/curriculum/intro/systems-foundation))*

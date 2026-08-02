@@ -11,7 +11,7 @@ source_document: "00_Master_Index.docx"
 
 Fourth Edition curriculum — Senior Engineering Expansion
 
-> **New to one or more domains? Do not begin with the senior deep dives.** Start with the [Foundation learning path](./02-foundation-learning-path.md), then use the readiness gates to enter each volume at the right level. Senior professional experience does not imply prior Linux-kernel, Python, NVIDIA GPU, AI/ML, or HPC knowledge.
+> **New to one or more domains? Do not begin with the senior deep dives.** Start with **[Volume 0: Foundations Primer](/curriculum/volume-00/1-how-to-use-this-book-evidence-not-proof)** — ten chapters that build every mental model (Linux, networking, storage, containers/Kubernetes, NVIDIA GPU/CUDA, AI/ML, HPC, security, Python) from zero, in plain language, before Volumes 1-10 use that vocabulary at speed. The [Foundation learning path](./02-foundation-learning-path.md) is the route map sequencing Volume 0 alongside Volumes 1-10 and the readiness gates for entering each at the right level. Senior professional experience does not imply prior Linux-kernel, Python, NVIDIA GPU, AI/ML, or HPC knowledge.
 
 ## How the curriculum is now layered
 
@@ -35,9 +35,12 @@ Use the core chapters to learn a technology. Use senior deep dives only after yo
 
 | If this feels unfamiliar | Study first |
 |---|---|
-| Processes, memory, files, ports, DNS, systemd, permissions | [Systems foundation](./03-systems-foundation.md), then Volume 1 core chapters |
-| Python syntax, tracebacks, files, functions, tests | [Python foundation lab](./05-python-foundation-lab.md), then Volume 2 Chapters 1–8 |
-| Training, inference, CUDA, GPU memory, NCCL, MPI, Slurm, RDMA | [AI, GPU and HPC foundation](./04-ai-gpu-hpc-foundation.md), then Volumes 4–6 |
+| Processes, memory, files, ports, DNS, systemd, permissions | [Volume 0, Chapters 1-3](/curriculum/volume-00/1-how-to-use-this-book-evidence-not-proof) (compressed reference: [Systems foundation](./03-systems-foundation.md)), then Volume 1 core chapters |
+| Storage, filesystems, mounts, local vs. shared/network storage | [Volume 0, Chapter 10](/curriculum/volume-00/10-storage-and-filesystem-fundamentals-before-volume-1-and-6), then Volume 1 Chapter 3 or Volume 6 Chapter 6 |
+| Python syntax, tracebacks, files, functions, tests | [Volume 0, Chapter 9](/curriculum/volume-00/9-python-fundamentals-before-the-labs) (hands-on companion: [Python foundation lab](./05-python-foundation-lab.md)), then Volume 2 Chapters 1–8 |
+| Containers, Kubernetes objects, reconciliation | [Volume 0, Chapter 4](/curriculum/volume-00/4-containers-and-kubernetes-fundamentals-before-volume-3), then Volume 3 core chapters |
+| Training, inference, CUDA, GPU memory, NCCL, MPI, Slurm, RDMA | [Volume 0, Chapters 5-7](/curriculum/volume-00/5-nvidia-gpu-and-cuda-fundamentals-before-volume-4) (compressed reference: [AI, GPU and HPC foundation](./04-ai-gpu-hpc-foundation.md)), then Volumes 4–6 |
+| Linux/cluster security, SELinux/AppArmor, patch risk | [Volume 0, Chapter 8](/curriculum/volume-00/8-linux-and-cluster-security-fundamentals-before-volume-10), then Volume 10 Chapter 3 |
 | How to choose an order | [Foundation learning path](./02-foundation-learning-path.md) |
 
 

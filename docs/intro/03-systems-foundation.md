@@ -10,6 +10,8 @@ source_document: "Authored directly as the beginner-to-senior curriculum bridge.
 
 This chapter is a map, not a replacement for Volume 1. Its purpose is to give unfamiliar terms a place before the detailed chapters use them.
 
+> **Meeting these terms for the first time?** This page is a compressed reference — tables and short definitions, not a full teaching walkthrough. For the fully explained version with analogies, worked "evidence vs. proof" examples, and check-your-understanding questions, read [Volume 0, Chapters 2 (Linux)](/curriculum/volume-00/2-linux-fundamentals-before-volume-1), [3 (Networking)](/curriculum/volume-00/3-networking-fundamentals-before-volume-1-and-6), and [10 (Storage)](/curriculum/volume-00/10-storage-and-filesystem-fundamentals-before-volume-1-and-6) first, then come back here for a fast refresher.
+
 ## One machine, five connected views
 
 ```text

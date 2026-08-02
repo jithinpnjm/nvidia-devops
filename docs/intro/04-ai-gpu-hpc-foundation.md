@@ -10,6 +10,8 @@ source_document: "Authored directly as the beginner-to-senior curriculum bridge.
 
 You do not need to become a data scientist or CUDA developer to operate AI infrastructure. You do need to understand what work the application performs, where data moves, and which infrastructure layer owns each step.
 
+> **Meeting these terms for the first time?** This page is a compressed reference — tables and short definitions, not a full teaching walkthrough. For the fully explained version with analogies (the spreadsheet analogy for GPU parallelism, the four-layer driver/CUDA stack, the "what one `nvidia-smi` number does and doesn't prove" breakdown) and check-your-understanding questions, read [Volume 0, Chapter 5 (GPU/CUDA)](/curriculum/volume-00/5-nvidia-gpu-and-cuda-fundamentals-before-volume-4), [Chapter 6 (AI/ML)](/curriculum/volume-00/6-ai-and-machine-learning-fundamentals-before-volume-5), and [Chapter 7 (HPC)](/curriculum/volume-00/7-hpc-fundamentals-before-volume-6-and-10) first, then come back here for a fast refresher.
+
 ## AI and ML in plain language
 
 - **Artificial intelligence (AI)** is the broad field of systems performing tasks associated with human intelligence.
