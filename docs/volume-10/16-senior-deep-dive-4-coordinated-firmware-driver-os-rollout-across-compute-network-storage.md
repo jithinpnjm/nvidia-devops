@@ -12,9 +12,21 @@ source_document: "Authored directly for the JR2018680 gap-coverage volume — no
 
 Draw the service path before planning the window:
 
-```text
-job → compute node → NIC/HCA → leaf/spine fabric → storage network → target/controller
-        firmware       firmware    switch OS/FW       client          array/FS
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["job"]
+  n1["compute node"]
+  n2["NIC/HCA"]
+  n3["leaf/spine fabric"]
+  n4["storage network"]
+  n5["target/controller"]
+  n6["firmware firmware switch OS/FW client array/FS"]
+  n0 --> n1
+  n1 --> n2
+  n2 --> n3
+  n3 --> n4
+  n4 --> n5
 ```
 
 Annotate each component with owner, current and target version, redundancy/failover behavior, affected racks/tenants, validation test, rollback support, and recovery time. A component list is not enough: the important information is which workload paths share each component and can therefore fail together.
@@ -30,36 +42,38 @@ The compute-side compatibility matrix (driver × CUDA × container toolkit × ke
 
 The dangerous scenario is not "network/storage changes are risky" in the abstract — it's that a **compute-side change can pass its canary perfectly** while an unrelated storage-controller firmware update, queued in the same maintenance window because "we had a window anyway," changes I/O latency in a way the canary process never tests, because the canary process's success criteria was written for driver/CUDA correctness, not for checkpoint I/O latency:
 
-```
-Maintenance window: 2026-08-02 02:00–06:00
-┌───────────────────────────────┐   ┌───────────────────────────────┐
-│ COMPUTE CHANGE                 │   │ STORAGE CHANGE (same window)   │
-│ driver 550→560, canary-tested  │   │ NVMe-oF target controller       │
-│ on node-canary-01, workload    │   │ firmware v3.2→v3.4, applied     │
-│ correctness + perf: PASS       │   │ cluster-wide (no per-node        │
-│                                 │   │ canary concept for shared        │
-│                                 │   │ storage backend)                 │
-└───────────────┬───────────────┘   └───────────────┬───────────────┘
-                │ rolled forward,                     │ applied same night,
-                │ compute side "validated"             │ NOT covered by the
-                ▼                                       │ compute canary's
-   Training job resumes Monday                          │ success criteria
-   with new driver — correct                            ▼
-   results, no crashes                        Checkpoint write latency now
-                                               ~40ms higher p99 (controller
-                                               firmware changed queue-depth
-                                               behavior under sustained
-                                               write bursts)
-                                                         │
-                                                         ▼
-                                          Job's checkpoint cadence (tuned
-                                          assuming old latency profile)
-                                          now causes checkpoint writes to
-                                          overrun into the next training
-                                          step — throughput regression
-                                          misattributed to the driver
-                                          change, because that's the
-                                          change everyone was watching
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["Maintenance window: 2026-08-02 02:00–06:00"]
+  n1["COMPUTE CHANGE STORAGE CHANGE (same window)"]
+  n2["driver 550"]
+  n3["560, canary-tested NVMe-oF target controller"]
+  n4["on node-canary-01, workload firmware v3.2"]
+  n5["v3.4, applied"]
+  n6["correctness + perf: PASS cluster-wide (no per-node"]
+  n7["canary concept for shared"]
+  n8["storage backend)"]
+  n9["rolled forward, applied same night,"]
+  n10["compute side 'validated' NOT covered by the"]
+  n11["compute canary's"]
+  n12["Training job resumes Monday success criteria"]
+  n13["with new driver — correct"]
+  n14["results, no crashes Checkpoint write latency now"]
+  n15["~40ms higher p99 (controller"]
+  n16["firmware changed queue-depth"]
+  n17["behavior under sustained"]
+  n18["write bursts)"]
+  n19["Job's checkpoint cadence (tuned"]
+  n20["assuming old latency profile)"]
+  n21["now causes checkpoint writes to"]
+  n22["overrun into the next training"]
+  n23["step — throughput regression"]
+  n24["misattributed to the driver"]
+  n25["change, because that's the"]
+  n26["change everyone was watching"]
+  n2 --> n3
+  n4 --> n5
 ```
 
 The postmortem cost here is entirely attributable to treating "things happening in the same maintenance window" as one validated change instead of two independent changes each needing its own compatibility/impact validation — the driver bump was innocent; the storage firmware was the actual regression; and because only the compute change had a formal canary/rollback gate, the storage change had no equivalent checkpoint before it was already live cluster-wide.
@@ -84,16 +98,17 @@ A change that must eventually reach 100% of the fleet (a security patch, a manda
 
 The pattern is to sequence by the physical failure-domain/rail boundaries described in volume 6's fabric material: one rack (one leaf switch's worth of nodes, one power domain) at a time, and within a multi-rail fabric, further split by rail so a bad change never touches more than one rail's coverage of a given rack in the first wave.
 
-```
-Fleet: 16 racks × 8 nodes, 2 rails per rack
-
-Wave 1: rack-03 ONLY, rail A nodes only (4 of 8 nodes in rack-03)
-        → validate: health checks pass, NCCL self-test across rail A
-          in rack-03 clean, no Tier-1/Tier-2 health findings
-Wave 2: rack-03 remaining rail B nodes (contained: still one rack)
-        → validate again before leaving the rack
-Wave 3: remaining racks, one full rack at a time, same rail-split
-        pattern, each wave gated on the previous wave's health checks
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["Fleet: 16 racks × 8 nodes, 2 rails per rack"]
+  n1["Wave 1: rack-03 ONLY, rail A nodes only (4 of 8 nodes in rack-03)"]
+  n2["validate: health checks pass, NCCL self-test across rail A"]
+  n3["in rack-03 clean, no Tier-1/Tier-2 health findings"]
+  n4["Wave 2: rack-03 remaining rail B nodes (contained: still one rack)"]
+  n5["validate again before leaving the rack"]
+  n6["Wave 3: remaining racks, one full rack at a time, same rail-split"]
+  n7["pattern, each wave gated on the previous wave's health checks"]
 ```
 
 If wave 1 surfaces a problem — say the new firmware causes intermittent NIC resets under load — the blast radius is 4 nodes in 1 rack, not a fleet-wide incident, and the remaining 15 racks are untouched and available to absorb load while the issue is root-caused. This is the same logic as a canary deployment in software, mapped onto physical topology instead of a percentage-of-traffic split, and it composes directly with the health-check taxonomy from the fleet-scale BCM deep dive: each wave's gate is "zero new Tier-1 or Tier-2 findings attributable to the change," not just "nodes came back up."

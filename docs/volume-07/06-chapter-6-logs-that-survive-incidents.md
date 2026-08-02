@@ -35,53 +35,53 @@ A useful operational event contains timestamp, service/component, resource ident
 | correlation context | (trace/request ID) — the join key back to traces, per Ch.1/7 |
 
 ➕ **Diagram: correlation context is the join key that stitches one log line back to its metric and trace**
-```
-   METRIC series                LOG line                        TRACE span
-  http_requests_total{      {"event":"inference_failed",    span_id=7d3e1a
-   status="500"} +1    ◀──▶  "request_id":"a91f...",   ◀──▶  trace_id=a91f2c...
-  (fleet-wide count,          "error_class":"CUDAOutOfMemory"} (this one request's
-   no request identity)       (the ONE event, full detail)      path across services)
-                                       ▲
-                              correlation context field
-                              (request_id / trace_id) —
-                              the only thing that lets you
-                              go from "the rate went up" to
-                              "here is the exact failing request"
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["METRIC series LOG line TRACE span"]
+  n1["http_requests_total{ {'event':'inference_failed', span_id=7d3e1a"]
+  n2["status='500'} +1 ◀"]
+  n3["'request_id':'a91f...', ◀"]
+  n4["trace_id=a91f2c..."]
+  n5["(fleet-wide count, 'error_class':'CUDAOutOfMemory'} (this one request's"]
+  n6["no request identity) (the ONE event, full detail) path across services)"]
+  n7["correlation context field"]
+  n8["(request_id / trace_id) —"]
+  n9["the only thing that lets you"]
+  n10["go from 'the rate went up' to"]
+  n11["'here is the exact failing request'"]
+  n2 --> n3
+  n3 --> n4
 ```
 Without the correlation-context field from the checklist above, the three signals in Chapter 1's table stay three separate, unjoinable pictures of the same incident — this field is what makes "three-signal correlation" (Ch.1) an actual query instead of a coincidence of timing.
 
 ➕ **The "log once at the layer with meaning" principle, shown as the anti-pattern it prevents:**
-```
-BAD — the same failure logged 4 times, once per layer, all with stack traces:
-[gateway]      ERROR: downstream call failed: <500-line stack trace>
-[retry-wrapper] ERROR: retry exhausted: <500-line stack trace>
-[model-server] ERROR: CUDA out of memory: <500-line stack trace>
-[gpu-driver]    ERROR: XID 79 (GPU fell off the bus): <driver dump>
-→ 4x the log volume, and an on-call engineer has to manually realize these are the SAME event.
-
-GOOD — one structured event at the layer that has operational meaning (model-server,
-where the actual mechanism is known), with attempt/correlation context letting the
-gateway's failure be joined back to it instead of re-describing it:
-{"event":"inference_failed","layer":"model-server","error_class":"CUDAOutOfMemory",
- "request_id":"a91f...","attempt":2,"upstream_retry_of":"gw-req-77213"}
-→ gateway logs a ONE-LINE reference: {"event":"upstream_failed","request_id":"a91f...","forwarded_from":"model-server"}
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["BAD — the same failure logged 4 times, once per layer, all with stack traces"]
+  n1["[gateway] ERROR: downstream call failed: <500-line stack trace>"]
+  n2["[retry-wrapper] ERROR: retry exhausted: <500-line stack trace>"]
+  n3["[model-server] ERROR: CUDA out of memory: <500-line stack trace>"]
+  n4["[gpu-driver] ERROR: XID 79 (GPU fell off the bus): <driver dump>"]
+  n5["4x the log volume, and an on-call engineer has to manually realize these are the SAME event."]
+  n6["GOOD — one structured event at the layer that has operational meaning (model-server,"]
+  n7["where the actual mechanism is known), with attempt/correlation context letting the"]
+  n8["gateway's failure be joined back to it instead of re-describing it"]
+  n9["{'event':'inference_failed','layer':'model-server','error_class':'CUDAOutOfMemory',"]
+  n10["'request_id':'a91f...','attempt':2,'upstream_retry_of':'gw-req-77213'}"]
+  n11["gateway logs a ONE-LINE reference: {'event':'upstream_failed','request_id':'a91f...','forwarded_from':'model-server'}"]
 ```
 ➕ **The specific error_class distinction this chapter's own sample JSON invites you to generalize — and the one that most commonly gets alerting wrong (tie-in to Chapter 8/9): `OOMKilled` (cgroup/Kubernetes-level, host memory) vs `CUDAOutOfMemory` (device framebuffer memory) are different failure planes with different fixes** — raising a Kubernetes memory limit does nothing for the second, and adding GPU memory/reducing batch size does nothing for the first. A log's `error_class` field is frequently the *only* place this distinction survives, because `kubectl get pod` will show both as "container exited non-zero" with no further detail.
 
 ➕ **Diagram: two OOM failure planes that both look like "container exited non-zero" until you read error_class**
-```
-                    "container exited non-zero"
-                              │
-              ┌───────────────┴───────────────┐
-              ▼                                ▼
-   Kubernetes/cgroup plane              CUDA driver/runtime plane
-   (host RAM enforcement)               (GPU framebuffer enforcement)
-   reason: OOMKilled                    reason: Error, exitCode: 1
-   exitCode: 137 (SIGKILL)              error_class: CUDAOutOfMemory
-              │                          (only visible in the log line)
-              ▼                                ▼
-   fix: raise memory limit/            fix: reduce batch size, shard
-   request, or find app leak            model, or add GPU memory
+```mermaid
+flowchart TD
+    A["'container exited non-zero'"]
+    A --> B["Kubernetes/cgroup plane (host RAM enforcement) -- reason: OOMKilled, exitCode: 137 (SIGKILL)"]
+    A --> C["CUDA driver/runtime plane (GPU framebuffer enforcement) -- reason: Error, exitCode: 1, error_class: CUDAOutOfMemory (only visible in the log line)"]
+    B --> D["fix: raise memory limit/request, or find app leak"]
+    C --> E["fix: reduce batch size, shard model, or add GPU memory"]
 ```
 `kubectl get pod` shows both branches identically as "restarted, exited non-zero" — the `error_class` field is frequently the only surviving evidence of which branch you're actually on, which is why this chapter's field checklist insists on it.
 

@@ -15,18 +15,25 @@ Fourth Edition curriculum — Senior Engineering Expansion
 
 ## How the curriculum is now layered
 
-```text
-FOUNDATION BRIDGE
-systems language → Python starter lab → AI/GPU/HPC language
-        ↓
-CORE CHAPTERS
-normal path → vocabulary → observation → guided practice
-        ↓
-OPERATIONAL PRACTICE
-failure boundaries → troubleshooting → safe changes
-        ↓
-SENIOR DEPTH
-architecture → scale → trade-offs → customer/interview scenarios
+```mermaid
+flowchart TD
+    subgraph FB["FOUNDATION BRIDGE"]
+        direction LR
+        FB1[systems language] --> FB2[Python starter lab] --> FB3[AI/GPU/HPC language]
+    end
+    subgraph CC["CORE CHAPTERS"]
+        direction LR
+        CC1[normal path] --> CC2[vocabulary] --> CC3[observation] --> CC4[guided practice]
+    end
+    subgraph OP["OPERATIONAL PRACTICE"]
+        direction LR
+        OP1[failure boundaries] --> OP2[troubleshooting] --> OP3[safe changes]
+    end
+    subgraph SD["SENIOR DEPTH"]
+        direction LR
+        SD1[architecture] --> SD2[scale] --> SD3[trade-offs] --> SD4[customer/interview scenarios]
+    end
+    FB --> CC --> OP --> SD
 ```
 
 Use the core chapters to learn a technology. Use senior deep dives only after you can explain and observe its normal path. Volume 9 tests communication and Volume 10 integrates many layers; neither should be used as the first explanation of those layers.

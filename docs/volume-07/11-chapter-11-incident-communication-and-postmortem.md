@@ -92,8 +92,12 @@ The practitioner material used to shape the scope is a signal, not an authority.
 _Figure A. High-confidence diagnosis comes from correlated evidence, not from a single dashboard._
 
 ➕ **Visual model — communication changes as certainty grows:**
-```
-detect ─► acknowledge ─► scope / mitigate ─► update cadence ─► resolve ─► postmortem
-           what users feel     what changed + risk       facts, owners, follow-up
+```mermaid
+flowchart LR
+    A[detect] --> B["acknowledge -- what users feel"]
+    B --> C["scope / mitigate -- what changed + risk"]
+    C --> D[update cadence]
+    D --> E[resolve]
+    E --> F["postmortem -- facts, owners, follow-up"]
 ```
 **Memory hook:** *"State impact, state action, state uncertainty."* A good incident update is neither a raw investigation log nor a premature root-cause claim.

@@ -33,23 +33,23 @@ Gateway API is replacing many ad-hoc Ingress patterns with a more expressive rol
 ➕ **Why Gateway API exists, in one sentence:** Ingress's API was a lowest-common-denominator design (a handful of annotations carrying most of the real configuration, vendor-specific and non-portable); Gateway API splits the role into `GatewayClass` (infra provider config), `Gateway` (a listener/address, owned by cluster-ops), and `HTTPRoute`/`GRPCRoute`/etc. (routing rules, owned by app teams) — a deliberate role separation matching how platform teams and app teams actually divide responsibility, which Ingress's flat object never modeled.
 
 ➕ **Diagram: Gateway API's role split, and who owns each layer:**
-```
- GatewayClass ── cluster-ops / infra provider owns this
- (defines WHICH controller implements gateways of this class,
-  e.g. an NVIDIA/vendor-specific or cloud LB-backed implementation)
-        │
-        ▼
- Gateway ── cluster-ops owns this
- (a concrete listener: address, port, TLS config — the actual
-  network entry point)
-        │
-        ▼
- HTTPRoute / GRPCRoute ── app team owns this
- (routing rules: which path/header goes to which backend Service —
-  attached to a Gateway via a reference, not embedded in it)
-        │
-        ▼
- Backend Service → EndpointSlice → Pod (Chapter 4's path, unchanged)
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["GatewayClass cluster-ops / infra provider owns this"]
+  n1["(defines WHICH controller implements gateways of this class,"]
+  n2["e.g. an NVIDIA/vendor-specific or cloud LB-backed implementation)"]
+  n3["Gateway cluster-ops owns this"]
+  n4["(a concrete listener: address, port, TLS config — the actual"]
+  n5["network entry point)"]
+  n6["HTTPRoute / GRPCRoute app team owns this"]
+  n7["(routing rules: which path/header goes to which backend Service —"]
+  n8["attached to a Gateway via a reference, not embedded in it)"]
+  n9["Backend Service"]
+  n10["EndpointSlice"]
+  n11["Pod (Chapter 4's path, unchanged)"]
+  n9 --> n10
+  n10 --> n11
 ```
 This role split is the actual improvement over Ingress: an app team can ship an `HTTPRoute` change without touching the `Gateway` object cluster-ops owns, whereas Ingress's flat object made "which annotation does what" a single shared surface everyone had to coordinate on.
 

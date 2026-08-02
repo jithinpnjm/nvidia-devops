@@ -23,55 +23,63 @@ ibstat
 ```
 
 ➕ **What "remote memory operations" and "queue pairs" actually mean, mechanically — the chapter names them, this is the model:**
+```mermaid
+flowchart LR
+    subgraph A["Node A (initiator)"]
+        direction TB
+        MRA["App registers a memory
+        region (MR) with the NIC"] --> QPA["Queue Pair (SQ + RQ)"]
+    end
+    subgraph B["Node B (target)"]
+        direction TB
+        MRB["App registers a memory
+        region (MR) with the NIC"]
+        QPB["Queue Pair (SQ + RQ)"]
+    end
+    QPA <==>|RDMA WRITE over fabric IB/RoCE| QPB
+    QPB -.-> MRB
 ```
-        Node A (initiator)                          Node B (target)
-   ┌───────────────────────┐                   ┌───────────────────────┐
-   │  App registers a      │                   │  App registers a      │
-   │  memory region (MR)   │                   │  memory region (MR)   │
-   │  with the NIC          │                   │  with the NIC          │
-   │        │                │                   │                        │
-   │        ▼                │                   │                        │
-   │  ┌───────────┐         │                   │  ┌───────────┐         │
-   │  │Queue Pair  │  RDMA   │   fabric (IB/RoCE) │  │Queue Pair  │         │
-   │  │(SQ + RQ)   │◀───────▶│═══════════════════▶│  │(SQ + RQ)   │         │
-   │  └───────────┘  WRITE   │                   │  └───────────┘         │
-   └───────────────────────┘                   └───────────────────────┘
-   NIC writes directly into B's registered MR — B's CPU is never interrupted for a WRITE
-```
+NIC writes directly into B's registered MR — B's CPU is never interrupted for a WRITE
 The "reduced CPU-copy overhead" line in the original text is this: a normal TCP socket send copies data from user buffer → kernel socket buffer → NIC (and the reverse on receive, with an interrupt/softirq to wake the CPU). RDMA WRITE lets the NIC place data directly into the remote application's pre-registered memory, with **zero CPU involvement on the target** for the data movement itself. This is why RDMA matters for collectives specifically: an AllReduce touching every rank at every step would otherwise burn CPU cycles on memcopy at exactly the moments the CPU should be feeding the GPU (Chapter 1's `data_load_wait_time` term).
 
 ➕ **Diagram: InfiniBand vs RoCE — same RDMA semantics, different loss model underneath**
-```
-InfiniBand fabric                        RoCE (RDMA over Converged Ethernet)
-┌─────────────────────────┐              ┌─────────────────────────┐
-│ purpose-built lossless   │              │ standard/converged        │
-│ fabric, credit-based     │              │ Ethernet, needs PFC/ECN   │
-│ flow control by design   │              │ layered on top for        │
-│                          │              │ loss-sensitive behavior   │
-│ Subnet Manager assigns   │              │ Existing switch/NIC        │
-│ LIDs, routes             │              │ ecosystem, IP-routable     │
-└───────────┬──────────────┘              └───────────┬──────────────┘
-            │                                          │
-            ▼                                          ▼
-   same RDMA verbs API (ibv_*, queue pairs, MR registration) above the wire
+```mermaid
+flowchart TD
+    subgraph IB["InfiniBand fabric"]
+        IB1["purpose-built lossless fabric,
+        credit-based flow control by design"]
+        IB2["Subnet Manager assigns LIDs, routes"]
+    end
+    subgraph ROCE["RoCE (RDMA over Converged Ethernet)"]
+        R1["standard/converged Ethernet,
+        needs PFC/ECN layered on top for
+        loss-sensitive behavior"]
+        R2["Existing switch/NIC ecosystem, IP-routable"]
+    end
+    IB --> API["same RDMA verbs API
+    (ibv_*, queue pairs, MR registration)
+    above the wire"]
+    ROCE --> API
 ```
 Both give the application the same RDMA programming model from `queue pairs / registered memory` up — the difference this chapter cares about is entirely below that line: InfiniBand's flow control is native to the fabric, while RoCE inherits Ethernet's original best-effort delivery and has to have losslessness (PFC) and/or congestion avoidance (ECN) explicitly engineered back in.
 
 ➕ **Sample `ibstat` output, annotated:**
-```
-$ ibstat
-CA 'mlx5_0'
-        CA type: MT4123
-        Number of ports: 1
-        Port 1:
-                State: Active                    ← link is up AND the fabric subnet manager has it joined
-                Physical state: LinkUp
-                Rate: 200                          ← 200 Gb/s — check this matches the expected NIC generation
-                Base lid: 12
-                LMC: 0
-                SM lid: 1                          ← subnet manager's LID — 0 here would mean no SM found
-                Capability mask: 0x2651e848
-                Port GUID: 0x946dae0300aabbcc
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ ibstat"]
+  n1["CA 'mlx5_0'"]
+  n2["CA type: MT4123"]
+  n3["Number of ports: 1"]
+  n4["Port 1"]
+  n5["State: Active ← link is up AND the fabric subnet manager has it joined"]
+  n6["Physical state: LinkUp"]
+  n7["Rate: 200 ← 200 Gb/s — check this matches the expected NIC generation"]
+  n8["Base lid: 12"]
+  n9["LMC: 0"]
+  n10["SM lid: 1 ← subnet manager's LID — 0 here would mean no SM found"]
+  n11["Capability mask: 0x2651e848"]
+  n12["Port GUID: 0x946dae0300aabbcc"]
 ```
 `State: Active` is necessary but not sufficient — it means the physical link and subnet manager join succeeded, it says nothing about error rates, congestion, or whether the *rate* matches what you provisioned for. Always cross-check `Rate` against the NIC's rated speed; a link stuck negotiating at half rate (e.g. 100 instead of 200) will pass every "is it up" check while quietly halving your fabric bandwidth.
 

@@ -21,41 +21,23 @@ source_document: "Volume_08_Senior_Solutions_Architecture_Practice(2).docx"
 ---
 
 ➕ **The decision workshop as a decision tree (the sequencing the source describes, drawn):**
-```
-                     Start: "K8s or Slurm?"
-                              │
-              ┌───────────────┴───────────────┐
-              │  WRONG framing — forces one    │
-              │  scheduler to win everything   │
-              └────────────────────────────────┘
-                              │
-                              ▼
-             Split by WORKLOAD CLASS first (not by platform preference)
-                              │
-        ┌─────────────────────┼─────────────────────┐
-        ▼                     ▼                     ▼
-  Batch training (80%)   Online services (10%)   Notebooks (10%)
-        │                     │                     │
-        ▼                     ▼                     ▼
-  Does Slurm already    K8s ecosystem (GitOps,   Compare tenancy/quota/
-  do this well? Does    autoscaling, service      dev-experience on BOTH
-  K8s add ENOUGH value  mesh, observability)       — this is the one class
-  to justify migrating  strongly favors K8s        genuinely up for grabs
-  a working system?     for long-running services
-        │                     │                     │
-        ▼                     ▼                     ▼
-  Likely: KEEP Slurm    Likely: USE K8s        Likely: EITHER, pick by
-  for this class        for this class          existing platform team skill
-        │                     │                     │
-        └─────────────────────┴─────────────────────┘
-                              │
-                              ▼
-              Define integration: shared identity, storage,
-              observability, and — critically — OWNERSHIP boundaries
-              (who's on-call for what, at the seam between the two)
-                              │
-                              ▼
-                    Multi-platform answer, justified per class
+```mermaid
+flowchart TD
+    Start["Start: 'K8s or Slurm?'"] --> Wrong["WRONG framing - forces one\nscheduler to win everything"]
+    Wrong --> Split["Split by WORKLOAD CLASS first\n(not by platform preference)"]
+    Split --> Batch["Batch training (80%)"]
+    Split --> Online["Online services (10%)"]
+    Split --> Notebooks["Notebooks (10%)"]
+    Batch --> BQ["Does Slurm already do this well?\nDoes K8s add ENOUGH value to\njustify migrating a working system?"]
+    Online --> OQ["K8s ecosystem (GitOps, autoscaling,\nservice mesh, observability)\nstrongly favors K8s for\nlong-running services"]
+    Notebooks --> NQ["Compare tenancy/quota/dev-experience\non BOTH - this is the one class\ngenuinely up for grabs"]
+    BQ --> BR["Likely: KEEP Slurm\nfor this class"]
+    OQ --> OR["Likely: USE K8s\nfor this class"]
+    NQ --> NR["Likely: EITHER, pick by\nexisting platform team skill"]
+    BR --> Integ["Define integration: shared identity,\nstorage, observability, and - critically -\nOWNERSHIP boundaries\n(who's on-call for what, at the seam\nbetween the two)"]
+    OR --> Integ
+    NR --> Integ
+    Integ --> Final["Multi-platform answer, justified per class"]
 ```
 
 ➕ **Mnemonic/shortcut for structuring this answer live: "SPLIT, DON'T PICK."**
@@ -99,9 +81,13 @@ Even with a real ecosystem-unification argument for K8s (rating 5 on that one ro
 ➕ 2. An interviewer pushes back: "Isn't running two schedulers just operational complexity for its own sake?" Write the rebuttal that names the actual cost (a defined ownership seam, shared identity/storage/observability) versus the cost being reasoned about aloud (forcing one scheduler to do a job it's weaker at for 80% of the fleet).
 
 ➕ **Visual model — choose by workload shape, then share the platform seams:**
-```
-online service / API ─► Kubernetes ─┐
-batch MPI / gang job ──► Slurm ─────┼── shared identity, data, telemetry, guardrails
-interactive notebooks ─► policy choice┘
+```mermaid
+flowchart LR
+    A["online service / API"] --> B[Kubernetes]
+    C["batch MPI / gang job"] --> D[Slurm]
+    E["interactive notebooks"] --> F["policy choice"]
+    B --> G["shared identity, data, telemetry, guardrails"]
+    D --> G
+    F --> G
 ```
 **Memory hook:** *"One fabric can serve two control planes; do not make one scheduler impersonate the other."*

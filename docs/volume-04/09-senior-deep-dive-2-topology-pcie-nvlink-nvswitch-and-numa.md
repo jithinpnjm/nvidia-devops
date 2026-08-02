@@ -33,28 +33,39 @@ GPU3  NS   NS    OK     X
 `OK` means direct peer-to-peer memory access (CUDA P2P) is supported between that pair; `NS` means Not Supported for direct P2P — traffic must route through the host (or, on NVSwitch systems, through the switch fabric instead of failing entirely). This is a **narrower, P2P-specific** check than the general `topo -m` NV/PHB/SYS matrix — a pair can show `SYS` in `topo -m` (no NVLink, crosses NUMA) and still show `NS` here for a different, additive reason (e.g. virtualization or IOMMU grouping blocking P2P even where physically wired). Run both; they answer related but distinct questions.
 
 ➕ **`nvidia-smi nvlink --status` — the per-link health check Deep Dive 2 lists that neither Chapter 2 nor the topo matrix covers, annotated:**
-```
-$ nvidia-smi nvlink --status -i 0
-GPU 0: NVIDIA H100 80GB HBM3
-    Link 0: 26.562 GB/s
-    Link 1: 26.562 GB/s
-    ...
-    Link 11: 0 GB/s          ← a link reporting 0 GB/s that should be active is a hardware/cabling fault,
-                                not a topology-configuration issue — this is health evidence, not placement evidence
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ nvidia-smi nvlink --status -i 0"]
+  n1["GPU 0: NVIDIA H100 80GB HBM3"]
+  n2["Link 0: 26.562 GB/s"]
+  n3["Link 1: 26.562 GB/s"]
+  n4["..."]
+  n5["Link 11: 0 GB/s ← a link reporting 0 GB/s that should be active is a hardware/cabling fault,"]
+  n6["not a topology-configuration issue — this is health evidence, not placement evidence"]
 ```
 `topo -m` tells you the *intended* wiring; `nvlink --status` tells you whether each link is *actually* passing traffic at expected bandwidth right now — a down link changes the effective topology at runtime without changing what `topo -m` reports, which is why both commands belong in the same triage, not just one.
 
 ➕ **Diagram: two GPUs, two ways home — the topology decides which one you pay for**
-```
-NUMA node 0                                    NUMA node 1
-┌────────────────────────────┐               ┌────────────────────────────┐
-│ CPU 0-15 + local RAM        │               │ CPU 16-31 + local RAM      │
-│      │                      │               │      │                    │
-│  PCIe root complex A        │──cross-node──▶│  PCIe root complex B       │
-│      │                      │  QPI/UPI hop  │      │                    │
-│  GPU0 ══NVLink══ GPU1       │  (slow, shared)│  GPU2 ══NVLink══ GPU3    │
-└────────────────────────────┘               └────────────────────────────┘
-        GPU0 ↔ GPU1 : one NVLink hop, no CPU involved   ← fast path
-        GPU0 ↔ GPU2 : PCIe → cross-node interconnect → PCIe  ← slow path
+```mermaid
+flowchart LR
+    subgraph N0["NUMA node 0"]
+        direction TB
+        C0["CPU 0-15 + local RAM"] --- RC0["PCIe root complex A"]
+        RC0 --- G0[GPU0]
+        RC0 --- G1[GPU1]
+        G0 <-->|NVLink| G1
+    end
+    subgraph N1["NUMA node 1"]
+        direction TB
+        C1["CPU 16-31 + local RAM"] --- RC1["PCIe root complex B"]
+        RC1 --- G2[GPU2]
+        RC1 --- G3[GPU3]
+        G2 <-->|NVLink| G3
+    end
+    RC0 <-->|"QPI/UPI hop (slow, shared) -- cross-node"| RC1
+
+    FAST["GPU0 <-> GPU1 : one NVLink hop, no CPU involved -- fast path"]
+    SLOW["GPU0 <-> GPU2 : PCIe -> cross-node interconnect -> PCIe -- slow path"]
 ```
 A process pinned to Node-0 CPUs feeding GPU2 (Node-1) pays the cross-node hop on every host-to-device copy — invisible to `nvidia-smi` utilization numbers, which only show the GPU side. `numactl --hardware` plus this chapter's `topo -m` is how you catch it before it shows up as an unexplained multi-GPU slowdown.

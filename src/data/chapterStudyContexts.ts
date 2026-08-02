@@ -8,6 +8,22 @@ export type ChapterStudyContext = {
 };
 
 export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
+  "How to use this book: evidence, not proof": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "The one habit this whole curriculum depends on, and how each chapter is structured.",
+    "sections": [
+      "Why this site exists",
+      "The one habit that matters more than any command",
+      "A worked example: \"the website feels slow\"",
+      "The failure mode this fixes",
+      "Check your understanding",
+      "How to read every chapter in this book",
+      "Glossary",
+      "Ready to start"
+    ],
+    "codeLanguages": []
+  },
   "Master Index": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
@@ -19,6 +35,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Source architecture"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -32,6 +49,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "The six-pass chapter method",
       "Learning levels used throughout the academy",
       "Recommended routes",
+      "One chapter per topic, foundation first",
       "Route A — new to Linux, GPU, AI and HPC",
       "Route B — experienced DevOps engineer, new to accelerated computing",
       "Route C — interview refresh",
@@ -39,10 +57,10 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Before Kubernetes",
       "Before Python infrastructure automation",
       "Before NVIDIA/GPU operations",
-      "Before AI/HPC architecture",
-      "Before senior scenarios"
+      "Before AI/HPC architecture"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -63,6 +81,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Readiness check"
     ],
     "codeLanguages": [
+      "mermaid",
       "text",
       "bash"
     ]
@@ -86,6 +105,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Readiness check"
     ],
     "codeLanguages": [
+      "mermaid",
       "text",
       "bash"
     ]
@@ -111,7 +131,34 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash",
       "text",
       "python",
-      "json"
+      "json",
+      "mermaid"
+    ]
+  },
+  "Foundation — what Linux is and how to study a running system": {
+    "volume": "Volume 1",
+    "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
+    "learningOutcome": "A friendly beginner orientation to Linux before processes, memory, storage, networking and containers.",
+    "sections": [
+      "Foundation — what Linux is and how to study a running system",
+      "What this volume is trying to teach",
+      "The first mental model",
+      "Essential language",
+      "A real-life example",
+      "Follow one request through Linux",
+      "Processes, CPU and waiting",
+      "Memory from a process request to OOM",
+      "Files, mounts and I/O",
+      "Network layers with concrete questions",
+      "Identity and security controls",
+      "systemd and evidence preservation",
+      "Guided lab — diagnose a local HTTP service",
+      "Common beginner mistakes"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "bash"
     ]
   },
   "Chapter 1 - Processes, threads, CPU scheduling and load": {
@@ -119,24 +166,25 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
     "learningOutcome": "Explain process/thread state, scheduler queues, CPU time, context switches, load average, throttling and the evidence that distinguishes them.",
     "sections": [
+      "Foundations: start here if this is new to you",
+      "What a kernel actually does",
+      "Check your understanding",
+      "What a process actually is",
+      "Files, file descriptors, and \"everything is a file\"",
+      "Permissions and ownership, at a basic level",
+      "What a shell actually is",
+      "What a package manager does",
+      "Glossary",
+      "Before you go deeper, make sure you can...",
       "Chapter 1 — Processes, threads, CPU scheduling and load",
       "1.1 Process and thread model",
       "1.2 Process states",
-      "1.3 CPU scheduling, run queue and context switches",
-      "vmstat: r=run queue, cs=context switches/s, us/sy/id/wa=CPU state percentages",
-      "1.4 CPU quotas and throttling",
-      "cgroup v2 examples; exact path depends on runtime",
-      "look for nr throttled / throttled usec",
-      "Worked scenario",
-      "Practice",
-      "➕ Going deeper (added — this is the \"even more depth\" pass)",
-      "perf and bpftrace for CPU scheduling (beyond vmstat/mpstat)",
-      "Scheduling classes, compared (the table the JD's \"advanced\" bar expects)",
-      "GPU/AI-adjacent failure scenario (this chapter's concepts, applied to the actual job you're interviewing for)"
+      "1.3 CPU scheduling, run queue and context switches"
     ],
     "codeLanguages": [
       "bash",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 2 - Virtual memory, page cache, swap and OOM": {
@@ -153,7 +201,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "bash",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 3 - Files, file descriptors, filesystems and block I/O": {
@@ -161,6 +210,15 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
     "learningOutcome": "Understand how applications reach storage and distinguish capacity, metadata, throughput, IOPS and latency failures.",
     "sections": [
+      "Foundations: start here if this is new to you",
+      "The problem storage exists to solve",
+      "What a block device actually is",
+      "What a filesystem actually is",
+      "What a mount actually is",
+      "Local disk versus shared/network storage: the distinction that matters most",
+      "\"The disk is full\" can mean several different things",
+      "Glossary",
+      "Before you go deeper, make sure you can...",
       "Chapter 3 — Files, file descriptors, filesystems and block I/O",
       "3.1 File descriptors and VFS",
       "3.2 Capacity versus latency",
@@ -168,8 +226,9 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
-      "bash",
-      "text"
+      "mermaid",
+      "text",
+      "bash"
     ]
   },
   "Chapter 4 - Networking: IP, routes, sockets, TCP, DNS, NAT and TLS": {
@@ -177,21 +236,25 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
     "learningOutcome": "Trace a connection from name lookup through application response and identify what each diagnostic proves.",
     "sections": [
+      "Foundations: start here if this is new to you",
+      "What an IP address actually is",
+      "What a port is",
+      "TCP vs. UDP, in plain language",
+      "What DNS actually does",
+      "What a firewall conceptually does",
+      "A brief, honest preview: why HPC/AI networking is a different world",
+      "Glossary",
+      "Before you go deeper, make sure you can...",
       "Chapter 4 — Networking: IP, routes, sockets, TCP, DNS, NAT and TLS",
       "4.1 Addressing and routing",
       "4.2 Sockets and TCP state",
       "4.3 DNS is a dependency, not magic",
-      "search default.svc.cluster.local svc.cluster.local cluster.local example.com",
-      "options ndots:5",
-      "4.4 NAT, firewall, TLS and HTTP",
-      "older systems may use iptables-save",
-      "Worked scenario",
-      "Practitioner lens",
-      "Practice"
+      "search default.svc.cluster.local svc.cluster.local cluster.local example.com"
     ],
     "codeLanguages": [
       "bash",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 5 - Namespaces, cgroups and container mechanics": {
@@ -207,7 +270,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "bash",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 6 - systemd, boot, services, signals and logs": {
@@ -223,6 +287,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "codeLanguages": [
       "bash",
       "text",
+      "mermaid",
       "python"
     ]
   },
@@ -237,6 +302,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "➕ Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -250,7 +316,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "➕ Senior addendum"
     ],
     "codeLanguages": [
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 3 — Storage I/O: VFS to NVMe, latency queues and checkpoint behavior": {
@@ -263,6 +330,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "➕ Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -278,7 +346,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "bash",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 5 — Containers: namespaces, cgroups v2, overlay filesystems and runtime boundaries": {
@@ -291,6 +360,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "➕ Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -302,6 +372,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "➕ Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -313,6 +384,56 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "➕ Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
+      "text"
+    ]
+  },
+  "Foundation — what Python is and why infrastructure engineers use it": {
+    "volume": "Volume 2",
+    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
+    "learningOutcome": "A beginner orientation to Python, programs and safe automation before production Python concepts.",
+    "sections": [
+      "Foundation — what Python is and why infrastructure engineers use it",
+      "What this volume is trying to teach",
+      "Script, program and automation",
+      "The first mental model",
+      "Essential language",
+      "A real-life example",
+      "Build Python knowledge in one complete program",
+      "Data structures by operational purpose",
+      "Assignment, mutation and the first subtle bug",
+      "Files and JSON: make the boundary visible",
+      "Tracebacks: read from the bottom",
+      "External effects need contracts",
+      "Test the decision separately",
+      "Virtual environments and reproducibility"
+    ],
+    "codeLanguages": [
+      "python",
+      "text",
+      "bash"
+    ]
+  },
+  "Python field guide — functions, classes, imports, annotations and modules": {
+    "volume": "Volume 2",
+    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
+    "learningOutcome": "A plain-language field guide explaining the Python constructs used throughout the infrastructure automation volume and why each appears.",
+    "sections": [
+      "Python field guide — functions, classes, imports, annotations and modules",
+      "The decision ladder: what should I write first?",
+      "Direct code versus a function",
+      "Function parameters are an API",
+      "Why a class appears in our scripts",
+      "Class review questions",
+      "Dataclass: a record with an explicit shape",
+      "Annotations: documentation plus tool input, not magic enforcement",
+      "Modules, packages, and imports",
+      "The modules used repeatedly in this course",
+      "Decorators and context managers without mystery",
+      "A practical reading method for every code block"
+    ],
+    "codeLanguages": [
+      "python",
       "text"
     ]
   },
@@ -327,6 +448,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Stage 3 — make the tool maintainable and production-ready"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -335,16 +457,26 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 1 - How Python actually executes your infrastructure script — Python for Production Infrastructure.",
     "sections": [
+      "Foundations: start here if Python syntax isn't yet comfortable",
+      "Why start with plain Python",
+      "Variables: a name pointing at a value",
+      "Lists: an ordered collection",
+      "Dicts: a mapping from keys to values",
+      "Making decisions: if / elif / else",
+      "Repeating work: for loops",
+      "Functions: giving a piece of code a name",
+      "Handling failure: try / except",
+      "The bridge: what the labs page actually asks you to do",
+      "Glossary",
+      "Before you go deeper, make sure you can...",
       "{'gpu-1': ['gpu', 'gpu-1', 'gpu-2'], 'gpu-2': ['gpu', 'gpu-1', 'gpu-2']} ← both nodes share one list!",
-      "Module execution and \\ \\ name\\ \\",
-      "healthcheck.py",
-      "Work the scenario step by step",
-      "Practice before moving on"
+      "Module execution and \\ \\ name\\ \\"
     ],
     "codeLanguages": [
-      "python",
+      "bash",
       "text",
-      "bash"
+      "python",
+      "mermaid"
     ]
   },
   "Chapter 2 - Choosing data structures by the problem, not by habit": {
@@ -352,6 +484,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 2 - Choosing data structures by the problem, not by habit — Python for Production Infrastructure.",
     "sections": [
+      "Foundations: start here if this is new to you",
+      "list: ordered, changeable",
+      "tuple: ordered, unchangeable",
+      "coordinate[0] = 40.0 would raise: TypeError: 'tuple' object does not support item assignment",
+      "set: unordered, no duplicates, fast membership",
+      "dict: keyed lookup table",
       "defaultdict — eliminates the \"if key not in dict: dict[key] = []\" boilerplate",
       "{'a': ['gpu-1', 'cpu-1'], 'b': ['gpu-2']}",
       "Counter — frequency counting in one line (e.g. \"which error appears most in this log batch\")",
@@ -361,8 +499,9 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice before moving on"
     ],
     "codeLanguages": [
+      "python",
       "text",
-      "python"
+      "mermaid"
     ]
   },
   "Chapter 3 - Functions: turn scripts into testable decisions": {
@@ -370,11 +509,13 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 3 - Functions: turn scripts into testable decisions — Python for Production Infrastructure.",
     "sections": [
+      "Foundations: start here if this is new to you",
       "Practice before moving on"
     ],
     "codeLanguages": [
       "python",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 4 - Files, pathlib, regex, JSON and YAML": {
@@ -382,13 +523,16 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 4 - Files, pathlib, regex, JSON and YAML — Python for Production Infrastructure.",
     "sections": [
+      "Foundations: start here if this is new to you",
+      "the file is guaranteed to be closed here, even if f.write() had raised an error",
       "yaml.load(open(\"config.yaml\")) DANGEROUS without Loader= — can execute arbitrary Python objects",
       "Work the scenario step by step",
       "Practice before moving on"
     ],
     "codeLanguages": [
       "python",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 5 - Exceptions and context managers": {
@@ -396,13 +540,15 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 5 - Exceptions and context managers — Python for Production Infrastructure.",
     "sections": [
+      "Foundations: start here if this is new to you",
       "finally: fine for one-off cleanup, easy to forget, no reuse",
       "context manager: reusable, composable, can't forget it — prefer this for anything used more than once",
       "Practice before moving on"
     ],
     "codeLanguages": [
       "python",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 6 - Logging for operations, not print-debugging": {
@@ -410,13 +556,15 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 6 - Logging for operations, not print-debugging — Python for Production Infrastructure.",
     "sections": [
+      "Foundations: start here if this is new to you",
       "at the entry point of a request:",
       "Work the scenario step by step",
       "Practice before moving on"
     ],
     "codeLanguages": [
       "python",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 7 - System interaction and subprocess": {
@@ -424,12 +572,17 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 7 - System interaction and subprocess — Python for Production Infrastructure.",
     "sections": [
+      "Foundations: start here if this is new to you",
+      "DANGEROUS: the shell sees TWO commands separated by \";\" and runs both",
+      "SAFE: \"notes.txt; rm -rf /tmp/important\" is passed as ONE literal argument to cat",
+      "— there is no shell reading it, so the semicolon has no special meaning at all",
       "Work the scenario step by step",
       "Practice before moving on"
     ],
     "codeLanguages": [
       "python",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 8 - HTTP APIs, timeouts, retries and backoff": {
@@ -437,12 +590,14 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 8 - HTTP APIs, timeouts, retries and backoff — Python for Production Infrastructure.",
     "sections": [
+      "Foundations: start here if this is new to you",
       "Work the scenario step by step",
       "Practice before moving on"
     ],
     "codeLanguages": [
       "python",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 9 - OOP that helps infrastructure code": {
@@ -450,11 +605,13 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 9 - OOP that helps infrastructure code — Python for Production Infrastructure.",
     "sections": [
+      "Foundations: start here if this is new to you",
       "Practice before moving on"
     ],
     "codeLanguages": [
       "python",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 10 - Generators and decorators without magic": {
@@ -462,11 +619,13 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 10 - Generators and decorators without magic — Python for Production Infrastructure.",
     "sections": [
+      "Foundations: start here if this is new to you",
       "Practice before moving on"
     ],
     "codeLanguages": [
       "python",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 11 - Concurrency for infrastructure engineers": {
@@ -474,12 +633,14 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 11 - Concurrency for infrastructure engineers — Python for Production Infrastructure.",
     "sections": [
+      "Foundations: start here if this is new to you",
       "Work the scenario step by step",
       "Practice before moving on"
     ],
     "codeLanguages": [
       "python",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 12 - Type hints and pytest: make changes safer": {
@@ -487,6 +648,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 12 - Type hints and pytest: make changes safer — Python for Production Infrastructure.",
     "sections": [
+      "Foundations: start here if this is new to you",
       "mytool/client.py",
       "WRONG in the test file:",
       "RIGHT:",
@@ -495,7 +657,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "codeLanguages": [
       "python",
       "text",
-      "bash"
+      "bash",
+      "mermaid"
     ]
   },
   "Chapter 13 - Project structure, CLI and CI/CD": {
@@ -503,12 +666,17 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 13 - Project structure, CLI and CI/CD — Python for Production Infrastructure.",
     "sections": [
+      "Foundations: start here if this is new to you",
+      "infra doctor/model.py",
+      "some other file.py, run from the directory containing infra doctor/",
       "pyproject.toml",
       ".github/workflows/ci.yml (core idea)",
       "Practice before moving on"
     ],
     "codeLanguages": [
+      "mermaid",
       "text",
+      "python",
       "toml",
       "yaml"
     ]
@@ -518,6 +686,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 14 - Capstone: design a cluster diagnostics CLI — Python for Production Infrastructure.",
     "sections": [
+      "Before you start: what this capstone actually tests",
       "model.py — Ch2/Ch3/Ch12: typed domain values, pure decisions",
       "kubernetes.py — Ch7: subprocess boundary, typed failure",
       "cli.py — Ch6/Ch13: logging, exit codes, entry point",
@@ -528,7 +697,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "codeLanguages": [
       "python",
       "text",
-      "bash"
+      "bash",
+      "mermaid"
     ]
   },
   "Targeted Udemy study map": {
@@ -537,6 +707,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Targeted Udemy study map — Python for Production Infrastructure.",
     "sections": [],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -546,6 +717,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Final Python checklist — Python for Production Infrastructure.",
     "sections": [],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -558,7 +730,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "python",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 2 — Configuration is an API: validation, secrets and precedence": {
@@ -569,7 +742,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 3 — Build API clients that fail safely": {
@@ -580,6 +754,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -591,6 +766,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -603,7 +779,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "text",
-      "python"
+      "python",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 6 — Structured logs, metrics and correlation IDs": {
@@ -615,7 +792,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "json",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 7 — Testing infrastructure code: isolate decisions from effects": {
@@ -628,7 +806,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "python",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 8 — Complete project: GPU fleet health CLI": {
@@ -640,7 +819,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "python",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Performance and profiling for operational Python": {
@@ -652,7 +832,35 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
+    ]
+  },
+  "Foundation — what Kubernetes is and what problem it solves": {
+    "volume": "Volume 3",
+    "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
+    "learningOutcome": "A beginner orientation to Kubernetes desired state, control loops and workload execution.",
+    "sections": [
+      "Foundation — what Kubernetes is and what problem it solves",
+      "What this volume is trying to teach",
+      "The first mental model: desired state and reconciliation",
+      "Essential language",
+      "What Kubernetes status does and does not prove",
+      "A real-life example",
+      "Kubernetes objects are API records, not running processes",
+      "Trace one Pod end to end",
+      "Specification, status and events",
+      "Scheduling is an eligibility decision",
+      "Networking: four different objects/questions",
+      "Storage: claim, volume and mount",
+      "Security request path",
+      "Guided lab — explain a Deployment and Service"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "bash",
+      "yaml"
     ]
   },
   "Chapter 1 - API server, etcd and the object model": {
@@ -660,18 +868,23 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
     "learningOutcome": "Trace reads/writes, resourceVersion, watches and declarative desired state through the API control plane.",
     "sections": [
+      "Foundations: start here if Kubernetes concepts are new to you",
+      "What this section is, and what it isn't",
+      "The problem before the tool: \"it works on my machine\"",
+      "Image vs. container: the same relationship as class vs. object",
+      "The next problem: now you have hundreds of containers, on many machines",
+      "The four objects you need before diving deeper",
+      "The core mental model the rest of this chapter builds on: declare what you want, a controller makes it true",
+      "Evidence vs. proof: don't trust one command's output alone",
+      "Glossary",
+      "Before you go deeper, make sure you can...",
       "Chapter 1 — API server, etcd and the object model",
       "1.1 API objects are records of desired/observed state",
       "edit /tmp/a.yaml, apply it — succeeds, resourceVersion bumps",
-      "now try to apply the stale /tmp/b.yaml which still carries the OLD resourceVersion",
-      "1.2 Watches and reconciliation",
-      "Worked scenario",
-      "Practice",
-      "➕ Going deeper",
-      "etcd storage encoding and what actually gets written",
-      "API discovery — the other thing the API server serves"
+      "now try to apply the stale /tmp/b.yaml which still carries the OLD resourceVersion"
     ],
     "codeLanguages": [
+      "mermaid",
       "text",
       "bash"
     ]
@@ -690,6 +903,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "text",
+      "mermaid",
       "bash"
     ]
   },
@@ -704,6 +918,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "text",
+      "mermaid",
       "bash"
     ]
   },
@@ -722,6 +937,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "text",
+      "mermaid",
       "bash"
     ]
   },
@@ -736,6 +952,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "text",
+      "mermaid",
       "bash"
     ]
   },
@@ -753,6 +970,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "text",
+      "mermaid",
       "bash"
     ]
   },
@@ -767,6 +985,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "text",
+      "mermaid",
       "bash"
     ]
   },
@@ -782,6 +1001,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "text",
+      "mermaid",
       "bash"
     ]
   },
@@ -798,6 +1018,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "text",
+      "mermaid",
       "bash"
     ]
   },
@@ -812,6 +1033,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Deep Dive 1 — API machinery"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -824,6 +1046,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Deep Dive 2 — etcd quorum and control-plane failure boundaries"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -837,6 +1060,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Deep Dive 3 — Scheduling framework, preemption, gang/topology and DRA"
     ],
     "codeLanguages": [
+      "mermaid",
       "text",
       "bash"
     ]
@@ -850,6 +1074,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Deep Dive 4 — Kubelet, CRI, pod sandbox and node pressure"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -864,6 +1089,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Deep Dive 5 — Networking: Service, CNI dataplane, DNS, Gateway API"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -878,6 +1104,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Deep Dive 6 — Admission, policy and multi-tenant guardrails"
     ],
     "codeLanguages": [
+      "mermaid",
       "text",
       "bash"
     ]
@@ -891,6 +1118,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Deep Dive 7 — Platform patterns from the Staff Engineer guide"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -905,6 +1133,59 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "bash",
+      "text",
+      "mermaid"
+    ]
+  },
+  "Foundation — GPU computing and the NVIDIA stack from first principles": {
+    "volume": "Volume 4",
+    "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
+    "learningOutcome": "A complete beginner chapter explaining CPU/GPU cooperation, CUDA execution and memory, NVIDIA software layers, containers, Kubernetes and first operational evidence.",
+    "sections": [
+      "Foundation — GPU computing and the NVIDIA stack from first principles",
+      "Your learning contract",
+      "1. Begin with a workload, not a GPU model",
+      "2. What a GPU kernel actually is",
+      "3. Memory: capacity is not bandwidth",
+      "A concrete capacity calculation",
+      "4. The NVIDIA software stack, layer by layer",
+      "Driver versus Toolkit versus runtime",
+      "5. Why containers still depend on the host",
+      "6. How Kubernetes gets from a physical GPU to a Pod",
+      "7. First lab: build an evidence ladder",
+      "Step 1 — does PCIe enumerate an NVIDIA device?",
+      "Step 2 — can the NVIDIA management stack talk to it?",
+      "Step 3 — what is the local topology?"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "bash",
+      "python"
+    ]
+  },
+  "Foundation — NVIDIA ecosystem map for a beginner": {
+    "volume": "Volume 4",
+    "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
+    "learningOutcome": "A problem-oriented map of NVIDIA hardware, CUDA-X libraries, AI software, Kubernetes operators, monitoring and cluster-management products.",
+    "sections": [
+      "Foundation — NVIDIA ecosystem map for a beginner",
+      "1. The two large halves",
+      "2. Hardware and system terms",
+      "3. CUDA and CUDA-X",
+      "4. NGC: distribution, not an execution layer",
+      "5. Training and model-development software",
+      "6. Inference products: TensorRT, Triton and NIM are not synonyms",
+      "TensorRT",
+      "Triton Inference Server",
+      "NVIDIA NIM",
+      "NIM Operator",
+      "7. Kubernetes infrastructure operators",
+      "8. DCGM and nvidia-smi",
+      "9. Cluster and workload management"
+    ],
+    "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -913,11 +1194,20 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
     "learningOutcome": "Explain why GPUs favor throughput parallelism and how compute, HBM bandwidth and data movement become separate bottlenecks.",
     "sections": [
+      "Foundations: start here if GPU/CUDA concepts are new to you",
+      "What this chapter is, and what it isn't",
+      "Why a CPU alone isn't enough for some workloads",
+      "What a GPU actually is: the spreadsheet analogy",
+      "What CUDA actually is (and the three things beginners conflate)",
+      "A first real example: reading nvidia-smi , and why one number isn't proof of anything",
+      "Glossary",
+      "Before you go deeper, make sure you can...",
       "1.1 Utilization is not a complete performance model",
       "gpu pwr gtemp mtemp sm mem enc dec jpg ofa mclk pclk",
       "Idx W C C % % % % % % MHz MHz"
     ],
     "codeLanguages": [
+      "mermaid",
       "text",
       "bash"
     ]
@@ -931,6 +1221,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "text",
+      "mermaid",
       "bash"
     ]
   },
@@ -941,6 +1232,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "sections": [],
     "codeLanguages": [
       "text",
+      "mermaid",
       "bash"
     ]
   },
@@ -953,6 +1245,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "text",
+      "mermaid",
       "bash"
     ]
   },
@@ -964,6 +1257,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practitioner lens"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -977,6 +1271,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "text",
+      "mermaid",
       "bash"
     ]
   },
@@ -989,6 +1284,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1003,6 +1299,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Deep Dive 1 — GPU execution model without CUDA-programming overload"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1014,7 +1311,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 3 — Driver, CUDA compatibility and container integration": {
@@ -1028,7 +1326,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 4 — GPU Operator as a dependency reconciler": {
@@ -1041,7 +1340,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "bash",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 5 — Sharing: MIG, time-slicing, MPS and vGPU": {
@@ -1062,7 +1362,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 7 — Fleet lifecycle: upgrades, draining and known-good validation": {
@@ -1079,16 +1380,54 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "specific and won't show up in nvidia-smi or dcgmi diag alone"
     ],
     "codeLanguages": [
+      "mermaid",
       "text",
       "bash"
+    ]
+  },
+  "Foundation — AI, machine learning and LLM workloads from zero": {
+    "volume": "Volume 5",
+    "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
+    "learningOutcome": "A data-rich beginner chapter explaining models, tensors, training, inference, LLM prefill/decode, KV cache, parallelism, serving and infrastructure requirements.",
+    "sections": [
+      "Foundation — AI, machine learning and LLM workloads from zero",
+      "Your learning contract",
+      "1. From rules to learned models",
+      "2. Essential data structures: scalars, vectors, matrices and tensors",
+      "Tiny runnable example",
+      "3. Training: how weights change",
+      "Terms that now have a place",
+      "Why checkpoints are infrastructure concerns",
+      "4. Inference: fixed weights, new requests",
+      "5. What makes a large language model special",
+      "Model weights and a lower-bound memory estimate",
+      "Prefill and decode",
+      "KV cache",
+      "6. Latency and throughput vocabulary"
+    ],
+    "codeLanguages": [
+      "python",
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 1 - Classify the AI workload before designing infrastructure": {
     "volume": "Volume 5",
     "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
     "learningOutcome": "Distinguish training, fine-tuning, evaluation, batch inference and online inference by compute, communication, storage and SLO behavior.",
-    "sections": [],
+    "sections": [
+      "Foundations: start here if AI/ML concepts are new to you",
+      "What this section is, and what it isn't",
+      "What a machine learning model actually is: honest version, no mysticism",
+      "What \"training\" actually means",
+      "What \"inference\" actually means, and why the training/inference split is the most important idea here",
+      "What a \"token\" is, and why generating one at a time matters",
+      "What \"70 billion parameters\" actually means, and why bigger models need more GPU memory",
+      "Glossary",
+      "Before you go deeper, make sure you can..."
+    ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1098,11 +1437,10 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Understand why distributed training depends on GPU topology, fabric, storage and scheduler behavior.",
     "sections": [
       "2.1 Parallelism vocabulary for infrastructure",
-      "Worked scenario",
-      "gpu pwr gtemp mtemp sm mem enc dec mclk pclk",
-      "Idx W C C % % % % MHz MHz"
+      "Worked scenario"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1114,6 +1452,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practitioner lens"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1125,7 +1464,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Example Kubernetes resource boundary (illustrative)"
     ],
     "codeLanguages": [
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 5 - Autoscaling inference": {
@@ -1137,6 +1477,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Worked scenario"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1146,6 +1487,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Understand when multi-GPU/multi-node inference is necessary and what new failure/performance dependencies appear.",
     "sections": [],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1157,6 +1499,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practitioner lens"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1166,6 +1509,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Apply familiar platform security controls to models, prompts, data, artifacts and shared GPUs.",
     "sections": [],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1178,7 +1522,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 1 — Training systems: parallelism, collectives and checkpoint economics": {
@@ -1189,6 +1534,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1200,6 +1546,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1211,6 +1558,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1222,6 +1570,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1233,7 +1582,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 6 — RAG, vector search and stateful dependencies": {
@@ -1244,6 +1594,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1255,6 +1606,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1266,7 +1618,34 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
-      "text"
+      "text",
+      "mermaid"
+    ]
+  },
+  "Foundation — what HPC infrastructure is and why AI needs it": {
+    "volume": "Volume 6",
+    "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
+    "learningOutcome": "A beginner orientation to distributed jobs, networks, storage, schedulers, MPI, NCCL and RDMA.",
+    "sections": [
+      "Foundation — what HPC infrastructure is and why AI needs it",
+      "What this volume is trying to teach",
+      "From one process to a distributed job",
+      "Essential language",
+      "The normal training path",
+      "Ethernet, RDMA and locality",
+      "A real-life example",
+      "Ethernet first: how a packet reaches another host",
+      "RDMA from first principles",
+      "MPI, PMIx and NCCL have different jobs",
+      "Collective communication and stragglers",
+      "Storage is part of the compute pipeline",
+      "A two-node debugging ladder",
+      "Safe observation commands"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "bash"
     ]
   },
   "Chapter 1 - Distributed systems performance for GPU jobs": {
@@ -1274,12 +1653,20 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
     "learningOutcome": "Build a scaling-efficiency model that separates compute, communication, synchronization and I/O.",
     "sections": [
+      "Foundations: start here if HPC concepts are new to you",
+      "What this section does and does not do",
+      "The core difference: coordinated versus independent work",
+      "What a \"cluster\" means here",
+      "What problem a job scheduler solves",
+      "What MPI is, at the concept level",
+      "Why network speed matters so much more here",
+      "Glossary",
+      "Before you go deeper, make sure you can...",
       "Example: 8 GPUs give 6.4x throughput - 80% scaling efficiency",
-      "size count type redop time algbw busbw wrong",
-      "Out-of-place hack: time in us, algbw/busbw in GB/s",
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1292,6 +1679,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "text",
+      "mermaid",
       "bash"
     ]
   },
@@ -1304,7 +1692,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 4 - GPUDirect RDMA, NIC/GPU topology and NCCL": {
@@ -1320,6 +1709,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "text",
+      "mermaid",
       "bash"
     ]
   },
@@ -1332,6 +1722,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text",
       "bash"
     ]
@@ -1341,10 +1732,10 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
     "learningOutcome": "Design storage by access pattern, concurrency, locality and recovery behavior.",
     "sections": [
-      "Worked scenario",
-      "gpu sm mem enc dec"
+      "Worked scenario"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1356,7 +1747,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 8 - Kubernetes, Slurm or both": {
@@ -1367,6 +1759,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1379,7 +1772,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 2 — RDMA: InfiniBand versus RoCE": {
@@ -1390,6 +1784,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1401,7 +1796,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 4 — Storage hierarchy and data pipeline architecture": {
@@ -1412,6 +1808,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1423,6 +1820,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1434,6 +1832,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1445,7 +1844,35 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
+    ]
+  },
+  "Foundation — what observability and reliability engineering are": {
+    "volume": "Volume 7",
+    "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
+    "learningOutcome": "A beginner orientation to evidence, user impact, SLOs, incidents and safe troubleshooting.",
+    "sections": [
+      "Foundation — what observability and reliability engineering are",
+      "What this volume is trying to teach",
+      "The first mental model",
+      "Essential language",
+      "Start from impact, not the loudest component",
+      "A real-life example",
+      "Define reliability from a user's journey",
+      "Metrics: understand value types before PromQL",
+      "Logs that can survive an incident",
+      "Traces: one request across boundaries",
+      "GPU and AI observability needs workload outcomes",
+      "Incident evidence tree",
+      "Alert-design questions",
+      "Guided exercise"
+    ],
+    "codeLanguages": [
+      "text",
+      "promql",
+      "json",
+      "mermaid"
     ]
   },
   "Chapter 1 - Metrics, logs and traces as different evidence": {
@@ -1456,6 +1883,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1468,7 +1896,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 3 - Prometheus mental model and PromQL reasoning": {
@@ -1485,6 +1914,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "codeLanguages": [
       "promql",
       "text",
+      "mermaid",
       "bash"
     ]
   },
@@ -1497,7 +1927,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "bash",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 5 - GPU observability with DCGM": {
@@ -1509,6 +1940,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1523,6 +1955,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "codeLanguages": [
       "json",
       "text",
+      "mermaid",
       "python"
     ]
   },
@@ -1534,6 +1967,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text",
       "json"
     ]
@@ -1546,6 +1980,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text",
       "json"
     ]
@@ -1560,6 +1995,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "text",
+      "mermaid",
       "yaml"
     ]
   },
@@ -1572,6 +2008,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1583,7 +2020,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 1 — Start with SLO impact and scope": {
@@ -1607,6 +2045,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1618,6 +2057,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1629,6 +2069,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1640,6 +2081,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1651,6 +2093,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1665,7 +2108,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "promql",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 8 — Reliability testing and game days": {
@@ -1676,6 +2120,32 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
+      "text"
+    ]
+  },
+  "Foundation — what a Solutions Architect actually does": {
+    "volume": "Volume 8",
+    "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
+    "learningOutcome": "A beginner orientation to discovery, requirements, trade-offs, validation and customer communication.",
+    "sections": [
+      "Foundation — what a Solutions Architect actually does",
+      "What this volume is trying to teach",
+      "The first mental model",
+      "Essential language",
+      "Discovery before products",
+      "A real-life example",
+      "A complete discovery example",
+      "Outcome and workload",
+      "Current state",
+      "Constraints and governance",
+      "Unknowns requiring validation",
+      "Architecture is paths and state",
+      "Turn requirements into a trade-off matrix",
+      "PoC as an uncertainty-reduction experiment"
+    ],
+    "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1688,6 +2158,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1699,6 +2170,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1710,7 +2182,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 4 - Kubernetes versus Slurm decision workshop": {
@@ -1722,6 +2195,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1733,6 +2207,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1745,6 +2220,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1756,7 +2232,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 8 - Security architecture and governance": {
@@ -1767,7 +2244,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 9 - Migration and adoption strategy": {
@@ -1779,6 +2257,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1791,7 +2270,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 1 — Workload characterization before architecture": {
@@ -1802,6 +2282,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1813,6 +2294,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1824,6 +2306,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1835,6 +2318,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1846,6 +2330,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1857,6 +2342,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1868,6 +2354,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1879,8 +2366,29 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
+  },
+  "Foundation — how to use interview practice without memorizing answers": {
+    "volume": "Volume 9",
+    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
+    "learningOutcome": "A beginner-safe orientation to technical interviews, question banks and evidence-led answers.",
+    "sections": [
+      "Foundation — how to use interview practice without memorizing answers",
+      "What this volume is trying to teach",
+      "The first mental model",
+      "Different questions test different skills",
+      "What to do when a topic is new",
+      "A practical study loop",
+      "Example: turn a weak troubleshooting answer into reasoning",
+      "Example: architecture answer",
+      "Coding practice should expose the thought process",
+      "Self-scoring rubric",
+      "Four-pass mock-interview progression",
+      "Readiness check"
+    ],
+    "codeLanguages": []
   },
   "Chapter 1 - The answer framework: expose your reasoning": {
     "volume": "Volume 9",
@@ -1892,6 +2400,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1904,6 +2413,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text",
       "python"
     ]
@@ -1918,6 +2428,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1931,6 +2442,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1943,6 +2455,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "➕ Additions"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1955,6 +2468,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1965,10 +2479,10 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "sections": [
       "Worked scenario",
       "➕ Additions",
-      "size count type redop time algbw busbw",
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1982,6 +2496,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -1993,6 +2508,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "➕ Additions"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -2005,6 +2521,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -2017,6 +2534,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -2030,6 +2548,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "More practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -2041,6 +2560,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "➕ Additions"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -2053,6 +2573,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -2066,7 +2587,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "python",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Question set C — Kubernetes platform depth": {
@@ -2078,6 +2600,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -2091,6 +2614,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -2102,6 +2626,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "➕ Additions"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -2114,6 +2639,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -2125,6 +2651,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "➕ Additions"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -2137,6 +2664,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -2148,7 +2676,88 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "➕ Additions"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
+    ]
+  },
+  "Foundation — how the bare-metal and HPC operations stack fits together": {
+    "volume": "Volume 10",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "A beginner orientation connecting BMC, BCM, Linux, IaC, Slurm, MPI, containers and cluster change.",
+    "sections": [
+      "Foundation — how the bare-metal and HPC operations stack fits together",
+      "What this volume is trying to teach",
+      "The stack by responsibility",
+      "Follow one node and one job",
+      "Essential distinctions",
+      "Follow a server from delivery to first job",
+      "1. Physical readiness and out-of-band control",
+      "2. Firmware and boot baseline",
+      "3. Image and operating system",
+      "4. Accelerator and fabric stack",
+      "5. Scheduler readiness",
+      "6. Job lifecycle",
+      "Control plane versus data plane",
+      "Version and ownership matrix"
+    ],
+    "codeLanguages": [
+      "bash",
+      "text"
+    ]
+  },
+  "Foundation — Infrastructure as Code, Terraform and Ansible from zero": {
+    "volume": "Volume 10",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "A beginner-to-production chapter explaining desired state, Terraform providers/resources/state, Ansible inventory/tasks/idempotency, safe plans and hands-on local labs.",
+    "sections": [
+      "Foundation — Infrastructure as Code, Terraform and Ansible from zero",
+      "Why infrastructure needs code-like discipline",
+      "Provisioning and configuration are related but different",
+      "Terraform: declare API-managed resources",
+      "Terraform's three views of reality",
+      "The Terraform workflow, with interpretation",
+      "Terraform local lab",
+      "Drift and import",
+      "Modules: create an interface, not a hiding place",
+      "Ansible: converge host configuration",
+      "inventory.ini",
+      "Idempotency is observed behavior",
+      "Check mode, diff mode and their limits",
+      "Terraform versus Ansible through one example"
+    ],
+    "codeLanguages": [
+      "hcl",
+      "text",
+      "mermaid",
+      "bash",
+      "ini",
+      "yaml"
+    ]
+  },
+  "Interview lab — operate a Slurm and BCM GPU cluster": {
+    "volume": "Volume 10",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "A safe, evidence-driven practice lab for Slurm scheduling, BCM lifecycle management, GPU admission and senior interview answers.",
+    "sections": [
+      "Interview lab — operate a Slurm and BCM GPU cluster",
+      "The one-minute mental model",
+      "Lab setup and safety",
+      "Lab 1 — identify the cluster control plane",
+      "Lab 2 — read a pending job like an operator",
+      "Lab 3 — inspect fleet health before touching state",
+      "Lab 4 — connect BCM desired state to live state",
+      "Lab 5 — GPU admission gate",
+      "Lab 6 — simulate a multi-node failure without changing the cluster",
+      "Worked interview scenario: “The H100 cluster is underperforming”",
+      "Practice cards",
+      "Card A — scheduler versus communication",
+      "Card B — BCM versus Ansible",
+      "Card C — drained node"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "bash"
     ]
   },
   "Chapter 1 - Bare-metal and BMC/Redfish lifecycle": {
@@ -2171,6 +2780,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -2189,6 +2799,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -2197,20 +2808,25 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
     "learningOutcome": "Understand automated OS provisioning (kickstart/cloud-init), the SELinux/AppArmor enforcement model and triage flow, a CIS-style hardening baseline, and why patch strategy on a GPU cluster is constrained by driver/kernel coupling in ways a stateless web-tier fleet is not.",
     "sections": [
+      "Foundations: start here if Linux/cluster security concepts are new to you",
+      "What this section does and does not do",
+      "A quick recap, one level further: root and least privilege",
+      "What \"attack surface\" means",
+      "What Mandatory Access Control adds on top of normal permissions",
+      "Why patching is a security practice — and why it's harder on a GPU cluster",
+      "A first honest look at an SELinux status check",
+      "Glossary",
+      "Before you go deeper, make sure you can...",
       "Start here — installation, configuration, and hardening are different stages",
       "A practical beginner investigation order",
       "Automated OS provisioning",
       "SELinux vs AppArmor",
-      "SELinux triage flow (real, not aspirational)",
-      "AppArmor triage flow",
-      "CIS-benchmark-style hardening baseline",
-      "Patch/update strategy on a GPU cluster",
-      "The hardening-vs-HPC-operations tension",
-      "Worked scenario — a routine kernel patch broke the GPU driver DKMS build fleet-wide",
-      "Practice"
+      "SELinux triage flow (real, not aspirational)"
     ],
     "codeLanguages": [
-      "text"
+      "bash",
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 4 - Ansible for infrastructure automation": {
@@ -2232,6 +2848,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text",
       "yaml"
     ]
@@ -2254,6 +2871,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text",
       "hcl"
     ]
@@ -2277,6 +2895,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -2296,6 +2915,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text",
       "python"
     ]
@@ -2309,18 +2929,13 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "A safe progression for your first container job",
       "Why not just run Docker on the cluster",
       "What Enroot solves",
-      "→ downloads image, flattens layers, writes:",
-      "nvidia+pytorch+24.05-py3.sqsh (squashed rootless filesystem)",
-      "→ unpacks/registers a named, runnable container \"pt2405\" from the squash file",
-      "→ runs a command inside the container as the invoking user; --rw makes the",
-      "container filesystem writable for this invocation, --root maps the user to",
-      "container-root (still unprivileged on the host) for install-time operations",
       "Pyxis: the Slurm SPANK plugin",
       "Common failure modes",
       "Worked scenario",
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -2344,6 +2959,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text",
       "python",
       "bash"
@@ -2370,6 +2986,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Mnemonic"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -2391,6 +3008,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -2411,7 +3029,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 1 — BCM at fleet scale: node categories, image drift and health-check design": {
@@ -2428,7 +3047,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Interview-ready line"
     ],
     "codeLanguages": [
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 2 — Slurm HA and accounting internals": {
@@ -2446,6 +3066,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Interview-ready line"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -2462,6 +3083,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Interview-ready line"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -2479,7 +3101,34 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Interview-ready line"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
+    ]
+  },
+  "Chapter 17 - Git for infrastructure and operations": {
+    "volume": "Volume 10",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Git fundamentals, review, recovery, secrets and safe change promotion for GPU, Slurm, Kubernetes and infrastructure repositories.",
+    "sections": [
+      "Chapter 17 — Git for infrastructure and operations",
+      "Start here — four objects and three boundaries",
+      "The safe first workflow",
+      "Branches, remotes and tracking",
+      "Merge versus rebase",
+      "resolve one conflict at a time",
+      "Review infrastructure changes by blast radius",
+      "Git, GitOps and the live cluster",
+      "Secrets and sensitive history",
+      "Recovery: the commands worth practising",
+      "Undo an unstaged edit",
+      "Unstage without losing edits",
+      "Move a branch pointer back safely",
+      "Find a lost local commit"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "bash"
     ]
   }
 };

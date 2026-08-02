@@ -61,11 +61,13 @@ A senior engineer also thinks about budgets. If a CLI checks 500 nodes and each 
 ## Senior addendum
 
 ➕ **The budget math the paragraph mentions, worked with real numbers (this is the calculation a Senior SA is expected to do out loud):**
-```
-500 nodes, worst case: 4 attempts × 8s read timeout = 32s per node if every attempt times out
-Sequential: 500 × 32s = 4.4 HOURS worst case  ← unacceptable, exactly as the text says
-With ThreadPoolExecutor(max_workers=16): 500/16 ≈ 32 batches × 32s = ~17 minutes worst case
-With a global deadline (e.g. 60s) that cancels remaining work: bounded regardless of per-node worst case
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["500 nodes, worst case: 4 attempts × 8s read timeout = 32s per node if every attempt times out"]
+  n1["Sequential: 500 × 32s = 4.4 HOURS worst case ← unacceptable, exactly as the text says"]
+  n2["With ThreadPoolExecutor(max_workers=16): 500/16 ≈ 32 batches × 32s = ~17 minutes worst case"]
+  n3["With a global deadline (e.g. 60s) that cancels remaining work: bounded regardless of per-node worst case"]
 ```
 This is the actual arithmetic behind "senior engineers think about budgets" — being able to produce these three numbers live, from the retry policy's own parameters, is a stronger signal than reciting "use a thread pool."
 

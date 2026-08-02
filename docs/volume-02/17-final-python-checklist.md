@@ -31,10 +31,20 @@ _Figure A. A production tool is a bounded reconciliation loop with validation an
 ➕ **One line to add to this checklist:** *Can you say, out loud, which chapter of this volume each row maps to, without looking?* (Ch2/Ch12 → algorithm design; Ch7/Ch8 → resilient I/O; Ch3/Ch9 → testable decisions; Ch6/Ch14 → operate; Ch12/Ch13 → ship.) If any mapping is fuzzy, that's your re-read list before Volume 3.
 
 ➕ **Visual recall card — a production tool's four questions:**
-```
-Can it decide correctly? ──► pure policy + types + tests
-Can it reach dependencies safely? ──► timeout + retry + bounded concurrency
-Can an operator explain it? ──► structured logs + metrics + exit codes
-Can a team change it safely? ──► packaging + CI + clear boundaries
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["Can it decide correctly?"]
+  n1["pure policy + types + tests"]
+  n2["Can it reach dependencies safely?"]
+  n3["timeout + retry + bounded concurrency"]
+  n4["Can an operator explain it?"]
+  n5["structured logs + metrics + exit codes"]
+  n6["Can a team change it safely?"]
+  n7["packaging + CI + clear boundaries"]
+  n0 --> n1
+  n2 --> n3
+  n4 --> n5
+  n6 --> n7
 ```
 **Memory hook:** *"Correct, safe, visible, changeable."*

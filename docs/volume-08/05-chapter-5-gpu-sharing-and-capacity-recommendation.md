@@ -19,27 +19,13 @@ Collect model memory footprint, peak memory with batching/KV cache, latency sens
 ---
 
 ➕ **The sharing-mode decision tree (the table above, converted into a live-whiteboard flow):**
-```
-                     "How should this GPU be shared?"
-                              │
-              ┌────────────────┴────────────────┐
-              ▼                                 ▼
-    Does the workload need              Does the workload fit
-    coordinated multi-GPU                comfortably in a hardware-
-    (NCCL/collective, large              isolated slice (MIG) with
-    training)?                          spare capacity to spare?
-              │                                 │
-             YES                          YES ──┴── NO
-              │                            │          │
-              ▼                            ▼          ▼
-     Full GPUs, topology-           MIG (hardware      Time-slicing /
-     aware placement                isolation +         shared dev pool
-     (NVLink/NVSwitch/               predictable         (software
-     fabric-aware)                   perf) — validate    multiplexing,
-                                      P95 latency &       NO memory
-                                      packing efficiency  isolation —
-                                                          validate fairness
-                                                          & interference)
+```mermaid
+flowchart TD
+    Q1["'How should this GPU be shared?'"] --> Q2["Does the workload need coordinated\nmulti-GPU (NCCL/collective, large training)?"]
+    Q1 --> Q3["Does the workload fit comfortably in a\nhardware-isolated slice (MIG) with\nspare capacity to spare?"]
+    Q2 -->|YES| R1["Full GPUs, topology-aware placement\n(NVLink/NVSwitch/fabric-aware)"]
+    Q3 -->|YES| R2["MIG (hardware isolation + predictable\nperf) - validate P95 latency &\npacking efficiency"]
+    Q3 -->|NO| R3["Time-slicing / shared dev pool\n(software multiplexing, NO memory\nisolation - validate fairness &\ninterference)"]
 ```
 **The one-line test to say out loud:** MIG gives you *hardware* memory/fault isolation at the cost of fixed-size slices (fragmentation risk); time-slicing gives you *flexible* sharing at the cost of *no* memory isolation (one greedy process can starve or OOM its neighbors). That trade — isolation vs flexibility — is the actual decision, the specific technology names are secondary.
 
@@ -85,10 +71,12 @@ MIG = isolate (hardware-enforced, fixed-size, fragmentation risk). Time-slicing 
 ➕ 2. A customer insists on MIG for the bursty 40-user dev-notebook workload from the worked scenario because "MIG sounds more modern than time-slicing." Write the two-sentence pushback using the isolate-vs-elastic framing, including the concrete failure mode MIG would cause here (fixed slice count fragmenting under unpredictable bursty concurrency).
 
 ➕ **Visual model — sharing is an isolation–elasticity choice:**
-```
-hard isolation ◄── MIG ─────────────── MPS / time slicing ───────────────► elastic packing
-fixed memory + fault boundary                                                shared capacity + burst tolerance
-       │                                                                                │
-regulated / predictable tenants                                               notebooks / variable demand
+```mermaid
+flowchart LR
+    A["hard isolation"] <--> B[MIG] <--> C["MPS / time slicing"] <--> D["elastic packing"]
+    B --- E["fixed memory + fault boundary"]
+    C --- F["shared capacity + burst tolerance"]
+    E --- G["regulated / predictable tenants"]
+    F --- H["notebooks / variable demand"]
 ```
 **Memory hook:** *"Partition when the boundary matters; share when the burst matters."*

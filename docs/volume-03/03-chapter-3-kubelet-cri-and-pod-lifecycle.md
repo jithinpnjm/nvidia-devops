@@ -29,49 +29,44 @@ crictl inspectp <sandbox-id>
 | Running but NotReady | readiness/dependency/application health |
 
 ➕ **The full node-local pipeline once a Pod is bound to a node** (the source names the actors; here is the sequence and where each symptom in the table actually originates):
-```
-API: Pod bound to node (nodeName set)
-        │
-        ▼
-kubelet's Pod worker picks it up (SyncPod loop)
-        │
-        ├─▶ CRI: RunPodSandbox ──▶ creates network namespace, cgroup scaffold
-        │        │                         │
-        │        ▼                         ▼
-        │   CNI plugin invoked        cgroup created (empty, no containers yet)
-        │   (assigns Pod IP, sets     "ContainerCreating" if this step stalls —
-        │    up veth/routes)           CNI plugin errors show up HERE
-        │
-        ├─▶ CSI: volume attach/mount steps for any PVCs — "ContainerCreating"
-        │        if THIS stalls instead (different root cause, same symptom)
-        │
-        ├─▶ CRI: PullImage (per container) ── registry auth/network/quota
-        │        failures here → ImagePullBackOff, NOT ContainerCreating forever
-        │
-        └─▶ CRI: CreateContainer + StartContainer (per container, in order)
-                 │
-                 ▼
-            container process starts → exits immediately/crashes repeatedly
-            → CrashLoopBackOff (kubelet backs off restart interval exponentially)
-                 │
-                 ▼
-            container stays up → kubelet runs readiness probe
-            → Running but NotReady if probe fails, independent of container health
+```mermaid
+flowchart TD
+    Bound["API: Pod bound to node (nodeName set)"]
+    SyncPod["kubelet's Pod worker picks it up (SyncPod loop)"]
+    RunSandbox["CRI: RunPodSandbox -- creates network namespace, cgroup scaffold"]
+    CNI["CNI plugin invoked (assigns Pod IP, sets up veth/routes)<br/>ContainerCreating if this step stalls -- CNI plugin errors show up HERE"]
+    Cgroup["cgroup created (empty, no containers yet)"]
+    CSI["CSI: volume attach/mount steps for any PVCs<br/>ContainerCreating if THIS stalls instead (different root cause, same symptom)"]
+    Pull["CRI: PullImage (per container) -- registry auth/network/quota<br/>failures here result in ImagePullBackOff, NOT ContainerCreating forever"]
+    Create["CRI: CreateContainer + StartContainer (per container, in order)"]
+    Crash["container process starts, exits immediately/crashes repeatedly<br/>results in CrashLoopBackOff (kubelet backs off restart interval exponentially)"]
+    Ready["container stays up, kubelet runs readiness probe<br/>Running but NotReady if probe fails, independent of container health"]
+
+    Bound --> SyncPod
+    SyncPod --> RunSandbox
+    RunSandbox --> CNI
+    RunSandbox --> Cgroup
+    SyncPod --> CSI
+    SyncPod --> Pull
+    SyncPod --> Create
+    Create --> Crash
+    Create --> Ready
 ```
 ➕ **Why this matters:** every row in the table above is a *different failure stage in this same pipeline* — the practical value of memorizing this sequence is that `ContainerCreating` alone is not a diagnosis, it's a stage that covers at least three independent subsystems (CNI, CSI, image pull ordering, sandbox creation). The fix is always "find which CRI call is stuck," not "restart the Pod."
 
 ➕ **Sample annotated output — pinpointing exactly which CRI call stalled:**
-```
-$ crictl inspectp <sandbox-id> | jq '.status'
-{
-  "state": "SANDBOX_READY",
-  "network": {
-    "ip": "",                     ← EMPTY. Sandbox exists but CNI never assigned an IP.
-    "additionalIps": []
-  }
-}
-$ journalctl -u kubelet --since '-5 min' | grep -i cni
-kubelet[2140]: E0130 "Failed to setup network for sandbox" err="plugin type=\"calico\" failed (add): error getting ClusterInformation: connection refused"
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ crictl inspectp <sandbox-id> | jq '.status'"]
+  n1["{"]
+  n2["'state': 'SANDBOX_READY',"]
+  n3["'network': {"]
+  n4["'ip': '', ← EMPTY. Sandbox exists but CNI never assigned an IP."]
+  n5["'additionalIps': []"]
+  n6["}"]
+  n7["$ journalctl -u kubelet --since '-5 min' | grep -i cni"]
+  n8["kubelet[2140]: E0130 'Failed to setup network for sandbox' err='plugin type=\'calico\' failed (add): error getting ClusterInformation: connection refused'"]
 ```
 This is the smoking gun: the sandbox itself is fine (`SANDBOX_READY`), but CNI failed to assign an IP because the CNI plugin's own health dependency (here, a Calico API datastore) is unreachable — this is a *cluster networking control-plane* problem masquerading as a single Pod stuck in `ContainerCreating`. If this is happening cluster-wide, escalate immediately rather than treating each Pod individually.
 
@@ -79,31 +74,31 @@ This is the smoking gun: the sandbox itself is fine (`SANDBOX_READY`), but CNI f
 ```bash
 crictl inspect <container-id> | jq '.info.runtimeSpec.linux.resources.devices'
 ```
-```
-[
-  {"allow": true, "type": "c", "major": 195, "minor": 0, "access": "rwm"},   ← /dev/nvidia0
-  {"allow": true, "type": "c", "major": 195, "minor": 255, "access": "rwm"}  ← /dev/nvidiactl
-]
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["["]
+  n1["{'allow': true, 'type': 'c', 'major': 195, 'minor': 0, 'access': 'rwm'}, ← /dev/nvidia0"]
+  n2["{'allow': true, 'type': 'c', 'major': 195, 'minor': 255, 'access': 'rwm'} ← /dev/nvidiactl"]
+  n3["]"]
 ```
 If a Pod's requested `nvidia.com/gpu` device never shows up in this list, but the Pod passed scheduling and is `Running`, look at the NVIDIA device plugin's `Allocate()` gRPC response and the kubelet's device manager checkpoint (`/var/lib/kubelet/device-plugins/kubelet_internal_checkpoint`) — a stale checkpoint after a device plugin restart is a known cause of a container starting with zero actual GPU device nodes bind-mounted despite the Pod object claiming the resource.
 
 ➕ **Diagram: Pod phase state machine — where the table's symptoms actually sit on it:**
-```
-   Pending ──(bound to node)──▶ ContainerCreating ──(all containers started)──▶ Running
-      │                                │                                          │
-      │                                │                                readiness probe fails
-      │                          image/CNI/CSI/                                   │
-      │                          sandbox stalls                                   ▼
-      │                          (stays here,                             Running, NotReady
-      │                           no phase change)                        (still counted Running —
-      │                                                                    NotReady is a condition,
-      ▼                                                                    not a phase)
-  never scheduled                                              container exits ──▶ CrashLoopBackOff
-  (admission/scheduler                                          repeatedly          (kubelet backs off
-   evidence, Ch1/Ch2)                                                                restart interval,
-                                                                                      phase stays Running
-                                                                                      or goes Failed
-                                                                                      depending on restartPolicy)
+```mermaid
+flowchart LR
+    Pending["Pending"]
+    NeverSched["never scheduled (admission/scheduler evidence, Ch1/Ch2)"]
+    CC["ContainerCreating<br/>image/CNI/CSI/sandbox stalls (stays here, no phase change)"]
+    Running["Running"]
+    NotReady["Running, NotReady<br/>(still counted Running -- NotReady is a condition, not a phase)"]
+    Crash["CrashLoopBackOff<br/>(kubelet backs off restart interval, phase stays Running or goes Failed depending on restartPolicy)"]
+
+    Pending -->|"not bound"| NeverSched
+    Pending -->|"bound to node"| CC
+    CC -->|"all containers started"| Running
+    Running -->|"readiness probe fails"| NotReady
+    Running -->|"container exits repeatedly"| Crash
 ```
 `kubectl get pods` only ever shows you the phase — CrashLoopBackOff and NotReady are reasons/conditions layered on top of `Running`, which is exactly why the symptom table above needs a second axis (kubelet/CRI evidence) to actually diagnose anything.
 

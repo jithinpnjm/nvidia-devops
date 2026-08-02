@@ -20,12 +20,9 @@ Use STAR, but make the technical decision visible. Situation should be brief. Ta
 ## ➕ Additions
 
 ➕ **STAR-for-seniors as a time-budget diagram (the ratio interviewers are actually grading):**
-```
- 0-------10%-----------------------------------70%----------90%---100%
- |  S    |  T    |            A (the bulk)              |    R      |
- | brief | your  |  reasoning, trade-offs, influence,    | measurable|
- |       | resp. |  what you changed in the system        | + lesson  |
- └───────┴───────┴─────────────────────────────────────────┴──────────┘
+```mermaid
+flowchart LR
+    S["S - Situation (0-10%)<br/>brief"] --> T["T - Task (10-20%)<br/>your responsibility"] --> A["A - Action (20-90%, the bulk)<br/>reasoning, trade-offs, influence, what you changed in the system"] --> R["R - Result (90-100%)<br/>measurable + lesson"]
 ```
 ➕ **Memory hook:** *"Situation and Task are the appetizer, Action is the meal, Result is the receipt."* If your Situation/Task takes more than ~15% of your answer time, you're under-delivering on Action — the part that actually demonstrates seniority.
 

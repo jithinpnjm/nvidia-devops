@@ -39,9 +39,16 @@ Cross-reference: this is the identical sequence used in Chapter 8's GPU Operator
 All eight Deep Dive titles, their core mechanisms (finalizers/ownerReferences, quorum/failure boundaries, Filter-Score/preemption/DRA, kubelet-CRI/node-pressure, Service/CNI/DNS/Gateway API, admission chain/PSA/VAP, the five-pattern table, GPU operator/node-pool operations), every original command block, and every original table row appear verbatim above or in the corresponding chapter file cross-referenced by name.
 
 ➕ **Visual model — GPU nodes are a separate operational product inside the cluster:**
-```
-node pool intent ─► labels / taints / topology ─► GPU Operator operands ─► device capacity
-       │                         │                         │                    │
-       └── upgrade/drain plan ───┴── workload isolation ───┴── telemetry ────────┘
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["node pool intent"]
+  n1["labels / taints / topology"]
+  n2["GPU Operator operands"]
+  n3["device capacity"]
+  n4["upgrade/drain plan workload isolation telemetry"]
+  n0 --> n1
+  n1 --> n2
+  n2 --> n3
 ```
 **Memory hook:** *"Pool, prepare, prove, place."* A schedulable GPU resource is the end result of a lifecycle, not a property that appears when hardware is racked.

@@ -25,9 +25,18 @@ A GPU dashboard should combine device health and workload performance. Device he
 Xid codes are what turn "driver logs provide context" (the original line) into an actual triage table — cross-reference `dmesg`/`journalctl` Xid lines against DCGM's `DCGM_FI_DEV_XID_ERRORS` counter (Ch.5's metric list) to confirm the device-level metric and the driver-level log agree, then act on severity: 79/48/62 warrant immediate drain, 13/31 warrant an application-code look first.
 
 ➕ **Visual model — bind a fleet metric to a physical device before action:**
-```
-DCGM GPU UUID ─► PCI bus id ─► driver/Xid timestamp ─► scheduler allocation ─► workload impact
-      │                                                                    │
-      └── fleet trend / recurrence                                         └── drain, retry, or investigate code
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["DCGM GPU UUID"]
+  n1["PCI bus id"]
+  n2["driver/Xid timestamp"]
+  n3["scheduler allocation"]
+  n4["workload impact"]
+  n5["fleet trend / recurrence drain, retry, or investigate code"]
+  n0 --> n1
+  n1 --> n2
+  n2 --> n3
+  n3 --> n4
 ```
 **Memory hook:** *"UUID finds the card; time finds the event; allocation finds the customer impact."*

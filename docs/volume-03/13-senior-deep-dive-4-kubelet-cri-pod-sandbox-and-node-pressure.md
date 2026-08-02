@@ -34,29 +34,20 @@ Node-pressure eviction is not the same as scheduler preemption. The kubelet can 
 ➕ **Interview-ready line:** "PDB protects against voluntary disruption — drains, rolling updates, scale-downs. It does not protect against a kubelet evicting a Pod because the node itself is about to fall over from memory or disk pressure — that's an involuntary disruption, and it's a distinction worth stating explicitly because customers sometimes assume PDB is a universal safety net."
 
 ➕ **Diagram: the eviction trigger and victim-ranking sequence, end to end:**
-```
- kubelet polls node signals: /proc/pressure/{cpu,memory,io}, disk/inode usage
-        │
-        ▼
- A configured eviction threshold is breached (e.g. available memory < 100Mi)
-        │  no apiserver round-trip needed to decide this — purely node-local
-        ▼
- kubelet ranks ALL Pods on this node as eviction candidates:
-        │
-        ▼
- 1st: BestEffort QoS (no requests/limits set at all)
-        │
-        ▼
- 2nd: Burstable QoS, ranked by (usage − request) descending — the Pod
-      exceeding its request by the LARGEST margin goes first
-        │
-        ▼
- 3rd (last resort): Guaranteed QoS — only evicted if the above isn't enough
-        │
-        ▼
- kubelet evicts chosen Pod directly — NO PodDisruptionBudget check,
- NO eviction API 429/retry semantics — this is a direct kill, not a
- voluntary-disruption request
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["kubelet polls node signals: /proc/pressure/{cpu,memory,io}, disk/inode usage"]
+  n1["A configured eviction threshold is breached (e.g. available memory < 100Mi)"]
+  n2["no apiserver round-trip needed to decide this — purely node-local"]
+  n3["kubelet ranks ALL Pods on this node as eviction candidates"]
+  n4["1st: BestEffort QoS (no requests/limits set at all)"]
+  n5["2nd: Burstable QoS, ranked by (usage − request) descending — the Pod"]
+  n6["exceeding its request by the LARGEST margin goes first"]
+  n7["3rd (last resort): Guaranteed QoS — only evicted if the above isn't enough"]
+  n8["kubelet evicts chosen Pod directly — NO PodDisruptionBudget check,"]
+  n9["NO eviction API 429/retry semantics — this is a direct kill, not a"]
+  n10["voluntary-disruption request"]
 ```
 The "no PDB check" step is the one worth over-stating: this is the single biggest gap between what teams assume PDB protects and what it actually protects.
 

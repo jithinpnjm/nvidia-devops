@@ -29,28 +29,25 @@ source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 ## ➕ Additions
 
 ➕ **Kubernetes symptom-to-layer decision tree:**
-```
-Pod/Service symptom
-        │
-        ▼
- Pending? ──yes──▶ kubectl describe pod → Events
-   │no                  │
-   │              FailedScheduling reason:
-   │              - Insufficient <resource>   → capacity/quota/autoscaler
-   │              - node(s) had taint          → affinity/toleration mismatch
-   │              - node(s) didn't match       → nodeSelector/topology/PVC zone
-   ▼
- ContainerCreating stuck? ──yes──▶ kubelet events: image pull, CNI, CSI mount, sandbox
-   │no
-   ▼
- CrashLoopBackOff? ──yes──▶ previous container's exit code + `--previous` logs
-   │no                         137=SIGKILL(OOM/manual) 1=app error 143=SIGTERM
-   ▼
- Running but NotReady? ──yes──▶ readiness probe result + app dependency check
-   │no
-   ▼
- Running+Ready but unreachable? ──▶ EndpointSlice has IP? → DNS resolves? →
-                                     kube-proxy/CNI dataplane → NetworkPolicy
+```mermaid
+flowchart TD
+    Sym[Pod/Service symptom]
+    Pending{Pending?}
+    Creating{ContainerCreating stuck?}
+    Crash{CrashLoopBackOff?}
+    NotReady{Running but NotReady?}
+    Unreachable[Running+Ready but unreachable]
+
+    Sym --> Pending
+    Pending -->|yes| PendEv["kubectl describe pod - Events:<br/>Insufficient resource - capacity/quota/autoscaler<br/>node(s) had taint - affinity/toleration mismatch<br/>node(s) didn't match - nodeSelector/topology/PVC zone"]
+    Pending -->|no| Creating
+    Creating -->|yes| CreateEv["kubelet events: image pull, CNI, CSI mount, sandbox"]
+    Creating -->|no| Crash
+    Crash -->|yes| CrashEv["previous container's exit code + --previous logs<br/>137=SIGKILL(OOM/manual) 1=app error 143=SIGTERM"]
+    Crash -->|no| NotReady
+    NotReady -->|yes| ReadyEv["readiness probe result + app dependency check"]
+    NotReady -->|no| Unreachable
+    Unreachable --> Chain["EndpointSlice has IP? -> DNS resolves? -> kube-proxy/CNI dataplane -> NetworkPolicy"]
 ```
 
 ➕ **Sample annotated output — GPU-specific Pending Pod, the exact evidence chain:**
@@ -69,11 +66,12 @@ Two distinct causes in one message: 8 nodes simply don't have enough free GPU al
 ➕ 6. Deliberately create a Pod with a `nodeSelector` that matches zero nodes and one with a GPU resource request exceeding cluster capacity — compare the two `FailedScheduling` messages verbatim and explain in one sentence how you'd tell them apart without reading the message (hint: you can't reliably — always read the actual message).
 
 ➕ **Visual model — Pending is a scheduler explanation, not one failure state:**
-```
-Pending Pod ─► read events
-  ├── resources / topology ─► capacity or placement
-  ├── taint / affinity       ─► specification mismatch
-  ├── PVC / volume           ─► storage binding
-  └── admission / quota      ─► policy boundary
+```mermaid
+flowchart LR
+    P[Pending Pod] --> R[read events]
+    R -->|resources / topology| A[capacity or placement]
+    R -->|taint / affinity| B[specification mismatch]
+    R -->|PVC / volume| C[storage binding]
+    R -->|admission / quota| D[policy boundary]
 ```
 **Memory hook:** *"The event names the predicate; do not guess from the phase."*

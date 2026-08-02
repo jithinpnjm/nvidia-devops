@@ -20,52 +20,42 @@ A public post illustrates the distinction between DCGM hardware metrics and infe
 [Public source](https://www.linkedin.com/posts/sagar-s-desai_kubernetes-gpu-nvidia-activity-7413160079337684992-fOZI)
 
 ➕ **Sample DCGM Exporter Prometheus output, annotated field by field — the metric set worth having memorized:**
-```
-$ curl -s http://localhost:9400/metrics | grep -E "DCGM_FI_DEV" | grep gpu="0"
-DCGM_FI_DEV_GPU_UTIL{gpu="0",UUID="GPU-a1b2...",Hostname="gpu-node-07",pod="train-job-0",namespace="ml"} 97
-DCGM_FI_DEV_FB_USED{gpu="0",UUID="GPU-a1b2...",pod="train-job-0"} 38214        ← MiB of framebuffer (device memory) used
-DCGM_FI_DEV_FB_FREE{gpu="0",UUID="GPU-a1b2...",pod="train-job-0"} 2136         ← only ~2GB headroom left on an 80GB A100 slice
-DCGM_FI_DEV_GPU_TEMP{gpu="0",UUID="GPU-a1b2...",pod="train-job-0"} 79          ← °C, within normal range (<85 typical throttle point)
-DCGM_FI_DEV_POWER_USAGE{gpu="0",UUID="GPU-a1b2...",pod="train-job-0"} 385.4    ← watts, near TDP — GPU is genuinely working, not idling
-DCGM_FI_DEV_SM_CLOCK{gpu="0",UUID="GPU-a1b2...",pod="train-job-0"} 1410       ← MHz; compare to rated boost clock to spot throttling
-DCGM_FI_DEV_XID_ERRORS{gpu="0",UUID="GPU-a1b2...",pod="train-job-0"} 0        ← 0 is what you want; nonzero means driver-level fault events
-DCGM_FI_DEV_ECC_DBE_VOL_TOTAL{gpu="0",UUID="GPU-a1b2...",pod="train-job-0"} 0 ← uncorrectable ECC errors; nonzero = hardware memory fault, not software
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ curl -s http://localhost:9400/metrics | grep -E 'DCGM_FI_DEV' | grep gpu='0'"]
+  n1["DCGM_FI_DEV_GPU_UTIL{gpu='0',UUID='GPU-a1b2...',Hostname='gpu-node-07',pod='train-job-0',namespace='ml'} 97"]
+  n2["DCGM_FI_DEV_FB_USED{gpu='0',UUID='GPU-a1b2...',pod='train-job-0'} 38214 ← MiB of framebuffer (device memory) used"]
+  n3["DCGM_FI_DEV_FB_FREE{gpu='0',UUID='GPU-a1b2...',pod='train-job-0'} 2136 ← only ~2GB headroom left on an 80GB A100 slice"]
+  n4["DCGM_FI_DEV_GPU_TEMP{gpu='0',UUID='GPU-a1b2...',pod='train-job-0'} 79 ← °C, within normal range (<85 typical throttle point)"]
+  n5["DCGM_FI_DEV_POWER_USAGE{gpu='0',UUID='GPU-a1b2...',pod='train-job-0'} 385.4 ← watts, near TDP — GPU is genuinely working, not idling"]
+  n6["DCGM_FI_DEV_SM_CLOCK{gpu='0',UUID='GPU-a1b2...',pod='train-job-0'} 1410 ← MHz; compare to rated boost clock to spot throttling"]
+  n7["DCGM_FI_DEV_XID_ERRORS{gpu='0',UUID='GPU-a1b2...',pod='train-job-0'} 0 ← 0 is what you want; nonzero means driver-level fault events"]
+  n8["DCGM_FI_DEV_ECC_DBE_VOL_TOTAL{gpu='0',UUID='GPU-a1b2...',pod='train-job-0'} 0 ← uncorrectable ECC errors; nonzero = hardware memory fault, not software"]
 ```
 Reading order for a "is this GPU healthy vs busy" triage: **XID_ERRORS and ECC_DBE first** (any nonzero value here overrides everything else — it's a hardware-fault signal, go straight to Chapter 10/Deep Dive 4), then **UTIL+POWER+SM_CLOCK together** (all three should move together; if UTIL is high but POWER is low and SM_CLOCK is depressed, that's a throttling or stalling signature, not genuine compute), then **FB_USED/FB_FREE** (memory pressure — this is the metric that predicts CUDA OOM before it happens, seconds to minutes ahead).
 
 ➕ **ASCII: the multi-layer model the chapter names, made visual — device health vs workload demand are orthogonal axes, not one scale:**
-```
-                    High GPU util (DCGM)
-                           │
-     Quadrant A            │            Quadrant B
-     "genuinely busy,      │            "busy but inefficient —
-      healthy device"      │             check batch size, kernel
-                           │             launch overhead, memory-
-  ─────────────────────────┼───────────  bound ops"
-                           │
-     Quadrant D            │            Quadrant C
-     "idle device,         │            "device thinks it's busy,
-      healthy — normal     │             but service queue/latency
-      if demand is low"    │             is degrading anyway —
-                           │             THIS is the Sagar Desai
-                    Low GPU util        trap: util alone can't see it"
-                    (DCGM)
-        ← Low service saturation (queue depth, TTFT) ... High →
+```mermaid
+quadrantChart
+    title GPU util (DCGM) vs service saturation (queue depth, TTFT)
+    x-axis Low service saturation --> High service saturation
+    y-axis Low GPU util --> High GPU util
+    quadrant-1 Quadrant B: busy but inefficient -- check batch size, kernel launch overhead, memory-bound ops
+    quadrant-2 Quadrant A: genuinely busy, healthy device
+    quadrant-3 Quadrant D: idle device, healthy -- normal if demand is low
+    quadrant-4 Quadrant C: device thinks its busy but queue/latency degrading anyway -- Sagar Desai trap, util alone cant see it
 ```
 The chapter's practitioner-lens point sits in **Quadrant C's boundary**: a service can be saturated (queue growing, TTFT rising) while GPU_UTIL reads modestly, because the bottleneck is elsewhere (CPU-side tokenization, network, batching inefficiency, a single stuck worker not receiving traffic). Conversely Quadrant B is the inverse trap — util is pegged at 100% but that doesn't mean the GPU is doing useful work per request; it can mean tiny batch sizes driving kernel-launch-overhead-bound execution.
 
 ➕ **Diagram: the DCGM telemetry pipeline, and exactly where the silent-loss scenario below breaks it**
-```
-   GPU hardware         NVIDIA driver/NVML       DCGM daemon          dcgm-exporter        Prometheus
-  (SM, memory,     ──▶  (reads registers,   ──▶  (polls NVML,   ──▶  (/metrics HTTP   ──▶  (scrapes,
-   ECC, XID           translates to counters)     aggregates,        endpoint, adds        stores,
-   events)                                        applies labels)    K8s labels)           alerts)
-                              ▲
-                    driver/firmware version
-                    mismatch breaks THIS hop —
-                    NVML calls fail silently,
-                    DCGM emits stale/zero values
-                    instead of a scrape error
+```mermaid
+flowchart LR
+    GPU["GPU hardware (SM, memory, ECC, XID events)"] --> Driver["NVIDIA driver/NVML (reads registers, translates to counters)"]
+    Driver --> DCGM["DCGM daemon (polls NVML, aggregates, applies labels)"]
+    DCGM --> Exporter["dcgm-exporter (/metrics HTTP endpoint, adds K8s labels)"]
+    Exporter --> Prom["Prometheus (scrapes, stores, alerts)"]
+    Break["driver/firmware version mismatch breaks THIS hop -- NVML calls fail silently, DCGM emits stale/zero values instead of a scrape error"] -.-> Driver
 ```
 The scenario below is a break at the driver/NVML hop specifically: the exporter and Prometheus stay healthy (`up == 1`), so nothing downstream notices — which is exactly why the fix is a variance-based alert, not just an `up`-based one.
 

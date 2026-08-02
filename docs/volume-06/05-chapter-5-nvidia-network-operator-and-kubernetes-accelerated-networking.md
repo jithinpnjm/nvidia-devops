@@ -12,22 +12,22 @@ Network Operator automates deployment/configuration of networking components suc
 Kubernetes primary Pod networking may remain conventional while workloads receive additional high-performance interfaces via Multus/SR-IOV patterns. The design must define which traffic uses which network and how identity/policy/observability work across both.
 
 ➕ **The "two networks per pod" architecture, drawn out — this is the mental model the original two paragraphs are describing:**
-```
-┌─────────────────────────────── Kubernetes Node ───────────────────────────────┐
-│                                                                                 │
-│   ┌──────────────────── Pod ────────────────────┐                             │
-│   │                                              │                             │
-│   │  eth0 (primary, CNI-managed, kube-proxy      │──── ClusterIP Services,     │
-│   │  Services, DNS, control-plane traffic)       │     API calls, health checks│
-│   │                                              │                             │
-│   │  net1 (secondary, Multus + SR-IOV VF or      │──── raw RDMA/RoCE traffic,  │
-│   │  macvlan, direct to physical NIC)             │     NCCL collective traffic│
-│   │                                              │                             │
-│   └──────────────────────────────────────────────┘                             │
-│         ▲                                    ▲                                 │
-│    standard CNI (Calico/Cilium/etc)    SR-IOV Device Plugin + Network Operator │
-│                                          (bypasses kube-proxy/iptables entirely)│
-└─────────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph NODE["Kubernetes Node"]
+        subgraph POD["Pod"]
+            ETH0["eth0 (primary, CNI-managed,
+            kube-proxy Services, DNS,
+            control-plane traffic)"]
+            NET1["net1 (secondary, Multus + SR-IOV VF
+            or macvlan, direct to physical NIC)"]
+        end
+        CNI["standard CNI (Calico/Cilium/etc)"] --> ETH0
+        SRIOV["SR-IOV Device Plugin + Network Operator
+        (bypasses kube-proxy/iptables entirely)"] --> NET1
+    end
+    ETH0 -->|ClusterIP Services, API calls, health checks| SVC["cluster-native traffic"]
+    NET1 -->|raw RDMA/RoCE traffic, NCCL collective traffic| FABRIC["fabric"]
 ```
 This is the concrete answer to "how do RDMA and Kubernetes coexist": they don't share a network — the primary CNI network handles everything Kubernetes-native (Service discovery, policy, observability agents), while the secondary SR-IOV/Multus network gives the training process a near-bare-metal path to the physical NIC, deliberately *outside* the overlay/iptables/kube-proxy path that would otherwise add latency and defeat GPUDirect RDMA entirely.
 
@@ -41,38 +41,33 @@ This is the concrete answer to "how do RDMA and Kubernetes coexist": they don't 
 | NIC firmware/configuration operator pieces | Ensures link mode, VF count and firmware version match the reference architecture across the fleet |
 
 ➕ **Diagram: Network Operator's resource-provisioning flow, bare node to schedulable RDMA resource**
-```
-BIOS: SR-IOV enabled, VF count set
-        │
-        ▼
-NIC firmware/config operator ── sets link mode, provisions VFs on the physical NIC
-        │
-        ▼
-MOFED driver container ── installs/loads Mellanox OFED stack on the host
-        │
-        ▼
-SR-IOV Network Device Plugin ── discovers VFs, advertises nvidia.com/roce_gdr: N
-        │
-        ▼
-kube-scheduler ── sees allocatable resource, can now schedule RDMA-requesting pods
-        │
-        ▼
-Multus + NetworkAttachmentDefinition ── attaches net1 (VF) into the pod at creation
+```mermaid
+flowchart TD
+    A["BIOS: SR-IOV enabled, VF count set"] --> B["NIC firmware/config operator
+    sets link mode, provisions VFs on the physical NIC"]
+    B --> C["MOFED driver container
+    installs/loads Mellanox OFED stack on the host"]
+    C --> D["SR-IOV Network Device Plugin
+    discovers VFs, advertises nvidia.com/roce_gdr: N"]
+    D --> E["kube-scheduler
+    sees allocatable resource, can now schedule RDMA-requesting pods"]
+    E --> F["Multus + NetworkAttachmentDefinition
+    attaches net1 (VF) into the pod at creation"]
 ```
 Each stage is a separate failure domain — `nvidia.com/roce_gdr: 0` almost always traces back to the top of this chain (BIOS/firmware) or a crash-looping device plugin, not to Kubernetes scheduling itself, which is why the triage in the Practice question below works top-down.
 
 ➕ **Sample evidence a node is correctly prepared — the commands you'd actually run against a Network-Operator-managed node:**
-```
-$ kubectl get node gpu-node-07 -o json | jq '.status.allocatable' | grep -i rdma
-"nvidia.com/roce_gdr": "8"                    ← 8 RDMA-capable VFs advertised as allocatable
-
-$ kubectl describe node gpu-node-07 | grep -A3 "nvidia.com/roce_gdr"
-  nvidia.com/roce_gdr  8            8
-                                                ← Allocatable matches Capacity: none already claimed
-
-$ kubectl get network-attachment-definitions -A
-NAMESPACE   NAME             AGE
-training    roce-net-1       14d
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ kubectl get node gpu-node-07 -o json | jq '.status.allocatable' | grep -i rdma"]
+  n1["'nvidia.com/roce_gdr': '8' ← 8 RDMA-capable VFs advertised as allocatable"]
+  n2["$ kubectl describe node gpu-node-07 | grep -A3 'nvidia.com/roce_gdr'"]
+  n3["nvidia.com/roce_gdr 8 8"]
+  n4["← Allocatable matches Capacity: none already claimed"]
+  n5["$ kubectl get network-attachment-definitions -A"]
+  n6["NAMESPACE NAME AGE"]
+  n7["training roce-net-1 14d"]
 ```
 If `nvidia.com/roce_gdr` shows `0` allocatable on a node that otherwise looks healthy, the fault is almost always upstream of Kubernetes entirely — SR-IOV not enabled in BIOS, VF count not configured on the physical NIC, or the device plugin DaemonSet crash-looping — checking `kubectl get pods -n network-operator` for the device plugin's pod status is the fastest triage step.
 

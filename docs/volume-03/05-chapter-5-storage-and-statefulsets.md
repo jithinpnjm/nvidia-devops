@@ -20,42 +20,45 @@ kubectl get storageclass -o yaml
 ```
 
 ➕ **The four distinct phases, drawn out — the source names them, this is what to say when asked to explain each in sequence:**
-```
-1. PROVISION   PVC created → CSI external-provisioner sidecar sees it →
-               (if Immediate binding) calls CreateVolume on the storage backend
-               NOW, before any Pod exists → volume created in SOME zone/topology
-               chosen without knowledge of where the Pod will land.
-
-               (if WaitForFirstConsumer) provisioning is DEFERRED — nothing
-               happens yet. This is the fix for the "PV created in zone A,
-               Pod scheduled to zone B, PV can never attach" failure mode.
-
-2. BIND        PVC.spec.volumeName ↔ PV.spec.claimRef — a 1:1 claim, tracked
-               as an API object relationship, independent of physical attach.
-
-3. ATTACH      CSI controller plugin (attacher sidecar) calls ControllerPublishVolume
-               — attaches the volume to the NODE the Pod was scheduled to.
-               This is where a cross-zone PV/node mismatch actually surfaces
-               as a hard failure, if WaitForFirstConsumer wasn't used.
-
-4. MOUNT       CSI node plugin (runs as a DaemonSet on every node) calls
-               NodeStageVolume + NodePublishVolume — filesystem-level mount
-               into the Pod's volume path. This is the LAST step and the one
-               kubelet is actually blocked on during "ContainerCreating."
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["1. PROVISION PVC created"]
+  n1["CSI external-provisioner sidecar sees it"]
+  n2["(if Immediate binding) calls CreateVolume on the storage backend"]
+  n3["NOW, before any Pod exists"]
+  n4["volume created in SOME zone/topology"]
+  n5["chosen without knowledge of where the Pod will land."]
+  n6["(if WaitForFirstConsumer) provisioning is DEFERRED — nothing"]
+  n7["happens yet. This is the fix for the 'PV created in zone A,"]
+  n8["Pod scheduled to zone B, PV can never attach' failure mode."]
+  n9["2. BIND PVC.spec.volumeName ↔ PV.spec.claimRef — a 1:1 claim, tracked"]
+  n10["as an API object relationship, independent of physical attach."]
+  n11["3. ATTACH CSI controller plugin (attacher sidecar) calls ControllerPublishVolume"]
+  n12["— attaches the volume to the NODE the Pod was scheduled to."]
+  n13["This is where a cross-zone PV/node mismatch actually surfaces"]
+  n14["as a hard failure, if WaitForFirstConsumer wasn't used."]
+  n15["4. MOUNT CSI node plugin (runs as a DaemonSet on every node) calls"]
+  n16["NodeStageVolume + NodePublishVolume — filesystem-level mount"]
+  n17["into the Pod's volume path. This is the LAST step and the one"]
+  n18["kubelet is actually blocked on during 'ContainerCreating.'"]
+  n0 --> n1
+  n3 --> n4
 ```
 ➕ **Interview-ready line:** "WaitForFirstConsumer doesn't change *what* gets provisioned, it changes *when* — it defers provisioning until the scheduler has already picked a node, so the volume is created with topology that's guaranteed compatible with that node, instead of guessing first and hoping the scheduler agrees later."
 
 ➕ **Sample annotated output — proving which phase a stuck PVC is actually in:**
-```
-$ kubectl get pvc data-pg-0 -o wide
-NAME        STATUS    VOLUME   CAPACITY   STORAGECLASS   AGE
-data-pg-0   Pending   <none>   <none>     fast-ssd        3m    ← still phase 1, not even bound yet
-
-$ kubectl describe pvc data-pg-0 | tail -5
-Events:
-  Type     Reason              Message
-  ----     ------              -------
-  Normal   WaitForFirstConsumer  waiting for first consumer to be created before binding
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ kubectl get pvc data-pg-0 -o wide"]
+  n1["NAME STATUS VOLUME CAPACITY STORAGECLASS AGE"]
+  n2["data-pg-0 Pending <none> <none> fast-ssd 3m ← still phase 1, not even bound yet"]
+  n3["$ kubectl describe pvc data-pg-0 | tail -5"]
+  n4["Events"]
+  n5["Type Reason Message"]
+  n6["------"]
+  n7["Normal WaitForFirstConsumer waiting for first consumer to be created before binding"]
 ```
 `VOLUME` column empty + `WaitForFirstConsumer` event = this is completely expected and not a fault — it's waiting on the Pod's scheduling decision, and will proceed the instant the Pod gets a `nodeName`. Contrast with:
 ```
@@ -71,24 +74,17 @@ This is phase 1 genuinely failing, not waiting — a real backend capacity probl
 ➕ **StatefulSet identity, spelled out — the piece the source states but doesn't diagram:** each StatefulSet replica gets a **stable name** (`pg-0`, `pg-1`, ...), a **stable network identity** (a per-Pod DNS entry via a headless Service, `pg-0.pg-headless.default.svc.cluster.local`), and a **stable PVC** (via `volumeClaimTemplates` — `pg-0` always rebinds to the *same* PVC, `data-pg-0`, even after being rescheduled or restarted, never a fresh one). This is precisely why StatefulSet Pods can't be treated like Deployment Pods for storage: `pg-0` restarting on a different node is fine identity-wise, but its PVC's *topology* still constrains which nodes it can land on.
 
 ➕ **Diagram: the three stable identities a StatefulSet replica carries across a reschedule — this is what "stable identity" concretely means:**
-```
-              StatefulSet "pg", replica index 0
-                          │
-   ┌──────────────────────┼──────────────────────┐
-   ▼                      ▼                       ▼
- NAME                 NETWORK                  STORAGE
- "pg-0"                pg-0.pg-headless.        PVC "data-pg-0" via
- (never pg-<hash>,     default.svc.             volumeClaimTemplates —
- always this exact     cluster.local             ALWAYS rebinds to this
- ordinal name)         (stable DNS entry,        same PVC, never a new
-                        via headless Svc)        one, even after restart
-   │                      │                       │
-   └──────────────────────┴───────────────────────┘
-                          │
-              Pod "pg-0" can be RESCHEDULED to a different
-              NODE and keep all three identities — but the PVC's
-              own topology (nodeAffinity on the PV) still constrains
-              which nodes are actually eligible
+```mermaid
+flowchart TD
+    SS["StatefulSet 'pg', replica index 0"]
+    Name["NAME: 'pg-0'<br/>(never pg-hash, always this exact ordinal name)"]
+    Network["NETWORK: pg-0.pg-headless.default.svc.cluster.local<br/>(stable DNS entry, via headless Svc)"]
+    Storage["STORAGE: PVC 'data-pg-0' via volumeClaimTemplates<br/>ALWAYS rebinds to this same PVC, never a new one, even after restart"]
+    Resched["Pod 'pg-0' can be RESCHEDULED to a different NODE and keep all three identities -- but the PVC's own topology (nodeAffinity on the PV) still constrains which nodes are actually eligible"]
+
+    SS --> Name --> Resched
+    SS --> Network --> Resched
+    SS --> Storage --> Resched
 ```
 Contrast with a Deployment Pod: `app-7d9f-x2k1` gets a new name, no stable DNS entry, and (absent a StatefulSet-style claim template) no guaranteed PVC continuity — identity is disposable by design there, which is the entire reason StatefulSets exist as a separate primitive.
 
@@ -103,19 +99,19 @@ Contrast with a Deployment Pod: `app-7d9f-x2k1` gets a new name, no stable DNS e
 **Conclusion:** Stateful scheduling is constrained by both compute and data locality/failure-domain design.
 
 ➕ **Sample annotated output — the topology evidence for exactly this scenario:**
-```
-$ kubectl get pv pvc-8a21 -o jsonpath='{.spec.nodeAffinity}' | jq
-{
-  "required": {
-    "nodeSelectorTerms": [{
-      "matchExpressions": [{
-        "key": "topology.kubernetes.io/zone",
-        "operator": "In",
-        "values": ["us-east-1a"]       ← the PV is PINNED to this zone, physically
-      }]
-    }]
-  }
-}
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ kubectl get pv pvc-8a21 -o jsonpath='{.spec.nodeAffinity}' | jq"]
+  n1["{"]
+  n2["'required': {"]
+  n3["'nodeSelectorTerms': [{"]
+  n4["'matchExpressions': [{"]
+  n5["'key': 'topology.kubernetes.io/zone',"]
+  n6["'operator': 'In',"]
+  n7["'values': ['us-east-1a'] ← the PV is PINNED to this zone, physically"]
+  n8["}]"]
+  n9["}"]
 ```
 If `us-east-1a` is the zone that just went down, this PV is **not** a Kubernetes scheduling problem to work around — it's a physical fact. No affinity change, no toleration, no priority boost fixes it; the volume genuinely cannot attach outside that zone because the underlying block storage doesn't exist elsewhere. The only real remedies are: wait for the zone to recover, or restore from backup/replica into a new PV in a healthy zone (a data-recovery operation, not a scheduling fix) — which is exactly why the original conclusion says "do not delete claims blindly."
 

@@ -32,56 +32,46 @@ kubectl (client):        may be one minor version behind OR ahead of apiserver
 ➕ **Why this matters beyond trivia:** upgrading kube-apiserver first, then working outward (controller-manager/scheduler, then kubelets, roughly node-pool by node-pool) is the only direction that keeps every component within its allowed skew window throughout the rollout — upgrading kubelets ahead of the control plane is the version-skew mistake that actually breaks things, and it's an easy one to make if node images auto-update independently of the control plane in a managed service.
 
 ➕ **Sample annotated output — reading `/readyz?verbose` for what it actually tells you before starting a change:**
-```
-$ kubectl get --raw /readyz?verbose
-[+]ping ok
-[+]log ok
-[+]etcd ok
-[+]poststarthook/start-kube-apiserver-admission-initializer ok
-[+]poststarthook/generic-apiserver-start-informers ok
-[-]poststarthook/rbac/bootstrap-roles failed: reason withheld     ← FAILING check, named specifically
-[+]shutdown ok
-readyz check failed
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ kubectl get --raw /readyz?verbose"]
+  n1["[+]ping ok"]
+  n2["[+]log ok"]
+  n3["[+]etcd ok"]
+  n4["[+]poststarthook/start-kube-apiserver-admission-initializer ok"]
+  n5["[+]poststarthook/generic-apiserver-start-informers ok"]
+  n6["[-]poststarthook/rbac/bootstrap-roles failed: reason withheld ← FAILING check, named specifically"]
+  n7["[+]shutdown ok"]
+  n8["readyz check failed"]
 ```
 Every line is an independent internal health check, not a single boolean — `readyz check failed` alone tells you nothing; the specific `[-]` line does. This is the same "decompose the aggregate signal into independent evidence" instinct as Chapter 2's multi-reason FailedScheduling event — worth explicitly connecting the two if asked, it's the same interview move applied twice in this volume.
 
 ➕ **Diagram: the only safe upgrade order, drawn as a sequence (this is what the version-skew rules above actually force):**
-```
- 1. kube-apiserver           ── upgrade first, becomes the new version ceiling
-        │
-        ▼
- 2. kube-controller-manager, ── upgrade next, must stay ≤1 minor behind apiserver
-    kube-scheduler
-        │
-        ▼
- 3. kubelets, node-pool by   ── upgrade last, may lag up to 2 minors behind —
-    node-pool                   this is WHY node pools can upgrade gradually
-        │                       while the control plane stays fixed
-        ▼
- 4. kubectl (client)         ── may float ±1 minor of apiserver at any point,
-                                 least urgent to change
+```mermaid
+flowchart TD
+    Step1["1. kube-apiserver -- upgrade first, becomes the new version ceiling"]
+    Step2["2. kube-controller-manager, kube-scheduler -- upgrade next, must stay <= 1 minor behind apiserver"]
+    Step3["3. kubelets, node-pool by node-pool -- upgrade last, may lag up to 2 minors behind -- this is WHY node pools can upgrade gradually while the control plane stays fixed"]
+    Step4["4. kubectl (client) -- may float +/-1 minor of apiserver at any point, least urgent to change"]
+
+    Step1 --> Step2 --> Step3 --> Step4
 ```
 Reversing steps 1 and 3 — upgrading kubelets before the control plane — is the one ordering mistake that actually breaks the skew contract, not a stylistic preference.
 
 ➕ **Diagram: PDB gating a drain, the state machine version of the arithmetic below:**
-```
- Node drain needs to evict 3 Pods of workload "api" on this node
-        │
-        ▼
- Eviction API call for Pod #1 ── checks PDB: allowedDisruptions > 0?
-        │
-   ┌────┴────┐
-   ▼         ▼
-  YES        NO ──▶ eviction REJECTED (429), drain retries later —
-   │              this is a blocked drain, not a failed one
-   ▼
- Pod #1 evicted, allowedDisruptions decrements
-        │
-        ▼
- Pod #1 replacement Running+Ready elsewhere ──▶ allowedDisruptions recovers
-        │
-        ▼
- Eviction API call for Pod #2 ── same check, repeats
+```mermaid
+flowchart TD
+    Drain["Node drain needs to evict 3 Pods of workload 'api' on this node"]
+    Evict1["Eviction API call for Pod #1 -- checks PDB: allowedDisruptions > 0?"]
+    Rejected["NO: eviction REJECTED (429), drain retries later -- this is a blocked drain, not a failed one"]
+    Evicted["YES: Pod #1 evicted, allowedDisruptions decrements"]
+    Replaced["Pod #1 replacement Running+Ready elsewhere -- allowedDisruptions recovers"]
+    Evict2["Eviction API call for Pod #2 -- same check, repeats"]
+
+    Drain --> Evict1
+    Evict1 -->|NO| Rejected
+    Evict1 -->|YES| Evicted --> Replaced --> Evict2
 ```
 ➕ **PodDisruptionBudget, the piece that actually protects workloads during node drains — with the arithmetic that catches teams out:**
 ```
@@ -92,16 +82,23 @@ api-pdb    2                <none>            1                     30d
 `ALLOWED DISRUPTIONS: 1` means the eviction API will only permit draining **one** matching Pod at a time system-wide right now — if a node drain during an upgrade needs to evict 3 Pods of this workload simultaneously (e.g. 3 Pods happen to land on the same node being upgraded), the drain **blocks** on the 2nd and 3rd until the 1st is Running-and-Ready elsewhere and the PDB's allowed-disruptions count recovers. This is a *feature*, not a stuck drain — but it means "how many replicas, how are they spread across nodes, and what's the PDB" jointly determine your actual upgrade wall-clock time, not just node count.
 
 ➕ **GPU-specific upgrade tie-in — why the source explicitly calls out "node image/driver compatibility" and "GPU/operator compatibility":**
-```
-Standard node upgrade assumption: new node image boots, kubelet joins,
-Pods reschedule — done in minutes.
-
-GPU node upgrade REALITY: new node image boots → GPU Operator's driver
-DaemonSet must build/load a kernel-matched NVIDIA driver (can take
-minutes, and can FAIL if kernel headers aren't available or a driver
-version pin conflicts with the new kernel) → device plugin re-registers
-→ dcgm-exporter re-registers → ONLY THEN is the node genuinely ready
-for GPU workloads, even though kubelet may report Ready much earlier.
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["Standard node upgrade assumption: new node image boots, kubelet joins,"]
+  n1["Pods reschedule — done in minutes."]
+  n2["GPU node upgrade REALITY: new node image boots"]
+  n3["GPU Operator's driver"]
+  n4["DaemonSet must build/load a kernel-matched NVIDIA driver (can take"]
+  n5["minutes, and can FAIL if kernel headers aren't available or a driver"]
+  n6["version pin conflicts with the new kernel)"]
+  n7["device plugin re-registers"]
+  n8["dcgm-exporter re-registers"]
+  n9["ONLY THEN is the node genuinely ready"]
+  n10["for GPU workloads, even though kubelet may report Ready much earlier."]
+  n2 --> n3
+  n6 --> n7
+  n8 --> n9
 ```
 ➕ **Interview-ready line:** "On a GPU node, `kubectl get nodes` showing `Ready` is necessary but not sufficient — I'd validate with a known-good CUDA smoke-test workload and confirm `nvidia.com/gpu` is actually advertised in allocatable before releasing that node back into a rotation, exactly as Senior Deep Dive 8 recommends. Kubelet readiness and GPU readiness are different claims."
 

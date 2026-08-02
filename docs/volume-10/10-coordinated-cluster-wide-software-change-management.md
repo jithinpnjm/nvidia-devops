@@ -22,9 +22,17 @@ Every production change asserts: "this new state will improve or preserve servic
 
 Use four rollout stages:
 
-```text
-lab/reproduction → representative canary → limited failure-domain wave → fleet waves
-       evidence          compatibility          blast-radius check          scale
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["lab/reproduction"]
+  n1["representative canary"]
+  n2["limited failure-domain wave"]
+  n3["fleet waves"]
+  n4["evidence compatibility blast-radius check scale"]
+  n0 --> n1
+  n1 --> n2
+  n2 --> n3
 ```
 
 A canary must represent the compatibility dimensions affected by the change: GPU and NIC model, firmware, OS/kernel, rack/fabric path, storage path, workload type, and security policy. One convenient spare server is not representative merely because it is available.
@@ -35,11 +43,23 @@ Before touching nodes, write entry conditions and backups, drain behavior, measu
 
 A Kubernetes Deployment rollout has one axis of versioning that matters operationally — the container image tag — and the platform (ReplicaSet, PDB, readiness probes) absorbs the rest. A GPU/AI cluster has no such single axis. The stack that has to agree with itself, node by node, looks like this:
 
-```
-BMC/firmware   →  host OS/kernel  →  NVIDIA driver  →  CUDA toolkit  →
-container runtime (Enroot/containerd)  →  orchestrator (Slurm or Kubernetes)  →
-CNI/Network Operator + NIC/switch firmware  →  storage client (Lustre/NFS/GPUDirect)  →
-MPI/NCCL library
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["BMC/firmware"]
+  n1["host OS/kernel"]
+  n2["NVIDIA driver"]
+  n3["CUDA toolkit"]
+  n4["container runtime (Enroot/containerd)"]
+  n5["orchestrator (Slurm or Kubernetes)"]
+  n6["CNI/Network Operator + NIC/switch firmware"]
+  n7["storage client (Lustre/NFS/GPUDirect)"]
+  n8["MPI/NCCL library"]
+  n0 --> n1
+  n1 --> n2
+  n2 --> n3
+  n4 --> n5
+  n6 --> n7
 ```
 
 Each arrow is a compatibility contract, not a formality. Bump the kernel and the driver's kernel module may fail to build (`DKMS` failure on boot). Bump the driver and the CUDA toolkit's minimum-driver-version check fails at process launch. Bump NCCL and it may probe NIC firmware capabilities it didn't probe before, silently falling back to a slower transport instead of erroring — the job runs, just 3x slower, which is worse than a hard failure because nobody pages on it. None of these are hypothetical; they are the standard failure modes vendors document in release notes and the ones this chapter assumes you already know how to look up per-layer. Volume 3's Kubernetes upgrade chapter covers the orchestrator-version-skew slice of this problem in isolation; volume 4's driver/CUDA compatibility Deep Dive covers the driver/CUDA slice in isolation. This chapter is what sits above both: the cluster doesn't get to change one layer at a time and assume the others are unaffected, because in practice they're rarely changed in true isolation — a maintenance window that touches the driver very often also touches firmware or the kernel, because that's when you have the node drained anyway.
@@ -48,35 +68,36 @@ Each arrow is a compatibility contract, not a formality. Bump the kernel and the
 
 Before any coordinated change, the concrete deliverable is a matrix: current known-good combination, proposed new combination, and which pairwise contracts in between have been validated versus merely assumed.
 
-```
-LAYER              CURRENT (known-good)     PROPOSED             VALIDATED?
-─────────────────────────────────────────────────────────────────────────────
-BMC/firmware        2.14.3                    2.16.0               vendor compat matrix only
-Host OS/kernel      Ubuntu 22.04 / 5.15.0-101  unchanged            —
-NVIDIA driver       535.129.03                 550.90.07            YES — driver/CUDA table
-CUDA toolkit        12.2                       12.4                 YES — driver/CUDA table
-Container runtime   Enroot 3.4.1 + Pyxis 0.16  unchanged            —
-Orchestrator        Slurm 23.02.7              unchanged            —
-NIC firmware        ConnectX-7 22.35.1012      unchanged            NOT RE-CHECKED — assumed fine
-NCCL                2.18.5                     2.20.5               NO — this is the gap
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["LAYER CURRENT (known-good) PROPOSED VALIDATED?"]
+  n1["BMC/firmware 2.14.3 2.16.0 vendor compat matrix only"]
+  n2["Host OS/kernel Ubuntu 22.04 / 5.15.0-101 unchanged —"]
+  n3["NVIDIA driver 535.129.03 550.90.07 YES — driver/CUDA table"]
+  n4["CUDA toolkit 12.2 12.4 YES — driver/CUDA table"]
+  n5["Container runtime Enroot 3.4.1 + Pyxis 0.16 unchanged —"]
+  n6["Orchestrator Slurm 23.02.7 unchanged —"]
+  n7["NIC firmware ConnectX-7 22.35.1012 unchanged NOT RE-CHECKED — assumed fine"]
+  n8["NCCL 2.18.5 2.20.5 NO — this is the gap"]
 ```
 
 The point of drawing it as a table is that "validated" is a per-cell claim, not a per-change claim. A change that touches three layers (driver, CUDA, NCCL here) needs three pairwise validations plus the interactions between them — driver-to-NCCL compatibility is a real, separately documented contract, not something that falls out of driver-to-CUDA and CUDA-to-NCCL being individually fine. Rows you did not intend to touch — NIC firmware in this example — still belong in the matrix, marked as unchanged, because the worked scenario below is exactly the failure mode of skipping that row.
 
-```
-                         ┌─────────────────────────────┐
-                         │   KNOWN-GOOD COMBINATION      │
-                         │  (the thing under protection)  │
-                         └───────────────┬───────────────┘
-   BMC/firmware  ────────────────────────┤
-   Host OS/kernel  ──────────────────────┤
-   NVIDIA driver  ────────────────────────┤   any single row moving without
-   CUDA toolkit  ─────────────────────────┤   re-validating its neighbors
-   Container runtime  ────────────────────┤   breaks the whole column, not
-   Orchestrator  ──────────────────────────┤   just that row
-   CNI / fabric firmware  ─────────────────┤
-   Storage client  ────────────────────────┤
-   MPI / NCCL  ────────────────────────────┘
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["KNOWN-GOOD COMBINATION"]
+  n1["(the thing under protection)"]
+  n2["BMC/firmware"]
+  n3["Host OS/kernel"]
+  n4["NVIDIA driver any single row moving without"]
+  n5["CUDA toolkit re-validating its neighbors"]
+  n6["Container runtime breaks the whole column, not"]
+  n7["Orchestrator just that row"]
+  n8["CNI / fabric firmware"]
+  n9["Storage client"]
+  n10["MPI / NCCL"]
 ```
 
 ## Change sequencing: why order is not arbitrary

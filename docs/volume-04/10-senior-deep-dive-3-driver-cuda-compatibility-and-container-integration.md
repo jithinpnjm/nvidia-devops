@@ -37,23 +37,20 @@ $ cat /var/run/cdi/nvidia.com-gpu.json | jq '.devices[0].containerEdits.deviceNo
 This file is the *actual mechanism* by which "the container gets the GPU device" happens under the modern CDI-based runtime path (as opposed to the older `nvidia-container-runtime` prestart-hook path) — an empty or missing CDI file here, with `nvidia-ctk --version` still reporting healthy, is a specific and different failure mode from a driver-version mismatch: the toolkit is installed but hasn't (re)generated the device spec, often after a driver upgrade that didn't trigger `nvidia-ctk cdi generate` again.
 
 ➕ **Diagram: two ways a container gets a GPU device node, and where each one breaks**
-```
-Pod spec: resources.limits: {nvidia.com/gpu: 1}
-        │
-        ▼
-kubelet → device plugin (Allocate RPC)
-        │
-        ▼
-container runtime (containerd/CRI-O)
-        │
-        ├── modern path: CDI spec ─────▶ /var/run/cdi/nvidia.com-gpu.json
-        │                                   │ missing/stale after driver upgrade
-        │                                   ▼
-        │                              container starts, /dev/nvidia0 absent
-        │
-        └── legacy path: nvidia-container-runtime prestart hook
-                                            │ hook not registered / wrong runtimeClass
-                                            ▼
-                                       container starts, /dev/nvidia0 absent
+```mermaid
+flowchart TD
+    POD["Pod spec: resources.limits: {nvidia.com/gpu: 1}"]
+    KUBELET["kubelet -> device plugin (Allocate RPC)"]
+    RUNTIME["container runtime (containerd/CRI-O)"]
+    CDI["modern path: CDI spec -->  /var/run/cdi/nvidia.com-gpu.json"]
+    LEGACY["legacy path: nvidia-container-runtime prestart hook"]
+    CDIFAIL["missing/stale after driver upgrade"]
+    LEGACYFAIL["hook not registered / wrong runtimeClass"]
+    FAIL1["container starts, /dev/nvidia0 absent"]
+    FAIL2["container starts, /dev/nvidia0 absent"]
+
+    POD --> KUBELET --> RUNTIME
+    RUNTIME --> CDI --> CDIFAIL --> FAIL1
+    RUNTIME --> LEGACY --> LEGACYFAIL --> FAIL2
 ```
 Both paths converge on the same visible symptom ("GPU requested, device missing in container") but the fix differs: regenerate the CDI spec (`nvidia-ctk cdi generate`) on the modern path, versus checking the OCI runtime hook registration on the legacy path — checking `nvidia-ctk --version` alone tells you the toolkit is installed, not which path is active or whether it actually ran.

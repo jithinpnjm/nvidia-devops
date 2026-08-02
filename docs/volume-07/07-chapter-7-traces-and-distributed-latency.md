@@ -12,15 +12,15 @@ source_document: "Volume_07_Observability,_Reliability_and_Troubleshooting(2).do
 A trace connects causal work across services. For inference, spans can separate gateway/auth, queueing, retrieval, model prefill/decode, external tool calls and state-store latency. Tracing is most valuable when services propagate context consistently and span attributes are bounded/meaningful.
 
 ➕ **Span waterfall, made visual — the artifact this chapter is describing in prose, drawn out:**
+```mermaid
+flowchart LR
+    A["gateway/auth [0-4ms]"] --> B["queue_wait [4-314ms] -- 310ms, the biggest single chunk"]
+    B --> C["retrieval (vector DB) [314-342ms] -- 28ms"]
+    C --> D["model_server/prefill [342-410ms] -- 68ms, TTFT-relevant, see Deep Dive 5"]
+    D --> E["model_server/decode [410-840ms] -- 430ms, ITL-relevant"]
+    E --> F["response_serialize [840-842ms] -- 2ms"]
 ```
-trace_id=a91f2c...  total=842ms
-├─ gateway/auth              [0───4ms]
-├─ queue_wait                [4────────────────────────314ms]     ← 310ms, the biggest single chunk
-├─ retrieval (vector DB)     [314──────342ms]                     28ms
-├─ model_server/prefill      [342──────────────────410ms]         68ms  ← TTFT-relevant, see Deep Dive 5
-├─ model_server/decode       [410────────────────────────────────────────840ms]  430ms ← ITL-relevant
-└─ response_serialize        [840─842ms]                          2ms
-```
+(trace_id=a91f2c..., total=842ms)
 Reading this waterfall the way an interviewer wants: total latency (842ms) is dominated by two things — `queue_wait` (310ms, a **capacity/admission** problem, nothing to do with the model) and `decode` (430ms, a **per-token generation** cost, proportional to output length). A team that only looks at "average end-to-end latency" would blend these two completely different bottleneck families into one number and optimize the wrong thing — this is the trace-level version of the averaging trap that Chapter 1 and Deep Dive 5 warn about at the metrics level.
 
 ➕ **Sample OpenTelemetry span JSON (what actually gets exported/stored, one span from the waterfall above), annotated:**
@@ -44,18 +44,15 @@ Reading this waterfall the way an interviewer wants: total latency (842ms) is do
 `parent_span_id` is the field that reconstructs the waterfall's nesting — without consistent propagation of `trace_id`/`parent_span_id` across a service boundary (an HTTP header, a queue message attribute), the two sides of that boundary produce **orphaned, unjoinable traces** — this is exactly the "propagate context consistently" requirement the chapter's last sentence names, made concrete: it is a hard technical requirement, not a nice-to-have.
 
 ➕ **Diagram: trace-context propagation across the same service boundary the waterfall above crosses**
-```
-  gateway process                          model_server process
-  ──────────────                           ────────────────────
-  span: gateway/auth                       span: model_server/prefill
-  trace_id=a91f2c...                       trace_id=a91f2c...   (SAME id, carried over)
-  span_id=44b021                           parent_span_id=44b021 (points back to gateway's span)
-        │                                          ▲
-        └── HTTP header: traceparent ─────────────┘
-            "00-a91f2c...-44b021-01"
-            (W3C Trace Context format,
-             or a queue-message attribute
-             for async hops)
+```mermaid
+flowchart LR
+    subgraph GW["gateway process"]
+        G["span: gateway/auth -- trace_id=a91f2c..., span_id=44b021"]
+    end
+    subgraph MS["model_server process"]
+        M["span: model_server/prefill -- trace_id=a91f2c... (SAME id, carried over), parent_span_id=44b021 (points back to gateway's span)"]
+    end
+    G -->|"HTTP header: traceparent = 00-a91f2c...-44b021-01 (W3C Trace Context format, or a queue-message attribute for async hops)"| M
 ```
 If this header is dropped at any hop — a proxy that strips unknown headers, a queue that doesn't forward message attributes — `model_server` starts a brand-new `trace_id` instead of inheriting one, and the waterfall above simply cannot be assembled: the two sides become orphaned, unjoinable traces, exactly as the OTel span JSON annotation above states.
 

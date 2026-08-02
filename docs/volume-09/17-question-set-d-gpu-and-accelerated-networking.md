@@ -16,24 +16,50 @@ source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 ## ➕ Additions
 
 ➕ **Diagram: this question set's five prompts as one GPU/networking triage router:**
-```
-GPU / accelerated-networking symptom
-        │
-        ▼
- Util 100%, throughput low? ──yes──▶ dmon sm vs mem split → clocks/
-   │no                                throttle-reason check
-        ▼
- 8 GPUs visible, scaling poor? ──yes──▶ nvidia-smi topo -m → NVLink/
-   │no                                  NVSwitch/PCIe split → NCCL
-        ▼                               topology awareness
- Choosing MIG vs time-slicing? ──yes──▶ isolation/predictability need
-   │no                                  vs flexible sharing vs ops cost
-        ▼
- Multi-node training regressed? ──yes──▶ rank scope → RDMA/NCCL/fabric
-   │no                                    counters → topology → straggler
-        ▼                                 amplification
- Xid appears? ──yes──▶ correlate device/time/workload → DCGM/driver
-                        logs → recurrence/recovery → vendor guidance
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["GPU / accelerated-networking symptom"]
+  n1["Util 100%, throughput low? yes"]
+  n2["dmon sm vs mem split"]
+  n3["clocks/"]
+  n4["no throttle-reason check"]
+  n5["8 GPUs visible, scaling poor? yes"]
+  n6["nvidia-smi topo -m"]
+  n7["NVLink/"]
+  n8["no NVSwitch/PCIe split"]
+  n9["NCCL"]
+  n10["topology awareness"]
+  n11["Choosing MIG vs time-slicing? yes"]
+  n12["isolation/predictability need"]
+  n13["no vs flexible sharing vs ops cost"]
+  n14["Multi-node training regressed? yes"]
+  n15["rank scope"]
+  n16["RDMA/NCCL/fabric"]
+  n17["no counters"]
+  n18["topology"]
+  n19["straggler"]
+  n20["amplification"]
+  n21["Xid appears? yes"]
+  n22["correlate device/time/workload"]
+  n23["DCGM/driver"]
+  n24["logs"]
+  n25["recurrence/recovery"]
+  n26["vendor guidance"]
+  n1 --> n2
+  n2 --> n3
+  n5 --> n6
+  n6 --> n7
+  n8 --> n9
+  n11 --> n12
+  n14 --> n15
+  n15 --> n16
+  n17 --> n18
+  n18 --> n19
+  n21 --> n22
+  n22 --> n23
+  n24 --> n25
+  n25 --> n26
 ```
 
 ➕ **Sample annotated output — GPU util 100% but throughput low, the exact evidence:**
@@ -45,12 +71,14 @@ $ nvidia-smi dmon -s ucm -c 5
     0   99   33    0    0  1215  1410
 ```
 `sm=99%` (SM/compute engine busy) but `mem=34%` (memory bandwidth utilization) is the tell: the GPU is compute-bound and NOT memory-bandwidth-bound, so "GPU is at 100%" alone doesn't tell you if that 100% is doing useful FLOPs efficiently. Cross-check with `mclk`/`pclk` — clocks at their max boost values rules out thermal/power throttling as the cause of "low throughput despite 100% util."
-```
-$ nvidia-smi -q -d PERFORMANCE | grep -A3 "Clocks Throttle Reasons"
-    Clocks Throttle Reasons
-        SW Power Cap                     : Not Active
-        HW Slowdown                      : Not Active
-        HW Thermal Slowdown               : Active     ← this is the real answer
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ nvidia-smi -q -d PERFORMANCE | grep -A3 'Clocks Throttle Reasons'"]
+  n1["Clocks Throttle Reasons"]
+  n2["SW Power Cap : Not Active"]
+  n3["HW Slowdown : Not Active"]
+  n4["HW Thermal Slowdown : Active ← this is the real answer"]
 ```
 `sm=99%` looked healthy at a glance, but `HW Thermal Slowdown: Active` means the GPU is pinned at 99% *utilization* while its actual *clock* has been reduced by thermal throttling — this is the single most common way "GPU util 100%, throughput low" resolves, and it's completely invisible unless you check throttle reasons specifically, not just `dmon`.
 

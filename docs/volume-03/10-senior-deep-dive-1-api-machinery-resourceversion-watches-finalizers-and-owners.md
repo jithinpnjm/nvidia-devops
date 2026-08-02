@@ -48,48 +48,30 @@ _Figure A. Most Kubernetes behavior is an API-state transition followed by one o
 
 ### Deep Dive 1 — API machinery
 ➕ **Finalizer two-phase delete, diagrammed** (Chapter 1 already covers this with a worked scenario on a stuck Terminating namespace — see `Volume_03_Chapter_01`; this diagram is the piece that chapter's prose doesn't draw):
-```
-kubectl delete <object>
-        │
-        ▼
-API server does NOT remove the object yet if metadata.finalizers is non-empty.
-Instead: sets metadata.deletionTimestamp, object remains fully readable/gettable.
-        │
-        ▼
-Every controller that registered a finalizer key sees the deletionTimestamp
-(via its normal watch) and performs its OWN cleanup (e.g. deprovision a
-cloud LB, release an external IP, deregister from a device inventory)
-        │
-        ▼
-Each controller, once its cleanup is done, removes ITS OWN key from
-metadata.finalizers (a normal API update — NOT a special delete call)
-        │
-        ▼
-Once metadata.finalizers is empty AND deletionTimestamp is set,
-the API server performs the actual removal from etcd.
+```mermaid
+flowchart TD
+    Delete["kubectl delete object"]
+    SetTS["API server does NOT remove the object yet if metadata.finalizers is non-empty.<br/>Instead: sets metadata.deletionTimestamp, object remains fully readable/gettable."]
+    Cleanup["Every controller that registered a finalizer key sees the deletionTimestamp (via its normal watch) and performs its OWN cleanup (e.g. deprovision a cloud LB, release an external IP, deregister from a device inventory)"]
+    RemoveKey["Each controller, once its cleanup is done, removes ITS OWN key from metadata.finalizers (a normal API update -- NOT a special delete call)"]
+    Removal["Once metadata.finalizers is empty AND deletionTimestamp is set, the API server performs the actual removal from etcd."]
+
+    Delete --> SetTS --> Cleanup --> RemoveKey --> Removal
 ```
 ➕ **OwnerReferences GC — the companion mechanism, easily confused with finalizers but doing the opposite direction of work:** finalizers **block** deletion of the object that owns them until cleanup finishes; OwnerReferences **cascade** deletion from a parent to its children once the parent is actually gone (garbage-collector controller watches for objects whose owner no longer exists, then deletes them — this is why deleting a Deployment deletes its ReplicaSets deletes its Pods, with no finalizer involved at all in the common case). `kubectl delete deploy api --cascade=orphan` disables exactly this mechanism, for the rare case where you want to keep the children.
 
 Cross-reference: Chapter 1's worked scenario #2 already walks a full stuck-Terminating-namespace diagnosis using this exact mechanism — this diagram is the missing visual, not a new scenario.
 
 ➕ **Diagram: OwnerReferences cascading GC — the opposite-direction mechanism, drawn so it's never confused with finalizers again:**
-```
- kubectl delete deploy api
-        │
-        ▼
- Deployment "api" is deleted from etcd (no finalizer on it blocking this)
-        │
-        ▼
- Garbage-collector controller's watch notices: ReplicaSet "api-7d9f" has
- an ownerReference pointing at a Deployment that NO LONGER EXISTS
-        │
-        ▼
- GC controller deletes the orphaned ReplicaSet
-        │
-        ▼
- Same check cascades: Pods owned by that ReplicaSet are now orphaned too
-        │
-        ▼
- GC controller deletes the Pods
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["kubectl delete deploy api"]
+  n1["Deployment 'api' is deleted from etcd (no finalizer on it blocking this)"]
+  n2["Garbage-collector controller's watch notices: ReplicaSet 'api-7d9f' has"]
+  n3["an ownerReference pointing at a Deployment that NO LONGER EXISTS"]
+  n4["GC controller deletes the orphaned ReplicaSet"]
+  n5["Same check cascades: Pods owned by that ReplicaSet are now orphaned too"]
+  n6["GC controller deletes the Pods"]
 ```
 Finalizers block deletion of the object that holds them until cleanup finishes; OwnerReferences GC deletes children only *after* the parent is already gone — two mechanisms running in opposite temporal order, which is exactly why `--cascade=orphan` (skip this diagram's flow entirely) and a stuck finalizer (block the flow above this diagram) are easy to conflate under pressure but are different failures.

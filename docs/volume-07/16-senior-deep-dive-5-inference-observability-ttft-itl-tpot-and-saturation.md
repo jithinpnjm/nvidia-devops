@@ -28,8 +28,10 @@ NVIDIA NIM benchmarking documentation defines TTFT as request submission to firs
 No further addition needed here beyond the cross-reference — Ch.7's addendum already shows the exact bottleneck-family table in action against a real customer complaint, which is stronger than adding a second synthetic example.
 
 ➕ **Visual recall card — latency has two clocks:**
-```
-request ── queue ── prefill ── first token ── decode ── decode ── final token
-             \____________ TTFT ____________/     \___ ITL ___/ repeated
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["request queue prefill first token decode decode final token"]
+  n1["\____________ TTFT ____________/ \___ ITL ___/ repeated"]
 ```
 **Memory hook:** *"TTFT is admission + prefill; ITL is generation cadence."* Attach each clock to a different saturation hypothesis instead of collapsing both into average latency.

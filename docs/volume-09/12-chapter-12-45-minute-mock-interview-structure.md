@@ -31,15 +31,16 @@ After each mock, score only meaningful competencies: clarity of assumptions, mec
 ## ➕ Additions
 
 ➕ **The 45-minute timeline as a visual (pin this to your desk before every mock run):**
-```
-0    5         15                 27              38    43  45
-├────┼──────────┼──────────────────┼───────────────┼─────┼──┤
-│intro│  Python  │  full-stack       │ AI/GPU whiteboard│cust.│Q │
-│ 5m │ coding    │  troubleshooting  │  architecture    │scen.│&A│
-│    │  10m      │  12m              │  11m             │ 5m │2m│
-├────┴──────────┴──────────────────┴───────────────┴─────┴──┤
-     Ch1 method    Ch3/4/5/7 GHNS-A     Ch6/8 discover→draw   Ch9/10
-     applies here   decision trees        →compare→recommend   funnel/STAR
+```mermaid
+flowchart LR
+    A["Intro (5m)<br/>0-5<br/>Ch1 method applies here"]
+    B["Python coding (10m)<br/>5-15<br/>Ch3/4/5/7 GHNS-A decision trees"]
+    C["Full-stack troubleshooting (12m)<br/>15-27<br/>Ch3/4/5/7 GHNS-A decision trees"]
+    D["AI/GPU whiteboard architecture (11m)<br/>27-38<br/>Ch6/8 discover -> draw -> compare -> recommend"]
+    E["Customer scenario (5m)<br/>38-43<br/>Ch9/10 funnel/STAR"]
+    F["Q&A (2m)<br/>43-45"]
+
+    A --> B --> C --> D --> E --> F
 ```
 ➕ **Memory hook:** *"5-10-12-11-5-2 — front-load nothing, the middle two blocks (troubleshooting + architecture) are 23 of 45 minutes, over half the interview."* If you only have time to over-prepare two chapters in this volume, make them Chapters 4/5 (troubleshooting) and 8 (whiteboard) — that's where the clock actually is.
 
@@ -102,8 +103,8 @@ After each mock, score only meaningful competencies: clarity of assumptions, mec
 ➕ 6. After the mock, self-score using the 1-5 rubric above, pick exactly ONE competency scoring 3 or below, and design a 20-minute focused drill against only that competency before your next mock — this directly implements the original text's "choose one or two gaps... rather than re-studying everything" instruction, made concrete.
 
 ➕ **Visual model — allocate the interview clock deliberately:**
-```
-0 min        5              25                 38             45
- │ discovery │ model + plan │ implementation / evidence │ recap + trade-offs │
+```mermaid
+flowchart LR
+    A["discovery (0-5 min)"] --> B["model + plan (5-25 min)"] --> C["implementation / evidence (25-38 min)"] --> D["recap + trade-offs (38-45 min)"]
 ```
 **Memory hook:** *"Timebox thinking out loud, not just typing."* A strong answer leaves room to state the operational decision and its risk.

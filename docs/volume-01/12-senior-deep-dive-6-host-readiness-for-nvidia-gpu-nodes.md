@@ -25,19 +25,20 @@ GPU nodes add a second dependency graph to the host: kernel version and modules,
 ➕ **Quick cross-reference note:** Deep Dive 6's driver/toolkit/operator readiness checklist above is what the earlier chapters and Deep Dives build toward — a node can pass every Chapter 1-5 mechanism check (CPU not throttled, memory not OOMing, filesystem healthy, network reachable, container runtime sane) and still be unusable for accelerated workloads if any single row in the table above (PCIe topology, driver/Xid state, CRI GPU visibility, RDMA NIC/NUMA match, or Kubernetes device-plugin health) fails. Treat this table as the layer to check *in addition to*, never instead of, the host-mechanism checks from Chapters 1-5.
 
 ➕ **Visual model — GPU node readiness is a dependency chain, not a checklist of interchangeable green ticks:**
-```
-firmware / PCIe / NUMA
-          │
-          ▼
-driver + NVML ──► CUDA compatibility ──► container toolkit ──► CRI runtime
-          │                                                              │
-          └── Xid/ECC/thermal evidence                                   ▼
-                                                             device plugin / GFD
-                                                                        │
-                                                                        ▼
-                                                           schedulable `nvidia.com/gpu`
-                                                                        │
-                                                                        ▼
-                                                            workload + DCGM evidence
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["firmware / PCIe / NUMA"]
+  n1["driver + NVML"]
+  n2["CUDA compatibility"]
+  n3["container toolkit"]
+  n4["CRI runtime"]
+  n5["Xid/ECC/thermal evidence"]
+  n6["device plugin / GFD"]
+  n7["schedulable `nvidia.com/gpu`"]
+  n8["workload + DCGM evidence"]
+  n1 --> n2
+  n2 --> n3
+  n3 --> n4
 ```
 **Memory hook:** *"Physical → driver → runtime → scheduler → workload."* A check lower in the chain cannot prove an upstream layer is healthy: a Pod can be Running while the GPU is absent, and a visible GPU can still be topologically wrong for its NIC.

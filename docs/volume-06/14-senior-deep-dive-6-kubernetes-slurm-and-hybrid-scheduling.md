@@ -12,33 +12,31 @@ Kubernetes excels at declarative services, APIs, controllers and cloud-native pl
 *(Chapter 8's decision tree and 80/20 worked scenario already cover the workload-fit decision in depth — cross-reference rather than re-deriving. This Deep Dive's genuinely new contribution is the ownership question for a hybrid estate, made into a concrete checklist.)*
 
 ➕ **Diagram: the undefined-conflict failure mode checklist item #1 warns about**
-```
-                    Physical GPU node
-                          │
-            ┌─────────────┴─────────────┐
-            ▼                             ▼
-     Slurm admin drains it         Kubernetes admin cordons it
-     (sees: DRAIN, own reason)     (independently, sees: cordoned, own reason)
-            │                             │
-            └─────────────┬───────────────┘
-                           ▼
-              node is now in a state NEITHER
-              dashboard fully represents —
-              two control planes, no shared
-              source of truth for "why is this
-              node unavailable"
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["Physical GPU node"]
+  n1["Slurm admin drains it Kubernetes admin cordons it"]
+  n2["(sees: DRAIN, own reason) (independently, sees: cordoned, own reason)"]
+  n3["node is now in a state NEITHER"]
+  n4["dashboard fully represents —"]
+  n5["two control planes, no shared"]
+  n6["source of truth for 'why is this"]
+  n7["node unavailable'"]
 ```
 
 ➕ **Diagram: a dynamically shared node pool crossing the ownership boundary**
-```
-┌─────────────── shared physical fleet ───────────────┐
-│                                                        │
-│   Slurm pool  ◀───── node moves between pools ─────▶  Kubernetes pool
-│   (batch)            (checklist item #3: does the        (services)
-│                       RDMA/SR-IOV config get re-
-│                       provisioned correctly on
-│                       every transition?)
-└────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["shared physical fleet"]
+  n1["Slurm pool ◀ node moves between pools"]
+  n2["Kubernetes pool"]
+  n3["(batch) (checklist item #3: does the (services)"]
+  n4["RDMA/SR-IOV config get re"]
+  n5["provisioned correctly on"]
+  n6["every transition?)"]
+  n1 --> n2
 ```
 A node that moves pools without re-running the fabric/driver provisioning step (Chapter 5's Network Operator flow) can end up scheduled by one control plane while still carrying network state configured for the other — exactly the "static assignment assumed" failure checklist item #3 calls out.
 

@@ -32,16 +32,18 @@ headroom exists right now. The scheduler never looks at "actual usage"; it only
 ever looks at the sum of requests already committed.
 ```
 ➕ **Sample annotated output — reading `kubectl describe node` for exactly this:**
-```
-$ kubectl describe node gpu-worker-3 | sed -n '/Allocated resources:/,$p'
-Allocated resources:
-  (Total limits may be over 100 percent, i.e., overcommitted.)
-  Resource           Requests      Limits
-  --------           --------      ------
-  cpu                55200m (92%)  78000m (130%)   ← requests near capacity: scheduling headroom is thin
-  memory             210Gi (88%)   250Gi (105%)
-  nvidia.com/gpu     8 (100%)      8 (100%)         ← GPUs are integer/discrete: 100% means the NEXT
-                                                       GPU pod is Pending no matter how idle these 8 are
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ kubectl describe node gpu-worker-3 | sed -n '/Allocated resources:/,$p'"]
+  n1["Allocated resources"]
+  n2["(Total limits may be over 100 percent, i.e., overcommitted.)"]
+  n3["Resource Requests Limits"]
+  n4["--------"]
+  n5["cpu 55200m (92%) 78000m (130%) ← requests near capacity: scheduling headroom is thin"]
+  n6["memory 210Gi (88%) 250Gi (105%)"]
+  n7["nvidia.com/gpu 8 (100%) 8 (100%) ← GPUs are integer/discrete: 100% means the NEXT"]
+  n8["GPU pod is Pending no matter how idle these 8 are"]
 ```
 The `(130%)` on limits is normal and expected — limits are allowed to overcommit because they're enforced at runtime (CFS throttling), not reserved at scheduling time; **requests at or near 100% is the number that actually blocks new Pods**, and it's the number people conflate with "the node is full" when checking dashboards that show utilization instead.
 
@@ -65,26 +67,16 @@ kubectl get pod <pod> -o yaml | sed -n '/affinity:/,/containers:/p'
 ```
 
 ➕ **Filter → Score, the two-phase model the scheduler actually runs (worth drawing from memory):**
-```
-                    all nodes in cluster
-                          │
-                          ▼
-              ┌───────────────────────┐
-   FILTER     │ PodFitsResources       │  drop nodes: insufficient allocatable CPU/mem/GPU
-   (feasible   │ PodToleratesTaints     │  drop nodes: taint with no matching toleration
-   set — hard  │ NodeAffinity           │  drop nodes: required affinity terms unmet
-   pass/fail)  │ InterPodAffinity       │  drop nodes: required pod affinity/anti-affinity unmet
-              │ VolumeBinding          │  drop nodes: PV topology/zone mismatch
-              └──────────┬─────────────┘
-                          ▼  (feasible nodes only — could be empty set → Pod stays Pending)
-              ┌───────────────────────┐
-   SCORE      │ NodeResourcesFit       │  prefer nodes matching requested/allocatable ratio target
-   (rank the  │ InterPodAffinity (pref)│  soft preferences add/subtract score
-   survivors) │ ImageLocality          │  prefer nodes that already have the image cached
-              │ TopologySpreadConstraint│ prefer better distribution across zones/nodes
-              └──────────┬─────────────┘
-                          ▼
-                 highest-scoring node wins → bind
+```mermaid
+flowchart TD
+    All["all nodes in cluster"]
+    Filter["FILTER (feasible set -- hard pass/fail)<br/>PodFitsResources: drop nodes with insufficient allocatable CPU/mem/GPU<br/>PodToleratesTaints: drop nodes with taint and no matching toleration<br/>NodeAffinity: drop nodes with required affinity terms unmet<br/>InterPodAffinity: drop nodes with required pod affinity/anti-affinity unmet<br/>VolumeBinding: drop nodes with PV topology/zone mismatch"]
+    Score["SCORE (rank the survivors)<br/>NodeResourcesFit: prefer nodes matching requested/allocatable ratio target<br/>InterPodAffinity (pref): soft preferences add/subtract score<br/>ImageLocality: prefer nodes that already have the image cached<br/>TopologySpreadConstraint: prefer better distribution across zones/nodes"]
+    Bind["highest-scoring node wins, bind"]
+
+    All --> Filter
+    Filter -->|"feasible nodes only -- could be empty set, Pod stays Pending"| Score
+    Score --> Bind
 ```
 ➕ **Interview-ready line:** "Filter is pass/fail elimination — a single unmet *required* rule drops a node to zero eligibility. Score only ranks whatever survives Filter. If a Pod is Pending, the first question is always which Filter predicate emptied the set — Score never explains a Pending Pod."
 
@@ -101,20 +93,18 @@ Events:
 Read this as three independent Filter rejections, not one combined failure — 3 nodes failed on GPU count alone (would pass if scaled), 6 failed on a taint (this Pod is missing a toleration, likely intentional isolation), 3 failed on affinity (label mismatch, possibly a typo). **The fix for each bucket is different** — this is the exact evidence a Senior SA is expected to decompose live rather than saying "not enough GPUs" as a single diagnosis.
 
 ➕ **Diagram: how constraints shrink the eligible node set to zero even with capacity to spare** (the source's key warning — "these rules can reduce the eligible node set to zero even when aggregate capacity exists" — drawn as the actual funnel):
-```
- 12 nodes in cluster
-        │
-        ▼  drop nodes with an untolerated taint
- 9 nodes remain (3 GPU nodes tainted `dedicated=gpu-a100`, no toleration on this Pod)
-        │
-        ▼  drop nodes failing required nodeAffinity
- 4 nodes remain (5 more dropped: wrong zone label)
-        │
-        ▼  drop nodes failing required podAntiAffinity (e.g. "not co-located with X")
- 1 node remains
-        │
-        ▼  drop nodes failing topology spread `whenUnsatisfiable: DoNotSchedule`
- 0 nodes remain → Pod stays Pending, even though the cluster overall has idle capacity
+```mermaid
+flowchart TD
+    N12["12 nodes in cluster"]
+    N9["9 nodes remain (3 GPU nodes tainted dedicated=gpu-a100, no toleration on this Pod)"]
+    N4["4 nodes remain (5 more dropped: wrong zone label)"]
+    N1["1 node remains"]
+    N0["0 nodes remain -- Pod stays Pending, even though the cluster overall has idle capacity"]
+
+    N12 -->|"drop nodes with an untolerated taint"| N9
+    N9 -->|"drop nodes failing required nodeAffinity"| N4
+    N4 -->|"drop nodes failing required podAntiAffinity (e.g. not co-located with X)"| N1
+    N1 -->|"drop nodes failing topology spread whenUnsatisfiable: DoNotSchedule"| N0
 ```
 Each layer is an independent hard filter — aggregate cluster capacity is irrelevant once any single required rule empties the set; this is why "the cluster isn't even full" is not evidence against a Pending Pod.
 
@@ -123,28 +113,26 @@ Each layer is an independent hard filter — aggregate cluster capacity is irrel
 GPUs are typically advertised as extended resources by a device plugin. The scheduler allocates named resources; it does not infer GPU availability from nvidia-smi utilization. MIG can expose slice-specific resource names. Therefore low hardware utilization does not imply that the requested resource exists or is unallocated.
 
 ➕ **The device-plugin → scheduler pipeline, end to end:**
-```
-NVIDIA device plugin (DaemonSet, one per GPU node)
-   │  gRPC ListAndWatch to kubelet: "this node has 8x nvidia.com/gpu, all healthy"
-   ▼
-kubelet updates Node.status.capacity / .allocatable["nvidia.com/gpu"] = 8
-   │
-   ▼
-scheduler Filter phase: does allocatable(8) - already-allocated(N) >= Pod request(1)?
-   │  GPUs are NOT fractionally divisible by the default device plugin — a Pod
-   │  requesting nvidia.com/gpu: 1 gets a WHOLE gpu, exclusively, full stop
-   ▼
-if MIG enabled: resource name changes, e.g. nvidia.com/mig-1g.5gb — the Pod
-must request the EXACT MIG profile name the node advertises, or it Filters
-out of every MIG-sliced node even though "GPU capacity" technically exists
+```mermaid
+flowchart TD
+    Plugin["NVIDIA device plugin (DaemonSet, one per GPU node)"]
+    Kubelet["kubelet updates Node.status.capacity / .allocatable[nvidia.com/gpu] = 8"]
+    Filter["scheduler Filter phase: does allocatable(8) - already-allocated(N) >= Pod request(1)?<br/>GPUs are NOT fractionally divisible by the default device plugin -- a Pod requesting nvidia.com/gpu: 1 gets a WHOLE gpu, exclusively, full stop"]
+    Mig["if MIG enabled: resource name changes, e.g. nvidia.com/mig-1g.5gb -- the Pod must request the EXACT MIG profile name the node advertises, or it Filters out of every MIG-sliced node even though GPU capacity technically exists"]
+
+    Plugin -->|"gRPC ListAndWatch to kubelet: this node has 8x nvidia.com/gpu, all healthy"| Kubelet
+    Kubelet --> Filter
+    Filter --> Mig
 ```
 ➕ **Sample annotated output — proving what a node actually advertises, MIG or not:**
-```
-$ kubectl get node gpu-a100-04 -o json | jq '.status.allocatable | with_entries(select(.key | contains("nvidia")))'
-{
-  "nvidia.com/mig-1g.5gb": "7",     ← MIG-sliced: 7 slices of the 1g.5gb profile
-  "nvidia.com/mig-2g.10gb": "0"     ← this profile is defined but exhausted/unconfigured — 0 available
-}
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ kubectl get node gpu-a100-04 -o json | jq '.status.allocatable | with_entries(select(.key | contains('nvidia')))'"]
+  n1["{"]
+  n2["'nvidia.com/mig-1g.5gb': '7', ← MIG-sliced: 7 slices of the 1g.5gb profile"]
+  n3["'nvidia.com/mig-2g.10gb': '0' ← this profile is defined but exhausted/unconfigured — 0 available"]
+  n4["}"]
 ```
 A Pod manifest requesting `nvidia.com/gpu: 1` against this node will Filter out with `Insufficient nvidia.com/gpu` even though the node has physical GPU capacity — because the node isn't advertising *that* resource name at all once MIG reconfiguration has taken over the resource namespace. This single fact — **MIG changes the resource name, not just the resource quantity** — is one of the most common "why is my GPU pod Pending on an idle-looking GPU node" root causes in real fleets.
 

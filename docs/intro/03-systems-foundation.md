@@ -14,10 +14,20 @@ This chapter is a map, not a replacement for Volume 1. Its purpose is to give un
 
 ## One machine, five connected views
 
-```text
-hardware → kernel → processes → services/applications → remote users/systems
- CPU/RAM    controls    execute      provide work          communicate
- disk/NIC   resources   code         through ports/files   through networks
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["hardware"]
+  n1["kernel"]
+  n2["processes"]
+  n3["services/applications"]
+  n4["remote users/systems"]
+  n5["CPU/RAM controls execute provide work communicate"]
+  n6["disk/NIC resources code through ports/files through networks"]
+  n0 --> n1
+  n1 --> n2
+  n2 --> n3
+  n3 --> n4
 ```
 
 - **Hardware** supplies CPU, memory, disks, NICs, and GPUs.
@@ -50,9 +60,25 @@ When you run `curl https://example.com`, the shell starts a `curl` process. The 
 
 ## Networking without skipping the layers
 
-```text
-name → IP address → route → neighbor/gateway → packet path → listening port → protocol/TLS → application
- DNS     identity     direction   local delivery      network       socket       session        behavior
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["name"]
+  n1["IP address"]
+  n2["route"]
+  n3["neighbor/gateway"]
+  n4["packet path"]
+  n5["listening port"]
+  n6["protocol/TLS"]
+  n7["application"]
+  n8["DNS identity direction local delivery network socket session behavior"]
+  n0 --> n1
+  n1 --> n2
+  n2 --> n3
+  n3 --> n4
+  n4 --> n5
+  n5 --> n6
+  n6 --> n7
 ```
 
 | Question | Read-only evidence | What it does not prove |
@@ -69,8 +95,20 @@ An **IP address** identifies an interface within a routed network. A **port** id
 
 An application reads a path, but the path may resolve through multiple layers:
 
-```text
-application → system call → VFS → filesystem → block/network client → device/server
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["application"]
+  n1["system call"]
+  n2["VFS"]
+  n3["filesystem"]
+  n4["block/network client"]
+  n5["device/server"]
+  n0 --> n1
+  n1 --> n2
+  n2 --> n3
+  n3 --> n4
+  n4 --> n5
 ```
 
 - A **block device** exposes addressable blocks; a filesystem organizes files on it.
@@ -85,9 +123,17 @@ Check both capacity and inodes: `df -h` and `df -i`. Check what a path actually 
 
 Avoid thinking of security as one product:
 
-```text
-Who are you? → What may you request? → What may this process do? → What was recorded?
-authentication     authorization          enforcement                 audit
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["Who are you?"]
+  n1["What may you request?"]
+  n2["What may this process do?"]
+  n3["What was recorded?"]
+  n4["authentication authorization enforcement audit"]
+  n0 --> n1
+  n1 --> n2
+  n2 --> n3
 ```
 
 - **Authentication** proves identity: password, SSH key, certificate, token, SSO.

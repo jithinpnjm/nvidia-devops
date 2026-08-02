@@ -9,15 +9,15 @@ source_document: "Volume_08_Senior_Solutions_Architecture_Practice(2).docx"
 
 A good PoC answers the risky questions that block a production decision. Example hypothesis: "On H100 with candidate serving engine X, model Y can sustain 200 concurrent requests with P95 TTFT < 1 s and cost < €Z/1M tokens." The PoC needs request distribution, warm/cold state, instrumentation, comparison baseline and repeatability.
 
-```
-PoC hypothesis
- -> test environment + versions
- -> workload generator + data
- -> metrics/SLO
- -> baseline
- -> experiment matrix
- -> pass/fail criteria
- -> decision and residual risks
+```mermaid
+flowchart TD
+    A["PoC hypothesis"] --> B["test environment + versions"]
+    B --> C["workload generator + data"]
+    C --> D["metrics/SLO"]
+    D --> E["baseline"]
+    E --> F["experiment matrix"]
+    F --> G["pass/fail criteria"]
+    G --> H["decision and residual risks"]
 ```
 
 ## Worked scenario
@@ -34,32 +34,16 @@ PoC hypothesis
 ---
 
 ➕ **The PoC pipeline, with the failure mode at each stage named (the source's arrow-diagram, annotated):**
-```
-PoC hypothesis            ← FAILURE MODE: no hypothesis, just "try the platform"
-   │                         (a demo has no pass/fail; a PoC must)
-   ▼
-test environment+versions ← FAILURE MODE: lab environment unlike production
-   │                         (different storage tier, no real network topology)
-   ▼
-workload generator+data   ← FAILURE MODE: synthetic load unlike real traffic
-   │                         shape (steady-state load hides tail-latency bugs
-   │                         that only bursty/real traffic distributions reveal)
-   ▼
-metrics/SLO                ← FAILURE MODE: measuring averages, not P95/P99
-   │
-   ▼
-baseline                   ← FAILURE MODE: no baseline — "200 req/s" means
-   │                         nothing without "...vs X req/s today"
-   ▼
-experiment matrix          ← FAILURE MODE: testing every feature shallowly
-   │                         instead of 2-3 hypotheses deeply
-   ▼
-pass/fail criteria         ← FAILURE MODE: criteria defined AFTER seeing
-   │                         results (moving the goalposts to match outcome)
-   ▼
-decision + residual risks  ← FAILURE MODE: report says "it works" with no
-                              stated unknowns — a PoC that found zero risk
-                              probably wasn't testing anything risky
+```mermaid
+flowchart TD
+    A["PoC hypothesis"] -->|"FAILURE MODE: no hypothesis, just 'try\nthe platform' (a demo has no pass/fail;\na PoC must)"| B["test environment+versions"]
+    B -->|"FAILURE MODE: lab environment unlike\nproduction (different storage tier,\nno real network topology)"| C["workload generator+data"]
+    C -->|"FAILURE MODE: synthetic load unlike real\ntraffic shape (steady-state load hides\ntail-latency bugs that only bursty/real\ntraffic distributions reveal)"| D["metrics/SLO"]
+    D -->|"FAILURE MODE: measuring averages,\nnot P95/P99"| E["baseline"]
+    E -->|"FAILURE MODE: no baseline - '200 req/s'\nmeans nothing without '...vs X req/s today'"| F["experiment matrix"]
+    F -->|"FAILURE MODE: testing every feature\nshallowly instead of 2-3 hypotheses deeply"| G["pass/fail criteria"]
+    G -->|"FAILURE MODE: criteria defined AFTER\nseeing results (moving the goalposts\nto match outcome)"| H["decision + residual risks"]
+    H -.-> I["FAILURE MODE: report says 'it works' with no\nstated unknowns - a PoC that found zero risk\nprobably wasn't testing anything risky"]
 ```
 Each arrow in the source diagram is actually a place experienced SAs have seen a PoC go wrong — walking an interviewer through *this* version (failure mode at each stage) is a stronger answer than reciting the stage names.
 

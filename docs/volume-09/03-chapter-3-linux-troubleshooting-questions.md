@@ -28,21 +28,25 @@ source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 ## ➕ Additions
 
 ➕ **Troubleshooting decision tree — "the system is slow" (turn the vague symptom into a branch, before any command):**
-```
-"The system is slow" (interviewer prompt)
-        │
-        ▼
-  CLARIFY: latency? throughput? one host or fleet? since when?
-        │
-        ▼
-  ┌─────────────┬─────────────┬─────────────┬─────────────┐
-  │   CPU/run    │  Memory/swap │   I/O/disk   │  Network/    │
-  │   queue      │              │              │  dependency  │
-  └──────┬───────┴──────┬───────┴──────┬───────┴──────┬───────┘
-         ▼              ▼              ▼              ▼
-   r vs b (vmstat)  free vs used   iostat await   ss -tn state,
-   cpu.stat throttle vs cache    vs %util       dependency
-   wchan for D                  vs queue depth   latency histogram
+```mermaid
+flowchart TD
+    Prompt["'The system is slow' (interviewer prompt)"]
+    Clarify["CLARIFY: latency? throughput? one host or fleet? since when?"]
+    Cpu["CPU/run queue"]
+    Mem["Memory/swap"]
+    Io["I/O/disk"]
+    Net["Network/dependency"]
+
+    Prompt --> Clarify
+    Clarify --> Cpu
+    Clarify --> Mem
+    Clarify --> Io
+    Clarify --> Net
+
+    Cpu --> CpuEv["r vs b (vmstat), cpu.stat throttle, wchan for D"]
+    Mem --> MemEv["free vs used vs cache"]
+    Io --> IoEv["iostat await vs %util vs queue depth"]
+    Net --> NetEv["ss -tn state, dependency latency histogram"]
 ```
 
 ➕ **Sample annotated output — the "load 30, CPU 40%" question, made concrete with real commands:**
@@ -71,10 +75,11 @@ Two distinct root causes hiding under one "load 30" symptom: an NFS mount stalli
 ➕ 6. Reproduce the D-state/NFS scenario: mount a deliberately slow/throttled NFS/loopback target, drive writes against it, and confirm `vmstat`'s `b` column and `wchan` both point at it before you'd normally suspect CPU.
 
 ➕ **Visual model — classify load before proposing capacity:**
-```
-high load
-  ├── high runnable `r` ─► CPU / run queue / quota branch
-  ├── high blocked `b`  ─► storage / NFS / kernel wait branch
-  └── low host CPU but latency ─► cgroup throttling / dependency branch
+```mermaid
+flowchart LR
+    HL[high load]
+    HL -->|"high runnable r"| A[CPU / run queue / quota branch]
+    HL -->|"high blocked b"| B[storage / NFS / kernel wait branch]
+    HL -->|"low host CPU but latency"| C[cgroup throttling / dependency branch]
 ```
 **Memory hook:** *"Load is queued work, not CPU percentage."*

@@ -44,37 +44,20 @@ _Figure A. The interviewer should hear your reasoning, not only the final techno
 ➕ **Why this chapter matters more than any single technical fact:** in a 45-minute loop, an interviewer forms most of their "senior or not" judgment from *how* you approach a question, not whether you land the exact right command on the first try. Two candidates who both eventually diagnose the same OOMKilled Pod are scored completely differently if one opens with "let me check logs" and the other opens with "first — is this one Pod, one node, or the whole Service, and did anything change recently?" This chapter is the meta-skill every other chapter in this volume assumes you already have.
 
 ➕ **The answer framework as a decision flow (memorize this shape, not the words):**
-```
-                         Question lands
-                              │
-                              ▼
-              ┌───────────────────────────────┐
-              │ 1. CLARIFY scope + timeline    │  "one Pod or the Service?"
-              │    (what changed, when, blast  │  "did this work yesterday?"
-              │     radius)                     │
-              └───────────────┬───────────────┘
-                              ▼
-              ┌───────────────────────────────┐
-              │ 2. MODEL the relevant path      │  draw request/data/control
-              │    (say it out loud even        │  path in your head or on
-              │     without a whiteboard)       │  the shared screen
-              └───────────────┬───────────────┘
-                              ▼
-              ┌───────────────────────────────┐
-              │ 3. HYPOTHESIZE — rank 2-3       │  "most likely: X. also
-              │    candidate causes, most       │   possible: Y, Z."
-              │    likely first                 │
-              └───────────────┬───────────────┘
-                              ▼
-              ┌───────────────────────────────┐
-              │ 4. NAME the evidence that       │  "if it's X, I'd see ___
-              │    DISTINGUISHES between them   │   in the events; if Y, ___"
-              └───────────────┬───────────────┘
-                              ▼
-              ┌───────────────────────────────┐
-              │ 5. RECOMMEND a safe mitigation, │  never "just restart it"
-              │    then validate + prevent      │   without saying why it's safe
-              └───────────────────────────────┘
+```mermaid
+flowchart TD
+    Q[Question lands]
+    C["1. CLARIFY scope + timeline<br/>(what changed, when, blast radius)"]
+    M["2. MODEL the relevant path<br/>(say it out loud even without a whiteboard)"]
+    H["3. HYPOTHESIZE - rank 2-3 candidate causes, most likely first"]
+    E["4. NAME the evidence that DISTINGUISHES between them"]
+    R["5. RECOMMEND a safe mitigation, then validate + prevent"]
+
+    Q --> C
+    C -->|"one Pod or the Service? did this work yesterday?"| M
+    M -->|"draw request/data/control path in your head or on the shared screen"| H
+    H -->|"most likely: X. also possible: Y, Z."| E
+    E -->|"if it's X, I'd see ___ in the events; if Y, ___"| R
 ```
 ➕ **Memory hook / one-liner to recall this under pressure:** *"C-M-H-E-R — Clarify, Model, Hypothesize, name Evidence, Recommend."* If you forget everything else, the two moves that separate senior from mid-level are step 1 (clarify before diagnosing) and step 4 (name evidence that *distinguishes* hypotheses, not just evidence that confirms your first guess — confirmation-seeking is the single most common tell of a non-senior answer).
 
@@ -118,8 +101,8 @@ This single sentence does three things simultaneously: it signals you don't jump
 ➕ 2. Pick any Chapter 3-9 worked scenario in this volume and, before reading its steps, run your own C-M-H-E-R pass cold. Compare your hypothesis ranking against the book's — where you diverge is your study gap, not a wrong answer.
 
 ➕ **Visual model — expose the reasoning chain, not a memorized conclusion:**
-```
-Clarify ─► Model system ─► Hypothesize ─► Evidence test ─► Recommend
-   scope       boundaries       ranked causes      discriminator      trade-off + next step
+```mermaid
+flowchart LR
+    A["Clarify<br/>scope"] --> B["Model system<br/>boundaries"] --> C["Hypothesize<br/>ranked causes"] --> D["Evidence test<br/>discriminator"] --> E["Recommend<br/>trade-off + next step"]
 ```
 **Memory hook:** *"Question first, mechanism second, answer last."*

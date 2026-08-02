@@ -28,10 +28,19 @@ Separate mitigation from root cause. Draining a node, rolling back a release or 
 > A team drains a node during the Ch.11 Xid-79 incident and error rates recover. It would be tempting to close the incident there — service is restored, the graph is green. The workflow's own bullet list requires one more step first: *"Validate recovery with the original symptom metric, not 'pods are green.'"* Confirming the *error-ratio metric itself* (not just Pod status) returned to baseline is the difference between "we did something and it happened to get better" and "we know the drain is what fixed it" — a coincidental recovery (e.g. traffic simply dropped at the same moment) would pass a "pods are green" check but fail an error-ratio check if the underlying fault were still present and traffic later returned.
 
 ➕ **Visual model — an evidence tree closes only when the symptom metric recovers:**
-```
-symptom ─► scope ─► hypotheses ─► discriminating evidence ─► reversible mitigation
-                  │                                              │
-                  └── reject branches with evidence               ▼
-                                                  original SLI / error / latency back to baseline?
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["symptom"]
+  n1["scope"]
+  n2["hypotheses"]
+  n3["discriminating evidence"]
+  n4["reversible mitigation"]
+  n5["reject branches with evidence"]
+  n6["original SLI / error / latency back to baseline?"]
+  n0 --> n1
+  n1 --> n2
+  n2 --> n3
+  n3 --> n4
 ```
 **Memory hook:** *"Mitigate the impact, then prove the mechanism."*

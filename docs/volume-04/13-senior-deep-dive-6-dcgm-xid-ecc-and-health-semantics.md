@@ -44,12 +44,19 @@ $ dmesg -T | grep -iE 'NVRM|Xid|nvidia'
 The `Xid (PCI:...)` prefix gives you the exact device by bus ID — cross-reference against `nvidia-smi --query-gpu=pci.bus_id,uuid --format=csv` to name the specific card, then correlate the timestamp against the workload that was running on it at that second (job scheduler logs, dcgm-exporter's own timestamp) before deciding drain vs restart vs RMA. **Interview-ready line:** "An Xid code without frequency, device, and workload correlation is just a number — the triage table tells you what class of action to consider, but the timestamp-correlated evidence is what actually justifies drain-and-RMA versus 'log it and move on.'"
 
 ➕ **Visual model — health semantics require correlated layers:**
-```
-workload error / slowdown
-        │ correlate by timestamp + PCI bus id
-        ▼
-DCGM field ─► driver log / Xid ─► ECC / link / thermal evidence ─► action
-    │                                                          │
-    └── fleet trend / recurrence                               └── observe | drain | repair
+```mermaid
+flowchart TD
+    W["workload error / slowdown"]
+    DCGM["DCGM field"]
+    DRV["driver log / Xid"]
+    EVID["ECC / link / thermal evidence"]
+    ACTION["action"]
+    TREND["fleet trend / recurrence"]
+    OUTCOME["observe | drain | repair"]
+
+    W -->|"correlate by timestamp + PCI bus id"| DCGM
+    DCGM --> DRV --> EVID --> ACTION
+    DCGM -.-> TREND
+    ACTION -.-> OUTCOME
 ```
 **Memory hook:** *"Metric says what; driver log says where; recurrence says whether."* Never drain—or dismiss—a GPU from a lone counter.

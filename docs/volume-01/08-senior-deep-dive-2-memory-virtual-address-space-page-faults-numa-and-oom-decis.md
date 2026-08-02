@@ -41,15 +41,15 @@ Node 1: CPU 16-31 -- local RAM -- PCIe root complex B -- GPU2, GPU3, NIC1
 A data-loader thread pinned to Node-0 CPUs feeding GPU2 (Node-1) pays a real, measurable latency tax on every batch — and this is invisible to `nvidia-smi` utilization numbers, which only show the GPU side. `numactl --hardware` + `lscpu -e` (from this Deep Dive's own command list) is how you'd catch this. Kubernetes Topology Manager (`--topology-manager-policy=single-numa-node`) is the cluster-level lever to prevent it at scheduling time — worth naming as the fix, not just the diagnosis.
 
 ➕ **Diagram: pinned (page-locked) host memory for GPU transfer, and why it's a different pool than "normal" RAM**
-```
-Normal (pageable) host memory              Pinned (page-locked) host memory
-┌──────────────────────────┐               ┌──────────────────────────┐
-│ can be swapped/moved by   │               │ kernel guarantees this    │
-│ the kernel at any time    │               │ physical page never moves │
-└──────────────────────────┘               └──────────────────────────┘
-        │                                            │
-        ▼ GPU DMA needs a stable physical address     ▼ DMA engine can transfer
-CUDA copies pageable→pinned staging            directly, no staging copy,
-buffer FIRST (extra copy, slower)              higher bandwidth, lower latency
+```mermaid
+flowchart TD
+    subgraph N["Normal (pageable) host memory"]
+        N1["can be swapped/moved by the kernel at any time"]
+        N1 -->|GPU DMA needs a stable physical address| N2["CUDA copies pageable→pinned staging buffer FIRST (extra copy, slower)"]
+    end
+    subgraph P["Pinned (page-locked) host memory"]
+        P1["kernel guarantees this physical page never moves"]
+        P1 -->|DMA engine can transfer directly| P2["No staging copy, higher bandwidth, lower latency"]
+    end
 ```
 `cudaHostAlloc`/pinned buffers trade host RAM flexibility (pinned pages can't be reclaimed under pressure, and over-pinning can starve the rest of the host) for materially faster host↔GPU transfer — a NUMA-local pinned buffer plus a cross-node one produce identical `nvidia-smi` output but different real throughput, which is the same "topology is invisible from the GPU-only view" point as the diagram above, one layer earlier in the pipeline.

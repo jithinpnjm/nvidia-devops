@@ -147,45 +147,28 @@ kubectl get events --sort-by=.lastTimestamp
 
 ➕ **The request pipeline, spelled out** (the source states "authenticates, authorizes, admits and validates" as a sequence — a Senior SA should be able to draw this without hesitation):
 
-```
- Client (kubectl/controller/kubelet)
-        │  HTTPS request, client cert or bearer token
-        ▼
- ┌─────────────────┐
- │ Authentication   │  who are you? (cert CN, SA token, OIDC claims) → produces a user/group identity
- └────────┬─────────┘
-          ▼
- ┌─────────────────┐
- │ Authorization    │  RBAC/ABAC/webhook: is THIS identity allowed to do THIS verb on THIS resource?
- └────────┬─────────┘
-          ▼
- ┌─────────────────┐
- │ Admission        │  Mutating webhooks/plugins run first (can rewrite the object),
- │ (mutating→       │  then Validating webhooks/plugins/ValidatingAdmissionPolicy run
- │  validating)     │  (can only accept/reject, no more rewriting)
- └────────┬─────────┘
-          ▼
- ┌─────────────────┐
- │ Schema/API       │  OpenAPI validation, defaulting, conversion between API versions
- │ validation       │
- └────────┬─────────┘
-          ▼
- ┌─────────────────┐
- │ etcd write       │  optimistic concurrency check on resourceVersion, then persist,
- │ (via apiserver's │  bump resourceVersion, and fan the change out to all active watches
- │  storage layer)  │
- └─────────────────┘
+```mermaid
+flowchart TD
+    Client["Client (kubectl/controller/kubelet)<br/>HTTPS request, client cert or bearer token"]
+    Authn["Authentication<br/>who are you? (cert CN, SA token, OIDC claims) -- produces a user/group identity"]
+    Authz["Authorization<br/>RBAC/ABAC/webhook: is THIS identity allowed to do THIS verb on THIS resource?"]
+    Admission["Admission (mutating then validating)<br/>Mutating webhooks/plugins run first (can rewrite the object), then Validating webhooks/plugins/ValidatingAdmissionPolicy run (can only accept/reject, no more rewriting)"]
+    Schema["Schema/API validation<br/>OpenAPI validation, defaulting, conversion between API versions"]
+    Etcd["etcd write (via apiserver's storage layer)<br/>optimistic concurrency check on resourceVersion, then persist, bump resourceVersion, and fan the change out to all active watches"]
+
+    Client --> Authn --> Authz --> Admission --> Schema --> Etcd
 ```
 ➕ **Interview-ready line:** "Nothing in Kubernetes talks to etcd directly except the API server's storage layer — every controller, kubelet, and scheduler reasons only in terms of the API, which is exactly what makes the watch/resourceVersion model the single source of truth for 'did my write actually happen.'"
 
 ➕ **Sample annotated output — resourceVersion in practice:**
-```
-$ kubectl get deploy api -o jsonpath='{.metadata.resourceVersion}{"\n"}'
-482913
-$ kubectl scale deploy api --replicas=4
-deployment.apps/api scaled
-$ kubectl get deploy api -o jsonpath='{.metadata.resourceVersion}{"\n"}'
-482917          ← bumped by the write; NOT by every reconcile, only by a persisted mutation
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ kubectl get deploy api -o jsonpath='{.metadata.resourceVersion}{'\n'}'"]
+  n1["482913"]
+  n2["$ kubectl scale deploy api --replicas=4"]
+  n3["deployment.apps/api scaled"]
+  n4["482917 ← bumped by the write; NOT by every reconcile, only by a persisted mutation"]
 ```
 resourceVersion is opaque and cluster-scoped-per-resource-type in practice (treat it as an opaque string, never parse or compare it numerically across resource types) — it exists so a client can say "give me changes after the version I last saw" via a watch, and so a conditional update (`If-Match`-style semantics under the hood) can detect a lost race: if two clients GET the same object at rv=482913 and both PUT a modified copy, the second PUT is rejected with a 409 Conflict because the object's rv on the server has already moved to 482914+.
 
@@ -209,14 +192,18 @@ This is the API server protecting you from a silent last-writer-wins overwrite �
 Controllers commonly watch API changes, enqueue work, compare desired and actual state, and issue idempotent API updates. Reconciliation is level-based: the controller should make progress toward the desired state even if it misses an individual event, because the current object state remains authoritative.
 
 ➕ **Level-based vs edge-based, with the diagram that makes it click:**
-```
-Edge-triggered (fragile):  "replicas went from 3→4" event MUST be received and processed,
-                            or the controller never learns it needs to add a Pod.
-Level-triggered (K8s way): controller wakes up (for ANY reason — a watch event, a resync
-                            timer, a restart) and asks "what does spec say NOW vs what
-                            do I observe NOW?" — the delta is recomputed fresh every time,
-                            so a missed event just means a slightly later reconcile, not a
-                            permanently wrong state.
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["Edge-triggered (fragile): 'replicas went from 3"]
+  n1["4' event MUST be received and processed,"]
+  n2["or the controller never learns it needs to add a Pod."]
+  n3["Level-triggered (K8s way): controller wakes up (for ANY reason — a watch event, a resync"]
+  n4["timer, a restart) and asks 'what does spec say NOW vs what"]
+  n5["do I observe NOW?' — the delta is recomputed fresh every time,"]
+  n6["so a missed event just means a slightly later reconcile, not a"]
+  n7["permanently wrong state."]
+  n0 --> n1
 ```
 ➕ **Why this matters concretely:** every controller has a periodic full resync (commonly every 30s–10min depending on controller) *in addition to* watch events — this is not redundancy for its own sake, it's the safety net for exactly the "watch connection dropped and a relist missed something transient" case Senior Deep Dive 1 calls out. If you're ever asked "what happens if a controller's watch connection drops for 2 minutes," the correct answer is "nothing catastrophic — it relists on reconnect and/or catches up on the next resync, because reconciliation is level-based, not a message queue that can silently lose a required event."
 
@@ -224,28 +211,25 @@ Level-triggered (K8s way): controller wakes up (for ANY reason — a watch event
 ```bash
 kubectl get pods -w --output-watch-events -o json | jq -c '{type, name: .object.metadata.name, rv: .object.metadata.resourceVersion, phase: .object.status.phase}'
 ```
-```
-{"type":"ADDED","name":"api-7d9f-x2k1","rv":"482920","phase":"Pending"}
-{"type":"MODIFIED","name":"api-7d9f-x2k1","rv":"482924","phase":"Running"}   ← same object, watch delivers the delta
-{"type":"MODIFIED","name":"api-7d9f-x2k1","rv":"482930","phase":"Running"}   ← e.g. a status condition changed
-{"type":"DELETED","name":"api-old-9f2a","rv":"482931","phase":"Running"}
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["{'type':'ADDED','name':'api-7d9f-x2k1','rv':'482920','phase':'Pending'}"]
+  n1["{'type':'MODIFIED','name':'api-7d9f-x2k1','rv':'482924','phase':'Running'} ← same object, watch delivers the delta"]
+  n2["{'type':'MODIFIED','name':'api-7d9f-x2k1','rv':'482930','phase':'Running'} ← e.g. a status condition changed"]
+  n3["{'type':'DELETED','name':'api-old-9f2a','rv':'482931','phase':'Running'}"]
 ```
 Note `--output-watch-events` — without it `kubectl get -w` hides the ADDED/MODIFIED/DELETED envelope and just shows you object snapshots, which is enough for humans but hides the actual wire protocol a controller's informer is consuming.
 
 ➕ **Diagram: the controller watch/reconcile loop itself** (the source describes "watch, enqueue, compare, update" in prose — this is the loop shape every controller in this volume runs):
-```
-        ┌────────────────────────────────────────────────────┐
-        │                                                      │
-        ▼                                                      │
- ┌──────────────┐    ┌──────────────┐    ┌──────────────┐      │
- │ Informer:     │──▶│ Workqueue:    │──▶│ Reconcile:    │──────┘
- │ watch + local │    │ dedupe key,   │    │ GET current,  │  requeue on error,
- │ cache (list/  │    │ retry w/     │    │ diff vs spec, │  or wait for next
- │ watch events) │    │ backoff       │    │ issue writes  │  watch event / resync
- └──────────────┘    └──────────────┘    └──────┬────────┘
-        ▲                                        │
-        │        periodic full resync            │
-        └────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    Informer["Informer:<br/>watch + local cache (list/watch events)"]
+    Workqueue["Workqueue:<br/>dedupe key, retry w/ backoff"]
+    Reconcile["Reconcile:<br/>GET current, diff vs spec, issue writes<br/>requeue on error, or wait for next watch event / resync"]
+
+    Informer --> Workqueue --> Reconcile
+    Reconcile -.->|periodic full resync| Informer
 ```
 This is the same shape whether the "reconcile" box is the Deployment controller, a GitOps controller (Chapter 8), or a custom operator — an event or a timer wakes it up, and it always recomputes the diff fresh rather than trusting that the triggering event was received correctly.
 
@@ -270,24 +254,15 @@ This is the same shape whether the "reconcile" box is the Deployment controller,
 > **Conclusion:** a stuck Terminating object is a controller-availability question first, and a "which finalizer, whose responsibility" question second — never a "just force it" question.
 
 ➕ **Diagram: the two-phase delete this scenario is walking through** (deletionTimestamp set → finalizers drain → actual removal — spelled out here inline since the scenario above depends on it; see Senior Deep Dive 1 for the fuller version with OwnerReferences GC):
-```
- kubectl delete ns team-a-gpu
-        │
-        ▼
- API server sets metadata.deletionTimestamp — object NOT removed yet,
- stays fully readable (Status: Terminating)
-        │
-        ▼
- Every controller with a registered finalizer key sees deletionTimestamp
- via its own watch, does its OWN cleanup
-        │
-        ▼
- Controller removes ITS finalizer key (normal API update) — if that
- controller/CRD no longer exists, this step NEVER HAPPENS → stuck forever
-        │
-        ▼
- finalizers empty + deletionTimestamp set → API server performs actual
- removal from etcd
+```mermaid
+flowchart TD
+    Delete["kubectl delete ns team-a-gpu"]
+    SetTS["API server sets metadata.deletionTimestamp -- object NOT removed yet, stays fully readable (Status: Terminating)"]
+    Watch["Every controller with a registered finalizer key sees deletionTimestamp via its own watch, does its OWN cleanup"]
+    Remove["Controller removes ITS finalizer key (normal API update) -- if that controller/CRD no longer exists, this step NEVER HAPPENS, stuck forever"]
+    Final["finalizers empty + deletionTimestamp set -- API server performs actual removal from etcd"]
+
+    Delete --> SetTS --> Watch --> Remove --> Final
 ```
 ➕ **Shortcut — the one-liner to triage any stuck-deleting object fast:**
 ```bash

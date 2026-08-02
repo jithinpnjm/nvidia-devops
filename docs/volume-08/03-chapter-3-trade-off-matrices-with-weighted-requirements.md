@@ -67,14 +67,16 @@ TOTAL              1.00                                              4.20      3
 ➕ **The trap this matrix format prevents, made explicit:** if Performance had been weighted 0.50 instead of 0.20 — a reasonable-sounding "performance matters most" default — Slurm would win outright (0.50×5=2.50 alone almost closes the gap). The scenario above deliberately weighted Operability highest *because discovery (Chapter 1) surfaced that the team has zero Slurm experience* — the weights are not universal constants, they're a direct encoding of Chapter 1's discovery facts. **Interview-ready line:** "my weights aren't my opinion about what matters in general — they're a direct translation of what this specific customer's discovery revealed."
 
 ➕ **ASCII visualization of the weighted comparison (useful when whiteboarding live):**
-```
-Performance   K8s ███░░░░░░░ (0.60)   Slurm █████████░ (1.00)
-Reliability    K8s ██████░░░░ (0.60)   Slurm ██████░░░░ (0.60)
-Operability    K8s ███████████████ (1.50) Slurm ██████░░░░░░░░░ (0.60)  ← decisive gap
-Security       K8s ████░░░░░░ (0.40)   Slurm ███░░░░░░░ (0.30)
-Economics      K8s ██████░░░░ (0.60)   Slurm ██████░░░░ (0.60)
-Time-to-value  K8s █████░░░░░ (0.50)   Slurm ██░░░░░░░░ (0.20)  ← decisive gap
-                                    TOTAL: K8s 4.20  vs  Slurm 3.30
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["Performance K8s ███░░░░░░░ (0.60) Slurm █████████░ (1.00)"]
+  n1["Reliability K8s ██████░░░░ (0.60) Slurm ██████░░░░ (0.60)"]
+  n2["Operability K8s ███████████████ (1.50) Slurm ██████░░░░░░░░░ (0.60) ← decisive gap"]
+  n3["Security K8s ████░░░░░░ (0.40) Slurm ███░░░░░░░ (0.30)"]
+  n4["Economics K8s ██████░░░░ (0.60) Slurm ██████░░░░ (0.60)"]
+  n5["Time-to-value K8s █████░░░░░ (0.50) Slurm ██░░░░░░░░ (0.20) ← decisive gap"]
+  n6["TOTAL: K8s 4.20 vs Slurm 3.30"]
 ```
 The bars make it visible at a glance that the K8s win is driven by exactly two dimensions (Operability, Time-to-value) — not a uniform advantage. Naming that concentration out loud ("the win isn't across the board, it's concentrated in two operational dimensions the customer told us matter most") is a stronger answer than reading the total score.
 

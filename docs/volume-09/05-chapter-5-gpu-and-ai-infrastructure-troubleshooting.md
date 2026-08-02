@@ -23,25 +23,28 @@ source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 ## ➕ Additions
 
 ➕ **The layered hypothesis tree as a diagram (this IS the answer shape for every "GPU job is slow" question in this volume):**
-```
-"Training job is 40% slower than yesterday"
-              │
-              ▼
-   CLARIFY: which phase? startup / step-time / collective / data-load / checkpoint
-              │
-              ▼
-   SCOPE: one job or fleet-wide? one node or all? what changed since yesterday?
-              │
-   ┌──────────┼──────────┬──────────┬──────────┐
-   ▼          ▼          ▼          ▼          ▼
-  GPU        Host      Network    Storage    App/framework
- util/mem   CPU/mem/   RDMA/NCCL  dataset/    batch size,
- clocks/    cgroup     link err   checkpoint  precision,
- Xid/       throttle   topology   latency     code change
- throttle
-   │          │          │          │          │
-   └──────────┴──────────┴──────────┴──────────┘
-              ▼
-   ISOLATE: controlled benchmark / node removal / rollback / A-B
+```mermaid
+flowchart TD
+    Sym["Training job is 40% slower than yesterday"]
+    Clarify["CLARIFY: which phase? startup / step-time / collective / data-load / checkpoint"]
+    Scope["SCOPE: one job or fleet-wide? one node or all? what changed since yesterday?"]
+    GPU["GPU<br/>util/mem, clocks, Xid/throttle"]
+    Host["Host<br/>CPU/mem/cgroup throttle"]
+    Net["Network<br/>RDMA/NCCL link err, topology"]
+    Storage["Storage<br/>dataset/checkpoint latency"]
+    App["App/framework<br/>batch size, precision, code change"]
+    Isolate["ISOLATE: controlled benchmark / node removal / rollback / A-B"]
+
+    Sym --> Clarify --> Scope
+    Scope --> GPU
+    Scope --> Host
+    Scope --> Net
+    Scope --> Storage
+    Scope --> App
+    GPU --> Isolate
+    Host --> Isolate
+    Net --> Isolate
+    Storage --> Isolate
+    App --> Isolate
 ```
 ➕ **Memory hook:** *"GHNS-A — GPU, Host, Network, Storage, App."* Five hop points, always checked in that order for a GPU workload symptom, because each hop is cheap to check and rules out an entire category before you go deeper. Never open with "let's check GPU utilization" — that's step 3 of 5, not step 1.

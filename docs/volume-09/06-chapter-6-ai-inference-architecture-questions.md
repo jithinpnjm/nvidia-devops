@@ -19,23 +19,15 @@ When asked for a number of GPUs, state that capacity is benchmark-derived. You c
 ## ➕ Additions
 
 ➕ **Capacity-sizing formula as a mini decision flow (the exact structure for "how many GPUs do I need"):**
-```
-Required throughput (req/s or tokens/s at target SLO)
-                │
-                ▼
-÷ Measured per-replica throughput AT THE SAME SLO   ← must be benchmarked,
-  (not vendor spec-sheet peak)                          never assumed
-                │
-                ▼
-= raw replica count (round UP to GPU/replica granularity —
-                       MIG slice, full GPU, or multi-GPU replica)
-                │
-                ▼
-+ availability headroom (N+1 / N+2 for node failure)
-+ peak/burst headroom (traffic variance above steady-state mean)
-                │
-                ▼
-= GPU count to provision
+```mermaid
+flowchart TD
+    A["Required throughput (req/s or tokens/s at target SLO)"]
+    B["÷ Measured per-replica throughput AT THE SAME SLO<br/>(must be benchmarked, never assumed - not vendor spec-sheet peak)"]
+    C["= raw replica count<br/>(round UP to GPU/replica granularity - MIG slice, full GPU, or multi-GPU replica)"]
+    D["+ availability headroom (N+1 / N+2 for node failure)<br/>+ peak/burst headroom (traffic variance above steady-state mean)"]
+    E["= GPU count to provision"]
+
+    A --> B --> C --> D --> E
 ```
 ➕ **Interview-ready line for the "how many GPUs" question, verbatim:** "I can't give you a number without a benchmark — but I can give you the formula: required throughput divided by measured per-replica throughput *at your SLO*, rounded up to your GPU/replica granularity, plus availability and burst headroom. The benchmark is the only step that can't be skipped."
 
@@ -49,9 +41,9 @@ Required throughput (req/s or tokens/s at target SLO)
 ➕ 6. Explain, in one sentence each, why "GPU utilization" alone is a poor autoscaling trigger for an LLM-serving HPA, and name the two metrics (from this chapter) you'd use instead.
 
 ➕ **Visual model — derive fleet size from work and resilience:**
-```
-required SLO throughput ─► replicas at benchmarked SLO ─► N+1 failure headroom ─► burst / cold-start margin
-          │                                                                        │
-          └── request mix, prompt/output length, model and cache state ───────────┘
+```mermaid
+flowchart LR
+    A[required SLO throughput] --> B[replicas at benchmarked SLO] --> C[N+1 failure headroom] --> D[burst / cold-start margin]
+    A -.->|"request mix, prompt/output length, model and cache state"| D
 ```
 **Memory hook:** *"Benchmark at the SLO, then add the failure you promised to survive."*

@@ -25,48 +25,38 @@ kubectl get pods -l app=api -o wide --show-labels
 ```
 
 ➕ **Full traffic path, all layers, drawn once so every later branch has a home:**
-```
-Client
-  │
-  ▼
-[north-south] LB / Ingress-Controller / Gateway ── external entrypoint, own health checks
-  │
-  ▼
-Service (ClusterIP/NodePort/LB) ── a virtual IP + selector, NOT a process or a Pod
-  │  Service has NO endpoints? Everything below is irrelevant — traffic never leaves the VIP.
-  ▼
-EndpointSlice ── the resolved list of {Pod IP:port} currently READY and matching selector
-  │
-  ▼
-Dataplane (iptables/IPVS/eBPF) ── programs each node's kernel to DNAT VIP→endpoint IP
-  │  [east-west] Pod-to-Pod traffic inside cluster hits THIS layer too, not just ingress
-  ▼
-CNI routing ── gets the packet from source Pod's veth to the destination node/Pod via
-  overlay/underlay routing (depends on CNI: VXLAN, BGP, native routed, etc.)
-  │
-  ▼
-Destination Pod's network namespace ── NetworkPolicy enforced here if CNI supports it
-  │
-  ▼
-Application socket accept()
+```mermaid
+flowchart TD
+    Client["Client"]
+    LB["[north-south] LB / Ingress-Controller / Gateway -- external entrypoint, own health checks"]
+    Service["Service (ClusterIP/NodePort/LB) -- a virtual IP + selector, NOT a process or a Pod"]
+    ES["EndpointSlice -- the resolved list of {Pod IP:port} currently READY and matching selector"]
+    Dataplane["Dataplane (iptables/IPVS/eBPF) -- programs each node's kernel to DNAT VIP to endpoint IP<br/>[east-west] Pod-to-Pod traffic inside cluster hits THIS layer too, not just ingress"]
+    CNI["CNI routing -- gets the packet from source Pod's veth to the destination node/Pod via overlay/underlay routing (depends on CNI: VXLAN, BGP, native routed, etc.)"]
+    Netns["Destination Pod's network namespace -- NetworkPolicy enforced here if CNI supports it"]
+    App["Application socket accept()"]
+
+    Client --> LB --> Service
+    Service -->|"Service has NO endpoints? Everything below is irrelevant -- traffic never leaves the VIP"| ES
+    ES --> Dataplane --> CNI --> Netns --> App
 ```
 ➕ **Interview-ready line:** "A Service with zero endpoints is invisible to the dataplane — no packet ever leaves the virtual IP, so checking iptables/eBPF rules before checking `kubectl get endpointslice` is debugging the wrong layer first."
 
 ➕ **Sample annotated output — the single most common Service failure mode:**
-```
-$ kubectl get svc api -o yaml | grep -A3 selector
-selector:
-  app: api
-  version: v2                     ← Service selects app=api AND version=v2
-
-$ kubectl get pods -l app=api --show-labels
-NAME          READY   STATUS    LABELS
-api-7d9f-abc  1/1     Running   app=api,version=v1    ← v1, doesn't match selector
-api-7d9f-def  1/1     Running   app=api,version=v1    ← same
-
-$ kubectl get endpointslice -l kubernetes.io/service-name=api -o wide
-NAME         ADDRESSTYPE   PORTS   ENDPOINTS
-api-x7k2p    IPv4          8080    <none>              ← ZERO endpoints. Selector matched nothing.
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ kubectl get svc api -o yaml | grep -A3 selector"]
+  n1["selector"]
+  n2["app: api"]
+  n3["version: v2 ← Service selects app=api AND version=v2"]
+  n4["$ kubectl get pods -l app=api --show-labels"]
+  n5["NAME READY STATUS LABELS"]
+  n6["api-7d9f-abc 1/1 Running app=api,version=v1 ← v1, doesn't match selector"]
+  n7["api-7d9f-def 1/1 Running app=api,version=v1 ← same"]
+  n8["$ kubectl get endpointslice -l kubernetes.io/service-name=api -o wide"]
+  n9["NAME ADDRESSTYPE PORTS ENDPOINTS"]
+  n10["api-x7k2p IPv4 8080 <none> ← ZERO endpoints. Selector matched nothing."]
 ```
 A rolling update that changed the `version` label without updating the Service selector (or vice versa) is a classic self-inflicted outage — everything looks "Running," nothing looks "wrong" per-Pod, and the Service is simply talking to an empty set.
 
@@ -89,11 +79,13 @@ Depending on the cluster, Service forwarding may be implemented with iptables, I
 | eBPF (Cilium, Calico eBPF, kube-proxy replacement) | eBPF maps, not iptables at all | `cilium service list` / `cilium bpf lb list` (tool-specific) |
 
 ➕ **Sample annotated output — IPVS, showing the actual weighting/scheduling that iptables' random-jump chains only approximate:**
-```
-$ ipvsadm -L -n | grep -A3 10.96.0.55
-TCP  10.96.0.55:8080 rr
-  -> 10.244.1.12:8080    Masq    1      0          142     ← 0 active, 142 inactive (recently closed)
-  -> 10.244.2.9:8080     Masq    1      3          98      ← 3 ACTIVE connections right now
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ ipvsadm -L -n | grep -A3 10.96.0.55"]
+  n1["TCP 10.96.0.55:8080 rr"]
+  n2["> 10.244.1.12:8080 Masq 1 0 142 ← 0 active, 142 inactive (recently closed)"]
+  n3["> 10.244.2.9:8080 Masq 1 3 98 ← 3 ACTIVE connections right now"]
 ```
 `rr` = round-robin scheduler; the per-endpoint weight/active/inactive columns are the actual live load distribution — this is strictly better evidence than iptables counters for "is traffic actually balanced across my Pods," which is a genuinely common customer question for a Solutions Architect to be asked live.
 
@@ -111,20 +103,23 @@ kubectl -n kube-system get pods -l k8s-app=kube-dns
 ```
 
 ➕ **The independence point matters — DNS success proves less than people assume:**
-```
-getent hosts api.default.svc.cluster.local
-   → resolves to a ClusterIP.  This ONLY proves CoreDNS answered — it says
-     NOTHING about whether that ClusterIP has healthy endpoints, whether
-     the dataplane rule exists, or whether NetworkPolicy allows the packet.
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["getent hosts api.default.svc.cluster.local"]
+  n1["resolves to a ClusterIP. This ONLY proves CoreDNS answered — it says"]
+  n2["NOTHING about whether that ClusterIP has healthy endpoints, whether"]
+  n3["the dataplane rule exists, or whether NetworkPolicy allows the packet."]
 ```
 ➕ **Sample annotated output — DNS resolves, connection still times out (the exact trap the chapter is warning against):**
-```
-$ kubectl exec -it client -- getent hosts api.default.svc.cluster.local
-10.96.0.55      api.default.svc.cluster.local          ← DNS: fine.
-
-$ kubectl exec -it client -- curl -sv --max-time 3 http://api.default.svc.cluster.local:8080/health
-*   Trying 10.96.0.55:8080...
-* connect to 10.96.0.55 port 8080 failed: Connection timed out    ← packet never got a response
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ kubectl exec -it client -- getent hosts api.default.svc.cluster.local"]
+  n1["10.96.0.55 api.default.svc.cluster.local ← DNS: fine."]
+  n2["$ kubectl exec -it client -- curl -sv --max-time 3 http://api.default.svc.cluster.local:8080/health"]
+  n3["* Trying 10.96.0.55:8080..."]
+  n4["* connect to 10.96.0.55 port 8080 failed: Connection timed out ← packet never got a response"]
 ```
 DNS worked because CoreDNS only needs the Service *object* to exist — it does not check endpoints. The timeout is downstream: either no endpoints (4.1), a dataplane rule problem, or NetworkPolicy silently dropping the packet (silent drop, not a TCP RST, is the normal NetworkPolicy behavior — that's *why* it looks identical to a routing problem from the client side).
 
@@ -137,21 +132,16 @@ kubectl exec -it client -- curl -sv --max-time 3 http://<pod-ip-direct>:8080/hea
 If direct Pod-IP curl also times out, NetworkPolicy or CNI routing is implicated, not the Service layer at all — this single substitution (VIP → direct Pod IP) is the fastest way to rule the Service/dataplane layer in or out.
 
 ➕ **Diagram: NetworkPolicy's default-allow → default-deny flip, and why the packet just vanishes instead of erroring:**
-```
- No NetworkPolicy selects this Pod at all
-        │
-        ▼
- Kubernetes default: ALL traffic allowed (ingress and egress) ── nothing to enforce
-        │
-        ▼  the MOMENT any NetworkPolicy selects this Pod (even a narrow one)
- That Pod flips to default-DENY for whichever direction(s) the policy covers —
- only traffic matching an explicit `Ingress`/`Egress` rule in ANY policy
- selecting it is now allowed
-        │
-        ▼
- Packet arrives, doesn't match any allow rule ──▶ CNI silently drops it
-        (no TCP RST, no ICMP unreachable — this is why it looks
-         identical to "routing is broken" from the client's side)
+```mermaid
+flowchart TD
+    None["No NetworkPolicy selects this Pod at all"]
+    Allow["Kubernetes default: ALL traffic allowed (ingress and egress) -- nothing to enforce"]
+    Deny["That Pod flips to default-DENY for whichever direction(s) the policy covers -- only traffic matching an explicit Ingress/Egress rule in ANY policy selecting it is now allowed"]
+    Drop["Packet arrives, doesn't match any allow rule -- CNI silently drops it<br/>(no TCP RST, no ICMP unreachable -- this is why it looks identical to routing is broken from the client's side)"]
+
+    None --> Allow
+    Allow -->|"the MOMENT any NetworkPolicy selects this Pod (even a narrow one)"| Deny
+    Deny --> Drop
 ```
 The trap worth stating explicitly: adding *one* narrow NetworkPolicy to a Pod that previously had none can silently break traffic that used to work, because the Pod just lost its implicit allow-all — this is a much more common self-inflicted outage than a policy being "wrong."
 

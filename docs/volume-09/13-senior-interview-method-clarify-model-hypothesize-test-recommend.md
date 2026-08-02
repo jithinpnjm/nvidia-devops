@@ -14,29 +14,17 @@ _Figure B. When a GPU workload is slow, descend the stack systematically until e
 ## ➕ Additions
 
 ➕ **Diagram: the full Clarify-Model-Hypothesize-Test-Recommend chain (the seven moves in this method's name, expanded):**
-```
-Question lands
-        │
-        ▼
-CLARIFY scope + recent changes
-        │
-        ▼
-MODEL — draw/state the relevant data path out loud
-        │
-        ▼
-HYPOTHESIZE — rank 2-3 candidate causes (troubleshooting)
-  or requirements + options (architecture)
-        │
-        ▼
-name the EVIDENCE that distinguishes the top candidates
-        │
-        ▼
-choose a safe MITIGATION (never "just restart it" unexplained)
-        │
-        ▼
-TEST / VALIDATE — confirm the original symptom actually resolved
-        │
-        ▼
-discuss PREVENTION — what stops this recurring
+```mermaid
+flowchart TD
+    Q[Question lands]
+    C[CLARIFY scope + recent changes]
+    M["MODEL - draw/state the relevant data path out loud"]
+    H["HYPOTHESIZE - rank 2-3 candidate causes (troubleshooting) or requirements + options (architecture)"]
+    E["name the EVIDENCE that distinguishes the top candidates"]
+    Mit["choose a safe MITIGATION (never 'just restart it' unexplained)"]
+    T["TEST / VALIDATE - confirm the original symptom actually resolved"]
+    P["discuss PREVENTION - what stops this recurring"]
+
+    Q --> C --> M --> H --> E --> Mit --> T --> P
 ```
 The name "Clarify, model, hypothesize, test, recommend" compresses two of these seven moves each into "test" (mitigate + validate) and "recommend" (evidence-led choice + prevention) — say all seven out loud in an interview even though the method's name only lists five words.

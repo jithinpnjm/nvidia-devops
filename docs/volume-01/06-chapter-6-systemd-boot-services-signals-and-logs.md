@@ -20,24 +20,30 @@ systemctl list-dependencies myservice
 ```
 
 ➕ **Boot chain, one line each, for the "explain how Linux boots" baseline:**
-```
-firmware/UEFI → bootloader (GRUB) → kernel + initramfs → PID 1 (systemd) → targets → units in dependency order
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["firmware/UEFI"]
+  n1["bootloader (GRUB)"]
+  n2["kernel + initramfs"]
+  n3["PID 1 (systemd)"]
+  n4["targets"]
+  n5["units in dependency order"]
+  n0 --> n1
+  n1 --> n2
+  n2 --> n3
+  n3 --> n4
+  n4 --> n5
 ```
 GPU-relevant: `nvidia-persistenced` is a systemd-managed unit on bare-metal nodes — it's how the driver state persists across container restarts on the host without reloading. `systemctl status nvidia-persistenced` is a legitimate first check on "GPU not visible after node reboot."
 
 ➕ **Diagram: unit dependency/ordering — why "started" doesn't mean "ready"**
-```
-network-online.target ──requires/after──▶ myservice.service ──before──▶ multi-user.target
-        │                                        │
-        ▼                                        ▼
-   NIC configured,                    ExecStartPre checks run,
-   DNS resolvable                     then ExecStart launches the process
-                                              │
-                                              ▼
-                                   systemd marks unit "active" the moment
-                                   the process forks/execs successfully —
-                                   NOT when the app finishes its own internal
-                                   startup (DB connections, cache warm-up, etc.)
+```mermaid
+flowchart TD
+    A["network-online.target"] -->|requires/after| B["myservice.service"] -->|before| C["multi-user.target"]
+    A --> A2["NIC configured, DNS resolvable"]
+    B --> B2["ExecStartPre checks run, then ExecStart launches the process"]
+    B2 --> D["systemd marks unit active the moment the process forks/execs successfully — NOT when the app finishes its own internal startup (DB connections, cache warm-up, etc.)"]
 ```
 `systemctl status` showing `active (running)` proves the process exists and hasn't exited — it proves nothing about whether the application itself has finished initializing. That gap is exactly what `Type=notify` (app explicitly signals readiness back to systemd) exists to close, and it is the same gap a Kubernetes readiness probe closes one layer up.
 
@@ -49,13 +55,11 @@ kill -KILL <PID> # last resort; no cleanup handler can run
 ```
 
 ➕ **The exact K8s termination sequence, timed:**
-```
-kubectl delete pod
-  │
-  ▼ t=0s     kubelet sends SIGTERM to container's PID 1
-  │          preStop hook runs concurrently (if defined)
-  ▼ t=0-30s  terminationGracePeriodSeconds window (default 30s) — app should flush/checkpoint here
-  ▼ t=30s    if still alive: SIGKILL — immediate, no cleanup possible
+```mermaid
+flowchart TD
+    A["kubectl delete pod"] --> B["t=0s: kubelet sends SIGTERM to container's PID 1 (preStop hook runs concurrently, if defined)"]
+    B --> C["t=0-30s: terminationGracePeriodSeconds window (default 30s) — app should flush/checkpoint here"]
+    C --> D["t=30s: if still alive — SIGKILL, immediate, no cleanup possible"]
 ```
 ```python
 import signal, sys

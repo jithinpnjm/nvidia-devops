@@ -22,9 +22,18 @@ A current NVIDIA Solutions Architect, DevOps listing in Germany explicitly empha
 ➕ **Practice 21.** Cross-reference the role-family signals above against Chapter 11's question bank: for each of NIM/Triton/TensorRT-LLM/vLLM, MIG/scheduling, TTFT/TPOT, RAG/agents, and RDMA — name which chapter in this volume covers it, and which question in the bank you'd use to rehearse it. If any of the five has no clear chapter/question match in your own prep, that is a real gap to close before the interview, not a theoretical one.
 
 ➕ **Visual model — role breadth is a connected system, not a keyword list:**
-```
-host + Kubernetes ─► GPU topology / sharing ─► fabric + storage ─► inference / RAG ─► customer decision
-          │                     │                        │                   │
-          └──────────────────── observability, security and cost cross every layer ────────────────┘
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["host + Kubernetes"]
+  n1["GPU topology / sharing"]
+  n2["fabric + storage"]
+  n3["inference / RAG"]
+  n4["customer decision"]
+  n5["observability, security and cost cross every layer"]
+  n0 --> n1
+  n1 --> n2
+  n2 --> n3
+  n3 --> n4
 ```
 **Memory hook:** *"Explain the connection between topics; that is the senior signal."*

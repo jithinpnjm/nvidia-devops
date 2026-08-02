@@ -119,25 +119,24 @@ ss -s
 ```
 
 ➕ **The read path, precisely (VFS as a dispatch layer, not a filesystem itself):**
-```
-read(fd, buf, n)
-   │
-   ▼
-VFS (common interface — dispatches to the right filesystem driver based on fd's mount)
-   │
-   ├── ext4/xfs (local disk) ──▶ page cache lookup ──▶ block layer ──▶ driver ──▶ disk
-   ├── nfs/cephfs (network fs) ──▶ page cache lookup ──▶ RPC over network ──▶ remote server
-   └── overlayfs (containers) ──▶ lowerdir (image, read-only) or upperdir (container writes)
+```mermaid
+flowchart TD
+    R["read(fd, buf, n)"] --> V["VFS (common interface — dispatches to the right filesystem driver based on fd's mount)"]
+    V -->|"ext4/xfs (local disk)"| E[page cache lookup] --> E2[block layer] --> E3[driver] --> E4[disk]
+    V -->|"nfs/cephfs (network fs)"| F[page cache lookup] --> F2[RPC over network] --> F3[remote server]
+    V -->|overlayfs - containers| O["lowerdir (image, read-only) or upperdir (container writes)"]
 ```
 This is why the exact same `read()` syscall can be fast (local NVMe, cache hit) or catastrophically slow (NFS server under load) with identical application code — the bottleneck is never visible from the syscall itself, only from what's underneath the VFS dispatch.
 
 ➕ **Sample `lsof`/fd output and what actually leaks in production:**
-```
-$ ls -l /proc/8842/fd | head -6
-lrwx------ 1 app app 64 Jul 30 10:00 3 -> /dev/nvidia0
-lrwx------ 1 app app 64 Jul 30 10:00 4 -> socket:[884213]
-l-wx------ 1 app app 64 Jul 30 10:00 5 -> /var/log/app.log (deleted)   ← classic leak signature
-lrwx------ 1 app app 64 Jul 30 10:00 6 -> /data/model-shard-0042.bin
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ ls -l /proc/8842/fd | head -6"]
+  n1["lrwx------ 1 app app 64 Jul 30 10:00 3 -> /dev/nvidia0"]
+  n2["lrwx------ 1 app app 64 Jul 30 10:00 4 -> socket:[884213]"]
+  n3["l-wx------ 1 app app 64 Jul 30 10:00 5 -> /var/log/app.log (deleted) ← classic leak signature"]
+  n4["lrwx------ 1 app app 64 Jul 30 10:00 6 -> /data/model-shard-0042.bin"]
 ```
 The `(deleted)` marker is the single most common real-world fd leak: a log rotation tool `unlink()`s the file, but the process still holds the fd open — disk usage doesn't drop (`du` won't show it, the inode is still allocated) even though `ls` shows the file gone. **`df` and `du` disagreeing after a log rotation is this exact bug, every time — check `lsof +L1` before anything else.**
 
@@ -161,18 +160,11 @@ nvme0n1  42.0  980.0 5376.0  62720  8.20   4.10    97.5
 `%util=97.5` alone doesn't tell you if this is a problem — pair it with `await` (8.2ms is high for NVMe, which should be sub-millisecond) and `aqu-sz` (4.1 = queue is backed up, not draining as fast as requests arrive). **The one-sentence version:** high `%util` with low `await` = genuinely busy doing useful work (probably fine); high `await` with moderate `%util` = queueing/contention problem (investigate noisy neighbors or backend latency), which is the pattern in the worked scenario below.
 
 ➕ **Diagram: where a request actually spends its time (service time vs queue time)**
-```
-application issues read()
-        │
-        ▼
-┌──────────────────────────────────────────────────────────┐
-│  request queue (aqu-sz = how many requests are waiting)   │
-│  ┌────┐┌────┐┌────┐┌────┐   ← queued, not yet serviced    │
-│  └────┘└────┘└────┘└────┘                                 │
-└──────────────────────────────────────────────────────────┘
-        │  wait time (queueing)         │  service time (device actually working)
-        ▼                                ▼
-   await = wait time + service time  (the number iostat reports)
+```mermaid
+flowchart TD
+    A["application issues read()"] --> Q["request queue (aqu-sz = how many requests are waiting; queued, not yet serviced)"]
+    Q -->|wait time - queueing| S[Device services the request]
+    S -->|service time - device actually working| D["await = wait time + service time (the number iostat reports)"]
 ```
 Two very different problems produce the same rising `await`: a slow device (service time dominates — check `%util`, this is a real capacity limit) versus a backed-up queue on a fast device (wait time dominates — check `aqu-sz`, this is contention from other tenants/processes, not a device limit). `iostat -x` alone conflates both into one number; `aqu-sz` is what separates them.
 
@@ -209,21 +201,21 @@ A checkpoint job writing millions of tiny shard files can exhaust inodes on ext4
 > **This is a real, common NVIDIA-SA-relevant scenario** — "why did checkpointing get slower as we scaled" is a scaling-non-linearity question, and the correct answer starts with "metadata operations, not bytes" almost every time.
 
 ➕ **Diagram: checkpoint storm — why per-node metrics stay quiet while the cluster slows down**
+```mermaid
+flowchart TD
+    N1[GPU node 1]
+    N2[GPU node 2]
+    N3[GPU node 3]
+    N4["... GPU node 64"]
+    N1 & N2 & N3 & N4 --> FAN["open()/write()/fsync() × 64, all in the same 30-min window"]
+    FAN --> MD["metadata server (single/few) — this saturates first, scales with node COUNT, not with data volume"]
+    subgraph SPF["shared parallel filesystem"]
+        MD
+        OSS["data/OSS nodes (many, striped)"]
+    end
+    MD --> OSS
 ```
-GPU node 1  ──┐
-GPU node 2  ──┤
-GPU node 3  ──┼──▶  open()/write()/fsync() × 64, all in the same 30-min window
-   ...       ──┤        │
-GPU node 64 ──┘         ▼
-                 ┌───────────────────────────────┐
-                 │  shared parallel filesystem     │
-                 │  metadata server (single/few)   │  ← this saturates first,
-                 │  ─────────────────────────────  │    scales with node COUNT,
-                 │  data/OSS nodes (many, striped)  │    not with data volume
-                 └───────────────────────────────┘
-per-node `iostat`: idle ▲                    cluster checkpoint time: 45s → 8min ▲
-(each node's own I/O is small and fast)      (metadata server serializes the fan-in)
-```
+Per-node `iostat` stays idle (each node's own I/O is small and fast) while cluster checkpoint time grows from 45s to 8min (the metadata server serializes the fan-in).
 The bottleneck is invisible from any single node's vantage point because no single node is doing much I/O — it is the simultaneous *count* of metadata operations converging on one shared service that scales worse than linearly as the cluster grows.
 
 ## Practice

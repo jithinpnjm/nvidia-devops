@@ -146,27 +146,17 @@ Start architecture discovery by naming the workload and measurable outcome. An o
 ➕ **Why this table is the entire interview opener for this volume:** every subsequent chapter (training topology, KV cache, autoscaling signal choice, security boundary, cost model) is a *downstream consequence* of which row of this table you're in. A Senior SA who jumps straight to "you need H100s with NVLink" without first asking "is this training or online inference, and what's the SLO" is answering the wrong question confidently. The single most valuable habit this chapter teaches is: **ask for the workload classification and the measurable outcome before any hardware/topology conversation starts.**
 
 ➕ **Classification decision tree (the mechanism behind the table):**
-```
-                    Is the primary output a *trained/updated model artifact*?
-                              │
-                 ┌────────────┴────────────┐
-                YES                        NO
-                 │                          │
-     Is it from-scratch or        Is the output produced once per
-     continuing pretraining         request/interactively, or in
-     on new/expanded data?          a scheduled batch sweep?
-       │              │                     │              │
-   Pretraining    Fine-tuning          Interactive      Scheduled/queued
-   (Ch2, DD1)     (Ch2, DD1,           (Online          (Batch inference)
-                   smaller scale)       inference,        — throughput/
-                                        Ch3-6)             cost/deadline
-                                                            dominate, not
-                                                            P99 latency
-       Is the job's output a *score/report*, not a model or a served
-       answer, and must it be exactly reproducible run-to-run?
-                              │
-                             YES → Evaluation (repeatability,
-                                   versioning dominate)
+```mermaid
+flowchart TD
+    A{Is the primary output a trained/updated model artifact?}
+    A -->|YES| B{From-scratch or continuing pretraining on new/expanded data?}
+    A -->|NO| C{Produced once per request/interactively, or in a scheduled batch sweep?}
+    B -->|From-scratch/continuing| D["Pretraining (Ch2, DD1)"]
+    B -->|Smaller scale| E["Fine-tuning (Ch2, DD1, smaller scale)"]
+    C -->|Interactive| F["Online inference (Ch3-6) - P95/P99 latency dominates"]
+    C -->|Scheduled/queued| G["Batch inference - throughput/cost/deadline dominate, not P99 latency"]
+    H{Is the output a score/report, not a model or served answer, and must it be exactly reproducible run-to-run?}
+    H -->|YES| I["Evaluation (repeatability, versioning dominate)"]
 ```
 ➕ **Interview-ready line:** *"Before I talk topology or GPU SKU, I need to know which cell of the workload table we're in — training and online inference have almost opposite infrastructure priorities: training optimizes for sustained throughput and restart cost, online inference optimizes for tail latency and elastic capacity."*
 
@@ -180,26 +170,25 @@ Start architecture discovery by naming the workload and measurable outcome. An o
 ➕ **Shortcut/mnemonic:** *"T-F-B-O-E: Time-to-train, Fit memory, Batch deadline, Online tail, Evaluation repeatability."* — five workload rows, five different primary metrics; if you can't name the primary metric in one sentence, you haven't classified the workload yet.
 
 ➕ **Diagram: arrival-pattern test for "batch" vs "online" (the field mistake, visualized)**
-```
-Genuine batch inference:
-   fixed corpus ──────────────────────────────▶ done by deadline
-   [██████████████████████████████████]   (one large sweep, no per-item SLO)
-                                         └── success = finished before 06:00
-
-"Batch" wearing a costume (actually online):
-   requests: ▪  ▪▪ ▪ ▪▪▪ ▪ ▪▪ ▪ ▪▪▪▪ ▪ ▪▪ ▪ ▪▪▪ ...   (continuous Poisson-ish arrivals)
-             └┬┘└┬┘        each request has its own latency budget
-              ▼   ▼
-           P95/P99 per request, not a corpus completion time
-                                         └── success = every request under its budget
+```mermaid
+flowchart LR
+    subgraph Genuine["Genuine batch inference"]
+    direction LR
+    A["Fixed corpus (one large sweep, no per-item SLO)"] --> B["Done by deadline - success = finished before 06:00"]
+    end
+    subgraph Costume["'Batch' wearing a costume (actually online)"]
+    direction LR
+    C["Continuous Poisson-ish request arrivals, each with its own latency budget"] --> D["P95/P99 per request, not a corpus completion time - success = every request under its budget"]
+    end
 ```
 Same word ("batch") in the requester's vocabulary, two completely different infrastructure answers — the arrival pattern and the presence/absence of a per-item latency budget is the tell, not the label.
 
 ➕ **Diagram: workload row → dominant metric → chapter map**
-```
-Pretraining/Fine-tuning ──▶ GPU-hours, collectives, checkpoints ──▶ Ch2, DD1
-Batch inference         ──▶ throughput, queue completion time   ──▶ (Ch1 scope)
-Online inference        ──▶ P95/P99, TTFT/TPOT, autoscaling     ──▶ Ch3-6, DD2-5
-Evaluation              ──▶ repeatability, versioning           ──▶ (cross-cutting)
+```mermaid
+flowchart LR
+    A["Pretraining/Fine-tuning"] --> B["GPU-hours, collectives, checkpoints"] --> C["Ch2, DD1"]
+    D["Batch inference"] --> E["Throughput, queue completion time"] --> F["(Ch1 scope)"]
+    G["Online inference"] --> H["P95/P99, TTFT/TPOT, autoscaling"] --> I["Ch3-6, DD2-5"]
+    J["Evaluation"] --> K["Repeatability, versioning"] --> L["(cross-cutting)"]
 ```
 The classification isn't academic — it is a routing table that tells you which later chapter's mechanisms actually apply to the workload in front of you.

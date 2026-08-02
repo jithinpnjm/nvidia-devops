@@ -27,29 +27,28 @@ kubectl get validatingadmissionpolicies,validatingadmissionpolicybindings
 ➕ **Ordering within admission itself, worth being precise about since "admission" is often treated as one step:** all applicable **mutating** admission (webhooks + built-in mutating plugins) run first, in a defined order, and each can rewrite the object — then all applicable **validating** admission (webhooks + built-in validating plugins + ValidatingAdmissionPolicy) run against the *final, already-mutated* object and can only accept or reject, never rewrite further. This ordering is why a sidecar-injection mutating webhook (adding a container to a Pod spec) can run, and then Pod Security Admission (validating) evaluates the *Pod-plus-injected-sidecar* as a whole — a workload that looks compliant before mutation can fail PSA after an injected sidecar with looser settings.
 
 ➕ **Diagram: the full admission chain in order, and exactly where a mutation can flip a validation result:**
-```
- Authentication (who) ──▶ Authorization/RBAC (allowed to do this verb?)
-        │
-        ▼
- MUTATING admission, in order:
-   built-in mutating plugins → mutating webhooks (e.g. sidecar injection)
-   each step can REWRITE the object; later steps see the rewritten version
-        │
-        ▼
- Object is now "final" — no more rewrites possible from here on
-        │
-        ▼
- VALIDATING admission, against the FINAL mutated object:
-   built-in validating plugins → validating webhooks → ValidatingAdmissionPolicy
-   → Pod Security Admission
-   each step can only ACCEPT or REJECT, never rewrite
-        │
-   ┌────┴────┐
-   ▼         ▼
-  ACCEPT    REJECT (object never persisted, client gets the error)
-   │
-   ▼
- etcd write, resourceVersion bump, watch fan-out (Chapter 1's pipeline)
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["Authentication (who)"]
+  n1["Authorization/RBAC (allowed to do this verb?)"]
+  n2["MUTATING admission, in order"]
+  n3["built-in mutating plugins"]
+  n4["mutating webhooks (e.g. sidecar injection)"]
+  n5["each step can REWRITE the object; later steps see the rewritten version"]
+  n6["Object is now 'final' — no more rewrites possible from here on"]
+  n7["VALIDATING admission, against the FINAL mutated object"]
+  n8["built-in validating plugins"]
+  n9["validating webhooks"]
+  n10["ValidatingAdmissionPolicy"]
+  n11["Pod Security Admission"]
+  n12["each step can only ACCEPT or REJECT, never rewrite"]
+  n13["ACCEPT REJECT (object never persisted, client gets the error)"]
+  n14["etcd write, resourceVersion bump, watch fan-out (Chapter 1's pipeline)"]
+  n0 --> n1
+  n3 --> n4
+  n8 --> n9
+  n9 --> n10
 ```
 The sidecar-injection trap lives exactly at the mutating→validating boundary: a Pod spec that would pass PSA on its own can fail *after* a mutating webhook injects a sidecar container with looser settings — PSA is evaluating the Pod-plus-sidecar, not the Pod the developer wrote.
 

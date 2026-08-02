@@ -12,9 +12,23 @@ source_document: "Authored directly for the JR2018680 gap-coverage volume — no
 
 For infrastructure, a pipeline is not automatically safe because it is automated. **Continuous integration** checks a proposed change and produces reviewable evidence. **Delivery/deployment** promotes an approved, immutable artifact into increasingly important environments.
 
-```text
-pull request → lint/schema → unit/policy/security tests → plan/render evidence
-             → peer approval → canary apply → health gate → production waves
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["pull request"]
+  n1["lint/schema"]
+  n2["unit/policy/security tests"]
+  n3["plan/render evidence"]
+  n4["peer approval"]
+  n5["canary apply"]
+  n6["health gate"]
+  n7["production waves"]
+  n0 --> n1
+  n1 --> n2
+  n2 --> n3
+  n4 --> n5
+  n5 --> n6
+  n6 --> n7
 ```
 
 Different sources need different evidence:
@@ -39,62 +53,48 @@ Volume 2's CI/CD chapter covers the pipeline for a Python package — lint, unit
 
 The discipline is the same one Kubernetes GitOps popularized, applied one layer down: declarative desired state lives in Git, and a controller or pipeline reconciles the live cluster to match it — nobody runs `terraform apply` or `ansible-playbook` ad hoc from a laptop against production.
 
-```
-Git repo (source of truth)
- ├── terraform/            # cloud VPC, load balancers, IAM, node pools
- ├── ansible/               # OS hardening, driver install, Slurm config
- ├── k8s-manifests/         # GPU Operator, Network Operator, workload CRDs
- └── golden-image/          # packer/image-builder definitions (Ch.11 topic below)
-        │
-        ▼
-CI/CD pipeline or GitOps controller (Flux/Argo CD for k8s manifests;
-a pipeline runner for Terraform/Ansible, since neither has a native
-continuous-reconciliation controller the way Kubernetes does)
-        │
-        ▼
-Live cluster state — converges toward Git, drift is detected and
-either auto-corrected (k8s manifests) or flagged for review (Terraform/
-Ansible, where auto-correction of a diff can itself be destructive)
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["Git repo (source of truth)"]
+  n1["terraform/ # cloud VPC, load balancers, IAM, node pools"]
+  n2["ansible/ # OS hardening, driver install, Slurm config"]
+  n3["k8s-manifests/ # GPU Operator, Network Operator, workload CRDs"]
+  n4["golden-image/ # packer/image-builder definitions (Ch.11 topic below)"]
+  n5["CI/CD pipeline or GitOps controller (Flux/Argo CD for k8s manifests;"]
+  n6["a pipeline runner for Terraform/Ansible, since neither has a native"]
+  n7["continuous-reconciliation controller the way Kubernetes does)"]
+  n8["Live cluster state — converges toward Git, drift is detected and"]
+  n9["either auto-corrected (k8s manifests) or flagged for review (Terraform/"]
+  n10["Ansible, where auto-correction of a diff can itself be destructive)"]
 ```
 
 The asymmetry matters: Kubernetes manifests are naturally idempotent and low-risk to auto-reconcile continuously (that's what Flux/Argo CD do). Terraform and Ansible changes are not automatically safe to auto-apply on drift-detection alone — a live change made for an emergency reason (e.g., someone hand-patched a firewall rule during an incident) can look like "drift" to the controller and get silently reverted, re-introducing the very problem the emergency change fixed. This is why Terraform/Ansible pipelines are typically triggered by merge, not by continuous reconciliation, with drift detection as a *reporting* signal, not an auto-apply trigger.
 
 ## Pipeline stages for infrastructure changes
 
-```
-commit (PR opened)
-   │
-   ▼
-lint / static validation          terraform fmt -check, terraform validate,
-                                   ansible-lint, yamllint / kubeconform
-   │
-   ▼
-plan / dry-run                    terraform plan -out=tfplan
-                                   ansible-playbook --check --diff
-   │
-   ▼
-policy check                      OPA/Conftest or Sentinel against the plan —
-                                   "no security group open to 0.0.0.0/0",
-                                   "no node pool resize > N without approval",
-                                   "no removal of a Slurm partition with
-                                   running jobs"
-   │
-   ▼
-manual approval gate              REQUIRED specifically when the plan contains
-(destructive changes only)        a destroy/replace action — additive-only
-                                   plans may auto-proceed past this gate
-   │
-   ▼
-apply to canary                   apply against a canary node group or staging
-                                   cluster first, exactly as Chapter 10 requires
-                                   for any coordinated cluster-wide change
-   │
-   ▼
-post-apply validation             re-run health checks (Chapter 10's canary-
-                                   validation gate items apply here directly)
-   │
-   ▼
-apply to fleet (waved)
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["commit (PR opened)"]
+  n1["lint / static validation terraform fmt -check, terraform validate,"]
+  n2["ansible-lint, yamllint / kubeconform"]
+  n3["plan / dry-run terraform plan -out=tfplan"]
+  n4["ansible-playbook --check --diff"]
+  n5["policy check OPA/Conftest or Sentinel against the plan —"]
+  n6["'no security group open to 0.0.0.0/0',"]
+  n7["'no node pool resize > N without approval',"]
+  n8["'no removal of a Slurm partition with"]
+  n9["running jobs'"]
+  n10["manual approval gate REQUIRED specifically when the plan contains"]
+  n11["(destructive changes only) a destroy/replace action — additive-only"]
+  n12["plans may auto-proceed past this gate"]
+  n13["apply to canary apply against a canary node group or staging"]
+  n14["cluster first, exactly as Chapter 10 requires"]
+  n15["for any coordinated cluster-wide change"]
+  n16["post-apply validation re-run health checks (Chapter 10's canary"]
+  n17["validation gate items apply here directly)"]
+  n18["apply to fleet (waved)"]
 ```
 
 The policy-check stage is what separates infra CI/CD from application CI/CD: an application pipeline's gates are almost entirely about correctness (does the code work); an infrastructure pipeline's gates are substantially about *blast radius* (even a correct change can be catastrophically scoped — a syntactically valid Terraform plan that destroys and recreates a storage volume is "correct" and still wrong to auto-apply).
@@ -129,27 +129,25 @@ The plan output alone (`1 to destroy`) is necessary but not sufficient evidence 
 
 A "golden image" — a validated OS+driver+CUDA combination baked once and rolled out identically to every node — is itself the output of a CI pipeline, not a manually-maintained snapshot:
 
-```
-image-definition repo (packer template / image-builder config)
-   │
-   ▼
-build: install OS packages, NVIDIA driver, CUDA toolkit, Enroot/Pyxis,
-       apply CIS/STIG hardening baseline (Chapter 3's territory)
-   │
-   ▼
-test: boot the built image in an isolated environment, run the SAME
-      canary-validation gate as Chapter 10 (nvidia-smi, dcgm-diag,
-      nccl-tests, a smoke job) against the image itself, before it
-      is tagged as a candidate for any node
-   │
-   ▼
-tag as "known-good candidate" with an immutable version (image ID,
-not "latest") — this immutable version is exactly what fills the
-compatibility-matrix cells from Chapter 10
-   │
-   ▼
-promote: canary node group boots the candidate image → passes
-Chapter 10's canary gate → fleet-wide rollout, waved
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["image-definition repo (packer template / image-builder config)"]
+  n1["build: install OS packages, NVIDIA driver, CUDA toolkit, Enroot/Pyxis,"]
+  n2["apply CIS/STIG hardening baseline (Chapter 3's territory)"]
+  n3["test: boot the built image in an isolated environment, run the SAME"]
+  n4["canary-validation gate as Chapter 10 (nvidia-smi, dcgm-diag,"]
+  n5["nccl-tests, a smoke job) against the image itself, before it"]
+  n6["is tagged as a candidate for any node"]
+  n7["tag as 'known-good candidate' with an immutable version (image ID,"]
+  n8["not 'latest') — this immutable version is exactly what fills the"]
+  n9["compatibility-matrix cells from Chapter 10"]
+  n10["promote: canary node group boots the candidate image"]
+  n11["passes"]
+  n12["Chapter 10's canary gate"]
+  n13["fleet-wide rollout, waved"]
+  n10 --> n11
+  n12 --> n13
 ```
 
 Treating the image build itself as a tested pipeline stage — rather than testing only after it's deployed to real nodes — catches a class of defect earlier and cheaper: a driver that fails to build against the target kernel headers fails in the image-build stage in minutes, instead of failing during a live fleet rollout after nodes are already cordoned for the change.

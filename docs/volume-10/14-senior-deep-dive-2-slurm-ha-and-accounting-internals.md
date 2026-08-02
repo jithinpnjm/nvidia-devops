@@ -24,21 +24,23 @@ A safe exercise uses a non-production cluster: submit a long sleep job and queue
 
 A backup `slurmctld` is not a cold standby that simply starts scheduling when the primary disappears — if it started from empty state, every running job's allocation record, every pending job's position in the queue, and every node's current state would be lost or reconstructed wrong, and Slurm would either double-allocate resources or drop jobs. Failover is safe only because both controllers read and write the same `StateSaveLocation`:
 
-```
-┌───────────────────┐        shared, POSIX-consistent         ┌───────────────────┐
-│  slurmctld PRIMARY │ ───────────────────────────────────▶  │  StateSaveLocation  │
-│  (active)          │  writes: job_state, node_state,        │  (shared FS: NFS,   │
-│                     │  part_state, resv_state on every       │  or replicated      │
-│                     │  scheduling-relevant change            │  block device)      │
-└───────────────────┘                                          └─────────┬─────────┘
-                                                                          │ read at
-                                                                          │ startup +
-┌───────────────────┐                                                    │ periodic
-│  slurmctld BACKUP   │ ◀──────────────────────────────────────────────┘
-│  (passive, polls    │  on primary heartbeat loss: backup reads latest
-│  primary via        │  state files, becomes active, resumes scheduling
-│  slurm_rpc_ping)     │  from exactly where the primary left off
-└───────────────────┘
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["shared, POSIX-consistent"]
+  n1["slurmctld PRIMARY"]
+  n2["StateSaveLocation"]
+  n3["(active) writes: job_state, node_state, (shared FS: NFS,"]
+  n4["part_state, resv_state on every or replicated"]
+  n5["scheduling-relevant change block device)"]
+  n6["read at"]
+  n7["startup +"]
+  n8["periodic"]
+  n9["slurmctld BACKUP ◀"]
+  n10["(passive, polls on primary heartbeat loss: backup reads latest"]
+  n11["primary via state files, becomes active, resumes scheduling"]
+  n12["slurm_rpc_ping) from exactly where the primary left off"]
+  n1 --> n2
 ```
 
 The files that matter — `job_state`, `node_state`, `part_state`, `resv_state`, `trigger_state`, `assoc_mgr_state` (the fairshare/QoS association tree) — all live under `StateSaveLocation`, and *both* controllers must have it mounted from the same shared storage (or a synchronously replicated equivalent), because the backup's entire failover contract is "read what the primary last wrote, resume from there." If the backup has a stale or local copy of `StateSaveLocation`, it fails over into a fork of reality — it will believe jobs are running that finished ten minutes ago, or that nodes are idle that are actually allocated, and it will start double-booking. This is why `StateSaveLocation` on shared storage (or DRBD/replicated block storage under it) is a hard requirement, not a tuning knob — the backup being merely *installed* with the right `slurm.conf` (`SlurmctldHost=primary,backup`) is necessary but not sufficient; without the shared state the failover is unsafe even though it "works" superficially (the backup does take over scheduling).

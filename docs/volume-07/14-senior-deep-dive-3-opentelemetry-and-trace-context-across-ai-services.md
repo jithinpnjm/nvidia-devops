@@ -13,15 +13,17 @@ Traces become valuable when a user request spans gateway, retrieval, reranking, 
 
 ➕ **Agentic fan-out, visualized — why "trace the request" becomes "trace the tree" for agentic systems:**
 
-```
-user_request (trace_id=X)
-  ├─ agent_planning_span
-  ├─ tool_call_1 (web_search)          ─┐
-  ├─ tool_call_2 (calculator)           ├─ fan-out: 3 parallel children,
-  ├─ tool_call_3 (retrieval, RETRY x2)  ─┘   one with retries nested under it
-  │     ├─ retry_attempt_1 (failed, timeout)
-  │     └─ retry_attempt_2 (succeeded)
-  └─ final_synthesis_span
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["user_request (trace_id=X)"]
+  n1["agent_planning_span"]
+  n2["tool_call_1 (web_search)"]
+  n3["tool_call_2 (calculator) fan-out: 3 parallel children,"]
+  n4["tool_call_3 (retrieval, RETRY x2) one with retries nested under it"]
+  n5["retry_attempt_1 (failed, timeout)"]
+  n6["retry_attempt_2 (succeeded)"]
+  n7["final_synthesis_span"]
 ```
 
 A single user action becoming "dozens of downstream operations" (the original text's own phrase) means the waterfall from Ch.7 — a linear sequence — is the wrong mental picture for agentic tracing; it's a **tree**, and retries specifically must nest as children of the operation they're retrying, not as siblings, or the trace misrepresents causality (it would look like 3 independent retrieval attempts instead of 1 operation that needed 2 tries).

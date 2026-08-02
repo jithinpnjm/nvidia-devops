@@ -24,23 +24,15 @@ Before drawing boxes, ask workload type, SLO, scale, data location, tenancy/secu
 ## ➕ Additions
 
 ➕ **The whiteboard method as a strict left-to-right build order (this is the sequence to literally draw, live):**
-```
-DISCOVERY (spoken, before any box is drawn)
-  workload type · SLO · scale · data location · tenancy/security ·
-  current platform skills · budget · growth
-        │
-        ▼
-client/gateway → auth/rate-limits → model routing → serving runtime
-        │
-        ▼
-GPU scheduling → compute topology (NVLink/PCIe/NUMA) → network/storage
-        │
-        ▼
-observability → lifecycle/CI-CD → failure domains
-        │
-        ▼
-COMPARE 2-3 options on weighted dimensions → RECOMMEND → define what
-the PoC/benchmark must prove before commit
+```mermaid
+flowchart TD
+    D["DISCOVERY (spoken, before any box is drawn)<br/>workload type, SLO, scale, data location, tenancy/security, current platform skills, budget, growth"]
+    Path["client/gateway -> auth/rate-limits -> model routing -> serving runtime"]
+    Infra["GPU scheduling -> compute topology (NVLink/PCIe/NUMA) -> network/storage"]
+    Ops["observability -> lifecycle/CI-CD -> failure domains"]
+    Compare["COMPARE 2-3 options on weighted dimensions -> RECOMMEND -> define what the PoC/benchmark must prove before commit"]
+
+    D --> Path --> Infra --> Ops --> Compare
 ```
 ➕ **Memory hook:** *"Discover before you draw, requirements before names."* The single most common failure mode named explicitly in the original text — starting with "NIM" or "Kubernetes" — is a mnemonic in itself: if the first word out of your mouth is a product name, you've already lost the "senior" signal, restart with a question instead.
 

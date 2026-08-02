@@ -23,55 +23,42 @@ source_document: "Volume_07_Observability,_Reliability_and_Troubleshooting(2).do
 **Conclusion:** "No code change" narrows change history, but evidence must still identify the bottleneck.
 
 ➕ **ASCII: the full evidence-descent order from step 1-7, drawn as the layered stack this whole volume has been building toward:**
-```
-Step 1: SCOPE            "which jobs, since when, vs what baseline"    (Ch.1, Deep Dive 1)
-             │
-Step 2: CHANGE INVENTORY  "what changed at maintenance window"          (this chapter)
-             │
-Step 3: GPU               DCGM util/clocks/memory/Xid/ECC               (Ch.5, Deep Dive 4)
-             │
-Step 4: HOST              CPU/mem pressure, cgroup throttling           (Vol.1 Ch.1/2)
-             │
-Step 5: FABRIC             link state, RDMA counters, collective bench   (new ground here)
-             │
-Step 6: STORAGE            dataset/checkpoint I/O latency                (Vol.1 Ch.3 territory)
-             │
-Step 7: ISOLATE            controlled benchmark/rollback of ONE layer     (proves, doesn't just suggest)
+```mermaid
+flowchart TD
+    S1["Step 1: SCOPE -- which jobs, since when, vs what baseline (Ch.1, Deep Dive 1)"] --> S2["Step 2: CHANGE INVENTORY -- what changed at maintenance window (this chapter)"]
+    S2 --> S3["Step 3: GPU -- DCGM util/clocks/memory/Xid/ECC (Ch.5, Deep Dive 4)"]
+    S3 --> S4["Step 4: HOST -- CPU/mem pressure, cgroup throttling (Vol.1 Ch.1/2)"]
+    S4 --> S5["Step 5: FABRIC -- link state, RDMA counters, collective bench (new ground here)"]
+    S5 --> S6["Step 6: STORAGE -- dataset/checkpoint I/O latency (Vol.1 Ch.3 territory)"]
+    S6 --> S7["Step 7: ISOLATE -- controlled benchmark/rollback of ONE layer (proves, doesn't just suggest)"]
 ```
 The ordering is deliberate: GPU (Step 3) before Host (Step 4) because GPU telemetry is cheaper to check and rules out/in the highest-signal layer first; Fabric (Step 5) after Host because a fabric problem often *presents* as host-level stalling (a stuck NCCL collective looks like a hung process); Storage (Step 6) last because it only matters "if the step timeline aligns with I/O" — you check it conditionally, not by default.
 
 ➕ **Sample fabric-layer evidence for step 5, annotated — the piece the original text names but doesn't show output for:**
-```
-$ nvidia-smi nvlink -e   # NVLink error counters, per GPU
-GPU 0: NVLink Errors
-   Link 0: Replay Errors: 0, Recovery Errors: 0, CRC Errors: 0
-   Link 1: Replay Errors: 142, Recovery Errors: 3, CRC Errors: 891   ← link 1 is unhealthy
-
-$ ibstat mlx5_0 | grep -E "State|Rate"
-State: Active
-Rate: 100    ← Gb/s; if this reads lower than the NIC's rated speed, link negotiated down after maintenance
-
-$ ib_write_bw -d mlx5_0 -F --report_gbits    # controlled RDMA bandwidth benchmark (step 7's "isolate")
-...
- Bandwidth peak[Gb/sec]    94.2    ← compare directly to a known-good baseline number from before maintenance
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ nvidia-smi nvlink -e # NVLink error counters, per GPU"]
+  n1["GPU 0: NVLink Errors"]
+  n2["Link 0: Replay Errors: 0, Recovery Errors: 0, CRC Errors: 0"]
+  n3["Link 1: Replay Errors: 142, Recovery Errors: 3, CRC Errors: 891 ← link 1 is unhealthy"]
+  n4["$ ibstat mlx5_0 | grep -E 'State|Rate'"]
+  n5["State: Active"]
+  n6["Rate: 100 ← Gb/s; if this reads lower than the NIC's rated speed, link negotiated down after maintenance"]
+  n7["$ ib_write_bw -d mlx5_0 -F --report_gbits # controlled RDMA bandwidth benchmark (step 7's 'isolate')"]
+  n8["..."]
+  n9["Bandwidth peak[Gb/sec] 94.2 ← compare directly to a known-good baseline number from before maintenance"]
 ```
 `CRC Errors: 891` on one link with all others at 0 is the exact kind of asymmetric evidence that separates "the whole fabric degraded" from "one bad cable/port after a maintenance window that involved physical reseating" — worth naming explicitly, because the fix (replace one cable) is trivial once you have this evidence and a nightmare to find without it.
 
 ➕ **Diagram: why a synchronous collective is only as fast as its slowest link — one bad link, whole-job impact**
-```
-   Node A ───good link (100Gb/s)──── Node B
-      │                                 │
-   good link                      degraded link
-   (100Gb/s)                      (CRC errors, negotiated
-      │                            down or retraining)
-      │                                 │
-   Node C ───good link (100Gb/s)──── Node D
-                                         ▲
-                              all-reduce collective must
-                              wait for the SLOWEST participant —
-                              Node D's link caps the throughput
-                              of the entire 4-node job, even
-                              though A/B/C benchmark perfectly
+```mermaid
+flowchart TD
+    A["Node A"] ---|"good link (100Gb/s)"| B["Node B"]
+    A ---|"good link (100Gb/s)"| C["Node C"]
+    B -.->|"degraded link (CRC errors, negotiated down or retraining)"| D["Node D"]
+    C ---|"good link (100Gb/s)"| D
+    Note["all-reduce collective must wait for the SLOWEST participant -- Node D's link caps the throughput of the entire 4-node job, even though A/B/C benchmark perfectly"] -.-> D
 ```
 This is why step 3 (per-GPU DCGM, clean) and step 5 (fabric, one bad link) can disagree completely — per-GPU health has no visibility into the links *between* GPUs, and a distributed job's reported throughput is gated by whichever node/link is worst, not the average.
 

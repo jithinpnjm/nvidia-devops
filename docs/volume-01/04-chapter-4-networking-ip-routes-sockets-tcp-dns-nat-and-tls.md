@@ -146,14 +146,17 @@ ip neigh
 ```
 
 ➕ **Longest-prefix match, worked with real numbers (this is the mechanism, not just the term):**
-```
-Routing table:
-  10.20.0.0/16  via eth0   (matches 10.20.30.40 — 16 bits match)
-  10.20.30.0/24 via eth1   (matches 10.20.30.40 — 24 bits match, MORE specific)
-  0.0.0.0/0     via eth0   (default — matches everything, LEAST specific)
-
-Destination 10.20.30.40 → kernel picks the /24 route (eth1), not the /16 or default,
-because 24 matching bits beats 16, which beats 0.
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["Routing table"]
+  n1["10.20.0.0/16 via eth0 (matches 10.20.30.40 — 16 bits match)"]
+  n2["10.20.30.0/24 via eth1 (matches 10.20.30.40 — 24 bits match, MORE specific)"]
+  n3["0.0.0.0/0 via eth0 (default — matches everything, LEAST specific)"]
+  n4["Destination 10.20.30.40"]
+  n5["kernel picks the /24 route (eth1), not the /16 or default,"]
+  n6["because 24 matching bits beats 16, which beats 0."]
+  n4 --> n5
 ```
 `ip route get 10.20.30.40` doesn't just show a route — it shows which one actually wins, including the source IP the kernel would use — this is the single fastest way to prove "the packet would even leave via the interface you think it would" before touching `tcpdump`.
 
@@ -169,13 +172,19 @@ tcpdump -ni any host 10.20.30.40 and port 443
 ```
 
 ➕ **TCP handshake diagram, mapped to `ss` states you'll actually see:**
-```
-Client                          Server
-  │──────── SYN ─────────────────▶│      state: SYN-SENT (client) / SYN-RECV (server)
-  │◀─────── SYN-ACK ──────────────│
-  │──────── ACK ──────────────────▶│      state: ESTABLISHED (both)
-  │◀═══════ data flows ═══════════▶│
-  │──────── FIN ──────────────────▶│      state: FIN-WAIT-1 → ... → TIME-WAIT (initiator)
+```mermaid
+sequenceDiagram
+    participant Client
+    participant Server
+    Client->>Server: SYN
+    Note over Client,Server: state: SYN-SENT (client) / SYN-RECV (server)
+    Server->>Client: SYN-ACK
+    Client->>Server: ACK
+    Note over Client,Server: state: ESTABLISHED (both)
+    Client->>Server: data flows
+    Server->>Client: data flows
+    Client->>Server: FIN
+    Note over Client,Server: state: FIN-WAIT-1 → ... → TIME-WAIT (initiator)
 ```
 Stuck in `SYN-SENT` forever = SYN left the box but nothing came back — either firewall dropping it silently, or nothing listening at the destination (a silent drop and "nothing listening" look identical from `ss` alone; `tcpdump` on both ends is what disambiguates them).
 
@@ -203,14 +212,14 @@ kubectl exec -it pod -- cat /etc/resolv.conf
 `ndots:5` means any name with fewer than 5 dots gets tried against *every* search-domain suffix first, before the literal name. A pod doing `curl api.external-vendor.com` (2 dots) will generate up to **4 extra DNS queries** (trying `.svc.cluster.local`, `.cluster.local`, etc. first, all of which fail) before the real external lookup succeeds — multiplying CoreDNS load and adding real latency, invisible unless you're looking at DNS query volume specifically. This is a very common, very fixable ("append a trailing dot to fully-qualify external names, or reduce ndots") production cost/latency finding.
 
 ➕ **Diagram: one `curl` to an external name, five DNS queries deep**
-```
-curl api.external-vendor.com    (2 dots, ndots:5 → search list tried FIRST)
-        │
-        ├─▶ api.external-vendor.com.default.svc.cluster.local  → NXDOMAIN  (query 1, wasted)
-        ├─▶ api.external-vendor.com.svc.cluster.local          → NXDOMAIN  (query 2, wasted)
-        ├─▶ api.external-vendor.com.cluster.local              → NXDOMAIN  (query 3, wasted)
-        ├─▶ api.external-vendor.com.example.com                → NXDOMAIN  (query 4, wasted)
-        └─▶ api.external-vendor.com.                            → resolves (query 5, the real one)
+```mermaid
+flowchart TD
+    C["curl api.external-vendor.com (2 dots, ndots:5 → search list tried FIRST)"]
+    C --> Q1["query 1: api.external-vendor.com.default.svc.cluster.local → NXDOMAIN (wasted)"]
+    C --> Q2["query 2: api.external-vendor.com.svc.cluster.local → NXDOMAIN (wasted)"]
+    C --> Q3["query 3: api.external-vendor.com.cluster.local → NXDOMAIN (wasted)"]
+    C --> Q4["query 4: api.external-vendor.com.example.com → NXDOMAIN (wasted)"]
+    C --> Q5["query 5: api.external-vendor.com. → resolves (the real one)"]
 ```
 Every one of the first four queries round-trips to CoreDNS (and, if CoreDNS doesn't own the suffix, upstream) before failing — a fully-qualified name (trailing dot) or a lower `ndots` skips straight to query 5.
 
@@ -228,17 +237,19 @@ tcpdump -ni any 'host 203.0.113.10 and port 443'
 ```
 
 ➕ **Annotated `curl -v` output — this is the single highest-value diagnostic trace to have memorized, phase by phase:**
-```
-* Trying 203.0.113.10:443...                    ← DNS resolved, attempting TCP connect
-* Connected to api.example.com (203.0.113.10) port 443   ← TCP handshake succeeded (Ch4.2 done)
-* TLS handshake, Client hello (1):                ← now entering TLS phase
-* TLS handshake, Server hello (2):
-* TLS handshake, Certificate (11):
-* SSL certificate verify ok.                      ← TLS trust chain validated
-* using HTTP/2
-> GET /health HTTP/2                              ← request sent
-< HTTP/2 503                                       ← ← THIS is the actual failure — everything below TCP/TLS worked
-< retry-after: 30
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["* Trying 203.0.113.10:443... ← DNS resolved, attempting TCP connect"]
+  n1["* Connected to api.example.com (203.0.113.10) port 443 ← TCP handshake succeeded (Ch4.2 done)"]
+  n2["* TLS handshake, Client hello (1): ← now entering TLS phase"]
+  n3["* TLS handshake, Server hello (2)"]
+  n4["* TLS handshake, Certificate (11)"]
+  n5["* SSL certificate verify ok. ← TLS trust chain validated"]
+  n6["* using HTTP/2"]
+  n7["> GET /health HTTP/2 ← request sent"]
+  n8["< HTTP/2 503 ← ← THIS is the actual failure — everything below TCP/TLS worked"]
+  n9["< retry-after: 30"]
 ```
 **Interview-ready framing:** every line above is a proof point for one layer. A `curl -v` that dies after "Trying..." = routing/firewall (Ch4.1). Dies after "Connected" but before TLS completes = TLS/cert issue, not network. Completes TLS but returns 503 = the network stack is entirely exonerated — it's an application-layer problem now, stop looking at `tcpdump`.
 
@@ -260,14 +271,20 @@ A `ClusterIP` is not a listening process — it's a set of DNAT rules (or ipvs v
 **Conclusion:** "DNS works" only removes one branch of the hypothesis tree.
 
 ➕ **Full hop-by-hop trace of `curl service-name:80` inside a pod — the synthesis exercise tying this whole chapter together:**
-```
-1. DNS:     CoreDNS resolves service-name.namespace.svc.cluster.local → ClusterIP  [4.3]
-2. Routing: pod's route table sends ClusterIP traffic out its veth to the node    [4.1]
-3. NAT:     node's iptables/ipvs DNAT-rewrites ClusterIP → a real pod IP           [4.4]
-4. ARP/L2:  if destination pod is same-subnet, ARP resolves the next hop           [Ch1 tie-in]
-5. TCP:     3-way handshake to the real pod IP/port                                [4.2]
-6. TLS:     if HTTPS, certificate/SNI validation                                   [4.4]
-7. HTTP:    application-layer response, only now is a 503 "the app's fault"        [4.4]
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["1. DNS: CoreDNS resolves service-name.namespace.svc.cluster.local"]
+  n1["ClusterIP [4.3]"]
+  n2["2. Routing: pod's route table sends ClusterIP traffic out its veth to the node [4.1]"]
+  n3["3. NAT: node's iptables/ipvs DNAT-rewrites ClusterIP"]
+  n4["a real pod IP [4.4]"]
+  n5["4. ARP/L2: if destination pod is same-subnet, ARP resolves the next hop [Ch1 tie-in]"]
+  n6["5. TCP: 3-way handshake to the real pod IP/port [4.2]"]
+  n7["6. TLS: if HTTPS, certificate/SNI validation [4.4]"]
+  n8["7. HTTP: application-layer response, only now is a 503 'the app's fault' [4.4]"]
+  n0 --> n1
+  n3 --> n4
 ```
 This exact 7-step trace, said out loud without hesitation, is close to a complete answer to "explain how a Service routes traffic" for a Senior SA interview.
 

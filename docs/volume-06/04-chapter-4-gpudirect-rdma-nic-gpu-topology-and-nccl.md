@@ -17,34 +17,52 @@ export NCCL_DEBUG=INFO
 ```
 
 ➕ **The full data path, with and without GPUDirect RDMA — this is Figure 1's caption made explicit as two diagrams:**
+```mermaid
+flowchart LR
+    subgraph WITHOUT["WITHOUT GPUDirect RDMA (staged through host memory)"]
+        direction LR
+        A1["GPU HBM"] -->|PCIe copy #1 GPU to CPU| A2["Host RAM
+        (pinned buffer)"]
+        A2 -->|PCIe copy #2 CPU to NIC| A3["NIC"]
+        A3 --> A4["fabric"]
+        A4 --> A5["remote NIC"]
+        A5 -->|copy #3| A6["remote Host RAM"]
+        A6 -->|copy #4| A7["remote GPU HBM"]
+    end
 ```
-WITHOUT GPUDirect RDMA (staged through host memory):
-  GPU HBM ──PCIe──▶ Host RAM (pinned buffer) ──PCIe──▶ NIC ──▶ fabric ──▶ remote NIC ──▶ remote Host RAM ──▶ remote GPU HBM
-           copy #1 (GPU→CPU)      copy #2 (CPU→NIC)                                    copy #3         copy #4
-
-WITH GPUDirect RDMA:
-  GPU HBM ──PCIe──▶ NIC ──▶ fabric ──▶ remote NIC ──▶ remote GPU HBM
-           (direct — NIC DMA-reads/writes GPU memory, host CPU/RAM not in the data path)
+```mermaid
+flowchart LR
+    subgraph WITH["WITH GPUDirect RDMA (direct - NIC DMA-reads/writes GPU memory, host CPU/RAM not in the data path)"]
+        direction LR
+        B1["GPU HBM"] -->|PCIe| B2["NIC"]
+        B2 --> B3["fabric"]
+        B3 --> B4["remote NIC"]
+        B4 --> B5["remote GPU HBM"]
+    end
 ```
 Every eliminated copy in the top diagram is CPU cycles and PCIe bandwidth *not* spent — at collective-communication data rates (hundreds of GB/s aggregate across 8 GPUs), those staging copies would otherwise compete with the exact same PCIe root complex the GPUs use for compute traffic.
 
 ➕ **Diagram: NCCL ring vs tree — the two collective topologies NCCL picks between**
+```mermaid
+flowchart LR
+    subgraph RING["Ring AllReduce (each GPU talks to exactly 2 neighbors)"]
+        direction LR
+        RG0["GPU0"] --> RG1["GPU1"] --> RG2["GPU2"] --> RG3["GPU3"]
+        RG3 -.-> RG0
+    end
 ```
-Ring AllReduce (each GPU talks to exactly 2 neighbors):
-   GPU0 ──▶ GPU1 ──▶ GPU2 ──▶ GPU3
-    ▲                          │
-    └──────────────────────────┘
-  bandwidth-optimal at scale, but latency grows with GPU count
-  (N-1 steps to fully reduce-scatter, N-1 more to all-gather)
-
-Tree AllReduce (fan-in to a root, then fan-out):
-          GPU0
-         /    \
-      GPU1     GPU2
-      /  \       \
-   GPU3  GPU4   GPU5
-  latency-optimal (O(log N) depth), less aggregate bandwidth per link
+bandwidth-optimal at scale, but latency grows with GPU count (N-1 steps to fully reduce-scatter, N-1 more to all-gather)
+```mermaid
+flowchart TD
+    subgraph TREE["Tree AllReduce (fan-in to a root, then fan-out)"]
+        TG0["GPU0"] --> TG1["GPU1"]
+        TG0 --> TG2["GPU2"]
+        TG1 --> TG3["GPU3"]
+        TG1 --> TG4["GPU4"]
+        TG2 --> TG5["GPU5"]
+    end
 ```
+latency-optimal (O(log N) depth), less aggregate bandwidth per link
 NCCL chooses ring vs tree (or a hybrid) automatically based on topology, message size and GPU count — the `nvidia-smi topo -m` table below is exactly the input NCCL uses to decide which links a ring or tree should route over, and why a NUMA-crossing (`SYS`) link showing up in the chosen path is a red flag worth checking with `NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=GRAPH`.
 
 ➕ **Sample `nvidia-smi topo -m` output, annotated — this is the single most important diagnostic table in this chapter:**
@@ -63,13 +81,15 @@ Legend: NV12=NVLink(12 links), PXB=PCIe through host bridge (same NUMA), SYS=cro
 Read this row-by-row before ever looking at NCCL logs: **GPU0/GPU1 talking to `mlx5_0`** is `PXB` — same PCIe root, same NUMA node, cheap. **GPU2/GPU3 talking to `mlx5_0`** is `SYS` — crosses the NUMA boundary, meaningfully more expensive, and exactly the kind of thing that silently doubles a collective's latency for half the ranks on a node if NCCL (or a container's CPU pinning) picks the wrong NIC for a given GPU. This table is the topology-and-fabric-evidence half of this chapter's learning outcome, made literal.
 
 ➕ **Sample `NCCL_DEBUG=INFO` excerpt, annotated (what "compare NCCL logs" in the worked scenario below actually means in practice):**
-```
-$ NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT,NET,GRAPH python train.py
-node07:1234:1234 [0] NCCL INFO NET/IB : Using [0]mlx5_0:1/RoCE [RO]; OOB eth0:10.0.4.7<0>
-node07:1234:1234 [0] NCCL INFO Channel 00/04 : 0[0] -> 1[1] via P2P/CUMEM
-node07:1234:1234 [0] NCCL INFO Channel 00/04 : 0[0] -> 4[0] via NET/IB/0/GDRDMA   ← cross-node, GPUDirect RDMA active
-node11:5678:5678 [0] NCCL INFO NET/IB : Using [0]mlx5_0:1/RoCE [RO]; OOB eth0:10.0.4.11<0>
-node11:5678:5678 [0] NCCL INFO Channel 00/04 : 0[0] -> 4[0] via NET/IB/0/IB       ← notice: no GDRDMA suffix here!
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT,NET,GRAPH python train.py"]
+  n1["node07:1234:1234 [0] NCCL INFO NET/IB : Using [0]mlx5_0:1/RoCE [RO]; OOB eth0:10.0.4.7<0>"]
+  n2["node07:1234:1234 [0] NCCL INFO Channel 00/04 : 0[0] -> 1[1] via P2P/CUMEM"]
+  n3["node07:1234:1234 [0] NCCL INFO Channel 00/04 : 0[0] -> 4[0] via NET/IB/0/GDRDMA ← cross-node, GPUDirect RDMA active"]
+  n4["node11:5678:5678 [0] NCCL INFO NET/IB : Using [0]mlx5_0:1/RoCE [RO]; OOB eth0:10.0.4.11<0>"]
+  n5["node11:5678:5678 [0] NCCL INFO Channel 00/04 : 0[0] -> 4[0] via NET/IB/0/IB ← notice: no GDRDMA suffix here!"]
 ```
 The second node's channel log is missing the `GDRDMA` marker that the first node has — this single log-line difference means GPUDirect RDMA silently fell back to a staged (host-memory-copy) path on `node11` for that channel, even though both nodes are running identical code. Common causes: a `nv_peer_mem`/`nvidia-peermem` kernel module mismatch, an IOMMU/ACS setting difference on that host, or a BIOS/PCIe topology difference introduced by a hardware swap — exactly the kind of node-level asymmetry the Chapter 4 worked scenario below is built around, and precisely why "compare NCCL logs node-by-node" is step 3, not step 1 (you need the topology table first to know what a *correct* log should say for that node).
 

@@ -35,31 +35,40 @@ Scenario: a distributed training job runs 35% slower after a node pool refresh. 
 *"Every symptom lives at a layer — don't fix the symptom's layer, fix the mechanism's layer."* CPU-looks-idle-but-slow → check throttling (mechanism, not the symptom's CPU-graph layer). DNS-resolves-but-times-out → check routing/NAT/TLS (mechanism), not DNS (symptom's layer). This one sentence is a legitimate answer to "how do you approach troubleshooting" as an opener, before you even get into specific tools.
 
 ➕ **The generalizable checklist version, worth having as your own mental template for any "X looks healthy but Y is slow" question in the actual interview:**
-```
-1. Confirm the K8s object state really is healthy (Running, no OOMKilled, no throttling in cpu.stat)
-   — this rules out the Volume-1-Ch1/2/5 mechanisms explicitly, don't skip it
-2. Follow the data path the workload actually uses (Ch3's AI data-path chain: disk → page cache
-   → pinned memory → PCIe → GPU HBM) and instrument each hop
-3. Check the resource plane Kubernetes doesn't account for at all: GPU memory/utilization via
-   nvidia-smi/DCGM (Ch2's CUDA-OOM-vs-cgroup-OOM distinction), NUMA locality (Deep Dive 2)
-4. Only after 1-3 are exonerated, suspect the workload's own code/framework behavior
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["1. Confirm the K8s object state really is healthy (Running, no OOMKilled, no throttling in cpu.stat)"]
+  n1["— this rules out the Volume-1-Ch1/2/5 mechanisms explicitly, don't skip it"]
+  n2["2. Follow the data path the workload actually uses (Ch3's AI data-path chain: disk"]
+  n3["page cache"]
+  n4["pinned memory"]
+  n5["PCIe"]
+  n6["GPU HBM) and instrument each hop"]
+  n7["3. Check the resource plane Kubernetes doesn't account for at all: GPU memory/utilization via"]
+  n8["nvidia-smi/DCGM (Ch2's CUDA-OOM-vs-cgroup-OOM distinction), NUMA locality (Deep Dive 2)"]
+  n9["4. Only after 1-3 are exonerated, suspect the workload's own code/framework behavior"]
+  n2 --> n3
+  n4 --> n5
+  n5 --> n6
 ```
 This ordering — K8s object state → data path → GPU-specific plane → application code — is the generalized version of the specific exercise above, and it's the shape almost every "why is my GPU workload underperforming" interview question takes.
 
 ➕ **Visual triage router — "healthy Kubernetes" is only the first gate:**
-```
-Pod Running / Ready?
-        │ yes
-        ▼
-Data arriving fast enough? ── no ──► storage, DNS, service, data-loader path
-        │ yes
-        ▼
-GPU doing useful work? ── no ──► quota, affinity, topology, driver/Xid, clocks
-        │ yes
-        ▼
-Collective / serving tail healthy? ── no ──► slow rank, NIC rail, KV/cache, queue
-        │ yes
-        ▼
-Application/kernel behaviour
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["Pod Running / Ready?"]
+  n1["yes"]
+  n2["Data arriving fast enough? no"]
+  n3["storage, DNS, service, data-loader path"]
+  n4["GPU doing useful work? no"]
+  n5["quota, affinity, topology, driver/Xid, clocks"]
+  n6["Collective / serving tail healthy? no"]
+  n7["slow rank, NIC rail, KV/cache, queue"]
+  n8["Application/kernel behaviour"]
+  n2 --> n3
+  n4 --> n5
+  n6 --> n7
 ```
 **Memory hook:** *"Ready is admission evidence, not performance evidence."* Each arrow is a different owner and a different proof source.

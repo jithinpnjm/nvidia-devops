@@ -278,12 +278,19 @@ Change `>= 75` to `> 75`, add a test for exactly `75`, and decide which behavior
 
 ## What you built
 
-```text
-JSON file → loader/effect → validated Python values → pure decision
-                                               ↓
-                                      formatted result + exit code
-                                               ↓
-                                           unit tests
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["JSON file"]
+  n1["loader/effect"]
+  n2["validated Python values"]
+  n3["pure decision"]
+  n4["↓"]
+  n5["formatted result + exit code"]
+  n6["unit tests"]
+  n0 --> n1
+  n1 --> n2
+  n2 --> n3
 ```
 
 This small shape scales to APIs, subprocesses, BMC inventories, Kubernetes objects, and GPU health data. Later Volume 2 chapters add logging, timeouts, retries, types, packaging, concurrency, and richer tests around the same boundaries.

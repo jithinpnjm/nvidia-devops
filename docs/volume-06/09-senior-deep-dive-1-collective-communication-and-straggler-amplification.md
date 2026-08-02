@@ -61,32 +61,62 @@ Job-wide slowdown = 130/100 - 1 = 30% — the ENTIRE job inherits the slow node'
 ```
 This is "straggler amplification": at a synchronization barrier, the slowest participant's penalty is not diluted by the group size — it's imposed on the whole group in full. This is the single most important number to be able to produce live in an interview when this Deep Dive's topic comes up, and it's the direct justification for "monitor distributions per rank/node, not only cluster averages" from the original text — a cluster-average GPU utilization metric mathematically cannot see this effect; only a per-rank distribution (or a max/p99-vs-mean comparison) can.
 
-➕ **ASCII view of the barrier itself:**
-```
-rank0 ██████████████████████████████████████████████████ done, waiting...........
-rank1 ██████████████████████████████████████████████████ done, waiting...........
-rank2 ██████████████████████████████████████████████████ done, waiting...........
-rank3 ████████████████████████████████████████████████████████████████ done  ← straggler
-      └──────────────── AllReduce cannot complete until EVERY rank arrives ──────┘
+➕ **View of the barrier itself:**
+```mermaid
+flowchart LR
+    R0["rank0 - done, then waiting"] --> BAR["AllReduce barrier -
+    cannot complete until EVERY rank arrives"]
+    R1["rank1 - done, then waiting"] --> BAR
+    R2["rank2 - done, then waiting"] --> BAR
+    R3["rank3 - done later (straggler)"] --> BAR
 ```
 
 ➕ **Diagram: the four collectives named above, and what each one actually moves**
+
+AllReduce (e.g. gradient sync) — every rank ends with the SAME combined result:
+```mermaid
+flowchart LR
+    R0["R0 [a]"] --> C["combine (sum/avg)"]
+    R1["R1 [b]"] --> C
+    R2["R2 [c]"] --> C
+    R3["R3 [d]"] --> C
+    C --> O0["R0 [a+b+c+d]"]
+    C --> O1["R1 [a+b+c+d]"]
+    C --> O2["R2 [a+b+c+d]"]
+    C --> O3["R3 [a+b+c+d]"]
 ```
-AllReduce (e.g. gradient sync):      every rank ends with the SAME combined result
-  R0 [a] ┐                             R0 [a+b+c+d]
-  R1 [b] ├──▶ combine (sum/avg) ──▶    R1 [a+b+c+d]
-  R2 [c] │                             R2 [a+b+c+d]
-  R3 [d] ┘                             R3 [a+b+c+d]
 
-ReduceScatter:                       AllGather:
-  each rank gets ONE shard of the      each rank ends with ALL ranks' data,
-  combined result, not the whole       unreduced — pure concatenation
-  R0[a] R1[b] R2[c] R3[d]              R0[a] R1[b] R2[c] R3[d]
-       combine → shard per rank             gather → every rank has [a,b,c,d]
+ReduceScatter — each rank gets ONE shard of the combined result, not the whole:
+```mermaid
+flowchart LR
+    R0["R0[a]"] --> C["combine"]
+    R1["R1[b]"] --> C
+    R2["R2[c]"] --> C
+    R3["R3[d]"] --> C
+    C -->|shard per rank| S["one shard per rank"]
+```
 
-All-to-All (e.g. MoE expert routing): every rank sends a DIFFERENT chunk to every other rank
-  R0 sends a0→R0, a1→R1, a2→R2, a3→R3
-  R1 sends b0→R0, b1→R1, b2→R2, b3→R3   ← full N×N exchange, heaviest fabric load pattern
+AllGather — each rank ends with ALL ranks' data, unreduced, pure concatenation:
+```mermaid
+flowchart LR
+    R0["R0[a]"] --> G["gather"]
+    R1["R1[b]"] --> G
+    R2["R2[c]"] --> G
+    R3["R3[d]"] --> G
+    G -->|"every rank has [a,b,c,d]"| ALL["all ranks"]
+```
+
+All-to-All (e.g. MoE expert routing) — every rank sends a DIFFERENT chunk to every other rank, a full N x N exchange, the heaviest fabric load pattern:
+```mermaid
+flowchart LR
+    R0["R0"] -->|a0| R0
+    R0 -->|a1| R1["R1"]
+    R0 -->|a2| R2["R2"]
+    R0 -->|a3| R3["R3"]
+    R1 -->|b0| R0
+    R1 -->|b1| R1
+    R1 -->|b2| R2
+    R1 -->|b3| R3
 ```
 AllReduce is usually implemented internally as ReduceScatter followed by AllGather — which is why per-node timing tools that break down NCCL phases (rather than treating "AllReduce" as one opaque call) can localize a straggler to the reduce half or the gather half specifically. All-to-All's N×N exchange pattern is why MoE/expert-parallel workloads are far more sensitive to any single slow link than a dense model's AllReduce-only traffic.
 

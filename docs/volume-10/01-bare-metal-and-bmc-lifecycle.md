@@ -18,10 +18,16 @@ This distinction explains a common beginner confusion: `ping` to the host OS can
 
 Learn the boot path as a sequence of owners:
 
-```text
-AC power → BMC starts → host power-on → BIOS/UEFI hardware checks
-         → boot device selected → PXE downloads boot files
-         → Linux kernel starts → systemd starts services → node joins cluster
+```mermaid
+flowchart LR
+    A[AC power] --> B[BMC starts]
+    B --> C[Host power-on]
+    C --> D[BIOS/UEFI hardware checks]
+    D --> E[Boot device selected]
+    E --> F[PXE downloads boot files]
+    F --> G[Linux kernel starts]
+    G --> H[systemd starts services]
+    H --> I[Node joins cluster]
 ```
 
 When a node fails, first locate the last successful boundary. No BMC response points toward power, cabling, BMC configuration, or the management network. A visible BIOS screen but no PXE offer points toward boot order, DHCP, VLAN, or PXE services. A downloaded kernel that later panics is no longer a PXE discovery problem; investigate the image, kernel arguments, driver, or storage path.
@@ -80,14 +86,16 @@ curl -sk -u admin:<pass> https://<bmc-ip>/redfish/v1/UpdateService/FirmwareInven
 
 Annotated `ipmitool sensor list` output — this is the first thing to pull when a node is reported "unhealthy" before you even try to log into the OS:
 
-```
-$ ipmitool -I lanplus -H 10.0.1.15 -U admin -P *** sensor list
-CPU1 Temp        | 52.000     | degrees C  | ok    | 0.000  | 3.000  | 5.000  | 92.000 | 95.000 | 98.000
-CPU2 Temp        | 108.000    | degrees C  | ncr   | 0.000  | 3.000  | 5.000  | 92.000 | 95.000 | 98.000   ← non-critical high, near upper-non-recoverable
-GPU1 Temp        | 61.000     | degrees C  | ok    | 0.000  | 3.000  | 5.000  | 88.000 | 92.000 | 95.000
-FAN1             | 8400.000   | RPM        | ok    | 500.00 | 700.00 | 900.00 | na     | na     | na
-PSU1 Status      | 0x1        | discrete   | 0x0180| na     | na     | na     | na     | na     | na       ← discrete sensor, decode bitmap not a number
-PSU2 Status      | 0x0        | discrete   | 0x0180| na     | na     | na     | na     | na     | na       ← PSU2 reading 0 — likely no input power, check PDU/breaker
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ ipmitool -I lanplus -H 10.0.1.15 -U admin -P *** sensor list"]
+  n1["CPU1 Temp | 52.000 | degrees C | ok | 0.000 | 3.000 | 5.000 | 92.000 | 95.000 | 98.000"]
+  n2["CPU2 Temp | 108.000 | degrees C | ncr | 0.000 | 3.000 | 5.000 | 92.000 | 95.000 | 98.000 ← non-critical high, near upper-non-recoverable"]
+  n3["GPU1 Temp | 61.000 | degrees C | ok | 0.000 | 3.000 | 5.000 | 88.000 | 92.000 | 95.000"]
+  n4["FAN1 | 8400.000 | RPM | ok | 500.00 | 700.00 | 900.00 | na | na | na"]
+  n5["PSU1 Status | 0x1 | discrete | 0x0180| na | na | na | na | na | na ← discrete sensor, decode bitmap not a number"]
+  n6["PSU2 Status | 0x0 | discrete | 0x0180| na | na | na | na | na | na ← PSU2 reading 0 — likely no input power, check PDU/breaker"]
 ```
 Reading this correctly: the six threshold columns are `lnr/lcr/lnc/unc/ucr/unr` (lower/upper non-recoverable, critical, non-critical). `CPU2 Temp` at `ncr` status with a reading of 108°C against an upper-non-critical threshold of 92°C is already past non-critical and closing on `ucr` (95) — this node should be pulled from scheduling before it thermally throttles or shuts down. `PSU2 Status` reading `0x0` on a discrete sensor is not "temperature is zero," it is a bitmap that needs decoding against the SDR — in practice, a PSU reporting nothing usually means no AC input, which is a facilities/PDU check, not a server fault.
 
@@ -120,33 +128,20 @@ The reason step 2 (baseline manifest) matters operationally: NVIDIA driver relea
 
 Network boot is the mechanism by which a bare node with no OS on disk gets an installer or a stateless image without anyone touching a USB drive.
 
-```
 Boot sequence: DHCP → TFTP/HTTP → kernel/initrd handoff
 
- [Node powers on, NIC PXE ROM initializes]
-        │
-        ▼
- DHCPDISCOVER (broadcast) ──────────────► DHCP server
-        │                                  responds with DHCPOFFER:
-        │◄─────────────────────────────────  IP, next-server (TFTP/HTTP IP),
-        │                                     bootfile-name (e.g. undionly.kpxe /
-        │                                     grubx64.efi / snponly.efi)
-        ▼
- DHCPREQUEST/ACK completes → node now has an IP + knows where to boot from
-        │
-        ▼
- TFTP or HTTP GET of bootloader ────────► TFTP/HTTP server (often same box as DHCP)
-        │  (legacy BIOS: TFTP + PXELINUX/undionly;
-        │   UEFI HTTPBoot: straight HTTP GET, faster, no TFTP block-size games)
-        ▼
- Bootloader fetches boot menu/config ───► (pxelinux.cfg/<mac> or grub.cfg)
-        │
-        ▼
- Bootloader GETs kernel (vmlinuz) + initrd ► kernel decompresses, initrd loads
-        │
-        ▼
- initrd mounts install source / stateless image (NFS root, squashfs, or kickstart/
- cloud-init http source) → OS installer or stateless runtime takes over
+```mermaid
+flowchart TD
+    A["Node powers on, NIC PXE ROM initializes"] --> B["DHCPDISCOVER (broadcast) to DHCP server"]
+    B --> C["DHCP server responds with DHCPOFFER: IP, next-server (TFTP/HTTP IP), bootfile-name (e.g. undionly.kpxe / grubx64.efi / snponly.efi)"]
+    C --> D["DHCPREQUEST/ACK completes - node now has an IP + knows where to boot from"]
+    D --> E["TFTP or HTTP GET of bootloader from TFTP/HTTP server (often same box as DHCP)"]
+    E --> E1["Legacy BIOS: TFTP + PXELINUX/undionly; UEFI HTTPBoot: straight HTTP GET, faster, no TFTP block-size games"]
+    E1 --> F["Bootloader fetches boot menu/config (pxelinux.cfg/mac or grub.cfg)"]
+    F --> G["Bootloader GETs kernel (vmlinuz) + initrd"]
+    G --> H["Kernel decompresses, initrd loads"]
+    H --> I["initrd mounts install source / stateless image (NFS root, squashfs, or kickstart/cloud-init http source)"]
+    I --> J["OS installer or stateless runtime takes over"]
 ```
 
 Two failure classes dominate PXE troubleshooting: nothing offered (DHCP scope exhausted, PXE options not set on the DHCP server, or a rogue DHCP server on the segment answering first with wrong options), or offered-but-nothing-loads (TFTP blocked by a firewall/ACL, wrong `next-server` IP, boot filename mismatched to the node's firmware mode — legacy BIOS asking for an EFI bootloader or vice versa). `tcpdump -i <iface> port 67 or port 68 or port 69` on the boot network is the fastest way to see exactly where in this chain a specific node stalls.

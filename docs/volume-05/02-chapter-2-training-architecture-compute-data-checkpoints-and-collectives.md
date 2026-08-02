@@ -19,20 +19,30 @@ Training repeatedly loads batches, performs forward/backward computation, exchan
 | Checkpointing | large writes + durability/restart time; storage path affects recovery |
 
 ➕ **Diagram: three parallelism patterns, same 4 GPUs, different split axis**
+```mermaid
+flowchart LR
+    subgraph DP["Data parallel"]
+    direction TB
+    D0["GPU0: full model, data shard 0"]
+    D1["GPU1: full model, data shard 1"]
+    D2["GPU2: full model, data shard 2"]
+    D3["GPU3: full model, data shard 3"]
+    D0 -.->|AllReduce gradients after backward| D1
+    end
+    subgraph TP["Tensor parallel"]
+    direction TB
+    T0["GPU0: layer-shard A"]
+    T1["GPU1: layer-shard B"]
+    T2["GPU2: layer-shard C"]
+    T3["GPU3: layer-shard D"]
+    T0 -.->|"all-to-all/all-gather on every fwd+bwd pass (latency-sensitive to interconnect)"| T1
+    end
+    subgraph PP["Pipeline parallel"]
+    direction TB
+    P0["GPU0: layers 1-2"] --> P1["GPU1: layers 3-4"] --> P2["GPU2: layers 5-6"] --> P3["GPU3: layers 7-8"]
+    end
 ```
-Data parallel:            Tensor parallel:           Pipeline parallel:
- GPU0 [full model]         GPU0 [layer-shard A]       GPU0 [layers 1-2]
- GPU1 [full model]  ──▶    GPU1 [layer-shard B]  ──▶  GPU1 [layers 3-4]
- GPU2 [full model]         GPU2 [layer-shard C]       GPU2 [layers 5-6]
- GPU3 [full model]         GPU3 [layer-shard D]       GPU3 [layers 7-8]
- each GPU: different       each GPU: same layer,      each GPU: different
- data shard, same          different slice of its     layers, same data,
- weights → AllReduce       weights → per-layer         flows stage-to-stage
- gradients after bwd       all-to-all/all-gather       → pipeline bubbles if
-                           on every forward AND         stages are unbalanced
-                           backward pass (latency-
-                           sensitive to interconnect)
-```
+Data parallel: each GPU holds different data, same weights. Tensor parallel: each GPU holds the same layer, a different slice of its weights. Pipeline parallel: each GPU holds different layers, same data, flowing stage-to-stage; pipeline bubbles appear if stages are unbalanced.
 The infrastructure implication column in the table above is a direct consequence of which axis is split: data parallel trades bandwidth for gradient sync once per step, tensor parallel pays interconnect latency on every layer, pipeline parallel pays idle "bubble" time when stages aren't balanced.
 
 ## Worked scenario
@@ -47,34 +57,44 @@ The infrastructure implication column in the table above is a direct consequence
 **Conclusion:** Distributed scaling is an efficiency curve; adding GPUs increases both compute capacity and coordination cost.
 
 ➕ **The training step timeline, made visible (what "step time" in the worked scenario is actually measuring):**
+```mermaid
+flowchart LR
+    subgraph Single["Single GPU"]
+    direction LR
+    A1["Load batch"] --> A2["Forward"] --> A3["Backward"] --> A4["Optimizer step"]
+    end
 ```
-One training step, single GPU vs. data-parallel across N GPUs:
-
-Single GPU:
-|--- load batch ---|--- forward ---|--- backward ---|--- optimizer step ---|
-        ↑ if this is longer than compute, the GPU starves (SM util < 100%)
-
-Data-parallel, N GPUs, per step:
-GPU0: |--load--|--fwd--|--bwd--|==AllReduce gradients==|--opt step--|
-GPU1: |--load--|--fwd--|--bwd--|==AllReduce gradients==|--opt step--|
-GPU2: |--load--|--fwd--|--bwd--|==AllReduce gradients==|--opt step--|
-                                 ↑ every GPU blocks here until ALL
-                                   peers finish backward AND the
-                                   collective completes — one slow
-                                   straggler stalls everyone
+Single GPU: if load-batch time exceeds compute time, the GPU starves (SM util < 100%).
+```mermaid
+flowchart LR
+    subgraph GPU0["GPU0"]
+    direction LR
+    B0a["Load"] --> B0b["Fwd"] --> B0c["Bwd"] --> B0d["AllReduce gradients"] --> B0e["Opt step"]
+    end
+    subgraph GPU1["GPU1"]
+    direction LR
+    B1a["Load"] --> B1b["Fwd"] --> B1c["Bwd"] --> B1d["AllReduce gradients"] --> B1e["Opt step"]
+    end
+    subgraph GPU2["GPU2"]
+    direction LR
+    B2a["Load"] --> B2b["Fwd"] --> B2c["Bwd"] --> B2d["AllReduce gradients"] --> B2e["Opt step"]
+    end
 ```
+Every GPU blocks at the AllReduce step until all peers finish backward and the collective completes — one slow straggler stalls everyone.
 The AllReduce bar is the "coordination cost" the worked scenario's conclusion names abstractly — it does not shrink just because you added GPUs; it can grow if the fabric between the new GPUs is slower (cross-node vs. NVLink) or if gradient tensor size stays fixed while step count per GPU drops, making the fixed communication overhead a larger fraction of each step.
 
 ➕ **Sample `nvidia-smi dmon` output during a data-parallel step, annotated for exactly this diagnosis:**
-```
-$ nvidia-smi dmon -s pucm -c 5
-# gpu   pwr  gtemp  mtemp    sm   mem   enc   dec  mclk  pclk
-# Idx     W      C      C     %     %     %     %   MHz   MHz
-    0   410     68     71    97    88     0     0  2619  1980   ← healthy: compute-bound
-    0    95     61     64    12     9     0     0  2619  1980   ← SM=12%: GPU is WAITING, not computing
-    0    88     60     63     8     6     0     0  2619  1980   ← this is the AllReduce/collective wait window
-    0   405     67     70    96    89     0     0  2619  1980   ← back to compute — step resumed
-    0   402     67     70    95    87     0     0  2619  1980
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ nvidia-smi dmon -s pucm -c 5"]
+  n1["# gpu pwr gtemp mtemp sm mem enc dec mclk pclk"]
+  n2["# Idx W C C % % % % MHz MHz"]
+  n3["0 410 68 71 97 88 0 0 2619 1980 ← healthy: compute-bound"]
+  n4["0 95 61 64 12 9 0 0 2619 1980 ← SM=12%: GPU is WAITING, not computing"]
+  n5["0 88 60 63 8 6 0 0 2619 1980 ← this is the AllReduce/collective wait window"]
+  n6["0 405 67 70 96 89 0 0 2619 1980 ← back to compute — step resumed"]
+  n7["0 402 67 70 95 87 0 0 2619 1980"]
 ```
 Two consecutive low-`sm%` rows sandwiched between high-`sm%` rows is the signature of collective-communication stall, not data-loader starvation — a data-loader stall usually shows a longer, less regular low-utilization stretch and correlates with `iostat`/page-cache-miss evidence instead of a fixed periodic pattern tied to step boundaries. Distinguishing these two is exactly what the worked scenario's steps 2-4 are asking you to do with instrumentation instead of guessing.
 
@@ -87,22 +107,29 @@ Two consecutive low-`sm%` rows sandwiched between high-`sm%` rows is the signatu
 > **Conclusion:** Checkpoint storage capacity planning has two distinct load profiles — steady-state write and simultaneous full-fleet read — and sizing for only one silently breaks the other.
 
 ➕ **Diagram: checkpoint storm — write profile vs. restart-read profile**
+```mermaid
+flowchart LR
+    subgraph Steady["Steady-state (sized for this)"]
+    direction LR
+    W0["worker000 write"] --> S1[Storage]
+    W1["worker001 write"] --> S1
+    W2["... write"] --> S1
+    W3["worker255 write"] --> S1
+    end
 ```
-Steady-state (sized for this):
- worker000 ─write─▶┐
- worker001 ─write───┼─▶ storage  (staggered over 30-min interval, smooth)
-   ...     ─write───┘
- worker255 ─write─▶┘
-
-Restart burst (the profile that breaks under-sized storage):
- worker000 ─read─▶┐
- worker001 ─read─▶┤
- worker002 ─read─▶┼─▶ storage  ← all 256 workers read within seconds
-   ...     ─read─▶┤             of each other, same time window
- worker255 ─read─▶┘
-                    ↑ burst read bandwidth, not steady write
-                      bandwidth, is the number that matters here
+Steady-state writes are staggered over the 30-minute interval — smooth load.
+```mermaid
+flowchart LR
+    subgraph Burst["Restart burst (breaks under-sized storage)"]
+    direction LR
+    R0["worker000 read"] --> S2["Storage - all 256 workers read within seconds of each other"]
+    R1["worker001 read"] --> S2
+    R2["worker002 read"] --> S2
+    R3["... read"] --> S2
+    R4["worker255 read"] --> S2
+    end
 ```
+Burst read bandwidth, not steady write bandwidth, is the number that matters here.
 
 ➕ **Shortcut/mnemonic:** *"Scaling efficiency = useful compute ÷ (useful compute + coordination) — and coordination cost is a function of fabric speed, tensor size, and straggler variance, not GPU count alone."* When throughput doesn't scale linearly, the three things to check in order are: (1) is a straggler forcing everyone to wait, (2) is the fabric between the new GPUs slower than the fabric within the original set, (3) did global batch size change in a way that shifted the compute/communication ratio.
 

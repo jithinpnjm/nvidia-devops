@@ -10,44 +10,54 @@ Public practitioner material from NVIDIA SAs emphasizes requirements discovery, 
 ## Senior addendum
 
 ➕ **A scored self-check rubric — the missing artifact for this Deep Dive, usable as literal interview prep:**
-```
-For any interview answer you give, score yourself against this checklist:
-
-[ ] Did I clarify at least one constraint before proposing a solution?
-      (implementation engineers jump straight to "here's how you'd
-       configure X" — an SA asks what's actually being optimized for first)
-[ ] Did I name at least 2 real options, not just the one I recommend?
-      (a single option presented as the only path reads as product
-       knowledge, not architecture judgment)
-[ ] Did I state a trade-off explicitly, with a number or concrete
-      mechanism attached — not just "it depends"?
-[ ] Did I give ONE clear recommendation, not a non-committal "both
-      could work"?
-[ ] Did I say how I'd VALIDATE the recommendation (a PoC hypothesis,
-      a pilot, a specific metric) rather than treating the
-      recommendation as the end of the conversation?
-
-Score 5/5 → this is a Senior SA-shaped answer.
-Score 2-3/5, missing items 1 and 5 specifically → this is a strong
-  IMPLEMENTATION ENGINEER answer: technically correct, but it skips
-  the discovery framing at the start and the validation framing at
-  the end — exactly the two bookends the source text names as the
-  differentiator.
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["For any interview answer you give, score yourself against this checklist"]
+  n1["[ ] Did I clarify at least one constraint before proposing a solution?"]
+  n2["(implementation engineers jump straight to 'here's how you'd"]
+  n3["configure X' — an SA asks what's actually being optimized for first)"]
+  n4["[ ] Did I name at least 2 real options, not just the one I recommend?"]
+  n5["(a single option presented as the only path reads as product"]
+  n6["knowledge, not architecture judgment)"]
+  n7["[ ] Did I state a trade-off explicitly, with a number or concrete"]
+  n8["mechanism attached — not just 'it depends'?"]
+  n9["[ ] Did I give ONE clear recommendation, not a non-committal 'both"]
+  n10["could work'?"]
+  n11["[ ] Did I say how I'd VALIDATE the recommendation (a PoC hypothesis,"]
+  n12["a pilot, a specific metric) rather than treating the"]
+  n13["recommendation as the end of the conversation?"]
+  n14["Score 5/5"]
+  n15["this is a Senior SA-shaped answer."]
+  n16["Score 2-3/5, missing items 1 and 5 specifically"]
+  n17["this is a strong"]
+  n18["IMPLEMENTATION ENGINEER answer: technically correct, but it skips"]
+  n19["the discovery framing at the start and the validation framing at"]
+  n20["the end — exactly the two bookends the source text names as the"]
+  n21["differentiator."]
+  n14 --> n15
+  n16 --> n17
 ```
 ➕ **Interview-ready line:** "the gap between an SA and an implementation engineer isn't technical depth — it's that an SA's answer has a constraint-clarifying question at the start and a validation plan at the end, with the technical recommendation sandwiched in between. I try to hit both bookends on every answer, not just the middle."
 
 ➕ **Diagram: the answer structure that separates the two roles:**
-```
-Implementation engineer answer:
-                [ technical recommendation ]
-
-Senior SA answer:
-[clarify constraint] → [≥2 options + trade-off] → [recommendation] → [validation plan]
-      ▲ bookend 1                                                          ▲ bookend 2
-  (missing in the IE answer)                                        (missing in the IE answer)
-
-The middle can be IDENTICAL in both answers — the differentiator is
-entirely the two bookends surrounding it, not the technical content.
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["Implementation engineer answer"]
+  n1["[ technical recommendation ]"]
+  n2["Senior SA answer"]
+  n3["[clarify constraint]"]
+  n4["[≥2 options + trade-off]"]
+  n5["[recommendation]"]
+  n6["[validation plan]"]
+  n7["bookend 1 bookend 2"]
+  n8["(missing in the IE answer) (missing in the IE answer)"]
+  n9["The middle can be IDENTICAL in both answers — the differentiator is"]
+  n10["entirely the two bookends surrounding it, not the technical content."]
+  n3 --> n4
+  n4 --> n5
+  n5 --> n6
 ```
 
 ## Targeted references and reinforcement

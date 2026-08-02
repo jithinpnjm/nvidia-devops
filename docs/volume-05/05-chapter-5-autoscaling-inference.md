@@ -27,55 +27,34 @@ A public post contrasts DCGM metrics (hardware behavior/health) with model-serve
 **Conclusion:** A busy GPU can be an efficient GPU; saturation is defined relative to service outcomes.
 
 ➕ **The autoscaling control loop, made visible (why this is harder than CPU-based HPA):**
-```
-                    ┌──────────────────────────────────────┐
-                    │  Metric source: queue depth, TTFT,     │
-                    │  gpu_cache_usage_perc, tokens/s         │
-                    └───────────────────┬────────────────────┘
-                                        ▼
-                    ┌──────────────────────────────────────┐
-                    │  HPA/KEDA evaluates against target      │
-                    │  (e.g. queue_depth > 10 for 60s)         │
-                    └───────────────────┬────────────────────┘
-                                        ▼
-                    ┌──────────────────────────────────────┐
-                    │  Scale decision: +1 replica              │
-                    └───────────────────┬────────────────────┘
-                                        ▼
-     ┌───────────────────────────────────────────────────────────┐
-     │  NEW REPLICA LIFECYCLE — the part CPU-based web-app HPA     │
-     │  never has to deal with:                                    │
-     │  schedule pod → pull multi-GB image → allocate GPU →         │
-     │  load model weights into GPU memory (seconds to MINUTES)    │
-     │  → engine warmup/compile (TensorRT-LLM especially) →         │
-     │  readiness probe passes → THEN it can serve traffic          │
-     └───────────────────────────────────────────────────────────┘
-                                        ▼
-                    By the time the replica is ready, the traffic
-                    spike that triggered scaling may already be over
-                    (reactive scaling lag) — or still building
-                    (predictive/warm-pool scaling needed)
+```mermaid
+flowchart TD
+    A["Metric source: queue depth, TTFT, gpu_cache_usage_perc, tokens/s"] --> B["HPA/KEDA evaluates against target (e.g. queue_depth > 10 for 60s)"]
+    B --> C["Scale decision: +1 replica"]
+    C --> D["NEW REPLICA LIFECYCLE (CPU-based web-app HPA never deals with this): schedule pod, pull multi-GB image, allocate GPU, load model weights into GPU memory (seconds to MINUTES), engine warmup/compile (TensorRT-LLM especially), readiness probe passes, THEN it can serve traffic"]
+    D --> E["By the time the replica is ready, the traffic spike that triggered scaling may already be over (reactive scaling lag) - or still building (predictive/warm-pool scaling needed)"]
 ```
 This lifecycle box is the mechanism behind Senior Deep Dive 5's line "model load time can be minutes, so predictive capacity, warm pools and staged rollout may outperform reactive HPA alone" — a plain HPA reacting to a metric crossing a threshold has no concept of the multi-minute lead time between "decide to scale" and "capacity actually available."
 
 ➕ **Sample KEDA/HPA custom-metrics output during a scale event, annotated:**
-```
-$ kubectl get hpa llm-server-hpa
-NAME             REFERENCE                TARGETS              MINPODS  MAXPODS  REPLICAS
-llm-server-hpa   Deployment/llm-server    47/10 (queue_depth)  2        10       6
-                                           ↑ current value       ↑ HPA has already scaled
-                                             far exceeds target     to 6 trying to catch up —
-                                                                     but each new replica takes
-                                                                     ~90s to load a 70B model
-
-$ kubectl describe hpa llm-server-hpa | tail -6
-  Type     Reason              Age   From                       Message
-  ----     ------              ----  ----                       -------
-  Normal   SuccessfulRescale   45s   horizontal-pod-autoscaler  New size: 6; reason: external metric
-                                                                 queue_depth above target
-  Warning  FailedGetExternalMetric 30s horizontal-pod-autoscaler unable to fetch metrics:
-                                                                 no data returned from custom metrics API
-                                                                 ← metrics pipeline gap = HPA flies blind
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ kubectl get hpa llm-server-hpa"]
+  n1["NAME REFERENCE TARGETS MINPODS MAXPODS REPLICAS"]
+  n2["llm-server-hpa Deployment/llm-server 47/10 (queue_depth) 2 10 6"]
+  n3["↑ current value ↑ HPA has already scaled"]
+  n4["far exceeds target to 6 trying to catch up —"]
+  n5["but each new replica takes"]
+  n6["~90s to load a 70B model"]
+  n7["$ kubectl describe hpa llm-server-hpa | tail -6"]
+  n8["Type Reason Age From Message"]
+  n9["------ ---- ----"]
+  n10["Normal SuccessfulRescale 45s horizontal-pod-autoscaler New size: 6; reason: external metric"]
+  n11["queue_depth above target"]
+  n12["Warning FailedGetExternalMetric 30s horizontal-pod-autoscaler unable to fetch metrics"]
+  n13["no data returned from custom metrics API"]
+  n14["← metrics pipeline gap = HPA flies blind"]
 ```
 The `FailedGetExternalMetric` warning is the operational trap: if the Prometheus adapter or metrics pipeline feeding KEDA/HPA has a gap (scrape failure, adapter restart), the autoscaler doesn't fail loudly — it just stalls at the last known replica count, silently, while queue depth may be climbing. Alert on metrics-pipeline health itself, not only on the scaling metric.
 
@@ -95,10 +74,10 @@ The `FailedGetExternalMetric` warning is the operational trap: if the Prometheus
 2. Explain why `kubectl top pod` and DCGM `DCGM_FI_DEV_GPU_UTIL` can disagree with a model server's own `num_requests_running` count as a scaling input, using the hardware-metric-vs-service-metric framing from the practitioner lens.
 
 ➕ **Visual model — separate the signal to scale from the signal to size:**
-```
-incoming work: queue depth + pending tokens + TTFT trend ─► demand is outrunning capacity ─► add replica
-GPU / KV state: GPU util + memory + cache pressure          ─► can this replica accept more work? ─► size headroom
-                                                          │
-                                              cold-start/model-load delay ─► predict early
+```mermaid
+flowchart LR
+    A["Incoming work: queue depth + pending tokens + TTFT trend"] --> B["Demand is outrunning capacity"] --> C["Add replica"]
+    D["GPU / KV state: GPU util + memory + cache pressure"] --> E["Can this replica accept more work?"] --> F["Size headroom"]
+    G["Cold-start/model-load delay"] -.->|predict early| C
 ```
 **Memory hook:** *"Queue tells you to scale; saturation tells you how much room remains."* CPU or raw GPU utilisation alone cannot express the user-facing SLO.

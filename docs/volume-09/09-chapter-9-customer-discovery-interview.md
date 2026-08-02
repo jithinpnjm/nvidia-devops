@@ -19,23 +19,16 @@ Use a funnel: business outcome -> workload/SLO -> current state -> constraints -
 ## ➕ Additions
 
 ➕ **The discovery funnel as a diagram:**
-```
-Business outcome ("why does this project exist")
-        │
-        ▼
-Workload / SLO ("what does success look like, measurably")
-        │
-        ▼
-Current state ("what exists today, what works, what doesn't")
-        │
-        ▼
-Constraints ("security, budget, skills, data residency, timeline")
-        │
-        ▼
-Risks ("what could make this fail, who owns that risk")
-        │
-        ▼
-Decision (recommendation the customer can act on)
+```mermaid
+flowchart TD
+    A["Business outcome (why does this project exist)"]
+    B["Workload / SLO (what does success look like, measurably)"]
+    C["Current state (what exists today, what works, what doesn't)"]
+    D["Constraints (security, budget, skills, data residency, timeline)"]
+    E["Risks (what could make this fail, who owns that risk)"]
+    F["Decision (recommendation the customer can act on)"]
+
+    A --> B --> C --> D --> E --> F
 ```
 ➕ **Memory hook:** *"BWCCRD — Business, Workload, Current-state, Constraints, Risks, Decision."* The funnel narrows on purpose — never open a discovery call at "Kubernetes or Slurm," always open at "why does this project exist."
 

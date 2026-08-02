@@ -37,33 +37,31 @@ cat /sys/fs/cgroup/&lt;path>/cpu.max
 | High system CPU | syscalls, networking, storage or kernel work | perf top, softirq counters, syscall profile |
 
 ➕ **Diagram: user mode / kernel mode, and where strace is actually watching**
-```
- User mode (application code)              Kernel mode (privileged)
- ┌───────────────────────┐   syscall      ┌──────────────────────────┐
- │ app logic, libc calls │ ─────────────▶ │ file/net/mem/proc         │
- │                       │                │ operation actually runs  │
- │                       │ ◀───────────── │ return value + errno     │
- └───────────────────────┘   sysret       └──────────────────────────┘
-        ▲                                          ▲
-        └──── strace attaches here, on the boundary, and records every crossing ────┘
+```mermaid
+flowchart LR
+    subgraph U["User mode (application code)"]
+        A["app logic, libc calls"]
+    end
+    subgraph K["Kernel mode (privileged)"]
+        B["file/net/mem/proc operation actually runs"]
+    end
+    A -->|syscall| B
+    B -->|"sysret: return value + errno"| A
+    A -.->|"strace attaches here, on the boundary, and records every crossing"| B
 ```
 This is why `strace` can answer "is it stuck" precisely: a process spinning in user mode never crosses this boundary (strace shows nothing, confirming a CPU-bound loop, not a wait); a process blocked in kernel mode shows the exact syscall it entered and hasn't returned from (e.g. `futex(...)` never returning = lock contention, `read(...)` never returning = the other end isn't sending).
 
 ➕ **Diagram: CPU-pressure triage, following the table above as a decision path**
-```
-Symptom: latency up, node CPU% looks unremarkable
-        │
-        ▼
-Check ps STAT/WCHAN ── many D-state? ──▶ uninterruptible I/O, not a CPU problem at all
-        │ no
-        ▼
-Check vmstat r vs core count ── r >> cores? ──▶ genuine runnable-task oversubscription
-        │ no
-        ▼
-Check cpu.stat nr_throttled ── climbing? ──▶ cgroup quota throttling (CFS bandwidth), not host CPU
-        │ no
-        ▼
-Check pidstat -w / perf sched latency ──▶ single hot thread or lock contention, not a fleet-wide issue
+```mermaid
+flowchart TD
+    S["Symptom: latency up, node CPU% looks unremarkable"] --> Q1{"ps STAT/WCHAN: many D-state?"}
+    Q1 -->|yes| R1[Uninterruptible I/O, not a CPU problem at all]
+    Q1 -->|no| Q2{"vmstat: r >> cores?"}
+    Q2 -->|yes| R2[Genuine runnable-task oversubscription]
+    Q2 -->|no| Q3{"cpu.stat nr_throttled climbing?"}
+    Q3 -->|yes| R3["Cgroup quota throttling (CFS bandwidth), not host CPU"]
+    Q3 -->|no| Q4["Check pidstat -w / perf sched latency"]
+    Q4 --> R4[Single hot thread or lock contention, not a fleet-wide issue]
 ```
 
 ## ➕ Senior addendum

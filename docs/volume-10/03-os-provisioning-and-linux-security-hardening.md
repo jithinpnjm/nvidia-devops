@@ -164,9 +164,13 @@ With that model in place, here's the full provisioning and hardening picture.
 
 For a beginner, "build the server" sounds like one action. Operations teams separate it into stages because each has a different failure mode and rollback:
 
-```text
-install OS → first-boot identity/network → configure role → harden → validate → admit work
-Kickstart     cloud-init/installer          Ansible       policy     tests      Slurm/BCM
+```mermaid
+flowchart LR
+    A["install OS (Kickstart)"] --> B["first-boot identity/network (cloud-init/installer)"]
+    B --> C["configure role (Ansible)"]
+    C --> D["harden (policy)"]
+    D --> E["validate (tests)"]
+    E --> F["admit work (Slurm/BCM)"]
 ```
 
 - **Provisioning** gets a repeatable base operating system onto a machine.
@@ -198,15 +202,12 @@ Once a node is provisionable (Chapter 1) and, if using a cluster manager, assign
 
 The pattern across all three: separate "what does this class of node look like" (partitioning, base packages, users, SSH hardening, hostname pattern) from "what job does it do" (GPU driver stack, Slurm client, container runtime) — the former belongs in the base kickstart/cloud-init config, the latter is layered on via config management (Ansible) or is baked into the golden image the cluster manager distributes.
 
-```
-%packages section (kickstart) or packages: list (cloud-init)
-   → base OS + kernel + minimal service set only
-%post / runcmd
-   → SSH hardening, firewall defaults, auditd enablement,
-     enrollment into config management (Ansible pull or agent registration)
-   → NOT driver/CUDA install here if a golden-image pipeline (BCM-style) owns that —
-     duplicating driver install logic in both the base provisioner and the image
-     pipeline is a drift source, pick one owner
+```mermaid
+flowchart TD
+    A["%packages section (kickstart) or packages: list (cloud-init)"] --> B["base OS + kernel + minimal service set only"]
+    B --> C["%post / runcmd"]
+    C --> D["SSH hardening, firewall defaults, auditd enablement, enrollment into config management (Ansible pull or agent registration)"]
+    D --> E["NOT driver/CUDA install here if a golden-image pipeline (BCM-style) owns that - duplicating driver install logic in both the base provisioner and the image pipeline is a drift source, pick one owner"]
 ```
 
 ## SELinux vs AppArmor
@@ -241,26 +242,31 @@ Max kernel policy version:       33
 
 ### SELinux triage flow (real, not aspirational)
 
-```
-1. Symptom: service fails with "Permission denied" despite correct Unix perms
-2. ausearch -m avc -ts recent          → find the denial record(s)
-3. audit2why < denial                  → human-readable explanation of why SELinux blocked it
-4. Decide: is this a legitimate access the policy should allow, or a real misconfiguration?
-     - legitimate → audit2allow -a -M mymodule; semodule -i mymodule.pp
-     - misconfig  → fix the actual file context/port label instead (restorecon, semanage port -a)
-5. Never leave step 4 unresolved by just running setenforce 0 permanently —
-   that's disabling the control, not fixing the finding
+```mermaid
+flowchart TD
+    A["1. Symptom: service fails with Permission denied despite correct Unix perms"] --> B["2. ausearch -m avc -ts recent"]
+    B --> B2["find the denial record(s)"]
+    B2 --> C["3. audit2why < denial"]
+    C --> C2["human-readable explanation of why SELinux blocked it"]
+    C2 --> D{"4. Legitimate access the policy should allow, or a real misconfiguration?"}
+    D -->|legitimate| E["audit2allow -a -M mymodule; semodule -i mymodule.pp"]
+    D -->|misconfig| F["fix the actual file context/port label instead (restorecon, semanage port -a)"]
+    E --> G["5. Never leave this unresolved by just running setenforce 0 permanently - that's disabling the control, not fixing the finding"]
+    F --> G
 ```
 
 ### AppArmor triage flow
 
-```
-1. Symptom: process fails or is silently restricted
-2. aa-status                            → confirm the profile is loaded and in enforce mode
-3. dmesg | grep DENIED  (or journalctl) → find the specific denied operation/path
-4. aa-genprof <binary>  or  aa-logprof  → interactively walk denials, choose allow/deny per line
-5. Reload: apparmor_parser -r /etc/apparmor.d/<profile>
-6. Re-test; iterate until clean under real workload, not just a smoke test
+```mermaid
+flowchart TD
+    A["1. Symptom: process fails or is silently restricted"] --> B["2. aa-status"]
+    B --> B2["confirm the profile is loaded and in enforce mode"]
+    B2 --> C["3. dmesg | grep DENIED (or journalctl)"]
+    C --> C2["find the specific denied operation/path"]
+    C2 --> D["4. aa-genprof binary or aa-logprof"]
+    D --> D2["interactively walk denials, choose allow/deny per line"]
+    D2 --> E["5. Reload: apparmor_parser -r /etc/apparmor.d/profile"]
+    E --> F["6. Re-test; iterate until clean under real workload, not just a smoke test"]
 ```
 
 The instinct to `setenforce 0` or set a profile to `complain` "just to get the service running" is the single most common way a hardened baseline quietly becomes an unhardened one — it should be a temporary diagnostic step, and every use of it should have a tracked follow-up to build the correct policy module, not a permanent fix.
@@ -276,12 +282,14 @@ A hardening pass (whether run via a CIS benchmark tool, OpenSCAP, or a bespoke A
 - **auditd** — rule sets watching identity/privilege files (`/etc/passwd`, `/etc/shadow`, `/etc/sudoers`), privileged command execution, and (per compliance regime) file access to sensitive data paths. `auditctl -l` shows the currently loaded rule set.
 
 Annotated `auditctl -l` fragment:
-```
-$ auditctl -l
--w /etc/passwd -p wa -k identity
--w /etc/shadow -p wa -k identity
--w /etc/sudoers -p wa -k identity
--a always,exit -F arch=b64 -S execve -F euid=0 -k root_exec       ← every root-executed syscall logged
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ auditctl -l"]
+  n1["w /etc/passwd -p wa -k identity"]
+  n2["w /etc/shadow -p wa -k identity"]
+  n3["w /etc/sudoers -p wa -k identity"]
+  n4["a always,exit -F arch=b64 -S execve -F euid=0 -k root_exec ← every root-executed syscall logged"]
 ```
 `-k identity` and `-k root_exec` are audit *keys* — labels that let `ausearch -k identity` pull exactly the relevant subset out of a large audit log instead of grepping raw text, which matters once a node has been running long enough to accumulate a genuinely large `audit.log`.
 
@@ -289,23 +297,12 @@ $ auditctl -l
 
 The reason you cannot treat GPU compute nodes like a stateless web-tier fleet (`apt/yum upgrade` on a schedule, reboot, move on) is a hard coupling most other Linux fleets don't have:
 
-```
-        Kernel version
-             │
-             │  must be within the driver's supported kernel ABI range
-             ▼
-        NVIDIA driver version  ── DKMS module build target ──┐
-             │                                                 │
-             │  must be within CUDA toolkit's supported        │
-             │  driver-version floor (CUDA X requires          │
-             │  driver >= Y)                                   │
-             ▼                                                  ▼
-        CUDA toolkit version                          any kernel bump that
-             │                                          changes kernel-module
-             │  application/framework pinned            ABI without a matching
-             │  CUDA version (PyTorch/TF build)          driver rebuild breaks
-             ▼                                            GPU visibility fleet-wide
-        Training/inference workload
+```mermaid
+flowchart TD
+    A[Kernel version] -->|"must be within the driver's supported kernel ABI range"| B[NVIDIA driver version]
+    B -->|DKMS module build target| E["Any kernel bump that changes kernel-module ABI without a matching driver rebuild breaks GPU visibility fleet-wide"]
+    B -->|"must be within CUDA toolkit's supported driver-version floor (CUDA X requires driver >= Y)"| C[CUDA toolkit version]
+    C -->|"application/framework pinned CUDA version (PyTorch/TF build)"| D[Training/inference workload]
 ```
 
 A routine `dnf update`/`apt upgrade` that pulls a newer kernel is, from this diagram, a gate — not a no-op — because the NVIDIA driver kernel module is typically built via DKMS against the running kernel headers. Bump the kernel without a coordinated driver rebuild/reinstall, and every node that reboots into the new kernel loses `nvidia.ko`, and `nvidia-smi` fails cluster-wide on next reboot, even though nothing about CUDA or the application layer changed.

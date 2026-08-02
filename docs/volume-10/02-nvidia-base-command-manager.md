@@ -24,9 +24,11 @@ Keep the tool boundaries clear:
 
 A **software image** is the reusable OS filesystem and installed stack. A **category** is a policy grouping: nodes in the same category inherit an image and common settings. A **head node** holds and serves that desired state; a **compute node** boots the result and runs work. This gives you a crucial diagnostic question: is the problem in the desired image, distribution of that image, or a node's live state after boot?
 
-```text
-category policy → software image → provisioning service → compute-node disk/RAM
-       desired state                                  observed state
+```mermaid
+flowchart LR
+    A["category policy (desired state)"] --> B[software image]
+    B --> C[provisioning service]
+    C --> D["compute-node disk/RAM (observed state)"]
 ```
 
 Do not memorize `cmsh` snippets without checking your installed BCM release. Learn the object model and change workflow first, then verify syntax in the matching administrator manual. In BCM 11, provisioning behavior and external package ownership differ from older Bright/BCM releases; operational procedures must therefore be version-qualified rather than copied blindly from an older cluster.
@@ -39,31 +41,27 @@ This chapter describes BCM's architecture and operational model the way cluster-
 
 ## Architecture
 
-```
-                     ┌─────────────────────────────┐
-                     │          Head Node           │
-                     │  (or HA pair: active/passive)│
-                     │                              │
-                     │  - CMDaemon (management svc) │
-                     │  - Image repository           │
-                     │  - Node categories/profiles   │
-                     │  - Provisioning (PXE/DHCP)     │
-                     │  - Monitoring database         │
-                     │  - Workload-manager config     │
-                     │    (Slurm/Kubernetes install)  │
-                     └───────────────┬──────────────┘
-                                     │ management network
-              ┌──────────────────────┼──────────────────────┐
-              │                      │                      │
-     ┌────────▼────────┐   ┌─────────▼────────┐   ┌─────────▼────────┐
-     │ Node Category:   │   │ Node Category:    │   │ Node Category:    │
-     │ "gpu-a100"        │   │ "gpu-h100-canary"  │   │ "login"            │
-     │ image: gpu-img-v42│   │ image: gpu-img-v43 │   │ image: login-img-v9│
-     │ nodes: 01..30     │   │ nodes: 31          │   │ nodes: login-01/02 │
-     └──────────────────┘   └────────────────────┘   └────────────────────┘
-              │                       │                        │
-        each node runs a lightweight CMDaemon agent that reports health/metrics
-        back to the head node and pulls its category's image + config on (re)provision
+```mermaid
+flowchart TD
+    HN["Head Node (or HA pair: active/passive)
+    - CMDaemon (management svc)
+    - Image repository
+    - Node categories/profiles
+    - Provisioning (PXE/DHCP)
+    - Monitoring database
+    - Workload-manager config (Slurm/Kubernetes install)"]
+    HN -->|management network| C1["Node Category: gpu-a100
+    image: gpu-img-v42
+    nodes: 01..30"]
+    HN -->|management network| C2["Node Category: gpu-h100-canary
+    image: gpu-img-v43
+    nodes: 31"]
+    HN -->|management network| C3["Node Category: login
+    image: login-img-v9
+    nodes: login-01/02"]
+    C1 -.->|"CMDaemon agent: reports health/metrics, pulls image + config on (re)provision"| HN
+    C2 -.->|"CMDaemon agent: reports health/metrics, pulls image + config on (re)provision"| HN
+    C3 -.->|"CMDaemon agent: reports health/metrics, pulls image + config on (re)provision"| HN
 ```
 
 Key concepts:
@@ -77,33 +75,32 @@ Key concepts:
 
 ## Representative `cmsh` interaction
 
-```
-$ cmsh
-[headnode]% category
-[headnode->category]% list
-Name              Software Image        Nodes
------------------ ---------------------- -----
-default            default-image           2
-gpu-a100            gpu-img-v42             30
-gpu-h100-canary     gpu-img-v43              1
-login               login-img-v9             2
-
-[headnode->category]% use gpu-a100
-[headnode->category[gpu-a100]]% show
-Parameter                Value
-------------------------  --------------------
-Name                      gpu-a100
-Software image            gpu-img-v42
-Nodes                     30
-Kernel modules             nvidia, nvidia-uvm, mlx5_core
-Node prolog/epilog scripts  /cm/local/apps/... (health-check hooks)
-
-[headnode->category[gpu-a100]]% device list -c gpu-a100
-Node          Category    Status     Image        Health
-------------  ----------  ---------  -----------  -------
-gpu-node-01   gpu-a100    UP         gpu-img-v42  HEALTHY
-gpu-node-02   gpu-a100    UP         gpu-img-v42  HEALTHY
-gpu-node-09   gpu-a100    UP         gpu-img-v42  DRAINED   ← health check flagged it, excluded from Slurm scheduling
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ cmsh"]
+  n1["[headnode]% category"]
+  n2["[headnode->category]% list"]
+  n3["Name Software Image Nodes"]
+  n4["----------------------"]
+  n5["default default-image 2"]
+  n6["gpu-a100 gpu-img-v42 30"]
+  n7["gpu-h100-canary gpu-img-v43 1"]
+  n8["login login-img-v9 2"]
+  n9["[headnode->category]% use gpu-a100"]
+  n10["[headnode->category[gpu-a100]]% show"]
+  n11["Parameter Value"]
+  n12["Name gpu-a100"]
+  n13["Software image gpu-img-v42"]
+  n14["Nodes 30"]
+  n15["Kernel modules nvidia, nvidia-uvm, mlx5_core"]
+  n16["Node prolog/epilog scripts /cm/local/apps/... (health-check hooks)"]
+  n17["[headnode->category[gpu-a100]]% device list -c gpu-a100"]
+  n18["Node Category Status Image Health"]
+  n19["---------- --------- -----------"]
+  n20["gpu-node-01 gpu-a100 UP gpu-img-v42 HEALTHY"]
+  n21["gpu-node-02 gpu-a100 UP gpu-img-v42 HEALTHY"]
+  n22["gpu-node-09 gpu-a100 UP gpu-img-v42 DRAINED ← health check flagged it, excluded from Slurm scheduling"]
 ```
 (Again: treat command names/nesting above as illustrative of the interaction pattern — the categorized, image-centric view of the fleet, drill-down from category to member nodes to per-node health — not as verified exact syntax.)
 
@@ -111,14 +108,22 @@ gpu-node-09   gpu-a100    UP         gpu-img-v42  DRAINED   ← health check fla
 
 The general model for any image-based cluster manager: you do not patch nodes in place one at a time and hope they converge — you build or update a golden image, then move node categories onto it in a controlled sequence.
 
-```
-1. Build/update the software image  (new kernel, new NVIDIA driver, new CUDA toolkit version, package updates)
-2. Validate the image in isolation   (boot a spare/test node onto it, run the health-check suite + a representative job)
-3. Create or repoint a canary category onto the new image  (small node subset, e.g. 1-2 nodes out of 30)
-4. Soak the canary                    (run real or synthetic jobs, watch for driver/ECC/NCCL regressions, days not minutes)
-5. Repoint the main category onto the new image incrementally  (batches, not all 30 nodes at once)
-6. Each batch: drain from Slurm → reboot into new image → health-check → rejoin partition
-7. Roll back a batch by repointing it back to the previous image if health checks or job telemetry regress
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["1. Build/update the software image (new kernel, new NVIDIA driver, new CUDA toolkit version, package updates)"]
+  n1["2. Validate the image in isolation (boot a spare/test node onto it, run the health-check suite + a representative job)"]
+  n2["3. Create or repoint a canary category onto the new image (small node subset, e.g. 1-2 nodes out of 30)"]
+  n3["4. Soak the canary (run real or synthetic jobs, watch for driver/ECC/NCCL regressions, days not minutes)"]
+  n4["5. Repoint the main category onto the new image incrementally (batches, not all 30 nodes at once)"]
+  n5["6. Each batch: drain from Slurm"]
+  n6["reboot into new image"]
+  n7["health-check"]
+  n8["rejoin partition"]
+  n9["7. Roll back a batch by repointing it back to the previous image if health checks or job telemetry regress"]
+  n5 --> n6
+  n6 --> n7
+  n7 --> n8
 ```
 
 ## Where BCM sits relative to Ansible/Terraform

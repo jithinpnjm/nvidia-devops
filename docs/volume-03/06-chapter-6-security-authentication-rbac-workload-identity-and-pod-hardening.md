@@ -20,38 +20,43 @@ kubectl auth can-i --list --as=system:serviceaccount:team-a:app -n team-a
 A ServiceAccount identifies a Kubernetes workload to the API. Cloud workload identity mechanisms can map workload identity to cloud IAM without static keys. Keep these trust domains conceptually separate: Kubernetes RBAC authorizes Kubernetes API actions; cloud IAM authorizes cloud APIs.
 
 ➕ **The two trust domains, drawn side by side — this diagram is the single highest-value thing to have ready for a security question in this interview:**
-```
-KUBERNETES RBAC DOMAIN                    CLOUD IAM DOMAIN
-────────────────────────                  ──────────────────
-ServiceAccount "app" in ns team-a         Cloud IAM Role "training-data-reader"
-        │                                          │
-   Role/ClusterRole + RoleBinding            IAM policy attached to the role
-   → "can GET pods, secrets in team-a"       → "can read s3://training-bucket/*"
-        │                                          │
-   Authorizes: kube-apiserver verbs          Authorizes: cloud provider API calls
-   (get/list/watch/create/... on              (S3 GetObject, GCS storage.objects.get,
-    K8s resources)                             Azure Blob Read, etc.)
+```mermaid
+flowchart TD
+    subgraph K8s["KUBERNETES RBAC DOMAIN"]
+        direction TD
+        SA["ServiceAccount 'app' in ns team-a"]
+        Role["Role/ClusterRole + RoleBinding<br/>can GET pods, secrets in team-a"]
+        AuthzK["Authorizes: kube-apiserver verbs (get/list/watch/create/... on K8s resources)"]
+        SA --> Role --> AuthzK
+    end
 
-        └──────────────┬───────────────────────────┘
-                        │  WORKLOAD IDENTITY FEDERATION is the bridge:
-                        │  ServiceAccount token (OIDC-compatible JWT) is exchanged,
-                        │  via a trust relationship configured OUTSIDE Kubernetes,
-                        │  for temporary cloud credentials — NO static keys stored
-                        │  in the Pod, in a Secret, or anywhere in the cluster.
-                        ▼
-              Pod's process calls cloud SDK → SDK finds the projected token,
-              exchanges it, gets short-lived cloud creds, calls cloud API.
+    subgraph Cloud["CLOUD IAM DOMAIN"]
+        direction TD
+        IAMRole["Cloud IAM Role 'training-data-reader'"]
+        Policy["IAM policy attached to the role<br/>can read s3://training-bucket/*"]
+        AuthzC["Authorizes: cloud provider API calls (S3 GetObject, GCS storage.objects.get, Azure Blob Read, etc.)"]
+        IAMRole --> Policy --> AuthzC
+    end
+
+    Bridge["WORKLOAD IDENTITY FEDERATION is the bridge:<br/>ServiceAccount token (OIDC-compatible JWT) is exchanged, via a trust relationship configured OUTSIDE Kubernetes, for temporary cloud credentials -- NO static keys stored in the Pod, in a Secret, or anywhere in the cluster."]
+    Call["Pod's process calls cloud SDK -- SDK finds the projected token, exchanges it, gets short-lived cloud creds, calls cloud API."]
+
+    AuthzK --> Bridge
+    AuthzC --> Bridge
+    Bridge --> Call
 ```
 ➕ **Interview-ready line:** "RBAC and cloud IAM are two separate authorization systems that happen to share an identity via workload identity federation — a ServiceAccount having `cluster-admin` tells you nothing about its cloud permissions, and a wide-open IAM role tells you nothing about its Kubernetes RBAC. Auditing one without the other is an incomplete security review, and it's a common gap I'd specifically call out to a customer."
 
 ➕ **Sample annotated output — auditing what a ServiceAccount can actually do, both domains:**
-```
-$ kubectl auth can-i --list --as=system:serviceaccount:team-a:app -n team-a
-Resources                  Non-Resource URLs   Verbs
-pods                       []                   [get list watch]
-secrets                    []                   [get list]           ← can read ALL secrets in ns,
-                                                                         not just the ones it needs
-configmaps                 []                   [get list watch]
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ kubectl auth can-i --list --as=system:serviceaccount:team-a:app -n team-a"]
+  n1["Resources Non-Resource URLs Verbs"]
+  n2["pods [] [get list watch]"]
+  n3["secrets [] [get list] ← can read ALL secrets in ns,"]
+  n4["not just the ones it needs"]
+  n5["configmaps [] [get list watch]"]
 ```
 `secrets: [get list]` at namespace scope, not scoped to specific named secrets, is the thing to flag — RBAC has no field-level or name-based secret restriction by default (only via naming patterns encoded into more granular Roles, or an admission policy), so "this ServiceAccount can read secrets" usually means *every* secret in that namespace, including ones unrelated to the workload's actual job. This is the most common RBAC over-grant pattern to catch in a review.
 
@@ -65,25 +70,18 @@ aws iam get-role-policy --role-name <role-from-above> --policy-name <policy>
 Running both halves together is exactly the "what could an attacker who compromises this one Pod actually do" question a Senior SA is expected to answer end-to-end, not just the Kubernetes half.
 
 ➕ **Diagram: the RBAC allow/deny decision itself, from request to verdict:**
-```
- Request: verb=get, resource=secrets, namespace=team-a, user=system:serviceaccount:team-a:app
-        │
-        ▼
- Find every RoleBinding/ClusterRoleBinding whose `subjects` includes this identity
-        │
-        ▼
- Union the rules from every Role/ClusterRole those bindings reference
-        │
-        ▼
- Does ANY rule match {verb, resource, apiGroup, (resourceName if specified)}?
-        │
-   ┌────┴────┐
-   ▼         ▼
-  YES        NO
-  ALLOW      DENY (RBAC is default-deny and purely additive —
-              there is no explicit "deny" rule type; you can only
-              grant less, never subtract from a broader grant
-              elsewhere)
+```mermaid
+flowchart TD
+    Req["Request: verb=get, resource=secrets, namespace=team-a, user=system:serviceaccount:team-a:app"]
+    Find["Find every RoleBinding/ClusterRoleBinding whose subjects includes this identity"]
+    Union["Union the rules from every Role/ClusterRole those bindings reference"]
+    Match{"Does ANY rule match {verb, resource, apiGroup, (resourceName if specified)}?"}
+    Allow["ALLOW"]
+    Deny["DENY (RBAC is default-deny and purely additive -- there is no explicit deny rule type; you can only grant less, never subtract from a broader grant elsewhere)"]
+
+    Req --> Find --> Union --> Match
+    Match -->|YES| Allow
+    Match -->|NO| Deny
 ```
 The purely-additive property is the thing to state unprompted in a review: if a ServiceAccount is over-granted by one RoleBinding, no *other* RoleBinding can claw that access back — the fix is always to narrow or remove the over-broad grant itself.
 
@@ -109,13 +107,15 @@ Security settings should derive from workload need. Privileged mode, hostPath, h
 | `capabilities: drop: ["ALL"]` | every Linux capability not explicitly re-added | `CAP_SYS_ADMIN`/`CAP_NET_RAW`/etc. abuse — most container escapes need a specific capability, not just root |
 
 ➕ **Sample annotated output — proving hardening actually took effect, not just that the YAML exists:**
-```
-$ kubectl exec -it hardened-pod -- id
-uid=1000(app) gid=1000(app)          ← confirms runAsNonRoot actually applied, not just declared
-$ kubectl exec -it hardened-pod -- touch /etc/test
-touch: cannot touch '/etc/test': Read-only file system   ← readOnlyRootFilesystem confirmed live
-$ kubectl exec -it hardened-pod -- cat /proc/1/status | grep CapEff
-CapEff: 0000000000000000            ← zero effective capabilities — drop:[ALL] confirmed live
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ kubectl exec -it hardened-pod -- id"]
+  n1["uid=1000(app) gid=1000(app) ← confirms runAsNonRoot actually applied, not just declared"]
+  n2["$ kubectl exec -it hardened-pod -- touch /etc/test"]
+  n3["touch: cannot touch '/etc/test': Read-only file system ← readOnlyRootFilesystem confirmed live"]
+  n4["$ kubectl exec -it hardened-pod -- cat /proc/1/status | grep CapEff"]
+  n5["CapEff: 0000000000000000 ← zero effective capabilities — drop:[ALL] confirmed live"]
 ```
 Declaring `securityContext` in YAML and *verifying* it took effect are different claims — admission policy, a mutating webhook, or a runtime class override can all silently negate a securityContext setting, so the exec-in-and-check pattern above is the actual evidence, not the manifest.
 

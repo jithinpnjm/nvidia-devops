@@ -37,32 +37,30 @@ The scale problem: with 200+ nodes in a category, drift detection can't be a man
 
 BCM's healthchecker framework (`cmhealth`, wired into `cmsh -c "device; healthconf"`) treats every check as equivalent — pass/fail/unknown. Operationally they are not equivalent, and a mature deployment separates checks into three tiers because the *correct remediation* differs by tier:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ Tier 1 — HARDWARE HEALTH                                          │
-│  GPU ECC errors (Xid), NVLink link-down, PSU/fan fault,           │
-│  disk SMART pre-fail                                              │
-│  → Remediation: ALERT + auto-DRAIN (never auto-reboot;            │
-│    hardware faults don't self-heal on reboot and a reboot can     │
-│    mask an escalating ECC pattern you need to see)                │
-├─────────────────────────────────────────────────────────────────┤
-│ Tier 2 — SOFTWARE HEALTH                                           │
-│  driver/CUDA version mismatch vs category baseline,                │
-│  category drift (grabimage diff), stuck kernel module,            │
-│  filesystem mount missing                                          │
-│  → Remediation: auto-DRAIN + auto-REIMAGE from category            │
-│    (software state is reproducible from the image — a reboot      │
-│    alone won't fix a bad driver, but re-provisioning will)         │
-├─────────────────────────────────────────────────────────────────┤
-│ Tier 3 — WORKLOAD-READINESS HEALTH                                  │
-│  NCCL self-test failure, GPU-to-GPU bandwidth below threshold,     │
-│  Slurm prolog health-check script failure, PMIx bootstrap probe   │
-│  → Remediation: auto-DRAIN only (mark unavailable to the           │
-│    scheduler); do NOT auto-reboot or auto-reimage — the node       │
-│    may be fine and the failure may be transient/topology-related, │
-│    so it needs a human or a second confirming check before        │
-│    anything destructive happens)                                   │
-└─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["Tier 1 — HARDWARE HEALTH"]
+  n1["GPU ECC errors (Xid), NVLink link-down, PSU/fan fault,"]
+  n2["disk SMART pre-fail"]
+  n3["Remediation: ALERT + auto-DRAIN (never auto-reboot;"]
+  n4["hardware faults don't self-heal on reboot and a reboot can"]
+  n5["mask an escalating ECC pattern you need to see)"]
+  n6["Tier 2 — SOFTWARE HEALTH"]
+  n7["driver/CUDA version mismatch vs category baseline,"]
+  n8["category drift (grabimage diff), stuck kernel module,"]
+  n9["filesystem mount missing"]
+  n10["Remediation: auto-DRAIN + auto-REIMAGE from category"]
+  n11["(software state is reproducible from the image — a reboot"]
+  n12["alone won't fix a bad driver, but re-provisioning will)"]
+  n13["Tier 3 — WORKLOAD-READINESS HEALTH"]
+  n14["NCCL self-test failure, GPU-to-GPU bandwidth below threshold,"]
+  n15["Slurm prolog health-check script failure, PMIx bootstrap probe"]
+  n16["Remediation: auto-DRAIN only (mark unavailable to the"]
+  n17["scheduler); do NOT auto-reboot or auto-reimage — the node"]
+  n18["may be fine and the failure may be transient/topology-related,"]
+  n19["so it needs a human or a second confirming check before"]
+  n20["anything destructive happens)"]
 ```
 
 The reason this separation matters: an auto-reboot policy applied uniformly across all checks is actively dangerous. Rebooting a node with an escalating GPU ECC error can silently accept a partially-failed HBM row and put it back into service; auto-reimaging in response to a transient NCCL self-test blip (e.g., a leaf switch briefly recalculating routes) throws away twenty minutes of provisioning time to fix nothing. Tier 1 gets you paged; Tier 2 gets you a self-healing image re-push; Tier 3 gets you a drained node and a decision point.

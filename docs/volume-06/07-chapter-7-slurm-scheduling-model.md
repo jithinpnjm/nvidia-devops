@@ -18,68 +18,78 @@ sacct -j <jobid> --format=JobID,State,Elapsed,AllocTRES,ExitCode
 ```
 
 ➕ **The Slurm object model, drawn out — "jobs, allocations, partitions, nodes" as a hierarchy:**
-```
-Cluster
-  └── Partition "gpu-a100"  (a named subset of nodes + policy: max time, priority, access)
-         └── Node gpu-node-03  (physical/virtual host, has GRES: gpu:8)
-         └── Node gpu-node-04
-                └── Job 40231 (submitted by user, requests resources)
-                       └── Allocation  (the specific nodes/GPUs/cores GRANTED to this job)
-                              └── Job Step 0  (srun invocation #1 within the allocation — e.g. rank launch)
-                              └── Job Step 1  (a second srun — e.g. a follow-up profiling pass)
+```mermaid
+flowchart TD
+    Cluster --> Partition["Partition 'gpu-a100'
+    (a named subset of nodes + policy:
+    max time, priority, access)"]
+    Partition --> Node3["Node gpu-node-03
+    (physical/virtual host, has GRES: gpu:8)"]
+    Partition --> Node4["Node gpu-node-04"]
+    Node4 --> Job["Job 40231
+    (submitted by user, requests resources)"]
+    Job --> Alloc["Allocation
+    (the specific nodes/GPUs/cores GRANTED to this job)"]
+    Alloc --> Step0["Job Step 0
+    (srun invocation #1 within the allocation - e.g. rank launch)"]
+    Alloc --> Step1["Job Step 1
+    (a second srun - e.g. a follow-up profiling pass)"]
 ```
 The distinction worth being precise about in an interview: a **job** is a request + accounting record; an **allocation** is the concrete resource grant; a **step** is one execution *within* that grant. A single job can run multiple steps sequentially or concurrently inside one allocation — this is how a Slurm job can, e.g., run a short data-staging step and then the main multi-hour training step without releasing and re-requesting the allocation in between.
 
 ➕ **Diagram: the Slurm job lifecycle — submit through accounting**
-```
-sbatch/srun submit
-      │
-      ▼
- PENDING (queued) ──── squeue ST=PD, reason=(Priority) or (Resources)
-      │  scheduler finds priority slot + free/contiguous capacity
-      ▼
- RUNNING (allocation granted) ──── squeue ST=R, sinfo shows nodes 'alloc'
-      │  job steps execute inside the allocation (srun #0, #1, ...)
-      ▼
- COMPLETING / terminal state ──── COMPLETED, TIMEOUT, CANCELLED, FAILED
-      │
-      ▼
- accounting record ──── sacct: State, Elapsed, AllocTRES, ExitCode (permanent)
+```mermaid
+flowchart TD
+    A["sbatch/srun submit"] --> B["PENDING (queued)
+    squeue ST=PD, reason=(Priority) or (Resources)"]
+    B -->|"scheduler finds priority slot +
+    free/contiguous capacity"| C["RUNNING (allocation granted)
+    squeue ST=R, sinfo shows nodes 'alloc'"]
+    C -->|"job steps execute inside the
+    allocation (srun #0, #1, ...)"| D["COMPLETING / terminal state
+    COMPLETED, TIMEOUT, CANCELLED, FAILED"]
+    D --> E["accounting record
+    sacct: State, Elapsed, AllocTRES, ExitCode (permanent)"]
 ```
 `squeue` only shows the PENDING/RUNNING window — once a job leaves that window it disappears from `squeue` and the only record left is `sacct`, which is why `TIMEOUT` vs `FAILED` vs `CANCELLED` (all invisible to squeue after the fact) has to be read from accounting, not from the live queue.
 
 ➕ **Sample `sinfo` output, annotated:**
-```
-$ sinfo
-PARTITION   AVAIL  TIMELIMIT  NODES  STATE  NODELIST
-gpu-a100*      up   7-00:00:0     6   idle  gpu-node-[01-06]
-gpu-a100*      up   7-00:00:0     2  alloc  gpu-node-[07-08]
-gpu-a100*      up   7-00:00:0     1   drain gpu-node-09        ← taken out of scheduling, NOT down
-gpu-h100       up   3-00:00:0     4   idle  gpu-node-[10-13]
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ sinfo"]
+  n1["PARTITION AVAIL TIMELIMIT NODES STATE NODELIST"]
+  n2["gpu-a100* up 7-00:00:0 6 idle gpu-node-[01-06]"]
+  n3["gpu-a100* up 7-00:00:0 2 alloc gpu-node-[07-08]"]
+  n4["gpu-a100* up 7-00:00:0 1 drain gpu-node-09 ← taken out of scheduling, NOT down"]
+  n5["gpu-h100 up 3-00:00:0 4 idle gpu-node-[10-13]"]
 ```
 `drain` is the state to know cold: the node is still up and reachable, but Slurm will not schedule new jobs on it — usually set deliberately (pending maintenance, or a prolog script failed and auto-drained it per Deep Dive 5). This is different from `down` (unreachable/failed) and different from `alloc` (fully busy but healthy) — conflating "drain" with "broken" is a common junior-engineer mistake this table should immunize you against.
 
 ➕ **Sample `squeue` output, annotated:**
-```
-$ squeue
-  JOBID PARTITION     NAME     USER  ST       TIME  NODES NODELIST(REASON)
-  40231   gpu-a100  llm-pt-8b   jdoe   R    3:12:08      8 gpu-node-[01-08]
-  40255   gpu-a100    eval-run   asmith  PD       0:00      2 (Priority)          ← pending, lower priority
-  40256   gpu-a100  big-sweep   bchen   PD       0:00     16 (Resources)          ← pending, not enough free nodes
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ squeue"]
+  n1["JOBID PARTITION NAME USER ST TIME NODES NODELIST(REASON)"]
+  n2["40231 gpu-a100 llm-pt-8b jdoe R 3:12:08 8 gpu-node-[01-08]"]
+  n3["40255 gpu-a100 eval-run asmith PD 0:00 2 (Priority) ← pending, lower priority"]
+  n4["40256 gpu-a100 big-sweep bchen PD 0:00 16 (Resources) ← pending, not enough free nodes"]
 ```
 `ST=PD` with reason `(Priority)` versus `(Resources)` is a genuinely different answer to "why is my job not running yet" — `(Priority)` means capacity exists but a higher fair-share/priority job is ahead of you in queue; `(Resources)` means there is not currently enough free capacity for your request, full stop, regardless of priority. Telling a customer/user the wrong one of these is a common support miss.
 
 ➕ **Sample `scontrol show job` and `sacct` output, annotated (the accounting/forensics half of the toolset):**
-```
-$ scontrol show job 40231 | grep -E 'JobState|Reason|NodeList|TRES'
-   JobState=RUNNING Reason=None
-   NodeList=gpu-node-[01-08]
-   TRES=cpu=64,mem=512G,gres/gpu=8,node=8
-
-$ sacct -j 40199 --format=JobID,State,Elapsed,AllocTRES,ExitCode
-JobID           State    Elapsed        AllocTRES ExitCode
-40199        TIMEOUT   7-00:00:00 cpu=64,gres/gpu=8      0:0    ← ran to its wall-clock limit, was killed — NOT a crash
-40199.0      CANCELLED  6-23:58:41 cpu=64,gres/gpu=8      0:0
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ scontrol show job 40231 | grep -E 'JobState|Reason|NodeList|TRES'"]
+  n1["JobState=RUNNING Reason=None"]
+  n2["NodeList=gpu-node-[01-08]"]
+  n3["TRES=cpu=64,mem=512G,gres/gpu=8,node=8"]
+  n4["$ sacct -j 40199 --format=JobID,State,Elapsed,AllocTRES,ExitCode"]
+  n5["JobID State Elapsed AllocTRES ExitCode"]
+  n6["40199 TIMEOUT 7-00:00:00 cpu=64,gres/gpu=8 0:0 ← ran to its wall-clock limit, was killed — NOT a crash"]
+  n7["40199.0 CANCELLED 6-23:58:41 cpu=64,gres/gpu=8 0:0"]
 ```
 `State=TIMEOUT` with `ExitCode=0:0` is a specific, important pattern: the job's own code never returned a nonzero exit — it was still healthy and running when Slurm's wall-clock limit killed it. This is a scheduling/checkpoint-cadence problem ("your job needs more wall time, or needs to checkpoint more often so a restart doesn't waste 7 days"), not an application-crash problem — and `sacct` is the only place this distinction is visible after the fact, since the live job is already gone by the time anyone investigates.
 

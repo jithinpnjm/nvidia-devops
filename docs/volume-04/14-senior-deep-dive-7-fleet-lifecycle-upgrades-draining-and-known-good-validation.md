@@ -14,11 +14,10 @@ Base Command Manager remains relevant for on-prem AI/HPC estates where bare-meta
 *(original text — the provision→validate→admit→observe→drain→upgrade→revalidate→return lifecycle, canary node groups, the firmware/NIC/OFED-DOCA/kernel/driver compatibility matrix, and Base Command Manager's role for on-prem AI/HPC estates — preserved above in full. This is new ground relative to the core chapters — no chapter to cross-reference.)*
 
 ➕ **The lifecycle as a state diagram, since the original text gives the sequence in prose:**
-```
-provision → validate → admit workloads → observe → drain → upgrade → revalidate → return to service
-    │                                                   ▲                              │
-    │                                                   └──────────────────────────────┘
-    └── canary node group runs this FULL loop first, before the fleet-wide rollout follows
+```mermaid
+flowchart LR
+    P[provision] --> V[validate] --> A[admit workloads] --> O[observe] --> D[drain] --> U[upgrade] --> R[revalidate] --> RTS[return to service]
+    D -.->|"canary node group runs this FULL loop first,<br/>before the fleet-wide rollout follows"| U
 ```
 **Interview-ready line:** "Draining is not the end of the lifecycle, it's the midpoint — a node that's been upgraded but not revalidated with the same smoke tests it was provisioned with is not yet 'known-good,' it's just 'no longer known-bad.'"
 

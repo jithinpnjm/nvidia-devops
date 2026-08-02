@@ -27,27 +27,31 @@ nsenter -t <PID> -n ip route
 ```
 
 ➕ **The pause-container mechanism, precisely (why `nsenter` even works this way):**
-```
-Pod "web" (2 containers)
-┌─────────────────────────────────────────────┐
-│ pause container: holds open NET+IPC namespace │ ← created first, never restarts
-│   app container 1: own PID/MNT, shares NET/IPC │
-│   app container 2: own PID/MNT, shares NET/IPC │
-└─────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph POD["Pod \"web\" (2 containers)"]
+        P["pause container: holds open NET+IPC namespace (created first, never restarts)"]
+        A1["app container 1: own PID/MNT, shares NET/IPC"]
+        A2["app container 2: own PID/MNT, shares NET/IPC"]
+    end
 ```
 `nsenter -t <pause_PID> -n ip addr` and `nsenter -t <app_container_PID> -n ip addr` return the *same* output — proving the shared netns live, not just in theory. Killing the pause container process (rare, but happens on some node-level cleanup bugs) drops pod networking even with app containers still technically alive — a real, if unusual, incident signature worth recognizing.
 
 ➕ **Diagram: which namespaces are shared vs. private, per container in a Pod**
-```
-                         Pod boundary
-      ┌───────────────────────────────────────────────────┐
-      │  NET namespace   ─── shared by ALL containers ──── │  (one IP, one port space)
-      │  IPC namespace   ─── shared by ALL containers ──── │  (shared memory segments)
-      ├───────────────────┬───────────────────┬────────────┤
-      │  pause container  │  app container 1  │ app cont. 2│
-      │  (owns NET+IPC)   │  own PID namespace│ own PID ns │
-      │                   │  own MNT namespace│ own MNT ns │
-      └───────────────────┴───────────────────┴────────────┘
+```mermaid
+flowchart TD
+    subgraph PB["Pod boundary"]
+        NET["NET namespace — shared by ALL containers (one IP, one port space)"]
+        IPC["IPC namespace — shared by ALL containers (shared memory segments)"]
+        subgraph Containers[" "]
+            direction LR
+            PC["pause container (owns NET+IPC)"]
+            AC1["app container 1 — own PID namespace, own MNT namespace"]
+            AC2["app container 2 — own PID ns, own MNT ns"]
+        end
+        NET --- Containers
+        IPC --- Containers
+    end
 ```
 This is why `kubectl exec` into one container can `curl localhost:<port>` and reach a server listening in a *different* container of the same Pod (shared NET namespace, so "localhost" is genuinely shared) — but cannot see the other container's processes in `ps` (private PID namespaces).
 
@@ -75,12 +79,10 @@ Same "limits" word, two completely different enforcement mechanisms and two comp
 A container image is a filesystem/content package plus metadata. Isolation comes from how the runtime launches the process: namespaces, cgroups, mounts, capabilities, seccomp, LSM policy and device access. This distinction is essential when debugging "container" problems that are actually host-kernel or cgroup problems.
 
 ➕ **The runtime chain and where GPU access is actually injected:**
-```
-kubelet → CRI (gRPC) → containerd/CRI-O → runc (OCI runtime: does the literal clone() call)
-                                             │
-                                    NVIDIA Container Toolkit hooks in here as an OCI
-                                    prestart hook — injects /dev/nvidia* + driver libs
-                                    into the container's mount namespace at creation time
+```mermaid
+flowchart LR
+    K[kubelet] -->|CRI gRPC| CR["containerd/CRI-O"] --> R["runc (OCI runtime: does the literal clone() call)"]
+    R -.->|"NVIDIA Container Toolkit hooks in here as an OCI prestart hook"| H["injects /dev/nvidia* + driver libs into the container's mount namespace at creation time"]
 ```
 "How does a container see the GPU" has a precise answer: a prestart hook, not magic, not a special container type. Worth being able to say this exact chain without hesitation — it's a very likely interview question given the role.
 
@@ -91,15 +93,17 @@ merged (what the process sees) = upperdir (container's own writes) + lowerdir (i
 Writes not going to a mounted volume live in `upperdir` and disappear when the container is removed. Heavy write-churn to `upperdir` (an app logging to a local file instead of stdout, or large temp files) causes real overlay-layer I/O overhead that's easy to misattribute to "the disk is slow."
 
 ➕ **Diagram: the overlay stack, bottom to top**
-```
-┌────────────────────────────────────────────────┐  ← merged view (what the process sees)
-│           upperdir (container's own writes,      │     top layer wins on conflicts
-│           read-write, gone when container removed)│
-├────────────────────────────────────────────────┤
-│  image layer N (top-most, read-only)              │
-│  image layer N-1  ...                             │  ← lowerdir, stacked, read-only,
-│  image layer 1 (base, read-only)                  │     shared across every container
-└────────────────────────────────────────────────┘     started from this image
+```mermaid
+flowchart TD
+    M["merged view (what the process sees) — top layer wins on conflicts"]
+    U["upperdir (container's own writes, read-write, gone when container removed)"]
+    subgraph LD["lowerdir — stacked, read-only, shared across every container started from this image"]
+        LN["image layer N (top-most, read-only)"]
+        LN1["image layer N-1 ..."]
+        L1["image layer 1 (base, read-only)"]
+        LN --> LN1 --> L1
+    end
+    M --> U --> LN
 ```
 Reading a file that exists only in a lower layer costs one lookup; writing to it triggers copy-up (the whole file is copied into `upperdir` before the write applies) — large files modified frequently in lower layers are the specific pattern that turns "trivial write" into real, unexpected I/O.
 

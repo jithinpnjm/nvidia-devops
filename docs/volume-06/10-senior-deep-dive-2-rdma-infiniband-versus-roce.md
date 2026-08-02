@@ -12,24 +12,37 @@ GPUDirect RDMA reduces unnecessary copies through host memory by enabling direct
 ## Senior addendum
 
 ➕ **Diagram: the end-to-end path this Deep Dive says to "think" through**
-```
-GPU memory ──▶ PCIe/NVLink ──▶ NIC ──▶ fabric (IB or RoCE) ──▶ remote NIC ──▶ PCIe/NVLink ──▶ remote GPU memory
-     │                            │                                │                              │
-  no copy needed             GPUDirect RDMA               loss/congestion behavior          no copy needed
-  if GPUDirect active        DMA-reads GPU mem             differs by fabric type            if GPUDirect active
-                                                            (this is the IB vs RoCE
-                                                             decision's entire scope)
+```mermaid
+flowchart LR
+    A["GPU memory"] -->|"no copy needed if
+    GPUDirect active"| B["PCIe/NVLink"]
+    B --> C["NIC
+    (GPUDirect RDMA DMA-reads GPU mem)"]
+    C -->|"loss/congestion behavior differs
+    by fabric type - this is the IB vs RoCE
+    decision's entire scope"| D["fabric (IB or RoCE)"]
+    D --> E["remote NIC"]
+    E --> F["PCIe/NVLink"]
+    F -->|"no copy needed if
+    GPUDirect active"| G["remote GPU memory"]
 ```
 Every hop except the middle "fabric" segment is identical regardless of InfiniBand-vs-RoCE — the choice this Deep Dive is about only changes how the fabric segment behaves under loss/congestion, not the GPU-NIC or NIC-GPU hops on either end.
 
 ➕ **Diagram: where each fabric enforces losslessness**
+```mermaid
+flowchart LR
+    subgraph IB["InfiniBand - credit-based flow control native at every hop, no separate config"]
+        direction LR
+        G1["GPU"] --- N1["NIC"] ==> SW1["switch"] ==> SW2["switch"] ==> N2["NIC"] --- G2["GPU"]
+    end
 ```
-InfiniBand:  [GPU]──[NIC]══════[switch]══════[switch]══════[NIC]──[GPU]
-                        credit-based flow control native at every hop — no separate config
-
-RoCE v2:     [GPU]──[NIC]──────[switch]──────[switch]──────[NIC]──[GPU]
-                        ▲PFC/ECN must be configured, end-to-end, at every hop — a single
-                        unconfigured hop breaks the "lossless" assumption for the whole path
+```mermaid
+flowchart LR
+    subgraph ROCE["RoCE v2 - PFC/ECN must be configured end-to-end at every hop;
+    a single unconfigured hop breaks the lossless assumption for the whole path"]
+        direction LR
+        R1["GPU"] --- RN1["NIC"] --> RSW1["switch"] --> RSW2["switch"] --> RN2["NIC"] --- R2["GPU"]
+    end
 ```
 This is the mechanical reason "the link is up" is insufficient for RoCE specifically — InfiniBand's flow control is structural, so a healthy link implies lossless behavior; RoCE's is configuration, so a healthy link implies nothing about losslessness until every hop's PFC/ECN settings are verified.
 

@@ -11,9 +11,13 @@ source_document: "Authored directly for the JR2018680 gap-coverage volume — no
 
 Ansible answers: **on these machines, make these facts true**. Its basic nouns fit together like this:
 
-```text
-inventory group → play → ordered tasks → module → changed result → optional handler
-which hosts?       scope   desired actions   implementation            restart/reload
+```mermaid
+flowchart LR
+    A["inventory group (which hosts?)"] --> B["play (scope)"]
+    B --> C["ordered tasks (desired actions)"]
+    C --> D["module (implementation)"]
+    D --> E[changed result]
+    E --> F["optional handler (restart/reload)"]
 ```
 
 - An **inventory** names hosts and groups such as `gpu_nodes` or `login_nodes`.
@@ -164,23 +168,15 @@ Routine practice on a fleet this size: lint → `--check --diff` on a single can
 
 `serial: 8` processes the 64-node `gpu_nodes` group in batches of 8: the entire play (all tasks, all handlers) runs to completion on batch 1 before batch 2 starts. `max_fail_percentage: 10` halts the whole run if more than 10% of hosts in a batch fail — on an 8-node batch that's a single host, so effectively any real failure stops further batches from starting. This is the mechanism that turns "one bad config pushed to 64 nodes" into "one bad config caught on 8 nodes, 56 nodes never touched."
 
-```
-┌─────────────┐      inventory       ┌──────────────────────────────┐
-│ control node│ ───── (64 hosts) ───▶│ gpu_nodes group               │
-└─────────────┘                      └──────────────────────────────┘
-                                                │ serial: 8
-                       ┌────────────────────────┼────────────────────────┐
-                       ▼                        ▼                        ▼
-                 batch 1 (8 nodes)        batch 2 (8 nodes)   ...   batch 8 (8 nodes)
-                 all tasks + handlers     runs only if
-                 run to completion        batch 1 succeeded
-                       │
-                       ▼
-                 node gpu-node-05 FAILS (systemd restart timeout)
-                       │
-                       ▼
-                 max_fail_percentage exceeded → PLAY ABORTED
-                 batches 2-8 NEVER RUN — 56 nodes untouched
+```mermaid
+flowchart TD
+    A["control node"] -->|"inventory (64 hosts)"| B["gpu_nodes group"]
+    B -->|"serial: 8"| C1["batch 1 (8 nodes) - all tasks + handlers run to completion"]
+    B -->|"serial: 8"| C2["batch 2 (8 nodes) - runs only if batch 1 succeeded"]
+    B -->|"serial: 8"| C3["... batch 8 (8 nodes)"]
+    C1 --> D["node gpu-node-05 FAILS (systemd restart timeout)"]
+    D --> E["max_fail_percentage exceeded - PLAY ABORTED"]
+    E --> F["batches 2-8 NEVER RUN - 56 nodes untouched"]
 ```
 
 ## Annotated real run

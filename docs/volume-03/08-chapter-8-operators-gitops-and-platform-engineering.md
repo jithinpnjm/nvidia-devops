@@ -22,19 +22,13 @@ kubectl describe helmrelease <name> -n <ns>
 Platform engineering adds product thinking: create paved roads that encode security, observability, ownership and lifecycle defaults while allowing escape hatches for workloads that need specialized GPU, network or storage behavior.
 
 ➕ **CRD + controller = the same reconcile loop as everything else in this volume, just with a domain-specific object instead of a built-in one:**
-```
-CRD registers a new type, e.g. "GPUClusterPolicy" or "ModelDeployment"
-        │
-        ▼
-kubectl apply -f my-model-deployment.yaml   ← just an API write, same pipeline as Ch1
-        │
-        ▼
-Operator's controller (running as a Deployment, watching this CRD via
-informer — same watch/list mechanics as Deep Dive 1) sees the object,
-compares desired spec to observed state of the REAL resources it owns
-(Deployments, Services, ConfigMaps, cloud resources via a cloud-controller
-pattern, etc.), and reconciles toward desired state — level-based, same
-as Chapter 1's controller discussion, just operating on a custom Kind.
+```mermaid
+flowchart TD
+    CRDReg["CRD registers a new type, e.g. GPUClusterPolicy or ModelDeployment"]
+    Apply["kubectl apply -f my-model-deployment.yaml -- just an API write, same pipeline as Ch1"]
+    Reconcile["Operator's controller (running as a Deployment, watching this CRD via informer -- same watch/list mechanics as Deep Dive 1) sees the object, compares desired spec to observed state of the REAL resources it owns (Deployments, Services, ConfigMaps, cloud resources via a cloud-controller pattern, etc.), and reconciles toward desired state -- level-based, same as Chapter 1's controller discussion, just operating on a custom Kind"]
+
+    CRDReg --> Apply --> Reconcile
 ```
 ➕ **Interview-ready line:** "An operator isn't a new mechanism — it's the exact same watch-reconcile loop every built-in controller uses, pointed at a CRD instead of a Deployment. Anyone who's debugged a stuck Deployment already has the mental model for debugging a stuck custom resource; the only new step is finding which controller Pod owns that CRD."
 
@@ -65,34 +59,27 @@ kubectl edit deploy inference-api -n ml-platform   # manually bump replicas 3→
 sleep 30
 kubectl get deploy inference-api -n ml-platform -o jsonpath='{.spec.replicas}'
 ```
-```
-3    ← GitOps controller reverted it on its next reconcile pass, because Git still says 3
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["3 ← GitOps controller reverted it on its next reconcile pass, because Git still says 3"]
 ```
 This single demo is the fastest way to prove to a skeptical customer that GitOps isn't "just a deployment convenience" — it's an enforced desired-state contract, and it's worth having memorized as a live demo, not just a slide.
 
 ➕ **Diagram: the GitOps reconciliation loop, and exactly where a manual `kubectl edit` gets reverted:**
-```
-        ┌─────────────────────────────────────────────────┐
-        │                                                   │
-        ▼                                                   │
-   Git repo (desired state,                                 │
-   the source of truth)                                     │
-        │                                                   │
-        ▼  poll or webhook trigger                          │
-   GitOps controller pulls latest commit                    │
-        │                                                   │
-        ▼                                                   │
-   Diff: Git desired state  vs.  live cluster state          │
-        │                                                   │
-   ┌────┴────┐                                               │
-   ▼         ▼                                               │
-  match    drift found (someone ran `kubectl edit`,          │
-  (no-op)   or a controller/human changed a live object)     │
-             │                                               │
-             ▼                                               │
-       apply Git's version over the live object ─────────────┘
-       (Ready flips False→True once synced; the manual edit
-        is gone on the next reconcile pass, by design)
+```mermaid
+flowchart TD
+    Git["Git repo (desired state, the source of truth)"]
+    Pull["GitOps controller pulls latest commit"]
+    Diff{"Diff: Git desired state vs. live cluster state"}
+    Match["match (no-op)"]
+    Drift["drift found (someone ran kubectl edit, or a controller/human changed a live object)"]
+    ApplyBack["apply Git's version over the live object<br/>(Ready flips False to True once synced; the manual edit is gone on the next reconcile pass, by design)"]
+
+    Git -->|"poll or webhook trigger"| Pull --> Diff
+    Diff -->|match| Match
+    Diff -->|drift| Drift --> ApplyBack
+    ApplyBack -.-> Git
 ```
 This loop is why "just `kubectl edit` it to fix it quickly" doesn't stick on a GitOps-managed resource — the fix has to land in Git, or the very next reconcile pass reverts it.
 

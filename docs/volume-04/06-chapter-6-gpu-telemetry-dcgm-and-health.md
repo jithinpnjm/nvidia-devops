@@ -22,29 +22,25 @@ Autoscaling is a separate concern: device utilization helps explain hardware sta
 ---
 
 ➕ **ASCII diagram — "demand vs health vs throttling," the chapter's core distinction, as a decision tree:**
+```mermaid
+flowchart TD
+    START["GPU metric looks abnormal --<br/>which of the three buckets is it?"]
+    DEMAND{"Is it a WORKLOAD-DEMAND signal?<br/>(util, FB used, queue delay,<br/>tokens/s, concurrency)"}
+    HEALTH{"Is it a HEALTH signal?<br/>(ECC errors, Xid, PCIe/NVLink<br/>replay errors, temperature past<br/>a hard limit)"}
+    THROTTLE{"Is it a THROTTLING signal?<br/>(clocks.sm below max while<br/>power/temp are AT their cap,<br/>clocks_event_reasons set)"}
+
+    DEMANDYES["scale/batch/autoscaler decision"]
+    HEALTHYES["drain/RMA/dcgmi diag,<br/>NOT an autoscaling decision"]
+    THROTTLEYES["GPU is capacity-constrained by power/thermal<br/>envelope RIGHT NOW -- different fix (cooling/power<br/>budget/node placement) than either bucket above"]
+
+    START --> DEMAND
+    START --> HEALTH
+    DEMAND -->|yes| DEMANDYES
+    HEALTH -->|yes| HEALTHYES
+    DEMAND -.->|"if no"| THROTTLE
+    THROTTLE -->|yes| THROTTLEYES
 ```
-GPU metric looks abnormal — which of the three buckets is it?
-                    │
-      ┌─────────────┼──────────────────┐
-      ▼                                 ▼
- Is it a WORKLOAD-DEMAND signal?    Is it a HEALTH signal?
- (util, FB used, queue delay,       (ECC errors, Xid, PCIe/NVLink
-  tokens/s, concurrency)             replay errors, temperature past
-      │                              a hard limit)
-      │ yes → scale/batch/           │ yes → drain/RMA/dcgmi diag,
-      │       autoscaler decision    │       NOT an autoscaling decision
-      ▼                                 ▼
- Is it a THROTTLING signal?  (clocks.sm below max
- while power/temp are AT their cap, clocks_event_reasons set)
-      │ yes → this GPU is capacity-constrained by
-      │       power/thermal envelope RIGHT NOW —
-      │       different fix (cooling/power budget/
-      │       node placement) than either bucket above
-      ▼
- Conflating these three is the single most common GPU-observability
- mistake: e.g. treating a throttling event as a "demand spike needing
- more replicas" adds replicas that will ALSO throttle.
-```
+Conflating these three is the single most common GPU-observability mistake: e.g. treating a throttling event as a "demand spike needing more replicas" adds replicas that will ALSO throttle.
 
 ➕ **Annotated real output — the exact `DCGM_FI_DEV_*` fields from the chapter, as they appear scraped by Prometheus, with field-by-field reading:**
 ```

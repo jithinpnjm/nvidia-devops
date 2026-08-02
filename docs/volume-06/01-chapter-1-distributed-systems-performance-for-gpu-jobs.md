@@ -226,39 +226,44 @@ efficiency_loss = 1 - (step_time(N) / N) / step_time(1)
 ```
 The single most useful move in this chapter: **efficiency is a symptom, not a diagnosis.** "80% efficiency" tells you nothing about *which* term in the right-hand side grew. You have to instrument each term separately — that's the whole content of this chapter, restated as an equation.
 
-➕ **ASCII view of where each term actually lives in the training loop:**
-```
-┌─────────────┐     ┌──────────────┐     ┌───────────────┐     ┌─────────────┐
-│  data_load   │────▶│   compute     │────▶│  communicate   │────▶│  sync_wait   │
-│ (CPU/storage)│     │ (GPU forward/ │     │ (AllReduce over │     │ (barrier —   │
-│ dataloader   │     │  backward)    │     │  NIC/fabric)    │     │  wait for    │
-│ workers      │     │               │     │                 │     │  slowest rank)│
-└─────────────┘     └──────────────┘     └───────────────┘     └─────────────┘
-     ▲                                                                    │
-     └────────────────────── next step begins ─────────────────────────┘
+➕ **View of where each term actually lives in the training loop:**
+```mermaid
+flowchart LR
+    A["data_load
+    (CPU/storage)
+    dataloader workers"] --> B["compute
+    (GPU forward/backward)"]
+    B --> C["communicate
+    (AllReduce over NIC/fabric)"]
+    C --> D["sync_wait
+    (barrier — wait for slowest rank)"]
+    D -.->|next step begins| A
 ```
 Each box has a distinct tool: `nvidia-smi dmon` / GPU util for compute, `nccl-tests` / NIC counters for communicate, per-rank step-time variance for sync_wait, and `iostat`/dataloader worker queue depth for data_load. A profiler that only reports "GPU util 62%" collapses all four boxes into one number — the job in this chapter is to separate them again.
 
 ➕ **Sample `nccl-tests` output, annotated** (the first thing you'd actually run to separate "compute" from "communicate"):
-```
-$ ./build/all_reduce_perf -b 8M -e 8M -f 2 -g 8
-#      size    count   type   redop     time   algbw   busbw  #wrong
-        8388608  2097152  float    sum      3821    2.19    3.84       0   ← 8 GPUs, single node
-#
-# Out-of-place hack: time in us, algbw/busbw in GB/s
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ ./build/all_reduce_perf -b 8M -e 8M -f 2 -g 8"]
+  n1["# size count type redop time algbw busbw #wrong"]
+  n2["8388608 2097152 float sum 3821 2.19 3.84 0 ← 8 GPUs, single node"]
+  n3["#"]
+  n4["# Out-of-place hack: time in us, algbw/busbw in GB/s"]
 ```
 `busbw` (bus bandwidth — normalized for the AllReduce ring's 2x data-movement factor) is the number to compare against the fabric's theoretical max, not `algbw`. If `busbw` is far below the NIC's line rate (e.g. 3.84 GB/s on a 200Gb/s = 25GB/s NIC), that gap is your `communication_time` term inflating — run this in isolation from the actual training job specifically so you're not also measuring `compute_time` and `data_load_wait_time` in the same number.
 
 ➕ **Diagram: why the barrier makes the mean lie**
-```
-rank0  compute ██████████████████ | idle waiting at barrier ░░░░░░░░░░
-rank1  compute ██████████████████ | idle waiting at barrier ░░░░░░░░░░
-rank2  compute ██████████████████ | idle waiting at barrier ░░░░░░░░░░
-rank3  compute ████████████████████████████████████████████ (straggler)
-                                                              ▲
-                                                     barrier releases here —
-                                                     every other rank paid
-                                                     for rank3's slowness
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["rank0 compute ██████████████████ | idle waiting at barrier ░░░░░░░░░░"]
+  n1["rank1 compute ██████████████████ | idle waiting at barrier ░░░░░░░░░░"]
+  n2["rank2 compute ██████████████████ | idle waiting at barrier ░░░░░░░░░░"]
+  n3["rank3 compute ████████████████████████████████████████████ (straggler)"]
+  n4["barrier releases here —"]
+  n5["every other rank paid"]
+  n6["for rank3's slowness"]
 ```
 Average GPU utilization across the four ranks looks moderate, but step_time is set entirely by the slowest rank. This is why "check the mean" hides the exact fault the triage below is built to find.
 

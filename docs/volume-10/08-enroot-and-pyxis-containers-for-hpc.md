@@ -15,10 +15,14 @@ The word "container" hides three different responsibilities:
 - A **runtime** creates an isolated process view from that image. Enroot fills this role without a permanent privileged daemon.
 - A **scheduler integration** starts that runtime inside resources already allocated to a job. Pyxis connects Slurm to Enroot through Slurm's SPANK plugin interface.
 
-```text
-registry image → Enroot import/cache → unpacked root filesystem
-                                      ↓
-Slurm allocation → Pyxis options → Enroot process → host driver exposes assigned GPUs
+```mermaid
+flowchart TD
+    A["registry image"] --> B["Enroot import/cache"]
+    B --> C["unpacked root filesystem"]
+    C --> D["Slurm allocation"]
+    D --> E["Pyxis options"]
+    E --> F["Enroot process"]
+    F --> G["host driver exposes assigned GPUs"]
 ```
 
 The host still owns the kernel, NVIDIA kernel driver, devices, cgroups, network, and mounted storage. The image supplies user-space libraries and the application. This explains two frequent surprises: a container cannot carry its own Linux kernel, and shipping CUDA user-space libraries does not eliminate the need for a compatible host driver.
@@ -45,18 +49,22 @@ Enroot is an unprivileged container runtime built for exactly this constraint. I
 - Imports Docker/OCI images **directly** — no separate registry proxy or conversion service — flattening the image's layers into a single squashed rootless filesystem image (`.sqsh`) that the user's own account owns and controls.
 - Starts containers as regular user-namespaced processes: from the kernel's point of view, it's just another process tree owned by that user, not a container-runtime-mediated root process.
 
-```
-enroot import docker://nvcr.io#nvidia/pytorch:24.05-py3
-#   → downloads image, flattens layers, writes:
-#     nvidia+pytorch+24.05-py3.sqsh          (squashed rootless filesystem)
-
-enroot create --name pt2405 nvidia+pytorch+24.05-py3.sqsh
-#   → unpacks/registers a named, runnable container "pt2405" from the squash file
-
-enroot start --root --rw pt2405 nvidia-smi
-#   → runs a command inside the container as the invoking user; --rw makes the
-#     container filesystem writable for this invocation, --root maps the user to
-#     container-root (still unprivileged on the host) for install-time operations
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["enroot import docker://nvcr.io#nvidia/pytorch:24.05-py3"]
+  n1["#"]
+  n2["downloads image, flattens layers, writes"]
+  n3["# nvidia+pytorch+24.05-py3.sqsh (squashed rootless filesystem)"]
+  n4["enroot create --name pt2405 nvidia+pytorch+24.05-py3.sqsh"]
+  n5["unpacks/registers a named, runnable container 'pt2405' from the squash file"]
+  n6["enroot start --root --rw pt2405 nvidia-smi"]
+  n7["runs a command inside the container as the invoking user; --rw makes the"]
+  n8["# container filesystem writable for this invocation, --root maps the user to"]
+  n9["# container-root (still unprivileged on the host) for install-time operations"]
+  n1 --> n2
+  n1 --> n5
+  n1 --> n7
 ```
 
 ## Pyxis: the Slurm SPANK plugin
@@ -84,25 +92,18 @@ Epoch 1: loss=4.213 step_time=0.812s
 
 Pyxis handles the `enroot import`/`create`/`start` sequence transparently behind `--container-image`; `--container-mounts` is the Enroot/Pyxis equivalent of a Kubernetes volume mount — a bind mount from a host path into the container's filesystem — and is required for any dataset, checkpoint, or scratch path the job needs, since the squashed container image itself is otherwise self-contained and sees nothing of the host filesystem beyond the standard bind mounts Pyxis sets up by default.
 
-```
-Registry/image path                    Kubernetes path (Volume 4)
-────────────────────                    ──────────────────────────
-nvcr.io (OCI image)                     nvcr.io (OCI image)
-     │                                        │
-     ▼                                        ▼
-enroot import → .sqsh                   kubelet pulls image via
-     │  (per-user, unprivileged,              containerd/CRI-O
-     │   no daemon)                            │
-     ▼                                        ▼
-Pyxis SPANK plugin hooks                device plugin advertises
-srun job launch                         nvidia.com/gpu resource;
-     │                                  Pod spec requests it
-     ▼                                        │
-srun --container-image=... starts             ▼
-container as part of the Slurm          scheduler binds Pod to node,
-job step, GPU visibility via            kubelet + NVIDIA Container
-NVIDIA Container Runtime hook           Runtime/CDI grant GPU access
-inside the Enroot rootless fs           inside the Pod's containers
+```mermaid
+flowchart TD
+    subgraph Enroot["Registry/image path"]
+        A1["nvcr.io (OCI image)"] --> A2["enroot import to .sqsh (per-user, unprivileged, no daemon)"]
+        A2 --> A3["Pyxis SPANK plugin hooks srun job launch"]
+        A3 --> A4["srun --container-image=... starts container as part of the Slurm job step, GPU visibility via NVIDIA Container Runtime hook inside the Enroot rootless fs"]
+    end
+    subgraph K8s["Kubernetes path (Volume 4)"]
+        B1["nvcr.io (OCI image)"] --> B2["kubelet pulls image via containerd/CRI-O"]
+        B2 --> B3["device plugin advertises nvidia.com/gpu resource; Pod spec requests it"]
+        B3 --> B4["scheduler binds Pod to node, kubelet + NVIDIA Container Runtime/CDI grant GPU access inside the Pod's containers"]
+    end
 ```
 
 Both paths ultimately run the same OCI images and the same NVIDIA driver/toolkit underneath — the difference is entirely in launch mechanism and isolation model: Slurm+Pyxis composes container launch into a scheduler that already understands multi-node MPI-style jobs, gang scheduling, and wall-clock accounting (Volume 6 Chapter 7); Kubernetes composes it into a continuously-reconciled desired-state model with its own device-plugin/CDI GPU-advertisement path (Volume 4). Sites running both typically choose per-workload: Slurm/Enroot/Pyxis for traditional HPC/MPI-heavy training and simulation jobs, Kubernetes for service-shaped or elastically-scaled inference and platform workloads — nothing prevents the same GPU images from running under either.

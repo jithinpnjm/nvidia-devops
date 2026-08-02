@@ -65,34 +65,42 @@ $ awk -F, '$3=="restart_recompute" {sum+=$2} END {print sum" GPU-hours lost to r
 > **Conclusion:** A throughput number measured only in steady state is a different claim from "this configuration meets SLO in production," where cold starts happen continuously during every deploy, scale event, and node replacement.
 
 ➕ **Diagram: what the benchmark excluded vs. what production actually experiences**
+```mermaid
+flowchart LR
+    subgraph Bench["Benchmark timeline (reported number covers only the shaded region)"]
+    direction LR
+    A1["5 min warmup (excluded)"] --> A2["10 min steady-state - 1200 tok/s is measured only here"]
+    end
 ```
-Benchmark timeline (reported number covers only the shaded region):
-|--- 5 min warmup (excluded) ---|========= 10 min steady-state =========|
-                                  ↑ 1200 tok/s is measured only here
-
-Production rolling-deployment timeline (every replica goes through this):
-|--load model--|--CUDA graph capture/compile--|--cache warm--|====steady====|
-                                                               ↑ real users
- ↑ new replica is in the load balancer receiving traffic during ALL of this
-   if readiness = "process up" instead of "warm state confirmed"
+```mermaid
+flowchart LR
+    subgraph Prod["Production rolling-deployment timeline (every replica goes through this)"]
+    direction LR
+    B1["Load model"] --> B2["CUDA graph capture/compile"] --> B3["Cache warm"] --> B4["Steady - real users"]
+    end
 ```
+New replica is in the load balancer receiving traffic during the entire load/compile/warm sequence if readiness means "process up" instead of "warm state confirmed."
 The benchmark's excluded warmup window and production's cold-start window are the same physical process — the only difference is whether users are being served during it, which is a readiness-probe design choice, not an inherent property of the hardware.
 
 ➕ **Diagram: $/token comparison, restated as the arithmetic the headline hides**
-```
-"60% throughput at 45% price" — looks like a wash:
- Premium ████████████████████ 100 tok/s   @ $4.00/hr
- Cheaper ████████████         60 tok/s    @ $1.80/hr
-
-Divide throughput into price ($/1M tokens) — it is NOT a wash:
- Premium ███████████ $11.11 / 1M tok
- Cheaper ████████    $8.33  / 1M tok   ← ~25% cheaper per token
-
-Then re-divide by replicas needed for the SAME peak tok/s target:
- Premium: 10 replicas → $40.00/hr fleet
- Cheaper: 17 replicas → $30.60/hr fleet  ← still cheaper, but now carries
-                                            more replicas' worth of cold-start
-                                            and scheduling risk
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["'60% throughput at 45% price' — looks like a wash"]
+  n1["Premium ████████████████████ 100 tok/s @ $4.00/hr"]
+  n2["Cheaper ████████████ 60 tok/s @ $1.80/hr"]
+  n3["Divide throughput into price ($/1M tokens) — it is NOT a wash"]
+  n4["Premium ███████████ $11.11 / 1M tok"]
+  n5["Cheaper ████████ $8.33 / 1M tok ← ~25% cheaper per token"]
+  n6["Then re-divide by replicas needed for the SAME peak tok/s target"]
+  n7["Premium: 10 replicas"]
+  n8["$40.00/hr fleet"]
+  n9["Cheaper: 17 replicas"]
+  n10["$30.60/hr fleet ← still cheaper, but now carries"]
+  n11["more replicas' worth of cold-start"]
+  n12["and scheduling risk"]
+  n7 --> n8
+  n9 --> n10
 ```
 Three different "cheaper" claims (hourly price, per-token cost, fleet cost at peak) can all be true simultaneously and still not agree with each other on magnitude — always state which one a recommendation is based on.
 

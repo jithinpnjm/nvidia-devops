@@ -17,41 +17,36 @@ effective_capacity = nominal_capacity * expected_utilization * availability_fact
 ---
 
 ➕ **The two formulas, unpacked into a full worked TCO calculation with real numbers (the missing artifact):**
-```
-GIVEN:
-  8× H100 node, cloud on-demand:            $28.00/hr  (illustrative rate)
-  Storage (checkpoint + dataset tier):       $2.10/hr  (attached, amortized)
-  Network egress (model artifact pulls):     $0.90/hr  (amortized, bursty in reality)
-  Software licensing (serving engine, etc):  $1.50/hr  (amortized annual license)
-  Staff operational cost (on-call, 0.1 FTE
-    allocated to this node pool):            $3.20/hr  (fully-loaded engineer cost / hrs)
-  ────────────────────────────────────────────────────
-  TOTAL HOURLY COST:                        $35.70/hr
-
-  Nominal throughput (vendor/benchmark best case): 12,000 tokens/sec (theoretical peak)
-  Expected utilization (real traffic, not lab):     0.55   ← THIS is the number
-                                                              most naive quotes skip
-  Availability factor (maintenance + failure reserve): 0.92 ← 8% reserved for
-                                                              upgrades/node loss/drains
-
-  effective_capacity = 12,000 × 0.55 × 0.92
-                      = 6,072 tokens/sec USABLE (not 12,000)
-
-  tokens_per_hour = 6,072 × 3600 = 21,859,200
-
-  cost_per_million_tokens = $35.70 / (21,859,200 / 1,000,000)
-                           = $35.70 / 21.86
-                           = $1.63 per 1M tokens
-
-  ➤ COMPARE to the naive (wrong) calculation using nominal throughput with
-    no utilization/availability discount and hardware cost only:
-    $28.00 / (12,000×3600/1,000,000) = $28.00 / 43.2 = $0.65 per 1M tokens
-
-  The naive number is 2.5x too optimistic — it ignores utilization,
-  availability, AND four real cost lines (storage, network, licensing,
-  staff). This is the exact gap a customer's finance team will find
-  after go-live if the SA quotes the naive number, and it is the single
-  most damaging credibility failure a TCO conversation can have.
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["GIVEN"]
+  n1["8× H100 node, cloud on-demand: $28.00/hr (illustrative rate)"]
+  n2["Storage (checkpoint + dataset tier): $2.10/hr (attached, amortized)"]
+  n3["Network egress (model artifact pulls): $0.90/hr (amortized, bursty in reality)"]
+  n4["Software licensing (serving engine, etc): $1.50/hr (amortized annual license)"]
+  n5["Staff operational cost (on-call, 0.1 FTE"]
+  n6["allocated to this node pool): $3.20/hr (fully-loaded engineer cost / hrs)"]
+  n7["TOTAL HOURLY COST: $35.70/hr"]
+  n8["Nominal throughput (vendor/benchmark best case): 12,000 tokens/sec (theoretical peak)"]
+  n9["Expected utilization (real traffic, not lab): 0.55 ← THIS is the number"]
+  n10["most naive quotes skip"]
+  n11["Availability factor (maintenance + failure reserve): 0.92 ← 8% reserved for"]
+  n12["upgrades/node loss/drains"]
+  n13["effective_capacity = 12,000 × 0.55 × 0.92"]
+  n14["= 6,072 tokens/sec USABLE (not 12,000)"]
+  n15["tokens_per_hour = 6,072 × 3600 = 21,859,200"]
+  n16["cost_per_million_tokens = $35.70 / (21,859,200 / 1,000,000)"]
+  n17["= $35.70 / 21.86"]
+  n18["= $1.63 per 1M tokens"]
+  n19["➤ COMPARE to the naive (wrong) calculation using nominal throughput with"]
+  n20["no utilization/availability discount and hardware cost only"]
+  n21["$28.00 / (12,000×3600/1,000,000) = $28.00 / 43.2 = $0.65 per 1M tokens"]
+  n22["The naive number is 2.5x too optimistic — it ignores utilization,"]
+  n23["availability, AND four real cost lines (storage, network, licensing,"]
+  n24["staff). This is the exact gap a customer's finance team will find"]
+  n25["after go-live if the SA quotes the naive number, and it is the single"]
+  n26["most damaging credibility failure a TCO conversation can have."]
 ```
 
 ➕ **ASCII breakdown of where the "true" cost per token actually goes (the visualization the raw formula hides):**
@@ -81,13 +76,9 @@ Hardware dominates (78%), which is exactly why utilization and availability fact
 ➕ 2. A customer's finance team pushes back: "your $1.63/1M tokens is higher than [public API provider]'s advertised price — why would we build this ourselves?" Write the two things a TCO conversation should surface before answering the price question directly (hint: what's NOT comparable between a fully-loaded internal number and a competitor's advertised retail price — data residency/control, and whether the competitor's number includes their own equivalent hidden costs).
 
 ➕ **Visual model — cost per useful outcome is a funnel:**
-```
-hardware + power + facility + operations
-                 │
-                 ▼
-nominal GPU capacity × utilisation × availability
-                 │
-                 ▼
-tokens / requests at required SLO ─► cost per useful unit
+```mermaid
+flowchart TD
+    A["hardware + power + facility + operations"] --> B["nominal GPU capacity x utilisation x availability"]
+    B --> C["tokens / requests at required SLO"] --> D["cost per useful unit"]
 ```
 **Memory hook:** *"Price the outcome at the SLO, not the hardware hour."*

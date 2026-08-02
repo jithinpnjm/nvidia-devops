@@ -20,9 +20,12 @@ Terraform compares a declaration of what should exist with what it previously ma
 
 The normal learning loop is deliberately small:
 
-```text
-terraform init → terraform validate → terraform plan → review → terraform apply
-get providers       syntax/schema         proposed diff      human       mutation
+```mermaid
+flowchart LR
+    A["terraform init (get providers)"] --> B["terraform validate (syntax/schema)"]
+    B --> C["terraform plan (proposed diff)"]
+    C --> D["review (human)"]
+    D --> E["terraform apply (mutation)"]
 ```
 
 Suppose configuration says a subnet should use `10.20.0.0/24`. State says Terraform manages API object `subnet-123`. The provider reports that someone changed it outside Terraform. The plan reconciles those three views; it does not merely "run the file." That is why a plan must be read for creates (`+`), in-place changes (`~`), deletes (`-`), and replacements (`-/+`). A replacement is especially important for stateful or scarce GPU infrastructure because it destroys one object and creates another.
@@ -46,24 +49,13 @@ resource "aws_instance" "gpu_worker" {
 
 Terraform does not talk to real infrastructure to figure out what exists — it talks to the **state file** (`terraform.tfstate`), a JSON record of every resource Terraform believes it created, with the ID and last-known attributes of each. Every `plan`/`apply` is fundamentally a three-way diff: declared config vs. state (what Terraform last knew) vs. real infrastructure (what actually exists right now, refreshed via provider API calls). State is what makes Terraform declarative instead of a shell script that re-runs `aws ec2 run-instances` every time — but it's also the single most dangerous file in the workflow, because Terraform's decisions are only as correct as its belief about reality.
 
-```
-        declared config (.tf files)
-                    │
-                    ▼
-        ┌─────────────────────┐         refresh          ┌─────────────────┐
-        │   STATE FILE         │◀────────────────────────▶│  real infra      │
-        │  (single source of   │      (read actual        │  (cloud APIs /   │
-        │   truth Terraform    │       resource attrs)    │   on-prem infra) │
-        │   reasons FROM)       │                          └─────────────────┘
-        └──────────┬────────────┘
-                    │ diff: config vs state vs real
-                    ▼
-              terraform plan
-                    │
-                    ▼
-   DRIFT = state says X, real infra is Y (someone changed it outside Terraform)
-   → next apply "corrects" drift by making real infra match declared config,
-     which can mean DESTROYING the drifted resource, not gently adjusting it
+```mermaid
+flowchart TD
+    A["declared config (.tf files)"] --> B["STATE FILE (single source of truth Terraform reasons FROM)"]
+    B <-->|"refresh (read actual resource attrs)"| C["real infra (cloud APIs / on-prem infra)"]
+    B -->|"diff: config vs state vs real"| D[terraform plan]
+    D --> E["DRIFT = state says X, real infra is Y (someone changed it outside Terraform)"]
+    E --> F["next apply corrects drift by making real infra match declared config, which can mean DESTROYING the drifted resource, not gently adjusting it"]
 ```
 
 Drift is any gap between state and reality — a console click, a manual `kubectl`/`aws cli` change, another automation tool touching the same resource. Terraform has no way to know *why* the drift happened; it only knows state disagrees with either config or reality, and it will reconcile toward the declared config, using whatever operation (update or destroy-and-recreate) the provider's resource schema says is required to get there.

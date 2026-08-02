@@ -30,11 +30,14 @@ and
 The AND composition mirrors Ch.8's fast+slow burn-rate AND structure exactly — both are "require two independent signals to agree before paging" to suppress false positives, just composed across *different signal types* here (SLO + capacity) instead of *different time windows*. Worth naming this as the same underlying principle applied twice: agreement across independent signals is what buys precision, whether the two signals are two time windows or two telemetry planes.
 
 ➕ **Visual model — page on impact plus persistence, not a noisy raw signal:**
-```
-fast burn / acute SLO breach ─┐
-                              ├── both agree ─► page with runbook
-slow burn / sustained trend ──┘
-                 │
-                 └── optionally require queue or capacity saturation for GPU workloads
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["fast burn / acute SLO breach"]
+  n1["both agree"]
+  n2["page with runbook"]
+  n3["slow burn / sustained trend"]
+  n4["optionally require queue or capacity saturation for GPU workloads"]
+  n1 --> n2
 ```
 **Memory hook:** *"Two independent agreements beat one dramatic graph."*

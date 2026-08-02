@@ -37,68 +37,69 @@ Telemetry is useful when it answers operational questions. Start from a user/wor
 - Traces lie by **sampling** — if the exact slow request wasn't sampled, the trace store has nothing to show you, no matter how good your instrumentation is.
 
 ➕ **Evidence-selection decision tree (the mechanism behind "choose it by question"):**
-```
-                     "Something is wrong" (symptom reported)
-                                │
-                 ┌──────────────┼──────────────────┐
-                 ▼                                  ▼
-     "Is this happening broadly           "What exactly happened
-      or to a subset, and                  to THIS one request/
-      is it getting worse?"                 entity?"
-                 │                                  │
-                 ▼                                  ▼
-            METRICS                         LOGS or TRACES
-     (rate, error ratio,              │                    │
-      percentile, trend)              ▼                    ▼
-                 │              "What was the       "How did latency
-                 │               internal state       split across
-                 │               / error detail       services for
-                 │               at that moment?"      this request?"
-                 │                    │                    │
-                 ▼                    ▼                    ▼
-        confirms SCOPE            LOGS                 TRACES
-        and SLO impact      (structured event,    (span waterfall,
-        → go to Ch.2 SLOs    error_class field)     dependency latency)
+```mermaid
+flowchart TD
+    A["Something is wrong (symptom reported)"]
+    A --> B{"Is this happening broadly or to a subset, and is it getting worse?"}
+    A --> C{"What exactly happened to THIS one request/entity?"}
+    B --> D["METRICS (rate, error ratio, percentile, trend)"]
+    C --> E["LOGS or TRACES"]
+    E --> F{"What was the internal state / error detail at that moment?"}
+    E --> G{"How did latency split across services for this request?"}
+    F --> H["LOGS (structured event, error_class field)"]
+    G --> I["TRACES (span waterfall, dependency latency)"]
+    D --> J["confirms SCOPE and SLO impact -- go to Ch.2 SLOs"]
 ```
 The point of the tree: metrics answer "how much/how often," logs answer "what state," traces answer "where in the request path." Asking a metric to answer a "what state" question (or grep'ing logs to answer a "how much" question) is the recurring anti-pattern this chapter is warning against.
 
 ➕ **Annotated example — the same incident seen through all three signals, showing what each one adds and what it alone cannot tell you:**
-```
-METRIC (Prometheus):
-sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))
-→ 0.023   (2.3% error rate, up from a 0.1% baseline — tells you THAT and HOW MUCH)
-
-LOG (structured event, one of the failing requests):
-{"ts":"2026-07-30T14:02:11Z","event":"inference_request_failed","model":"llama-70b",
- "node":"gpu-07","error_class":"CUDAOutOfMemory","request_id":"a91f...","duration_ms":842}
-→ tells you WHAT STATE: it's CUDA OOM, not an app crash, not a timeout — and WHERE (gpu-07)
-
-TRACE (span waterfall for request_id a91f...):
-gateway(4ms) → auth(2ms) → queue_wait(310ms) → model_server(526ms, ERROR) → [no downstream spans]
-→ tells you WHERE IN THE PATH: 310ms was queueing (capacity signal), not the CUDA OOM itself
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["METRIC (Prometheus)"]
+  n1["sum(rate(http_requests_total{status=~'5..'}[5m])) / sum(rate(http_requests_total[5m]))"]
+  n2["0.023 (2.3% error rate, up from a 0.1% baseline — tells you THAT and HOW MUCH)"]
+  n3["LOG (structured event, one of the failing requests)"]
+  n4["{'ts':'2026-07-30T14:02:11Z','event':'inference_request_failed','model':'llama-70b',"]
+  n5["'node':'gpu-07','error_class':'CUDAOutOfMemory','request_id':'a91f...','duration_ms':842}"]
+  n6["tells you WHAT STATE: it's CUDA OOM, not an app crash, not a timeout — and WHERE (gpu-07)"]
+  n7["TRACE (span waterfall for request_id a91f...)"]
+  n8["gateway(4ms)"]
+  n9["auth(2ms)"]
+  n10["queue_wait(310ms)"]
+  n11["model_server(526ms, ERROR)"]
+  n12["[no downstream spans]"]
+  n13["tells you WHERE IN THE PATH: 310ms was queueing (capacity signal), not the CUDA OOM itself"]
+  n8 --> n9
+  n9 --> n10
+  n10 --> n11
+  n11 --> n12
 ```
 No single signal reconstructs the full incident. The metric told you it was real and quantified it; the log named the mechanism; the trace located it in the request path. This three-signal correlation is the model every later incident playbook chapter (9, 10) assumes you already have internalized.
 
 ➕ **Diagram: three evidence pipelines, running in parallel from the same event**
-```
-                one real-world event: a request fails
+```mermaid
+flowchart LR
+    Event["one real-world event: a request fails"]
 
-  METRICS PIPELINE          LOGS PIPELINE            TRACES PIPELINE
-  ────────────────          ─────────────            ───────────────
-  counter++ at emit    →    structured event    →    span opened at
-  time (cheap, no          written (timestamp,       request entry,
-  payload)                 error_class, ids)         closed at exit
-        │                        │                         │
-        ▼                        ▼                         ▼
-  scraped/aggregated  →   shipped to log store →   exported to trace
-  into a time series       (indexed by field)        backend (joined
-  (rate, percentile)             │                    by trace_id)
-        │                        │                         │
-        ▼                        ▼                         ▼
-  answers "how much/     answers "what state       answers "where in
-  how often, since        was it in, and             the request path
-  when" cheaply at        why" for ONE event          did the time go"
-  fleet scale             (if it was captured)        (if it was sampled)
+    subgraph Metrics["METRICS PIPELINE"]
+        direction TD
+        M1["counter++ at emit time (cheap, no payload)"] --> M2["scraped/aggregated into a time series (rate, percentile)"] --> M3["answers 'how much/how often, since when' cheaply at fleet scale"]
+    end
+
+    subgraph Logs["LOGS PIPELINE"]
+        direction TD
+        L1["structured event written (timestamp, error_class, ids)"] --> L2["shipped to log store (indexed by field)"] --> L3["answers 'what state was it in, and why' for ONE event (if it was captured)"]
+    end
+
+    subgraph Traces["TRACES PIPELINE"]
+        direction TD
+        T1["span opened at request entry, closed at exit"] --> T2["exported to trace backend (joined by trace_id)"] --> T3["answers 'where in the request path did the time go' (if it was sampled)"]
+    end
+
+    Event --> M1
+    Event --> L1
+    Event --> T1
 ```
 Same incident, three independent capture-and-store pipelines running the whole time — the chapter's table lists their strengths/weaknesses; this diagram is *when* each one commits its record, which is why a metric survives at fleet scale while a specific log line or trace can simply not exist for the one request you care about.
 

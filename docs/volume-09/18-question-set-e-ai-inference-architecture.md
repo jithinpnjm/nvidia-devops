@@ -16,30 +16,36 @@ source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 ## ➕ Additions
 
 ➕ **Diagram: inference-latency symptom router (which subsystem a complaint actually points at):**
-```
-Inference latency complaint
-              │
-              ▼
- TTFT high, ITL normal? ──yes──▶ queue depth / prefill cost /
-   │no                           input length / model load / cache routing
-              ▼
- ITL high under concurrency? ──yes──▶ decode loop / KV-cache pressure /
-   │no                                memory bandwidth / batching
-              ▼
- Neither isolates cleanly? ──▶ reconsider architecture: disaggregate
-                                prefill/decode? round-robin vs KV-aware
-                                routing? scale on queue/tokens/SLO —
-                                never on raw GPU utilization alone
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["Inference latency complaint"]
+  n1["TTFT high, ITL normal? yes"]
+  n2["queue depth / prefill cost /"]
+  n3["no input length / model load / cache routing"]
+  n4["ITL high under concurrency? yes"]
+  n5["decode loop / KV-cache pressure /"]
+  n6["no memory bandwidth / batching"]
+  n7["Neither isolates cleanly?"]
+  n8["reconsider architecture: disaggregate"]
+  n9["prefill/decode? round-robin vs KV-aware"]
+  n10["routing? scale on queue/tokens/SLO —"]
+  n11["never on raw GPU utilization alone"]
+  n1 --> n2
+  n4 --> n5
+  n7 --> n8
 ```
 "The response feels slow" collapses two very different subsystems into one user complaint — TTFT and ITL point at prefill/queue and decode/batching respectively, and the fix for one rarely helps the other.
 
 ➕ **Sample annotated output — diagnosing "ITL high under concurrency" with real engine metrics (vLLM-style):**
-```
-$ curl -s localhost:8000/metrics | grep -E "num_requests_running|gpu_cache_usage|time_per_output_token"
-vllm:num_requests_running        24
-vllm:gpu_cache_usage_perc        0.97      ← KV cache is nearly full
-vllm:time_per_output_token_seconds_sum   184.2
-vllm:time_per_output_token_seconds_count 9200
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ curl -s localhost:8000/metrics | grep -E 'num_requests_running|gpu_cache_usage|time_per_output_token'"]
+  n1["vllm:num_requests_running 24"]
+  n2["vllm:gpu_cache_usage_perc 0.97 ← KV cache is nearly full"]
+  n3["vllm:time_per_output_token_seconds_sum 184.2"]
+  n4["vllm:time_per_output_token_seconds_count 9200"]
 ```
 `gpu_cache_usage_perc=0.97` is the smoking gun: the KV cache is nearly exhausted, which forces the scheduler into smaller batches or preemption/swap to make room — that's exactly what inflates per-token decode latency under concurrency, independent of raw GPU compute headroom. **Interview-ready line:** "ITL degrading under load is usually a KV-cache-capacity story before it's a compute-capacity story — check `gpu_cache_usage` before assuming you need more GPUs."
 

@@ -57,40 +57,22 @@ _Figure A. A senior SA turns ambiguity into evidence, then into a decision._
 ➕ **The "one GPU vs hundreds of nodes" claim, made concrete with the actual branching variable:** the single highest-leverage discovery answer here is *training-vs-inference*, because it changes the failure-domain shape, not just the GPU count. Inference at low concurrency genuinely can run on one GPU in Kubernetes. Training at scale needs a dedicated fabric because a single stalled NCCL ring stalls the *entire* job — there's no "the other replicas keep serving" grace period like there is for inference. This is the same control/data-plane distinction from Ch.2, applied to why training and inference are architecturally different animals even on identical hardware.
 
 ➕ **Diagram: the training-vs-inference branch, drawn as the decision this Deep Dive's opening question actually is:**
-```
-                    "What kind of AI workload is this?"
-                              │
-              ┌────────────────┴────────────────┐
-              ▼                                  ▼
-      TRAINING (esp. at scale)            INFERENCE (esp. low concurrency)
-              │                                  │
-      needs dedicated fabric               can run on ONE GPU in
-      (a stalled NCCL ring stalls          Kubernetes — a failed
-      the WHOLE job, no partial            replica just drops out;
-      credit for other ranks)              the others keep serving
-              │                                  │
-              ▼                                  ▼
-   Same GPU hardware, but a COMPLETELY    Same GPU hardware, a much
-   different failure-domain shape          smaller failure-domain
-   and architecture requirement            footprint per unit lost
+```mermaid
+flowchart TD
+    Q["'What kind of AI workload is this?'"] --> T["TRAINING (esp. at scale)"]
+    Q --> I["INFERENCE (esp. low concurrency)"]
+    T --> TF["needs dedicated fabric (a stalled NCCL\nring stalls the WHOLE job, no partial\ncredit for other ranks)"]
+    I --> IF["can run on ONE GPU in Kubernetes -\na failed replica just drops out;\nthe others keep serving"]
+    TF --> TR["Same GPU hardware, but a COMPLETELY\ndifferent failure-domain shape and\narchitecture requirement"]
+    IF --> IR["Same GPU hardware, a much smaller\nfailure-domain footprint per unit lost"]
 ```
 Both branches can be the correct answer to "we need an LLM platform" — the diagram is the reminder that the words in the request never determine which branch applies; only the training-vs-inference discovery answer does.
 
 ➕ **Diagram: the six discovery areas as a gate before naming any product:**
-```
-"We need an LLM platform" (the request, still ambiguous)
-        │
-        ▼
-┌──────────────────────────────────────────────────────────┐
-│ Characterize BEFORE naming products:                      │
-│ Performance │ Scale │ Data │ Availability │ Tenancy │ Ops  │
-└──────────────────────────────────────────────────────────┘
-        │
-        ▼
-   The SAME requirement resolves to wildly different architectures:
-   ┌────────────────────────┐        ┌──────────────────────────────┐
-   │ 1 GPU, single K8s pod    │  OR   │ Hundreds of nodes, dedicated  │
-   │ (low-concurrency          │       │ fabric, topology-aware        │
-   │  inference)                │       │ scheduling (large training)   │
-   └────────────────────────┘        └──────────────────────────────┘
+```mermaid
+flowchart TD
+    A["'We need an LLM platform' (the request, still ambiguous)"] --> B["Characterize BEFORE naming products:\nPerformance | Scale | Data | Availability | Tenancy | Ops"]
+    B --> C["The SAME requirement resolves to\nwildly different architectures:"]
+    C --> D["1 GPU, single K8s pod\n(low-concurrency inference)"]
+    C --> E["Hundreds of nodes, dedicated fabric,\ntopology-aware scheduling (large training)"]
 ```

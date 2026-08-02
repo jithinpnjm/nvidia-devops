@@ -14,36 +14,19 @@ A control plane tells systems what should happen; a data plane carries workload 
 ---
 
 ➕ **The six paths, drawn as one diagram (the "draw at least" instruction, made literal):**
-```
-                         ┌─────────────────────────┐
-                         │   Identity/Security      │  ← boundary around EVERYTHING below
-                         │   (who is allowed where)  │
-                         └───────────┬─────────────┘
-                                     │
-   ┌───────────────┐   request   ┌──▼──────────┐   inference   ┌────────────┐
-   │ User / client  │───────────▶│  API/Ingress │──────────────▶│  Serving   │
-   └───────────────┘  (data plane)└──────────────┘   (data plane)│  pods/GPU  │
-                                                                  └─────┬──────┘
-                                                                        │ model weights
-                                                              ┌─────────▼─────────┐
-                                                              │ Model/artifact path│
-                                                              │ (registry → node)  │
-                                                              └─────────┬─────────┘
-                                                                        │
-   ┌────────────────────┐  checkpoints/data  ┌──────────────────────┐  │
-   │ Training data path  │────────────────────▶│  Storage (dataset/  │◀─┘
-   └────────────────────┘                       │  checkpoint tier)  │
-                                                 └──────────────────────┘
-
-   ┌────────────────────────────┐  schedule/place  ┌───────────────────┐
-   │ GPU scheduling/control path │─────────────────▶│  K8s API / Slurm  │  (CONTROL plane —
-   │ (kube-scheduler, device     │                   │  controller       │   says what SHOULD
-   │  plugin, Slurm controller)  │                   └───────────────────┘   happen)
-   └────────────────────────────┘
-
-   ┌────────────────────────────────────────────────────────────────────┐
-   │  Observability path — taps EVERY box above (metrics/logs/traces)   │
-   └────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph SEC["Identity/Security boundary (who is allowed where) - surrounds everything below"]
+        direction TD
+        U["User / client"] -->|"request (data plane)"| API["API/Ingress"]
+        API -->|"inference (data plane)"| SRV["Serving pods/GPU"]
+        SRV -->|"model weights"| ART["Model/artifact path\n(registry -> node)"]
+        TD1["Training data path"] -->|"checkpoints/data"| STO["Storage (dataset/\ncheckpoint tier)"]
+        ART --> STO
+        GPU["GPU scheduling/control path\n(kube-scheduler, device\nplugin, Slurm controller)"] -->|"schedule/place"| K8S["K8s API / Slurm controller\n(CONTROL plane - says what\nSHOULD happen)"]
+    end
+    OBS["Observability path - taps EVERY box above (metrics/logs/traces)"]
+    SEC -.-> OBS
 ```
 Every arrow above is a place a product-box diagram ("Kubernetes + GPU Operator + Triton") would hide — and each one is a distinct failure domain: the model-artifact path failing looks completely different from the request path failing, even though both present as "inference is down."
 

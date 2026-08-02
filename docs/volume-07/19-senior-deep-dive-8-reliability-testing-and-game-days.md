@@ -41,9 +41,20 @@ Run controlled failures: kill model workers, block DNS, remove an EndpointSlice 
 *"Scope it, query it cheap, trace the tree, name the Xid, watch the tail not the average, prove the fix, agree twice before paging, rehearse before it's real."* — one clause per Deep Dive, 1 through 8 in order. If you can unpack any clause into the mechanism behind it under interview pressure, you've retained the arc.
 
 ➕ **Visual model — a game day is a closed learning loop:**
-```
-choose failure ─► define expected signals ─► inject safely ─► detect + mitigate ─► measure recovery ─► improve runbook
-       ▲                                                                                                     │
-       └────────────────────────────── rerun with the next weak assumption ────────────────────────────────┘
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["choose failure"]
+  n1["define expected signals"]
+  n2["inject safely"]
+  n3["detect + mitigate"]
+  n4["measure recovery"]
+  n5["improve runbook"]
+  n6["rerun with the next weak assumption"]
+  n0 --> n1
+  n1 --> n2
+  n2 --> n3
+  n3 --> n4
+  n4 --> n5
 ```
 **Memory hook:** *"Practice the evidence path, not just the failover command."*

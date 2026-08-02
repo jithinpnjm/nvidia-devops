@@ -32,35 +32,30 @@ budget_consumed = 12,000 / 50,000 = 24%  of the ENTIRE MONTH'S budget, in one in
 That last line — "24% of the month's budget in one incident" — is the sentence that makes error budgets real to a stakeholder who otherwise hears "99.9%" and assumes it means "basically never fails." Always convert the percentage into an absolute request count and a burn fraction; percentages alone don't communicate urgency.
 
 ➕ **ASCII: error budget as a burn-down, and why burn RATE matters more than remaining balance:**
-```
-Budget remaining (%)
-100 │●
-    │ ●●
- 75 │   ●●●                              ← slow, sustainable burn (normal noise)
-    │       ●●●●●●
- 50 │             ●●●●●●●●
-    │                     ●●●●●●●●●●●●●●●●●●●●●●●●  ← fine, budget lasts the window
- 25 │
-    │              ▲
-  0 │              │ incident: burns 24% in <1 hour
-    └──────────────┴─────────────────────────────────────── time (30-day window)
-                 THIS is what a burn-rate alert (Ch.8) is designed to catch —
-                 not "budget is low" but "budget is draining fast enough to
-                 exhaust before the window ends."
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["Budget remaining (%)"]
+  n1["100 ●"]
+  n2["●●"]
+  n3["75 ●●● ← slow, sustainable burn (normal noise)"]
+  n4["●●●●●●"]
+  n5["50 ●●●●●●●●"]
+  n6["●●●●●●●●●●●●●●●●●●●●●●●● ← fine, budget lasts the window"]
+  n7["25"]
+  n8["0 incident: burns 24% in <1 hour"]
+  n9["time (30-day window)"]
+  n10["THIS is what a burn-rate alert (Ch.8) is designed to catch —"]
+  n11["not 'budget is low' but 'budget is draining fast enough to"]
+  n12["exhaust before the window ends.'"]
 ```
 
 ➕ **Diagram: SLI to SLO to error budget, as one funnel**
-```
-raw signal                SLI (ratio)             SLO (target)          error budget
-─────────────             ────────────            ────────────          ─────────────
-successful_requests   →   availability =      →   target: 99.9%    →   0.1% tolerated
-valid_requests             success/valid            over 30 days         failures over
-                                │                        │                the window
-                                ▼                        ▼                     │
-                          "what fraction of        "how good does           ▼
-                           requests are OK          it have to be     50,000 failed
-                           right now"                to be acceptable" requests / month
-                                                                        (at 50M/month)
+```mermaid
+flowchart LR
+    A["raw signal: successful_requests / valid_requests"] --> B["SLI (ratio): availability = success/valid -- 'what fraction of requests are OK right now'"]
+    B --> C["SLO (target): target 99.9% over 30 days -- 'how good does it have to be to be acceptable'"]
+    C --> D["error budget: 0.1% tolerated failures over the window -- 50,000 failed requests/month (at 50M/month)"]
 ```
 Each stage narrows the question: the raw counters become one ratio (the SLI), the ratio gets a target (the SLO), and the gap between 100% and the target becomes a spendable budget in real request counts — the arithmetic worked above turns the rightmost box into the number stakeholders actually react to.
 

@@ -24,44 +24,37 @@ Do not diagnose "CUDA mismatch" from one version string alone. Compatibility has
 ---
 
 ➕ **ASCII diagram — the "bottom-up" debugging figure from Figure 1, made explicit as a layered stack with the actual compatibility direction:**
+```mermaid
+flowchart TD
+    APP["Application (PyTorch/TensorRT-LLM/etc.)<br/>built against a specific CUDA Toolkit version"]
+    FW["Framework's bundled CUDA runtime libs<br/>(libcudart, cuDNN...) -- ships INSIDE the container image"]
+    IMG["Container image base<br/>e.g. nvidia/cuda:12.8.0-base"]
+    CTK["NVIDIA Container Toolkit (nvidia-ctk / CDI)<br/>injects devices + host driver libs into container"]
+    RT["Container runtime (containerd/CRI-O + nvidia runtime hook)"]
+    DRV["Host NVIDIA kernel driver (nvidia.ko) + user-space driver libs<br/>MUST be new enough for the CUDA version above"]
+    HW["GPU hardware / firmware"]
+
+    APP --> FW --> IMG --> CTK --> RT --> DRV --> HW
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ Application (PyTorch/TensorRT-LLM/etc.)                     │ ← built against a specific CUDA Toolkit version
-├─────────────────────────────────────────────────────────────┤
-│ Framework's bundled CUDA runtime libs (libcudart, cuDNN...)  │ ← ships INSIDE the container image
-├─────────────────────────────────────────────────────────────┤
-│ Container image base                                         │ ← e.g. nvidia/cuda:12.8.0-base
-├─────────────────────────────────────────────────────────────┤
-│ NVIDIA Container Toolkit (nvidia-ctk / CDI)                  │ ← injects devices + host driver libs into container
-├─────────────────────────────────────────────────────────────┤
-│ Container runtime (containerd/CRI-O + nvidia runtime hook)   │
-├─────────────────────────────────────────────────────────────┤
-│ Host NVIDIA kernel driver (nvidia.ko) + user-space driver libs│ ← MUST be new enough for the CUDA version above
-├─────────────────────────────────────────────────────────────┤
-│ GPU hardware / firmware                                      │
-└─────────────────────────────────────────────────────────────┘
-   Compatibility direction: driver version sets a MAXIMUM supported CUDA
-   version (backward compatible), not the reverse — an old host driver
-   cannot run a container built against a newer CUDA than it supports.
-```
+Compatibility direction: driver version sets a MAXIMUM supported CUDA version (backward compatible), not the reverse — an old host driver cannot run a container built against a newer CUDA than it supports.
 This is the mechanical reason "check one version string" fails: a passing `nvidia-smi` on the host only proves the driver loaded and can enumerate the GPU — it says nothing about whether *this specific container's* bundled CUDA runtime is within that driver's supported range.
 
 ➕ **Annotated real output proving each layer separately (the exact commands from the chapter, with what a pass/fail actually looks like):**
-```
-$ nvidia-smi
-Driver Version: 550.90.07      CUDA Version: 12.4      ← "CUDA Version" here is the MAX CUDA the driver supports, not what's installed
-
-$ cat /proc/driver/nvidia/version
-NVRM version: NVIDIA UNIX x86_64 Kernel Module  550.90.07  Wed Feb 21 ...
-GCC version:  gcc version 11.4.0 ...
-                                                          ← proves the kernel module loaded; independent of any container
-
-$ docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu24.04 nvidia-smi
-docker: Error response from daemon: OCI runtime create failed: ...
-unsatisfied condition: cuda>=12.8, please update your driver to a newer version
-                                                          ← THIS is the failure the chapter warns about: driver (max
-                                                            CUDA 12.4) cannot satisfy an image requiring CUDA>=12.8.
-                                                            "nvidia-smi works on host" said nothing about this.
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ nvidia-smi"]
+  n1["Driver Version: 550.90.07 CUDA Version: 12.4 ← 'CUDA Version' here is the MAX CUDA the driver supports, not what's installed"]
+  n2["$ cat /proc/driver/nvidia/version"]
+  n3["NVRM version: NVIDIA UNIX x86_64 Kernel Module 550.90.07 Wed Feb 21 ..."]
+  n4["GCC version: gcc version 11.4.0 ..."]
+  n5["← proves the kernel module loaded; independent of any container"]
+  n6["$ docker run --rm --gpus all nvidia/cuda:12.8.0-base-ubuntu24.04 nvidia-smi"]
+  n7["docker: Error response from daemon: OCI runtime create failed: ..."]
+  n8["unsatisfied condition: cuda>=12.8, please update your driver to a newer version"]
+  n9["← THIS is the failure the chapter warns about: driver (max"]
+  n10["CUDA 12.4) cannot satisfy an image requiring CUDA>=12.8."]
+  n11["'nvidia-smi works on host' said nothing about this."]
 ```
 That last error message is the single most common real-world Xid-adjacent support ticket in GPU fleets: the host driver is fine, the GPU is fine, and the failure is purely a version-skew boundary between driver and container image — exactly what the chapter's closing paragraph is warning you not to shortcut.
 

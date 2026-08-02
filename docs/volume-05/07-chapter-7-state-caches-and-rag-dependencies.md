@@ -24,40 +24,28 @@ A public architecture example argues against relying on local in-process history
 | Prompt/result cache | optional performance/cost optimization with invalidation/privacy concerns |
 
 ➕ **The state classification decision tree (durability × locality, the two axes the table implies but doesn't draw):**
-```
-                        Does losing this state on replica restart
-                        break correctness (not just performance)?
-                                    │
-                     ┌───────────────┴───────────────┐
-                    YES                              NO
-                     │                                │
-        Must be externalized/durable         Is it still valid/useful if
-        (conversation/session, vector          copied to a NEW replica?
-        index, model artifact registry)                  │
-                                          ┌─────────────────┴─────────────────┐
-                                         YES                                  NO
-                                          │                                    │
-                                Prompt/result cache                   KV cache — strictly
-                                (shared cache tier,                    tied to THIS replica's
-                                e.g. Redis — safe to                   GPU memory and THIS
-                                miss, just costs                       request's lifetime;
-                                recompute)                             never migrates, never
-                                                                        shared across replicas
+```mermaid
+flowchart TD
+    A{"Does losing this state on replica restart break correctness (not just performance)?"}
+    A -->|YES| B["Must be externalized/durable (conversation/session, vector index, model artifact registry)"]
+    A -->|NO| C{"Is it still valid/useful if copied to a NEW replica?"}
+    C -->|YES| D["Prompt/result cache (shared cache tier, e.g. Redis - safe to miss, just costs recompute)"]
+    C -->|NO| E["KV cache - strictly tied to THIS replica's GPU memory and THIS request's lifetime; never migrates, never shared across replicas"]
 ```
 The KV cache leaf is the one most likely to be misclassified by someone applying general "externalize state" instincts from web-service architecture — unlike conversation history, KV cache is not a candidate for externalization to Redis/a database; it lives in GPU HBM for the duration of one request/session and is deliberately non-durable. Prefix caching (Senior Deep Dive 2) reuses it *within* a serving tier via routing, not by copying it out to a shared store.
 
 ➕ **Sample output — a session-affinity bug this classification prevents:**
-```
-$ kubectl get pods -l app=llm-chat -o wide
-NAME              READY   STATUS    NODE
-llm-chat-7f9c-0   1/1     Running   gpu-node-3
-llm-chat-7f9c-1   1/1     Running   gpu-node-7
-
-$ curl -s https://chat.internal/v1/conversations/abc123/history
-{"error": "conversation not found"}     ← user's 2nd message hit a DIFFERENT replica than their 1st
-
-$ kubectl logs llm-chat-7f9c-1 | grep abc123
-(no output — this replica never saw this conversation ID)
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ kubectl get pods -l app=llm-chat -o wide"]
+  n1["NAME READY STATUS NODE"]
+  n2["llm-chat-7f9c-0 1/1 Running gpu-node-3"]
+  n3["llm-chat-7f9c-1 1/1 Running gpu-node-7"]
+  n4["$ curl -s https://chat.internal/v1/conversations/abc123/history"]
+  n5["{'error': 'conversation not found'} ← user's 2nd message hit a DIFFERENT replica than their 1st"]
+  n6["$ kubectl logs llm-chat-7f9c-1 | grep abc123"]
+  n7["(no output — this replica never saw this conversation ID)"]
 ```
 This is the exact failure Sagar Desai's practitioner lens warns against: conversation history held only in the serving replica's process memory disappears the instant the load balancer routes a follow-up message to a different Pod — which it will, under any non-sticky load balancing, and even sticky sessions break on replica restart/rescale. The fix is externalizing conversation state to a shared store (Redis, a database) keyed by conversation ID, looked up by whichever replica happens to handle the request — not making replicas sticky, which just delays the same failure to the next scale-down event.
 
@@ -71,20 +59,16 @@ This is the exact failure Sagar Desai's practitioner lens warns against: convers
 ➕ **Shortcut/mnemonic:** *"KV cache never leaves the GPU; session state never lives only in the Pod; model artifacts are read-mostly and versioned; prompt caches must be scoped as tightly as the tenancy boundary they sit inside."*
 
 ➕ **Diagram: RAG's two pipelines — the vector index row of the table, unpacked**
-```
-INGEST (offline, write path):
- documents ──▶ chunk ──▶ embed ──▶ write to vector index
-                                        │
-                                        ▼
-                              (persistent/search-optimized
-                               state — the "Vector index"
-                               row above)
-
-QUERY (online, read path, happens per request):
- user query ──▶ embed ──▶ retrieve (ANN search        ──▶ rerank ──▶ generate
-                            against the same index)                  (LLM call,
-                                                                       Ch3 prefill/
-                                                                       decode applies
-                                                                       here)
+```mermaid
+flowchart LR
+    subgraph Ingest["INGEST (offline, write path)"]
+    direction LR
+    A["Documents"] --> B["Chunk"] --> C["Embed"] --> D["Write to vector index (persistent/search-optimized state)"]
+    end
+    subgraph Query["QUERY (online, read path, per request)"]
+    direction LR
+    E["User query"] --> F["Embed"] --> G["Retrieve (ANN search against the same index)"] --> H["Rerank"] --> I["Generate (LLM call - Ch3 prefill/decode applies here)"]
+    end
+    D -.->|shared index| G
 ```
 The ingest and query pipelines share the vector index but run on entirely different schedules and failure domains — a slow or stale ingest path degrades answer quality silently, while a slow query-path retrieve step shows up directly as added TTFT on top of the LLM's own prefill/decode timeline from Chapter 3.

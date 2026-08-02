@@ -19,27 +19,39 @@ Kafka concepts from your study guide provide reusable reasoning patterns. A part
 | Consumer lag (backpressure signal) | Inference request queue depth, or dataloader prefetch queue depth (Chapter 6) | Rising lag with no alerting = silent SLO breach discovered by users, not monitoring — identical shape to Kafka consumer-lag blindness |
 
 ➕ **Diagram: dataset sharding as a partitioning boundary — uneven shards reproduce Deep Dive 1's straggler**
-```
-Shard0 [████████]  ──▶ rank0  step time: 100ms
-Shard1 [████████]  ──▶ rank1  step time: 100ms
-Shard2 [████████████████]  ──▶ rank2  step time: 200ms  ← oversized shard = straggler
-Shard3 [████████]  ──▶ rank3  step time: 100ms
-
-barrier waits for max(all ranks) = 200ms — same amplification math as Deep Dive 1,
-just caused by a sharding/partitioning defect instead of a hardware/fabric one
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["Shard0 [████████]"]
+  n1["rank0 step time: 100ms"]
+  n2["Shard1 [████████]"]
+  n3["rank1 step time: 100ms"]
+  n4["Shard2 [████████████████]"]
+  n5["rank2 step time: 200ms ← oversized shard = straggler"]
+  n6["Shard3 [████████]"]
+  n7["rank3 step time: 100ms"]
+  n8["barrier waits for max(all ranks) = 200ms — same amplification math as Deep Dive 1,"]
+  n9["just caused by a sharding/partitioning defect instead of a hardware/fabric one"]
+  n0 --> n1
+  n2 --> n3
+  n4 --> n5
+  n6 --> n7
 ```
 
 ➕ **Diagram: disaggregated serving's cross-node KV-cache path (the Dynamo tie-in below, drawn)**
-```
-┌───────────────┐   KV-cache tensors    ┌───────────────┐
-│  Prefill pool  │──────────────────────▶│  Decode pool   │
-│  (GPU group A) │   over RDMA/fabric     │  (GPU group B) │
-└───────────────┘   during inference,    └───────────────┘
-                     not just training
-
-Same fabric requirements as a training collective (Chapters 2-5, Deep Dives 1-3) —
-GPUDirect RDMA, rail affinity, oversubscription — now apply to the request-serving
-path, per-request, at inference latency budgets instead of per-training-step.
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["KV-cache tensors"]
+  n1["Prefill pool"]
+  n2["Decode pool"]
+  n3["(GPU group A) over RDMA/fabric (GPU group B)"]
+  n4["during inference,"]
+  n5["not just training"]
+  n6["Same fabric requirements as a training collective (Chapters 2-5, Deep Dives 1-3) —"]
+  n7["GPUDirect RDMA, rail affinity, oversubscription — now apply to the request-serving"]
+  n8["path, per-request, at inference latency budgets instead of per-training-step."]
+  n1 --> n2
 ```
 
 ➕ **Interview-ready line:** "AI infrastructure doesn't need a new theory of distributed systems — sharding, replication, leader election and backpressure are the same four problems Kafka solves, wearing GPU-cluster clothing. Naming the Kafka-world term for what you're seeing is a fast way to signal you're reasoning from first principles, not pattern-matching on NVIDIA-specific vocabulary alone."

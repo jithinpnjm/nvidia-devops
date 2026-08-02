@@ -182,33 +182,29 @@ ls -l /proc/<PID>/fd | head
 ```
 
 ➕ **Sample output, annotated** (what you're actually looking for):
-```
-$ ps -eo pid,ppid,tid,stat,ni,psr,pcpu,comm --sort=-pcpu | head -5
-  PID  PPID   TID STAT  NI PSR %CPU COMMAND
- 8842  8801  8842 R      0   3 97.2 python3        ← running, pinned to CPU 3, hot
- 8842  8801  8855 S      0  11  0.4 python3        ← sibling thread, same PID, idle
- 9001     1  9001 D      0   7  0.0 java           ← STAT=D, 0% CPU but NOT the same as idle
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ ps -eo pid,ppid,tid,stat,ni,psr,pcpu,comm --sort=-pcpu | head -5"]
+  n1["PID PPID TID STAT NI PSR %CPU COMMAND"]
+  n2["8842 8801 8842 R 0 3 97.2 python3 ← running, pinned to CPU 3, hot"]
+  n3["8842 8801 8855 S 0 11 0.4 python3 ← sibling thread, same PID, idle"]
+  n4["9001 1 9001 D 0 7 0.0 java ← STAT=D, 0% CPU but NOT the same as idle"]
 ```
 The `D` line is the one that fools people: 0% CPU looks "fine" in a CPU-only dashboard, but a process stuck in `D` is exactly what inflates load average while CPU graphs look calm — this is the gap between "looks idle" and "is blocked" that Kubernetes CPU-based HPA metrics will completely miss.
 
 ➕ **Process state machine (what actually drives the transitions):**
-```
-        fork()/clone()
-              │
-              ▼
-     ┌─────────────┐   scheduled on CPU    ┌─────────┐
-     │  Runnable(R) │ ────────────────────▶│Running(R)│
-     └─────────────┘◀──────────────────────└─────────┘
-        ▲     ▲          preempted/quantum expired   │
-        │     │                                       │ blocking syscall (read, futex, wait)
-        │     │ event/data ready                      ▼
-        │  ┌──────────────┐   uninterruptible I/O  ┌─────────┐
-        │  │ Sleeping(S)  │◀──────────────────────│  D-state │
-        │  └──────────────┘                        └─────────┘
-        │                                                │ signal CANNOT interrupt D — must wait
-        │                                                ▼ I/O completes
-        └────────────────────────────────────────────────┘
-   exit() → Zombie(Z) until parent wait()s → reaped, slot freed
+```mermaid
+flowchart TD
+    Start([fork()/clone()]) --> Runnable["Runnable (R)"]
+    Runnable -->|scheduled on CPU| Running["Running (R)"]
+    Running -->|preempted/quantum expired| Runnable
+    Running -->|"blocking syscall (read, futex, wait)"| Dstate["D-state (uninterruptible I/O)"]
+    Dstate -->|uninterruptible I/O| Sleeping["Sleeping (S)"]
+    Sleeping -->|event/data ready| Runnable
+    Dstate -->|"I/O completes (signal CANNOT interrupt D — must wait)"| Runnable
+    Running -->|"exit()"| Zombie["Zombie (Z) until parent wait()s"]
+    Zombie -->|reaped| Freed[slot freed]
 ```
 
 ➕ **Memory hook:** *"RSDZT — Running Steadily, Dead Zombies Trapped."* R=running/runnable, S=sleeping (interruptible), D=disk-wait (uninterruptible — can't even `kill -9` it out, you have to wait for the I/O), Z=zombie (exited, unreaped), T=traced/stopped. The one to instinctively distrust in dashboards is D — it's invisible to CPU metrics and immune to normal signals.
@@ -265,27 +261,50 @@ cat /sys/fs/cgroup/cpu.stat
 ```
 
 ➕ **Sample `cpu.stat` and the arithmetic that actually proves throttling:**
-```
-$ cat /sys/fs/cgroup/cpu.max
-50000 100000        ← quota=50ms, period=100ms → this container gets 0.5 CPU cores, period-by-period
-
-$ cat /sys/fs/cgroup/cpu.stat
-nr_periods 128000
-nr_throttled 41200   ← 32% of all 100ms windows, this container hit its quota and got paused
-throttled_usec 890000000
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ cat /sys/fs/cgroup/cpu.max"]
+  n1["50000 100000 ← quota=50ms, period=100ms"]
+  n2["this container gets 0.5 CPU cores, period-by-period"]
+  n3["$ cat /sys/fs/cgroup/cpu.stat"]
+  n4["nr_periods 128000"]
+  n5["nr_throttled 41200 ← 32% of all 100ms windows, this container hit its quota and got paused"]
+  n6["throttled_usec 890000000"]
+  n1 --> n2
 ```
 `nr_throttled / nr_periods` is your throttling *rate* — 32% here is severe. The tell-tale symptom pattern: **P99 latency spiking in short, regular sawtooth bursts** (every ~100ms period boundary) while host-level `%CPU` for the container looks unremarkable when averaged — averaging hides throttling because the pauses are sub-second. This is the single most common "why is my container slow when the node has plenty of CPU" root cause in Kubernetes, and it's a direct trap for anyone who checks `kubectl top pod` (an average) instead of `cpu.stat` (the actual enforcement counter).
 
 ➕ **Diagram: throttling sawtooth, period by period**
+```mermaid
+flowchart LR
+    subgraph P1["period 1"]
+        direction LR
+        U1[used 50ms - quota] --> H1["THROTTLED (halt) 50ms"]
+    end
+    subgraph P2["period 2"]
+        direction LR
+        U2[used 50ms - quota] --> H2["THROTTLED (halt) 50ms"]
+    end
+    subgraph P3["period 3"]
+        direction LR
+        U3[used 50ms - quota] --> H3["THROTTLED (halt) 50ms"]
+    end
+    subgraph P4["period 4"]
+        direction LR
+        U4[used 50ms - quota] --> H4["THROTTLED (halt) 50ms"]
+    end
+    subgraph P5["period 5"]
+        direction LR
+        U5[used 50ms - quota] --> H5["THROTTLED (halt) 50ms"]
+    end
+    P1 --> P2 --> P3 --> P4 --> P5
+    H1 -.->|P99 latency spike at boundary| U2
+    H2 -.->|P99 latency spike at boundary| U3
+    H3 -.->|P99 latency spike at boundary| U4
+    H4 -.->|P99 latency spike at boundary| U5
 ```
-CPU time used by container within each 100ms period (quota = 50ms → 0.5 core)
-100ms │████████████████████████████████████░░░░░░░░░░░░│ 0ms
-      │  used 50ms (quota) then THROTTLED for remaining 50ms of period    │
-      └────────────────────────────────────────────────────────────────┘
-period 1     period 2     period 3     period 4     period 5
-[used|halt] [used|halt]  [used|halt]  [used|halt]  [used|halt]
-     ▲ P99 latency spikes land exactly here, once per period boundary
-```
+CPU time used by the container within each 100ms period (quota = 50ms → 0.5 core). P99 latency spikes land exactly once per period boundary, right where THROTTLED hands back to used.
 This is why throttling produces a regular, sawtooth-shaped latency pattern instead of steady degradation — the container runs at full speed until it exhausts its slice, then is frozen (not slowed) until the next period opens, and `kubectl top`'s per-minute average smooths the sawtooth away completely.
 
 ➕ **One-liner to check every pod on a node for throttling, not just one:**
@@ -353,16 +372,14 @@ chrt -f -p 50 <pid>       # set SCHED_FIFO priority 50 — dangerous outside con
 ```
 
 ➕ **Diagram: who gets the CPU first (preemption order among classes)**
+```mermaid
+flowchart LR
+    A["SCHED_FIFO (real-time) — run-to-completion until it yields or blocks"] --> B["SCHED_RR (real-time) — time-sliced among peers"]
+    B --> C["SCHED_OTHER (CFS) — fair-share, nice-weighted"]
+    C --> D["SCHED_BATCH (CFS) — no wakeup preemption"]
+    D --> E["SCHED_IDLE (fills gaps) — only when nothing else is runnable"]
 ```
- highest priority                                            lowest priority
- ┌────────────┐   ┌────────────┐   ┌───────────┐   ┌───────────┐   ┌────────────┐
- │ SCHED_FIFO │ ▶ │ SCHED_RR   │ ▶ │SCHED_OTHER│ ▶ │SCHED_BATCH│ ▶ │ SCHED_IDLE │
- │ (real-time)│   │ (real-time)│   │   (CFS)   │   │  (CFS)    │   │ (fills gaps)│
- └────────────┘   └────────────┘   └───────────┘   └───────────┘   └────────────┘
-   run-to-completion   time-sliced      fair-share      no wakeup      only when
-   until it yields      among peers    nice-weighted    preemption    nothing else
-   or blocks                                                          is runnable
-```
+Highest priority on the left (`SCHED_FIFO`) to lowest priority on the right (`SCHED_IDLE`).
 A runnable `SCHED_FIFO` task always wins the CPU over every class to its right, including the kernel's own default class — this is the mechanism behind "a mis-set real-time priority can starve everything else on the CPU."
 
 ### GPU/AI-adjacent failure scenario (this chapter's concepts, applied to the actual job you're interviewing for)

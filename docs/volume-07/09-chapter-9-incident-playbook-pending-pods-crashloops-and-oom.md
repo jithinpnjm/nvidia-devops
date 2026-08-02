@@ -33,18 +33,19 @@ Events:
 This single event line answers both "how many nodes were even candidates" (0 of 12) and "why, split by reason" (8 lacked free GPU allocatable capacity, 4 were tainted and this Pod has no matching toleration). The arithmetic check that follows immediately: `kubectl describe node <gpu-node> | grep -A5 Allocated` to confirm whether the 8 GPU-insufficient nodes are *genuinely* full or whether requested-vs-allocatable accounting is the actual problem (e.g. a stuck Pod holding a GPU request without using it).
 
 ➕ **ASCII: the Pending-Pod evidence tree, generalized from steps 1-5 above:**
-```
-Pod Pending
-    │
-    ▼
-kubectl describe pod → read Events reason string
-    │
-    ├─ "Insufficient <resource>"        → check node allocatable vs requested (step 2)
-    ├─ "untolerated taint"              → check taints/tolerations/affinity (step 1)
-    ├─ "node(s) had volume node affinity conflict" / PVC pending → check PVC/topology/quota (step 3)
-    ├─ "0/N nodes available" + all reasons above ruled out → is cluster autoscaler capable/at limit? (step 4)
-    └─ no FailedScheduling event at all, Pod just sitting  → check for admission webhook / quota rejection
-        (different symptom — scheduler never even attempted placement)
+```mermaid
+flowchart TD
+    A["Pod Pending"] --> B["kubectl describe pod -- read Events reason string"]
+    B --> C{"Insufficient resource?"}
+    C -->|yes| C1["check node allocatable vs requested (step 2)"]
+    B --> D{"untolerated taint?"}
+    D -->|yes| D1["check taints/tolerations/affinity (step 1)"]
+    B --> E{"node(s) had volume node affinity conflict / PVC pending?"}
+    E -->|yes| E1["check PVC/topology/quota (step 3)"]
+    B --> F{"0/N nodes available, all reasons above ruled out?"}
+    F -->|yes| F1["is cluster autoscaler capable/at limit? (step 4)"]
+    B --> G{"no FailedScheduling event at all, Pod just sitting?"}
+    G -->|yes| G1["check for admission webhook / quota rejection -- different symptom, scheduler never even attempted placement"]
 ```
 
 ➕ **Worked scenario — the specific GPU-fleet variant of "Pending," where the resource math is the whole answer:**
@@ -82,33 +83,35 @@ containerStatuses:
 `exitCode: 137` paired with `reason: OOMKilled` is unambiguous — this is Kubernetes/cgroup memory enforcement, the fix is a memory limit/request change or a memory leak investigation in the app, and it has **nothing to do with CUDA memory**. Contrast with an app-level crash: `reason: Error`, `exitCode: 1` (or whatever the app's own exit convention is), `lastState.terminated.message` populated with an app-specific string — that's step 3's "application exit" branch, and the fix lives in application code, not resource limits.
 
 ➕ **Diagram: the CrashLoopBackOff cycle — a retry state, not a root cause, made visual**
-```
-        ┌────────────────────────────────────────────────┐
-        │                                                  │
-        ▼                                                  │
-   container starts ──▶ runs ──▶ terminates          restart, after
-   (Created/Started)      │       (exit code +          growing backoff
-                           │        reason recorded,     delay (10s, 20s,
-                    probe/OOM/      per step 1/2)         40s, ...)
-                    app crash                                 ▲
-                           │                                  │
-                           ▼                                  │
-                    kubectl logs -p            waiting: reason=CrashLoopBackOff
-                    (last instance's           (this is the STATE you see in
-                     evidence — window          `kubectl get pod`, not the cause —
-                     closes once it              step 1's "read termination reason
-                     restarts again)              and exit code" is what breaks
-                                                    out of just re-reading this loop)
+```mermaid
+flowchart TD
+    A["container starts (Created/Started)"] --> B["runs"]
+    B --> C["terminates (exit code + reason recorded, per step 1/2)"]
+    C -->|"probe/OOM/app crash"| D["kubectl logs -p (last instance's evidence -- window closes once it restarts again)"]
+    D --> E["waiting: reason=CrashLoopBackOff (this is the STATE you see in kubectl get pod, not the cause -- step 1's 'read termination reason and exit code' is what breaks out of just re-reading this loop)"]
+    E -->|"restart, after growing backoff delay (10s, 20s, 40s, ...)"| A
 ```
 Every lap of this loop erases the previous container instance's live process — `kubectl logs -p` is the only window onto the lap that just ended, which is exactly why step 2 calls it out explicitly rather than assuming `kubectl logs` (no `-p`) is good enough.
 
 ➕ **Shortcut — the exit-code decoder every senior SRE should have memorized cold:**
-```
-exitCode 0    → clean exit (shouldn't be in CrashLoopBackOff at all — check the app's own restart logic)
-exitCode 1    → generic app error (check logs -p for the actual message)
-exitCode 137  → 128+9 = SIGKILL — OOMKilled (check reason field) or manual kill -9 / eviction
-exitCode 143  → 128+15 = SIGTERM — graceful shutdown signal received (check if it handled it correctly)
-exitCode 139  → 128+11 = SIGSEGV — segfault, usually native code/library issue, not "the app decided to exit"
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["exitCode 0"]
+  n1["clean exit (shouldn't be in CrashLoopBackOff at all — check the app's own restart logic)"]
+  n2["exitCode 1"]
+  n3["generic app error (check logs -p for the actual message)"]
+  n4["exitCode 137"]
+  n5["128+9 = SIGKILL — OOMKilled (check reason field) or manual kill -9 / eviction"]
+  n6["exitCode 143"]
+  n7["128+15 = SIGTERM — graceful shutdown signal received (check if it handled it correctly)"]
+  n8["exitCode 139"]
+  n9["128+11 = SIGSEGV — segfault, usually native code/library issue, not 'the app decided to exit'"]
+  n0 --> n1
+  n2 --> n3
+  n4 --> n5
+  n6 --> n7
+  n8 --> n9
 ```
 **Mnemonic:** *subtract 128 from any exit code ≥128 and you get the signal number.*
 

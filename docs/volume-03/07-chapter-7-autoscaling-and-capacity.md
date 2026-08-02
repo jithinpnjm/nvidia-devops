@@ -19,93 +19,71 @@ kubectl get events --field-selector reason=FailedScheduling
 ```
 
 ➕ **Four independent control loops, drawn together — this is the diagram to reproduce cold in an interview:**
-```
-┌─────────────┐  metric (CPU%, custom, external via KEDA)
-│    HPA      │──────────────────┐
-└─────────────┘                  ▼
-                          adjusts replicas of a Deployment/StatefulSet
-                                  │
-┌─────────────┐  metric source   │  new Pods created, each carrying its
-│   KEDA      │──────────────────┤  OWN resource requests (unchanged by
-│ (scale-to-  │  (queue depth,   │  HPA — HPA only changes replica COUNT,
-│  zero, event│   Kafka lag,     │  never the per-Pod request/limit)
-│  sources)   │   custom metric) │
-└─────────────┘                  ▼
-                          scheduler tries to place new Pods
-                                  │
-┌─────────────┐  historical usage│  if unschedulable due to capacity →
-│    VPA      │  recommendation  │  FailedScheduling event
-│ (changes    │──────────────────┘         │
-│  requests,  │  (separate loop —          ▼
-│  NOT count) │   can conflict with HPA  ┌─────────────┐
-└─────────────┘   if both target CPU)    │   Cluster   │  watches FailedScheduling +
-                                          │  Autoscaler │  node group configs
-                                          └─────────────┘
-                                                 │
-                                          adds/removes NODES (not Pods) —
-                                          only if an eligible node group
-                                          expansion would actually help
+```mermaid
+flowchart TD
+    HPA["HPA<br/>metric: CPU%, custom, external via KEDA"]
+    KEDA["KEDA (scale-to-zero, event sources)<br/>metric source: queue depth, Kafka lag, custom metric"]
+    VPA["VPA (changes requests, NOT count)<br/>historical usage recommendation<br/>(separate loop -- can conflict with HPA if both target CPU)"]
+    Adjust["adjusts replicas of a Deployment/StatefulSet"]
+    NewPods["new Pods created, each carrying its OWN resource requests (unchanged by HPA -- HPA only changes replica COUNT, never the per-Pod request/limit)"]
+    Sched["scheduler tries to place new Pods"]
+    Failed["if unschedulable due to capacity -- FailedScheduling event"]
+    CA["Cluster Autoscaler<br/>watches FailedScheduling + node group configs"]
+    Nodes["adds/removes NODES (not Pods) -- only if an eligible node group expansion would actually help"]
+
+    HPA --> Adjust
+    KEDA --> Adjust
+    Adjust --> NewPods --> Sched --> Failed --> CA --> Nodes
+    VPA -.->|"changes per-Pod requests, separate loop"| NewPods
 ```
 ➕ **Interview-ready line:** "There are four loops here, not one — HPA changes replica count, VPA changes per-Pod requests, KEDA changes what triggers HPA, and cluster autoscaler changes node count. They only *look* like one system because they're chained through the scheduler; debugging any one of them by looking at another's metrics is the most common mistake I see."
 
 ➕ **The VPA/HPA conflict, made concrete — a known landmine worth naming unprompted:**
-```
-VPA in "Auto" mode recomputes and re-applies CPU/memory REQUESTS based on
-historical usage → this changes the per-Pod resource footprint.
-HPA targeting CPU UTILIZATION % computes against (usage / request).
-                            ↓
-If VPA raises the request while usage stays flat, HPA's computed
-utilization % DROPS — HPA may then scale replicas DOWN, even though
-nothing about actual load changed. The two loops are fighting over the
-same denominator without knowing about each other.
+```mermaid
+flowchart TD
+    VPAStep["VPA in Auto mode recomputes and re-applies CPU/memory REQUESTS based on historical usage -- this changes the per-Pod resource footprint"]
+    HPAStep["HPA targeting CPU UTILIZATION % computes against (usage / request)"]
+    Drop["If VPA raises the request while usage stays flat, HPA's computed utilization % DROPS -- HPA may then scale replicas DOWN, even though nothing about actual load changed. The two loops are fighting over the same denominator without knowing about each other."]
+
+    VPAStep --> HPAStep --> Drop
 ```
 Mitigation named in K8s docs and worth stating directly: don't run VPA in `Auto`/`Recreate` update mode on CPU/memory simultaneously with HPA targeting CPU/memory utilization on the *same* workload — either let VPA drive requests and HPA target a custom/external metric instead, or pick one loop per resource dimension.
 
 ➕ **Sample annotated output — reading an HPA's actual decision math, not just its output replica count:**
-```
-$ kubectl describe hpa api -n prod
-Reference:                                Deployment/api
-Metrics:                                  ( current / target )
-  resource cpu on pods (as a percentage of request):  78% (390m) / 70%
-Min replicas:                             5
-Max replicas:                             30
-Current replicas:                         12
-Desired replicas:                         14           ← 12 * (78/70) ≈ 13.4 → rounds to 14
-Conditions:
-  Type            Status  Reason
-  AbleToScale     True    ReadyForNewScale
-  ScalingActive   True    ValidMetricFound
-  ScalingLimited  False    (would be True if pinned at Min or Max replicas)
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ kubectl describe hpa api -n prod"]
+  n1["Reference: Deployment/api"]
+  n2["Metrics: ( current / target )"]
+  n3["resource cpu on pods (as a percentage of request): 78% (390m) / 70%"]
+  n4["Min replicas: 5"]
+  n5["Max replicas: 30"]
+  n6["Current replicas: 12"]
+  n7["Desired replicas: 14 ← 12 * (78/70) ≈ 13.4"]
+  n8["rounds to 14"]
+  n9["Conditions"]
+  n10["Type Status Reason"]
+  n11["AbleToScale True ReadyForNewScale"]
+  n12["ScalingActive True ValidMetricFound"]
+  n13["ScalingLimited False (would be True if pinned at Min or Max replicas)"]
+  n7 --> n8
 ```
 The `Desired replicas` math is always `ceil(currentReplicas * currentMetric/targetMetric)`, clamped by a stabilization window (default 0s scale-up, 5 min scale-down in modern versions) to prevent flapping — worth being able to do this arithmetic live, since "why did it scale from 12 to 14 and not straight to 30" is a real question customers ask.
 
 ➕ **Diagram: cluster autoscaler's own decision loop, the piece that explains "why didn't it just add a node":**
-```
- Pod is Pending, FailedScheduling event fires
-        │
-        ▼
- Cluster autoscaler watches for unschedulable Pods (own controller loop,
- separate from the scheduler itself)
-        │
-        ▼
- For each configured node group: SIMULATE — would a new node from this
- group's template actually satisfy this Pod's Filter constraints
- (resources, taints, affinity, GPU type)?
-        │
-   ┌────┴─────┐
-   ▼          ▼
-  YES for    NO for every node group (wrong GPU type available,
-  ≥1 group   or every eligible group already at max size)
-   │              │
-   ▼              ▼
- Check that     Pod stays Pending — this is the autoscaler correctly
- group's max    declining, not a bug (see the log-line evidence below)
- size isn't
- already hit
-   │
-   ▼
- Scale up that node group → new node joins → scheduler retries
- the Pending Pod on the next cycle
+```mermaid
+flowchart TD
+    Pending["Pod is Pending, FailedScheduling event fires"]
+    Watch["Cluster autoscaler watches for unschedulable Pods (own controller loop, separate from the scheduler itself)"]
+    Simulate{"For each configured node group: SIMULATE -- would a new node from this group's template actually satisfy this Pod's Filter constraints (resources, taints, affinity, GPU type)?"}
+    CheckMax["Check that group's max size isn't already hit"]
+    StillPending["Pod stays Pending -- this is the autoscaler correctly declining, not a bug"]
+    ScaleUp["Scale up that node group -- new node joins -- scheduler retries the Pending Pod on the next cycle"]
+
+    Pending --> Watch --> Simulate
+    Simulate -->|"YES for >= 1 group"| CheckMax --> ScaleUp
+    Simulate -->|"NO for every node group (wrong GPU type available, or every eligible group already at max size)"| StillPending
 ```
 
 ## Worked scenario

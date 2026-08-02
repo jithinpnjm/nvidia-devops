@@ -25,31 +25,17 @@ A PoC is not a product demo. Start with the architecture uncertainty that could 
 ➕ **The storage-feeding-GPUs question, worked with a number (the one row in this table that most teams underestimate):** an H100 doing FP16 training can be starved by storage well before it's compute-bound — if checkpoint/dataset reads can't sustain roughly the GB/s the GPU's memory bandwidth-bound data loader needs, GPU utilization drops even though `nvidia-smi` shows the GPU as "available," not busy. A PoC that never runs a storage-saturation test alongside a real training job is the single most common gap in "we tested GPU Kubernetes" reports — it's easy to test GPUs and storage separately and miss that they starve each other only under concurrent load.
 
 ➕ **Diagram: the 5-domain menu, and the "pick 2-3" instruction made literal:**
-```
-5 uncertainty domains (the menu):
-Inference capacity │ Training fabric │ Storage │ Resilience │ Operations
-        │
-        ▼
-  Pick 2-3 that actually block the production DECISION
-  (Ch.6's instruction — not all 5, every time)
-        │
-        ▼
-  Each chosen domain gets: metric, pass/fail threshold, workload
-  generator, telemetry, and a FAILURE test — before implementation
+```mermaid
+flowchart TD
+    A["5 uncertainty domains (the menu):\nInference capacity | Training fabric | Storage | Resilience | Operations"] --> B["Pick 2-3 that actually block the production\nDECISION (Ch.6's instruction - not all 5, every time)"]
+    B --> C["Each chosen domain gets: metric, pass/fail\nthreshold, workload generator, telemetry, and a\nFAILURE test - before implementation"]
 ```
 
 ➕ **Diagram: how storage starves a GPU without ever showing up as "GPU busy":**
-```
-Storage (checkpoint/dataset tier)
-        │  GB/s actually sustained
-        ▼
-Data loader (CPU-side, feeds batches to the GPU)
-        │  must keep pace with the GPU's consumption rate
-        ▼
-GPU compute (FP16 training step)
-        │
-        ▼
-nvidia-smi shows GPU "available", not "busy" ──▶ hidden bottleneck:
-   the GPU isn't idle by choice, it's STORAGE-BOUND — a PoC that
-   never loads storage and GPU concurrently will miss this entirely
+```mermaid
+flowchart TD
+    A["Storage (checkpoint/dataset tier)"] -->|"GB/s actually sustained"| B["Data loader (CPU-side, feeds\nbatches to the GPU)"]
+    B -->|"must keep pace with the GPU's\nconsumption rate"| C["GPU compute (FP16 training step)"]
+    C --> D["nvidia-smi shows GPU 'available', not 'busy'"]
+    D --> E["hidden bottleneck: the GPU isn't idle by choice,\nit's STORAGE-BOUND - a PoC that never loads\nstorage and GPU concurrently will miss this entirely"]
 ```

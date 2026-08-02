@@ -33,23 +33,18 @@ source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 ➕ **How to drill this bank (the mechanic, not just the list):** for each question, answer aloud with a 2-minute limit, in the C-M-H-E-R shape from Chapter 1, then force yourself to add one sentence naming the evidence that would distinguish your top hypothesis from your second one. If you can't name that sentence, you don't know the topic as deeply as the answer implied — go back to the source chapter.
 
 ➕ **Diagram: the drill loop for this question bank**
-```
-Pick one question from the bank
-              │
-              ▼
-Answer aloud, 2-minute cap, C-M-H-E-R shape (Ch1)
-              │
-              ▼
-Add ONE sentence: what evidence would distinguish your
-top hypothesis from your second-ranked one?
-              │
-              ▼
-   Can you say that sentence in under 15 seconds?
-        │no                          │yes
-        ▼                            ▼
-  Back to the source chapter    Self-grade against a model
-  — this IS your real study      answer above, then move to
-  gap, not a minor miss          the next question
+```mermaid
+flowchart TD
+    Pick["Pick one question from the bank"]
+    Answer["Answer aloud, 2-minute cap, C-M-H-E-R shape (Ch1)"]
+    Add["Add ONE sentence: what evidence would distinguish your top hypothesis from your second-ranked one?"]
+    Check{"Can you say that sentence in under 15 seconds?"}
+    Back["Back to the source chapter - this IS your real study gap, not a minor miss"]
+    Grade["Self-grade against a model answer above, then move to the next question"]
+
+    Pick --> Answer --> Add --> Check
+    Check -->|no| Back
+    Check -->|yes| Grade
 ```
 Run every row in this bank through this loop once before assuming you "know" the bank — the loop, not the answer key, is what the drill is actually training.
 

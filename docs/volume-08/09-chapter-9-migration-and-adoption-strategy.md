@@ -23,26 +23,13 @@ A migration plan should state source/target operating models, workload segmentat
 ---
 
 ➕ **The migration plan skeleton, drawn as a gated pipeline (the source's 8-item list, sequenced with the actual gate at each step):**
-```
-Inventory (job patterns, accounting, topology, storage assumptions)
-      │  GATE: can you name every Slurm feature a job silently depends on?
-      ▼
-Segment (clean-map vs HPC-specific-behavior workloads)
-      │  GATE: is the split evidence-based (step 1's inventory) or assumed?
-      ▼
-Prototype (representative large jobs, measure scheduling/launch/scaling/recovery)
-      │  GATE: do the numbers match Slurm's baseline within an agreed %?
-      ▼
-Coexistence period (shared identity/storage/observability, BOTH platforms live)
-      │  GATE: can an operator actually run both without confusion about
-      │         which system owns which job today?
-      ▼
-Migrate by workload class (rollback + operator readiness gates PER CLASS)
-      │  GATE: could this specific class roll back within its own RTO
-      │         if week 1 in production goes wrong?
-      ▼
-Retire source platform (only after ALL classes have passed their gate —
-      not on a calendar deadline)
+```mermaid
+flowchart TD
+    A["Inventory (job patterns, accounting,\ntopology, storage assumptions)"] -->|"GATE: can you name every Slurm\nfeature a job silently depends on?"| B["Segment (clean-map vs\nHPC-specific-behavior workloads)"]
+    B -->|"GATE: is the split evidence-based\n(step 1's inventory) or assumed?"| C["Prototype (representative large jobs,\nmeasure scheduling/launch/scaling/recovery)"]
+    C -->|"GATE: do the numbers match Slurm's\nbaseline within an agreed %?"| D["Coexistence period (shared identity/\nstorage/observability, BOTH platforms live)"]
+    D -->|"GATE: can an operator actually run both\nwithout confusion about which system\nowns which job today?"| E["Migrate by workload class (rollback +\noperator readiness gates PER CLASS)"]
+    E -->|"GATE: could this specific class roll\nback within its own RTO if week 1 in\nproduction goes wrong?"| F["Retire source platform (only after ALL\nclasses have passed their gate -\nnot on a calendar deadline)"]
 ```
 The word "gate" is doing real work here: a migration plan without an explicit go/no-go gate at each stage is a timeline, not a migration plan — and the source scenario's failure mode ("move everything in one quarter because it's a standard") is precisely a timeline pretending to be a plan, with zero gates.
 
@@ -95,9 +82,12 @@ This worksheet is the concrete form of "operator readiness gates" — a plan tha
 ➕ 2. Write the one-paragraph explanation (in the style of Chapter 10's audience framing) of why this migration is being done "by workload class with gates" rather than "in one quarter" — once for an engineering director (delivery risk framing) and once for an executive (business/cost framing), keeping the underlying facts identical in both versions.
 
 ➕ **Visual model — migrate by reversible workload slices:**
-```
-inventory ─► classify workload ─► pilot ─► parity gate ─► expand class ─► retire old path
-                              │             │                  │
-                              └── rollback ─┴── evidence: SLO, data, identity, operations
+```mermaid
+flowchart LR
+    A[inventory] --> B["classify workload"] --> C[pilot] --> D["parity gate"] --> E["expand class"] --> F["retire old path"]
+    B -.-> G["rollback"]
+    D -.-> H["evidence: SLO, data, identity, operations"]
+    E -.-> H
+    G -.-> H
 ```
 **Memory hook:** *"Move a class, prove parity, then widen."* Calendar promises are not migration safety controls.

@@ -18,42 +18,52 @@ source_document: "Volume_06_HPC,_Networking_and_Storage_for_AI(2).docx"
 Hybrid environments can integrate the two, but integration adds lifecycle and ownership questions. A Solutions Architect should discover which workloads, teams and operational processes must be preserved before recommending consolidation.
 
 ➕ **The decision table above, converted into a decision tree you can actually walk an interviewer through:**
-```
-Is the workload a long-lived, always-on service with independent replica lifecycle (e.g. inference endpoint)?
-  YES ──▶ Kubernetes (Deployments/HPA/Services — this is the native model)
-  NO, it's a bounded batch job needing N coordinated nodes for a fixed duration
-      │
-      ├── Does the org already have deep HPC tooling/accounting/user culture (sinfo/sbatch muscle memory,
-      │    fair-share policy, existing Slurm accounting integration)?
-      │       YES ──▶ Slurm (don't fight existing operational maturity)
-      │       NO  ──▶ Either is viable; Kubernetes if the team is cloud-native-fluent and wants one
-      │               control plane for training AND serving; Slurm if gang-scheduling/HPC-native
-      │               features (topology-aware placement, backfill, complex QoS) are load-bearing
-      │
-      └── Does inference/serving ALSO need to coexist on the same hardware pool?
-              YES ──▶ Hybrid, with explicit node/driver/network ownership boundaries (Deep Dive 6) —
-                       or Kubernetes-only with a batch-friendly scheduler add-on (e.g. Kueue, Volcano)
+```mermaid
+flowchart TD
+    A{"Is the workload a long-lived,
+    always-on service with independent
+    replica lifecycle (e.g. inference endpoint)?"}
+    A -->|YES| K["Kubernetes
+    (Deployments/HPA/Services -
+    this is the native model)"]
+    A -->|"NO"| N["bounded batch job needing N
+    coordinated nodes for a fixed duration"]
+    N --> B{"Does the org already have deep HPC
+    tooling/accounting/user culture (sinfo/sbatch
+    muscle memory, fair-share policy, existing
+    Slurm accounting integration)?"}
+    B -->|YES| S["Slurm
+    (don't fight existing operational maturity)"]
+    B -->|NO| C["Either is viable; Kubernetes if the team
+    is cloud-native-fluent and wants one control
+    plane for training AND serving; Slurm if
+    gang-scheduling/HPC-native features
+    (topology-aware placement, backfill,
+    complex QoS) are load-bearing"]
+    N --> D{"Does inference/serving ALSO need to
+    coexist on the same hardware pool?"}
+    D -->|YES| H["Hybrid, with explicit node/driver/network
+    ownership boundaries (Deep Dive 6) - or
+    Kubernetes-only with a batch-friendly
+    scheduler add-on (e.g. Kueue, Volcano)"]
 ```
 This tree is the practical version of "choose by workload and operating model, not platform loyalty" — the first branch point is workload *shape* (long-lived vs bounded), the second is organizational *maturity*, not a feature checklist comparison.
 
 ➕ **Diagram: the 80/20 hybrid fleet from the worked scenario below, with the ownership boundary drawn**
-```
-┌───────────────────────── shared physical GPU fleet ─────────────────────────┐
-│                                                                               │
-│   ┌────────────── Slurm-managed pool (80%) ──────────────┐                  │
-│   │  multi-week batch pretraining, gang-scheduled          │                  │
-│   │  sbatch/sinfo/sacct control plane                      │                  │
-│   └─────────────────────────────────────────────────────────┘                │
-│                              │                                               │
-│                    explicit ownership boundary:                             │
-│                    node draining, firmware/driver version,                  │
-│                    fabric config, observability handoff                     │
-│                              │                                               │
-│   ┌────────────── Kubernetes-managed pool (20%) ──────────┐                  │
-│   │  online inference, autoscaling endpoints                │                  │
-│   │  Deployments/HPA/Services control plane                 │                  │
-│   └─────────────────────────────────────────────────────────┘                │
-└───────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph FLEET["shared physical GPU fleet"]
+        SLURM["Slurm-managed pool (80%)
+        multi-week batch pretraining, gang-scheduled
+        sbatch/sinfo/sacct control plane"]
+        BOUNDARY["explicit ownership boundary:
+        node draining, firmware/driver version,
+        fabric config, observability handoff"]
+        K8S["Kubernetes-managed pool (20%)
+        online inference, autoscaling endpoints
+        Deployments/HPA/Services control plane"]
+        SLURM --- BOUNDARY --- K8S
+    end
 ```
 The boundary in the middle is not a technical detail to skip — it is the thing Deep Dive 6 spends its whole length on: without an explicit answer to "who drains a node, and does it require coordinating both control planes," a shared fleet quietly becomes two teams fighting over the same hardware.
 

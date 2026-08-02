@@ -13,11 +13,11 @@ A normal Python or C program starts as one operating-system process. Distributed
 
 Use this three-layer distinction:
 
-```text
-Slurm allocates machines/resources
-  └─ PMIx/launcher starts ranks and exchanges connection information
-       └─ MPI moves messages between ranks
-            └─ NCCL may move GPU tensors with GPU-optimized collectives
+```mermaid
+flowchart TD
+    A["Slurm allocates machines/resources"] --> B["PMIx/launcher starts ranks and exchanges connection information"]
+    B --> C["MPI moves messages between ranks"]
+    C --> D["NCCL may move GPU tensors with GPU-optimized collectives"]
 ```
 
 Slurm is not MPI: it decides where work may run. MPI is not NCCL: MPI is a broad process-communication standard, while NCCL specializes in GPU collectives. A training job may use all three.
@@ -48,26 +48,27 @@ MPI (Message Passing Interface) is a **standard**, not a scheduler and not a sin
 
 Every MPI process is a **rank** — an integer ID within a **communicator**, the group of processes that can talk to each other. `MPI_COMM_WORLD` is the default communicator containing every rank in the job; applications can carve subsets out of it (e.g., one communicator per node, one per pipeline stage) for scoped collectives. Point-to-point operations (`MPI_Send`/`MPI_Recv`) move data between two specific ranks; collective operations (`MPI_Bcast`, `MPI_Reduce`, `MPI_Allreduce`, `MPI_Barrier`) involve every rank in a communicator and are implicitly synchronizing — no rank leaves an `MPI_Allreduce` call until every rank in that communicator has entered it. That synchronizing property is exactly why a single stuck rank freezes the entire collective, not just its own progress.
 
-```
 MPI rank layout across 2 nodes, communicator = MPI_COMM_WORLD (8 ranks):
 
-Node A (gpu-node-01)                    Node B (gpu-node-02)
- ┌─────────────────────────┐             ┌─────────────────────────┐
- │ rank0 rank1 rank2 rank3 │             │ rank4 rank5 rank6 rank7 │
- │  GPU0   GPU1  GPU2  GPU3│             │  GPU0   GPU1  GPU2  GPU3│
- └─────────────────────────┘             └─────────────────────────┘
-        │        MPI_COMM_WORLD (all 8 ranks)        │
-        └───────────────────┬─────────────────────────┘
-                             │
-                  MPI_Allreduce(comm=WORLD)
-                  — every one of the 8 ranks must call
-                    this before any of them returns
+```mermaid
+flowchart TD
+    subgraph NodeA["Node A (gpu-node-01)"]
+        A["rank0 rank1 rank2 rank3 - GPU0 GPU1 GPU2 GPU3"]
+    end
+    subgraph NodeB["Node B (gpu-node-02)"]
+        B["rank4 rank5 rank6 rank7 - GPU0 GPU1 GPU2 GPU3"]
+    end
+    NodeA -->|"MPI_COMM_WORLD (all 8 ranks)"| C["MPI_Allreduce(comm=WORLD) - every one of the 8 ranks must call this before any of them returns"]
+    NodeB -->|"MPI_COMM_WORLD (all 8 ranks)"| C
+```
 
 Process bootstrap / launch path:
-  mpirun/mpiexec ──▶ PMI/PMIx ──▶ srun (Slurm) ──▶ Slurm places+starts the 8 ranks
-                                                     across the allocation, exchanges
-                                                     each rank's address (PMIx "keys")
-                                                     so ranks can find each other
+
+```mermaid
+flowchart LR
+    A[mpirun/mpiexec] --> B[PMI/PMIx]
+    B --> C["srun (Slurm)"]
+    C --> D["Slurm places+starts the 8 ranks across the allocation, exchanges each rank's address (PMIx keys) so ranks can find each other"]
 ```
 
 ## mpirun/mpiexec, PMI/PMIx, and Slurm

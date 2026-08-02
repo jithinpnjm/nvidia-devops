@@ -7,16 +7,16 @@ source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 ---
 > Learning outcome Turn an infrastructure problem into algorithm, data structures, functions, tests and edge cases before production hardening.
 
-```text
-Problem
-  -> define input/output
-  -> identify dominant operation
-  -> choose data structure
-  -> pseudocode
-  -> implement smallest correct core
-  -> test edge cases
-  -> discuss complexity
-  -> add production reliability
+```mermaid
+flowchart TD
+    Problem --> A[define input/output]
+    A --> B[identify dominant operation]
+    B --> C[choose data structure]
+    C --> D[pseudocode]
+    D --> E[implement smallest correct core]
+    E --> F[test edge cases]
+    F --> G[discuss complexity]
+    G --> H[add production reliability]
 ```
 
 Example prompt: "Parse a large log and report ERROR/CRITICAL counts by service." Say: stream file line-by-line; regex or structured parser extracts severity/service; Counter[str] aggregates; skip/track malformed lines; O(n) time and O(k) memory where k is number of services, not number of lines.
@@ -42,49 +42,26 @@ Then discuss malformed input, memory, testing, structured logs, and whether JSON
 ## ➕ Additions
 
 ➕ **The workflow as a decision flow (the "say this before you type anything" checklist):**
-```
-   Prompt lands
-        │
-        ▼
- ┌─────────────────────┐   "what exactly comes in,
- │ 1. Input/output      │    what exactly goes out —
- │    contract           │    say it before coding"
- └──────────┬──────────┘
-            ▼
- ┌─────────────────────┐   "what happens N times —
- │ 2. Dominant operation│    membership check? lookup?
- │                       │    aggregation? ordering?"
- └──────────┬──────────┘
-            ▼
- ┌─────────────────────┐   list/dict/set/deque/heap —
- │ 3. Data structure     │   pick from the operation,
- │                       │   not from habit
- └──────────┬──────────┘
-            ▼
- ┌─────────────────────┐
- │ 4. Pseudocode (2-4    │   spoken or written, before
- │    lines, out loud)   │   any real syntax
- └──────────┬──────────┘
-            ▼
- ┌─────────────────────┐
- │ 5. Smallest correct   │   no error handling yet,
- │    core                │   no classes, no CLI
- └──────────┬──────────┘
-            ▼
- ┌─────────────────────┐
- │ 6. Edge cases + tests │   empty input, malformed
- │                       │   line, huge input, duplicate
- └──────────┬──────────┘
-            ▼
- ┌─────────────────────┐
- │ 7. Complexity          │   state Big-O out loud,
- │                       │   unprompted
- └──────────┬──────────┘
-            ▼
- ┌─────────────────────┐
- │ 8. Production harden  │   logging, retries, malformed-
- │                       │   input counters, streaming
- └─────────────────────┘
+```mermaid
+flowchart TD
+    P[Prompt lands]
+    S1["1. Input/output contract"]
+    S2["2. Dominant operation"]
+    S3["3. Data structure"]
+    S4["4. Pseudocode (2-4 lines, out loud)"]
+    S5["5. Smallest correct core"]
+    S6["6. Edge cases + tests"]
+    S7["7. Complexity"]
+    S8["8. Production harden"]
+
+    P --> S1
+    S1 -->|"what exactly comes in, what exactly goes out - say it before coding"| S2
+    S2 -->|"what happens N times - membership check? lookup? aggregation? ordering?"| S3
+    S3 -->|"list/dict/set/deque/heap - pick from the operation, not from habit"| S4
+    S4 -->|"spoken or written, before any real syntax"| S5
+    S5 -->|"no error handling yet, no classes, no CLI"| S6
+    S6 -->|"empty input, malformed line, huge input, duplicate"| S7
+    S7 -->|"state Big-O out loud, unprompted"| S8
 ```
 ➕ **Memory hook:** *"IDDPS-ECP — I Don't Dive Prematurely, Structure/Edge/Complexity/Production."* Or simpler: **"contract → dominant op → structure → pseudocode → core → edges → Big-O → harden."** The two steps candidates skip under pressure are #1 (they start coding before agreeing what "input" even is) and #7 (they never state complexity unless asked) — both are free points if you just say them.
 
@@ -138,7 +115,8 @@ This single question also does double duty: it's a legitimate technical question
 ➕ 4. Take the concurrent-polling scenario above and add a hard 30-second overall deadline across all 200 hosts regardless of individual timeouts — explain how `asyncio.wait_for` around the whole `gather` changes the failure semantics for hosts that were still in-flight when the deadline hit.
 
 ➕ **Visual model — narrate before code:**
-```
-clarify input/output ─► choose data structure ─► sketch cases ─► implement small core ─► test edge case ─► extend safely
+```mermaid
+flowchart LR
+    A[clarify input/output] --> B[choose data structure] --> C[sketch cases] --> D[implement small core] --> E[test edge case] --> F[extend safely]
 ```
 **Memory hook:** *"Shape before syntax."* Interviewers can correct an exposed plan; they cannot infer a hidden one from a rushed implementation.

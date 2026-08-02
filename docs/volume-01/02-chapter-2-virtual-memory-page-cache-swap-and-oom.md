@@ -19,41 +19,33 @@ pmap -x <PID> | tail -20
 ```
 
 ➕ **Address translation, the mechanism behind every number above:**
-```
-Virtual address (process view)          Physical address (actual RAM)
-┌─────────────────┐   MMU + page table  ┌─────────────────┐
-│ 0x00007f3a2c1000 │ ───────────────────▶│ 0x0000000341f000 │
-└─────────────────┘   (TLB caches this   └─────────────────┘
-                        lookup for speed)
+```mermaid
+flowchart LR
+    A["Virtual address (process view)<br/>0x00007f3a2c1000"] -->|"MMU + page table (TLB caches this lookup for speed)"| B["Physical address (actual RAM)<br/>0x0000000341f000"]
 ```
 `VmSize` = total virtual space reserved (can be huge — 64-bit processes routinely reserve terabytes they never touch; this number alone means almost nothing). `VmRSS` = actually resident pages. `RssAnon` = anonymous memory (heap/stack — this is "your" memory). `RssFile` = mapped file pages (often page cache — shared, reclaimable, not really "yours" to worry about).
 
 ➕ **Sample output and the read:**
-```
-$ cat /proc/8842/status | egrep 'VmRSS|VmSize|RssAnon|RssFile'
-VmSize:  8421604 kB     ← 8GB reserved — means little alone
-VmRSS:    412300 kB     ← 412MB actually resident
-RssAnon:  380120 kB     ← ~380MB is real heap/stack usage
-RssFile:   32180 kB     ← ~32MB is mapped files (often shared, reclaimable)
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ cat /proc/8842/status | egrep 'VmRSS|VmSize|RssAnon|RssFile'"]
+  n1["VmSize: 8421604 kB ← 8GB reserved — means little alone"]
+  n2["VmRSS: 412300 kB ← 412MB actually resident"]
+  n3["RssAnon: 380120 kB ← ~380MB is real heap/stack usage"]
+  n4["RssFile: 32180 kB ← ~32MB is mapped files (often shared, reclaimable)"]
 ```
 If asked "why is `VmSize` 20x `VmRSS`" in an interview, the answer is: lazy allocation. `malloc`/`mmap` reserve address space; physical pages are only committed on first touch (demand paging) — that gap is normal, not a leak.
 
 ➕ **Diagram: what happens on first touch (the page-fault decision path)**
-```
-CPU accesses a virtual address
-        │
-        ▼
-Page table entry present and valid? ──yes──▶ no fault, memory access completes
-        │ no
-        ▼
-   Minor fault: page exists in RAM already          Major fault: page must come
-   (e.g. shared library already mapped by            from disk/swap — allocate a
-   another process, or a freed-but-cached page) ──▶  frame, block the thread,
-        │                                            issue I/O, then resume
-        ▼                                                    │
-   Map it into this process's page table                     ▼
-   and resume — microseconds, no I/O                Resume — can be milliseconds;
-                                                      this is real, visible latency
+```mermaid
+flowchart TD
+    A[CPU accesses a virtual address] --> B{Page table entry present and valid?}
+    B -->|yes| C[No fault, memory access completes]
+    B -->|no| D{Minor or major fault?}
+    D -->|"Minor: page exists in RAM already (e.g. shared library already mapped by another process, or a freed-but-cached page)"| E[Map it into this process's page table and resume — microseconds, no I/O]
+    D -->|"Major: page must come from disk/swap"| F[Allocate a frame, block the thread, issue I/O]
+    F --> G["Resume — can be milliseconds; this is real, visible latency"]
 ```
 `pidstat -r` reports both `minflt/s` and `majflt/s` separately — a process with rising `majflt/s` is generating real disk/swap I/O on every fault, not just doing cheap bookkeeping, which is the distinction that turns "memory looks fine" into "memory is the bottleneck."
 
@@ -80,22 +72,12 @@ Swap:         8.0Gi      0B    8.0Gi
 A dashboard alerting on `used`+`buff/cache` (i.e. "free" column, 2.1Gi) will page you at 3am for a box that's genuinely fine — `available` (45Gi) is the number that accounts for reclaimability and is what the kernel itself would report as usable. **This single misconfigured alert is one of the most common false-positive memory pages in production, and naming it unprompted is a strong interview signal.**
 
 ➕ **Reclaim order, precisely (this is what Figure 2 above is illustrating — worth stating in words too):**
-```
-Memory pressure rises
-   │
-   ▼
-1. Reclaim clean page cache (free, no cost — just drop it, re-read from disk if needed later)
-   │ still not enough?
-   ▼
-2. Write back dirty pages, then reclaim them (costs I/O)
-   │ still not enough?
-   ▼
-3. Swap out anonymous pages (if swap configured/enabled — costs I/O, often disabled entirely on
-   Kubernetes nodes deliberately, because swapping a scheduled workload defeats the scheduler's
-   memory-based bin-packing guarantees)
-   │ still not enough?
-   ▼
-4. OOM killer selects a victim (last resort — this is a controlled failure, not an accident)
+```mermaid
+flowchart TD
+    Start[Memory pressure rises] --> S1["1. Reclaim clean page cache (free, no cost — just drop it, re-read from disk if needed later)"]
+    S1 -->|still not enough?| S2["2. Write back dirty pages, then reclaim them (costs I/O)"]
+    S2 -->|still not enough?| S3["3. Swap out anonymous pages (if swap configured/enabled — costs I/O, often disabled entirely on Kubernetes nodes deliberately, because swapping a scheduled workload defeats the scheduler's memory-based bin-packing guarantees)"]
+    S3 -->|still not enough?| S4["4. OOM killer selects a victim (last resort — this is a controlled failure, not an accident)"]
 ```
 **Interview-ready line:** "Kubernetes nodes typically run with swap disabled specifically because swap would let a Pod exceed its accounted memory while still functioning — degrading unpredictably rather than being evicted predictably. That's a deliberate architecture tradeoff, not an oversight."
 
@@ -117,13 +99,15 @@ cat /sys/fs/cgroup/memory.events
 | Kubelet soft eviction | node crosses eviction thresholds (`memory.available<...`) *before* hard OOM | Pod `Evicted` status, graceful-ish, kubelet-initiated | kubelet, using QoS class ranking (BestEffort evicted first) |
 
 ➕ **Sample `memory.events` and the field that actually proves cgroup OOM occurred:**
-```
-$ cat /sys/fs/cgroup/kubepods/.../memory.events
-low 0
-high 0
-max 14           ← hit memory.max 14 times — throttled/reclaimed under pressure, didn't die yet
-oom 1            ← this is the smoking gun: cgroup OOM killer fired once
-oom_kill 1       ← and it actually killed a process (not just invoked, but a kill happened)
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ cat /sys/fs/cgroup/kubepods/.../memory.events"]
+  n1["low 0"]
+  n2["high 0"]
+  n3["max 14 ← hit memory.max 14 times — throttled/reclaimed under pressure, didn't die yet"]
+  n4["oom 1 ← this is the smoking gun: cgroup OOM killer fired once"]
+  n5["oom_kill 1 ← and it actually killed a process (not just invoked, but a kill happened)"]
 ```
 `max` counting up without `oom_kill` incrementing means the workload is being pressured (reclaimed hard) but hasn't died — a leading indicator worth alerting on *before* the actual kill, if you want early warning instead of a postmortem.
 
@@ -135,21 +119,20 @@ cat /proc/<pid>/oom_score         # computed score combining adj + memory usage
 Kubernetes sets `oom_score_adj` per QoS class: Guaranteed pods get the most negative (protected) adjustment, BestEffort the least — so under node pressure, BestEffort pods die first by design, regardless of which one happens to be using the most memory at that instant. Knowing this cold answers "why did pod X die and not pod Y" without needing to look at anything else first.
 
 ➕ **Diagram: the three memory-death boundaries, side by side**
-```
-             CONTAINER CGROUP OOM          NODE-WIDE OOM               KUBELET SOFT EVICTION
-             ────────────────────          ─────────────               ─────────────────────
-Trigger:     memory.max exceeded    →      all reclaim exhausted  →    eviction threshold crossed
-             inside this cgroup            node-wide                  BEFORE hard OOM occurs
-                    │                            │                            │
-                    ▼                            ▼                            ▼
-Decider:     kernel OOM killer,          kernel OOM killer,           kubelet, ranks by
-             scoped to this cgroup       oom_score across ALL         QoS class
-             only                        processes on the node        (BestEffort first)
-                    │                            │                            │
-                    ▼                            ▼                            ▼
-Evidence:    memory.events: oom_kill=1   dmesg / journalctl -k        Pod status: Evicted
-             container restarts          any process can die,        (graceful-ish, kubelet-
-             node otherwise healthy      including unlimited ones    initiated, not a kernel kill)
+```mermaid
+flowchart TD
+    subgraph C["CONTAINER CGROUP OOM"]
+        direction TD
+        CT["Trigger: memory.max exceeded inside this cgroup"] --> CD["Decider: kernel OOM killer, scoped to this cgroup only"] --> CE["Evidence: memory.events oom_kill=1; container restarts; node otherwise healthy"]
+    end
+    subgraph N["NODE-WIDE OOM"]
+        direction TD
+        NT["Trigger: all reclaim exhausted, node-wide"] --> ND["Decider: kernel OOM killer, oom_score across ALL processes on the node"] --> NE["Evidence: dmesg / journalctl -k; any process can die, including unlimited ones"]
+    end
+    subgraph K["KUBELET SOFT EVICTION"]
+        direction TD
+        KT["Trigger: eviction threshold crossed BEFORE hard OOM occurs"] --> KD["Decider: kubelet, ranks by QoS class (BestEffort first)"] --> KE["Evidence: Pod status Evicted (graceful-ish, kubelet-initiated, not a kernel kill)"]
+    end
 ```
 Same underlying word ("OOM") wearing three different, non-interchangeable mechanisms — the first question in any OOM incident is always "which column is this."
 

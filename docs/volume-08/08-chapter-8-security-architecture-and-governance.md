@@ -25,18 +25,16 @@ Model-serving client  none       none        none          none            W (re
 **WHY this artifact matters more than the prose:** the prose says "map what each can access" — it doesn't show that the interesting finding is almost always in the *asymmetries*. Notice: CI/CD can WRITE to the registry (publish) but a human developer typically should NOT be able to push directly — if that row shows RW for a developer, that's a governance finding worth flagging in an architecture review, not a normal state to wave past.
 
 ➕ **Trust-boundary diagram — control plane vs data plane network paths, security-specific version of Chapter 2's diagram:**
-```
-┌─────────────────────── Admin/control network ───────────────────────┐
-│  Human admin ──▶ K8s API / cloud console ──▶ etcd, cloud IAM         │
-│  CI/CD ──▶ K8s API (deploy) + Registry (push)                        │
-└────────────────────────────────────────────────────────────────────┘
-                              │  (should be a DIFFERENT network path/
-                              │   segment than the one below — this
-                              │   separation IS the security control)
-┌─────────────────────── Workload/data network ────────────────────────┐
-│  Client ──▶ Ingress ──▶ Inference pod ──▶ GPU                        │
-│  (prompt/data bytes flow here — may contain sensitive content)        │
-└────────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph ADMIN["Admin/control network"]
+        A1["Human admin"] --> A2["K8s API / cloud console"] --> A3["etcd, cloud IAM"]
+        A4["CI/CD"] --> A5["K8s API (deploy) + Registry (push)"]
+    end
+    subgraph DATA["Workload/data network\n(prompt/data bytes flow here - may contain sensitive content)"]
+        D1["Client"] --> D2["Ingress"] --> D3["Inference pod"] --> D4["GPU"]
+    end
+    ADMIN -.->|"should be a DIFFERENT network path/segment\nthan the one below - this separation\nIS the security control"| DATA
 ```
 If admin/control traffic and workload/data traffic share the same network path with no segmentation, a compromised inference client has a much shorter path to the K8s API than the architecture pretends — this is the concrete, checkable form of "separate control-plane and data-plane network paths."
 

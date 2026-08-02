@@ -27,21 +27,45 @@ A public example compares sharing strategies for an LLM plus smaller ASR/TTS ser
 ---
 
 ➕ **ASCII diagram — the four sharing modes' isolation boundaries, drawn to make the trade-off table's "strength/trade-off" columns visually obvious:**
-```
-MIG (hardware partition)         Time-slicing                MPS                          vGPU
-┌───────────────────────┐        ┌───────────────────────┐   ┌───────────────────────┐    ┌───────────────────────┐
-│┌──────┐┌──────┐┌──────┐│        │   whole physical GPU   │   │   whole physical GPU   │    │  hypervisor / vGPU mgr │
-││slice1││slice2││slice3││        │  ┌───┐┌───┐┌───┐       │   │  ┌────────────────┐   │    │  ┌────┐┌────┐┌────┐   │
-││ own  ││ own  ││ own  ││        │  │ A ││ B ││ C │ ← turns │   │  │ MPS server proc │   │    │  │VM 1││VM 2││VM 3│   │
-││ SMs  ││ SMs  ││ SMs  ││        │  └───┘└───┘└───┘  taking │   │  │ multiplexes A,B,C│   │    │  └────┘└────┘└────┘   │
-││ HBM  ││ HBM  ││ HBM  ││        │  the WHOLE GPU, one     │   │  │ CONCURRENTLY on  │   │    │  each VM sees a       │
-││ own  ││ own  ││ own  ││        │  at a time, context-    │   │  │ shared SM/HBM    │   │    │  virtual GPU device    │
-││ fault││fault ││fault ││        │  switching between them │   │  │ (no hard fences) │   │    │  via hypervisor stack  │
-│└──────┘└──────┘└──────┘│        └───────────────────────┘   │  └────────────────┘   │    └───────────────────────┘
-│ hardware fault walls    │        no isolation between A/B/C:  │ isolation is COOPERATIVE│    isolation ~= VM boundary,
-│ between slices          │        one hung kernel can starve   │ (a misbehaving process  │    licensing-gated features
-└───────────────────────┘        the others; latency variable  │  can still starve peers)│    ┌───────────────────────┐
-                                                                 └───────────────────────┘
+```mermaid
+flowchart LR
+    subgraph MIG["MIG (hardware partition)"]
+        direction LR
+        M1["slice1<br/>own SMs/HBM<br/>own fault wall"]
+        M2["slice2<br/>own SMs/HBM<br/>own fault wall"]
+        M3["slice3<br/>own SMs/HBM<br/>own fault wall"]
+    end
+    MIGNote["hardware fault walls between slices"]
+    MIG --> MIGNote
+
+    subgraph TS["Time-slicing"]
+        direction LR
+        TGPU["whole physical GPU"]
+        TA[A] --- TGPU
+        TB[B] --- TGPU
+        TC[C] --- TGPU
+    end
+    TSNote["turns taking the WHOLE GPU, one at a time, context-switching between them --<br/>no isolation between A/B/C: one hung kernel can starve the others; latency variable"]
+    TS --> TSNote
+
+    subgraph MPS["MPS"]
+        direction LR
+        PGPU["whole physical GPU"]
+        PSRV["MPS server proc<br/>multiplexes A,B,C CONCURRENTLY<br/>on shared SM/HBM (no hard fences)"]
+        PSRV --- PGPU
+    end
+    MPSNote["isolation is COOPERATIVE<br/>(a misbehaving process can still starve peers)"]
+    MPS --> MPSNote
+
+    subgraph VGPU["vGPU"]
+        direction LR
+        HV["hypervisor / vGPU mgr"]
+        V1[VM 1] --- HV
+        V2[VM 2] --- HV
+        V3[VM 3] --- HV
+    end
+    VGPUNote["each VM sees a virtual GPU device via hypervisor stack --<br/>isolation ~= VM boundary, licensing-gated features"]
+    VGPU --> VGPUNote
 ```
 
 ➕ **Extra worked scenario — the practitioner lens's exact example, worked with numbers, tying it to a scheduling-failure consequence:**
@@ -53,29 +77,28 @@ MIG (hardware partition)         Time-slicing                MPS                
 > **Interview-ready line:** "Time-slicing optimizes for average utilization; MIG optimizes for worst-case tenant isolation — 'hollow GPU' is what you get when you pick the first for workloads that actually needed the second."
 
 ➕ **Annotated real output — proving which sharing mode is active on a node, and MPS's cooperative-isolation signature:**
-```
-$ nvidia-smi -q -d MIG | grep -A2 "MIG Mode"
-MIG Mode
-    Current                           : Enabled
-    Pending                           : Enabled
-                                          ← confirms MIG is active; compare against Chapter 4's resource-name check
-
-$ nvidia-smi mig -lgi
-+-------------------------------------------------+
-| GPU instance profiles:                          |
-| GPU  Name         Profile ID  Instances Free/Total|
-|   0  MIG 3g.40gb        9           1/1           |
-|   0  MIG 1g.10gb       19           2/2           |
-+-------------------------------------------------+
-                                          ← hardware slice inventory; matches the LLM/ASR/TTS split above
-
-$ ps -ef | grep nvidia-cuda-mps
-root     18422     1  0 09:12 ?  nvidia-cuda-mps-control -d
-root     18430 18422 2 09:12 ?  nvidia-cuda-mps-server
-                                          ← MPS server proc — every CUDA process on this GPU now routes context
-                                            creation through this single server, which is HOW MPS achieves
-                                            concurrent execution without per-process context-switch overhead,
-                                            and WHY one misbehaving client can still affect the shared server
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ nvidia-smi -q -d MIG | grep -A2 'MIG Mode'"]
+  n1["MIG Mode"]
+  n2["Current : Enabled"]
+  n3["Pending : Enabled"]
+  n4["← confirms MIG is active; compare against Chapter 4's resource-name check"]
+  n5["$ nvidia-smi mig -lgi"]
+  n6["+-------------------------------------------------+"]
+  n7["| GPU instance profiles: |"]
+  n8["| GPU Name Profile ID Instances Free/Total|"]
+  n9["| 0 MIG 3g.40gb 9 1/1 |"]
+  n10["| 0 MIG 1g.10gb 19 2/2 |"]
+  n11["← hardware slice inventory; matches the LLM/ASR/TTS split above"]
+  n12["$ ps -ef | grep nvidia-cuda-mps"]
+  n13["root 18422 1 0 09:12 ? nvidia-cuda-mps-control -d"]
+  n14["root 18430 18422 2 09:12 ? nvidia-cuda-mps-server"]
+  n15["← MPS server proc — every CUDA process on this GPU now routes context"]
+  n16["creation through this single server, which is HOW MPS achieves"]
+  n17["concurrent execution without per-process context-switch overhead,"]
+  n18["and WHY one misbehaving client can still affect the shared server"]
 ```
 
 ➕ **Shortcut — mnemonic for choosing a sharing mode under interview time pressure:**

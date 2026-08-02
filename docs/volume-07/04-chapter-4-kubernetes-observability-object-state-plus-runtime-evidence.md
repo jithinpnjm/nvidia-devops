@@ -44,41 +44,24 @@ Events:
 Reading order that matters: **Scheduled → Pulled → Created → Started** is the happy path (already 12m old, so placement wasn't the problem here). The pivot is the `Unhealthy` line — `x6 over 5m` tells you this is a *repeated, worsening* pattern, not a one-off blip, and `context deadline exceeded` (not "connection refused") tells you the probe request reached the container but didn't get an answer in time — that's a latency/hang signature, not a crash signature. `BackOff` at the bottom is CrashLoopBackOff forming — the Age/count fields (`x2 over 45s`) tell you the backoff interval is compressing, i.e. it's actively getting worse, not stabilizing.
 
 ➕ **ASCII: the evidence layers for a Kubernetes incident, and which chapter/tool owns each layer:**
+```mermaid
+flowchart TD
+    L4["Layer 4: Application / SLO evidence -- metrics+logs+traces (Ch.1-3, 6, 7)"]
+    L3["Layer 3: GPU device evidence -- DCGM, nvidia-smi (Ch.5)"]
+    L2["Layer 2: Container/cgroup runtime -- cpu.stat, OOM, exit code, kubelet (this chapter, Ch.9)"]
+    L1["Layer 1: Kubernetes object/control plane state -- kubectl describe, events, scheduler (this chapter, Ch.9)"]
+    L4 --> L3 --> L2 --> L1
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ Layer 4: Application / SLO evidence   → metrics+logs+traces │  Ch.1-3, 6, 7
-├─────────────────────────────────────────────────────────────┤
-│ Layer 3: GPU device evidence          → DCGM, nvidia-smi    │  Ch.5
-├─────────────────────────────────────────────────────────────┤
-│ Layer 2: Container/cgroup runtime     → cpu.stat, OOM, exit │  this chapter, Ch.9
-│          code, kubelet                                       │
-├─────────────────────────────────────────────────────────────┤
-│ Layer 1: Kubernetes object/control    → kubectl describe,   │  this chapter, Ch.9
-│          plane state                    events, scheduler   │
-└─────────────────────────────────────────────────────────────┘
-   Incident triage direction: TOP-DOWN if the symptom is "SLO burning"
-                               (start at Layer 4, descend only as far as evidence forces you)
-                               BOTTOM-UP if the symptom is "Pod stuck/not scheduling"
-                               (Layer 1 first — it's a cheap check, and it rules out an
-                               entire category before you touch runtime telemetry at all)
-```
+Incident triage direction: TOP-DOWN if the symptom is "SLO burning" (start at Layer 4, descend only as far as evidence forces you). BOTTOM-UP if the symptom is "Pod stuck/not scheduling" (Layer 1 first — it's a cheap check, and it rules out an entire category before you touch runtime telemetry at all).
 
 ➕ **Diagram: the Pod state sequence behind the annotated events above, and which layer generates each transition**
-```
-   Pending ──Scheduled──▶ Pulled/Created ──Started──▶ Running
-  (Layer 1:                (Layer 1: kubelet)        (Layer 2: kubelet
-   scheduler)                                          reports container up)
-                                                              │
-                                                    liveness probe fails
-                                                     (Layer 2: kubelet
-                                                      health check)
-                                                              ▼
-                                                        Unhealthy ──Killing──▶ BackOff
-                                                                              │
-                                                                    restart, loop back
-                                                                    to "Pulled/Created"
-                                                                    with shrinking interval
-                                                                    = CrashLoopBackOff
+```mermaid
+flowchart LR
+    Pending["Pending (Layer 1: scheduler)"] -->|Scheduled| Pulled["Pulled/Created (Layer 1: kubelet)"]
+    Pulled -->|Started| Running["Running (Layer 2: kubelet reports container up)"]
+    Running -->|liveness probe fails, Layer 2 kubelet health check| Unhealthy["Unhealthy"]
+    Unhealthy -->|Killing| BackOff["BackOff"]
+    BackOff -->|"restart, loop back to Pulled/Created with shrinking interval = CrashLoopBackOff"| Pulled
 ```
 This is the state machine the `kubectl describe pod` events above are a log of — Scheduled/Pulled/Created/Started is Layer 1→2 handoff on the happy path, and Unhealthy→Killing→BackOff is Layer 2 detecting and reacting to a problem entirely on its own, before any Layer 3/4 evidence is even needed.
 

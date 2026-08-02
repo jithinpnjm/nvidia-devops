@@ -29,50 +29,52 @@ Public material for an NVIDIA GTC session links prefill/decode and KV-cache beha
 [Public source](https://de.linkedin.com/in/ansjin)
 
 ➕ **The prefill/decode timeline, made visible (the single diagram worth memorizing for this whole volume):**
+```mermaid
+flowchart LR
+    A["Queue wait (server busy with other requests) - TTFT starts here, client sees nothing yet"] --> B["Prefill: parallel over all prompt tokens at once - populates KV cache for whole prompt"]
+    B --> C["Decode: generate next token"]
+    C -->|append token, repeat - each cycle is one TPOT/ITL sample| C
+    C -.->|stream tokens to client| G[Client]
 ```
-Request timeline for one LLM request, single sequence:
-
-t=0        queue wait         prefill (parallel over        decode (sequential, one
-           (server busy       all prompt tokens at once)     token per step, autoregressive)
-           with other reqs)
-|---queue---|======prefill======|--tok1--|--tok2--|--tok3--|--tok4--|...→ stream to client
-            ↑                   ↑        ↑        ↑        ↑
-            TTFT starts here    KV cache  each step reads   each gap here
-            (client sees        populated ALL prior KV      is one TPOT/
-            nothing yet)        for whole  + weights from    ITL sample
-                                 prompt     GPU memory
-            |←────────────── TTFT ──────────────→|
-                                         |←ITL→|←ITL→|←ITL→|
-```
+TTFT spans the queue wait plus prefill. Each decode step reads all prior KV cache plus weights from GPU memory to produce one token; the gap between consecutive decode tokens is one TPOT/ITL sample. Decode is drawn as a repeating loop because it is sequential, one token per step, autoregressive.
 Prefill is compute-bound and embarrassingly parallel across prompt tokens (matrix-multiply heavy, scales with prompt length² in attention cost) — it looks like a training forward pass. Decode is one token at a time, memory-bandwidth-bound (every step re-reads the full KV cache and all weights to produce a single new token), and does not get faster by adding more compute — this is exactly why prefill and decode want different hardware/pool shapes, the motivation behind Chapter 6's disaggregation and Senior Deep Dive 4's Dynamo material.
 
 ➕ **KV cache growth — the memory-pressure mechanism the metrics table only names abstractly:**
-```
-KV cache size ≈ 2 × num_layers × num_kv_heads × head_dim × seq_len × batch × bytes_per_element
-
-Example: Llama-3-70B-class model, 80 layers, 8 KV heads (GQA), head_dim=128, fp16 (2 bytes)
-Per-token, per-sequence KV cache = 2 × 80 × 8 × 128 × 2 bytes = 327,680 bytes ≈ 320 KB/token
-
-  seq_len=2K,  batch=1  →   ~640 MB   (comfortable)
-  seq_len=32K, batch=1  →  ~10.2 GB   (one long-context sequence alone)
-  seq_len=32K, batch=8  →  ~82 GB     (exceeds a single 80GB GPU before weights are even loaded)
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["KV cache size ≈ 2 × num_layers × num_kv_heads × head_dim × seq_len × batch × bytes_per_element"]
+  n1["Example: Llama-3-70B-class model, 80 layers, 8 KV heads (GQA), head_dim=128, fp16 (2 bytes)"]
+  n2["Per-token, per-sequence KV cache = 2 × 80 × 8 × 128 × 2 bytes = 327,680 bytes ≈ 320 KB/token"]
+  n3["seq_len=2K, batch=1"]
+  n4["~640 MB (comfortable)"]
+  n5["seq_len=32K, batch=1"]
+  n6["~10.2 GB (one long-context sequence alone)"]
+  n7["seq_len=32K, batch=8"]
+  n8["~82 GB (exceeds a single 80GB GPU before weights are even loaded)"]
+  n3 --> n4
+  n5 --> n6
+  n7 --> n8
 ```
 This is the concrete arithmetic behind "KV cache can become a major memory consumer as concurrency/context grows" — the growth is *linear in both sequence length and batch size simultaneously*, which is why long-context + high-concurrency is the specific combination that causes OOM, not either factor alone.
 
 ➕ **Sample vLLM/NIM metrics endpoint output during a load test, annotated:**
-```
-$ curl -s http://localhost:8000/metrics | grep -E "vllm:(num_requests|gpu_cache|time_to_first|time_per_output)"
-
-vllm:num_requests_running{model="llama3-70b"} 12          ← currently in decode/prefill on GPU
-vllm:num_requests_waiting{model="llama3-70b"} 47           ← queued — demand exceeding admitted concurrency
-vllm:gpu_cache_usage_perc{model="llama3-70b"} 0.94         ← KV cache pool 94% full — near admission limit
-vllm:time_to_first_token_seconds_sum{model="llama3-70b"} 812.4
-vllm:time_to_first_token_seconds_count{model="llama3-70b"} 620
-                                                            ← mean TTFT = 812.4/620 ≈ 1.31s — check this
-                                                              against p95/p99 histogram buckets, never just the mean
-vllm:time_per_output_token_seconds_sum{model="llama3-70b"} 45.9
-vllm:time_per_output_token_seconds_count{model="llama3-70b"} 58000
-                                                            ← mean TPOT ≈ 0.79ms/token → ~1265 tok/s per sequence
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ curl -s http://localhost:8000/metrics | grep -E 'vllm:(num_requests|gpu_cache|time_to_first|time_per_output)'"]
+  n1["vllm:num_requests_running{model='llama3-70b'} 12 ← currently in decode/prefill on GPU"]
+  n2["vllm:num_requests_waiting{model='llama3-70b'} 47 ← queued — demand exceeding admitted concurrency"]
+  n3["vllm:gpu_cache_usage_perc{model='llama3-70b'} 0.94 ← KV cache pool 94% full — near admission limit"]
+  n4["vllm:time_to_first_token_seconds_sum{model='llama3-70b'} 812.4"]
+  n5["vllm:time_to_first_token_seconds_count{model='llama3-70b'} 620"]
+  n6["← mean TTFT = 812.4/620 ≈ 1.31s — check this"]
+  n7["against p95/p99 histogram buckets, never just the mean"]
+  n8["vllm:time_per_output_token_seconds_sum{model='llama3-70b'} 45.9"]
+  n9["vllm:time_per_output_token_seconds_count{model='llama3-70b'} 58000"]
+  n10["← mean TPOT ≈ 0.79ms/token"]
+  n11["~1265 tok/s per sequence"]
+  n10 --> n11
 ```
 `gpu_cache_usage_perc` at 94% with 47 requests waiting is the tell: the server isn't CPU- or GPU-compute-starved, it's KV-cache-capacity-starved — new requests can't be admitted into a running batch because there's no cache room, so they queue, and queue time is exactly what inflates TTFT even though decode itself is fast. This is the metric that answers "why is TTFT bad when GPU utilization looks fine."
 

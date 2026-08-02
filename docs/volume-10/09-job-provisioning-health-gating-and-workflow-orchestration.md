@@ -11,10 +11,19 @@ source_document: "Authored directly for the JR2018680 gap-coverage volume — no
 
 A node can answer SSH and still be unsafe for a distributed GPU job. It may have a missing GPU, a degraded fabric link, a stale mount, the wrong driver, or residue from the previous job. The purpose of health gating is to convert many low-level facts into one scheduling decision: **may this node receive work now?**
 
-```text
-provisioned → booted → configured → health-validated → scheduler-active
-                                                       ↓
-request → admitted → allocated → prolog → workload → epilog → accounted
+```mermaid
+flowchart LR
+    A[provisioned] --> B[booted]
+    B --> C[configured]
+    C --> D[health-validated]
+    D --> E[scheduler-active]
+    E --> F[request]
+    F --> G[admitted]
+    G --> H[allocated]
+    H --> I[prolog]
+    I --> J[workload]
+    J --> K[epilog]
+    K --> L[accounted]
 ```
 
 Each arrow needs an owner, observable evidence, a timeout, and a failure action. A useful check is specific (one contract), bounded (cannot hang), actionable (expected and observed values), safe (critical uncertainty rejects work), and stable (does not drain a node for one noisy sample).
@@ -38,26 +47,14 @@ Retries are for temporary failures, with a limit and backoff. A deterministic GP
 
 A node being physically racked, powered, and network-cabled is nowhere near a node being safe to schedule jobs onto. Every layer this volume has covered up to this point — bare-metal provisioning, BCM/OS imaging, cluster-manager join, Slurm/Kubernetes membership — has to complete *and be verified* before a node should ever appear as schedulable capacity:
 
-```
-Bare metal (racked, powered, cabled)
-      │  firmware/BIOS validated, RAID/BMC configured
-      ▼
-Firmware validated (BIOS, BMC, NIC firmware versions match golden baseline)
-      │  BCM/OS provisioning (Chapters 1-3): image applied, kernel/driver versions match
-      ▼
-OS provisioned (Ansible/Terraform-managed config converges — Chapters 5-6)
-      │  node registers with cluster manager
-      ▼
-Cluster-manager joined (Slurm: node appears in `sinfo`; Kubernetes: node appears in `kubectl get nodes`)
-      │  prolog / health-check daemon runs BEFORE node is trusted with real work
-      ▼
-Health-checked (NHC-style checks: GPU count, NCCL smoke test, filesystem mounts, NVLink status)
-      │  only nodes that PASS reach this state
-      ▼
-Scheduler-visible, schedulable (Slurm: state=idle, not drain; Kubernetes: Ready, not tainted)
-      │  admission control for the specific job (size, priority, dataset/container pre-staged)
-      ▼
-Job-eligible — a real job may now land here
+```mermaid
+flowchart TD
+    A["Bare metal (racked, powered, cabled)"] -->|"firmware/BIOS validated, RAID/BMC configured"| B["Firmware validated (BIOS, BMC, NIC firmware versions match golden baseline)"]
+    B -->|"BCM/OS provisioning (Chapters 1-3): image applied, kernel/driver versions match"| C["OS provisioned (Ansible/Terraform-managed config converges - Chapters 5-6)"]
+    C -->|"node registers with cluster manager"| D["Cluster-manager joined (Slurm: node appears in sinfo; Kubernetes: node appears in kubectl get nodes)"]
+    D -->|"prolog / health-check daemon runs BEFORE node is trusted with real work"| E["Health-checked (NHC-style checks: GPU count, NCCL smoke test, filesystem mounts, NVLink status)"]
+    E -->|"only nodes that PASS reach this state"| F["Scheduler-visible, schedulable (Slurm: state=idle, not drain; Kubernetes: Ready, not tainted)"]
+    F -->|"admission control for the specific job (size, priority, dataset/container pre-staged)"| G["Job-eligible - a real job may now land here"]
 ```
 
 The critical property of this pipeline: **every stage is a gate, not a checkpoint you pass through once.** A node that joins the cluster manager successfully but fails its health check must go back to `drain`/`NotReady`, not forward to schedulable — and a node that later degrades (a GPU falls off the bus, an NVLink connection flaps) needs the same gate re-applied continuously, not just at boot.

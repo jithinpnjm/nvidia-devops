@@ -10,22 +10,34 @@ Whiteboard from requirements outward: client/gateway -> auth/rate limits -> mode
 ## ➕ Additions
 
 ➕ **Diagram: this question set's build order in box form (draw left to right, live, in this sequence):**
-```
-DISCOVER: model count · prompt/output distribution · concurrency ·
-data residency · availability · cost
-              │
-              ▼
-client/gateway → auth/rate limits → model routing → serving runtime
-              │
-              ▼
-GPU scheduling → compute topology → network/storage
-              │
-              ▼
-observability → lifecycle/CI-CD → failure domains
-              │
-              ▼
-COMPARE 2-3 options on weighted dimensions → RECOMMEND → define
-the PoC that must validate it before commit
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["DISCOVER: model count · prompt/output distribution · concurrency ·"]
+  n1["data residency · availability · cost"]
+  n2["client/gateway"]
+  n3["auth/rate limits"]
+  n4["model routing"]
+  n5["serving runtime"]
+  n6["GPU scheduling"]
+  n7["compute topology"]
+  n8["network/storage"]
+  n9["observability"]
+  n10["lifecycle/CI-CD"]
+  n11["failure domains"]
+  n12["COMPARE 2-3 options on weighted dimensions"]
+  n13["RECOMMEND"]
+  n14["define"]
+  n15["the PoC that must validate it before commit"]
+  n2 --> n3
+  n3 --> n4
+  n4 --> n5
+  n6 --> n7
+  n7 --> n8
+  n9 --> n10
+  n10 --> n11
+  n12 --> n13
+  n13 --> n14
 ```
 A diagram that starts with "NIM" or "Kubernetes" instead of the DISCOVER row above is exactly the anti-pattern this question set warns against.
 

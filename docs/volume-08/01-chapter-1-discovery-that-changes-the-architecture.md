@@ -42,30 +42,25 @@ Her public role comparison describes SAs as advising customers, defining busines
 ---
 
 ➕ **Discovery → architecture flow, drawn out (the mechanism the checklist hides):**
-```
-"We need an AI platform" (vague intent)
-        │
-        ▼
-┌───────────────────────────────────────────────────┐
-│  Ask questions that ELIMINATE options, not survey  │
-│  ("what's your P95 TTFT target" not "how many users")│
-└───────────────────────────────────────────────────┘
-        │
-        ▼
-   Workload facts ──┬── SLOs ──┬── Scale ──┬── Data ──┬── Security ──┬── Ops ──┬── Economics
-        │           │          │           │          │              │        │
-        └───────────┴──────────┴───────────┴──────────┴──────────────┴────────┘
-                                        │
-                                        ▼
-                        Facts ELIMINATE architecture options
-                        (e.g. "data cannot leave country" kills
-                         a cloud region choice regardless of price)
-                                        │
-                                        ▼
-                          Remaining options → trade-off matrix (Ch.3)
-                                        │
-                                        ▼
-                              Recommendation + stated assumptions
+```mermaid
+flowchart TD
+    A["'We need an AI platform' (vague intent)"] --> B["Ask questions that ELIMINATE options, not survey\n('what's your P95 TTFT target' not 'how many users')"]
+    B --> C1["Workload facts"]
+    B --> C2["SLOs"]
+    B --> C3["Scale"]
+    B --> C4["Data"]
+    B --> C5["Security"]
+    B --> C6["Ops"]
+    B --> C7["Economics"]
+    C1 --> D["Facts ELIMINATE architecture options\n(e.g. 'data cannot leave country' kills\na cloud region choice regardless of price)"]
+    C2 --> D
+    C3 --> D
+    C4 --> D
+    C5 --> D
+    C6 --> D
+    C7 --> D
+    D --> E["Remaining options -> trade-off matrix (Ch.3)"]
+    E --> F["Recommendation + stated assumptions"]
 ```
 The point of this flow: a discovery question that doesn't change which box survives to the trade-off matrix was the wrong question to spend time on in the room. This is the operational test for "is this a good discovery question" — **does the answer eliminate or favor an option?** If both answers leave every architecture choice unchanged, it's small talk, not discovery.
 
@@ -131,9 +126,13 @@ Notice the pattern: every "WHY" annotation names a **specific downstream decisio
 ➕ 3. A customer gives you only 10 minutes for discovery before an executive review. Using the W-S-S-D-S-O-E mnemonic, pick the 3 areas you'd prioritize for a "greenfield inference platform" request versus a "migrate existing Slurm training to something else" request, and justify the difference.
 
 ➕ **Visual model — discovery eliminates architecture branches before sizing them:**
-```
-workload ─► SLO / scale ─► data + residency ─► security ─► operations ─► economics
-    │              │               │                 │             │
-    └── each answer removes invalid compute, region, scheduler, storage or ownership options
+```mermaid
+flowchart LR
+    A[workload] --> B["SLO / scale"] --> C["data + residency"] --> D[security] --> E[operations] --> F[economics]
+    A -.-> G["each answer removes invalid compute, region, scheduler, storage or ownership options"]
+    B -.-> G
+    C -.-> G
+    D -.-> G
+    E -.-> G
 ```
 **Memory hook:** *"Ask the question that removes the most wrong designs."*

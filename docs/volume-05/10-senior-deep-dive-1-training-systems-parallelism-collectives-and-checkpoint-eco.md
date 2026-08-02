@@ -33,41 +33,43 @@ _Figure A. Decompose latency before selecting a scaling strategy._
 ➕ **Cross-reference:** Chapter 2's enhanced version already derives the AllReduce timeline diagram, the `nvidia-smi dmon` collective-stall signature, and a full checkpoint-storm worked scenario — read those before this Deep Dive; this section only adds what Chapter 2 doesn't cover: expert parallelism.
 
 ➕ **Expert parallelism (MoE), the one parallelism pattern not in Chapter 2's table:**
-```
-Dense model: every token passes through every layer's full weights.
-MoE model:   a router picks K of N "experts" per token; experts are
-             sharded across GPUs — different tokens in the same batch
-             route to DIFFERENT GPUs' experts.
 
-GPU0 [Expert 0, 1]   GPU1 [Expert 2, 3]   GPU2 [Expert 4, 5]
-      ▲                     ▲                     ▲
-      └── token A routes here    token B routes here ──┘
-                (all-to-all communication to gather results back
-                 into the sequence's correct order — a NEW collective
-                 pattern beyond AllReduce, sensitive to routing skew:
-                 if tokens unevenly favor a few experts, those GPUs
-                 become stragglers even with identical hardware)
+Dense model: every token passes through every layer's full weights. MoE model: a router picks K of N "experts" per token; experts are sharded across GPUs — different tokens in the same batch route to DIFFERENT GPUs' experts.
+```mermaid
+flowchart TD
+    Router["Router picks K of N experts per token"]
+    Router -->|token A| G0["GPU0: Expert 0, 1"]
+    Router -->|token B| G1["GPU1: Expert 2, 3"]
+    G0 -.->|all-to-all: gather results back into sequence order| Result["Sequence-ordered output"]
+    G1 -.->|all-to-all: gather results back into sequence order| Result
+    G2["GPU2: Expert 4, 5"] -.-> Result
 ```
+This all-to-all communication to gather results back into the sequence's correct order is a NEW collective pattern beyond AllReduce, sensitive to routing skew: if tokens unevenly favor a few experts, those GPUs become stragglers even with identical hardware.
 The infrastructure implication: MoE trades a straightforward AllReduce-bound scaling story (Chapter 2) for an all-to-all-bound one where *load imbalance across experts*, not just fabric speed, determines straggler risk — worth naming if a Dynamo/MoE-serving question comes up, since MoE inference (not just training) has this same imbalance risk.
 
 ➕ **Diagram: checkpoint economics — the two costs the addendum's "not useful if it stalls training" line is trading off**
+```mermaid
+flowchart LR
+    subgraph TooFreq["Too frequent (every 5 min, synchronous, 2-min stall each)"]
+    direction LR
+    A1["Train 3min"] --> A2["CKPT 2min"] --> A3["Train 3min"] --> A4["CKPT 2min"]
+    end
 ```
-Too frequent (checkpoint every 5 min, synchronous, 2-min stall each):
-|--train--|==CKPT==|--train--|==CKPT==|--train--|==CKPT==|
-   3 min     2 min     3 min     2 min     3 min     2 min
-                    ↑ 40% of wall-clock time spent stalled, not training
-
-Too infrequent (checkpoint every 2 hours):
-|─────────────── train (2h) ───────────────|==CKPT==|
-                                                  ↑ if a crash happens at
-                                                    minute 115, up to ~2h
-                                                    of work is lost — this
-                                                    is the restore-time-
-                                                    objective tradeoff
-
-Async checkpoint (write overlaps with continued compute):
-|--train--|--train (background write in flight)--|--train--|
-              ↑ no foreground stall, but needs spare host
-                bandwidth/memory to buffer the snapshot
+40% of wall-clock time spent stalled, not training.
+```mermaid
+flowchart LR
+    subgraph TooInfreq["Too infrequent (every 2 hours)"]
+    direction LR
+    B1["Train (2h)"] --> B2["CKPT"]
+    end
 ```
+If a crash happens at minute 115, up to ~2h of work is lost — this is the restore-time-objective tradeoff.
+```mermaid
+flowchart LR
+    subgraph AsyncCkpt["Async checkpoint (write overlaps with continued compute)"]
+    direction LR
+    C1["Train"] --> C2["Train (background write in flight)"] --> C3["Train"]
+    end
+```
+No foreground stall, but needs spare host bandwidth/memory to buffer the snapshot.
 The right frequency is the point where (checkpoint stall cost × frequency) roughly balances (expected work lost per crash × crash rate) — synchronous checkpointing makes frequency itself expensive, which is exactly why asynchronous writes change the economics rather than just the mechanics.

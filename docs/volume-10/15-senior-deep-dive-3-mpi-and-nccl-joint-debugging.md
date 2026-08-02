@@ -25,41 +25,44 @@ For every test, capture allocation, hosts, rank count, CPU/GPU binding, library 
 
 A multi-node GPU job that hangs before producing any training output is failing at exactly one of four layers, and each layer has one diagnostic command that definitively rules it in or out. Debugging out of order — e.g., staring at `NCCL_DEBUG=INFO` output when the real problem is that half the MPI ranks never launched — wastes the most time on this class of incident.
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ LAYER 1 — LAUNCH (did every rank even start?)                    │
-│  Check:  mpirun --report-bindings ... ; echo $?  on the launcher  │
-│  Also:   PMIX_DEBUG=1 / OMPI_MCA_plm_base_verbose=10              │
-│  Symptom if broken: fewer ranks print "Hello from rank N" than    │
-│  expected, or mpirun itself never returns a rank count            │
-├─────────────────────────────────────────────────────────────────┤
-│ LAYER 2 — PMIx / RUNTIME BOOTSTRAP (did ranks find each other?)   │
-│  Check:  PMIX_MCA_pmix_base_verbose=10 on any hanging rank        │
-│  Symptom if broken: ranks start (Layer 1 clean) but block in      │
-│  MPI_Init() — PMIx server never completes the out-of-band         │
-│  rendezvous (usually a hostname/interface mismatch between        │
-│  nodes, or a firewalled TCP port for the PMIx server)             │
-├─────────────────────────────────────────────────────────────────┤
-│ LAYER 3 — NCCL COLLECTIVE (did the GPUs form a ring/tree?)        │
-│  Check:  NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT,GRAPH              │
-│  Symptom if broken: MPI_Init() completes fine (Layer 2 clean),    │
-│  ranks reach ncclCommInitRank and hang there; NCCL log shows      │
-│  ring/tree topology being built but never reaching                │
-│  "NCCL INFO comm ... rank N nranks N" completion line for all     │
-│  ranks                                                             │
-├─────────────────────────────────────────────────────────────────┤
-│ LAYER 4 — PHYSICAL FABRIC (is the network actually up?)           │
-│  Check:  ibstat ; ibstatus ; perfquery (or ethtool for RoCE/TCP)   │
-│  Symptom if broken: NCCL log shows repeated ring-build retries     │
-│  or falls back to a slower transport (e.g. logs                   │
-│  "NET/IB : Got completion with error" or silently drops to         │
-│  socket transport instead of IB) — the fabric layer is where       │
-│  cable/port/subnet-manager issues surface, invisible to MPI        │
-│  entirely                                                           │
-└─────────────────────────────────────────────────────────────────┘
-        Launch → Bootstrap → Collective → Fabric
-        (diagnose top-down; a failure at layer N makes every
-         layer below it untestable, not necessarily broken)
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["LAYER 1 — LAUNCH (did every rank even start?)"]
+  n1["Check: mpirun --report-bindings ... ; echo $? on the launcher"]
+  n2["Also: PMIX_DEBUG=1 / OMPI_MCA_plm_base_verbose=10"]
+  n3["Symptom if broken: fewer ranks print 'Hello from rank N' than"]
+  n4["expected, or mpirun itself never returns a rank count"]
+  n5["LAYER 2 — PMIx / RUNTIME BOOTSTRAP (did ranks find each other?)"]
+  n6["Check: PMIX_MCA_pmix_base_verbose=10 on any hanging rank"]
+  n7["Symptom if broken: ranks start (Layer 1 clean) but block in"]
+  n8["MPI_Init() — PMIx server never completes the out-of-band"]
+  n9["rendezvous (usually a hostname/interface mismatch between"]
+  n10["nodes, or a firewalled TCP port for the PMIx server)"]
+  n11["LAYER 3 — NCCL COLLECTIVE (did the GPUs form a ring/tree?)"]
+  n12["Check: NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT,GRAPH"]
+  n13["Symptom if broken: MPI_Init() completes fine (Layer 2 clean),"]
+  n14["ranks reach ncclCommInitRank and hang there; NCCL log shows"]
+  n15["ring/tree topology being built but never reaching"]
+  n16["'NCCL INFO comm ... rank N nranks N' completion line for all"]
+  n17["ranks"]
+  n18["LAYER 4 — PHYSICAL FABRIC (is the network actually up?)"]
+  n19["Check: ibstat ; ibstatus ; perfquery (or ethtool for RoCE/TCP)"]
+  n20["Symptom if broken: NCCL log shows repeated ring-build retries"]
+  n21["or falls back to a slower transport (e.g. logs"]
+  n22["'NET/IB : Got completion with error' or silently drops to"]
+  n23["socket transport instead of IB) — the fabric layer is where"]
+  n24["cable/port/subnet-manager issues surface, invisible to MPI"]
+  n25["entirely"]
+  n26["Launch"]
+  n27["Bootstrap"]
+  n28["Collective"]
+  n29["Fabric"]
+  n30["(diagnose top-down; a failure at layer N makes every"]
+  n31["layer below it untestable, not necessarily broken)"]
+  n26 --> n27
+  n27 --> n28
+  n28 --> n29
 ```
 
 The ordering matters because layers 2–4 are each *invisible* from the layer above if the layer above never got that far: if Layer 1 shows only 6 of 8 expected ranks launched, there is no point enabling `NCCL_DEBUG=INFO` yet — the two missing ranks (usually a bad hostfile entry, an `srun`/`mpirun` node-count mismatch, or a node that failed the BCM/Slurm health check tier from the fleet-scale deep dive) are the whole incident, and NCCL has nothing to say about ranks that were never spawned.

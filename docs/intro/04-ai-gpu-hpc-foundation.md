@@ -22,12 +22,25 @@ You do not need to become a data scientist or CUDA developer to operate AI infra
 - **Fine-tuning** continues training an existing model for a narrower behavior or dataset.
 - **Evaluation** measures behavior on controlled data and metrics.
 
-```text
-training data → forward computation → prediction → loss/error
-                       ↑                         ↓
-                  updated weights ← gradients/backward computation
-
-inference request → tokenize/preprocess → model forward computation → output
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["training data"]
+  n1["forward computation"]
+  n2["prediction"]
+  n3["loss/error"]
+  n4["↑ ↓"]
+  n5["updated weights ← gradients/backward computation"]
+  n6["inference request"]
+  n7["tokenize/preprocess"]
+  n8["model forward computation"]
+  n9["output"]
+  n0 --> n1
+  n1 --> n2
+  n2 --> n3
+  n6 --> n7
+  n7 --> n8
+  n8 --> n9
 ```
 
 Infrastructure is shaped by the workload:
@@ -45,12 +58,14 @@ A CPU has relatively few sophisticated cores optimized for varied control-heavy 
 
 The basic path is:
 
-```text
-CPU process prepares work and data
-   → runtime/driver submits GPU work
-      → GPU kernel executes across many threads
-         → data is read/written in GPU device memory (HBM)
-            → result returns or feeds the next GPU operation
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["CPU process prepares work and data"]
+  n1["runtime/driver submits GPU work"]
+  n2["GPU kernel executes across many threads"]
+  n3["data is read/written in GPU device memory (HBM)"]
+  n4["result returns or feeds the next GPU operation"]
 ```
 
 Essential terms:
@@ -102,8 +117,20 @@ GPUs may communicate through PCIe, NVLink, or NVSwitch depending on the system. 
 
 Once work crosses machines, the network becomes part of application performance:
 
-```text
-GPU memory → GPU/NIC path → NIC/HCA → switch fabric → remote NIC → remote GPU memory
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["GPU memory"]
+  n1["GPU/NIC path"]
+  n2["NIC/HCA"]
+  n3["switch fabric"]
+  n4["remote NIC"]
+  n5["remote GPU memory"]
+  n0 --> n1
+  n1 --> n2
+  n2 --> n3
+  n3 --> n4
+  n4 --> n5
 ```
 
 - **Distributed training** divides work across processes, GPUs, or model components.

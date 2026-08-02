@@ -24,45 +24,31 @@ resources:
 ```
 
 ➕ **The platform-boundary diagram (what "product names are not the design" means in practice):**
-```
- Client
-   │
-   ▼
-┌─────────────────────────────────────────────────────────────┐
-│ Gateway layer (independent of model server choice)          │
-│ authn, routing, quotas, request logging, canary/version      │
-│ routing, tenant controls, rate limiting                      │
-└───────────────────────────┬───────────────────────────────────┘
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│ Model server (owns execution, batching, scheduling)          │
-│  — could be Triton, NIM (packages vLLM behind a proxy),       │
-│    raw vLLM, TensorRT-LLM, SGLang — the gateway above          │
-│    should not need to know or care which one                  │
-└───────────────────────────┬───────────────────────────────────┘
-                            ▼
-                     GPU(s) — the resource
-                     boundary K8s actually
-                     enforces (see manifest)
+```mermaid
+flowchart TD
+    Client --> Gateway["Gateway layer (independent of model server choice) - authn, routing, quotas, request logging, canary/version routing, tenant controls, rate limiting"]
+    Gateway --> Server["Model server (owns execution, batching, scheduling) - could be Triton, NIM (packages vLLM behind a proxy), raw vLLM, TensorRT-LLM, SGLang - the gateway should not need to know or care which one"]
+    Server --> GPU["GPU(s) - the resource boundary K8s actually enforces (see manifest)"]
 ```
 The architectural point: swapping the model server (e.g. vLLM → TensorRT-LLM for a latency win) should not require rewriting the gateway's auth/quota/routing logic, and swapping the gateway (e.g. adding a new API management product) should not require touching model execution. Coupling these two layers is the most common "platform boundary" mistake — e.g. baking tenant quota logic into a custom Triton backend instead of the gateway.
 
 ➕ **Sample output — proving the resource boundary is real, not just YAML:**
-```
-$ kubectl describe pod llm-server-0 | grep -A4 "Limits\|Requests"
-    Limits:
-      memory:  24Gi
-    Requests:
-      cpu:             4
-      memory:          16Gi
-      nvidia.com/gpu:  1
-
-$ kubectl exec llm-server-0 -- nvidia-smi --query-gpu=memory.used,memory.total --format=csv
-memory.used [MiB], memory.total [MiB]
-71234 MiB, 81920 MiB          ← 71GB used of 80GB — note: nvidia.com/gpu:1 gives WHOLE-GPU
-                                 access, K8s has no native concept of fractional GPU memory
-                                 limits here — that enforcement is the model server's job, or
-                                 requires MIG/time-slicing configured outside this manifest
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ kubectl describe pod llm-server-0 | grep -A4 'Limits\|Requests'"]
+  n1["Limits"]
+  n2["memory: 24Gi"]
+  n3["Requests"]
+  n4["cpu: 4"]
+  n5["memory: 16Gi"]
+  n6["nvidia.com/gpu: 1"]
+  n7["$ kubectl exec llm-server-0 -- nvidia-smi --query-gpu=memory.used,memory.total --format=csv"]
+  n8["memory.used [MiB], memory.total [MiB]"]
+  n9["71234 MiB, 81920 MiB ← 71GB used of 80GB — note: nvidia.com/gpu:1 gives WHOLE-GPU"]
+  n10["access, K8s has no native concept of fractional GPU memory"]
+  n11["limits here — that enforcement is the model server's job, or"]
+  n12["requires MIG/time-slicing configured outside this manifest"]
 ```
 This is the gap worth naming explicitly: the Kubernetes `limits.memory: 24Gi` governs *host* memory, not GPU memory — `nvidia.com/gpu: 1` is a whole-device allocation unit with no granularity below one GPU unless MIG partitioning or a fractional-GPU scheduler (Run:ai, per Senior Deep Dive 5) is layered in. A candidate who assumes `limits` constrains GPU memory the way it constrains CPU memory will misdiagnose GPU OOM as a Kubernetes scheduling bug.
 
@@ -74,30 +60,35 @@ This is the gap worth naming explicitly: the Kubernetes `limits.memory: 24Gi` go
 > **Conclusion:** Engine benchmarks are workload-shape-specific measurements, not universal rankings — re-validate on your own model, precision, GPU and traffic pattern every time.
 
 ➕ **Diagram: why the public benchmark and production diverged**
-```
-Public benchmark shape:                Production traffic shape:
-  concurrency: low (1-4)                 concurrency: high (64+)
-  prompts: short, uniform                prompts: long, variable length
-  ┌──┐┌──┐┌──┐                           ┌────────────┐┌──┐┌───────┐
-  │Q1││Q2││Q3│ → scheduling overhead      │  Q1 (long) ││Q2│Q3(long)│
-  └──┘└──┘└──┘   dominates result           └────────────┘└──┘└───────┘
-                                          → batching/scheduling efficiency
-                                            dominates result instead
-
-  Engine A wins here  ──/──  does not imply  ──/──  Engine A wins here
-  (low concurrency,                              (high concurrency,
-   short prompt regime)                          mixed-length regime)
+```mermaid
+flowchart LR
+    subgraph Bench["Public benchmark shape"]
+    direction TB
+    B1["Concurrency: low (1-4); prompts: short, uniform (Q1, Q2, Q3)"] --> B2["Scheduling overhead dominates result"]
+    B3["Engine A wins here (low concurrency, short prompt regime)"]
+    end
+    subgraph Prod["Production traffic shape"]
+    direction TB
+    P1["Concurrency: high (64+); prompts: long, variable length (Q1 long, Q2, Q3 long)"] --> P2["Batching/scheduling efficiency dominates result instead"]
+    P3["Engine A wins here does NOT imply (high concurrency, mixed-length regime)"]
+    end
+    B3 -.->|does not transfer to| P3
 ```
 Two different bottlenecks are being measured under two different request shapes — a ranking under one shape does not transfer to the other, which is exactly why the in-house re-benchmark step is non-optional.
 
 ➕ **Diagram: engine/gateway swap independence (the payoff of the platform boundary)**
-```
-Swap the model server only:            Swap the gateway only:
- Gateway (unchanged) ──▶ vLLM           Gateway A ──▶ Model server (unchanged)
- Gateway (unchanged) ──▶ TensorRT-LLM      swap to
-                          (latency win,  Gateway B ──▶ Model server (unchanged)
-                          no gateway        (new API mgmt product,
-                          code touched)     no execution code touched)
+```mermaid
+flowchart LR
+    subgraph SwapServer["Swap the model server only"]
+    direction TB
+    G1["Gateway (unchanged)"] --> V["vLLM"]
+    G1 --> T["TensorRT-LLM (latency win, no gateway code touched)"]
+    end
+    subgraph SwapGateway["Swap the gateway only"]
+    direction TB
+    GA["Gateway A"] --> M1["Model server (unchanged)"]
+    GB["Gateway B (new API mgmt product, no execution code touched)"] --> M1
+    end
 ```
 If either swap forces a change on the other side of the boundary, the two layers were coupled — the specific bug pattern to watch for is tenant-quota or batching logic accidentally implemented inside a custom backend instead of the gateway.
 

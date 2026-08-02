@@ -28,22 +28,40 @@ numactl --hardware
 ---
 
 ➕ **ASCII topology diagram — the two server layouts the worked scenario is actually comparing:**
-```
-Server A — NVSwitch-connected (e.g. HGX baseboard, all-to-all NVLink)
-┌──────────────────────────────────────────────────────────┐
-│   GPU0 ─┬─ GPU1 ─┬─ GPU2 ─┬─ GPU3                          │
-│         NVSwitch (full bandwidth, any GPU to any GPU)      │
-│   GPU4 ─┴─ GPU5 ─┴─ GPU6 ─┴─ GPU7                          │
-└──────────────────────────────────────────────────────────┘
-   All-reduce cost: ~flat, independent of which GPU pair talks
+```mermaid
+flowchart TB
+    subgraph A["Server A -- NVSwitch-connected (e.g. HGX baseboard, all-to-all NVLink)"]
+        direction LR
+        A0[GPU0] --- ASW[NVSwitch<br/>full bandwidth, any GPU to any GPU]
+        A1[GPU1] --- ASW
+        A2[GPU2] --- ASW
+        A3[GPU3] --- ASW
+        A4[GPU4] --- ASW
+        A5[GPU5] --- ASW
+        A6[GPU6] --- ASW
+        A7[GPU7] --- ASW
+    end
+    ANote["All-reduce cost: flat,<br/>independent of which GPU pair talks"]
+    A --> ANote
 
-Server B — PCIe-only, split across two NUMA/root-complex domains
-┌───────────────── NUMA node 0 ─────────┐ ┌──── NUMA node 1 ─────┐
-│  CPU0 -- PCIe switch -- GPU0,GPU1,NIC0 │ │ CPU1 -- PCIe switch -- GPU2,GPU3,NIC1│
-└──────────────────┬─────────────────────┘ └───────────┬──────────┘
-                    └──────────── QPI/UPI cross-socket hop ─────────┘
-   All-reduce cost: cheap within a NUMA domain, expensive crossing it —
-   GPU0↔GPU1 fast; GPU0↔GPU2 pays a CPU-socket-crossing tax every step
+    subgraph B["Server B -- PCIe-only, split across two NUMA/root-complex domains"]
+        direction LR
+        subgraph N0["NUMA node 0"]
+            direction LR
+            CPU0[CPU0] --- SW0[PCIe switch] --- BG0[GPU0]
+            SW0 --- BG1[GPU1]
+            SW0 --- NIC0[NIC0]
+        end
+        subgraph N1["NUMA node 1"]
+            direction LR
+            CPU1[CPU1] --- SW1[PCIe switch] --- BG2[GPU2]
+            SW1 --- BG3[GPU3]
+            SW1 --- NIC1[NIC1]
+        end
+        N0 <-->|QPI/UPI cross-socket hop| N1
+    end
+    BNote["All-reduce cost: cheap within a NUMA domain, expensive crossing it --<br/>GPU0-GPU1 fast; GPU0-GPU2 pays a CPU-socket-crossing tax every step"]
+    B --> BNote
 ```
 Same GPU count and model, structurally different worst-case collective latency — this diagram *is* the answer to "why would two identical-spec servers train differently."
 
@@ -65,35 +83,48 @@ Legend:
 Reading it: **GPU0↔GPU1 = NV12** (fast NVLink peers, same NUMA node) but **GPU0↔GPU2 = SYS** (crosses NUMA/socket boundary, no NVLink between those two — falls back to the slowest path). A job that places rank 0 and rank 2 as a tightly-communicating pair (e.g. a naive round-robin rank-to-GPU mapping) pays for the `SYS` path every all-reduce step, while a topology-aware mapping would pair 0↔1 and 2↔3. **NIC0 is `PHB` to GPU0/GPU3 but `SYS` to GPU1/GPU2** — this is exactly the NIC-locality problem Deep Dive 2 names for GPUDirect RDMA: a NCCL/collective job whose ranks talk to the NIC via `SYS` pays a real, measurable tax versus ranks reachable via `PHB`.
 
 ➕ **`numactl --hardware` — the other half of the same evidence, annotated:**
-```
-$ numactl --hardware
-available: 2 nodes (0-1)
-node 0 cpus: 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 ... 31
-node 0 size: 515928 MB
-node 1 cpus: 32 33 34 35 ... 63
-node 1 size: 515928 MB
-node distances:
-node   0    1
-  0:  10   21     ← "21" (roughly 2x local) is the cross-node access-latency penalty
-  1:  21   10
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ numactl --hardware"]
+  n1["available: 2 nodes (0-1)"]
+  n2["node 0 cpus: 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 ... 31"]
+  n3["node 0 size: 515928 MB"]
+  n4["node 1 cpus: 32 33 34 35 ... 63"]
+  n5["node 1 size: 515928 MB"]
+  n6["node distances"]
+  n7["node 0 1"]
+  n8["0: 10 21 ← '21' (roughly 2x local) is the cross-node access-latency penalty"]
+  n9["1: 21 10"]
 ```
 `node distances` is the number that turns "NUMA-aware placement" from folklore into arithmetic: a memory access to the remote node costs ~2.1x a local one on this system. Combine with the topo matrix above — a data-loader thread pinned to node-0 CPUs feeding GPU2 (node-1) pays this distance penalty on every host-side batch prep, on top of the `SYS` PCIe path.
 
 ➕ **Diagram: GPUDirect RDMA path vs the host-bounce fallback**
-```
-Without GPUDirect RDMA (or NIC not locally attached — the "SYS" case above):
-  GPU HBM ──PCIe──▶ Host DRAM (staging buffer) ──PCIe──▶ NIC ──▶ fabric
-              copy #1 (device→host)      copy #2 (host→NIC)
-  Two copies + CPU involvement on every transfer.
+```mermaid
+flowchart LR
+    subgraph WithoutRDMA["Without GPUDirect RDMA (or NIC not locally attached -- the SYS case above)"]
+        direction LR
+        H1[GPU HBM] -->|"PCIe, copy #1<br/>device to host"| H2[Host DRAM<br/>staging buffer]
+        H2 -->|"PCIe, copy #2<br/>host to NIC"| H3[NIC]
+        H3 --> H4[fabric]
+    end
+    NoteA["Two copies + CPU involvement on every transfer"]
+    WithoutRDMA --> NoteA
 
-With GPUDirect RDMA, GPU and NIC on the same PCIe root complex ("PHB"):
-  GPU HBM ─────────────── PCIe switch ───────────────▶ NIC ──▶ fabric
-              single DMA, CPU only sets up the transfer, does not copy data
+    subgraph WithRDMA["With GPUDirect RDMA, GPU and NIC on the same PCIe root complex (PHB)"]
+        direction LR
+        R1[GPU HBM] -->|"single DMA, CPU only sets up<br/>the transfer, does not copy data"| R2[PCIe switch]
+        R2 --> R3[NIC]
+        R3 --> R4[fabric]
+    end
 
-  GPU HBM ─────────────── PCIe switch ───X (crosses to other socket, "SYS")
-                                          ▶ NIC on the OTHER root complex
-  Even with GPUDirect RDMA capability, a NIC reachable only via "SYS" still
-  pays a cross-socket hop — GPUDirect removes the CPU copy, not the topology.
+    subgraph CrossSocket["Even with GPUDirect RDMA, NIC reachable only via SYS"]
+        direction LR
+        S1[GPU HBM] --> S2[PCIe switch]
+        S2 -.->|crosses to other socket, SYS -- blocked/slow path| S3[NIC on the OTHER root complex]
+    end
+    NoteB["GPUDirect removes the CPU copy, not the topology --<br/>a cross-socket hop is still paid"]
+    CrossSocket --> NoteB
 ```
 This is the mechanism behind the `NIC0 PHB vs SYS` distinction called out in the `topo -m` reading above: GPUDirect RDMA eliminates the double-copy through host memory, but only when the GPU and NIC already share a favorable PCIe path — placement still has to be right first.
 

@@ -91,11 +91,9 @@ Doing steps 1 and 3 for an executive and skipping step 2 entirely is correct —
 ➕ 6. An executive interrupts your explanation and asks "just tell me if I need to worry." Without dropping the outcome-first structure, give the one-sentence answer that would satisfy this interruption for the MIG/ECC scenario above, and explain why answering this well is actually harder than giving the full four-paragraph version.
 
 ➕ **Visual model — one fact, three altitude levels:**
-```
-executive: outcome, risk, decision needed
-      │
-director: trade-off, milestone, cost / ownership
-      │
-engineer: mechanism, evidence, implementation action
+```mermaid
+flowchart TD
+    A["executive: outcome, risk, decision needed"] --> B["director: trade-off, milestone, cost / ownership"]
+    B --> C["engineer: mechanism, evidence, implementation action"]
 ```
 **Memory hook:** *"Same truth, different resolution."* Changing vocabulary must never change the risk or the decision.

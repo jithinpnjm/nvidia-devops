@@ -26,19 +26,24 @@ Whole-GPU-per-replica:        Run:ai / fractional scheduling:
 The senior framing: fractional GPU scheduling for autoscaling is a cost/utilization win that is *only* safe to the degree Chapter 8's isolation analysis says it is — a Run:ai deployment maximizing packing density on time-sliced GPUs across untrusted tenants is optimizing the wrong variable if isolation is a hard requirement. Always answer "what's the TCO lever" and "what's the isolation requirement" together, not sequentially.
 
 ➕ **Diagram: reactive HPA vs. predictive/warm-pool scaling against a traffic ramp**
-```
-Traffic:        ▁▁▂▃▅▇█████████▇▅▃▂▁▁    (ramp starts at t=0)
-
-Reactive HPA:
-   scale trigger fires ──▶ new replica scheduled ──▶ model load (minutes) ──▶ ready
-                                                                                  │
-   traffic already past peak by the time replica is ready ─────────────────────┘
-   → SLO violated during the entire ramp-up window, capacity arrives too late
-
-Predictive / warm pool:
-   capacity pre-provisioned or kept warm BEFORE the ramp, based on forecast/schedule
-   |==warm pool idle==|=====ramp=====|=====peak=====|=====decay=====|
-                        ↑ capacity already ready when traffic arrives
+```mermaid
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["Traffic: ▁▁▂▃▅▇█████████▇▅▃▂▁▁ (ramp starts at t=0)"]
+  n1["Reactive HPA"]
+  n2["scale trigger fires"]
+  n3["new replica scheduled"]
+  n4["model load (minutes)"]
+  n5["ready"]
+  n6["traffic already past peak by the time replica is ready"]
+  n7["SLO violated during the entire ramp-up window, capacity arrives too late"]
+  n8["Predictive / warm pool"]
+  n9["capacity pre-provisioned or kept warm BEFORE the ramp, based on forecast/schedule"]
+  n10["|==warm pool idle==|=====ramp=====|=====peak=====|=====decay=====|"]
+  n11["↑ capacity already ready when traffic arrives"]
+  n2 --> n3
+  n3 --> n4
+  n4 --> n5
 ```
 This is the mechanism behind "predictive capacity, warm pools and staged rollout may outperform reactive HPA alone" — the multi-minute model-load lead time from Chapter 5's lifecycle box means a purely reactive loop is structurally unable to keep up with a fast ramp, no matter how well the trigger threshold is tuned.
 

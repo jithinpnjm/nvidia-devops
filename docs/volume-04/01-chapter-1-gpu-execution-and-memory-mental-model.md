@@ -154,61 +154,43 @@ nvidia-smi topo -m
 ---
 
 ➕ **Mental-model diagram — where each of the five resources in the table above actually sits:**
-```
-┌───────────────────────────────── HOST ─────────────────────────────────┐
-│  CPU cores            Pinned host memory                               │
-│      │                      │                                          │
-│      └──────────── PCIe / NVLink-C2C ───────────┐                      │
-└───────────────────────────────────────────────────┼──────────────────────┘
-                                                     │  ← bottleneck #4: PCIe/NVLink
-┌────────────────────────────────── GPU ─────────────┼──────────────────────┐
-│                                                     ▼                     │
-│   ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐   L2 cache                │
-│   │  SM 0  │ │  SM 1  │ │  SM 2  │ │  SM N  │◀──────┐                    │
-│   │ warps  │ │ warps  │ │ warps  │ │ warps  │       │                    │
-│   │ Tensor │ │ Tensor │ │ Tensor │ │ Tensor │       │  ← bottleneck #1:  │
-│   │  Core  │ │  Core  │ │  Core  │ │  Core  │       │    compute/SM      │
-│   └───┬────┘ └───┬────┘ └───┬────┘ └───┬────┘       │    occupancy       │
-│       └──────────┴──────────┴──────────┘            │                    │
-│                        │                             │                    │
-│                        ▼                             │                    │
-│              ┌──────────────────┐                    │                    │
-│              │   HBM (device    │◀───────────────────┘                    │
-│              │   memory, e.g.   │   ← bottleneck #2: does it fit          │
-│              │   80GB on H100)  │   ← bottleneck #3: bandwidth moving     │
-│              └──────────────────┘     data between HBM and SMs           │
-└──────────────────────────────────┼───────────────────────────────────────┘
-                                    │
-                          NVLink/NVSwitch to peer GPUs,
-                          or NIC/RDMA fabric to other nodes
-                          ← bottleneck #5: NIC/fabric for collectives
+```mermaid
+flowchart TB
+    subgraph HOST["HOST"]
+        direction LR
+        CPU["CPU cores"]
+        PIN["Pinned host memory"]
+    end
+
+    subgraph GPUBOX["GPU"]
+        direction TB
+        subgraph SMs["Streaming Multiprocessors"]
+            direction LR
+            SM0["SM 0<br/>warps / Tensor Core"]
+            SM1["SM 1<br/>warps / Tensor Core"]
+            SM2["SM 2<br/>warps / Tensor Core"]
+            SMN["SM N<br/>warps / Tensor Core"]
+        end
+        L2["L2 cache"]
+        HBM["HBM device memory<br/>e.g. 80GB on H100"]
+        SMs -->|"bottleneck #1:<br/>compute/SM occupancy"| L2
+        L2 <-->|"bottleneck #2: does it fit<br/>bottleneck #3: bandwidth moving<br/>data between HBM and SMs"| HBM
+    end
+
+    HOST -->|"PCIe / NVLink-C2C<br/>bottleneck #4: PCIe/NVLink"| GPUBOX
+    GPUBOX -->|"NVLink/NVSwitch to peer GPUs,<br/>or NIC/RDMA fabric to other nodes<br/>bottleneck #5: NIC/fabric for collectives"| FABRIC["Peer GPUs / NIC-RDMA fabric"]
 ```
 Every "GPU is slow" ticket in this role reduces to figuring out which of these five arrows is saturated — the rest of this volume is instrumentation for exactly that question.
 
 ➕ **Diagram: on-GPU memory hierarchy — capacity down, bandwidth/latency the opposite way**
-```
-        FASTEST / SMALLEST                                   SLOWEST / LARGEST
-        ┌─────────────┐
-        │  Registers  │  per-thread, KB-scale, ~1 cycle latency
-        └──────┬──────┘
-               │
-        ┌──────▼──────┐
-        │ Shared mem/  │  per-SM, tens of KB, program-managed cache
-        │   L1 cache   │
-        └──────┬──────┘
-               │
-        ┌──────▼──────┐
-        │   L2 cache   │  shared across all SMs, tens of MB
-        └──────┬──────┘
-               │
-        ┌──────▼──────┐
-        │     HBM      │  device memory, tens of GB (e.g. 80GB on H100),
-        │ (device mem) │  highest capacity on-GPU, but far higher latency
-        └──────┬──────┘  and lower effective bandwidth per byte than L2/registers
-               │  PCIe / NVLink
-        ┌──────▼──────┐
-        │ Host (DRAM)  │  hundreds of GB-TB, slowest tier, crossed only
-        └─────────────┘  for transfers this chapter calls out as bottleneck #4
+```mermaid
+flowchart TD
+    REG["Registers<br/>per-thread, KB-scale, ~1 cycle latency<br/>(FASTEST / SMALLEST)"]
+    L1["Shared mem / L1 cache<br/>per-SM, tens of KB, program-managed cache"]
+    L2C["L2 cache<br/>shared across all SMs, tens of MB"]
+    HBM2["HBM (device mem)<br/>tens of GB, e.g. 80GB on H100<br/>highest capacity on-GPU, but far higher latency<br/>and lower effective bandwidth per byte than L2/registers"]
+    HOSTDRAM["Host (DRAM)<br/>hundreds of GB-TB, slowest tier, crossed only<br/>for transfers this chapter calls out as bottleneck #4<br/>(SLOWEST / LARGEST)"]
+    REG --> L1 --> L2C --> HBM2 -->|"PCIe / NVLink"| HOSTDRAM
 ```
 Each step down this pyramid trades capacity against latency and available bandwidth. Frequent HBM traffic can contribute to a memory-bound workload, but `dmon` alone cannot prove that diagnosis. Confirm it with workload throughput/latency and a profiler such as Nsight Systems or Nsight Compute, using metrics appropriate to the actual kernel.
 

@@ -11,9 +11,14 @@ source_document: "Authored directly for the JR2018680 gap-coverage volume — no
 
 You do not need to master scheduler mathematics before operating the basics. Follow one submitted script:
 
-```text
-sbatch → slurmctld validates request → pending queue → scheduler selects nodes
-       → slurmd launches job step → task uses CPU/GPU/memory → accounting records result
+```mermaid
+flowchart LR
+    A[sbatch] --> B["slurmctld validates request"]
+    B --> C["pending queue"]
+    C --> D["scheduler selects nodes"]
+    D --> E["slurmd launches job step"]
+    E --> F["task uses CPU/GPU/memory"]
+    F --> G["accounting records result"]
 ```
 
 - A **job** is the user's resource request and work description.
@@ -45,33 +50,12 @@ The first `SlurmctldHost` entry is primary; the second is backup. Compute node `
 
 `slurmdbd` (the accounting daemon) is a separate process from `slurmctld` and has its own HA story — it is the front end to the accounting database (MySQL/MariaDB), and it can itself run with a backup instance declared via `DbdBackupHost`. The database beneath it should be on its own HA path (replication, managed DB service) independent of Slurm's own failover config; `slurmdbd` losing its database connection does not crash running jobs, but it does mean new job accounting records queue up in `slurmdbd`'s local cache until the database is reachable again, and association/QoS lookups (needed for new job submission decisions) may stall.
 
-```
-                     ┌───────────────────────┐
-                     │  slurmctl-01 (PRIMARY) │◀── active: schedules, holds queue state
-                     └───────────┬────────────┘
-                                 │ reads/writes
-                                 ▼
-                     ┌───────────────────────┐
-                     │ StateSaveLocation      │  shared storage (NFS)
-                     │ (queue/job state on    │  BOTH controllers can reach
-                     │  disk, not just RAM)   │
-                     └───────────┬────────────┘
-                                 ▲
-                     ┌───────────┴────────────┐
-                     │  slurmctl-02 (BACKUP)   │◀── idle until failover; then
-                     └────────────────────────┘    reads StateSaveLocation to
-                                                     become authoritative
-                                 │
-                                 │ accounting records (assoc/QoS/usage)
-                                 ▼
-                     ┌────────────────────────┐
-                     │      slurmdbd           │  separate daemon + separate HA path
-                     └───────────┬────────────┘
-                                 ▼
-                     ┌────────────────────────┐
-                     │  MySQL/MariaDB          │  durable accounting store —
-                     │  (its own replication)  │  survives controller failover
-                     └────────────────────────┘
+```mermaid
+flowchart TD
+    A["slurmctl-01 (PRIMARY) - active: schedules, holds queue state"] -->|reads/writes| B["StateSaveLocation - shared storage (NFS), queue/job state on disk not just RAM, BOTH controllers can reach"]
+    C["slurmctl-02 (BACKUP) - idle until failover"] -->|"then reads StateSaveLocation to become authoritative"| B
+    B -->|"accounting records (assoc/QoS/usage)"| D["slurmdbd - separate daemon + separate HA path"]
+    D --> E["MySQL/MariaDB - durable accounting store, its own replication, survives controller failover"]
 ```
 
 The point worth having precise in an interview: controller failover is about *who makes scheduling decisions right now*; `slurmdbd`/the database is about *durable historical record and policy data* (associations, QoS, fairshare usage) that outlives any individual controller's uptime — a controller failover does not lose accounting history because that was never the controller's data to begin with.
@@ -154,16 +138,18 @@ Slurm's documented upgrade order is strict: **`slurmdbd` first, then `slurmctld`
 
 Version skew is explicitly bounded: RPC compatibility is officially guaranteed only between adjacent major versions (Slurm's own documented policy — for example a 23.02 `slurmctld` is compatible with 22.05 `slurmd` compute nodes, but skipping two major versions of skew, e.g. running 21.08 compute nodes against a 23.02 controller, is unsupported and can silently misbehave rather than fail cleanly). This is what makes rolling upgrades possible at all: compute nodes can lag the controller by one major version while jobs continue running on them, which is the mechanism for **not killing running jobs during an upgrade** — you drain and upgrade `slurmd` on a batch of nodes at a time (the same `serial:`-style batching concept as Chapter 4's Ansible rollout, operationally), while the controller itself is upgraded once, during a short maintenance window, without needing every compute node upgraded simultaneously.
 
+```mermaid
+flowchart TD
+    A["slurmdbd (schema migrates first)"] --> B["slurmctld (control plane, brief window)"]
+    B --> C["slurmd (compute, rolling, batched) - one version behind controller is supported; two is not"]
 ```
-Upgrade order:  slurmdbd  →  slurmctld  →  slurmd (compute, rolling, batched)
-                (schema      (control       (one version behind controller
-                 migrates     plane,          is supported; two is not)
-                 first)       brief window)
 
-Rolling slurmd upgrade, batch by batch:
-  drain batch 1 (jobs finish, no new jobs land) → upgrade slurmd → resume
-  drain batch 2 ... repeat ...
-  running jobs on NOT-YET-upgraded nodes are undisturbed throughout
+```mermaid
+flowchart LR
+    A["drain batch 1 (jobs finish, no new jobs land)"] --> B["upgrade slurmd"]
+    B --> C[resume]
+    C --> D["drain batch 2 ... repeat ..."]
+    D --> E["running jobs on NOT-YET-upgraded nodes are undisturbed throughout"]
 ```
 
 The practical admin move: `scontrol update nodename=<batch> state=drain` on a batch, wait for `sinfo`/`squeue` to confirm no running jobs remain on that batch (or accept that draining lets current jobs finish before removing the node from scheduling), upgrade `slurmd` and restart it on that batch, `resume` it, move to the next batch — a batch of nodes is unavailable for *new* scheduling during its own upgrade window, but the cluster as a whole, and every job that was running before the upgrade started, is never killed by the process.

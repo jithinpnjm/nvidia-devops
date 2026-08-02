@@ -29,58 +29,52 @@ sum(rate(http_requests_total{job="api"}[5m]))
 Always inspect label cardinality. User IDs, request IDs or unbounded model/session identifiers can explode time-series count. Use logs/traces for high-cardinality event identity when metrics do not need it.
 
 ➕ **Sample PromQL query result, annotated — what `rate()` is actually computing under the hood:**
-```
-$ curl -s 'http://prom:9090/api/v1/query?query=rate(http_requests_total{job="api"}[5m])' | jq .
-{
-  "status": "success",
-  "data": {
-    "resultType": "vector",
-    "result": [
-      {
-        "metric": {"job": "api", "instance": "10.0.4.12:8080", "status": "200"},
-        "value": [1753876800, "42.7"]     ← 42.7 requests/sec, averaged over the trailing 5m window
-      },
-      {
-        "metric": {"job": "api", "instance": "10.0.4.13:8080", "status": "200"},
-        "value": [1753876800, "0.03"]     ← this instance is nearly idle — worth asking why vs its sibling
-      }
-    ]
-  }
-}
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["$ curl -s 'http://prom:9090/api/v1/query?query=rate(http_requests_total{job='api'}[5m])' | jq ."]
+  n1["{"]
+  n2["'status': 'success',"]
+  n3["'data': {"]
+  n4["'resultType': 'vector',"]
+  n5["'result': ["]
+  n6["'metric': {'job': 'api', 'instance': '10.0.4.12:8080', 'status': '200'},"]
+  n7["'value': [1753876800, '42.7'] ← 42.7 requests/sec, averaged over the trailing 5m window"]
+  n8["},"]
+  n9["'metric': {'job': 'api', 'instance': '10.0.4.13:8080', 'status': '200'},"]
+  n10["'value': [1753876800, '0.03'] ← this instance is nearly idle — worth asking why vs its sibling"]
+  n11["}"]
+  n12["]"]
 ```
 `rate()` looks at the counter's increase across the range vector, divides by the elapsed seconds, and — critically — extrapolates slightly at the edges and **auto-handles counter resets** (process restart resetting the counter to 0). This last point is the single most-asked PromQL interview detail: `rate()` is not "the difference between two points," it's reset-aware, which is exactly why you use `rate()`/`increase()` on counters and never raw subtraction.
 
 ➕ **PromQL query evaluation, visualized (what actually happens when you run the 5xx-ratio query above):**
-```
-Step 1: instant vector selector expands to label-matched series
-   http_requests_total{job="api",status=~"5.."}
-        ├── {job="api",status="500",instance="A"} → samples over last 5m
-        ├── {job="api",status="502",instance="A"} → samples over last 5m
-        └── {job="api",status="500",instance="B"} → samples over last 5m
-Step 2: rate([5m]) computed PER SERIES independently
-        ├── series A/500 → 0.8 req/s
-        ├── series A/502 → 0.1 req/s
-        └── series B/500 → 0.3 req/s
-Step 3: sum() aggregates across the label dimension, collapsing to ONE series
-        → 1.2 req/s total 5xx
-Step 4: divide by the denominator's own sum(rate(...)) (separately computed, same steps)
-        → 1.2 / 210.4 = 0.0057  (0.57% error ratio)
+```mermaid
+flowchart TD
+    A["Step 1: http_requests_total{job=api,status=~5..} expands to label-matched series"]
+    A --> B1["series job=api,status=500,instance=A -- samples over last 5m"]
+    A --> B2["series job=api,status=502,instance=A -- samples over last 5m"]
+    A --> B3["series job=api,status=500,instance=B -- samples over last 5m"]
+    B1 --> C1["Step 2: rate(5m) per series -- A/500 = 0.8 req/s"]
+    B2 --> C2["Step 2: rate(5m) per series -- A/502 = 0.1 req/s"]
+    B3 --> C3["Step 2: rate(5m) per series -- B/500 = 0.3 req/s"]
+    C1 --> D["Step 3: sum() aggregates across the label dimension -- 1.2 req/s total 5xx"]
+    C2 --> D
+    C3 --> D
+    D --> E["Step 4: divide by denominator sum(rate(...)) -- 1.2 / 210.4 = 0.0057 (0.57% error ratio)"]
 ```
 The reason this matters operationally: if you `sum()` before `rate()` (i.e. `rate(sum(http_requests_total)[5m])`), you get a *syntax error* — Prometheus won't even let you do it in that order, because `rate()` requires a range vector, and `sum()` produces an instant vector. This ordering constraint is a good "do you actually know PromQL or just copy queries" filter question.
 
 ➕ **Diagram: the full scrape → TSDB → rule → alert pipeline this chapter's queries plug into**
-```
-target /metrics    ┌─────────────┐    ┌──────────┐    ┌───────────────┐    ┌────────────┐
-endpoint       ──▶ │ Prometheus  │──▶ │   TSDB   │──▶ │ recording /   │──▶ │ Alertmanager│
-(app exposes         scrape loop      (on-disk       │ alerting rules │    │ (routes,   │
-counters/gauges)    every N sec)      time series)   │ evaluated on   │    │  groups,   │
-                                            │          │ a schedule)    │    │  silences) │
-                                            ▼          └───────────────┘    └────────────┘
-                                     PromQL queries            │                   │
-                                     (Grafana, ad-hoc)          ▼                   ▼
-                                                          new derived        page / ticket /
-                                                          series or fired    notification
-                                                          alert state
+```mermaid
+flowchart LR
+    T["target /metrics endpoint (app exposes counters/gauges)"] -->|scrape loop every N sec| P["Prometheus scrape loop"]
+    P --> TSDB["TSDB (on-disk time series)"]
+    TSDB --> R["recording / alerting rules (evaluated on a schedule)"]
+    R --> AM["Alertmanager (routes, groups, silences)"]
+    TSDB --> Q["PromQL queries (Grafana, ad-hoc)"]
+    R --> D["new derived series or fired alert state"]
+    AM --> N["page / ticket / notification"]
 ```
 Every query in this chapter (`rate()`, `histogram_quantile()`) runs against the TSDB box; a recording rule is just one of those queries pre-evaluated on a schedule and stored back into the TSDB as its own series, which is why Deep Dive 2 calls it "trading write-time cost for read-time cost." Alerting rules are the same query shape again, just routed to Alertmanager instead of a dashboard when the condition is true.
 
