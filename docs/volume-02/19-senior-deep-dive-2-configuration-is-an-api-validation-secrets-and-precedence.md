@@ -39,9 +39,13 @@ defaults  <  config file  <  environment variables  <  explicit CLI flags
 `Settings.load()`'s `os.getenv("NAMESPACE", raw.get("namespace", "default"))` is this exact chain in one line, read right-to-left: try env var first, fall back to file value, fall back to hardcoded default. **Interview-ready line:** "the most specific, most recently-supplied source should always win — that's why CLI flags beat environment beats file beats code defaults, not the reverse."
 
 ➕ **Visual model — configuration crosses two boundaries:**
-```
-raw file / env / CLI ─► parse ─► validate + redact ─► typed Settings ─► application
-                           │                              │
-                           └── fail early, name source     └── no secret in logs
+```mermaid
+flowchart LR
+    A[raw file / env / CLI] --> B[parse]
+    B --> C[validate + redact]
+    C --> D[typed Settings]
+    D --> E[application]
+    B -.->|fail early, name source| B
+    C -.->|no secret in logs| C
 ```
 **Memory hook:** *"Precedence chooses; validation protects."* Treat configuration as input from an untrusted interface, even when it came from your own deployment system.

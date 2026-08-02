@@ -8,6 +8,80 @@ source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 
 *(original text preserved in full; ➕ marks additions)*
 
+## Foundations: start here if this is new to you
+
+**The problem: a "path" looks like plain text, but it isn't safe to treat as plain text**
+
+A file path — something like `/var/log/myservice/events.log` or `C:\Users\name\file.txt` — is a string that names a location in the filesystem tree (the nested folders-inside-folders structure every operating system uses to organize files). Because a path is visible as text, the tempting shortcut is to build and manipulate it with plain string operations: `folder + "/" + filename`. That shortcut quietly breaks the moment your code runs somewhere else: Windows uses backslashes (`\`) as its folder separator, macOS and Linux use forward slashes (`/`); trailing slashes, double slashes, and "does this path already end in a separator?" edge cases pile up fast. You end up hand-rolling a small, buggy imitation of what the filesystem already knows how to do correctly.
+
+**Analogy: a mailing address vs. a structured `Address` object**
+
+Think of a path like a street address. You *could* store `"221B Baker Street London NW1 6XE UK"` as one plain string and manually chop it apart every time you need the city or postcode — error-prone and format-dependent. Or you could store it as a structured object with a `.street`, `.city`, `.postcode` — each piece accessible without re-parsing the whole string, and the object knows how to correctly reformat itself for any context. `pathlib`'s `Path` object is the second approach applied to filesystem locations: instead of a raw string, you get an object that knows how to join folders correctly on whatever OS it's running on, gives you `.name`, `.parent`, `.suffix` directly, and never gets the separator character wrong.
+
+```python
+from pathlib import Path
+
+p = Path("var") / "log" / "myservice" / "events.log"
+print(p)               # var/log/myservice/events.log (POSIX) or var\log\myservice\events.log (Windows)
+print(p.name)           # events.log
+print(p.suffix)         # .log
+print(p.parent)         # var/log/myservice
+```
+
+Trace it by hand: the `/` operator between `Path` objects and strings is overloaded by `pathlib` to mean "join a path segment," not division — so `Path("var") / "log" / "myservice" / "events.log"` builds up one path piece by piece, and `pathlib` inserts whichever separator character is correct for the OS actually running the code. `.name` pulls just the final segment (`events.log`), `.suffix` pulls the extension (`.log`), and `.parent` gives you everything except the last segment.
+
+**What "reading" and "writing" a file actually involve**
+
+Opening a file is asking the operating system for a temporary connection (a "handle") to that location on disk. While that handle is open, the OS reserves some bookkeeping for it. If your program reads or writes and then forgets to explicitly close the handle, that bookkeeping can leak — on a long-running service that opens many files, this shows up as "too many open files" errors. This is why Python has the `with open(...) as f:` pattern: `with` here is a **context manager** (a construct that guarantees a "clean up" action runs automatically when a block of code finishes, even if an error occurs partway through) — it's this chapter's on-ramp to a fuller treatment of context managers later, but the shape you need right now is: `with` guarantees the file gets closed, so you don't have to remember to do it yourself.
+
+```python
+with open("notes.txt", "w", encoding="utf-8") as f:
+    f.write("hello\n")
+# the file is guaranteed to be closed here, even if f.write() had raised an error
+```
+
+**Regular expressions: a tiny language for describing shapes of text**
+
+A regular expression ("regex") is not an exact string to search for — it's a small pattern-matching language for describing the *shape* of text you're looking for, so you can match many different exact strings that all share that shape. "Digits, then a dash, then more digits" is a shape; `"a1-42"`, `"7-9"`, and `"203-1"` are all exact strings that match it, even though none of them are identical to each other.
+
+```python
+import re
+pattern = re.compile(r"\d+-\d+")   # \d+ means "one or more digits"
+match = pattern.search("error code a1-42 occurred")
+print(match.group())                 # 1-42
+```
+
+Trace it by hand: `\d+` matches one or more digit characters, then a literal `-`, then `\d+` again. Scanning the string `"error code a1-42 occurred"`, the regex engine finds the first place this shape occurs — starting at the `1` in `a1-42` (the leading `a` isn't a digit, so the digit-run starts at `1`), giving `1-42` as the match, not the whole `a1-42`.
+
+**JSON and YAML: two text spellings for the same underlying data**
+
+Both JSON and YAML are just text formats for writing down structured data — the same handful of building blocks (dictionaries/objects, lists/arrays, strings, numbers, booleans) — they're two different spellings of the same underlying shapes. YAML is designed to be pleasant for a human to hand-write and read (no mandatory quote marks or braces, indentation instead of brackets); JSON is designed to be trivial and unambiguous for a machine to parse (explicit braces, brackets, and quotes leave no room for indentation mistakes). Once either is loaded into Python, they become the exact same kind of object — typically a `dict` or `list` — and your code doesn't need to know or care which format it originally came from.
+
+```python
+import json, yaml
+
+json_text = '{"name": "gpu-1", "gpus": 8}'
+yaml_text = "name: gpu-1\ngpus: 8\n"
+
+print(json.loads(json_text))      # {'name': 'gpu-1', 'gpus': 8}
+print(yaml.safe_load(yaml_text))   # {'name': 'gpu-1', 'gpus': 8}
+```
+
+Trace it by hand: both calls parse a text representation of "a record with a name and a gpu count" — `json.loads` parses the brace-and-quote JSON spelling, `yaml.safe_load` parses the indentation-based YAML spelling, and both produce an identical Python dict `{'name': 'gpu-1', 'gpus': 8}`. From this point on in your code, there is no difference between them.
+
+**Check your understanding**
+
+1. *Q: Why does hardcoding `folder + "/" + filename` as a plain string cause real bugs, when using `Path(folder) / filename` doesn't?*
+   A: Because the separator character between folder segments differs by OS (`/` on macOS/Linux, `\` on Windows), and plain string concatenation hardcodes one choice. `Path`'s `/` operator inserts whichever separator is correct for the OS the code is actually running on.
+
+2. *Q: What does `with open(path) as f:` guarantee that manually calling `f = open(path)` without `with` does not?*
+   A: That the file handle gets closed automatically once the block ends — even if an exception is raised partway through reading or writing — because `with` is a context manager that runs its cleanup step unconditionally.
+
+3. *Q: A teammate suggests writing one large regex to parse an API response that the API can already return as JSON. What's the plain-language reason to push back?*
+   A: JSON is already structured data with an unambiguous, machine-designed format — parsing it with `json.loads` is direct and robust to whitespace/formatting changes. A regex re-derives structure from raw text by pattern-shape-matching, which is more fragile (breaks on formatting changes) and duplicates work the JSON parser already does correctly.
+
+With that groundwork — paths as safer-than-strings objects, files as connections that must be closed, regex as shape-matching rather than exact-matching, and JSON/YAML as two spellings of the same data — here's how the chapter puts these together to read infrastructure data safely.
+
 > After this chapter you should be able to: Read infrastructure data safely, parse only what is unstructured, and preserve clear boundaries between text and structured data.
 
 Prefer structured data over regex whenever the source already has structure. Parse JSON with json, YAML with a safe YAML loader, CSV with csv, and use regular expressions for text that is genuinely unstructured or semi-structured. A common failure is using one giant regex to parse data that the producer could emit as JSON.
@@ -50,27 +124,27 @@ with log.open(encoding="utf-8") as handle:
 **Memory hook:** Use pathlib for "where is the file?", format-specific parsers for "what data is inside?", and regex only for "what pattern is hidden in raw text?"
 
 ➕ **Diagram: which parser, decided by what the source already is**
-```
-producer emits data
-        │
-        ▼
-Is it already JSON/YAML/CSV? ──yes──▶ json.loads / yaml.safe_load / csv.reader
-        │no (genuinely unstructured text)
-        ▼
-  compile a regex with named groups ──▶ match.groupdict()
+```mermaid
+flowchart TD
+    A["producer emits data"] --> B{"Is it already JSON/YAML/CSV?"}
+    B -->|yes| C["json.loads / yaml.safe_load / csv.reader"]
+    B -->|no - genuinely unstructured text| D["compile a regex with named groups"]
+    D --> E["match.groupdict()"]
 ```
 The chapter's warning about "one giant regex parsing data the producer could emit as JSON" is exactly this decision point skipped — regex is the fallback, not the default.
 
 ➕ **Diagram: streaming line-by-line vs loading the whole file**
-```
-read_text() / readlines()                for line in handle:   (streaming)
-┌──────────────────────────┐             ┌────┐
-│ entire 20GB file in RAM  │  ✗ OOM      │ L1 │─▶ process ─▶ discard
-└──────────────────────────┘             ├────┤
-                                          │ L2 │─▶ process ─▶ discard
-                                          ├────┤
-                                          │ .. │   only ONE line in memory at a time
-                                          └────┘
+```mermaid
+flowchart LR
+    subgraph wholefile["read_text() / readlines()"]
+        W["entire 20GB file in RAM"] -->|risk| WX["OOM"]
+    end
+    subgraph streaming["for line in handle: (streaming)"]
+        direction TD
+        L1["L1"] -->|process, discard| L2["L2"]
+        L2 -->|process, discard| L3["..."]
+        L3 -.->|only ONE line in memory at a time| NOTE["low, constant memory"]
+    end
 ```
 
 ➕ **YAML's specific footgun this chapter's title mentions but doesn't demo — never use `yaml.load()` unqualified:**

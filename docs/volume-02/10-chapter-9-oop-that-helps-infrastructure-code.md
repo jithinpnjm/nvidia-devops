@@ -8,6 +8,48 @@ source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 
 *(original text preserved in full; ➕ marks additions)*
 
+## Foundations: start here if this is new to you
+
+**The problem, in plain terms.** Infrastructure code often needs to model real things that have both data and behavior attached to them: a compute node has a hostname and a GPU count, and it also has actions like "check if I'm healthy." If you keep the data in a dict and the behavior in a separate function, you have to pass the dict into every function by hand, and nothing enforces that the dict actually has the shape those functions expect. You need a way to bundle a thing's data and its behavior together, as one unit.
+
+**The concept: class and object.** A *class* is a blueprint — it describes what data a thing will have and what it can do, but it isn't a specific thing itself. An *object* (or *instance*) is one actual thing built from that blueprint. The analogy: a house blueprint specifies "this house has N bedrooms, a kitchen, a front door" — but the blueprint itself is just paper. You can build many actual houses from the same blueprint; each house has its own street address and its own furniture inside, even though they all share the same room layout. A class is the blueprint; each object is one house built from it.
+
+**Attributes and methods.** An *attribute* is a piece of data an object carries (a house's address). A *method* is a function that belongs to the object and usually reads or changes its attributes (a house's "turn on the lights" action, which only affects that one house). Here is a class with both, and two independent objects built from it:
+
+```python
+class Node:
+    def __init__(self, hostname: str, gpu_count: int):
+        self.hostname = hostname        # attribute
+        self.gpu_count = gpu_count      # attribute
+        self.healthy = True             # attribute
+
+    def mark_unhealthy(self):           # method
+        self.healthy = False
+
+node_a = Node("gpu-node-01", gpu_count=8)
+node_b = Node("gpu-node-02", gpu_count=4)
+
+node_a.mark_unhealthy()
+
+print(node_a.hostname, node_a.healthy, node_a.gpu_count)
+print(node_b.hostname, node_b.healthy, node_b.gpu_count)
+```
+Expected output:
+```
+gpu-node-01 False 8
+gpu-node-02 True 4
+```
+`node_a` and `node_b` are two separate houses built from the same `Node` blueprint. Calling `mark_unhealthy()` on `node_a` only changes `node_a`'s own data — `node_b` never notices.
+
+**Why this matters for infrastructure code specifically.** The point isn't "OOP is good practice" in the abstract — it's concrete: when you bundle a `Node`'s data with its own health-check method, the code that models your fleet reads like the real system ("ask each node if it's healthy") instead of a maze of loose dictionaries and separately-named functions that all have to agree, by convention, on what keys a dict contains. Objects let the data and the operations that make sense on that data travel together.
+
+**Check your understanding:**
+1. *What's the relationship between a class and an object?* — A class is the blueprint (the definition of what data and behavior a thing has); an object is one specific instance built from that blueprint, with its own independent data.
+2. *In the `Node` example, why does `node_b.healthy` stay `True` after calling `node_a.mark_unhealthy()`?* — Because each object holds its own independent copy of its attributes; a method called on one object only touches that object's data.
+3. *What's the difference between an attribute and a method?* — An attribute is data stored on the object; a method is a function bound to the object that typically reads or changes that object's attributes.
+
+With classes and objects as the base unit, the rest of this chapter is about deciding *when* to relate two classes by inheritance versus by composition.
+
 > After this chapter you should be able to: Use objects to hold cohesive state and behavior; prefer composition over inheritance when components have different responsibilities.
 
 Object-oriented design is useful when an automation has stateful collaborators: an API client, credential provider, retry policy, renderer, and command runner. Do not create classes merely to satisfy "use OOP." A class should represent a concept that owns state and operations. Composition lets you assemble behavior by giving one object another object to collaborate with.
@@ -74,14 +116,12 @@ Inheritance fits here because `JSONExporter` genuinely **is a kind of** `Exporte
 [Udemy - Python for DevOps](https://www.udemy.com/course/python-devops) - Relevant lessons: Introduction to classes; Class methods; Inheritance; Object-Oriented Deployment Manager coding exercise.
 
 ➕ **Visual model — dependency injection creates the test seam:**
-```
-                ┌──────────────────┐
-input ─────────►│ FleetHealthPolicy │──► decision / report
-                └────────┬─────────┘
-                         │ depends on a small interface
-              ┌──────────┴──────────┐
-              ▼                     ▼
-        RealRunner             FakeRunner
-        subprocess/API         deterministic test evidence
+```mermaid
+flowchart TD
+    input[input] --> Policy[FleetHealthPolicy]
+    Policy --> Output[decision / report]
+    Policy -.depends on a small interface.-> Runner{Runner interface}
+    Runner --> Real[RealRunner: subprocess/API]
+    Runner --> Fake[FakeRunner: deterministic test evidence]
 ```
 **Memory hook:** *"Objects own policy; adapters own effects."* If a class both decides and runs shell commands, it has hidden dependencies and no cheap test seam.

@@ -41,14 +41,12 @@ def test_status_classification(status, expected):
 Zero network calls, zero mocking library needed, runs in milliseconds, and — critically — **this test would catch a bug where someone changes `500 <= status < 600` to `500 <= status <= 600` and accidentally includes 600** as retryable. That's the actual value of testing decisions instead of testing "does my mock get called" — it tests the *policy*, which is where real bugs hide.
 
 ➕ **Visual model — test the diamond, not just the arrows:**
-```
-input status / evidence
-          │
-          ▼
-    policy decision ◄── unit test many cases here
-       │        │
-   retry      fail
-       │        │
-network/API adapter ◄── few integration tests here
+```mermaid
+flowchart TD
+    A[input status / evidence] --> B{policy decision}
+    B -->|retry| C[network/API adapter]
+    B -->|fail| C
+    B -.->|unit test many cases here| B
+    C -.->|few integration tests here| C
 ```
 **Memory hook:** *"Many cheap policy tests; few expensive boundary tests."*

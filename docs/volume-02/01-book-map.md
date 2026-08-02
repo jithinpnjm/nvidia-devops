@@ -59,8 +59,12 @@ Independent study guide based on public documentation and public practitioner ma
 | V. Quality & delivery | pytest, mocking, packaging, CLI, CI/CD | production-style diagnostic CLI |
 
 ➕ **Visual map — the volume grows one operational boundary at a time:**
-```
-Python model → local data → external I/O → failure handling → concurrent work → tested delivery
-     Ch1–3        Ch4       Ch7–8            Ch5–6              Ch11           Ch12–14
+```mermaid
+flowchart LR
+    A["Python model (Ch1-3)"] --> B["local data (Ch4)"]
+    B --> C["external I/O (Ch7-8)"]
+    C --> D["failure handling (Ch5-6)"]
+    D --> E["concurrent work (Ch11)"]
+    E --> F["tested delivery (Ch12-14)"]
 ```
 **Memory hook:** *"Make it correct, make it resilient, then make it operable."* Every later chapter adds a boundary around the code from the earlier one.

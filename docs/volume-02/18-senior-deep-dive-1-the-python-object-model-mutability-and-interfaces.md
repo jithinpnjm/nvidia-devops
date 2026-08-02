@@ -41,11 +41,12 @@ class Node:
 Without `slots=True`, every instance carries a `__dict__` (arbitrary attribute storage) — with it, Python allocates fixed slots instead, which is both faster to access and meaningfully smaller in memory. For a `FleetReport` holding thousands of `Node` objects (a real GPU fleet), `slots=True` is a genuine memory-and-speed win, not a style preference — worth naming the *why*, not just using it because the example does.
 
 ➕ **Visual model — names point at objects; mutation travels through aliases:**
-```
-config_a ─┐
-          ├──► {"zones": ["a"]}  ◄── mutation is seen by every alias
-config_b ─┘
-
-immutable replacement: old value ─► new value (other names still see old value)
+```mermaid
+flowchart LR
+    A[config_a] --> D["{'zones': ['a']}"]
+    B[config_b] --> D
+    D -.->|mutation is seen by every alias| D
+    E[old value] -->|immutable replacement| F[new value]
+    F -.->|other names still see old value| E
 ```
 **Memory hook:** *"A variable is a label, not a box."* Copy or freeze at boundaries when a caller must not share mutable state with your policy.

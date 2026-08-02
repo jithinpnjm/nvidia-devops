@@ -56,10 +56,11 @@ def parse_nvidia_smi(csv_output: str) -> list[dict]:
 This pairs directly with the `run()` wrapper above it — `run(["nvidia-smi", "--query-gpu=...", "--format=csv,noheader,nounits"])` then `parse_nvidia_smi(result.stdout)` is a genuinely realistic 10-minute interview coding exercise for this specific role.
 
 ➕ **Visual model — parse after execution, never inside a command string:**
-```
-trusted argv list ─► runner ─► CompletedProcess
-                                  ├── stdout ─► parser ─► typed rows
-                                  ├── stderr ─► diagnostic context
-                                  └── returncode ─► retry / fail policy
+```mermaid
+flowchart LR
+    A[trusted argv list] --> B[runner] --> C[CompletedProcess]
+    C --> D[stdout] --> E[parser] --> F[typed rows]
+    C --> G[stderr] --> H[diagnostic context]
+    C --> I[returncode] --> J[retry / fail policy]
 ```
 **Memory hook:** *"Run, parse, decide."* Keeping these as three steps prevents shell injection and makes malformed output testable.

@@ -8,6 +8,10 @@ source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 
 *(original text preserved in full; ➕ marks additions)*
 
+## Before you start: what this capstone actually tests
+
+This capstone deliberately combines concepts from across the volume rather than teaching anything new: pure decision logic as testable functions (exercised again in the `assess_pod` policy), dataclasses and other data structures for typed domain values, exceptions and typed failure translation at the subprocess/API boundary, the `subprocess` module for talking to `kubectl`, CLI argument parsing and exit-code contracts (Chapter 13), and pytest-style unit tests that exercise policy logic without touching a real cluster (Chapter 12). If you get stuck on any one piece — say, why `assess_pod` is deliberately separated from `get_pods`, or why the tests never call `kubectl` — that is a signal to go back to that chapter's Foundations section rather than pushing through here.
+
 > After this chapter you should be able to: Combine parsing, subprocess/API boundaries, data models, logging, retries, tests, and exit semantics.
 
 The capstone is intentionally not a single giant script. Model it as adapters around a deterministic core. Kubernetes access can come from an SDK or kubectl adapter. The parser converts raw responses into typed domain values. Policy functions classify health. A renderer produces text or JSON. The CLI maps results to exit codes.
@@ -130,12 +134,14 @@ Recent public material emphasizes that infrastructure work stops being "just a s
 ➕ **Interview framing for the whole capstone:** if asked to build a diagnostic CLI live, narrate the contract *before* writing code — "exit codes mean X/Y/Z, stdout is data, stderr is logs, collection is separate from policy so policy is unit-testable" — stating the design out loud before typing is itself a strong senior signal, independent of how much code you finish in the time given.
 
 ➕ **Visual model — the capstone is a bounded reconciliation loop:**
-```
-CLI args ─► validate ─► collect (timeouts) ─► normalize ─► classify policy
-                                                       │          │
-                                                       ▼          ▼
-                                                structured logs  report + exit code
-                                                       │
-                                                       └── metrics / correlation id
+```mermaid
+flowchart TD
+    A[CLI args] --> B[Validate]
+    B --> C[Collect - with timeouts]
+    C --> D[Normalize]
+    D --> E[Classify policy]
+    E --> F[Structured logs]
+    E --> G[Report + exit code]
+    F --> H[Metrics / correlation id]
 ```
 **Memory hook:** *"Collect facts, then decide."* Separating collection from policy is what makes retries, tests, exit codes and future integrations manageable.

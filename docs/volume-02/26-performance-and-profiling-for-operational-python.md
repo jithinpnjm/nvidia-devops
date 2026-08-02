@@ -17,11 +17,13 @@ py-spy top --pid &lt;PID>
 ## Senior addendum
 
 ➕ **The profiling decision tree, made explicit (the text names four tools — here's when to reach for each):**
-```
-Slow, don't know why yet →  py-spy top --pid <PID>       (low-overhead, safe on production, no restart)
-Slow, know it's CPU-bound →  cProfile -s cumulative        (function-level breakdown, needs a restart)
-Slow, suspect one hot function →  line_profiler             (line-by-line, needs @profile decorator)
-Memory growing over time →  tracemalloc -X tracemalloc=25   (allocation-site tracking, growth diffing)
+```mermaid
+flowchart TD
+    A{What's the symptom?}
+    A -->|Slow, don't know why yet| B["py-spy top --pid PID (low-overhead, safe on production, no restart)"]
+    A -->|Slow, know it's CPU-bound| C["cProfile -s cumulative (function-level breakdown, needs a restart)"]
+    A -->|Slow, suspect one hot function| D["line_profiler (line-by-line, needs @profile decorator)"]
+    A -->|Memory growing over time| E["tracemalloc -X tracemalloc=25 (allocation-site tracking, growth diffing)"]
 ```
 **py-spy is the one worth remembering first** for this role specifically — it attaches to a running process without needing to modify code or restart anything, which is exactly the constraint you're under when triaging a live, expensive, GPU-attached production job that you cannot afford to restart just to profile it.
 
@@ -43,13 +45,11 @@ $ python -m cProfile -s cumulative -m fleetcheck.cli report
 **Python documentation:** [https://docs.python.org/3/](https://docs.python.org/3/) — Language/runtime authority for subprocess, logging, concurrency, typing, packaging and standard-library behavior.
 
 ➕ **Visual model — profile before changing the shape of the system:**
-```
-user symptom ─► representative workload ─► measure wall time / CPU / allocations
-                                              │
-                           ┌──────────────────┼──────────────────┐
-                           ▼                  ▼                  ▼
-                        CPU hot             I/O wait          allocation churn
-                           │                  │                  │
-                        optimize code      bound/concurrent    reduce copies
+```mermaid
+flowchart TD
+    A[user symptom] --> B[representative workload] --> C["measure wall time / CPU / allocations"]
+    C --> D[CPU hot] --> G[optimize code]
+    C --> E[I/O wait] --> H[bound/concurrent]
+    C --> F[allocation churn] --> I[reduce copies]
 ```
 **Memory hook:** *"Measure the waiting, not just the work."* Optimizing a function cannot fix a remote API, lock, or storage wait that dominates elapsed time.

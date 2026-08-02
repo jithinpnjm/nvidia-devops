@@ -8,6 +8,74 @@ source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 
 *(original text preserved in full; ➕ marks additions)*
 
+## Foundations: start here if this is new to you
+
+**The problem: not all ways of storing values are equal**
+
+Every program needs to hold onto more than one value at a time — a list of pod names, a set of node IDs, a lookup table from hostname to IP address. Your first instinct might be "just put them in an array/list, I've done that since CS101." That instinct is exactly what this chapter argues against, and here's the plain-language reason why: how you organize values in memory determines which operations are fast and which are slow. There is no arrangement that makes everything fast — you always trade one kind of speed for another. That's the whole idea. This chapter's job is to help you consciously choose the trade-off instead of defaulting to whatever's most familiar.
+
+**Analogy: papers in a stack vs. a phone book vs. a filing cabinet with labeled drawers**
+
+Say you need to find "Chen, R." among 10,000 names.
+- If the names are on loose papers dumped in a box, unsorted, you have to look at every single paper until you find it (or confirm it's not there). Double the papers, double the worst-case work.
+- If the names are printed in a phone book, sorted alphabetically, you can jump straight to the "Ch" section and narrow down fast.
+- If the names are pre-sorted into labeled drawers by first letter, and each drawer only ever has a handful of papers, finding "Chen, R." is close to instant regardless of how many total names exist — you go straight to drawer "C" and look at a tiny pile.
+
+Those three setups are the same real difference formalized into "Big-O" terms:
+- **O(n)** ("order n"): the unsorted box. Work grows in direct proportion to how many items there are. Double the items, double the time.
+- **O(1)** ("order 1", "constant time"): the labeled drawer. The time barely depends on how many total items exist — it stays roughly the same whether there are 100 names or 10 million.
+- Big-O isn't a stopwatch measurement — it's a rough shape of how work scales as the pile grows. That's genuinely all it means before anyone writes a formal definition at you.
+
+**The four basic collection types — each is a different labeled drawer**
+
+Before naming these, notice the everyday problems that motivate them:
+
+1. **"I have a sequence of things in a specific order, and I might add more or change one"** — for example, the steps in a deployment pipeline. You want to keep the order, and you want to be able to change it. Python's answer: a **list** — an ordered, changeable sequence.
+
+2. **"I have a fixed record and I never want it accidentally mutated"** — for example, a `(latitude, longitude)` coordinate, or a row you pulled from a database that should stay exactly as read. Python's answer: a **tuple** — an ordered, unchangeable sequence. "Unchangeable" (immutable) here means once created, you cannot add, remove, or replace an item in it — you'd have to build a new tuple.
+
+3. **"I need to know whether something is in my collection, and I don't care about order or duplicates"** — for example, "which node names have I already seen?" Python's answer: a **set** — an unordered bag that automatically throws away duplicates and is built specifically to make "is X in here?" fast (that O(1) drawer, not the O(n) box).
+
+4. **"I need to look things up by name, not by position"** — for example, "given a hostname, give me its IP." Python's answer: a **dict** (dictionary) — a table of key-to-value pairs, like the labeled-drawer cabinet: give it the label (the "key"), it hands you the contents (the "value") directly, without scanning everything else.
+
+**Small runnable example**
+
+```python
+# list: ordered, changeable
+pipeline_steps = ["build", "test"]
+pipeline_steps.append("deploy")
+print(pipeline_steps)          # ['build', 'test', 'deploy']
+
+# tuple: ordered, unchangeable
+coordinate = (37.7749, -122.4194)
+# coordinate[0] = 40.0   # would raise: TypeError: 'tuple' object does not support item assignment
+
+# set: unordered, no duplicates, fast membership
+seen_nodes = {"gpu-1", "gpu-2"}
+seen_nodes.add("gpu-1")        # adding a duplicate does nothing
+print(seen_nodes)              # {'gpu-1', 'gpu-2'}
+print("gpu-2" in seen_nodes)   # True — checked in ~constant time, not by scanning
+
+# dict: keyed lookup table
+ip_by_host = {"gpu-1": "10.0.0.1", "gpu-2": "10.0.0.2"}
+print(ip_by_host["gpu-2"])     # 10.0.0.2 — direct lookup, no scanning
+```
+
+Trace it by hand: `pipeline_steps` starts as two items, `.append("deploy")` mutates it in place to three items — printing shows `['build', 'test', 'deploy']`. `seen_nodes` is a set built from two strings; adding `"gpu-1"` again changes nothing since sets silently drop duplicates, so it still prints as a two-element set. The membership check `"gpu-2" in seen_nodes` is `True` and, critically, doesn't need to inspect every other element to know that. `ip_by_host["gpu-2"]` goes directly to the "gpu-2" drawer and returns `"10.0.0.2"`.
+
+**Check your understanding**
+
+1. *Q: You need to store 3 million already-deduplicated event IDs and only ever ask "have I seen this ID before?" Which structure, and why?*
+   A: A set. Membership checking (`in`) on a set is O(1) on average — roughly constant time regardless of how many IDs are stored — while checking membership in a list is O(n), meaning it gets proportionally slower as the list grows. With 3 million items the difference is the gap between "instant" and "noticeably slow."
+
+2. *Q: Why can a tuple be used as a dict key, but a list cannot?*
+   A: Dict keys must be hashable (able to be converted into a fixed-size lookup code that never changes for a given value), and Python only allows hashing on immutable objects — because if the object could change after being used as a key, its hash would go stale and the lookup table would break. Tuples are immutable (assuming their contents are too), so they're hashable; lists are mutable, so they're explicitly barred from being dict keys.
+
+3. *Q: If O(1) means "constant time" and O(n) means "grows in proportion to n," which one would you rather have for an operation you're about to run inside a loop over a million items?*
+   A: O(1) — because running it a million times keeps costing roughly the same per-call amount, versus O(n), where running it inside another loop of size n makes the whole thing O(n²) (n multiplied by n) — the classic "nested loop membership check" trap this chapter warns about directly.
+
+With that mental model in place — organizing choice is a trade-off, and Big-O is just the shape of how each choice scales — here's how the chapter turns that into concrete rules for picking lists, tuples, sets, and dicts by the operation your problem actually needs.
+
 > After this chapter you should be able to: Select lists, tuples, sets, dictionaries, queues, and dataclasses based on access patterns and invariants.
 
 Infrastructure scripts spend much of their time transforming collections: pod lists, node inventories, labels, API objects, log lines, metrics, and desired-state configuration. The useful question is not "which collection do I remember?" but "what operation dominates this problem?"
@@ -30,19 +98,24 @@ Infrastructure scripts spend much of their time transforming collections: pod li
 The single most common performance bug in inventory-scanning scripts: `if pod_name in big_list:` inside a loop over another big list — that's O(n×m), and swapping `big_list` for a `set` turns it into O(n) total. This is exactly the reasoning the chapter's set-algebra example below demonstrates.
 
 ➕ **Diagram: set difference as the membership answer**
+```mermaid
+flowchart LR
+    subgraph expected_set["expected = {api, worker, scheduler}"]
+        E1["scheduler"]
+        E2["api"]
+        E3["worker"]
+    end
+    subgraph running_set["running = {api, worker, debug-shell}"]
+        R1["debug-shell"]
+        R2["api"]
+        R3["worker"]
+    end
+    E2 ===|present in both| R2
+    E3 ===|present in both| R3
+    E1 -->|missing = expected - running| MISSING["missing = {scheduler}"]
+    R1 -->|unexpected = running - expected| UNEXPECTED["unexpected = {debug-shell}"]
 ```
-expected = {api, worker, scheduler}         running = {api, worker, debug-shell}
-
-      expected                                   running
-   ┌────────────┐                            ┌─────────────┐
-   │ scheduler  │ ◀── missing ──┐             │ debug-shell │──▶ unexpected
-   │    api     │═══════════════╪═════════════│     api     │
-   │   worker   │═══════════════╪═════════════│   worker    │
-   └────────────┘               │             └─────────────┘
-                       missing    = expected - running = {scheduler}
-                       unexpected = running - expected  = {debug-shell}
-```
-The `═` lines mark names present in both sets — set difference just subtracts them out, leaving each side's leftovers.
+The double lines mark names present in both sets — set difference just subtracts them out, leaving each side's leftovers.
 
 **Set algebra turns inventory comparison into a direct expression of intent**
 ```python
@@ -89,16 +162,13 @@ recent_events.append(new_event)     # oldest auto-evicted once full
 `deque(maxlen=N)` specifically is worth knowing cold for any "keep the last N log lines / metric samples in memory" tooling question — it's the correct answer, not a manually-truncated list.
 
 ➕ **Diagram: `deque(maxlen=N)` as a ring buffer**
-```
-recent_events = deque(maxlen=4)
-
-append(e1) → [e1]
-append(e2) → [e1, e2]
-append(e3) → [e1, e2, e3]
-append(e4) → [e1, e2, e3, e4]          full
-append(e5) → [e2, e3, e4, e5]          e1 auto-evicted from the LEFT
-                ▲
-                └── oldest silently dropped, O(1), no manual truncation needed
+```mermaid
+flowchart TD
+    A["append(e1) → [e1]"] --> B["append(e2) → [e1, e2]"]
+    B --> C["append(e3) → [e1, e2, e3]"]
+    C --> D["append(e4) → [e1, e2, e3, e4] (full)"]
+    D --> E["append(e5) → [e2, e3, e4, e5]"]
+    E -.->|"e1 auto-evicted from the left: O(1), no manual truncation needed"| F["oldest silently dropped"]
 ```
 
 ## Work the scenario step by step

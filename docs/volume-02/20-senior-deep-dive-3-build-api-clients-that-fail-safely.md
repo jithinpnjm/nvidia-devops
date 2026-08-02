@@ -70,12 +70,11 @@ With a global deadline (e.g. 60s) that cancels remaining work: bounded regardles
 This is the actual arithmetic behind "senior engineers think about budgets" — being able to produce these three numbers live, from the retry policy's own parameters, is a stronger signal than reciting "use a thread pool."
 
 ➕ **Visual model — every fan-out needs two budgets:**
-```
-overall deadline (60s)
- ├── concurrency budget (16 in flight)
- └── per-request budget (connect + read + retry)
-          │
-          ▼
-      partial results + explicit failures
+```mermaid
+flowchart TD
+    A["overall deadline (60s)"] --> B["concurrency budget (16 in flight)"]
+    A --> C["per-request budget (connect + read + retry)"]
+    B --> D[partial results + explicit failures]
+    C --> D
 ```
 **Memory hook:** *"Limit width, limit time."* A client that eventually succeeds after the caller gave up is still an operational failure.

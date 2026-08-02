@@ -497,16 +497,12 @@ print(id(pods) == id(copy))  # True
 The important operation above is not assignment of list contents. The assignment `copy = pods` binds a second name to the existing list object. If you need an independent shallow copy, use `pods.copy()` or `list(pods)`. If nested mutable objects exist, a shallow copy still shares those nested objects; that is when `copy.deepcopy()` becomes relevant.
 
 ➕ **Diagram: two names, one object**
+```mermaid
+flowchart LR
+    A[pods] --> C["one list object in memory: ['api-0', 'api-1', 'api-2']"]
+    B[copy] --> C
 ```
-pods ──┐
-       ├──▶ ["api-0", "api-1", "api-2"]   (one list object in memory)
-copy ──┘
-
-copy.append("api-2") mutates the object both names point at —
-pods and copy were never two separate lists.
-
-id(pods) == id(copy)  →  True
-```
+`copy.append("api-2")` mutates the object both names point at — `pods` and `copy` were never two separate lists, so `id(pods) == id(copy)` evaluates to `True`.
 Neither name "owns" the list more than the other; both are equally valid references to the same object, which is why mutating through either one is visible through both.
 
 ➕ **The trap this actually causes in production, with output:**
@@ -528,19 +524,13 @@ print(cluster)
 The caller passing the same mutable object to two calls is the real-world version of the aliasing bug — the function itself did nothing wrong. **Interview framing:** "the bug isn't in the function, it's in the assumption that passing a reference means passing a copy — Python never copies on assignment or on function call."
 
 ➕ **Diagram: the shared-list trap over time**
-```
-shared_tags = ["gpu"]                                one list object, id=0x100
-
-add_node(cluster, "gpu-1", shared_tags)
-  tags is shared_tags               (same id=0x100)
-  tags.append("gpu-1")  →  ["gpu", "gpu-1"]           object 0x100 mutated
-
-add_node(cluster, "gpu-2", shared_tags)
-  tags is STILL shared_tags         (same id=0x100)
-  tags.append("gpu-2")  →  ["gpu", "gpu-1", "gpu-2"]  object 0x100 mutated again
-
-cluster["gpu-1"] and cluster["gpu-2"] both point at object 0x100 —
-neither node ever had "its own" list.
+```mermaid
+flowchart TD
+    A["shared_tags = ['gpu']  (one list object, id=0x100)"] --> B["add_node(cluster, 'gpu-1', shared_tags): tags is shared_tags, same id=0x100"]
+    B --> C["tags.append('gpu-1') mutates object 0x100 to ['gpu', 'gpu-1']"]
+    C --> D["add_node(cluster, 'gpu-2', shared_tags): tags is STILL shared_tags, same id=0x100"]
+    D --> E["tags.append('gpu-2') mutates object 0x100 again to ['gpu', 'gpu-1', 'gpu-2']"]
+    E --> F["cluster['gpu-1'] and cluster['gpu-2'] both point at object 0x100 - neither node ever had its own list"]
 ```
 The timeline makes the bug's timing obvious: the second call doesn't create a second list, it mutates the same object the first call already mutated.
 
