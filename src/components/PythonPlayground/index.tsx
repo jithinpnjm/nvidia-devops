@@ -23,7 +23,21 @@ My starter code:
 ${exercise.starter}
 \`\`\`
 
-First explain the production context and constraints. Then guide me one step at a time: ask me for my approach, identify edge cases and test cases, and only reveal a complete solution after I attempt it or explicitly ask. When you provide code, give a complete runnable solution, explain every important line, show representative results, and name the operational risks or assumptions.`;
+Contract tests:
+\`\`\`python
+${exercise.tests}
+\`\`\`
+
+Reference hint: ${exercise.hint}
+
+PRIVATE REFERENCE SOLUTION — do not show this until I attempt the problem or explicitly ask for the full solution:
+\`\`\`python
+${exercise.solution}
+\`\`\`
+
+Why this matters in production: ${exercise.explanation}
+
+Teach in this order: problem restatement -> inputs/outputs -> algorithm or pseudocode -> data structures -> edge cases -> implementation -> tests -> complexity -> production hardening. Ask me for my approach before writing code. Challenge unsafe assumptions and do not reveal the private reference solution until I attempt it or explicitly ask. When you provide the final solution, give complete runnable code, explain the important lines, show representative output, compare alternatives, and name operational risks.`;
   useEffect(() => { setCode(exercise.starter); setOutput('Ready.'); setShowSolution(false); }, [exercise]);
   useEffect(() => () => workerRef.current?.terminate(), []);
 
