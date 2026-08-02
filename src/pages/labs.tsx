@@ -539,18 +539,313 @@ print('PASS')`,hint:'Reduce both lists to sets of distinct combinations first; r
     canary_set = set(canary_combos)
     missing = sorted(fleet_set - canary_set)
     return {'representative': len(missing) == 0, 'missing': missing}`,explanation:'This is the exact “canary passed but 20% of the fleet had different NIC firmware” failure mode—stratify canary node selection by NIC model, firmware revision, and GPU SKU explicitly, not by whichever nodes happened to be idle.'},
+  {id:'access-log-summary',title:'31 · Summarize HTTP access logs for an incident',prompt:'Parse structured access-log lines and return request count, error rate, and the slowest route. Reject malformed records instead of silently corrupting incident evidence.',starter:`def summarize_access_logs(lines: list[str]) -> dict:
+    # Format: timestamp method path status latency_ms
+    return {}
+
+logs = [
+    '2026-08-02T10:00:00Z GET /api/orders 200 120',
+    '2026-08-02T10:00:01Z GET /api/orders 503 920',
+    '2026-08-02T10:00:02Z POST /api/payments 201 240',
+]
+print(summarize_access_logs(logs))`,expected:"{'requests': 3, 'error_rate': 0.333, 'slowest_route': '/api/orders'}",tests:`result = summarize_access_logs(logs)
+assert result == {'requests': 3, 'error_rate': 0.333, 'slowest_route': '/api/orders'}
+assert summarize_access_logs([]) == {'requests': 0, 'error_rate': 0.0, 'slowest_route': None}
+try: summarize_access_logs(['broken line'])
+except ValueError: pass
+else: raise AssertionError('malformed input must fail')
+print('PASS')`,hint:'Split into exactly five fields, convert status and latency to integers, count status >= 500, and track maximum latency.',solution:`def summarize_access_logs(lines):
+    errors = 0
+    slowest = None
+    slowest_ms = -1
+    for line in lines:
+        parts = line.split()
+        if len(parts) != 5:
+            raise ValueError(f'invalid access log: {line!r}')
+        _, _, path, status_text, latency_text = parts
+        try:
+            status, latency = int(status_text), int(latency_text)
+        except ValueError as exc:
+            raise ValueError(f'invalid numeric field: {line!r}') from exc
+        errors += status >= 500
+        if latency > slowest_ms:
+            slowest, slowest_ms = path, latency
+    total = len(lines)
+    return {'requests': total, 'error_rate': round(errors / total, 3) if total else 0.0, 'slowest_route': slowest}`,explanation:'In production, stream rather than load an unbounded file, preserve correlation IDs, distinguish upstream from application status, and compute latency distributions per route. The interview signal is a strict parsing boundary plus explicit empty-input behavior.'},
+  {id:'latency-percentile',title:'32 · Calculate a latency percentile without hiding tail risk',prompt:'Implement nearest-rank percentile calculation so an SRE report can show p50, p95, and p99 instead of an average that hides slow requests.',starter:`def percentile(values: list[float], percentile_value: float) -> float:
+    return 0.0
+
+samples = [10, 20, 30, 40, 50, 1000]
+print(percentile(samples, 95))`,expected:'1000 using the nearest-rank definition',tests:`assert percentile([10, 20, 30, 40, 50, 1000], 95) == 1000
+assert percentile([4, 1, 3, 2], 50) == 2
+assert percentile([7], 99) == 7
+try: percentile([], 95)
+except ValueError: pass
+else: raise AssertionError('empty samples must fail')
+print('PASS')`,hint:'Sort a copy. Nearest-rank index is ceil(p/100 × n) - 1, clamped to the valid range.',solution:`import math
+
+def percentile(values, percentile_value):
+    if not values:
+        raise ValueError('at least one sample is required')
+    if not 0 < percentile_value <= 100:
+        raise ValueError('percentile must be in (0, 100]')
+    ordered = sorted(values)
+    index = math.ceil(percentile_value / 100 * len(ordered)) - 1
+    return ordered[index]`,explanation:'Real telemetry systems use well-defined histogram/quantile semantics and sufficient sample windows. State the definition in an interview: percentile implementations differ, and averaging per-instance p95 values is invalid.'},
+  {id:'alert-dedup',title:'33 · Deduplicate alerts into incidents',prompt:'Group repeated alerts by stable identity while retaining first seen, last seen, count, and highest severity. Do not deduplicate on volatile annotations.',starter:`def deduplicate_alerts(alerts: list[dict]) -> list[dict]:
+    # Stable key: service + alertname + region.
+    return []
+
+alerts = [
+    {'service':'api','alertname':'HighErrors','region':'eu','severity':'warning','ts':10},
+    {'service':'api','alertname':'HighErrors','region':'eu','severity':'critical','ts':14},
+    {'service':'worker','alertname':'QueueLag','region':'eu','severity':'warning','ts':12},
+]
+print(deduplicate_alerts(alerts))`,expected:'Two deterministic incident summaries ordered by first_seen',tests:`result = deduplicate_alerts(alerts)
+assert result[0] == {'key': ('api', 'HighErrors', 'eu'), 'first_seen': 10, 'last_seen': 14, 'count': 2, 'severity': 'critical'}
+assert result[1]['count'] == 1
+assert deduplicate_alerts([]) == []
+print('PASS')`,hint:'Use a dictionary keyed by a tuple. Define an explicit severity ordering rather than comparing strings.',solution:`def deduplicate_alerts(alerts):
+    severity_rank = {'info': 0, 'warning': 1, 'critical': 2}
+    incidents = {}
+    for alert in alerts:
+        key = (alert['service'], alert['alertname'], alert['region'])
+        if key not in incidents:
+            incidents[key] = {'key': key, 'first_seen': alert['ts'], 'last_seen': alert['ts'], 'count': 0, 'severity': alert['severity']}
+        item = incidents[key]
+        item['first_seen'] = min(item['first_seen'], alert['ts'])
+        item['last_seen'] = max(item['last_seen'], alert['ts'])
+        item['count'] += 1
+        if severity_rank[alert['severity']] > severity_rank[item['severity']]:
+            item['severity'] = alert['severity']
+    return sorted(incidents.values(), key=lambda item: (item['first_seen'], item['key']))`,explanation:'Alertmanager fingerprinting, grouping windows and inhibition are richer versions of this model. Good deduplication reduces page volume without erasing duration or severity escalation.'},
+  {id:'slo-burn',title:'34 · Calculate SLO error-budget burn rate',prompt:'Given good and total events plus an SLO target, calculate burn rate and classify whether the window is healthy, consuming budget, or paging-worthy.',starter:`def error_budget_burn(good: int, total: int, slo: float) -> dict:
+    return {}
+
+print(error_budget_burn(9900, 10000, 0.999))`,expected:"{'error_rate': 0.01, 'burn_rate': 10.0, 'status': 'page'}",tests:`assert error_budget_burn(9900, 10000, .999) == {'error_rate': 0.01, 'burn_rate': 10.0, 'status': 'page'}
+assert error_budget_burn(9995, 10000, .999)['status'] == 'ticket'
+assert error_budget_burn(9999, 10000, .999)['status'] == 'healthy'
+print('PASS')`,hint:'Allowed error rate is 1 - SLO. Burn rate is observed error rate divided by allowed error rate.',solution:`def error_budget_burn(good, total, slo):
+    if total <= 0 or not 0 < slo < 1 or not 0 <= good <= total:
+        raise ValueError('invalid SLI inputs')
+    error_rate = (total - good) / total
+    burn_rate = error_rate / (1 - slo)
+    status = 'page' if burn_rate >= 10 else 'ticket' if burn_rate >= 2 else 'healthy'
+    return {'error_rate': round(error_rate, 4), 'burn_rate': round(burn_rate, 2), 'status': status}`,explanation:'Production alerting normally combines fast and slow burn windows to balance detection speed and false positives. A senior answer connects burn rate to remaining budget and user impact, not an arbitrary availability threshold.'},
+  {id:'dependency-order',title:'35 · Compute a safe deployment order from dependencies',prompt:'Topologically order services so dependencies deploy before consumers, and detect a dependency cycle instead of producing a dangerous partial order.',starter:`def deployment_order(dependencies: dict[str, set[str]]) -> list[str]:
+    return []
+
+graph = {'api': {'database', 'auth'}, 'worker': {'database'}, 'database': set(), 'auth': set()}
+print(deployment_order(graph))`,expected:"A valid deterministic order such as ['auth', 'database', 'api', 'worker']",tests:`order = deployment_order(graph)
+assert order == ['auth', 'database', 'api', 'worker']
+assert order.index('database') < order.index('api')
+try: deployment_order({'a': {'b'}, 'b': {'a'}})
+except ValueError: pass
+else: raise AssertionError('cycle must fail')
+print('PASS')`,hint:'Repeatedly select sorted nodes whose dependencies are already completed. If no node is ready while work remains, a cycle or missing dependency exists.',solution:`def deployment_order(dependencies):
+    all_nodes = set(dependencies)
+    for required in dependencies.values():
+        all_nodes.update(required)
+    graph = {node: set(dependencies.get(node, set())) for node in all_nodes}
+    completed = []
+    remaining = set(all_nodes)
+    while remaining:
+        ready = sorted(node for node in remaining if graph[node] <= set(completed))
+        if not ready:
+            raise ValueError('dependency cycle detected')
+        completed.extend(ready)
+        remaining.difference_update(ready)
+    return completed`,explanation:'Deployment ordering does not guarantee readiness or backward compatibility. Production delivery also needs health gates, expand/contract database changes, rollback boundaries and independent failure containment.'},
+  {id:'config-precedence',title:'36 · Resolve configuration precedence with provenance',prompt:'Merge defaults, file configuration, environment variables, and CLI flags while recording which layer supplied every final value.',starter:`def resolve_config(layers: list[tuple[str, dict]]) -> tuple[dict, dict]:
+    return {}, {}
+
+layers = [('default', {'timeout': 5, 'retries': 2}), ('file', {'timeout': 10}), ('env', {'retries': 4})]
+print(resolve_config(layers))`,expected:"({'timeout': 10, 'retries': 4}, {'timeout': 'file', 'retries': 'env'})",tests:`values, sources = resolve_config(layers)
+assert values == {'timeout': 10, 'retries': 4}
+assert sources == {'timeout': 'file', 'retries': 'env'}
+assert resolve_config([]) == ({}, {})
+print('PASS')`,hint:'Apply layers from lowest to highest precedence. Update both value and source at the same time.',solution:`def resolve_config(layers):
+    values, sources = {}, {}
+    for source, settings in layers:
+        for key, value in settings.items():
+            values[key] = value
+            sources[key] = source
+    return values, sources`,explanation:'Configuration is an API. Production code must validate types and ranges, redact secrets, distinguish missing from empty, and expose safe provenance so operators can explain why a value won.'},
+  {id:'circuit-breaker',title:'37 · Implement a circuit-breaker state transition',prompt:'Model closed, open, and half-open transitions from failures and elapsed cooldown. Keep policy separate from the network call.',starter:`def circuit_transition(state: str, consecutive_failures: int, cooldown_elapsed: bool, probe_ok: bool | None = None) -> str:
+    return ''
+
+print(circuit_transition('closed', 5, False))`,expected:"'open' after five failures; half-open after cooldown; closed only after a successful probe",tests:`assert circuit_transition('closed', 4, False) == 'closed'
+assert circuit_transition('closed', 5, False) == 'open'
+assert circuit_transition('open', 5, True) == 'half-open'
+assert circuit_transition('half-open', 5, True, True) == 'closed'
+assert circuit_transition('half-open', 5, True, False) == 'open'
+print('PASS')`,hint:'Handle state-specific rules explicitly. An open breaker ignores failure count until cooldown permits one probe.',solution:`def circuit_transition(state, consecutive_failures, cooldown_elapsed, probe_ok=None):
+    if state == 'closed':
+        return 'open' if consecutive_failures >= 5 else 'closed'
+    if state == 'open':
+        return 'half-open' if cooldown_elapsed else 'open'
+    if state == 'half-open':
+        if probe_ok is None:
+            return 'half-open'
+        return 'closed' if probe_ok else 'open'
+    raise ValueError(f'unknown state: {state}')`,explanation:'A circuit breaker protects a dependency and the caller from retry amplification. Real implementations need concurrency safety, rolling failure windows, timeouts, metrics, fallback policy and per-dependency isolation.'},
+  {id:'token-bucket',title:'38 · Enforce a token-bucket rate limit',prompt:'Simulate a token bucket for timestamped requests and return which requests are admitted. This tests state transitions and burst-versus-sustained capacity reasoning.',starter:`def admitted_requests(times: list[float], rate: float, capacity: float) -> list[bool]:
+    return []
+
+print(admitted_requests([0, 0, 0, 1, 1], rate=1, capacity=2))`,expected:'[True, True, False, True, False]',tests:`assert admitted_requests([0, 0, 0, 1, 1], 1, 2) == [True, True, False, True, False]
+assert admitted_requests([], 1, 2) == []
+try: admitted_requests([1, 0], 1, 2)
+except ValueError: pass
+else: raise AssertionError('timestamps must be ordered')
+print('PASS')`,hint:'Start full. Before each request, refill by elapsed × rate but cap at capacity; admit only when at least one token remains.',solution:`def admitted_requests(times, rate, capacity):
+    if rate < 0 or capacity < 1 or times != sorted(times):
+        raise ValueError('invalid rate-limit input')
+    tokens = capacity
+    previous = times[0] if times else 0
+    decisions = []
+    for current in times:
+        tokens = min(capacity, tokens + (current - previous) * rate)
+        allowed = tokens >= 1
+        if allowed:
+            tokens -= 1
+        decisions.append(allowed)
+        previous = current
+    return decisions`,explanation:'Distributed enforcement needs an atomic shared state or deliberately local limits, clock semantics, fairness, retry headers and overload behavior. Rate limiting is admission control, not a substitute for capacity planning.'},
+  {id:'retry-budget',title:'39 · Build a retry schedule constrained by a deadline',prompt:'Generate exponential-backoff delays without exceeding the total request deadline. An unbounded retry policy can turn a partial dependency failure into a platform outage.',starter:`def retry_schedule(base_seconds: float, max_delay: float, deadline: float) -> list[float]:
+    return []
+
+print(retry_schedule(1, 4, 8))`,expected:'[1, 2, 4] because the next delay would exceed the deadline',tests:`assert retry_schedule(1, 4, 8) == [1, 2, 4]
+assert retry_schedule(0.5, 2, 1.6) == [0.5, 1.0]
+assert retry_schedule(2, 10, 1) == []
+print('PASS')`,hint:'Track cumulative delay. Add the next capped exponential delay only when cumulative + delay is strictly below the deadline.',solution:`def retry_schedule(base_seconds, max_delay, deadline):
+    if min(base_seconds, max_delay, deadline) <= 0:
+        raise ValueError('retry inputs must be positive')
+    result, elapsed, attempt = [], 0.0, 0
+    while True:
+        delay = min(max_delay, base_seconds * (2 ** attempt))
+        if elapsed + delay >= deadline:
+            return result
+        result.append(delay)
+        elapsed += delay
+        attempt += 1`,explanation:'Production clients also need jitter, idempotency checks, server Retry-After support, per-attempt timeouts, a total deadline and a retry budget shared across layers.'},
+  {id:'pod-capacity-fit',title:'40 · Test whether Kubernetes Pods fit allocatable capacity',prompt:'Calculate how many identical Pods fit a node using both CPU and memory requests, preserving system reserve. Identify the actual limiting resource.',starter:`def pod_capacity(alloc_cpu_m: int, alloc_mem_mib: int, pod_cpu_m: int, pod_mem_mib: int) -> dict:
+    return {}
+
+print(pod_capacity(7600, 30000, 900, 4096))`,expected:"{'pods': 7, 'limiting': 'memory'}",tests:`assert pod_capacity(7600, 30000, 900, 4096) == {'pods': 7, 'limiting': 'memory'}
+assert pod_capacity(4000, 32000, 1000, 1000) == {'pods': 4, 'limiting': 'cpu'}
+assert pod_capacity(4000, 4000, 1000, 1000) == {'pods': 4, 'limiting': 'both'}
+print('PASS')`,hint:'Compute integer fit independently for CPU and memory; the smaller is capacity.',solution:`def pod_capacity(alloc_cpu_m, alloc_mem_mib, pod_cpu_m, pod_mem_mib):
+    if min(alloc_cpu_m, alloc_mem_mib, pod_cpu_m, pod_mem_mib) <= 0:
+        raise ValueError('resources must be positive')
+    cpu_fit = alloc_cpu_m // pod_cpu_m
+    mem_fit = alloc_mem_mib // pod_mem_mib
+    limiting = 'both' if cpu_fit == mem_fit else 'cpu' if cpu_fit < mem_fit else 'memory'
+    return {'pods': min(cpu_fit, mem_fit), 'limiting': limiting}`,explanation:'The scheduler also considers max Pods, init containers, extended resources, topology, affinity, taints and fragmentation. Requests drive scheduling; limits govern runtime enforcement.'},
+  {id:'subnet-overlap',title:'41 · Detect overlapping cloud network CIDRs',prompt:'Validate a proposed VPC/subnet plan and return every overlap before peering, VPN, or Kubernetes Pod ranges make routing ambiguous.',starter:`import ipaddress
+
+def overlapping_cidrs(cidrs: list[str]) -> list[tuple[str, str]]:
+    return []
+
+print(overlapping_cidrs(['10.0.0.0/16', '10.0.8.0/21', '10.1.0.0/16']))`,expected:"[('10.0.0.0/16', '10.0.8.0/21')]",tests:`assert overlapping_cidrs(['10.0.0.0/16', '10.0.8.0/21', '10.1.0.0/16']) == [('10.0.0.0/16', '10.0.8.0/21')]
+assert overlapping_cidrs(['192.168.1.0/24', '192.168.2.0/24']) == []
+try: overlapping_cidrs(['not-a-cidr'])
+except ValueError: pass
+else: raise AssertionError('invalid CIDR must fail')
+print('PASS')`,hint:'Parse with ipaddress.ip_network(strict=False), then compare each unique pair with overlaps().',solution:`import ipaddress
+
+def overlapping_cidrs(cidrs):
+    networks = []
+    for cidr in cidrs:
+        try:
+            networks.append((cidr, ipaddress.ip_network(cidr, strict=False)))
+        except ValueError as exc:
+            raise ValueError(f'invalid CIDR: {cidr}') from exc
+    overlaps = []
+    for index, (left_text, left) in enumerate(networks):
+        for right_text, right in networks[index + 1:]:
+            if left.version == right.version and left.overlaps(right):
+                overlaps.append((left_text, right_text))
+    return overlaps`,explanation:'At staff level, maintain IPAM across VPC/VNet, on-prem, service, Pod and load-balancer ranges. NAT can bridge some overlaps but adds identity, observability and asymmetric-routing complexity.'},
+  {id:'certificate-expiry',title:'42 · Prioritize certificate expiry risk',prompt:'Classify certificates by days remaining and return the renewal queue in urgency order, including already-expired certificates.',starter:`from datetime import date
+
+def renewal_queue(certificates: list[dict], today: date) -> list[tuple[str, str, int]]:
+    return []
+
+certs = [{'name':'api','expires':date(2026,8,5)}, {'name':'db','expires':date(2026,9,20)}]
+print(renewal_queue(certs, date(2026,8,2)))`,expected:"[('api', 'critical', 3), ('db', 'warning', 49)]",tests:`assert renewal_queue(certs, date(2026,8,2)) == [('api', 'critical', 3), ('db', 'warning', 49)]
+assert renewal_queue([{'name':'old','expires':date(2026,8,1)}], date(2026,8,2)) == [('old', 'expired', -1)]
+print('PASS')`,hint:'Compute expires - today. Use expired < 0, critical <= 14, warning <= 60, otherwise healthy; sort by days then name.',solution:`def renewal_queue(certificates, today):
+    queue = []
+    for certificate in certificates:
+        days = (certificate['expires'] - today).days
+        status = 'expired' if days < 0 else 'critical' if days <= 14 else 'warning' if days <= 60 else 'healthy'
+        queue.append((certificate['name'], status, days))
+    return sorted(queue, key=lambda item: (item[2], item[0]))`,explanation:'Real certificate readiness includes issuer health, renewal attempts, secret propagation, reload behavior, complete trust chain and client clock skew—not only the notAfter timestamp.'},
+  {id:'backup-retention',title:'43 · Select backups with daily/weekly/monthly retention',prompt:'Choose restore points deterministically while preserving recent daily backups, one weekly checkpoint, and one monthly checkpoint without duplicating the same backup.',starter:`from datetime import date
+
+def retained_backups(days: list[date], today: date) -> list[date]:
+    # Keep last 7 daily, last 4 ISO-week representatives, and last 3 month representatives.
+    return []`,expected:'A sorted unique list that preserves the newest backup in each required bucket',tests:`days = [date(2026, 8, 2), date(2026, 8, 1), date(2026, 7, 31), date(2026, 7, 20), date(2026, 7, 1), date(2026, 6, 1), date(2026, 5, 1)]
+kept = retained_backups(days, date(2026, 8, 2))
+assert date(2026, 8, 2) in kept and date(2026, 6, 1) in kept and len(kept) == len(set(kept))
+assert kept == sorted(kept, reverse=True)
+print('PASS')`,hint:'Sort newest first. Keep recent daily dates, then first-seen ISO week and month keys up to their limits, using a set for deduplication.',solution:`from datetime import timedelta
+
+def retained_backups(days, today):
+    ordered = sorted(set(days), reverse=True)
+    kept = {day for day in ordered if today - day < timedelta(days=7)}
+    weeks, months = set(), set()
+    for day in ordered:
+        week = day.isocalendar()[:2]
+        month = (day.year, day.month)
+        if len(weeks) < 4 and week not in weeks:
+            weeks.add(week); kept.add(day)
+        if len(months) < 3 and month not in months:
+            months.add(month); kept.add(day)
+    return sorted(kept, reverse=True)`,explanation:'Retention policy is useless without tested restore, immutability, encryption, ownership and documented RPO/RTO. Bucket rules must be explicit about timezone and “newest versus oldest in period.”'},
+  {id:'quorum-health',title:'44 · Distinguish healthy, degraded, and unsafe quorum',prompt:'Given replicas, reachable members, and writable members, classify a replicated control plane without assuming that one reachable node is safe.',starter:`def quorum_health(replicas: int, reachable: int, writable: int) -> str:
+    return ''
+
+print(quorum_health(3, 2, 1))`,expected:"'degraded' with quorum reachable; 'unsafe' without majority",tests:`assert quorum_health(3, 3, 1) == 'healthy'
+assert quorum_health(3, 2, 1) == 'degraded'
+assert quorum_health(3, 1, 0) == 'unsafe'
+assert quorum_health(4, 2, 0) == 'unsafe'
+print('PASS')`,hint:'Majority is replicas // 2 + 1. Healthy requires all reachable and exactly one writer; degraded still has majority and one writer.',solution:`def quorum_health(replicas, reachable, writable):
+    if replicas <= 0 or not 0 <= reachable <= replicas or not 0 <= writable <= reachable:
+        raise ValueError('invalid cluster state')
+    majority = replicas // 2 + 1
+    if reachable < majority or writable != 1:
+        return 'unsafe'
+    return 'healthy' if reachable == replicas else 'degraded'`,explanation:'Consensus systems differ in leader, membership and write semantics, but majority math is foundational. “Pod running” is not equivalent to safe quorum or writable service.'},
+  {id:'rollout-gate',title:'45 · Decide whether a canary deployment may advance',prompt:'Evaluate SLO, error-budget burn, sample size, and regression guardrails. A canary with no traffic is unknown—not successful.',starter:`def rollout_decision(canary: dict, baseline: dict) -> str:
+    return ''
+
+canary = {'requests': 1200, 'error_rate': .006, 'p95_ms': 240, 'burn_rate': 1.2}
+baseline = {'error_rate': .005, 'p95_ms': 220}
+print(rollout_decision(canary, baseline))`,expected:"'advance', 'hold', or 'rollback'",tests:`assert rollout_decision(canary, baseline) == 'advance'
+assert rollout_decision({'requests': 20, 'error_rate': 0, 'p95_ms': 100, 'burn_rate': 0}, baseline) == 'hold'
+assert rollout_decision({'requests': 1200, 'error_rate': .02, 'p95_ms': 500, 'burn_rate': 12}, baseline) == 'rollback'
+print('PASS')`,hint:'Hold below the minimum sample. Roll back on burn >= 10, error rate > 2× baseline, or p95 > 1.5× baseline.',solution:`def rollout_decision(canary, baseline):
+    required = {'requests', 'error_rate', 'p95_ms', 'burn_rate'}
+    if not required <= canary.keys():
+        raise ValueError('missing canary metrics')
+    if canary['requests'] < 500:
+        return 'hold'
+    regressed = (canary['burn_rate'] >= 10 or canary['error_rate'] > baseline['error_rate'] * 2 or canary['p95_ms'] > baseline['p95_ms'] * 1.5)
+    return 'rollback' if regressed else 'advance'`,explanation:'A production gate also needs metric freshness, representative traffic, correctness/business KPIs, deployment health and a maximum observation window. Automation should halt safely when evidence is missing.'},
 ];
 
 const labGroups: {name: string; ids: string[]}[] = [
   {name: 'Tier 1 — Start here if Python feels unfamiliar', ids: ['gpu-temp', 'node-health-count', 'fault-report', 'lowercase-gpus', 'split-node-line', 'safe-memory-pct']},
   {name: 'Tier 2 — Production Python & systems evidence', ids: ['regex', 'retry', 'gpu', 'subprocess', 'retry-storm', 'oom', 'scheduling', 'prometheus', 'runbook', 'linux-load', 'reconcile', 'timeline']},
   {name: 'Tier 3 — Senior GPU, distributed & infrastructure ops', ids: ['capacity', 'xid-correlation', 'nccl-ranks', 'inference-slo', 'bmc-sensors', 'firmware-drift', 'ansible-idempotency', 'terraform-risk', 'slurm-fairshare', 'mpi-ranks', 'enroot-gpu', 'canary-check']},
+  {name: 'Tier 4 — General SRE Python & software design', ids: ['access-log-summary', 'latency-percentile', 'alert-dedup', 'slo-burn', 'dependency-order', 'config-precedence', 'circuit-breaker', 'token-bucket', 'retry-budget', 'pod-capacity-fit', 'subnet-overlap', 'certificate-expiry', 'backup-retention', 'quorum-health', 'rollout-gate']},
 ];
 
 export default function Labs() {
   const [index, setIndex] = useState(0);
   return <Layout title="Senior DevOps labs" description="Executable Python exercises for production operations">
-    <main className="pageShell"><header className="pageHeader"><span className="eyebrow">Production Python</span><h1>Senior DevOps engineering labs</h1><p>Thirty executable challenges arranged in three tiers. New to Python or rusty on it? Start with <strong>Tier 1</strong> — six labs using nothing but variables, if/elif/else, for loops, and basic string/dict handling: zero regex, zero decorators, zero comprehensions. If you want a gentler on-ramp before even that, read the Foundations section at the top of <a href="/curriculum/volume-02/chapter-1-how-python-actually-executes-your-infrastructure-script">Volume 2, Chapter 1</a> or the hands-on <a href="/curriculum/intro/python-foundation-lab">Python foundation lab</a> first, then come back here. From there, <strong>Tier 2</strong> covers production Python, Linux evidence, and Kubernetes control loops, and <strong>Tier 3</strong> covers senior-level GPU faults, NCCL stragglers, inference SLOs, retry storms, capacity planning, bare-metal/BMC lifecycle, firmware drift, Ansible idempotency, Terraform plan risk, Slurm fairshare, MPI launch validation, Enroot/Pyxis GPU visibility, and coordinated cluster-wide change management. Every lab includes tests, a complete reference solution, explanation, and an exact ChatGPT coaching prompt.</p></header>
+    <main className="pageShell"><header className="pageHeader"><span className="eyebrow">Production Python</span><h1>Senior DevOps engineering labs</h1><p><strong>{labs.length} executable challenges</strong> arranged in four tiers. Tier 1 gives a controlled Python refresher; Tier 2 develops production parsing, API and control-loop habits; Tier 3 covers GPU/HPC and fleet operations; Tier 4 targets general Senior SRE interviews with access-log analysis, percentiles, alert grouping, SLO burn rates, dependency graphs, configuration provenance, circuit breakers, rate limiting, retry budgets, Kubernetes capacity, CIDR planning, certificates, backups, quorum and rollout gates. Every lab runs in the browser and includes contract tests, a reference implementation, production explanation, and an exact ChatGPT prompt that teaches algorithm-first before revealing the solution.</p></header>
       <div className="prompt"><strong>How to practise:</strong> write the smallest deterministic decision first, run its contract tests, then explain which real command or metric would supply each input. The reveal contains one reference implementation—not the only valid design.</div>
       <div className="labLayout"><aside className="scenarioList">{labGroups.map(group => <div key={group.name}><h4>{group.name}</h4>{group.ids.map(id => { const i = labs.findIndex(lab => lab.id === id); return <button className={i === index ? 'active' : ''} onClick={() => setIndex(i)} key={id}>{labs[i].title}</button>; })}</div>)}</aside><PythonPlayground exercise={labs[index]}/></div>
     </main>
