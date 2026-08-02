@@ -2,6 +2,7 @@ import React, {useEffect, useRef, useState} from 'react';
 import Editor from '@monaco-editor/react';
 import {progressStore} from '@site/src/components/learning/progressStore';
 import ChatGPTStudyLink from '@site/src/components/learning/ChatGPTStudyLink';
+import PythonLearningPanel from '@site/src/components/learning/PythonLearningPanel';
 
 export type PythonExercise = {id: string; title: string; prompt: string; starter: string; expected: string; tests: string; hint: string; solution: string; explanation: string};
 const PYODIDE_URL = 'https://cdn.jsdelivr.net/pyodide/v0.27.7/full/';
@@ -72,6 +73,7 @@ Teach in this order: problem restatement -> inputs/outputs -> algorithm or pseud
 
   return <section className="pythonPlayground">
     <div className="playgroundHeader"><div><span className="eyebrow">Browser Python lab</span><h2>{exercise.title}</h2><p>{exercise.prompt}</p></div><span className="runtimeBadge">Pyodide · client-side only</span></div>
+    <PythonLearningPanel exercise={exercise}/>
     <section className="chatgptCoachPanel"><div><span className="eyebrow">Interactive ChatGPT coach</span><h3>Need a guided explanation or complete solution?</h3><p>This prompt includes this lab’s exact challenge, starter code, expected result, production context, edge cases, and test expectations.</p></div><details><summary>Preview the lab-specific prompt</summary><pre className="promptPreview">{tutorPrompt}</pre></details><ChatGPTStudyLink prompt={tutorPrompt} label="Open this exact lab in ChatGPT ↗"/></section>
     <Editor height="360px" language="python" theme="vs-dark" value={code} onChange={(value) => setCode(value || '')} options={{fontSize: 14, minimap: {enabled: false}, automaticLayout: true, scrollBeyondLastLine: false}}/>
     <div className="buttonRow"><button disabled={running} onClick={() => execute(false)}>Run</button><button disabled={running} onClick={() => execute(true)}>Run tests</button><button className="secondary" onClick={() => setCode(exercise.starter)}>Reset</button></div>
