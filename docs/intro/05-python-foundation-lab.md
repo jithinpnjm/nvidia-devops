@@ -10,7 +10,7 @@ source_document: "Authored directly as the beginner-to-senior curriculum bridge.
 
 Volume 2 begins with Python's object model because that matters in production, but it is not the right first lesson if syntax, tracebacks, functions, and files are not yet comfortable. This lab builds one small health-check program in stages. Type the code yourself; do not only read it.
 
-> **This is the hands-on companion** to [Volume 0, Chapter 9 — Python fundamentals](/curriculum/volume-00/9-python-fundamentals-before-the-labs), which explains the same concepts (variables, lists/dicts, conditionals, loops, functions, exceptions) with analogies and check-your-understanding questions before you touch a keyboard. Read that chapter first if any of this feels unfamiliar; use this lab to actually build something with it. Either one leads naturally into [Senior DevOps labs, Tier 1](/labs).
+> **This is the hands-on companion** to the **Foundations** section at the top of [Volume 2, Chapter 1](/curriculum/volume-02/chapter-1-how-python-actually-executes-your-infrastructure-script), which explains the same concepts (variables, lists/dicts, conditionals, loops, functions, exceptions) with analogies and check-your-understanding questions before you touch a keyboard. Read that section first if any of this feels unfamiliar; use this lab to actually build something with it. Either one leads naturally into [Senior DevOps labs, Tier 1](/labs).
 
 ## Lab rules
 

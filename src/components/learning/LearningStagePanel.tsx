@@ -7,21 +7,33 @@ type Stage = {
   action?: string;
 };
 
+const FOUNDATIONS_CHAPTERS = [
+  '/volume-01/chapter-1-processes-threads-cpu-scheduling-and-load',
+  '/volume-01/chapter-3-files-file-descriptors-filesystems-and-block-i-o',
+  '/volume-01/chapter-4-networking-ip-routes-sockets-tcp-dns-nat-and-tls',
+  '/volume-02/chapter-1-how-python-actually-executes-your-infrastructure-script',
+  '/volume-03/chapter-1-api-server-etcd-and-the-object-model',
+  '/volume-04/chapter-1-gpu-execution-and-memory-mental-model',
+  '/volume-05/chapter-1-classify-the-ai-workload-before-designing-infrastructure',
+  '/volume-06/chapter-1-distributed-systems-performance-for-gpu-jobs',
+  '/volume-10/chapter-3-os-provisioning-and-linux-security-hardening',
+];
+
 function stageFor(title: string, route: string): Stage {
   const normalized = title.toLowerCase();
 
-  if (route.includes('/volume-00/')) {
+  if (FOUNDATIONS_CHAPTERS.some((path) => route.includes(path))) {
     return {
-      label: 'Volume 0 — Foundations Primer',
-      summary: 'No prior domain knowledge is assumed. This chapter builds one mental model from zero before naming any advanced term.',
-      action: 'Finish this chapter\'s readiness checklist before moving into the advanced volume it links to.',
+      label: 'Opens with a Foundations section',
+      summary: 'No prior domain knowledge is assumed for the first section of this chapter. It builds the mental model from zero, then flows straight into the advanced material below on the same page.',
+      action: 'If this domain is already familiar, skip straight past the "Foundations" heading to the chapter\'s normal start.',
     };
   }
 
   if (route.includes('/intro/') && normalized.includes('foundation')) {
     return {
       label: 'Foundation bridge (compressed reference)',
-      summary: 'This is a dense reference companion, not the first explanation of these terms. Read the matching Volume 0 chapter first if this is genuinely new.',
+      summary: 'This is a dense reference companion, not the first explanation of these terms. Read the Foundations section of the matching chapter first if this is genuinely new.',
     };
   }
 

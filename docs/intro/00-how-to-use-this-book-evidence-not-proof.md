@@ -1,20 +1,16 @@
 ---
-title: "1 - How to use this book: evidence, not proof"
-slug: "1-how-to-use-this-book-evidence-not-proof"
-sidebar_position: 1
-description: "How to use this book: evidence, not proof — Foundations Primer."
-source_document: "Authored directly for the Foundations Primer — no DOCX source."
+title: "How to use this book: evidence, not proof"
+slug: "how-to-use-this-book-evidence-not-proof"
+sidebar_position: 0
+description: "The one habit this whole curriculum depends on, and how each chapter is structured."
+source_document: "Authored directly as the site-wide reading guide."
 ---
 
 ## Why this site exists
 
 This site is study material for a senior-level DevOps / AI-infrastructure / GPU interview — the kind where you're expected to reason about Kubernetes internals, Linux internals, networking, and NVIDIA/GPU-specific systems under pressure, out loud, in front of someone who will ask "how do you know that?" after almost everything you say.
 
-Volumes 1 through 10 of this site are that deep material. They are written for a senior engineer and they move fast: they assume you already have a working mental model of Linux, networking, and basic system administration, and they spend their time on the harder, interview-specific layer on top of that.
-
-This chapter, and the two after it, are different. They are **Volume 0: the Foundations Primer**. If you are a senior software or DevOps engineer but a genuine beginner in Linux internals, GPU/NVIDIA technology, AI/ML, or HPC specifically, Volumes 1-10 will use terms before you have a stable picture of what they mean, and that is disorienting even for someone very experienced in other areas. Volume 0 exists to build that stable picture first, so that when Volume 1 says "check the process's file descriptor table," you already know what a process is and what a file descriptor is, and you can focus on the actually-hard interview content instead of also silently trying to reverse-engineer vocabulary.
-
-Volume 0 will not make you an expert. Its only job is to hand you the vocabulary and the basic shape of each idea so that Volumes 1-10 read as a deep dive instead of a wall of unfamiliar terms.
+If Linux internals, NVIDIA/GPU technology, AI/ML, or HPC are genuinely new domains for you — even though you're an experienced engineer elsewhere — every advanced volume's opening chapter starts with a short **Foundations** section that builds the core mental model from zero, in plain language, before the rest of that chapter uses that vocabulary at full speed. Read that section first when a volume is new territory; skip straight past it once a domain is already familiar.
 
 ## The one habit that matters more than any command
 
@@ -45,7 +41,7 @@ Notice what changed between step 1 and step 3: not the confidence in your voice,
 
 The specific mistake this habit prevents is: seeing a familiar-looking log line, error code, or number, and jumping straight to the cause it usually means for you, without checking whether the current evidence actually rules out the other things it could also mean. Every experienced engineer has a mental library of "when I see X, it's usually Y" — that library is genuinely useful for generating hypotheses fast, but it is a source of hypotheses, not a verdict. The output you're looking at almost always has more than one possible explanation; your job is to narrow that set with more evidence, not to stop at the first explanation that feels familiar.
 
-You will see this theme called out explicitly and repeatedly through Volumes 1-10 as "evidence vs. proof" — this chapter is where that phrase gets its full explanation so later chapters can use it as shorthand.
+You will see this theme called out explicitly and repeatedly through every volume as "evidence vs. proof" — this page is where that phrase gets its full explanation so later chapters can use it as shorthand.
 
 ### Check your understanding
 
@@ -56,16 +52,16 @@ A: Being right by luck doesn't validate the method. A CPU spike is evidence that
 A: A hypothesis is a candidate explanation you haven't yet ruled competitors out for. A root cause is a hypothesis that has survived deliberate attempts to disprove it, supported by multiple independent, consistent pieces of evidence — not just the first plausible story.
 
 **Q3: Why is "I haven't found evidence against it" more rigorous phrasing than "this is definitely the cause"?**
-A: Because it's honest about the limits of what you checked. It signals you actively looked for disconfirming evidence (and didn't find any), rather than simply stopping once you found something confirming — which is the exact bias this chapter is warning against.
+A: Because it's honest about the limits of what you checked. It signals you actively looked for disconfirming evidence (and didn't find any), rather than simply stopping once you found something confirming — which is the exact bias this page is warning against.
 
 ## How to read every chapter in this book
 
-Every chapter in Volume 0 (and, where it says so, in Volumes 1-10) follows the same shape, so you always know what to expect:
+Every chapter follows the same shape, so you always know what to expect:
 
 - **Terms are defined before they're used.** If a term must appear before its formal definition (sometimes unavoidable in flowing prose), it will immediately get a plain-language gloss in parentheses right there.
-- **A plain-language model comes before any command.** You'll always get "here's the problem this solves, and here's the shape of the idea" before you see a command that touches it.
+- **A plain-language model comes before any command.** You'll get "here's the problem this solves, and here's the shape of the idea" before you see a command that touches it.
 - **Commands are evidence you interpret, not answers you memorize.** When a chapter shows a command's output, it will also tell you explicitly what that output does and does not prove — the same habit you just practiced above, applied consistently.
-- **Every chapter ends with a glossary and a readiness checklist.** The glossary lists every new term from that chapter in one sentence each. The checklist tells you, concretely, what you should be able to do before moving into the corresponding advanced volume — so you always know when you're ready to move on, instead of guessing.
+- **Foundations, then depth, on the same page.** Where a topic is likely to be genuinely new (Linux, networking, storage, containers/Kubernetes, GPU/CUDA, AI/ML, HPC, security, Python), that volume's opening chapter starts with a short **Foundations** section building the mental model from zero, then flows directly into the advanced material — no separate primer volume to jump to and lose your place.
 
 ## Glossary
 
@@ -74,11 +70,9 @@ Every chapter in Volume 0 (and, where it says so, in Volumes 1-10) follows the s
 - **Hypothesis** — a candidate explanation for an observed symptom, proposed before it has been tested against further evidence.
 - **Pattern-matching (as a failure mode)** — jumping from a familiar-looking symptom straight to its most common cause, without checking whether the current evidence actually rules out other explanations.
 
-## You're ready for Volume 1 when you can...
+## Ready to start
 
 - Explain, in your own words, the difference between evidence and proof.
 - Take any single command's output and state out loud what it does prove, what it does not prove, and what you'd check next.
-- Recognize, in your own past debugging, at least one moment where you stopped at "familiar-looking" instead of "confirmed."
-- Read a Volume 1 chapter and notice when it's presenting something as evidence versus treating it as settled.
 
 **Continue to:** [Volume 1, Chapter 1 — Processes, threads, CPU scheduling and load](/curriculum/volume-01/chapter-1-processes-threads-cpu-scheduling-and-load)
