@@ -57,7 +57,7 @@ Why each step exists:
 6. The commit message names the intent, not the implementation trivia.
 7. `log` confirms the commit points where you expect.
 
-Do not use `git add .` reflexively in a repository containing generated files, local state, credentials, build output or work from another engineer. Stage deliberately. If Claude or another automation is editing in parallel, inspect `git status` and file ownership before staging.
+Do not use `git add .` reflexively in a repository containing generated files, local state, credentials, build output or work from another engineer. Stage deliberately. If another process or teammate may be committing in parallel, inspect `git status` and file ownership before staging.
 
 ## Branches, remotes and tracking
 
@@ -227,4 +227,4 @@ Then deliberately create a conflict in two branches, resolve it, and practise `g
 - [Git reflog](https://git-scm.com/docs/git-reflog)
 - [GitHub secret scanning guidance](https://docs.github.com/en/code-security/secret-scanning/introduction/about-secret-scanning)
 - [Volume 10 CI/CD for infrastructure](./chapter-11-cicd-for-infrastructure-and-cluster-configuration)
-- [Volume 10 Terraform and Ansible foundation](./foundation-iac-terraform-ansible)
+- [Volume 10 Terraform and Ansible foundation](./chapter-4-ansible-for-infrastructure-automation#foundations-start-here-if-infrastructure-as-code-is-new-to-you)

@@ -65,6 +65,23 @@ Same assertion, same logic — the only change is that it's now something an aut
 3. *Q: What's the minimal difference between a plain `assert` check and a pytest `test_` function containing the same assert?*
    A: Almost none in logic — the difference is discoverability and automation: pytest finds every `test_`-named function across the project and runs/reports them all together, without you calling each one by hand.
 
+### Common annotation shapes and where to use them
+
+Common annotations in this repository:
+
+| Annotation | Meaning in plain language | Example use |
+|---|---|---|
+| `list[str]` | ordered list of strings | host names |
+| `dict[str, int]` | string keys and integer values | GPU counts by node |
+| `str | None` | string or explicit absence | optional API field |
+| `tuple[str, str]` | fixed two-item result | `(name, status)` |
+| `Mapping[str, object]` | read-only mapping-like input | parsed configuration |
+| `TypedDict` | expected dictionary keys | JSON record boundary |
+| `Protocol` | required behavior, not inheritance | injectable command runner |
+| `Annotated[T, metadata]` | type plus tool-specific metadata | validation frameworks |
+
+Do not annotate every expression mechanically. Annotate public functions, boundaries, domain records, and places where a wrong type would cause an expensive incident. Treat annotations as a reviewable contract; use a checker in CI when the project is ready.
+
 With "hints document, tests verify" in place, the rest of this chapter goes further — using both together to protect the decision logic and dependency boundaries that matter most in infrastructure code.
 
 > After this chapter you should be able to: Use static contracts and automated tests to protect decision logic and dependency boundaries.
@@ -143,6 +160,8 @@ This is the kind of error type hints catch *before* a test even runs — a calle
 ➕ 4. Deliberately write the "wrong" patch target (`mocker.patch("requests.get")` instead of the module-qualified path) and confirm the test still calls the *real* `requests.get` — seeing the mock silently fail to intercept anything is the fastest way to make the "patch where it's looked up" rule permanent.
 
 ## Targeted references
+[Python documentation: `typing`](https://docs.python.org/3/library/typing.html)
+
 [pytest documentation](https://docs.pytest.org/) - Assertions, fixtures, parametrization, monkeypatching and plugins.
 [Udemy - Python for DevOps](https://www.udemy.com/course/python-devops) - Relevant lessons: Introduction to type hints; Hands-on: Test-driven implementation; Testing exceptions; Introduction to fixtures; Parametrization; Mocking fundamentals; Patch decorator and mocker fixture.
 

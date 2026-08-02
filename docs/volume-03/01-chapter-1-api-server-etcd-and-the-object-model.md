@@ -103,6 +103,163 @@ This is why Kubernetes configuration is almost entirely declarative ("here's the
 
 You'll see commands like `kubectl get pods` showing `STATUS: Running` later in this chapter and in real clusters. It's worth building the right habit now: that single line of output is **evidence**, not **proof**, of health. It proves the container process started and hasn't crashed according to Kubernetes's own liveness check. It does **not** prove the application inside is actually serving correct responses, isn't stuck in a retry loop, or has enough memory headroom to survive the next traffic spike. To actually confirm "this service is healthy," you'd need corroborating evidence — application-level health checks, request success rates, resource usage over time — not just one status field. The rest of this chapter leans on this distinction constantly when reasoning about real incidents; get comfortable treating any single command's output as one data point, not a verdict.
 
+### Trace one Pod end to end
+
+1. A client submits a Pod or higher-level workload through the API server.
+2. Authentication proves identity; authorization checks permission; admission may validate or mutate the object.
+3. The API server stores accepted desired state in etcd.
+4. Controllers create dependent objects or reconcile replica count.
+5. The scheduler filters/scores nodes and records a binding for an unscheduled Pod.
+6. Kubelet on the selected node observes the Pod.
+7. Kubelet uses CRI to ask the container runtime to prepare the Pod sandbox, pull images and start containers.
+8. CNI/network and CSI/storage integrations prepare required connectivity and volumes.
+9. Probes influence startup, readiness, restart and traffic behavior.
+10. Status, events, logs and application metrics expose different evidence.
+
+### Specification, status and events
+
+- **spec** expresses desired state supplied by a user/controller.
+- **status** is system-reported observed state.
+- **metadata** includes name, namespace, labels, annotations and ownership information.
+- **events** are time-limited records about decisions/failures; they are not a complete durable audit log.
+
+```bash
+kubectl get pod POD -o yaml
+kubectl describe pod POD
+kubectl get events --sort-by=.metadata.creationTimestamp
+```
+
+Read `status.conditions`, container state/reason, assigned node, resource requests and events. Avoid starting with logs for a Pod that was never scheduled or whose container never started.
+
+### Scheduling is an eligibility decision
+
+A node needs enough allocatable resources and must satisfy constraints such as taints/tolerations, node affinity, topology and policy. A Pending Pod is not automatically evidence of cluster shortage.
+
+```yaml
+resources:
+  requests:
+    cpu: "2"
+    memory: 4Gi
+    nvidia.com/gpu: "1"
+  limits:
+    nvidia.com/gpu: "1"
+```
+
+Requests drive scheduling. CPU limits can throttle. Memory limits can lead to cgroup OOM behavior. Extended GPU resources depend on device discovery/advertisement and allocation.
+
+### Networking: four different objects/questions
+
+| Item | Purpose |
+|---|---|
+| Pod IP | address for a particular Pod network interface |
+| Service | stable virtual discovery/traffic abstraction |
+| EndpointSlice | current backend endpoint addresses/readiness |
+| Ingress/Gateway | routes external or higher-level traffic according to controller implementation |
+
+Debug in order: DNS answer → Service definition → EndpointSlice membership/readiness → policy → node/CNI dataplane → Pod listener → application response.
+
+### Storage: claim, volume and mount
+
+A Pod can request storage through a PVC. A StorageClass and CSI provisioner may create or select a PV. On the selected node, the volume may require attach and mount operations before the container can start.
+
+```mermaid
+flowchart LR
+  Pod --> PVC[PersistentVolumeClaim]
+  PVC --> PV[PersistentVolume]
+  SC[StorageClass] --> Provisioner[CSI provisioner]
+  Provisioner --> PV
+  PV --> Attach[Node attach/mount]
+  Attach --> Path[Container mount path]
+```
+
+Pending claim, attach failure, mount failure and application permission errors are different boundaries.
+
+### Security request path
+
+```mermaid
+flowchart LR
+  R[API request] --> AuthN[Authentication]
+  AuthN --> AuthZ[Authorization / RBAC]
+  AuthZ --> Admission[Admission policy]
+  Admission --> Store[Persist desired object]
+  Store --> Runtime[Pod security context<br/>and host controls]
+```
+
+RBAC governs Kubernetes API actions. A security context influences runtime identity/capabilities. NetworkPolicy governs supported network paths through the CNI implementation. Image policy/scanning and secrets handling are additional layers.
+
+### Guided lab — explain a Deployment and Service
+
+Use an authorized lab cluster:
+
+```bash
+kubectl create deployment web-demo --image=nginx:stable
+kubectl expose deployment web-demo --port=80
+kubectl get deployment,replicaset,pod,service,endpointslice -o wide
+kubectl describe pod -l app=web-demo
+kubectl delete service web-demo
+kubectl delete deployment web-demo
+```
+
+Before each command, predict which API objects change. Observe owner references and labels. Deleting the Service should not delete the Deployment/Pods because ownership differs; deleting the Deployment cascades through its owned ReplicaSet/Pods according to normal controller/garbage-collection behavior.
+
+### A disciplined troubleshooting example
+
+**Symptom:** Service name resolves, but requests time out.
+
+1. Verify scope: every client/Pod or only some nodes/namespaces?
+2. Inspect Service ports/selectors.
+3. Inspect EndpointSlices: are expected Pod IPs present and ready?
+4. Confirm target process listens on the target port inside the Pod.
+5. Check NetworkPolicy and CNI-specific evidence.
+6. Compare a working and failing source/node path.
+7. Capture packets only after selecting interfaces/points that answer a specific path question.
+
+Restarting CoreDNS is unjustified when name resolution already succeeds.
+
+### Common beginner mistakes
+
+- treating Kubernetes objects as if they are processes;
+- reading only Pod phase and ignoring conditions/container state/events;
+- assuming a Service is a load balancer process;
+- debugging logs before confirming scheduling/startup;
+- confusing requests with limits;
+- assuming NetworkPolicy works independently of the chosen CNI;
+- changing YAML repeatedly without checking which controller owns/reverts the field.
+
+### Official and local references
+
+- [Kubernetes concepts](https://kubernetes.io/docs/concepts/)
+- [Kubernetes cluster architecture](https://kubernetes.io/docs/concepts/architecture/)
+- [Pods](https://kubernetes.io/docs/concepts/workloads/pods/)
+- [Scheduling](https://kubernetes.io/docs/concepts/scheduling-eviction/)
+- [Services and networking](https://kubernetes.io/docs/concepts/services-networking/)
+- [Storage](https://kubernetes.io/docs/concepts/storage/)
+- [Kubernetes security](https://kubernetes.io/docs/concepts/security/)
+- Local Staff guide: `consolidated_guides/kubernetes-containers_consolidated.md`
+- Local SRE labs: `interview-prep/hands-on-labs/kubernetes/`
+
+### How to study this volume
+
+Study the core chapters in control-path order: API and stored state, scheduling, node execution, network, storage, security, scaling, operators and upgrades. For every feature ask:
+
+1. Which API object expresses intent?
+2. Which controller or node component acts?
+3. What external system is involved?
+4. Which status/event/log proves the last successful boundary?
+
+Use the deep dives after you can trace one Pod from submission to ready application traffic.
+
+### Check your understanding: trace ownership before acting
+
+**Q1: A Pod is Pending. Why are application logs usually the wrong first evidence?**
+A: The application process may never have started. Scheduling events, requested resources, constraints, and volume binding identify the last successful control-plane boundary.
+
+**Q2: A Service name resolves, but requests time out. What did DNS prove?**
+A: Only that name resolution returned an address. Endpoint readiness, policy, node dataplane, Pod listener, and application response still need separate evidence.
+
+**Q3: What is the difference between an API object's spec and status?**
+A: The spec expresses desired state; status reports observations made by Kubernetes components. Neither alone proves the end-user outcome.
+
 ### Glossary
 
 - **Container** — an isolated, running process (or group of processes) packaged with everything it needs, sharing the host's kernel rather than virtualizing hardware.
@@ -115,6 +272,13 @@ You'll see commands like `kubectl get pods` showing `STATUS: Running` later in t
 - **Controller** — a continuously-running process that compares actual state to desired state and acts to close the gap.
 - **Reconciliation** — the repeated act of a controller comparing desired vs. actual state and correcting differences.
 - **Declarative configuration** — stating the end state you want, rather than the steps to get there.
+- **API server** — Kubernetes' validated entry point for reads, writes, authentication, authorization, and admission.
+- **etcd** — the strongly consistent key-value store that persists Kubernetes API state.
+- **Scheduler** — the control-plane component that selects a suitable node for an unscheduled Pod.
+- **Kubelet** — the node agent responsible for making assigned Pod specifications real on its node.
+- **Spec / status** — desired state supplied to an object versus observations reported by the system.
+- **CNI / CSI** — integration boundaries for container networking and storage, respectively.
+- **Event** — a time-limited record of a Kubernetes decision or failure, not a complete audit trail.
 
 ### Before you go deeper, make sure you can...
 
@@ -123,6 +287,8 @@ You'll see commands like `kubectl get pods` showing `STATUS: Running` later in t
 - State, in one sentence, the core problem Kubernetes exists to solve.
 - Name the four objects (Pod, Node, Deployment, Service) and the specific problem each one solves.
 - Explain the "declare desired state, a controller reconciles it" pattern using the thermostat analogy, and recognize it every time this chapter uses the word "reconcile."
+- Trace a Pod from API admission and etcd through scheduling, kubelet/runtime, CNI/CSI, probes, and application outcome.
+- Separate DNS, Service, EndpointSlice, policy, dataplane, listener, and application evidence during a timeout.
 
 With that model in place, here's how the API server and etcd actually make it real.
 

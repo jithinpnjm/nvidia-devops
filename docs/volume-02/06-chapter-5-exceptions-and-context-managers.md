@@ -217,4 +217,6 @@ This is why `TemporaryDirectory` cleans up "even when the caller raises," as the
 ➕ 4. Write `sync_inventory` above's test: assert it retries exactly `max_retries` times on `TemporaryAPIError` and re-raises immediately (zero retries) on `AuthenticationError` — this is a realistic interview coding exercise, not just a reading exercise.
 
 ## Targeted references
+[Python reference: the `with` statement and context managers](https://docs.python.org/3/reference/compound_stmts.html#the-with-statement)
+
 [Udemy - Python for DevOps](https://www.udemy.com/course/python-devops) - Relevant lessons: Thinking in exceptions; Defining custom exceptions; Adding context to custom exceptions; Context managers and the with statement; Advanced Retry Decorator with Exponential Backoff and Jitter exercise.

@@ -12,7 +12,7 @@ source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 
 **Why one script stops being enough.** A single `.py` file is great until a project grows: you add a parser, then a policy module, then a Kubernetes client, then tests — and soon you're scrolling through hundreds of lines to find one function, copy-pasting helper code between unrelated scripts because there's no clean way to reuse it, and unsure which functions are safe to change without breaking something else. None of that is really about Python syntax — it's about organization at scale.
 
-**What a package fundamentally is.** A **module** is just a single `.py` file that can be imported (`import config` imports `config.py`). A **package** is a *folder* containing an `__init__.py` file (even an empty one) plus other modules — the folder becomes something you can import as one unit, e.g. `import infra_doctor` or `from infra_doctor import parser`. That's the basic shape; the folder groups related modules (a parser, a model, a CLI) so they can be organized, imported, and eventually installed together, instead of being loose files that only work if you happen to run them from the right directory.
+**What a package fundamentally is.** A **module** is a single `.py` file that can be imported (`import config` imports `config.py`). A **package** is a directory that organizes related modules under one import name, such as `infra_doctor`. This book uses an `__init__.py` file to make that package boundary explicit and compatible with common tooling. Modern Python also supports namespace packages without `__init__.py`, so the file is a deliberate conventional choice rather than a universal runtime requirement.
 
 ```mermaid
 flowchart TD
@@ -34,19 +34,67 @@ Expected output:
 ```
 10
 ```
-The `__init__.py` is what tells Python "this folder is a package, not just a directory of unrelated files" — without it (on older Python versions especially), `from infra_doctor.model import double` would fail to resolve.
+The `__init__.py` file makes this a regular package and can define its public import surface. Keeping it minimal avoids surprising work during import.
 
 **What a CLI fundamentally is.** A **library** is code meant to be *imported* by other code (`from infra_doctor.model import double`). A **command-line interface (CLI)** is a program meant to be *run directly from the terminal*, typically taking arguments and flags, e.g. `infra-doctor check --namespace prod --verbose`. Why do argument-parsing libraries (like `argparse`) exist instead of just splitting the raw string yourself? Because turning `"--verbose --output=file.json"` into a clean, validated set of options — handling missing arguments, wrong types, `--help` text, short vs. long flag names — is fiddly, repetitive, and easy to get subtly wrong by hand. A parsing library does that turning-text-into-structured-data work once, correctly, so you just describe what arguments exist and receive back a clean object with the values already validated.
 
 **What CI/CD conceptually means.** **Continuous Integration (CI)** means: every time code changes (e.g., on every commit or pull request), a machine automatically runs your tests and checks — so a mistake is caught within minutes of being introduced, not weeks later when someone finally runs the full test suite by hand. **Continuous Deployment/Delivery (CD)** means: once a change passes those checks, it's automatically made available wherever it's used next (published to a package index, deployed to a server, etc.) without a person manually repeating that step every time. Neither term is about *which* tool you use (GitHub Actions, Jenkins, GitLab CI, …) — they're both about removing manual, error-prone repetition from "did this change break anything" and "is the good version actually out there now."
 
 **Check your understanding.**
-1. *Q: What's the one file that turns a plain folder of `.py` files into an importable Python package?*
-   A: `__init__.py` (it can be empty — its presence is what matters).
+1. *Q: Which file makes a regular package boundary explicit, and is it the only package mechanism in modern Python?*
+   A: `__init__.py`; it may be empty, but modern Python can also use namespace packages without it.
 2. *Q: A colleague says "I'll just split the input string on spaces myself instead of using argparse." What's the risk?*
    A: They'll likely have to hand-roll handling for missing arguments, `--flag=value` vs `--flag value` syntax, type conversion, and `--help` text — argument-parsing libraries already solve those edge cases correctly.
 3. *Q: Your tests pass locally but you still call it "no CI" — why might that distinction matter?*
    A: CI specifically means the tests run *automatically* on every change, for everyone, not just when one person remembers to run them locally — the automation, not the test suite's existence, is the point.
+
+### Import choices and import-time behavior
+
+Use imports to load a toolbox or a specific tool:
+
+```python
+import json
+from pathlib import Path
+from gpu_health.model import classify
+```
+
+`import json` keeps the qualified name `json.loads`, which makes the owner obvious. `from pathlib import Path` brings one name into the local module. Avoid `from package import *`: it hides where names came from and can overwrite an existing name. Use absolute imports in application entry points; use relative imports inside a package only when they make the local relationship clearer.
+
+Imports execute module top-level initialization once per interpreter session. Therefore module scope should define constants, functions, and classes—not start a production command, make a network call, or parse command-line arguments. Put execution behind:
+
+```python
+def main() -> int:
+    ...
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+```
+
+This is why the capstone has `model.py`, `kubernetes.py`, and `cli.py`: importing the model for a unit test must not invoke `kubectl`.
+
+### The modules used repeatedly in this course
+
+| Module | What it provides | Typical infrastructure use |
+|---|---|---|
+| `pathlib` | path objects and file operations | read config, enumerate logs |
+| `json` / `csv` | structured text parsing | API responses, inventory exports |
+| `yaml` (third-party) | YAML parsing | human-authored config; use `safe_load` for untrusted input |
+| `subprocess` | start existing OS tools | `kubectl`, `nvidia-smi`, `ip`, `systemctl` |
+| `argparse` | command-line interface | flags, help text, exit behavior |
+| `logging` | severity, handlers, structured context | incident evidence without `print` noise |
+| `datetime` / `time` | timestamps and bounded waits | deadlines, retry backoff |
+| `re` | regular expressions | carefully extracting stable log patterns |
+| `collections` | specialized containers | `Counter`, `defaultdict`, `deque` |
+| `concurrent.futures` | bounded thread/process pools | parallel network probes with backpressure |
+| `contextlib` | cleanup abstractions | temporary directories, lock/resource scopes |
+| `dataclasses` | explicit data records | immutable observations and policies |
+| `typing` / `collections.abc` | static contracts | readable interfaces and checker support |
+| `pytest` (third-party) | test discovery and assertions | fast policy tests and controlled fakes |
+| `requests`/`httpx` (third-party) | HTTP clients | APIs; always configure timeouts |
+
+The import tells you the dependency; the call tells you the reason. When reading an unfamiliar script, build a two-column map: “import” → “effect in this script.” Remove imports that do not earn their place.
 
 With "package," "CLI," and "CI/CD" now meaning something specific instead of vague buzzwords, the rest of this chapter builds the real thing: an installable package with a console entry point and an actual CI pipeline.
 
@@ -123,6 +171,9 @@ This ordering matters: fast/cheap checks (formatting, lint) run before slow/expe
 ➕ 4. Deliberately remove `src/` (flatten the package to repo root), run `pytest` from the root, and see whether it's importing your editable-installed package or a same-named local file — reproduce the exact ambiguity `src/` layout exists to prevent.
 
 ## Targeted references
+[Python tutorial: modules and packages](https://docs.python.org/3/tutorial/modules.html)
+[Python standard library](https://docs.python.org/3/library/)
+
 [Python Packaging User Guide](https://packaging.python.org/) - Modern packaging concepts and pyproject.toml.
 [Udemy - Python for DevOps](https://www.udemy.com/course/python-devops) - Relevant lessons: Python modules; Python packages; pyproject.toml file; Adding tests to multi-file projects; CI/CD pipeline overview; Add static type and security checks; Pytest integration; Building the Python library.
 

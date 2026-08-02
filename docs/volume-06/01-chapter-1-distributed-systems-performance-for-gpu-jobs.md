@@ -172,6 +172,151 @@ A: Because HPC processes exchange data with each other continuously throughout t
 **Q2: You see one machine with high network retransmits during a slow training job. Is that proof the network caused the slowdown?**
 A: No — it's evidence worth investigating, but by itself it doesn't rule out other causes (a different failing component, an unrelated coincidence) or confirm this is even the machine the rest of the job is waiting on. You'd want timing correlation and a healthy-run baseline before treating it as the cause.
 
+### The normal training path
+
+The scheduler allocates nodes and GPUs. A launcher starts ranks. Each rank receives data and drives GPU computation. Collectives exchange gradients or other tensors. Storage supplies datasets and receives checkpoints. At synchronized boundaries, one slow rank can delay the entire job.
+
+This gives a clean troubleshooting order: allocation → rank launch → local GPU → inter-process bootstrap → network path → collective behavior → storage/data → application correctness.
+
+### Ethernet, RDMA and locality
+
+Ethernet provides familiar packet networking. RDMA is a data-movement capability, not a synonym for a fast cable. InfiniBand and RoCE provide different operational environments for RDMA. GPU Direct RDMA can shorten the path between GPU memory and a network adapter, but physical topology, software configuration and supported hardware still determine whether the intended path is used.
+
+### A real-life example
+
+A job scales well from one to eight GPUs on one server but poorly across two servers. The change introduces rank bootstrap, NIC selection, switch fabric, RDMA/NCCL configuration and cross-node synchronization. The scheduler may have allocated correct resources while communication still falls back to a slower path. Prove each new boundary rather than blaming "the network" broadly.
+
+### Ethernet first: how a packet reaches another host
+
+Before RDMA, understand ordinary networking:
+
+```mermaid
+flowchart LR
+  Process --> Socket[Socket: protocol + local/remote address/port]
+  Socket --> Route[Host routing decision]
+  Route --> NIC[NIC transmits frames]
+  NIC --> Switch[Leaf/spine switch fabric]
+  Switch --> RNIC[Remote NIC]
+  RNIC --> RStack[Remote network stack or accelerated transport]
+  RStack --> RProcess[Remote process/memory operation]
+```
+
+IP routing answers where packets go. Ethernet switching forwards frames within layer-2 domains. TCP provides a reliable byte stream but involves kernel/protocol work. MTU mismatch, loss, congestion, bad routes, firewall state and interface selection can all affect distributed jobs.
+
+### RDMA from first principles
+
+Remote Direct Memory Access allows a network adapter to perform operations involving registered memory with reduced CPU involvement and copying compared with a conventional application/TCP path. It requires a complete ecosystem: supported NIC/HCA, drivers, registered memory, queue-pair/transport setup, addressing/routing and a correctly operated fabric.
+
+**InfiniBand** is a fabric architecture designed for high-performance communication. **RoCE** carries RDMA over Ethernet. RoCE does not make congestion disappear; loss/congestion/QoS design and telemetry remain operational responsibilities.
+
+### MPI, PMIx and NCCL have different jobs
+
+| Component | Responsibility |
+|---|---|
+| Slurm | allocate resources and initiate job execution |
+| PMIx/launcher integration | exchange process/rank bootstrap information |
+| MPI implementation | general process communication API/runtime |
+| NCCL | topology-aware GPU collective communication |
+
+A training framework may use Slurm for allocation, PMIx/MPI for launch/control coordination and NCCL for GPU tensor collectives. A failure before every rank launches should not begin with NCCL tuning.
+
+### Collective communication and stragglers
+
+An all-reduce combines values across ranks and distributes the result. Every participating rank must reach compatible collective calls. One missing, delayed or mismatched rank can stall peers.
+
+For data-parallel training:
+
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["local forward/backward compute"]
+  n1["gradients become ready"]
+  n2["NCCL all-reduce exchanges/combines gradients"]
+  n3["every replica receives the result"]
+  n4["optimizer step continues"]
+```
+
+Measure step-time distribution, per-rank timing and collective performance. Fleet averages can hide one slow node whose delay becomes global at synchronization.
+
+### Storage is part of the compute pipeline
+
+AI jobs commonly need:
+
+- model/container distribution before launch;
+- high-throughput dataset reads;
+- metadata operations for many files;
+- checkpoint writes and restart reads;
+- local scratch for transformed/sharded data;
+- durable artifact storage.
+
+Local NVMe, shared POSIX filesystems, parallel filesystems and object storage have different semantics. "Storage bandwidth" without access pattern, block/file/object semantics, metadata rate, concurrency and durability does not size a system.
+
+### A two-node debugging ladder
+
+When one-node training works and two-node training fails:
+
+1. Confirm the scheduler allocated expected nodes/GPUs and no resource overlap.
+2. Prove every rank starts and prints rank/host/local GPU identity.
+3. Confirm identical application, MPI/NCCL and driver/container environment.
+4. Run a CPU-level MPI barrier/collective.
+5. Run one-node `nccl-tests`, then two-node tests with recorded topology.
+6. Record selected interfaces and transport from NCCL logs.
+7. Check NIC link state, counters, routing and fabric telemetry.
+8. Compare performance with known-good baseline and message sizes.
+9. Add storage/data loading only after communication is stable.
+10. Run the smallest real framework job before production scale.
+
+Change one dimension at a time. "Set `NCCL_DEBUG=INFO`" is an observation step, not a fix.
+
+### Safe observation commands
+
+Commands vary by distribution and installed fabric tooling:
+
+```bash
+ip -brief link
+ip route
+ethtool INTERFACE
+nvidia-smi topo -m
+ibv_devices
+ibv_devinfo
+```
+
+Read-only output proves local observations only. A link reporting Up does not prove end-to-end bandwidth, correct routing, congestion behavior or GPU Direct use.
+
+### Common beginner mistakes
+
+- calling Slurm, MPI and NCCL interchangeable;
+- assuming RDMA means traffic bypasses every host/software concern;
+- benchmarking one message size and generalizing to the workload;
+- using aggregate bandwidth while ignoring tail/straggler behavior;
+- treating a mounted filesystem as proof it can meet checkpoint demand;
+- forcing interface environment variables before recording automatic selection;
+- comparing theoretical line rate directly with application goodput without protocol/collective context.
+
+### References and reinforcement
+
+- [NVIDIA NCCL documentation](https://docs.nvidia.com/deeplearning/nccl/)
+- [NVIDIA networking documentation](https://docs.nvidia.com/networking/)
+- [NVIDIA GPUDirect RDMA documentation](https://docs.nvidia.com/cuda/gpudirect-rdma/)
+- [Slurm documentation](https://slurm.schedmd.com/documentation.html)
+- Local Staff guides: `networking-service-mesh_consolidated.md`, `databases-storage_consolidated.md`
+- Local SRE labs: `interview-prep/hands-on-labs/networking/`
+
+### How to study this volume
+
+Study distributed performance, Ethernet, RDMA, GPU/NIC paths, Kubernetes network integration, storage and Slurm in that order. Then compare Kubernetes and Slurm. Use deep dives after you can explain the normal end-to-end data path and which tool owns allocation versus communication.
+
+### Check your understanding: locate the distributed boundary
+
+**Q1: One-node training works and two-node training fails. What changed?**
+A: Rank bootstrap, NIC/interface selection, fabric transport, cross-node collectives, and synchronization were introduced. Prove rank launch and a CPU-level communication path before tuning NCCL.
+
+**Q2: A link reports Up. What does that prove?**
+A: Only local link state at the observation point. It does not prove routing, end-to-end bandwidth, congestion behavior, RDMA operation, GPUDirect use, or application goodput.
+
+**Q3: Why does one slow rank affect every rank at a collective?**
+A: The participants must reach compatible collective operations before the group can progress, so the slowest participant becomes a synchronization barrier.
+
 ### Glossary
 
 - **HPC (High-Performance Computing)** — a discipline focused on solving one large computation as fast as possible by spreading it across many machines working together at once.
@@ -181,6 +326,14 @@ A: No — it's evidence worth investigating, but by itself it doesn't rule out o
 - **Job scheduler** — the system that decides which job gets which machines and when, queues jobs when the cluster is busy, and prevents two jobs from being given the same hardware at once (Slurm is the example named in this chapter).
 - **MPI (Message Passing Interface)** — a standard way for many separate processes, usually one per machine or GPU, to send each other messages and coordinate so a split computation behaves as one cooperating job.
 - **Rank** — MPI vocabulary (mentioned here only so it isn't alien later) for the identifying number given to each process participating in a coordinated job.
+- **Collective** — a group communication operation, such as broadcast or all-reduce, that participating ranks execute together.
+- **NCCL** — NVIDIA's topology-aware library for GPU collective communication.
+- **RDMA** — direct memory-oriented network transfers with reduced CPU and copying involvement.
+- **InfiniBand** — a purpose-built high-performance fabric supporting RDMA.
+- **RoCE** — RDMA carried over Ethernet, with Ethernet loss, congestion, and QoS considerations.
+- **PMIx** — an interface used to exchange process and rank bootstrap information with launchers and runtimes.
+- **Parallel filesystem** — shared storage designed to serve data across many concurrent cluster clients.
+- **Checkpoint** — saved workload state that permits restart after interruption.
 
 ### Before you go deeper, make sure you can...
 
@@ -189,6 +342,9 @@ A: No — it's evidence worth investigating, but by itself it doesn't rule out o
 - Explain, using the restaurant analogy or your own equivalent, what problem a job scheduler like Slurm solves.
 - Explain, at the concept level only, what MPI lets separate processes do — without needing its API yet.
 - State the one-sentence reason network speed matters more in HPC than in typical web services, and give a first example of evidence (not proof) that a network issue is affecting a coordinated job.
+- Distinguish scheduler allocation, PMIx/rank bootstrap, MPI process communication, and NCCL GPU collectives.
+- Explain how Ethernet, InfiniBand, RoCE, RDMA, and GPUDirect relate without using them as synonyms.
+- Walk a one-node-success/two-node-failure case through rank, transport, fabric, collective, storage, and application evidence.
 
 With that model in place, here's what actually limits performance in a distributed GPU job.
 

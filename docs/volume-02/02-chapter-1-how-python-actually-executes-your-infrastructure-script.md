@@ -445,6 +445,170 @@ Every lab also includes an exact ChatGPT coaching prompt built for that specific
 
 You now have every basic building block — variables, types, lists, dicts, conditionals, loops, functions, and exception handling — that the easiest lab needs. The labs will introduce a few new, more specific tools (regular expressions for parsing text, `dataclass` for structured records, and similar) exactly when a given lab needs them, in context, rather than as a wall of syntax up front.
 
+### The first mental model
+
+| Part | Question |
+|---|---|
+| Input | Where does data come from, and can it be malformed or missing? |
+| Decision | What rule transforms input into a result? |
+| Effect | Does code read a file, call a service, execute a command or change infrastructure? |
+| Output | What should a human or another program receive? |
+| Failure contract | Which failures are expected, retriable, fatal or security-sensitive? |
+
+Good infrastructure code separates decisions from effects. A function deciding whether a node is healthy can be tested with ordinary values. A separate adapter can collect real GPU or Kubernetes data. This lets tests validate policy without requiring a live cluster.
+
+### Data structures by operational purpose
+
+| Type | Use it when | Infrastructure example |
+|---|---|---|
+| `str` | text is meaningful as text | hostname, URL, log message |
+| `int`/`float` | arithmetic or numeric comparison is required | retry count, temperature |
+| `bool` | exactly true/false state | dry-run enabled |
+| `list` | ordered items, duplicates allowed | ordered probe results |
+| `tuple` | fixed record/immutable sequence semantics are useful | coordinate/version parts |
+| `set` | uniqueness and fast membership matter | failed node names |
+| `dict` | lookup by key | node name to health record |
+| `None` | explicit absence of a value | metric not reported |
+
+Do not convert every value to a string because input arrived as text. Parse at the boundary so decision code operates on meaningful types.
+
+### Files and JSON: make the boundary visible
+
+```python
+import json
+from pathlib import Path
+
+
+def load_nodes(path: Path) -> list[dict]:
+    raw = path.read_text(encoding="utf-8")
+    value = json.loads(raw)
+    if not isinstance(value, list):
+        raise ValueError("inventory must contain a JSON list")
+    return value
+```
+
+Separate possible failures:
+
+- `FileNotFoundError`: path does not exist;
+- `PermissionError`: process cannot read it;
+- `json.JSONDecodeError`: bytes were read but are not valid JSON;
+- `ValueError`: JSON is valid but violates this program's expected top-level shape;
+- missing/wrong fields: individual records require further validation.
+
+Avoid `except Exception: pass`. It converts actionable failure into misleading success.
+
+### Tracebacks: read from the bottom
+
+```text
+Traceback (most recent call last):
+  File "health.py", line 18, in <module>
+    print(node["temperature_c"])
+KeyError: 'temperature_c'
+```
+
+Start with `KeyError: 'temperature_c'`: a dictionary lookup requested a missing key. Then move upward to your code line and call path. A traceback is diagnostic evidence, not noise to hide.
+
+### External effects need contracts
+
+When Python calls an HTTP API or subprocess, define:
+
+- timeout;
+- accepted result/status codes;
+- expected error types;
+- retry eligibility and maximum attempts;
+- idempotency of the operation;
+- sensitive values that must not enter logs;
+- output/exit-code contract.
+
+Safe subprocess shape:
+
+```python
+import subprocess
+
+result = subprocess.run(
+    ["nvidia-smi", "--query-gpu=index,name", "--format=csv,noheader"],
+    text=True,
+    capture_output=True,
+    timeout=10,
+    check=False,
+)
+
+if result.returncode != 0:
+    raise RuntimeError(f"nvidia-smi failed: {result.stderr.strip()}")
+```
+
+Passing an argument list avoids unnecessary shell parsing. A timeout bounds waiting. Return code, stdout and stderr remain distinct evidence.
+
+### Test the decision separately
+
+```python
+def test_missing_gpu_is_critical() -> None:
+    assert classify_node(7, 55.0) == "critical"
+
+
+def test_exact_temperature_boundary() -> None:
+    assert classify_node(8, 80.0) == "warning"
+```
+
+Because `classify_node` has no file, API or subprocess effect, tests are fast and deterministic. Test adapters separately with temporary files, fakes or mocks at the boundary.
+
+### Virtual environments and reproducibility
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install pytest
+python -m pytest -q
+```
+
+A virtual environment isolates project packages from the base interpreter environment. It does not by itself lock exact versions; record project dependencies and use an appropriate lock/reproducible build process.
+
+### Guided progression from script to tool
+
+1. hard-coded values and pure decision;
+2. JSON/file input with validation;
+3. clear errors and exit codes;
+4. structured logging;
+5. one HTTP/subprocess adapter with timeout;
+6. unit tests around decisions and boundary tests around effects;
+7. CLI arguments and project packaging;
+8. bounded concurrency only after the sequential path works;
+9. CI checks and artifact/version release.
+
+The local SRE repository contains useful progressive exercises in `interview-prep/hands-on-labs/python/`; the Staff guide's `scripting-python_consolidated.md` provides broader operational patterns. Use them as practice after the mechanism is understood.
+
+### Official references
+
+- [Python tutorial](https://docs.python.org/3/tutorial/)
+- [Python data structures](https://docs.python.org/3/tutorial/datastructures.html)
+- [Python errors and exceptions](https://docs.python.org/3/tutorial/errors.html)
+- [Python modules](https://docs.python.org/3/tutorial/modules.html)
+- [Python virtual environments and packages](https://docs.python.org/3/tutorial/venv.html)
+- [Python `subprocess`](https://docs.python.org/3/library/subprocess.html)
+
+### Check your understanding: from syntax to an operational contract
+
+**Q1: Why should parsing and validation happen at the input boundary?**
+A: It lets the rest of the program operate on known shapes and meaningful types instead of repeatedly defending against malformed external data.
+
+**Q2: What does a successful subprocess return code prove?**
+A: It proves the invoked process reported success under its own contract. It does not prove the wider service outcome, data correctness, or that the command checked the intended target.
+
+**Q3: Why test a decision function separately from an API or command adapter?**
+A: Plain inputs make policy tests fast and deterministic; the external adapter can then be tested separately for timeouts, errors, and translation of evidence.
+
+### A practical reading method for every code block
+
+For each unfamiliar example, annotate it yourself:
+
+1. What enters this line?
+2. What type and value leave it?
+3. Is it a decision, a record, or an external effect?
+4. What fails, and does the caller see the failure?
+5. Could the code be tested without a live cluster?
+
+Then run the smallest example locally, change one input, and predict the output before executing it. This turns syntax into a mental model.
+
 ### Glossary
 
 - **Variable** — a name that points at a value.
@@ -460,6 +624,12 @@ You now have every basic building block — variables, types, lists, dicts, cond
 - **`assert`** — a statement that stops the program with an error if a given condition is false; the basis of automated test-checking.
 - **Exception** — Python's mechanism for signaling that an operation failed, at the point it failed.
 - **`try`/`except`** — a block that attempts code and runs alternate code only if a specific, expected kind of failure occurs.
+- **Module** — one Python file with its own namespace that can expose reusable definitions.
+- **Package** — related modules organized under one import name.
+- **Traceback** — the call path and final exception reported when an exception is not handled.
+- **Exit code** — the integer status returned to a shell or calling process; zero normally means success.
+- **Virtual environment** — an isolated Python package environment for one project.
+- **External effect** — interaction with a file, process, network service, terminal, or remote system.
 
 ### Before you go deeper, make sure you can...
 
@@ -469,6 +639,9 @@ You now have every basic building block — variables, types, lists, dicts, cond
 - Look up and update a value in a dict by its key, and explain what happens if the key doesn't exist.
 - Explain what a `try`/`except KeyError:` block does, and why catching a specific exception type is better than catching everything.
 - Explain what a lab's "Run tests" button is actually checking, in terms of `assert` statements comparing your function's return value to an expected one.
+- Load and validate JSON while keeping syntax, shape, and field failures distinct.
+- Read a traceback from the final exception upward and explain the call path.
+- Define timeout, exit-code, retry, idempotency, and sensitive-logging contracts before adding an external effect.
 
 For guided practice on exactly these fundamentals, see the [Python foundation lab](/curriculum/intro/python-foundation-lab), which builds one complete health-check program step by step.
 

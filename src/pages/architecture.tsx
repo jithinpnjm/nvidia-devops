@@ -1,42 +1,154 @@
-import React, {useState} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import Layout from '@theme/Layout';
 import {architectureScenarios} from '@site/src/data/architecture';
 import ChatGPTStudyLink from '@site/src/components/learning/ChatGPTStudyLink';
 
-const categoryTag = (title: string): string => {
-  const t = title.toLowerCase();
-  if (t.includes('bare-metal') || t.includes('on-prem') || t.includes('greenfield')) return 'JR2018680: bare-metal/BCM buildout and lifecycle ownership.';
-  if (t.includes('regulated') || t.includes('air-gapped')) return 'JR2018680: security hardening, change control and audit rigor.';
-  if (t.includes('disaster-recovery') || t.includes('multi-region')) return 'JR2018680: HA/DR design across regions and failure domains.';
-  if (t.includes('cost') || t.includes('tco')) return 'JR2018680: TCO/utilization judgment customers expect from an SA.';
-  if (t.includes('firmware') || t.includes('upgrade program') || t.includes('coordinated')) return 'JR2018680: coordinated fleet-wide change management at scale.';
-  if (t.includes('slurm') && t.includes('kubernetes')) return 'JR2018680: bridging HPC/Slurm and Kubernetes operating models.';
-  if (t.includes('edge') || t.includes('disconnected')) return 'JR2018680: inference operations under constrained connectivity.';
-  if (t.includes('m&a') || t.includes('consolidation')) return 'JR2018680: platform consolidation and organizational integration.';
-  if (t.includes('inference') || t.includes('rag') || t.includes('latency')) return 'JR2018680: production inference architecture and SLOs.';
-  if (t.includes('observability')) return 'JR2018680: fleet health, telemetry and incident readiness.';
-  return 'JR2018680: core GPU platform architecture judgment.';
-};
+type Phase = 'brief' | 'design' | 'pressure' | 'reference' | 'score';
+const phases: {id: Phase; label: string}[] = [
+  {id: 'brief', label: '1 · Clarify'},
+  {id: 'design', label: '2 · Design'},
+  {id: 'pressure', label: '3 · Pressure-test'},
+  {id: 'reference', label: '4 · Compare'},
+  {id: 'score', label: '5 · Score'},
+];
 
 export default function Architecture() {
-  const [index, setIndex] = useState(0);
-  const [reveal, setReveal] = useState(false);
+  const categories = ['All', ...Array.from(new Set(architectureScenarios.map((item) => item.category)))];
+  const [category, setCategory] = useState('All');
+  const [selectedId, setSelectedId] = useState(architectureScenarios[0].id);
+  const [phase, setPhase] = useState<Phase>('brief');
   const [notes, setNotes] = useState('');
-  const scenario = architectureScenarios[index];
-  const panelistPrompt = `Act as a senior NVIDIA Solutions Architect panel interviewer running a live whiteboard-design interview with me.
+  const [checkedSignals, setCheckedSignals] = useState<string[]>([]);
 
-SCENARIO
-- Title: ${scenario.title}
-- Requirements: ${scenario.requirements.join('; ')}
-- Unknowns I must resolve: ${scenario.unknowns.join('; ')}
-- Constraints: ${scenario.constraints.join('; ')}
+  const visibleScenarios = useMemo(
+    () => category === 'All' ? architectureScenarios : architectureScenarios.filter((item) => item.category === category),
+    [category],
+  );
+  const scenario = architectureScenarios.find((item) => item.id === selectedId) ?? visibleScenarios[0];
 
-RUN THE INTERVIEW LIKE A REAL PANEL
-1. Do not explain the scenario back to me. First ask me to state my clarifying questions—one at a time is fine—and answer only what a customer would plausibly know; call out anything I fail to ask that a strong SA would ask.
-2. Once I say I'm ready, ask me to propose my architecture end to end (compute, GPU selection, topology, network, storage, scheduler, multi-tenancy, security, observability, capacity, HA, cost, operations).
-3. Probe my design with follow-up questions targeted specifically at the unknowns and constraints listed above—push on the weakest parts, ask me to justify trade-offs, and don't let vague answers pass.
-4. Only reveal or compare against a "model" considerations list if I explicitly ask for it, or once I've clearly committed to a final design.
-5. After that, pose one deliberately harder follow-up variant of this same scenario (for example: half the requested GPU SKU becomes unavailable for six months, a key region goes dark, or budget is cut by a third) and make me adapt my design live.
-6. Keep the tone like a real interview panel: direct, technically skeptical, and focused on judgment and trade-offs rather than reciting facts.`;
-  return <Layout title="Architecture lab"><main className="pageShell"><header className="pageHeader"><span className="eyebrow">Whiteboard practice</span><h1>Architecture lab</h1><p>Clarify requirements and draw data/control paths before choosing products.</p></header><div className="architectureTabs">{architectureScenarios.map((item, i) => <button className={i === index ? 'active' : 'secondary'} onClick={() => {setIndex(i); setReveal(false); setNotes('');}} key={item.title}>{item.title}</button>)}</div><article className="architectureBoard"><h2>{scenario.title}</h2><p className="eyebrow">{categoryTag(scenario.title)}</p><div className="threeColumns"><section><h3>Requirements</h3><ul>{scenario.requirements.map(x => <li key={x}>{x}</li>)}</ul></section><section><h3>Unknowns</h3><ul>{scenario.unknowns.map(x => <li key={x}>{x}</li>)}</ul></section><section><h3>Constraints</h3><ul>{scenario.constraints.map(x => <li key={x}>{x}</li>)}</ul></section></div><p className="prompt">Address compute, GPU selection, topology, network, storage, scheduler, multi-tenancy, security, observability, capacity, HA, cost, and operations.</p><textarea rows={12} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Sketch components, data/control paths, failure domains, assumptions, and trade-offs…"/><section className="chatgptCoachPanel"><div><span className="eyebrow">Live whiteboard panelist</span><h3>Run this exact scenario as a mock panel interview in ChatGPT</h3><p>The prompt carries this scenario's requirements, unknowns and constraints, then forces a clarifying-questions-first, probe-then-reveal panel format, ending with a harder follow-up variant.</p></div><details><summary>Preview the prompt</summary><pre className="promptPreview">{panelistPrompt}</pre></details><ChatGPTStudyLink prompt={panelistPrompt} label="Open this scenario as a panel interview in ChatGPT ↗"/></section><button onClick={() => setReveal(!reveal)}>{reveal ? 'Hide considerations' : 'Reveal considerations'}</button>{reveal && <div className="reveal"><h3>Considerations—not a single ideal answer</h3><ul>{scenario.considerations.map(x => <li key={x}>{x}</li>)}</ul></div>}</article></main></Layout>;
+  useEffect(() => {
+    if (!visibleScenarios.some((item) => item.id === selectedId)) selectScenario(visibleScenarios[0].id);
+  }, [category]);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem(`architecture-notes:${scenario.id}`) ?? '';
+    setNotes(saved);
+    setCheckedSignals([]);
+  }, [scenario.id]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => window.localStorage.setItem(`architecture-notes:${scenario.id}`, notes), 250);
+    return () => window.clearTimeout(timer);
+  }, [notes, scenario.id]);
+
+  function selectScenario(id: string) {
+    setSelectedId(id);
+    setPhase('brief');
+  }
+
+  const panelistPrompt = `Act as a skeptical senior NVIDIA Solutions Architect interview panelist. Run one interactive system-design interview and do not reveal the reference answer until I commit to a design.
+
+CUSTOMER BRIEF
+${scenario.brief}
+
+ASSIGNMENT
+${scenario.ask}
+
+KNOWN REQUIREMENTS
+${scenario.requirements.map((item) => `- ${item}`).join('\n')}
+
+UNKNOWNS I SHOULD DISCOVER
+${scenario.unknowns.map((item) => `- ${item}`).join('\n')}
+
+CONSTRAINTS
+${scenario.constraints.map((item) => `- ${item}`).join('\n')}
+
+INTERVIEW PROTOCOL
+1. Give me ${scenario.duration} minutes and begin by asking for my clarifying questions. Answer as the customer, one question at a time. Do not volunteer all unknowns.
+2. Ask me to state assumptions, define SLOs and draw workload, data, control and failure paths before naming products.
+3. Probe compute/GPU fit, topology, network, storage, scheduler, tenancy, security, observability, capacity, HA, cost and Day-2 ownership where relevant.
+4. Challenge vague statements. Ask what fails, how it is detected, the blast radius, degraded behavior, recovery and proof that recovery worked.
+5. After I commit, use this rubric: requirement discovery; workload/data/control paths; justified trade-offs; reliability/security; capacity/cost; operations/migration; communication.
+6. Give a score out of 5 per dimension, concise evidence, the three most important gaps, and one harder follow-up variant.`;
+
+  const score = checkedSignals.length;
+  const scoreLabel = score === scenario.strongSignals.length ? 'Strong answer' : score >= Math.ceil(scenario.strongSignals.length / 2) ? 'Developing' : 'Needs another pass';
+
+  return <Layout title="Architecture interview lab" description="Senior GPU, AI infrastructure and platform system-design practice">
+    <main className="pageShell architecturePage">
+      <header className="pageHeader architectureHero">
+        <div><span className="eyebrow">Senior system-design practice</span><h1>Architecture interview lab</h1><p>Work from customer ambiguity to a defensible architecture. Clarify, draw paths, make trade-offs, pressure-test failure, then compare.</p></div>
+        <div className="architectureStats"><strong>{architectureScenarios.length}</strong><span>deep scenarios</span><strong>{categories.length - 1}</strong><span>domains</span></div>
+      </header>
+
+      <div className="filterRow architectureFilters" aria-label="Filter architecture scenarios">
+        {categories.map((item) => <button className={category === item ? 'active' : 'secondary'} onClick={() => setCategory(item)} key={item}>{item}</button>)}
+      </div>
+
+      <div className="architectureWorkspace">
+        <aside className="architectureScenarioList">
+          {visibleScenarios.map((item) => <button className={item.id === scenario.id ? 'active' : ''} onClick={() => selectScenario(item.id)} key={item.id}>
+            <span>{item.category}</span><strong>{item.title}</strong><small>{item.difficulty} · {item.duration} min</small>
+          </button>)}
+        </aside>
+
+        <article className="architectureBoard">
+          <header className="scenarioHeader"><div><span className="eyebrow">{scenario.category} · {scenario.difficulty}</span><h2>{scenario.title}</h2></div><span className="timeBadge">{scenario.duration} min</span></header>
+
+          <nav className="architecturePhases" aria-label="Interview phases">
+            {phases.map((item) => <button className={phase === item.id ? 'active' : 'secondary'} onClick={() => setPhase(item.id)} key={item.id}>{item.label}</button>)}
+          </nav>
+
+          {phase === 'brief' && <section className="architecturePhase">
+            <div className="customerBrief"><span className="eyebrow">Customer brief</span><p>{scenario.brief}</p><h3>Your assignment</h3><p>{scenario.ask}</p></div>
+            <div className="threeColumns">
+              <section><h3>Known requirements</h3><ul>{scenario.requirements.map((item) => <li key={item}>{item}</li>)}</ul></section>
+              <section><h3>Discover—do not assume</h3><ul>{scenario.unknowns.map((item) => <li key={item}>{item}</li>)}</ul></section>
+              <section><h3>Constraints</h3><ul>{scenario.constraints.map((item) => <li key={item}>{item}</li>)}</ul></section>
+            </div>
+            <div className="interviewCoach"><strong>Opening move</strong><p>Spend 5–8 minutes clarifying workload shape, SLOs, scale, trust boundaries, failure tolerance, growth and ownership. State assumptions when the interviewer cannot answer.</p></div>
+          </section>}
+
+          {phase === 'design' && <section className="architecturePhase">
+            <div className="designSequence">
+              {['Requirements + assumptions', 'Workload and data paths', 'Control and failure paths', 'Key decisions + trade-offs', 'Day-2 operations + validation'].map((item, index) => <div key={item}><span>{index + 1}</span><strong>{item}</strong></div>)}
+            </div>
+            <p className="prompt"><strong>Whiteboard checklist:</strong> compute/GPU fit · topology · network · storage · scheduler · tenancy · security · observability · capacity · HA · cost · lifecycle ownership.</p>
+            <label className="notesLabel" htmlFor="architecture-notes">Your architecture notes <small>Saved locally in this browser</small></label>
+            <textarea id="architecture-notes" rows={18} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder={'Assumptions:\n\nSLOs and scale:\n\nWorkload/data path:\n\nControl path:\n\nFailure domains and degraded mode:\n\nKey trade-offs:\n\nOperations and validation:'}/>
+            <section className="chatgptCoachPanel"><div><span className="eyebrow">Live panelist</span><h3>Run this exact case interactively in ChatGPT</h3><p>The panelist reveals customer facts gradually, challenges vague choices and scores your committed design.</p></div><details><summary>Preview full prompt</summary><pre className="promptPreview">{panelistPrompt}</pre></details><ChatGPTStudyLink prompt={panelistPrompt} label="Start mock system-design interview ↗"/></section>
+          </section>}
+
+          {phase === 'pressure' && <section className="architecturePhase">
+            <h3>Failure-mode review</h3><p>For each failure, explain detection, blast radius, degraded behavior, safe mitigation, recovery and validation.</p>
+            <div className="failureGrid">{scenario.failureModes.map((item) => <article key={item.failure}><h4>{item.failure}</h4><details><summary>Compare response</summary><p>{item.response}</p></details></article>)}</div>
+            <h3>Interviewer follow-ups</h3><div className="followUpList">{scenario.followUps.map((item, index) => <div key={item}><span>{index + 1}</span><p>{item}</p></div>)}</div>
+          </section>}
+
+          {phase === 'reference' && <section className="architecturePhase">
+            <div className="referenceWarning"><strong>This is an answer skeleton, not a product recipe.</strong> Compare decision coverage and reasoning. A different design is strong when its assumptions and trade-offs are explicit.</div>
+            <h3>Reference answer path</h3><div className="answerOutline">{scenario.answerOutline.map((item, index) => <article key={item.label}><span>{index + 1}</span><div><h4>{item.label}</h4><p>{item.detail}</p></div></article>)}</div>
+            <h3>Decision matrix</h3><div className="tableScroll"><table className="decisionTable"><thead><tr><th>Decision</th><th>Default recommendation</th><th>Switch when…</th></tr></thead><tbody>{scenario.tradeoffs.map((item) => <tr key={item.decision}><td>{item.decision}</td><td>{item.recommendation}</td><td>{item.alternative}</td></tr>)}</tbody></table></div>
+            <h3>Proof and success metrics</h3><ul className="metricList">{scenario.successMetrics.map((item) => <li key={item}>{item}</li>)}</ul>
+          </section>}
+
+          {phase === 'score' && <section className="architecturePhase">
+            <h3>Self-review: evidence of senior judgment</h3><p>Check an item only when your answer explicitly demonstrated it—not because you intended to mention it.</p>
+            <div className="scoreCard"><div className="scoreValue"><strong>{score}/{scenario.strongSignals.length}</strong><span>{scoreLabel}</span></div><div className="signalChecklist">{scenario.strongSignals.map((item) => <label key={item}><input type="checkbox" checked={checkedSignals.includes(item)} onChange={() => setCheckedSignals((current) => current.includes(item) ? current.filter((value) => value !== item) : [...current, item])}/><span>{item}</span></label>)}</div></div>
+            <div className="interviewCoach"><strong>Final 90-second close</strong><p>Restate the requirements, name the two most consequential decisions, acknowledge the largest unresolved risk, and explain the PoC or validation that reduces it.</p></div>
+          </section>}
+        </article>
+      </div>
+      <section className="architectureSources">
+        <span className="eyebrow">Technical anchors</span>
+        <p>Use the cases to practice judgment, then verify product-specific details against current primary documentation.</p>
+        <div>
+          <a href="https://docs.nvidia.com/dsx/ncp/inference-ra/home" target="_blank" rel="noreferrer">NVIDIA Inference Reference Architecture ↗</a>
+          <a href="https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/getting-started.html" target="_blank" rel="noreferrer">NVIDIA GPU Operator ↗</a>
+          <a href="https://docs.nvidia.com/dgx-superpod/reference-architecture-scalable-infrastructure-gb200/latest/dgx-software.html" target="_blank" rel="noreferrer">DGX SuperPOD software architecture ↗</a>
+          <a href="https://docs.nvidia.com/nim/large-language-models/latest/reference/benchmarking.html" target="_blank" rel="noreferrer">NIM LLM benchmarking ↗</a>
+        </div>
+      </section>
+    </main>
+  </Layout>;
 }

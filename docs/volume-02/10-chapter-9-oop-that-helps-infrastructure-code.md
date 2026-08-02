@@ -48,6 +48,81 @@ gpu-node-02 True 4
 2. *In the `Node` example, why does `node_b.healthy` stay `True` after calling `node_a.mark_unhealthy()`?* — Because each object holds its own independent copy of its attributes; a method called on one object only touches that object's data.
 3. *What's the difference between an attribute and a method?* — An attribute is data stored on the object; a method is a function bound to the object that typically reads or changes that object's attributes.
 
+### Why a class appears in our scripts
+
+This is enough when there is no state:
+
+```python
+def classify_gpu(memory_used_mib: int, memory_total_mib: int) -> str:
+    return "warning" if memory_used_mib / memory_total_mib > 0.9 else "healthy"
+```
+
+A class becomes justified when several calls share state and the state has one owner. An API client keeps a base URL, an authenticated session, timeout policy, and perhaps a connection pool:
+
+```python
+from dataclasses import dataclass
+import requests
+
+
+@dataclass(frozen=True)
+class RetryPolicy:
+    attempts: int = 3
+    timeout_seconds: float = 5.0
+
+
+class InventoryClient:
+    def __init__(self, base_url: str, policy: RetryPolicy) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.policy = policy
+        self.session = requests.Session()
+
+    def get_node(self, name: str) -> dict:
+        response = self.session.get(
+            f"{self.base_url}/nodes/{name}",
+            timeout=self.policy.timeout_seconds,
+        )
+        response.raise_for_status()
+        return response.json()
+```
+
+`InventoryClient` is not a class because classes are “more professional.” It is a class because `base_url`, policy, and the reusable session belong together. A single stateless method would be clearer as a function. A class that only wraps one function adds ceremony and hides the real dependency.
+
+#### Class review questions
+
+Before adding a class, answer:
+
+1. What state does it own?
+2. Must that state persist between calls?
+3. Can two instances have different configuration at the same time?
+4. Can a function plus explicit arguments express this more clearly?
+5. How will a test replace its network, filesystem, or subprocess effect?
+
+### Dataclass: a record with an explicit shape
+
+A raw dictionary is flexible but typo-prone:
+
+```python
+sample = {"node": "gpu-01", "temperature_c": 65.0}
+sample["temprature_c"]  # KeyError at runtime
+```
+
+Use a dataclass when the record is part of the program’s domain and you want named fields, a useful representation, and equality:
+
+```python
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class GpuSample:
+    node: str
+    temperature_c: float
+    healthy: bool
+```
+
+`frozen=True` prevents accidental mutation after the observation is created. It does not validate that a caller passed a float; annotations and dataclass fields are not automatic runtime validation. Validate untrusted JSON at the boundary before constructing the object.
+
+Use a dictionary for genuinely variable keys, a `TypedDict` when JSON-shaped keys matter but a normal dictionary is desired, and a dataclass when the record has a stable domain meaning.
+
 With classes and objects as the base unit, the rest of this chapter is about deciding *when* to relate two classes by inheritance versus by composition.
 
 > After this chapter you should be able to: Use objects to hold cohesive state and behavior; prefer composition over inheritance when components have different responsibilities.
@@ -113,6 +188,8 @@ Inheritance fits here because `JSONExporter` genuinely **is a kind of** `Exporte
 ➕ 4. Write the `FakeRunner`-based test above from memory, then extend `FakeRunner` to simulate a `CalledProcessError` on the second call — testing the Chapter 5 exception-handling path through a fake, without ever touching a real cluster.
 
 ## Targeted references
+[Python tutorial: classes](https://docs.python.org/3/tutorial/classes.html)
+
 [Udemy - Python for DevOps](https://www.udemy.com/course/python-devops) - Relevant lessons: Introduction to classes; Class methods; Inheritance; Object-Oriented Deployment Manager coding exercise.
 
 ➕ **Visual model — dependency injection creates the test seam:**

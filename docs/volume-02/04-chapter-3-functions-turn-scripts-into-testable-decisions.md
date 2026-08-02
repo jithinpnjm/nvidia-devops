@@ -74,6 +74,60 @@ A "pure decision" function — one that only computes and returns a value, with 
 3. *Q: Why is a function that returns a health status ("healthy"/"warning"/"critical") easier to unit-test than one that prints the status directly?*
    A: Because the returned value can be captured and compared directly against an expected value in a test (`assert classify_node(usage) == "warning"`), with no need to intercept or parse anything printed to a screen — the test just checks input against output, exactly like checking a vending machine's output for a given input.
 
+### The decision ladder: what should I write first?
+
+Start with the smallest mechanism that expresses the behavior:
+
+| Need | Start with | Why |
+|---|---|---|
+| One calculation used once | direct statements | no abstraction is cheaper than a needless abstraction |
+| A decision used more than once or worth testing | function | input and output are visible; easy to test |
+| A fixed record with named fields | dictionary, `TypedDict`, or dataclass | choose how much runtime structure and validation you need |
+| Behavior that owns changing state | class | state and operations stay together |
+| A set of related files | module/package | imports give each part a boundary and owner |
+| A resource that must be cleaned up | `with` / context manager | cleanup runs on success and failure |
+| Reusable cross-cutting behavior | decorator, sparingly | add logging/retry/measurement without copying wrapper code |
+
+The first senior-level question is not “can I use a class?” It is “what state must survive between calls, who owns it, and how will I test it?”
+
+### Direct code versus a function
+
+This is understandable for a one-off probe:
+
+```python
+import shutil
+
+free_bytes = shutil.disk_usage("/").free
+print(f"free GiB: {free_bytes / 2**30:.1f}")
+```
+
+Move the decision into a function when it has a name, a contract, or a test:
+
+```python
+def disk_status(free_gib: float, minimum_gib: float = 20.0) -> str:
+    return "healthy" if free_gib >= minimum_gib else "critical"
+
+
+status = disk_status(free_bytes / 2**30)
+```
+
+The function is deliberately not reading the filesystem. That separation lets a test pass `5.0` or `50.0` without changing a real machine. The outer “imperative shell” collects facts; the inner “functional core” decides what they mean.
+
+### Function parameters are an API
+
+```python
+def retry_delay(attempt: int, base_seconds: float = 1.0, cap_seconds: float = 30.0) -> float:
+    return min(cap_seconds, base_seconds * 2 ** attempt)
+```
+
+`attempt` is required; the other values have defaults. A caller can use positional or named arguments, but named arguments make policy visible:
+
+```python
+retry_delay(attempt=2, cap_seconds=10.0)
+```
+
+Avoid hidden global configuration inside a decision function. Pass policy as an argument or an explicit object so a reviewer can see what controls the result.
+
 With that model of functions as input-to-output, no-side-effects-required machines in place, here's how the chapter uses it to design functions with explicit inputs, outputs, and failure semantics.
 
 > After this chapter you should be able to: Separate computation from side effects and design functions with explicit inputs, outputs, and failure semantics.

@@ -1,7 +1,7 @@
 ---
 title: "Interview lab — operate a Slurm and BCM GPU cluster"
 slug: "slurm-bcm-interview-lab"
-sidebar_position: 0.2
+sidebar_position: 6.5
 description: "A safe, evidence-driven practice lab for Slurm scheduling, BCM lifecycle management, GPU admission and senior interview answers."
 source_document: "Authored directly as a companion foundation chapter."
 ---
