@@ -52,7 +52,9 @@ const config: Config = {
       options: {
         themeVariables: {
           primaryColor: '#76b900', primaryTextColor: '#0d110f', primaryBorderColor: '#568c0b',
-          lineColor: '#8acb25', secondaryColor: '#131915', tertiaryColor: '#f4f6f3',
+          lineColor: '#8acb25', secondaryColor: '#f4f6f3', secondaryTextColor: '#0d110f',
+          tertiaryColor: '#f4f6f3', tertiaryTextColor: '#0d110f', textColor: '#0d110f',
+          edgeLabelBackground: '#f4f6f3', nodeTextColor: '#0d110f', clusterBkg: '#f4f6f3', clusterBorder: '#ccd5ca',
           fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif', fontSize: '15px',
         },
       },
