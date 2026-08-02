@@ -563,6 +563,68 @@ python -m pytest -q
 
 A virtual environment isolates project packages from the base interpreter environment. It does not by itself lock exact versions; record project dependencies and use an appropriate lock/reproducible build process.
 
+### The main guard and an exit-code contract, worked concretely
+
+The "clear errors and exit codes" step above is worth seeing as actual code once, because the shape is reused constantly in infrastructure tooling. A script's exit code is its interface to whatever calls it — a shell, a cron job, a CI pipeline — and that interface deserves the same explicit contract as a function's return value:
+
+```python
+import json
+from pathlib import Path
+
+
+def load_nodes(path: Path) -> list[dict]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, list):
+        raise ValueError("top-level JSON value must be a list")
+    return data
+
+
+def classify_node(observed_gpus: int, temperature_c: float) -> str:
+    if observed_gpus != 8:
+        return "CRITICAL"
+    if temperature_c >= 75:
+        return "WARNING"
+    return "OK"
+
+
+def main() -> int:
+    try:
+        nodes = load_nodes(Path("nodes.json"))
+    except (OSError, json.JSONDecodeError, ValueError) as error:
+        print(f"ERROR: cannot load inventory: {error}")
+        return 2
+
+    critical = False
+    for node in nodes:
+        status = classify_node(node["gpus"], node["temperature_c"])
+        print(f'{node["name"]}: {status}')
+        critical = critical or status == "CRITICAL"
+
+    return 1 if critical else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+```
+
+`main()` returns a plain `int`; it never calls `print` for status codes and never calls `exit()` directly. `raise SystemExit(main())` is what actually turns that returned integer into the process's real exit code, and it only runs `main()` at all when the file is executed directly (see the module-execution material later in this chapter for exactly why `__name__ == "__main__"` matters) — not when the file is imported elsewhere, say, so its functions can be unit-tested without triggering the whole program.
+
+A useful three-way contract for a health-check-style tool:
+
+- `0` — the tool ran successfully and found nothing critical;
+- `1` — the tool ran successfully and found at least one critical condition (an application-level finding, not a tool failure);
+- `2` — the tool itself could not complete (bad input, missing file, unhandled error) — a different kind of failure than a critical finding.
+
+Keep that distinction sharp: exit `1` means the check worked and reported bad news; exit `2` means the check itself is the bad news. A monitoring system alerting on "any nonzero exit" without distinguishing the two will treat "GPU overheating" and "someone deleted the config file" as the same event, which they are not.
+
+**Check your understanding**
+
+**Q1: Why does `main()` return an `int` instead of calling `exit()` or `sys.exit()` internally?**
+A: So `main()` stays a plain, testable function — call it directly in a test and assert on its return value, with no process-exiting side effect to work around. `raise SystemExit(main())` is the one place, outside any test, that turns the returned value into an actual process exit code.
+
+**Q2: A caller sees exit code `1` from this script. Should it treat that the same as exit code `2`?**
+A: No. `1` means the check completed and found a critical node — a real finding about the system being checked. `2` means the tool itself failed to run properly — a problem with the tool or its input, not necessarily with what it was checking. Alerting logic that conflates them loses the distinction between "bad news" and "broken tool."
+
 ### Guided progression from script to tool
 
 1. hard-coded values and pure decision;
@@ -642,8 +704,6 @@ Then run the smallest example locally, change one input, and predict the output 
 - Load and validate JSON while keeping syntax, shape, and field failures distinct.
 - Read a traceback from the final exception upward and explain the call path.
 - Define timeout, exit-code, retry, idempotency, and sensitive-logging contracts before adding an external effect.
-
-For guided practice on exactly these fundamentals, see the [Python foundation lab](/curriculum/intro/python-foundation-lab), which builds one complete health-check program step by step.
 
 With that syntax comfortable, here's why Python's object model matters in production.
 

@@ -11,13 +11,13 @@ source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 
 From scripting syntax to reliable infrastructure tooling
 
-> **Prerequisite check:** If variables, `if`, loops, functions, tracebacks, JSON files, the main guard, or exit codes are not yet comfortable, complete the [Python foundation lab](../intro/05-python-foundation-lab.md) first. This volume should deepen a working beginner model, not force you to learn syntax and production design simultaneously.
+> **Prerequisite check:** If variables, `if`, loops, functions, tracebacks, JSON files, the main guard, or exit codes are not yet comfortable, work through the **Foundations** section at the top of Chapter 1 first — it builds a complete health-check program, one small stage at a time, from bare variables through JSON input, the main guard, and a documented exit-code contract. This volume should deepen a working beginner model, not force you to learn syntax and production design simultaneously.
 
 ## A gentler three-stage route
 
 ### Stage 1 — become comfortable writing small programs
 
-Complete the foundation lab, then Chapters 1–4. Run every example and change one input. Your goal is to predict behavior, read errors, and separate data from decisions—not to memorize Python terminology.
+Work through Chapter 1's Foundations section, then Chapters 1–4. Run every example and change one input. Your goal is to predict behavior, read errors, and separate data from decisions—not to memorize Python terminology.
 
 **Gate:** Build a script that reads a JSON inventory, classifies each node, prints a result, and returns a documented exit code.
 

@@ -94,6 +94,56 @@ A: It's blocked — the rule set only explicitly allows port 443, and the descri
 **Q2: How is a firewall conceptually similar to the file permission model from the Linux chapter?**
 A: Both are rule-based access control: file permissions decide who (owner/group/other) can do what (read/write/execute) to a file; a firewall decides what traffic (by address/port/protocol) is allowed to pass. Same underlying idea — explicit rules deciding allowed access — applied to a different resource.
 
+### What a route is
+
+**The problem.** Knowing a destination's IP address isn't enough to actually send data there — a machine can be directly reachable on the same local network, or it might only be reachable by first handing the data to some other machine that knows how to get it closer to its destination. Something has to decide, for every packet, which direction "closer" even is.
+
+**The concept.** A **route** is a rule the kernel consults that says, for a given destination address (or range of addresses), which local network interface to send the packet out on and, if needed, which neighboring machine (the **gateway**, or next hop) to hand it to next. It's directly analogous to a road-trip direction: you don't need to know the destination's exact street the moment you leave your driveway — you just need to know which highway on-ramp gets you closer, and you re-consult directions at each turn. A route is that "which on-ramp" decision, made fresh for every packet.
+
+**The shape of it.** A machine keeps a routing table — a list of these destination-to-next-hop rules. When more than one rule could match the same destination, the kernel prefers the most specific one (this is covered in depth, with worked numbers, later in this chapter). Most machines also have a catch-all **default route** for "anything not otherwise matched," the way a road trip might default to "just keep heading toward the highway" absent more specific directions.
+
+**Evidence, not proof, applied here:** a routing table entry that says "reach this destination via this gateway" does not prove that gateway, or anything further along the path, is actually up and forwarding correctly right now. It only proves what this machine *intends* to do with a packet aimed at that destination — the rest of the path is a separate claim requiring separate evidence.
+
+#### Check your understanding
+
+**Q1: Why can't a machine just send every packet directly to its final destination, the way it sends a packet to a machine on the same local network?**
+A: Because most destinations aren't on the same local network — the packet has to be handed toward a neighboring machine (gateway) that's closer to the destination, one hop at a time, the same way a road trip is a sequence of "closer" decisions rather than one direct jump.
+
+**Q2: Does a routing table entry for a destination prove that destination is currently reachable?**
+A: No — it only proves what this machine intends to do with matching traffic (which interface/gateway it would use). Whether that gateway and every hop beyond it are actually up is a separate question requiring separate evidence.
+
+### NAT, in plain language
+
+**The problem.** IP addresses are a limited, structured resource, and many real networks (a home network, a Kubernetes cluster) use private addressing internally that outside networks don't know how to route to directly. Something has to translate between "the address this internal machine thinks it's using" and "the address the outside world can actually reach."
+
+**The concept.** **NAT** (Network Address Translation) rewrites the address (and often the port) information in a packet as it crosses a boundary, so that traffic from many internally-addressed machines can share one externally-visible address, or so that traffic aimed at one externally-visible address can be silently redirected to the right internal destination. It is a rewriting/forwarding function, not a routing decision — NAT doesn't decide *whether* a packet should go somewhere, only *what address it wears* while it does.
+
+**The shape of it.** A common shape is many internal machines sharing one public address for outbound traffic (the internal machines are invisible to the outside world unless something is deliberately exposed); another common shape — which this chapter's deeper material shows concretely for Kubernetes — is a fixed, stable address on one side (like a `Service` IP) getting quietly rewritten to whichever specific backend actually handles a given request. In both shapes, there is no process actually "listening on" the externally visible address the way a socket normally does — the address is real to the network, but it exists only as a rewrite rule.
+
+#### Check your understanding
+
+**Q1: Is NAT deciding where a packet should be routed, or something else?**
+A: Something else — NAT rewrites address/port information as a packet crosses a boundary; routing (a separate mechanism) still decides which interface/gateway the packet actually travels through.
+
+**Q2: If an address is implemented purely as a NAT rewrite rule with no process listening on it, what would you expect a tool that checks "who is listening on this address" to show?**
+A: Nothing — there's no listening socket to find, because the address was never bound by a process. The only evidence of its existence is the rewrite rule itself, not a listener.
+
+### TLS, in plain language
+
+**The problem.** A plain TCP connection moves bytes reliably, but it does nothing to stop a third party from reading those bytes in transit, or to prove that the machine on the other end is actually who it claims to be.
+
+**The concept.** **TLS** (Transport Layer Security) runs on top of an established TCP connection and does two separable jobs: it lets one or both sides cryptographically prove their identity (using a certificate), and it encrypts the data that flows afterward so a third party observing the traffic can't read it. This is analogous to a sealed, signed envelope handed over only after you've checked the courier's ID: the ID check is the identity/certificate part, and the sealed envelope is the encryption part — and importantly, both happen only *after* the courier (TCP) has already successfully reached your door.
+
+**The shape of it.** TLS negotiation is its own distinct phase, happening after TCP connects and before any application data (like an HTTP request) is exchanged. That ordering matters for diagnosis: a connection can complete TCP successfully and still fail during TLS negotiation — because of an untrusted or expired certificate, a hostname mismatch, or incompatible protocol versions — which is a completely different failure from "TCP never connected" or "the application returned an error."
+
+#### Check your understanding
+
+**Q1: A connection completes its TCP handshake but then fails during certificate verification. Does that mean the network path is broken?**
+A: No — the network path is proven fine (TCP is a later, harder-to-reach phase than routing/connectivity). The failure is in the TLS identity-verification step, a separate boundary from whether packets can reach the destination at all.
+
+**Q2: Why can TLS's two jobs (identity verification and encryption) fail independently of each other in principle, even though they happen in the same handshake?**
+A: Because they answer different questions — "is this really who it claims to be?" versus "can a third party read this traffic?" — so it's meaningful to reason about a certificate being technically untrusted while the encryption itself is mechanically sound, or vice versa; they're bundled into one handshake but conceptually separate guarantees.
+
 ### A brief, honest preview: why HPC/AI networking is a different world
 
 Everything above describes typical web-service networking — the kind of networking most backend and DevOps work deals with day to day. Volume 6 covers a genuinely different world: high-performance computing (HPC) and AI training networking, using technologies like **RDMA** and **InfiniBand**.
@@ -117,6 +167,10 @@ A: AI training on multiple GPUs needs to move very large amounts of data between
 - **TCP** — a connection-based network protocol that guarantees ordered, acknowledged delivery, at the cost of setup and overhead.
 - **UDP** — a connectionless network protocol that sends data immediately with no delivery or order guarantees, favoring speed.
 - **DNS** — the system that translates human-readable names into IP addresses, separate from the actual data-transfer protocols.
+- **Route** — a rule deciding which interface/gateway a packet should be sent through to reach a given destination.
+- **Gateway / next hop** — the neighboring machine a route hands a packet to, to move it closer to its destination.
+- **NAT (Network Address Translation)** — rewriting address/port information as a packet crosses a boundary; a rewrite function, not a routing decision.
+- **TLS (Transport Layer Security)** — a layer on top of an established TCP connection that verifies identity via certificates and encrypts subsequent data.
 - **Firewall** — a rule-based gate that decides what network traffic is allowed to pass, based on criteria like address, port, or protocol.
 - **RDMA (Remote Direct Memory Access)** — a technique that lets one machine/GPU write directly into another's memory, bypassing the CPU and OS on the data path, for speed.
 - **InfiniBand** — a high-speed networking technology commonly used to carry RDMA-style traffic in HPC/AI environments.
@@ -126,6 +180,9 @@ A: AI training on multiple GPUs needs to move very large amounts of data between
 - Explain what an IP address identifies and why a port is needed in addition to it.
 - Explain the TCP-vs-UDP trade-off in your own words, using the phone call / shouting-into-a-crowd analogy or an equivalent of your own.
 - Explain why DNS is a separate system from the actual data transfer.
+- Explain what a route decides, and why a routing table entry does not prove the rest of the path is reachable.
+- Explain why NAT is a rewrite function, not a routing decision, and why a NAT-only address has no listening socket to find.
+- Explain why TLS is a separate phase after TCP connects, and why it can fail (certificate, hostname, protocol) independently of the network path.
 - Describe a firewall as a rule-based allow/deny gate, and connect it to the file-permission access-control idea from the Linux chapter.
 - State the one-sentence core idea behind RDMA (bypassing CPU/OS for direct memory-to-memory transfer) without needing to explain its implementation.
 

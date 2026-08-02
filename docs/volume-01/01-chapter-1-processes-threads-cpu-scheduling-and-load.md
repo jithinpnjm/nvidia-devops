@@ -255,6 +255,22 @@ journalctl -u example.service --since "15 minutes ago" --no-pager
 
 Status describes current/most recent unit state; the journal provides a timeline. Capture both before restarting. A restart can mitigate impact, but it can also erase process state and change the evidence you were trying to understand.
 
+### Authentication versus authorization: two different questions
+
+**The problem.** "Access denied" collapses two genuinely different failures into one message. A request can be rejected because the system doesn't know who is asking, or because the system knows exactly who is asking and has decided they still aren't allowed to do this specific thing. Treating those as the same problem sends you looking in the wrong place.
+
+**The concept.** **Authentication** answers "who are you?" — proving identity through something like a password, an SSH key, a certificate, or a token. **Authorization** answers a completely separate question asked only *after* identity is settled: "now that I know who you are, what are you allowed to do?" — decided through mechanisms like the owner/group/other bits from earlier in this section, an ACL, a `sudo` rule, or an RBAC policy. This is the same two-step pattern as a building with a keycard door and then locked internal offices: the keycard at the front door is authentication (proving you're an employee); which internal doors your specific keycard opens is authorization (deciding what that employee is allowed into). A valid keycard that opens the front door does not imply it opens every office.
+
+**The shape of it.** Every access decision on a Linux system runs through both steps in order: first establish identity (authentication), then check whether that identity is permitted the specific action requested (authorization). A failure can happen at either step, and the fix for one is never the fix for the other — issuing someone a valid login does nothing for a permissions error, and loosening a permission does nothing for a login that was never accepted in the first place.
+
+**Check your understanding**
+
+**Q1: A user's SSH key is accepted and they get a shell on the machine, but `cat /etc/shadow` still fails with "permission denied." What happened?**
+A: Authentication succeeded (the key proved who they are) and authorization failed (their identity isn't permitted to read that specific file). Two separate checks, two separate outcomes — fixing the login wouldn't help here at all.
+
+**Q2: Why doesn't it make sense to "fix" an authorization failure by giving the user a new password or key?**
+A: Because a new credential only affects the authentication step (proving identity again, the same identity as before) — it does nothing to the authorization step, which is a separate policy decision about what that already-proven identity is allowed to do.
+
 ### Guided lab — diagnose a local HTTP service
 
 In one terminal, start a disposable unprivileged service:
@@ -329,6 +345,8 @@ A: Remote routing, firewall policy, non-loopback binding, TLS, authentication, a
 - **Namespace** — a kernel mechanism that changes which resources a process can see.
 - **cgroup** — a kernel mechanism that accounts for and constrains resources used by a process group.
 - **systemd** — the service manager used to start and supervise services on many Linux distributions.
+- **Authentication** — proving who is making a request (password, SSH key, certificate, token).
+- **Authorization** — deciding what an already-identified requester is permitted to do (mode bits, ACL, sudo rule, RBAC policy).
 
 ### Before you go deeper, make sure you can...
 
@@ -338,6 +356,7 @@ A: Remote routing, firewall policy, non-loopback binding, TLS, authentication, a
 - Read a permission string like `rwxr-xr--` and state exactly what owner, group, and other can each do.
 - Explain why the shell is a program and not the kernel.
 - State, in one sentence, what problem a package manager solves beyond "installing files."
+- Explain the difference between authentication and authorization, and why fixing one never fixes a failure in the other.
 - Trace a request through process, resolver, socket, route, remote service, and application boundaries.
 - State what `ps`, `findmnt`, `ip route get`, `ss`, and `systemctl` each prove—and what remains unproved.
 

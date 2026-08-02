@@ -65,24 +65,22 @@ Do not call a subject "complete" because you read it. Mark the highest level you
 
 ### One chapter per topic, foundation first
 
-Every topic's foundation and its advanced/senior material now live on the same page — the opening chapter of each volume below starts with a **Foundations** section (plain-language definitions, concrete analogies, worked "evidence versus proof" examples, check-your-understanding questions with immediate answers, a glossary, and a readiness checklist) and flows directly into the full advanced chapter right below it. There is no separate primer volume to jump to and lose your place in.
-
-The three pages linked below ([Systems foundation](./03-systems-foundation.md), [AI, GPU and HPC language](./04-ai-gpu-hpc-foundation.md), [Python foundation lab](./05-python-foundation-lab.md)) remain as **compressed reference companions** — dense tables and a hands-on guided lab, good for a fast lookup or a second pass once the concept is already familiar, but not the place to meet a brand-new concept for the first time.
+Every topic's foundation and its advanced/senior material now live on the same page — the opening chapter of each volume below starts with a **Foundations** section (plain-language definitions, concrete analogies, worked "evidence versus proof" examples, check-your-understanding questions with immediate answers, a glossary, and a readiness checklist) and flows directly into the full advanced chapter right below it. There is no separate primer volume, and no separate compressed-reference page, to jump to and lose your place in — every fundamental has been merged into its own volume and chapter.
 
 Read **[How to use this book: evidence, not proof](./00-how-to-use-this-book-evidence-not-proof.md)** first — it's short, and every "Foundations" section below assumes you've internalized that habit.
 
 ### Route A — new to Linux, GPU, AI and HPC
 
 1. [How to use this book: evidence, not proof](./00-how-to-use-this-book-evidence-not-proof.md)
-2. [Volume 1, Chapter 1](/curriculum/volume-01/chapter-1-processes-threads-cpu-scheduling-and-load) — opens with Linux fundamentals *(companion: [Systems foundation](./03-systems-foundation.md))*
-3. [Volume 1, Chapter 4](/curriculum/volume-01/chapter-4-networking-ip-routes-sockets-tcp-dns-nat-and-tls) — opens with networking fundamentals *(companion: [Systems foundation](./03-systems-foundation.md))*
-4. [Volume 1, Chapter 3](/curriculum/volume-01/chapter-3-files-file-descriptors-filesystems-and-block-i-o) — opens with storage/filesystem fundamentals *(companion: [Systems foundation](./03-systems-foundation.md))*
+2. [Volume 1, Chapter 1](/curriculum/volume-01/chapter-1-processes-threads-cpu-scheduling-and-load) — opens with Linux fundamentals
+3. [Volume 1, Chapter 4](/curriculum/volume-01/chapter-4-networking-ip-routes-sockets-tcp-dns-nat-and-tls) — opens with networking fundamentals
+4. [Volume 1, Chapter 3](/curriculum/volume-01/chapter-3-files-file-descriptors-filesystems-and-block-i-o) — opens with storage/filesystem fundamentals
 5. Volume 1, Chapters 2, 5–6; postpone its senior deep dives.
-6. [Volume 2, Chapter 1](/curriculum/volume-02/chapter-1-how-python-actually-executes-your-infrastructure-script) — opens with Python fundamentals *(hands-on companion: [Python from zero to safe automation](./05-python-foundation-lab.md))*
+6. [Volume 2, Chapter 1](/curriculum/volume-02/chapter-1-how-python-actually-executes-your-infrastructure-script) — opens with Python fundamentals
 7. Volume 2, Chapters 2–8; build the small exercises before advanced Python — or start at [Senior DevOps labs, Tier 1](/labs) if you'd rather learn by doing.
 8. [Volume 3, Chapter 1](/curriculum/volume-03/chapter-1-api-server-etcd-and-the-object-model) — opens with containers/Kubernetes fundamentals
 9. Volume 3, Chapters 2–6 for the rest of Kubernetes fundamentals.
-10. [Volume 4, Chapter 1](/curriculum/volume-04/chapter-1-gpu-execution-and-memory-mental-model) — opens with GPU/CUDA fundamentals, [Volume 5, Chapter 1](/curriculum/volume-05/chapter-1-classify-the-ai-workload-before-designing-infrastructure) — opens with AI/ML fundamentals, and [Volume 6, Chapter 1](/curriculum/volume-06/chapter-1-distributed-systems-performance-for-gpu-jobs) — opens with HPC fundamentals *(companion: [AI, GPU and HPC language](./04-ai-gpu-hpc-foundation.md))*
+10. [Volume 4, Chapter 1](/curriculum/volume-04/chapter-1-gpu-execution-and-memory-mental-model) — opens with GPU/CUDA fundamentals, [Volume 5, Chapter 1](/curriculum/volume-05/chapter-1-classify-the-ai-workload-before-designing-infrastructure) — opens with AI/ML fundamentals, and [Volume 6, Chapter 1](/curriculum/volume-06/chapter-1-distributed-systems-performance-for-gpu-jobs) — opens with HPC fundamentals
 11. Volume 4, Chapters 2–6; then Volume 5, Chapters 2–5.
 12. Volume 6, Chapters 2–8; then Volume 7 incident chapters.
 13. [Volume 10, Chapter 3](/curriculum/volume-10/chapter-3-os-provisioning-and-linux-security-hardening) — opens with Linux/cluster security fundamentals.
@@ -90,7 +88,7 @@ Read **[How to use this book: evidence, not proof](./00-how-to-use-this-book-evi
 
 ### Route B — experienced DevOps engineer, new to accelerated computing
 
-Read the Foundations section at the top of Volume 4, 5, and 6 Chapter 1 and prove their readiness checks — use the [AI, GPU and HPC language](./04-ai-gpu-hpc-foundation.md) companion page as a fast second-pass reference. Then study the rest of Volume 4, Volume 5, Volume 6, and Volume 10. Use Volume 1 Chapters 1/3/4 and Volume 10 Chapter 3's Foundations sections, and Volumes 1–3 generally, only when a readiness check exposes a gap.
+Read the Foundations section at the top of Volume 4, 5, and 6 Chapter 1 and prove their readiness checks. Then study the rest of Volume 4, Volume 5, Volume 6, and Volume 10. Use Volume 1 Chapters 1/3/4 and Volume 10 Chapter 3's Foundations sections, and Volumes 1–3 generally, only when a readiness check exposes a gap.
 
 ### Route C — interview refresh
 

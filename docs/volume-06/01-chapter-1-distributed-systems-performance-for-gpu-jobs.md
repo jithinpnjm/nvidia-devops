@@ -220,6 +220,8 @@ Remote Direct Memory Access allows a network adapter to perform operations invol
 
 A training framework may use Slurm for allocation, PMIx/MPI for launch/control coordination and NCCL for GPU tensor collectives. A failure before every rank launches should not begin with NCCL tuning.
 
+**Where containers fit inside a Slurm allocation.** Slurm allocates bare machines/GPUs to a job, but most real training workloads still want to run inside a container image for the same reasons they do anywhere else — a consistent, portable user-space environment. **Enroot** unpacks and runs a container image as an unprivileged user process on a compute node, without requiring a persistent container daemon. **Pyxis** is a Slurm plugin that lets `srun`/`sbatch` requests specify a container image directly, so Slurm launches each rank's process already inside its Enroot container instead of a bare host process. The distinction worth keeping straight: Slurm decides *which nodes and GPUs* a job gets; Enroot/Pyxis decide *what user-space environment* each launched process actually runs inside. A job failing to start can be a Slurm allocation problem, an Enroot image/unpack problem, or an application problem inside an otherwise-correctly-launched container — three different boundaries that "the job didn't start" collapses into one symptom.
+
 ### Collective communication and stragglers
 
 An all-reduce combines values across ranks and distributes the result. Every participating rank must reach compatible collective calls. One missing, delayed or mismatched rank can stall peers.
@@ -334,6 +336,8 @@ A: The participants must reach compatible collective operations before the group
 - **PMIx** — an interface used to exchange process and rank bootstrap information with launchers and runtimes.
 - **Parallel filesystem** — shared storage designed to serve data across many concurrent cluster clients.
 - **Checkpoint** — saved workload state that permits restart after interruption.
+- **Enroot** — runs a container image as an unprivileged process on a compute node, without a persistent container daemon.
+- **Pyxis** — a Slurm plugin that lets `srun`/`sbatch` launch each rank's process inside an Enroot container directly.
 
 ### Before you go deeper, make sure you can...
 
@@ -343,6 +347,7 @@ A: The participants must reach compatible collective operations before the group
 - Explain, at the concept level only, what MPI lets separate processes do — without needing its API yet.
 - State the one-sentence reason network speed matters more in HPC than in typical web services, and give a first example of evidence (not proof) that a network issue is affecting a coordinated job.
 - Distinguish scheduler allocation, PMIx/rank bootstrap, MPI process communication, and NCCL GPU collectives.
+- Explain what Enroot and Pyxis each add on top of a Slurm allocation, and why a failed job launch could be a Slurm, Enroot, or application-inside-the-container problem.
 - Explain how Ethernet, InfiniBand, RoCE, RDMA, and GPUDirect relate without using them as synonyms.
 - Walk a one-node-success/two-node-failure case through rank, transport, fabric, collective, storage, and application evidence.
 
