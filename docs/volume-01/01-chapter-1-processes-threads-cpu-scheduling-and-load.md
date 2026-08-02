@@ -6,158 +6,9 @@ description: "Chapter 1 - Processes, threads, CPU scheduling and load — Founda
 source_document: "Volume_01_Foundations_Beneath_Kubernetes(3).docx"
 ---
 
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["hardware"]
-  n1["kernel"]
-  n2["processes"]
-  n3["services/applications"]
-  n4["remote users/systems"]
-  n5["CPU/RAM controls execute provide work communicate"]
-  n6["disk/NIC resources code through ports/files through networks"]
-  n0 --> n1
-  n1 --> n2
-  n2 --> n3
-  n3 --> n4
-```
+## Foundations: start here if this is new to you
 
-- **Hardware** supplies CPU, memory, disks, NICs, and GPUs.
-- The **kernel** is the privileged core of Linux. It schedules CPU time, manages memory, exposes devices, filesystems, and networking, and enforces isolation.
-- A **process** is a running program with a PID, memory, open files, credentials, and threads.
-- A **service** is a long-running function, often managed by systemd—for example SSH, a web server, `slurmd`, or `kubelet`.
-- A remote client reaches a service through an address, route, protocol, and port.
-
-When something fails, locate the boundary instead of starting with a random command.
-
-|---|---|---|
-| Process | One running instance of a program | `ps`, `top`, `/proc/PID` |
-| Thread | An execution path inside a process | `ps -L`, `top -H` |
-| PID | Numeric process identifier | `ps -p PID` |
-| User/group | Security identities attached to processes and files | `id`, `ps -o user,group` |
-| File descriptor | Process-local handle to file, socket, pipe, or device | `ls -l /proc/PID/fd` |
-| Virtual memory | Per-process address space mapped by the kernel | `pmap`, `/proc/PID/maps` |
-| Page cache | RAM the kernel uses to cache file data | `free`, `/proc/meminfo` |
-| Mount | A filesystem attached at a directory | `findmnt` |
-| Device | Kernel representation of hardware or virtual hardware | `lspci`, `lsblk`, `/dev` |
-| Service/unit | Work supervised by systemd | `systemctl status NAME` |
-| Journal | Structured systemd/kernel log store | `journalctl` |
-
-### Trace one command
-
-When you run `curl https://example.com`, the shell starts a `curl` process. The process asks a resolver for an IP, opens a socket, the kernel selects a route and source address, TCP connects to port 443, TLS authenticates/encrypts the session, and HTTP exchanges data. "Curl failed" is therefore not one diagnosis.
-
-2. **Time:** when did it begin and what changed nearby?
-3. **Resource:** CPU, memory, disk capacity/I/O, network, device, dependency, or policy?
-4. **Process/service:** running, restarting, blocked, or killed?
-5. **Path:** can each boundary in the normal request/data path be demonstrated?
-6. **Comparison:** what differs from a known-good peer?
-7. **Mitigation:** what is the smallest reversible action that protects users?
-
-## The first working model
-
-| Layer | Responsibility | Example evidence |
-|---|---|---|
-| Hardware | CPU, RAM, disk, NIC and GPU resources | `lscpu`, `lsblk`, `lspci` |
-| Kernel | Scheduling, memory, devices, filesystems, networking and isolation | `/proc`, `dmesg`, pressure and device state |
-| Process | A running program with identity, memory, threads and open resources | `ps`, `top`, `/proc/PID` |
-| Service | Long-running system or application function | `systemctl`, `journalctl` |
-| Application/workload | User-visible work such as an API or training job | application logs and outcome metrics |
-
-When an application is slow, the application may be the cause—or it may be waiting on CPU scheduling, memory reclaim, storage, DNS, a remote dependency, a GPU, or another process. Volume 1 teaches the boundaries needed to tell those apart.
-
-## Essential language
-
-- A **program** is code stored on disk; a **process** is one running instance of it.
-- A **thread** is an execution path inside a process.
-- The **kernel** is privileged software controlling hardware and enforcing system rules.
-- A **system call** is how a process requests a kernel operation.
-- **Virtual memory** is the address-space view given to a process; it is not the same as physical RAM usage.
-- A **file descriptor** is a process-local handle to a file, socket, pipe or device.
-- A **filesystem** organizes files; a **mount** attaches one to the directory tree.
-- A **socket** is a communication endpoint, usually identified through protocol, address and port.
-- A **namespace** changes what resources a process can see.
-- A **cgroup** accounts for and constrains resource use by a group of processes.
-- **systemd** starts and supervises services on many Linux distributions.
-
-Do not worry if these definitions still feel abstract. Each core chapter traces one of them through a real system.
-
-## A real-life example
-
-A GPU training job is slow even though Kubernetes reports its Pod as Running. That status says orchestration succeeded; it does not prove the Linux host is healthy. The process may be CPU-throttled, blocked on storage I/O, placed far from its GPU/NIC NUMA domain, reclaiming memory, or waiting on the network. A senior investigation needs Volume 1's process, memory, storage and network models before looking at GPU-specific tooling.
-
-## Follow one request through Linux
-
-When you run `curl https://example.com`, several ordinary Linux mechanisms cooperate:
-
-```mermaid
-sequenceDiagram
-  participant S as Shell
-  participant P as curl process
-  participant K as Linux kernel
-  participant DNS as DNS resolver/server
-  participant R as Network path
-  participant A as Remote application
-  S->>P: create process with arguments/environment
-  P->>DNS: resolve example.com
-  DNS-->>P: return address
-  P->>K: create socket and connect to IP:443
-  K->>R: route packets through interface/gateway
-  R->>A: TCP and TLS session, then HTTP request
-  A-->>P: HTTP response bytes
-  P-->>S: output and exit status
-```
-
-This gives you a reusable failure tree:
-
-- shell says command not found: executable/path/package boundary;
-- name resolution fails: resolver configuration or DNS path;
-- no route: address/interface/routing boundary;
-- connection timeout/refused: packet path, firewall, listener or service state;
-- TLS fails: identity, trust, protocol or time boundary;
-- HTTP error: application/authentication/authorization/request boundary.
-
-"The network is broken" skips every useful boundary.
-
-## Processes, CPU and waiting
-
-The shell asks the kernel to create a process. A process receives a PID, credentials, virtual address space and file descriptors. One or more threads become runnable when they have CPU work. The scheduler chooses when runnable threads execute.
-
-Processes can also sleep while waiting for timers, files, sockets, locks or devices. Linux load average includes runnable work and certain uninterruptible waits, so high load is not automatically high CPU utilization.
-
-First observations:
-
-```bash
-ps -eo pid,ppid,user,stat,pcpu,pmem,comm --sort=-pcpu | head
-uptime
-vmstat 1 5
-```
-
-Representative `ps` fields:
-
-| Field | Meaning |
-|---|---|
-| PID/PPID | process and parent identifiers |
-| STAT `R` | runnable/running |
-| STAT `S` | interruptible sleep, commonly waiting |
-| STAT `D` | uninterruptible sleep, often an I/O/kernel wait requiring investigation |
-| `%CPU` | sampled CPU use over the tool's accounting interval |
-| COMMAND | executable name, not necessarily full purpose/context |
-
-Do not kill a `D`-state process merely because it appears stuck. First identify its wait channel, files and dependency; killing may not complete until the kernel wait returns.
-
-## Common beginner mistakes
-
-- treating `top` as a root-cause tool instead of orientation;
-- reading only `MemFree` and declaring a leak;
-- checking the root filesystem when the application uses another mount;
-- assuming DNS, routing, TCP, TLS and HTTP are one test;
-- restarting before preserving logs and state;
-- confusing a systemd unit, process, container and Kubernetes Pod;
-- using broad permission changes instead of finding the denying control.
-
-## Start with the basics
-
-This section will not make you a Linux expert. Its only job is to give you the vocabulary and working models the rest of this chapter assumes you already have, so you can read the internals-level content below without getting stuck decoding basic terms mid-paragraph. If a term below already feels obvious to you, skim it and move on — but read the sections that don't.
+This section will not make you a Linux expert. Its only job is to give you the vocabulary and mental models the rest of this chapter assumes you already have, so you can read the internals-level content below without getting stuck decoding basic terms mid-paragraph. If a term below already feels obvious to you, skim it and move on — but read the sections that don't.
 
 ### What a kernel actually does
 
@@ -315,6 +166,8 @@ Independent study guide based on public documentation and public practitioner ma
 Figure 1. Move downward through abstractions until the symptom maps to a mechanism.
 
 # Chapter 1 — Processes, threads, CPU scheduling and load
+*(original text preserved in full below; additions marked with ➕ so you can see exactly what changed)*
+
 **Learning outcome:** Explain process/thread state, scheduler queues, CPU time, context switches, load average, throttling and the evidence that distinguishes them.
 
 ## 1.1 Process and thread model
@@ -328,7 +181,7 @@ cat /proc/<PID>/status
 ls -l /proc/<PID>/fd | head
 ```
 
-**Sample output, annotated** (what you're actually looking for):
+➕ **Sample output, annotated** (what you're actually looking for):
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -340,7 +193,7 @@ flowchart TD
 ```
 The `D` line is the one that fools people: 0% CPU looks "fine" in a CPU-only dashboard, but a process stuck in `D` is exactly what inflates load average while CPU graphs look calm — this is the gap between "looks idle" and "is blocked" that Kubernetes CPU-based HPA metrics will completely miss.
 
-**Process state machine (what actually drives the transitions):**
+➕ **Process state machine (what actually drives the transitions):**
 ```mermaid
 flowchart TD
     Start([fork()/clone()]) --> Runnable["Runnable (R)"]
@@ -354,7 +207,7 @@ flowchart TD
     Zombie -->|reaped| Freed[slot freed]
 ```
 
-**Key takeaway:** *"RSDZT — Running Steadily, Dead Zombies Trapped."* R=running/runnable, S=sleeping (interruptible), D=disk-wait (uninterruptible — can't even `kill -9` it out, you have to wait for the I/O), Z=zombie (exited, unreaped), T=traced/stopped. The one to instinctively distrust in dashboards is D — it's invisible to CPU metrics and immune to normal signals.
+➕ **Memory hook:** *"RSDZT — Running Steadily, Dead Zombies Trapped."* R=running/runnable, S=sleeping (interruptible), D=disk-wait (uninterruptible — can't even `kill -9` it out, you have to wait for the I/O), Z=zombie (exited, unreaped), T=traced/stopped. The one to instinctively distrust in dashboards is D — it's invisible to CPU metrics and immune to normal signals.
 
 ## 1.2 Process states
 | State | Meaning | Operational clue |
@@ -367,7 +220,7 @@ flowchart TD
 
 D state is a classic reason load can be high while CPU utilization is not. Load average includes runnable tasks and tasks in uninterruptible sleep, so it is a queue-pressure signal, not a CPU percentage.
 
-**Shortcut — find every D-state process on a box in one line, ranked by how long it's been stuck:**
+➕ **Shortcut — find every D-state process on a box in one line, ranked by how long it's been stuck:**
 ```bash
 for p in $(ps -eo pid,stat | awk '$2 ~ /D/ {print $1}'); do
   echo "PID $p: $(cat /proc/$p/comm 2>/dev/null) — waiting on: $(cat /proc/$p/wchan 2>/dev/null)"
@@ -375,7 +228,7 @@ done
 ```
 `/proc/<pid>/wchan` names the *kernel function* it's blocked in — e.g. `wait_on_page_bit` (page cache I/O) vs `nfs_wait_bit_uninterruptible` (NFS specifically) — this single field turns "something is stuck" into "NFS is the actual root cause" in one command, which is exactly the kind of evidence-first move a Senior SA interview is scoring you on.
 
-**Zombie cleanup reality check:** a zombie holds almost no resources (just a PID table entry + exit status) — the real problem is never the zombie itself, it's *why the parent isn't calling `wait()`* (buggy supervisor, or — very common in containers — PID 1 in a container image not reaping children at all, which is why `tini`/`dumb-init` exist as PID 1 wrappers). If asked "what's wrong with a container full of zombies," the answer is about PID 1 responsibility, not the zombies.
+➕ **Zombie cleanup reality check:** a zombie holds almost no resources (just a PID table entry + exit status) — the real problem is never the zombie itself, it's *why the parent isn't calling `wait()`* (buggy supervisor, or — very common in containers — PID 1 in a container image not reaping children at all, which is why `tini`/`dumb-init` exist as PID 1 wrappers). If asked "what's wrong with a container full of zombies," the answer is about PID 1 responsibility, not the zombies.
 
 ## 1.3 CPU scheduling, run queue and context switches
 Linux time-slices runnable tasks across CPUs according to scheduling policy and priority. A context switch changes the executing task. Context switches are normal, but extremely high rates can indicate excessive thread count, lock contention or I/O wakeups. The run queue tells you whether runnable work is waiting for CPU.
@@ -387,7 +240,7 @@ pidstat -u -w 1
 # vmstat: r=run queue, cs=context switches/s, us/sy/id/wa=CPU state percentages
 ```
 
-**Sample `vmstat 1` output, read left to right the way an interviewer wants to hear it:**
+➕ **Sample `vmstat 1` output, read left to right the way an interviewer wants to hear it:**
 ```
 $ vmstat 1
 procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
@@ -396,7 +249,7 @@ procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
 ```
 Reading order: **r=12** on (say) an 8-core box already tells you CPU is oversubscribed *before* looking at `us`/`sy` — 12 runnable tasks, 8 cores, 4 are queued no matter what. **b=3** means 3 more are blocked (D-state) on top of that — combine with 1.2's `wchan` trick to name what they're blocked on. `cs=9902` is high; cross-check against thread count and lock-heavy code paths, not "the CPU is broken."
 
-**Scheduling policy — the piece most engineers never touch but a Senior SA should know exists:** default is `SCHED_OTHER` (CFS, fair-share, nice-value weighted). Real-time policies (`SCHED_FIFO`, `SCHED_RR`) exist for latency-critical work and **can starve everything else** if misused — `chrt -p <pid>` shows/sets policy. Relevant to HPC/GPU nodes running latency-sensitive control-plane daemons (e.g. some RDMA/fabric management agents) alongside best-effort workloads — a mis-set real-time priority is a real, if rare, "why is everything else on this node starving" root cause.
+➕ **Scheduling policy — the piece most engineers never touch but a Senior SA should know exists:** default is `SCHED_OTHER` (CFS, fair-share, nice-value weighted). Real-time policies (`SCHED_FIFO`, `SCHED_RR`) exist for latency-critical work and **can starve everything else** if misused — `chrt -p <pid>` shows/sets policy. Relevant to HPC/GPU nodes running latency-sensitive control-plane daemons (e.g. some RDMA/fabric management agents) alongside best-effort workloads — a mis-set real-time priority is a real, if rare, "why is everything else on this node starving" root cause.
 
 ## 1.4 CPU quotas and throttling
 A container can be CPU-starved even when the host has idle CPU if cgroup quota restricts it. Kubernetes CPU limits can translate into CFS bandwidth control. Throttling evidence therefore belongs beside host CPU metrics when an application reports latency under low node utilization.
@@ -407,7 +260,7 @@ cat /sys/fs/cgroup/cpu.stat
 # look for nr_throttled / throttled_usec
 ```
 
-**Sample `cpu.stat` and the arithmetic that actually proves throttling:**
+➕ **Sample `cpu.stat` and the arithmetic that actually proves throttling:**
 ```mermaid
 flowchart LR
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -422,7 +275,7 @@ flowchart LR
 ```
 `nr_throttled / nr_periods` is your throttling *rate* — 32% here is severe. The tell-tale symptom pattern: **P99 latency spiking in short, regular sawtooth bursts** (every ~100ms period boundary) while host-level `%CPU` for the container looks unremarkable when averaged — averaging hides throttling because the pauses are sub-second. This is the single most common "why is my container slow when the node has plenty of CPU" root cause in Kubernetes, and it's a direct trap for anyone who checks `kubectl top pod` (an average) instead of `cpu.stat` (the actual enforcement counter).
 
-**Diagram: throttling sawtooth, period by period**
+➕ **Diagram: throttling sawtooth, period by period**
 ```mermaid
 flowchart LR
     subgraph P1["period 1"]
@@ -454,7 +307,7 @@ flowchart LR
 CPU time used by the container within each 100ms period (quota = 50ms → 0.5 core). P99 latency spikes land exactly once per period boundary, right where THROTTLED hands back to used.
 This is why throttling produces a regular, sawtooth-shaped latency pattern instead of steady degradation — the container runs at full speed until it exhausts its slice, then is frozen (not slowed) until the next period opens, and `kubectl top`'s per-minute average smooths the sawtooth away completely.
 
-**One-liner to check every pod on a node for throttling, not just one:**
+➕ **One-liner to check every pod on a node for throttling, not just one:**
 ```bash
 for cg in /sys/fs/cgroup/kubepods*/*/cpu.stat; do
   t=$(grep nr_throttled "$cg" | awk '{print $2}')
@@ -473,7 +326,7 @@ done
 
 **Conclusion:** The correct first branch is "runnable versus blocked versus throttled," not "CPU is high or low."
 
-**Second worked scenario — the throttling trap specifically** (complements the one above, which is D-state-focused; this one is the CPU-limit-focused mirror image):
+➕ **Second worked scenario — the throttling trap specifically** (complements the one above, which is D-state-focused; this one is the CPU-limit-focused mirror image):
 > **Situation:** A GPU-preprocessing sidecar container has `resources.limits.cpu: "2"`. Host shows 12 of 16 cores idle. The sidecar's P99 latency has 5x'd since a traffic increase, but average CPU usage for the container is only 40%.
 > 1. `kubectl top pod` shows 40% — looks fine, resist the urge to stop here.
 > 2. `cat cpu.stat` inside the container's cgroup → `nr_throttled` climbing fast → this is CFS bandwidth throttling, not a CPU shortage.
@@ -486,11 +339,11 @@ done
 2. Create CPU pressure with a stress tool in a lab and observe vmstat r, mpstat and load average.
 3. Find the cgroup of a container process and inspect CPU quota/statistics.
 
-4. Using the `wchan` one-liner above, put a process into D-state deliberately (e.g. `dd if=/dev/zero of=/mnt/slow-nfs-mount/test bs=1M` against a throttled/slow mount) and confirm you can name the blocking kernel function.
-5. Deliberately under-provision a container's CPU limit relative to its burst need, generate load, and reproduce the "`kubectl top` looks fine, `cpu.stat` shows throttling" mismatch yourself — this is the single highest-value lab exercise in this chapter for interview purposes.
+➕ 4. Using the `wchan` one-liner above, put a process into D-state deliberately (e.g. `dd if=/dev/zero of=/mnt/slow-nfs-mount/test bs=1M` against a throttled/slow mount) and confirm you can name the blocking kernel function.
+➕ 5. Deliberately under-provision a container's CPU limit relative to its burst need, generate load, and reproduce the "`kubectl top` looks fine, `cpu.stat` shows throttling" mismatch yourself — this is the single highest-value lab exercise in this chapter for interview purposes.
 
 ---
-## CPU diagnosis at production depth
+## ➕ Going deeper (added — this is the "even more depth" pass)
 
 ### perf and bpftrace for CPU scheduling (beyond vmstat/mpstat)
 `vmstat`/`mpstat` tell you *that* there's contention; `perf`/`bpftrace` tell you *which code path* is causing it.
@@ -518,7 +371,7 @@ chrt -p <pid>            # show current policy/priority
 chrt -f -p 50 <pid>       # set SCHED_FIFO priority 50 — dangerous outside controlled contexts
 ```
 
-**Diagram: who gets the CPU first (preemption order among classes)**
+➕ **Diagram: who gets the CPU first (preemption order among classes)**
 ```mermaid
 flowchart LR
     A["SCHED_FIFO (real-time) — run-to-completion until it yields or blocks"] --> B["SCHED_RR (real-time) — time-sliced among peers"]

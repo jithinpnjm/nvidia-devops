@@ -1,16 +1,16 @@
 ---
-title: "Chapter 18 - Slurm and BCM interview lab"
+title: "Interview lab — operate a Slurm and BCM GPU cluster"
 slug: "slurm-bcm-interview-lab"
-sidebar_position: 18
+sidebar_position: 0.2
 description: "A safe, evidence-driven practice lab for Slurm scheduling, BCM lifecycle management, GPU admission and senior interview answers."
-source_document: "Authored directly as a Volume 10 interview lab."
+source_document: "Authored directly as a companion foundation chapter."
 ---
 
-# Chapter 18 — Slurm and BCM interview lab
+# Interview lab — operate a Slurm and BCM GPU cluster
 
 This is a practice lab, not a promise that every command exists on every release. Run read-only commands in an authorized lab first, and verify mutating syntax against the installed Slurm and BCM manuals. The interview skill is to explain the control loop and evidence, not to recite a command from memory.
 
-## The one-minute working model
+## The one-minute mental model
 
 ```mermaid
 flowchart LR

@@ -1,8 +1,8 @@
 ---
-title: "Chapter 19 — Configuration is an API: validation, secrets and precedence"
+title: "Senior Deep Dive 2 — Configuration is an API: validation, secrets and precedence"
 slug: "senior-deep-dive-2-configuration-is-an-api-validation-secrets-and-precedence"
 sidebar_position: 19
-description: "Chapter 2 — Configuration is an API: validation, secrets and precedence — Python for Production Infrastructure."
+description: "Senior Deep Dive 2 — Configuration is an API: validation, secrets and precedence — Python for Production Infrastructure."
 source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 ---
 Production tools need deterministic configuration precedence. A common pattern is defaults &lt; config file &lt; environment &lt; explicit CLI flags. Fail early on malformed configuration, distinguish secret values from ordinary config, and never silently infer destructive targets. Treat configuration loading as a pure function so it is testable.
@@ -29,16 +29,16 @@ class Settings:
             raise ValueError("prometheus\_url must be http(s)")
         return cls(namespace, timeout\_s, url)
 
-## Build from the normal path
+## Senior addendum
 
-**The precedence chain, drawn out (the paragraph states it, this makes it checkable at a glance):**
+➕ **The precedence chain, drawn out (the paragraph states it, this makes it checkable at a glance):**
 ```
 defaults  <  config file  <  environment variables  <  explicit CLI flags
 (lowest precedence)                                    (highest precedence)
 ```
 `Settings.load()`'s `os.getenv("NAMESPACE", raw.get("namespace", "default"))` is this exact chain in one line, read right-to-left: try env var first, fall back to file value, fall back to hardcoded default. **Interview-ready line:** "the most specific, most recently-supplied source should always win — that's why CLI flags beat environment beats file beats code defaults, not the reverse."
 
-**Visual model — configuration crosses two boundaries:**
+➕ **Visual model — configuration crosses two boundaries:**
 ```mermaid
 flowchart LR
     A[raw file / env / CLI] --> B[parse]
@@ -48,4 +48,4 @@ flowchart LR
     B -.->|fail early, name source| B
     C -.->|no secret in logs| C
 ```
-**Key takeaway:** *"Precedence chooses; validation protects."* Treat configuration as input from an untrusted interface, even when it came from your own deployment system.
+**Memory hook:** *"Precedence chooses; validation protects."* Treat configuration as input from an untrusted interface, even when it came from your own deployment system.

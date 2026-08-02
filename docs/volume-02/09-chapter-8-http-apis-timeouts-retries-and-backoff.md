@@ -6,9 +6,11 @@ description: "Chapter 8 - HTTP APIs, timeouts, retries and backoff — Python fo
 source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 ---
 
-## Start with the basics
+*(original text preserved in full; ➕ marks additions)*
 
-**The problem, in plain terms.** Your automation script needs data or an action from another program running somewhere else — maybe a cloud API, maybe an internal service. That other program might be slow, might be down, might reject what you sent it. You need a working model for what's actually happening on the wire before "timeout," "retry," and "status code" mean anything concrete.
+## Foundations: start here if this is new to you
+
+**The problem, in plain terms.** Your automation script needs data or an action from another program running somewhere else — maybe a cloud API, maybe an internal service. That other program might be slow, might be down, might reject what you sent it. You need a mental model for what's actually happening on the wire before "timeout," "retry," and "status code" mean anything concrete.
 
 **The concept: request/response.** HTTP is just a convention for one program (the *client*, your script) asking another program (the *server*) for something, and the server sending back a structured answer. Think of it like calling a company's customer-support line: you (the client) ask a specific question, the person on the other end (the server) either helps you, tells you that you asked something invalid, or tells you they're currently unable to help. Every HTTP exchange is one such call: one request out, one response back.
 
@@ -131,7 +133,7 @@ def get_json(url: str, token: str, attempts: int = 4) -> dict:
 ```
 The timeout tuple above separates connect timeout from read timeout. Jitter prevents many clients from retrying in lockstep after a shared outage. In mature systems, prefer a tested retry library or HTTP adapter configuration, but first understand the policy you expect the library to implement.
 
-**Backoff sequence, with real numbers, so "exponential with jitter" isn't just a phrase:**
+➕ **Backoff sequence, with real numbers, so "exponential with jitter" isn't just a phrase:**
 ```mermaid
 flowchart LR
     A1["attempt 1\nbase delay 0.5s"] -->|sleep 0.5-0.6s| A2["attempt 2\nbase delay 1.0s"]
@@ -141,7 +143,7 @@ flowchart LR
 ```
 Without jitter (the `random.uniform` term), every client that started retrying at the same moment (e.g. all hit the outage simultaneously) retries in perfect lockstep — turning a brief blip into a repeating thundering herd. Jitter is what actually spreads the retry storm out — worth being able to draw this timeline from memory.
 
-**The Retry-After header — the one thing the chapter's Practice #2 asks you to add, worked out:**
+➕ **The Retry-After header — the one thing the chapter's Practice #2 asks you to add, worked out:**
 ```python
 if response.status_code == 429 and "Retry-After" in response.headers:
     delay = float(response.headers["Retry-After"])   # server told you exactly how long — trust it
@@ -165,13 +167,13 @@ else:
 2. Add a Retry-After branch to the sample client.
 3. Implement pagination for an API returning next-page tokens.
 
-4. Sketch (pseudocode is fine) a circuit breaker on top of this retry client: after N consecutive failures to one host, stop even attempting requests for a cooldown window rather than retrying every single call — this is the pattern that protects a *dependency* from being hammered, one level above per-call retry/backoff, and a natural "what would you add for production" follow-up.
+➕ 4. Sketch (pseudocode is fine) a circuit breaker on top of this retry client: after N consecutive failures to one host, stop even attempting requests for a cooldown window rather than retrying every single call — this is the pattern that protects a *dependency* from being hammered, one level above per-call retry/backoff, and a natural "what would you add for production" follow-up.
 
 ## Targeted references
 [Requests documentation](https://requests.readthedocs.io/) - HTTP client API and exceptions.
 [Udemy - Python for DevOps](https://www.udemy.com/course/python-devops) - Relevant lessons: GET requests; HTTP status codes; Token-based authentication; Handling timeouts; Retries: Simple strategy; Retries: Exponential backoff with jitter.
 
-**Visual model — a retry is a bounded state machine, not a loop:**
+➕ **Visual model — a retry is a bounded state machine, not a loop:**
 ```mermaid
 flowchart TD
     A[Send request] --> B{Response received?}
@@ -182,4 +184,4 @@ flowchart TD
     F -->|budget remains| A
     F -->|budget exhausted| G[Fail - stop spending budget]
 ```
-**Key takeaway:** *"Retry the condition, cap the time, add randomness."* A retry budget is part of the caller's latency budget, so no attempt can be evaluated in isolation.
+**Memory hook:** *"Retry the condition, cap the time, add randomness."* A retry budget is part of the caller's latency budget, so no attempt can be evaluated in isolation.

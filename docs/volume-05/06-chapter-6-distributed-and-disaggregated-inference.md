@@ -11,7 +11,7 @@ Large models may require tensor/model parallelism across GPUs. Very high-through
 
 For multi-node inference, capacity planning becomes topology-aware. A replica is not simply N interchangeable GPUs; it may require a specific connected set and communication characteristics.
 
-**Aggregated vs. disaggregated inference, side by side (the diagram this chapter needs):**
+➕ **Aggregated vs. disaggregated inference, side by side (the diagram this chapter needs):**
 ```mermaid
 flowchart TD
     subgraph AGG["AGGREGATED (one pool does both phases)"]
@@ -27,9 +27,9 @@ flowchart LR
     R["Request router must know which pool + which specific worker owns this sequence's state"] -.-> P
     R -.-> D
 ```
-The KV cache transfer arrow is the new failure/performance dependency the chapter's text names abstractly ("explicit network/state-routing requirements") — on a single node with NVLink, this transfer is cheap enough to be a rounding error; across nodes, it requires high-bandwidth interconnect (RDMA) and becomes a real latency contributor that must be benchmarked, not assumed away. This is also the exact mechanism Chapter 4 (Dynamo) builds routing and KV management around.
+The KV cache transfer arrow is the new failure/performance dependency the chapter's text names abstractly ("explicit network/state-routing requirements") — on a single node with NVLink, this transfer is cheap enough to be a rounding error; across nodes, it requires high-bandwidth interconnect (RDMA) and becomes a real latency contributor that must be benchmarked, not assumed away. This is also the exact mechanism Senior Deep Dive 4 (Dynamo) builds routing and KV management around.
 
-**Sample output — proving whether a "replica" actually got the topology it needs:**
+➕ **Sample output — proving whether a "replica" actually got the topology it needs:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -47,14 +47,14 @@ flowchart TD
 ```
 `SYS` in the topology matrix where you expected `NVx` is the single fastest way to catch "this tensor-parallel replica was scheduled across a slower link than the design assumed" — a scheduler that only checks `nvidia.com/gpu` count as a resource request has no native awareness of this, which is exactly why the chapter says "a replica is not simply N interchangeable GPUs."
 
-**Extra worked scenario — when disaggregation makes things worse:**
+➕ **Extra worked scenario — when disaggregation makes things worse:**
 > **Situation:** A team disaggregates prefill and decode for a model serving short (200-token) prompts with short (150-token) outputs, expecting the throughput gains described for long-context workloads. Latency gets worse instead.
-> 1. For short, roughly-symmetric prompt/output lengths, prefill and decode resource shapes don't diverge much — there's little of the "long prompts stress prefill, long outputs stress decode" imbalance disaggregation is designed to exploit (per Chapter 4).
+> 1. For short, roughly-symmetric prompt/output lengths, prefill and decode resource shapes don't diverge much — there's little of the "long prompts stress prefill, long outputs stress decode" imbalance disaggregation is designed to exploit (per Senior Deep Dive 4).
 > 2. The KV transfer between pools, which was supposed to be a small fixed cost, becomes a larger fraction of total request time when the sequence itself is short — fixed overhead dominates when there's less work to amortize it over.
 > 3. Correct decision: aggregate for this workload shape; reserve disaggregation for workloads where prefill and decode genuinely have different resource profiles (long documents, or very high concurrency with long generations).
 > **Conclusion:** "The benefit must outweigh added scheduling, routing, network and failure complexity" is a workload-shape-dependent inequality, not a default — measure both configurations against the actual prompt/output length distribution before committing.
 
-**Diagram: disaggregated request routing, end to end**
+➕ **Diagram: disaggregated request routing, end to end**
 ```mermaid
 flowchart TD
     A["Client request"] --> B["Router/gateway (state-aware) - must track which worker in each pool owns this sequence, not just round-robin"]
@@ -64,7 +64,7 @@ flowchart TD
 ```
 Step 2 is the new failure/performance dependency aggregated inference never had — a router that loses track of which decode worker holds a sequence's KV state cannot simply retry against any replica.
 
-**Diagram: aggregate vs. disaggregate decision by prompt/output shape**
+➕ **Diagram: aggregate vs. disaggregate decision by prompt/output shape**
 ```mermaid
 flowchart TD
     A["Short prompt, short output (e.g. chatbot turn): prefill work ~ decode work"] --> A1["Similar magnitude - little imbalance to exploit"] --> A2["AGGREGATE"]
@@ -73,8 +73,8 @@ flowchart TD
 ```
 The deciding property is the *ratio* of prefill to decode work implied by the prompt/output length distribution — not model size and not traffic volume alone.
 
-**Shortcut/mnemonic:** *"Disaggregate when prefill and decode want different amounts of GPU — same amount, keep them together; check `nvidia-smi topo -m` before trusting any multi-GPU replica's performance model."*
+➕ **Shortcut/mnemonic:** *"Disaggregate when prefill and decode want different amounts of GPU — same amount, keep them together; check `nvidia-smi topo -m` before trusting any multi-GPU replica's performance model."*
 
-**Chapter drill questions (chapter-specific, additive):**
+➕ **Chapter drill questions (chapter-specific, additive):**
 1. A tensor-parallel replica spans 4 GPUs, 2 of which show `SYS` instead of `NVx` in `nvidia-smi topo -m`. Explain the latency mechanism by which this degrades every forward pass, not just occasional requests.
 2. Name the one architectural property of a workload (beyond raw model size) that should decide whether you disaggregate prefill/decode, and explain why a short-prompt chatbot and a long-document summarizer would reach opposite conclusions using that property.

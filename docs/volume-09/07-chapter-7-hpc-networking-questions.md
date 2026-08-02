@@ -20,9 +20,9 @@ A good explanation of RDMA starts from data movement and CPU-copy overhead, then
 
 **Conclusion:** Network suspicion becomes network diagnosis only when communication timing and fabric evidence correlate.
 
-## Worked explanation and practice
+## ➕ Additions
 
-**The "prove the network is slowing training" decision flow:**
+➕ **The "prove the network is slowing training" decision flow:**
 ```mermaid
 flowchart TD
     Start["'Training is slow, I suspect the network'"]
@@ -38,14 +38,14 @@ flowchart TD
     Confirmed -->|no| Elsewhere
     Confirmed -->|yes| Bench --> Counters --> Topology --> Correlate
 ```
-**Key takeaway:** *"Phase, Bench, Counters, Topology, Correlate — PBCTC."* Never skip straight to "check RDMA error counters" — confirm the collective phase is actually the slow one first, or you're debugging the wrong layer.
+➕ **Memory hook:** *"Phase, Bench, Counters, Topology, Correlate — PBCTC."* Never skip straight to "check RDMA error counters" — confirm the collective phase is actually the slow one first, or you're debugging the wrong layer.
 
-**RDMA/RoCE/InfiniBand — the crisp three-sentence version worth having cold:**
+➕ **RDMA/RoCE/InfiniBand — the crisp three-sentence version worth having cold:**
 - **RDMA (the mechanism):** lets a NIC read/write registered memory on a remote host directly, bypassing the CPU and OS kernel for the data path — the point is eliminating CPU-copy overhead and kernel-transition latency, not just "faster networking."
 - **InfiniBand (the fabric):** a purpose-built lossless fabric with credit-based flow control designed for RDMA from the ground up — congestion management is native to the fabric.
 - **RoCE (RDMA over Converged Ethernet):** runs the same RDMA semantics over Ethernet, which is NOT natively lossless — RoCEv2 requires either a lossless Ethernet design (PFC — Priority Flow Control, ECN, careful QoS) or tolerates RDMA's retransmission being much more expensive than TCP's, which is why "RDMA over Ethernet" alone is an incomplete answer; the real answer is the congestion/lossless-fabric engineering RoCE requires to behave like InfiniBand.
 
-**Sample annotated output — the NIC/RDMA counter check, made concrete:**
+➕ **Sample annotated output — the NIC/RDMA counter check, made concrete:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -71,7 +71,7 @@ flowchart TD
 ```
 Compare `busbw` (bus bandwidth — the metric that accounts for the algorithm's data-movement factor and is directly comparable across ring/tree algorithms) against the fabric's theoretical bandwidth for this many GPUs/NICs. A large gap (e.g. 87 GB/s achieved against a fabric rated for 3-4x that) is the quantified version of "the network is slowing training" — this number is what you'd actually put in an incident writeup, not "collectives seem slow."
 
-**Extra worked scenario (new) — straggler amplification in multi-node training:**
+➕ **Extra worked scenario (new) — straggler amplification in multi-node training:**
 > **Situation:** A 64-GPU (8-node) job's step time is dominated by all-reduce, and the collective is consistently ~3x slower than a benchmark run on the same node count last week. No individual node shows sustained high error counters.
 > 1. Confirm phase: profiler shows >70% of step time in the NCCL all-reduce call — collective-bound, matches the symptom.
 > 2. Run `nccl-tests` in isolation across the same 8 nodes — reproduces the slowdown outside the training framework, ruling out an application-level regression.
@@ -81,10 +81,10 @@ Compare `busbw` (bus bandwidth — the metric that accounts for the algorithm's 
 > **Conclusion:** in a synchronous collective, "no node has sustained errors" does not mean "no node is the problem" — transient/intermittent issues and straggler amplification are exactly why per-rank, time-series evidence beats an aggregate health check.
 
 ## Practice
-6. Run `nccl-tests all_reduce_perf` on any multi-GPU box (even single-node, multi-GPU counts as a smaller-scale proxy) and practice narrating the `busbw` number against the theoretical link bandwidth out loud, as if reporting it in an incident channel.
-7. Given a synthetic per-rank timing table where rank 5 of 8 consistently takes 3x longer to reach the collective barrier than the others, explain in one sentence why fixing rank 5 alone (vs adding more GPUs, vs blaming the whole fabric) is the correct next step.
+➕ 6. Run `nccl-tests all_reduce_perf` on any multi-GPU box (even single-node, multi-GPU counts as a smaller-scale proxy) and practice narrating the `busbw` number against the theoretical link bandwidth out loud, as if reporting it in an incident channel.
+➕ 7. Given a synthetic per-rank timing table where rank 5 of 8 consistently takes 3x longer to reach the collective barrier than the others, explain in one sentence why fixing rank 5 alone (vs adding more GPUs, vs blaming the whole fabric) is the correct next step.
 
-**Visual model — a collective completes at its slowest rank:**
+➕ **Visual model — a collective completes at its slowest rank:**
 ```mermaid
 flowchart LR
     R0[rank 0 - ready]
@@ -96,4 +96,4 @@ flowchart LR
     R1 --> C
     R5 --> C
 ```
-**Key takeaway:** *"One slow rank becomes everybody's latency."*
+**Memory hook:** *"One slow rank becomes everybody's latency."*

@@ -10,7 +10,7 @@ source_document: "Authored directly as a Volume 10 chapter."
 
 Git is not just a place to store Python or YAML. For a DevOps or Solutions Architect, Git is the evidence trail for desired state: which driver image, Slurm policy, Terraform module, Ansible role, Kubernetes manifest or runbook was proposed, reviewed, tested and promoted.
 
-The command syntax is small. The operational consequences are large. A one-line change to a GPU image definition can reboot hundreds of nodes; a one-line Terraform change can replace a network or storage resource. This chapter teaches the working model first, then the commands and recovery techniques.
+The command syntax is small. The operational consequences are large. A one-line change to a GPU image definition can reboot hundreds of nodes; a one-line Terraform change can replace a network or storage resource. This chapter teaches the mental model first, then the commands and recovery techniques.
 
 ## Start here — four objects and three boundaries
 
@@ -227,5 +227,4 @@ Then deliberately create a conflict in two branches, resolve it, and practise `g
 - [Git reflog](https://git-scm.com/docs/git-reflog)
 - [GitHub secret scanning guidance](https://docs.github.com/en/code-security/secret-scanning/introduction/about-secret-scanning)
 - [Volume 10 CI/CD for infrastructure](./chapter-11-cicd-for-infrastructure-and-cluster-configuration)
-- [Volume 10 Ansible](./chapter-4-ansible-for-infrastructure-automation)
-- [Volume 10 Terraform](./chapter-5-terraform-for-infrastructure-as-code)
+- [Volume 10 Terraform and Ansible foundation](./foundation-iac-terraform-ansible)

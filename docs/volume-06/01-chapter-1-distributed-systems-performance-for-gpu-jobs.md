@@ -6,124 +6,13 @@ description: "Chapter 1 - Distributed systems performance for GPU jobs — HPC, 
 source_document: "Volume_06_HPC,_Networking_and_Storage_for_AI(2).docx"
 ---
 
-| Component | Job in the system |
-|---|---|
-| Slurm | Allocates resources and schedules batch jobs |
-| MPI/PMIx | Starts/coordinates processes and enables communication |
-| NCCL | Performs GPU-focused collective communication |
-| InfiniBand/RoCE | Low-latency, high-throughput network transports supporting RDMA |
-| RDMA | Moves data between hosts with reduced CPU involvement/copies |
-| Parallel filesystem | Serves large shared datasets/checkpoints across nodes |
-| Enroot/Pyxis | Runs containerized user space within Slurm allocations |
-| BCM | Manages bare-metal cluster images, configuration, and lifecycle |
-
-These components are not substitutes. Slurm deciding that eight GPUs belong to a job does not prove MPI ranks launched, NCCL selected the intended fabric, storage delivered data fast enough, or the GPUs are healthy.
-
-1. Scheduler allocates nodes, CPUs, GPUs, memory, and time.
-2. Launcher starts one or more ranks on each node.
-3. Each rank reads/prepares a portion of training data.
-4. GPUs perform forward and backward computation.
-5. Ranks exchange/aggregate gradients through collectives.
-6. Optimizer updates model weights.
-7. Periodically, the job writes a checkpoint to storage.
-8. The next step repeats; the slowest synchronized boundary affects all ranks.
-```
-
-This trace gives you failure domains: scheduling, launch, data, GPU/driver, communication/fabric, numerical/application behavior, and checkpoint/storage.
-
-```bash
-lspci | grep -i nvidia
-nvidia-smi
-nvidia-smi topo -m
-python -c "import torch; print(torch.cuda.is_available()); print(torch.cuda.device_count())"
-```
-
-Predict what each command proves before running it. `lspci` seeing hardware does not prove the driver loaded. `nvidia-smi` working does not prove a framework uses the expected library stack. Framework device visibility does not prove multi-node collectives or performance.
-
-## From one process to a distributed job
-
-| Scale | New dependency |
-|---|---|
-| One process on CPU | operating system, memory, local files |
-| One GPU | driver, CUDA libraries, device memory |
-| Several GPUs in one node | PCIe/NVLink/NVSwitch topology and synchronization |
-| Several nodes | NIC/HCA, switch fabric, addressing, transport and rank coordination |
-| Large cluster | scheduler policy, shared storage, health gating and failure domains |
-
-## Essential language
-
-- A **distributed job** uses processes/resources on more than one machine.
-- A **rank** is one process identity in a coordinated parallel job.
-- A **collective** is a group communication operation such as broadcast or all-reduce.
-- **MPI** is a standard and library ecosystem for communication among processes.
-- **NCCL** is NVIDIA's library for efficient GPU collective communication.
-- **Slurm** is a scheduler allocating resources and launching batch jobs; it is not a communication library.
-- **RDMA** enables direct memory-oriented network transfers with reduced CPU/copy involvement.
-- **InfiniBand** is a purpose-built fabric supporting RDMA.
-- **RoCE** carries RDMA semantics over Ethernet and depends on correct Ethernet fabric design.
-- A **parallel filesystem** serves shared data at scale across many clients.
-- A **checkpoint** is saved workload state used to resume after interruption.
-
-## The normal training path
-
-The scheduler allocates nodes and GPUs. A launcher starts ranks. Each rank receives data and drives GPU computation. Collectives exchange gradients or other tensors. Storage supplies datasets and receives checkpoints. At synchronized boundaries, one slow rank can delay the entire job.
-
-This gives a clean troubleshooting order: allocation → rank launch → local GPU → inter-process bootstrap → network path → collective behavior → storage/data → application correctness.
-
-## A real-life example
-
-A job scales well from one to eight GPUs on one server but poorly across two servers. The change introduces rank bootstrap, NIC selection, switch fabric, RDMA/NCCL configuration and cross-node synchronization. The scheduler may have allocated correct resources while communication still falls back to a slower path. Prove each new boundary rather than blaming "the network" broadly.
-
-## Collective communication and stragglers
-
-An all-reduce combines values across ranks and distributes the result. Every participating rank must reach compatible collective calls. One missing, delayed or mismatched rank can stall peers.
-
-For data-parallel training:
-
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["local forward/backward compute"]
-  n1["gradients become ready"]
-  n2["NCCL all-reduce exchanges/combines gradients"]
-  n3["every replica receives the result"]
-  n4["optimizer step continues"]
-```
-
-Measure step-time distribution, per-rank timing and collective performance. Fleet averages can hide one slow node whose delay becomes global at synchronization.
-
-## Safe observation commands
-
-Commands vary by distribution and installed fabric tooling:
-
-```bash
-ip -brief link
-ip route
-ethtool INTERFACE
-nvidia-smi topo -m
-ibv_devices
-ibv_devinfo
-```
-
-Read-only output proves local observations only. A link reporting Up does not prove end-to-end bandwidth, correct routing, congestion behavior or GPU Direct use.
-
-## Common beginner mistakes
-
-- calling Slurm, MPI and NCCL interchangeable;
-- assuming RDMA means traffic bypasses every host/software concern;
-- benchmarking one message size and generalizing to the workload;
-- using aggregate bandwidth while ignoring tail/straggler behavior;
-- treating a mounted filesystem as proof it can meet checkpoint demand;
-- forcing interface environment variables before recording automatic selection;
-- comparing theoretical line rate directly with application goodput without protocol/collective context.
-
-## Start with the basics
+## Foundations: start here if HPC concepts are new to you
 
 ### What this section does and does not do
 
-This section builds the basic working model of High-Performance Computing (HPC — a discipline focused on solving one large computation as fast as possible by spreading it across many machines at once) that the rest of this chapter assumes you already have. It will not make you able to operate a cluster or write parallel code. Its only job is to make sure that when the rest of this chapter says "the scheduler," "the fabric," or "the ranks," you already have a picture in your head for what those words point at, instead of encountering the term and the deep technical detail about it at the same moment.
+This section builds the basic mental model of High-Performance Computing (HPC — a discipline focused on solving one large computation as fast as possible by spreading it across many machines at once) that the rest of this chapter assumes you already have. It will not make you able to operate a cluster or write parallel code. Its only job is to make sure that when the rest of this chapter says "the scheduler," "the fabric," or "the ranks," you already have a picture in your head for what those words point at, instead of encountering the term and the deep technical detail about it at the same moment.
 
-If you're a senior DevOps or backend engineer, almost everything in your existing working model of "operating servers" still applies here. HPC does not throw that away. It adds one new, genuinely different problem on top, and that problem is this section's real subject.
+If you're a senior DevOps or backend engineer, almost everything in your existing mental model of "operating servers" still applies here. HPC does not throw that away. It adds one new, genuinely different problem on top, and that problem is this section's real subject.
 
 ### The core difference: coordinated versus independent work
 
@@ -325,7 +214,7 @@ efficiency = speedup / N
 
 Do not treat efficiency loss as automatically "network." Input pipelines, CPU preprocessing, imbalance and framework configuration can all create idle time. Profile the phase that grew with scale.
 
-**The step-time decomposition the formula above hides — this is the model an interviewer wants you to draw:**
+➕ **The step-time decomposition the formula above hides — this is the model an interviewer wants you to draw:**
 ```
 step_time = compute_time + communication_time + sync_wait_time + data_load_wait_time
 
@@ -337,7 +226,7 @@ efficiency_loss = 1 - (step_time(N) / N) / step_time(1)
 ```
 The single most useful move in this chapter: **efficiency is a symptom, not a diagnosis.** "80% efficiency" tells you nothing about *which* term in the right-hand side grew. You have to instrument each term separately — that's the whole content of this chapter, restated as an equation.
 
-**View of where each term actually lives in the training loop:**
+➕ **View of where each term actually lives in the training loop:**
 ```mermaid
 flowchart LR
     A["data_load
@@ -352,7 +241,7 @@ flowchart LR
 ```
 Each box has a distinct tool: `nvidia-smi dmon` / GPU util for compute, `nccl-tests` / NIC counters for communicate, per-rank step-time variance for sync_wait, and `iostat`/dataloader worker queue depth for data_load. A profiler that only reports "GPU util 62%" collapses all four boxes into one number — the job in this chapter is to separate them again.
 
-**Sample `nccl-tests` output, annotated** (the first thing you'd actually run to separate "compute" from "communicate"):
+➕ **Sample `nccl-tests` output, annotated** (the first thing you'd actually run to separate "compute" from "communicate"):
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -364,7 +253,7 @@ flowchart TD
 ```
 `busbw` (bus bandwidth — normalized for the AllReduce ring's 2x data-movement factor) is the number to compare against the fabric's theoretical max, not `algbw`. If `busbw` is far below the NIC's line rate (e.g. 3.84 GB/s on a 200Gb/s = 25GB/s NIC), that gap is your `communication_time` term inflating — run this in isolation from the actual training job specifically so you're not also measuring `compute_time` and `data_load_wait_time` in the same number.
 
-**Diagram: why the barrier makes the mean lie**
+➕ **Diagram: why the barrier makes the mean lie**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -378,7 +267,7 @@ flowchart TD
 ```
 Average GPU utilization across the four ranks looks moderate, but step_time is set entirely by the slowest rank. This is why "check the mean" hides the exact fault the triage below is built to find.
 
-**Worked scenario — the "80% efficiency, which term?" triage, made concrete:**
+➕ **Worked scenario — the "80% efficiency, which term?" triage, made concrete:**
 > **Situation:** Scaling from 1 to 8 nodes (64 GPUs), measured efficiency drops from 100% to 71%. The on-call engineer's first instinct is "check the network."
 > 1. Capture per-step GPU utilization time series across all 64 GPUs, not the cluster average — a 71% *average* efficiency could be 8 nodes all uniformly slower (fabric-wide issue) or 1 node dramatically slower dragging the barrier (straggler — see Deep Dive 1).
 > 2. Run `nccl-tests all_reduce_perf` node-pair-by-node-pair at the actual message size the model uses (not the tool's default) — isolates `communication_time` from the live job's `compute_time` and `data_load_wait_time`.
@@ -386,8 +275,8 @@ Average GPU utilization across the four ranks looks moderate, but step_time is s
 > 4. Only if `nccl-tests` itself degrades at scale do you have a genuine fabric/topology problem — and now you have a reproducible, isolated number to hand to the network team instead of "training is slower."
 > **Interview-ready line:** "Scaling efficiency is the aggregate signal — I never diagnose from it directly, I use it to decide which of four separate measurements to take next."
 
-**Shortcut — the one-line working model for fast recall:** *"Compute scales with GPUs, communication scales with the fabric, and sync_wait scales with your worst node — always suspect the max, not the mean."*
+➕ **Shortcut — the one-line mental model for fast recall:** *"Compute scales with GPUs, communication scales with the fabric, and sync_wait scales with your worst node — always suspect the max, not the mean."*
 
 ## Practice
-1. Given per-step GPU utilization traces for 8 nodes where 7 show 95% and 1 shows 40%, write the one-sentence hypothesis you'd test first, and the exact command to test it.
-2. A team reports "scaling efficiency dropped after we doubled batch size per GPU." Explain why this is expected to change `compute_time` and `data_load_wait_time` simultaneously, and how you'd isolate which one moved.
+➕ 1. Given per-step GPU utilization traces for 8 nodes where 7 show 95% and 1 shows 40%, write the one-sentence hypothesis you'd test first, and the exact command to test it.
+➕ 2. A team reports "scaling efficiency dropped after we doubled batch size per GPU." Explain why this is expected to change `compute_time` and `data_load_wait_time` simultaneously, and how you'd isolate which one moved.

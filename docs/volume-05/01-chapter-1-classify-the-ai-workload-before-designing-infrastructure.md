@@ -5,179 +5,7 @@ sidebar_position: 1
 description: "Chapter 1 - Classify the AI workload before designing infrastructure — AI Workloads and AI Platform Architecture."
 source_document: "Volume_05_AI_Workloads_and_AI_Platform_Architecture(2).docx"
 ---
-
-- **Machine learning (ML)** builds behavior by learning patterns from data rather than encoding every rule manually.
-- A **model** is the learned mathematical function plus parameters (weights).
-- **Training** repeatedly compares predictions with expected outcomes and adjusts weights.
-- **Inference** uses fixed weights to produce an output for new input.
-- **Fine-tuning** continues training an existing model for a narrower behavior or dataset.
-- **Evaluation** measures behavior on controlled data and metrics.
-
-```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["training data"]
-  n1["forward computation"]
-  n2["prediction"]
-  n3["loss/error"]
-  n4["↑ ↓"]
-  n5["updated weights ← gradients/backward computation"]
-  n6["inference request"]
-  n7["tokenize/preprocess"]
-  n8["model forward computation"]
-  n9["output"]
-  n0 --> n1
-  n1 --> n2
-  n2 --> n3
-  n6 --> n7
-  n7 --> n8
-  n8 --> n9
-```
-
-Infrastructure is shaped by the workload:
-
-| Workload | Success measure | Common pressure |
-|---|---|---|
-| Training | time-to-train, convergence, successful completion | sustained compute, communication, data feed, checkpoints |
-| Batch inference | corpus completed by deadline and cost | throughput and queue efficiency |
-| Online inference | latency, availability, tokens/s, quality | concurrency, memory, batching, autoscaling |
-| Evaluation | comparable and reproducible results | versioned model/data/code and controlled environment |
-
-## From rules to learned models
-
-Traditional software contains rules written directly by developers. Machine-learning software learns parameters from examples.
-
-Imagine spam classification:
-
-- **Input:** message text and related features.
-- **Label:** spam or not spam for training examples.
-- **Model:** a mathematical function producing a score or probability.
-- **Parameters/weights:** learned numeric values controlling that function.
-- **Training:** adjust weights so predictions improve on examples.
-- **Inference:** use the trained weights to classify a new message.
-
-**Artificial intelligence (AI)** is the broad umbrella. **Machine learning (ML)** is a family of techniques that learn behavior from data. **Deep learning** uses neural networks with many layers and large numbers of parameters.
-
-## Essential data structures: scalars, vectors, matrices and tensors
-
-A **scalar** is one value. A **vector** is a one-dimensional collection. A **matrix** has rows and columns. A **tensor** generalizes these ideas to more dimensions.
-
-Examples:
-
-| Data | Possible shape |
-|---|---|
-| one temperature | scalar |
-| 768-value text embedding | `[768]` |
-| batch of 32 embeddings | `[32, 768]` |
-| batch of 16 RGB images | `[16, 3, 224, 224]` |
-| language-model hidden state | `[batch, sequence, hidden_dimension]` |
-
-The **shape** tells software how dimensions are organized. The **dtype/precision** tells it how each value is represented, such as FP32, FP16, BF16 or an integer format. Shape and dtype strongly affect memory and compatible GPU operations.
-
-### Tiny runnable example
-
-```python
-import torch
-
-x = torch.tensor([[1.0, 2.0], [3.0, 4.0]])
-weights = torch.tensor([[0.5], [1.5]])
-y = x @ weights
-
-print("x shape:", tuple(x.shape))
-print("weights shape:", tuple(weights.shape))
-print("result shape:", tuple(y.shape))
-print(y)
-```
-
-Representative output:
-
-```text
-x shape: (2, 2)
-weights shape: (2, 1)
-result shape: (2, 1)
-tensor([[3.5000],
-        [7.5000]])
-```
-
-The `@` operation performs matrix multiplication. Real models chain many operations, with frameworks selecting optimized CPU/GPU implementations.
-
-## Training, fine-tuning, RAG and agents are not the same workload
-
-| Workload | Changes weights? | Important state/dependencies |
-|---|---|---|
-| Pretraining | yes | large dataset, optimizer, distributed checkpoints |
-| Fine-tuning | yes, often fewer/all parameters depending method | base model, training data, adapters/checkpoints |
-| Evaluation | no main update | versioned test set, metrics, reproducible environment |
-| Online inference | normally no | weights, KV cache, request queue, service dependencies |
-| RAG | normally no main update | embedding model, vector/search index, source documents, authorization |
-| Agentic workflow | normally no main update | model calls, tool APIs, workflow state, credentials and guardrails |
-
-RAG does not "teach" the model new weights at request time. It retrieves external context and includes it in the inference workflow. This adds freshness, permission, retrieval-quality and dependency-latency concerns.
-
-## First safe lab: compare CPU and GPU execution
-
-This lab needs PyTorch and optionally a CUDA-capable environment.
-
-```python
-import time
-import torch
-
-def run(device: str, size: int = 2048) -> None:
-    a = torch.randn(size, size, device=device)
-    b = torch.randn(size, size, device=device)
-
-    if device == "cuda":
-        torch.cuda.synchronize()
-
-    started = time.perf_counter()
-    c = a @ b
-
-    if device == "cuda":
-        torch.cuda.synchronize()
-
-    elapsed = time.perf_counter() - started
-    print(device, tuple(c.shape), f"{elapsed:.4f}s")
-
-run("cpu")
-if torch.cuda.is_available():
-    run("cuda")
-```
-
-Why synchronize? GPU operations are commonly asynchronous with respect to the host. Without synchronization, the timer may measure submission rather than completed work.
-
-Do not publish this as a benchmark. The result depends on hardware, software, warm-up, matrix size, precision and many other factors. Its teaching purpose is to expose host/device placement and asynchronous execution.
-
-## Worked platform scenario
-
-**Request:** "Deploy a 70B model for 200 concurrent users. We have eight GPUs."
-
-A beginner might immediately select an engine. A structured discovery asks:
-
-1. Which exact model and weight precision/profile?
-2. Maximum and typical input/output token distributions?
-3. Streaming or complete responses?
-4. TTFT, inter-token and total-latency objectives at which percentiles?
-5. Expected arrival rate and concurrency over time?
-6. Quality constraints for quantization or alternate models?
-7. Does weight + KV cache + workspace fit under proposed parallelism?
-8. What happens during model load, cold start and replica failure?
-9. Which network/storage path distributes model artifacts?
-10. What benchmark represents real traffic, and what is the acceptance threshold?
-
-Only then compare TensorRT-LLM, vLLM, NIM or Triton-based serving arrangements and GPU topology.
-
-## Common beginner traps
-
-- "Training and inference both run a model, so infrastructure is the same." They have different state, memory and SLO behavior.
-- "Parameters equal total memory." They are a lower bound; runtime state adds more.
-- "More GPUs always makes it faster." Communication and synchronization can erase gains.
-- "100% GPU utilization means optimal throughput." It does not define useful work or efficiency.
-- "Batch size is purely a performance knob." It changes memory and latency as well.
-- "A Running Pod means the model is ready." Model download/load and readiness are separate.
-- "RAG is fine-tuning." Retrieval supplies context without normally changing model weights.
-- "Tokens per second is enough." Define scope and pair it with latency, errors and quality.
-
-## Start with the basics
+## Foundations: start here if AI/ML concepts are new to you
 
 ### What this section is, and what it isn't
 
@@ -315,9 +143,9 @@ Independent study guide based on public documentation and public practitioner ma
 
 Start architecture discovery by naming the workload and measurable outcome. An online service with a 500 ms P95 constraint needs a different capacity strategy from an overnight batch job that only needs to finish by 06:00.
 
-**Why this table is the entire interview opener for this volume:** every subsequent chapter (training topology, KV cache, autoscaling signal choice, security boundary, cost model) is a *downstream consequence* of which row of this table you're in. A Senior SA who jumps straight to "you need H100s with NVLink" without first asking "is this training or online inference, and what's the SLO" is answering the wrong question confidently. The single most valuable habit this chapter teaches is: **ask for the workload classification and the measurable outcome before any hardware/topology conversation starts.**
+➕ **Why this table is the entire interview opener for this volume:** every subsequent chapter (training topology, KV cache, autoscaling signal choice, security boundary, cost model) is a *downstream consequence* of which row of this table you're in. A Senior SA who jumps straight to "you need H100s with NVLink" without first asking "is this training or online inference, and what's the SLO" is answering the wrong question confidently. The single most valuable habit this chapter teaches is: **ask for the workload classification and the measurable outcome before any hardware/topology conversation starts.**
 
-**Classification decision tree (the mechanism behind the table):**
+➕ **Classification decision tree (the mechanism behind the table):**
 ```mermaid
 flowchart TD
     A{Is the primary output a trained/updated model artifact?}
@@ -330,18 +158,18 @@ flowchart TD
     H{Is the output a score/report, not a model or served answer, and must it be exactly reproducible run-to-run?}
     H -->|YES| I["Evaluation (repeatability, versioning dominate)"]
 ```
-**Interview-ready line:** *"Before I talk topology or GPU SKU, I need to know which cell of the workload table we're in — training and online inference have almost opposite infrastructure priorities: training optimizes for sustained throughput and restart cost, online inference optimizes for tail latency and elastic capacity."*
+➕ **Interview-ready line:** *"Before I talk topology or GPU SKU, I need to know which cell of the workload table we're in — training and online inference have almost opposite infrastructure priorities: training optimizes for sustained throughput and restart cost, online inference optimizes for tail latency and elastic capacity."*
 
-**Extra worked scenario — the classification mistake that actually happens in the field:**
+➕ **Extra worked scenario — the classification mistake that actually happens in the field:**
 > **Situation:** A customer asks for "the same GPU cluster sizing as their training cluster" to run what they call "batch inference" — but on inspection, the workload is actually thousands of small, latency-sensitive requests arriving continuously from a live product feature, misnamed "batch" internally because it runs "in the background" from the caller's point of view.
 > 1. Ask for the actual SLO: is there a deadline (batch) or a per-request latency budget (online, even if traffic-shaped)?
 > 2. Check arrival pattern: a Poisson-ish continuous arrival stream with a latency budget is online inference wearing a batch costume; a large fixed corpus processed once with a completion deadline is genuine batch inference.
 > 3. Misclassifying this leads to the wrong infrastructure twice: provisioning for throughput-only (no autoscaling, no P99 tracking) when the real requirement is tail latency, or over-provisioning idle always-on capacity for what is actually a nightly job.
 > **Conclusion:** "Batch" and "online" are properties of the SLO and arrival pattern, not of internal team vocabulary — always verify against the measurable outcome column, not the label the requester uses.
 
-**Shortcut/mnemonic:** *"T-F-B-O-E: Time-to-train, Fit memory, Batch deadline, Online tail, Evaluation repeatability."* — five workload rows, five different primary metrics; if you can't name the primary metric in one sentence, you haven't classified the workload yet.
+➕ **Shortcut/mnemonic:** *"T-F-B-O-E: Time-to-train, Fit memory, Batch deadline, Online tail, Evaluation repeatability."* — five workload rows, five different primary metrics; if you can't name the primary metric in one sentence, you haven't classified the workload yet.
 
-**Diagram: arrival-pattern test for "batch" vs "online" (the field mistake, visualized)**
+➕ **Diagram: arrival-pattern test for "batch" vs "online" (the field mistake, visualized)**
 ```mermaid
 flowchart LR
     subgraph Genuine["Genuine batch inference"]
@@ -355,7 +183,7 @@ flowchart LR
 ```
 Same word ("batch") in the requester's vocabulary, two completely different infrastructure answers — the arrival pattern and the presence/absence of a per-item latency budget is the tell, not the label.
 
-**Diagram: workload row → dominant metric → chapter map**
+➕ **Diagram: workload row → dominant metric → chapter map**
 ```mermaid
 flowchart LR
     A["Pretraining/Fine-tuning"] --> B["GPU-hours, collectives, checkpoints"] --> C["Ch2, DD1"]

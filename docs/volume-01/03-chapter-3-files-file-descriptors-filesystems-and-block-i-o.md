@@ -6,44 +6,7 @@ description: "Chapter 3 - Files, file descriptors, filesystems and block I/O —
 source_document: "Volume_01_Foundations_Beneath_Kubernetes(3).docx"
 ---
 
-```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["application"]
-  n1["system call"]
-  n2["VFS"]
-  n3["filesystem"]
-  n4["block/network client"]
-  n5["device/server"]
-  n0 --> n1
-  n1 --> n2
-  n2 --> n3
-  n3 --> n4
-  n4 --> n5
-```
-
-- A **block device** exposes addressable blocks; a filesystem organizes files on it.
-- A **mount** attaches a filesystem to the directory tree.
-- Local NVMe offers node-local performance but does not automatically survive node loss.
-- NFS and parallel filesystems expose shared data over a network and add server/fabric dependencies.
-- Object storage exposes an API and object/key model, not normal POSIX file semantics.
-
-Check both capacity and inodes: `df -h` and `df -i`. Check what a path actually uses with `findmnt -T PATH`. "Disk is full" can mean bytes, inodes, a read-only mount, quota, a missing remote mount, or an application limit.
-
-## Files, mounts and I/O
-
-Linux exposes one directory tree, but different filesystems can be mounted at different directories. A path under `/data` might use local NVMe, NFS or a parallel filesystem. The application sees a path; operations inherit every layer below it.
-
-```bash
-findmnt -T /data
-df -h /data
-df -i /data
-lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINTS
-```
-
-`df -h` checks byte capacity, while `df -i` checks inode availability. Both can stop file creation. `findmnt -T` answers which filesystem backs the exact path; checking `/` when the application writes `/data` can inspect the wrong storage.
-
-## Start with the basics
+## Foundations: start here if this is new to you
 
 This section will not make you a storage engineer, and it will not teach you how to tune a parallel filesystem — the rest of this chapter and Volume 6's storage-for-AI chapter do that, assuming you already know what a filesystem, a mount, and a block device are. This section's only job is to make sure "the disk is full" and "the mount is missing" stop sounding like the same problem, and that when Volume 6 says a training job stalled because "shared storage couldn't keep up," you already know what "shared" is being contrasted against. If you finish this section able to explain why a path on disk might secretly depend on a remote server, you're ready to go deeper into the rest of this chapter and into Volume 6.
 
@@ -142,6 +105,8 @@ This is a deliberately practical section, because the phrase hides real ambiguit
 With that model in place, here's the full mechanism.
 
 # Chapter 3 — Files, file descriptors, filesystems and block I/O
+*(original text preserved in full; ➕ marks additions)*
+
 **Learning outcome:** Understand how applications reach storage and distinguish capacity, metadata, throughput, IOPS and latency failures.
 
 ## 3.1 File descriptors and VFS
@@ -153,7 +118,7 @@ cat /proc/<PID>/limits | grep -i 'open files'
 ss -s
 ```
 
-**The read path, precisely (VFS as a dispatch layer, not a filesystem itself):**
+➕ **The read path, precisely (VFS as a dispatch layer, not a filesystem itself):**
 ```mermaid
 flowchart TD
     R["read(fd, buf, n)"] --> V["VFS (common interface — dispatches to the right filesystem driver based on fd's mount)"]
@@ -163,7 +128,7 @@ flowchart TD
 ```
 This is why the exact same `read()` syscall can be fast (local NVMe, cache hit) or catastrophically slow (NFS server under load) with identical application code — the bottleneck is never visible from the syscall itself, only from what's underneath the VFS dispatch.
 
-**Sample `lsof`/fd output and what actually leaks in production:**
+➕ **Sample `lsof`/fd output and what actually leaks in production:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -187,14 +152,14 @@ The `(deleted)` marker is the single most common real-world fd leak: a log rotat
 
 Throughput is data per unit time; IOPS is operations per second; latency is time per operation. A workload can have low throughput but still suffer high latency if it performs small synchronous I/O. Benchmark and diagnose against the application access pattern.
 
-**Sample `iostat -xz 1` output, read the way an interviewer wants:**
+➕ **Sample `iostat -xz 1` output, read the way an interviewer wants:**
 ```
 Device   r/s   w/s   rkB/s   wkB/s  await  aqu-sz  %util
 nvme0n1  42.0  980.0 5376.0  62720  8.20   4.10    97.5
 ```
 `%util=97.5` alone doesn't tell you if this is a problem — pair it with `await` (8.2ms is high for NVMe, which should be sub-millisecond) and `aqu-sz` (4.1 = queue is backed up, not draining as fast as requests arrive). **The one-sentence version:** high `%util` with low `await` = genuinely busy doing useful work (probably fine); high `await` with moderate `%util` = queueing/contention problem (investigate noisy neighbors or backend latency), which is the pattern in the worked scenario below.
 
-**Diagram: where a request actually spends its time (service time vs queue time)**
+➕ **Diagram: where a request actually spends its time (service time vs queue time)**
 ```mermaid
 flowchart TD
     A["application issues read()"] --> Q["request queue (aqu-sz = how many requests are waiting; queued, not yet serviced)"]
@@ -203,14 +168,14 @@ flowchart TD
 ```
 Two very different problems produce the same rising `await`: a slow device (service time dominates — check `%util`, this is a real capacity limit) versus a backed-up queue on a fast device (wait time dominates — check `aqu-sz`, this is contention from other tenants/processes, not a device limit). `iostat -x` alone conflates both into one number; `aqu-sz` is what separates them.
 
-**IOPS/throughput/latency — three different failure signatures, one table:**
+➕ **IOPS/throughput/latency — three different failure signatures, one table:**
 | Symptom | Likely pattern | Fix direction |
 |---|---|---|
 | High IOPS, low MB/s per op | tiny random I/O (checkpoint shard writes, many small files) | batch writes, larger blocks, fewer/larger objects |
 | High MB/s, IOPS unremarkable | sequential large reads (streaming shards) | usually fine — watch NIC saturation instead of disk |
 | Latency spikes, averages look normal | queueing/tail latency (`await` climbing, `%util` not pegged) | noisy-neighbor on shared parallel FS, or NFS/CSI backend queueing |
 
-**Inode exhaustion — the specific AI-infra trap:**
+➕ **Inode exhaustion — the specific AI-infra trap:**
 ```bash
 df -h /data      # bytes: might show 60% free
 df -i /data      # inodes: might show 100% used — completely separate resource, same ENOSPC error
@@ -228,14 +193,14 @@ A checkpoint job writing millions of tiny shard files can exhaust inodes on ext4
 
 **Conclusion:** Storage diagnosis is workload-pattern + path + latency evidence, not a single MB/s number.
 
-**Second worked scenario — checkpoint storm, the GPU/AI-specific version:**
+➕ **Second worked scenario — checkpoint storm, the GPU/AI-specific version:**
 > **Situation:** 64 GPU nodes all write training checkpoints to the same shared parallel filesystem every 30 minutes. Checkpoint write time has grown from 45s to 8 minutes over the last month as the cluster scaled from 16 to 64 nodes. Per-node disk (`iostat` on each node's local view) looks idle.
 > 1. This is a **shared-resource contention** problem, not a per-node storage problem — `iostat` on any single node won't show it because the bottleneck is the shared filesystem's aggregate throughput/metadata server, not local block I/O.
 > 2. Check the parallel filesystem's own metrics (metadata server IOPS, aggregate throughput) — 64 nodes hitting `open()`/`close()`/`fsync()` simultaneously multiplies metadata operations far faster than data volume grows linearly.
 > 3. Fix directions with explicit tradeoffs: stagger checkpoint writes across nodes (adds complexity, reduces peak contention); write to node-local NVMe first then async-upload to shared storage (adds a failure mode — local disk loss between checkpoint and upload — but removes the synchronous bottleneck); reduce checkpoint frequency or use incremental/sharded checkpoint formats (changes recovery-time tradeoff).
 > **This is a real, common NVIDIA-SA-relevant scenario** — "why did checkpointing get slower as we scaled" is a scaling-non-linearity question, and the correct answer starts with "metadata operations, not bytes" almost every time.
 
-**Diagram: checkpoint storm — why per-node metrics stay quiet while the cluster slows down**
+➕ **Diagram: checkpoint storm — why per-node metrics stay quiet while the cluster slows down**
 ```mermaid
 flowchart TD
     N1[GPU node 1]
@@ -258,5 +223,5 @@ The bottleneck is invisible from any single node's vantage point because no sing
 2. Find open deleted files in a lab using lsof +L1.
 3. Compare sequential throughput and small random I/O using a safe benchmark tool in a test VM.
 
-4. Run `iostat -xz 1` against both a local NVMe write and an NFS-mounted write of the same size, and compare `await` — do this once so the "same syscall, different backend, wildly different latency" point from the VFS diagram is muscle memory.
-5. Simulate the checkpoint-storm scenario at small scale: have 8 parallel `dd` processes write to the same NFS/shared mount simultaneously and watch `await`/`aqu-sz` climb non-linearly relative to 1 process doing the same total write volume alone.
+➕ 4. Run `iostat -xz 1` against both a local NVMe write and an NFS-mounted write of the same size, and compare `await` — do this once so the "same syscall, different backend, wildly different latency" point from the VFS diagram is muscle memory.
+➕ 5. Simulate the checkpoint-storm scenario at small scale: have 8 parallel `dd` processes write to the same NFS/shared mount simultaneously and watch `await`/`aqu-sz` climb non-linearly relative to 1 process doing the same total write volume alone.

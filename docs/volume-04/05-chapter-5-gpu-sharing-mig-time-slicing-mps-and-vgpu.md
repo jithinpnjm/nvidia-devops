@@ -26,7 +26,7 @@ A public example compares sharing strategies for an LLM plus smaller ASR/TTS ser
 
 ---
 
-**ASCII diagram — the four sharing modes' isolation boundaries, drawn to make the trade-off table's "strength/trade-off" columns visually obvious:**
+➕ **ASCII diagram — the four sharing modes' isolation boundaries, drawn to make the trade-off table's "strength/trade-off" columns visually obvious:**
 ```mermaid
 flowchart LR
     subgraph MIG["MIG (hardware partition)"]
@@ -68,7 +68,7 @@ flowchart LR
     VGPU --> VGPUNote
 ```
 
-**Extra worked scenario — the practitioner lens's exact example, worked with numbers, tying it to a scheduling-failure consequence:**
+➕ **Extra worked scenario — the practitioner lens's exact example, worked with numbers, tying it to a scheduling-failure consequence:**
 > **Situation:** One node hosts an LLM inference service (bursty, needs ~40% of a GPU's SMs at peak, latency-sensitive, P99 SLO) alongside a small ASR (speech-to-text) and TTS (text-to-speech) service (each low, steady utilization, also latency-sensitive). Time-slicing was configured to consolidate all three onto one physical GPU.
 > 1. Under time-slicing, the LLM's burst preempts the whole GPU for its slice of the round-robin — ASR/TTS requests queued during that window see a latency spike proportional to how long the LLM's slice runs, even though ASR/TTS's own compute need is tiny. This is the "hollow GPU" the practitioner lens names: the *hardware* looks consolidated and efficient on a utilization graph, but the *tenants* are fighting for turns with no fairness guarantee beyond round-robin timing.
 > 2. Switching to MIG with fixed slice geometry (e.g. one `3g.40gb` slice for the LLM, two `1g.10gb` slices for ASR/TTS) gives each service a hardware fault wall and a dedicated portion of SMs/HBM — ASR/TTS latency stops depending on what the LLM slice is doing at that instant.
@@ -76,7 +76,7 @@ flowchart LR
 > 4. Kubernetes consequence either way: the device plugin advertises different resource names depending on sharing mode (Chapter 4's MIG resource-naming point) — the platform-level scheduling contract changes, not just the GPU-level behavior.
 > **Interview-ready line:** "Time-slicing optimizes for average utilization; MIG optimizes for worst-case tenant isolation — 'hollow GPU' is what you get when you pick the first for workloads that actually needed the second."
 
-**Annotated real output — proving which sharing mode is active on a node, and MPS's cooperative-isolation signature:**
+➕ **Annotated real output — proving which sharing mode is active on a node, and MPS's cooperative-isolation signature:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -101,9 +101,9 @@ flowchart TD
   n18["and WHY one misbehaving client can still affect the shared server"]
 ```
 
-**Shortcut — mnemonic for choosing a sharing mode under interview time pressure:**
+➕ **Shortcut — mnemonic for choosing a sharing mode under interview time pressure:**
 *"MIG for fences, slicing for spare cycles, MPS for cooperating siblings, vGPU for VMs."* If the workloads don't trust each other (multi-tenant, SLO-bound) → MIG. If it's dev/notebook idle-capacity mopping → time-slicing. If it's your *own* pipeline's cooperating processes wanting concurrent small kernels → MPS. If the platform is VM-based (not container-based) → vGPU, and immediately ask about licensing.
 
-**Practice (continuation — original chapter had no numbered Practice list; these are new):**
+➕ **Practice (continuation — original chapter had no numbered Practice list; these are new):**
 1. Given the practitioner lens's LLM+ASR+TTS scenario, argue for `mixed` MIG strategy instead of pure MIG or pure time-slicing, and state what you'd need to measure first (footprint/latency sensitivity, per the chapter's own guidance) to justify it.
-2. Explain why MPS is described as having "different isolation semantics" rather than "no isolation" — what specifically does the MPS server still guarantee (memory address space separation per client) versus not guarantee (a hung/faulting client can still take down the shared MPS server for all clients)?
+2. ➕ Explain why MPS is described as having "different isolation semantics" rather than "no isolation" — what specifically does the MPS server still guarantee (memory address space separation per client) versus not guarantee (a hung/faulting client can still take down the shared MPS server for all clients)?

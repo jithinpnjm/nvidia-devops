@@ -5,24 +5,9 @@ sidebar_position: 2
 description: "Chapter 2 - Scheduler mechanics, resources and topology — Kubernetes and Platform Engineering."
 source_document: "Volume_03_Kubernetes_and_Platform_Engineering(3).docx"
 ---
-
-## Scheduling is an eligibility decision
-
-A node needs enough allocatable resources and must satisfy constraints such as taints/tolerations, node affinity, topology and policy. A Pending Pod is not automatically evidence of cluster shortage.
-
-```yaml
-resources:
-  requests:
-    cpu: "2"
-    memory: 4Gi
-    nvidia.com/gpu: "1"
-  limits:
-    nvidia.com/gpu: "1"
-```
-
-Requests drive scheduling. CPU limits can throttle. Memory limits can lead to cgroup OOM behavior. Extended GPU resources depend on device discovery/advertisement and allocation.
-
 # Chapter 2 — Scheduler mechanics, resources and topology
+*(original text preserved in full below; additions marked with ➕ so you can see exactly what changed)*
+
 **Learning outcome:** Explain filter/score thinking, requests/allocatable, affinity, taints, topology and extended GPU resources.
 
 ## 2.1 Requests drive placement
@@ -35,7 +20,7 @@ kubectl get node <node> -o jsonpath='{.status.allocatable}'
 kubectl describe node <node> | sed -n '/Allocated resources:/,$p'
 ```
 
-**The distinction that trips people up, made concrete with numbers:**
+➕ **The distinction that trips people up, made concrete with numbers:**
 ```
 Node:          64 vCPU total, 60 vCPU allocatable (4 reserved for kubelet/system)
 Requests sum:  55 vCPU already RESERVED by scheduled Pods (whether they're using it or not)
@@ -46,7 +31,7 @@ allocatable capacity remains unreserved — even though 48 vCPU of *actual* usag
 headroom exists right now. The scheduler never looks at "actual usage"; it only
 ever looks at the sum of requests already committed.
 ```
-**Sample annotated output — reading `kubectl describe node` for exactly this:**
+➕ **Sample annotated output — reading `kubectl describe node` for exactly this:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -62,7 +47,7 @@ flowchart TD
 ```
 The `(130%)` on limits is normal and expected — limits are allowed to overcommit because they're enforced at runtime (CFS throttling), not reserved at scheduling time; **requests at or near 100% is the number that actually blocks new Pods**, and it's the number people conflate with "the node is full" when checking dashboards that show utilization instead.
 
-**Shortcut — one-liner to rank nodes by request pressure, not usage, across a whole cluster:**
+➕ **Shortcut — one-liner to rank nodes by request pressure, not usage, across a whole cluster:**
 ```bash
 kubectl describe nodes | awk '/^Name:/{name=$2} /cpu  /{print name, $0}' | grep -E '\([0-9]+%\)'
 ```
@@ -81,7 +66,7 @@ kubectl describe node <node> | grep -A3 Taints
 kubectl get pod <pod> -o yaml | sed -n '/affinity:/,/containers:/p'
 ```
 
-**Filter → Score, the two-phase model the scheduler actually runs (worth drawing from memory):**
+➕ **Filter → Score, the two-phase model the scheduler actually runs (worth drawing from memory):**
 ```mermaid
 flowchart TD
     All["all nodes in cluster"]
@@ -93,9 +78,9 @@ flowchart TD
     Filter -->|"feasible nodes only -- could be empty set, Pod stays Pending"| Score
     Score --> Bind
 ```
-**Interview-ready line:** "Filter is pass/fail elimination — a single unmet *required* rule drops a node to zero eligibility. Score only ranks whatever survives Filter. If a Pod is Pending, the first question is always which Filter predicate emptied the set — Score never explains a Pending Pod."
+➕ **Interview-ready line:** "Filter is pass/fail elimination — a single unmet *required* rule drops a node to zero eligibility. Score only ranks whatever survives Filter. If a Pod is Pending, the first question is always which Filter predicate emptied the set — Score never explains a Pending Pod."
 
-**Reading the actual FailedScheduling event, annotated:**
+➕ **Reading the actual FailedScheduling event, annotated:**
 ```
 $ kubectl describe pod gpu-job-7f -n ml | tail -15
 Events:
@@ -107,7 +92,7 @@ Events:
 ```
 Read this as three independent Filter rejections, not one combined failure — 3 nodes failed on GPU count alone (would pass if scaled), 6 failed on a taint (this Pod is missing a toleration, likely intentional isolation), 3 failed on affinity (label mismatch, possibly a typo). **The fix for each bucket is different** — this is the exact evidence a Senior SA is expected to decompose live rather than saying "not enough GPUs" as a single diagnosis.
 
-**Diagram: how constraints shrink the eligible node set to zero even with capacity to spare** (the source's key warning — "these rules can reduce the eligible node set to zero even when aggregate capacity exists" — drawn as the actual funnel):
+➕ **Diagram: how constraints shrink the eligible node set to zero even with capacity to spare** (the source's key warning — "these rules can reduce the eligible node set to zero even when aggregate capacity exists" — drawn as the actual funnel):
 ```mermaid
 flowchart TD
     N12["12 nodes in cluster"]
@@ -127,7 +112,7 @@ Each layer is an independent hard filter — aggregate cluster capacity is irrel
 
 GPUs are typically advertised as extended resources by a device plugin. The scheduler allocates named resources; it does not infer GPU availability from nvidia-smi utilization. MIG can expose slice-specific resource names. Therefore low hardware utilization does not imply that the requested resource exists or is unallocated.
 
-**The device-plugin → scheduler pipeline, end to end:**
+➕ **The device-plugin → scheduler pipeline, end to end:**
 ```mermaid
 flowchart TD
     Plugin["NVIDIA device plugin (DaemonSet, one per GPU node)"]
@@ -139,7 +124,7 @@ flowchart TD
     Kubelet --> Filter
     Filter --> Mig
 ```
-**Sample annotated output — proving what a node actually advertises, MIG or not:**
+➕ **Sample annotated output — proving what a node actually advertises, MIG or not:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -162,7 +147,7 @@ A Pod manifest requesting `nvidia.com/gpu: 1` against this node will Filter out 
 
 **Conclusion:** Scheduling evidence is allocation + constraints. Utilization belongs to a later runtime/performance question.
 
-**Second worked scenario — device plugin restart causing a transient scheduling storm:**
+➕ **Second worked scenario — device plugin restart causing a transient scheduling storm:**
 > **Situation:** A GPU node's device plugin Pod was OOMKilled and restarted. For ~20 seconds, four already-Running GPU workloads on that node show no symptom, but three NEW GPU Pods that were about to be scheduled to that node suddenly get `FailedScheduling: Insufficient nvidia.com/gpu` against a node that, seconds earlier, `kubectl describe node` showed as having free GPU capacity.
 > 1. `kubectl get pods -n kube-system -l app=nvidia-device-plugin -o wide` — confirm the restart timestamp lines up with the scheduling failures.
 > 2. `kubectl get node gpu-a100-04 -o json | jq '.status.allocatable'` during the gap — the `nvidia.com/gpu` key is briefly *absent entirely*, not just zero, because the kubelet clears the extended resource when the device plugin's gRPC stream disconnects and hasn't yet re-registered via a fresh `ListAndWatch`.
@@ -170,19 +155,19 @@ A Pod manifest requesting `nvidia.com/gpu: 1` against this node will Filter out 
 > 4. If device plugin restarts are *frequent* (check `kubectl get pods -n kube-system -l app=nvidia-device-plugin` restart counts across the fleet), the real problem is plugin stability (often a memory limit set too low for the plugin container itself), not scheduling.
 > **Conclusion:** an extended resource disappearing briefly from `allocatable` is a device-plugin-liveness signal, not a scheduler bug — correlate timestamps before escalating.
 
-**Shortcut — GPU scheduling triage in one command chain:**
+➕ **Shortcut — GPU scheduling triage in one command chain:**
 ```bash
 kubectl describe pod <pod> | grep -A5 Events   # what did Filter actually reject on?
 kubectl get node <node> -o json | jq '.status.allocatable, .status.capacity' | grep -i gpu
 kubectl -n kube-system get pods -l app=nvidia-device-plugin -o wide  # is the plugin even healthy?
 kubectl get node <node> -o json | jq '.metadata.labels' | grep -i mig  # MIG profile, if any
 ```
-**Mnemonic:** *"Requests reserve, limits enforce, GPUs don't share."* — CPU/memory requests are a scheduling-time reservation against allocatable; limits are a runtime cgroup enforcement ceiling; the default NVIDIA device plugin path has no concept of a GPU "limit" softer than "whole device," unlike CPU/memory which can overcommit on limits.
+➕ **Mnemonic:** *"Requests reserve, limits enforce, GPUs don't share."* — CPU/memory requests are a scheduling-time reservation against allocatable; limits are a runtime cgroup enforcement ceiling; the default NVIDIA device plugin path has no concept of a GPU "limit" softer than "whole device," unlike CPU/memory which can overcommit on limits.
 
 ## Practice
 1. Given `kubectl describe node` output showing 92% CPU requests and 20% actual CPU usage, explain to a customer why new Pods still won't schedule.
 2. Decompose a multi-reason FailedScheduling event into independent Filter rejections and propose a different fix for each.
 3. Explain why MIG profile mismatch produces "Insufficient nvidia.com/gpu" even on an idle-looking node.
 
-4. Simulate the device-plugin-restart scenario above in a lab GPU node (or reason through it without hardware): predict exactly what `kubectl get node -o json | jq .status.allocatable` shows during the plugin's restart window, and explain why the scheduler's behavior here is correct rather than a bug.
-5. Write the one-liner that ranks all nodes in a cluster by CPU *request* percentage (not usage) — this is the single fastest way to answer "why won't this Pod schedule" across a large fleet without reading each node's full `describe` output.
+➕ 4. Simulate the device-plugin-restart scenario above in a lab GPU node (or reason through it without hardware): predict exactly what `kubectl get node -o json | jq .status.allocatable` shows during the plugin's restart window, and explain why the scheduler's behavior here is correct rather than a bug.
+➕ 5. Write the one-liner that ranks all nodes in a cluster by CPU *request* percentage (not usage) — this is the single fastest way to answer "why won't this Pod schedule" across a large fleet without reading each node's full `describe` output.

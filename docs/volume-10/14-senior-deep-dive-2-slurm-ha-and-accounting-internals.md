@@ -1,8 +1,8 @@
 ---
-title: "Chapter 14 — Slurm HA and accounting internals"
+title: "Senior Deep Dive 2 — Slurm HA and accounting internals"
 slug: "senior-deep-dive-2-slurm-ha-and-accounting-internals"
 sidebar_position: 14
-description: "Chapter 2 — Slurm HA and accounting internals — Bare-Metal, HPC Operations and Infrastructure-as-Code."
+description: "Senior Deep Dive 2 — Slurm HA and accounting internals — Bare-Metal, HPC Operations and Infrastructure-as-Code."
 source_document: "Authored directly for the JR2018680 gap-coverage volume — no DOCX source."
 ---
 

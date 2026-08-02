@@ -1,8 +1,8 @@
 ---
-title: "Chapter 11 — GPU Operator as a dependency reconciler"
+title: "Senior Deep Dive 4 — GPU Operator as a dependency reconciler"
 slug: "senior-deep-dive-4-gpu-operator-as-a-dependency-reconciler"
 sidebar_position: 11
-description: "Chapter 4 — GPU Operator as a dependency reconciler — GPU and Accelerated Computing Foundations."
+description: "Senior Deep Dive 4 — GPU Operator as a dependency reconciler — GPU and Accelerated Computing Foundations."
 source_document: "Volume_04_GPU_and_Accelerated_Computing_Foundations(2).docx"
 ---
 The GPU Operator automates the NVIDIA driver, Container Toolkit, Kubernetes device plugin, GPU Feature Discovery / node labels, DCGM-based monitoring and related operands. Operationally, this means one ClusterPolicy expresses desired GPU software state and multiple controllers/DaemonSets converge nodes toward it. When a node exposes zero GPUs, inspect operator state and each operand rather than reinstalling the driver blindly.
@@ -18,10 +18,11 @@ The GPU Operator automates the NVIDIA driver, Container Toolkit, Kubernetes devi
 | metrics absent | DCGM/DCGM exporter/ServiceMonitor | exporter logs, /metrics endpoint, Prometheus target |
 | operator stuck upgrading | ClusterPolicy/operand rollout | CSV/Helm status, DaemonSet readiness, node conditions |
 
-## Build from the normal path
+## Senior addendum
 
+*(original text — ClusterPolicy as desired state, the operand list, and the failure/boundary/evidence table — preserved above in full; this table is already the strongest artifact in this Deep Dive and Chapter 4's enhanced content builds its own 8-step diagram and MIG-resource-naming worked scenario around the same reconciliation model.)*
 
-**Reading the operator's own reconciliation state directly — the command this chapter implies ("inspect operator state") but doesn't spell out:**
+➕ **Reading the operator's own reconciliation state directly — the command this Deep Dive implies ("inspect operator state") but doesn't spell out:**
 ```bash
 kubectl get clusterpolicy -o jsonpath='{.items[0].status.state}'
 # Ready              ← the whole operand set has converged; if any operand DaemonSet isn't
@@ -30,7 +31,7 @@ kubectl get clusterpolicy -o jsonpath='{.items[0].status.state}'
 ```
 **Interview-ready line:** "ClusterPolicy status is the single top-level health check for the whole GPU software stack — if it's not `Ready`, don't chase individual operand pods yet, read *why* first."
 
-**Diagram: ClusterPolicy's operand dependency order — why "not Ready" always has one specific bottom-most cause**
+➕ **Diagram: ClusterPolicy's operand dependency order — why "not Ready" always has one specific bottom-most cause**
 ```mermaid
 flowchart TD
     CP["ClusterPolicy (desired state)"]

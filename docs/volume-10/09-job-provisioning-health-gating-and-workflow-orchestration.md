@@ -5,45 +5,6 @@ sidebar_position: 9
 description: "Chapter 9 - Job provisioning, health gating and workflow orchestration — Bare-Metal, HPC Operations and Infrastructure-as-Code."
 source_document: "Authored directly for the JR2018680 gap-coverage volume — no DOCX source."
 ---
-
-## Safe first lab without physical mutations
-
-On an authorized lab node, collect an evidence-only inventory:
-
-```bash
-hostnamectl
-uname -a
-lspci -nn
-ip -brief address
-ip route
-findmnt
-systemctl --failed
-nvidia-smi --query-gpu=index,name,uuid,driver_version --format=csv
-nvidia-smi topo -m
-```
-
-If Slurm is installed:
-
-```bash
-scontrol show node "$(hostname -s)"
-```
-
-Create a table with expected, observed, evidence source and admission consequence. Do not update firmware, reset GPUs, change BMC power or resume a drained node during an observation lab.
-
-## Worked fault isolation
-
-**Symptom:** Slurm node is idle but a multi-node job never starts correctly.
-
-1. Confirm allocation and node/job reasons from Slurm.
-2. Confirm every expected `slurmd`/rank starts and has consistent environment.
-3. Run CPU/rank bootstrap test before GPU collectives.
-4. Confirm local GPU framework test on each allocated node.
-5. Compare driver/container/MPI/NCCL versions and topology.
-6. Run a controlled two-node NCCL test.
-7. Inspect selected interface/transport and fabric counters.
-8. Add storage/data path and the real framework only after lower layers pass.
-9. Drain/quarantine a consistently failing node and preserve evidence.
-
 **Learning outcome:** Trace the full chain from "cluster exists" to "a job is safely running," explain why health gating sits between cluster-join and scheduling eligibility, and design a health-check gate that catches degraded — not just dead — hardware.
 
 ## Start here — availability is not readiness

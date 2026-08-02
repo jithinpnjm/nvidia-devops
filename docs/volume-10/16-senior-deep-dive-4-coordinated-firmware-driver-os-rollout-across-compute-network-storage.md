@@ -1,8 +1,8 @@
 ---
-title: "Chapter 16 — Coordinated firmware, driver and OS rollout across compute, network and storage"
+title: "Senior Deep Dive 4 — Coordinated firmware, driver and OS rollout across compute, network and storage"
 slug: "senior-deep-dive-4-coordinated-firmware-driver-os-rollout-across-compute-network-storage"
 sidebar_position: 16
-description: "Chapter 4 — Coordinated firmware, driver and OS rollout across compute, network and storage — Bare-Metal, HPC Operations and Infrastructure-as-Code."
+description: "Senior Deep Dive 4 — Coordinated firmware, driver and OS rollout across compute, network and storage — Bare-Metal, HPC Operations and Infrastructure-as-Code."
 source_document: "Authored directly for the JR2018680 gap-coverage volume — no DOCX source."
 ---
 

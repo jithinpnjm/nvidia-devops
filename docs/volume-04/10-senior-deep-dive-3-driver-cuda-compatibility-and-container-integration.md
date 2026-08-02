@@ -1,8 +1,8 @@
 ---
-title: "Chapter 10 — Driver, CUDA compatibility and container integration"
+title: "Senior Deep Dive 3 — Driver, CUDA compatibility and container integration"
 slug: "senior-deep-dive-3-driver-cuda-compatibility-and-container-integration"
 sidebar_position: 10
-description: "Chapter 3 — Driver, CUDA compatibility and container integration — GPU and Accelerated Computing Foundations."
+description: "Senior Deep Dive 3 — Driver, CUDA compatibility and container integration — GPU and Accelerated Computing Foundations."
 source_document: "Volume_04_GPU_and_Accelerated_Computing_Foundations(2).docx"
 ---
 The NVIDIA kernel driver owns the device. User-space CUDA libraries and frameworks communicate through driver APIs. Containers normally bring user-space libraries but depend on a compatible host driver. The NVIDIA Container Toolkit configures the runtime so GPU devices and required driver libraries are made visible inside the container. This is why “CUDA works on the host” does not prove “the container can use the GPU”.
@@ -22,10 +22,11 @@ find /var/run/cdi /etc/cdi -maxdepth 1 -type f 2>/dev/null
 ctr -n k8s.io containers list | head
 # or run a vendor-supported CUDA container through your normal runtime
 
-## Build from the normal path
+## Senior addendum
 
+*(original text — driver ownership, user-space CUDA libraries, NVIDIA Container Toolkit, the host/runtime/container boundary-proving command sequence — preserved above; Chapter 3's enhanced content already has the layered-stack diagram and the annotated driver-vs-CUDA-version failure output.)*
 
-**The one boundary this chapter's command list names that Chapter 3 doesn't drill into — the CDI (Container Device Interface) spec files themselves:**
+➕ **The one boundary this Deep Dive's command list names that Chapter 3 doesn't drill into — the CDI (Container Device Interface) spec files themselves:**
 ```
 $ find /var/run/cdi /etc/cdi -maxdepth 1 -type f 2>/dev/null
 /var/run/cdi/nvidia.com-gpu.json
@@ -35,7 +36,7 @@ $ cat /var/run/cdi/nvidia.com-gpu.json | jq '.devices[0].containerEdits.deviceNo
 ```
 This file is the *actual mechanism* by which "the container gets the GPU device" happens under the modern CDI-based runtime path (as opposed to the older `nvidia-container-runtime` prestart-hook path) — an empty or missing CDI file here, with `nvidia-ctk --version` still reporting healthy, is a specific and different failure mode from a driver-version mismatch: the toolkit is installed but hasn't (re)generated the device spec, often after a driver upgrade that didn't trigger `nvidia-ctk cdi generate` again.
 
-**Diagram: two ways a container gets a GPU device node, and where each one breaks**
+➕ **Diagram: two ways a container gets a GPU device node, and where each one breaks**
 ```mermaid
 flowchart TD
     POD["Pod spec: resources.limits: {nvidia.com/gpu: 1}"]

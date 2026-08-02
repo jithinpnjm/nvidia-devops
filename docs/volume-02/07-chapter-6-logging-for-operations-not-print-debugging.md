@@ -6,70 +6,9 @@ description: "Chapter 6 - Logging for operations, not print-debugging — Python
 source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 ---
 
-## Step 6 — make the program operational
+*(original text preserved in full; ➕ marks additions)*
 
-Command-line tools communicate success or failure through exit codes. Restructure the full program:
-
-```python
-import json
-from pathlib import Path
-
-
-def load_nodes(path: Path) -> list[dict]:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(data, list):
-        raise ValueError("top-level JSON value must be a list")
-    return data
-
-
-def classify_node(observed_gpus: int, temperature_c: float) -> str:
-    if observed_gpus != 8:
-        return "CRITICAL"
-    if temperature_c >= 75:
-        return "WARNING"
-    return "OK"
-
-
-def main() -> int:
-    try:
-        nodes = load_nodes(Path("nodes.json"))
-    except (OSError, json.JSONDecodeError, ValueError) as error:
-        print(f"ERROR: cannot load inventory: {error}")
-        return 2
-
-    critical = False
-    for node in nodes:
-        try:
-            status = classify_node(node["gpus"], node["temperature_c"])
-            print(f'{node["name"]}: {status}')
-            critical = critical or status == "CRITICAL"
-        except (KeyError, TypeError) as error:
-            print(f"ERROR: invalid node record {node!r}: {error}")
-            critical = True
-
-    return 1 if critical else 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
-```
-
-Run and inspect the shell exit code:
-
-```bash
-python3 health.py
-echo $?
-```
-
-Use a simple contract:
-
-- `0`: checks completed and no critical nodes were found;
-- `1`: checks completed and at least one critical node was found;
-- `2`: the tool itself could not operate or input was invalid.
-
-The exact codes are your interface; document them and keep them stable.
-
-## Start with the basics
+## Foundations: start here if this is new to you
 
 **The problem `print()` doesn't solve.** Sprinkling `print("got here")` and `print(value)` through a script is a perfectly reasonable way to debug something running on your laptop right now, in front of you. The trouble starts the moment that code becomes a *service* — something running unattended, for days, on a machine you're not watching. `print()` output has no timestamp, so you can't tell *when* a line happened relative to an incident three hours ago. It has no notion of severity, so a routine status update and a critical failure look identical. You can't turn it off for the boring lines and keep it on for the important ones without editing and redeploying code. And it just goes to standard output — there's no way to route it to a place a team can search across thousands of machines. This entire chapter exists to fix those four gaps with the standard `logging` module.
 
@@ -165,7 +104,7 @@ In a larger system, use logging configuration and a JSON formatter instead of ma
 
 Figure 2. Reliable automation makes input validation, action, observation, and failure behavior explicit.
 
-**Correlation IDs across a distributed call chain — the piece that turns per-service logs into one traceable story:**
+➕ **Correlation IDs across a distributed call chain — the piece that turns per-service logs into one traceable story:**
 ```python
 import contextvars
 request_id_var = contextvars.ContextVar("request_id", default=None)
@@ -179,7 +118,7 @@ request_id_var.set(str(uuid.uuid4()))
 ```
 `contextvars` (not a plain global variable — that breaks under `asyncio`/threading) lets every log line inside one logical request automatically carry the same ID without threading it through every function signature manually. This is the exact mechanism behind "correlation ID" logging in real systems, and it's a natural bridge into Deep Dive 6 (structured logs/correlation IDs) later in this volume.
 
-**Diagram: one correlation ID threaded through a call chain**
+➕ **Diagram: one correlation ID threaded through a call chain**
 ```mermaid
 flowchart TD
     A["entry point: request_id_var.set(uuid4())<br/>request_id = a1b2..."] --> B["fetch_inventory()"]
@@ -191,7 +130,7 @@ flowchart TD
 ```
 Every line carries the SAME request_id without it being passed as a parameter — `contextvars` carries it implicitly through the call chain, and safely across threads/asyncio tasks.
 
-**Secret redaction — the chapter names it, here's the actual filter:**
+➕ **Secret redaction — the chapter names it, here's the actual filter:**
 ```python
 import logging, re
 class RedactSecrets(logging.Filter):
@@ -204,7 +143,7 @@ logger.addFilter(RedactSecrets())
 ```
 This is the exact `logging.Filter` the Practice section below asks you to write — worth having built once before an interview asks for it live.
 
-**Diagram: where redaction sits in the logging pipeline**
+➕ **Diagram: where redaction sits in the logging pipeline**
 ```mermaid
 flowchart TD
     A["logger.info('token=abc123 login ok')"] --> B["RedactSecrets.filter(record)<br/>runs BEFORE the line leaves the process<br/>regex finds 'token=abc123'"]
@@ -227,7 +166,7 @@ flowchart TD
 2. Create a logging.Filter that masks a token-like field.
 3. Define DEBUG/INFO/WARNING/ERROR usage for a retrying API client.
 
-4. Add `request_id` propagation to the `sync_inventory` function from Chapter 5 so every retry attempt's log line carries the same correlation ID — this ties Ch5's retry logic to Ch6's logging in the way a real incident investigation actually needs both together.
+➕ 4. Add `request_id` propagation to the `sync_inventory` function from Chapter 5 so every retry attempt's log line carries the same correlation ID — this ties Ch5's retry logic to Ch6's logging in the way a real incident investigation actually needs both together.
 
 ## Targeted references
 [Python logging HOWTO](https://docs.python.org/3/howto/logging.html) - Core logging concepts and configuration.

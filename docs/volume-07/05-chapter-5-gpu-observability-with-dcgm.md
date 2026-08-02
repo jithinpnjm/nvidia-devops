@@ -5,20 +5,7 @@ sidebar_position: 5
 description: "Chapter 5 - GPU observability with DCGM — Observability, Reliability and Troubleshooting."
 source_document: "Volume_07_Observability,_Reliability_and_Troubleshooting(2).docx"
 ---
-
-## GPU and AI observability needs workload outcomes
-
-Layer metrics:
-
-| Layer | Examples |
-|---|---|
-| User/API | success, TTFT, inter-token latency, total latency |
-| Queue/engine | waiting requests, batch size, execution count, cache pressure |
-| GPU | activity, memory allocation, power, clocks, errors |
-| Host | CPU, memory pressure, storage/network behavior |
-| Distributed | per-rank step time, collective time, stragglers |
-
-GPU activity can be high while users receive poor throughput or latency. Conversely, low GPU activity may be expected during sparse traffic. Alert on service risk/actionable failure, then use component telemetry for diagnosis.
+*(original text preserved in full below; additions marked with ➕)*
 
 **Learning outcome:** Separate device health/utilization from workload demand and performance.
 
@@ -32,7 +19,7 @@ A public post illustrates the distinction between DCGM hardware metrics and infe
 
 [Public source](https://www.linkedin.com/posts/sagar-s-desai_kubernetes-gpu-nvidia-activity-7413160079337684992-fOZI)
 
-**Sample DCGM Exporter Prometheus output, annotated field by field — the metric set worth having memorized:**
+➕ **Sample DCGM Exporter Prometheus output, annotated field by field — the metric set worth having memorized:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -48,7 +35,7 @@ flowchart TD
 ```
 Reading order for a "is this GPU healthy vs busy" triage: **XID_ERRORS and ECC_DBE first** (any nonzero value here overrides everything else — it's a hardware-fault signal, go straight to Chapter 10/Deep Dive 4), then **UTIL+POWER+SM_CLOCK together** (all three should move together; if UTIL is high but POWER is low and SM_CLOCK is depressed, that's a throttling or stalling signature, not genuine compute), then **FB_USED/FB_FREE** (memory pressure — this is the metric that predicts CUDA OOM before it happens, seconds to minutes ahead).
 
-**ASCII: the multi-layer model the chapter names, made visual — device health vs workload demand are orthogonal axes, not one scale:**
+➕ **ASCII: the multi-layer model the chapter names, made visual — device health vs workload demand are orthogonal axes, not one scale:**
 ```mermaid
 quadrantChart
     title GPU util (DCGM) vs service saturation (queue depth, TTFT)
@@ -61,7 +48,7 @@ quadrantChart
 ```
 The chapter's practitioner-lens point sits in **Quadrant C's boundary**: a service can be saturated (queue growing, TTFT rising) while GPU_UTIL reads modestly, because the bottleneck is elsewhere (CPU-side tokenization, network, batching inefficiency, a single stuck worker not receiving traffic). Conversely Quadrant B is the inverse trap — util is pegged at 100% but that doesn't mean the GPU is doing useful work per request; it can mean tiny batch sizes driving kernel-launch-overhead-bound execution.
 
-**Diagram: the DCGM telemetry pipeline, and exactly where the silent-loss scenario below breaks it**
+➕ **Diagram: the DCGM telemetry pipeline, and exactly where the silent-loss scenario below breaks it**
 ```mermaid
 flowchart LR
     GPU["GPU hardware (SM, memory, ECC, XID events)"] --> Driver["NVIDIA driver/NVML (reads registers, translates to counters)"]
@@ -72,7 +59,7 @@ flowchart LR
 ```
 The scenario below is a break at the driver/NVML hop specifically: the exporter and Prometheus stay healthy (`up == 1`), so nothing downstream notices — which is exactly why the fix is a variance-based alert, not just an `up`-based one.
 
-**Worked scenario — silent DCGM telemetry loss (an evidence-availability failure, not a GPU failure):**
+➕ **Worked scenario — silent DCGM telemetry loss (an evidence-availability failure, not a GPU failure):**
 > **Situation:** An inference fleet's Grafana dashboards show `DCGM_FI_DEV_GPU_UTIL` flatlined at exactly 0 for 6 GPUs starting at 03:14, coincident with a driver update rollout. No alerts fired. Customers report normal service the whole time.
 > 1. First hypothesis (wrong, but the tempting one): "6 GPUs went idle" — check inference request logs for those nodes: traffic and successful responses are completely normal throughout.
 > 2. Second hypothesis (correct): the DCGM exporter itself lost the ability to query the driver post-update (a common NVML/driver-version mismatch failure mode) and is emitting a stale/zero last-known value instead of failing the scrape outright.
@@ -80,10 +67,10 @@ The scenario below is a break at the driver/NVML hop specifically: the exporter 
 > 4. Fix: match DCGM exporter/driver version compatibility explicitly in the upgrade runbook; add an alert not just on `up`, but on **metric variance** (e.g. `stddev_over_time(DCGM_FI_DEV_GPU_UTIL[30m]) == 0` while the node has active Pod scheduling) as a "telemetry is alive but not trustworthy" signal — this is a materially different failure than `up == 0`, and most DCGM alerting only checks the latter.
 > **Conclusion:** a monitoring pipeline being *reachable* is not the same claim as it being *truthful* — silent telemetry loss (exporter up, values frozen/wrong) is a distinct and dangerous failure mode from telemetry being simply absent, because dashboards look populated and nobody notices.
 
-**Shortcut:** *"Correlate GPU UUID, not GPU index."* GPU index numbers (`gpu="0"`) can be reassigned across reboots/reschedules; `UUID` is the only identity guaranteed to survive them — this is exactly why the chapter calls for "Kubernetes ownership labels/joins," and it's the concrete mechanism behind Deep Dive 4's "correlate GPU UUID... so an incident survives node renumbering."
+➕ **Shortcut:** *"Correlate GPU UUID, not GPU index."* GPU index numbers (`gpu="0"`) can be reassigned across reboots/reschedules; `UUID` is the only identity guaranteed to survive them — this is exactly why the chapter calls for "Kubernetes ownership labels/joins," and it's the concrete mechanism behind Deep Dive 4's "correlate GPU UUID... so an incident survives node renumbering."
 
 **Interview-ready line:** "DCGM tells me if the device is healthy and busy; it can't tell me if the *service* is saturated — those are two different telemetry planes, and I alert on both because high GPU utilization and a healthy customer experience are correlated, not identical."
 
 ## Practice
-1. Using the metric list above, write the PromQL to alert on "framebuffer memory within 5% of capacity for 10 minutes" as an early-warning signal ahead of CUDA OOM, and explain why this is a better lead-time signal than alerting on the OOM event itself.
-2. Design the "telemetry is alive but not trustworthy" alert from the scenario above as an actual PromQL expression, and state what legitimate (non-failure) condition could also produce zero variance, so you can explain why your alert wouldn't false-positive on it (hint: a genuinely idle, unscheduled GPU).
+➕ 1. Using the metric list above, write the PromQL to alert on "framebuffer memory within 5% of capacity for 10 minutes" as an early-warning signal ahead of CUDA OOM, and explain why this is a better lead-time signal than alerting on the OOM event itself.
+➕ 2. Design the "telemetry is alive but not trustworthy" alert from the scenario above as an actual PromQL expression, and state what legitimate (non-failure) condition could also produce zero variance, so you can explain why your alert wouldn't false-positive on it (hint: a genuinely idle, unscheduled GPU).

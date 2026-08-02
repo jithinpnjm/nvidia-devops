@@ -1,15 +1,15 @@
 ---
-title: "Chapter 18 — Practitioner role model: Solutions Architect versus implementation engineer"
+title: "Senior Deep Dive 8 — Practitioner role model: Solutions Architect versus implementation engineer"
 slug: "senior-deep-dive-8-practitioner-role-model-solutions-architect-versus-implemen"
 sidebar_position: 18
-description: "Chapter 8 — Practitioner role model: Solutions Architect versus implementation engineer — Senior Solutions Architecture Practice."
+description: "Senior Deep Dive 8 — Practitioner role model: Solutions Architect versus implementation engineer — Senior Solutions Architecture Practice."
 source_document: "Volume_08_Senior_Solutions_Architecture_Practice(2).docx"
 ---
 Public practitioner material from NVIDIA SAs emphasizes requirements discovery, evaluating trade-offs, PoCs, guiding implementation and stakeholder communication. This is the differentiator from an engineer who only knows product configuration. During an interview, make your reasoning visible: clarify constraints, propose options, state trade-offs, recommend one, and define how you would validate it.
 
-## Build from the normal path
+## Senior addendum
 
-**A scored self-check rubric — the missing artifact for this chapter, usable as literal interview prep:**
+➕ **A scored self-check rubric — the missing artifact for this Deep Dive, usable as literal interview prep:**
 ```mermaid
 flowchart LR
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -38,9 +38,9 @@ flowchart LR
   n14 --> n15
   n16 --> n17
 ```
-**Interview-ready line:** "the gap between an SA and an implementation engineer isn't technical depth — it's that an SA's answer has a constraint-clarifying question at the start and a validation plan at the end, with the technical recommendation sandwiched in between. I try to hit both bookends on every answer, not just the middle."
+➕ **Interview-ready line:** "the gap between an SA and an implementation engineer isn't technical depth — it's that an SA's answer has a constraint-clarifying question at the start and a validation plan at the end, with the technical recommendation sandwiched in between. I try to hit both bookends on every answer, not just the middle."
 
-**Diagram: the answer structure that separates the two roles:**
+➕ **Diagram: the answer structure that separates the two roles:**
 ```mermaid
 flowchart LR
   %% Converted from the original ASCII diagram; source wording is preserved.

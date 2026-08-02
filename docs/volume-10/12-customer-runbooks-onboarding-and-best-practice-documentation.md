@@ -14,7 +14,7 @@ Documentation is part of the operating system of a team. Choose its form from th
 
 | Document | Reader's question | Required shape |
 |---|---|---|
-| Concept/explanation | "How does this system work?" | working model, boundaries, examples |
+| Concept/explanation | "How does this system work?" | Mental model, boundaries, examples |
 | Tutorial | "Can you teach me once, safely?" | Guided end-to-end learning exercise |
 | How-to/SOP | "How do I perform this known task?" | Preconditions, ordered procedure, validation |
 | Runbook | "How do I respond to this symptom now?" | Triage, decision branches, mitigation, escalation |
@@ -35,7 +35,7 @@ For a new learner, onboarding should progress from architecture and vocabulary t
   Who reads it:      on-call engineer, adrenaline up   new team member, has time to think
   Scope:              one narrow symptom               the whole system's shape and rationale
   Style:              imperative, prescriptive           explanatory, educational
-  Success looks like: correct action taken fast          correct working model formed
+  Success looks like: correct action taken fast          correct mental model formed
   Failure mode if
   conflated:          prose explanation slows down       a command list with no "why" leaves
                       the exact moment speed matters      the reader unable to adapt when the

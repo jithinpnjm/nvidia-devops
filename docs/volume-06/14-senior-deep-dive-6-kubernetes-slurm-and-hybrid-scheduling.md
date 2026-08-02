@@ -1,15 +1,17 @@
 ---
-title: "Chapter 14 — Kubernetes, Slurm and hybrid scheduling"
+title: "Senior Deep Dive 6 — Kubernetes, Slurm and hybrid scheduling"
 slug: "senior-deep-dive-6-kubernetes-slurm-and-hybrid-scheduling"
 sidebar_position: 14
-description: "Chapter 6 — Kubernetes, Slurm and hybrid scheduling — HPC, Networking and Storage for AI."
+description: "Senior Deep Dive 6 — Kubernetes, Slurm and hybrid scheduling — HPC, Networking and Storage for AI."
 source_document: "Volume_06_HPC,_Networking_and_Storage_for_AI(2).docx"
 ---
 Kubernetes excels at declarative services, APIs, controllers and cloud-native platform integration. Slurm excels at queued HPC jobs, reservations, gang-like resource allocation and mature batch scheduling. The decision depends on workload shape, organizational model and integrations—not ideology. Hybrid estates often share physical infrastructure but need clear ownership of nodes, drivers, networking and storage to avoid conflicting control planes.
 
-## Build from the normal path
+## Senior addendum
 
-**Diagram: the undefined-conflict failure mode checklist item #1 warns about**
+*(Chapter 8's decision tree and 80/20 worked scenario already cover the workload-fit decision in depth — cross-reference rather than re-deriving. This Deep Dive's genuinely new contribution is the ownership question for a hybrid estate, made into a concrete checklist.)*
+
+➕ **Diagram: the undefined-conflict failure mode checklist item #1 warns about**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -23,7 +25,7 @@ flowchart TD
   n7["node unavailable'"]
 ```
 
-**Diagram: a dynamically shared node pool crossing the ownership boundary**
+➕ **Diagram: a dynamically shared node pool crossing the ownership boundary**
 ```mermaid
 flowchart LR
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -38,7 +40,7 @@ flowchart LR
 ```
 A node that moves pools without re-running the fabric/driver provisioning step (Chapter 5's Network Operator flow) can end up scheduled by one control plane while still carrying network state configured for the other — exactly the "static assignment assumed" failure checklist item #3 calls out.
 
-**The hybrid-ownership checklist — what "clear ownership" actually needs to enumerate before go-live:**
+➕ **The hybrid-ownership checklist — what "clear ownership" actually needs to enumerate before go-live:**
 ```
 1. Node lifecycle    — who drains/reboots/re-images a physical node: the Slurm admin or the
                         Kubernetes cluster-admin? (Answer must be ONE of them, never "either.")

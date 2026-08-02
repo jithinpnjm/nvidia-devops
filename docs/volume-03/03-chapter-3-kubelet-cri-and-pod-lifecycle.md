@@ -6,6 +6,8 @@ description: "Chapter 3 - Kubelet, CRI and Pod lifecycle — Kubernetes and Plat
 source_document: "Volume_03_Kubernetes_and_Platform_Engineering(3).docx"
 ---
 # Chapter 3 — Kubelet, CRI and Pod lifecycle
+*(original text preserved in full below; additions marked with ➕ so you can see exactly what changed)*
+
 **Learning outcome:** Understand how an assigned Pod becomes namespaces, cgroups, volumes, network setup and running containers on a node.
 
 The kubelet watches Pods assigned to its node, manages volumes/secrets/config, asks the container runtime through CRI to create sandboxes/containers, and reports status back to the API. CNI plugins handle network setup through the runtime integration path; CSI handles storage interactions. A Pod can therefore be scheduled correctly but fail during node-local preparation.
@@ -26,7 +28,7 @@ crictl inspectp <sandbox-id>
 | CrashLoopBackOff | container starts then exits repeatedly |
 | Running but NotReady | readiness/dependency/application health |
 
-**The full node-local pipeline once a Pod is bound to a node** (the source names the actors; here is the sequence and where each symptom in the table actually originates):
+➕ **The full node-local pipeline once a Pod is bound to a node** (the source names the actors; here is the sequence and where each symptom in the table actually originates):
 ```mermaid
 flowchart TD
     Bound["API: Pod bound to node (nodeName set)"]
@@ -50,9 +52,9 @@ flowchart TD
     Create --> Crash
     Create --> Ready
 ```
-**Why this matters:** every row in the table above is a *different failure stage in this same pipeline* — the practical value of memorizing this sequence is that `ContainerCreating` alone is not a diagnosis, it's a stage that covers at least three independent subsystems (CNI, CSI, image pull ordering, sandbox creation). The fix is always "find which CRI call is stuck," not "restart the Pod."
+➕ **Why this matters:** every row in the table above is a *different failure stage in this same pipeline* — the practical value of memorizing this sequence is that `ContainerCreating` alone is not a diagnosis, it's a stage that covers at least three independent subsystems (CNI, CSI, image pull ordering, sandbox creation). The fix is always "find which CRI call is stuck," not "restart the Pod."
 
-**Sample annotated output — pinpointing exactly which CRI call stalled:**
+➕ **Sample annotated output — pinpointing exactly which CRI call stalled:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -68,7 +70,7 @@ flowchart TD
 ```
 This is the smoking gun: the sandbox itself is fine (`SANDBOX_READY`), but CNI failed to assign an IP because the CNI plugin's own health dependency (here, a Calico API datastore) is unreachable — this is a *cluster networking control-plane* problem masquerading as a single Pod stuck in `ContainerCreating`. If this is happening cluster-wide, escalate immediately rather than treating each Pod individually.
 
-**GPU-specific version of the same pipeline — device plugin allocation happens inside CRI's CreateContainer step, not before:**
+➕ **GPU-specific version of the same pipeline — device plugin allocation happens inside CRI's CreateContainer step, not before:**
 ```bash
 crictl inspect <container-id> | jq '.info.runtimeSpec.linux.resources.devices'
 ```
@@ -82,7 +84,7 @@ flowchart TD
 ```
 If a Pod's requested `nvidia.com/gpu` device never shows up in this list, but the Pod passed scheduling and is `Running`, look at the NVIDIA device plugin's `Allocate()` gRPC response and the kubelet's device manager checkpoint (`/var/lib/kubelet/device-plugins/kubelet_internal_checkpoint`) — a stale checkpoint after a device plugin restart is a known cause of a container starting with zero actual GPU device nodes bind-mounted despite the Pod object claiming the resource.
 
-**Diagram: Pod phase state machine — where the table's symptoms actually sit on it:**
+➕ **Diagram: Pod phase state machine — where the table's symptoms actually sit on it:**
 ```mermaid
 flowchart LR
     Pending["Pending"]
@@ -111,17 +113,17 @@ flowchart LR
 
 **Conclusion:** the correct branch depends on which CRI/CNI/CSI call is stuck — "ContainerCreating" by itself never tells you which of the three.
 
-**Shortcut — a single command to see the whole node-local state for one Pod:**
+➕ **Shortcut — a single command to see the whole node-local state for one Pod:**
 ```bash
 POD_UID=$(kubectl get pod <pod> -o jsonpath='{.metadata.uid}')
 crictl pods --id "$POD_UID" -v 2>/dev/null; crictl ps -a --pod "$(crictl pods -q --name <pod>)"
 ```
-**Mnemonic:** *"Sandbox, network, volumes, image, start — in that order."* Walking the pipeline in that exact order, top to bottom, always lands on the actual stuck stage faster than reading kubelet logs top-to-bottom looking for "the error."
+➕ **Mnemonic:** *"Sandbox, network, volumes, image, start — in that order."* Walking the pipeline in that exact order, top to bottom, always lands on the actual stuck stage faster than reading kubelet logs top-to-bottom looking for "the error."
 
 ## Practice
 1. Given a Pod stuck in ContainerCreating with no error in `kubectl describe`, name the three subsystems it could be stuck in and the command that distinguishes them.
 2. Explain why CrashLoopBackOff and Running-but-NotReady are different failure classes even though both look "unhealthy" from `kubectl get pods`.
 3. Trace a GPU device from device-plugin advertisement through to a bind-mounted `/dev/nvidia0` inside a running container.
 
-4. Using `crictl inspectp` on a healthy Pod's sandbox, note the baseline `network.ip` and `state` fields, then deliberately break CNI (e.g. stop the CNI daemon/Pod on a lab node) and create a new Pod — confirm you can name exactly which pipeline stage failed using only `crictl` and `journalctl`, without touching `kubectl describe`.
-5. Explain what a stale kubelet device-plugin checkpoint is, why a device plugin restart can produce one, and what evidence (`crictl inspect` device list vs Pod's claimed `nvidia.com/gpu` request) would prove a container is Running with zero actual GPU devices attached.
+➕ 4. Using `crictl inspectp` on a healthy Pod's sandbox, note the baseline `network.ip` and `state` fields, then deliberately break CNI (e.g. stop the CNI daemon/Pod on a lab node) and create a new Pod — confirm you can name exactly which pipeline stage failed using only `crictl` and `journalctl`, without touching `kubectl describe`.
+➕ 5. Explain what a stale kubelet device-plugin checkpoint is, why a device plugin restart can produce one, and what evidence (`crictl inspect` device list vs Pod's claimed `nvidia.com/gpu` request) would prove a container is Running with zero actual GPU devices attached.

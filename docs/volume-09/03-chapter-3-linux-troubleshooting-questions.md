@@ -25,9 +25,9 @@ source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 
 **Conclusion:** The senior answer converts an ambiguous symptom into measurable dimensions before commands.
 
-## Worked explanation and practice
+## ➕ Additions
 
-**Troubleshooting decision tree — "the system is slow" (turn the vague symptom into a branch, before any command):**
+➕ **Troubleshooting decision tree — "the system is slow" (turn the vague symptom into a branch, before any command):**
 ```mermaid
 flowchart TD
     Prompt["'The system is slow' (interviewer prompt)"]
@@ -49,7 +49,7 @@ flowchart TD
     Net --> NetEv["ss -tn state, dependency latency histogram"]
 ```
 
-**Sample annotated output — the "load 30, CPU 40%" question, made concrete with real commands:**
+➕ **Sample annotated output — the "load 30, CPU 40%" question, made concrete with real commands:**
 ```
 $ uptime
  14:32:10 up 12 days,  3:41,  2 users,  load average: 30.14, 28.90, 25.02
@@ -72,9 +72,9 @@ $ for p in $(ps -eo pid,stat | awk '$2 ~ /D/ {print $1}'); do
 Two distinct root causes hiding under one "load 30" symptom: an NFS mount stalling most of the `java` processes, and ordinary page-cache I/O wait for `python3`. **Interview-ready line:** "Load average by itself never tells you if it's CPU or I/O — `b` in `vmstat` and `wchan` per PID do."
 
 ## Practice
-6. Reproduce the D-state/NFS scenario: mount a deliberately slow/throttled NFS/loopback target, drive writes against it, and confirm `vmstat`'s `b` column and `wchan` both point at it before you'd normally suspect CPU.
+➕ 6. Reproduce the D-state/NFS scenario: mount a deliberately slow/throttled NFS/loopback target, drive writes against it, and confirm `vmstat`'s `b` column and `wchan` both point at it before you'd normally suspect CPU.
 
-**Visual model — classify load before proposing capacity:**
+➕ **Visual model — classify load before proposing capacity:**
 ```mermaid
 flowchart LR
     HL[high load]
@@ -82,4 +82,4 @@ flowchart LR
     HL -->|"high blocked b"| B[storage / NFS / kernel wait branch]
     HL -->|"low host CPU but latency"| C[cgroup throttling / dependency branch]
 ```
-**Key takeaway:** *"Load is queued work, not CPU percentage."*
+**Memory hook:** *"Load is queued work, not CPU percentage."*

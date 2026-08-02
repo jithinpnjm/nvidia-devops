@@ -5,47 +5,6 @@ sidebar_position: 4
 description: "Chapter 4 - Kubernetes device plugins and GPU Operator — GPU and Accelerated Computing Foundations."
 source_document: "Volume_04_GPU_and_Accelerated_Computing_Foundations(2).docx"
 ---
-
-## How Kubernetes gets from a physical GPU to a Pod
-
-Kubernetes schedules named resources; it does not understand GPU hardware by itself. NVIDIA GPU Operator automates the lifecycle of several components needed on GPU nodes, including drivers where configured, NVIDIA Container Toolkit, device discovery/advertisement, feature labels, MIG management and DCGM monitoring.
-
-```mermaid
-sequenceDiagram
-  participant H as GPU node hardware
-  participant O as GPU Operator operands
-  participant K as Kubelet/API status
-  participant S as Scheduler
-  participant R as Container runtime/CDI
-  participant P as GPU Pod
-  H->>O: Device and driver become available
-  O->>K: Device plugin advertises nvidia.com/gpu
-  K->>S: Node allocatable resources are visible
-  P->>S: Pod requests nvidia.com/gpu
-  S->>K: Pod is bound to an eligible node
-  K->>R: Start container with assigned device
-  R->>P: Inject GPU device access and driver capabilities
-```
-
-This separates common failures:
-
-- no `nvidia.com/gpu` allocatable resource: discovery/device-plugin/operator/driver issue;
-- Pod Pending with resource visible: capacity, taints, affinity, policy or topology;
-- Pod Running but no GPU inside: runtime/CDI/toolkit injection issue;
-- GPU visible but application fails: application/framework/library compatibility;
-- application runs but is slow: workload, topology, clocks, data, communication or scheduling efficiency.
-
-## Kubernetes infrastructure operators
-
-| Operator/component | Scope |
-|---|---|
-| GPU Operator | GPU driver/toolkit/device discovery, feature labeling, MIG management and monitoring operands |
-| Network Operator | lifecycle of NVIDIA networking software/components for accelerated networking |
-| DPU Operator / DPF | lifecycle and services for supported BlueField/DPU environments |
-| NIM Operator | Kubernetes lifecycle for NIM deployments |
-
-An Operator is a Kubernetes controller pattern: it watches desired state in custom resources and reconciles supporting objects. It is not simply an installer script. Troubleshoot the declared custom resource, controller decisions, generated operands and node/application outcome separately.
-
 **Learning outcome:** Trace how hardware becomes an allocatable Kubernetes extended resource and how operator lifecycle automation fits around it.
 
 Kubernetes device plugins advertise specialized devices to kubelet; the Node status then exposes allocatable extended resources. GPU Operator automates GPU-node software such as drivers, container toolkit integration, device plugin, telemetry and MIG-related components depending on configuration. It is lifecycle automation around the node stack; scheduling still follows Kubernetes resource requests.
@@ -69,7 +28,7 @@ kubectl describe node <gpu-node> | grep -A10 -i nvidia
 
 ---
 
-**ASCII diagram — the full path from PCIe device to a Pod's `resources.limits`, i.e. what "worked scenario" step 1→5 is walking backward through:**
+➕ **ASCII diagram — the full path from PCIe device to a Pod's `resources.limits`, i.e. what "worked scenario" step 1→5 is walking backward through:**
 ```mermaid
 flowchart TD
     S1["1. GPU hardware on PCIe bus"]
@@ -85,7 +44,7 @@ flowchart TD
 ```
 `nvidia-smi` on the host only proves step 2. Everything from step 3 onward is a separate, independently-failing chain — this is exactly why the worked scenario insists on walking *up* from proven ground instead of guessing.
 
-**Annotated real output at each layer of the diagram — what healthy vs broken actually prints:**
+➕ **Annotated real output at each layer of the diagram — what healthy vs broken actually prints:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -107,7 +66,7 @@ flowchart TD
 ```
 This is the exact "nvidia-smi works, Kubernetes doesn't show GPUs" symptom, reproduced with the specific log line (`failed to initialize NVML`) that names the layer: the *plugin's own container* can't reach the NVML library, which is a toolkit/CDI/mount problem — a layer entirely separate from and downstream of a healthy host driver.
 
-**Extra worked scenario — MIG-mode resource-naming mismatch, the failure mode step 5 of the original scenario hints at but doesn't spell out:**
+➕ **Extra worked scenario — MIG-mode resource-naming mismatch, the failure mode step 5 of the original scenario hints at but doesn't spell out:**
 > **Situation:** A node was just switched into MIG mode (single-strategy, `1g.10gb` slices). `kubectl describe node` shows `nvidia.com/gpu: 0` allocatable, but `nvidia.com/mig-1g.10gb: 7` instead. A Deployment written before the MIG migration still requests `nvidia.com/gpu: 1` and sits `Pending` with `0/1 nodes are available: Insufficient nvidia.com/gpu`.
 > 1. This is not a device-plugin failure — the plugin is doing exactly what MIG configuration told it to advertise. Confirm via `kubectl -n gpu-operator get configmap -o yaml | grep -i mig` or the ClusterPolicy's `migStrategy` field (`single` vs `mixed`).
 > 2. `single` strategy replaces `nvidia.com/gpu` entirely with per-profile resource names (`nvidia.com/mig-1g.10gb`, etc.) on that node — any workload still requesting `nvidia.com/gpu` becomes unschedulable there by design, not by bug.
@@ -115,11 +74,11 @@ This is the exact "nvidia-smi works, Kubernetes doesn't show GPUs" symptom, repr
 > 4. Fix: either update the Deployment's resource request to the correct MIG profile name, or use `mixed` strategy with explicit per-workload profile selection, or exclude MIG nodes from that Deployment's nodeAffinity if it genuinely needs whole GPUs.
 > **Interview-ready line:** "A Pod stuck Pending on `Insufficient nvidia.com/gpu` right after a MIG rollout usually isn't broken — the resource name changed underneath it, and that's a scheduling-contract change, not a device-plugin bug."
 
-**Shortcut — one-liner to see every GPU-related allocatable resource name a node is currently advertising (works whether it's whole-GPU, MIG, or mixed):**
+➕ **Shortcut — one-liner to see every GPU-related allocatable resource name a node is currently advertising (works whether it's whole-GPU, MIG, or mixed):**
 ```bash
 kubectl get node <node> -o json | jq -r '.status.allocatable | to_entries[] | select(.key | contains("nvidia.com")) | "\(.key): \(.value)"'
 ```
 
-**Practice (continuation — original chapter had a worked scenario but no numbered Practice list; these are new):**
+➕ **Practice (continuation — original chapter had a worked scenario but no numbered Practice list; these are new):**
 1. Walk the 8-step diagram above out loud from memory, naming which `kubectl`/host command proves each step, without looking at the diagram.
-2. A node shows `nvidia.com/gpu: 8` allocatable, but a Pod requesting `nvidia.com/gpu: 1` still fails to schedule with a scheduling-predicate error unrelated to GPU count — name at least two other resource dimensions (CPU/memory requests, taints/tolerations, nodeSelector on a GFD-applied label) that could independently block scheduling even when the GPU resource itself is available.
+2. ➕ A node shows `nvidia.com/gpu: 8` allocatable, but a Pod requesting `nvidia.com/gpu: 1` still fails to schedule with a scheduling-predicate error unrelated to GPU count — name at least two other resource dimensions (CPU/memory requests, taints/tolerations, nodeSelector on a GFD-applied label) that could independently block scheduling even when the GPU resource itself is available.

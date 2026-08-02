@@ -6,18 +6,9 @@ description: "Chapter 5 - Exceptions and context managers — Python for Product
 source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 ---
 
-## Tracebacks: read from the bottom
+*(original text preserved in full; ➕ marks additions)*
 
-```text
-Traceback (most recent call last):
-  File "health.py", line 18, in <module>
-    print(node["temperature_c"])
-KeyError: 'temperature_c'
-```
-
-Start with `KeyError: 'temperature_c'`: a dictionary lookup requested a missing key. Then move upward to your code line and call path. A traceback is diagnostic evidence, not noise to hide.
-
-## Start with the basics
+## Foundations: start here if this is new to you
 
 **The problem.** A function you call can fail in a way it cannot recover from itself — a network call times out, a file doesn't exist, a dictionary lookup misses a key. The function has two choices: return some special "nothing happened" value and hope the caller checks for it, or stop what it's doing right now and hand the problem to whoever called it. Python's answer is the second option, and it is built into the language rather than bolted on.
 
@@ -168,7 +159,7 @@ def workspace():
     # TemporaryDirectory cleans up even when the caller raises.
 ```
 
-**The exception hierarchy in action — this is exactly what lets a caller pick a retry policy per exception type, not per string-matching a message:**
+➕ **The exception hierarchy in action — this is exactly what lets a caller pick a retry policy per exception type, not per string-matching a message:**
 ```python
 def sync_inventory(client, max_retries=3):
     for attempt in range(1, max_retries + 1):
@@ -183,7 +174,7 @@ def sync_inventory(client, max_retries=3):
 ```
 **Interview line:** "the exception class *is* the retry policy — `except TemporaryAPIError: retry` vs `except AuthenticationError: fail-fast` reads as documentation, not just error handling."
 
-**Diagram: exception chaining up the call stack**
+➕ **Diagram: exception chaining up the call stack**
 ```mermaid
 flowchart TD
     A["sync_inventory()"] --> B["client.fetch_inventory()"]
@@ -193,7 +184,7 @@ flowchart TD
 ```
 Without `from exc`, the traceback would show only the wrapped exception — during an incident, the original cause is exactly what you need and would otherwise lose.
 
-**`finally` vs context manager — when each is right (a distinction the chapter's example doesn't spell out):**
+➕ **`finally` vs context manager — when each is right (a distinction the chapter's example doesn't spell out):**
 ```python
 # finally: fine for one-off cleanup, easy to forget, no reuse
 f = open("data.txt")
@@ -207,7 +198,7 @@ with open("data.txt") as f:
     process(f)
 ```
 
-**Diagram: context manager enter/exit, including the exception path**
+➕ **Diagram: context manager enter/exit, including the exception path**
 ```mermaid
 flowchart TD
     A["with workspace() as path:"] --> B["__enter__() runs via @contextmanager's yield path<br/>(this is where TemporaryDirectory's tmp becomes path,<br/>and control enters your with block)"]
@@ -223,7 +214,7 @@ This is why `TemporaryDirectory` cleans up "even when the caller raises," as the
 2. Use a context manager to open a temporary workspace and prove it is removed after an exception.
 3. Explain why except Exception: pass is dangerous in an automation that changes infrastructure.
 
-4. Write `sync_inventory` above's test: assert it retries exactly `max_retries` times on `TemporaryAPIError` and re-raises immediately (zero retries) on `AuthenticationError` — this is a realistic interview coding exercise, not just a reading exercise.
+➕ 4. Write `sync_inventory` above's test: assert it retries exactly `max_retries` times on `TemporaryAPIError` and re-raises immediately (zero retries) on `AuthenticationError` — this is a realistic interview coding exercise, not just a reading exercise.
 
 ## Targeted references
 [Udemy - Python for DevOps](https://www.udemy.com/course/python-devops) - Relevant lessons: Thinking in exceptions; Defining custom exceptions; Adding context to custom exceptions; Context managers and the with statement; Advanced Retry Decorator with Exponential Backoff and Jitter exercise.

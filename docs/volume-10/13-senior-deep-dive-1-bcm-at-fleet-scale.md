@@ -1,14 +1,14 @@
 ---
-title: "Chapter 13 — BCM at fleet scale: node categories, image drift and health-check design"
+title: "Senior Deep Dive 1 — BCM at fleet scale: node categories, image drift and health-check design"
 slug: "senior-deep-dive-1-bcm-at-fleet-scale"
 sidebar_position: 13
-description: "Chapter 1 — BCM at fleet scale: node categories, image drift and health-check design — Bare-Metal, HPC Operations and Infrastructure-as-Code."
+description: "Senior Deep Dive 1 — BCM at fleet scale: node categories, image drift and health-check design — Bare-Metal, HPC Operations and Infrastructure-as-Code."
 source_document: "Authored directly for the JR2018680 gap-coverage volume — no DOCX source."
 ---
 
 `docs/volume-10/02-nvidia-base-command-manager.md` covers BCM's architecture — head node, node categories, software images, and the provisioning lifecycle. This deep dive covers three things that only surface once a fleet has been running for months rather than days: category drift, health-check taxonomy, and head-node HA.
 
-## Convert the basics into operational questions
+## Before this deep dive — convert the basics into operational questions
 
 Be comfortable explaining **head node, compute node, software image, category, desired state, and live state** from Chapter 2. Then ask the questions scale introduces:
 

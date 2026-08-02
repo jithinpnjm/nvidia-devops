@@ -5,67 +5,9 @@ sidebar_position: 1
 description: "Chapter 1 - Bare-metal and BMC/Redfish lifecycle — Bare-Metal, HPC Operations and Infrastructure-as-Code."
 source_document: "Authored directly for the JR2018680 gap-coverage volume — no DOCX source."
 ---
-
-## The stack by responsibility
-
-| Layer/tool | Primary responsibility | It does not replace |
-|---|---|---|
-| BMC with Redfish/IPMI | Out-of-band hardware inventory, console, sensors and power control | Host operating system or scheduler |
-| BCM | Bare-metal cluster images, node categories, provisioning and health lifecycle | Every configuration/IaC use case or job communication library |
-| Linux | Host processes, memory, devices, network, security and services | Cluster scheduler |
-| Ansible | Repeated host/application configuration through tasks and inventory | Terraform state or Slurm scheduling |
-| Terraform | Lifecycle of provider/API-managed infrastructure objects | Arbitrary OS configuration without an appropriate provider |
-| Slurm | Resource allocation, queues and batch job launch | MPI/NCCL communication |
-| MPI/PMIx | Process launch/bootstrap and process communication ecosystem | Scheduler allocation |
-| NCCL | GPU collective communication | General cluster lifecycle management |
-| Enroot/Pyxis | Unprivileged container user space integrated with Slurm | Host driver/kernel or scheduler policy |
-| CI/CD/change process | Evidence, approval and controlled promotion of changes | Technical validation and rollback design |
-
-## Follow one node and one job
-
-A BMC makes a powered chassis manageable. Firmware and BIOS are baselined. Network boot or BCM installs a known OS image. Configuration tools establish users, security, drivers and services. Health checks prove the node is eligible. Slurm admits it to a partition and later allocates it. A launcher starts job ranks; MPI/NCCL and the network move data; storage supplies datasets and checkpoints. Logs/accounting record outcomes. Change management maintains compatibility across every layer.
-
-When a job fails, locate the last successful boundary. When a change is planned, identify every compatibility boundary it touches.
-
-## Essential distinctions
-
-- **Provisioning** creates or installs a base system; **configuration** establishes its role.
-- **Desired state** is what policy declares; **observed state** is what currently exists.
-- A **scheduler** allocates resources; a **communication library** moves data among processes.
-- **Availability** means reachable/operating; **readiness** means safe to accept the intended work.
-- **Idempotent** means repeating an operation converges without unintended repeated effects.
-- A **canary** is a deliberately representative limited exposure, not merely one spare node.
-- **Rollback** must be a tested procedure; some firmware and state changes are not easily reversible.
-
-## Follow a server from delivery to first job
-
-### 1. Physical readiness and out-of-band control
-
-The rack must supply validated power, cooling and network cabling. The BMC has an independent management path for inventory, sensors, console and power control. Host Linux can be down while the BMC remains reachable.
-
-### 2. Firmware and boot baseline
-
-Record BMC, BIOS/UEFI, GPU, NVSwitch, NIC/HCA and storage firmware as a tested compatibility set. Configure supported boot, security, virtualization/IOMMU and device settings. Network boot relies on address/boot discovery and artifact delivery before an OS exists.
-
-### 3. Image and operating system
-
-BCM or another provisioner assigns a known image to node categories/roles. The node boots kernel/initramfs, discovers storage/network/devices and starts systemd services. Configuration/hardening establishes identity, time sync, repositories, audit, firewall and required cluster components.
-
-### 4. Accelerator and fabric stack
-
-Install/validate driver, CUDA user-space expectations, container integration, NIC/RDMA stack and topology. Hardware visibility, driver initialization, framework execution and distributed communication are separate gates.
-
-### 5. Scheduler readiness
-
-Health checks validate expected GPU count, critical errors, fabric links, mounts, time, daemon/config consistency and a representative test. Only then should Slurm or another scheduler accept the node.
-
-### 6. Job lifecycle
-
-The user submits resource requirements. Slurm selects eligible nodes. Prolog validates/prepares. Launcher/PMIx starts ranks. MPI/NCCL and storage participate in execution. Epilog/accounting cleans and records outcomes. Failed health should drain/quarantine rather than silently return capacity.
-
 **Learning outcome:** Understand what happens to a physical GPU server between "racked and cabled" and "ready for an OS image" — BMC access, firmware baselining, and network boot — and be able to diagnose why a specific node refuses to PXE boot.
 
-## Start here — build the physical-server working model
+## Start here — build the physical-server mental model
 
 A server is really two computers sharing one chassis:
 

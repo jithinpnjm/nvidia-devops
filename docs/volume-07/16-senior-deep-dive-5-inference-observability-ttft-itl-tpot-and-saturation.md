@@ -1,8 +1,8 @@
 ---
-title: "Chapter 16 — Inference observability: TTFT, ITL/TPOT and saturation"
+title: "Senior Deep Dive 5 — Inference observability: TTFT, ITL/TPOT and saturation"
 slug: "senior-deep-dive-5-inference-observability-ttft-itl-tpot-and-saturation"
 sidebar_position: 16
-description: "Chapter 5 — Inference observability: TTFT, ITL/TPOT and saturation — Observability, Reliability and Troubleshooting."
+description: "Senior Deep Dive 5 — Inference observability: TTFT, ITL/TPOT and saturation — Observability, Reliability and Troubleshooting."
 source_document: "Volume_07_Observability,_Reliability_and_Troubleshooting(2).docx"
 ---
 ![](pathname:///img/generated/volume-07-03.png)
@@ -21,14 +21,17 @@ NVIDIA NIM benchmarking documentation defines TTFT as request submission to firs
 | Both worsen on selected nodes | GPU/fabric/CPU/storage node issue | DCGM, topology, CPU PSI, RDMA counters |
 | Latency fine, cost/token high | low batching/utilization/oversizing | tokens/s/GPU, batch occupancy, request mix |
 
-## Build from the normal path
+## Senior addendum
 
+*(original text, figure, and bottleneck-family table preserved in full — Ch.7's worked scenario already demonstrates this table in a concrete TTFT-degradation incident; treat that scenario as this Deep Dive's worked example)*
 
-**Visual recall card — latency has two clocks:**
+No further addition needed here beyond the cross-reference — Ch.7's addendum already shows the exact bottleneck-family table in action against a real customer complaint, which is stronger than adding a second synthetic example.
+
+➕ **Visual recall card — latency has two clocks:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
   n0["request queue prefill first token decode decode final token"]
   n1["\____________ TTFT ____________/ \___ ITL ___/ repeated"]
 ```
-**Key takeaway:** *"TTFT is admission + prefill; ITL is generation cadence."* Attach each clock to a different saturation hypothesis instead of collapsing both into average latency.
+**Memory hook:** *"TTFT is admission + prefill; ITL is generation cadence."* Attach each clock to a different saturation hypothesis instead of collapsing both into average latency.

@@ -6,63 +6,9 @@ description: "Chapter 4 - Files, pathlib, regex, JSON and YAML — Python for Pr
 source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 ---
 
-## Step 5 — read JSON as untrusted input
+*(original text preserved in full; ➕ marks additions)*
 
-Create `nodes.json`:
-
-```json
-[
-  {"name": "gpu-01", "gpus": 8, "temperature_c": 54},
-  {"name": "gpu-02", "gpus": 7, "temperature_c": 61}
-]
-```
-
-Replace the in-code list with:
-
-```python
-import json
-from pathlib import Path
-
-
-def load_nodes(path: Path) -> list[dict]:
-    text = path.read_text(encoding="utf-8")
-    data = json.loads(text)
-    if not isinstance(data, list):
-        raise ValueError("top-level JSON value must be a list")
-    return data
-
-
-nodes = load_nodes(Path("nodes.json"))
-```
-
-There are now distinct failure boundaries: file not found, permission denied, invalid JSON, wrong top-level type, or missing/wrong fields. Do not catch every exception with `except Exception: pass`; that destroys the reason the program failed.
-
-## Files and JSON: make the boundary visible
-
-```python
-import json
-from pathlib import Path
-
-
-def load_nodes(path: Path) -> list[dict]:
-    raw = path.read_text(encoding="utf-8")
-    value = json.loads(raw)
-    if not isinstance(value, list):
-        raise ValueError("inventory must contain a JSON list")
-    return value
-```
-
-Separate possible failures:
-
-- `FileNotFoundError`: path does not exist;
-- `PermissionError`: process cannot read it;
-- `json.JSONDecodeError`: bytes were read but are not valid JSON;
-- `ValueError`: JSON is valid but violates this program's expected top-level shape;
-- missing/wrong fields: individual records require further validation.
-
-Avoid `except Exception: pass`. It converts actionable failure into misleading success.
-
-## Start with the basics
+## Foundations: start here if this is new to you
 
 **The problem: a "path" looks like plain text, but it isn't safe to treat as plain text**
 
@@ -175,9 +121,9 @@ with log.open(encoding="utf-8") as handle:
         if event := parse_error(line):
             print(event)
 ```
-**Key takeaway:** Use pathlib for "where is the file?", format-specific parsers for "what data is inside?", and regex only for "what pattern is hidden in raw text?"
+**Memory hook:** Use pathlib for "where is the file?", format-specific parsers for "what data is inside?", and regex only for "what pattern is hidden in raw text?"
 
-**Diagram: which parser, decided by what the source already is**
+➕ **Diagram: which parser, decided by what the source already is**
 ```mermaid
 flowchart TD
     A["producer emits data"] --> B{"Is it already JSON/YAML/CSV?"}
@@ -187,7 +133,7 @@ flowchart TD
 ```
 The chapter's warning about "one giant regex parsing data the producer could emit as JSON" is exactly this decision point skipped — regex is the fallback, not the default.
 
-**Diagram: streaming line-by-line vs loading the whole file**
+➕ **Diagram: streaming line-by-line vs loading the whole file**
 ```mermaid
 flowchart LR
     subgraph wholefile["read_text() / readlines()"]
@@ -201,7 +147,7 @@ flowchart LR
     end
 ```
 
-**YAML's specific footgun this chapter's title mentions but doesn't demo — never use `yaml.load()` unqualified:**
+➕ **YAML's specific footgun this chapter's title mentions but doesn't demo — never use `yaml.load()` unqualified:**
 ```python
 import yaml
 config = yaml.safe_load(open("config.yaml"))   # correct — restricted to basic types
@@ -209,7 +155,7 @@ config = yaml.safe_load(open("config.yaml"))   # correct — restricted to basic
 ```
 `yaml.safe_load` vs bare `yaml.load` is a real, concrete security question worth having a one-sentence answer for: untrusted YAML parsed with the unsafe loader is a known code-execution vector (`!!python/object` tags), which is exactly why every linter flags bare `yaml.load()`.
 
-**The 20GB-log streaming pattern generalized to `jq`-style JSON streaming (since K8s API output is often huge):**
+➕ **The 20GB-log streaming pattern generalized to `jq`-style JSON streaming (since K8s API output is often huge):**
 ```python
 import ijson  # streaming JSON parser — doesn't load the whole document into memory
 with open("huge_pod_list.json", "rb") as f:
@@ -234,7 +180,7 @@ with open("huge_pod_list.json", "rb") as f:
 2. Write a regex with named groups for timestamp, severity, request ID, and message.
 3. Create a config loader that accepts a Path and validates required top-level keys.
 
-4. Convert the log-parsing generator (`parse_error`) into one that also yields progress every 1M lines processed — this "make long-running streaming jobs observable" instinct is what separates a script from production tooling.
+➕ 4. Convert the log-parsing generator (`parse_error`) into one that also yields progress every 1M lines processed — this "make long-running streaming jobs observable" instinct is what separates a script from production tooling.
 
 ## Targeted references
 [Python pathlib documentation](https://docs.python.org/3/library/pathlib.html) - Path-oriented filesystem operations.

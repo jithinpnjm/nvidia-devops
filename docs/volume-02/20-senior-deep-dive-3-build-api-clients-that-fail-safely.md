@@ -1,8 +1,8 @@
 ---
-title: "Chapter 20 — Build API clients that fail safely"
+title: "Senior Deep Dive 3 — Build API clients that fail safely"
 slug: "senior-deep-dive-3-build-api-clients-that-fail-safely"
 sidebar_position: 20
-description: "Chapter 3 — Build API clients that fail safely — Python for Production Infrastructure."
+description: "Senior Deep Dive 3 — Build API clients that fail safely — Python for Production Infrastructure."
 source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 ---
 ![](pathname:///img/generated/volume-02-08.png)
@@ -58,9 +58,9 @@ class JsonApi:
 
 A senior engineer also thinks about budgets. If a CLI checks 500 nodes and each call can wait 8 seconds with four retries, the worst-case runtime is unacceptable. Bound concurrency, set a global deadline, cache immutable responses when appropriate, and expose retry counts and latency in logs/metrics.
 
-## Build from the normal path
+## Senior addendum
 
-**The budget math the paragraph mentions, worked with real numbers (this is the calculation a Senior SA is expected to do out loud):**
+➕ **The budget math the paragraph mentions, worked with real numbers (this is the calculation a Senior SA is expected to do out loud):**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -71,7 +71,7 @@ flowchart TD
 ```
 This is the actual arithmetic behind "senior engineers think about budgets" — being able to produce these three numbers live, from the retry policy's own parameters, is a stronger signal than reciting "use a thread pool."
 
-**Visual model — every fan-out needs two budgets:**
+➕ **Visual model — every fan-out needs two budgets:**
 ```mermaid
 flowchart TD
     A["overall deadline (60s)"] --> B["concurrency budget (16 in flight)"]
@@ -79,4 +79,4 @@ flowchart TD
     B --> D[partial results + explicit failures]
     C --> D
 ```
-**Key takeaway:** *"Limit width, limit time."* A client that eventually succeeds after the caller gave up is still an operational failure.
+**Memory hook:** *"Limit width, limit time."* A client that eventually succeeds after the caller gave up is still an operational failure.

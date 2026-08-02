@@ -5,21 +5,6 @@ sidebar_position: 2
 description: "Chapter 2 - Python coding interview workflow — JR2018680 Interview Preparation."
 source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 ---
-
-## Coding practice should expose the thought process
-
-For a Python log-aggregation task:
-
-1. restate input/output and malformed-input behavior;
-2. show a small example manually;
-3. choose dictionary/Counter because lookup/aggregation is the operation;
-4. implement pure parsing and aggregation first;
-5. test empty, malformed and duplicate cases;
-6. discuss streaming, memory and I/O only after correctness;
-7. add CLI/logging/exit behavior if asked for productionization.
-
-Do not jump to classes or concurrency to appear senior.
-
 > Learning outcome Turn an infrastructure problem into algorithm, data structures, functions, tests and edge cases before production hardening.
 
 ```mermaid
@@ -54,9 +39,9 @@ def count_errors(lines: Iterable[str]) -> Counter[str]:
 
 Then discuss malformed input, memory, testing, structured logs, and whether JSON output would be more reliable than regex when available. Do not start by inventing classes or concurrency before the core algorithm is correct.
 
-## Worked explanation and practice
+## ➕ Additions
 
-**The workflow as a decision flow (the "say this before you type anything" checklist):**
+➕ **The workflow as a decision flow (the "say this before you type anything" checklist):**
 ```mermaid
 flowchart TD
     P[Prompt lands]
@@ -78,13 +63,13 @@ flowchart TD
     S6 -->|"empty input, malformed line, huge input, duplicate"| S7
     S7 -->|"state Big-O out loud, unprompted"| S8
 ```
-**Key takeaway:** *"IDDPS-ECP — I Don't Dive Prematurely, Structure/Edge/Complexity/Production."* Or simpler: **"contract → dominant op → structure → pseudocode → core → edges → Big-O → harden."** The two steps candidates skip under pressure are #1 (they start coding before agreeing what "input" even is) and #7 (they never state complexity unless asked) — both are free points if you just say them.
+➕ **Memory hook:** *"IDDPS-ECP — I Don't Dive Prematurely, Structure/Edge/Complexity/Production."* Or simpler: **"contract → dominant op → structure → pseudocode → core → edges → Big-O → harden."** The two steps candidates skip under pressure are #1 (they start coding before agreeing what "input" even is) and #7 (they never state complexity unless asked) — both are free points if you just say them.
 
-**Interview-ready line to open ANY coding prompt with, verbatim:**
+➕ **Interview-ready line to open ANY coding prompt with, verbatim:**
 > "Before I write anything — what's the expected input size and is this a one-shot script or something that runs continuously against a live stream? That changes whether I optimize for peak memory or just correctness."
 This single question also does double duty: it's a legitimate technical question (streaming vs batch materially changes the design) and it buys 10-15 seconds to actually think.
 
-**Annotated sample transcript — talking through the `count_errors` function from the original chapter, as if live-coding:**
+➕ **Annotated sample transcript — talking through the `count_errors` function from the original chapter, as if live-coding:**
 
 > "The input is an iterable of log lines — I'll type it as `Iterable[str]`, not `list[str]`, specifically so this works against a generator reading a file line-by-line without loading it all into memory." *(← states WHY the type hint choice matters — this is the "production reliability" step arriving early, not bolted on)*
 >
@@ -94,7 +79,7 @@ This single question also does double duty: it's a legitimate technical question
 >
 > "Edge cases: a line with no match — right now it's silently skipped, which is a decision I should flag, not hide. In production I'd want a `malformed_count` so silent data loss doesn't happen invisibly." *(← names a real production gap, and proposes the fix instead of just admitting the gap)*
 
-**Extra worked scenario (new, beyond the original) — bounded concurrent API polling, a realistic NVIDIA-SA-relevant task:**
+➕ **Extra worked scenario (new, beyond the original) — bounded concurrent API polling, a realistic NVIDIA-SA-relevant task:**
 > **Prompt:** "You have 200 GPU node hostnames. Query each node's `/metrics` health endpoint over HTTP with a 2-second timeout, and return a dict of hostname → status ('ok'/'timeout'/'error'). Don't take 200×2s to finish."
 > **Model answer, following the workflow:**
 > - **Input/output:** `list[str]` hostnames in, `dict[str, str]` status out.
@@ -126,12 +111,12 @@ This single question also does double duty: it's a legitimate technical question
 > **Interview-ready line:** "The algorithmic complexity here is trivial — the actual engineering question is concurrency bound and failure-mode granularity, and that's what I'd spend the remaining time discussing."
 
 ## Practice
-3. Rewrite `summarize()` so that instead of silently `continue`-ing on a non-matching line, it also returns a count of malformed lines, without changing the function's primary return type (hint: use a mutable counter object passed in, or return a tuple/small dataclass — discuss the tradeoff between the two out loud).
-4. Take the concurrent-polling scenario above and add a hard 30-second overall deadline across all 200 hosts regardless of individual timeouts — explain how `asyncio.wait_for` around the whole `gather` changes the failure semantics for hosts that were still in-flight when the deadline hit.
+➕ 3. Rewrite `summarize()` so that instead of silently `continue`-ing on a non-matching line, it also returns a count of malformed lines, without changing the function's primary return type (hint: use a mutable counter object passed in, or return a tuple/small dataclass — discuss the tradeoff between the two out loud).
+➕ 4. Take the concurrent-polling scenario above and add a hard 30-second overall deadline across all 200 hosts regardless of individual timeouts — explain how `asyncio.wait_for` around the whole `gather` changes the failure semantics for hosts that were still in-flight when the deadline hit.
 
-**Visual model — narrate before code:**
+➕ **Visual model — narrate before code:**
 ```mermaid
 flowchart LR
     A[clarify input/output] --> B[choose data structure] --> C[sketch cases] --> D[implement small core] --> E[test edge case] --> F[extend safely]
 ```
-**Key takeaway:** *"Shape before syntax."* Interviewers can correct an exposed plan; they cannot infer a hidden one from a rushed implementation.
+**Memory hook:** *"Shape before syntax."* Interviewers can correct an exposed plan; they cannot infer a hidden one from a rushed implementation.

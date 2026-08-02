@@ -1,8 +1,8 @@
 ---
-title: "Chapter 12 — Storage hierarchy and data pipeline architecture"
+title: "Senior Deep Dive 4 — Storage hierarchy and data pipeline architecture"
 slug: "senior-deep-dive-4-storage-hierarchy-and-data-pipeline-architecture"
 sidebar_position: 12
-description: "Chapter 4 — Storage hierarchy and data pipeline architecture — HPC, Networking and Storage for AI."
+description: "Senior Deep Dive 4 — Storage hierarchy and data pipeline architecture — HPC, Networking and Storage for AI."
 source_document: "Volume_06_HPC,_Networking_and_Storage_for_AI(2).docx"
 ---
 ![](pathname:///img/generated/volume-06-03.png)
@@ -13,10 +13,11 @@ Separate capacity, throughput, IOPS, metadata performance and durability. Large 
 
 Measure the application data loader. GPU starvation may be caused by CPU decode/augmentation, small-file lookups, network storage, page cache misses or insufficient prefetch—not the storage array headline throughput. Capture GPU duty cycle together with read throughput, queue depth and data-loader wait.
 
-## Build from the normal path
+## Senior addendum
 
+➕ **This Deep Dive is the mechanism-level companion to Chapter 6's pattern table — cross-reference rather than re-deriving: Chapter 6's checkpoint-write-path and dataset-fetch-path diagrams, `nvidia-smi dmon` + `iostat` correlation technique, and model-startup fleet-wide-event scenario are the concrete, tool-level version of this Deep Dive's "measure the application data loader" instruction. If this Deep Dive comes up in an interview, answer with Chapter 6's specific commands and numbers, not just this Deep Dive's prose.**
 
-**Diagram: the tiering tradeoff — capacity/throughput/IOPS/durability, plotted against the stack**
+➕ **Diagram: the tiering tradeoff — capacity/throughput/IOPS/durability, plotted against the stack**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -32,7 +33,7 @@ flowchart TD
 ```
 Reading this top-to-bottom is reading the exact tradeoff Figure B is illustrating: every tier down trades per-operation speed for capacity and durability — which is why the tiering model never picks one tier for everything, it routes each access pattern (hot scratch, active shared dataset, cold durable archive) to the tier whose column actually matches that pattern's requirement.
 
-**The one genuinely new framing here: "local NVMe is a node-local failure domain," made concrete.**
+➕ **The one genuinely new framing here: "local NVMe is a node-local failure domain," made concrete.**
 ```mermaid
 flowchart LR
   %% Converted from the original ASCII diagram; source wording is preserved.

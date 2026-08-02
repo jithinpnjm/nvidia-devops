@@ -1,8 +1,8 @@
 ---
-title: "Chapter 19 — Customer architecture and PoC question set"
+title: "Question set F — Customer architecture and PoC"
 slug: "question-set-f-customer-architecture-and-poc"
 sidebar_position: 19
-description: "Chapter 19 — Customer architecture and PoC question set — JR2018680 Interview Preparation."
+description: "Question set F — Customer architecture and PoC — JR2018680 Interview Preparation."
 source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 ---
 **•** A customer wants 32 H100-class GPUs for "an LLM platform". What workload facts do you request before sizing?
@@ -15,9 +15,9 @@ source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 
 **•** The customer wants maximum GPU utilization and strict p99 latency. Explain the inherent tension and the experiments needed to choose a sharing model.
 
-## Worked explanation and practice
+## ➕ Additions
 
-**Diagram: the GPU-sizing discovery funnel (never size from a GPU count alone):**
+➕ **Diagram: the GPU-sizing discovery funnel (never size from a GPU count alone):**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -33,7 +33,7 @@ flowchart TD
   n9["Only NOW size the platform — never from '32 GPUs' alone"]
 ```
 
-**Annotated sample discovery transcript — "we need 32 H100-class GPUs for an LLM platform," narrated with WHY each question is asked:**
+➕ **Annotated sample discovery transcript — "we need 32 H100-class GPUs for an LLM platform," narrated with WHY each question is asked:**
 
 > **Customer:** "We want to buy 32 H100-class GPUs for an LLM platform."
 >
@@ -47,7 +47,7 @@ flowchart TD
 >
 > **Why this works:** every question is traceable to a specific downstream architecture decision from an earlier chapter in this volume — this is what makes discovery "consultative" instead of a generic intake form; a senior SA asks questions because the answer changes what they'd design, not to seem thorough.
 
-**Extra worked scenario (new) — "customer wants maximum GPU utilization AND strict p99 latency," fully talked through:**
+➕ **Extra worked scenario (new) — "customer wants maximum GPU utilization AND strict p99 latency," fully talked through:**
 > **Situation:** A customer states both goals in the same sentence, expecting both to be fully satisfied.
 > 1. **Name the tension explicitly, out loud, first:** "Those two goals pull in opposite directions — maximizing utilization generally means packing more concurrent work onto each GPU (bigger batches, more co-located requests), and that's exactly what increases p99 latency variance, because now some requests wait behind others' batches. I want to be upfront that this is a real tradeoff, not something I can architect away entirely."
 > 2. **Ask which one has a harder constraint:** is p99 latency an actual contractual SLA, or an internal target with some flexibility? Is "maximum utilization" a cost target, or a literal operational goal?
@@ -56,5 +56,5 @@ flowchart TD
 > **Interview-ready line:** "I'd rather tell a customer the tradeoff exists and offer to measure it than pretend an architecture can make both goals free — that's the sentence that actually builds trust in this kind of conversation."
 
 ## Practice
-6. Take the "customer mandates Kubernetes but training team wants Slurm" prompt from Question set F and run the full BWCCRD funnel on it live, narrating which funnel stage surfaces the real constraint driving the mandate (hint: it's rarely a technical reason at the "Business outcome" stage — dig for it).
-7. Write your own one-sentence version of the "name the tension explicitly" move from the worked scenario above, applied to a different competing-goals customer statement of your choosing (e.g., "we want on-prem control AND cloud elasticity") — practice saying the tradeoff out loud before proposing anything.
+➕ 6. Take the "customer mandates Kubernetes but training team wants Slurm" prompt from Question set F and run the full BWCCRD funnel on it live, narrating which funnel stage surfaces the real constraint driving the mandate (hint: it's rarely a technical reason at the "Business outcome" stage — dig for it).
+➕ 7. Write your own one-sentence version of the "name the tension explicitly" move from the worked scenario above, applied to a different competing-goals customer statement of your choosing (e.g., "we want on-prem control AND cloud elasticity") — practice saying the tradeoff out loud before proposing anything.

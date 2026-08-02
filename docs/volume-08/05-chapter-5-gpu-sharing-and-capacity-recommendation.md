@@ -5,19 +5,6 @@ sidebar_position: 5
 description: "Chapter 5 - GPU sharing and capacity recommendation — Senior Solutions Architecture Practice."
 source_document: "Volume_08_Senior_Solutions_Architecture_Practice(2).docx"
 ---
-
-## Capacity estimate with uncertainty
-
-For online inference:
-
-```text
-required replicas ≈ peak required goodput / validated goodput per replica
-```
-
-Then adjust for tail-latency headroom, failure capacity, maintenance, warm-up, workload distribution and growth. "GPU utilization target" is not a capacity model.
-
-For training, use measured job resource shape, duration, arrival/queue objectives and failure/retry/checkpoint behavior. Show assumptions as ranges rather than false precision.
-
 > Learning outcome Translate workload footprint and SLOs into full GPU, MIG, time-slicing or other resource models.
 
 Collect model memory footprint, peak memory with batching/KV cache, latency sensitivity, failure isolation and concurrency. Then test sharing modes. A production recommendation should include how slices/resources are scheduled, observed and reconfigured — not only the hardware feature.
@@ -31,7 +18,7 @@ Collect model memory footprint, peak memory with batching/KV cache, latency sens
 
 ---
 
-**The sharing-mode decision tree (the table above, converted into a live-whiteboard flow):**
+➕ **The sharing-mode decision tree (the table above, converted into a live-whiteboard flow):**
 ```mermaid
 flowchart TD
     Q1["'How should this GPU be shared?'"] --> Q2["Does the workload need coordinated\nmulti-GPU (NCCL/collective, large training)?"]
@@ -42,7 +29,7 @@ flowchart TD
 ```
 **The one-line test to say out loud:** MIG gives you *hardware* memory/fault isolation at the cost of fixed-size slices (fragmentation risk); time-slicing gives you *flexible* sharing at the cost of *no* memory isolation (one greedy process can starve or OOM its neighbors). That trade — isolation vs flexibility — is the actual decision, the specific technology names are secondary.
 
-**Sample annotated capacity-sizing worksheet — the missing worked artifact, with real numbers:**
+➕ **Sample annotated capacity-sizing worksheet — the missing worked artifact, with real numbers:**
 ```
 Model: 13B parameter LLM, FP16 serving
 Step 1 — static weight footprint:      13B × 2 bytes           = 26 GB
@@ -67,23 +54,23 @@ with paged/quantized KV cache to shrink Step 2's number materially.
     quoting a GPU count to a customer.
 ```
 
-**Extra worked scenario — choosing MIG vs full-GPU for a mixed fleet, with a specific customer profile:**
+➕ **Extra worked scenario — choosing MIG vs full-GPU for a mixed fleet, with a specific customer profile:**
 > **Situation:** A platform team has 8×H100 and three workload types: (1) a 7B model serving low-QPS internal tooling with strict per-team isolation for compliance, (2) bursty dev notebook usage from 40 data scientists, (3) one large fine-tuning job that runs weekly across all 8 GPUs.
 > - Workload 1 → MIG. Low QPS means each MIG slice (e.g. 1g.10gb or similar) has plenty of headroom, and compliance needs the hardware isolation MIG actually provides — this is the textbook MIG case from the table.
 > - Workload 2 → time-slicing / shared dev pool. 40 users bursting unpredictably is exactly the "fairness over isolation" tradeoff time-slicing accepts; MIG's fixed slice count would either under-serve peak bursts or sit idle most of the day.
 > - Workload 3 → full GPUs, all 8, for the weekly window. This is the one case where sharing of any kind is actively wrong — coordinated training needs the whole fabric, and even proposing MIG here would be a sizing error worth catching in a design review.
 > - Operational consequence: the same physical fleet needs a scheduling policy that can *reclaim* the 8 GPUs from workloads 1/2 for the weekly window, or a capacity plan that reserves headroom for it — this reconfiguration burden is exactly what the chapter means by "not only the hardware feature."
 
-**Mnemonic: "ISOLATE OR ELASTIC, PICK ONE PER WORKLOAD."**
+➕ **Mnemonic: "ISOLATE OR ELASTIC, PICK ONE PER WORKLOAD."**
 MIG = isolate (hardware-enforced, fixed-size, fragmentation risk). Time-slicing = elastic (flexible, no isolation, interference risk). Full GPU = neither shared — it's the "isolate maximally, share nothing" extreme, reserved for coordinated multi-GPU work. Naming which extreme (or middle) a workload needs, out loud, before naming a product feature, is the senior move.
 
 **Interview-ready line:** "I size the KV cache before I size the GPU count — the model weights are the easy number, the concurrency-scaled KV cache is usually the number that actually decides how many GPUs you need."
 
 ## Practice
-1. Redo the capacity worksheet above for 16-way concurrency instead of 32-way, and for 8K context instead of 4K — compute both and identify which lever (concurrency or context length) has a bigger effect on total memory footprint per unit increase, and why that answer matters when a customer asks "can we just double our context window instead of adding GPUs?"
-2. A customer insists on MIG for the bursty 40-user dev-notebook workload from the worked scenario because "MIG sounds more modern than time-slicing." Write the two-sentence pushback using the isolate-vs-elastic framing, including the concrete failure mode MIG would cause here (fixed slice count fragmenting under unpredictable bursty concurrency).
+➕ 1. Redo the capacity worksheet above for 16-way concurrency instead of 32-way, and for 8K context instead of 4K — compute both and identify which lever (concurrency or context length) has a bigger effect on total memory footprint per unit increase, and why that answer matters when a customer asks "can we just double our context window instead of adding GPUs?"
+➕ 2. A customer insists on MIG for the bursty 40-user dev-notebook workload from the worked scenario because "MIG sounds more modern than time-slicing." Write the two-sentence pushback using the isolate-vs-elastic framing, including the concrete failure mode MIG would cause here (fixed slice count fragmenting under unpredictable bursty concurrency).
 
-**Visual model — sharing is an isolation–elasticity choice:**
+➕ **Visual model — sharing is an isolation–elasticity choice:**
 ```mermaid
 flowchart LR
     A["hard isolation"] <--> B[MIG] <--> C["MPS / time slicing"] <--> D["elastic packing"]
@@ -92,4 +79,4 @@ flowchart LR
     E --- G["regulated / predictable tenants"]
     F --- H["notebooks / variable demand"]
 ```
-**Key takeaway:** *"Partition when the boundary matters; share when the burst matters."*
+**Memory hook:** *"Partition when the boundary matters; share when the burst matters."*

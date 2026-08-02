@@ -1,15 +1,15 @@
 ---
-title: "Chapter 15 — Distributed-system patterns from the Staff Engineer guide"
+title: "Senior Deep Dive 7 — Distributed-system patterns from the Staff Engineer guide"
 slug: "senior-deep-dive-7-distributed-system-patterns-from-the-staff-engineer-guide"
 sidebar_position: 15
-description: "Chapter 7 — Distributed-system patterns from the Staff Engineer guide — HPC, Networking and Storage for AI."
+description: "Senior Deep Dive 7 — Distributed-system patterns from the Staff Engineer guide — HPC, Networking and Storage for AI."
 source_document: "Volume_06_HPC,_Networking_and_Storage_for_AI(2).docx"
 ---
 Kafka concepts from your study guide provide reusable reasoning patterns. A partition creates an ordered unit and parallelism boundary; replication trades capacity for fault tolerance; leader/follower state creates failover behavior; consumer lag measures backpressure. Map those ideas to AI systems: dataset shards, inference queues, checkpoint replicas, distributed schedulers and control-plane logs all have partitioning, replication and lag-like failure modes.
 
-## Build from the normal path
+## Senior addendum
 
-**The mapping, made into a table so it's a fast recall tool rather than prose to re-derive live:**
+➕ **The mapping, made into a table so it's a fast recall tool rather than prose to re-derive live:**
 
 | Kafka concept | AI-infra equivalent | Failure mode if ignored |
 |---|---|---|
@@ -18,7 +18,7 @@ Kafka concepts from your study guide provide reusable reasoning patterns. A part
 | Leader/follower + failover | Primary/standby control-plane service (e.g. Slurm's `slurmctld` HA, or a scheduler leader-election) | Split-brain or failed failover = two components believing they're authoritative — same class of bug as any distributed system, no AI-specific exemption |
 | Consumer lag (backpressure signal) | Inference request queue depth, or dataloader prefetch queue depth (Chapter 6) | Rising lag with no alerting = silent SLO breach discovered by users, not monitoring — identical shape to Kafka consumer-lag blindness |
 
-**Diagram: dataset sharding as a partitioning boundary — uneven shards reproduce Deep Dive 1's straggler**
+➕ **Diagram: dataset sharding as a partitioning boundary — uneven shards reproduce Deep Dive 1's straggler**
 ```mermaid
 flowchart LR
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -38,7 +38,7 @@ flowchart LR
   n6 --> n7
 ```
 
-**Diagram: disaggregated serving's cross-node KV-cache path (the Dynamo tie-in below, drawn)**
+➕ **Diagram: disaggregated serving's cross-node KV-cache path (the Dynamo tie-in below, drawn)**
 ```mermaid
 flowchart LR
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -54,9 +54,9 @@ flowchart LR
   n1 --> n2
 ```
 
-**Interview-ready line:** "AI infrastructure doesn't need a new theory of distributed systems — sharding, replication, leader election and backpressure are the same four problems Kafka solves, wearing GPU-cluster clothing. Naming the Kafka-world term for what you're seeing is a fast way to signal you're reasoning from first principles, not pattern-matching on NVIDIA-specific vocabulary alone."
+➕ **Interview-ready line:** "AI infrastructure doesn't need a new theory of distributed systems — sharding, replication, leader election and backpressure are the same four problems Kafka solves, wearing GPU-cluster clothing. Naming the Kafka-world term for what you're seeing is a fast way to signal you're reasoning from first principles, not pattern-matching on NVIDIA-specific vocabulary alone."
 
-**Dynamo tie-in, worth one concrete sentence since the reference alone doesn't explain why it's here:** disaggregated serving (separating prefill and decode phases across different GPU pools) means KV-cache tensors move node-to-node *during inference*, not just during training collectives — so everything this volume covers about RDMA/GPUDirect/fabric design (Chapters 2-5, Deep Dives 1-3) now applies to the serving path too, which is the specific, current (2026) reason "accelerated networking is a serving concern, not only training" and worth stating unprompted if a Dynamo or disaggregated-serving question comes up.
+➕ **Dynamo tie-in, worth one concrete sentence since the reference alone doesn't explain why it's here:** disaggregated serving (separating prefill and decode phases across different GPU pools) means KV-cache tensors move node-to-node *during inference*, not just during training collectives — so everything this volume covers about RDMA/GPUDirect/fabric design (Chapters 2-5, Deep Dives 1-3) now applies to the serving path too, which is the specific, current (2026) reason "accelerated networking is a serving concern, not only training" and worth stating unprompted if a Dynamo or disaggregated-serving question comes up.
 
 ## Targeted references and reinforcement
 

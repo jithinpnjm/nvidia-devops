@@ -6,11 +6,11 @@ description: "Chapter 3 - OS provisioning and Linux security hardening (RHEL/Ubu
 source_document: "Authored directly for the JR2018680 gap-coverage volume — no DOCX source."
 ---
 
-## Start with the basics
+## Foundations: start here if Linux/cluster security concepts are new to you
 
 ### What this section does and does not do
 
-This section builds the working model needed to read the rest of this chapter's OS provisioning and Linux security hardening material without stumbling over unfamiliar security vocabulary. It will not make you a security engineer, and it won't teach you to configure SELinux or AppArmor policy — that's covered later in this chapter. Its only job is to make sure terms like "attack surface," "mandatory access control," and a `sestatus` check have a stable meaning in your head before the rest of this chapter uses them at full speed.
+This section builds the mental model needed to read the rest of this chapter's OS provisioning and Linux security hardening material without stumbling over unfamiliar security vocabulary. It will not make you a security engineer, and it won't teach you to configure SELinux or AppArmor policy — that's covered later in this chapter. Its only job is to make sure terms like "attack surface," "mandatory access control," and a `sestatus` check have a stable meaning in your head before the rest of this chapter uses them at full speed.
 
 This section assumes you already have a basic sense of Linux users, groups, and file permissions. Here we go one level further: root and privilege, attack surface, mandatory access control, and the specific patching tension that GPU clusters create.
 

@@ -1,8 +1,8 @@
 ---
-title: "Chapter 25 — Complete project: GPU fleet health CLI"
+title: "Senior Deep Dive 8 — Complete project: GPU fleet health CLI"
 slug: "senior-deep-dive-8-complete-project-gpu-fleet-health-cli"
 sidebar_position: 25
-description: "Chapter 8 — Complete project: GPU fleet health CLI — Python for Production Infrastructure."
+description: "Senior Deep Dive 8 — Complete project: GPU fleet health CLI — Python for Production Infrastructure."
 source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 ---
 Build one tool that combines the concepts: discover GPU nodes, query Kubernetes allocatable resources, run or consume GPU health telemetry, optionally query Prometheus, classify findings and produce both human and JSON output. The architecture below separates policy from transport so the same classifier can be used in a CLI, scheduled job or API service.
@@ -54,9 +54,9 @@ def classify\_gpu(s: GpuSample) -> Health:
         return Health.DEGRADED
     return Health.HEALTHY
 
-## Build from the normal path
+## Senior addendum
 
-**`UNKNOWN is not HEALTHY` — this is the single most important line in this entire volume for the actual job, worth its own callout:**
+➕ **`UNKNOWN is not HEALTHY` — this is the single most important line in this entire volume for the actual job, worth its own callout:**
 ```python
 def classify_gpu(s: GpuSample) -> Health:
     if s.xid_errors is None or s.temperature_c is None:
@@ -69,7 +69,7 @@ def classify_gpu(s: GpuSample) -> Health:
 ```
 A monitoring tool that defaults missing data to "healthy" (because the code just falls through an if-chain without an explicit check) will silently hide a fleet of nodes whose telemetry agent crashed — those nodes look green in every dashboard while being completely unobserved. **This exact bug class — "absence of bad news presented as good news" — is one of the most realistic production incidents to bring up unprompted in an SA interview about monitoring design**, and this code is the textbook correct pattern to defend against it: a fourth explicit state (`UNKNOWN`) that can never be silently conflated with `HEALTHY`.
 
-**Visual model — health is a state lattice, not a boolean:**
+➕ **Visual model — health is a state lattice, not a boolean:**
 ```mermaid
 flowchart TD
     A{telemetry present?} -->|no| B["UNKNOWN (page/investigate observability)"]
@@ -77,4 +77,4 @@ flowchart TD
     C -->|yes| D[DEGRADED / UNHEALTHY]
     C -->|no| E[HEALTHY]
 ```
-**Key takeaway:** *"No evidence is unknown, never healthy."* This one rule avoids the most dangerous false-green dashboard failure.
+**Memory hook:** *"No evidence is unknown, never healthy."* This one rule avoids the most dangerous false-green dashboard failure.

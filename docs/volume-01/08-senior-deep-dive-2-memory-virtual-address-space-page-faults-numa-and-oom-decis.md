@@ -1,8 +1,8 @@
 ---
-title: "Chapter 8 — Memory: virtual address space, page faults, NUMA and OOM decisions"
+title: "Senior Deep Dive 2 — Memory: virtual address space, page faults, NUMA and OOM decisions"
 slug: "senior-deep-dive-2-memory-virtual-address-space-page-faults-numa-and-oom-decis"
 sidebar_position: 8
-description: "Chapter 2 — Memory: virtual address space, page faults, NUMA and OOM decisions — Foundations Beneath Kubernetes."
+description: "Senior Deep Dive 2 — Memory: virtual address space, page faults, NUMA and OOM decisions — Foundations Beneath Kubernetes."
 source_document: "Volume_01_Foundations_Beneath_Kubernetes(3).docx"
 ---
 Virtual memory is an address-space abstraction. A process can reserve address ranges without immediately consuming physical RAM. Memory becomes operationally expensive when pages are faulted in, dirtied, pinned, swapped, reclaimed or moved across NUMA domains. Senior troubleshooting therefore distinguishes virtual size, resident set, anonymous memory, file-backed page cache, shared memory and pinned memory instead of treating “memory usage” as one number.
@@ -28,17 +28,19 @@ lscpu -e=CPU,NODE,SOCKET,CORE
 
 OOM reasoning must identify the boundary. A container can be OOM-killed inside its cgroup while the node still has free memory. Conversely, global node pressure can trigger the kernel OOM killer or kubelet eviction logic. The right question is not “did we run out of memory?” but “which allocator or control boundary could not satisfy the request, and what evidence records that decision?”
 
-## Senior addendum
+## ➕ Senior addendum
 
-**NUMA + GPU, made concrete (this chapter's most important paragraph, with the diagram it's missing):**
+*(extends Chapter 2, which now covers the virtual-memory/page-cache/OOM mechanism in depth. This Deep Dive's genuinely new concept beyond that chapter is NUMA-and-GPU locality — worth a diagram, since the text above states it but doesn't draw it.)*
+
+➕ **NUMA + GPU, made concrete (this Deep Dive's most important paragraph, with the diagram it's missing):**
 ```
 Node 0: CPU 0-15 -- local RAM -- PCIe root complex A -- GPU0, GPU1, NIC0
 Node 1: CPU 16-31 -- local RAM -- PCIe root complex B -- GPU2, GPU3, NIC1
                  \-- cross-node QPI/UPI hop (slower) --/
 ```
-A data-loader thread pinned to Node-0 CPUs feeding GPU2 (Node-1) pays a real, measurable latency tax on every batch — and this is invisible to `nvidia-smi` utilization numbers, which only show the GPU side. `numactl --hardware` + `lscpu -e` (from this chapter's own command list) is how you'd catch this. Kubernetes Topology Manager (`--topology-manager-policy=single-numa-node`) is the cluster-level lever to prevent it at scheduling time — worth naming as the fix, not just the diagnosis.
+A data-loader thread pinned to Node-0 CPUs feeding GPU2 (Node-1) pays a real, measurable latency tax on every batch — and this is invisible to `nvidia-smi` utilization numbers, which only show the GPU side. `numactl --hardware` + `lscpu -e` (from this Deep Dive's own command list) is how you'd catch this. Kubernetes Topology Manager (`--topology-manager-policy=single-numa-node`) is the cluster-level lever to prevent it at scheduling time — worth naming as the fix, not just the diagnosis.
 
-**Diagram: pinned (page-locked) host memory for GPU transfer, and why it's a different pool than "normal" RAM**
+➕ **Diagram: pinned (page-locked) host memory for GPU transfer, and why it's a different pool than "normal" RAM**
 ```mermaid
 flowchart TD
     subgraph N["Normal (pageable) host memory"]

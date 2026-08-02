@@ -6,6 +6,8 @@ description: "Final Python checklist — Python for Production Infrastructure."
 source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 ---
 
+*(preserved as-is)*
+
 | You can... | Evidence you should produce |
 | --- | --- |
 | Design an algorithm before coding | pseudocode + chosen data structure + complexity explanation |
@@ -26,9 +28,9 @@ The practitioner material used to shape the scope is a signal, not an authority.
 
 _Figure A. A production tool is a bounded reconciliation loop with validation and observability._
 
-**One line to add to this checklist:** *Can you say, out loud, which chapter of this volume each row maps to, without looking?* (Ch2/Ch12 → algorithm design; Ch7/Ch8 → resilient I/O; Ch3/Ch9 → testable decisions; Ch6/Ch14 → operate; Ch12/Ch13 → ship.) If any mapping is fuzzy, that's your re-read list before Volume 3.
+➕ **One line to add to this checklist:** *Can you say, out loud, which chapter of this volume each row maps to, without looking?* (Ch2/Ch12 → algorithm design; Ch7/Ch8 → resilient I/O; Ch3/Ch9 → testable decisions; Ch6/Ch14 → operate; Ch12/Ch13 → ship.) If any mapping is fuzzy, that's your re-read list before Volume 3.
 
-**Visual recall card — a production tool's four questions:**
+➕ **Visual recall card — a production tool's four questions:**
 ```mermaid
 flowchart LR
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -45,4 +47,4 @@ flowchart LR
   n4 --> n5
   n6 --> n7
 ```
-**Key takeaway:** *"Correct, safe, visible, changeable."*
+**Memory hook:** *"Correct, safe, visible, changeable."*

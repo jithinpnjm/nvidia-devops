@@ -1,5 +1,5 @@
 ---
-title: "Chapter 13 — Slow GPU job with healthy Kubernetes"
+title: "Senior troubleshooting exercise — Slow GPU job with “healthy” Kubernetes"
 slug: "senior-troubleshooting-exercise-slow-gpu-job-with-healthy-kubernetes"
 sidebar_position: 13
 description: "Senior troubleshooting exercise — Slow GPU job with “healthy” Kubernetes — Foundations Beneath Kubernetes."
@@ -27,14 +27,14 @@ Scenario: a distributed training job runs 35% slower after a node pool refresh. 
 
 **NVIDIA GPU Operator docs:** [https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/index.html](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/index.html) — Host prerequisites and the GPU software lifecycle managed on Kubernetes nodes.
 
-## Senior addendum
+## ➕ Senior addendum
 
 *(this exercise is well-designed already — it's the correct capstone, forcing the "host mechanism, not Kubernetes object state" instinct the whole volume builds. One addition: a mnemonic for the whole arc, and a generalizable checklist you can carry into any similar interview question.)*
 
-**Mnemonic for the whole Deep-Dive-1-through-6 arc, tying back to the "senior troubleshooting moves from symptom to mechanism" figure (Figure A, end of Chapter 6):**
+➕ **Mnemonic for the whole Deep-Dive-1-through-6 arc, tying back to the "senior troubleshooting moves from symptom to mechanism" figure (Figure A, end of Chapter 6):**
 *"Every symptom lives at a layer — don't fix the symptom's layer, fix the mechanism's layer."* CPU-looks-idle-but-slow → check throttling (mechanism, not the symptom's CPU-graph layer). DNS-resolves-but-times-out → check routing/NAT/TLS (mechanism), not DNS (symptom's layer). This one sentence is a legitimate answer to "how do you approach troubleshooting" as an opener, before you even get into specific tools.
 
-**The generalizable checklist version, worth having as your own mental template for any "X looks healthy but Y is slow" question in the actual interview:**
+➕ **The generalizable checklist version, worth having as your own mental template for any "X looks healthy but Y is slow" question in the actual interview:**
 ```mermaid
 flowchart LR
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -54,7 +54,7 @@ flowchart LR
 ```
 This ordering — K8s object state → data path → GPU-specific plane → application code — is the generalized version of the specific exercise above, and it's the shape almost every "why is my GPU workload underperforming" interview question takes.
 
-**Visual triage router — "healthy Kubernetes" is only the first gate:**
+➕ **Visual triage router — "healthy Kubernetes" is only the first gate:**
 ```mermaid
 flowchart LR
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -71,4 +71,4 @@ flowchart LR
   n4 --> n5
   n6 --> n7
 ```
-**Key takeaway:** *"Ready is admission evidence, not performance evidence."* Each arrow is a different owner and a different proof source.
+**Memory hook:** *"Ready is admission evidence, not performance evidence."* Each arrow is a different owner and a different proof source.

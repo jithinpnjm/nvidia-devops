@@ -6,7 +6,9 @@ description: "Chapter 11 - Concurrency for infrastructure engineers — Python f
 source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 ---
 
-## Start with the basics
+*(original text preserved in full; ➕ marks additions)*
+
+## Foundations: start here if this is new to you
 
 **The problem this concept solves.** Imagine you need to fetch the health status of 20 different services. If you check them one at a time — send a request, wait for the reply, then send the next request — the total time is the sum of every single wait. If ten of those services take one second each to respond, that's ten seconds spent doing essentially nothing but waiting. The question concurrency answers is: *can the waiting overlap instead of stacking up?*
 
@@ -82,7 +84,7 @@ with ThreadPoolExecutor(max_workers=8) as pool:
 ```
 The max_workers limit is operational backpressure. Unbounded concurrency can overload your own machine, the dependency, DNS, ephemeral ports, or rate limits. Senior reasoning includes deciding concurrency limits and failure aggregation, not merely knowing ThreadPoolExecutor syntax.
 
-**The GIL — the concept this whole chapter's threads-vs-processes choice hinges on, stated precisely:**
+➕ **The GIL — the concept this whole chapter's threads-vs-processes choice hinges on, stated precisely:**
 ```mermaid
 flowchart TD
     T[Threads: ONE Python interpreter - GIL means only one thread executes Python bytecode at a time] -->|implication| T2[Useless for CPU-bound work; GREAT for I/O-bound because the GIL is released during I/O wait]
@@ -91,9 +93,9 @@ flowchart TD
 ```
 **The interview one-liner:** "threads are for waiting, processes are for computing — the GIL means threads don't actually parallelize Python code, they parallelize *waiting* for I/O." This single sentence answers "why not just use threads for everything" correctly and completely.
 
-**Why multiprocessing is wrong for 2,000 HTTP requests (Practice #2, worked out):** each process has fixed startup overhead (new interpreter, re-importing modules) and the actual work (waiting on network I/O) never touches the GIL restriction in the first place — you'd pay heavy process-spawn cost to parallelize something that was never CPU-bound. `ThreadPoolExecutor` or `asyncio` both sidestep the GIL problem correctly here because it was never a GIL problem — it's an I/O-wait problem.
+➕ **Why multiprocessing is wrong for 2,000 HTTP requests (Practice #2, worked out):** each process has fixed startup overhead (new interpreter, re-importing modules) and the actual work (waiting on network I/O) never touches the GIL restriction in the first place — you'd pay heavy process-spawn cost to parallelize something that was never CPU-bound. `ThreadPoolExecutor` or `asyncio` both sidestep the GIL problem correctly here because it was never a GIL problem — it's an I/O-wait problem.
 
-**asyncio version of the same health-check, for comparison (Practice #1):**
+➕ **asyncio version of the same health-check, for comparison (Practice #1):**
 ```python
 import asyncio, aiohttp
 
@@ -123,9 +125,9 @@ Note `return_exceptions=True` — without it, one failed request cancels the ent
 2. Explain why multiprocessing is a poor default for 2,000 HTTP requests.
 3. Design a concurrency limit when the upstream API permits 50 requests/second.
 
-4. Add an `asyncio.Semaphore(50)` around the `health()` calls in the asyncio version above to implement the rate limit from Practice #3 — this is the concrete, working answer to "how do you actually bound async concurrency," not just the concept.
+➕ 4. Add an `asyncio.Semaphore(50)` around the `health()` calls in the asyncio version above to implement the rate limit from Practice #3 — this is the concrete, working answer to "how do you actually bound async concurrency," not just the concept.
 
-**Visual model — concurrency needs a gate and a deadline:**
+➕ **Visual model — concurrency needs a gate and a deadline:**
 ```mermaid
 flowchart LR
     T[200 targets] --> Q[Work queue]
@@ -135,4 +137,4 @@ flowchart LR
     Q -.->|cancellation / global deadline| IO
     S -.->|protects target and local fds/memory| IO
 ```
-**Key takeaway:** *"More tasks is not more throughput once the downstream system is saturated."* The semaphore is a safety control, not merely a performance setting.
+**Memory hook:** *"More tasks is not more throughput once the downstream system is saturated."* The semaphore is a safety control, not merely a performance setting.
