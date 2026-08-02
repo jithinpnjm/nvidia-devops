@@ -1,15 +1,17 @@
 import React, {useEffect, useMemo, useState} from 'react';
 import Layout from '@theme/Layout';
 import {architectureScenarios} from '@site/src/data/architecture';
+import {architectureLearning, technologyDecisionsForArchitecture} from '@site/src/data/staffLearning';
 import ChatGPTStudyLink from '@site/src/components/learning/ChatGPTStudyLink';
+import StaffLearningPanel from '@site/src/components/learning/StaffLearningPanel';
 
 type Phase = 'brief' | 'design' | 'pressure' | 'reference' | 'score';
 const phases: {id: Phase; label: string}[] = [
-  {id: 'brief', label: '1 · Clarify'},
-  {id: 'design', label: '2 · Design'},
-  {id: 'pressure', label: '3 · Pressure-test'},
-  {id: 'reference', label: '4 · Compare'},
-  {id: 'score', label: '5 · Score'},
+  {id: 'brief', label: '1 · Study system'},
+  {id: 'design', label: '2 · Whiteboard'},
+  {id: 'pressure', label: '3 · Failure lab'},
+  {id: 'reference', label: '4 · Full solution'},
+  {id: 'score', label: '5 · Assess'},
 ];
 
 export default function Architecture() {
@@ -25,6 +27,8 @@ export default function Architecture() {
     [category],
   );
   const scenario = architectureScenarios.find((item) => item.id === selectedId) ?? visibleScenarios[0];
+  const learning = architectureLearning(scenario);
+  const technologyDecisions = technologyDecisionsForArchitecture(scenario);
 
   useEffect(() => {
     if (!visibleScenarios.some((item) => item.id === selectedId)) selectScenario(visibleScenarios[0].id);
@@ -77,7 +81,7 @@ INTERVIEW PROTOCOL
   return <Layout title="Architecture interview lab" description="Senior GPU, AI infrastructure and platform system-design practice">
     <main className="pageShell architecturePage">
       <header className="pageHeader architectureHero">
-        <div><span className="eyebrow">Senior system-design practice</span><h1>Architecture interview lab</h1><p>Work from customer ambiguity to a defensible architecture. Clarify, draw paths, make trade-offs, pressure-test failure, then compare.</p></div>
+        <div><span className="eyebrow">Staff SRE architecture academy</span><h1>Architecture learning system</h1><p>Learn the mechanism, components, healthy paths, capacity limits, bottlenecks and operating model first. Then whiteboard, pressure-test and defend the design.</p></div>
         <div className="architectureStats"><strong>{architectureScenarios.length}</strong><span>deep scenarios</span><strong>{categories.length - 1}</strong><span>domains</span></div>
       </header>
 
@@ -100,13 +104,14 @@ INTERVIEW PROTOCOL
           </nav>
 
           {phase === 'brief' && <section className="architecturePhase">
+            <StaffLearningPanel blueprint={learning} title={scenario.title} solutionSteps={scenario.answerOutline} failures={scenario.failureModes} tradeoffs={scenario.tradeoffs} metrics={scenario.successMetrics} technologyDecisions={technologyDecisions}/>
             <div className="customerBrief"><span className="eyebrow">Customer brief</span><p>{scenario.brief}</p><h3>Your assignment</h3><p>{scenario.ask}</p></div>
             <div className="threeColumns">
               <section><h3>Known requirements</h3><ul>{scenario.requirements.map((item) => <li key={item}>{item}</li>)}</ul></section>
               <section><h3>Discover—do not assume</h3><ul>{scenario.unknowns.map((item) => <li key={item}>{item}</li>)}</ul></section>
               <section><h3>Constraints</h3><ul>{scenario.constraints.map((item) => <li key={item}>{item}</li>)}</ul></section>
             </div>
-            <div className="interviewCoach"><strong>Opening move</strong><p>Spend 5–8 minutes clarifying workload shape, SLOs, scale, trust boundaries, failure tolerance, growth and ownership. State assumptions when the interviewer cannot answer.</p></div>
+            <div className="interviewCoach"><strong>When to attempt the whiteboard</strong><p>Complete the five study phases above first. Then spend 5–8 minutes clarifying workload shape, SLOs, scale, trust boundaries, failure tolerance, growth and ownership. State assumptions when the interviewer cannot answer.</p></div>
           </section>}
 
           {phase === 'design' && <section className="architecturePhase">
@@ -126,8 +131,8 @@ INTERVIEW PROTOCOL
           </section>}
 
           {phase === 'reference' && <section className="architecturePhase">
-            <div className="referenceWarning"><strong>This is an answer skeleton, not a product recipe.</strong> Compare decision coverage and reasoning. A different design is strong when its assumptions and trade-offs are explicit.</div>
-            <h3>Reference answer path</h3><div className="answerOutline">{scenario.answerOutline.map((item, index) => <article key={item.label}><span>{index + 1}</span><div><h4>{item.label}</h4><p>{item.detail}</p></div></article>)}</div>
+            <div className="referenceWarning"><strong>Complete reference solution.</strong> Read this after the study system. It joins requirements, component choices, healthy paths, failure handling, trade-offs and proof into a defensible Staff-level answer.</div>
+            <h3>Reference design and reasoning path</h3><div className="answerOutline">{scenario.answerOutline.map((item, index) => <article key={item.label}><span>{index + 1}</span><div><h4>{item.label}</h4><p>{item.detail}</p><small><strong>Staff check:</strong> identify the owner, observable signal, capacity limit, failure blast radius and rollback for this decision.</small></div></article>)}</div>
             <h3>Decision matrix</h3><div className="tableScroll"><table className="decisionTable"><thead><tr><th>Decision</th><th>Default recommendation</th><th>Switch when…</th></tr></thead><tbody>{scenario.tradeoffs.map((item) => <tr key={item.decision}><td>{item.decision}</td><td>{item.recommendation}</td><td>{item.alternative}</td></tr>)}</tbody></table></div>
             <h3>Proof and success metrics</h3><ul className="metricList">{scenario.successMetrics.map((item) => <li key={item}>{item}</li>)}</ul>
           </section>}
