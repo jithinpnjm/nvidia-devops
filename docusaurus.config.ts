@@ -47,6 +47,16 @@ const config: Config = {
   ],
   themeConfig: {
     colorMode: {defaultMode: 'dark', disableSwitch: false, respectPrefersColorScheme: false},
+    mermaid: {
+      theme: {light: 'base', dark: 'base'},
+      options: {
+        themeVariables: {
+          primaryColor: '#76b900', primaryTextColor: '#0d110f', primaryBorderColor: '#568c0b',
+          lineColor: '#8acb25', secondaryColor: '#131915', tertiaryColor: '#f4f6f3',
+          fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif', fontSize: '15px',
+        },
+      },
+    },
     navbar: {
       title: 'NVIDIA SA Academy',
       hideOnScroll: false,
