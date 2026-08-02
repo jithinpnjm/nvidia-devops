@@ -1,12 +1,115 @@
 ---
-title: "Chapter 1 - How Python actually executes your infrastructure script"
+title: "Chapter 1 - Python basics: values, control flow and script execution"
 slug: "chapter-1-how-python-actually-executes-your-infrastructure-script"
 sidebar_position: 2
 description: "Chapter 1 - How Python actually executes your infrastructure script — Python for Production Infrastructure."
 source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 ---
 
-## Foundations: start here if Python syntax isn't yet comfortable
+- Run after every small change.
+- Predict output before running.
+- Read errors from the final traceback line first, then move upward to your code.
+- Do not add concurrency, classes, APIs, or clever abstractions until the sequential version is clear.
+
+Create a directory, enter it, and verify Python:
+
+```bash
+mkdir -p python-foundation-lab
+cd python-foundation-lab
+python3 --version
+```
+
+```python
+node_name = "gpu-node-01"
+gpu_count = 8
+temperature_c = 54.5
+healthy = True
+
+print(node_name)
+print(gpu_count)
+print(f"{node_name}: gpus={gpu_count} temperature={temperature_c} healthy={healthy}")
+```
+
+Run it:
+
+```bash
+python3 health.py
+```
+
+Expected final line:
+
+```text
+gpu-node-01: gpus=8 temperature=54.5 healthy=True
+```
+
+Python values have types. Inspect them:
+
+```python
+print(type(node_name))       # str
+print(type(gpu_count))       # int
+print(type(temperature_c))   # float
+print(type(healthy))         # bool
+```
+
+**Break it deliberately:** replace `gpu_count = 8` with `gpu_count = "eight"`, then try `print(gpu_count + 1)`. The final traceback line explains that Python cannot add a string and integer. Fix the data at the boundary rather than hiding the error.
+
+```python
+expected_gpus = 8
+observed_gpus = 8
+temperature_c = 54.5
+
+if observed_gpus != expected_gpus:
+    print("CRITICAL: unexpected GPU count")
+elif temperature_c >= 85:
+    print("CRITICAL: GPU temperature too high")
+elif temperature_c >= 75:
+    print("WARNING: GPU temperature elevated")
+else:
+    print("OK: node passed basic checks")
+```
+
+Change one input at a time and predict the selected branch. Order matters: Python evaluates from top to bottom and stops at the first true branch.
+
+## Script, program and automation
+
+- A **script** is usually a small program run directly to perform a task.
+- A **program** is instructions plus data and defined behavior.
+- **Automation** repeatedly applies a decision or procedure with controlled inputs, outputs and failure behavior.
+- A **module** is a Python file that can expose reusable functions, classes and values.
+- A **package** organizes related modules for reuse and installation.
+
+A ten-line script can be valuable. It becomes risky when it changes production without validation, timeouts, useful errors, tests or a clear owner.
+
+## The first working model
+
+| Part | Question |
+|---|---|
+| Input | Where does data come from, and can it be malformed or missing? |
+| Decision | What rule transforms input into a result? |
+| Effect | Does code read a file, call a service, execute a command or change infrastructure? |
+| Output | What should a human or another program receive? |
+| Failure contract | Which failures are expected, retriable, fatal or security-sensitive? |
+
+Good infrastructure code separates decisions from effects. A function deciding whether a node is healthy can be tested with ordinary values. A separate adapter can collect real GPU or Kubernetes data. This lets tests validate policy without requiring a live cluster.
+
+## Essential language
+
+- A **value** is data such as `8`, `"gpu-01"` or `True`.
+- A **variable/name** refers to a value or object.
+- A **type** describes supported behavior, such as integer, string, list or dictionary.
+- A **condition** selects behavior using `if`, `elif` and `else`.
+- A **loop** repeats behavior over items.
+- A **function** names reusable behavior with inputs and a return value.
+- An **exception** represents a failure or exceptional condition that interrupts normal flow.
+- A **traceback** shows the call path leading to an uncaught exception.
+- An **exit code** tells the calling shell or pipeline whether a program succeeded.
+- A **test** runs code with controlled inputs and checks expected behavior.
+
+## A real-life example
+
+Suppose you need to check 200 GPU nodes. Begin with a function that classifies one already-observed record. Then add JSON input. Then add a client with timeout and authentication. Then add bounded concurrency. Starting with 200 concurrent API calls mixes syntax, policy, networking and concurrency before any one part is understood.
+
+## Values, types and control flow
 
 ### Why start with plain Python
 
@@ -470,15 +573,13 @@ You now have every basic building block — variables, types, lists, dicts, cond
 - Explain what a `try`/`except KeyError:` block does, and why catching a specific exception type is better than catching everything.
 - Explain what a lab's "Run tests" button is actually checking, in terms of `assert` statements comparing your function's return value to an expected one.
 
-For guided practice on exactly these fundamentals, see the [Python foundation lab](/curriculum/intro/python-foundation-lab), which builds one complete health-check program step by step.
+The guided health-check steps at the beginning of this chapter provide practice on exactly these fundamentals. Complete them before moving to data structures and functions.
 
 With that syntax comfortable, here's why Python's object model matters in production.
 
-*(original text preserved in full; ➕ marks additions)*
-
 > After this chapter you should be able to: Explain references, mutability, module execution, the main guard, and why state bugs appear in automation.
 
-Python feels simple because the syntax hides machinery. For production automation, you need a correct mental model of that machinery: a variable name refers to an object; objects have types and identity; functions create local namespaces; importing a file executes its top-level statements; and mutable objects can be shared by several names. These facts explain many bugs that look mysterious when you only think in terms of "boxes holding values."
+Python feels simple because the syntax hides machinery. For production automation, you need a correct working model of that machinery: a variable name refers to an object; objects have types and identity; functions create local namespaces; importing a file executes its top-level statements; and mutable objects can be shared by several names. These facts explain many bugs that look mysterious when you only think in terms of "boxes holding values."
 
 ![](pathname:///img/generated/volume-02-01.png)
 
@@ -496,7 +597,7 @@ print(id(pods) == id(copy))  # True
 ```
 The important operation above is not assignment of list contents. The assignment `copy = pods` binds a second name to the existing list object. If you need an independent shallow copy, use `pods.copy()` or `list(pods)`. If nested mutable objects exist, a shallow copy still shares those nested objects; that is when `copy.deepcopy()` becomes relevant.
 
-➕ **Diagram: two names, one object**
+**Diagram: two names, one object**
 ```mermaid
 flowchart LR
     A[pods] --> C["one list object in memory: ['api-0', 'api-1', 'api-2']"]
@@ -505,7 +606,7 @@ flowchart LR
 `copy.append("api-2")` mutates the object both names point at — `pods` and `copy` were never two separate lists, so `id(pods) == id(copy)` evaluates to `True`.
 Neither name "owns" the list more than the other; both are equally valid references to the same object, which is why mutating through either one is visible through both.
 
-➕ **The trap this actually causes in production, with output:**
+**The trap this actually causes in production, with output:**
 ```python
 def add_node(nodes, name, tags=None):
     if tags is None:
@@ -523,7 +624,7 @@ print(cluster)
 ```
 The caller passing the same mutable object to two calls is the real-world version of the aliasing bug — the function itself did nothing wrong. **Interview framing:** "the bug isn't in the function, it's in the assumption that passing a reference means passing a copy — Python never copies on assignment or on function call."
 
-➕ **Diagram: the shared-list trap over time**
+**Diagram: the shared-list trap over time**
 ```mermaid
 flowchart TD
     A["shared_tags = ['gpu']  (one list object, id=0x100)"] --> B["add_node(cluster, 'gpu-1', shared_tags): tags is shared_tags, same id=0x100"]
@@ -533,6 +634,44 @@ flowchart TD
     E --> F["cluster['gpu-1'] and cluster['gpu-2'] both point at object 0x100 - neither node ever had its own list"]
 ```
 The timeline makes the bug's timing obvious: the second call doesn't create a second list, it mutates the same object the first call already mutated.
+
+## Build Python knowledge in one complete program
+
+Start with a small node classifier:
+
+```python
+def classify_node(gpu_count: int, temperature_c: float) -> str:
+    if gpu_count != 8:
+        return "critical"
+    if temperature_c >= 80:
+        return "warning"
+    return "healthy"
+
+nodes = [
+    {"name": "gpu-01", "gpu_count": 8, "temperature_c": 62.0},
+    {"name": "gpu-02", "gpu_count": 7, "temperature_c": 55.0},
+]
+
+for node in nodes:
+    status = classify_node(node["gpu_count"], node["temperature_c"])
+    print(f'{node["name"]}: {status}')
+```
+
+Representative output:
+
+```text
+gpu-01: healthy
+gpu-02: critical
+```
+
+This short program teaches several foundations:
+
+- `def` creates a function; parameters are local names receiving input values.
+- Type hints document expected value types but Python does not enforce them automatically.
+- `if` selects a branch; `return` sends one result to the caller.
+- A list preserves an ordered collection; each dictionary maps field names to values.
+- A `for` loop processes each record.
+- An f-string formats values into readable text.
 
 ## Module execution and \_\_name\_\_
 ```python
@@ -550,9 +689,9 @@ if __name__ == "__main__":
 ```
 When you run `python healthcheck.py`, Python sets `__name__` to `"__main__"` and executes `main()`. When another module imports `healthcheck`, Python sets `__name__` to the module name, so the CLI entry point does not run. This lets one file contain reusable functions and an executable command without causing side effects during import.
 
-**Memory hook:** Think of import as "load the toolbox," and the main guard as "only start the machine when this file is the program, not when someone opens the toolbox."
+**Key takeaway:** Think of import as "load the toolbox," and the main guard as "only start the machine when this file is the program, not when someone opens the toolbox."
 
-➕ **Shortcut — prove it to yourself in 10 seconds:**
+**Shortcut — prove it to yourself in 10 seconds:**
 ```bash
 $ python -c "import healthcheck"    # prints nothing — check_disk() never ran
 $ python healthcheck.py             # prints "checking disk" — main() ran
@@ -569,12 +708,25 @@ If your unit test suite ever prints unexpected output or makes real network call
 
 **Reasoned conclusion:** The bug is architectural: import should define reusable behavior, not launch production behavior.
 
+## Common beginner mistakes
+
+- copying code before predicting what each line returns;
+- using a class when a function and dictionary are sufficient;
+- catching every exception and continuing with incomplete state;
+- retrying non-idempotent operations blindly;
+- using `shell=True` for ordinary executable arguments;
+- adding concurrency before timeout and sequential error handling;
+- testing only the happy path;
+
+If a later construct feels abrupt, return to the chapter that owns it: functions in Chapter 3, classes and dataclasses in Chapter 9, decorators in Chapter 10, annotations and testing in Chapter 12, and imports/modules in Chapter 13. Each now explains why the construct is selected before asking you to modify it.
+- logging tokens, credentials or full sensitive API payloads.
+
 ## Practice before moving on
 1. Predict the result when two variables reference the same dictionary and one changes a nested list.
 2. Write a module with main() that exits 0 on success and 2 on a failed health check. Import it from another file and prove the health check does not run.
 3. Explain the difference between == and is using an infrastructure example.
 
-➕ 4. Fix the `add_node` bug above two ways: (a) create a new list inside the function instead of mutating the passed-in one, (b) have the caller pass `list(shared_tags)` at the call site. Explain which fix you'd actually ship and why (hint: defense should live at the boundary most likely to be reused carelessly).
+4. Fix the `add_node` bug above two ways: (a) create a new list inside the function instead of mutating the passed-in one, (b) have the caller pass `list(shared_tags)` at the call site. Explain which fix you'd actually ship and why (hint: defense should live at the boundary most likely to be reused carelessly).
 
 ## Targeted references
 [Python documentation: Data model](https://docs.python.org/3/reference/datamodel.html) - Use this when you need exact behavior for identity, types, attributes, and special methods.

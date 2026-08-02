@@ -6,9 +6,82 @@ description: "Chapter 9 - OOP that helps infrastructure code — Python for Prod
 source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 ---
 
-*(original text preserved in full; ➕ marks additions)*
+## Why a class appears in our scripts
 
-## Foundations: start here if this is new to you
+This is enough when there is no state:
+
+```python
+def classify_gpu(memory_used_mib: int, memory_total_mib: int) -> str:
+    return "warning" if memory_used_mib / memory_total_mib > 0.9 else "healthy"
+```
+
+A class becomes justified when several calls share state and the state has one owner. An API client keeps a base URL, an authenticated session, timeout policy, and perhaps a connection pool:
+
+```python
+from dataclasses import dataclass
+import requests
+
+
+@dataclass(frozen=True)
+class RetryPolicy:
+    attempts: int = 3
+    timeout_seconds: float = 5.0
+
+
+class InventoryClient:
+    def __init__(self, base_url: str, policy: RetryPolicy) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.policy = policy
+        self.session = requests.Session()
+
+    def get_node(self, name: str) -> dict:
+        response = self.session.get(
+            f"{self.base_url}/nodes/{name}",
+            timeout=self.policy.timeout_seconds,
+        )
+        response.raise_for_status()
+        return response.json()
+```
+
+`InventoryClient` is not a class because classes are “more professional.” It is a class because `base_url`, policy, and the reusable session belong together. A single stateless method would be clearer as a function. A class that only wraps one function adds ceremony and hides the real dependency.
+
+### Class review questions
+
+Before adding a class, answer:
+
+1. What state does it own?
+2. Must that state persist between calls?
+3. Can two instances have different configuration at the same time?
+4. Can a function plus explicit arguments express this more clearly?
+5. How will a test replace its network, filesystem, or subprocess effect?
+
+## Dataclass: a record with an explicit shape
+
+A raw dictionary is flexible but typo-prone:
+
+```python
+sample = {"node": "gpu-01", "temperature_c": 65.0}
+sample["temprature_c"]  # KeyError at runtime
+```
+
+Use a dataclass when the record is part of the program’s domain and you want named fields, a useful representation, and equality:
+
+```python
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class GpuSample:
+    node: str
+    temperature_c: float
+    healthy: bool
+```
+
+`frozen=True` prevents accidental mutation after the observation is created. It does not validate that a caller passed a float; annotations and dataclass fields are not automatic runtime validation. Validate untrusted JSON at the boundary before constructing the object.
+
+Use a dictionary for genuinely variable keys, a `TypedDict` when JSON-shaped keys matter but a normal dictionary is desired, and a dataclass when the record has a stable domain meaning.
+
+## Start with the basics
 
 **The problem, in plain terms.** Infrastructure code often needs to model real things that have both data and behavior attached to them: a compute node has a hostname and a GPU count, and it also has actions like "check if I'm healthy." If you keep the data in a dict and the behavior in a separate function, you have to pass the dict into every function by hand, and nothing enforces that the dict actually has the shape those functions expect. You need a way to bundle a thing's data and its behavior together, as one unit.
 
@@ -77,9 +150,9 @@ class FakeRunner:
         self.calls.append(args)
         return self.output
 ```
-**Memory hook:** Inheritance says "is a specialized form of." Composition says "uses." Infrastructure tools are usually assemblies of clients, policies, parsers, and adapters, so "uses" is often the more natural relationship.
+**Key takeaway:** Inheritance says "is a specialized form of." Composition says "uses." Infrastructure tools are usually assemblies of clients, policies, parsers, and adapters, so "uses" is often the more natural relationship.
 
-➕ **The test this pattern buys you, made concrete — this is *why* Protocol-based composition matters, not just a style preference:**
+**The test this pattern buys you, made concrete — this is *why* Protocol-based composition matters, not just a style preference:**
 ```python
 def test_pod_inspector_calls_kubectl_with_correct_namespace():
     fake = FakeRunner(output='{"items": []}')
@@ -90,7 +163,7 @@ def test_pod_inspector_calls_kubectl_with_correct_namespace():
 ```
 This is the direct payoff of Chapter 3's "functional core, imperative shell" idea, applied to classes: `PodInspector` is testable without a cluster because it depends on a `Protocol`, not a concrete `subprocess` call.
 
-➕ **When inheritance genuinely is right (the chapter's Practice #2 asks you to explain this — here's the concrete answer):**
+**When inheritance genuinely is right (the chapter's Practice #2 asks you to explain this — here's the concrete answer):**
 ```python
 class BaseExporter:
     def export(self, records: list[dict]) -> None:
@@ -110,12 +183,12 @@ Inheritance fits here because `JSONExporter` genuinely **is a kind of** `Exporte
 2. Explain when inheritance would actually make sense.
 3. Replace a class that only contains one stateless staticmethod with a normal function and explain why it is clearer.
 
-➕ 4. Write the `FakeRunner`-based test above from memory, then extend `FakeRunner` to simulate a `CalledProcessError` on the second call — testing the Chapter 5 exception-handling path through a fake, without ever touching a real cluster.
+4. Write the `FakeRunner`-based test above from memory, then extend `FakeRunner` to simulate a `CalledProcessError` on the second call — testing the Chapter 5 exception-handling path through a fake, without ever touching a real cluster.
 
 ## Targeted references
 [Udemy - Python for DevOps](https://www.udemy.com/course/python-devops) - Relevant lessons: Introduction to classes; Class methods; Inheritance; Object-Oriented Deployment Manager coding exercise.
 
-➕ **Visual model — dependency injection creates the test seam:**
+**Visual model — dependency injection creates the test seam:**
 ```mermaid
 flowchart TD
     input[input] --> Policy[FleetHealthPolicy]
@@ -124,4 +197,4 @@ flowchart TD
     Runner --> Real[RealRunner: subprocess/API]
     Runner --> Fake[FakeRunner: deterministic test evidence]
 ```
-**Memory hook:** *"Objects own policy; adapters own effects."* If a class both decides and runs shell commands, it has hidden dependencies and no cheap test seam.
+**Key takeaway:** *"Objects own policy; adapters own effects."* If a class both decides and runs shell commands, it has hidden dependencies and no cheap test seam.

@@ -6,9 +6,71 @@ description: "Chapter 2 - Choosing data structures by the problem, not by habit 
 source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 ---
 
-*(original text preserved in full; ➕ marks additions)*
+## Step 3 — collections and loops
 
-## Foundations: start here if this is new to you
+A list holds an ordered collection. A dictionary maps keys to values:
+
+```python
+nodes = [
+    {"name": "gpu-01", "gpus": 8, "temperature_c": 54},
+    {"name": "gpu-02", "gpus": 7, "temperature_c": 61},
+    {"name": "gpu-03", "gpus": 8, "temperature_c": 82},
+]
+
+for node in nodes:
+    if node["gpus"] != 8:
+        status = "CRITICAL"
+    elif node["temperature_c"] >= 75:
+        status = "WARNING"
+    else:
+        status = "OK"
+
+    print(f'{node["name"]}: {status}')
+```
+
+Expected output:
+
+```text
+gpu-01: OK
+gpu-02: CRITICAL
+gpu-03: WARNING
+```
+
+**Break it:** remove the `temperature_c` key from one node. The `KeyError` tells you a required field is absent. Later you will validate input explicitly; for now, understand the failure.
+
+## Data structures by operational purpose
+
+| Type | Use it when | Infrastructure example |
+|---|---|---|
+| `str` | text is meaningful as text | hostname, URL, log message |
+| `int`/`float` | arithmetic or numeric comparison is required | retry count, temperature |
+| `bool` | exactly true/false state | dry-run enabled |
+| `list` | ordered items, duplicates allowed | ordered probe results |
+| `tuple` | fixed record/immutable sequence semantics are useful | coordinate/version parts |
+| `set` | uniqueness and fast membership matter | failed node names |
+| `dict` | lookup by key | node name to health record |
+| `None` | explicit absence of a value | metric not reported |
+
+Do not convert every value to a string because input arrived as text. Parse at the boundary so decision code operates on meaningful types.
+
+## Assignment, mutation and the first subtle bug
+
+```python
+expected = ["gpu-01", "gpu-02"]
+selected = expected
+selected.append("gpu-03")
+print(expected)
+```
+
+Output:
+
+```text
+['gpu-01', 'gpu-02', 'gpu-03']
+```
+
+Both names refer to the same mutable list. Assignment did not copy it. Use `expected.copy()` when a separate shallow list is intended, and understand that nested objects can still be shared.
+
+## Start with the basics
 
 **The problem: not all ways of storing values are equal**
 
@@ -74,7 +136,7 @@ Trace it by hand: `pipeline_steps` starts as two items, `.append("deploy")` muta
 3. *Q: If O(1) means "constant time" and O(n) means "grows in proportion to n," which one would you rather have for an operation you're about to run inside a loop over a million items?*
    A: O(1) — because running it a million times keeps costing roughly the same per-call amount, versus O(n), where running it inside another loop of size n makes the whole thing O(n²) (n multiplied by n) — the classic "nested loop membership check" trap this chapter warns about directly.
 
-With that mental model in place — organizing choice is a trade-off, and Big-O is just the shape of how each choice scales — here's how the chapter turns that into concrete rules for picking lists, tuples, sets, and dicts by the operation your problem actually needs.
+With that working model in place — organizing choice is a trade-off, and Big-O is just the shape of how each choice scales — here's how the chapter turns that into concrete rules for picking lists, tuples, sets, and dicts by the operation your problem actually needs.
 
 > After this chapter you should be able to: Select lists, tuples, sets, dictionaries, queues, and dataclasses based on access patterns and invariants.
 
@@ -87,7 +149,7 @@ Infrastructure scripts spend much of their time transforming collections: pod li
 | Membership / de-duplication | set | Average O(1) membership and set algebra |
 | Keyed lookup / structured object | dict | Average O(1) lookup by key; natural fit for JSON |
 
-➕ **The complexity table, extended with what these volumes don't always spell out — the operations that are deceptively expensive:**
+**The complexity table, extended with what these volumes don't always spell out — the operations that are deceptively expensive:**
 | Operation | list | dict | set |
 |---|---|---|---|
 | append/add | O(1) amortized | O(1) avg | O(1) avg |
@@ -97,7 +159,7 @@ Infrastructure scripts spend much of their time transforming collections: pod li
 
 The single most common performance bug in inventory-scanning scripts: `if pod_name in big_list:` inside a loop over another big list — that's O(n×m), and swapping `big_list` for a `set` turns it into O(n) total. This is exactly the reasoning the chapter's set-algebra example below demonstrates.
 
-➕ **Diagram: set difference as the membership answer**
+**Diagram: set difference as the membership answer**
 ```mermaid
 flowchart LR
     subgraph expected_set["expected = {api, worker, scheduler}"]
@@ -141,7 +203,7 @@ print(gpu_by_name["gpu-2"]["zone"])
 ```
 The comprehension builds an index once. If you need repeated lookups by node name, this is better than scanning the list each time. In interviews, explain the algorithmic reason: build O(n), then average O(1) lookup, instead of O(n) for every query.
 
-➕ **`collections` module — the structures this chapter's table doesn't cover but a senior candidate should reach for:**
+**`collections` module — the structures this chapter's table doesn't cover but a senior candidate should reach for:**
 ```python
 from collections import defaultdict, Counter, deque
 
@@ -161,7 +223,7 @@ recent_events.append(new_event)     # oldest auto-evicted once full
 ```
 `deque(maxlen=N)` specifically is worth knowing cold for any "keep the last N log lines / metric samples in memory" tooling question — it's the correct answer, not a manually-truncated list.
 
-➕ **Diagram: `deque(maxlen=N)` as a ring buffer**
+**Diagram: `deque(maxlen=N)` as a ring buffer**
 ```mermaid
 flowchart TD
     A["append(e1) → [e1]"] --> B["append(e2) → [e1, e2]"]
@@ -181,7 +243,7 @@ flowchart TD
 
 **Reasoned conclusion:** A set makes the algorithm both clearer and faster than nested loops.
 
-➕ **Timed proof, worth running once so the complexity argument isn't just theoretical:**
+**Timed proof, worth running once so the complexity argument isn't just theoretical:**
 ```python
 import time, random
 a = [f"pod-{i}" for i in range(50000)]
@@ -202,7 +264,7 @@ print(f"set-based:  {time.perf_counter()-start:.3f}s")
 2. Find duplicate IP addresses in an inventory with a set.
 3. Given a list of 100k log event IDs, explain when a list is acceptable and when a set is the right index.
 
-➕ 4. Rewrite the namespace-grouping function from Practice #1 using `defaultdict(list)` instead of manual `if key not in dict` checks, and explain the readability/correctness tradeoff (fewer lines, but a `defaultdict` silently creates entries on any lookup — including typos — which can hide bugs a plain `dict.get()` would surface).
+4. Rewrite the namespace-grouping function from Practice #1 using `defaultdict(list)` instead of manual `if key not in dict` checks, and explain the readability/correctness tradeoff (fewer lines, but a `defaultdict` silently creates entries on any lookup — including typos — which can hide bugs a plain `dict.get()` would surface).
 
 ## Targeted references
 [Udemy - Python for DevOps](https://www.udemy.com/course/python-devops) - Relevant lessons: Introduction to lists; Tuples; Set operations; Dictionaries; Server Inventory Reporter coding exercise.

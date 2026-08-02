@@ -6,6 +6,28 @@ description: "Chapter 11 - CI/CD for infrastructure and cluster configuration �
 source_document: "Authored directly for the JR2018680 gap-coverage volume — no DOCX source."
 ---
 
+## A complete change-review checklist
+
+Before applying:
+
+- Which objects/hosts are targeted exactly?
+- Which system is authoritative for each field?
+- Are create/update/delete/replacement actions expected?
+- Could the plan/diff expose secrets?
+- What dependency and workload impact follows?
+- Is the canary representative?
+- What signals stop rollout?
+- Is rollback tested and does it restore data/state?
+- Who approves and who observes the change?
+
+After applying:
+
+- Did the tool finish successfully?
+- Does actual infrastructure match intended state?
+- Did service/workload SLOs remain healthy?
+- Is there drift or partial success?
+- Are state, inventory and documentation current?
+
 **Learning outcome:** Design a CI/CD pipeline whose artifact is cluster state (node config, driver/CUDA image, Kubernetes/Slurm manifests) rather than an application binary, with the specific gates that make destructive infrastructure changes safe to automate instead of merely fast.
 
 ## Start here — CI produces evidence; delivery controls mutation

@@ -1,17 +1,16 @@
 ---
-title: "Senior Deep Dive 8 — Production benchmark design"
+title: "Chapter 17 — Production benchmark design"
 slug: "senior-deep-dive-8-production-benchmark-design"
 sidebar_position: 17
-description: "Senior Deep Dive 8 — Production benchmark design — AI Workloads and AI Platform Architecture."
+description: "Chapter 8 — Production benchmark design — AI Workloads and AI Platform Architecture."
 source_document: "Volume_05_AI_Workloads_and_AI_Platform_Architecture(2).docx"
 ---
 A useful benchmark reproduces workload shape, not only peak throughput. Record input/output sequence-length distributions, concurrency, streaming behavior, model precision, engine/version, GPU type/topology, cache state and network/storage conditions. Report p50/p95/p99 TTFT and ITL together with tokens/s and GPU efficiency. A single average hides tail latency and overload behavior.
 
-## Senior addendum
+## Build from the normal path
 
-➕ **Cross-reference:** Chapter 9's enhanced version already derives the cost-per-token arithmetic and a warm-vs-cold benchmark worked scenario — this Deep Dive is the methodology checklist behind that scenario. Turn its list into an actual benchmark report template, since "what should a benchmark report contain" is a direct interview question:
 
-➕ **Minimal credible LLM-serving benchmark report — a checklist you can recite:**
+**Minimal credible LLM-serving benchmark report — a checklist you can recite:**
 ```
 Workload shape:     input/output length distribution (not just mean — report p50/p90/p99
                     of BOTH, since a long-tail of long prompts changes prefill cost non-linearly)
@@ -23,7 +22,7 @@ Cache state:        cold start included/excluded, and reported SEPARATELY either
 Latency:            p50/p95/p99 for BOTH TTFT and ITL — never just the mean (Ch3's mean-vs-p99 trap)
 Throughput:         tokens/s AND GPU efficiency (tok/s per GPU, or per dollar) — raw tok/s alone hides cost
 ```
-A benchmark report missing any row above is not yet a "production" benchmark by this Deep Dive's own definition — this checklist is the fastest way to audit a vendor's or a colleague's benchmark claim in an interview setting: ask which of these eight rows is missing, and that's the row hiding the workload-mismatch risk from Chapter 4's benchmarking trap scenario.
+A benchmark report missing any row above is not yet a "production" benchmark by this chapter's own definition — this checklist is the fastest way to audit a vendor's or a colleague's benchmark claim in an interview setting: ask which of these eight rows is missing, and that's the row hiding the workload-mismatch risk from Chapter 4's benchmarking trap scenario.
 
 ## Targeted references and reinforcement
 
@@ -37,7 +36,7 @@ A benchmark report missing any row above is not yet a "production" benchmark by 
 
 **Vishakha Sadhwani — AI systems for DevOps:** [https://www.linkedin.com/in/vsadhwani](https://www.linkedin.com/in/vsadhwani) — Practitioner scope: APIs, GPU-backed services, autoscaling, RAG awareness, event-driven systems, reliability and cost.
 
-➕ **Visual model — benchmark from workload shape to a decision:**
+**Visual model — benchmark from workload shape to a decision:**
 ```mermaid
 flowchart LR
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -50,4 +49,4 @@ flowchart LR
   n1 --> n2
   n2 --> n3
 ```
-**Memory hook:** *"A peak number is a property of a test; a decision needs a workload."* Preserve the inputs and the state so another team can reproduce the claim.
+**Key takeaway:** *"A peak number is a property of a test; a decision needs a workload."* Preserve the inputs and the state so another team can reproduce the claim.

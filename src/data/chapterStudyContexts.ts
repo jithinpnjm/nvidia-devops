@@ -30,7 +30,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Curriculum map and guided learning flow for the NVIDIA Senior DevOps and AI Infrastructure Solutions Architect Academy.",
     "sections": [
       "How the curriculum is now layered",
-      "Start with these bridges",
+      "Where to start",
       "Guided tutor flow",
       "Source architecture"
     ],
@@ -39,152 +39,30 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Foundation learning path — start here if the domain is new": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "A prerequisite-first path through Linux, Python, AI, GPU, HPC, security and the senior curriculum.",
-    "sections": [
-      "Foundation learning path",
-      "Do not study in volume-number order yet",
-      "The six-pass chapter method",
-      "Learning levels used throughout the academy",
-      "Recommended routes",
-      "One chapter per topic, foundation first",
-      "Route A — new to Linux, GPU, AI and HPC",
-      "Route B — experienced DevOps engineer, new to accelerated computing",
-      "Route C — interview refresh",
-      "Readiness gates",
-      "Before Kubernetes",
-      "Before Python infrastructure automation",
-      "Before NVIDIA/GPU operations",
-      "Before AI/HPC architecture"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Systems foundation — Linux, networking and security language": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "A beginner bridge for the operating-system, network and security terms used throughout the curriculum.",
-    "sections": [
-      "Systems foundation",
-      "One machine, five connected views",
-      "Linux nouns you need first",
-      "Trace one command",
-      "Networking without skipping the layers",
-      "Storage without treating every path as a local disk",
-      "Security as identity, permission, policy, and evidence",
-      "A safe service investigation",
-      "First evidence ladder for any Linux incident",
-      "Readiness check"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
-  },
-  "AI, GPU and HPC foundation — the language before the architecture": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "A beginner mental model for AI/ML workloads, NVIDIA GPU software and distributed HPC systems.",
-    "sections": [
-      "AI, GPU and HPC foundation",
-      "AI and ML in plain language",
-      "Why GPUs help",
-      "The compatibility stack",
-      "Performance: capacity, movement, and computation",
-      "From one GPU to many",
-      "One node, multiple GPUs",
-      "Multiple nodes",
-      "What HPC adds",
-      "Trace one distributed training step",
-      "First safe observations",
-      "Readiness check"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
-  },
-  "Python foundation lab — from zero to a safe health check": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "A gentle, runnable Python path for infrastructure engineers before the production Python volume.",
-    "sections": [
-      "Python foundation lab",
-      "Lab rules",
-      "Step 1 — values, names, and output",
-      "Step 2 — decisions",
-      "Step 3 — collections and loops",
-      "Step 4 — functions separate decisions from effects",
-      "Step 5 — read JSON as untrusted input",
-      "Step 6 — make the program operational",
-      "Step 7 — test the decision without touching files",
-      "What you built",
-      "Readiness gate for Volume 2"
-    ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "python",
-      "json",
-      "mermaid"
-    ]
-  },
-  "Foundation — what Linux is and how to study a running system": {
-    "volume": "Volume 1",
-    "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
-    "learningOutcome": "A friendly beginner orientation to Linux before processes, memory, storage, networking and containers.",
-    "sections": [
-      "Foundation — what Linux is and how to study a running system",
-      "What this volume is trying to teach",
-      "The first mental model",
-      "Essential language",
-      "A real-life example",
-      "Follow one request through Linux",
-      "Processes, CPU and waiting",
-      "Memory from a process request to OOM",
-      "Files, mounts and I/O",
-      "Network layers with concrete questions",
-      "Identity and security controls",
-      "systemd and evidence preservation",
-      "Guided lab — diagnose a local HTTP service",
-      "Common beginner mistakes"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
-  },
   "Chapter 1 - Processes, threads, CPU scheduling and load": {
     "volume": "Volume 1",
     "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
     "learningOutcome": "Explain process/thread state, scheduler queues, CPU time, context switches, load average, throttling and the evidence that distinguishes them.",
     "sections": [
-      "Foundations: start here if this is new to you",
+      "Trace one command",
+      "The first working model",
+      "Essential language",
+      "A real-life example",
+      "Follow one request through Linux",
+      "Processes, CPU and waiting",
+      "Common beginner mistakes",
+      "Start with the basics",
       "What a kernel actually does",
       "Check your understanding",
       "What a process actually is",
       "Files, file descriptors, and \"everything is a file\"",
       "Permissions and ownership, at a basic level",
-      "What a shell actually is",
-      "What a package manager does",
-      "Glossary",
-      "Before you go deeper, make sure you can...",
-      "Chapter 1 — Processes, threads, CPU scheduling and load",
-      "1.1 Process and thread model",
-      "1.2 Process states",
-      "1.3 CPU scheduling, run queue and context switches"
+      "What a shell actually is"
     ],
     "codeLanguages": [
-      "bash",
       "text",
-      "mermaid"
+      "mermaid",
+      "bash"
     ]
   },
   "Chapter 2 - Virtual memory, page cache, swap and OOM": {
@@ -192,6 +70,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
     "learningOutcome": "Trace allocation from virtual address space through pages, reclaim and cgroup limits; distinguish node OOM from container OOM.",
     "sections": [
+      "Memory from a process request to OOM",
       "Chapter 2 — Virtual memory, page cache, swap and OOM",
       "2.1 Virtual memory",
       "2.2 Page cache and \"free memory\"",
@@ -210,7 +89,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
     "learningOutcome": "Understand how applications reach storage and distinguish capacity, metadata, throughput, IOPS and latency failures.",
     "sections": [
-      "Foundations: start here if this is new to you",
+      "Files, mounts and I/O",
+      "Start with the basics",
       "The problem storage exists to solve",
       "What a block device actually is",
       "What a filesystem actually is",
@@ -222,8 +102,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Chapter 3 — Files, file descriptors, filesystems and block I/O",
       "3.1 File descriptors and VFS",
       "3.2 Capacity versus latency",
-      "Worked scenario",
-      "Practice"
+      "Worked scenario"
     ],
     "codeLanguages": [
       "mermaid",
@@ -236,7 +115,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
     "learningOutcome": "Trace a connection from name lookup through application response and identify what each diagnostic proves.",
     "sections": [
-      "Foundations: start here if this is new to you",
+      "Network layers with concrete questions",
+      "Start with the basics",
       "What an IP address actually is",
       "What a port is",
       "TCP vs. UDP, in plain language",
@@ -248,12 +128,11 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Chapter 4 — Networking: IP, routes, sockets, TCP, DNS, NAT and TLS",
       "4.1 Addressing and routing",
       "4.2 Sockets and TCP state",
-      "4.3 DNS is a dependency, not magic",
-      "search default.svc.cluster.local svc.cluster.local cluster.local example.com"
+      "4.3 DNS is a dependency, not magic"
     ],
     "codeLanguages": [
-      "bash",
       "text",
+      "bash",
       "mermaid"
     ]
   },
@@ -279,70 +158,74 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
     "learningOutcome": "Diagnose why a Linux service failed to start, restarted, stopped accepting traffic or was killed.",
     "sections": [
+      "A safe service investigation",
+      "Identity and security controls",
+      "systemd and evidence preservation",
+      "Guided lab — diagnose a local HTTP service",
       "Chapter 6 — systemd, boot, services, signals and logs",
       "6.1 Unit state and dependency model",
       "6.2 Signals and shutdown",
       "Worked scenario"
     ],
     "codeLanguages": [
-      "bash",
-      "text",
       "mermaid",
+      "text",
+      "bash",
       "python"
     ]
   },
-  "Senior Deep Dive 1 — Linux execution: syscalls, scheduling, run queues and CPU pressure": {
+  "Chapter 7 — Linux execution: syscalls, scheduling, run queues and CPU pressure": {
     "volume": "Volume 1",
     "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
-    "learningOutcome": "Senior Deep Dive 1 — Linux execution: syscalls, scheduling, run queues and CPU pressure — Foundations Beneath Kubernetes.",
+    "learningOutcome": "Chapter 1 — Linux execution: syscalls, scheduling, run queues and CPU pressure — Foundations Beneath Kubernetes.",
     "sections": [
       "Scheduling and context-switch pressure",
       "What is the process actually waiting on?",
       "cgroup v2 CPU control for a container/task",
-      "➕ Senior addendum"
+      "Senior addendum"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 2 — Memory: virtual address space, page faults, NUMA and OOM decisions": {
+  "Chapter 8 — Memory: virtual address space, page faults, NUMA and OOM decisions": {
     "volume": "Volume 1",
     "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
-    "learningOutcome": "Senior Deep Dive 2 — Memory: virtual address space, page faults, NUMA and OOM decisions — Foundations Beneath Kubernetes.",
+    "learningOutcome": "Chapter 2 — Memory: virtual address space, page faults, NUMA and OOM decisions — Foundations Beneath Kubernetes.",
     "sections": [
       "Per-process mappings and faults",
       "NUMA layout and locality",
-      "➕ Senior addendum"
+      "Senior addendum"
     ],
     "codeLanguages": [
       "text",
       "mermaid"
     ]
   },
-  "Senior Deep Dive 3 — Storage I/O: VFS to NVMe, latency queues and checkpoint behavior": {
+  "Chapter 9 — Storage I/O: VFS to NVMe, latency queues and checkpoint behavior": {
     "volume": "Volume 1",
     "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
-    "learningOutcome": "Senior Deep Dive 3 — Storage I/O: VFS to NVMe, latency queues and checkpoint behavior — Foundations Beneath Kubernetes.",
+    "learningOutcome": "Chapter 3 — Storage I/O: VFS to NVMe, latency queues and checkpoint behavior — Foundations Beneath Kubernetes.",
     "sections": [
       "Which processes are issuing I/O?",
       "Quick latency test - never run destructive tests on production devices",
-      "➕ Senior addendum"
+      "Senior addendum"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 4 — Packet-level networking: routing, conntrack, TCP and DNS failure modes": {
+  "Chapter 10 — Packet-level networking: routing, conntrack, TCP and DNS failure modes": {
     "volume": "Volume 1",
     "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
-    "learningOutcome": "Senior Deep Dive 4 — Packet-level networking: routing, conntrack, TCP and DNS failure modes — Foundations Beneath Kubernetes.",
+    "learningOutcome": "Chapter 4 — Packet-level networking: routing, conntrack, TCP and DNS failure modes — Foundations Beneath Kubernetes.",
     "sections": [
       "Socket and TCP state",
       "Packet evidence",
       "Conntrack / firewall state (tooling varies by distro)",
-      "➕ Senior addendum"
+      "Senior addendum"
     ],
     "codeLanguages": [
       "bash",
@@ -350,90 +233,41 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "mermaid"
     ]
   },
-  "Senior Deep Dive 5 — Containers: namespaces, cgroups v2, overlay filesystems and runtime boundaries": {
+  "Chapter 11 — Containers: namespaces, cgroups v2, overlay filesystems and runtime boundaries": {
     "volume": "Volume 1",
     "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
-    "learningOutcome": "Senior Deep Dive 5 — Containers: namespaces, cgroups v2, overlay filesystems and runtime boundaries — Foundations Beneath Kubernetes.",
+    "learningOutcome": "Chapter 5 — Containers: namespaces, cgroups v2, overlay filesystems and runtime boundaries — Foundations Beneath Kubernetes.",
     "sections": [
       "Enter a container's network namespace from the host",
       "Inspect cgroup placement and limits",
-      "➕ Senior addendum"
+      "Senior addendum"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 6 — Host readiness for NVIDIA GPU nodes": {
+  "Chapter 12 — Host readiness for NVIDIA GPU nodes": {
     "volume": "Volume 1",
     "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
-    "learningOutcome": "Senior Deep Dive 6 — Host readiness for NVIDIA GPU nodes — Foundations Beneath Kubernetes.",
+    "learningOutcome": "Chapter 6 — Host readiness for NVIDIA GPU nodes — Foundations Beneath Kubernetes.",
     "sections": [
-      "➕ Senior addendum"
+      "Senior addendum"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior troubleshooting exercise — Slow GPU job with “healthy” Kubernetes": {
+  "Chapter 13 — Slow GPU job with healthy Kubernetes": {
     "volume": "Volume 1",
     "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
     "learningOutcome": "Senior troubleshooting exercise — Slow GPU job with “healthy” Kubernetes — Foundations Beneath Kubernetes.",
     "sections": [
-      "➕ Senior addendum"
+      "Senior addendum"
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
-    ]
-  },
-  "Foundation — what Python is and why infrastructure engineers use it": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "A beginner orientation to Python, programs and safe automation before production Python concepts.",
-    "sections": [
-      "Foundation — what Python is and why infrastructure engineers use it",
-      "What this volume is trying to teach",
-      "Script, program and automation",
-      "The first mental model",
-      "Essential language",
-      "A real-life example",
-      "Build Python knowledge in one complete program",
-      "Data structures by operational purpose",
-      "Assignment, mutation and the first subtle bug",
-      "Files and JSON: make the boundary visible",
-      "Tracebacks: read from the bottom",
-      "External effects need contracts",
-      "Test the decision separately",
-      "Virtual environments and reproducibility"
-    ],
-    "codeLanguages": [
-      "python",
-      "text",
-      "bash"
-    ]
-  },
-  "Python field guide — functions, classes, imports, annotations and modules": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "A plain-language field guide explaining the Python constructs used throughout the infrastructure automation volume and why each appears.",
-    "sections": [
-      "Python field guide — functions, classes, imports, annotations and modules",
-      "The decision ladder: what should I write first?",
-      "Direct code versus a function",
-      "Function parameters are an API",
-      "Why a class appears in our scripts",
-      "Class review questions",
-      "Dataclass: a record with an explicit shape",
-      "Annotations: documentation plus tool input, not magic enforcement",
-      "Modules, packages, and imports",
-      "The modules used repeatedly in this course",
-      "Decorators and context managers without mystery",
-      "A practical reading method for every code block"
-    ],
-    "codeLanguages": [
-      "python",
       "text"
     ]
   },
@@ -442,22 +276,25 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Book map — Python for Production Infrastructure.",
     "sections": [
-      "A gentler three-stage route",
-      "Stage 1 — become comfortable writing small programs",
-      "Stage 2 — cross operational boundaries safely",
-      "Stage 3 — make the tool maintainable and production-ready"
+      "Guided progression from script to tool",
+      "A practical reading method for every code block",
+      "How to study this volume"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Chapter 1 - How Python actually executes your infrastructure script": {
+  "Chapter 1 - Python basics: values, control flow and script execution": {
     "volume": "Volume 2",
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 1 - How Python actually executes your infrastructure script — Python for Production Infrastructure.",
     "sections": [
-      "Foundations: start here if Python syntax isn't yet comfortable",
+      "Script, program and automation",
+      "The first working model",
+      "Essential language",
+      "A real-life example",
+      "Values, types and control flow",
       "Why start with plain Python",
       "Variables: a name pointing at a value",
       "Lists: an ordered collection",
@@ -466,11 +303,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Repeating work: for loops",
       "Functions: giving a piece of code a name",
       "Handling failure: try / except",
-      "The bridge: what the labs page actually asks you to do",
-      "Glossary",
-      "Before you go deeper, make sure you can...",
-      "{'gpu-1': ['gpu', 'gpu-1', 'gpu-2'], 'gpu-2': ['gpu', 'gpu-1', 'gpu-2']} ← both nodes share one list!",
-      "Module execution and \\ \\ name\\ \\"
+      "The bridge: what the labs page actually asks you to do"
     ],
     "codeLanguages": [
       "bash",
@@ -484,7 +317,10 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 2 - Choosing data structures by the problem, not by habit — Python for Production Infrastructure.",
     "sections": [
-      "Foundations: start here if this is new to you",
+      "Step 3 — collections and loops",
+      "Data structures by operational purpose",
+      "Assignment, mutation and the first subtle bug",
+      "Start with the basics",
       "list: ordered, changeable",
       "tuple: ordered, unchangeable",
       "coordinate[0] = 40.0 would raise: TypeError: 'tuple' object does not support item assignment",
@@ -494,9 +330,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "{'a': ['gpu-1', 'cpu-1'], 'b': ['gpu-2']}",
       "Counter — frequency counting in one line (e.g. \"which error appears most in this log batch\")",
       "deque — O(1) append/pop from BOTH ends; a list is O(n) to pop from the front",
-      "Work the scenario step by step",
-      "list-based: ~4.200s set-based: ~0.006s — roughly 700x on this size",
-      "Practice before moving on"
+      "Work the scenario step by step"
     ],
     "codeLanguages": [
       "python",
@@ -509,7 +343,11 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 3 - Functions: turn scripts into testable decisions — Python for Production Infrastructure.",
     "sections": [
-      "Foundations: start here if this is new to you",
+      "Step 4 — functions separate decisions from effects",
+      "The decision ladder: what should I write first?",
+      "Direct code versus a function",
+      "Function parameters are an API",
+      "Start with the basics",
       "Practice before moving on"
     ],
     "codeLanguages": [
@@ -523,15 +361,18 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 4 - Files, pathlib, regex, JSON and YAML — Python for Production Infrastructure.",
     "sections": [
-      "Foundations: start here if this is new to you",
+      "Step 5 — read JSON as untrusted input",
+      "Files and JSON: make the boundary visible",
+      "Start with the basics",
       "the file is guaranteed to be closed here, even if f.write() had raised an error",
       "yaml.load(open(\"config.yaml\")) DANGEROUS without Loader= — can execute arbitrary Python objects",
       "Work the scenario step by step",
       "Practice before moving on"
     ],
     "codeLanguages": [
-      "python",
+      "json",
       "text",
+      "python",
       "mermaid"
     ]
   },
@@ -540,14 +381,15 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 5 - Exceptions and context managers — Python for Production Infrastructure.",
     "sections": [
-      "Foundations: start here if this is new to you",
+      "Tracebacks: read from the bottom",
+      "Start with the basics",
       "finally: fine for one-off cleanup, easy to forget, no reuse",
       "context manager: reusable, composable, can't forget it — prefer this for anything used more than once",
       "Practice before moving on"
     ],
     "codeLanguages": [
-      "python",
       "text",
+      "python",
       "mermaid"
     ]
   },
@@ -556,7 +398,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 6 - Logging for operations, not print-debugging — Python for Production Infrastructure.",
     "sections": [
-      "Foundations: start here if this is new to you",
+      "Step 6 — make the program operational",
+      "Start with the basics",
       "at the entry point of a request:",
       "Work the scenario step by step",
       "Practice before moving on"
@@ -564,6 +407,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "codeLanguages": [
       "python",
       "text",
+      "bash",
       "mermaid"
     ]
   },
@@ -572,7 +416,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 7 - System interaction and subprocess — Python for Production Infrastructure.",
     "sections": [
-      "Foundations: start here if this is new to you",
+      "External effects need contracts",
+      "Start with the basics",
       "DANGEROUS: the shell sees TWO commands separated by \";\" and runs both",
       "SAFE: \"notes.txt; rm -rf /tmp/important\" is passed as ONE literal argument to cat",
       "— there is no shell reading it, so the semicolon has no special meaning at all",
@@ -590,7 +435,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 8 - HTTP APIs, timeouts, retries and backoff — Python for Production Infrastructure.",
     "sections": [
-      "Foundations: start here if this is new to you",
+      "Start with the basics",
       "Work the scenario step by step",
       "Practice before moving on"
     ],
@@ -605,7 +450,10 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 9 - OOP that helps infrastructure code — Python for Production Infrastructure.",
     "sections": [
-      "Foundations: start here if this is new to you",
+      "Why a class appears in our scripts",
+      "Class review questions",
+      "Dataclass: a record with an explicit shape",
+      "Start with the basics",
       "Practice before moving on"
     ],
     "codeLanguages": [
@@ -619,7 +467,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 10 - Generators and decorators without magic — Python for Production Infrastructure.",
     "sections": [
-      "Foundations: start here if this is new to you",
+      "Decorators and context managers without mystery",
+      "Start with the basics",
       "Practice before moving on"
     ],
     "codeLanguages": [
@@ -633,7 +482,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 11 - Concurrency for infrastructure engineers — Python for Production Infrastructure.",
     "sections": [
-      "Foundations: start here if this is new to you",
+      "Start with the basics",
       "Work the scenario step by step",
       "Practice before moving on"
     ],
@@ -648,7 +497,10 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 12 - Type hints and pytest: make changes safer — Python for Production Infrastructure.",
     "sections": [
-      "Foundations: start here if this is new to you",
+      "Step 7 — test the decision without touching files",
+      "Test the decision separately",
+      "Annotations: documentation plus tool input, not magic enforcement",
+      "Start with the basics",
       "mytool/client.py",
       "WRONG in the test file:",
       "RIGHT:",
@@ -666,7 +518,10 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Chapter 13 - Project structure, CLI and CI/CD — Python for Production Infrastructure.",
     "sections": [
-      "Foundations: start here if this is new to you",
+      "Virtual environments and reproducibility",
+      "Modules, packages, and imports",
+      "The modules used repeatedly in this course",
+      "Start with the basics",
       "infra doctor/model.py",
       "some other file.py, run from the directory containing infra doctor/",
       "pyproject.toml",
@@ -674,9 +529,10 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice before moving on"
     ],
     "codeLanguages": [
-      "mermaid",
+      "bash",
       "text",
       "python",
+      "mermaid",
       "toml",
       "yaml"
     ]
@@ -721,12 +577,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Senior Deep Dive 1 — The Python object model, mutability and interfaces": {
+  "Chapter 18 — The Python object model, mutability and interfaces": {
     "volume": "Volume 2",
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Senior Deep Dive 1 — The Python object model, mutability and interfaces — Python for Production Infrastructure.",
+    "learningOutcome": "Chapter 1 — The Python object model, mutability and interfaces — Python for Production Infrastructure.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "python",
@@ -734,61 +590,61 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "mermaid"
     ]
   },
-  "Senior Deep Dive 2 — Configuration is an API: validation, secrets and precedence": {
+  "Chapter 19 — Configuration is an API: validation, secrets and precedence": {
     "volume": "Volume 2",
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Senior Deep Dive 2 — Configuration is an API: validation, secrets and precedence — Python for Production Infrastructure.",
+    "learningOutcome": "Chapter 2 — Configuration is an API: validation, secrets and precedence — Python for Production Infrastructure.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "text",
       "mermaid"
     ]
   },
-  "Senior Deep Dive 3 — Build API clients that fail safely": {
+  "Chapter 20 — Build API clients that fail safely": {
     "volume": "Volume 2",
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Senior Deep Dive 3 — Build API clients that fail safely — Python for Production Infrastructure.",
+    "learningOutcome": "Chapter 3 — Build API clients that fail safely — Python for Production Infrastructure.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 4 — Async, threads and processes with backpressure": {
+  "Chapter 21 — Async, threads and processes with backpressure": {
     "volume": "Volume 2",
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Senior Deep Dive 4 — Async, threads and processes with backpressure — Python for Production Infrastructure.",
+    "learningOutcome": "Chapter 4 — Async, threads and processes with backpressure — Python for Production Infrastructure.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 5 — Subprocess is a process API, not a shell shortcut": {
+  "Chapter 22 — Subprocess is a process API, not a shell shortcut": {
     "volume": "Volume 2",
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Senior Deep Dive 5 — Subprocess is a process API, not a shell shortcut — Python for Production Infrastructure.",
+    "learningOutcome": "Chapter 5 — Subprocess is a process API, not a shell shortcut — Python for Production Infrastructure.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
-      "text",
       "python",
+      "text",
       "mermaid"
     ]
   },
-  "Senior Deep Dive 6 — Structured logs, metrics and correlation IDs": {
+  "Chapter 23 — Structured logs, metrics and correlation IDs": {
     "volume": "Volume 2",
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Senior Deep Dive 6 — Structured logs, metrics and correlation IDs — Python for Production Infrastructure.",
+    "learningOutcome": "Chapter 6 — Structured logs, metrics and correlation IDs — Python for Production Infrastructure.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "json",
@@ -796,13 +652,13 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "mermaid"
     ]
   },
-  "Senior Deep Dive 7 — Testing infrastructure code: isolate decisions from effects": {
+  "Chapter 24 — Testing infrastructure code: isolate decisions from effects": {
     "volume": "Volume 2",
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Senior Deep Dive 7 — Testing infrastructure code: isolate decisions from effects — Python for Production Infrastructure.",
+    "learningOutcome": "Chapter 7 — Testing infrastructure code: isolate decisions from effects — Python for Production Infrastructure.",
     "sections": [
       "test\\ retry.py",
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "python",
@@ -810,12 +666,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "mermaid"
     ]
   },
-  "Senior Deep Dive 8 — Complete project: GPU fleet health CLI": {
+  "Chapter 25 — Complete project: GPU fleet health CLI": {
     "volume": "Volume 2",
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Senior Deep Dive 8 — Complete project: GPU fleet health CLI — Python for Production Infrastructure.",
+    "learningOutcome": "Chapter 8 — Complete project: GPU fleet health CLI — Python for Production Infrastructure.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "python",
@@ -823,44 +679,17 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "mermaid"
     ]
   },
-  "Performance and profiling for operational Python": {
+  "Chapter 26 — Performance and profiling for operational Python": {
     "volume": "Volume 2",
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Performance and profiling for operational Python — Python for Production Infrastructure.",
+    "learningOutcome": "Chapter 26 — Performance and profiling for operational Python — Python for Production Infrastructure.",
     "sections": [
       "external sampler if available:",
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
-    ]
-  },
-  "Foundation — what Kubernetes is and what problem it solves": {
-    "volume": "Volume 3",
-    "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "A beginner orientation to Kubernetes desired state, control loops and workload execution.",
-    "sections": [
-      "Foundation — what Kubernetes is and what problem it solves",
-      "What this volume is trying to teach",
-      "The first mental model: desired state and reconciliation",
-      "Essential language",
-      "What Kubernetes status does and does not prove",
-      "A real-life example",
-      "Kubernetes objects are API records, not running processes",
-      "Trace one Pod end to end",
-      "Specification, status and events",
-      "Scheduling is an eligibility decision",
-      "Networking: four different objects/questions",
-      "Storage: claim, volume and mount",
-      "Security request path",
-      "Guided lab — explain a Deployment and Service"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "yaml"
     ]
   },
   "Chapter 1 - API server, etcd and the object model": {
@@ -868,20 +697,20 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
     "learningOutcome": "Trace reads/writes, resourceVersion, watches and declarative desired state through the API control plane.",
     "sections": [
-      "Foundations: start here if Kubernetes concepts are new to you",
+      "The first working model: desired state and reconciliation",
+      "Essential language",
+      "What Kubernetes status does and does not prove",
+      "A real-life example",
+      "Kubernetes objects are API records, not running processes",
+      "Trace one Pod end to end",
+      "Specification, status and events",
+      "Guided lab — explain a Deployment and Service",
+      "Common beginner mistakes",
+      "Start with the basics",
       "What this section is, and what it isn't",
       "The problem before the tool: \"it works on my machine\"",
       "Image vs. container: the same relationship as class vs. object",
-      "The next problem: now you have hundreds of containers, on many machines",
-      "The four objects you need before diving deeper",
-      "The core mental model the rest of this chapter builds on: declare what you want, a controller makes it true",
-      "Evidence vs. proof: don't trust one command's output alone",
-      "Glossary",
-      "Before you go deeper, make sure you can...",
-      "Chapter 1 — API server, etcd and the object model",
-      "1.1 API objects are records of desired/observed state",
-      "edit /tmp/a.yaml, apply it — succeeds, resourceVersion bumps",
-      "now try to apply the stale /tmp/b.yaml which still carries the OLD resourceVersion"
+      "The next problem: now you have hundreds of containers, on many machines"
     ],
     "codeLanguages": [
       "mermaid",
@@ -894,6 +723,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
     "learningOutcome": "Explain filter/score thinking, requests/allocatable, affinity, taints, topology and extended GPU resources.",
     "sections": [
+      "Scheduling is an eligibility decision",
       "Chapter 2 — Scheduler mechanics, resources and topology",
       "2.1 Requests drive placement",
       "2.2 Constraints: taints, affinity and topology",
@@ -902,6 +732,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "yaml",
       "text",
       "mermaid",
       "bash"
@@ -927,6 +758,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
     "learningOutcome": "Trace DNS, Service selection, data plane implementation, CNI routing and NetworkPolicy.",
     "sections": [
+      "Networking: four different objects/questions",
       "Chapter 4 — Kubernetes networking from Service to CNI",
       "4.1 Service and EndpointSlice",
       "4.2 Data plane implementation",
@@ -946,13 +778,14 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
     "learningOutcome": "Understand CSI provisioning/attach/mount, PVC binding modes, topology and StatefulSet identity.",
     "sections": [
+      "Storage: claim, volume and mount",
       "Chapter 5 — Storage and StatefulSets",
       "Worked scenario",
       "Practice"
     ],
     "codeLanguages": [
-      "text",
       "mermaid",
+      "text",
       "bash"
     ]
   },
@@ -961,6 +794,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
     "learningOutcome": "Reason about who can call the API, what they can do, how workloads obtain cloud identity and how container privileges change risk.",
     "sections": [
+      "Security request path",
       "Chapter 6 — Security: authentication, RBAC, workload identity and Pod hardening",
       "6.1 RBAC is authorization over API verbs/resources",
       "then check cloud side (example AWS IRSA / EKS pod identity):",
@@ -969,8 +803,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
-      "text",
       "mermaid",
+      "text",
       "bash"
     ]
   },
@@ -1010,9 +844,10 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
     "learningOutcome": "Plan control-plane/node changes around skew, disruption budgets, workload topology and rollback evidence.",
     "sections": [
+      "A disciplined troubleshooting example",
       "Chapter 9 — Upgrades, reliability and cluster operations",
       "Practice",
-      "➕ Going deeper",
+      "Going deeper",
       "Rollback evidence — what to actually capture before you need it",
       "Mnemonic for this whole chapter"
     ],
@@ -1022,13 +857,13 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash"
     ]
   },
-  "Senior Deep Dive 1 — API machinery: resourceVersion, watches, finalizers and ownership": {
+  "Chapter 10 — API machinery: resourceVersion, watches, finalizers and ownership": {
     "volume": "Volume 3",
     "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Senior Deep Dive 1 — API machinery: resourceVersion, watches, finalizers and ownership — Kubernetes and Platform Engineering.",
+    "learningOutcome": "Chapter 1 — API machinery: resourceVersion, watches, finalizers and ownership — Kubernetes and Platform Engineering.",
     "sections": [
-      "Senior addendum",
-      "Original section preamble (preserved verbatim)",
+      "Build from the normal path",
+      "API machinery in operation",
       "Quick cross-reference (use both halves together, not as duplicates)",
       "Deep Dive 1 — API machinery"
     ],
@@ -1037,12 +872,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Senior Deep Dive 2 — etcd quorum, control-plane failure and recovery boundaries": {
+  "Chapter 11 — etcd quorum, control-plane failure and recovery boundaries": {
     "volume": "Volume 3",
     "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Senior Deep Dive 2 — etcd quorum, control-plane failure and recovery boundaries — Kubernetes and Platform Engineering.",
+    "learningOutcome": "Chapter 2 — etcd quorum, control-plane failure and recovery boundaries — Kubernetes and Platform Engineering.",
     "sections": [
-      "Senior addendum",
+      "Build from the normal path",
       "Deep Dive 2 — etcd quorum and control-plane failure boundaries"
     ],
     "codeLanguages": [
@@ -1050,13 +885,13 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Senior Deep Dive 3 — Scheduling framework, preemption, gang/topology and DRA": {
+  "Chapter 12 — Scheduling framework, preemption, gang/topology and DRA": {
     "volume": "Volume 3",
     "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Senior Deep Dive 3 — Scheduling framework, preemption, gang/topology and DRA — Kubernetes and Platform Engineering.",
+    "learningOutcome": "Chapter 3 — Scheduling framework, preemption, gang/topology and DRA — Kubernetes and Platform Engineering.",
     "sections": [
       "DRA resources on clusters that support them",
-      "Senior addendum",
+      "Build from the normal path",
       "Deep Dive 3 — Scheduling framework, preemption, gang/topology and DRA"
     ],
     "codeLanguages": [
@@ -1065,12 +900,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash"
     ]
   },
-  "Senior Deep Dive 4 — Kubelet, CRI, pod sandbox and node pressure": {
+  "Chapter 13 — Kubelet, CRI, pod sandbox and node pressure": {
     "volume": "Volume 3",
     "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Senior Deep Dive 4 — Kubelet, CRI, pod sandbox and node pressure — Kubernetes and Platform Engineering.",
+    "learningOutcome": "Chapter 4 — Kubelet, CRI, pod sandbox and node pressure — Kubernetes and Platform Engineering.",
     "sections": [
-      "Senior addendum",
+      "Build from the normal path",
       "Deep Dive 4 — Kubelet, CRI, pod sandbox and node pressure"
     ],
     "codeLanguages": [
@@ -1078,14 +913,14 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Senior Deep Dive 5 — Networking: Service abstraction, CNI dataplane, DNS and Gateway API": {
+  "Chapter 14 — Networking: Service abstraction, CNI dataplane, DNS and Gateway API": {
     "volume": "Volume 3",
     "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Senior Deep Dive 5 — Networking: Service abstraction, CNI dataplane, DNS and Gateway API — Kubernetes and Platform Engineering.",
+    "learningOutcome": "Chapter 5 — Networking: Service abstraction, CNI dataplane, DNS and Gateway API — Kubernetes and Platform Engineering.",
     "sections": [
       "DNS from inside the workload namespace",
       "Node dataplane - varies by CNI/proxy implementation",
-      "Senior addendum",
+      "Build from the normal path",
       "Deep Dive 5 — Networking: Service, CNI dataplane, DNS, Gateway API"
     ],
     "codeLanguages": [
@@ -1093,14 +928,14 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Senior Deep Dive 6 — Admission, policy and multi-tenant guardrails": {
+  "Chapter 15 — Admission, policy and multi-tenant guardrails": {
     "volume": "Volume 3",
     "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Senior Deep Dive 6 — Admission, policy and multi-tenant guardrails — Kubernetes and Platform Engineering.",
+    "learningOutcome": "Chapter 6 — Admission, policy and multi-tenant guardrails — Kubernetes and Platform Engineering.",
     "sections": [
       "Namespace Pod Security Admission example",
       "Inspect admission webhooks and policies",
-      "Senior addendum",
+      "Build from the normal path",
       "Deep Dive 6 — Admission, policy and multi-tenant guardrails"
     ],
     "codeLanguages": [
@@ -1109,12 +944,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash"
     ]
   },
-  "Senior Deep Dive 7 — Platform patterns from the Staff Engineer guide": {
+  "Chapter 16 — Platform patterns from the Staff Engineer guide": {
     "volume": "Volume 3",
     "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Senior Deep Dive 7 — Platform patterns from the Staff Engineer guide — Kubernetes and Platform Engineering.",
+    "learningOutcome": "Chapter 7 — Platform patterns from the Staff Engineer guide — Kubernetes and Platform Engineering.",
     "sections": [
-      "Senior addendum",
+      "Build from the normal path",
       "Deep Dive 7 — Platform patterns from the Staff Engineer guide"
     ],
     "codeLanguages": [
@@ -1122,12 +957,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Senior Deep Dive 8 — GPU platform operations: node pools, operators and resource isolation": {
+  "Chapter 17 — GPU platform operations: node pools, operators and resource isolation": {
     "volume": "Volume 3",
     "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Senior Deep Dive 8 — GPU platform operations: node pools, operators and resource isolation — Kubernetes and Platform Engineering.",
+    "learningOutcome": "Chapter 8 — GPU platform operations: node pools, operators and resource isolation — Kubernetes and Platform Engineering.",
     "sections": [
-      "Senior addendum",
+      "Build from the normal path",
       "Deep Dive 8 — GPU platform operations",
       "Self-check: original subtopics accounted for"
     ],
@@ -1137,74 +972,25 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "mermaid"
     ]
   },
-  "Foundation — GPU computing and the NVIDIA stack from first principles": {
-    "volume": "Volume 4",
-    "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
-    "learningOutcome": "A complete beginner chapter explaining CPU/GPU cooperation, CUDA execution and memory, NVIDIA software layers, containers, Kubernetes and first operational evidence.",
-    "sections": [
-      "Foundation — GPU computing and the NVIDIA stack from first principles",
-      "Your learning contract",
-      "1. Begin with a workload, not a GPU model",
-      "2. What a GPU kernel actually is",
-      "3. Memory: capacity is not bandwidth",
-      "A concrete capacity calculation",
-      "4. The NVIDIA software stack, layer by layer",
-      "Driver versus Toolkit versus runtime",
-      "5. Why containers still depend on the host",
-      "6. How Kubernetes gets from a physical GPU to a Pod",
-      "7. First lab: build an evidence ladder",
-      "Step 1 — does PCIe enumerate an NVIDIA device?",
-      "Step 2 — can the NVIDIA management stack talk to it?",
-      "Step 3 — what is the local topology?"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "python"
-    ]
-  },
-  "Foundation — NVIDIA ecosystem map for a beginner": {
-    "volume": "Volume 4",
-    "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
-    "learningOutcome": "A problem-oriented map of NVIDIA hardware, CUDA-X libraries, AI software, Kubernetes operators, monitoring and cluster-management products.",
-    "sections": [
-      "Foundation — NVIDIA ecosystem map for a beginner",
-      "1. The two large halves",
-      "2. Hardware and system terms",
-      "3. CUDA and CUDA-X",
-      "4. NGC: distribution, not an execution layer",
-      "5. Training and model-development software",
-      "6. Inference products: TensorRT, Triton and NIM are not synonyms",
-      "TensorRT",
-      "Triton Inference Server",
-      "NVIDIA NIM",
-      "NIM Operator",
-      "7. Kubernetes infrastructure operators",
-      "8. DCGM and nvidia-smi",
-      "9. Cluster and workload management"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 1 - GPU execution and memory mental model": {
+  "Chapter 1 - GPU execution and memory working model": {
     "volume": "Volume 4",
     "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
     "learningOutcome": "Explain why GPUs favor throughput parallelism and how compute, HBM bandwidth and data movement become separate bottlenecks.",
     "sections": [
-      "Foundations: start here if GPU/CUDA concepts are new to you",
+      "The compatibility stack",
+      "Begin with a workload, not a GPU model",
+      "What a GPU kernel actually is",
+      "Memory: capacity is not bandwidth",
+      "A concrete capacity calculation",
+      "Common misconceptions",
+      "The two large halves",
+      "Hardware and system terms",
+      "A complete request mapped to products",
+      "Choose documentation by your current question",
+      "NVIDIA stack: know which product owns which layer",
+      "Start with the basics",
       "What this chapter is, and what it isn't",
-      "Why a CPU alone isn't enough for some workloads",
-      "What a GPU actually is: the spreadsheet analogy",
-      "What CUDA actually is (and the three things beginners conflate)",
-      "A first real example: reading nvidia-smi , and why one number isn't proof of anything",
-      "Glossary",
-      "Before you go deeper, make sure you can...",
-      "1.1 Utilization is not a complete performance model",
-      "gpu pwr gtemp mtemp sm mem enc dec jpg ofa mclk pclk",
-      "Idx W C C % % % % % % MHz MHz"
+      "Why a CPU alone isn't enough for some workloads"
     ],
     "codeLanguages": [
       "mermaid",
@@ -1217,11 +1003,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
     "learningOutcome": "Understand why \"same number of GPUs\" can produce different performance depending on physical connectivity and NUMA placement.",
     "sections": [
+      "Multiple nodes",
       "Worked scenario"
     ],
     "codeLanguages": [
-      "text",
       "mermaid",
+      "text",
       "bash"
     ]
   },
@@ -1229,10 +1016,16 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "volume": "Volume 4",
     "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
     "learningOutcome": "Know which layer must be compatible and which parts are host versus container responsibility.",
-    "sections": [],
+    "sections": [
+      "The NVIDIA software stack, layer by layer",
+      "Driver versus Toolkit versus runtime",
+      "Why containers still depend on the host",
+      "CUDA and CUDA-X",
+      "NGC: distribution, not an execution layer"
+    ],
     "codeLanguages": [
-      "text",
       "mermaid",
+      "text",
       "bash"
     ]
   },
@@ -1241,11 +1034,13 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
     "learningOutcome": "Trace how hardware becomes an allocatable Kubernetes extended resource and how operator lifecycle automation fits around it.",
     "sections": [
+      "How Kubernetes gets from a physical GPU to a Pod",
+      "Kubernetes infrastructure operators",
       "Worked scenario"
     ],
     "codeLanguages": [
-      "text",
       "mermaid",
+      "text",
       "bash"
     ]
   },
@@ -1266,13 +1061,22 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
     "learningOutcome": "Interpret hardware telemetry in the context of workload performance and distinguish demand, health and throttling.",
     "sections": [
+      "First lab: build an evidence ladder",
+      "Step 1 — does PCIe enumerate an NVIDIA device?",
+      "Step 2 — can the NVIDIA management stack talk to it?",
+      "Step 3 — what is the local topology?",
+      "Step 4 — can a framework allocate and execute a tiny operation?",
+      "Monitoring, health and diagnostics are different",
+      "A worked incident without shortcut conclusions",
+      "DCGM and nvidia-smi",
       "Prometheus-style examples vary by exporter version/config",
       "clocks.sm well below clocks.max.sm + a non-empty clocks event reasons.active = throttled right now, not idle-by-choice"
     ],
     "codeLanguages": [
+      "bash",
       "text",
-      "mermaid",
-      "bash"
+      "python",
+      "mermaid"
     ]
   },
   "Chapter 7 - Capacity and failure-domain design": {
@@ -1288,12 +1092,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Senior Deep Dive 1 — GPU execution model without CUDA-programming overload": {
+  "Chapter 8 — GPU execution model without CUDA-programming overload": {
     "volume": "Volume 4",
     "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
-    "learningOutcome": "Senior Deep Dive 1 — GPU execution model without CUDA-programming overload — GPU and Accelerated Computing Foundations.",
+    "learningOutcome": "Chapter 1 — GPU execution model without CUDA-programming overload — GPU and Accelerated Computing Foundations.",
     "sections": [
-      "Senior addendum",
+      "Build from the normal path",
       "Original Fourth Edition Senior Engineering Expansion framing",
       "Quick cross-reference (so you use both halves together, not as duplicates)",
       "Deep Dive 1 — GPU execution model without CUDA-programming overload"
@@ -1303,39 +1107,39 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Senior Deep Dive 2 — Topology: PCIe, NVLink, NVSwitch and NUMA": {
+  "Chapter 9 — Topology: PCIe, NVLink, NVSwitch and NUMA": {
     "volume": "Volume 4",
     "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
-    "learningOutcome": "Senior Deep Dive 2 — Topology: PCIe, NVLink, NVSwitch and NUMA — GPU and Accelerated Computing Foundations.",
+    "learningOutcome": "Chapter 2 — Topology: PCIe, NVLink, NVSwitch and NUMA — GPU and Accelerated Computing Foundations.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "text",
       "mermaid"
     ]
   },
-  "Senior Deep Dive 3 — Driver, CUDA compatibility and container integration": {
+  "Chapter 10 — Driver, CUDA compatibility and container integration": {
     "volume": "Volume 4",
     "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
-    "learningOutcome": "Senior Deep Dive 3 — Driver, CUDA compatibility and container integration — GPU and Accelerated Computing Foundations.",
+    "learningOutcome": "Chapter 3 — Driver, CUDA compatibility and container integration — GPU and Accelerated Computing Foundations.",
     "sections": [
       "Runtime integration (commands depend on installation)",
       "Container smoke test",
       "or run a vendor-supported CUDA container through your normal runtime",
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "text",
       "mermaid"
     ]
   },
-  "Senior Deep Dive 4 — GPU Operator as a dependency reconciler": {
+  "Chapter 11 — GPU Operator as a dependency reconciler": {
     "volume": "Volume 4",
     "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
-    "learningOutcome": "Senior Deep Dive 4 — GPU Operator as a dependency reconciler — GPU and Accelerated Computing Foundations.",
+    "learningOutcome": "Chapter 4 — GPU Operator as a dependency reconciler — GPU and Accelerated Computing Foundations.",
     "sections": [
-      "Senior addendum",
+      "Build from the normal path",
       "Ready ← the whole operand set has converged; if any operand DaemonSet isn't"
     ],
     "codeLanguages": [
@@ -1344,34 +1148,35 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "mermaid"
     ]
   },
-  "Senior Deep Dive 5 — Sharing: MIG, time-slicing, MPS and vGPU": {
+  "Chapter 12 — Sharing: MIG, time-slicing, MPS and vGPU": {
     "volume": "Volume 4",
     "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
-    "learningOutcome": "Senior Deep Dive 5 — Sharing: MIG, time-slicing, MPS and vGPU — GPU and Accelerated Computing Foundations.",
+    "learningOutcome": "Chapter 5 — Sharing: MIG, time-slicing, MPS and vGPU — GPU and Accelerated Computing Foundations.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path",
+      "Decision example"
     ],
     "codeLanguages": []
   },
-  "Senior Deep Dive 6 — DCGM, Xid, ECC and health semantics": {
+  "Chapter 13 — DCGM, Xid, ECC and health semantics": {
     "volume": "Volume 4",
     "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
-    "learningOutcome": "Senior Deep Dive 6 — DCGM, Xid, ECC and health semantics — GPU and Accelerated Computing Foundations.",
+    "learningOutcome": "Chapter 6 — DCGM, Xid, ECC and health semantics — GPU and Accelerated Computing Foundations.",
     "sections": [
       "DCGM tooling if deployed",
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "text",
       "mermaid"
     ]
   },
-  "Senior Deep Dive 7 — Fleet lifecycle: upgrades, draining and known-good validation": {
+  "Chapter 14 — Fleet lifecycle: upgrades, draining and known-good validation": {
     "volume": "Volume 4",
     "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
-    "learningOutcome": "Senior Deep Dive 7 — Fleet lifecycle: upgrades, draining and known-good validation — GPU and Accelerated Computing Foundations.",
+    "learningOutcome": "Chapter 7 — Fleet lifecycle: upgrades, draining and known-good validation — GPU and Accelerated Computing Foundations.",
     "sections": [
-      "Senior addendum",
+      "Build from the normal path",
       "1. Driver/CUDA boundary proof (Ch3/Deep Dive 3)",
       "2. Topology unchanged after firmware/driver update (Ch2/Deep Dive 2)",
       "3. Hardware health (Ch6/Deep Dive 6)",
@@ -1385,50 +1190,30 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash"
     ]
   },
-  "Foundation — AI, machine learning and LLM workloads from zero": {
-    "volume": "Volume 5",
-    "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "A data-rich beginner chapter explaining models, tensors, training, inference, LLM prefill/decode, KV cache, parallelism, serving and infrastructure requirements.",
-    "sections": [
-      "Foundation — AI, machine learning and LLM workloads from zero",
-      "Your learning contract",
-      "1. From rules to learned models",
-      "2. Essential data structures: scalars, vectors, matrices and tensors",
-      "Tiny runnable example",
-      "3. Training: how weights change",
-      "Terms that now have a place",
-      "Why checkpoints are infrastructure concerns",
-      "4. Inference: fixed weights, new requests",
-      "5. What makes a large language model special",
-      "Model weights and a lower-bound memory estimate",
-      "Prefill and decode",
-      "KV cache",
-      "6. Latency and throughput vocabulary"
-    ],
-    "codeLanguages": [
-      "python",
-      "text",
-      "mermaid"
-    ]
-  },
   "Chapter 1 - Classify the AI workload before designing infrastructure": {
     "volume": "Volume 5",
     "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
     "learningOutcome": "Distinguish training, fine-tuning, evaluation, batch inference and online inference by compute, communication, storage and SLO behavior.",
     "sections": [
-      "Foundations: start here if AI/ML concepts are new to you",
+      "From rules to learned models",
+      "Essential data structures: scalars, vectors, matrices and tensors",
+      "Tiny runnable example",
+      "Training, fine-tuning, RAG and agents are not the same workload",
+      "First safe lab: compare CPU and GPU execution",
+      "Worked platform scenario",
+      "Common beginner traps",
+      "Start with the basics",
       "What this section is, and what it isn't",
       "What a machine learning model actually is: honest version, no mysticism",
       "What \"training\" actually means",
       "What \"inference\" actually means, and why the training/inference split is the most important idea here",
       "What a \"token\" is, and why generating one at a time matters",
-      "What \"70 billion parameters\" actually means, and why bigger models need more GPU memory",
-      "Glossary",
-      "Before you go deeper, make sure you can..."
+      "What \"70 billion parameters\" actually means, and why bigger models need more GPU memory"
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
+      "text",
+      "python"
     ]
   },
   "Chapter 2 - Training architecture: compute, data, checkpoints and collectives": {
@@ -1436,6 +1221,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
     "learningOutcome": "Understand why distributed training depends on GPU topology, fabric, storage and scheduler behavior.",
     "sections": [
+      "Training and model-development software",
+      "Training: how weights change",
+      "Terms that now have a place",
+      "Why checkpoints are infrastructure concerns",
+      "Multi-GPU and multi-node execution",
+      "Common forms of parallelism",
       "2.1 Parallelism vocabulary for infrastructure",
       "Worked scenario"
     ],
@@ -1449,6 +1240,13 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
     "learningOutcome": "Connect model-serving mechanics to memory, latency, throughput and scaling decisions.",
     "sections": [
+      "Inference: fixed weights, new requests",
+      "What makes a large language model special",
+      "Model weights and a lower-bound memory estimate",
+      "Prefill and decode",
+      "KV cache",
+      "Latency and throughput vocabulary",
+      "Why batching helps—and what it costs",
       "Practitioner lens"
     ],
     "codeLanguages": [
@@ -1461,11 +1259,19 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
     "learningOutcome": "Place Triton, NIM, vLLM and application gateways in an architecture without treating product names as the design.",
     "sections": [
+      "Inference products: TensorRT, Triton and NIM are not synonyms",
+      "TensorRT",
+      "Triton Inference Server",
+      "NVIDIA NIM",
+      "NIM Operator",
+      "Serving-system layers",
+      "Triton example",
+      "NIM example",
       "Example Kubernetes resource boundary (illustrative)"
     ],
     "codeLanguages": [
-      "text",
-      "mermaid"
+      "mermaid",
+      "text"
     ]
   },
   "Chapter 5 - Autoscaling inference": {
@@ -1526,126 +1332,100 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "mermaid"
     ]
   },
-  "Senior Deep Dive 1 — Training systems: parallelism, collectives and checkpoint economics": {
+  "Chapter 10 — Training systems: parallelism, collectives and checkpoint economics": {
     "volume": "Volume 5",
     "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Senior Deep Dive 1 — Training systems: parallelism, collectives and checkpoint economics — AI Workloads and AI Platform Architecture.",
+    "learningOutcome": "Chapter 1 — Training systems: parallelism, collectives and checkpoint economics — AI Workloads and AI Platform Architecture.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 2 — LLM inference: prefill, decode, KV cache and continuous batching": {
+  "Chapter 11 — LLM inference: prefill, decode, KV cache and continuous batching": {
     "volume": "Volume 5",
     "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Senior Deep Dive 2 — LLM inference: prefill, decode, KV cache and continuous batching — AI Workloads and AI Platform Architecture.",
+    "learningOutcome": "Chapter 2 — LLM inference: prefill, decode, KV cache and continuous batching — AI Workloads and AI Platform Architecture.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 3 — NIM, vLLM, TensorRT-LLM and serving boundaries": {
+  "Chapter 12 — NIM, vLLM, TensorRT-LLM and serving boundaries": {
     "volume": "Volume 5",
     "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Senior Deep Dive 3 — NIM, vLLM, TensorRT-LLM and serving boundaries — AI Workloads and AI Platform Architecture.",
+    "learningOutcome": "Chapter 3 — NIM, vLLM, TensorRT-LLM and serving boundaries — AI Workloads and AI Platform Architecture.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 4 — NVIDIA Dynamo: system-level inference optimization": {
+  "Chapter 13 — NVIDIA Dynamo: system-level inference optimization": {
     "volume": "Volume 5",
     "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Senior Deep Dive 4 — NVIDIA Dynamo: system-level inference optimization — AI Workloads and AI Platform Architecture.",
+    "learningOutcome": "Chapter 4 — NVIDIA Dynamo: system-level inference optimization — AI Workloads and AI Platform Architecture.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 5 — Autoscaling inference from work, not only CPU": {
+  "Chapter 14 — Autoscaling inference from work, not only CPU": {
     "volume": "Volume 5",
     "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Senior Deep Dive 5 — Autoscaling inference from work, not only CPU — AI Workloads and AI Platform Architecture.",
+    "learningOutcome": "Chapter 5 — Autoscaling inference from work, not only CPU — AI Workloads and AI Platform Architecture.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "text",
       "mermaid"
     ]
   },
-  "Senior Deep Dive 6 — RAG, vector search and stateful dependencies": {
+  "Chapter 15 — RAG, vector search and stateful dependencies": {
     "volume": "Volume 5",
     "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Senior Deep Dive 6 — RAG, vector search and stateful dependencies — AI Workloads and AI Platform Architecture.",
+    "learningOutcome": "Chapter 6 — RAG, vector search and stateful dependencies — AI Workloads and AI Platform Architecture.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 7 — Agentic and multimodal infrastructure": {
+  "Chapter 16 — Agentic and multimodal infrastructure": {
     "volume": "Volume 5",
     "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Senior Deep Dive 7 — Agentic and multimodal infrastructure — AI Workloads and AI Platform Architecture.",
+    "learningOutcome": "Chapter 7 — Agentic and multimodal infrastructure — AI Workloads and AI Platform Architecture.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 8 — Production benchmark design": {
+  "Chapter 17 — Production benchmark design": {
     "volume": "Volume 5",
     "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Senior Deep Dive 8 — Production benchmark design — AI Workloads and AI Platform Architecture.",
+    "learningOutcome": "Chapter 8 — Production benchmark design — AI Workloads and AI Platform Architecture.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "text",
       "mermaid"
-    ]
-  },
-  "Foundation — what HPC infrastructure is and why AI needs it": {
-    "volume": "Volume 6",
-    "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
-    "learningOutcome": "A beginner orientation to distributed jobs, networks, storage, schedulers, MPI, NCCL and RDMA.",
-    "sections": [
-      "Foundation — what HPC infrastructure is and why AI needs it",
-      "What this volume is trying to teach",
-      "From one process to a distributed job",
-      "Essential language",
-      "The normal training path",
-      "Ethernet, RDMA and locality",
-      "A real-life example",
-      "Ethernet first: how a packet reaches another host",
-      "RDMA from first principles",
-      "MPI, PMIx and NCCL have different jobs",
-      "Collective communication and stragglers",
-      "Storage is part of the compute pipeline",
-      "A two-node debugging ladder",
-      "Safe observation commands"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
     ]
   },
   "Chapter 1 - Distributed systems performance for GPU jobs": {
@@ -1653,21 +1433,25 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
     "learningOutcome": "Build a scaling-efficiency model that separates compute, communication, synchronization and I/O.",
     "sections": [
-      "Foundations: start here if HPC concepts are new to you",
+      "From one process to a distributed job",
+      "Essential language",
+      "The normal training path",
+      "A real-life example",
+      "Collective communication and stragglers",
+      "Safe observation commands",
+      "Common beginner mistakes",
+      "Start with the basics",
       "What this section does and does not do",
       "The core difference: coordinated versus independent work",
       "What a \"cluster\" means here",
       "What problem a job scheduler solves",
       "What MPI is, at the concept level",
-      "Why network speed matters so much more here",
-      "Glossary",
-      "Before you go deeper, make sure you can...",
-      "Example: 8 GPUs give 6.4x throughput - 80% scaling efficiency",
-      "Practice"
+      "Why network speed matters so much more here"
     ],
     "codeLanguages": [
-      "mermaid",
-      "text"
+      "text",
+      "bash",
+      "mermaid"
     ]
   },
   "Chapter 2 - Ethernet fundamentals for AI fabrics": {
@@ -1675,11 +1459,13 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
     "learningOutcome": "Understand link speed, MTU, queues, loss, ECMP and congestion before learning RoCE.",
     "sections": [
+      "Ethernet, RDMA and locality",
+      "Ethernet first: how a packet reaches another host",
       "Practice"
     ],
     "codeLanguages": [
-      "text",
       "mermaid",
+      "text",
       "bash"
     ]
   },
@@ -1688,6 +1474,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
     "learningOutcome": "Explain remote memory operations, queue pairs and why loss/congestion configuration matters.",
     "sections": [
+      "RDMA from first principles",
+      "A two-node debugging ladder",
       "Perftest tools such as ib write bw / ib read bw may be used in controlled labs.",
       "Practice"
     ],
@@ -1701,6 +1489,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
     "learningOutcome": "Connect GPU collectives to host topology and fabric evidence.",
     "sections": [
+      "MPI, PMIx and NCCL have different jobs",
       "NCCL debug is powerful but verbose; enable deliberately in a test/incident window.",
       "48 via NET/IB/0/GDRDMA ← healthy — most cross-node channels using GPUDirect RDMA",
       "2 via NET/IB/0/IB ← these 2 fell back to staged path — investigate these specific channels/nodes",
@@ -1732,6 +1521,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
     "learningOutcome": "Design storage by access pattern, concurrency, locality and recovery behavior.",
     "sections": [
+      "Storage is part of the compute pipeline",
       "Worked scenario"
     ],
     "codeLanguages": [
@@ -1763,116 +1553,89 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Senior Deep Dive 1 — Collective communication and straggler amplification": {
+  "Chapter 9 — Collective communication and straggler amplification": {
     "volume": "Volume 6",
     "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
-    "learningOutcome": "Senior Deep Dive 1 — Collective communication and straggler amplification — HPC, Networking and Storage for AI.",
+    "learningOutcome": "Chapter 1 — Collective communication and straggler amplification — HPC, Networking and Storage for AI.",
     "sections": [
       "NCCL diagnostics - enable only for diagnosis because logs can be large",
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "text",
       "mermaid"
     ]
   },
-  "Senior Deep Dive 2 — RDMA: InfiniBand versus RoCE": {
+  "Chapter 10 — RDMA: InfiniBand versus RoCE": {
     "volume": "Volume 6",
     "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
-    "learningOutcome": "Senior Deep Dive 2 — RDMA: InfiniBand versus RoCE — HPC, Networking and Storage for AI.",
+    "learningOutcome": "Chapter 2 — RDMA: InfiniBand versus RoCE — HPC, Networking and Storage for AI.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 3 — Network design for AI: oversubscription, rails and failure domains": {
+  "Chapter 11 — Network design for AI: oversubscription, rails and failure domains": {
     "volume": "Volume 6",
     "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
-    "learningOutcome": "Senior Deep Dive 3 — Network design for AI: oversubscription, rails and failure domains — HPC, Networking and Storage for AI.",
+    "learningOutcome": "Chapter 3 — Network design for AI: oversubscription, rails and failure domains — HPC, Networking and Storage for AI.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "text",
       "mermaid"
     ]
   },
-  "Senior Deep Dive 4 — Storage hierarchy and data pipeline architecture": {
+  "Chapter 12 — Storage hierarchy and data pipeline architecture": {
     "volume": "Volume 6",
     "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
-    "learningOutcome": "Senior Deep Dive 4 — Storage hierarchy and data pipeline architecture — HPC, Networking and Storage for AI.",
+    "learningOutcome": "Chapter 4 — Storage hierarchy and data pipeline architecture — HPC, Networking and Storage for AI.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 5 — Slurm concepts beyond sbatch": {
+  "Chapter 13 — Slurm concepts beyond sbatch": {
     "volume": "Volume 6",
     "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
-    "learningOutcome": "Senior Deep Dive 5 — Slurm concepts beyond sbatch — HPC, Networking and Storage for AI.",
+    "learningOutcome": "Chapter 5 — Slurm concepts beyond sbatch — HPC, Networking and Storage for AI.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 6 — Kubernetes, Slurm and hybrid scheduling": {
+  "Chapter 14 — Kubernetes, Slurm and hybrid scheduling": {
     "volume": "Volume 6",
     "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
-    "learningOutcome": "Senior Deep Dive 6 — Kubernetes, Slurm and hybrid scheduling — HPC, Networking and Storage for AI.",
+    "learningOutcome": "Chapter 6 — Kubernetes, Slurm and hybrid scheduling — HPC, Networking and Storage for AI.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 7 — Distributed-system patterns from the Staff Engineer guide": {
+  "Chapter 15 — Distributed-system patterns from the Staff Engineer guide": {
     "volume": "Volume 6",
     "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
-    "learningOutcome": "Senior Deep Dive 7 — Distributed-system patterns from the Staff Engineer guide — HPC, Networking and Storage for AI.",
+    "learningOutcome": "Chapter 7 — Distributed-system patterns from the Staff Engineer guide — HPC, Networking and Storage for AI.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
-    ]
-  },
-  "Foundation — what observability and reliability engineering are": {
-    "volume": "Volume 7",
-    "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "A beginner orientation to evidence, user impact, SLOs, incidents and safe troubleshooting.",
-    "sections": [
-      "Foundation — what observability and reliability engineering are",
-      "What this volume is trying to teach",
-      "The first mental model",
-      "Essential language",
-      "Start from impact, not the loudest component",
-      "A real-life example",
-      "Define reliability from a user's journey",
-      "Metrics: understand value types before PromQL",
-      "Logs that can survive an incident",
-      "Traces: one request across boundaries",
-      "GPU and AI observability needs workload outcomes",
-      "Incident evidence tree",
-      "Alert-design questions",
-      "Guided exercise"
-    ],
-    "codeLanguages": [
-      "text",
-      "promql",
-      "json",
-      "mermaid"
     ]
   },
   "Chapter 1 - Metrics, logs and traces as different evidence": {
@@ -1880,6 +1643,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
     "learningOutcome": "Know what each telemetry type preserves and choose it by question.",
     "sections": [
+      "The first working model",
+      "Essential language",
+      "Start from impact, not the loudest component",
+      "A real-life example",
+      "Guided exercise",
+      "Start here: what reliability and observability mean",
       "Practice"
     ],
     "codeLanguages": [
@@ -1892,6 +1661,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
     "learningOutcome": "Connect reliability work to measurable user outcomes instead of infrastructure percentages.",
     "sections": [
+      "Define reliability from a user's journey",
       "99.9% availability - 0.1% error budget over the window",
       "Practice"
     ],
@@ -1900,11 +1670,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "mermaid"
     ]
   },
-  "Chapter 3 - Prometheus mental model and PromQL reasoning": {
+  "Chapter 3 - Prometheus working model and PromQL reasoning": {
     "volume": "Volume 7",
     "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
     "learningOutcome": "Understand counters, gauges, histograms, rates and label dimensions before copying queries.",
     "sections": [
+      "Metrics: understand value types before PromQL",
       "Request rate",
       "5xx ratio",
       "or, more directly, ask \"does any label on this metric have unbounded distinct values?\"",
@@ -1936,6 +1707,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
     "learningOutcome": "Separate device health/utilization from workload demand and performance.",
     "sections": [
+      "GPU and AI observability needs workload outcomes",
       "Practitioner lens",
       "Practice"
     ],
@@ -1949,6 +1721,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
     "learningOutcome": "Design event fields, severity and correlation; prevent secrets and noisy duplication.",
     "sections": [
+      "Logs that can survive an incident",
       "{\"event\": \"inference request\", \"model\": \"llama-x\", \"prompt\": \"<redacted \", \"duration ms\": 812}",
       "Practice"
     ],
@@ -1964,6 +1737,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
     "learningOutcome": "Use spans to decompose request latency across gateway, queue, model server and dependencies.",
     "sections": [
+      "Traces: one request across boundaries",
       "Practice"
     ],
     "codeLanguages": [
@@ -1977,6 +1751,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
     "learningOutcome": "Alert on actionable risk to an SLO or critical dependency, then make the first diagnostic steps deterministic.",
     "sections": [
+      "Alert-design questions",
       "Practice"
     ],
     "codeLanguages": [
@@ -1990,7 +1765,9 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
     "learningOutcome": "Use object/event evidence before host-level investigation, then descend the stack.",
     "sections": [
-      "Worked scenario",
+      "Incident evidence tree",
+      "Pending Pod scenario",
+      "CrashLoopBackOff scenario",
       "Practice"
     ],
     "codeLanguages": [
@@ -2017,94 +1794,97 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
     "learningOutcome": "Separate mitigation, root cause, contributing factors and prevention; communicate by audience.",
     "sections": [
-      "Practice"
+      "Core practice",
+      "Follow-up practice"
     ],
     "codeLanguages": [
       "text",
       "mermaid"
     ]
   },
-  "Senior Deep Dive 1 — Start with SLO impact and scope": {
+  "Chapter 12 — Start with SLO impact and scope": {
     "volume": "Volume 7",
     "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Senior Deep Dive 1 — Start with SLO impact and scope — Observability, Reliability and Troubleshooting.",
+    "learningOutcome": "Chapter 1 — Start with SLO impact and scope — Observability, Reliability and Troubleshooting.",
     "sections": [
-      "Senior addendum",
+      "Build from the normal path",
       "Quick cross-reference (use both halves together, not as duplicates)",
-      "Senior Deep Dive 1 — Start with SLO impact and scope"
+      "Chapter 1 — Start with SLO impact and scope"
     ],
     "codeLanguages": []
   },
-  "Senior Deep Dive 2 — Prometheus internals, cardinality and query cost": {
+  "Chapter 13 — Prometheus internals, cardinality and query cost": {
     "volume": "Volume 7",
     "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Senior Deep Dive 2 — Prometheus internals, cardinality and query cost — Observability, Reliability and Troubleshooting.",
+    "learningOutcome": "Chapter 2 — Prometheus internals, cardinality and query cost — Observability, Reliability and Troubleshooting.",
     "sections": [
       "p95 from histogram buckets",
       "GPU utilization grouped by node (metric names depend on exporter/version)",
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 3 — OpenTelemetry and trace context across AI services": {
+  "Chapter 14 — OpenTelemetry and trace context across AI services": {
     "volume": "Volume 7",
     "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Senior Deep Dive 3 — OpenTelemetry and trace context across AI services — Observability, Reliability and Troubleshooting.",
+    "learningOutcome": "Chapter 3 — OpenTelemetry and trace context across AI services — Observability, Reliability and Troubleshooting.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path",
+      "Troubleshooting a broken trace"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 4 — GPU observability with DCGM and driver evidence": {
+  "Chapter 15 — GPU observability with DCGM and driver evidence": {
     "volume": "Volume 7",
     "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Senior Deep Dive 4 — GPU observability with DCGM and driver evidence — Observability, Reliability and Troubleshooting.",
+    "learningOutcome": "Chapter 4 — GPU observability with DCGM and driver evidence — Observability, Reliability and Troubleshooting.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 5 — Inference observability: TTFT, ITL/TPOT and saturation": {
+  "Chapter 16 — Inference observability: TTFT, ITL/TPOT and saturation": {
     "volume": "Volume 7",
     "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Senior Deep Dive 5 — Inference observability: TTFT, ITL/TPOT and saturation — Observability, Reliability and Troubleshooting.",
+    "learningOutcome": "Chapter 5 — Inference observability: TTFT, ITL/TPOT and saturation — Observability, Reliability and Troubleshooting.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 6 — Incident workflow: evidence tree and safe mitigation": {
+  "Chapter 17 — Incident workflow: evidence tree and safe mitigation": {
     "volume": "Volume 7",
     "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Senior Deep Dive 6 — Incident workflow: evidence tree and safe mitigation — Observability, Reliability and Troubleshooting.",
+    "learningOutcome": "Chapter 6 — Incident workflow: evidence tree and safe mitigation — Observability, Reliability and Troubleshooting.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 7 — Alert design for expensive GPU systems": {
+  "Chapter 18 — Alert design for expensive GPU systems": {
     "volume": "Volume 7",
     "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Senior Deep Dive 7 — Alert design for expensive GPU systems — Observability, Reliability and Troubleshooting.",
+    "learningOutcome": "Chapter 7 — Alert design for expensive GPU systems — Observability, Reliability and Troubleshooting.",
     "sections": [
-      "Senior addendum",
-      "BAD (single-signal, exactly what this Deep Dive warns against):",
-      "BETTER (multi-signal — sustained SLO violation AND queue saturation together):"
+      "Build from the normal path",
+      "BAD (single-signal, exactly what this chapter warns against):",
+      "BETTER (multi-signal — sustained SLO violation AND queue saturation together):",
+      "Route the signal to the right response"
     ],
     "codeLanguages": [
       "promql",
@@ -2112,37 +1892,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "mermaid"
     ]
   },
-  "Senior Deep Dive 8 — Reliability testing and game days": {
+  "Chapter 19 — Reliability testing and game days": {
     "volume": "Volume 7",
     "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Senior Deep Dive 8 — Reliability testing and game days — Observability, Reliability and Troubleshooting.",
+    "learningOutcome": "Chapter 8 — Reliability testing and game days — Observability, Reliability and Troubleshooting.",
     "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Foundation — what a Solutions Architect actually does": {
-    "volume": "Volume 8",
-    "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "A beginner orientation to discovery, requirements, trade-offs, validation and customer communication.",
-    "sections": [
-      "Foundation — what a Solutions Architect actually does",
-      "What this volume is trying to teach",
-      "The first mental model",
-      "Essential language",
-      "Discovery before products",
-      "A real-life example",
-      "A complete discovery example",
-      "Outcome and workload",
-      "Current state",
-      "Constraints and governance",
-      "Unknowns requiring validation",
-      "Architecture is paths and state",
-      "Turn requirements into a trade-off matrix",
-      "PoC as an uncertainty-reduction experiment"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
@@ -2154,6 +1909,16 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
     "learningOutcome": "Turn \"we need an AI platform\" into workload, SLO, scale, security, operations and cost facts.",
     "sections": [
+      "The first working model",
+      "Essential language",
+      "Discovery before products",
+      "A real-life example",
+      "A complete discovery example",
+      "Outcome and workload",
+      "Current state",
+      "Constraints and governance",
+      "Unknowns requiring validation",
+      "Start here: what a Solutions Architect actually does",
       "Practitioner lens",
       "Practice"
     ],
@@ -2167,6 +1932,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
     "learningOutcome": "Chapter 2 - Architecture from data and control paths — Senior Solutions Architecture Practice.",
     "sections": [
+      "Architecture is paths and state",
+      "Design-review checklist",
       "Practice"
     ],
     "codeLanguages": [
@@ -2179,6 +1946,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
     "learningOutcome": "Chapter 3 - Trade-off matrices with weighted requirements — Senior Solutions Architecture Practice.",
     "sections": [
+      "Turn requirements into a trade-off matrix",
       "Practice"
     ],
     "codeLanguages": [
@@ -2204,11 +1972,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
     "learningOutcome": "Chapter 5 - GPU sharing and capacity recommendation — Senior Solutions Architecture Practice.",
     "sections": [
+      "Capacity estimate with uncertainty",
       "Practice"
     ],
     "codeLanguages": [
-      "mermaid",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 6 - PoC design: test uncertainty, not product demos": {
@@ -2216,6 +1985,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
     "learningOutcome": "Chapter 6 - PoC design: test uncertainty, not product demos — Senior Solutions Architecture Practice.",
     "sections": [
+      "PoC as an uncertainty-reduction experiment",
       "Worked scenario",
       "Practice"
     ],
@@ -2266,6 +2036,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
     "learningOutcome": "Chapter 10 - Customer communication and executive explanation — Senior Solutions Architecture Practice.",
     "sections": [
+      "Communicate at three levels",
       "Practitioner lens",
       "Practice"
     ],
@@ -2274,129 +2045,116 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "mermaid"
     ]
   },
-  "Senior Deep Dive 1 — Workload characterization before architecture": {
+  "Chapter 11 — Workload characterization before architecture": {
     "volume": "Volume 8",
     "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Senior Deep Dive 1 — Workload characterization before architecture — Senior Solutions Architecture Practice.",
+    "learningOutcome": "Chapter 1 — Workload characterization before architecture — Senior Solutions Architecture Practice.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 2 — AI factory layered architecture": {
+  "Chapter 12 — AI factory layered architecture": {
     "volume": "Volume 8",
     "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Senior Deep Dive 2 — AI factory layered architecture — Senior Solutions Architecture Practice.",
+    "learningOutcome": "Chapter 2 — AI factory layered architecture — Senior Solutions Architecture Practice.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 3 — Capacity and TCO: convert SLO into resources": {
+  "Chapter 13 — Capacity and TCO: convert SLO into resources": {
     "volume": "Volume 8",
     "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Senior Deep Dive 3 — Capacity and TCO: convert SLO into resources — Senior Solutions Architecture Practice.",
+    "learningOutcome": "Chapter 3 — Capacity and TCO: convert SLO into resources — Senior Solutions Architecture Practice.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 4 — PoC design: test the uncertainty": {
+  "Chapter 14 — PoC design: test the uncertainty": {
     "volume": "Volume 8",
     "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Senior Deep Dive 4 — PoC design: test the uncertainty — Senior Solutions Architecture Practice.",
+    "learningOutcome": "Chapter 4 — PoC design: test the uncertainty — Senior Solutions Architecture Practice.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 5 — Security and governance for GPU/AI platforms": {
+  "Chapter 15 — Security and governance for GPU/AI platforms": {
     "volume": "Volume 8",
     "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Senior Deep Dive 5 — Security and governance for GPU/AI platforms — Senior Solutions Architecture Practice.",
+    "learningOutcome": "Chapter 5 — Security and governance for GPU/AI platforms — Senior Solutions Architecture Practice.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 6 — Decision workshops: Kubernetes, Slurm, Run:ai, NIM and Dynamo": {
+  "Chapter 16 — Decision workshops: Kubernetes, Slurm, Run:ai, NIM and Dynamo": {
     "volume": "Volume 8",
     "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Senior Deep Dive 6 — Decision workshops: Kubernetes, Slurm, Run:ai, NIM and Dynamo — Senior Solutions Architecture Practice.",
+    "learningOutcome": "Chapter 6 — Decision workshops: Kubernetes, Slurm, Run:ai, NIM and Dynamo — Senior Solutions Architecture Practice.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 7 — Communicate at three levels": {
+  "Chapter 17 — Communicate at three levels": {
     "volume": "Volume 8",
     "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Senior Deep Dive 7 — Communicate at three levels — Senior Solutions Architecture Practice.",
+    "learningOutcome": "Chapter 7 — Communicate at three levels — Senior Solutions Architecture Practice.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path",
+      "Worked example: recurring GPU-node failures"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 8 — Practitioner role model: Solutions Architect versus implementation engineer": {
+  "Chapter 18 — Practitioner role model: Solutions Architect versus implementation engineer": {
     "volume": "Volume 8",
     "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Senior Deep Dive 8 — Practitioner role model: Solutions Architect versus implementation engineer — Senior Solutions Architecture Practice.",
+    "learningOutcome": "Chapter 8 — Practitioner role model: Solutions Architect versus implementation engineer — Senior Solutions Architecture Practice.",
     "sections": [
-      "Senior addendum"
+      "Build from the normal path"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
-  },
-  "Foundation — how to use interview practice without memorizing answers": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "A beginner-safe orientation to technical interviews, question banks and evidence-led answers.",
-    "sections": [
-      "Foundation — how to use interview practice without memorizing answers",
-      "What this volume is trying to teach",
-      "The first mental model",
-      "Different questions test different skills",
-      "What to do when a topic is new",
-      "A practical study loop",
-      "Example: turn a weak troubleshooting answer into reasoning",
-      "Example: architecture answer",
-      "Coding practice should expose the thought process",
-      "Self-scoring rubric",
-      "Four-pass mock-interview progression",
-      "Readiness check"
-    ],
-    "codeLanguages": []
   },
   "Chapter 1 - The answer framework: expose your reasoning": {
     "volume": "Volume 9",
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
     "learningOutcome": "Chapter 1 - The answer framework: expose your reasoning — JR2018680 Interview Preparation.",
     "sections": [
-      "Senior Engineering Expansion preface (Fourth Edition, Volume 9)",
-      "➕ Additions",
+      "The first working model",
+      "Different questions test different skills",
+      "What to do when a topic is new",
+      "A practical study loop",
+      "Example: turn a weak troubleshooting answer into reasoning",
+      "Start here: how to use interview practice",
+      "Context for this chapter (Fourth Edition, Volume 9)",
+      "Worked explanation and practice",
       "Practice"
     ],
     "codeLanguages": [
@@ -2409,7 +2167,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
     "learningOutcome": "Chapter 2 - Python coding interview workflow — JR2018680 Interview Preparation.",
     "sections": [
-      "➕ Additions",
+      "Coding practice should expose the thought process",
+      "Worked explanation and practice",
       "Practice"
     ],
     "codeLanguages": [
@@ -2424,7 +2183,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Chapter 3 - Linux troubleshooting questions — JR2018680 Interview Preparation.",
     "sections": [
       "Worked scenario",
-      "➕ Additions",
+      "Worked explanation and practice",
       "Practice"
     ],
     "codeLanguages": [
@@ -2438,7 +2197,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Chapter 4 - Kubernetes troubleshooting questions — JR2018680 Interview Preparation.",
     "sections": [
       "Worked scenario",
-      "➕ Additions",
+      "Worked explanation and practice",
       "Practice"
     ],
     "codeLanguages": [
@@ -2452,7 +2211,9 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Chapter 5 - GPU and AI infrastructure troubleshooting — JR2018680 Interview Preparation.",
     "sections": [
       "Worked scenario",
-      "➕ Additions"
+      "Worked explanation and practice",
+      "Evidence ladder and interpretation",
+      "Complete answer structure"
     ],
     "codeLanguages": [
       "mermaid",
@@ -2464,7 +2225,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
     "learningOutcome": "Chapter 6 - AI inference architecture questions — JR2018680 Interview Preparation.",
     "sections": [
-      "➕ Additions",
+      "Worked explanation and practice",
       "Practice"
     ],
     "codeLanguages": [
@@ -2478,7 +2239,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Chapter 7 - HPC networking questions — JR2018680 Interview Preparation.",
     "sections": [
       "Worked scenario",
-      "➕ Additions",
+      "Worked explanation and practice",
       "Practice"
     ],
     "codeLanguages": [
@@ -2491,8 +2252,9 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
     "learningOutcome": "Chapter 8 - Solutions architecture whiteboard method — JR2018680 Interview Preparation.",
     "sections": [
+      "Example: architecture answer",
       "Worked scenario",
-      "➕ Additions",
+      "Worked explanation and practice",
       "Practice"
     ],
     "codeLanguages": [
@@ -2505,7 +2267,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
     "learningOutcome": "Chapter 9 - Customer discovery interview — JR2018680 Interview Preparation.",
     "sections": [
-      "➕ Additions"
+      "Worked explanation and practice"
     ],
     "codeLanguages": [
       "mermaid",
@@ -2517,7 +2279,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
     "learningOutcome": "Chapter 10 - Behavioral and stakeholder stories — JR2018680 Interview Preparation.",
     "sections": [
-      "➕ Additions",
+      "Worked explanation and practice",
       "Practice"
     ],
     "codeLanguages": [
@@ -2530,7 +2292,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
     "learningOutcome": "Chapter 11 - Question bank: foundations to SA depth — JR2018680 Interview Preparation.",
     "sections": [
-      "➕ Additions",
+      "Worked explanation and practice",
       "Practice"
     ],
     "codeLanguages": [
@@ -2543,8 +2305,10 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
     "learningOutcome": "Chapter 12 - 45-minute mock interview structure — JR2018680 Interview Preparation.",
     "sections": [
+      "Self-scoring rubric",
+      "Four-pass mock-interview progression",
       "Practice",
-      "➕ Additions",
+      "Worked explanation and practice",
       "More practice"
     ],
     "codeLanguages": [
@@ -2552,24 +2316,25 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Senior Interview Method — Clarify, model, hypothesize, test, recommend": {
+  "Chapter 13 — Clarify, model, hypothesize, test and recommend": {
     "volume": "Volume 9",
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Senior Interview Method — Clarify, model, hypothesize, test, recommend — JR2018680 Interview Preparation.",
+    "learningOutcome": "Chapter 13 — Clarify, model, hypothesize, test and recommend — JR2018680 Interview Preparation.",
     "sections": [
-      "➕ Additions"
+      "Worked explanation and practice",
+      "Worked answer: one distributed job is slow"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Question set A — Linux and host mechanics": {
+  "Chapter 14 — Linux and host mechanics question set": {
     "volume": "Volume 9",
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Question set A — Linux and host mechanics — JR2018680 Interview Preparation.",
+    "learningOutcome": "Chapter 14 — Linux and host mechanics question set — JR2018680 Interview Preparation.",
     "sections": [
-      "➕ Additions",
+      "Worked explanation and practice",
       "Practice"
     ],
     "codeLanguages": [
@@ -2577,13 +2342,15 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Question set B — Python coding and production automation": {
+  "Chapter 15 — Python coding and production automation": {
     "volume": "Volume 9",
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Question set B — Python coding and production automation — JR2018680 Interview Preparation.",
+    "learningOutcome": "Chapter 15 — Python coding and production automation — JR2018680 Interview Preparation.",
     "sections": [
       "Interview task skeleton: summarize failures by node and error type",
-      "➕ Additions"
+      "Worked explanation and practice",
+      "Turn the skeleton into a complete interview solution",
+      "Practice prompts"
     ],
     "codeLanguages": [
       "python",
@@ -2591,12 +2358,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "mermaid"
     ]
   },
-  "Question set C — Kubernetes platform depth": {
+  "Chapter 16 — Kubernetes platform question set": {
     "volume": "Volume 9",
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Question set C — Kubernetes platform depth — JR2018680 Interview Preparation.",
+    "learningOutcome": "Chapter 16 — Kubernetes platform question set — JR2018680 Interview Preparation.",
     "sections": [
-      "➕ Additions",
+      "Worked explanation and practice",
       "Practice"
     ],
     "codeLanguages": [
@@ -2604,12 +2371,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Question set D — GPU and accelerated networking": {
+  "Chapter 17 — GPU and accelerated-networking question set": {
     "volume": "Volume 9",
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Question set D — GPU and accelerated networking — JR2018680 Interview Preparation.",
+    "learningOutcome": "Chapter 17 — GPU and accelerated-networking question set — JR2018680 Interview Preparation.",
     "sections": [
-      "➕ Additions",
+      "Worked explanation and practice",
       "gpu sm mem enc dec mclk pclk",
       "Practice"
     ],
@@ -2618,24 +2385,24 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Question set E — AI inference architecture": {
+  "Chapter 18 — AI inference architecture question set": {
     "volume": "Volume 9",
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Question set E — AI inference architecture — JR2018680 Interview Preparation.",
+    "learningOutcome": "Chapter 18 — AI inference architecture question set — JR2018680 Interview Preparation.",
     "sections": [
-      "➕ Additions"
+      "Worked explanation and practice"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Question set F — Customer architecture and PoC": {
+  "Chapter 19 — Customer architecture and PoC question set": {
     "volume": "Volume 9",
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Question set F — Customer architecture and PoC — JR2018680 Interview Preparation.",
+    "learningOutcome": "Chapter 19 — Customer architecture and PoC question set — JR2018680 Interview Preparation.",
     "sections": [
-      "➕ Additions",
+      "Worked explanation and practice",
       "Practice"
     ],
     "codeLanguages": [
@@ -2643,24 +2410,24 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Question set G — Whiteboard: production GenAI platform": {
+  "Chapter 20 — Production GenAI platform whiteboard": {
     "volume": "Volume 9",
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Question set G — Whiteboard: production GenAI platform — JR2018680 Interview Preparation.",
+    "learningOutcome": "Chapter 20 — Production GenAI platform whiteboard — JR2018680 Interview Preparation.",
     "sections": [
-      "➕ Additions"
+      "Worked explanation and practice"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Question set H — Behavioral stories for a senior SA": {
+  "Chapter 21 — Behavioral stories for a senior SA": {
     "volume": "Volume 9",
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Question set H — Behavioral stories for a senior SA — JR2018680 Interview Preparation.",
+    "learningOutcome": "Chapter 21 — Behavioral stories for a senior SA — JR2018680 Interview Preparation.",
     "sections": [
-      "➕ Additions",
+      "Worked explanation and practice",
       "Practice"
     ],
     "codeLanguages": [
@@ -2668,79 +2435,25 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Current role-family signals to be able to discuss": {
+  "Chapter 22 — Current role-family signals": {
     "volume": "Volume 9",
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Current role-family signals to be able to discuss — JR2018680 Interview Preparation.",
+    "learningOutcome": "Chapter 22 — Current role-family signals — JR2018680 Interview Preparation.",
     "sections": [
-      "➕ Additions"
+      "Worked explanation and practice"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Foundation — how the bare-metal and HPC operations stack fits together": {
-    "volume": "Volume 10",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "A beginner orientation connecting BMC, BCM, Linux, IaC, Slurm, MPI, containers and cluster change.",
-    "sections": [
-      "Foundation — how the bare-metal and HPC operations stack fits together",
-      "What this volume is trying to teach",
-      "The stack by responsibility",
-      "Follow one node and one job",
-      "Essential distinctions",
-      "Follow a server from delivery to first job",
-      "1. Physical readiness and out-of-band control",
-      "2. Firmware and boot baseline",
-      "3. Image and operating system",
-      "4. Accelerator and fabric stack",
-      "5. Scheduler readiness",
-      "6. Job lifecycle",
-      "Control plane versus data plane",
-      "Version and ownership matrix"
-    ],
-    "codeLanguages": [
-      "bash",
-      "text"
-    ]
-  },
-  "Foundation — Infrastructure as Code, Terraform and Ansible from zero": {
-    "volume": "Volume 10",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "A beginner-to-production chapter explaining desired state, Terraform providers/resources/state, Ansible inventory/tasks/idempotency, safe plans and hands-on local labs.",
-    "sections": [
-      "Foundation — Infrastructure as Code, Terraform and Ansible from zero",
-      "Why infrastructure needs code-like discipline",
-      "Provisioning and configuration are related but different",
-      "Terraform: declare API-managed resources",
-      "Terraform's three views of reality",
-      "The Terraform workflow, with interpretation",
-      "Terraform local lab",
-      "Drift and import",
-      "Modules: create an interface, not a hiding place",
-      "Ansible: converge host configuration",
-      "inventory.ini",
-      "Idempotency is observed behavior",
-      "Check mode, diff mode and their limits",
-      "Terraform versus Ansible through one example"
-    ],
-    "codeLanguages": [
-      "hcl",
-      "text",
-      "mermaid",
-      "bash",
-      "ini",
-      "yaml"
-    ]
-  },
-  "Interview lab — operate a Slurm and BCM GPU cluster": {
+  "Chapter 18 - Slurm and BCM interview lab": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
     "learningOutcome": "A safe, evidence-driven practice lab for Slurm scheduling, BCM lifecycle management, GPU admission and senior interview answers.",
     "sections": [
-      "Interview lab — operate a Slurm and BCM GPU cluster",
-      "The one-minute mental model",
+      "Chapter 18 — Slurm and BCM interview lab",
+      "The one-minute working model",
       "Lab setup and safety",
       "Lab 1 — identify the cluster control plane",
       "Lab 2 — read a pending job like an operator",
@@ -2765,19 +2478,20 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
     "learningOutcome": "Understand what happens to a physical GPU server between \"racked and cabled\" and \"ready for an OS image\" — BMC access, firmware baselining, and network boot — and be able to diagnose why a specific node refuses to PXE boot.",
     "sections": [
-      "Start here — build the physical-server mental model",
+      "The stack by responsibility",
+      "Follow one node and one job",
+      "Essential distinctions",
+      "Follow a server from delivery to first job",
+      "1. Physical readiness and out-of-band control",
+      "2. Firmware and boot baseline",
+      "3. Image and operating system",
+      "4. Accelerator and fabric stack",
+      "5. Scheduler readiness",
+      "6. Job lifecycle",
+      "Start here — build the physical-server working model",
       "Vocabulary before commands",
       "Why this layer exists",
-      "IPMI vs Redfish",
-      "Accessing the BMC",
-      "IPMI — direct LAN access, or via ipmitool's \"lan\" interface",
-      "Redfish — HTTPS REST, works with curl or redfishtool",
-      "Firmware inventory and update workflow",
-      "PXE/network boot fundamentals",
-      "RAID/boot-drive configuration before OS install",
-      "From bare node to \"provisionable\"",
-      "Worked scenario — a node that fails to PXE boot",
-      "Practice"
+      "IPMI vs Redfish"
     ],
     "codeLanguages": [
       "mermaid",
@@ -2789,6 +2503,11 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
     "learningOutcome": "Understand where a cluster-management layer like BCM sits relative to bare metal below it and Slurm/Kubernetes/Ansible/Terraform above and beside it, and be able to reason about a category-based rolling image upgrade without inventing exact CLI syntax you haven't verified.",
     "sections": [
+      "Cluster and workload management",
+      "Base Command Manager (BCM)",
+      "Run:ai",
+      "Slurm",
+      "Control plane versus data plane",
       "Start here — BCM is the cluster's lifecycle manager",
       "What BCM is, honestly",
       "Architecture",
@@ -2808,7 +2527,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
     "learningOutcome": "Understand automated OS provisioning (kickstart/cloud-init), the SELinux/AppArmor enforcement model and triage flow, a CIS-style hardening baseline, and why patch strategy on a GPU cluster is constrained by driver/kernel coupling in ways a stateless web-tier fleet is not.",
     "sections": [
-      "Foundations: start here if Linux/cluster security concepts are new to you",
+      "Start with the basics",
       "What this section does and does not do",
       "A quick recap, one level further: root and least privilege",
       "What \"attack surface\" means",
@@ -2834,23 +2553,27 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
     "learningOutcome": "Explain how Ansible's push model, inventory, and idempotency guarantees are used to make configuration changes across a GPU fleet safely and predictably — including why \"idempotent\" is a claim you verify, not one you assume.",
     "sections": [
+      "Why infrastructure needs code-like discipline",
+      "Provisioning and configuration are related but different",
+      "Ansible: converge host configuration",
+      "inventory.ini",
+      "Idempotency is observed behavior",
+      "Check mode, diff mode and their limits",
+      "Terraform versus Ansible through one example",
+      "Start here: where Ansible fits",
       "Start here — read an Ansible run as a sentence",
       "Push model and inventory",
       "static inventory: /etc/ansible/hosts.ini",
       "Playbooks, roles, and idempotency",
       "Handlers and change notification",
-      "Ansible Vault for secrets",
-      "Dry-run and safe verification: --check and --diff",
-      "Rolling rollout with serial: — limiting blast radius",
-      "Annotated real run",
-      "Worked scenario — a playbook that looked idempotent but wasn't",
-      "Mnemonic",
-      "Practice"
+      "Ansible Vault for secrets"
     ],
     "codeLanguages": [
-      "mermaid",
+      "ini",
       "text",
-      "yaml"
+      "yaml",
+      "bash",
+      "mermaid"
     ]
   },
   "Chapter 5 - Terraform for infrastructure as code": {
@@ -2858,22 +2581,26 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
     "learningOutcome": "Explain what Terraform state actually is, why it is the dangerous part of the tool rather than the syntax, and where the ownership boundary sits between Terraform and node-configuration tools like Ansible/BCM on a GPU-cluster-adjacent stack.",
     "sections": [
+      "Terraform: declare API-managed resources",
+      "Terraform's three views of reality",
+      "The Terraform workflow, with interpretation",
+      "Terraform local lab",
+      "Drift and import",
+      "Modules: create an interface, not a hiding place",
+      "Start here: Terraform’s job and its safety boundary",
       "Start here — Terraform manages API objects, not arbitrary commands",
       "Providers, resources, and the state file",
       "Why state needs locking and a remote backend",
       "Blast radius of a bad apply, and why -/+ is the line to fear",
       "Mandatory plan review before apply",
       "Modules for reusable GPU-cluster building blocks",
-      "Lifecycle and taint handling for a cloud GPU instance fleet",
-      "The ownership boundary: what Terraform should and shouldn't own",
-      "Worked scenario — manual console change, corrected destructively",
-      "Mnemonic",
-      "Practice"
+      "Lifecycle and taint handling for a cloud GPU instance fleet"
     ],
     "codeLanguages": [
-      "mermaid",
+      "hcl",
       "text",
-      "hcl"
+      "mermaid",
+      "bash"
     ]
   },
   "Chapter 6 - Slurm administration: HA, accounting and upgrades": {
@@ -2944,6 +2671,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
     "learningOutcome": "Trace the full chain from \"cluster exists\" to \"a job is safely running,\" explain why health gating sits between cluster-join and scheduling eligibility, and design a health-check gate that catches degraded — not just dead — hardware.",
     "sections": [
+      "Safe first lab without physical mutations",
+      "Worked fault isolation",
       "Start here — availability is not readiness",
       "The full readiness pipeline",
       "Why an unhealthy node accepting jobs is worse than running short",
@@ -2955,14 +2684,13 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "3. NVLink status — link training/degradation the driver won't surface as a hard failure",
       "4. Required filesystem mounts present (dataset/checkpoint paths a job will assume exist)",
       "Job-provisioning patterns for AI/HPC",
-      "Worked scenario",
-      "Practice"
+      "Worked scenario"
     ],
     "codeLanguages": [
-      "mermaid",
+      "bash",
       "text",
-      "python",
-      "bash"
+      "mermaid",
+      "python"
     ]
   },
   "Chapter 10 - Coordinated cluster-wide software change management": {
@@ -2970,6 +2698,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
     "learningOutcome": "Given a proposed change at any single layer of a GPU/AI cluster's software stack, build the compatibility matrix that change touches, design a canary that is actually representative of the fleet, and sequence a maintenance window that respects long-running HPC jobs instead of just evicting everything.",
     "sections": [
+      "Version and ownership matrix",
       "Start here — a change is a hypothesis with a blast radius",
       "The problem: no layer changes alone",
       "The compatibility matrix as the artifact you protect",
@@ -2982,8 +2711,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Canary-validation gate — a realistic checklist",
       "Maintenance-window planning for HPC: you cannot just evict everything",
       "Rollback planning when the change touches firmware",
-      "Worked scenario: the canary that wasn't representative",
-      "Mnemonic"
+      "Worked scenario: the canary that wasn't representative"
     ],
     "codeLanguages": [
       "mermaid",
@@ -2995,6 +2723,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
     "learningOutcome": "Design a CI/CD pipeline whose artifact is cluster state (node config, driver/CUDA image, Kubernetes/Slurm manifests) rather than an application binary, with the specific gates that make destructive infrastructure changes safe to automate instead of merely fast.",
     "sections": [
+      "A complete change-review checklist",
       "Start here — CI produces evidence; delivery controls mutation",
       "Broader than application CI/CD",
       "GitOps for cluster configuration",
@@ -3033,12 +2762,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "mermaid"
     ]
   },
-  "Senior Deep Dive 1 — BCM at fleet scale: node categories, image drift and health-check design": {
+  "Chapter 13 — BCM at fleet scale: node categories, image drift and health-check design": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Senior Deep Dive 1 — BCM at fleet scale: node categories, image drift and health-check design — Bare-Metal, HPC Operations and Infrastructure-as-Code.",
+    "learningOutcome": "Chapter 1 — BCM at fleet scale: node categories, image drift and health-check design — Bare-Metal, HPC Operations and Infrastructure-as-Code.",
     "sections": [
-      "Before this deep dive — convert the basics into operational questions",
+      "Convert the basics into operational questions",
       "Category inheritance and drift",
       "Health-check taxonomy: three tiers, three remediation actions",
       "Single head-node architecture: the SPOF problem",
@@ -3051,10 +2780,10 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "mermaid"
     ]
   },
-  "Senior Deep Dive 2 — Slurm HA and accounting internals": {
+  "Chapter 14 — Slurm HA and accounting internals": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Senior Deep Dive 2 — Slurm HA and accounting internals — Bare-Metal, HPC Operations and Infrastructure-as-Code.",
+    "learningOutcome": "Chapter 2 — Slurm HA and accounting internals — Bare-Metal, HPC Operations and Infrastructure-as-Code.",
     "sections": [
       "Before this deep dive — separate availability, durability, and correctness",
       "What must be consistent for failover to be safe",
@@ -3070,10 +2799,10 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Senior Deep Dive 3 — MPI and NCCL joint debugging": {
+  "Chapter 15 — MPI and NCCL joint debugging": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Senior Deep Dive 3 — MPI and NCCL joint debugging — Bare-Metal, HPC Operations and Infrastructure-as-Code.",
+    "learningOutcome": "Chapter 3 — MPI and NCCL joint debugging — Bare-Metal, HPC Operations and Infrastructure-as-Code.",
     "sections": [
       "Before this deep dive — establish a known-good ladder",
       "The layered decision tree",
@@ -3087,10 +2816,10 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Senior Deep Dive 4 — Coordinated firmware, driver and OS rollout across compute, network and storage": {
+  "Chapter 16 — Coordinated firmware, driver and OS rollout across compute, network and storage": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Senior Deep Dive 4 — Coordinated firmware, driver and OS rollout across compute, network and storage — Bare-Metal, HPC Operations and Infrastructure-as-Code.",
+    "learningOutcome": "Chapter 4 — Coordinated firmware, driver and OS rollout across compute, network and storage — Bare-Metal, HPC Operations and Infrastructure-as-Code.",
     "sections": [
       "Before this deep dive — map failure domains and dependency owners",
       "Why network and storage firmware need their own validation track",

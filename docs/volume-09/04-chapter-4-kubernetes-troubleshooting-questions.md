@@ -26,9 +26,9 @@ source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 
 **Conclusion:** Autoscaler is not a universal cure for unschedulable constraints.
 
-## ➕ Additions
+## Worked explanation and practice
 
-➕ **Kubernetes symptom-to-layer decision tree:**
+**Kubernetes symptom-to-layer decision tree:**
 ```mermaid
 flowchart TD
     Sym[Pod/Service symptom]
@@ -50,7 +50,7 @@ flowchart TD
     Unreachable --> Chain["EndpointSlice has IP? -> DNS resolves? -> kube-proxy/CNI dataplane -> NetworkPolicy"]
 ```
 
-➕ **Sample annotated output — GPU-specific Pending Pod, the exact evidence chain:**
+**Sample annotated output — GPU-specific Pending Pod, the exact evidence chain:**
 ```
 $ kubectl describe pod bert-train-0 | tail -15
 Events:
@@ -63,9 +63,9 @@ Events:
 Two distinct causes in one message: 8 nodes simply don't have enough free GPU allocatable (capacity question — will autoscaler help, or is the whole fleet saturated?), and 4 nodes are GPU nodes tainted to keep non-GPU workloads off them, and this Pod has no matching toleration (spec bug, not a capacity problem — adding nodes won't fix it). **Interview-ready line:** "One FailedScheduling message can bundle two unrelated root causes — I'd never add capacity before reading which specific nodes failed for which specific predicate."
 
 ## Practice
-➕ 6. Deliberately create a Pod with a `nodeSelector` that matches zero nodes and one with a GPU resource request exceeding cluster capacity — compare the two `FailedScheduling` messages verbatim and explain in one sentence how you'd tell them apart without reading the message (hint: you can't reliably — always read the actual message).
+6. Deliberately create a Pod with a `nodeSelector` that matches zero nodes and one with a GPU resource request exceeding cluster capacity — compare the two `FailedScheduling` messages verbatim and explain in one sentence how you'd tell them apart without reading the message (hint: you can't reliably — always read the actual message).
 
-➕ **Visual model — Pending is a scheduler explanation, not one failure state:**
+**Visual model — Pending is a scheduler explanation, not one failure state:**
 ```mermaid
 flowchart LR
     P[Pending Pod] --> R[read events]
@@ -74,4 +74,4 @@ flowchart LR
     R -->|PVC / volume| C[storage binding]
     R -->|admission / quota| D[policy boundary]
 ```
-**Memory hook:** *"The event names the predicate; do not guess from the phase."*
+**Key takeaway:** *"The event names the predicate; do not guess from the phase."*

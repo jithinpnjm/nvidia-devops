@@ -1,8 +1,8 @@
 ---
-title: "Senior Deep Dive 3 — Scheduling framework, preemption, gang/topology and DRA"
+title: "Chapter 12 — Scheduling framework, preemption, gang/topology and DRA"
 slug: "senior-deep-dive-3-scheduling-framework-preemption-gang-topology-and-dra"
 sidebar_position: 12
-description: "Senior Deep Dive 3 — Scheduling framework, preemption, gang/topology and DRA — Kubernetes and Platform Engineering."
+description: "Chapter 3 — Scheduling framework, preemption, gang/topology and DRA — Kubernetes and Platform Engineering."
 source_document: "Volume_03_Kubernetes_and_Platform_Engineering(3).docx"
 ---
 ![](pathname:///img/generated/volume-03-04.png)
@@ -24,14 +24,14 @@ kubectl get events --field-selector involvedObject.name=&lt;pod> --sort-by=.last
 # DRA resources on clusters that support them
 kubectl api-resources | grep -Ei 'resourceclaim|deviceclass'
 
-## Senior addendum
+## Build from the normal path
 
 ### Deep Dive 3 — Scheduling framework, preemption, gang/topology and DRA
 *(Filter/Score mechanics, taints/affinity, and the traditional device-plugin/MIG path are covered in depth in Chapter 2 — this section focuses on what's genuinely new: preemption's actual limits, and DRA.)*
 
-➕ **Preemption is not a capacity strategy — why, concretely:** a higher-priority Pending Pod triggers the scheduler to look for lower-priority victim Pods it could evict to make room. But eviction still has to satisfy the victim's own PDB (won't evict below `minAvailable`), and the resulting empty capacity still has to pass the *same* Filter predicates (topology spread, affinity, storage locality) the original Pod would have needed anyway. If the cluster is full of Pods that are themselves protected by tight PDBs, or the only "victims" are on nodes with the wrong topology label, priority alone accomplishes nothing — this is why the original Deep Dive text explicitly separates "priority affects queue order and can trigger preemption" from "preemption is not a general capacity-management strategy." **Interview-ready line:** "Priority gets you to the front of the queue; it doesn't manufacture capacity that respects every other constraint already on the cluster."
+**Preemption is not a capacity strategy — why, concretely:** a higher-priority Pending Pod triggers the scheduler to look for lower-priority victim Pods it could evict to make room. But eviction still has to satisfy the victim's own PDB (won't evict below `minAvailable`), and the resulting empty capacity still has to pass the *same* Filter predicates (topology spread, affinity, storage locality) the original Pod would have needed anyway. If the cluster is full of Pods that are themselves protected by tight PDBs, or the only "victims" are on nodes with the wrong topology label, priority alone accomplishes nothing — this is why the original Deep Dive text explicitly separates "priority affects queue order and can trigger preemption" from "preemption is not a general capacity-management strategy." **Interview-ready line:** "Priority gets you to the front of the queue; it doesn't manufacture capacity that respects every other constraint already on the cluster."
 
-➕ **Diagram: preemption's actual decision sequence — every gate it has to clear before a victim is actually evicted:**
+**Diagram: preemption's actual decision sequence — every gate it has to clear before a victim is actually evicted:**
 ```mermaid
 flowchart LR
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -54,7 +54,7 @@ flowchart LR
 ```
 If every candidate node fails one of these two gates, preemption accomplishes nothing regardless of how high the Pod's priority is — priority only affects which Pod gets to *attempt* this sequence, not whether the sequence succeeds.
 
-➕ **DRA (Dynamic Resource Allocation) — the concept genuinely new to this volume, worth building out since it's GA as of 1.34 and squarely in the "advanced" bar of the JD:**
+**DRA (Dynamic Resource Allocation) — the concept genuinely new to this volume, worth building out since it's GA as of 1.34 and squarely in the "advanced" bar of the JD:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -81,9 +81,9 @@ flowchart TD
   n20["with NVLink between them' as an explicit, structured request instead"]
   n21["of hoping topology spread constraints happen to produce that."]
 ```
-➕ **Why this matters for an interview about this specific job:** DRA exists because the device-plugin model's expressiveness ceiling was reached first and hardest by GPUs — needing topology-aware multi-GPU allocation (NVLink-connected pairs, specific MIG profiles, exclusive vs shared access modes) is exactly the kind of requirement that motivated DRA's design. Expect clusters in the field to run *both* models during a multi-year transition — `kubectl api-resources | grep -Ei 'resourceclaim|deviceclass'` is the one-line check for whether a given cluster has DRA resources registered at all before assuming either model.
+**Why this matters for an interview about this specific job:** DRA exists because the device-plugin model's expressiveness ceiling was reached first and hardest by GPUs — needing topology-aware multi-GPU allocation (NVLink-connected pairs, specific MIG profiles, exclusive vs shared access modes) is exactly the kind of requirement that motivated DRA's design. Expect clusters in the field to run *both* models during a multi-year transition — `kubectl api-resources | grep -Ei 'resourceclaim|deviceclass'` is the one-line check for whether a given cluster has DRA resources registered at all before assuming either model.
 
-➕ **Sample check — telling the two paths apart on a real cluster:**
+**Sample check — telling the two paths apart on a real cluster:**
 ```bash
 $ kubectl api-resources | grep -Ei 'resourceclaim|deviceclass'
 resourceclaims                 resource.k8s.io/v1beta1               true         ResourceClaim

@@ -26,7 +26,7 @@ A public post contrasts DCGM metrics (hardware behavior/health) with model-serve
 
 **Conclusion:** A busy GPU can be an efficient GPU; saturation is defined relative to service outcomes.
 
-➕ **The autoscaling control loop, made visible (why this is harder than CPU-based HPA):**
+**The autoscaling control loop, made visible (why this is harder than CPU-based HPA):**
 ```mermaid
 flowchart TD
     A["Metric source: queue depth, TTFT, gpu_cache_usage_perc, tokens/s"] --> B["HPA/KEDA evaluates against target (e.g. queue_depth > 10 for 60s)"]
@@ -34,9 +34,9 @@ flowchart TD
     C --> D["NEW REPLICA LIFECYCLE (CPU-based web-app HPA never deals with this): schedule pod, pull multi-GB image, allocate GPU, load model weights into GPU memory (seconds to MINUTES), engine warmup/compile (TensorRT-LLM especially), readiness probe passes, THEN it can serve traffic"]
     D --> E["By the time the replica is ready, the traffic spike that triggered scaling may already be over (reactive scaling lag) - or still building (predictive/warm-pool scaling needed)"]
 ```
-This lifecycle box is the mechanism behind Senior Deep Dive 5's line "model load time can be minutes, so predictive capacity, warm pools and staged rollout may outperform reactive HPA alone" — a plain HPA reacting to a metric crossing a threshold has no concept of the multi-minute lead time between "decide to scale" and "capacity actually available."
+This lifecycle box is the mechanism behind Chapter 5's line "model load time can be minutes, so predictive capacity, warm pools and staged rollout may outperform reactive HPA alone" — a plain HPA reacting to a metric crossing a threshold has no concept of the multi-minute lead time between "decide to scale" and "capacity actually available."
 
-➕ **Sample KEDA/HPA custom-metrics output during a scale event, annotated:**
+**Sample KEDA/HPA custom-metrics output during a scale event, annotated:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -58,26 +58,26 @@ flowchart TD
 ```
 The `FailedGetExternalMetric` warning is the operational trap: if the Prometheus adapter or metrics pipeline feeding KEDA/HPA has a gap (scrape failure, adapter restart), the autoscaler doesn't fail loudly — it just stalls at the last known replica count, silently, while queue depth may be climbing. Alert on metrics-pipeline health itself, not only on the scaling metric.
 
-➕ **Extra worked scenario — autoscaler thrashing on the wrong metric:**
+**Extra worked scenario — autoscaler thrashing on the wrong metric:**
 > **Situation:** An inference service is scaled on GPU utilization (target: scale up above 80%). Traffic is steady, but replica count oscillates between 4 and 8 every few minutes, and P99 latency is inconsistent.
 > 1. GPU utilization for a healthy, well-batched LLM server legitimately sits near 90-100% under normal load — per this chapter's own worked scenario, high utilization with healthy SLO is desirable, not a scale trigger.
 > 2. Scaling up on GPU% adds a replica, which — because continuous batching immediately spreads existing queued requests across more replicas — drops per-replica utilization below the scale-down threshold within one metric window, triggering scale-down, which then re-concentrates load and triggers scale-up again. This is oscillation caused by the *scaling metric reacting to the scaling action itself*.
 > 3. Fix: scale on queue depth/duration or pending-request count instead — these are demand signals that don't mechanically drop the moment you add capacity in the same self-referential way, and add a cooldown/stabilization window regardless of metric choice.
 > **Conclusion:** GPU utilization is a *saturation* signal (is this replica full), not a *demand* signal (is there more work than capacity) — using a saturation signal as the scale trigger causes the scaler to fight its own actions.
 
-➕ **Shortcut/mnemonic:** *"Scale on demand-outpacing-capacity (queue depth, pending tokens, TTFT trend), size headroom on saturation (GPU%, KV cache%) — conflating the two causes either thrashing or SLO misses."*
+**Shortcut/mnemonic:** *"Scale on demand-outpacing-capacity (queue depth, pending tokens, TTFT trend), size headroom on saturation (GPU%, KV cache%) — conflating the two causes either thrashing or SLO misses."*
 
-➕ **Interview-ready line:** *"High GPU utilization by itself is not a scaling signal — it tells you a replica is being used efficiently. The scaling signal is whatever tells you demand is outpacing capacity before the SLO breaks, and that's usually queue depth or TTFT trend, not device busy percentage."*
+**Interview-ready line:** *"High GPU utilization by itself is not a scaling signal — it tells you a replica is being used efficiently. The scaling signal is whatever tells you demand is outpacing capacity before the SLO breaks, and that's usually queue depth or TTFT trend, not device busy percentage."*
 
-➕ **Chapter drill questions (chapter-specific, additive):**
+**Chapter drill questions (chapter-specific, additive):**
 1. Design an autoscaling policy for a 70B-parameter model with a 90-second cold-start-to-ready time and a P95 TTFT SLO of 2 seconds under bursty traffic. Name the specific signal, the lead-time compensation mechanism, and one metric you'd alert on to detect a stalled metrics pipeline.
 2. Explain why `kubectl top pod` and DCGM `DCGM_FI_DEV_GPU_UTIL` can disagree with a model server's own `num_requests_running` count as a scaling input, using the hardware-metric-vs-service-metric framing from the practitioner lens.
 
-➕ **Visual model — separate the signal to scale from the signal to size:**
+**Visual model — separate the signal to scale from the signal to size:**
 ```mermaid
 flowchart LR
     A["Incoming work: queue depth + pending tokens + TTFT trend"] --> B["Demand is outrunning capacity"] --> C["Add replica"]
     D["GPU / KV state: GPU util + memory + cache pressure"] --> E["Can this replica accept more work?"] --> F["Size headroom"]
     G["Cold-start/model-load delay"] -.->|predict early| C
 ```
-**Memory hook:** *"Queue tells you to scale; saturation tells you how much room remains."* CPU or raw GPU utilisation alone cannot express the user-facing SLO.
+**Key takeaway:** *"Queue tells you to scale; saturation tells you how much room remains."* CPU or raw GPU utilisation alone cannot express the user-facing SLO.

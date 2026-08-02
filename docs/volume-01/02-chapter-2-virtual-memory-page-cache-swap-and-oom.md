@@ -5,9 +5,25 @@ sidebar_position: 2
 description: "Chapter 2 - Virtual memory, page cache, swap and OOM — Foundations Beneath Kubernetes."
 source_document: "Volume_01_Foundations_Beneath_Kubernetes(3).docx"
 ---
-# Chapter 2 — Virtual memory, page cache, swap and OOM
-*(original text preserved in full; ➕ marks additions)*
 
+## Memory from a process request to OOM
+
+A process uses virtual addresses. The kernel maps virtual pages to physical memory or other backing as needed. File reads can populate the page cache. Under pressure, Linux reclaims clean cache, writes dirty pages, and may use swap when configured. Cgroups can impose a workload-specific boundary smaller than total host RAM.
+
+```bash
+free -h
+cat /proc/meminfo | head -20
+cat /proc/pressure/memory
+```
+
+Important distinctions:
+
+- `MemFree` alone is not "available memory"; Linux intentionally uses spare RAM for caching.
+- process virtual size is not the same as resident physical memory.
+- a container can hit its cgroup limit while the host still has available RAM.
+- an OOM kill is a decision after pressure; investigate allocation growth, limits, working set and recent change.
+
+# Chapter 2 — Virtual memory, page cache, swap and OOM
 **Learning outcome:** Trace allocation from virtual address space through pages, reclaim and cgroup limits; distinguish node OOM from container OOM.
 
 ## 2.1 Virtual memory
@@ -18,14 +34,14 @@ cat /proc/<PID>/smaps_rollup
 pmap -x <PID> | tail -20
 ```
 
-➕ **Address translation, the mechanism behind every number above:**
+**Address translation, the mechanism behind every number above:**
 ```mermaid
 flowchart LR
     A["Virtual address (process view)<br/>0x00007f3a2c1000"] -->|"MMU + page table (TLB caches this lookup for speed)"| B["Physical address (actual RAM)<br/>0x0000000341f000"]
 ```
 `VmSize` = total virtual space reserved (can be huge — 64-bit processes routinely reserve terabytes they never touch; this number alone means almost nothing). `VmRSS` = actually resident pages. `RssAnon` = anonymous memory (heap/stack — this is "your" memory). `RssFile` = mapped file pages (often page cache — shared, reclaimable, not really "yours" to worry about).
 
-➕ **Sample output and the read:**
+**Sample output and the read:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -37,7 +53,7 @@ flowchart TD
 ```
 If asked "why is `VmSize` 20x `VmRSS`" in an interview, the answer is: lazy allocation. `malloc`/`mmap` reserve address space; physical pages are only committed on first touch (demand paging) — that gap is normal, not a leak.
 
-➕ **Diagram: what happens on first touch (the page-fault decision path)**
+**Diagram: what happens on first touch (the page-fault decision path)**
 ```mermaid
 flowchart TD
     A[CPU accesses a virtual address] --> B{Page table entry present and valid?}
@@ -62,7 +78,7 @@ grep -E 'MemAvailable|Cached|Buffers|Swap|Dirty|Writeback' /proc/meminfo
 vmstat 1 # si/so reveal swap-in/out activity
 ```
 
-➕ **Sample `free -h` and the exact trap it sets:**
+**Sample `free -h` and the exact trap it sets:**
 ```
 $ free -h
               total    used    free    shared  buff/cache   available
@@ -71,7 +87,7 @@ Swap:         8.0Gi      0B    8.0Gi
 ```
 A dashboard alerting on `used`+`buff/cache` (i.e. "free" column, 2.1Gi) will page you at 3am for a box that's genuinely fine — `available` (45Gi) is the number that accounts for reclaimability and is what the kernel itself would report as usable. **This single misconfigured alert is one of the most common false-positive memory pages in production, and naming it unprompted is a strong interview signal.**
 
-➕ **Reclaim order, precisely (this is what Figure 2 above is illustrating — worth stating in words too):**
+**Reclaim order, precisely (this is what Figure 2 above is illustrating — worth stating in words too):**
 ```mermaid
 flowchart TD
     Start[Memory pressure rises] --> S1["1. Reclaim clean page cache (free, no cost — just drop it, re-read from disk if needed later)"]
@@ -91,14 +107,14 @@ cat /sys/fs/cgroup/memory.max
 cat /sys/fs/cgroup/memory.events
 ```
 
-➕ **Three distinct memory-death paths — table worth memorizing verbatim for interview speed:**
+**Three distinct memory-death paths — table worth memorizing verbatim for interview speed:**
 | Failure | Trigger | Where you see it | Who decides the victim |
 |---|---|---|---|
 | Container cgroup OOM | container exceeds its `memory.max` | `OOMKilled` status, container restarts, node otherwise healthy | kernel OOM killer, scoped to that cgroup only |
 | Node-wide OOM | node genuinely exhausted after all reclaim | `dmesg`/kernel log, can kill *any* process including ones with no limits | kernel OOM killer, `oom_score_adj` across the whole node |
 | Kubelet soft eviction | node crosses eviction thresholds (`memory.available<...`) *before* hard OOM | Pod `Evicted` status, graceful-ish, kubelet-initiated | kubelet, using QoS class ranking (BestEffort evicted first) |
 
-➕ **Sample `memory.events` and the field that actually proves cgroup OOM occurred:**
+**Sample `memory.events` and the field that actually proves cgroup OOM occurred:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -111,14 +127,14 @@ flowchart TD
 ```
 `max` counting up without `oom_kill` incrementing means the workload is being pressured (reclaimed hard) but hasn't died — a leading indicator worth alerting on *before* the actual kill, if you want early warning instead of a postmortem.
 
-➕ **`oom_score_adj` — why *this* process dies and not that one, precisely:**
+**`oom_score_adj` — why *this* process dies and not that one, precisely:**
 ```bash
 cat /proc/<pid>/oom_score_adj    # -1000 (never kill) to +1000 (kill first)
 cat /proc/<pid>/oom_score         # computed score combining adj + memory usage
 ```
 Kubernetes sets `oom_score_adj` per QoS class: Guaranteed pods get the most negative (protected) adjustment, BestEffort the least — so under node pressure, BestEffort pods die first by design, regardless of which one happens to be using the most memory at that instant. Knowing this cold answers "why did pod X die and not pod Y" without needing to look at anything else first.
 
-➕ **Diagram: the three memory-death boundaries, side by side**
+**Diagram: the three memory-death boundaries, side by side**
 ```mermaid
 flowchart TD
     subgraph C["CONTAINER CGROUP OOM"]
@@ -147,7 +163,7 @@ Same underlying word ("OOM") wearing three different, non-interchangeable mechan
 
 **Conclusion:** The exhausted boundary is the container cgroup, not necessarily the node.
 
-➕ **Second worked scenario — GPU/AI-tied, the one this JD actually cares about:**
+**Second worked scenario — GPU/AI-tied, the one this JD actually cares about:**
 > **Situation:** A training job's pod is `Running`, not `OOMKilled`, not restarting. `nvidia-smi` on the node shows the GPU process crashed with `CUDA error: out of memory`. Host RAM is at 30% used; the pod's memory cgroup shows no `oom_kill` events at all.
 > 1. First move: confirm this is *not* the Chapter 2 story at all — `memory.events` shows zero OOM kills, cgroup memory is fine. This immediately rules out everything in this chapter.
 > 2. GPU memory (HBM) is a **completely separate resource**, not tracked by Linux cgroups, `free`, or `/proc/meminfo` at all — accounted only via `nvidia-smi`/NVML/DCGM.
@@ -159,8 +175,8 @@ Same underlying word ("OOM") wearing three different, non-interchangeable mechan
 2. Trigger a bounded memory allocation in a container lab and inspect cgroup memory.events.
 3. Explain why dropping page cache is not a normal production "memory fix."
 
-➕ 4. Write a one-line script that alerts when `memory.events`' `max` counter is climbing but `oom_kill` is still zero — this is the "leading indicator before the postmortem" signal from above:
+4. Write a one-line script that alerts when `memory.events`' `max` counter is climbing but `oom_kill` is still zero — this is the "leading indicator before the postmortem" signal from above:
 ```bash
 watch -n5 'cat /sys/fs/cgroup/kubepods*/*/memory.events 2>/dev/null | grep -E "max|oom" '
 ```
-➕ 5. On a node with an idle GPU, run two unrelated CUDA processes that together exceed GPU HBM and observe that the *host* OOM tooling (`dmesg`, `memory.events`) shows nothing at all while `nvidia-smi` shows the failure — do this once so the "two separate memory planes" point in the second worked scenario is muscle memory, not just something you read.
+5. On a node with an idle GPU, run two unrelated CUDA processes that together exceed GPU HBM and observe that the *host* OOM tooling (`dmesg`, `memory.events`) shows nothing at all while `nvidia-smi` shows the failure — do this once so the "two separate memory planes" point in the second worked scenario is muscle memory, not just something you read.

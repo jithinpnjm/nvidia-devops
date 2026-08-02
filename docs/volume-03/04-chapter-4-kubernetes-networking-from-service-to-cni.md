@@ -5,9 +5,19 @@ sidebar_position: 4
 description: "Chapter 4 - Kubernetes networking from Service to CNI — Kubernetes and Platform Engineering."
 source_document: "Volume_03_Kubernetes_and_Platform_Engineering(3).docx"
 ---
-# Chapter 4 — Kubernetes networking from Service to CNI
-*(original text preserved in full below; additions marked with ➕ so you can see exactly what changed)*
 
+## Networking: four different objects/questions
+
+| Item | Purpose |
+|---|---|
+| Pod IP | address for a particular Pod network interface |
+| Service | stable virtual discovery/traffic abstraction |
+| EndpointSlice | current backend endpoint addresses/readiness |
+| Ingress/Gateway | routes external or higher-level traffic according to controller implementation |
+
+Debug in order: DNS answer → Service definition → EndpointSlice membership/readiness → policy → node/CNI dataplane → Pod listener → application response.
+
+# Chapter 4 — Kubernetes networking from Service to CNI
 **Learning outcome:** Trace DNS, Service selection, data plane implementation, CNI routing and NetworkPolicy.
 
 ![](pathname:///img/generated/volume-03-02.png)
@@ -24,7 +34,7 @@ kubectl get endpointslice -l kubernetes.io/service-name=api -o wide
 kubectl get pods -l app=api -o wide --show-labels
 ```
 
-➕ **Full traffic path, all layers, drawn once so every later branch has a home:**
+**Full traffic path, all layers, drawn once so every later branch has a home:**
 ```mermaid
 flowchart TD
     Client["Client"]
@@ -40,9 +50,9 @@ flowchart TD
     Service -->|"Service has NO endpoints? Everything below is irrelevant -- traffic never leaves the VIP"| ES
     ES --> Dataplane --> CNI --> Netns --> App
 ```
-➕ **Interview-ready line:** "A Service with zero endpoints is invisible to the dataplane — no packet ever leaves the virtual IP, so checking iptables/eBPF rules before checking `kubectl get endpointslice` is debugging the wrong layer first."
+**Interview-ready line:** "A Service with zero endpoints is invisible to the dataplane — no packet ever leaves the virtual IP, so checking iptables/eBPF rules before checking `kubectl get endpointslice` is debugging the wrong layer first."
 
-➕ **Sample annotated output — the single most common Service failure mode:**
+**Sample annotated output — the single most common Service failure mode:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -60,7 +70,7 @@ flowchart TD
 ```
 A rolling update that changed the `version` label without updating the Service selector (or vice versa) is a classic self-inflicted outage — everything looks "Running," nothing looks "wrong" per-Pod, and the Service is simply talking to an empty set.
 
-➕ **Shortcut — one command that proves selector/endpoint mismatch immediately:**
+**Shortcut — one command that proves selector/endpoint mismatch immediately:**
 ```bash
 kubectl get svc api -o jsonpath='{.spec.selector}' ; echo
 kubectl get pods -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.metadata.labels}{"\n"}{end}' -l app=api
@@ -71,14 +81,14 @@ Diff the Service's selector map against what's actually on the Pods — this cat
 
 Depending on the cluster, Service forwarding may be implemented with iptables, IPVS or eBPF. The conceptual contract is stable: virtual Service address maps to eligible endpoints. Your troubleshooting commands should match the implementation rather than memorizing iptables for every environment.
 
-➕ **Match the tool to the dataplane — don't run iptables commands on an eBPF (Cilium) cluster and conclude "no rules exist":**
+**Match the tool to the dataplane — don't run iptables commands on an eBPF (Cilium) cluster and conclude "no rules exist":**
 | Dataplane | Where the mapping lives | How to inspect it |
 |---|---|---|
 | iptables (legacy kube-proxy) | `iptables -t nat -L KUBE-SERVICES` chains, one DNAT rule per endpoint | `iptables-save \| grep <service-ip>` |
 | IPVS | kernel IPVS virtual server table | `ipvsadm -L -n \| grep <service-ip>` |
 | eBPF (Cilium, Calico eBPF, kube-proxy replacement) | eBPF maps, not iptables at all | `cilium service list` / `cilium bpf lb list` (tool-specific) |
 
-➕ **Sample annotated output — IPVS, showing the actual weighting/scheduling that iptables' random-jump chains only approximate:**
+**Sample annotated output — IPVS, showing the actual weighting/scheduling that iptables' random-jump chains only approximate:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -89,7 +99,7 @@ flowchart TD
 ```
 `rr` = round-robin scheduler; the per-endpoint weight/active/inactive columns are the actual live load distribution — this is strictly better evidence than iptables counters for "is traffic actually balanced across my Pods," which is a genuinely common customer question for a Solutions Architect to be asked live.
 
-➕ **GPU/AI infra tie-in — why dataplane choice matters more for inference serving than typical web workloads:** long-lived streaming/gRPC connections (common in LLM inference serving with token streaming) sit on a single endpoint for the connection's full duration — round-robin *new-connection* balancing (which is all any of these dataplanes do) means uneven load if connection lifetimes vary wildly, which they do when some requests generate 20 tokens and others generate 4000. This is precisely the gap the Gateway API Inference Extension (referenced later in this volume's Deep Dives) exists to close — ordinary Service load balancing has no concept of "this backend is mid-generation and should not receive a new long request."
+**GPU/AI infra tie-in — why dataplane choice matters more for inference serving than typical web workloads:** long-lived streaming/gRPC connections (common in LLM inference serving with token streaming) sit on a single endpoint for the connection's full duration — round-robin *new-connection* balancing (which is all any of these dataplanes do) means uneven load if connection lifetimes vary wildly, which they do when some requests generate 20 tokens and others generate 4000. This is precisely the gap the Gateway API Inference Extension (referenced later in this volume's Deep Dives) exists to close — ordinary Service load balancing has no concept of "this backend is mid-generation and should not receive a new long request."
 
 ## 4.3 DNS, CNI and policy
 
@@ -102,7 +112,7 @@ kubectl get networkpolicy -A
 kubectl -n kube-system get pods -l k8s-app=kube-dns
 ```
 
-➕ **The independence point matters — DNS success proves less than people assume:**
+**The independence point matters — DNS success proves less than people assume:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -111,7 +121,7 @@ flowchart TD
   n2["NOTHING about whether that ClusterIP has healthy endpoints, whether"]
   n3["the dataplane rule exists, or whether NetworkPolicy allows the packet."]
 ```
-➕ **Sample annotated output — DNS resolves, connection still times out (the exact trap the chapter is warning against):**
+**Sample annotated output — DNS resolves, connection still times out (the exact trap the chapter is warning against):**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -123,7 +133,7 @@ flowchart TD
 ```
 DNS worked because CoreDNS only needs the Service *object* to exist — it does not check endpoints. The timeout is downstream: either no endpoints (4.1), a dataplane rule problem, or NetworkPolicy silently dropping the packet (silent drop, not a TCP RST, is the normal NetworkPolicy behavior — that's *why* it looks identical to a routing problem from the client side).
 
-➕ **Distinguishing "no endpoints" from "NetworkPolicy dropped it" from "routing is broken" — three commands, three different pictures:**
+**Distinguishing "no endpoints" from "NetworkPolicy dropped it" from "routing is broken" — three commands, three different pictures:**
 ```bash
 kubectl get endpointslice -l kubernetes.io/service-name=api -o wide   # empty list? stop here, it's 4.1.
 kubectl get networkpolicy -n default -o yaml                           # a default-deny with no matching allow?
@@ -131,7 +141,7 @@ kubectl exec -it client -- curl -sv --max-time 3 http://<pod-ip-direct>:8080/hea
 ```
 If direct Pod-IP curl also times out, NetworkPolicy or CNI routing is implicated, not the Service layer at all — this single substitution (VIP → direct Pod IP) is the fastest way to rule the Service/dataplane layer in or out.
 
-➕ **Diagram: NetworkPolicy's default-allow → default-deny flip, and why the packet just vanishes instead of erroring:**
+**Diagram: NetworkPolicy's default-allow → default-deny flip, and why the packet just vanishes instead of erroring:**
 ```mermaid
 flowchart TD
     None["No NetworkPolicy selects this Pod at all"]
@@ -162,7 +172,7 @@ Her public networking breakdown follows client -> LB -> Gateway/Ingress -> Servi
 
 **Conclusion:** The differential clue—one namespace works—narrows the search toward source identity/policy rather than backend availability.
 
-➕ **Second worked scenario — RDMA/NCCL-relevant networking failure for multi-node GPU training:**
+**Second worked scenario — RDMA/NCCL-relevant networking failure for multi-node GPU training:**
 > **Situation:** A multi-node distributed training job (PyTorch DDP, NCCL backend) hangs at initialization. All Pods are `Running`, standard Service/DNS checks (as above) all pass — this traffic doesn't even go through a Service, it's direct Pod-to-Pod.
 > 1. NCCL collective operations (allreduce, etc.) establish direct connections between worker Pods using Pod IPs, often over a dedicated high-speed fabric (RoCE/InfiniBand) via SR-IOV or Multus secondary interfaces — **standard cluster-CNI NetworkPolicy and even standard CNI routing may not apply to this secondary interface at all**, which is a very different failure surface than the primary CNI path this chapter covers.
 > 2. `NCCL_DEBUG=INFO` on a hung worker's logs — look for `NCCL INFO NET/IB` or `NCCL INFO NET/Socket` lines indicating which transport it actually negotiated; if it silently fell back from InfiniBand to plain TCP sockets over the primary CNI interface, that's a fabric-configuration problem, not a hang.
@@ -170,19 +180,19 @@ Her public networking breakdown follows client -> LB -> Gateway/Ingress -> Servi
 > 4. `ibstat` / `rdma link show` on the node (not the Pod) to confirm the fabric device is actually up at the host level before assuming it's a Kubernetes-layer problem at all.
 > **Conclusion:** for GPU multi-node training traffic specifically, "check the Service/CNI path" (this chapter's default playbook) is necessary but not sufficient — always ask which physical/virtual interface the collective communication library actually negotiated before assuming the standard K8s networking stack is even in the path.
 
-➕ **Shortcut — the fastest 4-command triage for any "namespace A works, namespace B doesn't" report:**
+**Shortcut — the fastest 4-command triage for any "namespace A works, namespace B doesn't" report:**
 ```bash
 kubectl get endpointslice -l kubernetes.io/service-name=<svc> -A -o wide   # same backend set?
 kubectl get netpol -n <src-ns> -n <dst-ns> -o yaml                          # any policy scoped to one ns?
 kubectl exec -n <ns-that-fails> -it <pod> -- curl -sv --max-time 3 <direct-pod-ip>:<port>
 kubectl exec -n <ns-that-works> -it <pod> -- curl -sv --max-time 3 <direct-pod-ip>:<port>
 ```
-➕ **Mnemonic:** *"DNS proves the name. Endpoints prove the backend. Direct-IP proves the path. Policy proves the permission."* — four independent claims, each needing its own evidence; never let one substitute for another.
+**Mnemonic:** *"DNS proves the name. Endpoints prove the backend. Direct-IP proves the path. Policy proves the permission."* — four independent claims, each needing its own evidence; never let one substitute for another.
 
 ## Practice
 1. Trace a Service request end to end and name one artifact/evidence at each step (Service, EndpointSlice, dataplane rule, CNI route, NetworkPolicy).
 2. Explain why a successful DNS resolution provides almost no evidence about connectivity.
 3. Given DNS resolving but connections timing out from only one namespace, write the branching diagnosis in order.
 
-➕ 4. Explain why a distributed training job's NCCL/RDMA traffic may bypass the entire Service→CNI→NetworkPolicy stack described in this chapter, and name the node-level (not Pod-level) commands you'd use to verify the fabric independently of Kubernetes networking evidence.
-➕ 5. Using the selector/label diff shortcut in 4.1, deliberately break a Service by rolling a Deployment's Pod template labels without updating the Service selector, and confirm you can detect and explain the resulting empty EndpointSlice in under a minute.
+4. Explain why a distributed training job's NCCL/RDMA traffic may bypass the entire Service→CNI→NetworkPolicy stack described in this chapter, and name the node-level (not Pod-level) commands you'd use to verify the fabric independently of Kubernetes networking evidence.
+5. Using the selector/label diff shortcut in 4.1, deliberately break a Service by rolling a Deployment's Pod template labels without updating the Service selector, and confirm you can detect and explain the resulting empty EndpointSlice in under a minute.

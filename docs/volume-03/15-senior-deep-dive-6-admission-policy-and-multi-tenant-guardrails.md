@@ -1,8 +1,8 @@
 ---
-title: "Senior Deep Dive 6 — Admission, policy and multi-tenant guardrails"
+title: "Chapter 15 — Admission, policy and multi-tenant guardrails"
 slug: "senior-deep-dive-6-admission-policy-and-multi-tenant-guardrails"
 sidebar_position: 15
-description: "Senior Deep Dive 6 — Admission, policy and multi-tenant guardrails — Kubernetes and Platform Engineering."
+description: "Chapter 6 — Admission, policy and multi-tenant guardrails — Kubernetes and Platform Engineering."
 source_document: "Volume_03_Kubernetes_and_Platform_Engineering(3).docx"
 ---
 Authentication answers who; authorization answers whether that identity may perform an API verb; admission can mutate or validate the object after authorization and before persistence. Pod Security Admission enforces Pod Security Standards at namespace boundaries. ValidatingAdmissionPolicy provides in-process CEL policy and is a strong choice for deterministic validation without webhook availability risk. Webhooks remain useful for integrations and mutations but they extend the control-plane failure path.
@@ -19,14 +19,14 @@ kubectl label ns team-a pod-security.kubernetes.io/enforce=restricted
 kubectl get validatingwebhookconfigurations,mutatingwebhookconfigurations
 kubectl get validatingadmissionpolicies,validatingadmissionpolicybindings
 
-## Senior addendum
+## Build from the normal path
 
 ### Deep Dive 6 — Admission, policy and multi-tenant guardrails
 *(RBAC's who-can-do-what is covered in Chapter 6. This is admission specifically — the stage that runs AFTER authorization, which Chapter 6 doesn't detail.)*
 
-➕ **Ordering within admission itself, worth being precise about since "admission" is often treated as one step:** all applicable **mutating** admission (webhooks + built-in mutating plugins) run first, in a defined order, and each can rewrite the object — then all applicable **validating** admission (webhooks + built-in validating plugins + ValidatingAdmissionPolicy) run against the *final, already-mutated* object and can only accept or reject, never rewrite further. This ordering is why a sidecar-injection mutating webhook (adding a container to a Pod spec) can run, and then Pod Security Admission (validating) evaluates the *Pod-plus-injected-sidecar* as a whole — a workload that looks compliant before mutation can fail PSA after an injected sidecar with looser settings.
+**Ordering within admission itself, worth being precise about since "admission" is often treated as one step:** all applicable **mutating** admission (webhooks + built-in mutating plugins) run first, in a defined order, and each can rewrite the object — then all applicable **validating** admission (webhooks + built-in validating plugins + ValidatingAdmissionPolicy) run against the *final, already-mutated* object and can only accept or reject, never rewrite further. This ordering is why a sidecar-injection mutating webhook (adding a container to a Pod spec) can run, and then Pod Security Admission (validating) evaluates the *Pod-plus-injected-sidecar* as a whole — a workload that looks compliant before mutation can fail PSA after an injected sidecar with looser settings.
 
-➕ **Diagram: the full admission chain in order, and exactly where a mutation can flip a validation result:**
+**Diagram: the full admission chain in order, and exactly where a mutation can flip a validation result:**
 ```mermaid
 flowchart LR
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -52,7 +52,7 @@ flowchart LR
 ```
 The sidecar-injection trap lives exactly at the mutating→validating boundary: a Pod spec that would pass PSA on its own can fail *after* a mutating webhook injects a sidecar container with looser settings — PSA is evaluating the Pod-plus-sidecar, not the Pod the developer wrote.
 
-➕ **ValidatingAdmissionPolicy vs webhook, the tradeoff table worth having verbatim:**
+**ValidatingAdmissionPolicy vs webhook, the tradeoff table worth having verbatim:**
 | | Webhook | ValidatingAdmissionPolicy (CEL, in-process) |
 |---|---|---|
 | Runs | out-of-process, network call to a webhook server | in-process in the apiserver, no network hop |
@@ -60,7 +60,7 @@ The sidecar-injection trap lives exactly at the mutating→validating boundary: 
 | Expressiveness | arbitrary code, any logic | CEL expressions — powerful but bounded, no arbitrary external calls |
 | Best fit | integrations needing external state/systems, complex mutation | deterministic, self-contained validation — exactly the source's stated recommendation |
 
-➕ **Sample annotated output — proving a namespace's actual enforced Pod Security Standard, not just what's assumed:**
+**Sample annotated output — proving a namespace's actual enforced Pod Security Standard, not just what's assumed:**
 ```bash
 $ kubectl get ns team-a -o jsonpath='{.metadata.labels}' | jq
 {

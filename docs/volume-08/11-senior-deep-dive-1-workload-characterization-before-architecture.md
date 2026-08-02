@@ -1,8 +1,8 @@
 ---
-title: "Senior Deep Dive 1 — Workload characterization before architecture"
+title: "Chapter 11 — Workload characterization before architecture"
 slug: "senior-deep-dive-1-workload-characterization-before-architecture"
 sidebar_position: 11
-description: "Senior Deep Dive 1 — Workload characterization before architecture — Senior Solutions Architecture Practice."
+description: "Chapter 1 — Workload characterization before architecture — Senior Solutions Architecture Practice."
 source_document: "Volume_08_Senior_Solutions_Architecture_Practice(2).docx"
 ---
 Do not start a customer conversation with products. Characterize workload: training versus inference, model sizes, precision, sequence lengths, concurrency, batch behavior, data volume, checkpoint frequency, latency/throughput SLOs, tenancy, regions, compliance, lifecycle and operator skills. The same “LLM platform” requirement can imply one GPU in Kubernetes or hundreds of nodes with a dedicated fabric.
@@ -19,9 +19,9 @@ Do not start a customer conversation with products. Characterize workload: train
 | Tenancy | hard isolation or fair-share? chargeback? reservations? priorities? |
 | Operations | Kubernetes or Slurm skills? GitOps? on-call ownership? air-gap? |
 
-## Senior addendum
+## Build from the normal path
 
-**Front matter (original text preserved)**
+**Workload characterization record**
 
 **FOURTH EDITION — SENIOR ENGINEERING EXPANSION · VOLUME 8**
 
@@ -35,7 +35,7 @@ The practitioner material used to shape the scope is a signal, not an authority.
 
 _Figure A. A senior SA turns ambiguity into evidence, then into a decision._
 
-➕ **What Figure A's caption is actually claiming, made checkable:** "ambiguity into evidence" is Chapter 1's discovery method (questions that eliminate options); "evidence into a decision" is Chapter 3's weighted trade-off matrix. Figure A is effectively the one-sentence summary of the entire volume's arc — every chapter from here on is either producing evidence (discovery, workload characterization, PoC results, TCO math) or converting evidence into a decision (trade-off matrices, decision workshops, migration gates). If a chapter's content doesn't map to one of those two verbs, that's worth noticing.
+**What Figure A's caption is actually claiming, made checkable:** "ambiguity into evidence" is Chapter 1's discovery method (questions that eliminate options); "evidence into a decision" is Chapter 3's weighted trade-off matrix. Figure A is effectively the one-sentence summary of the entire volume's arc — every chapter from here on is either producing evidence (discovery, workload characterization, PoC results, TCO math) or converting evidence into a decision (trade-off matrices, decision workshops, migration gates). If a chapter's content doesn't map to one of those two verbs, that's worth noticing.
 
 **Cross-reference table — which chapter each Deep Dive extends**
 
@@ -52,11 +52,10 @@ _Figure A. A senior SA turns ambiguity into evidence, then into a decision._
 
 **Deep Dive 1 — additions**
 
-➕ **Cross-reference:** this is Chapter 1's discovery method (the W-S-S-D-S-O-E mnemonic) applied with AI-workload-specific vocabulary. Don't re-derive "why discovery matters" here — that's Ch.1. What's new: this table's questions are more workload-technical (TTFT/ITL, checkpoint frequency, small-file count) than Ch.1's, because this Deep Dive assumes discovery has already established that an AI workload of some kind is in scope, and is now going one layer deeper into *which* AI workload.
 
-➕ **The "one GPU vs hundreds of nodes" claim, made concrete with the actual branching variable:** the single highest-leverage discovery answer here is *training-vs-inference*, because it changes the failure-domain shape, not just the GPU count. Inference at low concurrency genuinely can run on one GPU in Kubernetes. Training at scale needs a dedicated fabric because a single stalled NCCL ring stalls the *entire* job — there's no "the other replicas keep serving" grace period like there is for inference. This is the same control/data-plane distinction from Ch.2, applied to why training and inference are architecturally different animals even on identical hardware.
+**The "one GPU vs hundreds of nodes" claim, made concrete with the actual branching variable:** the single highest-leverage discovery answer here is *training-vs-inference*, because it changes the failure-domain shape, not just the GPU count. Inference at low concurrency genuinely can run on one GPU in Kubernetes. Training at scale needs a dedicated fabric because a single stalled NCCL ring stalls the *entire* job — there's no "the other replicas keep serving" grace period like there is for inference. This is the same control/data-plane distinction from Ch.2, applied to why training and inference are architecturally different animals even on identical hardware.
 
-➕ **Diagram: the training-vs-inference branch, drawn as the decision this Deep Dive's opening question actually is:**
+**Diagram: the training-vs-inference branch, drawn as the decision this chapter's opening question actually is:**
 ```mermaid
 flowchart TD
     Q["'What kind of AI workload is this?'"] --> T["TRAINING (esp. at scale)"]
@@ -68,7 +67,7 @@ flowchart TD
 ```
 Both branches can be the correct answer to "we need an LLM platform" — the diagram is the reminder that the words in the request never determine which branch applies; only the training-vs-inference discovery answer does.
 
-➕ **Diagram: the six discovery areas as a gate before naming any product:**
+**Diagram: the six discovery areas as a gate before naming any product:**
 ```mermaid
 flowchart TD
     A["'We need an LLM platform' (the request, still ambiguous)"] --> B["Characterize BEFORE naming products:\nPerformance | Scale | Data | Availability | Tenancy | Ops"]

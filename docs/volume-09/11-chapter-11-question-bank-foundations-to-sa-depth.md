@@ -28,11 +28,11 @@ source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 | SA | How would you design a PoC for a new GPU platform? |
 | Customer | Explain GPU sharing to a CTO versus an SRE. |
 
-## ➕ Additions
+## Worked explanation and practice
 
-➕ **How to drill this bank (the mechanic, not just the list):** for each question, answer aloud with a 2-minute limit, in the C-M-H-E-R shape from Chapter 1, then force yourself to add one sentence naming the evidence that would distinguish your top hypothesis from your second one. If you can't name that sentence, you don't know the topic as deeply as the answer implied — go back to the source chapter.
+**How to drill this bank (the mechanic, not just the list):** for each question, answer aloud with a 2-minute limit, in the C-M-H-E-R shape from Chapter 1, then force yourself to add one sentence naming the evidence that would distinguish your top hypothesis from your second one. If you can't name that sentence, you don't know the topic as deeply as the answer implied — go back to the source chapter.
 
-➕ **Diagram: the drill loop for this question bank**
+**Diagram: the drill loop for this question bank**
 ```mermaid
 flowchart TD
     Pick["Pick one question from the bank"]
@@ -48,7 +48,7 @@ flowchart TD
 ```
 Run every row in this bank through this loop once before assuming you "know" the bank — the loop, not the answer key, is what the drill is actually training.
 
-➕ **Model answers for a sample of the original bank's hardest rows (to calibrate what "good" sounds like against this specific bank — not exhaustive, use for calibration then self-grade the rest):**
+**Model answers for a sample of the original bank's hardest rows (to calibrate what "good" sounds like against this specific bank — not exhaustive, use for calibration then self-grade the rest):**
 
 **"Why can load average be high while CPU is low?"**
 > Load average counts runnable tasks *and* tasks in uninterruptible sleep (D-state) — it is queue pressure, not a CPU percentage. A box with 40 processes blocked on slow storage or NFS shows load 40 with CPU sitting idle, because none of those 40 are consuming CPU cycles — they're waiting on I/O completion. Evidence that distinguishes this from a scheduling problem: `vmstat`'s `b` column (blocked count) high while `r` (runnable) is low, and `/proc/<pid>/wchan` naming the specific kernel wait function for the blocked processes.
@@ -59,7 +59,7 @@ Run every row in this bank through this loop once before assuming you "know" the
 **"Why can GPU utilization be a poor HPA trigger?"**
 > GPU utilization (SM busy %) can be 100% while doing low-value work — e.g., a badly-batched inference server can show 100% util with poor tokens/s, or a memory-bandwidth-bound decode phase shows moderate util while genuinely saturated on a different resource. Scaling on util alone can both under-scale (util looks fine, but queue depth/TTFT is climbing because of a KV-cache or batching bottleneck util doesn't capture) and over-scale (a transient util spike from a single large-batch request triggers a scale-up that isn't needed). Queue depth, TTFT/ITL, and request concurrency are better proxies for actual capacity pressure in an LLM-serving context.
 
-➕ **New questions with full model answers — additive question bank content (this is the volume's "bank" chapter, so additive volume matters most here):**
+**New questions with full model answers — additive question bank content (this is the volume's "bank" chapter, so additive volume matters most here):**
 
 **1. (Python) "You need to deduplicate 10 million log lines while preserving first-seen order. What's your approach and its memory cost?"**
 > Use a `dict` (or `set` alongside a list) to track seen lines while iterating once — `dict`/`set` membership is O(1) average, so the whole pass is O(n) time. Memory cost is the real discussion: worst case (no duplicates) stores all 10M lines' hash/reference in the set, which at even modest per-line size could be gigabytes — worth naming explicitly rather than assuming memory is free. If lines are long, storing a hash (e.g. first store `hash(line)` in the seen-set instead of the line itself, accepting a vanishingly small collision risk) trades a small correctness risk for materially lower memory. If exact correctness matters (e.g. financial/audit logs), don't take that shortcut — state the trade-off rather than silently picking one side.
@@ -83,5 +83,5 @@ Run every row in this bank through this loop once before assuming you "know" the
 > First, confirm it's genuinely P99 and not a metric artifact (check request volume didn't drop — P99 on low sample counts is noisy). Then correlate the rise's shape: sudden step vs gradual creep — gradual over 3 days with no deploy suggests a resource creep (memory fragmentation, KV-cache growth, a slow leak) rather than a discrete cause. Pull GPU metrics (util, memory, `cpu.stat` throttling per Chapter 1's Volume-1-style reasoning) time-series over the same 3 days, and check whether traffic mix shifted (longer prompts, different model routing) rather than assuming infrastructure regressed. "No alerts fired" is itself a finding — it means your alerting thresholds/coverage have a gap worth fixing regardless of the root cause found.
 
 ## Practice
-➕ 19. Pick five questions from this bank you haven't verbally rehearsed yet, and for each, write the ONE sentence of evidence that would distinguish your top hypothesis from your second-ranked one — if you can't write that sentence in under 15 seconds, that's your study gap.
-➕ 20. Take new question 4 above (fractional GPU time-slicing) and argue the OPPOSITE side out loud for 60 seconds — i.e., make the strongest honest case FOR time-slicing-everywhere — this drill (steelmanning the position you'd normally push back on) is what separates "I memorized a pushback" from "I understand the actual trade-off."
+19. Pick five questions from this bank you haven't verbally rehearsed yet, and for each, write the ONE sentence of evidence that would distinguish your top hypothesis from your second-ranked one — if you can't write that sentence in under 15 seconds, that's your study gap.
+20. Take new question 4 above (fractional GPU time-slicing) and argue the OPPOSITE side out loud for 60 seconds — i.e., make the strongest honest case FOR time-slicing-everywhere — this drill (steelmanning the position you'd normally push back on) is what separates "I memorized a pushback" from "I understand the actual trade-off."

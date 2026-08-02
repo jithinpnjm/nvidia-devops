@@ -10,7 +10,7 @@ source_document: "Authored directly as the site-wide reading guide."
 
 This site is study material for a senior-level DevOps / AI-infrastructure / GPU interview — the kind where you're expected to reason about Kubernetes internals, Linux internals, networking, and NVIDIA/GPU-specific systems under pressure, out loud, in front of someone who will ask "how do you know that?" after almost everything you say.
 
-If Linux internals, NVIDIA/GPU technology, AI/ML, or HPC are genuinely new domains for you — even though you're an experienced engineer elsewhere — every advanced volume's opening chapter starts with a short **Foundations** section that builds the core mental model from zero, in plain language, before the rest of that chapter uses that vocabulary at full speed. Read that section first when a volume is new territory; skip straight past it once a domain is already familiar.
+If Linux internals, NVIDIA/GPU technology, AI/ML, or HPC are genuinely new domains for you — even though you're an experienced engineer elsewhere — every advanced volume's opening chapter starts with a short **Foundations** section that builds the core working model from zero, in plain language, before the rest of that chapter uses that vocabulary at full speed. Read that section first when a volume is new territory; skip straight past it once a domain is already familiar.
 
 ## The one habit that matters more than any command
 
@@ -61,7 +61,7 @@ Every chapter follows the same shape, so you always know what to expect:
 - **Terms are defined before they're used.** If a term must appear before its formal definition (sometimes unavoidable in flowing prose), it will immediately get a plain-language gloss in parentheses right there.
 - **A plain-language model comes before any command.** You'll get "here's the problem this solves, and here's the shape of the idea" before you see a command that touches it.
 - **Commands are evidence you interpret, not answers you memorize.** When a chapter shows a command's output, it will also tell you explicitly what that output does and does not prove — the same habit you just practiced above, applied consistently.
-- **Foundations, then depth, on the same page.** Where a topic is likely to be genuinely new (Linux, networking, storage, containers/Kubernetes, GPU/CUDA, AI/ML, HPC, security, Python), that volume's opening chapter starts with a short **Foundations** section building the mental model from zero, then flows directly into the advanced material — no separate primer volume to jump to and lose your place.
+- **Foundations, then depth, on the same page.** Where a topic is likely to be genuinely new (Linux, networking, storage, containers/Kubernetes, GPU/CUDA, AI/ML, HPC, security, Python), that volume's opening chapter starts with a short **Foundations** section building the working model from zero, then flows directly into the advanced material — no separate primer volume to jump to and lose your place.
 
 ## Glossary
 

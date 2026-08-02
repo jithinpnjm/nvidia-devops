@@ -6,9 +6,38 @@ description: "Chapter 7 - System interaction and subprocess — Python for Produ
 source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 ---
 
-*(original text preserved in full; ➕ marks additions)*
+## External effects need contracts
 
-## Foundations: start here if this is new to you
+When Python calls an HTTP API or subprocess, define:
+
+- timeout;
+- accepted result/status codes;
+- expected error types;
+- retry eligibility and maximum attempts;
+- idempotency of the operation;
+- sensitive values that must not enter logs;
+- output/exit-code contract.
+
+Safe subprocess shape:
+
+```python
+import subprocess
+
+result = subprocess.run(
+    ["nvidia-smi", "--query-gpu=index,name", "--format=csv,noheader"],
+    text=True,
+    capture_output=True,
+    timeout=10,
+    check=False,
+)
+
+if result.returncode != 0:
+    raise RuntimeError(f"nvidia-smi failed: {result.stderr.strip()}")
+```
+
+Passing an argument list avoids unnecessary shell parsing. A timeout bounds waiting. Return code, stdout and stderr remain distinct evidence.
+
+## Start with the basics
 
 **The problem this solves.** Sometimes the tool you need already exists as a command-line program — `kubectl`, `nvidia-smi`, `git`, `ping`. Rewriting `kubectl`'s logic in Python to talk to the Kubernetes API yourself would be enormous, redundant effort when the binary is already installed and already does exactly what you need. What you actually want is a way for your Python program to *run another program*, wait for (or not wait for) it to finish, and get back whatever it printed. That capability is what the `subprocess` module provides.
 
@@ -98,7 +127,7 @@ def kubectl_json(namespace: str) -> str:
 ```
 **Security rule:** Avoid shell=True with untrusted input. A shell parses metacharacters such as ;, |, $, and redirects. Passing an argument list bypasses shell interpretation and is safer by default.
 
-➕ **The injection this rule prevents, made concrete (a real interview follow-up):**
+**The injection this rule prevents, made concrete (a real interview follow-up):**
 ```python
 namespace = "default; rm -rf /"        # attacker-controlled input
 subprocess.run(f"kubectl get pods -n {namespace}", shell=True)   # DANGEROUS — executes the rm too
@@ -107,7 +136,7 @@ subprocess.run(["kubectl", "get", "pods", "-n", namespace])       # SAFE — nam
 ```
 This is the exact demo to have ready if asked "show me command injection" live.
 
-➕ **`Popen` vs `run()` — when the high-level API isn't enough (worth knowing exists, even if `run()` covers 95% of cases):**
+**`Popen` vs `run()` — when the high-level API isn't enough (worth knowing exists, even if `run()` covers 95% of cases):**
 ```python
 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, text=True)
 for line in proc.stdout:            # stream output line-by-line as it's produced
@@ -131,13 +160,13 @@ Reach for `Popen` when you need to stream a long-running command's output (e.g. 
 2. Explain when you would use subprocess versus an SDK/API client.
 3. Demonstrate why string interpolation plus shell=True can create command injection.
 
-➕ 4. Convert `kubectl_json` to use `Popen` and stream-parse pod names as they're emitted (`kubectl get pods -o json --watch` never actually terminates) — this is the realistic version of "diagnostic tooling that has to run continuously," not a one-shot script.
+4. Convert `kubectl_json` to use `Popen` and stream-parse pod names as they're emitted (`kubectl get pods -o json --watch` never actually terminates) — this is the realistic version of "diagnostic tooling that has to run continuously," not a one-shot script.
 
 ## Targeted references
 [Python subprocess documentation](https://docs.python.org/3/library/subprocess.html) - Exact semantics for run, timeouts, CompletedProcess, and exceptions.
 [Udemy - Python for DevOps](https://www.udemy.com/course/python-devops) - Relevant lessons: Introduction to subprocesses; Handling subprocess errors; Handling expired timeouts; System Health Checker with ping coding exercise.
 
-➕ **Visual model — keep the process boundary explicit:**
+**Visual model — keep the process boundary explicit:**
 ```mermaid
 flowchart LR
     A["typed input"] -->|validate / allow-list| B["argv list:<br/>kubectl, get, nodes<br/>(no shell interpolation)"]
@@ -145,4 +174,4 @@ flowchart LR
     C -->|exit code| D["typed result / typed error"]
     D --> E["policy + logs"]
 ```
-**Memory hook:** *"Arguments, deadline, result."* `subprocess` is a process API, not a string-to-shell shortcut; an exit code is evidence that policy must interpret.
+**Key takeaway:** *"Arguments, deadline, result."* `subprocess` is a process API, not a string-to-shell shortcut; an exit code is evidence that policy must interpret.

@@ -1,23 +1,23 @@
 ---
-title: "Senior Deep Dive 1 — Training systems: parallelism, collectives and checkpoint economics"
+title: "Chapter 10 — Training systems: parallelism, collectives and checkpoint economics"
 slug: "senior-deep-dive-1-training-systems-parallelism-collectives-and-checkpoint-eco"
 sidebar_position: 10
-description: "Senior Deep Dive 1 — Training systems: parallelism, collectives and checkpoint economics — AI Workloads and AI Platform Architecture."
+description: "Chapter 1 — Training systems: parallelism, collectives and checkpoint economics — AI Workloads and AI Platform Architecture."
 source_document: "Volume_05_AI_Workloads_and_AI_Platform_Architecture(2).docx"
 ---
 Distributed training is a pipeline of compute, communication and data movement. Data parallelism replicates the model and exchanges gradients; tensor parallelism splits tensor operations across devices; pipeline parallelism splits layers/stages; expert parallelism distributes mixture-of-experts experts. These choices change the required GPU topology, collective patterns, memory pressure and sensitivity to stragglers.
 
 Checkpointing is reliability architecture. Decide checkpoint size, frequency, synchronous versus asynchronous write behavior, target storage and restore time objective. A checkpoint every five minutes is not useful if it stalls training for two minutes. Measure application throughput and storage behavior together.
 
-## Senior addendum
+## Build from the normal path
 
 ![](pathname:///img/generated/volume-05-02.png)
 
 _Figure A. Decompose latency before selecting a scaling strategy._
 
-➕ **What Figure A's caption is pointing at, made explicit:** this is the single-sentence thesis of the whole Deep Dive set — every escalation in this addendum (disaggregation, KV-aware routing, fractional GPU scheduling, agentic fan-out) is a *scaling strategy*, and the text's repeated warning is that none of them should be chosen before the latency (or cost, or amplification) has been decomposed into its component causes. Chapter 3's TTFT/TPOT split, Deep Dive 6's per-hop RAG latency chain, and Deep Dive 8's per-component benchmark checklist are all the same instruction applied at different layers of the stack.
+**What Figure A's caption is pointing at, made explicit:** this is the single-sentence thesis of the whole Deep Dive set — every escalation in this addendum (disaggregation, KV-aware routing, fractional GPU scheduling, agentic fan-out) is a *scaling strategy*, and the text's repeated warning is that none of them should be chosen before the latency (or cost, or amplification) has been decomposed into its component causes. Chapter 3's TTFT/TPOT split, Deep Dive 6's per-hop RAG latency chain, and Deep Dive 8's per-component benchmark checklist are all the same instruction applied at different layers of the stack.
 
-➕ **Quick cross-reference (use both halves together, not as duplicates):**
+**Quick cross-reference (use both halves together, not as duplicates):**
 
 | Deep Dive | Extends chapter | What's genuinely new in the Deep Dive vs. the chapter |
 |---|---|---|
@@ -30,9 +30,8 @@ _Figure A. Decompose latency before selecting a scaling strategy._
 | 7 — Agentic and multimodal infrastructure | new ground | fan-out amplification math — entirely new, no chapter covers this |
 | 8 — Production benchmark design | Ch9 | benchmark methodology detail beyond Ch9's cost-normalization focus |
 
-➕ **Cross-reference:** Chapter 2's enhanced version already derives the AllReduce timeline diagram, the `nvidia-smi dmon` collective-stall signature, and a full checkpoint-storm worked scenario — read those before this Deep Dive; this section only adds what Chapter 2 doesn't cover: expert parallelism.
 
-➕ **Expert parallelism (MoE), the one parallelism pattern not in Chapter 2's table:**
+**Expert parallelism (MoE), the one parallelism pattern not in Chapter 2's table:**
 
 Dense model: every token passes through every layer's full weights. MoE model: a router picks K of N "experts" per token; experts are sharded across GPUs — different tokens in the same batch route to DIFFERENT GPUs' experts.
 ```mermaid
@@ -47,7 +46,7 @@ flowchart TD
 This all-to-all communication to gather results back into the sequence's correct order is a NEW collective pattern beyond AllReduce, sensitive to routing skew: if tokens unevenly favor a few experts, those GPUs become stragglers even with identical hardware.
 The infrastructure implication: MoE trades a straightforward AllReduce-bound scaling story (Chapter 2) for an all-to-all-bound one where *load imbalance across experts*, not just fabric speed, determines straggler risk — worth naming if a Dynamo/MoE-serving question comes up, since MoE inference (not just training) has this same imbalance risk.
 
-➕ **Diagram: checkpoint economics — the two costs the addendum's "not useful if it stalls training" line is trading off**
+**Diagram: checkpoint economics — the two costs the addendum's "not useful if it stalls training" line is trading off**
 ```mermaid
 flowchart LR
     subgraph TooFreq["Too frequent (every 5 min, synchronous, 2-min stall each)"]

@@ -1,8 +1,8 @@
 ---
-title: "Senior Deep Dive 3 — Network design for AI: oversubscription, rails and failure domains"
+title: "Chapter 11 — Network design for AI: oversubscription, rails and failure domains"
 slug: "senior-deep-dive-3-network-design-for-ai-oversubscription-rails-and-failure-do"
 sidebar_position: 11
-description: "Senior Deep Dive 3 — Network design for AI: oversubscription, rails and failure domains — HPC, Networking and Storage for AI."
+description: "Chapter 3 — Network design for AI: oversubscription, rails and failure domains — HPC, Networking and Storage for AI."
 source_document: "Volume_06_HPC,_Networking_and_Storage_for_AI(2).docx"
 ---
 AI fabrics are capacity systems. Oversubscription that is acceptable for web traffic can devastate synchronized collectives. Model the expected communication pattern and bisection bandwidth. Multi-rail designs can improve throughput and resilience but require correct routing, NIC/GPU affinity and workload configuration. Failure domains should align with scheduler placement so a single leaf/spine or rack event does not destroy all replicas or checkpoints.
@@ -15,9 +15,9 @@ AI fabrics are capacity systems. Oversubscription that is acceptable for web tra
 | Topology/rails | collective parallelism | NCCL graph/topology, switch layout |
 | NUMA locality | host/NIC/GPU path | nvidia-smi topo -m, lspci, numactl |
 
-## Senior addendum
+## Build from the normal path
 
-➕ **Bisection bandwidth, made concrete with the arithmetic behind "model the expected communication pattern":**
+**Bisection bandwidth, made concrete with the arithmetic behind "model the expected communication pattern":**
 ```
 Fat-tree, 2 pods of 4 leaf switches, 4 uplinks/leaf to spine, each uplink 200Gb/s
 Pod-to-pod bisection = 4 leaves × 4 uplinks × 200Gb/s = 3.2 Tb/s available cross-pod
@@ -28,7 +28,7 @@ even though each INDIVIDUAL link is far from its own line rate — this is overs
 at the AGGREGATE/bisection level, invisible if you only check individual `ethtool` counters.
 ```
 
-➕ **Diagram: the fat-tree bisection from the arithmetic above**
+**Diagram: the fat-tree bisection from the arithmetic above**
 ```mermaid
 flowchart TD
     spine1["spine1"]
@@ -60,7 +60,7 @@ flowchart TD
 ```
 The bisection number lives at the spine layer — every individual leaf-to-spine link can report a healthy `ethtool` counter while the *sum* of simultaneous cross-pod demand still exceeds what the spine layer can carry, which is why oversubscription has to be modeled at the aggregate/pod level, not diagnosed link-by-link.
 
-➕ **Diagram: failure-domain misalignment the text warns about**
+**Diagram: failure-domain misalignment the text warns about**
 ```mermaid
 flowchart TD
     subgraph WRONG["Misaligned placement"]
@@ -82,7 +82,7 @@ flowchart TD
     survives on an independent failure domain"]
 ```
 
-➕ **Rail-optimized topology, drawn out (the diagram the "multi-rail designs" sentence needs):**
+**Rail-optimized topology, drawn out (the diagram the "multi-rail designs" sentence needs):**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -96,4 +96,4 @@ flowchart TD
   n7["is telling you to verify per-node before assuming the fabric-wide rail design is being honored)."]
 ```
 
-➕ **Failure-domain alignment — the sentence in the original text ("failure domains should align with scheduler placement") worked as a concrete failure:** if a training job's data-parallel replica *and* its checkpoint replica both land under the same leaf switch or rack PDU (because the scheduler placed them for locality, not for failure independence), a single leaf/rack event destroys both the live job and its recovery path simultaneously — the exact opposite of what replication was bought to prevent. This is the networking-layer version of the classic "don't put your primary and your backup in the same failure domain" rule, and it requires the scheduler (Slurm topology-aware placement, or a Kubernetes topology spread constraint) to actually know and respect the physical failure-domain map — it does not happen by default.
+**Failure-domain alignment — the sentence in the core explanation ("failure domains should align with scheduler placement") worked as a concrete failure:** if a training job's data-parallel replica *and* its checkpoint replica both land under the same leaf switch or rack PDU (because the scheduler placed them for locality, not for failure independence), a single leaf/rack event destroys both the live job and its recovery path simultaneously — the exact opposite of what replication was bought to prevent. This is the networking-layer version of the classic "don't put your primary and your backup in the same failure domain" rule, and it requires the scheduler (Slurm topology-aware placement, or a Kubernetes topology spread constraint) to actually know and respect the physical failure-domain map — it does not happen by default.

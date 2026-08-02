@@ -1,8 +1,8 @@
 ---
-title: "Senior Deep Dive 8 — Reliability testing and game days"
+title: "Chapter 19 — Reliability testing and game days"
 slug: "senior-deep-dive-8-reliability-testing-and-game-days"
 sidebar_position: 19
-description: "Senior Deep Dive 8 — Reliability testing and game days — Observability, Reliability and Troubleshooting."
+description: "Chapter 8 — Reliability testing and game days — Observability, Reliability and Troubleshooting."
 source_document: "Volume_07_Observability,_Reliability_and_Troubleshooting(2).docx"
 ---
 Run controlled failures: kill model workers, block DNS, remove an EndpointSlice target, fill node image filesystem, introduce API latency, drain a GPU node, interrupt a storage path or isolate a network rail. The goal is to validate detection, failover, runbooks and customer impact assumptions. Chaos is valuable only when the hypothesis and success criteria are explicit.
@@ -17,11 +17,9 @@ Run controlled failures: kill model workers, block DNS, remove an EndpointSlice 
 
 **Vishakha Sadhwani — AI infra skill signal:** [https://www.linkedin.com/in/vsadhwani](https://www.linkedin.com/in/vsadhwani) — Practitioner emphasis on observability, distributed inference, GPU scheduling and cost optimization.
 
-## Senior addendum
+## Build from the normal path
 
-*(original text and failure-injection list preserved in full)*
-
-➕ **The game-day list, mapped to which chapter's evidence chain it's actually rehearsing — turns the list from "things to break" into "which playbook this validates":**
+**The game-day list, mapped to which chapter's evidence chain it's actually rehearsing — turns the list from "things to break" into "which playbook this validates":**
 
 | Injected failure | Rehearses |
 |---|---|
@@ -36,11 +34,11 @@ Run controlled failures: kill model workers, block DNS, remove an EndpointSlice 
 
 **Interview-ready line:** "A game day is only valuable if I can name, in advance, which specific alert and which specific runbook step it's supposed to prove — 'let's see what breaks' isn't a hypothesis, it's a fishing expedition."
 
-➕ **Mnemonic index for the whole Deep Dive arc, tying back to Figure A ("correlated evidence, not a single dashboard"):**
+**Mnemonic index for the whole Deep Dive arc, tying back to Figure A ("correlated evidence, not a single dashboard"):**
 
 *"Scope it, query it cheap, trace the tree, name the Xid, watch the tail not the average, prove the fix, agree twice before paging, rehearse before it's real."* — one clause per Deep Dive, 1 through 8 in order. If you can unpack any clause into the mechanism behind it under interview pressure, you've retained the arc.
 
-➕ **Visual model — a game day is a closed learning loop:**
+**Visual model — a game day is a closed learning loop:**
 ```mermaid
 flowchart LR
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -57,4 +55,4 @@ flowchart LR
   n3 --> n4
   n4 --> n5
 ```
-**Memory hook:** *"Practice the evidence path, not just the failover command."*
+**Key takeaway:** *"Practice the evidence path, not just the failover command."*

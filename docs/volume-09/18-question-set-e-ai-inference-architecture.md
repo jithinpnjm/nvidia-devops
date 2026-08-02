@@ -1,8 +1,8 @@
 ---
-title: "Question set E — AI inference architecture"
+title: "Chapter 18 — AI inference architecture question set"
 slug: "question-set-e-ai-inference-architecture"
 sidebar_position: 18
-description: "Question set E — AI inference architecture — JR2018680 Interview Preparation."
+description: "Chapter 18 — AI inference architecture question set — JR2018680 Interview Preparation."
 source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 ---
 | Prompt | Expected reasoning |
@@ -13,9 +13,9 @@ source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 | Round-robin vs KV-aware routing | cache reuse/load balance/worker state/failure complexity |
 | Scale on what metric? | queue/tokens/SLO/engine state, warmup/model load, GPU scarcity |
 
-## ➕ Additions
+## Worked explanation and practice
 
-➕ **Diagram: inference-latency symptom router (which subsystem a complaint actually points at):**
+**Diagram: inference-latency symptom router (which subsystem a complaint actually points at):**
 ```mermaid
 flowchart LR
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -37,7 +37,7 @@ flowchart LR
 ```
 "The response feels slow" collapses two very different subsystems into one user complaint — TTFT and ITL point at prefill/queue and decode/batching respectively, and the fix for one rarely helps the other.
 
-➕ **Sample annotated output — diagnosing "ITL high under concurrency" with real engine metrics (vLLM-style):**
+**Sample annotated output — diagnosing "ITL high under concurrency" with real engine metrics (vLLM-style):**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -49,7 +49,7 @@ flowchart TD
 ```
 `gpu_cache_usage_perc=0.97` is the smoking gun: the KV cache is nearly exhausted, which forces the scheduler into smaller batches or preemption/swap to make room — that's exactly what inflates per-token decode latency under concurrency, independent of raw GPU compute headroom. **Interview-ready line:** "ITL degrading under load is usually a KV-cache-capacity story before it's a compute-capacity story — check `gpu_cache_usage` before assuming you need more GPUs."
 
-➕ **Extra worked scenario (new) — "when to disaggregate prefill/decode," made concrete with numbers:**
+**Extra worked scenario (new) — "when to disaggregate prefill/decode," made concrete with numbers:**
 > **Situation:** A 70B-parameter model serving long-context RAG requests (avg 6,000 input tokens, avg 200 output tokens) shows highly variable TTFT (200ms-4s) even at moderate load.
 > 1. Clarify: is variability correlated with input length, or independent of it? (Long-context prefill is itself compute-heavy and can co-locate badly with decode-phase requests competing for the same GPU.)
 > 2. Model: on a single-engine (non-disaggregated) server, a long prefill request occupies the GPU compute path in a way that can stall in-flight decode-phase requests behind it — this is the mechanism, not just "it's busy."

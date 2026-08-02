@@ -6,11 +6,118 @@ description: "Chapter 1 - API server, etcd and the object model — Kubernetes a
 source_document: "Volume_03_Kubernetes_and_Platform_Engineering(3).docx"
 ---
 
-## Foundations: start here if Kubernetes concepts are new to you
+## The first working model: desired state and reconciliation
+
+| Step | Plain-language meaning |
+|---|---|
+| Declare | A user or controller submits an API object describing what should exist |
+| Store | The API server validates it and persists cluster state in etcd |
+| Decide | Controllers and the scheduler determine missing actions and placement |
+| Execute | Kubelet and runtimes create the Pod and containers on a node |
+| Observe | Status, events and metrics report what happened |
+| Reconcile | Control loops keep trying until observed state matches desired state or exposes a failure |
+
+This model is more useful than memorizing `kubectl` commands because nearly every Kubernetes feature is a specialized reconciliation loop.
+
+## Essential language
+
+- A **cluster** is the control plane plus worker nodes managed together.
+- A **node** is a machine eligible to run workloads.
+- A **Pod** is Kubernetes' basic scheduling unit containing one or more containers.
+- A **container image** packages application user space; a runtime starts processes from it.
+- The **API server** is the validated entry point for cluster state and operations.
+- **etcd** is the strongly consistent key-value store holding Kubernetes API state.
+- A **controller** observes objects and acts to make reality match their specification.
+- The **scheduler** selects a suitable node for an unscheduled Pod.
+- **kubelet** is the node agent responsible for the declared Pods on its node.
+- A **Service** provides stable discovery/traffic distribution to changing Pod endpoints.
+
+## What Kubernetes status does and does not prove
+
+`Running` means a Pod has been bound to a node and at least one container is running or starting. It does not prove the application is correct, ready, fast, authorized, able to reach dependencies, or using its GPU efficiently. Each layer exposes a different kind of evidence.
+
+## A real-life example
+
+You request a GPU Pod. The scheduler needs a node advertising the required resource and satisfying policy/topology. Kubelet asks the runtime to start a container. GPU integration exposes assigned devices. Network and storage plugins prepare dependencies. The application loads compatible user-space libraries and uses the host driver. A failure can occur at every boundary; "Kubernetes problem" is therefore a scope, not a diagnosis.
+
+## Kubernetes objects are API records, not running processes
+
+A Deployment, Service or ConfigMap is a stored API object describing intent or configuration. Controllers interpret these records and create/update other objects. A Pod specification eventually becomes real processes on one node.
+
+Common hierarchy:
+
+```mermaid
+flowchart LR
+  D[Deployment<br/>rollout intent] --> RS[ReplicaSet<br/>replica ownership]
+  RS --> P1[Pod]
+  RS --> P2[Pod]
+  P1 --> C1[Container process]
+  P2 --> C2[Container process]
+  S[Service] --> ES[EndpointSlice]
+  ES --> P1
+  ES --> P2
+```
+
+The Service does not "contain" Pods. Label selection associates endpoints; the dataplane sends traffic to ready endpoints.
+
+## Trace one Pod end to end
+
+1. A client submits a Pod or higher-level workload through the API server.
+2. Authentication proves identity; authorization checks permission; admission may validate or mutate the object.
+3. The API server stores accepted desired state in etcd.
+4. Controllers create dependent objects or reconcile replica count.
+5. The scheduler filters/scores nodes and records a binding for an unscheduled Pod.
+6. Kubelet on the selected node observes the Pod.
+7. Kubelet uses CRI to ask the container runtime to prepare the Pod sandbox, pull images and start containers.
+8. CNI/network and CSI/storage integrations prepare required connectivity and volumes.
+9. Probes influence startup, readiness, restart and traffic behavior.
+10. Status, events, logs and application metrics expose different evidence.
+
+## Specification, status and events
+
+- **spec** expresses desired state supplied by a user/controller.
+- **status** is system-reported observed state.
+- **metadata** includes name, namespace, labels, annotations and ownership information.
+- **events** are time-limited records about decisions/failures; they are not a complete durable audit log.
+
+```bash
+kubectl get pod POD -o yaml
+kubectl describe pod POD
+kubectl get events --sort-by=.metadata.creationTimestamp
+```
+
+Read `status.conditions`, container state/reason, assigned node, resource requests and events. Avoid starting with logs for a Pod that was never scheduled or whose container never started.
+
+## Guided lab — explain a Deployment and Service
+
+Use an authorized lab cluster:
+
+```bash
+kubectl create deployment web-demo --image=nginx:stable
+kubectl expose deployment web-demo --port=80
+kubectl get deployment,replicaset,pod,service,endpointslice -o wide
+kubectl describe pod -l app=web-demo
+kubectl delete service web-demo
+kubectl delete deployment web-demo
+```
+
+Before each command, predict which API objects change. Observe owner references and labels. Deleting the Service should not delete the Deployment/Pods because ownership differs; deleting the Deployment cascades through its owned ReplicaSet/Pods according to normal controller/garbage-collection behavior.
+
+## Common beginner mistakes
+
+- treating Kubernetes objects as if they are processes;
+- reading only Pod phase and ignoring conditions/container state/events;
+- assuming a Service is a load balancer process;
+- debugging logs before confirming scheduling/startup;
+- confusing requests with limits;
+- assuming NetworkPolicy works independently of the chosen CNI;
+- changing YAML repeatedly without checking which controller owns/reverts the field.
+
+## Start with the basics
 
 ### What this section is, and what it isn't
 
-This section will not make you a Kubernetes expert. It will not cover operators, admission controllers, CNI internals, or scheduling algorithms — the rest of this chapter covers those, and it covers them at a senior, production-incident level. What this section gives you is the small set of mental models you need in place before you dive into the rest of this chapter, so that when it says "the Deployment controller reconciles desired state," you already know what a Deployment is, what a controller is, and why "reconcile" is the right word instead of pausing to look up three terms mid-sentence.
+This section will not make you a Kubernetes expert. It will not cover operators, admission controllers, CNI internals, or scheduling algorithms — the rest of this chapter covers those, and it covers them at a senior, production-incident level. What this section gives you is the small set of working models you need in place before you dive into the rest of this chapter, so that when it says "the Deployment controller reconciles desired state," you already know what a Deployment is, what a controller is, and why "reconcile" is the right word instead of pausing to look up three terms mid-sentence.
 
 You already know how to design and run distributed software. You've deployed things before — maybe onto VMs, maybe onto bare metal, maybe with a home-grown deploy script. What's new here is not "how do computers run programs." What's new is the specific set of problems containers and Kubernetes exist to solve, and the vocabulary that's grown up around those solutions.
 
@@ -20,7 +127,7 @@ Start with a problem you've almost certainly lived through, even if you never ca
 
 The underlying issue is that a running program doesn't just depend on its own code. It depends on everything around it: the language runtime, specific library versions, configuration files, sometimes even specific OS behavior. Traditionally, all of that surrounding "everything it needs" lived on the host machine, installed by hand or by some setup script, drifting slowly out of sync between machines.
 
-A **container** (a way of packaging a program together with everything it needs to run, so it behaves the same regardless of what else is or isn't installed on the machine it lands on) exists to solve exactly this. Note what a container is *not*, because this is the single most common wrong mental model people carry in: a container is **not** a lightweight virtual machine. A VM virtualizes hardware and runs a full separate operating system kernel on top of it. A container shares the host machine's kernel — it's really an isolated set of processes, walled off from the rest of the system, running on the same kernel as everything else on that host. The isolation is enforced by the OS (Linux namespaces and cgroups, if you want the underlying mechanism), not by simulating a whole computer. That's why containers start in milliseconds and VMs start in tens of seconds — they're doing fundamentally less work.
+A **container** (a way of packaging a program together with everything it needs to run, so it behaves the same regardless of what else is or isn't installed on the machine it lands on) exists to solve exactly this. Note what a container is *not*, because this is the single most common wrong working model people carry in: a container is **not** a lightweight virtual machine. A VM virtualizes hardware and runs a full separate operating system kernel on top of it. A container shares the host machine's kernel — it's really an isolated set of processes, walled off from the rest of the system, running on the same kernel as everything else on that host. The isolation is enforced by the OS (Linux namespaces and cgroups, if you want the underlying mechanism), not by simulating a whole computer. That's why containers start in milliseconds and VMs start in tens of seconds — they're doing fundamentally less work.
 
 ### Image vs. container: the same relationship as class vs. object
 
@@ -87,7 +194,7 @@ flowchart TD
 - Q: If a Deployment says "3 replicas" and one Pod crashes, what happens, and why is that not magic? A: Kubernetes notices the actual count (2) doesn't match the desired count (3) and starts a new Pod — it's continuous checking-and-correcting, not intelligence.
 - Q: Why does a Service need to exist even though Pods already have IP addresses? A: Because individual Pod IPs change as Pods are replaced; the Service gives callers one stable address that always points at the current healthy set.
 
-### The core mental model the rest of this chapter builds on: declare what you want, a controller makes it true
+### The core working model the rest of this chapter builds on: declare what you want, a controller makes it true
 
 Everything above — a Deployment keeping 3 Pods alive, a Service always pointing at the current healthy Pods — is one repeated pattern, and the rest of this chapter assumes you already recognize it. The pattern is: **you declare what you want (desired state), and something else continuously compares that to what actually exists (actual state) and takes action to close the gap.** That "something else" is called a **controller** (a continuously-running process whose only job is to keep actual state matching desired state).
 
@@ -127,8 +234,6 @@ You'll see commands like `kubectl get pods` showing `STATUS: Running` later in t
 With that model in place, here's how the API server and etcd actually make it real.
 
 # Chapter 1 — API server, etcd and the object model
-*(original text preserved in full below; additions marked with ➕ so you can see exactly what changed)*
-
 **Learning outcome:** Trace reads/writes, resourceVersion, watches and declarative desired state through the API control plane.
 
 ![](pathname:///img/generated/volume-03-01.png)
@@ -145,7 +250,7 @@ kubectl get deploy api -o jsonpath='{.metadata.resourceVersion}{"\n"}'
 kubectl get events --sort-by=.lastTimestamp
 ```
 
-➕ **The request pipeline, spelled out** (the source states "authenticates, authorizes, admits and validates" as a sequence — a Senior SA should be able to draw this without hesitation):
+**The request pipeline, spelled out** (the source states "authenticates, authorizes, admits and validates" as a sequence — a Senior SA should be able to draw this without hesitation):
 
 ```mermaid
 flowchart TD
@@ -158,9 +263,9 @@ flowchart TD
 
     Client --> Authn --> Authz --> Admission --> Schema --> Etcd
 ```
-➕ **Interview-ready line:** "Nothing in Kubernetes talks to etcd directly except the API server's storage layer — every controller, kubelet, and scheduler reasons only in terms of the API, which is exactly what makes the watch/resourceVersion model the single source of truth for 'did my write actually happen.'"
+**Interview-ready line:** "Nothing in Kubernetes talks to etcd directly except the API server's storage layer — every controller, kubelet, and scheduler reasons only in terms of the API, which is exactly what makes the watch/resourceVersion model the single source of truth for 'did my write actually happen.'"
 
-➕ **Sample annotated output — resourceVersion in practice:**
+**Sample annotated output — resourceVersion in practice:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -172,7 +277,7 @@ flowchart TD
 ```
 resourceVersion is opaque and cluster-scoped-per-resource-type in practice (treat it as an opaque string, never parse or compare it numerically across resource types) — it exists so a client can say "give me changes after the version I last saw" via a watch, and so a conditional update (`If-Match`-style semantics under the hood) can detect a lost race: if two clients GET the same object at rv=482913 and both PUT a modified copy, the second PUT is rejected with a 409 Conflict because the object's rv on the server has already moved to 482914+.
 
-➕ **Reproducing an actual optimistic-concurrency conflict:**
+**Reproducing an actual optimistic-concurrency conflict:**
 ```bash
 kubectl get cm settings -o yaml > /tmp/a.yaml
 kubectl get cm settings -o yaml > /tmp/b.yaml
@@ -191,7 +296,7 @@ This is the API server protecting you from a silent last-writer-wins overwrite �
 
 Controllers commonly watch API changes, enqueue work, compare desired and actual state, and issue idempotent API updates. Reconciliation is level-based: the controller should make progress toward the desired state even if it misses an individual event, because the current object state remains authoritative.
 
-➕ **Level-based vs edge-based, with the diagram that makes it click:**
+**Level-based vs edge-based, with the diagram that makes it click:**
 ```mermaid
 flowchart LR
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -205,9 +310,9 @@ flowchart LR
   n7["permanently wrong state."]
   n0 --> n1
 ```
-➕ **Why this matters concretely:** every controller has a periodic full resync (commonly every 30s–10min depending on controller) *in addition to* watch events — this is not redundancy for its own sake, it's the safety net for exactly the "watch connection dropped and a relist missed something transient" case Senior Deep Dive 1 calls out. If you're ever asked "what happens if a controller's watch connection drops for 2 minutes," the correct answer is "nothing catastrophic — it relists on reconnect and/or catches up on the next resync, because reconciliation is level-based, not a message queue that can silently lose a required event."
+**Why this matters concretely:** every controller has a periodic full resync (commonly every 30s–10min depending on controller) *in addition to* watch events — this is not redundancy for its own sake, it's the safety net for exactly the "watch connection dropped and a relist missed something transient" case Chapter 1 calls out. If you're ever asked "what happens if a controller's watch connection drops for 2 minutes," the correct answer is "nothing catastrophic — it relists on reconnect and/or catches up on the next resync, because reconciliation is level-based, not a message queue that can silently lose a required event."
 
-➕ **Watching it happen, with real output:**
+**Watching it happen, with real output:**
 ```bash
 kubectl get pods -w --output-watch-events -o json | jq -c '{type, name: .object.metadata.name, rv: .object.metadata.resourceVersion, phase: .object.status.phase}'
 ```
@@ -221,7 +326,7 @@ flowchart TD
 ```
 Note `--output-watch-events` — without it `kubectl get -w` hides the ADDED/MODIFIED/DELETED envelope and just shows you object snapshots, which is enough for humans but hides the actual wire protocol a controller's informer is consuming.
 
-➕ **Diagram: the controller watch/reconcile loop itself** (the source describes "watch, enqueue, compare, update" in prose — this is the loop shape every controller in this volume runs):
+**Diagram: the controller watch/reconcile loop itself** (the source describes "watch, enqueue, compare, update" in prose — this is the loop shape every controller in this volume runs):
 ```mermaid
 flowchart LR
     Informer["Informer:<br/>watch + local cache (list/watch events)"]
@@ -233,7 +338,7 @@ flowchart LR
 ```
 This is the same shape whether the "reconcile" box is the Deployment controller, a GitOps controller (Chapter 8), or a custom operator — an event or a timer wakes it up, and it always recomputes the diff fresh rather than trusting that the triggering event was received correctly.
 
-➕ **GPU/AI infra tie-in — why this matters for device plugins specifically:** the NVIDIA device plugin advertises `nvidia.com/gpu` capacity via periodic `ListAndWatch` gRPC streaming to the kubelet, and the kubelet in turn updates the Node object's `status.allocatable`. If that stream is momentarily interrupted (device plugin Pod restart, node CNI hiccup), the *level-based* recovery pattern is identical: on reconnect, the device plugin does a fresh `ListAndWatch` and re-asserts current device state rather than replaying a missed "GPU 3 became unhealthy" event — which is exactly why a device-plugin restart briefly shows `nvidia.com/gpu` capacity as absent/zero on `kubectl describe node`, then correct again seconds later, rather than a stuck/wrong count.
+**GPU/AI infra tie-in — why this matters for device plugins specifically:** the NVIDIA device plugin advertises `nvidia.com/gpu` capacity via periodic `ListAndWatch` gRPC streaming to the kubelet, and the kubelet in turn updates the Node object's `status.allocatable`. If that stream is momentarily interrupted (device plugin Pod restart, node CNI hiccup), the *level-based* recovery pattern is identical: on reconnect, the device plugin does a fresh `ListAndWatch` and re-asserts current device state rather than replaying a missed "GPU 3 became unhealthy" event — which is exactly why a device-plugin restart briefly shows `nvidia.com/gpu` capacity as absent/zero on `kubectl describe node`, then correct again seconds later, rather than a stuck/wrong count.
 
 ## Worked scenario
 **Situation:** A Deployment object exists with replicas=3 but no Pods appear.
@@ -245,7 +350,7 @@ This is the same shape whether the "reconcile" box is the Deployment controller,
 
 **Conclusion:** Find which controller/agent should have produced the next object/action.
 
-➕ **Second worked scenario — a Terminating namespace that never finishes, tied to Senior Deep Dive 1's finalizer mechanism:**
+**Second worked scenario — a Terminating namespace that never finishes, tied to Chapter 1's finalizer mechanism:**
 > **Situation:** `kubectl delete ns team-a-gpu` has been running for 40 minutes. `kubectl get ns team-a-gpu` shows `Status: Terminating`. Nobody has force-deleted anything yet — good, because that would be the wrong move.
 > 1. `kubectl get ns team-a-gpu -o json | jq '.spec.finalizers, .status.conditions'` — look for a finalizer that hasn't been cleared and a condition explaining why (commonly `NamespaceFinalizersRemaining` or a specific API group that failed to respond).
 > 2. `kubectl api-resources --verbs=list --namespaced -o name | xargs -I{} kubectl -n team-a-gpu get {} 2>/dev/null` — find what's actually still in the namespace; a custom resource (e.g. a GPU ResourceClaim or an old CRD instance) whose owning controller/CRD was already deleted is the classic cause — the finalizer's owning controller no longer exists to remove the finalizer key.
@@ -253,7 +358,7 @@ This is the same shape whether the "reconcile" box is the Deployment controller,
 > 4. Force-deleting the namespace via the apiserver's `/finalize` subresource without understanding *why* it was stuck can leave orphaned cloud resources (e.g. a PV, an LB, a cloud IAM binding created by a controller) with no controller left to clean them up — this is the exact "force-delete first" anti-pattern the original chapter's finalizer discussion is warning against.
 > **Conclusion:** a stuck Terminating object is a controller-availability question first, and a "which finalizer, whose responsibility" question second — never a "just force it" question.
 
-➕ **Diagram: the two-phase delete this scenario is walking through** (deletionTimestamp set → finalizers drain → actual removal — spelled out here inline since the scenario above depends on it; see Senior Deep Dive 1 for the fuller version with OwnerReferences GC):
+**Diagram: the two-phase delete this scenario is walking through** (deletionTimestamp set → finalizers drain → actual removal — spelled out here inline since the scenario above depends on it; see Chapter 1 for the fuller version with OwnerReferences GC):
 ```mermaid
 flowchart TD
     Delete["kubectl delete ns team-a-gpu"]
@@ -264,7 +369,7 @@ flowchart TD
 
     Delete --> SetTS --> Watch --> Remove --> Final
 ```
-➕ **Shortcut — the one-liner to triage any stuck-deleting object fast:**
+**Shortcut — the one-liner to triage any stuck-deleting object fast:**
 ```bash
 kubectl get <kind> <name> -o json | jq '{finalizers: .metadata.finalizers, deletionTimestamp: .metadata.deletionTimestamp, ownerRefs: .metadata.ownerReferences}'
 ```
@@ -275,11 +380,11 @@ If `finalizers` is non-empty and `deletionTimestamp` is set, something registere
 2. Reproduce a resourceVersion conflict deliberately using two stale local copies of the same object.
 3. Trace why a Deployment with replicas=3 might show zero Pods, branching correctly between controller-manager, ReplicaSet and scheduler evidence.
 
-➕ 4. Explain, without looking it up, why a controller's watch connection dropping for two minutes is not an outage — name the two independent recovery mechanisms (relist-on-reconnect, periodic full resync) that make reconciliation safe against missed events.
-➕ 5. Deliberately create a namespace stuck in Terminating (create a CRD instance with a finalizer, delete the CRD before removing the instance, then delete the namespace) and walk through the finalizer-diagnosis one-liner above to unstick it correctly — without force-deleting.
+4. Explain, without looking it up, why a controller's watch connection dropping for two minutes is not an outage — name the two independent recovery mechanisms (relist-on-reconnect, periodic full resync) that make reconciliation safe against missed events.
+5. Deliberately create a namespace stuck in Terminating (create a CRD instance with a finalizer, delete the CRD before removing the instance, then delete the namespace) and walk through the finalizer-diagnosis one-liner above to unstick it correctly — without force-deleting.
 
 ---
-## ➕ Going deeper
+## Going deeper
 
 ### etcd storage encoding and what actually gets written
 The API server serializes objects (typically protobuf internally between apiserver↔etcd, JSON/YAML at the client boundary) under keys shaped like `/registry/<group>/<resource>/<namespace>/<name>`. You will rarely touch etcd directly in a healthy cluster, but knowing the key layout matters for the one time you do need `etcdctl` in a break-fix:

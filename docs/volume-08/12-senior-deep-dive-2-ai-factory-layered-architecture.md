@@ -1,8 +1,8 @@
 ---
-title: "Senior Deep Dive 2 — AI factory layered architecture"
+title: "Chapter 12 — AI factory layered architecture"
 slug: "senior-deep-dive-2-ai-factory-layered-architecture"
 sidebar_position: 12
-description: "Senior Deep Dive 2 — AI factory layered architecture — Senior Solutions Architecture Practice."
+description: "Chapter 2 — AI factory layered architecture — Senior Solutions Architecture Practice."
 source_document: "Volume_08_Senior_Solutions_Architecture_Practice(2).docx"
 ---
 ![](pathname:///img/generated/volume-08-03.png)
@@ -11,9 +11,9 @@ _Figure B. Architecture reviews must connect user workloads to orchestration, ac
 
 An AI factory is an integrated system, not “GPUs plus Kubernetes”. Compute nodes, high-speed fabric, storage, provisioning/lifecycle, scheduler/orchestrator, model/runtime stack, observability, identity/security and developer workflows must form one operational product. The data path and control path should be explicit in the diagram.
 
-## Senior addendum
+## Build from the normal path
 
-➕ **The layered view, drawn (extends Chapter 2's six-path diagram from a request-flow view to a full-stack view — this is genuinely new, not a re-derivation):**
+**The layered view, drawn (extends Chapter 2's six-path diagram from a request-flow view to a full-stack view — this is genuinely new, not a re-derivation):**
 ```mermaid
 flowchart TD
     subgraph L1["Developer workflows (notebooks, CI/CD, SDKs) - how humans touch the system"]
@@ -37,9 +37,9 @@ flowchart TD
     CC -.-> L5
     CC -.-> L6
 ```
-**Why "not GPUs plus Kubernetes" is the correct one-liner to defend:** a customer who thinks they've built an AI factory by provisioning GPUs and installing Kubernetes has covered exactly 2 of these 6 layers, and typically the two that are hardest to get wrong. The layers that actually fail in production — provisioning/lifecycle (driver drift), storage (can't feed the GPUs fast enough), and the model/runtime stack (wrong batching config) — are the ones the "GPUs + K8s" mental model skips entirely.
+**Why "not GPUs plus Kubernetes" is the correct one-liner to defend:** a customer who thinks they've built an AI factory by provisioning GPUs and installing Kubernetes has covered exactly 2 of these 6 layers, and typically the two that are hardest to get wrong. The layers that actually fail in production — provisioning/lifecycle (driver drift), storage (can't feed the GPUs fast enough), and the model/runtime stack (wrong batching config) — are the ones the "GPUs + K8s" working model skips entirely.
 
-➕ **Diagram: data path and control path traced through the same layers (the explicit overlay the source text asks for):**
+**Diagram: data path and control path traced through the same layers (the explicit overlay the source text asks for):**
 ```mermaid
 flowchart TD
     subgraph CONTROL["CONTROL: 'what should run, where, with what\nconfig' - declarative desired state, decided here"]

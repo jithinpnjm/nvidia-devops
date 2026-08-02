@@ -1,8 +1,8 @@
 ---
-title: "Senior Deep Dive 2 — LLM inference: prefill, decode, KV cache and continuous batching"
+title: "Chapter 11 — LLM inference: prefill, decode, KV cache and continuous batching"
 slug: "senior-deep-dive-2-llm-inference-prefill-decode-kv-cache-and-continuous-batchi"
 sidebar_position: 11
-description: "Senior Deep Dive 2 — LLM inference: prefill, decode, KV cache and continuous batching — AI Workloads and AI Platform Architecture."
+description: "Chapter 2 — LLM inference: prefill, decode, KV cache and continuous batching — AI Workloads and AI Platform Architecture."
 source_document: "Volume_05_AI_Workloads_and_AI_Platform_Architecture(2).docx"
 ---
 Prefill processes the input prompt and creates KV cache state; decode generates output tokens iteratively using that state. Prefill tends to reward compute throughput and grows with input length. Decode repeatedly reads weights and KV state and is often sensitive to memory bandwidth, KV capacity and concurrency. Continuous batching improves GPU utilization by admitting and interleaving requests dynamically instead of waiting for fixed batches.
@@ -20,11 +20,10 @@ KV cache is operational state. Longer context, higher concurrency and more layer
 | Tokens/s | throughput | batching, parallelism, utilization |
 | Concurrent users | capacity at SLO | memory/KV + latency budget |
 
-## Senior addendum
+## Build from the normal path
 
-➕ **Cross-reference:** Chapter 3's enhanced version already fully derives the prefill/decode timeline diagram, the KV cache growth arithmetic, and a vLLM metrics sample with `gpu_cache_usage_perc` — this metric table is the same content as Chapter 3's, so don't re-study it twice; the one genuinely new idea here is prefix caching's routing implication, expanded below.
 
-➕ **Prefix caching → LLM-aware routing, made concrete (the paragraph's key sentence, unpacked):**
+**Prefix caching → LLM-aware routing, made concrete (the paragraph's key sentence, unpacked):**
 ```mermaid
 flowchart LR
     subgraph RR["Round-robin router"]
@@ -38,7 +37,7 @@ flowchart LR
 ```
 The tradeoff this introduces: KV-aware routing needs the router to track *which worker holds which prefix's cache*, and that map goes stale the instant a worker evicts cache under memory pressure or restarts — a routing decision based on stale cache-location state sends a request to a worker that has to recompute anyway, paying routing complexity cost without the latency win. This is precisely the "senior design question" the Deep Dive 4 text poses for Dynamo specifically, but it's true of any KV-aware router.
 
-➕ **Diagram: continuous batching — why it beats fixed/static batching**
+**Diagram: continuous batching — why it beats fixed/static batching**
 ```mermaid
 flowchart LR
     subgraph Static["Static batching (wait for a fixed batch of 4, run together, all must finish)"]

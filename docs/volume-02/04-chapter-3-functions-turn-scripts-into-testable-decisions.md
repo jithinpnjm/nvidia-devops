@@ -6,9 +6,87 @@ description: "Chapter 3 - Functions: turn scripts into testable decisions — Py
 source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 ---
 
-*(original text preserved in full; ➕ marks additions)*
+## Step 4 — functions separate decisions from effects
 
-## Foundations: start here if this is new to you
+Move the decision into a function:
+
+```python
+def classify_node(observed_gpus: int, temperature_c: float) -> str:
+    """Return a status without printing or changing external state."""
+    if observed_gpus != 8:
+        return "CRITICAL"
+    if temperature_c >= 75:
+        return "WARNING"
+    return "OK"
+
+
+nodes = [
+    {"name": "gpu-01", "gpus": 8, "temperature_c": 54},
+    {"name": "gpu-02", "gpus": 7, "temperature_c": 61},
+]
+
+for node in nodes:
+    status = classify_node(node["gpus"], node["temperature_c"])
+    print(f'{node["name"]}: {status}')
+```
+
+The function receives inputs and returns a result. Printing is kept outside. That separation makes the decision easy to test and reuse.
+
+## The decision ladder: what should I write first?
+
+Start with the smallest mechanism that expresses the behavior:
+
+| Need | Start with | Why |
+|---|---|---|
+| One calculation used once | direct statements | no abstraction is cheaper than a needless abstraction |
+| A decision used more than once or worth testing | function | input and output are visible; easy to test |
+| A fixed record with named fields | dictionary, `TypedDict`, or dataclass | choose how much runtime structure and validation you need |
+| Behavior that owns changing state | class | state and operations stay together |
+| A set of related files | module/package | imports give each part a boundary and owner |
+| A resource that must be cleaned up | `with` / context manager | cleanup runs on success and failure |
+| Reusable cross-cutting behavior | decorator, sparingly | add logging/retry/measurement without copying wrapper code |
+
+The first senior-level question is not “can I use a class?” It is “what state must survive between calls, who owns it, and how will I test it?”
+
+## Direct code versus a function
+
+This is understandable for a one-off probe:
+
+```python
+import shutil
+
+free_bytes = shutil.disk_usage("/").free
+print(f"free GiB: {free_bytes / 2**30:.1f}")
+```
+
+Move the decision into a function when it has a name, a contract, or a test:
+
+```python
+def disk_status(free_gib: float, minimum_gib: float = 20.0) -> str:
+    return "healthy" if free_gib >= minimum_gib else "critical"
+
+
+status = disk_status(free_bytes / 2**30)
+```
+
+The function is deliberately not reading the filesystem. That separation lets a test pass `5.0` or `50.0` without changing a real machine. The outer “imperative shell” collects facts; the inner “functional core” decides what they mean.
+
+## Function parameters are an API
+
+```python
+def retry_delay(attempt: int, base_seconds: float = 1.0, cap_seconds: float = 30.0) -> float:
+    return min(cap_seconds, base_seconds * 2 ** attempt)
+```
+
+`attempt` is required; the other values have defaults. A caller can use positional or named arguments, but named arguments make policy visible:
+
+```python
+retry_delay(attempt=2, cap_seconds=10.0)
+```
+
+Avoid hidden global configuration inside a decision function. Pass policy as an argument or an explicit object so a reviewer can see what controls the result.
+
+## Start with the basics
 
 **The problem: repeating the same logic, and not being able to check it in isolation**
 
@@ -16,7 +94,7 @@ Imagine you've copy-pasted the same 10-line "decide if this node is healthy" log
 
 **Analogy: a vending machine**
 
-A vending machine is a good mental model for a function. You put in specific inputs (money, a button press for "B4"), and it hands back a specific output (a candy bar), following the same internal logic every time, regardless of who's standing in front of it or what day it is. You don't need to open up the machine and inspect its gears to trust the result — you just need to know: given this input, what output comes out? That's exactly the property that makes a function testable: you can check "input X produces output Y" without caring how the rest of the building (the rest of your program) is wired.
+A vending machine is a good working model for a function. You put in specific inputs (money, a button press for "B4"), and it hands back a specific output (a candy bar), following the same internal logic every time, regardless of who's standing in front of it or what day it is. You don't need to open up the machine and inspect its gears to trust the result — you just need to know: given this input, what output comes out? That's exactly the property that makes a function testable: you can check "input X produces output Y" without caring how the rest of the building (the rest of your program) is wired.
 
 **Parameters vs. arguments — a distinction that's genuinely easy to blur**
 
@@ -115,9 +193,9 @@ def add_tag(tag: str, tags: list[str] | None = None) -> list[str]:
     return tags
 ```
 
-➕ **This architecture pattern has a name — "functional core, imperative shell" — worth citing by name in an interview:** pure functions (`classify_node`, `report`) form the "core" — deterministic, trivially unit-testable, no mocks needed. The "shell" (the part that calls `kubectl`/cloud APIs, prints, writes files) wraps the core and is thin enough that it barely needs testing at all, or gets tested with integration/smoke tests instead of unit tests. This is the same idea Chapter 9 (OOP) and the testing Deep Dive will build on — worth recognizing it as one repeated architectural principle, not three unrelated chapters.
+**This architecture pattern has a name — "functional core, imperative shell" — worth citing by name in an interview:** pure functions (`classify_node`, `report`) form the "core" — deterministic, trivially unit-testable, no mocks needed. The "shell" (the part that calls `kubectl`/cloud APIs, prints, writes files) wraps the core and is thin enough that it barely needs testing at all, or gets tested with integration/smoke tests instead of unit tests. This is the same idea Chapter 9 (OOP) and the testing Deep Dive will build on — worth recognizing it as one repeated architectural principle, not three unrelated chapters.
 
-➕ **Diagram: functional core, imperative shell**
+**Diagram: functional core, imperative shell**
 ```mermaid
 flowchart TD
     subgraph shell["IMPERATIVE SHELL (adapters) - thin, barely tested, integration/smoke tests instead of unit tests"]
@@ -133,7 +211,7 @@ flowchart TD
     shell -->|calls| core
 ```
 
-➕ **A GPU-fleet-specific version of the same pattern, to make it concrete for this role:**
+**A GPU-fleet-specific version of the same pattern, to make it concrete for this role:**
 ```python
 @dataclass(frozen=True)
 class GPUHealth:
@@ -151,7 +229,7 @@ def classify_gpu(h: GPUHealth) -> str:
 ```
 The `classify_gpu` function needs zero GPU hardware, zero `nvidia-smi` calls, and zero mocking to unit-test exhaustively — you just construct `GPUHealth` objects with the values you want to test. This is exactly the shape of function you'd be expected to write live in a coding interview for this role.
 
-➕ **Diagram: `classify_gpu`'s three branches, one test per branch**
+**Diagram: `classify_gpu`'s three branches, one test per branch**
 ```mermaid
 flowchart TD
     A["GPUHealth(xid_errors, ecc_errors, temp_c)"] --> B{"xid_errors greater than 0?"}
@@ -167,7 +245,7 @@ Practice #4 asks for one test per branch — this is the branch diagram that tes
 2. Explain why a function returning a structured dict is often easier to test than a function that only prints.
 3. Write a guard clause that rejects an empty cluster name before an API call.
 
-➕ 4. Write `classify_gpu`'s test suite: at minimum, one test per branch (xid>0, ecc>100, temp>85, all-healthy) — this branch-coverage instinct (one test per decision branch, not one test per function) is what interviewers are actually checking for in a live coding round.
+4. Write `classify_gpu`'s test suite: at minimum, one test per branch (xid>0, ecc>100, temp>85, all-healthy) — this branch-coverage instinct (one test per decision branch, not one test per function) is what interviewers are actually checking for in a live coding round.
 
 ## Targeted references
 [Udemy - Python for DevOps](https://www.udemy.com/course/python-devops) - Relevant lessons: Defining functions and returning values; Parameters and arguments; Guard clauses; Docstrings; Enumerate and ZIP.

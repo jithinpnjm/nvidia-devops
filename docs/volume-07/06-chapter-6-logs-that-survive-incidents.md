@@ -5,7 +5,25 @@ sidebar_position: 6
 description: "Chapter 6 - Logs that survive incidents — Observability, Reliability and Troubleshooting."
 source_document: "Volume_07_Observability,_Reliability_and_Troubleshooting(2).docx"
 ---
-*(original text preserved in full below; additions marked with ➕)*
+
+## Logs that can survive an incident
+
+A useful structured record includes stable time, severity, service/component, operation, outcome and correlation identifiers where appropriate:
+
+```json
+{
+  "timestamp": "2026-08-02T10:14:21.482Z",
+  "severity": "ERROR",
+  "service": "model-router",
+  "operation": "select_replica",
+  "model": "example-70b",
+  "request_id": "req-8f12",
+  "reason": "no_ready_replica",
+  "queue_depth": 42
+}
+```
+
+Do not log prompts, credentials or customer data by default. Decide redaction and retention as security/privacy requirements.
 
 **Learning outcome:** Design event fields, severity and correlation; prevent secrets and noisy duplication.
 
@@ -22,7 +40,7 @@ A useful operational event contains timestamp, service/component, resource ident
 }
 ```
 
-➕ **The field list, as a checklist you can recite — annotate WHY each field earns its place, not just that it exists:**
+**The field list, as a checklist you can recite — annotate WHY each field earns its place, not just that it exists:**
 | Field | Why it survives an incident |
 |---|---|
 | timestamp | orders events across services; without it, causality is a guess |
@@ -34,7 +52,7 @@ A useful operational event contains timestamp, service/component, resource ident
 | attempt | distinguishes "failed once" from "failed and is retrying" — different urgency |
 | correlation context | (trace/request ID) — the join key back to traces, per Ch.1/7 |
 
-➕ **Diagram: correlation context is the join key that stitches one log line back to its metric and trace**
+**Diagram: correlation context is the join key that stitches one log line back to its metric and trace**
 ```mermaid
 flowchart LR
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -55,7 +73,7 @@ flowchart LR
 ```
 Without the correlation-context field from the checklist above, the three signals in Chapter 1's table stay three separate, unjoinable pictures of the same incident — this field is what makes "three-signal correlation" (Ch.1) an actual query instead of a coincidence of timing.
 
-➕ **The "log once at the layer with meaning" principle, shown as the anti-pattern it prevents:**
+**The "log once at the layer with meaning" principle, shown as the anti-pattern it prevents:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -72,9 +90,9 @@ flowchart TD
   n10["'request_id':'a91f...','attempt':2,'upstream_retry_of':'gw-req-77213'}"]
   n11["gateway logs a ONE-LINE reference: {'event':'upstream_failed','request_id':'a91f...','forwarded_from':'model-server'}"]
 ```
-➕ **The specific error_class distinction this chapter's own sample JSON invites you to generalize — and the one that most commonly gets alerting wrong (tie-in to Chapter 8/9): `OOMKilled` (cgroup/Kubernetes-level, host memory) vs `CUDAOutOfMemory` (device framebuffer memory) are different failure planes with different fixes** — raising a Kubernetes memory limit does nothing for the second, and adding GPU memory/reducing batch size does nothing for the first. A log's `error_class` field is frequently the *only* place this distinction survives, because `kubectl get pod` will show both as "container exited non-zero" with no further detail.
+**The specific error_class distinction this chapter's own sample JSON invites you to generalize — and the one that most commonly gets alerting wrong (tie-in to Chapter 8/9): `OOMKilled` (cgroup/Kubernetes-level, host memory) vs `CUDAOutOfMemory` (device framebuffer memory) are different failure planes with different fixes** — raising a Kubernetes memory limit does nothing for the second, and adding GPU memory/reducing batch size does nothing for the first. A log's `error_class` field is frequently the *only* place this distinction survives, because `kubectl get pod` will show both as "container exited non-zero" with no further detail.
 
-➕ **Diagram: two OOM failure planes that both look like "container exited non-zero" until you read error_class**
+**Diagram: two OOM failure planes that both look like "container exited non-zero" until you read error_class**
 ```mermaid
 flowchart TD
     A["'container exited non-zero'"]
@@ -85,7 +103,7 @@ flowchart TD
 ```
 `kubectl get pod` shows both branches identically as "restarted, exited non-zero" — the `error_class` field is frequently the only surviving evidence of which branch you're actually on, which is why this chapter's field checklist insists on it.
 
-➕ **Redaction policy — worked example, because "explicit redaction policy" as a phrase without a mechanism is not something you can demonstrate in an interview:**
+**Redaction policy — worked example, because "explicit redaction policy" as a phrase without a mechanism is not something you can demonstrate in an interview:**
 ```python
 REDACT_KEYS = {"authorization", "api_key", "token", "password", "prompt", "completion"}
 
@@ -99,17 +117,17 @@ def safe_log_fields(raw: dict) -> dict:
 ```
 The operational trap: `prompt`/`completion` text is exactly the field engineers most want during debugging ("what input caused this crash?") and exactly the field most likely to contain PII or be contractually restricted from long-term log retention — this is a real tension, not a solved problem. The usual resolution: redact by default in the durable log sink, but allow short-TTL, access-controlled debug capture (e.g. a separate, tightly-retained store) opt-in per incident, not blanket capture.
 
-➕ **Worked scenario — the AI-specific version of "log the error once, not four times," where the duplication is *cost*, not just noise:**
+**Worked scenario — the AI-specific version of "log the error once, not four times," where the duplication is *cost*, not just noise:**
 > **Situation:** An inference fleet logs the full prompt and full generated completion on every request "for debuggability," at 2,000 requests/sec, average combined prompt+completion of 4KB. Log ingestion costs and storage have become one of the platform's largest line items, and the security team has separately flagged prompt-body retention as a compliance risk.
 > 1. Volume math: 2,000 req/s * 4KB * 86,400s/day ≈ 690 GB/day of raw text logging, most of which is never read.
 > 2. This is the direct AI-infrastructure analogue of the chapter's "repeated stack traces at every layer increase noise" warning — except here the redundant/excessive data is the payload itself, not repetition across layers.
 > 3. Fix: log structured metadata (model, token counts, duration, error_class, request_id) on every request by default; gate full prompt/completion capture behind sampling (e.g. 1% of traffic, or 100% only on already-failed requests) and the redaction policy above.
 > **Conclusion:** "rich event details" (this chapter's stated strength of logs, from Chapter 1's table) has a cost curve — the right design captures richness *conditionally* (on failure, on sample), not unconditionally on every request.
 
-➕ **Shortcut:** *"Structured field beats free-text grep, every time you'd need to count something."* If you ever find yourself writing a regex to extract a duration or error type out of a log message, that's a signal the field should have been structured at emission time, not parsed at query time.
+**Shortcut:** *"Structured field beats free-text grep, every time you'd need to count something."* If you ever find yourself writing a regex to extract a duration or error type out of a log message, that's a signal the field should have been structured at emission time, not parsed at query time.
 
 **Interview-ready line:** "A log line's value is in its structured fields, not its prose — timestamp, resource identity, outcome, duration and a correlation ID are what let an incident be reconstructed and joined against metrics and traces after the fact."
 
 ## Practice
-➕ 1. Take the chapter's own `model_load_failed` JSON example and add the two fields from the checklist table it's missing (correlation context, operation-as-distinct-from-event-name) — write the corrected JSON.
-➕ 2. Design the sampling policy referenced in the worked scenario above as a concrete rule (e.g. "capture full prompt/completion if X, else only metadata") and justify the specific threshold you chose.
+1. Take the chapter's own `model_load_failed` JSON example and add the two fields from the checklist table it's missing (correlation context, operation-as-distinct-from-event-name) — write the corrected JSON.
+2. Design the sampling policy referenced in the worked scenario above as a concrete rule (e.g. "capture full prompt/completion if X, else only metadata") and justify the specific threshold you chose.

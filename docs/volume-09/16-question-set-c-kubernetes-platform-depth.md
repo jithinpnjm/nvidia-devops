@@ -1,8 +1,8 @@
 ---
-title: "Question set C — Kubernetes platform depth"
+title: "Chapter 16 — Kubernetes platform question set"
 slug: "question-set-c-kubernetes-platform-depth"
 sidebar_position: 16
-description: "Question set C — Kubernetes platform depth — JR2018680 Interview Preparation."
+description: "Chapter 16 — Kubernetes platform question set — JR2018680 Interview Preparation."
 source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 ---
 | Prompt | Expected reasoning |
@@ -13,9 +13,9 @@ source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 | Deployment rollout stuck | new ReplicaSet, readiness/startup, capacity, PDB/maxSurge, image/config, events |
 | Control plane writes slow | apiserver latency, admission webhooks/policies, etcd latency/quorum |
 
-## ➕ Additions
+## Worked explanation and practice
 
-➕ **Diagram: this question set's five prompts as one symptom router (work top to bottom, stop at the first match):**
+**Diagram: this question set's five prompts as one symptom router (work top to bottom, stop at the first match):**
 ```mermaid
 flowchart LR
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -74,7 +74,7 @@ flowchart LR
   n30 --> n31
 ```
 
-➕ **Annotated output — "Node Ready but GPU unavailable," the layer trace:**
+**Annotated output — "Node Ready but GPU unavailable," the layer trace:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -90,7 +90,7 @@ flowchart TD
 ```
 The chain: node is `Ready` (kubelet is healthy) but `nvidia.com/gpu` allocatable is 0 because the device plugin — the thing that reports GPU count to the kubelet — can't even start, because the host driver and the container-toolkit-loaded NVML library versions disagree. This is exactly the "host driver → operator operands → device plugin → allocatable" chain the original question set names; the evidence at each layer is a specific `kubectl` object, not a guess.
 
-➕ **Extra worked scenario (new) — "Control plane writes slow," fully diagnosed for a GPU-heavy cluster:**
+**Extra worked scenario (new) — "Control plane writes slow," fully diagnosed for a GPU-heavy cluster:**
 > **Situation:** `kubectl apply` and Pod creation across the cluster feel sluggish; read operations (`get`, `describe`) are fine.
 > 1. Clarify: is it all writes, or specifically Pod creates on GPU nodes? (Admission webhooks scoped to Pods with GPU resources — e.g. the NVIDIA GPU Operator's or a scheduling extender's webhook — are a common culprit that reads-only traffic never touches.)
 > 2. Check apiserver metrics: `apiserver_request_duration_seconds` bucketed by verb and resource — isolates whether it's genuinely apiserver-side or downstream.
@@ -99,4 +99,4 @@ The chain: node is `Ready` (kubelet is healthy) but `nvidia.com/gpu` allocatable
 > **Conclusion:** "Slow writes, fast reads" narrows the search to the write path specifically (admission chain + etcd), and separating "all writes" from "only GPU-Pod writes" is the single fastest way to tell webhook-scoped slowness from etcd-wide slowness.
 
 ## Practice
-➕ 7. Simulate the device-plugin CrashLoopBackOff scenario above (or read a real cluster's) and write the one-line rule you'd give a junior engineer: "Node Ready + GPU allocatable 0 always means check the device plugin/operator pods on that node before touching the workload."
+7. Simulate the device-plugin CrashLoopBackOff scenario above (or read a real cluster's) and write the one-line rule you'd give a junior engineer: "Node Ready + GPU allocatable 0 always means check the device plugin/operator pods on that node before touching the workload."

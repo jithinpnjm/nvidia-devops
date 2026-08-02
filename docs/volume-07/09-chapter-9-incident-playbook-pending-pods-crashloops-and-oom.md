@@ -5,11 +5,24 @@ sidebar_position: 9
 description: "Chapter 9 - Incident playbook: Pending Pods, CrashLoops and OOM — Observability, Reliability and Troubleshooting."
 source_document: "Volume_07_Observability,_Reliability_and_Troubleshooting(2).docx"
 ---
-*(original text preserved in full below; additions marked with ➕)*
+
+## Incident evidence tree
+
+**Symptom:** P99 TTFT increased from 2s to 9s.
+
+1. Confirm SLI query, time window and affected models/regions/tenants.
+2. Check request arrival, input-length and concurrency distributions.
+3. Separate queue time from prefill/engine time using metrics/traces.
+4. Compare ready replicas and recent deployments/model reloads.
+5. Correlate engine batch/admission/cache behavior.
+6. Compare GPU/CPU/network/storage evidence only for affected replicas/nodes.
+7. Choose the smallest safe mitigation: traffic shift, rollback, capacity, admission control or isolation based on evidence.
+8. Validate the original TTFT SLI, not only component recovery.
+9. Preserve timeline and create prevention actions with owners.
 
 **Learning outcome:** Use object/event evidence before host-level investigation, then descend the stack.
 
-## Worked scenario
+## Pending Pod scenario
 **Situation:** A production Pod is Pending for 15 minutes.
 
 1. kubectl describe Pod and read scheduling events: resource, taint, affinity, PVC, topology or admission reason.
@@ -20,7 +33,7 @@ source_document: "Volume_07_Observability,_Reliability_and_Troubleshooting(2).do
 
 **Conclusion:** Pending is a desired placement problem; start with scheduler evidence, not container logs.
 
-➕ **Sample `kubectl describe pod` output for a GPU-specific Pending case, annotated (the event message that actually names the constraint):**
+**Sample `kubectl describe pod` output for a GPU-specific Pending case, annotated (the event message that actually names the constraint):**
 ```
 $ kubectl describe pod gpu-train-job-9f2a
 ...
@@ -32,7 +45,7 @@ Events:
 ```
 This single event line answers both "how many nodes were even candidates" (0 of 12) and "why, split by reason" (8 lacked free GPU allocatable capacity, 4 were tainted and this Pod has no matching toleration). The arithmetic check that follows immediately: `kubectl describe node <gpu-node> | grep -A5 Allocated` to confirm whether the 8 GPU-insufficient nodes are *genuinely* full or whether requested-vs-allocatable accounting is the actual problem (e.g. a stuck Pod holding a GPU request without using it).
 
-➕ **ASCII: the Pending-Pod evidence tree, generalized from steps 1-5 above:**
+**ASCII: the Pending-Pod evidence tree, generalized from steps 1-5 above:**
 ```mermaid
 flowchart TD
     A["Pod Pending"] --> B["kubectl describe pod -- read Events reason string"]
@@ -48,14 +61,14 @@ flowchart TD
     G -->|yes| G1["check for admission webhook / quota rejection -- different symptom, scheduler never even attempted placement"]
 ```
 
-➕ **Worked scenario — the specific GPU-fleet variant of "Pending," where the resource math is the whole answer:**
+**Worked scenario — the specific GPU-fleet variant of "Pending," where the resource math is the whole answer:**
 > **Situation:** A GPU training job requests 8x A100 with a strict pod-anti-affinity rule (all 8 GPUs on the same node, for NVLink locality). Cluster has 4 nodes, each with 8 A100s, currently running smaller 1-2 GPU inference jobs scattered across all 4 nodes such that no single node has 8 free.
 > 1. `FailedScheduling` event: "0/4 nodes are available: 4 Insufficient nvidia.com/gpu" — technically true per-node, even though the *cluster-wide* free GPU count (say, 10 free GPUs total) looks like it should be enough.
 > 2. The gap is bin-packing, not raw capacity: Kubernetes' default scheduler doesn't defragment running workloads to make room; it only places new Pods into existing free capacity shaped correctly.
 > 3. Fix directions, with tradeoffs: (a) descheduler/bin-packing policy to consolidate small jobs — disruptive, has its own risk; (b) reserve/cordon a node ahead of large training jobs via scheduling policy — wastes capacity when not in use; (c) relax the anti-affinity to allow the job across nodes with a slower interconnect — changes the job's own performance profile.
 > **Conclusion:** "Insufficient nvidia.com/gpu" can mean either "genuinely out of GPUs" or "enough GPUs exist but not shaped/located right for this Pod's constraints" — the fix is completely different depending on which, and the allocatable-vs-requested-vs-*fragmentation* distinction is the senior-level addition to a Pending investigation.
 
-## Worked scenario
+## CrashLoopBackOff scenario
 **Situation:** A Pod alternates Running and CrashLoopBackOff.
 
 1. Read current/previous container termination reason and exit code.
@@ -65,7 +78,7 @@ flowchart TD
 
 **Conclusion:** CrashLoopBackOff is a retry state, not the root cause.
 
-➕ **Sample `kubectl get pod -o yaml` container status, annotated — the exact fields step 1 is asking you to read:**
+**Sample `kubectl get pod -o yaml` container status, annotated — the exact fields step 1 is asking you to read:**
 ```yaml
 containerStatuses:
 - name: model-server
@@ -82,7 +95,7 @@ containerStatuses:
 ```
 `exitCode: 137` paired with `reason: OOMKilled` is unambiguous — this is Kubernetes/cgroup memory enforcement, the fix is a memory limit/request change or a memory leak investigation in the app, and it has **nothing to do with CUDA memory**. Contrast with an app-level crash: `reason: Error`, `exitCode: 1` (or whatever the app's own exit convention is), `lastState.terminated.message` populated with an app-specific string — that's step 3's "application exit" branch, and the fix lives in application code, not resource limits.
 
-➕ **Diagram: the CrashLoopBackOff cycle — a retry state, not a root cause, made visual**
+**Diagram: the CrashLoopBackOff cycle — a retry state, not a root cause, made visual**
 ```mermaid
 flowchart TD
     A["container starts (Created/Started)"] --> B["runs"]
@@ -93,7 +106,7 @@ flowchart TD
 ```
 Every lap of this loop erases the previous container instance's live process — `kubectl logs -p` is the only window onto the lap that just ended, which is exactly why step 2 calls it out explicitly rather than assuming `kubectl logs` (no `-p`) is good enough.
 
-➕ **Shortcut — the exit-code decoder every senior SRE should have memorized cold:**
+**Shortcut — the exit-code decoder every senior SRE should have memorized cold:**
 ```mermaid
 flowchart LR
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -115,7 +128,7 @@ flowchart LR
 ```
 **Mnemonic:** *subtract 128 from any exit code ≥128 and you get the signal number.*
 
-➕ **Worked scenario — OOMKilled vs CUDA OOM, the distinction Chapter 11's own Practice question 3 asks you to articulate, worked end to end here:**
+**Worked scenario — OOMKilled vs CUDA OOM, the distinction Chapter 11's own Practice question 3 asks you to articulate, worked end to end here:**
 > **Situation:** Two GPU Pods both restart repeatedly. Pod A: `restartCount: 5`, `lastState.terminated.reason: OOMKilled`, `exitCode: 137`. Pod B: `restartCount: 5`, `lastState.terminated.reason: Error`, `exitCode: 1`, and `kubectl logs -p` on Pod B shows `RuntimeError: CUDA out of memory. Tried to allocate 2.00 GiB...`.
 > 1. Pod A's OOM is enforced by the **Kubernetes/cgroup memory controller** on host RAM — Kubernetes killed it, and it shows up as `reason: OOMKilled` because Kubernetes *knows* it did this.
 > 2. Pod B's OOM is enforced by the **CUDA driver/runtime** on GPU framebuffer memory — Kubernetes has no visibility into GPU memory at all (per Chapter 4's ownership table), so it just sees an ordinary nonzero application exit; the *only* place the real cause survives is the application's own log line.
@@ -125,5 +138,5 @@ flowchart LR
 **Interview-ready line:** "CrashLoopBackOff is Kubernetes' retry policy talking, not the failure — the actual cause is always one of exit code plus termination reason plus previous logs, and OOMKilled versus a CUDA-OOM string in the logs are two different fixes wearing the same restart count."
 
 ## Practice
-➕ 1. Given `exitCode: 143` and `reason: Error` on a Pod that restarts every time right after a rolling deploy of a *different* service, name the two most likely explanations and the one piece of evidence that would distinguish them (hint: was this Pod's termination initiated by its own app, or externally).
-➕ 2. Write the one-line `kubectl` command to pull `lastState.terminated.reason` and `exitCode` for every Pod in a namespace at once, so you don't have to `describe` each Pod individually during an incident with many restarting Pods.
+1. Given `exitCode: 143` and `reason: Error` on a Pod that restarts every time right after a rolling deploy of a *different* service, name the two most likely explanations and the one piece of evidence that would distinguish them (hint: was this Pod's termination initiated by its own app, or externally).
+2. Write the one-line `kubectl` command to pull `lastState.terminated.reason` and `exitCode` for every Pod in a namespace at once, so you don't have to `describe` each Pod individually during an incident with many restarting Pods.

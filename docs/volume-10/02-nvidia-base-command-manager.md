@@ -5,6 +5,30 @@ sidebar_position: 2
 description: "Chapter 2 - NVIDIA Base Command Manager (BCM) — Bare-Metal, HPC Operations and Infrastructure-as-Code."
 source_document: "Authored directly for the JR2018680 gap-coverage volume — no DOCX source."
 ---
+
+## Cluster and workload management
+
+### Base Command Manager (BCM)
+
+BCM addresses cluster provisioning, workload-management integration and infrastructure monitoring for AI/HPC clusters. It manages head/regular-node lifecycle, images and node categories. It does not replace the workload's MPI/NCCL communication or every external IaC tool.
+
+### Run:ai
+
+Run:ai is an AI workload-management/orchestration platform in NVIDIA's infrastructure layer. Study its current documentation and support matrix before comparing it with native Kubernetes scheduling or Slurm; avoid reducing the decision to a product-name table.
+
+### Slurm
+
+Slurm is an open-source workload manager commonly used in HPC and AI batch environments. NVIDIA products integrate with it, but Slurm is not itself an NVIDIA product.
+
+## Control plane versus data plane
+
+| Plane | Examples |
+|---|---|
+| Management/control | BMC network, BCM head node, Git/IaC pipeline, Slurm controller, monitoring control services |
+| Workload/data | GPU computation, MPI/NCCL fabric, dataset reads, checkpoint writes, inference traffic |
+
+A healthy control plane can schedule a job onto a degraded data path. A healthy data fabric cannot compensate for unavailable scheduler/identity services. Monitor and test both.
+
 **Learning outcome:** Understand where a cluster-management layer like BCM sits relative to bare metal below it and Slurm/Kubernetes/Ansible/Terraform above and beside it, and be able to reason about a category-based rolling image upgrade without inventing exact CLI syntax you haven't verified.
 
 ## Start here — BCM is the cluster's lifecycle manager

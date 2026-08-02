@@ -1,8 +1,8 @@
 ---
-title: "Senior Deep Dive 3 — MPI and NCCL joint debugging"
+title: "Chapter 15 — MPI and NCCL joint debugging"
 slug: "senior-deep-dive-3-mpi-and-nccl-joint-debugging"
 sidebar_position: 15
-description: "Senior Deep Dive 3 — MPI and NCCL joint debugging — Bare-Metal, HPC Operations and Infrastructure-as-Code."
+description: "Chapter 3 — MPI and NCCL joint debugging — Bare-Metal, HPC Operations and Infrastructure-as-Code."
 source_document: "Authored directly for the JR2018680 gap-coverage volume — no DOCX source."
 ---
 

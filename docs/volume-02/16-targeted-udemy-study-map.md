@@ -27,7 +27,7 @@ Use the Udemy course as reinforcement after reading the matching chapter. The in
 
 [Open the Udemy course](https://www.udemy.com/course/python-devops) and search by the exact lecture titles above.
 
-➕ **Visual study loop — turn the map into retained skill:**
+**Visual study loop — turn the map into retained skill:**
 ```mermaid
 flowchart LR
     A[academy chapter] --> B[targeted lecture]
@@ -36,4 +36,4 @@ flowchart LR
     D --> E[explain the failure]
     E -.->|revisit only the weak mechanism| A
 ```
-**Memory hook:** *"Watch less; change more."* A lecture is reinforcement only after you can predict and test the mechanism locally.
+**Key takeaway:** *"Watch less; change more."* A lecture is reinforcement only after you can predict and test the mechanism locally.

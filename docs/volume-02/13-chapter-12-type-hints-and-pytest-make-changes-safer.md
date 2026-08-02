@@ -6,9 +6,81 @@ description: "Chapter 12 - Type hints and pytest: make changes safer — Python 
 source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 ---
 
-*(original text preserved in full; ➕ marks additions)*
+## Step 7 — test the decision without touching files
 
-## Foundations: start here if this is new to you
+Create `test_health.py`:
+
+```python
+from health import classify_node
+
+
+def test_healthy_node() -> None:
+    assert classify_node(8, 54) == "OK"
+
+
+def test_missing_gpu_is_critical() -> None:
+    assert classify_node(7, 54) == "CRITICAL"
+
+
+def test_hot_node_is_warning() -> None:
+    assert classify_node(8, 80) == "WARNING"
+```
+
+After installing pytest in a virtual environment, run:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install pytest
+python -m pytest -q
+```
+
+Expected result:
+
+```text
+3 passed
+```
+
+Change `>= 75` to `> 75`, add a test for exactly `75`, and decide which behavior the requirement actually needs. Tests reveal ambiguity; they do not decide the requirement for you.
+
+## Test the decision separately
+
+```python
+def test_missing_gpu_is_critical() -> None:
+    assert classify_node(7, 55.0) == "critical"
+
+
+def test_exact_temperature_boundary() -> None:
+    assert classify_node(8, 80.0) == "warning"
+```
+
+Because `classify_node` has no file, API or subprocess effect, tests are fast and deterministic. Test adapters separately with temporary files, fakes or mocks at the boundary.
+
+## Annotations: documentation plus tool input, not magic enforcement
+
+```python
+def parse_gpu_count(raw: str) -> int:
+    return int(raw)
+```
+
+`raw: str` describes the expected argument and `-> int` describes the intended result. Python normally does not reject a caller that passes the wrong type. A type checker such as mypy or pyright, an IDE, and a reviewer can use the information before production runs.
+
+Common annotations in this repository:
+
+| Annotation | Meaning in plain language | Example use |
+|---|---|---|
+| `list[str]` | ordered list of strings | host names |
+| `dict[str, int]` | string keys and integer values | GPU counts by node |
+| `str | None` | string or explicit absence | optional API field |
+| `tuple[str, str]` | fixed two-item result | `(name, status)` |
+| `Mapping[str, object]` | read-only mapping-like input | parsed configuration |
+| `TypedDict` | expected dictionary keys | JSON record boundary |
+| `Protocol` | required behavior, not inheritance | injectable command runner |
+| `Annotated[T, metadata]` | type plus tool-specific metadata | validation frameworks |
+
+Do not annotate every expression mechanically. Annotate public functions, boundaries, domain records, and places where a wrong type would cause an expensive incident. Treat annotations as a reviewable contract; use a checker in CI when the project is ready.
+
+## Start with the basics
 
 **What a type hint fundamentally is — and isn't.** A **type hint** is annotation syntax like `def greet(name: str) -> str:` that tells you (and tools) "this function expects `name` to be a string, and returns a string." Here is the misconception to clear up immediately: **Python does not enforce this at runtime by itself.** You can call `greet(42)` and Python will happily try to run the function body with `name` bound to the integer `42` — no error is raised because of the hint. The hint is documentation with a machine-readable shape, not a runtime guard.
 
@@ -110,7 +182,7 @@ def test_client_retries_503(mocker):
 ```
 Patch where the dependency is looked up by the code under test, not necessarily where the dependency was originally defined. This detail explains many "my mock did nothing" failures.
 
-➕ **The "patch where it's looked up" rule, made concrete — this trips up almost everyone once:**
+**The "patch where it's looked up" rule, made concrete — this trips up almost everyone once:**
 ```python
 # mytool/client.py
 import requests
@@ -125,7 +197,7 @@ mocker.patch("mytool.client.requests.get") # patches requests.get as SEEN FROM m
 ```
 Because `import requests` binds a name inside `mytool.client`'s namespace, patching the *original* `requests.get` doesn't affect the copy of the reference `client.py` already holds — you have to patch it where the code under test actually looks it up. This single paragraph resolves the majority of real "why isn't my mock working" confusion.
 
-➕ **`mypy`/`pyright` in CI — closing the loop between type hints and this chapter's testing focus:**
+**`mypy`/`pyright` in CI — closing the loop between type hints and this chapter's testing focus:**
 ```bash
 mypy src/infra_doctor --strict
 ```
@@ -140,13 +212,13 @@ This is the kind of error type hints catch *before* a test even runs — a calle
 2. Use a fixture to create a temporary config file.
 3. Add mypy/pyright-friendly type hints to a JSON parsing function and decide where TypedDict or dataclass is appropriate.
 
-➕ 4. Deliberately write the "wrong" patch target (`mocker.patch("requests.get")` instead of the module-qualified path) and confirm the test still calls the *real* `requests.get` — seeing the mock silently fail to intercept anything is the fastest way to make the "patch where it's looked up" rule permanent.
+4. Deliberately write the "wrong" patch target (`mocker.patch("requests.get")` instead of the module-qualified path) and confirm the test still calls the *real* `requests.get` — seeing the mock silently fail to intercept anything is the fastest way to make the "patch where it's looked up" rule permanent.
 
 ## Targeted references
 [pytest documentation](https://docs.pytest.org/) - Assertions, fixtures, parametrization, monkeypatching and plugins.
 [Udemy - Python for DevOps](https://www.udemy.com/course/python-devops) - Relevant lessons: Introduction to type hints; Hands-on: Test-driven implementation; Testing exceptions; Introduction to fixtures; Parametrization; Mocking fundamentals; Patch decorator and mocker fixture.
 
-➕ **Visual model — move uncertainty to the edges:**
+**Visual model — move uncertainty to the edges:**
 ```mermaid
 flowchart TD
     E[External API / filesystem / shell] -.->|fake or fixture at boundary| A[Typed adapter]
@@ -156,4 +228,4 @@ flowchart TD
     D -.->|unit test| D
     R -.->|assertion| R
 ```
-**Memory hook:** *"Type the contract; test the decision; fake the effect."* Tests become fast and meaningful when they prove policy without requiring a live cluster.
+**Key takeaway:** *"Type the contract; test the decision; fake the effect."* Tests become fast and meaningful when they prove policy without requiring a live cluster.

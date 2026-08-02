@@ -17,7 +17,7 @@ scontrol show job <jobid>
 sacct -j <jobid> --format=JobID,State,Elapsed,AllocTRES,ExitCode
 ```
 
-➕ **The Slurm object model, drawn out — "jobs, allocations, partitions, nodes" as a hierarchy:**
+**The Slurm object model, drawn out — "jobs, allocations, partitions, nodes" as a hierarchy:**
 ```mermaid
 flowchart TD
     Cluster --> Partition["Partition 'gpu-a100'
@@ -37,7 +37,7 @@ flowchart TD
 ```
 The distinction worth being precise about in an interview: a **job** is a request + accounting record; an **allocation** is the concrete resource grant; a **step** is one execution *within* that grant. A single job can run multiple steps sequentially or concurrently inside one allocation — this is how a Slurm job can, e.g., run a short data-staging step and then the main multi-hour training step without releasing and re-requesting the allocation in between.
 
-➕ **Diagram: the Slurm job lifecycle — submit through accounting**
+**Diagram: the Slurm job lifecycle — submit through accounting**
 ```mermaid
 flowchart TD
     A["sbatch/srun submit"] --> B["PENDING (queued)
@@ -53,7 +53,7 @@ flowchart TD
 ```
 `squeue` only shows the PENDING/RUNNING window — once a job leaves that window it disappears from `squeue` and the only record left is `sacct`, which is why `TIMEOUT` vs `FAILED` vs `CANCELLED` (all invisible to squeue after the fact) has to be read from accounting, not from the live queue.
 
-➕ **Sample `sinfo` output, annotated:**
+**Sample `sinfo` output, annotated:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -66,7 +66,7 @@ flowchart TD
 ```
 `drain` is the state to know cold: the node is still up and reachable, but Slurm will not schedule new jobs on it — usually set deliberately (pending maintenance, or a prolog script failed and auto-drained it per Deep Dive 5). This is different from `down` (unreachable/failed) and different from `alloc` (fully busy but healthy) — conflating "drain" with "broken" is a common junior-engineer mistake this table should immunize you against.
 
-➕ **Sample `squeue` output, annotated:**
+**Sample `squeue` output, annotated:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -78,7 +78,7 @@ flowchart TD
 ```
 `ST=PD` with reason `(Priority)` versus `(Resources)` is a genuinely different answer to "why is my job not running yet" — `(Priority)` means capacity exists but a higher fair-share/priority job is ahead of you in queue; `(Resources)` means there is not currently enough free capacity for your request, full stop, regardless of priority. Telling a customer/user the wrong one of these is a common support miss.
 
-➕ **Sample `scontrol show job` and `sacct` output, annotated (the accounting/forensics half of the toolset):**
+**Sample `scontrol show job` and `sacct` output, annotated (the accounting/forensics half of the toolset):**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -93,9 +93,9 @@ flowchart TD
 ```
 `State=TIMEOUT` with `ExitCode=0:0` is a specific, important pattern: the job's own code never returned a nonzero exit — it was still healthy and running when Slurm's wall-clock limit killed it. This is a scheduling/checkpoint-cadence problem ("your job needs more wall time, or needs to checkpoint more often so a restart doesn't waste 7 days"), not an application-crash problem — and `sacct` is the only place this distinction is visible after the fact, since the live job is already gone by the time anyone investigates.
 
-➕ **Shortcut — the one-line answer for "why is Slurm different from a Kubernetes-style scheduler" worth having ready:** *"Kubernetes schedules independent, restartable units against a continuously-reconciled desired state; Slurm schedules a coordinated, often-gang, often wall-clock-bounded allocation against a queue — the natural unit is 'this job gets these N nodes for this long,' not 'keep this replica count running forever.'"*
+**Shortcut — the one-line answer for "why is Slurm different from a Kubernetes-style scheduler" worth having ready:** *"Kubernetes schedules independent, restartable units against a continuously-reconciled desired state; Slurm schedules a coordinated, often-gang, often wall-clock-bounded allocation against a queue — the natural unit is 'this job gets these N nodes for this long,' not 'keep this replica count running forever.'"*
 
-➕ **Worked scenario — combining these tools to explain a stuck queue:**
+**Worked scenario — combining these tools to explain a stuck queue:**
 > **Situation:** A researcher asks why their 16-node job (`40256` above) has been `PD` for six hours on a partition that "looks empty in the dashboard."
 > 1. `squeue` shows reason `(Resources)` — not priority. So it genuinely is a capacity question, not a fairness one.
 > 2. `sinfo` shows only 6 nodes `idle` in that partition, but the job needs 16 — the "looks empty" dashboard was probably showing aggregate GPU utilization percentage, not free *node count*, and 6 idle nodes out of, say, 9 total can look like "mostly idle" while still being short of 16.
@@ -104,5 +104,5 @@ flowchart TD
 > **Interview-ready line:** "A queue looking 'mostly idle' on a utilization dashboard and a queue having enough *free, contiguous* capacity for a specific job's request are different claims — gang-scheduled HPC jobs need N whole nodes, not N/total percent."
 
 ## Practice
-➕ 1. Explain the difference between a Slurm job, an allocation, and a job step to someone who only knows Kubernetes Pods and Deployments.
-➕ 2. Given `sacct` showing `State=TIMEOUT ExitCode=0:0` for a training job, write the one-sentence diagnosis and the one operational recommendation you'd give the researcher.
+1. Explain the difference between a Slurm job, an allocation, and a job step to someone who only knows Kubernetes Pods and Deployments.
+2. Given `sacct` showing `State=TIMEOUT ExitCode=0:0` for a training job, write the one-sentence diagnosis and the one operational recommendation you'd give the researcher.

@@ -34,7 +34,7 @@ When a job is pending, begin with `squeue -j JOBID -o '%.18i %.9T %.30R'`: the r
 
 When a node is `DRAIN`, preserve the recorded reason and inspect the node, daemon, hardware, GPU, network, and recent prolog/health output. Return it to service only after the fault is corrected and a validation job passes. `scontrol update NodeName=... State=RESUME` changes scheduler state; it does not repair hardware.
 
-This chapter builds on the deeper scheduling model in Volume 6, but the mental model above is enough to begin the administrative sections safely.
+This chapter builds on the deeper scheduling model in Volume 6, but the working model above is enough to begin the administrative sections safely.
 
 ## slurmctld/slurmdbd high availability
 

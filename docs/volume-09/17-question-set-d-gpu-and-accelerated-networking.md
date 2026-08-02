@@ -1,8 +1,8 @@
 ---
-title: "Question set D — GPU and accelerated networking"
+title: "Chapter 17 — GPU and accelerated-networking question set"
 slug: "question-set-d-gpu-and-accelerated-networking"
 sidebar_position: 17
-description: "Question set D — GPU and accelerated networking — JR2018680 Interview Preparation."
+description: "Chapter 17 — GPU and accelerated-networking question set — JR2018680 Interview Preparation."
 source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 ---
 | Prompt | Expected reasoning |
@@ -13,9 +13,9 @@ source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 | Multi-node training regressed | rank scope, RDMA/NCCL/fabric counters, topology, straggler amplification |
 | Xid appears | correlate device/time/workload, DCGM/driver logs, recurrence/recovery, vendor guidance |
 
-## ➕ Additions
+## Worked explanation and practice
 
-➕ **Diagram: this question set's five prompts as one GPU/networking triage router:**
+**Diagram: this question set's five prompts as one GPU/networking triage router:**
 ```mermaid
 flowchart LR
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -62,7 +62,7 @@ flowchart LR
   n25 --> n26
 ```
 
-➕ **Sample annotated output — GPU util 100% but throughput low, the exact evidence:**
+**Sample annotated output — GPU util 100% but throughput low, the exact evidence:**
 ```
 $ nvidia-smi dmon -s ucm -c 5
 # gpu   sm  mem  enc  dec  mclk  pclk
@@ -82,7 +82,7 @@ flowchart TD
 ```
 `sm=99%` looked healthy at a glance, but `HW Thermal Slowdown: Active` means the GPU is pinned at 99% *utilization* while its actual *clock* has been reduced by thermal throttling — this is the single most common way "GPU util 100%, throughput low" resolves, and it's completely invisible unless you check throttle reasons specifically, not just `dmon`.
 
-➕ **Second annotated output — Xid error correlation, the DCGM/driver-log evidence chain:**
+**Second annotated output — Xid error correlation, the DCGM/driver-log evidence chain:**
 ```
 $ dmesg -T | grep -i xid
 [Tue Jul 29 03:14:22 2026] NVRM: Xid (PCI:0000:17:00): 79, pid=48213, GPU has fallen off the bus
@@ -94,7 +94,7 @@ $ nvidia-smi -q | grep -A2 "GPU UUID\|ECC Errors"
 ```
 Xid 79 ("GPU has fallen off the bus") is one of the small set of Xid codes that means the GPU has effectively gone offline at the PCIe level — almost always hardware/thermal/power, not a driver or application bug, and it typically does NOT recover without a node reboot/reset. **Interview-ready line:** "Not all Xids are equal — some (like memory ECC double-bit) are software-recoverable-ish with process kill, others (like 'fallen off the bus') mean the node needs to be drained and rebooted; I'd never treat 'an Xid appeared' as one category of severity."
 
-➕ **Extra worked scenario (new) — "8 GPUs visible, scaling poor," fully diagnosed with topology evidence:**
+**Extra worked scenario (new) — "8 GPUs visible, scaling poor," fully diagnosed with topology evidence:**
 > **Situation:** An 8-GPU single-node job scales to only ~4.5x instead of near-8x on an all-reduce-heavy workload.
 > 1. Clarify: is scaling poor from 1→2 GPUs already, or does it degrade specifically past 4?
 > 2. `nvidia-smi topo -m` — check whether all 8 GPUs are on the same NVSwitch/NVLink fabric, or split across PCIe switches with no direct GPU-GPU link:
@@ -111,5 +111,5 @@ Xid 79 ("GPU has fallen off the bus") is one of the small set of Xid codes that 
 > **Conclusion:** "8 GPUs visible" says nothing about how they're wired — `nvidia-smi topo -m` is the one command that turns "scaling is poor" into a specific, fixable topology fact.
 
 ## Practice
-➕ 6. Run `nvidia-smi topo -m` on any multi-GPU box you have access to (even a workstation) and explain out loud, in one sentence per link type (`NV#`, `PIX`, `PXB`, `SYS`), what an all-reduce crossing that link would cost relative to the others.
-➕ 7. Given a synthetic `dmesg` log with three different Xid codes (e.g. 79, 48, 13), classify each as "likely hardware, drain the node" vs "possibly software/application-recoverable" and state which single follow-up command you'd run for each to confirm your classification.
+6. Run `nvidia-smi topo -m` on any multi-GPU box you have access to (even a workstation) and explain out loud, in one sentence per link type (`NV#`, `PIX`, `PXB`, `SYS`), what an all-reduce crossing that link would cost relative to the others.
+7. Given a synthetic `dmesg` log with three different Xid codes (e.g. 79, 48, 13), classify each as "likely hardware, drain the node" vs "possibly software/application-recoverable" and state which single follow-up command you'd run for each to confirm your classification.

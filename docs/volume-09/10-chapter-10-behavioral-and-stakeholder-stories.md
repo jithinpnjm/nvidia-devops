@@ -17,20 +17,20 @@ Use STAR, but make the technical decision visible. Situation should be brief. Ta
 | Customer ambiguity | discovery, reframing problem, PoC/decision, adoption outcome |
 | Failure/lesson | wrong assumption, signal missed, correction, system/process change |
 
-## ➕ Additions
+## Worked explanation and practice
 
-➕ **STAR-for-seniors as a time-budget diagram (the ratio interviewers are actually grading):**
+**STAR-for-seniors as a time-budget diagram (the ratio interviewers are actually grading):**
 ```mermaid
 flowchart LR
     S["S - Situation (0-10%)<br/>brief"] --> T["T - Task (10-20%)<br/>your responsibility"] --> A["A - Action (20-90%, the bulk)<br/>reasoning, trade-offs, influence, what you changed in the system"] --> R["R - Result (90-100%)<br/>measurable + lesson"]
 ```
-➕ **Memory hook:** *"Situation and Task are the appetizer, Action is the meal, Result is the receipt."* If your Situation/Task takes more than ~15% of your answer time, you're under-delivering on Action — the part that actually demonstrates seniority.
+**Key takeaway:** *"Situation and Task are the appetizer, Action is the meal, Result is the receipt."* If your Situation/Task takes more than ~15% of your answer time, you're under-delivering on Action — the part that actually demonstrates seniority.
 
-➕ **Interview-ready line for opening ANY behavioral story concisely:**
+**Interview-ready line for opening ANY behavioral story concisely:**
 > "Quick context: [one sentence on situation], my role was [one sentence on task] — the interesting part is what I actually decided, so let me get to that."
 This explicitly signals to the interviewer that you know where the value is, and it's a permission-giving sentence that lets you skip ahead without feeling like you're withholding context.
 
-➕ **Annotated sample STAR transcript — an incident story, narrated with WHY each part works (using the "Incident" row's ingredients: scope, evidence, mitigation, coordination, prevention, MTTR/reliability result):**
+**Annotated sample STAR transcript — an incident story, narrated with WHY each part works (using the "Incident" row's ingredients: scope, evidence, mitigation, coordination, prevention, MTTR/reliability result):**
 
 > "**Situation:** A multi-tenant inference platform had a P99 latency spike affecting three customers simultaneously. **Task:** I was the on-call SA/SRE and the first person to triage." *(← 2 sentences, done — no elaboration on how the pager went off)*
 >
@@ -43,4 +43,4 @@ This explicitly signals to the interviewer that you know where the value is, and
 > "**Result:** MTTR was 22 minutes from page to mitigation. The prevention follow-up was proposing MIG-based hard isolation for that pool specifically, which we implemented within two weeks — since then, zero cross-tenant latency incidents on that pool." *(← quantified, and explicitly closes the loop with a system change, not just "we fixed it")*
 
 ## Practice
-➕ 5. Take any one of your four prepared STAR stories from the original Practice section and time yourself — if Situation+Task exceeds 20% of your total answer time, rewrite the opening using the "Quick context..." interview-ready line above and re-time it.
+5. Take any one of your four prepared STAR stories from the original Practice section and time yourself — if Situation+Task exceeds 20% of your total answer time, rewrite the opening using the "Quick context..." interview-ready line above and re-time it.

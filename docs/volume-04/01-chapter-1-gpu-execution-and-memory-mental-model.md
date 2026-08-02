@@ -1,12 +1,242 @@
 ---
-title: "Chapter 1 - GPU execution and memory mental model"
+title: "Chapter 1 - GPU execution and memory working model"
 slug: "chapter-1-gpu-execution-and-memory-mental-model"
 sidebar_position: 1
-description: "Chapter 1 - GPU execution and memory mental model — GPU and Accelerated Computing Foundations."
+description: "Chapter 1 - GPU execution and memory working model — GPU and Accelerated Computing Foundations."
 source_document: "Volume_04_GPU_and_Accelerated_Computing_Foundations(2).docx"
 ---
 
-## Foundations: start here if GPU/CUDA concepts are new to you
+The basic path is:
+
+```mermaid
+flowchart TD
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["CPU process prepares work and data"]
+  n1["runtime/driver submits GPU work"]
+  n2["GPU kernel executes across many threads"]
+  n3["data is read/written in GPU device memory (HBM)"]
+  n4["result returns or feeds the next GPU operation"]
+```
+
+Essential terms:
+
+| Term | Meaning for an infrastructure engineer |
+|---|---|
+| GPU | Accelerator device executing highly parallel work |
+| GPU kernel | Function launched to execute on the GPU; unrelated to the Linux kernel |
+| HBM/device memory | High-bandwidth memory attached to a GPU |
+| CUDA | NVIDIA programming platform, APIs, tools, and ecosystem for GPU computing |
+| Driver | Host kernel/user components that control and communicate with the GPU |
+| CUDA runtime/library | User-space software applications use for GPU functions |
+| Tensor Core | GPU execution hardware specialized for matrix operations and numerical formats |
+| SM | Streaming Multiprocessor, a major GPU execution unit |
+
+### The compatibility stack
+
+```text
+application/framework (PyTorch, TensorFlow, inference engine)
+      ↓ uses
+CUDA user-space runtime and libraries
+      ↓ call
+NVIDIA host driver
+      ↓ controls
+GPU firmware and hardware
+```
+
+A container packages the application and user-space libraries, but it uses the host kernel and compatible host driver. Therefore "the container includes CUDA" does not mean the host needs no NVIDIA driver.
+
+1. Does the model, batch, and cache fit in GPU memory?
+2. Is useful computation keeping execution units busy?
+3. Is work waiting for HBM, CPU preparation, storage, PCIe/NVLink, or the network?
+4. Are synchronization and slow participants delaying everyone else?
+5. Is the workload outcome improving—tokens/s, samples/s, step time, or latency?
+
+Metrics are clues that must be correlated. High reported utilization does not by itself prove compute efficiency or a particular bottleneck.
+
+## Begin with a workload, not a GPU model
+
+Suppose a Python program multiplies two very large matrices. A CPU can do this, but a large portion of the work consists of applying the same arithmetic pattern to many independent elements. A GPU contains many parallel execution resources designed to keep a large number of such operations in flight.
+
+That does not mean "GPU equals a faster CPU." The CPU remains responsible for the operating system, process control, much application logic, I/O and launching accelerator work. NVIDIA's CUDA programming model calls the CPU side the **host** and the GPU side the **device**.
+
+```mermaid
+flowchart LR
+  A[Python or C++ application<br/>runs as a CPU process] --> B[Framework and CUDA libraries<br/>prepare an operation]
+  B --> C[CUDA runtime requests<br/>memory copy or kernel launch]
+  C --> D[NVIDIA driver controls<br/>the GPU and queues work]
+  D --> E[GPU kernel executes<br/>many parallel threads]
+  E --> F[Result remains in device memory<br/>or is copied to host memory]
+```
+
+The important operational consequence is that performance can be limited before, inside or after the GPU: CPU preprocessing, host-to-device transfer, GPU computation, device-memory traffic, synchronization, peer-GPU communication, storage or network.
+
+## What a GPU kernel actually is
+
+The word **kernel** is overloaded:
+
+- The **Linux kernel** is the privileged core of the operating system.
+- A **GPU kernel** is a function launched for execution on the GPU.
+
+CUDA launches many GPU threads executing a kernel. Threads are grouped into **thread blocks**, and blocks form a **grid**. On current CUDA hardware, threads within a block are organized into groups of 32 called **warps**. A block runs on one **Streaming Multiprocessor (SM)**, allowing its threads to cooperate through synchronization and fast shared memory.
+
+```mermaid
+flowchart TB
+  G[One kernel launch creates a grid] --> B1[Thread block 0]
+  G --> B2[Thread block 1]
+  G --> BN[Many more blocks]
+  B1 --> W1[Warp: 32 threads]
+  B1 --> W2[Warp: 32 threads]
+  B2 --> W3[Warp: 32 threads]
+  W1 --> SM1[Scheduled on an SM]
+  W2 --> SM1
+  W3 --> SM2[Scheduled on another SM]
+```
+
+You do not need to program kernels for this role, but this model explains several facts:
+
+- "GPU utilization" is not the percentage of advertised FLOPs achieved. It is an activity-oriented signal.
+- Branch-heavy or poorly sized work may leave execution lanes underused.
+- A large GPU needs enough parallel work to occupy its execution resources.
+- Threads in different blocks do not have the same cheap synchronization model as threads within one block.
+- Frameworks and optimized libraries hide most kernel details, but their workload shape still matters.
+
+## Memory: capacity is not bandwidth
+
+The CPU normally uses **host memory** (system RAM). A discrete GPU has **device memory**, commonly HBM on data-center accelerators. Data needed by a GPU kernel must be accessible to the device, and movement across PCIe or another supported interconnect has cost.
+
+Inside the GPU, memory is hierarchical:
+
+| Memory area | Scope | Relative role |
+|---|---|---|
+| Registers | individual thread | smallest and fastest working values |
+| Shared memory/L1 | thread block/SM | fast cooperation and data reuse |
+| L2 cache | GPU-wide | shared cache before device memory |
+| HBM/device memory | GPU-wide | large model, tensor and cache storage |
+| Host memory | CPU system | larger system memory reached through an interconnect |
+
+Three different questions are often confused:
+
+1. **Capacity:** Does the model, activation data, temporary workspace and cache fit?
+2. **Bandwidth:** How quickly can data be supplied to execution units?
+3. **Allocation:** How much memory has software reserved or currently reports as used?
+
+`nvidia-smi` memory-used output primarily helps with allocation/capacity. It does not by itself measure HBM bandwidth or prove a memory-bound kernel.
+
+### A concrete capacity calculation
+
+A model with 7 billion parameters stored at 16 bits per parameter needs approximately:
+
+```text
+7,000,000,000 parameters × 2 bytes ≈ 14 GB for weights
+```
+
+That is not the complete runtime requirement. Add framework/runtime overhead, temporary workspaces, activations for training, optimizer state during training, and KV cache during language-model inference. The calculation is a lower-bound orientation, not a sizing result.
+
+## Common misconceptions
+
+| Misconception | Better model |
+|---|---|
+| A GPU is simply a faster CPU | It is a parallel accelerator cooperating with a CPU host |
+| CUDA means the driver | CUDA includes a programming platform/runtime/toolkit ecosystem; the driver is a separate host layer |
+| The container includes everything | It shares the host kernel and depends on host driver/device integration |
+| 100% utilization means peak useful compute | It is an activity clue; correlate workload results and profiler evidence |
+| Memory used means memory bandwidth used | Allocation/capacity and bandwidth are different measurements |
+| Pod Running proves GPU health | It proves only limited orchestration/container state |
+| DCGM Healthy proves hardware is perfect | It means configured health rules found no incident in retained evidence |
+
+## The two large halves
+
+NVIDIA AI Enterprise documents a composable stack with an **application-development layer** and an **infrastructure-management layer**. Their releases can have different lifecycles. This matters operationally: application teams may adopt new model/engine features faster than a platform team upgrades validated drivers and operators.
+
+```mermaid
+flowchart TB
+  subgraph Application_Layer[Application and AI development]
+    Models[Models and application code]
+    NEMO[NeMo and domain SDKs]
+    NIM[NIM microservices]
+    Engines[PyTorch · TensorFlow · TensorRT · Triton · vLLM]
+  end
+  subgraph Acceleration_Layer[Acceleration libraries]
+    CUDAX[CUDA · cuBLAS · cuDNN · NCCL and other CUDA-X libraries]
+  end
+  subgraph Infrastructure_Layer[Infrastructure management]
+    Driver[NVIDIA driver and Container Toolkit]
+    Operators[GPU · Network · DPU · NIM Operators]
+    Ops[DCGM · Run:ai · Base Command Manager]
+  end
+  subgraph Hardware[Accelerated infrastructure]
+    GPU[GPU and NVLink/NVSwitch]
+    NET[ConnectX · BlueField · Spectrum-X or InfiniBand fabric]
+    SYS[DGX/HGX and NVIDIA-Certified systems]
+  end
+  Application_Layer --> Acceleration_Layer --> Infrastructure_Layer --> Hardware
+```
+
+The diagram is a learning map, not a rule that every deployment includes every product.
+
+## Hardware and system terms
+
+| Name | Category | Problem it addresses |
+|---|---|---|
+| GPU accelerator | compute hardware | parallel compute and high-bandwidth device memory |
+| DGX | integrated NVIDIA system | validated GPU server/system platform with an integrated stack |
+| HGX | server platform/baseboard architecture | lets system manufacturers build multi-GPU servers around NVIDIA GPU interconnect platforms |
+| NVLink | high-speed interconnect | direct high-bandwidth GPU communication on supported systems |
+| NVSwitch | switching fabric | connects multiple NVLink-capable GPUs with broader high-bandwidth reach |
+| ConnectX | network adapter/HCA family | high-performance Ethernet or InfiniBand connectivity depending on product/configuration |
+| BlueField DPU | infrastructure processing unit | offloads and isolates networking, storage and security functions |
+| Spectrum-X | accelerated Ethernet platform | Ethernet fabric components and software aimed at AI workloads |
+| Quantum | InfiniBand switch platform | high-performance InfiniBand fabric |
+
+Do not infer topology from a GPU count. Two eight-GPU servers can have different CPU sockets, PCIe trees, NVLink/NVSwitch layouts and NIC locality.
+
+## A complete request mapped to products
+
+Consider an online LLM request on Kubernetes:
+
+1. A client reaches an application gateway.
+2. A NIM or custom Triton/vLLM/TensorRT-LLM service receives the request.
+3. The engine tokenizes/queues/batches work and invokes model execution.
+4. Framework/runtime components use CUDA and optimized libraries.
+5. Kubernetes previously scheduled the Pod using GPU resources advertised by the device integration.
+6. Container Toolkit/CDI exposed the assigned device through the host driver.
+7. The GPU executes kernels and stores weights/KV cache in device memory.
+8. DCGM/engine/application metrics describe different parts of the outcome.
+9. GPU Operator maintains supporting node components; the cluster platform manages replicas, network, storage and policy.
+
+When the request is slow, product names are not hypotheses. Queue delay, model execution, cache behavior, device saturation, CPU preprocessing, network and dependencies are hypotheses. Use product-specific evidence only after locating the boundary.
+
+## Choose documentation by your current question
+
+| Your question | Start with |
+|---|---|
+| How does GPU code execute? | CUDA Programming Guide |
+| Which driver/toolkit combination is supported? | CUDA compatibility and product support matrices |
+| How do GPUs communicate? | NCCL documentation and topology material |
+| How do containers access GPUs? | NVIDIA Container Toolkit and CDI docs |
+| How does Kubernetes manage GPU nodes? | GPU Operator documentation |
+| What do GPU health results mean? | Current DCGM Learn and reference docs |
+| How does Triton route and batch inference? | Triton architecture/scheduler/metrics docs |
+| How is a NIM LLM container organized? | Current NIM LLM overview, profiles and API docs |
+| How does NVIDIA package the enterprise stack? | NVIDIA AI Enterprise overview/support matrices |
+| How are bare-metal cluster images/nodes managed? | BCM version-matched administrator manual |
+
+## NVIDIA stack: know which product owns which layer
+
+NVIDIA names often appear together but solve different problems. The physical GPU executes work; the host driver makes it usable; CUDA and CUDA-X libraries provide programming/runtime building blocks; NGC distributes trusted containers and artifacts; frameworks such as PyTorch and TensorFlow express workloads; TensorRT-LLM optimizes model execution; Triton serves models; NIM packages supported inference endpoints; GPU, Network and DPU Operators reconcile Kubernetes infrastructure; DCGM observes and diagnoses GPUs; BCM provisions bare-metal clusters; Slurm allocates batch resources.
+
+Use this ownership rule when diagnosing a failure: `nvidia-smi` proves host visibility and driver communication, not that a framework can execute a model. A healthy GPU Operator does not prove NCCL topology or application throughput. A running Triton/NIM endpoint does not prove that its latency meets the SLO. Move from hardware → driver/runtime → container/framework → scheduler/operator → workload outcome, and collect evidence at each boundary.
+
+| Layer | Beginner question | Typical evidence |
+|---|---|---|
+| GPU/driver | Can the host see and initialize the device? | `lspci`, `nvidia-smi`, kernel logs |
+| CUDA/CUDA-X | Can software call optimized GPU libraries? | framework smoke test, library versions |
+| NGC/container | Is the tested software bundle reproducible? | image digest, manifest, runtime injection |
+| Kubernetes/Slurm | Who allocates the GPU and enforces policy? | allocatable/GRES, job allocation, cgroups |
+| Triton/NIM/framework | Does the workload execute with the required behavior? | health, request/step metrics, logs |
+| DCGM/observability | Is the device healthy and is the workload useful? | field metrics, diagnostics, Xid/ECC, SLOs |
+
+## Start with the basics
 
 ### What this chapter is, and what it isn't
 
@@ -153,7 +383,7 @@ nvidia-smi topo -m
 
 ---
 
-➕ **Mental-model diagram — where each of the five resources in the table above actually sits:**
+**Mental-model diagram — where each of the five resources in the table above actually sits:**
 ```mermaid
 flowchart TB
     subgraph HOST["HOST"]
@@ -182,7 +412,7 @@ flowchart TB
 ```
 Every "GPU is slow" ticket in this role reduces to figuring out which of these five arrows is saturated — the rest of this volume is instrumentation for exactly that question.
 
-➕ **Diagram: on-GPU memory hierarchy — capacity down, bandwidth/latency the opposite way**
+**Diagram: on-GPU memory hierarchy — capacity down, bandwidth/latency the opposite way**
 ```mermaid
 flowchart TD
     REG["Registers<br/>per-thread, KB-scale, ~1 cycle latency<br/>(FASTEST / SMALLEST)"]
@@ -194,7 +424,7 @@ flowchart TD
 ```
 Each step down this pyramid trades capacity against latency and available bandwidth. Frequent HBM traffic can contribute to a memory-bound workload, but `dmon` alone cannot prove that diagnosis. Confirm it with workload throughput/latency and a profiler such as Nsight Systems or Nsight Compute, using metrics appropriate to the actual kernel.
 
-➕ **Annotated real `nvidia-smi` output (single-GPU node, field by field):**
+**Annotated real `nvidia-smi` output (single-GPU node, field by field):**
 ```
 $ nvidia-smi
 +-----------------------------------------------------------------------------------------+
@@ -211,7 +441,7 @@ $ nvidia-smi
 ```
 Reading order that matters in an incident: **`GPU-Util 97%`** only says the sampling window observed GPU activity. **`Memory-Usage 71232/81559MiB`** describes allocated capacity, not memory bandwidth, and **`Pwr:Usage/Cap 312W/700W`** is another clue rather than a verdict. This combination justifies investigating memory traffic, workload starvation, clocks, power policy, and kernel behavior; it does not distinguish them by itself. `Perf P0` is a performance-state clue, but it also does not prove the absence of every throttle. Correlate application outcomes and profiler evidence before naming the bottleneck.
 
-➕ **Annotated `nvidia-smi dmon -s pucvmet` output (the flag string is not arbitrary — `p`=power, `u`=utilization, `c`=clocks, `v`=violations/voltage, `m`=memory, `e`=ECC, `t`=temperature):**
+**Annotated `nvidia-smi dmon -s pucvmet` output (the flag string is not arbitrary — `p`=power, `u`=utilization, `c`=clocks, `v`=violations/voltage, `m`=memory, `e`=ECC, `t`=temperature):**
 ```
 $ nvidia-smi dmon -s pucvmet -c 3
 # gpu    pwr  gtemp  mtemp    sm   mem   enc   dec   jpg   ofa  mclk  pclk
@@ -222,7 +452,7 @@ $ nvidia-smi dmon -s pucvmet -c 3
 ```
 The third sample is the interesting one: **`sm=22%`, `mem=8%`, `pclk` (SM clock) dropped from 1980→990MHz** while `mclk` (memory clock) held steady — this is a launch-bound / small-batch gap (the GPU ran out of queued work and clocked down), not thermal or power throttling (temps and power both dropped in step with utilization, not the other way around). Cross-reference: if `pclk` drops while `gtemp`/`mtemp` stay flat but power stays *high*, suspect thermal/power throttling instead — the *order* in which metrics move is the diagnostic signal, not any single column.
 
-➕ **Extra worked scenario — prefill vs decode, the AI-infra consequence of "compute-bound vs memory-bound" that the JD expects you to know cold:**
+**Extra worked scenario — prefill vs decode, the AI-infra consequence of "compute-bound vs memory-bound" that the JD expects you to know cold:**
 > **Situation:** An LLM inference service reports 95% GPU utilization during prefill (processing the prompt) and also 95% during decode (generating tokens one at a time), yet decode throughput per GPU-second is far lower and TTFT-adjacent metrics look fine while tokens/s during generation is disappointing relative to the GPU's advertised FLOPs.
 > 1. Prefill processes the whole prompt as one large matrix multiply — high arithmetic intensity, SMs stay fed from HBM efficiently, utilization number reflects real compute work. This is compute-bound.
 > 2. Decode generates one token at a time — each step re-reads the full KV cache and model weights from HBM for comparatively little new compute. Arithmetic intensity collapses. SMs still show high "utilization" because they're issuing memory requests almost continuously, but they're stalled waiting on HBM bandwidth, not doing FLOPs. This is memory-bandwidth-bound.
@@ -230,14 +460,14 @@ The third sample is the interesting one: **`sm=22%`, `mem=8%`, `pclk` (SM clock)
 > 4. Operational consequence: batching more concurrent decode requests (continuous batching) raises arithmetic intensity per HBM fetch — same KV cache/weight read serves more sequences — which is *why* vLLM/TensorRT-LLM-style continuous batching exists, not just "for throughput" abstractly.
 > **Interview-ready line:** "100% utilization tells you the SMs are busy, not what they're busy doing — prefill and decode can both show 95% util while one is compute-bound and the other is HBM-bandwidth-bound, and the fix for the second is batching, not more FLOPs."
 
-➕ **Shortcut — one-liner to catch "high util, low power, high memory" (the memory-bound signature) without reading a dashboard:**
+**Shortcut — one-liner to catch "high util, low power, high memory" (the memory-bound signature) without reading a dashboard:**
 ```bash
 nvidia-smi --query-gpu=utilization.gpu,power.draw,power.limit,memory.used,memory.total --format=csv,noheader,nounits | \
   awk -F',' '{util=$1; pw=$2/$3*100; mem=$4/$5*100; printf "util=%s%% power=%.0f%% mem=%.0f%%", util, pw, mem;
   if (util+0>85 && pw<60) print "  <- investigate: this pattern is a clue, not a bottleneck diagnosis"; else print ""}'
 ```
 
-➕ **Practice (added — original chapter had no dedicated Practice section; this one anchors the chapter's core distinction):**
+**Practice:**
 1. Given only `nvidia-smi dmon -s pucvmet` output with `sm=98%`, `pclk` at max, and `power.draw` near `power.limit`, explain why you cannot yet decide whether the kernel is compute-bound or memory-bound. Name the workload metric and profiler evidence you would collect next.
 2. Explain to an interviewer why "GPU utilization" as reported by `nvidia-smi` is a *busy/idle* signal, not a FLOPs-achieved signal, using the prefill/decode scenario above without reciting it verbatim.
-3. ➕ Write the one-line `awk` triage above from memory during a mock interview; explain why `power.draw/power.limit` is a better throttling proxy than `temperature.gpu` alone (power caps trigger before thermal caps on most data-center GPUs under sustained load).
+3. Write the one-line `awk` triage above from memory during a mock interview; explain why `power.draw/power.limit` is a better throttling proxy than `temperature.gpu` alone (power caps trigger before thermal caps on most data-center GPUs under sustained load).

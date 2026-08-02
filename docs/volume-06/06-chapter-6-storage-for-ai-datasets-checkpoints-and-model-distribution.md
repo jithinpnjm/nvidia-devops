@@ -5,6 +5,20 @@ sidebar_position: 6
 description: "Chapter 6 - Storage for AI: datasets, checkpoints and model distribution — HPC, Networking and Storage for AI."
 source_document: "Volume_06_HPC,_Networking_and_Storage_for_AI(2).docx"
 ---
+
+## Storage is part of the compute pipeline
+
+AI jobs commonly need:
+
+- model/container distribution before launch;
+- high-throughput dataset reads;
+- metadata operations for many files;
+- checkpoint writes and restart reads;
+- local scratch for transformed/sharded data;
+- durable artifact storage.
+
+Local NVMe, shared POSIX filesystems, parallel filesystems and object storage have different semantics. "Storage bandwidth" without access pattern, block/file/object semantics, metadata rate, concurrency and durability does not size a system.
+
 **Learning outcome:** Design storage by access pattern, concurrency, locality and recovery behavior.
 
 | Pattern | Infrastructure concern |
@@ -28,7 +42,7 @@ Parallel filesystems and high-performance object/file layers are common in AI/HP
 
 **Conclusion:** Starved GPUs can be a storage/CPU input-pipeline problem.
 
-➕ **The checkpoint-write path, drawn out — this is the "frequent checkpoints" row of the table, as a mechanism:**
+**The checkpoint-write path, drawn out — this is the "frequent checkpoints" row of the table, as a mechanism:**
 ```mermaid
 flowchart LR
     A["GPU HBM
@@ -46,7 +60,7 @@ flowchart LR
 ```
 The oscillation pattern in the worked scenario's "Situation" (100% then near-zero) has *two* structurally different root causes that share a symptom, and this diagram plus the dataset-loading diagram below are how you tell them apart: a **checkpoint stall** is periodic at a fixed step interval (matches your `--save_every_n_steps` config exactly) and blocks the GPU for the *entire* checkpoint duration; a **dataloader stall** (below) is periodic at the batch/shard boundary and is usually shorter and more frequent. Confusing the two sends you tuning the wrong subsystem.
 
-➕ **The dataset-fetch path — the other half of the oscillation, and the more common root cause per the worked scenario's conclusion:**
+**The dataset-fetch path — the other half of the oscillation, and the more common root cause per the worked scenario's conclusion:**
 ```mermaid
 flowchart LR
     A["storage
@@ -64,7 +78,7 @@ flowchart LR
 ```
 The single highest-value diagnostic in this whole chapter: **capture GPU duty cycle on the same time axis as dataloader worker queue depth.** If the queue depth hits zero right before every GPU idle period, workers aren't producing batches fast enough — that's a CPU/storage-throughput problem, not a GPU problem, and matches step 5 of the worked scenario exactly ("only after data supply is ruled out should you focus on GPU kernel inefficiency").
 
-➕ **Sample annotated evidence — the artifacts you'd actually gather for the worked scenario, in order:**
+**Sample annotated evidence — the artifacts you'd actually gather for the worked scenario, in order:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -81,7 +95,7 @@ flowchart TD
 ```
 The combination — GPU idle *and* storage busy, on the same timestamp — is the smoking gun for "data supply problem," and it's the specific evidence the worked scenario's step 1 ("compare GPU duty cycle with data-loader and storage metrics") is asking you to produce. GPU idle with storage *also* idle instead points at CPU-side decode/augmentation (check `mpstat`/per-core CPU, not storage) or a dataloader worker-count misconfiguration, not the storage layer at all — this distinction is worth stating explicitly, since "storage" gets blamed by default far more often than the evidence supports.
 
-➕ **Diagram: the storage hierarchy this chapter's table maps onto, with the checkpoint burst path highlighted**
+**Diagram: the storage hierarchy this chapter's table maps onto, with the checkpoint burst path highlighted**
 ```mermaid
 flowchart TD
     A["Local NVMe
@@ -98,14 +112,14 @@ flowchart TD
 Checkpoint burst path: GPU HBM to local NVMe (fast absorb) to parallel FS (durable) to object store (archive)
 The local-NVMe hop is what lets a checkpoint's synchronous GPU-blocking write (top diagram, above) finish fast — the slower parallel-FS/object hops then happen asynchronously in the background, off the training-loop critical path. Skipping the NVMe tier and writing checkpoints straight to the shared/durable tier is a common cause of checkpoint stalls growing as cluster size increases and shared-storage write concurrency rises.
 
-➕ **Model-startup as a fleet-wide event — the row the table names but doesn't quantify:**
+**Model-startup as a fleet-wide event — the row the table names but doesn't quantify:**
 > **Situation:** A 512-GPU inference deployment restarts simultaneously (rolling upgrade, or a bad node pool-wide event). Each node pulls the same 40GB model artifact from shared storage/registry at once.
 > 512 nodes × 40GB = 20TB of near-simultaneous read demand against one storage backend/registry, in a burst measured in seconds-to-minutes, not the steady-state read pattern that backend was likely benchmarked against. This is structurally identical to a "thundering herd" cache-stampede problem, just at the storage layer instead of the application-cache layer.
 > Mitigations, with the tradeoff each one makes explicit: (a) P2P/BitTorrent-style artifact distribution across nodes (e.g. Kraken, Dragonfly) — trades storage-backend load for node-to-node network load and added complexity; (b) staggered/rolling restart with a concurrency cap — trades total rollout time for reduced peak load; (c) local NVMe caching of the artifact with a warm-standby pool — trades storage capacity/cost for eliminated repeat-pull cost, but only helps repeat startups, not the first cold fleet-wide pull.
 > **Interview-ready line:** "Model startup at fleet scale isn't a storage-capacity problem, it's a storage-concurrency problem — the artifact easily fits, the simultaneous fan-out of identical reads is what breaks the SLO."
 
-➕ **Shortcut — the one question that separates all five rows of the pattern table, fast, in an interview:** *"Is the bottleneck bytes-per-second, operations-per-second, or simultaneous-clients? Small files = ops/sec (metadata), sequential shards = bytes/sec (throughput), checkpoints = sustained write bytes/sec + durability, model startup = simultaneous-clients (fan-out), vector/RAG = ops/sec at low latency (not throughput)."* Naming which of the three dominates for a given pattern is the fast way to pick the right storage design lever without reciting product names.
+**Shortcut — the one question that separates all five rows of the pattern table, fast, in an interview:** *"Is the bottleneck bytes-per-second, operations-per-second, or simultaneous-clients? Small files = ops/sec (metadata), sequential shards = bytes/sec (throughput), checkpoints = sustained write bytes/sec + durability, model startup = simultaneous-clients (fan-out), vector/RAG = ops/sec at low latency (not throughput)."* Naming which of the three dominates for a given pattern is the fast way to pick the right storage design lever without reciting product names.
 
-➕ **Additional practice for this chapter (the original Fourth Edition Practice section appears once, after Chapter 8):**
-➕ 1. Given `nvidia-smi dmon` showing GPU idle and `iostat` showing storage also idle during the same window (not busy), name the two most likely root causes and the single command you'd run next to distinguish between them.
-➕ 2. Design the artifact-distribution strategy for a 1,024-node inference fleet restart, given a 60-second cold-start SLO and a 25GB model — state which mitigation from the model-startup scenario above you'd pick first and why.
+**Additional practice for this chapter (the original Fourth Edition Practice section appears once, after Chapter 8):**
+1. Given `nvidia-smi dmon` showing GPU idle and `iostat` showing storage also idle during the same window (not busy), name the two most likely root causes and the single command you'd run next to distinguish between them.
+2. Design the artifact-distribution strategy for a 1,024-node inference fleet restart, given a 60-second cold-start SLO and a 25GB model — state which mitigation from the model-startup scenario above you'd pick first and why.

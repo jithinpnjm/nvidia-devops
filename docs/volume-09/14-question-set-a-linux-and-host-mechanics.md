@@ -1,8 +1,8 @@
 ---
-title: "Question set A — Linux and host mechanics"
+title: "Chapter 14 — Linux and host mechanics question set"
 slug: "question-set-a-linux-and-host-mechanics"
 sidebar_position: 14
-description: "Question set A — Linux and host mechanics — JR2018680 Interview Preparation."
+description: "Chapter 14 — Linux and host mechanics question set — JR2018680 Interview Preparation."
 source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 ---
 | Question | What a senior answer should expose |
@@ -13,9 +13,9 @@ source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 | TCP connection times out | DNS/route/SYN path/firewall/conntrack/listener; packet capture and ss |
 | Disk 70% full yet writes fail | inodes, quotas, read-only FS, mount/device errors, filesystem reservations |
 
-## ➕ Additions
+## Worked explanation and practice
 
-➕ **Extra worked scenario (new) — "disk 70% full yet writes fail," fully diagnosed:**
+**Extra worked scenario (new) — "disk 70% full yet writes fail," fully diagnosed:**
 > **Situation:** `df -h` shows 30% free on `/var/log`, but an application logging to that mount gets `ENOSPC`.
 > 1. Clarify: is it every write or specific paths? Since when?
 > 2. Check inodes, not just blocks: `df -i /var/log` — a directory with millions of tiny files (a runaway per-request log file, a stuck rotation job) can exhaust the inode table while block usage looks fine.
@@ -27,7 +27,7 @@ source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 > 3. If inodes are fine, check for a read-only remount after a filesystem error (`dmesg | grep -i "remount-ro"`), quota (`repquota`), or a reserved-blocks percentage (`tune2fs -l` shows `Reserved block count` — ext-family filesystems reserve ~5% for root by default; a non-root writer can hit ENOSPC while `df` still shows "free" space that's actually root-reserved).
 > **Conclusion:** "70% full" from `df -h` and "writes fail" are only connected through one of at least three distinct mechanisms (inodes, RO remount, reserved blocks) — never assume block-capacity is the story just because a percentage is quoted.
 
-➕ **Diagram: "disk has free space, writes still fail" — the three-branch check:**
+**Diagram: "disk has free space, writes still fail" — the three-branch check:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -43,4 +43,4 @@ flowchart TD
 ```
 
 ## Practice
-➕ 7. Fill an inode table on a scratch filesystem (`for i in $(seq 1 200000); do touch /mnt/scratch/f$i; done` on a small filesystem) and reproduce ENOSPC with free blocks still showing — narrate the `df -i` evidence out loud.
+7. Fill an inode table on a scratch filesystem (`for i in $(seq 1 200000); do touch /mnt/scratch/f$i; done` on a small filesystem) and reproduce ENOSPC with free blocks still showing — narrate the `df -i` evidence out loud.

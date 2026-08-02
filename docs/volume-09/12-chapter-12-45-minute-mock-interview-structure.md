@@ -5,6 +5,31 @@ sidebar_position: 12
 description: "Chapter 12 - 45-minute mock interview structure — JR2018680 Interview Preparation."
 source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 ---
+
+## Self-scoring rubric
+
+Score each answer 0–2:
+
+| Dimension | 0 | 1 | 2 |
+|---|---|---|---|
+| Clarity | jargon/list | partial structure | plain mechanism and explicit conclusion |
+| Scope | none | some assumptions | objective, constraints and affected boundary clear |
+| Technical model | incorrect/absent | incomplete | normal path and ownership accurate |
+| Evidence | random commands | some relevant checks | observations discriminate hypotheses |
+| Safety | destructive first | mitigation mentioned | blast radius, rollback and validation explicit |
+| Senior judgment | product answer | trade-off named | options tied to requirements and uncertainty |
+
+A low score routes you back to a specific learning action. It is not solved by rehearsing the same words faster.
+
+## Four-pass mock-interview progression
+
+1. **Open book:** explain using diagrams and notes.
+2. **Closed book:** reproduce the normal path and core answer.
+3. **Adversarial follow-up:** handle scale, failure, security or conflicting requirements.
+4. **Timed simulation:** concise answer with a clear recommendation and invitation to deepen.
+
+Record yourself. Remove acronyms you cannot define, claims without evidence and background that does not affect the decision.
+
 > Learning outcome Practice realistic pacing rather than endless question banks.
 
 | Minutes | Segment |
@@ -28,9 +53,9 @@ After each mock, score only meaningful competencies: clarity of assumptions, mec
 
 4. Prepare four STAR stories: incident, cost/reliability improvement, architecture trade-off, stakeholder disagreement.
 
-## ➕ Additions
+## Worked explanation and practice
 
-➕ **The 45-minute timeline as a visual (pin this to your desk before every mock run):**
+**The 45-minute timeline as a visual (pin this to your desk before every mock run):**
 ```mermaid
 flowchart LR
     A["Intro (5m)<br/>0-5<br/>Ch1 method applies here"]
@@ -42,9 +67,9 @@ flowchart LR
 
     A --> B --> C --> D --> E --> F
 ```
-➕ **Memory hook:** *"5-10-12-11-5-2 — front-load nothing, the middle two blocks (troubleshooting + architecture) are 23 of 45 minutes, over half the interview."* If you only have time to over-prepare two chapters in this volume, make them Chapters 4/5 (troubleshooting) and 8 (whiteboard) — that's where the clock actually is.
+**Key takeaway:** *"5-10-12-11-5-2 — front-load nothing, the middle two blocks (troubleshooting + architecture) are 23 of 45 minutes, over half the interview."* If you only have time to over-prepare two chapters in this volume, make them Chapters 4/5 (troubleshooting) and 8 (whiteboard) — that's where the clock actually is.
 
-➕ **Per-segment timing discipline — the failure mode each segment invites, and the counter:**
+**Per-segment timing discipline — the failure mode each segment invites, and the counter:**
 | Segment | Common failure under time pressure | Counter |
 |---|---|---|
 | Intro (0-5) | rambling career history eating the whole 5 minutes | pre-script a 90-second version, literally time it once before the real interview |
@@ -54,10 +79,10 @@ flowchart LR
 | Customer scenario (38-43) | jargon instead of consultative questions (Ch9) | use the BWCCRD funnel, don't skip straight to "Decision" |
 | Wrap (43-45) | no questions prepared, or only compensation questions | prepare 2 technical/team questions, save comp for a later stage |
 
-➕ **Annotated sample mock-interview segment transition — showing HOW a strong candidate manages the clock out loud, which is itself a signal interviewers notice:**
+**Annotated sample mock-interview segment transition — showing HOW a strong candidate manages the clock out loud, which is itself a signal interviewers notice:**
 > *(at minute 26, still mid-troubleshooting-answer)* "I'm aware we're close to time on this section — let me give you my conclusion: the root cause is [X], and I'd validate it with [Y] if we had more time. Happy to go deeper on any part of this before we move on." *(← explicitly manages pacing rather than getting cut off mid-thought; shows self-awareness of the interview's structure, which reads as someone who has run interviews/meetings before)*
 
-➕ **Extra full mock-run worked example (new) — a compressed, fully worked 45-minute run-through outline you can rehearse against, tying every segment to a specific chapter/question from this volume:**
+**Extra full mock-run worked example (new) — a compressed, fully worked 45-minute run-through outline you can rehearse against, tying every segment to a specific chapter/question from this volume:**
 ```
 0-5    Intro: "I'm a [role], currently running [1-sentence architecture
        summary — e.g. 'a 200-node GPU fleet split training/inference,
@@ -85,7 +110,7 @@ flowchart LR
        band," save that for a recruiter conversation.
 ```
 
-➕ **Post-mock scoring rubric, expanded with a concrete 1-5 scale (the original text says "score only meaningful competencies" — here's a usable version of that):**
+**Post-mock scoring rubric, expanded with a concrete 1-5 scale (the core explanation says "score only meaningful competencies" — here's a usable version of that):**
 | Competency | 1 (weak) | 3 (adequate) | 5 (strong) |
 |---|---|---|---|
 | Clarity of assumptions | states none, guesses silently | states them if asked | states them proactively, unprompted |
@@ -95,16 +120,16 @@ flowchart LR
 | Coding correctness | doesn't finish core logic | correct core, weak edge cases | correct core + edge cases + complexity stated unprompted |
 | Customer communication | jargon-first | translates when asked | translates proactively, checks understanding |
 
-➕ **Interview-ready line for the wrap-up (43-45 minute segment), a strong closing question that also signals SA-specific judgment:**
+**Interview-ready line for the wrap-up (43-45 minute segment), a strong closing question that also signals SA-specific judgment:**
 > "What does the team consider the hardest unsolved infrastructure problem on the GPU platform right now — not the roadmap item, the actual pain point?" This question is better than generic ones because it invites the interviewer to talk shop, often reveals real information about team maturity, and shows you're already thinking like someone who'd own that problem.
 
 ## More practice
-➕ 5. Run one full 45-minute mock end-to-end, timed with a visible clock, using the compressed run-through outline above — record which segment you overran, and whether the overrun was discovery/thinking time or execution time (they call for different fixes: thinking-time overruns mean pre-rehearse more; execution overruns mean you need a tighter verbal template).
-➕ 6. After the mock, self-score using the 1-5 rubric above, pick exactly ONE competency scoring 3 or below, and design a 20-minute focused drill against only that competency before your next mock — this directly implements the original text's "choose one or two gaps... rather than re-studying everything" instruction, made concrete.
+5. Run one full 45-minute mock end-to-end, timed with a visible clock, using the compressed run-through outline above — record which segment you overran, and whether the overrun was discovery/thinking time or execution time (they call for different fixes: thinking-time overruns mean pre-rehearse more; execution overruns mean you need a tighter verbal template).
+6. After the mock, self-score using the 1-5 rubric above, pick exactly ONE competency scoring 3 or below, and design a 20-minute focused drill against only that competency before your next mock — this directly implements the core explanation's "choose one or two gaps... rather than re-studying everything" instruction, made concrete.
 
-➕ **Visual model — allocate the interview clock deliberately:**
+**Visual model — allocate the interview clock deliberately:**
 ```mermaid
 flowchart LR
     A["discovery (0-5 min)"] --> B["model + plan (5-25 min)"] --> C["implementation / evidence (25-38 min)"] --> D["recap + trade-offs (38-45 min)"]
 ```
-**Memory hook:** *"Timebox thinking out loud, not just typing."* A strong answer leaves room to state the operational decision and its risk.
+**Key takeaway:** *"Timebox thinking out loud, not just typing."* A strong answer leaves room to state the operational decision and its risk.

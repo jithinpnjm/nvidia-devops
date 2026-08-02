@@ -6,7 +6,57 @@ description: "Chapter 4 - Networking: IP, routes, sockets, TCP, DNS, NAT and TLS
 source_document: "Volume_01_Foundations_Beneath_Kubernetes(3).docx"
 ---
 
-## Foundations: start here if this is new to you
+flowchart LR
+  %% Converted from the original ASCII diagram; source wording is preserved.
+  n0["name"]
+  n1["IP address"]
+  n2["route"]
+  n3["neighbor/gateway"]
+  n4["packet path"]
+  n5["listening port"]
+  n6["protocol/TLS"]
+  n7["application"]
+  n8["DNS identity direction local delivery network socket session behavior"]
+  n0 --> n1
+  n1 --> n2
+  n2 --> n3
+  n3 --> n4
+  n4 --> n5
+  n5 --> n6
+  n6 --> n7
+```
+
+| Question | Read-only evidence | What it does not prove |
+|---|---|---|
+| Did the name resolve? | `getent hosts NAME` | That the destination is reachable |
+| Which route will be used? | `ip route get IP` | That every device on the path allows it |
+| Is a local service listening? | `ss -lntup` | That a remote client can reach it |
+| Can TCP connect? | `nc -vz HOST PORT` or protocol client | That authentication/application behavior is correct |
+| Did TLS negotiate? | `openssl s_client -connect HOST:PORT` | That the application request is authorized |
+
+An **IP address** identifies an interface within a routed network. A **port** identifies a socket endpoint on a host. DNS maps names to data such as IP addresses. A route selects where a packet goes next. A firewall permits or rejects traffic according to policy. NAT rewrites addresses or ports; it does not replace routing.
+
+## Network layers with concrete questions
+
+```bash
+ip -brief address
+ip route
+getent ahosts example.com
+ip route get 93.184.216.34
+ss -lntup
+```
+
+| Evidence | Question answered |
+|---|---|
+| `ip address` | Which addresses/interfaces exist locally? |
+| `ip route get` | Which source, interface and next hop would Linux select? |
+| `getent ahosts` | What does the system resolver return? |
+| `ss -lntup` | Which local sockets are listening, subject to permission? |
+| packet capture | What packets actually crossed the observed interface? |
+
+DNS success does not prove a service listens. A listener does not prove remote routing/firewall. A TCP connection does not prove TLS or application authorization.
+
+## Start with the basics
 
 This section will not make you a networking expert. Its only job is to give you the vocabulary the rest of this chapter and Volume 6's HPC/fabric material assume you already have, so that content reads as depth on a known shape rather than a pile of new terms. As before, skim anything that's already obvious to you.
 
@@ -100,7 +150,7 @@ Everything above describes typical web-service networking — the kind of networ
 
 This section will not teach you RDMA or InfiniBand — that's Volume 6's job, done properly with the depth it deserves. The only thing worth planting here is the one core idea, so the term doesn't feel completely alien when Volume 6 introduces it: normal networking (what you just learned above) always goes through the operating system and the CPU on both ends — data gets copied into the kernel, then into the application, with CPU involvement at each step. **RDMA** (Remote Direct Memory Access) exists to skip that: it lets one machine (or GPU) write directly into another machine's (or GPU's) memory, bypassing the CPU and operating system on the data path entirely, which matters enormously when you're moving huge amounts of data between GPUs extremely fast and extremely often, as in large-scale AI training. InfiniBand is a specific high-speed networking technology commonly used to carry that kind of traffic.
 
-That's genuinely all you need here: normal networking involves the CPU/OS at every step; RDMA is specifically about not doing that, for speed, in short, GPU-to-GPU-style transfers. Volume 6 will build the real mental model on top of that one sentence.
+That's genuinely all you need here: normal networking involves the CPU/OS at every step; RDMA is specifically about not doing that, for speed, in short, GPU-to-GPU-style transfers. Volume 6 will build the real working model on top of that one sentence.
 
 #### Check your understanding
 
@@ -132,8 +182,6 @@ A: AI training on multiple GPUs needs to move very large amounts of data between
 With that model in place, here's the full mechanism.
 
 # Chapter 4 — Networking: IP, routes, sockets, TCP, DNS, NAT and TLS
-*(original text preserved in full; ➕ marks additions)*
-
 **Learning outcome:** Trace a connection from name lookup through application response and identify what each diagnostic proves.
 
 ## 4.1 Addressing and routing
@@ -145,7 +193,7 @@ ip route get 10.20.30.40
 ip neigh
 ```
 
-➕ **Longest-prefix match, worked with real numbers (this is the mechanism, not just the term):**
+**Longest-prefix match, worked with real numbers (this is the mechanism, not just the term):**
 ```mermaid
 flowchart LR
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -160,7 +208,7 @@ flowchart LR
 ```
 `ip route get 10.20.30.40` doesn't just show a route — it shows which one actually wins, including the source IP the kernel would use — this is the single fastest way to prove "the packet would even leave via the interface you think it would" before touching `tcpdump`.
 
-➕ **CIDR-collision — the real customer-facing failure this feeds into:** if your K8s pod CIDR (`10.244.0.0/16`) overlaps a customer's existing on-prem range, longest-prefix-match means some destinations silently route wrong the moment the cluster peers with their network — this is exactly why discovering existing CIDR usage is a day-1 question in any SA network design conversation, not an afterthought.
+**CIDR-collision — the real customer-facing failure this feeds into:** if your K8s pod CIDR (`10.244.0.0/16`) overlaps a customer's existing on-prem range, longest-prefix-match means some destinations silently route wrong the moment the cluster peers with their network — this is exactly why discovering existing CIDR usage is a day-1 question in any SA network design conversation, not an afterthought.
 
 ## 4.2 Sockets and TCP state
 A socket binds application I/O to a transport endpoint. For TCP, connection state reveals which phase failed. SYN-SENT often means the client sent a SYN but did not complete the handshake. ESTABLISHED means transport is up; an application can still be broken above it. TIME-WAIT is normal connection lifecycle behavior, though extreme churn can matter operationally.
@@ -171,7 +219,7 @@ ss -tn state established
 tcpdump -ni any host 10.20.30.40 and port 443
 ```
 
-➕ **TCP handshake diagram, mapped to `ss` states you'll actually see:**
+**TCP handshake diagram, mapped to `ss` states you'll actually see:**
 ```mermaid
 sequenceDiagram
     participant Client
@@ -188,7 +236,7 @@ sequenceDiagram
 ```
 Stuck in `SYN-SENT` forever = SYN left the box but nothing came back — either firewall dropping it silently, or nothing listening at the destination (a silent drop and "nothing listening" look identical from `ss` alone; `tcpdump` on both ends is what disambiguates them).
 
-➕ **TIME_WAIT pileup — the socket-exhaustion failure mode worth naming unprompted:**
+**TIME_WAIT pileup — the socket-exhaustion failure mode worth naming unprompted:**
 ```bash
 ss -tan | grep TIME-WAIT | wc -l    # climbing fast under load = ephemeral port exhaustion risk
 ```
@@ -203,7 +251,7 @@ dig +short api.example.com
 cat /etc/resolv.conf
 ```
 
-➕ **The K8s-specific DNS trap — `ndots:5` amplification:**
+**The K8s-specific DNS trap — `ndots:5` amplification:**
 ```bash
 kubectl exec -it pod -- cat /etc/resolv.conf
 # search default.svc.cluster.local svc.cluster.local cluster.local example.com
@@ -211,7 +259,7 @@ kubectl exec -it pod -- cat /etc/resolv.conf
 ```
 `ndots:5` means any name with fewer than 5 dots gets tried against *every* search-domain suffix first, before the literal name. A pod doing `curl api.external-vendor.com` (2 dots) will generate up to **4 extra DNS queries** (trying `.svc.cluster.local`, `.cluster.local`, etc. first, all of which fail) before the real external lookup succeeds — multiplying CoreDNS load and adding real latency, invisible unless you're looking at DNS query volume specifically. This is a very common, very fixable ("append a trailing dot to fully-qualify external names, or reduce ndots") production cost/latency finding.
 
-➕ **Diagram: one `curl` to an external name, five DNS queries deep**
+**Diagram: one `curl` to an external name, five DNS queries deep**
 ```mermaid
 flowchart TD
     C["curl api.external-vendor.com (2 dots, ndots:5 → search list tried FIRST)"]
@@ -236,7 +284,7 @@ nft list ruleset
 tcpdump -ni any 'host 203.0.113.10 and port 443'
 ```
 
-➕ **Annotated `curl -v` output — this is the single highest-value diagnostic trace to have memorized, phase by phase:**
+**Annotated `curl -v` output — this is the single highest-value diagnostic trace to have memorized, phase by phase:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -253,7 +301,7 @@ flowchart TD
 ```
 **Interview-ready framing:** every line above is a proof point for one layer. A `curl -v` that dies after "Trying..." = routing/firewall (Ch4.1). Dies after "Connected" but before TLS completes = TLS/cert issue, not network. Completes TLS but returns 503 = the network stack is entirely exonerated — it's an application-layer problem now, stop looking at `tcpdump`.
 
-➕ **NAT — a Kubernetes Service, precisely, not hand-waved:**
+**NAT — a Kubernetes Service, precisely, not hand-waved:**
 ```bash
 iptables -t nat -L KUBE-SERVICES -n | head     # the actual NAT rules kube-proxy wrote
 ```
@@ -270,7 +318,7 @@ A `ClusterIP` is not a listening process — it's a set of DNAT rules (or ipvs v
 
 **Conclusion:** "DNS works" only removes one branch of the hypothesis tree.
 
-➕ **Full hop-by-hop trace of `curl service-name:80` inside a pod — the synthesis exercise tying this whole chapter together:**
+**Full hop-by-hop trace of `curl service-name:80` inside a pod — the synthesis exercise tying this whole chapter together:**
 ```mermaid
 flowchart LR
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -298,5 +346,5 @@ A recent public post traces north-south and east-west traffic through load balan
 2. Explain timeout versus connection-refused versus TLS failure.
 3. Draw the return path as well as the forward path; identify where asymmetric routing could appear.
 
-➕ 4. Deliberately set `ndots` mismatched behavior by curling an external domain from inside a pod while running `tcpdump -ni any port 53` in another terminal — count how many DNS queries actually fire for one `curl`.
-➕ 5. Write the 7-step hop trace above from memory, then verify each step against a real `curl -v` + `tcpdump` capture on a lab cluster — this is the single best rehearsal for the "explain how a Service works" interview question.
+4. Deliberately set `ndots` mismatched behavior by curling an external domain from inside a pod while running `tcpdump -ni any port 53` in another terminal — count how many DNS queries actually fire for one `curl`.
+5. Write the 7-step hop trace above from memory, then verify each step against a real `curl -v` + `tcpdump` capture on a lab cluster — this is the single best rehearsal for the "explain how a Service works" interview question.

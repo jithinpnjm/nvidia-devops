@@ -6,6 +6,22 @@ description: "Chapter 10 - Coordinated cluster-wide software change management �
 source_document: "Authored directly for the JR2018680 gap-coverage volume — no DOCX source."
 ---
 
+## Version and ownership matrix
+
+Maintain one artifact listing:
+
+- hardware generation and firmware bundle;
+- OS/kernel;
+- GPU driver;
+- CUDA/framework/container image;
+- NIC/HCA firmware and OFED/driver stack;
+- NCCL/MPI/PMIx;
+- Slurm/BCM/Enroot/Pyxis;
+- storage client/server compatibility;
+- Kubernetes/operator versions where present.
+
+For each field record owner, source of truth, validation, rollout unit and rollback constraint. "Latest" is not a production version strategy.
+
 **Learning outcome:** Given a proposed change at any single layer of a GPU/AI cluster's software stack, build the compatibility matrix that change touches, design a canary that is actually representative of the fleet, and sequence a maintenance window that respects long-running HPC jobs instead of just evicting everything.
 
 ## Start here — a change is a hypothesis with a blast radius

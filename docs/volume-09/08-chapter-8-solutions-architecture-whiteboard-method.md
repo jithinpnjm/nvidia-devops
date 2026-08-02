@@ -5,6 +5,23 @@ sidebar_position: 8
 description: "Chapter 8 - Solutions architecture whiteboard method — JR2018680 Interview Preparation."
 source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 ---
+
+## Example: architecture answer
+
+Question: "Design an LLM inference platform."
+
+Start with discovery:
+
+- model sizes/precisions and number of models;
+- prompt/output distributions;
+- concurrency and arrival pattern;
+- TTFT, inter-token, total latency and availability objectives;
+- data sensitivity, tenancy and residency;
+- current platform skills and deployment environment;
+- cost/growth and failure-recovery needs.
+
+Then draw request, model artifact, control, trust and observability paths. Compare feasible engines/platform patterns using benchmarks and operating trade-offs. End with a recommended first design and a PoC that tests capacity, latency, failure and operability.
+
 > Learning outcome Discover, model paths/state/failure domains, compare options, recommend and define validation.
 
 Before drawing boxes, ask workload type, SLO, scale, data location, tenancy/security, current platform skills, budget and growth. Then draw request/data/control paths and failure domains. Compare two or three options on weighted dimensions. End with a recommendation plus what the PoC/benchmark must validate.
@@ -21,9 +38,9 @@ Before drawing boxes, ask workload type, SLO, scale, data location, tenancy/secu
 
 **Conclusion:** A platform architecture is workload + resource-control + data-path + operations, not a Kubernetes diagram.
 
-## ➕ Additions
+## Worked explanation and practice
 
-➕ **The whiteboard method as a strict left-to-right build order (this is the sequence to literally draw, live):**
+**The whiteboard method as a strict left-to-right build order (this is the sequence to literally draw, live):**
 ```mermaid
 flowchart TD
     D["DISCOVERY (spoken, before any box is drawn)<br/>workload type, SLO, scale, data location, tenancy/security, current platform skills, budget, growth"]
@@ -34,13 +51,13 @@ flowchart TD
 
     D --> Path --> Infra --> Ops --> Compare
 ```
-➕ **Memory hook:** *"Discover before you draw, requirements before names."* The single most common failure mode named explicitly in the original text — starting with "NIM" or "Kubernetes" — is a mnemonic in itself: if the first word out of your mouth is a product name, you've already lost the "senior" signal, restart with a question instead.
+**Key takeaway:** *"Discover before you draw, requirements before names."* If the answer starts with a product such as NIM or Kubernetes before the workload and constraints are known, stop and ask a discovery question first.
 
-➕ **Interview-ready line to open any whiteboard prompt with:**
+**Interview-ready line to open any whiteboard prompt with:**
 > "Before I draw anything, I have six or seven questions — workload type, SLO, scale, data location, tenancy, current platform skills, and budget/growth trajectory. Can I ask a few of those first?"
 This is nearly always granted, and even a partial answer ("it's mostly inference, multi-tenant, cost-sensitive") changes which of the next boxes you draw first.
 
-➕ **Annotated sample whiteboard transcript — the 128-GPU shared platform scenario, narrated as if speaking while drawing:**
+**Annotated sample whiteboard transcript — the 128-GPU shared platform scenario, narrated as if speaking while drawing:**
 
 > "First — training and inference on the same 128 GPUs is a resource-contention problem before it's a scheduler problem, so let me ask: what's the expected split, and are these hard SLOs for inference or soft ones?" *(← clarify, and explicitly names the underlying tension before naming any tool)*
 >
@@ -51,5 +68,5 @@ This is nearly always granted, and even a partial answer ("it's mostly inference
 > "For validation before commit: I'd want a PoC that runs your actual largest training job's collective benchmark on the training pool's topology, and a load test hitting the inference pool's SLO under realistic concurrency — both under simulated contention from the other pool, since 'shared 128 GPUs' means the interesting failure mode is exactly that contention." *(← ends with concrete PoC definition, not just "let's do a PoC")*
 
 ## Practice
-➕ 5. Whiteboard (on paper or aloud) a platform for a customer who explicitly refuses to answer discovery questions and says "just tell me Kubernetes or Slurm." Practice the sentence that states your assumption explicitly and proceeds anyway, without either refusing to answer or silently guessing.
-➕ 6. Take the 128-GPU worked scenario above and redo step 2 (GPU pool strategy) under the constraint that the customer has zero MIG-capable hardware (older GPU generation) — explain what changes in your recommendation and why time-slicing's operational-complexity tradeoff becomes more relevant, not less.
+5. Whiteboard (on paper or aloud) a platform for a customer who explicitly refuses to answer discovery questions and says "just tell me Kubernetes or Slurm." Practice the sentence that states your assumption explicitly and proceeds anyway, without either refusing to answer or silently guessing.
+6. Take the 128-GPU worked scenario above and redo step 2 (GPU pool strategy) under the constraint that the customer has zero MIG-capable hardware (older GPU generation) — explain what changes in your recommendation and why time-slicing's operational-complexity tradeoff becomes more relevant, not less.

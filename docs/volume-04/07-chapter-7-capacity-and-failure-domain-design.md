@@ -36,7 +36,7 @@ GPU capacity planning should account for usable memory per workload, sharing mod
 
 ---
 
-➕ **ASCII diagram — "64 GPUs" as capacity number vs failure-domain reality, the chapter's opening claim made visual:**
+**ASCII diagram — "64 GPUs" as capacity number vs failure-domain reality, the chapter's opening claim made visual:**
 
 Same headline number, structurally different fleets:
 ```mermaid
@@ -63,7 +63,7 @@ flowchart TB
 ```
 "64 GPUs" answers a procurement question; it does not answer "can this fleet run job X" or "what's the blast radius of one node failure" — those are the two questions capacity planning actually needs to answer, and Fleet A/B give opposite answers to both despite identical GPU counts.
 
-➕ **Annotated real output — the inputs a capacity model actually needs, gathered from the fleet, not from a spreadsheet assumption:**
+**Annotated real output — the inputs a capacity model actually needs, gathered from the fleet, not from a spreadsheet assumption:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.
@@ -79,7 +79,7 @@ flowchart TD
 ```
 This single `kubectl` query answers three capacity-planning questions the "64 GPU cluster" headline hides: which nodes can run large tightly-coupled jobs (8-GPU nodes only), which nodes are on an older driver (Chapter 3's skew problem, now visible as a scheduling constraint), and which nodes have less memory per GPU (A100-40GB can't fit a workload sized for 80GB cards) — this is the concrete evidence a Senior SA should pull up first when asked "how much GPU capacity do we actually have."
 
-➕ **Extra worked scenario — failure-domain sizing, the maintenance/spare-capacity dimension the chapter lists but the original worked scenario doesn't drill into:**
+**Extra worked scenario — failure-domain sizing, the maintenance/spare-capacity dimension the chapter lists but the original worked scenario doesn't drill into:**
 > **Situation:** A capacity plan sizes exactly 64 GPUs for a training workload requiring sustained 64-GPU-scale jobs, with zero spare nodes budgeted "to save cost." A routine driver upgrade requires draining one 8-GPU node for 45 minutes.
 > 1. With zero spare capacity, draining any node either blocks the next training run entirely (if it needs the full 64) or silently drops to 56-GPU scale (if the job can flex) — either way, "capacity planning" without a failure/maintenance reserve made the drain decision the same as an incident decision.
 > 2. The chapter's own list names this explicitly ("node boot/provisioning time, maintenance and failure reserve") — the fix is budgeting N+1 (or N+k, sized to the largest single failure domain you're willing to absorb without replanning) nodes above the workload's steady-state need.
@@ -87,11 +87,11 @@ This single `kubectl` query answers three capacity-planning questions the "64 GP
 > 4. Node boot/provisioning time compounds this: if a replacement node takes 20 minutes to provision (image, driver, GPU Operator convergence) versus 45 minutes for an in-place upgrade-and-reboot, the reserve sizing decision also depends on how fast the platform can produce a substitute node, not just how many spares sit idle.
 > **Interview-ready line:** "Sizing capacity to exactly the steady-state need means every maintenance window is an incident — the reserve isn't waste, it's what makes routine driver upgrades routine instead of a renegotiation with the training team."
 
-➕ **Shortcut — mnemonic for the five capacity-planning inputs the chapter lists, for fast recall under interview pressure:**
+**Shortcut — mnemonic for the five capacity-planning inputs the chapter lists, for fast recall under interview pressure:**
 *"MSTDF — Memory, Sharing, Throughput/latency target, Topology, Driver/image, Failure reserve"* (six items, but the M-S-T-D-F ordering roughly matches "what does the workload need" → "what does the fleet look like" → "what happens when something breaks").
 
-➕ 5. Given the heterogeneous fleet table above (mixed H100/A100, mixed driver versions, mixed GPU-count-per-node), design a nodeAffinity/label scheme that lets a scheduler correctly route a job requiring 8-GPU NVLink-tight placement away from gpu-node-04 (4 GPUs) and gpu-node-03 (older driver) without hand-maintained node lists.
-➕ 6. Using the "N+1 node reserve" argument above, calculate the reserve needed for a fleet where the largest single job needs 64 GPUs across 8-GPU nodes, and a routine driver upgrade drains exactly one node at a time — state your reserve in nodes, not GPUs, and explain why the unit matters.
+5. Given the heterogeneous fleet table above (mixed H100/A100, mixed driver versions, mixed GPU-count-per-node), design a nodeAffinity/label scheme that lets a scheduler correctly route a job requiring 8-GPU NVLink-tight placement away from gpu-node-04 (4 GPUs) and gpu-node-03 (older driver) without hand-maintained node lists.
+6. Using the "N+1 node reserve" argument above, calculate the reserve needed for a fleet where the largest single job needs 64 GPUs across 8-GPU nodes, and a routine driver upgrade drains exactly one node at a time — state your reserve in nodes, not GPUs, and explain why the unit matters.
 
 ---
 

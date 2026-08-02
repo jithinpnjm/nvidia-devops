@@ -1,8 +1,8 @@
 ---
-title: "Senior Deep Dive 1 — API machinery: resourceVersion, watches, finalizers and ownership"
+title: "Chapter 10 — API machinery: resourceVersion, watches, finalizers and ownership"
 slug: "senior-deep-dive-1-api-machinery-resourceversion-watches-finalizers-and-owners"
 sidebar_position: 10
-description: "Senior Deep Dive 1 — API machinery: resourceVersion, watches, finalizers and ownership — Kubernetes and Platform Engineering."
+description: "Chapter 1 — API machinery: resourceVersion, watches, finalizers and ownership — Kubernetes and Platform Engineering."
 source_document: "Volume_03_Kubernetes_and_Platform_Engineering(3).docx"
 ---
 The API server is not only a REST endpoint. It provides optimistic concurrency, versioned storage, watch streams and admission. Controllers list objects, establish a resourceVersion, watch changes and reconcile. Clients must expect watch closure, relist, retries and conflicts. This is why a reliable controller is idempotent and why “event received” is not equivalent to “state changed successfully”.
@@ -15,9 +15,9 @@ kubectl get pod mypod -o json | jq '.metadata.resourceVersion,.metadata.finalize
 kubectl get --raw '/apis/apps/v1/namespaces/default/deployments?limit=5'
 kubectl get events --sort-by=.lastTimestamp
 
-## Senior addendum
+## Build from the normal path
 
-### Original section preamble *(preserved verbatim)*
+### API machinery in operation
 
 **FOURTH EDITION — SENIOR ENGINEERING EXPANSION · VOLUME 3**
 
@@ -31,7 +31,7 @@ The practitioner material used to shape the scope is a signal, not an authority.
 
 _Figure A. Most Kubernetes behavior is an API-state transition followed by one or more reconcilers._
 
-➕ **Why Figure A is worth restating as a one-liner before every Deep Dive below:** each of the eight Deep Dives that follows is, mechanically, the same claim applied to a different subsystem — an API-state transition (a write, a delete, a scheduling decision, a device claim) followed by one or more reconcilers (a controller, the scheduler, the kubelet, an operator) making progress toward it. Recognizing that repetition is more valuable than memorizing eight unrelated topics.
+**Why Figure A is worth restating as a one-liner before every Deep Dive below:** each of the eight Deep Dives that follows is, mechanically, the same claim applied to a different subsystem — an API-state transition (a write, a delete, a scheduling decision, a device claim) followed by one or more reconcilers (a controller, the scheduler, the kubelet, an operator) making progress toward it. Recognizing that repetition is more valuable than memorizing eight unrelated topics.
 
 ### Quick cross-reference (use both halves together, not as duplicates)
 
@@ -47,7 +47,7 @@ _Figure A. Most Kubernetes behavior is an API-state transition followed by one o
 | 8 — GPU platform operations: node pools, operators, isolation | Ch9 (Upgrades) touches this; new ground otherwise | pre-flight/return-to-service checklist — see Ch9's "Going deeper" section, which already builds this out; cross-referenced below |
 
 ### Deep Dive 1 — API machinery
-➕ **Finalizer two-phase delete, diagrammed** (Chapter 1 already covers this with a worked scenario on a stuck Terminating namespace — see `Volume_03_Chapter_01`; this diagram is the piece that chapter's prose doesn't draw):
+**Finalizer two-phase delete, diagrammed** (Chapter 1 already covers this with a worked scenario on a stuck Terminating namespace — see `Volume_03_Chapter_01`; this diagram is the piece that chapter's prose doesn't draw):
 ```mermaid
 flowchart TD
     Delete["kubectl delete object"]
@@ -58,11 +58,11 @@ flowchart TD
 
     Delete --> SetTS --> Cleanup --> RemoveKey --> Removal
 ```
-➕ **OwnerReferences GC — the companion mechanism, easily confused with finalizers but doing the opposite direction of work:** finalizers **block** deletion of the object that owns them until cleanup finishes; OwnerReferences **cascade** deletion from a parent to its children once the parent is actually gone (garbage-collector controller watches for objects whose owner no longer exists, then deletes them — this is why deleting a Deployment deletes its ReplicaSets deletes its Pods, with no finalizer involved at all in the common case). `kubectl delete deploy api --cascade=orphan` disables exactly this mechanism, for the rare case where you want to keep the children.
+**OwnerReferences GC — the companion mechanism, easily confused with finalizers but doing the opposite direction of work:** finalizers **block** deletion of the object that owns them until cleanup finishes; OwnerReferences **cascade** deletion from a parent to its children once the parent is actually gone (garbage-collector controller watches for objects whose owner no longer exists, then deletes them — this is why deleting a Deployment deletes its ReplicaSets deletes its Pods, with no finalizer involved at all in the common case). `kubectl delete deploy api --cascade=orphan` disables exactly this mechanism, for the rare case where you want to keep the children.
 
 Cross-reference: Chapter 1's worked scenario #2 already walks a full stuck-Terminating-namespace diagnosis using this exact mechanism — this diagram is the missing visual, not a new scenario.
 
-➕ **Diagram: OwnerReferences cascading GC — the opposite-direction mechanism, drawn so it's never confused with finalizers again:**
+**Diagram: OwnerReferences cascading GC — the opposite-direction mechanism, drawn so it's never confused with finalizers again:**
 ```mermaid
 flowchart TD
   %% Converted from the original ASCII diagram; source wording is preserved.

@@ -6,11 +6,9 @@ description: "Chapter 14 - Capstone: design a cluster diagnostics CLI — Python
 source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 ---
 
-*(original text preserved in full; ➕ marks additions)*
-
 ## Before you start: what this capstone actually tests
 
-This capstone deliberately combines concepts from across the volume rather than teaching anything new: pure decision logic as testable functions (exercised again in the `assess_pod` policy), dataclasses and other data structures for typed domain values, exceptions and typed failure translation at the subprocess/API boundary, the `subprocess` module for talking to `kubectl`, CLI argument parsing and exit-code contracts (Chapter 13), and pytest-style unit tests that exercise policy logic without touching a real cluster (Chapter 12). If you get stuck on any one piece — say, why `assess_pod` is deliberately separated from `get_pods`, or why the tests never call `kubectl` — that is a signal to go back to that chapter's Foundations section rather than pushing through here.
+This capstone deliberately combines concepts from across the volume rather than teaching anything new: pure decision logic as testable functions (exercised again in the `assess_pod` policy), dataclasses and other data structures for typed domain values, exceptions and typed failure translation at the subprocess/API boundary, the `subprocess` module for talking to `kubectl`, CLI argument parsing and exit-code contracts (Chapter 13), and pytest-style unit tests that exercise policy logic without touching a real cluster (Chapter 12). If you get stuck, return to the relevant earlier chapter and rerun its smallest example before adding another layer.
 
 > After this chapter you should be able to: Combine parsing, subprocess/API boundaries, data models, logging, retries, tests, and exit semantics.
 
@@ -37,7 +35,7 @@ def assess_pod(name: str, ready: bool, restarts: int) -> list[Finding]:
     return findings
 ```
 
-➕ **The full skeleton, wired end to end — every chapter of this volume in one small system, exactly the shape a take-home or live-coding round for this role would expect:**
+**The full skeleton, wired end to end — every chapter of this volume in one small system, exactly the shape a take-home or live-coding round for this role would expect:**
 ```python
 # model.py — Ch2/Ch3/Ch12: typed domain values, pure decisions
 from dataclasses import dataclass
@@ -119,7 +117,7 @@ Notice the exit code contract (0=healthy, 1=warning, 2=critical, 3=tool failure)
 
 **Reasoned conclusion:** A production-quality infrastructure tool is a small system: clear contracts, controlled side effects, observable failure, and testable decisions.
 
-➕ **stdout/stderr separation, made concrete (step 5, worth demonstrating not just stating):**
+**stdout/stderr separation, made concrete (step 5, worth demonstrating not just stating):**
 ```bash
 diag-cli prod > findings.json 2> diag.log     # a CI pipeline can safely `jq` findings.json —
                                                 # log noise on stderr never contaminates it
@@ -131,9 +129,9 @@ This is a small detail with an outsized real-world payoff: mixing logs into stdo
 Recent public material emphasizes that infrastructure work stops being "just a script" when retries, timeouts, observability, approvals, versioning, and failure handling become part of the design. Use that as the quality bar for this capstone: successful happy-path execution is only one requirement.
 [Public source](https://www.linkedin.com/in/vsadhwani)
 
-➕ **Interview framing for the whole capstone:** if asked to build a diagnostic CLI live, narrate the contract *before* writing code — "exit codes mean X/Y/Z, stdout is data, stderr is logs, collection is separate from policy so policy is unit-testable" — stating the design out loud before typing is itself a strong senior signal, independent of how much code you finish in the time given.
+**Interview framing for the whole capstone:** if asked to build a diagnostic CLI live, narrate the contract *before* writing code — "exit codes mean X/Y/Z, stdout is data, stderr is logs, collection is separate from policy so policy is unit-testable" — stating the design out loud before typing is itself a strong senior signal, independent of how much code you finish in the time given.
 
-➕ **Visual model — the capstone is a bounded reconciliation loop:**
+**Visual model — the capstone is a bounded reconciliation loop:**
 ```mermaid
 flowchart TD
     A[CLI args] --> B[Validate]
@@ -144,4 +142,4 @@ flowchart TD
     E --> G[Report + exit code]
     F --> H[Metrics / correlation id]
 ```
-**Memory hook:** *"Collect facts, then decide."* Separating collection from policy is what makes retries, tests, exit codes and future integrations manageable.
+**Key takeaway:** *"Collect facts, then decide."* Separating collection from policy is what makes retries, tests, exit codes and future integrations manageable.

@@ -16,9 +16,9 @@ Use a funnel: business outcome -> workload/SLO -> current state -> constraints -
 | We want Kubernetes | Which existing operational strengths or platform integration drive that choice? |
 | We need low cost | Cost per what outcome—job completion, tokens, request SLO? What utilization/headroom is acceptable? |
 
-## ➕ Additions
+## Worked explanation and practice
 
-➕ **The discovery funnel as a diagram:**
+**The discovery funnel as a diagram:**
 ```mermaid
 flowchart TD
     A["Business outcome (why does this project exist)"]
@@ -30,8 +30,8 @@ flowchart TD
 
     A --> B --> C --> D --> E --> F
 ```
-➕ **Memory hook:** *"BWCCRD — Business, Workload, Current-state, Constraints, Risks, Decision."* The funnel narrows on purpose — never open a discovery call at "Kubernetes or Slurm," always open at "why does this project exist."
+**Key takeaway:** *"BWCCRD — Business, Workload, Current-state, Constraints, Risks, Decision."* The funnel narrows on purpose — never open a discovery call at "Kubernetes or Slurm," always open at "why does this project exist."
 
-➕ **Interview-ready line for the "customer states a premise" trap (the "on-prem because security" example, generalized):**
+**Interview-ready line for the "customer states a premise" trap (the "on-prem because security" example, generalized):**
 > "When a customer states a conclusion — 'we need on-prem,' 'we need Kubernetes,' 'we need 32 GPUs' — I treat it as a data point about their constraints, not a requirement to execute literally. I ask what's behind it before agreeing or pushing back."
 This line works for literally any premature-conclusion statement a customer makes, which is exactly why it's worth having verbatim.

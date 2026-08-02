@@ -11,16 +11,12 @@ source_document: "00_Master_Index.docx"
 
 Fourth Edition curriculum — Senior Engineering Expansion
 
-> **New to one or more domains? Do not begin with the senior deep dives.** Read **[How to use this book: evidence, not proof](./00-how-to-use-this-book-evidence-not-proof.md)** first — it teaches the single habit every chapter depends on. Then, wherever a topic is genuinely new, that volume's opening chapter starts with a **Foundations** section built from zero, in plain language, before flowing straight into the advanced material on the same page — no separate primer volume to jump to and lose your place. The [Foundation learning path](./02-foundation-learning-path.md) is the route map and readiness gates for entering each volume at the right level. Senior professional experience does not imply prior Linux-kernel, Python, NVIDIA GPU, AI/ML, or HPC knowledge.
+> **New to one or more domains?** Read **[How to use this book: evidence, not proof](./00-how-to-use-this-book-evidence-not-proof.md)**, then start with Chapter 1 of the relevant volume. Definitions, worked examples, safe observations and readiness checks now live inside the numbered chapters that own them. Senior professional experience does not imply prior Linux-kernel, Python, NVIDIA GPU, AI/ML or HPC knowledge.
 
 ## How the curriculum is now layered
 
 ```mermaid
 flowchart TD
-    subgraph FB["FOUNDATION BRIDGE"]
-        direction LR
-        FB1[systems language] --> FB2[Python starter lab] --> FB3[AI/GPU/HPC language]
-    end
     subgraph CC["CORE CHAPTERS"]
         direction LR
         CC1[normal path] --> CC2[vocabulary] --> CC3[observation] --> CC4[guided practice]
@@ -33,27 +29,27 @@ flowchart TD
         direction LR
         SD1[architecture] --> SD2[scale] --> SD3[trade-offs] --> SD4[customer/interview scenarios]
     end
-    FB --> CC --> OP --> SD
+    CC --> OP --> SD
 ```
 
-Use the core chapters to learn a technology. Use senior deep dives only after you can explain and observe its normal path. Volume 9 tests communication and Volume 10 integrates many layers; neither should be used as the first explanation of those layers.
+Use each chapter in order: normal path, observation, failure handling, then design and scale. Volume 9 tests communication and Volume 10 integrates many layers; neither should be used as the first explanation of those layers.
 
-### Start with these bridges
-
-Each row below is now ONE chapter, not two — the foundation and the advanced material live on the same page, foundation first.
+### Where to start
 
 | If this feels unfamiliar | Study first |
 |---|---|
-| Processes, memory, files, ports, DNS, systemd, permissions | [Volume 1, Chapter 1](/curriculum/volume-01/chapter-1-processes-threads-cpu-scheduling-and-load) (opens with a Foundations section; compressed reference: [Systems foundation](./03-systems-foundation.md)) |
-| Storage, filesystems, mounts, local vs. shared/network storage | [Volume 1, Chapter 3](/curriculum/volume-01/chapter-3-files-file-descriptors-filesystems-and-block-i-o) (opens with a Foundations section) |
-| Networking: IP, ports, DNS, TCP/UDP, firewalls | [Volume 1, Chapter 4](/curriculum/volume-01/chapter-4-networking-ip-routes-sockets-tcp-dns-nat-and-tls) (opens with a Foundations section; compressed reference: [Systems foundation](./03-systems-foundation.md)) |
-| Python syntax, tracebacks, files, functions, tests | [Volume 2, Chapter 1](/curriculum/volume-02/chapter-1-how-python-actually-executes-your-infrastructure-script) (opens with a Foundations section; hands-on companion: [Python foundation lab](./05-python-foundation-lab.md)) |
-| Containers, Kubernetes objects, reconciliation | [Volume 3, Chapter 1](/curriculum/volume-03/chapter-1-api-server-etcd-and-the-object-model) (opens with a Foundations section) |
-| GPU hardware, CUDA, driver/toolkit layering | [Volume 4, Chapter 1](/curriculum/volume-04/chapter-1-gpu-execution-and-memory-mental-model) (opens with a Foundations section; compressed reference: [AI, GPU and HPC foundation](./04-ai-gpu-hpc-foundation.md)) |
-| Training vs. inference, tokens, model parameters | [Volume 5, Chapter 1](/curriculum/volume-05/chapter-1-classify-the-ai-workload-before-designing-infrastructure) (opens with a Foundations section) |
-| HPC clusters, job schedulers, MPI, why network speed matters more | [Volume 6, Chapter 1](/curriculum/volume-06/chapter-1-distributed-systems-performance-for-gpu-jobs) (opens with a Foundations section; compressed reference: [AI, GPU and HPC foundation](./04-ai-gpu-hpc-foundation.md)) |
-| Linux/cluster security, SELinux/AppArmor, patch risk | [Volume 10, Chapter 3](/curriculum/volume-10/chapter-3-os-provisioning-and-linux-security-hardening) (opens with a Foundations section) |
-| How to choose an order | [Foundation learning path](./02-foundation-learning-path.md) |
+| Processes, memory, files, ports, DNS, systemd, permissions | [Volume 1, Chapter 1](/curriculum/volume-01/chapter-1-processes-threads-cpu-scheduling-and-load) |
+| Storage, filesystems, mounts, local vs. shared/network storage | [Volume 1, Chapter 3](/curriculum/volume-01/chapter-3-files-file-descriptors-filesystems-and-block-i-o) |
+| Networking: IP, ports, DNS, TCP/UDP, firewalls | [Volume 1, Chapter 4](/curriculum/volume-01/chapter-4-networking-ip-routes-sockets-tcp-dns-nat-and-tls) |
+| Python syntax, tracebacks, files, functions, imports, classes and tests | [Volume 2, Chapter 1](/curriculum/volume-02/chapter-1-how-python-actually-executes-your-infrastructure-script), then continue in order |
+| Containers, Kubernetes objects, reconciliation | [Volume 3, Chapter 1](/curriculum/volume-03/chapter-1-api-server-etcd-and-the-object-model) |
+| GPU hardware, CUDA, driver/toolkit layering and NVIDIA products | [Volume 4, Chapter 1](/curriculum/volume-04/chapter-1-gpu-execution-and-memory-mental-model) |
+| Training vs. inference, tokens, tensors and model parameters | [Volume 5, Chapter 1](/curriculum/volume-05/chapter-1-classify-the-ai-workload-before-designing-infrastructure) |
+| HPC clusters, job schedulers, MPI, NCCL and RDMA | [Volume 6, Chapter 1](/curriculum/volume-06/chapter-1-distributed-systems-performance-for-gpu-jobs) |
+| Observability, SLOs and incident evidence | [Volume 7, Chapter 1](/curriculum/volume-07/chapter-1-metrics-logs-and-traces-as-different-evidence) |
+| Discovery, architecture and customer decisions | [Volume 8, Chapter 1](/curriculum/volume-08/chapter-1-discovery-that-changes-the-architecture) |
+| Interview practice | Learn the technology first, then begin [Volume 9, Chapter 1](/curriculum/volume-09/chapter-1-the-answer-framework-expose-your-reasoning) |
+| BMC, BCM, IaC, Slurm and cluster lifecycle | [Volume 10, Chapter 1](/curriculum/volume-10/chapter-1-bare-metal-and-bmc-lifecycle) |
 
 
 <!-- source-table:1 -->

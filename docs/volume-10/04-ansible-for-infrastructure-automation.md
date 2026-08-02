@@ -5,6 +5,118 @@ sidebar_position: 4
 description: "Chapter 4 - Ansible for infrastructure automation — Bare-Metal, HPC Operations and Infrastructure-as-Code."
 source_document: "Authored directly for the JR2018680 gap-coverage volume — no DOCX source."
 ---
+
+## Why infrastructure needs code-like discipline
+
+Imagine configuring ten servers manually. Six months later, nobody can prove whether they are identical, why one firewall rule differs, or how to rebuild after failure. Infrastructure as Code (IaC) stores intended infrastructure in version-controlled definitions so changes can be reviewed, repeated, tested and audited.
+
+IaC does not make changes automatically safe. A repeatable destructive definition is still destructive. Safety comes from ownership boundaries, plans/diffs, tests, controlled credentials, small rollout scope, validation and recovery.
+
+## Provisioning and configuration are related but different
+
+| Concern | Example | Common tool in this volume |
+|---|---|---|
+| Provision infrastructure object | network, VM, IAM role, DNS record | Terraform through a provider API |
+| Configure operating-system state | packages, users, files, services | Ansible over SSH or another connection |
+| Manage bare-metal cluster lifecycle | images, node categories, provisioning | BCM |
+| Schedule workload | allocate nodes/GPUs to jobs | Slurm/Kubernetes |
+
+A tool can overlap these areas, but declare one authoritative owner for each object or field. Two reconcilers changing the same setting create oscillation and confusion.
+
+## Ansible: converge host configuration
+
+Ansible commonly runs from a control node and connects to managed nodes. An **inventory** organizes hosts/groups. A **play** targets hosts. **Tasks** invoke modules. Modules inspect or change state and return structured results. A **handler** runs when notified by a changed task, often to restart/reload a service.
+
+```ini
+# inventory.ini
+[gpu_nodes]
+gpu-01.example.net
+gpu-02.example.net
+```
+
+```yaml
+---
+- name: Configure time synchronization on GPU nodes
+  hosts: gpu_nodes
+  become: true
+  serial: 1
+  tasks:
+    - name: Install chrony
+      ansible.builtin.package:
+        name: chrony
+        state: present
+
+    - name: Deploy chrony configuration
+      ansible.builtin.template:
+        src: chrony.conf.j2
+        dest: /etc/chrony.conf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart chrony
+
+    - name: Ensure chrony is enabled and running
+      ansible.builtin.service:
+        name: chronyd
+        enabled: true
+        state: started
+
+  handlers:
+    - name: Restart chrony
+      ansible.builtin.service:
+        name: chronyd
+        state: restarted
+```
+
+## Idempotency is observed behavior
+
+An operation is idempotent when repeating it with the same desired state does not create unintended additional effects. Many Ansible modules are designed to avoid changes when current state already matches. Shell commands are not automatically idempotent.
+
+Test the claim:
+
+1. run against a disposable target;
+2. inspect `changed` results;
+3. run again unchanged;
+4. expect zero changes for stable state;
+5. inspect service and application outcome;
+6. introduce controlled drift and confirm convergence.
+
+## Check mode, diff mode and their limits
+
+```bash
+ansible-playbook -i inventory.ini site.yml --check --diff --limit gpu-01.example.net
+```
+
+Official Ansible documentation is explicit: check mode is simulation. Modules without support may do nothing/report nothing, and tasks depending on registered results can behave differently. Diff output can expose secrets, so disable it for sensitive tasks and control log access.
+
+Production safety adds:
+
+- syntax/lint/test checks;
+- inventory review;
+- `--limit` or canary group;
+- `serial` rollout and failure threshold;
+- pre/post health checks;
+- scheduler drain before disruptive node work;
+- rollback or previous artifact;
+- clear ownership for secrets and privilege escalation.
+
+## Terraform versus Ansible through one example
+
+Build a cloud GPU worker:
+
+1. Terraform creates network, security identity, instance and DNS through APIs.
+2. Image/bootstrap establishes minimal connectivity and identity.
+3. Ansible configures OS packages, files, users and services—or a golden-image/BCM process owns those instead.
+4. GPU/cluster tooling validates the node and admits it to scheduling.
+
+Terraform should not use endless remote shell provisioners to become an accidental configuration-management system. Ansible should not create every cloud object through ad hoc API shell commands when a provider/state workflow should own them.
+
+## Start here: where Ansible fits
+
+Infrastructure as Code stores intended state in reviewable definitions. Ansible normally configures machines that already exist: it uses an inventory to select hosts, plays to define scope, tasks to call modules, and handlers to restart or reload services after a meaningful change. Terraform normally creates or manages API-backed infrastructure objects; BCM owns bare-metal images and categories; Slurm owns workload allocation. Pick one authoritative owner for each setting so two tools do not fight over the same file or package.
+
+Ansible is valuable because a task can inspect current state and converge it toward the desired state. That is different from a shell script that blindly repeats commands. `--check --diff` is evidence, not a guarantee: modules may have incomplete check-mode support, and a playbook still needs a canary, `serial` rollout, health gate and rollback plan for GPU nodes.
+
 **Learning outcome:** Explain how Ansible's push model, inventory, and idempotency guarantees are used to make configuration changes across a GPU fleet safely and predictably — including why "idempotent" is a claim you verify, not one you assume.
 
 ## Start here — read an Ansible run as a sentence

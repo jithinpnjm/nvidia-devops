@@ -1,8 +1,8 @@
 ---
-title: "Performance and profiling for operational Python"
+title: "Chapter 26 — Performance and profiling for operational Python"
 slug: "performance-and-profiling-for-operational-python"
 sidebar_position: 26
-description: "Performance and profiling for operational Python — Python for Production Infrastructure."
+description: "Chapter 26 — Performance and profiling for operational Python — Python for Production Infrastructure."
 source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 ---
 Do not optimize syntax before measuring. First identify whether time is spent in Python CPU, remote I/O, serialization, subprocess startup, regex, filesystem traversal or retries. cProfile gives function-level CPU time; tracemalloc helps find Python allocation growth; py-spy can sample a running process with low intrusion; line\_profiler is useful for CPU-heavy functions. For large log/data processing, generators and streaming parsers reduce memory footprint more reliably than micro-optimizing loops.
@@ -14,9 +14,9 @@ python -X tracemalloc=25 -m fleetcheck.cli report
 # external sampler if available:
 py-spy top --pid &lt;PID>
 
-## Senior addendum
+## Build from the normal path
 
-➕ **The profiling decision tree, made explicit (the text names four tools — here's when to reach for each):**
+**The profiling decision tree, made explicit (the text names four tools — here's when to reach for each):**
 ```mermaid
 flowchart TD
     A{What's the symptom?}
@@ -27,7 +27,7 @@ flowchart TD
 ```
 **py-spy is the one worth remembering first** for this role specifically — it attaches to a running process without needing to modify code or restart anything, which is exactly the constraint you're under when triaging a live, expensive, GPU-attached production job that you cannot afford to restart just to profile it.
 
-➕ **Sample `cProfile` output and the one column to actually look at first:**
+**Sample `cProfile` output and the one column to actually look at first:**
 ```
 $ python -m cProfile -s cumulative -m fleetcheck.cli report
    ncalls  tottime  percall  cumtime  percall filename:lineno(function)
@@ -44,7 +44,7 @@ $ python -m cProfile -s cumulative -m fleetcheck.cli report
 
 **Python documentation:** [https://docs.python.org/3/](https://docs.python.org/3/) — Language/runtime authority for subprocess, logging, concurrency, typing, packaging and standard-library behavior.
 
-➕ **Visual model — profile before changing the shape of the system:**
+**Visual model — profile before changing the shape of the system:**
 ```mermaid
 flowchart TD
     A[user symptom] --> B[representative workload] --> C["measure wall time / CPU / allocations"]
@@ -52,4 +52,4 @@ flowchart TD
     C --> E[I/O wait] --> H[bound/concurrent]
     C --> F[allocation churn] --> I[reduce copies]
 ```
-**Memory hook:** *"Measure the waiting, not just the work."* Optimizing a function cannot fix a remote API, lock, or storage wait that dominates elapsed time.
+**Key takeaway:** *"Measure the waiting, not just the work."* Optimizing a function cannot fix a remote API, lock, or storage wait that dominates elapsed time.

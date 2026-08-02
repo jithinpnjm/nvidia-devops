@@ -5,33 +5,46 @@ sidebar_position: 1
 description: "Book map — Python for Production Infrastructure."
 source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 ---
+
+## Guided progression from script to tool
+
+1. hard-coded values and pure decision;
+2. JSON/file input with validation;
+3. clear errors and exit codes;
+4. structured logging;
+5. one HTTP/subprocess adapter with timeout;
+6. unit tests around decisions and boundary tests around effects;
+7. CLI arguments and project packaging;
+8. bounded concurrency only after the sequential path works;
+9. CI checks and artifact/version release.
+
+The local SRE repository contains useful progressive exercises in `interview-prep/hands-on-labs/python/`; the Staff guide's `scripting-python_consolidated.md` provides broader operational patterns. Use them as practice after the mechanism is understood.
+
+## A practical reading method for every code block
+
+For each unfamiliar example, annotate it yourself:
+
+1. What enters this line?
+2. What type and value leave it?
+3. Is it a decision, a record, or an external effect?
+4. What fails, and does the caller see the failure?
+5. Could the code be tested without a live cluster?
+
+Then run the smallest example locally, change one input, and predict the output before executing it. This turns syntax into a working model.
+
 **VOLUME 2**
 
 **Python for Production Infrastructure**
 
 From scripting syntax to reliable infrastructure tooling
 
-> **Prerequisite check:** If variables, `if`, loops, functions, tracebacks, JSON files, the main guard, or exit codes are not yet comfortable, complete the [Python foundation lab](../intro/05-python-foundation-lab.md) first. This volume should deepen a working beginner model, not force you to learn syntax and production design simultaneously.
+> **Start here:** If variables, `if`, loops, functions, tracebacks, JSON files, the main guard, or exit codes are unfamiliar, begin with Chapter 1. Its guided health-check lab is now part of the chapter, so you can learn the syntax and immediately run it.
 
-## A gentler three-stage route
+## How to study this volume
 
-### Stage 1 — become comfortable writing small programs
+Begin with Chapter 1 and run every example. Chapters 1–4 establish values, control flow, data structures, functions, files, and parsing; build a small JSON inventory checker before moving on. Chapters 5–8 then add the boundaries that make automation real—exceptions, cleanup, logs, subprocesses, HTTP, credentials, timeouts, and retries. Chapters 9–14 introduce classes, generators, decorators, concurrency, typing, tests, packaging, CI/CD, and the cluster-diagnostics capstone only after those boundaries give the code enough complexity to justify them.
 
-Complete the foundation lab, then Chapters 1–4. Run every example and change one input. Your goal is to predict behavior, read errors, and separate data from decisions—not to memorize Python terminology.
-
-**Gate:** Build a script that reads a JSON inventory, classifies each node, prints a result, and returns a documented exit code.
-
-### Stage 2 — cross operational boundaries safely
-
-Study Chapters 5–8: exceptions, resource cleanup, logging, subprocess, and HTTP. These chapters teach what happens when code touches files, processes, networks, credentials, and unreliable external systems.
-
-**Gate:** For each external operation, identify timeout, expected failure types, retry policy, sensitive data, observable log fields, and exit behavior.
-
-### Stage 3 — make the tool maintainable and production-ready
-
-Study Chapters 9–14, then the capstone. Classes, generators, decorators, concurrency, typing, tests, packaging, and CI/CD are introduced because the tool now has enough complexity to need them. Do not add them merely to appear advanced.
-
-**Gate:** Another engineer can install the tool, understand its CLI, run tests, diagnose a failure from logs, and modify one rule without invoking a real cluster.
+At each step, change an input, predict the result, and deliberately break one assumption. Move on when you can explain the failure, return a useful exit code, and keep the next chapter's example small enough to test without a cluster.
 
 
 <!-- source-table:1 -->
@@ -51,14 +64,14 @@ Independent study guide based on public documentation and public practitioner ma
 
 | Part | What you learn | What you build |
 | --- | --- | --- |
-| 0. Beginner bridge | values, decisions, loops, functions, files, tracebacks, tests | one safe node-health script |
-| I. Python mental model | references, mutability, execution, functions | small inventory and log tools |
+| 0. Getting started | values, decisions, loops, functions, files, tracebacks, tests | one safe node-health script |
+| I. Python execution and design | references, mutability, execution, functions | small inventory and log tools |
 | II. Infrastructure I/O | files, regex, JSON/YAML, environment, subprocess | config reader and diagnostics runner |
 | III. Reliability | exceptions, logging, APIs, retries | resilient API client |
 | IV. Design | OOP, generators, decorators, typing, concurrency | maintainable automation library |
 | V. Quality & delivery | pytest, mocking, packaging, CLI, CI/CD | production-style diagnostic CLI |
 
-➕ **Visual map — the volume grows one operational boundary at a time:**
+**Visual map — the volume grows one operational boundary at a time:**
 ```mermaid
 flowchart LR
     A["Python model (Ch1-3)"] --> B["local data (Ch4)"]
@@ -67,4 +80,4 @@ flowchart LR
     D --> E["concurrent work (Ch11)"]
     E --> F["tested delivery (Ch12-14)"]
 ```
-**Memory hook:** *"Make it correct, make it resilient, then make it operable."* Every later chapter adds a boundary around the code from the earlier one.
+**Key takeaway:** *"Make it correct, make it resilient, then make it operable."* Every later chapter adds a boundary around the code from the earlier one.

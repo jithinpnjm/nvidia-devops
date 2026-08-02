@@ -6,9 +6,20 @@ description: "Chapter 10 - Generators and decorators without magic — Python fo
 source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 ---
 
-*(original text preserved in full; ➕ marks additions)*
+## Decorators and context managers without mystery
 
-## Foundations: start here if this is new to you
+`@dataclass` and `@retry(...)` are decorators: functions that receive a function or class and return a modified/replaced version. They are useful for cross-cutting behavior, but they can hide control flow. Read the undecorated object first, then ask what the decorator adds.
+
+```python
+from contextlib import closing
+
+with closing(open("report.txt", encoding="utf-8")) as report:
+    first_line = report.readline()
+```
+
+The `with` block guarantees cleanup when the block exits normally or raises. Use it for files, locks, temporary resources, and network sessions. Do not use a context manager just to make a short block look sophisticated.
+
+## Start with the basics
 
 **The problem, in plain terms.** Say you need to process a log file that's 10 gigabytes on disk. If you write a function that reads the whole thing and returns a list of every line, that list has to fit in memory before you can even start looking at the first line. You want to process one item, then the next, then the next — without ever holding "all of it" in memory at once.
 
@@ -97,7 +108,7 @@ def timed(func):
 ```
 functools.wraps copies important metadata such as __name__ and __doc__. Without it, tooling and debugging may report the wrapper rather than the wrapped function. A production decorator should also preserve exceptions unless it has a deliberate policy for translating or retrying them.
 
-➕ **Prove the `@wraps` point with actual output — this is a real "what does this print and why" interview question:**
+**Prove the `@wraps` point with actual output — this is a real "what does this print and why" interview question:**
 ```python
 @timed
 def check_disk(): """Checks disk health."""; return True
@@ -107,7 +118,7 @@ print(check_disk.__doc__)    # with @wraps: "Checks disk..." | without @wraps: N
 ```
 Without `@wraps`, every function you decorate silently loses its identity to debuggers, `help()`, and any tooling that introspects `__name__` (including some test frameworks) — a subtle bug that's invisible until something downstream breaks mysteriously.
 
-➕ **A decorator that composes with the retry logic from Chapter 8 — turning the whole retry loop into one reusable line:**
+**A decorator that composes with the retry logic from Chapter 8 — turning the whole retry loop into one reusable line:**
 ```python
 from functools import wraps
 import time, random
@@ -137,12 +148,12 @@ This is the exact "why do decorators matter" answer: Chapter 8's whole retry fun
 2. Write a decorator that rejects calls when a required environment variable is absent.
 3. Explain why a generator is usually preferable to returning a 10-million-element list.
 
-➕ 4. Write the `@wraps` before/after demo above yourself and run it — this is exactly the kind of "predict the output" question asked live in coding interviews.
+4. Write the `@wraps` before/after demo above yourself and run it — this is exactly the kind of "predict the output" question asked live in coding interviews.
 
 ## Targeted references
 [Udemy - Python for DevOps](https://www.udemy.com/course/python-devops) - Relevant lessons: Generator syntax; The yield statement; State in generators; Coding lazy pipelines; Introduction to decorators; functools.wraps; RBAC Decorator Factory exercise.
 
-➕ **Visual model — generators pull; decorators wrap:**
+**Visual model — generators pull; decorators wrap:**
 ```mermaid
 flowchart LR
     subgraph Gen["Generators pull"]
@@ -160,4 +171,4 @@ flowchart LR
         After --> Result[result]
     end
 ```
-**Memory hook:** *"`yield` pauses production; a decorator adds a boundary."* Both preserve a small, composable unit of work instead of materializing or duplicating the whole workflow.
+**Key takeaway:** *"`yield` pauses production; a decorator adds a boundary."* Both preserve a small, composable unit of work instead of materializing or duplicating the whole workflow.
