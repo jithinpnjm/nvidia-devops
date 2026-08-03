@@ -409,7 +409,7 @@ The `D` line is the one that fools people: 0% CPU looks "fine" in a CPU-only das
 ➕ **Process state machine (what actually drives the transitions):**
 ```mermaid
 flowchart TD
-    Start([fork()/clone()]) --> Runnable["Runnable (R)"]
+    Start(["fork()/clone()"]) --> Runnable["Runnable (R)"]
     Runnable -->|scheduled on CPU| Running["Running (R)"]
     Running -->|preempted/quantum expired| Runnable
     Running -->|"blocking syscall (read, futex, wait)"| Dstate["D-state (uninterruptible I/O)"]
