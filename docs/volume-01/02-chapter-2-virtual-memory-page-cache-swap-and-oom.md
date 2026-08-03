@@ -26,14 +26,12 @@ flowchart LR
 `VmSize` = total virtual space reserved (can be huge — 64-bit processes routinely reserve terabytes they never touch; this number alone means almost nothing). `VmRSS` = actually resident pages. `RssAnon` = anonymous memory (heap/stack — this is "your" memory). `RssFile` = mapped file pages (often page cache — shared, reclaimable, not really "yours" to worry about).
 
 ➕ **Sample output and the read:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ cat /proc/8842/status | egrep 'VmRSS|VmSize|RssAnon|RssFile'"]
-  n1["VmSize: 8421604 kB ← 8GB reserved — means little alone"]
-  n2["VmRSS: 412300 kB ← 412MB actually resident"]
-  n3["RssAnon: 380120 kB ← ~380MB is real heap/stack usage"]
-  n4["RssFile: 32180 kB ← ~32MB is mapped files (often shared, reclaimable)"]
+```bash
+$ cat /proc/8842/status | egrep 'VmRSS|VmSize|RssAnon|RssFile'
+VmSize: 8421604 kB ← 8GB reserved — means little alone
+VmRSS: 412300 kB ← 412MB actually resident
+RssAnon: 380120 kB ← ~380MB is real heap/stack usage
+RssFile: 32180 kB ← ~32MB is mapped files (often shared, reclaimable)
 ```
 If asked "why is `VmSize` 20x `VmRSS`" in an interview, the answer is: lazy allocation. `malloc`/`mmap` reserve address space; physical pages are only committed on first touch (demand paging) — that gap is normal, not a leak.
 
@@ -99,15 +97,13 @@ cat /sys/fs/cgroup/memory.events
 | Kubelet soft eviction | node crosses eviction thresholds (`memory.available<...`) *before* hard OOM | Pod `Evicted` status, graceful-ish, kubelet-initiated | kubelet, using QoS class ranking (BestEffort evicted first) |
 
 ➕ **Sample `memory.events` and the field that actually proves cgroup OOM occurred:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ cat /sys/fs/cgroup/kubepods/.../memory.events"]
-  n1["low 0"]
-  n2["high 0"]
-  n3["max 14 ← hit memory.max 14 times — throttled/reclaimed under pressure, didn't die yet"]
-  n4["oom 1 ← this is the smoking gun: cgroup OOM killer fired once"]
-  n5["oom_kill 1 ← and it actually killed a process (not just invoked, but a kill happened)"]
+```bash
+$ cat /sys/fs/cgroup/kubepods/.../memory.events
+low 0
+high 0
+max 14 ← hit memory.max 14 times — throttled/reclaimed under pressure, didn't die yet
+oom 1 ← this is the smoking gun: cgroup OOM killer fired once
+oom_kill 1 ← and it actually killed a process (not just invoked, but a kill happened)
 ```
 `max` counting up without `oom_kill` incrementing means the workload is being pressured (reclaimed hard) but hasn't died — a leading indicator worth alerting on *before* the actual kill, if you want early warning instead of a postmortem.
 

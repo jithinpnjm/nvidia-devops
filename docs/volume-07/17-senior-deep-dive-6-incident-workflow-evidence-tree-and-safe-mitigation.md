@@ -29,18 +29,9 @@ Separate mitigation from root cause. Draining a node, rolling back a release or 
 
 ➕ **Visual model — an evidence tree closes only when the symptom metric recovers:**
 ```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["symptom"]
-  n1["scope"]
-  n2["hypotheses"]
-  n3["discriminating evidence"]
-  n4["reversible mitigation"]
-  n5["reject branches with evidence"]
-  n6["original SLI / error / latency back to baseline?"]
-  n0 --> n1
-  n1 --> n2
-  n2 --> n3
-  n3 --> n4
+flowchart TD
+  Symptom["symptom"] --> Scope["scope"] --> Hypotheses["hypotheses"] --> Evidence["discriminating evidence"]
+  Evidence --> Reject["reject branches with evidence"] --> Hypotheses
+  Evidence --> Mitigation["reversible mitigation"] --> Baseline{"original SLI / error / latency back to baseline?"}
 ```
 **Memory hook:** *"Mitigate the impact, then prove the mechanism."*

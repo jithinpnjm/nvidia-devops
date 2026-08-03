@@ -19,36 +19,32 @@ A good alert tells the responder what is broken, scope, severity and where to be
 | Disk 70% | At current growth, when will capacity breach safe threshold? |
 
 ➕ **Multi-window burn-rate alerting, worked with real numbers (the mechanism behind "detect fast and slow SLO consumption"):**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["SLO: 99.9% (0.1% error budget) over 30 days"]
-  n1["Fast-burn window: 1 hour | Slow-burn window: 6 hours"]
-  n2["Fast-burn threshold: burning budget 14.4x normal rate (exhausts a 30-day budget in ~1 day if sustained)"]
-  n3["Slow-burn threshold: burning budget 6x normal rate (exhausts a 30-day budget in ~5 days if sustained)"]
-  n4["fast_burn_rate = error_ratio_1h / 0.001"]
-  n5["slow_burn_rate = error_ratio_6h / 0.001"]
-  n6["ALERT: fast_burn_rate > 14.4 AND slow_burn_rate > 6 ← page immediately, high confidence + fast"]
-  n7["ALERT: slow_burn_rate > 6 AND fast_burn_rate < 14.4 ← ticket/lower urgency, sustained but not acute"]
+```text
+SLO: 99.9% (0.1% error budget) over 30 days
+Fast-burn window: 1 hour | Slow-burn window: 6 hours
+Fast-burn threshold: burning budget 14.4x normal rate (exhausts a 30-day budget in ~1 day if sustained)
+Slow-burn threshold: burning budget 6x normal rate (exhausts a 30-day budget in ~5 days if sustained)
+fast_burn_rate = error_ratio_1h / 0.001
+slow_burn_rate = error_ratio_6h / 0.001
+ALERT: fast_burn_rate > 14.4 AND slow_burn_rate > 6 ← page immediately, high confidence + fast
+ALERT: slow_burn_rate > 6 AND fast_burn_rate < 14.4 ← ticket/lower urgency, sustained but not acute
 ```
 The reason for the AND-of-two-windows structure: a short window alone is noisy (a 2-minute blip trips it and pages someone for nothing); a long window alone is slow (by the time a 6-hour average notices, you've already burned hours of budget). Requiring both windows to agree is what makes the alert both *fast* and *precise* — this two-window pattern is Google SRE's published methodology and is worth citing by name.
 
 ➕ **Diagram: fast/slow burn-rate windows plotted together — why BOTH must agree before paging**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["error ratio"]
-  n1["0.018 ╭ ╮ ← 1h window: spikes fast, also noisy"]
-  n2["╱ ╲"]
-  n3["0.007 ╭ ╱ ╲ ← 6h window: smooth, slower to react"]
-  n4["╱"]
-  n5["0.001 ┼ ← SLO budget line (0.1%)"]
-  n6["time"]
-  n7["6h window crosses 1h window crosses"]
-  n8["threshold here threshold here (later"]
-  n9["(slow, confirms start, but both are"]
-  n10["it's sustained) above threshold NOW)"]
-  n11["both true at this point = PAGE"]
+```text
+error ratio
+0.018 ╭ ╮ ← 1h window: spikes fast, also noisy
+╱ ╲
+0.007 ╭ ╱ ╲ ← 6h window: smooth, slower to react
+╱
+0.001 ┼ ← SLO budget line (0.1%)
+time
+6h window crosses 1h window crosses
+threshold here threshold here (later
+(slow, confirms start, but both are
+it's sustained) above threshold NOW)
+both true at this point = PAGE
 ```
 A 1h-only alert would have paged at the first spike, possibly on noise; a 6h-only alert would page hours later. Requiring both windows above their respective thresholds *at the same time* is what the AND in the fast/slow rule above encodes — precision from the slow window, speed from the fast window.
 

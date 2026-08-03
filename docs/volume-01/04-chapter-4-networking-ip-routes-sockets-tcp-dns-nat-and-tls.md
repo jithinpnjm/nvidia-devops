@@ -203,17 +203,14 @@ ip neigh
 ```
 
 ➕ **Longest-prefix match, worked with real numbers (this is the mechanism, not just the term):**
-```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["Routing table"]
-  n1["10.20.0.0/16 via eth0 (matches 10.20.30.40 — 16 bits match)"]
-  n2["10.20.30.0/24 via eth1 (matches 10.20.30.40 — 24 bits match, MORE specific)"]
-  n3["0.0.0.0/0 via eth0 (default — matches everything, LEAST specific)"]
-  n4["Destination 10.20.30.40"]
-  n5["kernel picks the /24 route (eth1), not the /16 or default,"]
-  n6["because 24 matching bits beats 16, which beats 0."]
-  n4 --> n5
+```text
+Routing table
+10.20.0.0/16 via eth0 (matches 10.20.30.40 — 16 bits match)
+10.20.30.0/24 via eth1 (matches 10.20.30.40 — 24 bits match, MORE specific)
+0.0.0.0/0 via eth0 (default — matches everything, LEAST specific)
+Destination 10.20.30.40
+kernel picks the /24 route (eth1), not the /16 or default,
+because 24 matching bits beats 16, which beats 0.
 ```
 `ip route get 10.20.30.40` doesn't just show a route — it shows which one actually wins, including the source IP the kernel would use — this is the single fastest way to prove "the packet would even leave via the interface you think it would" before touching `tcpdump`.
 
@@ -294,19 +291,17 @@ tcpdump -ni any 'host 203.0.113.10 and port 443'
 ```
 
 ➕ **Annotated `curl -v` output — this is the single highest-value diagnostic trace to have memorized, phase by phase:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["* Trying 203.0.113.10:443... ← DNS resolved, attempting TCP connect"]
-  n1["* Connected to api.example.com (203.0.113.10) port 443 ← TCP handshake succeeded (Ch4.2 done)"]
-  n2["* TLS handshake, Client hello (1): ← now entering TLS phase"]
-  n3["* TLS handshake, Server hello (2)"]
-  n4["* TLS handshake, Certificate (11)"]
-  n5["* SSL certificate verify ok. ← TLS trust chain validated"]
-  n6["* using HTTP/2"]
-  n7["> GET /health HTTP/2 ← request sent"]
-  n8["< HTTP/2 503 ← ← THIS is the actual failure — everything below TCP/TLS worked"]
-  n9["< retry-after: 30"]
+```text
+* Trying 203.0.113.10:443... ← DNS resolved, attempting TCP connect
+* Connected to api.example.com (203.0.113.10) port 443 ← TCP handshake succeeded (Ch4.2 done)
+* TLS handshake, Client hello (1): ← now entering TLS phase
+* TLS handshake, Server hello (2)
+* TLS handshake, Certificate (11)
+* SSL certificate verify ok. ← TLS trust chain validated
+* using HTTP/2
+> GET /health HTTP/2 ← request sent
+< HTTP/2 503 ← ← THIS is the actual failure — everything below TCP/TLS worked
+< retry-after: 30
 ```
 **Interview-ready framing:** every line above is a proof point for one layer. A `curl -v` that dies after "Trying..." = routing/firewall (Ch4.1). Dies after "Connected" but before TLS completes = TLS/cert issue, not network. Completes TLS but returns 503 = the network stack is entirely exonerated — it's an application-layer problem now, stop looking at `tcpdump`.
 
@@ -329,19 +324,14 @@ A `ClusterIP` is not a listening process — it's a set of DNAT rules (or ipvs v
 
 ➕ **Full hop-by-hop trace of `curl service-name:80` inside a pod — the synthesis exercise tying this whole chapter together:**
 ```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["1. DNS: CoreDNS resolves service-name.namespace.svc.cluster.local"]
-  n1["ClusterIP [4.3]"]
-  n2["2. Routing: pod's route table sends ClusterIP traffic out its veth to the node [4.1]"]
-  n3["3. NAT: node's iptables/ipvs DNAT-rewrites ClusterIP"]
-  n4["a real pod IP [4.4]"]
-  n5["4. ARP/L2: if destination pod is same-subnet, ARP resolves the next hop [Ch1 tie-in]"]
-  n6["5. TCP: 3-way handshake to the real pod IP/port [4.2]"]
-  n7["6. TLS: if HTTPS, certificate/SNI validation [4.4]"]
-  n8["7. HTTP: application-layer response, only now is a 503 'the app's fault' [4.4]"]
-  n0 --> n1
-  n3 --> n4
+flowchart TD
+  DNS["1. DNS: CoreDNS resolves service-name.namespace.svc.cluster.local → ClusterIP [4.3]"]
+  DNS --> Route["2. Routing: the Pod route table sends ClusterIP traffic through its veth to the node [4.1]"]
+  Route --> NAT["3. NAT: node iptables/IPVS DNAT-rewrites ClusterIP → real Pod IP [4.4]"]
+  NAT --> L2["4. ARP/L2: for a same-subnet destination Pod, ARP resolves the next hop [Ch1 tie-in]"]
+  L2 --> TCP["5. TCP: three-way handshake to the real Pod IP and port [4.2]"]
+  TCP --> TLS["6. TLS, when HTTPS: certificate and SNI validation [4.4]"]
+  TLS --> HTTP["7. HTTP: application response; only now is a 503 the application's fault [4.4]"]
 ```
 This exact 7-step trace, said out loud without hesitation, is close to a complete answer to "explain how a Service routes traffic" for a Senior SA interview.
 

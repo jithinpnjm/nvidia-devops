@@ -77,28 +77,26 @@ flowchart LR
 > **Interview-ready line:** "Time-slicing optimizes for average utilization; MIG optimizes for worst-case tenant isolation — 'hollow GPU' is what you get when you pick the first for workloads that actually needed the second."
 
 ➕ **Annotated real output — proving which sharing mode is active on a node, and MPS's cooperative-isolation signature:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ nvidia-smi -q -d MIG | grep -A2 'MIG Mode'"]
-  n1["MIG Mode"]
-  n2["Current : Enabled"]
-  n3["Pending : Enabled"]
-  n4["← confirms MIG is active; compare against Chapter 4's resource-name check"]
-  n5["$ nvidia-smi mig -lgi"]
-  n6["+-------------------------------------------------+"]
-  n7["| GPU instance profiles: |"]
-  n8["| GPU Name Profile ID Instances Free/Total|"]
-  n9["| 0 MIG 3g.40gb 9 1/1 |"]
-  n10["| 0 MIG 1g.10gb 19 2/2 |"]
-  n11["← hardware slice inventory; matches the LLM/ASR/TTS split above"]
-  n12["$ ps -ef | grep nvidia-cuda-mps"]
-  n13["root 18422 1 0 09:12 ? nvidia-cuda-mps-control -d"]
-  n14["root 18430 18422 2 09:12 ? nvidia-cuda-mps-server"]
-  n15["← MPS server proc — every CUDA process on this GPU now routes context"]
-  n16["creation through this single server, which is HOW MPS achieves"]
-  n17["concurrent execution without per-process context-switch overhead,"]
-  n18["and WHY one misbehaving client can still affect the shared server"]
+```bash
+$ nvidia-smi -q -d MIG | grep -A2 'MIG Mode'
+MIG Mode
+Current : Enabled
+Pending : Enabled
+← confirms MIG is active; compare against Chapter 4's resource-name check
+$ nvidia-smi mig -lgi
++-------------------------------------------------+
+| GPU instance profiles: |
+| GPU Name Profile ID Instances Free/Total|
+| 0 MIG 3g.40gb 9 1/1 |
+| 0 MIG 1g.10gb 19 2/2 |
+← hardware slice inventory; matches the LLM/ASR/TTS split above
+$ ps -ef | grep nvidia-cuda-mps
+root 18422 1 0 09:12 ? nvidia-cuda-mps-control -d
+root 18430 18422 2 09:12 ? nvidia-cuda-mps-server
+← MPS server proc — every CUDA process on this GPU now routes context
+creation through this single server, which is HOW MPS achieves
+concurrent execution without per-process context-switch overhead,
+and WHY one misbehaving client can still affect the shared server
 ```
 
 ➕ **Shortcut — mnemonic for choosing a sharing mode under interview time pressure:**

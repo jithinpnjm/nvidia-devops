@@ -40,14 +40,8 @@ A benchmark report missing any row above is not yet a "production" benchmark by 
 ➕ **Visual model — benchmark from workload shape to a decision:**
 ```mermaid
 flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["representative trace"]
-  n1["controlled configuration"]
-  n2["warm + cold runs"]
-  n3["TTFT / ITL / throughput / cost"]
-  n4["prompt/output mix GPU, model, cache repeat + tail percentiles recommendation + caveat"]
-  n0 --> n1
-  n1 --> n2
-  n2 --> n3
+  Trace["representative trace"] --> Config["controlled configuration"] --> Runs["warm + cold runs"]
+  Runs --> Metrics["TTFT / ITL / throughput / cost"]
+  Metrics --> Result["prompt/output mix · GPU/model/cache · repeat + tail percentiles · recommendation + caveat"]
 ```
 **Memory hook:** *"A peak number is a property of a test; a decision needs a workload."* Preserve the inputs and the state so another team can reproduce the claim.

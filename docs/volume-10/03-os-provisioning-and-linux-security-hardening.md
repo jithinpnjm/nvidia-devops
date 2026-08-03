@@ -282,14 +282,12 @@ A hardening pass (whether run via a CIS benchmark tool, OpenSCAP, or a bespoke A
 - **auditd** — rule sets watching identity/privilege files (`/etc/passwd`, `/etc/shadow`, `/etc/sudoers`), privileged command execution, and (per compliance regime) file access to sensitive data paths. `auditctl -l` shows the currently loaded rule set.
 
 Annotated `auditctl -l` fragment:
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ auditctl -l"]
-  n1["w /etc/passwd -p wa -k identity"]
-  n2["w /etc/shadow -p wa -k identity"]
-  n3["w /etc/sudoers -p wa -k identity"]
-  n4["a always,exit -F arch=b64 -S execve -F euid=0 -k root_exec ← every root-executed syscall logged"]
+```bash
+$ auditctl -l
+w /etc/passwd -p wa -k identity
+w /etc/shadow -p wa -k identity
+w /etc/sudoers -p wa -k identity
+a always,exit -F arch=b64 -S execve -F euid=0 -k root_exec ← every root-executed syscall logged
 ```
 `-k identity` and `-k root_exec` are audit *keys* — labels that let `ausearch -k identity` pull exactly the relevant subset out of a large audit log instead of grepping raw text, which matters once a node has been running long enough to accumulate a genuinely large `audit.log`.
 

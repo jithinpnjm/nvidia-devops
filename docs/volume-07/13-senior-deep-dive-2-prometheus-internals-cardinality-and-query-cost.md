@@ -30,12 +30,10 @@ Your Staff Engineer guide already emphasizes Prometheus data model, PromQL, fede
 See Chapter 3's addendum for: the step-by-step PromQL evaluation walkthrough, the cardinality-explosion worked scenario (`request_id` as a label), and the `histogram_quantile` mechanics. The one genuinely new point here: ➕ **recording rules trade write-time cost for read-time cost** — a recording rule precomputes an expensive expression on ingest so dashboards querying it are cheap reads instead of expensive aggregations recomputed on every page load. The operational question this Deep Dive adds beyond Ch.3: *"what failure will this metric distinguish"* — a metric or recording rule that can't change a diagnosis or capacity decision is cost without value, which is the same discipline as Ch.6's "don't log four times" applied to the metrics plane instead of logs.
 
 ➕ **Visual model — cardinality is a multiplication, not a label count:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["metric name × service × region × pod × user/request id = time series stored and queried"]
-  n1["unbounded label: explosion"]
-  n2["bounded operational dimensions: useful filters"]
-  n3["recording rule: spend compute once on ingest, read cheaply many times"]
+```text
+metric name × service × region × pod × user/request id = time series stored and queried
+unbounded label: explosion
+bounded operational dimensions: useful filters
+recording rule: spend compute once on ingest, read cheaply many times
 ```
 **Memory hook:** *"Labels are an index; every index has a bill."*

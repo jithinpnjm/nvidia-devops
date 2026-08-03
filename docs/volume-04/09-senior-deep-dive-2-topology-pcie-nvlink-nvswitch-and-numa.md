@@ -33,16 +33,14 @@ GPU3  NS   NS    OK     X
 `OK` means direct peer-to-peer memory access (CUDA P2P) is supported between that pair; `NS` means Not Supported for direct P2P — traffic must route through the host (or, on NVSwitch systems, through the switch fabric instead of failing entirely). This is a **narrower, P2P-specific** check than the general `topo -m` NV/PHB/SYS matrix — a pair can show `SYS` in `topo -m` (no NVLink, crosses NUMA) and still show `NS` here for a different, additive reason (e.g. virtualization or IOMMU grouping blocking P2P even where physically wired). Run both; they answer related but distinct questions.
 
 ➕ **`nvidia-smi nvlink --status` — the per-link health check Deep Dive 2 lists that neither Chapter 2 nor the topo matrix covers, annotated:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ nvidia-smi nvlink --status -i 0"]
-  n1["GPU 0: NVIDIA H100 80GB HBM3"]
-  n2["Link 0: 26.562 GB/s"]
-  n3["Link 1: 26.562 GB/s"]
-  n4["..."]
-  n5["Link 11: 0 GB/s ← a link reporting 0 GB/s that should be active is a hardware/cabling fault,"]
-  n6["not a topology-configuration issue — this is health evidence, not placement evidence"]
+```bash
+$ nvidia-smi nvlink --status -i 0
+GPU 0: NVIDIA H100 80GB HBM3
+Link 0: 26.562 GB/s
+Link 1: 26.562 GB/s
+...
+Link 11: 0 GB/s ← a link reporting 0 GB/s that should be active is a hardware/cabling fault,
+not a topology-configuration issue — this is health evidence, not placement evidence
 ```
 `topo -m` tells you the *intended* wiring; `nvlink --status` tells you whether each link is *actually* passing traffic at expected bandwidth right now — a down link changes the effective topology at runtime without changing what `topo -m` reports, which is why both commands belong in the same triage, not just one.
 

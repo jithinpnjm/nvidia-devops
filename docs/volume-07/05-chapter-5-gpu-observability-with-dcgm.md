@@ -20,18 +20,16 @@ A public post illustrates the distinction between DCGM hardware metrics and infe
 [Public source](https://www.linkedin.com/posts/sagar-s-desai_kubernetes-gpu-nvidia-activity-7413160079337684992-fOZI)
 
 ➕ **Sample DCGM Exporter Prometheus output, annotated field by field — the metric set worth having memorized:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ curl -s http://localhost:9400/metrics | grep -E 'DCGM_FI_DEV' | grep gpu='0'"]
-  n1["DCGM_FI_DEV_GPU_UTIL{gpu='0',UUID='GPU-a1b2...',Hostname='gpu-node-07',pod='train-job-0',namespace='ml'} 97"]
-  n2["DCGM_FI_DEV_FB_USED{gpu='0',UUID='GPU-a1b2...',pod='train-job-0'} 38214 ← MiB of framebuffer (device memory) used"]
-  n3["DCGM_FI_DEV_FB_FREE{gpu='0',UUID='GPU-a1b2...',pod='train-job-0'} 2136 ← only ~2GB headroom left on an 80GB A100 slice"]
-  n4["DCGM_FI_DEV_GPU_TEMP{gpu='0',UUID='GPU-a1b2...',pod='train-job-0'} 79 ← °C, within normal range (<85 typical throttle point)"]
-  n5["DCGM_FI_DEV_POWER_USAGE{gpu='0',UUID='GPU-a1b2...',pod='train-job-0'} 385.4 ← watts, near TDP — GPU is genuinely working, not idling"]
-  n6["DCGM_FI_DEV_SM_CLOCK{gpu='0',UUID='GPU-a1b2...',pod='train-job-0'} 1410 ← MHz; compare to rated boost clock to spot throttling"]
-  n7["DCGM_FI_DEV_XID_ERRORS{gpu='0',UUID='GPU-a1b2...',pod='train-job-0'} 0 ← 0 is what you want; nonzero means driver-level fault events"]
-  n8["DCGM_FI_DEV_ECC_DBE_VOL_TOTAL{gpu='0',UUID='GPU-a1b2...',pod='train-job-0'} 0 ← uncorrectable ECC errors; nonzero = hardware memory fault, not software"]
+```bash
+$ curl -s http://localhost:9400/metrics | grep -E 'DCGM_FI_DEV' | grep gpu='0'
+DCGM_FI_DEV_GPU_UTIL{gpu='0',UUID='GPU-a1b2...',Hostname='gpu-node-07',pod='train-job-0',namespace='ml'} 97
+DCGM_FI_DEV_FB_USED{gpu='0',UUID='GPU-a1b2...',pod='train-job-0'} 38214 ← MiB of framebuffer (device memory) used
+DCGM_FI_DEV_FB_FREE{gpu='0',UUID='GPU-a1b2...',pod='train-job-0'} 2136 ← only ~2GB headroom left on an 80GB A100 slice
+DCGM_FI_DEV_GPU_TEMP{gpu='0',UUID='GPU-a1b2...',pod='train-job-0'} 79 ← °C, within normal range (<85 typical throttle point)
+DCGM_FI_DEV_POWER_USAGE{gpu='0',UUID='GPU-a1b2...',pod='train-job-0'} 385.4 ← watts, near TDP — GPU is genuinely working, not idling
+DCGM_FI_DEV_SM_CLOCK{gpu='0',UUID='GPU-a1b2...',pod='train-job-0'} 1410 ← MHz; compare to rated boost clock to spot throttling
+DCGM_FI_DEV_XID_ERRORS{gpu='0',UUID='GPU-a1b2...',pod='train-job-0'} 0 ← 0 is what you want; nonzero means driver-level fault events
+DCGM_FI_DEV_ECC_DBE_VOL_TOTAL{gpu='0',UUID='GPU-a1b2...',pod='train-job-0'} 0 ← uncorrectable ECC errors; nonzero = hardware memory fault, not software
 ```
 Reading order for a "is this GPU healthy vs busy" triage: **XID_ERRORS and ECC_DBE first** (any nonzero value here overrides everything else — it's a hardware-fault signal, go straight to Chapter 10/Deep Dive 4), then **UTIL+POWER+SM_CLOCK together** (all three should move together; if UTIL is high but POWER is low and SM_CLOCK is depressed, that's a throttling or stalling signature, not genuine compute), then **FB_USED/FB_FREE** (memory pressure — this is the metric that predicts CUDA OOM before it happens, seconds to minutes ahead).
 

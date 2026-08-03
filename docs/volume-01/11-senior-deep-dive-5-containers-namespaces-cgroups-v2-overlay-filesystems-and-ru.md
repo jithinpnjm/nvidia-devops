@@ -24,30 +24,24 @@ cat /sys/fs/cgroup/&lt;path>/memory.max
 cat /sys/fs/cgroup/&lt;path>/memory.events
 
 ➕ **Diagram: a "container" is a process wrapped in independent kernel mechanisms, not one object**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["cgroup boundary — CPU/memory/IO accounting & limits"]
-  n1["namespaces — PID/NET/MNT/UTS/IPC/USER views"]
-  n2["capabilities/seccomp/LSM — what syscalls/privileges"]
-  n3["this process is actually allowed to use"]
-  n4["the process (just a PID)"]
+```text
+cgroup boundary — CPU/memory/IO accounting & limits
+namespaces — PID/NET/MNT/UTS/IPC/USER views
+capabilities/seccomp/LSM — what syscalls/privileges
+this process is actually allowed to use
+the process (just a PID)
 ```
 Each ring is independently inspectable and independently bypassable if misconfigured — a container with the right namespaces but excess capabilities (e.g. `CAP_SYS_ADMIN`) is not actually isolated in the way its "containerness" implies, which is why `lsns`/`cat /proc/<PID>/cgroup`/capability inspection are three separate checks, not one.
 
 ➕ **Diagram: image → running process, who does what**
 ```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["OCI image (layers + config)"]
-  n1["containerd pulls, unpacks layers"]
-  n2["containerd gRPC (CRI)"]
-  n3["kubelet requested this"]
-  n4["hands off container spec"]
-  n5["runc (OCI runtime) does the actual clone()/unshare()/pivot_root() calls"]
-  n6["namespaces created, cgroup assigned, overlay rootfs mounted, capabilities dropped"]
-  n7["running process (PID 1 inside its own PID namespace)"]
-  n2 --> n3
+flowchart TD
+  Kubelet["kubelet requests a container"] --> CRI["containerd gRPC (CRI)"]
+  Image["OCI image: layers + config"] --> Pull["containerd pulls and unpacks layers"]
+  CRI --> Pull --> Spec["containerd hands off the container spec"]
+  Spec --> Runc["runc (OCI runtime) performs clone(), unshare(), and pivot_root()"]
+  Runc --> Process["namespaces created; cgroup assigned; overlay rootfs mounted; capabilities dropped"]
+  Process --> Running["running process: PID 1 inside its own PID namespace"]
 ```
 `runc` is the only component in this chain that actually invokes the kernel primitives — containerd and kubelet are orchestration; the kernel enforcement happens at the `runc` → syscall boundary, which is the layer `nsenter`/`lsns` verify directly.
 

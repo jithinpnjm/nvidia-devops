@@ -35,19 +35,17 @@ flowchart TD
 The ordering is deliberate: GPU (Step 3) before Host (Step 4) because GPU telemetry is cheaper to check and rules out/in the highest-signal layer first; Fabric (Step 5) after Host because a fabric problem often *presents* as host-level stalling (a stuck NCCL collective looks like a hung process); Storage (Step 6) last because it only matters "if the step timeline aligns with I/O" — you check it conditionally, not by default.
 
 ➕ **Sample fabric-layer evidence for step 5, annotated — the piece the original text names but doesn't show output for:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ nvidia-smi nvlink -e # NVLink error counters, per GPU"]
-  n1["GPU 0: NVLink Errors"]
-  n2["Link 0: Replay Errors: 0, Recovery Errors: 0, CRC Errors: 0"]
-  n3["Link 1: Replay Errors: 142, Recovery Errors: 3, CRC Errors: 891 ← link 1 is unhealthy"]
-  n4["$ ibstat mlx5_0 | grep -E 'State|Rate'"]
-  n5["State: Active"]
-  n6["Rate: 100 ← Gb/s; if this reads lower than the NIC's rated speed, link negotiated down after maintenance"]
-  n7["$ ib_write_bw -d mlx5_0 -F --report_gbits # controlled RDMA bandwidth benchmark (step 7's 'isolate')"]
-  n8["..."]
-  n9["Bandwidth peak[Gb/sec] 94.2 ← compare directly to a known-good baseline number from before maintenance"]
+```bash
+$ nvidia-smi nvlink -e # NVLink error counters, per GPU
+GPU 0: NVLink Errors
+Link 0: Replay Errors: 0, Recovery Errors: 0, CRC Errors: 0
+Link 1: Replay Errors: 142, Recovery Errors: 3, CRC Errors: 891 ← link 1 is unhealthy
+$ ibstat mlx5_0 | grep -E 'State|Rate'
+State: Active
+Rate: 100 ← Gb/s; if this reads lower than the NIC's rated speed, link negotiated down after maintenance
+$ ib_write_bw -d mlx5_0 -F --report_gbits # controlled RDMA bandwidth benchmark (step 7's 'isolate')
+...
+Bandwidth peak[Gb/sec] 94.2 ← compare directly to a known-good baseline number from before maintenance
 ```
 `CRC Errors: 891` on one link with all others at 0 is the exact kind of asymmetric evidence that separates "the whole fabric degraded" from "one bad cable/port after a maintenance window that involved physical reseating" — worth naming explicitly, because the fix (replace one cable) is trivial once you have this evidence and a nightmare to find without it.
 

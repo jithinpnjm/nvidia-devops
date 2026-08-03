@@ -34,22 +34,11 @@ Gateway API is replacing many ad-hoc Ingress patterns with a more expressive rol
 
 ➕ **Diagram: Gateway API's role split, and who owns each layer:**
 ```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["GatewayClass cluster-ops / infra provider owns this"]
-  n1["(defines WHICH controller implements gateways of this class,"]
-  n2["e.g. an NVIDIA/vendor-specific or cloud LB-backed implementation)"]
-  n3["Gateway cluster-ops owns this"]
-  n4["(a concrete listener: address, port, TLS config — the actual"]
-  n5["network entry point)"]
-  n6["HTTPRoute / GRPCRoute app team owns this"]
-  n7["(routing rules: which path/header goes to which backend Service —"]
-  n8["attached to a Gateway via a reference, not embedded in it)"]
-  n9["Backend Service"]
-  n10["EndpointSlice"]
-  n11["Pod (Chapter 4's path, unchanged)"]
-  n9 --> n10
-  n10 --> n11
+flowchart TD
+  Class["GatewayClass — cluster operations / infrastructure provider owns it; selects the implementing controller, such as a vendor-specific or cloud-LB implementation"]
+  Class --> Gateway["Gateway — cluster operations owns the concrete listener: address, port, TLS configuration, and network entry point"]
+  Gateway --> Route["HTTPRoute / GRPCRoute — application team owns routing rules; it references a Gateway instead of embedding the listener"]
+  Route --> Service["Backend Service"] --> Slice["EndpointSlice"] --> Pod["Pod — Chapter 4 path unchanged"]
 ```
 This role split is the actual improvement over Ingress: an app team can ship an `HTTPRoute` change without touching the `Gateway` object cluster-ops owns, whereas Ingress's flat object made "which annotation does what" a single shared surface everyone had to coordinate on.
 

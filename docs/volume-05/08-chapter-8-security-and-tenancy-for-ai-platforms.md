@@ -12,22 +12,20 @@ AI infrastructure inherits cloud-native security requirements — identity, RBAC
 GPU sharing also becomes a tenancy decision: cost-efficient packing is not enough if isolation requirements demand dedicated resources or hardware partitioning. Logging/telemetry must avoid leaking prompts, tokens or secrets by default.
 
 ➕ **The AI-platform security surface, mapped onto familiar cloud-native controls (the table this chapter implies but doesn't draw):**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["Cloud-native control AI-platform-specific extension"]
-  n1["Identity/RBAC who can pull a model artifact, call inference,"]
-  n2["burn GPU-hours (a new, expensive quota dimension)"]
-  n3["Network segmentation isolate prefill/decode/KV-transfer traffic (Ch6)"]
-  n4["between tenants sharing a fabric"]
-  n5["Secrets management API keys AND now 'the prompt itself' — prompts can"]
-  n6["contain PII/secrets pasted by users, unlike typical"]
-  n7["service-to-service payloads"]
-  n8["Image provenance model artifact provenance — was this checkpoint"]
-  n9["tampered with, does it match a signed/known hash"]
-  n10["Runtime hardening GPU-level isolation: process-level (no isolation),"]
-  n11["MIG (hardware-partitioned), time-slicing (software"]
-  n12["scheduled, no memory isolation) — different guarantees"]
+```text
+Cloud-native control AI-platform-specific extension
+Identity/RBAC who can pull a model artifact, call inference,
+burn GPU-hours (a new, expensive quota dimension)
+Network segmentation isolate prefill/decode/KV-transfer traffic (Ch6)
+between tenants sharing a fabric
+Secrets management API keys AND now 'the prompt itself' — prompts can
+contain PII/secrets pasted by users, unlike typical
+service-to-service payloads
+Image provenance model artifact provenance — was this checkpoint
+tampered with, does it match a signed/known hash
+Runtime hardening GPU-level isolation: process-level (no isolation),
+MIG (hardware-partitioned), time-slicing (software
+scheduled, no memory isolation) — different guarantees
 ```
 ➕ **GPU sharing modes, compared for the isolation question the chapter poses directly:**
 | Mode | Isolation | Noisy-neighbor risk | When required |
@@ -37,17 +35,15 @@ flowchart TD
 | Time-slicing | None — same SM/memory, scheduled in time | High — one tenant's burst steals cycles from another | Best-effort, cost-sensitive, non-regulated workloads only |
 
 ➕ **Sample output — a noisy-neighbor incident caught via DCGM, not application metrics:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ dcgmi dmon -e 203,204,1002 -c 5"]
-  n1["#Entity DBE SBE GPUUTIL"]
-  n2["GPU 0 0 0 98 ← tenant A's workload, expected high util"]
-  n3["GPU 0 0 0 97"]
-  n4["GPU 0 0 0 99"]
-  n5["(this is a time-sliced GPU — tenant B is on the SAME device)"]
-  n6["$ kubectl logs tenant-b-inference-0 | tail -3"]
-  n7["WARN: request latency 4200ms (SLO: 500ms) — GPU allocated but compute starved"]
+```bash
+$ dcgmi dmon -e 203,204,1002 -c 5
+#Entity DBE SBE GPUUTIL
+GPU 0 0 0 98 ← tenant A's workload, expected high util
+GPU 0 0 0 97
+GPU 0 0 0 99
+(this is a time-sliced GPU — tenant B is on the SAME device)
+$ kubectl logs tenant-b-inference-0 | tail -3
+WARN: request latency 4200ms (SLO: 500ms) — GPU allocated but compute starved
 ```
 Tenant B's pod has a `nvidia.com/gpu: 1` request satisfied by Kubernetes (scheduling succeeded, pod is Running) — but on a time-sliced physical GPU, "allocated" does not mean "guaranteed compute share." Tenant A's 98% utilization is silently starving Tenant B, and nothing in Kubernetes' own resource accounting will surface this — it requires DCGM-level, per-process GPU telemetry to prove, which is exactly why the chapter says isolation requirements may demand dedicated resources or hardware partitioning instead of time-slicing, despite the latter's better cost-efficiency.
 

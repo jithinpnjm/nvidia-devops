@@ -22,18 +22,8 @@ systemctl list-dependencies myservice
 ➕ **Boot chain, one line each, for the "explain how Linux boots" baseline:**
 ```mermaid
 flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["firmware/UEFI"]
-  n1["bootloader (GRUB)"]
-  n2["kernel + initramfs"]
-  n3["PID 1 (systemd)"]
-  n4["targets"]
-  n5["units in dependency order"]
-  n0 --> n1
-  n1 --> n2
-  n2 --> n3
-  n3 --> n4
-  n4 --> n5
+  UEFI["firmware/UEFI"] --> GRUB["bootloader (GRUB)"] --> Kernel["kernel + initramfs"]
+  Kernel --> Systemd["PID 1 (systemd)"] --> Targets["targets"] --> Units["units in dependency order"]
 ```
 GPU-relevant: `nvidia-persistenced` is a systemd-managed unit on bare-metal nodes — it's how the driver state persists across container restarts on the host without reloading. `systemctl status nvidia-persistenced` is a legitimate first check on "GPU not visible after node reboot."
 

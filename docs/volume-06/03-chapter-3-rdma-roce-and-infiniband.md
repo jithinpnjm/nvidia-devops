@@ -39,8 +39,11 @@ flowchart LR
     QPA <==>|RDMA WRITE over fabric IB/RoCE| QPB
     QPB -.-> MRB
 ```
-NIC writes directly into B's registered MR — B's CPU is never interrupted for a WRITE
-The "reduced CPU-copy overhead" line in the original text is this: a normal TCP socket send copies data from user buffer → kernel socket buffer → NIC (and the reverse on receive, with an interrupt/softirq to wake the CPU). RDMA WRITE lets the NIC place data directly into the remote application's pre-registered memory, with **zero CPU involvement on the target** for the data movement itself. This is why RDMA matters for collectives specifically: an AllReduce touching every rank at every step would otherwise burn CPU cycles on memcopy at exactly the moments the CPU should be feeding the GPU (Chapter 1's `data_load_wait_time` term).
+An RDMA **memory region (MR)** is an application buffer that has been registered with the NIC. Registration pins the pages and gives the NIC permission and addressing information to access them. During an RDMA WRITE, node A's NIC transfers data into node B's registered MR without waking node B's CPU to copy that payload.
+
+Compare this with a normal TCP path. Data commonly moves from a user buffer into kernel socket buffers and then to the NIC; receive processing also involves kernel networking work and a CPU wake-up through an interrupt or softirq. RDMA removes those target-side payload copies from the steady-state data path. Control-plane setup still uses the CPUs, but the data movement itself does not require node B's application thread to execute.
+
+This matters for collectives such as AllReduce because every rank exchanges data at every training step. Without the direct path, CPU cycles and memory bandwidth are consumed by copying precisely when the CPU should be preparing the next GPU batch. That extra delay appears as increased `data_load_wait_time` and can stall all ranks at the collective boundary.
 
 ➕ **Diagram: InfiniBand vs RoCE — same RDMA semantics, different loss model underneath**
 ```mermaid
@@ -64,22 +67,20 @@ flowchart TD
 Both give the application the same RDMA programming model from `queue pairs / registered memory` up — the difference this chapter cares about is entirely below that line: InfiniBand's flow control is native to the fabric, while RoCE inherits Ethernet's original best-effort delivery and has to have losslessness (PFC) and/or congestion avoidance (ECN) explicitly engineered back in.
 
 ➕ **Sample `ibstat` output, annotated:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ ibstat"]
-  n1["CA 'mlx5_0'"]
-  n2["CA type: MT4123"]
-  n3["Number of ports: 1"]
-  n4["Port 1"]
-  n5["State: Active ← link is up AND the fabric subnet manager has it joined"]
-  n6["Physical state: LinkUp"]
-  n7["Rate: 200 ← 200 Gb/s — check this matches the expected NIC generation"]
-  n8["Base lid: 12"]
-  n9["LMC: 0"]
-  n10["SM lid: 1 ← subnet manager's LID — 0 here would mean no SM found"]
-  n11["Capability mask: 0x2651e848"]
-  n12["Port GUID: 0x946dae0300aabbcc"]
+```bash
+$ ibstat
+CA 'mlx5_0'
+CA type: MT4123
+Number of ports: 1
+Port 1
+State: Active ← link is up AND the fabric subnet manager has it joined
+Physical state: LinkUp
+Rate: 200 ← 200 Gb/s — check this matches the expected NIC generation
+Base lid: 12
+LMC: 0
+SM lid: 1 ← subnet manager's LID — 0 here would mean no SM found
+Capability mask: 0x2651e848
+Port GUID: 0x946dae0300aabbcc
 ```
 `State: Active` is necessary but not sufficient — it means the physical link and subnet manager join succeeded, it says nothing about error rates, congestion, or whether the *rate* matches what you provisioned for. Always cross-check `Rate` against the NIC's rated speed; a link stuck negotiating at half rate (e.g. 100 instead of 200) will pass every "is it up" check while quietly halving your fabric bandwidth.
 

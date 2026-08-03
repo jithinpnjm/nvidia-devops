@@ -48,15 +48,13 @@ flowchart TD
 ➕ **Interview-ready line:** "RBAC and cloud IAM are two separate authorization systems that happen to share an identity via workload identity federation — a ServiceAccount having `cluster-admin` tells you nothing about its cloud permissions, and a wide-open IAM role tells you nothing about its Kubernetes RBAC. Auditing one without the other is an incomplete security review, and it's a common gap I'd specifically call out to a customer."
 
 ➕ **Sample annotated output — auditing what a ServiceAccount can actually do, both domains:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ kubectl auth can-i --list --as=system:serviceaccount:team-a:app -n team-a"]
-  n1["Resources Non-Resource URLs Verbs"]
-  n2["pods [] [get list watch]"]
-  n3["secrets [] [get list] ← can read ALL secrets in ns,"]
-  n4["not just the ones it needs"]
-  n5["configmaps [] [get list watch]"]
+```bash
+$ kubectl auth can-i --list --as=system:serviceaccount:team-a:app -n team-a
+Resources Non-Resource URLs Verbs
+pods [] [get list watch]
+secrets [] [get list] ← can read ALL secrets in ns,
+not just the ones it needs
+configmaps [] [get list watch]
 ```
 `secrets: [get list]` at namespace scope, not scoped to specific named secrets, is the thing to flag — RBAC has no field-level or name-based secret restriction by default (only via naming patterns encoded into more granular Roles, or an admission policy), so "this ServiceAccount can read secrets" usually means *every* secret in that namespace, including ones unrelated to the workload's actual job. This is the most common RBAC over-grant pattern to catch in a review.
 
@@ -107,15 +105,13 @@ Security settings should derive from workload need. Privileged mode, hostPath, h
 | `capabilities: drop: ["ALL"]` | every Linux capability not explicitly re-added | `CAP_SYS_ADMIN`/`CAP_NET_RAW`/etc. abuse — most container escapes need a specific capability, not just root |
 
 ➕ **Sample annotated output — proving hardening actually took effect, not just that the YAML exists:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ kubectl exec -it hardened-pod -- id"]
-  n1["uid=1000(app) gid=1000(app) ← confirms runAsNonRoot actually applied, not just declared"]
-  n2["$ kubectl exec -it hardened-pod -- touch /etc/test"]
-  n3["touch: cannot touch '/etc/test': Read-only file system ← readOnlyRootFilesystem confirmed live"]
-  n4["$ kubectl exec -it hardened-pod -- cat /proc/1/status | grep CapEff"]
-  n5["CapEff: 0000000000000000 ← zero effective capabilities — drop:[ALL] confirmed live"]
+```bash
+$ kubectl exec -it hardened-pod -- id
+uid=1000(app) gid=1000(app) ← confirms runAsNonRoot actually applied, not just declared
+$ kubectl exec -it hardened-pod -- touch /etc/test
+touch: cannot touch '/etc/test': Read-only file system ← readOnlyRootFilesystem confirmed live
+$ kubectl exec -it hardened-pod -- cat /proc/1/status | grep CapEff
+CapEff: 0000000000000000 ← zero effective capabilities — drop:[ALL] confirmed live
 ```
 Declaring `securityContext` in YAML and *verifying* it took effect are different claims — admission policy, a mutating webhook, or a runtime class override can all silently negate a securityContext setting, so the exec-in-and-check pattern above is the actual evidence, not the manifest.
 

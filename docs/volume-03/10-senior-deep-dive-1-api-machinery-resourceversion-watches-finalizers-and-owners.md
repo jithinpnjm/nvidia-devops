@@ -63,15 +63,13 @@ flowchart TD
 Cross-reference: Chapter 1's worked scenario #2 already walks a full stuck-Terminating-namespace diagnosis using this exact mechanism — this diagram is the missing visual, not a new scenario.
 
 ➕ **Diagram: OwnerReferences cascading GC — the opposite-direction mechanism, drawn so it's never confused with finalizers again:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["kubectl delete deploy api"]
-  n1["Deployment 'api' is deleted from etcd (no finalizer on it blocking this)"]
-  n2["Garbage-collector controller's watch notices: ReplicaSet 'api-7d9f' has"]
-  n3["an ownerReference pointing at a Deployment that NO LONGER EXISTS"]
-  n4["GC controller deletes the orphaned ReplicaSet"]
-  n5["Same check cascades: Pods owned by that ReplicaSet are now orphaned too"]
-  n6["GC controller deletes the Pods"]
+```text
+kubectl delete deploy api
+Deployment 'api' is deleted from etcd (no finalizer on it blocking this)
+Garbage-collector controller's watch notices: ReplicaSet 'api-7d9f' has
+an ownerReference pointing at a Deployment that NO LONGER EXISTS
+GC controller deletes the orphaned ReplicaSet
+Same check cascades: Pods owned by that ReplicaSet are now orphaned too
+GC controller deletes the Pods
 ```
 Finalizers block deletion of the object that holds them until cleanup finishes; OwnerReferences GC deletes children only *after* the parent is already gone — two mechanisms running in opposite temporal order, which is exactly why `--cascade=orphan` (skip this diagram's flow entirely) and a stuck finalizer (block the flow above this diagram) are easy to conflate under pressure but are different failures.

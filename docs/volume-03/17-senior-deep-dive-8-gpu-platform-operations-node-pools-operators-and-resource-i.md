@@ -41,14 +41,7 @@ All eight Deep Dive titles, their core mechanisms (finalizers/ownerReferences, q
 ➕ **Visual model — GPU nodes are a separate operational product inside the cluster:**
 ```mermaid
 flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["node pool intent"]
-  n1["labels / taints / topology"]
-  n2["GPU Operator operands"]
-  n3["device capacity"]
-  n4["upgrade/drain plan workload isolation telemetry"]
-  n0 --> n1
-  n1 --> n2
-  n2 --> n3
+  Intent["node pool intent"] --> Placement["labels / taints / topology"] --> Operator["GPU Operator operands"]
+  Operator --> Capacity["device capacity"] --> Outcomes["upgrade/drain plan · workload isolation · telemetry"]
 ```
 **Memory hook:** *"Pool, prepare, prove, place."* A schedulable GPU resource is the end result of a lifecycle, not a property that appears when hardware is racked.

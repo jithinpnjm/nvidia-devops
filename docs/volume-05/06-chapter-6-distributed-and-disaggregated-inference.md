@@ -30,20 +30,18 @@ flowchart LR
 The KV cache transfer arrow is the new failure/performance dependency the chapter's text names abstractly ("explicit network/state-routing requirements") — on a single node with NVLink, this transfer is cheap enough to be a rounding error; across nodes, it requires high-bandwidth interconnect (RDMA) and becomes a real latency contributor that must be benchmarked, not assumed away. This is also the exact mechanism Senior Deep Dive 4 (Dynamo) builds routing and KV management around.
 
 ➕ **Sample output — proving whether a "replica" actually got the topology it needs:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ nvidia-smi topo -m"]
-  n1["GPU0 GPU1 GPU2 GPU3 CPU Affinity"]
-  n2["GPU0 X NV12 NV12 NV12 0-31"]
-  n3["GPU1 NV12 X NV12 NV12 0-31"]
-  n4["GPU2 NV12 NV12 X NV12 32-63 ← different NUMA node than GPU0/1"]
-  n5["GPU3 NV12 NV12 NV12 X 32-63"]
-  n6["$ kubectl get pod tensor-parallel-replica-0 -o jsonpath='{.spec.nodeName}'"]
-  n7["gpu-node-14"]
-  n8["$ kubectl exec tensor-parallel-replica-0 -- nvidia-smi topo -m | grep NV"]
-  n9["GPU0 GPU1 GPU2 GPU3"]
-  n10["GPU0 X NV12 SYS SYS ← GPU0-1 are NVLinked, GPU2-3 are NOT (SYS = PCIe/cross-node path)"]
+```bash
+$ nvidia-smi topo -m
+GPU0 GPU1 GPU2 GPU3 CPU Affinity
+GPU0 X NV12 NV12 NV12 0-31
+GPU1 NV12 X NV12 NV12 0-31
+GPU2 NV12 NV12 X NV12 32-63 ← different NUMA node than GPU0/1
+GPU3 NV12 NV12 NV12 X 32-63
+$ kubectl get pod tensor-parallel-replica-0 -o jsonpath='{.spec.nodeName}'
+gpu-node-14
+$ kubectl exec tensor-parallel-replica-0 -- nvidia-smi topo -m | grep NV
+GPU0 GPU1 GPU2 GPU3
+GPU0 X NV12 SYS SYS ← GPU0-1 are NVLinked, GPU2-3 are NOT (SYS = PCIe/cross-node path)
 ```
 `SYS` in the topology matrix where you expected `NVx` is the single fastest way to catch "this tensor-parallel replica was scheduled across a slower link than the design assumed" — a scheduler that only checks `nvidia.com/gpu` count as a resource request has no native awareness of this, which is exactly why the chapter says "a replica is not simply N interchangeable GPUs."
 

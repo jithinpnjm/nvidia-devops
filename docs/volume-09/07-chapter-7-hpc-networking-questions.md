@@ -46,28 +46,24 @@ flowchart TD
 - **RoCE (RDMA over Converged Ethernet):** runs the same RDMA semantics over Ethernet, which is NOT natively lossless — RoCEv2 requires either a lossless Ethernet design (PFC — Priority Flow Control, ECN, careful QoS) or tolerates RDMA's retransmission being much more expensive than TCP's, which is why "RDMA over Ethernet" alone is an incomplete answer; the real answer is the congestion/lossless-fabric engineering RoCE requires to behave like InfiniBand.
 
 ➕ **Sample annotated output — the NIC/RDMA counter check, made concrete:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ ibstat mlx5_0"]
-  n1["CA 'mlx5_0'"]
-  n2["Port 1"]
-  n3["State: Active"]
-  n4["Physical state: LinkUp"]
-  n5["Rate: 200 ← Gb/s — confirm this matches expected fabric gen"]
-  n6["Link layer: InfiniBand"]
-  n7["$ ibqueryerrors -s SymbolErrors,PortRcvErrors,LinkDowned"]
-  n8["GUID 0x... LID 42 SymbolErrors: 128 PortRcvErrors: 4 LinkDowned: 1"]
+```bash
+$ ibstat mlx5_0
+CA 'mlx5_0'
+Port 1
+State: Active
+Physical state: LinkUp
+Rate: 200 ← Gb/s — confirm this matches expected fabric gen
+Link layer: InfiniBand
+$ ibqueryerrors -s SymbolErrors,PortRcvErrors,LinkDowned
+GUID 0x... LID 42 SymbolErrors: 128 PortRcvErrors: 4 LinkDowned: 1
 ```
 `LinkDowned: 1` on one specific port is the outlier signal: an active, correctly-rated (200Gb/s) link that has flapped once is a strong candidate for "this specific node/port is the straggler dragging down the whole collective," since an all-reduce's completion time is bounded by its slowest participant. **Interview-ready line:** "A single flapped link on one rank can slow an entire collective, not just that rank's local bandwidth — that's why I'd check for outliers across all ranks, not just aggregate fabric health."
 
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ nccl-tests/build/all_reduce_perf -b 8 -e 1G -f 2 -g 8"]
-  n1["# size count type redop time algbw busbw"]
-  n2["1048576 262144 float sum 412.3 2.54 4.76 ← GB/s"]
-  n3["134217728 33554432 float sum 2891.0 46.4 87.0"]
+```bash
+$ nccl-tests/build/all_reduce_perf -b 8 -e 1G -f 2 -g 8
+# size count type redop time algbw busbw
+1048576 262144 float sum 412.3 2.54 4.76 ← GB/s
+134217728 33554432 float sum 2891.0 46.4 87.0
 ```
 Compare `busbw` (bus bandwidth — the metric that accounts for the algorithm's data-movement factor and is directly comparable across ring/tree algorithms) against the fabric's theoretical bandwidth for this many GPUs/NICs. A large gap (e.g. 87 GB/s achieved against a fabric rated for 3-4x that) is the quantified version of "the network is slowing training" — this number is what you'd actually put in an incident writeup, not "collectives seem slow."
 

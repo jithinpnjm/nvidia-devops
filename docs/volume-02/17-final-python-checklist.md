@@ -32,19 +32,10 @@ _Figure A. A production tool is a bounded reconciliation loop with validation an
 
 ➕ **Visual recall card — a production tool's four questions:**
 ```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["Can it decide correctly?"]
-  n1["pure policy + types + tests"]
-  n2["Can it reach dependencies safely?"]
-  n3["timeout + retry + bounded concurrency"]
-  n4["Can an operator explain it?"]
-  n5["structured logs + metrics + exit codes"]
-  n6["Can a team change it safely?"]
-  n7["packaging + CI + clear boundaries"]
-  n0 --> n1
-  n2 --> n3
-  n4 --> n5
-  n6 --> n7
+flowchart TD
+  Q1["Can it decide correctly?"] --> A1["pure policy + types + tests"]
+  Q2["Can it reach dependencies safely?"] --> A2["timeout + retry + bounded concurrency"]
+  Q3["Can an operator explain it?"] --> A3["structured logs + metrics + exit codes"]
+  Q4["Can a team change it safely?"] --> A4["packaging + CI + clear boundaries"]
 ```
 **Memory hook:** *"Correct, safe, visible, changeable."*

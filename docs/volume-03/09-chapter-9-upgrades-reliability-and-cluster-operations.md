@@ -32,18 +32,16 @@ kubectl (client):        may be one minor version behind OR ahead of apiserver
 ➕ **Why this matters beyond trivia:** upgrading kube-apiserver first, then working outward (controller-manager/scheduler, then kubelets, roughly node-pool by node-pool) is the only direction that keeps every component within its allowed skew window throughout the rollout — upgrading kubelets ahead of the control plane is the version-skew mistake that actually breaks things, and it's an easy one to make if node images auto-update independently of the control plane in a managed service.
 
 ➕ **Sample annotated output — reading `/readyz?verbose` for what it actually tells you before starting a change:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ kubectl get --raw /readyz?verbose"]
-  n1["[+]ping ok"]
-  n2["[+]log ok"]
-  n3["[+]etcd ok"]
-  n4["[+]poststarthook/start-kube-apiserver-admission-initializer ok"]
-  n5["[+]poststarthook/generic-apiserver-start-informers ok"]
-  n6["[-]poststarthook/rbac/bootstrap-roles failed: reason withheld ← FAILING check, named specifically"]
-  n7["[+]shutdown ok"]
-  n8["readyz check failed"]
+```bash
+$ kubectl get --raw /readyz?verbose
+[+]ping ok
+[+]log ok
+[+]etcd ok
+[+]poststarthook/start-kube-apiserver-admission-initializer ok
+[+]poststarthook/generic-apiserver-start-informers ok
+[-]poststarthook/rbac/bootstrap-roles failed: reason withheld ← FAILING check, named specifically
+[+]shutdown ok
+readyz check failed
 ```
 Every line is an independent internal health check, not a single boolean — `readyz check failed` alone tells you nothing; the specific `[-]` line does. This is the same "decompose the aggregate signal into independent evidence" instinct as Chapter 2's multi-reason FailedScheduling event — worth explicitly connecting the two if asked, it's the same interview move applied twice in this volume.
 
@@ -83,22 +81,16 @@ api-pdb    2                <none>            1                     30d
 
 ➕ **GPU-specific upgrade tie-in — why the source explicitly calls out "node image/driver compatibility" and "GPU/operator compatibility":**
 ```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["Standard node upgrade assumption: new node image boots, kubelet joins,"]
-  n1["Pods reschedule — done in minutes."]
-  n2["GPU node upgrade REALITY: new node image boots"]
-  n3["GPU Operator's driver"]
-  n4["DaemonSet must build/load a kernel-matched NVIDIA driver (can take"]
-  n5["minutes, and can FAIL if kernel headers aren't available or a driver"]
-  n6["version pin conflicts with the new kernel)"]
-  n7["device plugin re-registers"]
-  n8["dcgm-exporter re-registers"]
-  n9["ONLY THEN is the node genuinely ready"]
-  n10["for GPU workloads, even though kubelet may report Ready much earlier."]
-  n2 --> n3
-  n6 --> n7
-  n8 --> n9
+flowchart TD
+  subgraph Standard["Standard node upgrade assumption"]
+    S1["new node image boots; kubelet joins"] --> S2["Pods reschedule — done in minutes"]
+  end
+  subgraph GPU["GPU node upgrade reality"]
+    G1["new node image boots"] --> G2["GPU Operator driver DaemonSet builds/loads a kernel-matched NVIDIA driver"]
+    G2 --> G3["can take minutes and can fail when kernel headers are unavailable or a driver pin conflicts with the new kernel"]
+    G3 --> G4["device plugin re-registers"] --> G5["dcgm-exporter re-registers"]
+    G5 --> G6["ONLY THEN is the node genuinely ready for GPU workloads, even if kubelet reported Ready earlier"]
+  end
 ```
 ➕ **Interview-ready line:** "On a GPU node, `kubectl get nodes` showing `Ready` is necessary but not sufficient — I'd validate with a known-good CUDA smoke-test workload and confirm `nvidia.com/gpu` is actually advertised in allocatable before releasing that node back into a rotation, exactly as Senior Deep Dive 8 recommends. Kubelet readiness and GPU readiness are different claims."
 

@@ -27,16 +27,8 @@ Xid codes are what turn "driver logs provide context" (the original line) into a
 ➕ **Visual model — bind a fleet metric to a physical device before action:**
 ```mermaid
 flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["DCGM GPU UUID"]
-  n1["PCI bus id"]
-  n2["driver/Xid timestamp"]
-  n3["scheduler allocation"]
-  n4["workload impact"]
-  n5["fleet trend / recurrence drain, retry, or investigate code"]
-  n0 --> n1
-  n1 --> n2
-  n2 --> n3
-  n3 --> n4
+  UUID["DCGM GPU UUID"] --> PCI["PCI bus ID"] --> Xid["driver/Xid timestamp"]
+  Xid --> Allocation["scheduler allocation"] --> Impact["workload impact"]
+  Impact --> Trend["fleet trend / recurrence"] --> Action["drain, retry, or investigate code"]
 ```
 **Memory hook:** *"UUID finds the card; time finds the event; allocation finds the customer impact."*

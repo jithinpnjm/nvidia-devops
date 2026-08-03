@@ -80,22 +80,24 @@ Legend:
   PHB  = connection traverses a PCIe Host Bridge (single CPU root complex — good)
   SYS  = connection traverses SMP/cross-socket interconnect (worst case — crosses CPUs)
 ```
-Reading it: **GPU0↔GPU1 = NV12** (fast NVLink peers, same NUMA node) but **GPU0↔GPU2 = SYS** (crosses NUMA/socket boundary, no NVLink between those two — falls back to the slowest path). A job that places rank 0 and rank 2 as a tightly-communicating pair (e.g. a naive round-robin rank-to-GPU mapping) pays for the `SYS` path every all-reduce step, while a topology-aware mapping would pair 0↔1 and 2↔3. **NIC0 is `PHB` to GPU0/GPU3 but `SYS` to GPU1/GPU2** — this is exactly the NIC-locality problem Deep Dive 2 names for GPUDirect RDMA: a NCCL/collective job whose ranks talk to the NIC via `SYS` pays a real, measurable tax versus ranks reachable via `PHB`.
+Start with one GPU-to-GPU pair. **GPU0↔GPU1 = NV12** means those GPUs are direct NVLink peers with twelve links, so they have a high-bandwidth path. **GPU0↔GPU2 = SYS** means traffic must cross the system interconnect between CPU/NUMA domains because that pair has no direct NVLink path. `SYS` is therefore the more expensive route.
+
+This affects rank placement. A **rank** is one process participating in a distributed job. If a round-robin mapping makes rank 0 and rank 2 communicate heavily, every all-reduce step pays for the `SYS` route. A topology-aware mapping can instead pair GPU0↔GPU1 and GPU2↔GPU3 so the busiest communication uses NVLink.
+
+Now read the GPU-to-NIC entries. **NIC0 is `PHB` to GPU0/GPU3 but `SYS` to GPU1/GPU2.** `PHB` stays under one PCIe host bridge; `SYS` crosses CPU/NUMA domains. For GPUDirect RDMA, NCCL should prefer the NIC that is local to each GPU. Otherwise, data takes a longer host path even though the application sees the same GPUs and NICs.
 
 ➕ **`numactl --hardware` — the other half of the same evidence, annotated:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ numactl --hardware"]
-  n1["available: 2 nodes (0-1)"]
-  n2["node 0 cpus: 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 ... 31"]
-  n3["node 0 size: 515928 MB"]
-  n4["node 1 cpus: 32 33 34 35 ... 63"]
-  n5["node 1 size: 515928 MB"]
-  n6["node distances"]
-  n7["node 0 1"]
-  n8["0: 10 21 ← '21' (roughly 2x local) is the cross-node access-latency penalty"]
-  n9["1: 21 10"]
+```bash
+$ numactl --hardware
+available: 2 nodes (0-1)
+node 0 cpus: 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 ... 31
+node 0 size: 515928 MB
+node 1 cpus: 32 33 34 35 ... 63
+node 1 size: 515928 MB
+node distances
+node 0 1
+0: 10 21 ← '21' (roughly 2x local) is the cross-node access-latency penalty
+1: 21 10
 ```
 `node distances` is the number that turns "NUMA-aware placement" from folklore into arithmetic: a memory access to the remote node costs ~2.1x a local one on this system. Combine with the topo matrix above — a data-loader thread pinned to node-0 CPUs feeding GPU2 (node-1) pays this distance penalty on every host-side batch prep, on top of the `SYS` PCIe path.
 

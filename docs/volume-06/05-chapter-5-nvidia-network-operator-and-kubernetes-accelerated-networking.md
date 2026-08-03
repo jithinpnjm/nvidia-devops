@@ -57,17 +57,15 @@ flowchart TD
 Each stage is a separate failure domain — `nvidia.com/roce_gdr: 0` almost always traces back to the top of this chain (BIOS/firmware) or a crash-looping device plugin, not to Kubernetes scheduling itself, which is why the triage in the Practice question below works top-down.
 
 ➕ **Sample evidence a node is correctly prepared — the commands you'd actually run against a Network-Operator-managed node:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ kubectl get node gpu-node-07 -o json | jq '.status.allocatable' | grep -i rdma"]
-  n1["'nvidia.com/roce_gdr': '8' ← 8 RDMA-capable VFs advertised as allocatable"]
-  n2["$ kubectl describe node gpu-node-07 | grep -A3 'nvidia.com/roce_gdr'"]
-  n3["nvidia.com/roce_gdr 8 8"]
-  n4["← Allocatable matches Capacity: none already claimed"]
-  n5["$ kubectl get network-attachment-definitions -A"]
-  n6["NAMESPACE NAME AGE"]
-  n7["training roce-net-1 14d"]
+```bash
+$ kubectl get node gpu-node-07 -o json | jq '.status.allocatable' | grep -i rdma
+'nvidia.com/roce_gdr': '8' ← 8 RDMA-capable VFs advertised as allocatable
+$ kubectl describe node gpu-node-07 | grep -A3 'nvidia.com/roce_gdr'
+nvidia.com/roce_gdr 8 8
+← Allocatable matches Capacity: none already claimed
+$ kubectl get network-attachment-definitions -A
+NAMESPACE NAME AGE
+training roce-net-1 14d
 ```
 If `nvidia.com/roce_gdr` shows `0` allocatable on a node that otherwise looks healthy, the fault is almost always upstream of Kubernetes entirely — SR-IOV not enabled in BIOS, VF count not configured on the physical NIC, or the device plugin DaemonSet crash-looping — checking `kubectl get pods -n network-operator` for the device plugin's pod status is the fastest triage step.
 

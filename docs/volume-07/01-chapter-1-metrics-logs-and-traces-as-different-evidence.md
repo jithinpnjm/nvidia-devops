@@ -249,27 +249,21 @@ flowchart TD
 The point of the tree: metrics answer "how much/how often," logs answer "what state," traces answer "where in the request path." Asking a metric to answer a "what state" question (or grep'ing logs to answer a "how much" question) is the recurring anti-pattern this chapter is warning against.
 
 ➕ **Annotated example — the same incident seen through all three signals, showing what each one adds and what it alone cannot tell you:**
-```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["METRIC (Prometheus)"]
-  n1["sum(rate(http_requests_total{status=~'5..'}[5m])) / sum(rate(http_requests_total[5m]))"]
-  n2["0.023 (2.3% error rate, up from a 0.1% baseline — tells you THAT and HOW MUCH)"]
-  n3["LOG (structured event, one of the failing requests)"]
-  n4["{'ts':'2026-07-30T14:02:11Z','event':'inference_request_failed','model':'llama-70b',"]
-  n5["'node':'gpu-07','error_class':'CUDAOutOfMemory','request_id':'a91f...','duration_ms':842}"]
-  n6["tells you WHAT STATE: it's CUDA OOM, not an app crash, not a timeout — and WHERE (gpu-07)"]
-  n7["TRACE (span waterfall for request_id a91f...)"]
-  n8["gateway(4ms)"]
-  n9["auth(2ms)"]
-  n10["queue_wait(310ms)"]
-  n11["model_server(526ms, ERROR)"]
-  n12["[no downstream spans]"]
-  n13["tells you WHERE IN THE PATH: 310ms was queueing (capacity signal), not the CUDA OOM itself"]
-  n8 --> n9
-  n9 --> n10
-  n10 --> n11
-  n11 --> n12
+```text
+METRIC (Prometheus)
+sum(rate(http_requests_total{status=~'5..'}[5m])) / sum(rate(http_requests_total[5m]))
+0.023 (2.3% error rate, up from a 0.1% baseline — tells you THAT and HOW MUCH)
+LOG (structured event, one of the failing requests)
+{'ts':'2026-07-30T14:02:11Z','event':'inference_request_failed','model':'llama-70b',
+'node':'gpu-07','error_class':'CUDAOutOfMemory','request_id':'a91f...','duration_ms':842}
+tells you WHAT STATE: it's CUDA OOM, not an app crash, not a timeout — and WHERE (gpu-07)
+TRACE (span waterfall for request_id a91f...)
+gateway(4ms)
+auth(2ms)
+queue_wait(310ms)
+model_server(526ms, ERROR)
+[no downstream spans]
+tells you WHERE IN THE PATH: 310ms was queueing (capacity signal), not the CUDA OOM itself
 ```
 No single signal reconstructs the full incident. The metric told you it was real and quantified it; the log named the mechanism; the trace located it in the request path. This three-signal correlation is the model every later incident playbook chapter (9, 10) assumes you already have internalized.
 

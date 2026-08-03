@@ -17,76 +17,26 @@ source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 
 ➕ **Diagram: this question set's five prompts as one symptom router (work top to bottom, stop at the first match):**
 ```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["Kubernetes platform symptom"]
-  n1["Pod Pending? yes"]
-  n2["scheduler event"]
-  n3["requests/DRA"]
-  n4["affinity/taint"]
-  n5["no"]
-  n6["topology"]
-  n7["capacity/autoscaler"]
-  n8["Service reachable from SOME Pods only? yes"]
-  n9["EndpointSlice"]
-  n10["DNS"]
-  n11["policy"]
-  n12["CNI route"]
-  n13["node-specific dataplane"]
-  n14["Node Ready but GPU unavailable? yes"]
-  n15["host driver"]
-  n16["operator operands"]
-  n17["device plugin/DRA"]
-  n18["allocatable"]
-  n19["runtime injection"]
-  n20["Deployment rollout stuck? yes"]
-  n21["new ReplicaSet"]
-  n22["readiness/startup"]
-  n23["capacity"]
-  n24["PDB/maxSurge"]
-  n25["image/config"]
-  n26["events"]
-  n27["Control plane writes slow? yes"]
-  n28["apiserver latency"]
-  n29["admission"]
-  n30["webhooks/policies"]
-  n31["etcd latency/quorum"]
-  n1 --> n2
-  n2 --> n3
-  n3 --> n4
-  n5 --> n6
-  n6 --> n7
-  n8 --> n9
-  n9 --> n10
-  n5 --> n11
-  n11 --> n12
-  n14 --> n15
-  n15 --> n16
-  n5 --> n17
-  n17 --> n18
-  n20 --> n21
-  n21 --> n22
-  n5 --> n23
-  n23 --> n24
-  n24 --> n25
-  n27 --> n28
-  n28 --> n29
-  n30 --> n31
+flowchart TD
+  Root["Kubernetes platform symptom"]
+  Root --> Pending["Pod Pending?"] --> PE["scheduler events"] --> PR["requests / DRA"] --> PA["affinity / taints"] --> PT["topology"] --> PC["capacity / autoscaler"]
+  Root --> Service["Service reachable from some Pods only?"] --> SE["EndpointSlice"] --> SD["DNS"] --> SP["policy"] --> SC["CNI route"] --> SN["node-specific dataplane"]
+  Root --> GPU["Node Ready but GPU unavailable?"] --> GH["host driver"] --> GO["operator operands"] --> GD["device plugin / DRA"] --> GA["allocatable"] --> GR["runtime injection"]
+  Root --> Rollout["Deployment rollout stuck?"] --> RR["new ReplicaSet"] --> RRead["readiness / startup"] --> RC["capacity"] --> RP["PDB / maxSurge"] --> RI["image / configuration"] --> RE["events"]
+  Root --> CP["Control-plane writes slow?"] --> CA["API-server latency"] --> CAD["admission"] --> CW["webhooks / policies"] --> CE["etcd latency / quorum"]
 ```
 
 ➕ **Annotated output — "Node Ready but GPU unavailable," the layer trace:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ kubectl describe node gpu-worker-07 | grep -A5 Allocatable"]
-  n1["Allocatable"]
-  n2["cpu: 62"]
-  n3["memory: 240Gi"]
-  n4["nvidia.com/gpu: 0 ← Ready node, zero GPUs allocatable"]
-  n5["$ kubectl get pods -n gpu-operator -o wide | grep gpu-worker-07"]
-  n6["nvidia-device-plugin-daemonset-x9k2p 0/1 CrashLoopBackOff gpu-worker-07"]
-  n7["$ kubectl logs -n gpu-operator nvidia-device-plugin-daemonset-x9k2p --previous"]
-  n8["Failed to initialize NVML: Driver/library version mismatch"]
+```bash
+$ kubectl describe node gpu-worker-07 | grep -A5 Allocatable
+Allocatable
+cpu: 62
+memory: 240Gi
+nvidia.com/gpu: 0 ← Ready node, zero GPUs allocatable
+$ kubectl get pods -n gpu-operator -o wide | grep gpu-worker-07
+nvidia-device-plugin-daemonset-x9k2p 0/1 CrashLoopBackOff gpu-worker-07
+$ kubectl logs -n gpu-operator nvidia-device-plugin-daemonset-x9k2p --previous
+Failed to initialize NVML: Driver/library version mismatch
 ```
 The chain: node is `Ready` (kubelet is healthy) but `nvidia.com/gpu` allocatable is 0 because the device plugin — the thing that reports GPU count to the kubelet — can't even start, because the host driver and the container-toolkit-loaded NVML library versions disagree. This is exactly the "host driver → operator operands → device plugin → allocatable" chain the original question set names; the evidence at each layer is a specific `kubectl` object, not a guess.
 

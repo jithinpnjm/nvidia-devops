@@ -78,18 +78,18 @@ mlx5_1   SYS   SYS   PXB   PXB   SYS       X
 
 Legend: NV12=NVLink(12 links), PXB=PCIe through host bridge (same NUMA), SYS=crosses NUMA/QPI/UPI
 ```
-Read this row-by-row before ever looking at NCCL logs: **GPU0/GPU1 talking to `mlx5_0`** is `PXB` — same PCIe root, same NUMA node, cheap. **GPU2/GPU3 talking to `mlx5_0`** is `SYS` — crosses the NUMA boundary, meaningfully more expensive, and exactly the kind of thing that silently doubles a collective's latency for half the ranks on a node if NCCL (or a container's CPU pinning) picks the wrong NIC for a given GPU. This table is the topology-and-fabric-evidence half of this chapter's learning outcome, made literal.
+Read one NIC column at a time. **GPU0/GPU1 to `mlx5_0` is `PXB`**: their traffic stays beneath the same PCIe host bridge and inside the same NUMA domain. **GPU2/GPU3 to `mlx5_0` is `SYS`**: their traffic crosses the CPU/NUMA interconnect, which is a longer and more expensive path.
+
+Why this matters: each distributed-process **rank** drives a particular GPU. NCCL also chooses a NIC for cross-node traffic. If GPU2 is paired with `mlx5_0`, or if the container's CPU affinity forces work into the wrong NUMA domain, that rank can become slower than its peers. A collective waits for every rank, so one poor GPU–NIC pairing can stretch the whole operation. The matrix tells you what the correct local pairing should look like before you interpret NCCL logs.
 
 ➕ **Sample `NCCL_DEBUG=INFO` excerpt, annotated (what "compare NCCL logs" in the worked scenario below actually means in practice):**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT,NET,GRAPH python train.py"]
-  n1["node07:1234:1234 [0] NCCL INFO NET/IB : Using [0]mlx5_0:1/RoCE [RO]; OOB eth0:10.0.4.7<0>"]
-  n2["node07:1234:1234 [0] NCCL INFO Channel 00/04 : 0[0] -> 1[1] via P2P/CUMEM"]
-  n3["node07:1234:1234 [0] NCCL INFO Channel 00/04 : 0[0] -> 4[0] via NET/IB/0/GDRDMA ← cross-node, GPUDirect RDMA active"]
-  n4["node11:5678:5678 [0] NCCL INFO NET/IB : Using [0]mlx5_0:1/RoCE [RO]; OOB eth0:10.0.4.11<0>"]
-  n5["node11:5678:5678 [0] NCCL INFO Channel 00/04 : 0[0] -> 4[0] via NET/IB/0/IB ← notice: no GDRDMA suffix here!"]
+```bash
+$ NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT,NET,GRAPH python train.py
+node07:1234:1234 [0] NCCL INFO NET/IB : Using [0]mlx5_0:1/RoCE [RO]; OOB eth0:10.0.4.7<0>
+node07:1234:1234 [0] NCCL INFO Channel 00/04 : 0[0] -> 1[1] via P2P/CUMEM
+node07:1234:1234 [0] NCCL INFO Channel 00/04 : 0[0] -> 4[0] via NET/IB/0/GDRDMA ← cross-node, GPUDirect RDMA active
+node11:5678:5678 [0] NCCL INFO NET/IB : Using [0]mlx5_0:1/RoCE [RO]; OOB eth0:10.0.4.11<0>
+node11:5678:5678 [0] NCCL INFO Channel 00/04 : 0[0] -> 4[0] via NET/IB/0/IB ← notice: no GDRDMA suffix here!
 ```
 The second node's channel log is missing the `GDRDMA` marker that the first node has — this single log-line difference means GPUDirect RDMA silently fell back to a staged (host-memory-copy) path on `node11` for that channel, even though both nodes are running identical code. Common causes: a `nv_peer_mem`/`nvidia-peermem` kernel module mismatch, an IOMMU/ACS setting difference on that host, or a BIOS/PCIe topology difference introduced by a hardware swap — exactly the kind of node-level asymmetry the Chapter 4 worked scenario below is built around, and precisely why "compare NCCL logs node-by-node" is step 3, not step 1 (you need the topology table first to know what a *correct* log should say for that node).
 

@@ -5,7 +5,11 @@ sidebar_position: 22
 description: "Current role-family signals to be able to discuss — JR2018680 Interview Preparation."
 source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 ---
-A current NVIDIA Solutions Architect, DevOps listing in Germany explicitly emphasizes Kubernetes for AI/ML workloads, HPC/AI hardware and high-speed interconnects, Linux/storage, Python/Bash, IaC, Prometheus/Grafana/Loki and customer architecture. Other current NVIDIA SA postings emphasize NIM/Triton/TensorRT-LLM/vLLM, GPU Kubernetes, MIG/scheduling, TTFT/TPOT/tokens-per-second, RAG/agents, RDMA and on-prem AI factory design. Treat these as role-family signals, not a claim that every question will cover every technology.
+A current NVIDIA Solutions Architect, DevOps listing in Germany emphasizes four connected areas. The first is the platform foundation: Linux hosts, storage, Kubernetes, and infrastructure as code (IaC), which means defining infrastructure through reviewed configuration rather than manual changes. The second is automation and operations: Python or Bash for repeatable work, plus Prometheus, Grafana, and Loki for metrics, dashboards, and logs. The third is accelerated infrastructure: AI/HPC hardware and the high-speed interconnects that move data between GPUs and nodes. The fourth is customer architecture: turning workload requirements and constraints into a defensible design.
+
+Other NVIDIA Solutions Architect postings add inference-specific signals. NIM is NVIDIA's packaged inference-microservice approach; Triton, TensorRT-LLM, and vLLM are serving platforms or engines with different packaging and performance trade-offs. MIG partitions a supported GPU into isolated hardware instances. TTFT (time to first token), TPOT (time per output token), and tokens per second describe different parts of inference latency and throughput. RAG combines retrieval with generation; agentic systems allow a model to select tools or additional steps. RDMA moves data directly between registered memory regions with minimal CPU copying.
+
+Treat these as role-family signals, not a claim that every interview question will cover every technology. The senior skill is explaining how they connect—for example, how a serving SLO changes GPU scheduling, network, observability, and cost decisions—not merely recognizing the names.
 
 ## Targeted references and reinforcement
 
@@ -24,16 +28,12 @@ A current NVIDIA Solutions Architect, DevOps listing in Germany explicitly empha
 ➕ **Visual model — role breadth is a connected system, not a keyword list:**
 ```mermaid
 flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["host + Kubernetes"]
-  n1["GPU topology / sharing"]
-  n2["fabric + storage"]
-  n3["inference / RAG"]
-  n4["customer decision"]
-  n5["observability, security and cost cross every layer"]
-  n0 --> n1
-  n1 --> n2
-  n2 --> n3
-  n3 --> n4
+  Host["host + Kubernetes"] --> GPU["GPU topology / sharing"] --> Fabric["fabric + storage"]
+  Fabric --> Inference["inference / RAG"] --> Decision["customer decision"]
+  Cross["observability, security, and cost cross every layer"] -.-> Host
+  Cross -.-> GPU
+  Cross -.-> Fabric
+  Cross -.-> Inference
+  Cross -.-> Decision
 ```
 **Memory hook:** *"Explain the connection between topics; that is the senior signal."*

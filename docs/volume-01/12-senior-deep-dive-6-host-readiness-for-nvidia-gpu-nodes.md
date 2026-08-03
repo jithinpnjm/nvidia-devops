@@ -26,19 +26,10 @@ GPU nodes add a second dependency graph to the host: kernel version and modules,
 
 ➕ **Visual model — GPU node readiness is a dependency chain, not a checklist of interchangeable green ticks:**
 ```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["firmware / PCIe / NUMA"]
-  n1["driver + NVML"]
-  n2["CUDA compatibility"]
-  n3["container toolkit"]
-  n4["CRI runtime"]
-  n5["Xid/ECC/thermal evidence"]
-  n6["device plugin / GFD"]
-  n7["schedulable `nvidia.com/gpu`"]
-  n8["workload + DCGM evidence"]
-  n1 --> n2
-  n2 --> n3
-  n3 --> n4
+flowchart TD
+  Hardware["firmware / PCIe / NUMA"] --> Driver["driver + NVML"] --> CUDA["CUDA compatibility"]
+  CUDA --> Toolkit["container toolkit"] --> CRI["CRI runtime"] --> Plugin["device plugin / GFD"]
+  Plugin --> Capacity["schedulable nvidia.com/gpu"] --> Workload["workload + DCGM evidence"]
+  Driver --> Health["Xid / ECC / thermal evidence"] --> Workload
 ```
 **Memory hook:** *"Physical → driver → runtime → scheduler → workload."* A check lower in the chain cannot prove an upstream layer is healthy: a Pod can be Running while the GPU is absent, and a visible GPU can still be topologically wrong for its NIC.

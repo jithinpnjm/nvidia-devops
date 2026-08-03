@@ -20,19 +20,17 @@ NVIDIA Base Command Manager 2026 releases include current Slurm, CUDA, container
 ## Senior addendum
 
 ➕ **Diagram: Slurm's control/execution split, and where prolog/epilog sit in it**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["slurmctld ← control plane: scheduling decisions,"]
-  n1["(controller) queue, priority, fair-share"]
-  n2["grants allocation"]
-  n3["┼"]
-  n4["slurmd slurmd slurmd ← execution: one per compute node"]
-  n5["node 07 node 08 node 09"]
-  n6["prolog runs BEFORE user code"]
-  n7["user job steps run node 09's prolog FAILS"]
-  n8["epilog runs AFTER user code node auto-DRAINs, job never started,"]
-  n9["(cleanup) nothing in job's own stdout/stderr"]
+```text
+slurmctld ← control plane: scheduling decisions,
+(controller) queue, priority, fair-share
+grants allocation
+┼
+slurmd slurmd slurmd ← execution: one per compute node
+node 07 node 08 node 09
+prolog runs BEFORE user code
+user job steps run node 09's prolog FAILS
+epilog runs AFTER user code node auto-DRAINs, job never started,
+(cleanup) nothing in job's own stdout/stderr
 ```
 `slurmctld` never runs user code — it only decides placement; the actual prolog/epilog/job-step execution is entirely `slurmd`'s job, on each allocated node independently, which is why a prolog failure is visible in that node's `scontrol show node` reason field, not in `sacct` or the job's own logs.
 

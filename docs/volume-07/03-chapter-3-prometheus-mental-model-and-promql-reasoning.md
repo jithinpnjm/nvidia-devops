@@ -29,22 +29,20 @@ sum(rate(http_requests_total{job="api"}[5m]))
 Always inspect label cardinality. User IDs, request IDs or unbounded model/session identifiers can explode time-series count. Use logs/traces for high-cardinality event identity when metrics do not need it.
 
 ➕ **Sample PromQL query result, annotated — what `rate()` is actually computing under the hood:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ curl -s 'http://prom:9090/api/v1/query?query=rate(http_requests_total{job='api'}[5m])' | jq ."]
-  n1["{"]
-  n2["'status': 'success',"]
-  n3["'data': {"]
-  n4["'resultType': 'vector',"]
-  n5["'result': ["]
-  n6["'metric': {'job': 'api', 'instance': '10.0.4.12:8080', 'status': '200'},"]
-  n7["'value': [1753876800, '42.7'] ← 42.7 requests/sec, averaged over the trailing 5m window"]
-  n8["},"]
-  n9["'metric': {'job': 'api', 'instance': '10.0.4.13:8080', 'status': '200'},"]
-  n10["'value': [1753876800, '0.03'] ← this instance is nearly idle — worth asking why vs its sibling"]
-  n11["}"]
-  n12["]"]
+```bash
+$ curl -s 'http://prom:9090/api/v1/query?query=rate(http_requests_total{job='api'}[5m])' | jq .
+{
+'status': 'success',
+'data': {
+'resultType': 'vector',
+'result': [
+'metric': {'job': 'api', 'instance': '10.0.4.12:8080', 'status': '200'},
+'value': [1753876800, '42.7'] ← 42.7 requests/sec, averaged over the trailing 5m window
+},
+'metric': {'job': 'api', 'instance': '10.0.4.13:8080', 'status': '200'},
+'value': [1753876800, '0.03'] ← this instance is nearly idle — worth asking why vs its sibling
+}
+]
 ```
 `rate()` looks at the counter's increase across the range vector, divides by the elapsed seconds, and — critically — extrapolates slightly at the edges and **auto-handles counter resets** (process restart resetting the counter to 0). This last point is the single most-asked PromQL interview detail: `rate()` is not "the difference between two points," it's reset-aware, which is exactly why you use `rate()`/`increase()` on counters and never raw subtraction.
 

@@ -26,29 +26,14 @@ fio --name=readcheck --filename=/safe/testfile --rw=randread     --bs=4k --iodep
 
 ➕ **Diagram: the write path, and where "fast" stops meaning "durable"**
 ```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["app write()"]
-  n1["libc buffer"]
-  n2["VFS"]
-  n3["filesystem"]
-  n4["page cache (dirty page, marked but not yet on disk)"]
-  n5["write() returns here looks instant, data is NOT on disk yet"]
-  n6["fsync()/fdatasync() called no fsync — kernel writeback"]
-  n7["blocks until data reaches thread flushes dirty pages"]
-  n8["the device, durability proven on its own schedule (dirty_ratio,"]
-  n9["periodic timer) — durable"]
-  n10["eventually, not on your timeline"]
-  n11["block layer"]
-  n12["I/O scheduler"]
-  n13["driver"]
-  n14["physical device"]
-  n1 --> n2
-  n2 --> n3
-  n3 --> n4
-  n11 --> n12
-  n12 --> n13
-  n13 --> n14
+flowchart TD
+  App["app write()"] --> Libc["libc buffer"] --> VFS["VFS"] --> FS["filesystem"] --> Cache["page cache: dirty page, not yet on disk"]
+  Cache --> Return["write() returns here: it looks instant, but data is NOT on disk yet"]
+  Cache -->|"fsync()/fdatasync() called"| Sync["caller blocks until data reaches the device; durability is proven"]
+  Cache -->|"no fsync"| Writeback["kernel writeback thread flushes dirty pages on its own schedule: dirty_ratio / periodic timer; durable eventually, not on your timeline"]
+  Sync --> Block["block layer"]
+  Writeback --> Block
+  Block --> Scheduler["I/O scheduler"] --> Driver["driver"] --> Device["physical device"]
 ```
 A checkpoint write that skips `fsync()` can report "done" in milliseconds while the actual bytes are still only in page cache — a node crash before writeback completes silently loses that checkpoint despite the application having already logged success. This is precisely why checkpoint code paths call `fsync()` explicitly rather than trusting `write()`'s return.
 

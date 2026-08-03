@@ -65,19 +65,17 @@ flowchart LR
 The single highest-value diagnostic in this whole chapter: **capture GPU duty cycle on the same time axis as dataloader worker queue depth.** If the queue depth hits zero right before every GPU idle period, workers aren't producing batches fast enough — that's a CPU/storage-throughput problem, not a GPU problem, and matches step 5 of the worked scenario exactly ("only after data supply is ruled out should you focus on GPU kernel inefficiency").
 
 ➕ **Sample annotated evidence — the artifacts you'd actually gather for the worked scenario, in order:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ nvidia-smi dmon -s u -c 5"]
-  n1["# gpu sm mem enc dec"]
-  n2["0 98 91 0 0 ← healthy window"]
-  n3["0 3 2 0 0 ← near-zero: this is the 'near zero' half of the oscillation"]
-  n4["0 4 1 0 0"]
-  n5["0 97 90 0 0 ← back to healthy — total idle span ~2 samples ≈ matches batch-fetch interval"]
-  n6["0 98 92 0 0"]
-  n7["$ iostat -x 1 3 (during the SAME idle window)"]
-  n8["Device r/s rkB/s await %util"]
-  n9["nvme0n1 12400 198400 0.31 88% ← storage IS busy — this is doing real work, not sitting idle"]
+```bash
+$ nvidia-smi dmon -s u -c 5
+# gpu sm mem enc dec
+0 98 91 0 0 ← healthy window
+0 3 2 0 0 ← near-zero: this is the 'near zero' half of the oscillation
+0 4 1 0 0
+0 97 90 0 0 ← back to healthy — total idle span ~2 samples ≈ matches batch-fetch interval
+0 98 92 0 0
+$ iostat -x 1 3 (during the SAME idle window)
+Device r/s rkB/s await %util
+nvme0n1 12400 198400 0.31 88% ← storage IS busy — this is doing real work, not sitting idle
 ```
 The combination — GPU idle *and* storage busy, on the same timestamp — is the smoking gun for "data supply problem," and it's the specific evidence the worked scenario's step 1 ("compare GPU duty cycle with data-loader and storage metrics") is asking you to produce. GPU idle with storage *also* idle instead points at CPU-side decode/augmentation (check `mpstat`/per-core CPU, not storage) or a dataloader worker-count misconfiguration, not the storage layer at all — this distinction is worth stating explicitly, since "storage" gets blamed by default far more often than the evidence supports.
 

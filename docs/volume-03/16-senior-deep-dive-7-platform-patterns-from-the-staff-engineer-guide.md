@@ -24,24 +24,22 @@ Several microservice patterns in your Staff Engineer guide become platform requi
 The pattern-to-platform-question table in the original text (Gateway, circuit breaker, bulkhead, sidecar, event-driven) is already the valuable content here and doesn't need re-deriving — it's a direct, reusable interview answer format as-is. Cross-reference: Chapter 8 (Operators/GitOps/platform engineering) is the mechanism these patterns get implemented through — a "paved road" is, concretely, an operator or GitOps-managed default that encodes one row of that table (e.g. a service-mesh operator owning the sidecar lifecycle question) so individual app teams don't re-answer it per workload.
 
 ➕ **Diagram: the bulkhead isolation-unit spectrum, cost vs blast radius, for GPU pools specifically:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["SHARED (cheapest, widest blast radius)"]
-  n1["one GPU pool, all tenants, time-sliced or MIG-shared per device"]
-  n2["a noisy/misbehaving tenant can starve others sharing the"]
-  n3["same physical GPU — isolation is only as strong as MIG/"]
-  n4["time-slicing enforcement, not a hard boundary"]
-  n5["SHARED POOL, MIG-PARTITIONED"]
-  n6["one GPU pool, tenants get dedicated MIG slices (hard memory/SM"]
-  n7["partition) — blast radius shrinks to 'this MIG slice' not 'this GPU'"]
-  n8["DEDICATED NODE POOL PER TENANT/TIER"]
-  n9["separate node pools (e.g. a dedicated pool per model-serving tier)"]
-  n10["blast radius = one tenant's own pool; cost = idle capacity"]
-  n11["per pool if utilization isn't shared"]
-  n12["DEDICATED GPU POOL PER MODEL/TENANT (most expensive, narrowest blast radius)"]
-  n13["full physical isolation — a bad deploy or driver issue in one pool"]
-  n14["cannot affect any other tenant's capacity at all"]
+```text
+SHARED (cheapest, widest blast radius)
+one GPU pool, all tenants, time-sliced or MIG-shared per device
+a noisy/misbehaving tenant can starve others sharing the
+same physical GPU — isolation is only as strong as MIG/
+time-slicing enforcement, not a hard boundary
+SHARED POOL, MIG-PARTITIONED
+one GPU pool, tenants get dedicated MIG slices (hard memory/SM
+partition) — blast radius shrinks to 'this MIG slice' not 'this GPU'
+DEDICATED NODE POOL PER TENANT/TIER
+separate node pools (e.g. a dedicated pool per model-serving tier)
+blast radius = one tenant's own pool; cost = idle capacity
+per pool if utilization isn't shared
+DEDICATED GPU POOL PER MODEL/TENANT (most expensive, narrowest blast radius)
+full physical isolation — a bad deploy or driver issue in one pool
+cannot affect any other tenant's capacity at all
 ```
 This is the concrete tradeoff a Solutions Architect states out loud in a customer conversation: moving down this list buys isolation and predictability at the direct cost of idle-capacity spend, and the right answer depends on whether the customer's actual risk is "noisy neighbor" or "budget."
 

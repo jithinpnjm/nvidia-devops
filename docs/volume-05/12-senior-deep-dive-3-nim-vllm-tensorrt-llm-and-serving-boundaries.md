@@ -11,24 +11,13 @@ An inference engine optimizes model execution; a serving product adds packaging,
 
 ➕ **Cross-reference:** this is the named-products version of Chapter 4's platform-boundary diagram — read Chapter 4 first for the mechanism (gateway vs. model server vs. GPU resource boundary); this Deep Dive just maps real product names onto that diagram's middle layer:
 ```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["Model server layer, named"]
-  n1["Triton"]
-  n2["general-purpose serving platform, multi-framework/multi-backend"]
-  n3["NIM"]
-  n4["packages vLLM + production proxy (health, OpenAI API, metrics)"]
-  n5["vLLM"]
-  n6["the engine NIM packages; usable directly, without NIM's packaging"]
-  n7["TensorRT-LLM"]
-  n8["NVIDIA-optimized engine, different perf/feature profile than vLLM"]
-  n9["SGLang"]
-  n10["another engine, different scheduling/feature trade-offs"]
-  n1 --> n2
-  n3 --> n4
-  n5 --> n6
-  n7 --> n8
-  n9 --> n10
+flowchart TD
+  Layer["Model-server layer: similar names, different boundaries"]
+  Layer --> Triton["Triton — general-purpose serving platform; multi-framework and multi-backend"]
+  Layer --> NIM["NIM — packages vLLM with a production proxy for health, OpenAI API, and metrics"]
+  Layer --> VLLM["vLLM — the engine NIM packages; also usable directly without NIM packaging"]
+  Layer --> TRT["TensorRT-LLM — NVIDIA-optimized engine with a different performance/feature profile from vLLM"]
+  Layer --> SGLang["SGLang — another engine with different scheduling and feature trade-offs"]
 ```
 ➕ **The one operational distinction worth stating precisely in an interview:** choosing "NIM" vs. "vLLM directly" is not choosing a different engine — it's choosing whether you want the production proxy layer (health probes, standardized API, metrics) built and maintained for you, or whether you'll build/maintain that layer yourself around the open-source engine. Conflating "engine choice" with "packaging choice" is the exact category error Chapter 4 warns against with "do not treat product names as the design."
 

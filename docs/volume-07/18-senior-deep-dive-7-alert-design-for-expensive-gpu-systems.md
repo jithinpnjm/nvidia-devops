@@ -31,13 +31,10 @@ The AND composition mirrors Ch.8's fast+slow burn-rate AND structure exactly —
 
 ➕ **Visual model — page on impact plus persistence, not a noisy raw signal:**
 ```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["fast burn / acute SLO breach"]
-  n1["both agree"]
-  n2["page with runbook"]
-  n3["slow burn / sustained trend"]
-  n4["optionally require queue or capacity saturation for GPU workloads"]
-  n1 --> n2
+flowchart TD
+  Fast["fast burn / acute SLO breach"] --> Agree["both agree"]
+  Slow["slow burn / sustained trend"] --> Agree
+  Saturation["For GPU workloads, optionally require queue or capacity saturation"] -.-> Agree
+  Agree --> Page["page with runbook"]
 ```
 **Memory hook:** *"Two independent agreements beat one dramatic graph."*

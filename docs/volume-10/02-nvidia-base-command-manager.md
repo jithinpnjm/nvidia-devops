@@ -75,32 +75,30 @@ Key concepts:
 
 ## Representative `cmsh` interaction
 
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ cmsh"]
-  n1["[headnode]% category"]
-  n2["[headnode->category]% list"]
-  n3["Name Software Image Nodes"]
-  n4["----------------------"]
-  n5["default default-image 2"]
-  n6["gpu-a100 gpu-img-v42 30"]
-  n7["gpu-h100-canary gpu-img-v43 1"]
-  n8["login login-img-v9 2"]
-  n9["[headnode->category]% use gpu-a100"]
-  n10["[headnode->category[gpu-a100]]% show"]
-  n11["Parameter Value"]
-  n12["Name gpu-a100"]
-  n13["Software image gpu-img-v42"]
-  n14["Nodes 30"]
-  n15["Kernel modules nvidia, nvidia-uvm, mlx5_core"]
-  n16["Node prolog/epilog scripts /cm/local/apps/... (health-check hooks)"]
-  n17["[headnode->category[gpu-a100]]% device list -c gpu-a100"]
-  n18["Node Category Status Image Health"]
-  n19["---------- --------- -----------"]
-  n20["gpu-node-01 gpu-a100 UP gpu-img-v42 HEALTHY"]
-  n21["gpu-node-02 gpu-a100 UP gpu-img-v42 HEALTHY"]
-  n22["gpu-node-09 gpu-a100 UP gpu-img-v42 DRAINED ← health check flagged it, excluded from Slurm scheduling"]
+```bash
+$ cmsh
+[headnode]% category
+[headnode->category]% list
+Name Software Image Nodes
+----------------------
+default default-image 2
+gpu-a100 gpu-img-v42 30
+gpu-h100-canary gpu-img-v43 1
+login login-img-v9 2
+[headnode->category]% use gpu-a100
+[headnode->category[gpu-a100]]% show
+Parameter Value
+Name gpu-a100
+Software image gpu-img-v42
+Nodes 30
+Kernel modules nvidia, nvidia-uvm, mlx5_core
+Node prolog/epilog scripts /cm/local/apps/... (health-check hooks)
+[headnode->category[gpu-a100]]% device list -c gpu-a100
+Node Category Status Image Health
+---------- --------- -----------
+gpu-node-01 gpu-a100 UP gpu-img-v42 HEALTHY
+gpu-node-02 gpu-a100 UP gpu-img-v42 HEALTHY
+gpu-node-09 gpu-a100 UP gpu-img-v42 DRAINED ← health check flagged it, excluded from Slurm scheduling
 ```
 (Again: treat command names/nesting above as illustrative of the interaction pattern — the categorized, image-centric view of the fleet, drill-down from category to member nodes to per-node health — not as verified exact syntax.)
 
@@ -108,22 +106,17 @@ flowchart TD
 
 The general model for any image-based cluster manager: you do not patch nodes in place one at a time and hope they converge — you build or update a golden image, then move node categories onto it in a controlled sequence.
 
-```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["1. Build/update the software image (new kernel, new NVIDIA driver, new CUDA toolkit version, package updates)"]
-  n1["2. Validate the image in isolation (boot a spare/test node onto it, run the health-check suite + a representative job)"]
-  n2["3. Create or repoint a canary category onto the new image (small node subset, e.g. 1-2 nodes out of 30)"]
-  n3["4. Soak the canary (run real or synthetic jobs, watch for driver/ECC/NCCL regressions, days not minutes)"]
-  n4["5. Repoint the main category onto the new image incrementally (batches, not all 30 nodes at once)"]
-  n5["6. Each batch: drain from Slurm"]
-  n6["reboot into new image"]
-  n7["health-check"]
-  n8["rejoin partition"]
-  n9["7. Roll back a batch by repointing it back to the previous image if health checks or job telemetry regress"]
-  n5 --> n6
-  n6 --> n7
-  n7 --> n8
+```text
+1. Build/update the software image (new kernel, new NVIDIA driver, new CUDA toolkit version, package updates)
+2. Validate the image in isolation (boot a spare/test node onto it, run the health-check suite + a representative job)
+3. Create or repoint a canary category onto the new image (small node subset, e.g. 1-2 nodes out of 30)
+4. Soak the canary (run real or synthetic jobs, watch for driver/ECC/NCCL regressions, days not minutes)
+5. Repoint the main category onto the new image incrementally (batches, not all 30 nodes at once)
+6. Each batch: drain from Slurm
+reboot into new image
+health-check
+rejoin partition
+7. Roll back a batch by repointing it back to the previous image if health checks or job telemetry regress
 ```
 
 ## Where BCM sits relative to Ansible/Terraform

@@ -32,22 +32,20 @@ budget_consumed = 12,000 / 50,000 = 24%  of the ENTIRE MONTH'S budget, in one in
 That last line — "24% of the month's budget in one incident" — is the sentence that makes error budgets real to a stakeholder who otherwise hears "99.9%" and assumes it means "basically never fails." Always convert the percentage into an absolute request count and a burn fraction; percentages alone don't communicate urgency.
 
 ➕ **ASCII: error budget as a burn-down, and why burn RATE matters more than remaining balance:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["Budget remaining (%)"]
-  n1["100 ●"]
-  n2["●●"]
-  n3["75 ●●● ← slow, sustainable burn (normal noise)"]
-  n4["●●●●●●"]
-  n5["50 ●●●●●●●●"]
-  n6["●●●●●●●●●●●●●●●●●●●●●●●● ← fine, budget lasts the window"]
-  n7["25"]
-  n8["0 incident: burns 24% in <1 hour"]
-  n9["time (30-day window)"]
-  n10["THIS is what a burn-rate alert (Ch.8) is designed to catch —"]
-  n11["not 'budget is low' but 'budget is draining fast enough to"]
-  n12["exhaust before the window ends.'"]
+```text
+Budget remaining (%)
+100 ●
+●●
+75 ●●● ← slow, sustainable burn (normal noise)
+●●●●●●
+50 ●●●●●●●●
+●●●●●●●●●●●●●●●●●●●●●●●● ← fine, budget lasts the window
+25
+0 incident: burns 24% in <1 hour
+time (30-day window)
+THIS is what a burn-rate alert (Ch.8) is designed to catch —
+not 'budget is low' but 'budget is draining fast enough to
+exhaust before the window ends.'
 ```
 
 ➕ **Diagram: SLI to SLO to error budget, as one funnel**

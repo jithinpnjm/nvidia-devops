@@ -45,24 +45,22 @@ flowchart TD
 `nvidia-smi` on the host only proves step 2. Everything from step 3 onward is a separate, independently-failing chain — this is exactly why the worked scenario insists on walking *up* from proven ground instead of guessing.
 
 ➕ **Annotated real output at each layer of the diagram — what healthy vs broken actually prints:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ kubectl -n gpu-operator get pods -o wide"]
-  n1["NAME READY STATUS RESTARTS NODE"]
-  n2["nvidia-driver-daemonset-abcde 1/1 Running 0 gpu-node-07"]
-  n3["nvidia-container-toolkit-daemonset-fghij 1/1 Running 0 gpu-node-07"]
-  n4["nvidia-device-plugin-daemonset-klmno 0/1 CrashLoopBackOff 12 gpu-node-07 ← step 4 is broken"]
-  n5["gpu-feature-discovery-pqrst 1/1 Running 0 gpu-node-07"]
-  n6["$ kubectl -n gpu-operator logs nvidia-device-plugin-daemonset-klmno --previous"]
-  n7["I0730 ... Starting FS watcher."]
-  n8["I0730 ... Starting OS watcher."]
-  n9["E0730 ... failed to initialize NVML: could not load NVML library"]
-  n10["← toolkit/driver mount into the plugin pod itself"]
-  n11["is broken, NOT the host driver — nvidia-smi on"]
-  n12["the HOST would still pass fine"]
-  n13["$ kubectl get node gpu-node-07 -o jsonpath='{.status.allocatable}'"]
-  n14["{'cpu':'64','memory':'...' } ← no nvidia.com/gpu key at all — confirms step 5 never got populated"]
+```bash
+$ kubectl -n gpu-operator get pods -o wide
+NAME READY STATUS RESTARTS NODE
+nvidia-driver-daemonset-abcde 1/1 Running 0 gpu-node-07
+nvidia-container-toolkit-daemonset-fghij 1/1 Running 0 gpu-node-07
+nvidia-device-plugin-daemonset-klmno 0/1 CrashLoopBackOff 12 gpu-node-07 ← step 4 is broken
+gpu-feature-discovery-pqrst 1/1 Running 0 gpu-node-07
+$ kubectl -n gpu-operator logs nvidia-device-plugin-daemonset-klmno --previous
+I0730 ... Starting FS watcher.
+I0730 ... Starting OS watcher.
+E0730 ... failed to initialize NVML: could not load NVML library
+← toolkit/driver mount into the plugin pod itself
+is broken, NOT the host driver — nvidia-smi on
+the HOST would still pass fine
+$ kubectl get node gpu-node-07 -o jsonpath='{.status.allocatable}'
+{'cpu':'64','memory':'...' } ← no nvidia.com/gpu key at all — confirms step 5 never got populated
 ```
 This is the exact "nvidia-smi works, Kubernetes doesn't show GPUs" symptom, reproduced with the specific log line (`failed to initialize NVML`) that names the layer: the *plugin's own container* can't reach the NVML library, which is a toolkit/CDI/mount problem — a layer entirely separate from and downstream of a healthy host driver.
 

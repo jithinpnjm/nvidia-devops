@@ -129,14 +129,12 @@ flowchart TD
 This is why the exact same `read()` syscall can be fast (local NVMe, cache hit) or catastrophically slow (NFS server under load) with identical application code — the bottleneck is never visible from the syscall itself, only from what's underneath the VFS dispatch.
 
 ➕ **Sample `lsof`/fd output and what actually leaks in production:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ ls -l /proc/8842/fd | head -6"]
-  n1["lrwx------ 1 app app 64 Jul 30 10:00 3 -> /dev/nvidia0"]
-  n2["lrwx------ 1 app app 64 Jul 30 10:00 4 -> socket:[884213]"]
-  n3["l-wx------ 1 app app 64 Jul 30 10:00 5 -> /var/log/app.log (deleted) ← classic leak signature"]
-  n4["lrwx------ 1 app app 64 Jul 30 10:00 6 -> /data/model-shard-0042.bin"]
+```bash
+$ ls -l /proc/8842/fd | head -6
+lrwx------ 1 app app 64 Jul 30 10:00 3 -> /dev/nvidia0
+lrwx------ 1 app app 64 Jul 30 10:00 4 -> socket:[884213]
+l-wx------ 1 app app 64 Jul 30 10:00 5 -> /var/log/app.log (deleted) ← classic leak signature
+lrwx------ 1 app app 64 Jul 30 10:00 6 -> /data/model-shard-0042.bin
 ```
 The `(deleted)` marker is the single most common real-world fd leak: a log rotation tool `unlink()`s the file, but the process still holds the fd open — disk usage doesn't drop (`du` won't show it, the inode is still allocated) even though `ls` shows the file gone. **`df` and `du` disagreeing after a log rotation is this exact bug, every time — check `lsof +L1` before anything else.**
 

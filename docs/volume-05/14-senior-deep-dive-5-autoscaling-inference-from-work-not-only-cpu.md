@@ -27,23 +27,15 @@ The senior framing: fractional GPU scheduling for autoscaling is a cost/utilizat
 
 ➕ **Diagram: reactive HPA vs. predictive/warm-pool scaling against a traffic ramp**
 ```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["Traffic: ▁▁▂▃▅▇█████████▇▅▃▂▁▁ (ramp starts at t=0)"]
-  n1["Reactive HPA"]
-  n2["scale trigger fires"]
-  n3["new replica scheduled"]
-  n4["model load (minutes)"]
-  n5["ready"]
-  n6["traffic already past peak by the time replica is ready"]
-  n7["SLO violated during the entire ramp-up window, capacity arrives too late"]
-  n8["Predictive / warm pool"]
-  n9["capacity pre-provisioned or kept warm BEFORE the ramp, based on forecast/schedule"]
-  n10["|==warm pool idle==|=====ramp=====|=====peak=====|=====decay=====|"]
-  n11["↑ capacity already ready when traffic arrives"]
-  n2 --> n3
-  n3 --> n4
-  n4 --> n5
+flowchart TD
+  Traffic["Traffic: ▁▁▂▃▅▇█████████▇▅▃▂▁▁ — ramp starts at t=0"]
+  Traffic --> Reactive["Reactive HPA"] --> Trigger["scale trigger fires"] --> Scheduled["new replica scheduled"]
+  Scheduled --> Load["model load: minutes"] --> Ready["replica ready"]
+  Ready --> Late["traffic is already past peak; SLO was violated through ramp-up because capacity arrived too late"]
+  Traffic --> Predictive["Predictive scaling / warm pool"]
+  Predictive --> Warm["capacity pre-provisioned or kept warm before the ramp, based on forecast or schedule"]
+  Warm --> Timeline["|== warm pool idle ==|===== ramp =====|===== peak =====|===== decay =====|"]
+  Timeline --> OnTime["capacity is ready when traffic arrives"]
 ```
 This is the mechanism behind "predictive capacity, warm pools and staged rollout may outperform reactive HPA alone" — the multi-minute model-load lead time from Chapter 5's lifecycle box means a purely reactive loop is structurally unable to keep up with a fast ramp, no matter how well the trigger threshold is tuned.
 

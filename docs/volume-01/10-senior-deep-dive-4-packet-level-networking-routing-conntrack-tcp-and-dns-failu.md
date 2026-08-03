@@ -46,33 +46,21 @@ Every NAT'd connection (which, per Chapter 4, is *every* Service-routed connecti
 
 ➕ **Diagram: one packet, one conntrack entry, both directions of a Service call**
 ```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["client pod SYN, dst=ClusterIP:80"]
-  n1["[conntrack: NEW] DNAT rewrite"]
-  n2["real pod IP:8080"]
-  n3["entry recorded: (src,sport,ClusterIP,80) ↔ (src,sport,podIP,8080)"]
-  n4["real pod SYN-ACK, src=podIP:8080"]
-  n5["[conntrack: lookup existing entry] un-DNAT"]
-  n6["client sees"]
-  n7["reply 'from'"]
-  n8["ClusterIP:80"]
-  n0 --> n1
-  n1 --> n2
-  n4 --> n5
-  n5 --> n6
+flowchart TD
+  SYN["client Pod SYN, dst=ClusterIP:80"] --> DNAT["conntrack: NEW; DNAT rewrite"] --> Pod["real Pod IP:8080"]
+  DNAT --> Entry["entry recorded: (src,sport,ClusterIP,80) ↔ (src,sport,PodIP,8080)"]
+  Reply["real Pod SYN-ACK, src=PodIP:8080"] --> Lookup["conntrack: look up existing entry; un-DNAT"]
+  Lookup --> Client["client sees reply from ClusterIP:80"]
 ```
 Every one of these entries persists in the conntrack table for the connection's lifetime (plus a timeout after close) — this is the hidden per-connection state Kubernetes iptables-mode NAT relies on, and it is a finite table (`nf_conntrack_max`), unlike the ClusterIP abstraction itself which looks stateless from the application's point of view.
 
 ➕ **Diagram: two failure modes that look identical from the client, but aren't**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["'new connections start failing under load' — same symptom, two different tables"]
-  n1["TIME_WAIT pileup conntrack table full"]
-  n2["ephemeral port range exhausted nf_conntrack_max reached"]
-  n3["on the CLIENT side on the NODE (NAT gateway/kube-proxy path)"]
-  n4["fix: reuse connections / pooling fix: raise nf_conntrack_max, or"]
-  n5["reduce connection churn cluster-wide"]
-  n6["evidence: ss -tan | grep TIME-WAIT evidence: conntrack -S dropped counter climbing"]
+```text
+'new connections start failing under load' — same symptom, two different tables
+TIME_WAIT pileup conntrack table full
+ephemeral port range exhausted nf_conntrack_max reached
+on the CLIENT side on the NODE (NAT gateway/kube-proxy path)
+fix: reuse connections / pooling fix: raise nf_conntrack_max, or
+reduce connection churn cluster-wide
+evidence: ss -tan | grep TIME-WAIT evidence: conntrack -S dropped counter climbing
 ```

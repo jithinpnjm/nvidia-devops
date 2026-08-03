@@ -43,18 +43,8 @@ Run controlled failures: kill model workers, block DNS, remove an EndpointSlice 
 ➕ **Visual model — a game day is a closed learning loop:**
 ```mermaid
 flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["choose failure"]
-  n1["define expected signals"]
-  n2["inject safely"]
-  n3["detect + mitigate"]
-  n4["measure recovery"]
-  n5["improve runbook"]
-  n6["rerun with the next weak assumption"]
-  n0 --> n1
-  n1 --> n2
-  n2 --> n3
-  n3 --> n4
-  n4 --> n5
+  Choose["choose failure"] --> Signals["define expected signals"] --> Inject["inject safely"]
+  Inject --> Detect["detect + mitigate"] --> Recovery["measure recovery"] --> Runbook["improve runbook"]
+  Runbook --> Next["rerun with the next weak assumption"] --> Choose
 ```
 **Memory hook:** *"Practice the evidence path, not just the failover command."*

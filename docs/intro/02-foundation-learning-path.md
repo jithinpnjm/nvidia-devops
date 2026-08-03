@@ -15,22 +15,13 @@ Being senior does not mean already knowing every domain. Seniority gives you hab
 Use this dependency path first:
 
 ```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["Stage 0: learning method and common language"]
-  n1["↓"]
-  n2["Stage 1: Linux process, memory, files, network, service"]
-  n3["Stage 2: small Python programs and safe system interaction"]
-  n4["Stage 3: containers and Kubernetes fundamentals"]
-  n5["Stage 4: AI workload"]
-  n6["GPU"]
-  n7["multi-GPU"]
-  n8["HPC fabric/storage/scheduler"]
-  n9["Stage 5: observability and troubleshooting across those layers"]
-  n10["Stage 6: architecture, customer reasoning, and interview practice"]
-  n5 --> n6
-  n6 --> n7
-  n7 --> n8
+flowchart TD
+  S0["Stage 0: learning method and common language"] --> S1["Stage 1: Linux process, memory, files, network, service"]
+  S1 --> S2["Stage 2: small Python programs and safe system interaction"]
+  S2 --> S3["Stage 3: containers and Kubernetes fundamentals"]
+  S3 --> S4["Stage 4: AI workload → GPU → multi-GPU → HPC fabric/storage/scheduler"]
+  S4 --> S5["Stage 5: observability and troubleshooting across those layers"]
+  S5 --> S6["Stage 6: architecture, customer reasoning, and interview practice"]
 ```
 
 Volume 10 is a cross-layer operational volume. Read it after the relevant foundations, not as an introduction to every product it mentions.

@@ -84,17 +84,15 @@ Every GPU blocks at the AllReduce step until all peers finish backward and the c
 The AllReduce bar is the "coordination cost" the worked scenario's conclusion names abstractly — it does not shrink just because you added GPUs; it can grow if the fabric between the new GPUs is slower (cross-node vs. NVLink) or if gradient tensor size stays fixed while step count per GPU drops, making the fixed communication overhead a larger fraction of each step.
 
 ➕ **Sample `nvidia-smi dmon` output during a data-parallel step, annotated for exactly this diagnosis:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ nvidia-smi dmon -s pucm -c 5"]
-  n1["# gpu pwr gtemp mtemp sm mem enc dec mclk pclk"]
-  n2["# Idx W C C % % % % MHz MHz"]
-  n3["0 410 68 71 97 88 0 0 2619 1980 ← healthy: compute-bound"]
-  n4["0 95 61 64 12 9 0 0 2619 1980 ← SM=12%: GPU is WAITING, not computing"]
-  n5["0 88 60 63 8 6 0 0 2619 1980 ← this is the AllReduce/collective wait window"]
-  n6["0 405 67 70 96 89 0 0 2619 1980 ← back to compute — step resumed"]
-  n7["0 402 67 70 95 87 0 0 2619 1980"]
+```bash
+$ nvidia-smi dmon -s pucm -c 5
+# gpu pwr gtemp mtemp sm mem enc dec mclk pclk
+# Idx W C C % % % % MHz MHz
+0 410 68 71 97 88 0 0 2619 1980 ← healthy: compute-bound
+0 95 61 64 12 9 0 0 2619 1980 ← SM=12%: GPU is WAITING, not computing
+0 88 60 63 8 6 0 0 2619 1980 ← this is the AllReduce/collective wait window
+0 405 67 70 96 89 0 0 2619 1980 ← back to compute — step resumed
+0 402 67 70 95 87 0 0 2619 1980
 ```
 Two consecutive low-`sm%` rows sandwiched between high-`sm%` rows is the signature of collective-communication stall, not data-loader starvation — a data-loader stall usually shows a longer, less regular low-utilization stretch and correlates with `iostat`/page-cache-miss evidence instead of a fixed periodic pattern tied to step boundaries. Distinguishing these two is exactly what the worked scenario's steps 2-4 are asking you to do with instrumentation instead of guessing.
 

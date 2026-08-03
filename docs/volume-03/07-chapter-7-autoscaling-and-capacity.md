@@ -50,24 +50,21 @@ flowchart TD
 Mitigation named in K8s docs and worth stating directly: don't run VPA in `Auto`/`Recreate` update mode on CPU/memory simultaneously with HPA targeting CPU/memory utilization on the *same* workload — either let VPA drive requests and HPA target a custom/external metric instead, or pick one loop per resource dimension.
 
 ➕ **Sample annotated output — reading an HPA's actual decision math, not just its output replica count:**
-```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ kubectl describe hpa api -n prod"]
-  n1["Reference: Deployment/api"]
-  n2["Metrics: ( current / target )"]
-  n3["resource cpu on pods (as a percentage of request): 78% (390m) / 70%"]
-  n4["Min replicas: 5"]
-  n5["Max replicas: 30"]
-  n6["Current replicas: 12"]
-  n7["Desired replicas: 14 ← 12 * (78/70) ≈ 13.4"]
-  n8["rounds to 14"]
-  n9["Conditions"]
-  n10["Type Status Reason"]
-  n11["AbleToScale True ReadyForNewScale"]
-  n12["ScalingActive True ValidMetricFound"]
-  n13["ScalingLimited False (would be True if pinned at Min or Max replicas)"]
-  n7 --> n8
+```bash
+$ kubectl describe hpa api -n prod
+Reference: Deployment/api
+Metrics: ( current / target )
+resource cpu on pods (as a percentage of request): 78% (390m) / 70%
+Min replicas: 5
+Max replicas: 30
+Current replicas: 12
+Desired replicas: 14 ← 12 * (78/70) ≈ 13.4
+rounds to 14
+Conditions
+Type Status Reason
+AbleToScale True ReadyForNewScale
+ScalingActive True ValidMetricFound
+ScalingLimited False (would be True if pinned at Min or Max replicas)
 ```
 The `Desired replicas` math is always `ceil(currentReplicas * currentMetric/targetMetric)`, clamped by a stabilization window (default 0s scale-up, 5 min scale-down in modern versions) to prevent flapping — worth being able to do this arithmetic live, since "why did it scale from 12 to 14 and not straight to 30" is a real question customers ask.
 

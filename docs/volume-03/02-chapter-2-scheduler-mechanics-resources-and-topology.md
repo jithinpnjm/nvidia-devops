@@ -32,18 +32,16 @@ headroom exists right now. The scheduler never looks at "actual usage"; it only
 ever looks at the sum of requests already committed.
 ```
 ➕ **Sample annotated output — reading `kubectl describe node` for exactly this:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ kubectl describe node gpu-worker-3 | sed -n '/Allocated resources:/,$p'"]
-  n1["Allocated resources"]
-  n2["(Total limits may be over 100 percent, i.e., overcommitted.)"]
-  n3["Resource Requests Limits"]
-  n4["--------"]
-  n5["cpu 55200m (92%) 78000m (130%) ← requests near capacity: scheduling headroom is thin"]
-  n6["memory 210Gi (88%) 250Gi (105%)"]
-  n7["nvidia.com/gpu 8 (100%) 8 (100%) ← GPUs are integer/discrete: 100% means the NEXT"]
-  n8["GPU pod is Pending no matter how idle these 8 are"]
+```bash
+$ kubectl describe node gpu-worker-3 | sed -n '/Allocated resources:/,$p'
+Allocated resources
+(Total limits may be over 100 percent, i.e., overcommitted.)
+Resource Requests Limits
+--------
+cpu 55200m (92%) 78000m (130%) ← requests near capacity: scheduling headroom is thin
+memory 210Gi (88%) 250Gi (105%)
+nvidia.com/gpu 8 (100%) 8 (100%) ← GPUs are integer/discrete: 100% means the NEXT
+GPU pod is Pending no matter how idle these 8 are
 ```
 The `(130%)` on limits is normal and expected — limits are allowed to overcommit because they're enforced at runtime (CFS throttling), not reserved at scheduling time; **requests at or near 100% is the number that actually blocks new Pods**, and it's the number people conflate with "the node is full" when checking dashboards that show utilization instead.
 
@@ -125,14 +123,12 @@ flowchart TD
     Filter --> Mig
 ```
 ➕ **Sample annotated output — proving what a node actually advertises, MIG or not:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ kubectl get node gpu-a100-04 -o json | jq '.status.allocatable | with_entries(select(.key | contains('nvidia')))'"]
-  n1["{"]
-  n2["'nvidia.com/mig-1g.5gb': '7', ← MIG-sliced: 7 slices of the 1g.5gb profile"]
-  n3["'nvidia.com/mig-2g.10gb': '0' ← this profile is defined but exhausted/unconfigured — 0 available"]
-  n4["}"]
+```bash
+$ kubectl get node gpu-a100-04 -o json | jq '.status.allocatable | with_entries(select(.key | contains('nvidia')))'
+{
+'nvidia.com/mig-1g.5gb': '7', ← MIG-sliced: 7 slices of the 1g.5gb profile
+'nvidia.com/mig-2g.10gb': '0' ← this profile is defined but exhausted/unconfigured — 0 available
+}
 ```
 A Pod manifest requesting `nvidia.com/gpu: 1` against this node will Filter out with `Insufficient nvidia.com/gpu` even though the node has physical GPU capacity — because the node isn't advertising *that* resource name at all once MIG reconfiguration has taken over the resource namespace. This single fact — **MIG changes the resource name, not just the resource quantity** — is one of the most common "why is my GPU pod Pending on an idle-looking GPU node" root causes in real fleets.
 

@@ -35,17 +35,15 @@ flowchart TD
 The KV cache leaf is the one most likely to be misclassified by someone applying general "externalize state" instincts from web-service architecture — unlike conversation history, KV cache is not a candidate for externalization to Redis/a database; it lives in GPU HBM for the duration of one request/session and is deliberately non-durable. Prefix caching (Senior Deep Dive 2) reuses it *within* a serving tier via routing, not by copying it out to a shared store.
 
 ➕ **Sample output — a session-affinity bug this classification prevents:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ kubectl get pods -l app=llm-chat -o wide"]
-  n1["NAME READY STATUS NODE"]
-  n2["llm-chat-7f9c-0 1/1 Running gpu-node-3"]
-  n3["llm-chat-7f9c-1 1/1 Running gpu-node-7"]
-  n4["$ curl -s https://chat.internal/v1/conversations/abc123/history"]
-  n5["{'error': 'conversation not found'} ← user's 2nd message hit a DIFFERENT replica than their 1st"]
-  n6["$ kubectl logs llm-chat-7f9c-1 | grep abc123"]
-  n7["(no output — this replica never saw this conversation ID)"]
+```bash
+$ kubectl get pods -l app=llm-chat -o wide
+NAME READY STATUS NODE
+llm-chat-7f9c-0 1/1 Running gpu-node-3
+llm-chat-7f9c-1 1/1 Running gpu-node-7
+$ curl -s https://chat.internal/v1/conversations/abc123/history
+{'error': 'conversation not found'} ← user's 2nd message hit a DIFFERENT replica than their 1st
+$ kubectl logs llm-chat-7f9c-1 | grep abc123
+(no output — this replica never saw this conversation ID)
 ```
 This is the exact failure Sagar Desai's practitioner lens warns against: conversation history held only in the serving replica's process memory disappears the instant the load balancer routes a follow-up message to a different Pod — which it will, under any non-sticky load balancing, and even sticky sessions break on replica restart/rescale. The fix is externalizing conversation state to a shared store (Redis, a database) keyed by conversation ID, looked up by whichever replica happens to handle the request — not making replicas sticky, which just delays the same failure to the next scale-down event.
 

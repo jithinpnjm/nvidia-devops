@@ -49,22 +49,17 @@ Enroot is an unprivileged container runtime built for exactly this constraint. I
 - Imports Docker/OCI images **directly** — no separate registry proxy or conversion service — flattening the image's layers into a single squashed rootless filesystem image (`.sqsh`) that the user's own account owns and controls.
 - Starts containers as regular user-namespaced processes: from the kernel's point of view, it's just another process tree owned by that user, not a container-runtime-mediated root process.
 
-```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["enroot import docker://nvcr.io#nvidia/pytorch:24.05-py3"]
-  n1["#"]
-  n2["downloads image, flattens layers, writes"]
-  n3["# nvidia+pytorch+24.05-py3.sqsh (squashed rootless filesystem)"]
-  n4["enroot create --name pt2405 nvidia+pytorch+24.05-py3.sqsh"]
-  n5["unpacks/registers a named, runnable container 'pt2405' from the squash file"]
-  n6["enroot start --root --rw pt2405 nvidia-smi"]
-  n7["runs a command inside the container as the invoking user; --rw makes the"]
-  n8["# container filesystem writable for this invocation, --root maps the user to"]
-  n9["# container-root (still unprivileged on the host) for install-time operations"]
-  n1 --> n2
-  n1 --> n5
-  n1 --> n7
+```bash
+enroot import docker://nvcr.io#nvidia/pytorch:24.05-py3
+#
+downloads image, flattens layers, writes
+# nvidia+pytorch+24.05-py3.sqsh (squashed rootless filesystem)
+enroot create --name pt2405 nvidia+pytorch+24.05-py3.sqsh
+unpacks/registers a named, runnable container 'pt2405' from the squash file
+enroot start --root --rw pt2405 nvidia-smi
+runs a command inside the container as the invoking user; --rw makes the
+# container filesystem writable for this invocation, --root maps the user to
+# container-root (still unprivileged on the host) for install-time operations
 ```
 
 ## Pyxis: the Slurm SPANK plugin

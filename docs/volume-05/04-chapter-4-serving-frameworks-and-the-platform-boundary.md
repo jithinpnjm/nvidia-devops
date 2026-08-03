@@ -33,22 +33,20 @@ flowchart TD
 The architectural point: swapping the model server (e.g. vLLM → TensorRT-LLM for a latency win) should not require rewriting the gateway's auth/quota/routing logic, and swapping the gateway (e.g. adding a new API management product) should not require touching model execution. Coupling these two layers is the most common "platform boundary" mistake — e.g. baking tenant quota logic into a custom Triton backend instead of the gateway.
 
 ➕ **Sample output — proving the resource boundary is real, not just YAML:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ kubectl describe pod llm-server-0 | grep -A4 'Limits\|Requests'"]
-  n1["Limits"]
-  n2["memory: 24Gi"]
-  n3["Requests"]
-  n4["cpu: 4"]
-  n5["memory: 16Gi"]
-  n6["nvidia.com/gpu: 1"]
-  n7["$ kubectl exec llm-server-0 -- nvidia-smi --query-gpu=memory.used,memory.total --format=csv"]
-  n8["memory.used [MiB], memory.total [MiB]"]
-  n9["71234 MiB, 81920 MiB ← 71GB used of 80GB — note: nvidia.com/gpu:1 gives WHOLE-GPU"]
-  n10["access, K8s has no native concept of fractional GPU memory"]
-  n11["limits here — that enforcement is the model server's job, or"]
-  n12["requires MIG/time-slicing configured outside this manifest"]
+```bash
+$ kubectl describe pod llm-server-0 | grep -A4 'Limits\|Requests'
+Limits
+memory: 24Gi
+Requests
+cpu: 4
+memory: 16Gi
+nvidia.com/gpu: 1
+$ kubectl exec llm-server-0 -- nvidia-smi --query-gpu=memory.used,memory.total --format=csv
+memory.used [MiB], memory.total [MiB]
+71234 MiB, 81920 MiB ← 71GB used of 80GB — note: nvidia.com/gpu:1 gives WHOLE-GPU
+access, K8s has no native concept of fractional GPU memory
+limits here — that enforcement is the model server's job, or
+requires MIG/time-slicing configured outside this manifest
 ```
 This is the gap worth naming explicitly: the Kubernetes `limits.memory: 24Gi` governs *host* memory, not GPU memory — `nvidia.com/gpu: 1` is a whole-device allocation unit with no granularity below one GPU unless MIG partitioning or a fractional-GPU scheduler (Run:ai, per Senior Deep Dive 5) is layered in. A candidate who assumes `limits` constrains GPU memory the way it constrains CPU memory will misdiagnose GPU OOM as a Kubernetes scheduling bug.
 

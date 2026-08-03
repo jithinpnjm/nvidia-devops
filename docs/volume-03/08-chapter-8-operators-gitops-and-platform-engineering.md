@@ -59,10 +59,8 @@ kubectl edit deploy inference-api -n ml-platform   # manually bump replicas 3→
 sleep 30
 kubectl get deploy inference-api -n ml-platform -o jsonpath='{.spec.replicas}'
 ```
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["3 ← GitOps controller reverted it on its next reconcile pass, because Git still says 3"]
+```text
+3 ← GitOps controller reverted it on its next reconcile pass, because Git still says 3
 ```
 This single demo is the fastest way to prove to a skeptical customer that GitOps isn't "just a deployment convenience" — it's an enforced desired-state contract, and it's worth having memorized as a live demo, not just a slide.
 

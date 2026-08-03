@@ -87,20 +87,9 @@ Read `sinfo -R` as an incident inventory. Preserve reasons such as `ECC errors`,
 
 ```mermaid
 flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["observe"]
-  n1["diagnose"]
-  n2["repair"]
-  n3["run health gate"]
-  n4["resume"]
-  n5["run representative job"]
-  n6["monitor"]
-  n0 --> n1
-  n1 --> n2
-  n2 --> n3
-  n3 --> n4
-  n4 --> n5
-  n5 --> n6
+  Observe["observe"] --> Diagnose["diagnose"] --> Repair["repair"] --> Gate["run health gate"]
+  Gate --> Resume["resume"] --> Job["run representative job"] --> Monitor["monitor"]
+  Monitor --> Observe
 ```
 
 ## Lab 4 — connect BCM desired state to live state

@@ -25,27 +25,22 @@ A safe exercise uses a non-production cluster: submit a long sleep job and queue
 A backup `slurmctld` is not a cold standby that simply starts scheduling when the primary disappears — if it started from empty state, every running job's allocation record, every pending job's position in the queue, and every node's current state would be lost or reconstructed wrong, and Slurm would either double-allocate resources or drop jobs. Failover is safe only because both controllers read and write the same `StateSaveLocation`:
 
 ```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["shared, POSIX-consistent"]
-  n1["slurmctld PRIMARY"]
-  n2["StateSaveLocation"]
-  n3["(active) writes: job_state, node_state, (shared FS: NFS,"]
-  n4["part_state, resv_state on every or replicated"]
-  n5["scheduling-relevant change block device)"]
-  n6["read at"]
-  n7["startup +"]
-  n8["periodic"]
-  n9["slurmctld BACKUP ◀"]
-  n10["(passive, polls on primary heartbeat loss: backup reads latest"]
-  n11["primary via state files, becomes active, resumes scheduling"]
-  n12["slurm_rpc_ping) from exactly where the primary left off"]
-  n1 --> n2
+flowchart TD
+  Primary["slurmctld PRIMARY: active"] -->|"writes job_state, node_state, part_state, and resv_state on every scheduling-relevant change"| State["shared, POSIX-consistent StateSaveLocation: NFS or replicated block device"]
+  State -->|"read at startup and periodically"| Backup["slurmctld BACKUP: passive"]
+  Primary -.->|"polled via slurm_rpc_ping"| Backup
+  Backup -->|"on primary heartbeat loss: read latest state files, become active, and resume scheduling where primary stopped"| Active["active controller"]
 ```
 
-The files that matter — `job_state`, `node_state`, `part_state`, `resv_state`, `trigger_state`, `assoc_mgr_state` (the fairshare/QoS association tree) — all live under `StateSaveLocation`, and *both* controllers must have it mounted from the same shared storage (or a synchronously replicated equivalent), because the backup's entire failover contract is "read what the primary last wrote, resume from there." If the backup has a stale or local copy of `StateSaveLocation`, it fails over into a fork of reality — it will believe jobs are running that finished ten minutes ago, or that nodes are idle that are actually allocated, and it will start double-booking. This is why `StateSaveLocation` on shared storage (or DRBD/replicated block storage under it) is a hard requirement, not a tuning knob — the backup being merely *installed* with the right `slurm.conf` (`SlurmctldHost=primary,backup`) is necessary but not sufficient; without the shared state the failover is unsafe even though it "works" superficially (the backup does take over scheduling).
+Slurm persists scheduler state beneath `StateSaveLocation`. The files include job state (`job_state`), node state (`node_state`), partition and reservation state (`part_state`, `resv_state`), triggers (`trigger_state`), and `assoc_mgr_state`, which holds the cached account, fairshare, and QoS association tree.
 
-The other consistency requirement, easy to miss: `slurmdbd` (the accounting daemon) is a separate process from `slurmctld` and has its own failover story against its MySQL/MariaDB backend. `slurmctld`'s failover protects scheduling continuity; `slurmdbd`'s availability protects fairshare and QoS enforcement, because `assoc_mgr_state` (the in-memory association/fairshare tree `slurmctld` uses for every scheduling decision) is originally populated from `slurmdbd`. If `slurmdbd` is unreachable at `slurmctld` startup, priority/fairshare/QoS limits run on stale cached association data until `slurmdbd` comes back — jobs still run, but limit enforcement can be wrong in that window.
+Both controllers must see the same current directory through shared storage or a synchronously replicated equivalent. The backup controller does not reconstruct reality by querying every compute node. Its failover contract is simpler: read the last state written by the primary, then continue scheduling from that point.
+
+A stale or local copy creates a **fork of reality**. The backup may believe a completed job is still running or an allocated node is idle, which can cause double-booking. Therefore, configuring `SlurmctldHost=primary,backup` is necessary but insufficient. Shared, current `StateSaveLocation` data is what makes the takeover safe; DRBD or another replicated block layer is one way to provide it.
+
+`slurmdbd`, the accounting daemon, is separate from `slurmctld`, the scheduling controller. Controller failover protects scheduling continuity. Accounting availability protects the freshness of fairshare and QoS policy because `slurmdbd` populates the controller's in-memory association tree from its MySQL/MariaDB backend.
+
+If `slurmdbd` is unreachable when `slurmctld` starts, jobs can still run using cached association data. The risk is subtler: priority, fairshare, or QoS limits may be enforced from stale information until accounting reconnects. Scheduling availability and accounting-policy correctness are therefore two different HA problems.
 
 ## Fairshare mechanics beyond "there's a fairshare score"
 

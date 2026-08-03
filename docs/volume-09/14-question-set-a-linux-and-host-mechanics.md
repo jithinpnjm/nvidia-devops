@@ -28,18 +28,16 @@ source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 > **Conclusion:** "70% full" from `df -h` and "writes fail" are only connected through one of at least three distinct mechanisms (inodes, RO remount, reserved blocks) — never assume block-capacity is the story just because a percentage is quoted.
 
 ➕ **Diagram: "disk has free space, writes still fail" — the three-branch check:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["`df -h` shows free space, but write fails with ENOSPC/EROFS"]
-  n1["`df -i` — inodes exhausted (IUse% 100%)?"]
-  n2["no"]
-  n3["`dmesg | grep remount-ro` — filesystem forced read-only"]
-  n4["after an earlier error?"]
-  n5["`tune2fs -l` — reserved-blocks percentage (~5% default)"]
-  n6["eating the 'free' space for non-root writers?"]
-  n7["Whichever branch matches is the actual mechanism —"]
-  n8["never assume block-capacity from `df -h` alone"]
+```text
+`df -h` shows free space, but write fails with ENOSPC/EROFS
+`df -i` — inodes exhausted (IUse% 100%)?
+no
+`dmesg | grep remount-ro` — filesystem forced read-only
+after an earlier error?
+`tune2fs -l` — reserved-blocks percentage (~5% default)
+eating the 'free' space for non-root writers?
+Whichever branch matches is the actual mechanism —
+never assume block-capacity from `df -h` alone
 ```
 
 ## Practice

@@ -64,18 +64,16 @@ flowchart TB
 "64 GPUs" answers a procurement question; it does not answer "can this fleet run job X" or "what's the blast radius of one node failure" — those are the two questions capacity planning actually needs to answer, and Fleet A/B give opposite answers to both despite identical GPU counts.
 
 ➕ **Annotated real output — the inputs a capacity model actually needs, gathered from the fleet, not from a spreadsheet assumption:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ kubectl get nodes -l nvidia.com/gpu.present=true -o custom-columns=\"]
-  n1["NAME:.metadata.name,GPUS:.status.allocatable.'nvidia\.com/gpu',\"]
-  n2["PRODUCT:.metadata.labels.'nvidia\.com/gpu\.product',\"]
-  n3["DRIVER:.metadata.labels.'nvidia\.com/cuda\.driver-version\.full'"]
-  n4["NAME GPUS PRODUCT DRIVER"]
-  n5["gpu-node-01 8 NVIDIA-H100-80GB 550.90.07"]
-  n6["gpu-node-02 8 NVIDIA-H100-80GB 550.90.07"]
-  n7["gpu-node-03 8 NVIDIA-A100-80GB 535.183.06 ← heterogeneous generation AND driver skew in one row"]
-  n8["gpu-node-04 4 NVIDIA-A100-40GB 535.183.06 ← different GPU count per node too — not a uniform pool"]
+```bash
+$ kubectl get nodes -l nvidia.com/gpu.present=true -o custom-columns=\
+NAME:.metadata.name,GPUS:.status.allocatable.'nvidia\.com/gpu',\
+PRODUCT:.metadata.labels.'nvidia\.com/gpu\.product',\
+DRIVER:.metadata.labels.'nvidia\.com/cuda\.driver-version\.full'
+NAME GPUS PRODUCT DRIVER
+gpu-node-01 8 NVIDIA-H100-80GB 550.90.07
+gpu-node-02 8 NVIDIA-H100-80GB 550.90.07
+gpu-node-03 8 NVIDIA-A100-80GB 535.183.06 ← heterogeneous generation AND driver skew in one row
+gpu-node-04 4 NVIDIA-A100-40GB 535.183.06 ← different GPU count per node too — not a uniform pool
 ```
 This single `kubectl` query answers three capacity-planning questions the "64 GPU cluster" headline hides: which nodes can run large tightly-coupled jobs (8-GPU nodes only), which nodes are on an older driver (Chapter 3's skew problem, now visible as a scheduling constraint), and which nodes have less memory per GPU (A100-40GB can't fit a workload sized for 80GB cards) — this is the concrete evidence a Senior SA should pull up first when asked "how much GPU capacity do we actually have."
 

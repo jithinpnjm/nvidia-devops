@@ -83,24 +83,20 @@ New replica is in the load balancer receiving traffic during the entire load/com
 The benchmark's excluded warmup window and production's cold-start window are the same physical process — the only difference is whether users are being served during it, which is a readiness-probe design choice, not an inherent property of the hardware.
 
 ➕ **Diagram: $/token comparison, restated as the arithmetic the headline hides**
-```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["'60% throughput at 45% price' — looks like a wash"]
-  n1["Premium ████████████████████ 100 tok/s @ $4.00/hr"]
-  n2["Cheaper ████████████ 60 tok/s @ $1.80/hr"]
-  n3["Divide throughput into price ($/1M tokens) — it is NOT a wash"]
-  n4["Premium ███████████ $11.11 / 1M tok"]
-  n5["Cheaper ████████ $8.33 / 1M tok ← ~25% cheaper per token"]
-  n6["Then re-divide by replicas needed for the SAME peak tok/s target"]
-  n7["Premium: 10 replicas"]
-  n8["$40.00/hr fleet"]
-  n9["Cheaper: 17 replicas"]
-  n10["$30.60/hr fleet ← still cheaper, but now carries"]
-  n11["more replicas' worth of cold-start"]
-  n12["and scheduling risk"]
-  n7 --> n8
-  n9 --> n10
+```text
+'60% throughput at 45% price' — looks like a wash
+Premium ████████████████████ 100 tok/s @ $4.00/hr
+Cheaper ████████████ 60 tok/s @ $1.80/hr
+Divide throughput into price ($/1M tokens) — it is NOT a wash
+Premium ███████████ $11.11 / 1M tok
+Cheaper ████████ $8.33 / 1M tok ← ~25% cheaper per token
+Then re-divide by replicas needed for the SAME peak tok/s target
+Premium: 10 replicas
+$40.00/hr fleet
+Cheaper: 17 replicas
+$30.60/hr fleet ← still cheaper, but now carries
+more replicas' worth of cold-start
+and scheduling risk
 ```
 Three different "cheaper" claims (hourly price, per-token cost, fleet cost at peak) can all be true simultaneously and still not agree with each other on magnitude — always state which one a recommendation is based on.
 

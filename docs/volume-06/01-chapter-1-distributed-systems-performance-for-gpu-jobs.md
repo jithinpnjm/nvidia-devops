@@ -228,14 +228,12 @@ An all-reduce combines values across ranks and distributes the result. Every par
 
 For data-parallel training:
 
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["local forward/backward compute"]
-  n1["gradients become ready"]
-  n2["NCCL all-reduce exchanges/combines gradients"]
-  n3["every replica receives the result"]
-  n4["optimizer step continues"]
+```text
+local forward/backward compute
+gradients become ready
+NCCL all-reduce exchanges/combines gradients
+every replica receives the result
+optimizer step continues
 ```
 
 Measure step-time distribution, per-rank timing and collective performance. Fleet averages can hide one slow node whose delay becomes global at synchronization.
@@ -403,28 +401,24 @@ flowchart LR
 Each box has a distinct tool: `nvidia-smi dmon` / GPU util for compute, `nccl-tests` / NIC counters for communicate, per-rank step-time variance for sync_wait, and `iostat`/dataloader worker queue depth for data_load. A profiler that only reports "GPU util 62%" collapses all four boxes into one number — the job in this chapter is to separate them again.
 
 ➕ **Sample `nccl-tests` output, annotated** (the first thing you'd actually run to separate "compute" from "communicate"):
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ ./build/all_reduce_perf -b 8M -e 8M -f 2 -g 8"]
-  n1["# size count type redop time algbw busbw #wrong"]
-  n2["8388608 2097152 float sum 3821 2.19 3.84 0 ← 8 GPUs, single node"]
-  n3["#"]
-  n4["# Out-of-place hack: time in us, algbw/busbw in GB/s"]
+```bash
+$ ./build/all_reduce_perf -b 8M -e 8M -f 2 -g 8
+# size count type redop time algbw busbw #wrong
+8388608 2097152 float sum 3821 2.19 3.84 0 ← 8 GPUs, single node
+#
+# Out-of-place hack: time in us, algbw/busbw in GB/s
 ```
 `busbw` (bus bandwidth — normalized for the AllReduce ring's 2x data-movement factor) is the number to compare against the fabric's theoretical max, not `algbw`. If `busbw` is far below the NIC's line rate (e.g. 3.84 GB/s on a 200Gb/s = 25GB/s NIC), that gap is your `communication_time` term inflating — run this in isolation from the actual training job specifically so you're not also measuring `compute_time` and `data_load_wait_time` in the same number.
 
 ➕ **Diagram: why the barrier makes the mean lie**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["rank0 compute ██████████████████ | idle waiting at barrier ░░░░░░░░░░"]
-  n1["rank1 compute ██████████████████ | idle waiting at barrier ░░░░░░░░░░"]
-  n2["rank2 compute ██████████████████ | idle waiting at barrier ░░░░░░░░░░"]
-  n3["rank3 compute ████████████████████████████████████████████ (straggler)"]
-  n4["barrier releases here —"]
-  n5["every other rank paid"]
-  n6["for rank3's slowness"]
+```text
+rank0 compute ██████████████████ | idle waiting at barrier ░░░░░░░░░░
+rank1 compute ██████████████████ | idle waiting at barrier ░░░░░░░░░░
+rank2 compute ██████████████████ | idle waiting at barrier ░░░░░░░░░░
+rank3 compute ████████████████████████████████████████████ (straggler)
+barrier releases here —
+every other rank paid
+for rank3's slowness
 ```
 Average GPU utilization across the four ranks looks moderate, but step_time is set entirely by the slowest rank. This is why "check the mean" hides the exact fault the triage below is built to find.
 

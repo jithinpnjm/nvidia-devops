@@ -37,24 +37,22 @@ flowchart TD
 This lifecycle box is the mechanism behind Senior Deep Dive 5's line "model load time can be minutes, so predictive capacity, warm pools and staged rollout may outperform reactive HPA alone" — a plain HPA reacting to a metric crossing a threshold has no concept of the multi-minute lead time between "decide to scale" and "capacity actually available."
 
 ➕ **Sample KEDA/HPA custom-metrics output during a scale event, annotated:**
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ kubectl get hpa llm-server-hpa"]
-  n1["NAME REFERENCE TARGETS MINPODS MAXPODS REPLICAS"]
-  n2["llm-server-hpa Deployment/llm-server 47/10 (queue_depth) 2 10 6"]
-  n3["↑ current value ↑ HPA has already scaled"]
-  n4["far exceeds target to 6 trying to catch up —"]
-  n5["but each new replica takes"]
-  n6["~90s to load a 70B model"]
-  n7["$ kubectl describe hpa llm-server-hpa | tail -6"]
-  n8["Type Reason Age From Message"]
-  n9["------ ---- ----"]
-  n10["Normal SuccessfulRescale 45s horizontal-pod-autoscaler New size: 6; reason: external metric"]
-  n11["queue_depth above target"]
-  n12["Warning FailedGetExternalMetric 30s horizontal-pod-autoscaler unable to fetch metrics"]
-  n13["no data returned from custom metrics API"]
-  n14["← metrics pipeline gap = HPA flies blind"]
+```bash
+$ kubectl get hpa llm-server-hpa
+NAME REFERENCE TARGETS MINPODS MAXPODS REPLICAS
+llm-server-hpa Deployment/llm-server 47/10 (queue_depth) 2 10 6
+↑ current value ↑ HPA has already scaled
+far exceeds target to 6 trying to catch up —
+but each new replica takes
+~90s to load a 70B model
+$ kubectl describe hpa llm-server-hpa | tail -6
+Type Reason Age From Message
+------ ---- ----
+Normal SuccessfulRescale 45s horizontal-pod-autoscaler New size: 6; reason: external metric
+queue_depth above target
+Warning FailedGetExternalMetric 30s horizontal-pod-autoscaler unable to fetch metrics
+no data returned from custom metrics API
+← metrics pipeline gap = HPA flies blind
 ```
 The `FailedGetExternalMetric` warning is the operational trap: if the Prometheus adapter or metrics pipeline feeding KEDA/HPA has a gap (scrape failure, adapter restart), the autoscaler doesn't fail loudly — it just stalls at the last known replica count, silently, while queue depth may be climbing. Alert on metrics-pipeline health itself, not only on the scaling metric.
 

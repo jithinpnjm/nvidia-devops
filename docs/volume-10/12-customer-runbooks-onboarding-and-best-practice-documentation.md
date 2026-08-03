@@ -68,61 +68,64 @@ The discipline in steps 2 and 3 is the one most runbooks get wrong: verification
 
 ### Annotated example: "Slurm node stuck in DRAIN state"
 
-```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["SYMPTOM"]
-  n1["`sinfo` shows a node in state `drain` or `drng` for longer than expected,"]
-  n2["and it is not associated with a maintenance window on the change calendar."]
-  n3["VERIFICATION"]
-  n4["$ scontrol show node gpu-node-041 | grep -E 'State|Reason'"]
-  n5["State=DRAINED"]
-  n6["Reason=Kill task failed [root@2026-07-30T02:14:11]"]
-  n7["If 'Reason' is blank or references an active, calendared maintenance"]
-  n8["window"]
-  n9["this runbook does NOT apply, see the maintenance-window runbook"]
-  n10["instead. If 'Reason' names a kill-task failure, low memory, or a health"]
-  n11["check script failure"]
-  n12["continue below."]
-  n13["DECISION TREE"]
-  n14["Is there a job still shown RUNNING on this node in `squeue -w gpu-node-041`?"]
-  n15["YES"]
-  n16["do NOT force-resume the node. Confirm via `nvidia-smi` on the node"]
-  n17["(SSH or `pdsh`) whether the GPU is actually healthy."]
-  n18["nvidia-smi hangs or times out"]
-  n19["STOP, ESCALATE (see below) —"]
-  n20["do not attempt further mitigation on a node whose GPU driver"]
-  n21["is unresponsive; escalation owns physical/BMC-level recovery."]
-  n22["nvidia-smi returns normally, GPUs show no ECC/Xid errors"]
-  n23["the drain reason was a stale kill-task failure; proceed to"]
-  n24["MITIGATION step A."]
-  n25["NO (no job running)"]
-  n26["proceed to MITIGATION step B."]
-  n27["MITIGATION"]
-  n28["A. (job appears healthy despite stale drain reason)"]
-  n29["$ scontrol update nodename=gpu-node-041 state=resume"]
-  n30["Expect: `sinfo` shows the node back in `idle` or `alloc` within ~30s."]
-  n31["If the node re-enters `drain` automatically within 5 minutes with the"]
-  n32["SAME reason string"]
-  n33["STOP, ESCALATE."]
-  n34["B. (no job running, node genuinely idle)"]
-  n35["Expect: node returns to `idle`. Monitor `sinfo` for 10 minutes; if a"]
-  n36["new job lands and completes normally, close as resolved."]
-  n37["ESCALATION"]
-  n38["Trigger: nvidia-smi unresponsive on the node, OR the node re-drains with"]
-  n39["an identical reason string within 5 minutes of a resume attempt."]
-  n40["Contact: platform on-call (#gpu-fleet-oncall), page via PagerDuty"]
-  n41["service 'gpu-cluster-hw'. Do not attempt a second resume before paging."]
-  n42["POST-INCIDENT FOLLOW-UP"]
-  n43["Attach: `scontrol show node` output at time of drain, `sinfo` history,"]
-  n44["and whether this node has drained for the same reason in the last 30 days"]
-  n45["(recurring drain on one node is a hardware-suspect signal, not a fluke)."]
-  n8 --> n9
-  n11 --> n12
-  n15 --> n16
-  n18 --> n19
-  n25 --> n26
-  n32 --> n33
+```text
+SYMPTOM
+  `sinfo` shows a node in state `drain` or `drng` for longer than expected,
+  and it is not associated with a maintenance window on the change calendar.
+
+VERIFICATION
+  $ scontrol show node gpu-node-041 | grep -E 'State|Reason'
+  State=DRAINED
+  Reason=Kill task failed [root@2026-07-30T02:14:11]
+
+  If 'Reason' is blank or references an active, calendared maintenance
+  window, this runbook does NOT apply; use the maintenance-window runbook.
+  If 'Reason' names a kill-task failure, low memory, or a health-check
+  script failure, continue below.
+
+DECISION TREE
+  Is a job still shown RUNNING on this node by
+  `squeue -w gpu-node-041`?
+
+  YES
+    Do NOT force-resume the node. Use `nvidia-smi` on the node
+    (through SSH or `pdsh`) to confirm whether the GPU is healthy.
+
+    If nvidia-smi hangs or times out:
+      STOP, ESCALATE. Do not attempt further mitigation while the GPU
+      driver is unresponsive; escalation owns physical/BMC recovery.
+
+    If nvidia-smi returns normally and the GPUs show no ECC/Xid errors:
+      Treat the drain reason as a stale kill-task failure and proceed
+      to MITIGATION step A.
+
+  NO (no job running)
+    Proceed to MITIGATION step B.
+
+MITIGATION
+  A. Job appears healthy despite a stale drain reason:
+     $ scontrol update nodename=gpu-node-041 state=resume
+
+     Expect: `sinfo` shows the node in `idle` or `alloc` within ~30s.
+     If it re-enters `drain` within 5 minutes with the SAME reason:
+       STOP, ESCALATE.
+
+  B. No job is running and the node is genuinely idle:
+     Expect: the node returns to `idle`. Monitor `sinfo` for 10 minutes.
+     If a new job lands and completes normally, close as resolved.
+
+ESCALATION
+  Trigger: nvidia-smi is unresponsive, OR the node re-drains with an
+  identical reason within 5 minutes of a resume attempt.
+
+  Contact: platform on-call (#gpu-fleet-oncall), through PagerDuty service
+  'gpu-cluster-hw'. Do not attempt a second resume before paging.
+
+POST-INCIDENT FOLLOW-UP
+  Attach the `scontrol show node` output from the time of the drain,
+  `sinfo` history, and whether the node drained for the same reason in
+  the last 30 days. A recurring drain on one node is a hardware-suspect
+  signal, not a fluke.
 ```
 
 Every command in this example has an expected output written next to it, and the escalation trigger is a checkable condition ("re-drains within 5 minutes with the same reason string"), not a feeling. That is the entire difference between a usable runbook and a prose paragraph that happens to contain commands.
@@ -153,17 +156,15 @@ Every command in this example has an expected output written next to it, and the
 
 The onboarding guide's job is to make the *rest* of this volume's operational knowledge findable and load-bearing for a team that wasn't in the room when the cluster was designed. Section 4 deliberately does not duplicate runbook content — it routes to it, because a runbook that gets copy-pasted into an onboarding doc immediately goes stale in one location while being updated in the other.
 
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["RUNBOOK ONBOARDING GUIDE"]
-  n1["'node stuck 'here's how the"]
-  n2["in DRAIN' ◀ referenced by cluster works, and"]
-  n3["exact steps (not copied) here's WHERE to"]
-  n4["for THIS look when something"]
-  n5["symptom goes wrong'"]
-  n6["incident-time day-one / steady-state"]
-  n7["narrow, prescriptive broad, educational"]
+```text
+RUNBOOK                                    ONBOARDING GUIDE
+'node stuck in DRAIN' — exact steps        'here's how the cluster works, and
+for THIS symptom                           here's WHERE to look when something
+                                            goes wrong'
+              ◀── referenced by, not copied ──►
+
+incident-time                              day-one / steady-state
+narrow, prescriptive                       broad, educational
 ```
 
 ## Closing the loop with the rest of Volume 10
