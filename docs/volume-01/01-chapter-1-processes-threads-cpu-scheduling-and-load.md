@@ -384,7 +384,11 @@ Figure 1. Move downward through abstractions until the symptom maps to a mechani
 **Learning outcome:** Explain process/thread state, scheduler queues, CPU time, context switches, load average, throttling and the evidence that distinguishes them.
 
 ## 1.1 Process and thread model
-A program on disk is passive. A process is a running instance with virtual memory, credentials, file descriptors, signal state and one or more threads. Threads inside the same process share address space and open resources but have independent execution contexts. The Linux scheduler schedules tasks — roughly threads/process execution contexts — not Kubernetes Pods as a special kernel object.
+A program on disk — a compiled binary or a script — is inert bytes; it does nothing until something runs it. A **process** is what exists once the kernel loads that program and starts executing it. Every process gets: its own virtual memory address space (so it can't read or write another process's memory), credentials (the user/group IDs the kernel checks on every permission decision), a table of open file descriptors (files, sockets, pipes it currently has open), and signal state (which signals it's ignoring, handling, or currently blocked on).
+
+A process can contain multiple **threads**. All threads in the same process share that one address space and the same file descriptor table — a variable written by one thread is immediately visible to the others, and closing a file descriptor in one thread closes it for all of them. But each thread has its own stack, CPU registers and program counter, so the kernel can run, block, or preempt it independently of its sibling threads.
+
+Why this matters for Kubernetes: the kernel scheduler has no concept of a "Pod." It only ever schedules threads (kernel-internal name: `task_struct`) onto CPUs. A Pod is a Kubernetes-level grouping of one or more containers, and each container is, at the OS level, one or more ordinary Linux processes. So when you're diagnosing CPU scheduling, throttling, or load, you have to reason in terms of processes and threads on the node — by the time the kernel is involved, the Pod abstraction is already gone.
 
 **Inspect process identity, threads, state and file descriptors**
 ```bash
@@ -395,14 +399,12 @@ ls -l /proc/<PID>/fd | head
 ```
 
 ➕ **Sample output, annotated** (what you're actually looking for):
-```mermaid
-flowchart TD
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ ps -eo pid,ppid,tid,stat,ni,psr,pcpu,comm --sort=-pcpu | head -5"]
-  n1["PID PPID TID STAT NI PSR %CPU COMMAND"]
-  n2["8842 8801 8842 R 0 3 97.2 python3 ← running, pinned to CPU 3, hot"]
-  n3["8842 8801 8855 S 0 11 0.4 python3 ← sibling thread, same PID, idle"]
-  n4["9001 1 9001 D 0 7 0.0 java ← STAT=D, 0% CPU but NOT the same as idle"]
+```text
+$ ps -eo pid,ppid,tid,stat,ni,psr,pcpu,comm --sort=-pcpu | head -5
+PID  PPID TID  STAT NI PSR %CPU COMMAND
+8842 8801 8842 R    0  3   97.2 python3   ← running, pinned to CPU 3, hot
+8842 8801 8855 S    0  11  0.4  python3   ← sibling thread, same PID, idle
+9001 1    9001 D    0  7   0.0  java      ← STAT=D, 0% CPU but NOT the same as idle
 ```
 The `D` line is the one that fools people: 0% CPU looks "fine" in a CPU-only dashboard, but a process stuck in `D` is exactly what inflates load average while CPU graphs look calm — this is the gap between "looks idle" and "is blocked" that Kubernetes CPU-based HPA metrics will completely miss.
 
@@ -474,17 +476,14 @@ cat /sys/fs/cgroup/cpu.stat
 ```
 
 ➕ **Sample `cpu.stat` and the arithmetic that actually proves throttling:**
-```mermaid
-flowchart LR
-  %% Converted from the original ASCII diagram; source wording is preserved.
-  n0["$ cat /sys/fs/cgroup/cpu.max"]
-  n1["50000 100000 ← quota=50ms, period=100ms"]
-  n2["this container gets 0.5 CPU cores, period-by-period"]
-  n3["$ cat /sys/fs/cgroup/cpu.stat"]
-  n4["nr_periods 128000"]
-  n5["nr_throttled 41200 ← 32% of all 100ms windows, this container hit its quota and got paused"]
-  n6["throttled_usec 890000000"]
-  n1 --> n2
+```text
+$ cat /sys/fs/cgroup/cpu.max
+50000 100000              ← quota=50ms, period=100ms: this container gets 0.5 CPU cores, period-by-period
+
+$ cat /sys/fs/cgroup/cpu.stat
+nr_periods     128000
+nr_throttled   41200      ← 32% of all 100ms windows: this container hit its quota and got paused
+throttled_usec 890000000
 ```
 `nr_throttled / nr_periods` is your throttling *rate* — 32% here is severe. The tell-tale symptom pattern: **P99 latency spiking in short, regular sawtooth bursts** (every ~100ms period boundary) while host-level `%CPU` for the container looks unremarkable when averaged — averaging hides throttling because the pauses are sub-second. This is the single most common "why is my container slow when the node has plenty of CPU" root cause in Kubernetes, and it's a direct trap for anyone who checks `kubectl top pod` (an average) instead of `cpu.stat` (the actual enforcement counter).
 
