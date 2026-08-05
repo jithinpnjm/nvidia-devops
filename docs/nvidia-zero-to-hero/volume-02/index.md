@@ -1,6 +1,7 @@
 ---
 title: Volume 02 — GPU Architecture
 description: Build a systems-level understanding of how modern NVIDIA GPUs execute work, move data, and expose performance limits.
+slug: /nvidia-zero-to-hero/volume-02/index
 sidebar_position: 1
 tags:
   - gpu-architecture
