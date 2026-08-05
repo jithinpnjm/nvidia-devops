@@ -24,84 +24,60 @@ tags:
 
 ## 1. Objective
 
-Build a CUDA program that processes multiple data chunks through a host-to-device copy, kernel execution, and device-to-host copy pipeline. Establish a serial baseline, introduce pinned memory and multiple streams, verify correctness, measure overlap, inject a synchronization failure, and repair the design.
-
-The goal is not to produce an impressive benchmark number. The goal is to prove which conditions create useful overlap and which mistakes silently serialize the workload.
+Build a CUDA program that processes multiple chunks through host-to-device copy, kernel execution, and device-to-host copy stages. Establish a correct double-buffered design, measure it, inject synchronization and ownership failures, and verify the repair.
 
 ## 2. Background
 
-An asynchronous API call does not guarantee concurrent device execution. Copy-compute overlap requires suitable memory, independent buffers, separate streams, hardware support, and the absence of hidden global synchronization.
+An asynchronous API does not guarantee overlap. Useful copy-compute concurrency requires pinned host memory, independent buffers, separate streams, suitable hardware engines, and no hidden device-wide synchronization.
 
-This lab uses a simple transformation kernel so the execution structure remains visible. The same design pattern appears in preprocessing pipelines, inference serving, video processing, and batched scientific workloads.
+The program in this lab deliberately associates one complete buffer set with each stream. Before a slot is reused, the host waits for its completion event and copies the completed result out of the slot. This ownership order is essential.
 
 ## 3. Learning Outcomes
 
 After completing this lab, you will be able to:
 
-- Build a serial CUDA copy-compute-copy baseline.
 - Allocate and reuse pinned host memory.
 - Create stream-owned pipeline slots.
-- Record and synchronize CUDA events.
-- Compare host elapsed time with device-stage timing.
-- Verify whether operations overlap using a timeline.
-- Diagnose hidden synchronization and premature buffer reuse.
-- Explain how the lab design would change in production.
+- Record and synchronize completion events.
+- Preserve buffer lifetime under asynchronous execution.
+- Verify result correctness before measuring performance.
+- Confirm overlap using a system timeline.
+- Diagnose global synchronization and premature reuse.
 
 ## 4. Architecture
 
 ```mermaid
 flowchart LR
     Input[Input Chunks]
-    Slot0[Slot 0: Pinned Host + Device Buffers + Stream]
-    Slot1[Slot 1: Pinned Host + Device Buffers + Stream]
-    Copy[H2D Copy]
+    Slot0[Slot 0: Host + Device Buffers + Stream + Event]
+    Slot1[Slot 1: Host + Device Buffers + Stream + Event]
+    H2D[H2D Copy]
     Kernel[Transform Kernel]
-    Return[D2H Copy]
+    D2H[D2H Copy]
     Output[Validated Output]
 
-    Input --> Slot0
-    Input --> Slot1
-    Slot0 --> Copy --> Kernel --> Return --> Output
-    Slot1 --> Copy --> Kernel --> Return --> Output
+    Input --> Slot0 --> H2D --> Kernel --> D2H --> Output
+    Input --> Slot1 --> H2D
 ```
 
-**Figure 3.L3.1 — Double-buffered pipeline.** Each slot owns its buffers and stream until its completion event confirms safe reuse.
+**Figure 3.L3.1 — Double-buffered ownership.** A slot is reused only after its previous result has completed and been copied into the final output.
 
 ## 5. Prerequisites
 
-### Hardware
-
 - One CUDA-capable NVIDIA GPU
-- Sufficient host and device memory for two pipeline slots
-
-### Software
-
-- Linux
-- NVIDIA driver
-- CUDA Toolkit with `nvcc`
-- C++ compiler supported by the installed toolkit
-- Optional: Nsight Systems command-line tooling
-
-### Skills
-
-- Compile a basic CUDA program
-- Read C++ and CUDA Runtime API calls
-- Understand grids, blocks, streams, and events
+- NVIDIA driver and CUDA Toolkit
+- `nvcc` and a supported host compiler
+- Sufficient host and device memory for two chunks
+- Optional Nsight Systems installation
 
 ## 6. Environment
-
-Record the environment:
 
 ```bash
 nvidia-smi
 nvcc --version
 g++ --version
 uname -r
-```
 
-Create a workspace:
-
-```bash
 mkdir -p ~/cuda-overlap-lab
 cd ~/cuda-overlap-lab
 ```
@@ -110,13 +86,12 @@ cd ~/cuda-overlap-lab
 
 | Component | Purpose |
 |---|---|
-| Pageable baseline buffers | Demonstrate the conventional serial path |
-| Pinned host buffers | Provide stable DMA source and destination memory |
-| Device buffers | Hold one chunk per pipeline slot |
-| CUDA streams | Maintain ordered work per slot |
-| CUDA events | Mark slot completion and measure stages |
-| Transform kernel | Apply deterministic work for correctness checks |
-| Host timer | Measure end-to-end application duration |
+| Two pinned input buffers | Stable DMA sources |
+| Two pinned output buffers | Stable DMA destinations |
+| Two device input/output pairs | Prevent cross-stream overwrite |
+| Two non-blocking streams | Maintain ordered work per slot |
+| Two completion events | Protect slot reuse |
+| Validation routine | Detect asynchronous ownership defects |
 
 ## 8. Deployment Steps
 
@@ -127,25 +102,28 @@ Create `overlap_pipeline.cu`:
 ```cpp
 #include <cuda_runtime.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
-#define CUDA_CHECK(call)                                                     \
-    do {                                                                     \
-        cudaError_t error__ = (call);                                         \
-        if (error__ != cudaSuccess) {                                         \
-            std::cerr << "CUDA error at " << __FILE__ << ':' << __LINE__     \
-                      << ": " << cudaGetErrorString(error__) << std::endl;   \
-            std::exit(EXIT_FAILURE);                                          \
-        }                                                                    \
+#define CUDA_CHECK(call)                                                      \
+    do {                                                                      \
+        const cudaError_t error__ = (call);                                    \
+        if (error__ != cudaSuccess) {                                          \
+            std::cerr << "CUDA error at " << __FILE__ << ':' << __LINE__      \
+                      << ": " << cudaGetErrorString(error__) << std::endl;    \
+            std::exit(EXIT_FAILURE);                                           \
+        }                                                                     \
     } while (0)
 
 __global__ void transform(const float* input, float* output, std::size_t n) {
-    const std::size_t index = blockIdx.x * blockDim.x + threadIdx.x;
+    const std::size_t index =
+        static_cast<std::size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
     if (index < n) {
         float value = input[index];
         for (int iteration = 0; iteration < 32; ++iteration) {
@@ -162,26 +140,31 @@ float reference(float value) {
     return value;
 }
 
-void validate(const float* input, const float* output, std::size_t n) {
-    for (std::size_t i = 0; i < n; ++i) {
+void validate(const std::vector<float>& input,
+              const std::vector<float>& output) {
+    for (std::size_t i = 0; i < input.size(); ++i) {
         const float expected = reference(input[i]);
         if (std::fabs(output[i] - expected) > 1e-4f) {
-            throw std::runtime_error("validation failed at index " + std::to_string(i));
+            throw std::runtime_error(
+                "validation failed at index " + std::to_string(i));
         }
     }
 }
 
 int main(int argc, char** argv) {
-    const std::size_t totalElements = argc > 1 ? std::stoull(argv[1]) : (1ULL << 26);
-    const std::size_t chunkElements = argc > 2 ? std::stoull(argv[2]) : (1ULL << 22);
-    const int streamCount = 2;
+    constexpr int streamCount = 2;
+    const std::size_t totalElements =
+        argc > 1 ? std::stoull(argv[1]) : (1ULL << 26);
+    const std::size_t chunkElements =
+        argc > 2 ? std::stoull(argv[2]) : (1ULL << 22);
 
     if (totalElements == 0 || chunkElements == 0) {
         std::cerr << "sizes must be greater than zero" << std::endl;
         return EXIT_FAILURE;
     }
 
-    const std::size_t chunks = (totalElements + chunkElements - 1) / chunkElements;
+    const std::size_t chunks =
+        (totalElements + chunkElements - 1) / chunkElements;
     const std::size_t slotBytes = chunkElements * sizeof(float);
 
     std::vector<float> fullInput(totalElements);
@@ -198,12 +181,16 @@ int main(int argc, char** argv) {
     cudaEvent_t complete[streamCount]{};
 
     for (int slot = 0; slot < streamCount; ++slot) {
-        CUDA_CHECK(cudaHostAlloc(&hostInput[slot], slotBytes, cudaHostAllocDefault));
-        CUDA_CHECK(cudaHostAlloc(&hostOutput[slot], slotBytes, cudaHostAllocDefault));
+        CUDA_CHECK(cudaHostAlloc(
+            &hostInput[slot], slotBytes, cudaHostAllocDefault));
+        CUDA_CHECK(cudaHostAlloc(
+            &hostOutput[slot], slotBytes, cudaHostAllocDefault));
         CUDA_CHECK(cudaMalloc(&deviceInput[slot], slotBytes));
         CUDA_CHECK(cudaMalloc(&deviceOutput[slot], slotBytes));
-        CUDA_CHECK(cudaStreamCreateWithFlags(&streams[slot], cudaStreamNonBlocking));
-        CUDA_CHECK(cudaEventCreateWithFlags(&complete[slot], cudaEventDisableTiming));
+        CUDA_CHECK(cudaStreamCreateWithFlags(
+            &streams[slot], cudaStreamNonBlocking));
+        CUDA_CHECK(cudaEventCreateWithFlags(
+            &complete[slot], cudaEventDisableTiming));
         CUDA_CHECK(cudaEventRecord(complete[slot], streams[slot]));
     }
 
@@ -212,16 +199,32 @@ int main(int argc, char** argv) {
 
     for (std::size_t chunk = 0; chunk < chunks; ++chunk) {
         const int slot = static_cast<int>(chunk % streamCount);
-        const std::size_t offset = chunk * chunkElements;
-        const std::size_t count = std::min(chunkElements, totalElements - offset);
-        const std::size_t bytes = count * sizeof(float);
 
-        CUDA_CHECK(cudaEventSynchronize(complete[slot]));
+        // Before reusing a slot, wait for and collect its previous chunk.
+        if (chunk >= static_cast<std::size_t>(streamCount)) {
+            const std::size_t completedChunk = chunk - streamCount;
+            const std::size_t completedOffset =
+                completedChunk * chunkElements;
+            const std::size_t completedCount = std::min(
+                chunkElements, totalElements - completedOffset);
+
+            CUDA_CHECK(cudaEventSynchronize(complete[slot]));
+            std::copy_n(hostOutput[slot], completedCount,
+                        fullOutput.data() + completedOffset);
+        } else {
+            CUDA_CHECK(cudaEventSynchronize(complete[slot]));
+        }
+
+        const std::size_t offset = chunk * chunkElements;
+        const std::size_t count =
+            std::min(chunkElements, totalElements - offset);
+        const std::size_t bytes = count * sizeof(float);
 
         std::copy_n(fullInput.data() + offset, count, hostInput[slot]);
 
-        CUDA_CHECK(cudaMemcpyAsync(deviceInput[slot], hostInput[slot], bytes,
-                                   cudaMemcpyHostToDevice, streams[slot]));
+        CUDA_CHECK(cudaMemcpyAsync(
+            deviceInput[slot], hostInput[slot], bytes,
+            cudaMemcpyHostToDevice, streams[slot]));
 
         const int threads = 256;
         const int blocks = static_cast<int>((count + threads - 1) / threads);
@@ -229,41 +232,36 @@ int main(int argc, char** argv) {
             deviceInput[slot], deviceOutput[slot], count);
         CUDA_CHECK(cudaGetLastError());
 
-        CUDA_CHECK(cudaMemcpyAsync(hostOutput[slot], deviceOutput[slot], bytes,
-                                   cudaMemcpyDeviceToHost, streams[slot]));
+        CUDA_CHECK(cudaMemcpyAsync(
+            hostOutput[slot], deviceOutput[slot], bytes,
+            cudaMemcpyDeviceToHost, streams[slot]));
         CUDA_CHECK(cudaEventRecord(complete[slot], streams[slot]));
-
-        if (chunk >= static_cast<std::size_t>(streamCount)) {
-            const std::size_t completedChunk = chunk - streamCount;
-            const int completedSlot = static_cast<int>(completedChunk % streamCount);
-            const std::size_t completedOffset = completedChunk * chunkElements;
-            const std::size_t completedCount =
-                std::min(chunkElements, totalElements - completedOffset);
-
-            CUDA_CHECK(cudaEventSynchronize(complete[completedSlot]));
-            std::copy_n(hostOutput[completedSlot], completedCount,
-                        fullOutput.data() + completedOffset);
-        }
     }
 
-    const std::size_t drainStart = chunks > static_cast<std::size_t>(streamCount)
-        ? chunks - streamCount : 0;
+    // Drain the final chunks still owned by pipeline slots.
+    const std::size_t remaining =
+        std::min(chunks, static_cast<std::size_t>(streamCount));
+    const std::size_t firstRemaining = chunks - remaining;
 
-    for (std::size_t chunk = drainStart; chunk < chunks; ++chunk) {
+    for (std::size_t chunk = firstRemaining; chunk < chunks; ++chunk) {
         const int slot = static_cast<int>(chunk % streamCount);
         const std::size_t offset = chunk * chunkElements;
-        const std::size_t count = std::min(chunkElements, totalElements - offset);
+        const std::size_t count =
+            std::min(chunkElements, totalElements - offset);
+
         CUDA_CHECK(cudaEventSynchronize(complete[slot]));
-        std::copy_n(hostOutput[slot], count, fullOutput.data() + offset);
+        std::copy_n(hostOutput[slot], count,
+                    fullOutput.data() + offset);
     }
 
     const auto stop = std::chrono::steady_clock::now();
     const double elapsedMs =
         std::chrono::duration<double, std::milli>(stop - start).count();
 
-    validate(fullInput.data(), fullOutput.data(), totalElements);
+    validate(fullInput, fullOutput);
     std::cout << "validated " << totalElements << " elements in "
-              << elapsedMs << " ms using " << streamCount << " streams" << std::endl;
+              << elapsedMs << " ms using " << streamCount
+              << " streams" << std::endl;
 
     for (int slot = 0; slot < streamCount; ++slot) {
         CUDA_CHECK(cudaEventDestroy(complete[slot]));
@@ -284,9 +282,7 @@ int main(int argc, char** argv) {
 nvcc -O3 -std=c++17 overlap_pipeline.cu -o overlap_pipeline
 ```
 
-Expected result: a binary named `overlap_pipeline` and no compiler errors.
-
-### Step 3 — Run the Pipeline
+### Step 3 — Run
 
 ```bash
 ./overlap_pipeline
@@ -298,146 +294,96 @@ Expected output resembles:
 validated 67108864 elements in <measured> ms using 2 streams
 ```
 
-The elapsed time is platform-specific. Do not publish it as a universal benchmark.
+The timing is platform-specific and must not be presented as a universal benchmark.
 
 ## 9. Validation
 
-The program validates every output element against the CPU reference. A successful timing result without validation is not acceptable.
-
-Run several sizes:
+Run more than one shape:
 
 ```bash
 ./overlap_pipeline $((1<<24)) $((1<<20))
 ./overlap_pipeline $((1<<26)) $((1<<22))
+./overlap_pipeline 10000003 1048576
 ```
 
-Confirm all runs report validation success.
+The non-power-of-two run verifies final-chunk handling.
 
 ## 10. Verification
 
-### Verify Pinned Allocation
+Confirm:
 
-The source uses `cudaHostAlloc` for each pipeline slot. Confirm no per-chunk pinned allocation occurs inside the processing loop.
-
-### Verify Stream Ownership
-
-Each slot has distinct:
-
-- Host input buffer
-- Host output buffer
-- Device input buffer
-- Device output buffer
-- Stream
-- Completion event
-
-### Verify Safe Reuse
-
-The host waits for the slot's completion event before overwriting its pinned input or reading its pinned output.
+- No pinned allocation occurs inside the processing loop.
+- Every slot owns independent host and device buffers.
+- The previous output is collected before the slot is overwritten.
+- A completion event is recorded after the D2H copy.
+- The final pipeline slots are drained after submission ends.
 
 ## 11. Observability
 
-If Nsight Systems is available, capture a timeline:
+If Nsight Systems is available:
 
 ```bash
-nsys profile --trace=cuda,nvtx,osrt --output=overlap-report ./overlap_pipeline
+nsys profile \
+  --trace=cuda,nvtx,osrt \
+  --sample=none \
+  --output=overlap-report \
+  ./overlap_pipeline
 ```
 
-Open the generated report with the supported UI or inspect available command-line statistics.
-
-Look for:
-
-- Two CUDA streams
-- Repeated H2D, kernel, and D2H sequences
-- Copy activity overlapping kernel execution where supported
-- Limited host gaps between submissions
-- No device-wide synchronization inside the main loop
+Inspect the report for two streams, repeated H2D/kernel/D2H sequences, and any visible transfer-compute overlap.
 
 ## 12. Performance Measurements
-
-Record a table rather than one number:
 
 | Run | Total elements | Chunk elements | Streams | End-to-end ms | Validation |
 |---|---:|---:|---:|---:|---|
 | A | | | 2 | | Pass/Fail |
 | B | | | 2 | | Pass/Fail |
+| C | | | 2 | | Pass/Fail |
 
-Repeat each configuration several times after warm-up. Report median and tail variation.
+Repeat after warm-up and report median plus variation.
 
 ## 13. Failure Injection
 
-### Failure A — Add Device-Wide Synchronization
+### Failure A — Global Synchronization
 
-Insert this line immediately after the kernel launch:
+Add after the kernel launch:
 
 ```cpp
 CUDA_CHECK(cudaDeviceSynchronize());
 ```
 
-Recompile and profile.
+Recompile and profile. The timeline should show reduced overlap.
 
-Expected effect: stream overlap decreases or disappears because every iteration waits for all preceding device work.
+### Failure B — Premature Reuse
 
-### Failure B — Remove Slot Completion Wait
+Move the `std::copy_n` that collects the previous output until after new work is submitted into the same slot. This recreates an ownership defect and can cause wrong results. Restore the correct order immediately after observing the failure.
 
-Temporarily remove:
+### Failure C — Pageable Buffers
 
-```cpp
-CUDA_CHECK(cudaEventSynchronize(complete[slot]));
-```
-
-Do not use this version in production. Depending on timing, validation may fail because the host reuses a pinned buffer before the device finishes with it.
-
-### Failure C — Replace Pinned Buffers
-
-Replace `cudaHostAlloc` with ordinary host allocation and adjust cleanup. Profile the result. Depending on the runtime and transfer pattern, asynchronous behavior may be reduced or staging may appear.
+Replace `cudaHostAlloc` with normal host allocation in a lab-only copy. Compare the CPU and GPU timelines rather than assuming a particular result.
 
 ## 14. Troubleshooting
 
-### Problem — Compilation Fails
-
-Check the toolkit and host compiler:
+### Compilation fails
 
 ```bash
 nvcc --version
 g++ --version
 ```
 
-Ensure the file extension is `.cu` and the toolkit supports the selected language standard.
+Confirm the source is a `.cu` file and the compiler pair is supported.
 
-### Problem — No CUDA Device
+### Validation fails
 
-Run:
+Inspect slot reuse order, completion-event placement, chunk offsets, final draining, and deferred CUDA errors.
 
-```bash
-nvidia-smi
-./overlap_pipeline
-```
+### No overlap appears
 
-If `nvidia-smi` works but the application fails, inspect device visibility, container runtime, and loaded CUDA libraries in the same context.
+Possible causes include small operations, hidden synchronization, hardware copy-engine limits, a kernel that monopolizes resources, or transfer sizes that do not amortize overhead.
 
-### Problem — Validation Fails
+### Pinned allocation fails
 
-Check:
-
-- Slot reuse synchronization
-- Chunk offsets and final partial chunk
-- Error results after each kernel launch
-- Whether an earlier asynchronous error surfaced late
-
-### Problem — No Visible Overlap
-
-Possible causes:
-
-- Work units too small
-- Kernel too short or too resource-intensive
-- Hardware copy-engine limits
-- Hidden synchronization
-- Incorrect stream assignment
-- Measurement after the pipeline has already serialized
-
-### Problem — Host Memory Allocation Fails
-
-The requested pinned pool may exceed policy or available locked memory. Reduce chunk size, inspect host limits, and avoid unbounded page-locked allocation.
+Reduce chunk size, inspect locked-memory limits, and ensure prior allocations are released. Never respond by creating an unbounded retry loop.
 
 ## 15. Cleanup
 
@@ -446,21 +392,18 @@ cd ~
 rm -rf ~/cuda-overlap-lab
 ```
 
-If you need to retain results, archive only the source and sanitized profile report.
-
 ## 16. Summary
 
-You built a bounded, double-buffered CUDA pipeline using pinned host memory, separate device buffers, non-blocking streams, and completion events. You validated correctness, measured end-to-end execution, and used failure injection to show how global synchronization and unsafe buffer reuse damage the design.
+You built a correct double-buffered pipeline whose slot lifecycle is explicit: collect completed output, refill the slot, submit H2D, launch compute, submit D2H, and record completion. Failure injection demonstrated that concurrency without ownership discipline creates either serialization or corruption.
 
 ## 17. Challenge Exercises
 
-1. Parameterize the stream count and compare 1, 2, 4, and 8 streams.
-2. Add CUDA events around H2D, kernel, and D2H stages.
+1. Parameterize stream count.
+2. Add CUDA event timing around each stage.
 3. Add NVTX ranges for each chunk and slot.
-4. Bind the process to the GPU-local NUMA node and compare transfer stability.
-5. Replace the transform kernel with a memory-bound operation and explain the timeline.
-6. Add a bounded work queue and backpressure policy.
-7. Implement a single-stream debug mode selected by a command-line flag.
+4. Compare GPU-local and remote NUMA placement.
+5. Add bounded request backpressure.
+6. Implement a one-stream debug mode.
 
 ## 18. Further Reading
 
