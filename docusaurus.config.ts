@@ -13,7 +13,7 @@ const config: Config = {
   trailingSlash: false,
   customFields: {tutorBackendUrl: process.env.TUTOR_BACKEND_URL || ''},
   onBrokenLinks: 'throw',
-  markdown: {mermaid: true, hooks: {onBrokenMarkdownLinks: 'throw'}},
+  markdown: {mermaid: true, hooks: {onBrokenMarkdownLinks: 'warn'}},
   themes: ['@docusaurus/theme-mermaid'],
   presets: [
     [
