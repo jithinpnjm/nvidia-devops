@@ -11,419 +11,165 @@ tags:
 
 # Why CPUs Became Insufficient
 
+| Chapter metadata | Value |
+|---|---|
+| Volume | 01 — AI Infrastructure Foundations |
+| Difficulty | Foundation |
+| Estimated reading time | 35 minutes |
+| Primary audience | DevOps, SRE, Platform, Cloud and Infrastructure Engineers |
+| Core question | Why did CPU-centric scaling stop being enough for modern AI workloads? |
+
 ## Introduction
 
-The CPU did not become irrelevant.
+The CPU did not become irrelevant. It became insufficient for a specific class of workload: large-scale numerical computation over tensors, matrices and vectors. That distinction matters because CPUs still run operating systems, schedulers, storage stacks, networking, security agents, orchestration components and application logic in every AI platform.
 
-It became insufficient for a specific class of workload.
+The architectural shift happened because AI workloads changed the bottleneck. Traditional infrastructure often scales by adding CPU cores, memory, replicas or cache capacity. Modern AI workloads require enormous parallel computation and sustained memory bandwidth. When the expensive part of the request becomes repeated matrix multiplication over large model weights, adding ordinary CPU capacity no longer produces proportional improvement.
 
-That distinction matters.
-
-Modern AI platforms still depend on CPUs for operating systems, networking, storage, orchestration, preprocessing, tokenization, and control flow.
-
-The problem is that CPUs were not designed to execute enormous volumes of similar mathematical operations over large tensors as efficiently as accelerators.
-
-This chapter explains the reason before introducing the solution.
+:::info Principal Engineer View
+CPU-centric scaling fails when the workload contains more parallel mathematical work than the CPU architecture can execute efficiently. The answer is not “remove CPUs.” The answer is to introduce accelerators and redesign the system around heterogeneous execution.
+:::
 
 ## Story
 
-A platform team runs a document summarization model on CPU servers.
+A team builds an internal summarization service using a transformer model. During the pilot, the service handles a few requests per minute. CPU latency is acceptable because the load is low and the users are tolerant of delays. The architecture looks familiar: API service, queue, workers, object storage and monitoring.
 
-During early testing, one user at a time receives acceptable responses.
+Then adoption grows. Documents become longer, concurrency increases and the model must generate more tokens per request. The team adds CPU replicas, but the cost curve becomes ugly. Throughput improves slightly, yet tail latency remains high. Profiling shows that most time is spent in numerical model execution, not in the HTTP server, database or queue.
 
-Then the team connects the service to an internal knowledge base.
-
-Usage increases.
-
-Each request requires tokenization, model execution, and response generation.
-
-The team adds more CPU cores.
-
-Throughput improves, but not enough.
-
-Latency remains high.
-
-Infrastructure cost grows quickly.
-
-The team notices a pattern.
-
-The CPU is busy, but the workload is not complex in the usual application sense.
-
-The system is repeatedly performing numerical operations across large arrays.
-
-The CPU can do the work.
-
-It is not the right engine for the amount and shape of the work.
+At this point the team has reached the limit of CPU-centric thinking. The workload is not primarily a web service problem anymore. It is a compute acceleration problem, a memory bandwidth problem and a data movement problem. The architecture must change.
 
 ## Learning Objectives
 
-After completing this chapter, you will be able to:
-
-- Explain why CPU-centric systems struggle with large AI workloads.
-- Distinguish latency-optimized execution from throughput-optimized execution.
-- Describe why parallelism changed infrastructure design.
-- Identify when CPU scaling is appropriate and when it becomes inefficient.
-- Prepare for the GPU execution model introduced in the next chapter.
-
-## Prerequisites
-
-You should understand processes, threads, memory, and basic performance troubleshooting.
-
-No GPU knowledge is required.
-
-## Estimated Reading Time
-
-30–40 minutes.
-
-## Difficulty
-
-Foundation.
+After completing this chapter, you will be able to explain why CPU scaling is effective for many traditional systems but insufficient for large AI workloads, describe the relationship between parallelism and model execution, identify memory bandwidth as a major AI infrastructure constraint, explain why accelerators became necessary, and discuss when CPUs are still the right execution target.
 
 ## Big Picture
 
-A CPU-centric system is excellent when the workload requires flexible control flow.
-
-An AI workload often requires the same mathematical operation to be repeated across large tensor blocks.
+Figure 2.1 shows the transition from traditional CPU-centric scaling to accelerator-aware AI infrastructure. CPU scaling adds general-purpose workers. AI scaling introduces a separate accelerated execution path for the parts of the workload that can run in parallel.
 
 ```mermaid
 flowchart LR
-    request[AI Request]
-    prep[Preprocessing and Tokenization]
-    math[Large Tensor Computation]
-    decode[Postprocessing and Decode]
-    response[Response]
+    subgraph Traditional[Traditional CPU-Centric Platform]
+        API1[API Requests] --> CPUWorkers[CPU Worker Pool]
+        CPUWorkers --> DB[(Database / Storage)]
+    end
 
-    request --> prep
-    prep --> math
-    math --> decode
-    decode --> response
-
-    cpu[CPU Strength: Control Flow]
-    accel[Accelerator Strength: Parallel Math]
-
-    prep -. usually CPU-friendly .-> cpu
-    decode -. often CPU-friendly .-> cpu
-    math -. accelerator-friendly .-> accel
+    subgraph AI[AI Infrastructure Platform]
+        API2[AI Requests] --> Host[CPU Host Work]
+        Host --> Runtime[AI Runtime]
+        Runtime --> GPU[GPU Accelerated Execution]
+        GPU --> HBM[High-Bandwidth GPU Memory]
+        Host --> Storage[(Models / Data / Checkpoints)]
+    end
 ```
 
-Figure 2.1 — CPU-friendly and accelerator-friendly parts of an AI request.
-
-The CPU remains necessary.
-
-The question is where it should be used.
+**Figure 2.1 — From CPU scaling to accelerator-aware execution.** AI infrastructure keeps CPUs but moves suitable numerical work onto GPUs.
 
 ## Deep Explanation
 
-A CPU is designed for general-purpose computing.
+CPUs are excellent general-purpose processors. They execute complex instruction streams, handle branches, respond to interrupts, manage virtual memory, run kernels, operate filesystems and coordinate I/O. This is why CPUs remain the control center of every server, including GPU servers.
 
-It executes a wide variety of instructions, handles interrupts, runs operating systems, manages virtual memory, schedules processes, and supports complex branching behavior.
+The problem is that AI model execution has different characteristics. Neural networks repeatedly apply mathematical operations to large tensors. The same kind of operation is performed many times across many data elements. This is a natural fit for parallel execution. A CPU can perform the operations correctly, but it cannot always perform enough of them concurrently to meet latency, throughput and cost goals.
 
-This flexibility is valuable.
+| Workload characteristic | Traditional CPU platform | AI workload pressure |
+|---|---|---|
+| Control flow | Many branches and decisions | Often regular mathematical kernels |
+| Parallelism | Request-level concurrency | Massive data-level and tensor-level parallelism |
+| Memory access | General application data | Large model weights, activations and KV cache |
+| Scaling unit | More app replicas or CPU workers | GPUs, GPU memory, interconnect and batching |
+| Bottleneck | I/O, locks, database, CPU saturation | Compute throughput, memory bandwidth and data movement |
 
-It is also expensive when the workload is mostly repetitive numerical computation.
-
-AI workloads often involve operations such as matrix multiplication, vector operations, normalization, and attention mechanisms.
-
-These operations process large blocks of numeric data.
-
-The system does not need one powerful instruction stream as much as it needs many execution units working in parallel.
-
-That is why simply adding larger CPUs eventually becomes inefficient.
-
-The infrastructure bottleneck shifts from instruction flexibility to parallel throughput and memory bandwidth.
-
-## Why More CPU Cores Are Not Always Enough
-
-Adding CPU cores can help some workloads.
-
-It helps when the workload can be split cleanly across independent threads and when memory, cache, and synchronization overhead do not dominate.
-
-AI workloads often hit limits before CPU core count alone solves the problem.
-
-| Limitation | Why It Matters for AI |
-|---|---|
-| Limited parallel arithmetic density | Large tensor operations need many simultaneous math operations. |
-| Memory bandwidth pressure | Model weights and activations must be moved repeatedly. |
-| Cache locality challenges | Large tensors may not fit well in CPU caches. |
-| Synchronization overhead | Parallel CPU threads may spend time coordinating. |
-| Power and cost efficiency | Scaling CPU fleets can become expensive for numerical workloads. |
-
-The result is not that CPUs are bad.
-
-The result is that they are optimized for a different balance of flexibility, latency, and throughput.
+This is why the old scaling rule breaks down. Adding more CPU workers helps if the workload is embarrassingly parallel at the request level and each request is not too expensive. It helps less when each request contains a large amount of dense numerical computation. At that point, the architecture needs a processor designed for parallel throughput.
 
 ## Internal Working
 
-At a simplified level, a CPU executes work through a small number of powerful cores.
+A CPU-centric inference path executes model operations as ordinary CPU instructions. Each operation competes with the operating system, application threads, memory hierarchy and other host workloads. Even with vector extensions and optimized libraries, the CPU is constrained by core count, memory bandwidth and the amount of parallel execution it can expose.
 
-Each core is optimized for fast single-thread performance, branch prediction, speculative execution, cache hierarchy, and general-purpose instruction execution.
-
-This design is excellent for systems where each operation may be different from the previous one.
-
-AI model execution has a different shape.
+An accelerator-aware path keeps the CPU responsible for orchestration but moves suitable operations to the GPU. The host process prepares tensors, submits work through the runtime, and the GPU executes many operations concurrently against data in GPU memory. The system becomes faster only when the overhead of moving and scheduling work is outweighed by the parallel execution benefit.
 
 ```mermaid
-flowchart TD
-    tensor[Large Tensor]
-    split[Split into many numeric operations]
-    lane1[Operation 1]
-    lane2[Operation 2]
-    lane3[Operation 3]
-    lane4[Operation N]
-    reduce[Combine intermediate results]
-
-    tensor --> split
-    split --> lane1
-    split --> lane2
-    split --> lane3
-    split --> lane4
-    lane1 --> reduce
-    lane2 --> reduce
-    lane3 --> reduce
-    lane4 --> reduce
+flowchart TB
+    Request[Inference Request] --> CPUPrep[CPU: parse, tokenize, batch]
+    CPUPrep --> Decision{Large parallel tensor work?}
+    Decision -- No --> CPUExec[CPU Execution]
+    Decision -- Yes --> Transfer[Move / reference tensors]
+    Transfer --> GPUExec[GPU Kernel Execution]
+    GPUExec --> Result[Return generated output]
+    CPUExec --> Result
 ```
 
-Figure 2.2 — AI computation exposes large amounts of parallel work.
-
-The more parallel work a system can execute at once, the more efficiently it can process tensor-heavy workloads.
-
-That insight led to accelerator-centric AI infrastructure.
+**Figure 2.2 — Accelerator decision path.** GPUs help when the workload exposes enough parallel tensor work to justify accelerated execution.
 
 ## Architecture
 
-When a customer reports poor AI performance on CPU infrastructure, the architect should not immediately recommend a GPU SKU.
+The central architecture lesson is that CPU insufficiency is not only about compute. It is also about memory bandwidth, data movement and pipeline balance. Large models require repeated access to model weights and intermediate activations. If the compute units are fast but memory cannot feed them, performance suffers. If the GPU is fast but tokenization is slow, the GPU waits. If multiple GPUs are used but networking is weak, distributed scaling collapses.
 
-The correct first step is workload analysis.
-
-### Questions to Ask
-
-| Question | Architectural Reason |
+| Design concern | Architectural implication |
 |---|---|
-| Is this training or inference? | Training and inference stress infrastructure differently. |
-| What is the model size? | Model size affects memory requirements. |
-| What is the concurrency target? | Concurrency affects batching and serving design. |
-| What is the latency target? | Low latency may require different batching decisions. |
-| What is the data path? | Slow input pipelines can starve accelerators. |
-| What is the cost target? | Hardware choice must match business constraints. |
+| Model size | Determines GPU memory requirements and placement strategy. |
+| Concurrency | Determines batching, scheduling and KV cache pressure. |
+| Input/output length | Influences latency, memory use and token generation cost. |
+| CPU preprocessing | Can starve accelerators if tokenization or data loading is slow. |
+| Memory bandwidth | Often limits performance even when compute capacity is high. |
+| Interconnect | Matters when work spans multiple GPUs or nodes. |
 
-### Trade-offs
-
-CPU-only systems may still be appropriate when:
-
-- The model is small.
-- Latency requirements are relaxed.
-- Request volume is low.
-- GPU availability or cost is a constraint.
-- The workload is mostly preprocessing, control flow, or business logic.
-
-GPU-accelerated systems become appropriate when:
-
-- Model execution dominates latency.
-- Tensor computation dominates runtime.
-- Throughput requirements are high.
-- Parallelism is available and exploitable.
-- The cost of CPU scaling exceeds the value delivered.
-
-Never claim that GPU is always better.
-
-The workload decides.
+:::tip Production Rule
+When a CPU-based AI service is slow, do not immediately ask “Which GPU should we buy?” First determine whether the bottleneck is model compute, preprocessing, memory bandwidth, batching, network, storage or queueing.
+:::
 
 ## Production Deployment
 
-In production, CPU and GPU roles should be designed together.
+In production, CPUs remain part of the critical path. Kubernetes agents, container runtimes, GPU drivers, monitoring exporters, inference servers, tokenizers, retrieval pipelines and networking all depend on CPU capacity. A GPU server with under-provisioned CPU resources can still deliver poor performance because the accelerators are not fed efficiently.
 
-A common inference deployment may use CPUs for:
-
-- Request handling.
-- Authentication and authorization.
-- Tokenization.
-- Scheduling and batching decisions.
-- Logging and telemetry.
-- Postprocessing.
-
-The GPU is used for:
-
-- Model forward pass.
-- Tensor operations.
-- Attention computation.
-- High-throughput numerical execution.
-
-```mermaid
-flowchart LR
-    client[Client]
-    api[CPU: API and Auth]
-    tokenize[CPU: Tokenization]
-    batch[CPU: Batching Queue]
-    gpu[GPU: Model Execution]
-    decode[CPU or GPU: Decode Path]
-    client2[Client Response]
-
-    client --> api --> tokenize --> batch --> gpu --> decode --> client2
-```
-
-Figure 2.3 — CPU and GPU responsibilities in a simplified inference system.
-
-A poor architecture overloads one side while starving the other.
-
-A good architecture keeps the pipeline balanced.
+This is why enterprise AI infrastructure sizing includes CPU-to-GPU balance, system memory, PCIe topology, GPU memory, local NVMe, network bandwidth and operational overhead. The GPU is the most visible component, but it is only one part of the node design.
 
 ## Hands-on Lab
 
-The lab for this chapter extends Lab 01 by encouraging the reader to inspect CPU topology and memory characteristics before assuming hardware needs.
-
-The goal is not to benchmark AI models yet.
-
-The goal is to learn how to ask better infrastructure questions.
+The related lab, **Lab 01 — Inspect an AI Infrastructure Host**, asks readers to observe CPU, memory and PCIe state before looking at GPU state. This reinforces an important habit: AI infrastructure troubleshooting starts with the whole machine, not just the accelerator.
 
 ## Production Troubleshooting
 
-### Problem
+### Problem: Adding CPU nodes does not reduce AI inference latency enough
 
-A CPU-based inference system becomes slow under concurrency.
-
-### Symptoms
-
-- CPU usage is high.
-- Request latency increases as users increase.
-- Horizontal scaling improves throughput but not enough.
-- Memory pressure rises when multiple model workers start.
-
-### Diagnosis
-
-Separate the request pipeline into stages.
-
-| Stage | What to Check |
+| Symptom | Likely meaning |
 |---|---|
-| Request handling | Web server latency and queue depth. |
-| Tokenization | CPU time spent preparing inputs. |
-| Model execution | Time spent in numerical computation. |
-| Memory | Page faults, cache pressure, and swapping. |
-| Networking | Upstream and downstream latency. |
+| CPU usage is high and GPU is absent | Model execution is running on CPU and may need acceleration. |
+| CPU usage is high but GPU usage is low | Preprocessing or scheduling may be the bottleneck. |
+| GPU usage is high and latency is high | The model may be too large, memory-bound or under-batched. |
+| Throughput improves but latency does not | More workers increase capacity but do not accelerate each request. |
+| Cost rises faster than throughput | The architecture is scaling the wrong resource. |
 
-### Commands
-
-Purpose: inspect CPU layout.
-
-```bash
-lscpu
-```
-
-Expected output includes architecture, CPU count, NUMA nodes, caches, and virtualization details.
-
-Purpose: observe CPU and memory pressure interactively.
-
-```bash
-top
-```
-
-Expected healthy behavior depends on workload, but sustained high CPU usage with growing queues indicates capacity or architecture pressure.
-
-Purpose: inspect memory usage.
-
-```bash
-free -h
-```
-
-A healthy system should not rely heavily on swap for active model execution.
-
-### Root Cause
-
-The system is using general-purpose CPU resources for a workload dominated by parallel tensor computation.
-
-### Resolution
-
-Characterize the workload and determine whether accelerator-backed inference is appropriate.
-
-If moving to GPUs, design the full pipeline rather than only replacing CPU nodes with GPU nodes.
-
-### Prevention
-
-Before production rollout, measure per-stage latency and identify which part of the pipeline dominates runtime.
+A good diagnosis separates request-level scaling from per-request acceleration. More CPU replicas may handle more simultaneous requests, but they may not make each model execution fast enough.
 
 ## Customer Scenario
 
-A customer says:
+A customer runs a private LLM on CPU servers and asks why the service is slow. The correct response is not to criticize the CPU architecture. The correct response is to explain workload fit. CPUs are still handling routing, security, orchestration and preprocessing correctly. The issue is that large model execution is dominated by parallel tensor operations and memory bandwidth, which are better served by accelerators.
 
-> We can just add more CPU servers. Why introduce GPUs and operational complexity?
-
-A strong answer is:
-
-Adding CPU servers may work for small workloads or relaxed latency targets. However, if model execution dominates runtime, CPU scaling can become inefficient because the workload shape is massively parallel. GPUs introduce operational complexity, but they may reduce total cost and latency when parallel tensor computation is the bottleneck. We should benchmark the workload before choosing.
+The recommendation should include workload profiling, model sizing, latency goals, concurrency targets, GPU memory requirements and operating model. Only then should the architect propose specific hardware or platform changes.
 
 ## Interview Preparation
 
-### Conceptual Questions
+**Conceptual:** Why did CPUs become insufficient for large AI workloads without becoming obsolete?
 
-1. Why did CPUs remain essential even after GPUs became central to AI infrastructure?
-2. What makes tensor computation different from typical application logic?
-3. Why does memory bandwidth matter when evaluating AI workload performance?
+**Architecture:** Design a CPU/GPU node for inference and explain what runs where.
 
-### Architecture Questions
+**Scenario:** A CPU-only model service scales replicas but latency remains high. What does that tell you?
 
-1. Design a CPU plus GPU inference pipeline and explain each component.
-2. When would CPU-only inference be acceptable?
-3. What measurements would you collect before recommending GPU acceleration?
+**Troubleshooting:** How do you determine whether a service is CPU-bound, GPU-bound, memory-bound or pipeline-bound?
 
-### Scenario Questions
-
-1. A customer scaled from 8 CPU nodes to 64 CPU nodes but latency is still high. What do you investigate?
-2. A small internal tool uses a lightweight model once per hour. Would you recommend GPU infrastructure?
-
-### Troubleshooting Questions
-
-1. How do you distinguish CPU preprocessing bottlenecks from model execution bottlenecks?
-2. Why can swap usage severely damage model-serving latency?
+**Customer:** How would you explain the business value of GPUs without using marketing language?
 
 ## Summary
 
-CPUs became insufficient for large AI workloads because the dominant work shifted from flexible instruction execution to high-throughput numerical processing over large tensors.
-
-The CPU remains critical.
-
-It should coordinate, prepare, schedule, and operate the system.
-
-The accelerator should execute the highly parallel numerical work when the workload justifies it.
+CPUs became insufficient because modern AI workloads require massive parallel computation, high memory bandwidth and efficient tensor execution. They did not disappear from the architecture; they became the control and coordination layer around accelerators. Production AI infrastructure succeeds when the CPU, GPU, memory, storage, network and runtime are designed as one system.
 
 ## Key Takeaways
 
-- CPU scaling is not always efficient for tensor-heavy workloads.
-- AI workloads often expose large amounts of parallel computation.
-- Memory bandwidth and data movement matter as much as raw compute.
-- GPU adoption should follow workload analysis, not product enthusiasm.
+- CPU-centric scaling works well for many traditional services but not for all AI workloads.
+- AI model execution often requires parallel throughput and memory bandwidth beyond what CPUs can economically provide.
+- GPUs are accelerators, not replacements for the entire host system.
+- Profiling must precede hardware recommendations.
 
-## Architecture Summary
+## Related Chapters
 
-```mermaid
-flowchart TD
-    workload[Analyze Workload]
-    cpu_ok{CPU sufficient?}
-    optimize[Optimize CPU Pipeline]
-    accelerator[Evaluate Accelerator]
-    design[Design Balanced Platform]
-
-    workload --> cpu_ok
-    cpu_ok -->|Yes| optimize
-    cpu_ok -->|No| accelerator
-    accelerator --> design
-```
-
-Figure 2.4 — Decision flow before moving beyond CPU-only infrastructure.
-
-## Quick Revision Sheet
-
-| Concept | Reminder |
-|---|---|
-| CPU strength | General-purpose control flow and low-latency execution. |
-| AI pressure point | Repeated numerical work over large tensors. |
-| Scaling limit | More CPU nodes may not solve tensor execution bottlenecks. |
-| Correct method | Measure workload stages before selecting hardware. |
-
-## Further Reading
-
-- Operating system scheduling fundamentals.
-- Computer architecture introductions to parallelism.
-- NVIDIA CUDA programming model documentation.
-
-## Next Chapter
-
-Continue to Chapter 03: CPU vs GPU.
+- Previous: [What Is AI Infrastructure?](./chapter-01-what-is-ai-infrastructure.md)
+- Next: [CPU vs GPU](./chapter-03-cpu-vs-gpu.md)
+- Related lab: [Inspect an AI Infrastructure Host](./labs/lab-01-inspect-an-ai-infrastructure-host.md)
