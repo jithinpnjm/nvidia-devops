@@ -77,6 +77,10 @@ This is the exact "nvidia-smi works, Kubernetes doesn't show GPUs" symptom, repr
 kubectl get node <node> -o json | jq -r '.status.allocatable | to_entries[] | select(.key | contains("nvidia.com")) | "\(.key): \(.value)"'
 ```
 
+➕ **Trap — Kubernetes memory limits do not see GPU memory at all:**
+> `resources.limits.memory` on a Pod spec constrains the container's **host** memory (what the kernel's cgroup OOM killer enforces) — it has zero relationship to the GPU's HBM/device memory. `nvidia.com/gpu: 1` is a whole-device allocation with no memory granularity below one GPU unless MIG (Chapter 5) is layered underneath it. A container can set `memory: 4Gi` in its Pod spec and still trigger a CUDA out-of-memory error by allocating 80GB of GPU HBM — the two memory planes are enforced by completely different mechanisms (cgroups vs NVML/driver), and `kubectl top pod` only ever shows the host-memory plane.
+> **Interview-ready line:** "Kubernetes memory limits and GPU memory are two separate accounting systems — a Pod can be nowhere near its host memory limit and still OOM on the GPU, because nothing in the Pod spec constrains HBM."
+
 ➕ **Practice (continuation — original chapter had a worked scenario but no numbered Practice list; these are new):**
 1. Walk the 8-step diagram above out loud from memory, naming which `kubectl`/host command proves each step, without looking at the diagram.
 2. ➕ A node shows `nvidia.com/gpu: 8` allocatable, but a Pod requesting `nvidia.com/gpu: 1` still fails to schedule with a scheduling-predicate error unrelated to GPU count — name at least two other resource dimensions (CPU/memory requests, taints/tolerations, nodeSelector on a GFD-applied label) that could independently block scheduling even when the GPU resource itself is available.
