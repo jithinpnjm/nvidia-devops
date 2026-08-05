@@ -250,6 +250,6 @@ The GPU is central to model execution, but GPU performance alone does not determ
 
 ## Cross References
 
-- Previous: [CPU vs GPU](./chapter-03-cpu-vs-gpu.md)
-- Next: [AI Infrastructure Landscape](./chapter-05-ai-infrastructure-landscape.md)
-- Related lab: [Inspect an AI Infrastructure Host](./labs/lab-01-inspect-an-ai-infrastructure-host.md)
+- Previous: [CPU vs GPU](./chapter-03-cpu-vs-gpu)
+- Next: [AI Infrastructure Landscape](./chapter-05-ai-infrastructure-landscape)
+- Related lab: [Inspect an AI Infrastructure Host](./labs/lab-01-inspect-an-ai-infrastructure-host)
