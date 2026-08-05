@@ -11,423 +11,169 @@ tags:
 
 # CPU vs GPU
 
+| Chapter metadata | Value |
+|---|---|
+| Volume | 01 — AI Infrastructure Foundations |
+| Difficulty | Foundation |
+| Estimated reading time | 35 minutes |
+| Primary audience | DevOps, SRE, Platform, Cloud and Infrastructure Engineers |
+| Core question | Why do modern AI platforms combine CPUs and GPUs instead of using only one processor type? |
+
 ## Introduction
 
-A CPU and a GPU are both processors.
+A CPU and a GPU are both processors, but they are designed around very different engineering assumptions. A CPU is built for flexible control flow, operating system coordination, low-latency decision making, interrupts, system calls, networking, storage, security boundaries and complex application logic. A GPU is built for throughput: applying the same mathematical operation across many pieces of data in parallel, especially when the work can be expressed as matrix, vector or tensor operations.
 
-They are not designed for the same kind of work.
+This distinction is central to AI infrastructure. A production AI platform does not replace CPUs with GPUs. It combines them. CPUs coordinate the system; GPUs accelerate the heavy numerical work. The architecture fails when engineers expect one processor type to behave like the other.
 
-A CPU is optimized for flexibility, operating system integration, branching, and fast execution of complex instruction streams.
-
-A GPU is optimized for throughput across many parallel operations.
-
-This chapter explains the difference from an infrastructure perspective.
-
-The goal is not to memorize hardware terminology.
-
-The goal is to understand why AI platforms combine CPUs and GPUs rather than replacing one with the other.
+:::info Principal Engineer View
+The question is not whether a CPU or GPU is “better.” The question is which part of the workload is control-heavy, which part is math-heavy, where data moves, and which processor is responsible for each stage.
+:::
 
 ## Story
 
-A platform engineer receives two performance reports.
+A platform engineer receives two performance reports from two different services. The first service is a traditional internal API. Its latency is dominated by database queries, network calls, authentication checks and business logic. Adding CPU cores helps because the workload is made of many independent requests with branching behavior and I/O waits.
 
-The first report shows a traditional API service.
+The second service is a model inference endpoint. Its latency is dominated by model execution, memory bandwidth and tensor movement. The service spends most of its time multiplying matrices, reading model weights and generating tokens. Adding more CPU cores improves the preprocessing and API layer, but it does not change the fundamental bottleneck: the expensive part of the request is numerical parallel computation.
 
-Latency is dominated by database queries, network calls, and business logic.
-
-The second report shows a model inference service.
-
-Latency is dominated by model execution and tensor movement.
-
-The engineer asks a reasonable question:
-
-> Why not run everything on the same kind of server?
-
-The answer is that these workloads have different shapes.
-
-Traditional applications often need fast decision-making.
-
-AI workloads often need many similar mathematical operations to happen at once.
-
-That difference explains the CPU versus GPU architecture decision.
+The engineer now sees the architecture problem clearly. Traditional infrastructure optimizes request handling. AI infrastructure must optimize request handling plus accelerated computation plus data movement. That is why CPUs and GPUs appear together in every serious AI platform design.
 
 ## Learning Objectives
 
-After completing this chapter, you will be able to:
-
-- Compare CPU and GPU execution models.
-- Explain why GPUs are effective for AI workloads.
-- Identify work that should remain on CPUs.
-- Describe common infrastructure bottlenecks when using GPUs.
-- Explain CPU/GPU trade-offs to a customer or interview panel.
-
-## Prerequisites
-
-You should have read Chapter 01 and Chapter 02.
-
-You should understand basic processes, memory, and system performance concepts.
-
-## Estimated Reading Time
-
-35–45 minutes.
-
-## Difficulty
-
-Foundation.
+After completing this chapter, you will be able to explain the architectural difference between CPU-centric and GPU-accelerated execution, describe why AI workloads map naturally to GPUs, identify which parts of an AI service still require CPUs, reason about latency and throughput trade-offs, and troubleshoot common CPU/GPU imbalance symptoms in production systems.
 
 ## Big Picture
 
-A CPU and GPU cooperate in a production AI system.
+Figure 3.1 shows the division of responsibility in a simplified AI inference node. The CPU receives requests, runs platform logic, prepares work and coordinates the runtime. The GPU executes the dense numerical operations. Memory, PCIe, NVLink and networking determine how efficiently work moves between those layers.
 
 ```mermaid
 flowchart LR
-    client[Client Request]
-    cpu1[CPU: API, Auth, Routing]
-    cpu2[CPU: Tokenization and Scheduling]
-    gpu[GPU: Tensor Computation]
-    mem[GPU Memory]
-    cpu3[CPU: Postprocessing and Response]
-    response[Client Response]
-
-    client --> cpu1 --> cpu2 --> gpu --> cpu3 --> response
-    gpu <--> mem
+    Client[Client Request] --> API[API Service]
+    API --> CPU[CPU: Control Plane Work]
+    CPU --> Prep[Tokenization / Scheduling]
+    Prep --> Runtime[CUDA Runtime / Framework]
+    Runtime --> GPU[GPU: Tensor Execution]
+    GPU --> Memory[HBM / GPU Memory]
+    GPU --> Runtime
+    Runtime --> API
+    API --> Client
 ```
 
-Figure 3.1 — CPU and GPU cooperation in an inference path.
-
-The CPU controls much of the system.
-
-The GPU accelerates the numerical core of the workload.
+**Figure 3.1 — CPU and GPU responsibilities in an AI inference node.** The CPU coordinates the request lifecycle while the GPU executes the parallel numerical workload.
 
 ## Deep Explanation
 
-The CPU is a small group of powerful general-purpose cores.
+A CPU is optimized for versatility. It has a small number of powerful cores, sophisticated branch prediction, large caches, strong single-thread performance and deep integration with the operating system. This makes CPUs excellent for workloads where each request may follow a different path: web services, databases, control planes, orchestration systems, security checks, storage coordination and general application logic.
 
-Each core is designed to handle complicated control flow, branch-heavy code, system calls, interrupts, and a wide range of instructions.
+A GPU is optimized for parallel throughput. Instead of a few highly flexible cores, it contains many execution units designed to run large numbers of similar operations concurrently. That design is a poor fit for arbitrary operating system work but an excellent fit for AI workloads, where the same mathematical operations are repeatedly applied to large tensors.
 
-The GPU is a large collection of simpler execution resources designed to process many data elements in parallel.
+| Dimension | CPU | GPU | AI infrastructure implication |
+|---|---|---|---|
+| Design goal | Flexible low-latency execution | High-throughput parallel execution | Use CPUs for orchestration and GPUs for model execution |
+| Core style | Fewer complex cores | Many simpler parallel units | GPU acceleration helps when the workload has large parallel regions |
+| Strength | Branching, control flow, I/O, OS work | Matrix, vector and tensor computation | Model execution belongs on GPUs when the model is large enough |
+| Weakness | Limited massive parallel throughput | Poor fit for irregular control-heavy work | Do not move the entire service to the GPU |
+| Bottleneck pattern | CPU saturation, lock contention, I/O wait | Memory bandwidth, kernel efficiency, data movement | Troubleshooting must identify the real limiting layer |
 
-This is why GPUs are effective for workloads where the same operation is applied many times across large arrays.
-
-AI models expose that pattern naturally.
-
-Matrix multiplication, convolution, attention, normalization, and embedding operations all create large amounts of parallel work.
-
-The GPU does not make every workload faster.
-
-It makes the right workload faster when the software stack can expose enough parallelism and feed the GPU with data efficiently.
-
-## Comparison Table
-
-| Dimension | CPU | GPU |
-|---|---|---|
-| Primary design goal | General-purpose execution | High-throughput parallel execution |
-| Best at | Control flow, OS work, branching, coordination | Tensor math, matrix operations, parallel numeric work |
-| Core style | Fewer, more complex cores | Many simpler execution resources |
-| Latency/throughput bias | Low-latency instruction execution | High-throughput data-parallel execution |
-| Memory concern | Cache behavior and system memory | High-bandwidth device memory and data movement |
-| AI role | Orchestration, preprocessing, scheduling, control | Model execution and tensor operations |
-| Failure mode | Process, OS, memory, or service failure | Driver, CUDA, device, memory, thermal, or topology issues |
-
-There is no universal winner.
-
-A production AI platform needs both.
+The common mistake is to describe GPUs as “faster CPUs.” That is wrong. GPUs are not general replacements for CPUs. They are accelerators for workloads that can expose enough parallel work to keep many execution units busy.
 
 ## Internal Working
 
-The difference becomes clearer when visualized as work distribution.
+At runtime, the CPU and GPU cooperate. A framework such as PyTorch, TensorFlow, TensorRT, Triton or vLLM runs on the host CPU process. The framework prepares inputs, manages model metadata, schedules operations and calls into CUDA or another runtime layer. The runtime submits work to the GPU. The GPU executes kernels against data stored in GPU memory, then returns results or intermediate tensors back to the runtime.
 
 ```mermaid
-flowchart TD
-    task[Workload]
-    branch{Workload Shape}
-    cpu[CPU Path: Few complex instruction streams]
-    gpu[GPU Path: Many similar parallel operations]
-    result[Result]
+sequenceDiagram
+    participant App as Application Process
+    participant CPU as CPU Threads
+    participant Runtime as CUDA / Framework Runtime
+    participant GPU as GPU
+    participant HBM as GPU Memory
 
-    task --> branch
-    branch -->|Branch-heavy, control-heavy| cpu
-    branch -->|Tensor-heavy, parallel| gpu
-    cpu --> result
-    gpu --> result
+    App->>CPU: Receive request
+    CPU->>CPU: Tokenize and prepare tensors
+    CPU->>Runtime: Submit GPU work
+    Runtime->>GPU: Launch kernels
+    GPU->>HBM: Read weights and activations
+    HBM-->>GPU: Tensor data
+    GPU-->>Runtime: Kernel completion
+    Runtime-->>CPU: Results ready
+    CPU-->>App: Format response
 ```
 
-Figure 3.2 — Workload shape determines the appropriate execution engine.
+**Figure 3.2 — CPU/GPU execution sequence.** The CPU remains active even when the GPU performs the expensive model computation.
 
-The CPU path is appropriate when each operation may be different.
-
-The GPU path is appropriate when the system can apply similar operations across many data elements.
+This sequence explains why poor GPU utilization does not always mean the GPU is weak. The GPU may be waiting for input preparation, host-to-device transfer, batching, scheduling or memory movement. In production, the goal is not merely to “have a GPU.” The goal is to keep the GPU fed with useful work while avoiding unnecessary data transfers.
 
 ## Architecture
 
-Architects should avoid simplistic statements such as "GPUs are faster than CPUs."
+A well-designed AI node assigns responsibilities deliberately. CPU capacity must be sufficient for tokenization, request routing, networking, observability agents, container runtime work and framework overhead. GPU capacity must match model size, precision, concurrency and latency goals. Memory capacity and bandwidth often matter as much as raw compute because model weights and activations must be read continuously during execution.
 
-A better statement is:
-
-> GPUs can provide much higher throughput for parallel numerical workloads when the data pipeline, runtime, and memory layout allow the workload to use them efficiently.
-
-That sentence includes the conditions.
-
-Architecture is about conditions.
-
-### Key Trade-offs
-
-| Trade-off | Explanation |
+| Architecture question | Why it matters |
 |---|---|
-| Performance vs complexity | GPUs can improve throughput but require driver, runtime, and scheduling discipline. |
-| Throughput vs latency | Batching can improve GPU efficiency while increasing per-request wait time. |
-| Cost vs utilization | Expensive GPUs must be kept busy to justify their cost. |
-| Flexibility vs specialization | CPUs handle broad workloads; GPUs specialize in parallel numeric execution. |
-| Simplicity vs scale | Small systems may not need GPU orchestration; larger systems usually do. |
+| Is the workload latency-sensitive or throughput-oriented? | Real-time inference and batch jobs require different batching and scheduling choices. |
+| Is the model small enough that CPU execution is acceptable? | Small models or low-volume workloads may not justify GPU cost. |
+| Is preprocessing CPU-heavy? | Tokenization, image transforms and retrieval pipelines can starve the GPU. |
+| Is the GPU memory large enough? | If the model or KV cache does not fit comfortably, latency and reliability suffer. |
+| Is the interconnect sufficient? | PCIe, NVLink and networking influence multi-GPU performance and data movement. |
 
-## When to Use CPU-Only Infrastructure
-
-CPU-only infrastructure can be appropriate when:
-
-- The model is small.
-- Request volume is low.
-- Latency targets are relaxed.
-- The workload is mostly data preparation or business logic.
-- GPU cost or availability is not justified.
-- Operational simplicity is more important than acceleration.
-
-This decision should be made from measurement, not habit.
-
-## When to Use GPU-Accelerated Infrastructure
-
-GPU acceleration becomes appropriate when:
-
-- Model execution dominates runtime.
-- The workload has strong parallelism.
-- Throughput requirements are high.
-- Latency targets cannot be met on CPU efficiently.
-- Model size or batch size benefits from GPU memory and compute.
-- Total cost improves when expensive accelerators are highly utilized.
-
-A GPU is not a magic performance layer.
-
-It is a specialized engine that must be used correctly.
+:::tip Production Rule
+Before adding GPUs, profile the pipeline. Before adding CPU cores, check whether the bottleneck is actually model execution or memory bandwidth. Scaling the wrong layer increases cost without solving the problem.
+:::
 
 ## Production Deployment
 
-In production, the CPU/GPU boundary appears in several places.
+In production, CPU and GPU roles appear at multiple layers. A Kubernetes GPU node still needs kubelet, containerd, networking agents, monitoring agents and security controls on the CPU side. The GPU Operator, device plugin, container runtime and NVIDIA driver stack expose the GPU to workloads. The inference or training container then consumes the GPU resource and submits accelerated work through CUDA libraries.
 
-### Kubernetes Scheduling
-
-The scheduler must place GPU workloads on nodes that expose GPU resources.
-
-The container runtime must allow the container to access the NVIDIA driver and device files.
-
-### Model Serving
-
-The serving layer must decide how to batch, queue, and route requests.
-
-Poor batching can leave GPUs underutilized.
-
-Aggressive batching can increase latency.
-
-### Observability
-
-Operators must watch both CPU and GPU signals.
-
-CPU metrics alone may miss accelerator bottlenecks.
-
-GPU metrics alone may miss preprocessing, networking, or queuing bottlenecks.
-
-```mermaid
-flowchart TD
-    app[Application Metrics]
-    queue[Queue Metrics]
-    cpu[CPU Metrics]
-    gpu[GPU Metrics]
-    memory[GPU Memory Metrics]
-    net[Network Metrics]
-    storage[Storage Metrics]
-    operator[Operator Diagnosis]
-
-    app --> operator
-    queue --> operator
-    cpu --> operator
-    gpu --> operator
-    memory --> operator
-    net --> operator
-    storage --> operator
-```
-
-Figure 3.3 — CPU/GPU systems require multi-layer observability.
+For inference platforms, the CPU often handles HTTP/gRPC routing, authentication, tokenization, batching decisions and response streaming. The GPU performs model execution. For training platforms, the CPU handles data loading, process orchestration, checkpoint coordination and distributed job management while GPUs perform forward passes, backward passes and collective communication.
 
 ## Hands-on Lab
 
-Lab 01 asks you to inspect the host and identify what the system can tell you about CPUs, memory, PCI devices, and optional NVIDIA GPUs.
-
-Later labs will compare actual GPU workloads.
-
-This chapter focuses on the mental model first.
+The lab for this volume is **Lab 01 — Inspect an AI Infrastructure Host**. It teaches how to inspect CPU, memory, PCIe and GPU visibility before deploying any AI workload. That lab intentionally starts with observation rather than installation because infrastructure engineers must learn to read the machine before changing it.
 
 ## Production Troubleshooting
 
-### Problem
+### Problem: GPU utilization is low even though requests are slow
 
-GPU utilization is low in a GPU-backed inference service.
+| Area | What to inspect | Why |
+|---|---|---|
+| CPU | `top`, `htop`, `pidstat`, application profiling | CPU tokenization or preprocessing may be the bottleneck. |
+| GPU | `nvidia-smi`, DCGM metrics | Confirms whether kernels are actually running. |
+| Memory | GPU memory usage, host memory pressure | Model loading, paging or KV cache growth may be limiting performance. |
+| Runtime | framework logs, batching configuration | Small batches or poor scheduling can underfeed the GPU. |
+| Network/storage | request latency, dataset reads, object store metrics | The GPU may be idle while waiting for data. |
 
-### Symptoms
-
-- GPU utilization remains low during active traffic.
-- CPU usage is high on the inference server.
-- Request latency is high.
-- Increasing GPU count does not improve throughput.
-
-### Diagnosis
-
-Low GPU utilization does not automatically mean the GPU is weak.
-
-It may mean the GPU is waiting.
-
-Check:
-
-- Tokenization time.
-- Request queue behavior.
-- Batch size.
-- Model loading behavior.
-- Data transfer between CPU and GPU.
-- Container runtime configuration.
-- GPU memory usage.
-
-### Commands
-
-Purpose: check whether GPUs are visible to the host.
-
-```bash
-nvidia-smi
-```
-
-Expected healthy output includes one or more GPUs, driver information, and process information when workloads are active.
-
-Purpose: inspect CPU pressure.
-
-```bash
-top
-```
-
-High CPU pressure during low GPU utilization may indicate preprocessing or scheduling bottlenecks.
-
-Purpose: inspect PCI topology when GPUs exist.
-
-```bash
-nvidia-smi topo -m
-```
-
-Expected output shows GPU, CPU, and interconnect topology when supported by the driver and platform.
-
-### Root Cause
-
-The GPU is not receiving enough useful parallel work because another layer in the pipeline is the bottleneck.
-
-### Resolution
-
-Tune the pipeline rather than adding GPUs blindly.
-
-Possible fixes include:
-
-- Improve tokenization throughput.
-- Increase or tune batching carefully.
-- Avoid repeated model loading.
-- Reduce CPU-to-GPU transfer overhead.
-- Fix container runtime or scheduling configuration.
-
-### Prevention
-
-Monitor queue depth, CPU usage, GPU utilization, GPU memory, request latency, and model execution time together.
+The root cause is often pipeline imbalance. A GPU-accelerated system can still behave like a CPU-bound system if input preparation, batching, retrieval or response handling cannot keep up with model execution.
 
 ## Customer Scenario
 
-A customer says:
+A customer asks whether they should replace a large CPU fleet with GPUs for document summarization. A strong architect does not answer immediately. The first step is to classify the workload: request rate, latency target, model size, token length, batchability, retrieval requirements, data sensitivity and expected growth.
 
-> We purchased GPUs, but our application is not faster. Are the GPUs defective?
-
-A strong architect does not begin with blame.
-
-The answer is:
-
-A GPU only accelerates work that reaches it in a suitable form. We need to check whether the model is actually using the GPU, whether requests are batched correctly, whether preprocessing is limiting throughput, and whether GPU memory and runtime configuration are healthy. The hardware may be fine while the pipeline is poorly balanced.
+If the workload uses a large transformer model with high concurrency, GPUs are likely appropriate for model execution. If the workload is low volume, latency-insensitive or dominated by document parsing and retrieval, CPU optimization may deliver better economics. The recommendation depends on the workload, not on a generic claim that GPUs are always better.
 
 ## Interview Preparation
 
-### Conceptual Questions
+**Conceptual:** Why is a GPU not simply a faster CPU?
 
-1. Explain the difference between CPU-optimized and GPU-optimized workloads.
-2. Why does a GPU not accelerate every application?
-3. Why is data movement important in CPU/GPU systems?
+**Architecture:** Design an inference node and identify which components run on the CPU and which use the GPU.
 
-### Architecture Questions
+**Scenario:** A model service has high latency but only 20% GPU utilization. What do you inspect first?
 
-1. Draw an inference architecture showing CPU and GPU responsibilities.
-2. How would you decide whether a customer needs CPU-only or GPU-backed inference?
-3. What metrics would you collect to confirm GPU acceleration is effective?
+**Customer:** A customer wants to buy GPUs because CPU inference is slow. What questions do you ask before recommending hardware?
 
-### Scenario Questions
-
-1. A GPU node shows low utilization while users report high latency. What do you investigate?
-2. A customer wants to replace all CPU nodes with GPU nodes. How do you respond?
-
-### Whiteboard Questions
-
-1. Draw the lifecycle of a request from API gateway to GPU execution.
-2. Draw the signals required to troubleshoot a CPU/GPU inference pipeline.
+**Whiteboard:** Draw the request path from client to CPU runtime to GPU execution and back.
 
 ## Summary
 
-CPUs and GPUs solve different problems.
-
-The CPU remains the control and coordination engine of the platform.
-
-The GPU accelerates the numerical core when the workload exposes enough parallelism and the pipeline feeds the accelerator efficiently.
-
-Good AI infrastructure design is not CPU versus GPU.
-
-It is CPU plus GPU, connected by the right software, memory, scheduling, and operational model.
+CPUs and GPUs solve different infrastructure problems. CPUs remain essential for control flow, orchestration, system integration and request lifecycle management. GPUs become essential when the workload contains enough parallel numerical computation to justify acceleration. Production AI infrastructure succeeds when these roles are balanced, observable and matched to the workload.
 
 ## Key Takeaways
 
-- CPUs are optimized for flexible control flow.
-- GPUs are optimized for high-throughput parallel numerical work.
-- AI platforms require both.
-- Low GPU utilization often indicates a pipeline bottleneck, not bad hardware.
-- Architecture decisions require workload measurement.
+- CPUs optimize flexibility and control; GPUs optimize parallel throughput.
+- AI platforms combine CPUs and GPUs rather than replacing one with the other.
+- Low GPU utilization usually indicates a pipeline problem, not necessarily a hardware problem.
+- Architecture decisions must be based on workload profile, latency goals, memory needs, data movement and cost.
 
-## Architecture Summary
+## Related Chapters
 
-```mermaid
-flowchart LR
-    cpu[CPU: Control, Scheduling, Pre/Post Processing]
-    gpu[GPU: Tensor Execution]
-    obs[Observability]
-    platform[Balanced AI Platform]
-
-    cpu <--> gpu
-    obs --> cpu
-    obs --> gpu
-    cpu --> platform
-    gpu --> platform
-```
-
-Figure 3.4 — Balanced AI platforms coordinate CPU and GPU responsibilities.
-
-## Quick Revision Sheet
-
-| Question | Answer |
-|---|---|
-| Is GPU always faster? | No. It depends on workload shape and data movement. |
-| Should CPUs disappear? | No. CPUs remain essential for orchestration and control. |
-| What causes low GPU utilization? | Often batching, preprocessing, scheduling, or data movement bottlenecks. |
-| What should architects measure? | Latency, throughput, queue depth, CPU, GPU, memory, network, and storage signals. |
-
-## Further Reading
-
-- NVIDIA CUDA programming model documentation.
-- Computer architecture resources on parallel execution.
-- Kubernetes device plugin documentation.
-
-## Next Chapter
-
-The next foundation chapter will explain what happens when an AI system answers a request end to end.
+- Previous: [Why CPUs Became Insufficient](./chapter-02-why-cpus-became-insufficient.md)
+- Next: GPU execution fundamentals
+- Related lab: [Inspect an AI Infrastructure Host](./labs/lab-01-inspect-an-ai-infrastructure-host.md)
