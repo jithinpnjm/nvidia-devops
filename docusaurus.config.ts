@@ -71,6 +71,7 @@ const config: Config = {
       items: [
         {to: '/', label: 'Home', position: 'left'},
         {to: '/curriculum/intro/master-index', label: 'Curriculum', position: 'left'},
+        {to: '/curriculum/nvidia-zero-to-hero', label: 'Zero to Hero', position: 'left'},
         {to: '/visuals', label: 'Visuals', position: 'left'},
         {to: '/labs', label: 'Labs', position: 'left'},
         {to: '/troubleshooting', label: 'Troubleshooting', position: 'left'},
@@ -84,7 +85,7 @@ const config: Config = {
     footer: {
       style: 'dark',
       links: [
-        {title: 'Learn', items: [{label: 'Curriculum', to: '/curriculum/intro/master-index'}, {label: 'Labs', to: '/labs'}]},
+        {title: 'Learn', items: [{label: 'Curriculum', to: '/curriculum/intro/master-index'}, {label: 'Zero to Hero', to: '/curriculum/nvidia-zero-to-hero'}, {label: 'Labs', to: '/labs'}]},
         {title: 'Practice', items: [{label: 'Troubleshooting', to: '/troubleshooting'}, {label: 'Interview', to: '/interview'}]},
       ],
       copyright: `Public technical learning platform · ${new Date().getFullYear()}`,
