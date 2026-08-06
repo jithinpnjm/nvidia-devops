@@ -258,7 +258,7 @@ An external inference service usually has the opposite priority. It needs an agr
 
 Ask customers to choose the failure they prefer: unused capacity, queued work, slower responses, a reconfiguration window, or a larger hardware footprint. There is no mechanism that makes all five disappear.
 
-## Review questions for an architecture board
+## Decision review and senior interview close
 
 | Question | Acceptable answer shape |
 |---|---|
@@ -269,7 +269,7 @@ Ask customers to choose the failure they prefer: unused capacity, queued work, s
 | How is capacity restored after failure? | compatible spare inventory and tested placement |
 | Who approves a sharing-ratio change? | accountable service and platform owners |
 
-If an answer is “we will see,” the design is not yet production-ready. A sharing system is most likely to be questioned during a demand spike, when experiments are least safe.
+If an answer is “we will see,” the design is not yet production-ready. A sharing system is most likely to be questioned during a demand spike, when experiments are least safe. In a senior interview, use this table to frame the design before discussing a mechanism.
 
 ## Additional incident playbook: wrong workload admitted
 
@@ -297,7 +297,7 @@ If an answer is “we will see,” the design is not yet production-ready. A sha
 
 **Verification:** a new report explains why a request can be admitted, queued, or denied using the same inventory as the scheduler.
 
-## Terms to use precisely
+## Terms and revision prompts
 
 | Term | Use it when | Do not use it for |
 |---|---|---|
@@ -307,43 +307,44 @@ If an answer is “we will see,” the design is not yet production-ready. A sha
 | utilization | a measured signal with interval/context | a capacity guarantee |
 | headroom | measured spare capacity under stated load | untested free memory |
 
-## Revision prompts
+Use the following short close during design review or interview preparation:
 
-1. What does this tenant receive when all neighbors are active?
-2. Which layer enforces that outcome?
-3. Which failure domains remain shared?
-4. What evidence proves the service objective?
-5. How is capacity restored after a node failure?
+1. Name the tenant guarantee when all neighbors are active.
+2. Identify the control that enforces it and the failure domains it cannot remove.
+3. Explain why average utilization does not prove capacity.
+4. Describe the evidence that validates memory, concurrent demand, and latency.
+5. State the rollback path for a policy or ratio that breaks a protected SLO.
 
-## Closing principle
+Share only what the platform can describe, observe, and recover. Anything else is an unbounded production experiment.
 
-Share only what the platform can describe, observe, and recover.
+## Decision-review record
 
-Anything else is an unbounded production experiment.
+Close the review with an explicit record rather than a general approval.
 
-Document the guarantee.
+| Record | Example evidence |
+|---|---|
+| workload class | measured request and execution pattern |
+| selected service tier | named pool and resource semantics |
+| excluded mechanism | requirement it cannot meet |
+| admission rule | quota, queue, or policy decision |
+| monitoring owner | dashboard and alert responsibility |
+| recovery path | compatible reserve or failover destination |
 
-Measure the workload.
+This record makes a later incident review constructive.
 
-Protect the failure boundary.
+It shows whether the platform followed its design.
 
-Retain recovery capacity.
+It also reveals whether the workload changed without being reclassified.
 
-Review the service after every material change.
+## Senior-level summary
 
-## Senior interview questions
+GPU sharing is a capacity and reliability design.
 
-1. Why is average GPU utilization insufficient evidence for oversubscription?
-2. Explain the difference between access sharing, resource partitioning, and a tenant boundary.
-3. How would you classify an LLM endpoint with variable prompt lengths before choosing a sharing method?
-4. What is the rollback plan if a new sharing policy breaks tail latency?
+It is not a multiplier applied to a scheduler resource.
 
-## Revision checklist
+The best design may leave some physical capacity unused.
 
-- Can you name the exact guarantee a tenant receives?
-- Did you measure memory and concurrent demand, rather than infer capacity from averages?
-- Does the selected pool match the trust and recovery model?
-- Are dedicated capacity and a rollback path available for critical workloads?
+That capacity can be the difference between planned recovery and a disruptive layout change.
 
 ## Further reading
 

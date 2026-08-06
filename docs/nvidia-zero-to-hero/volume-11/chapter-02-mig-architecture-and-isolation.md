@@ -199,13 +199,6 @@ MIG is compelling for a stable family of model-serving workloads that fit known 
 3. Why should a MIG mode change be a planned node lifecycle event?
 4. How would you prove a profile is available end-to-end, not merely visible to `nvidia-smi`?
 
-## Further reading
-
-- [NVIDIA MIG concepts](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/concepts.html)
-- [NVIDIA MIG deployment considerations](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/deployment-considerations.html)
-- [NVIDIA Kubernetes MIG support](https://docs.nvidia.com/datacenter/cloud-native/kubernetes/latest/index.html)
-- Next: [MIG Profiles and Placement](./chapter-03-mig-profiles-and-placement)
-
 ## Change workflow runbook
 
 Use the following workflow for a planned MIG layout change. It is intentionally control-plane and evidence focused; exact commands depend on the supported platform image and approved automation.
@@ -353,3 +346,10 @@ Name the remaining shared failure domains.
 List the five layers that must validate before admission reopens.
 
 Explain why a successful driver command is insufficient proof of service readiness.
+
+## Further reading
+
+- [NVIDIA MIG concepts](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/concepts.html)
+- [NVIDIA MIG deployment considerations](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/deployment-considerations.html)
+- [NVIDIA Kubernetes MIG support](https://docs.nvidia.com/datacenter/cloud-native/kubernetes/latest/index.html)
+- Next: [MIG Profiles and Placement](./chapter-03-mig-profiles-and-placement)
