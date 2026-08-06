@@ -3971,278 +3971,458 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 01 — Why Inference Infrastructure Is Different": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand why model serving optimizes latency, concurrency, availability, and cost differently from training.",
+    "learningOutcome": "Understand why model serving optimizes latency, concurrency, availability, and cost differently from offline training.",
     "sections": [
-      "Why Inference Infrastructure Is Different",
-      "Learning Objectives",
-      "Training Versus Inference",
-      "Architecture",
-      "The Core Trade-off",
-      "Production Story",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Questions"
+      "Chapter 01 — Why Inference Infrastructure Is Different",
+      "WHY: The Fundamental Shift from Training to Serving",
+      "WHAT: First-Principles Mechanics of AI Inference",
+      "1. Prefill vs. Decode: Two Radically Different Hardware Execution Phases",
+      "2. Deconstructing the Inference Latency Budget",
+      "3. Mathematics of KV Cache Memory Consumption",
+      "HOW: Inference System Architecture",
+      "Component Responsibilities Matrix",
+      "TRADEOFFS: Architectural Trade-off Analysis",
+      "1. Training Infrastructure vs. Inference Infrastructure",
+      "2. Core Serving Trade-offs",
+      "PRODUCTION: Scalability and Operating Windows",
+      "TROUBLESHOOTING: Worked Failure Scenarios",
+      "Scenario 1: Cascading CUDA Out-of-Memory (OOM) Evictions Under Concurrency Spike"
     ],
     "codeLanguages": [
+      "text",
       "mermaid",
-      "text"
+      "bash",
+      "yaml",
+      "json"
     ]
   },
   "Chapter 02 — The End-to-End Inference Request Path": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Trace a request through gateways, queues, tokenization, scheduling, execution, and streaming.",
+    "learningOutcome": "Trace an inference request through gateways, queues, tokenization, scheduling, GPU execution, and response streaming.",
     "sections": [
-      "The End-to-End Inference Request Path",
-      "Sequence",
-      "Latency Budget",
-      "Data and Control Paths",
-      "Production Failure",
-      "Troubleshooting",
-      "Interview Question"
+      "Chapter 02 — The End-to-End Inference Request Path",
+      "WHY: Latency Beyond the GPU",
+      "WHAT: The Nine-Stage Inference Request Path",
+      "Deep Dive into the 9 Request Stages",
+      "HOW: Data Path vs. Control Path Separation",
+      "Component Responsibilities & Boundary Protocols Matrix",
+      "TRADEOFFS: Architectural Trade-off Analysis",
+      "1. Tokenization Placement: Gateway Microservice vs. In-Engine C++ Backend",
+      "2. Host RAM Allocation: Standard Pageable Memory vs. Pinned Memory ( cudaHostAlloc )",
+      "TROUBLESHOOTING: Worked Failure Scenarios",
+      "Scenario 1: Host CPU Tokenization Thread Starvation Masking GPU Capacity",
+      "1. Check CPU thread saturation on the API Gateway pod",
+      "2. Trace CPU function calls inside the gateway process using perf",
+      "3. Monitor CUDA engine queue depth vs GPU activity via Prometheus metrics"
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
+      "text",
+      "bash",
+      "yaml",
+      "python",
+      "nginx"
     ]
   },
   "Chapter 03 — Triton Inference Server Architecture": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand Triton model repositories, backends, schedulers, batching, protocols, metrics, and lifecycle.",
+    "learningOutcome": "Master Triton model repositories, backends, schedulers, dynamic batching, instance groups, and lifecycle management.",
     "sections": [
-      "Triton Inference Server Architecture",
-      "Architecture",
-      "Model Repository",
-      "Scheduling and Instance Groups",
-      "Health and Metrics",
-      "Troubleshooting",
-      "Interview Questions"
+      "Chapter 03 — Triton Inference Server Architecture",
+      "WHY: The Need for an Enterprise Inference Server",
+      "WHAT: Deep Dive into Triton Architecture",
+      "Key Architectural Concepts",
+      "Dynamic Batching Configuration",
+      "GPU Instance Scaling Configuration",
+      "HOW: Health Endpoints and Prometheus Metrics",
+      "Health Endpoint Semantics",
+      "1. Server Liveness Probe (Checks if the Triton process is running)",
+      "Returns HTTP 200 OK if process is healthy",
+      "2. Server Readiness Probe (Checks if ALL configured models are loaded and ready)",
+      "Returns HTTP 200 OK if ready; HTTP 503 if models are still loading into VRAM",
+      "3. Model-Specific Readiness Probe",
+      "Returns HTTP 200 OK if version 1 of resnet50 is ready to accept requests"
     ],
     "codeLanguages": [
       "mermaid",
       "text",
-      "bash"
+      "protobuf",
+      "bash",
+      "yaml"
     ]
   },
   "Chapter 04 — TensorRT Optimization and Engine Lifecycle": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Build, validate, distribute, and upgrade optimized TensorRT engines safely.",
+    "learningOutcome": "Master TensorRT engine compilation, network parsing, layer fusion, kernel selection, precision calibration (FP16/INT8/FP8), optimization profiles, execution context management, and production lifecycle.",
     "sections": [
-      "TensorRT Optimization and Engine Lifecycle",
-      "Lifecycle",
-      "Why Engines Need Governance",
-      "Build Example",
-      "Trade-offs",
-      "Troubleshooting"
+      "Chapter 04 — TensorRT Optimization and Engine Lifecycle",
+      "Production Scenario: The Latency and Memory Bottleneck",
+      "Learning Objectives",
+      "TensorRT Architecture & Compilation Lifecycle",
+      "HOW: Core TensorRT Optimization Engine",
+      "1. Graph Rewriting and Layer Fusion Mechanics",
+      "2. Tactic Profiling and Auto-Tuning Engine",
+      "3. Precision Calibration & Quantization Mechanics",
+      "4. Dynamic Shapes and Optimization Profiles",
+      "5. Engine Lifecycle and Multi-Threaded Runtime Execution",
+      "Technical Comparison Table: TensorRT Precision Modes",
+      "Worked Failure Scenarios",
+      "Scenario 1: Dynamic Shape Binding OOM and Engine Builder Crash",
+      "Scenario 2: Accuracy Collapse in INT8 Engine due to Non-Representative Calibration Dataset"
     ],
     "codeLanguages": [
-      "mermaid",
       "text",
-      "bash"
+      "mermaid",
+      "cpp",
+      "python"
     ]
   },
   "Chapter 05 — TensorRT-LLM and LLM Execution": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand optimized LLM execution, parallelism, inflight batching, quantization, and engine planning.",
+    "learningOutcome": "Explore TensorRT-LLM graph construction, Tensor Parallelism (TP), Pipeline Parallelism (PP), custom CUDA generation kernels, KV Cache management, and the Executor API runtime.",
     "sections": [
-      "TensorRT-LLM and LLM Execution",
-      "Execution Path",
-      "Parallelism",
-      "Quantization",
-      "Troubleshooting"
+      "Chapter 05 — TensorRT-LLM and LLM Execution",
+      "Production Scenario: Distributed 70B LLM Scaling Bottleneck",
+      "Learning Objectives",
+      "TensorRT-LLM Architectural Pipeline",
+      "Deep Architectural & Mathematical Analysis",
+      "1. Model Parallelism Execution Graphs",
+      "2. Custom CUDA Kernels for LLM Execution",
+      "3. Dynamic KV Cache Allocation & Memory Management",
+      "4. C++ Runtime Architecture: GptManager and Executor API",
+      "Parallelism Strategy Comparison Table",
+      "Worked Failure Scenarios",
+      "Scenario 1: NVLink NCCL AllReduce Deadlock during Multi-Node Tensor Parallelism",
+      "Scenario 2: KV Cache Allocation OOM under High Concurrency due to Block Size and Scale Mismatch",
+      "Senior Interview Questions & Model Answers"
     ],
     "codeLanguages": [
+      "text",
       "mermaid",
-      "text"
+      "python",
+      "cpp"
     ]
   },
   "Chapter 06 — vLLM, TGI, SGLang, and LMDeploy": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Compare modern LLM serving engines by scheduler, cache, API, model support, and operational fit.",
+    "learningOutcome": "Architectural deep-dive into open-source LLM serving engines: vLLM PagedAttention virtual memory, TGI Rust router, SGLang RadixAttention prompt caching, and LMDeploy TurboMind C++ core.",
     "sections": [
-      "vLLM, TGI, SGLang, and LMDeploy",
-      "Selection Framework",
-      "Anti-Pattern",
-      "Customer Perspective"
+      "Chapter 06 — vLLM, TGI, SGLang, and LMDeploy",
+      "Production Scenario: Multi-Tenant Enterprise LLM Gateway",
+      "Learning Objectives",
+      "Comparative Serving Engine Topology",
+      "HOW: Deep Architectural Comparison of Modern Serving Engines",
+      "1. vLLM and PagedAttention Virtual Memory Architecture",
+      "2. Text Generation Inference (TGI) Architecture",
+      "3. SGLang and RadixAttention Prompt Caching",
+      "4. LMDeploy and TurboMind Engine Core",
+      "Comprehensive Multi-Dimensional Engine Comparison Matrix",
+      "Worked Failure Scenarios",
+      "Scenario 1: vLLM Physical Block Exhaustion Under Heavy RAG Workloads",
+      "Scenario 2: RadixAttention Cache Thrashing in SGLang under Non-Overlapping Prompts",
+      "Launch SGLang server with tuned memory fraction and prefix caching controls"
     ],
-    "codeLanguages": []
+    "codeLanguages": [
+      "text",
+      "mermaid",
+      "python",
+      "bash"
+    ]
   },
   "Chapter 07 — Continuous and Dynamic Batching": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Balance queue delay, batch efficiency, fairness, and tail latency in production inference.",
+    "learningOutcome": "Master request-level dynamic batching versus iteration-level continuous batching, chunked prefill scheduling, token slotting, preemptive eviction, and latency-throughput mathematical modeling.",
     "sections": [
-      "Continuous and Dynamic Batching",
-      "Dynamic Batching",
-      "Continuous Batching",
-      "Trade-off Curve",
-      "Fairness",
-      "Troubleshooting"
+      "Chapter 07 — Continuous and Dynamic Batching",
+      "Production Scenario: The Tail Latency Spike",
+      "Learning Objectives",
+      "Continuous Batching Scheduler Lifecycle",
+      "HOW: Continuous Batching & Chunked Prefill Architecture",
+      "1. Request-Level Dynamic Batching Limitations",
+      "2. Iteration-Level Continuous Batching Mechanics (Orca Paradigm)",
+      "3. Mathematical Execution Modeling: Prefill vs Decode Phases",
+      "4. Chunked Prefill Scheduling (Sarathi-Lean Model)",
+      "5. Preemption and Eviction Policies: Swap vs Recompute",
+      "Batching Paradigm Comparison Matrix",
+      "Worked Failure Scenarios",
+      "Scenario 1: ITL SLA Breach Caused by Large Prefill Bursts Blocking Decode Iterations",
+      "Scenario 2: PCIe Bus Saturation and System Stalls During KV Cache Swapping"
     ],
     "codeLanguages": [
+      "text",
       "mermaid",
-      "text"
+      "python"
     ]
   },
-  "Chapter 08 — KV Cache, Memory, and Concurrency": {
+  "Chapter 08 — KV Cache Memory and Concurrency": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Plan LLM memory for weights, runtime buffers, KV cache, context length, and concurrent sequences.",
+    "learningOutcome": "Deep dive into LLM KV cache memory math, PagedAttention block allocation, prefix caching, dynamic context management, and concurrency capacity planning.",
     "sections": [
-      "KV Cache, Memory, and Concurrency",
-      "Memory Components",
-      "Capacity Planning",
-      "Cache Management",
-      "Troubleshooting"
+      "KV Cache Memory and Concurrency",
+      "Learning Objectives",
+      "Mathematical Foundations of KV Cache Memory",
+      "Generic KV Cache Equation",
+      "Architectural Variants: MHA vs GQA vs MQA",
+      "Memory Allocation Paradigms: Contiguous vs PagedAttention",
+      "Contiguous Allocation and Memory Waste",
+      "PagedAttention Mechanics",
+      "Prefix Caching and Chunked Prefill",
+      "Radix Tree Prefix Caching",
+      "Chunked Prefill",
+      "Concurrency Capacity Planning Formula",
+      "Step-by-Step VRAM Allocation Budget",
+      "Capacity Matrix across GPU Architectures"
     ],
-    "codeLanguages": []
+    "codeLanguages": [
+      "text",
+      "mermaid",
+      "bash",
+      "yaml",
+      "prometheus"
+    ]
   },
   "Chapter 09 — Scaling Multi-GPU and Multi-Node Inference": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Scale inference with replicas, tensor parallelism, pipeline parallelism, and distributed routing.",
+    "learningOutcome": "Scale LLM inference with Tensor Parallelism, Pipeline Parallelism, NVLink/InfiniBand topologies, vLLM/Ray distributed clusters, and prefix-aware load balancing.",
     "sections": [
       "Scaling Multi-GPU and Multi-Node Inference",
-      "Scale-Out Replicas",
-      "Model Partitioning",
-      "Production Design",
-      "Troubleshooting"
+      "Learning Objectives",
+      "Parallelism Strategies for Inference: TP vs PP vs DP",
+      "Tensor Parallelism (TP) Mechanics",
+      "Pipeline Parallelism (PP) Mechanics",
+      "Data Parallelism (DP) / Scale-Out Replicas",
+      "Architectural Parallelism Matrix",
+      "Hardware Interconnect Topologies",
+      "Interconnect Hierarchy & Bandwidth Comparison",
+      "Distributed Engine Architecture & Cluster Orchestration",
+      "vLLM Distributed Ray Architecture",
+      "Prefix-Aware Load Balancing",
+      "Worked Failure Scenarios",
+      "Worked Failure Scenario 1: Inter-Node NCCL AllReduce Timeout and PCIe Bottleneck"
     ],
-    "codeLanguages": []
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "bash",
+      "yaml",
+      "prometheus"
+    ]
   },
   "Chapter 10 — Performance Metrics and Benchmarking": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Benchmark inference with realistic traffic, latency percentiles, token metrics, and reproducible methodology.",
+    "learningOutcome": "Benchmark LLM inference with Time to First Token (TTFT), Inter-Token Latency (ITL), Generated Tokens per Second, open-loop Poisson traffic models, and genai-perf tooling.",
     "sections": [
       "Performance Metrics and Benchmarking",
-      "Core Metrics",
-      "Reproducibility",
-      "Load Shape",
-      "Anti-Pattern",
-      "Interview Question"
+      "Learning Objectives",
+      "Deconstructing GenAI Performance Metrics",
+      "Core Latency Breakdown",
+      "Token Throughput Metrics",
+      "Benchmarking Methodology: Open-Loop vs Closed-Loop",
+      "Closed-Loop Benchmarks (Anti-Pattern for Capacity Sizing)",
+      "Open-Loop Benchmarks (Production Standard)",
+      "GenAI Benchmarking Tooling Guide",
+      "1. vLLM Benchmark Suite ( benchmark serving.py )",
+      "Execute Open-Loop Poisson Traffic Benchmark on local vLLM endpoint",
+      "2. NVIDIA GenAI-Perf ( genai-perf )",
+      "Execute Concurrency Sweep with GenAI-Perf",
+      "Worked Failure Scenarios"
     ],
-    "codeLanguages": []
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "bash",
+      "prometheus",
+      "yaml"
+    ]
   },
   "Chapter 11 — Production Reliability and Troubleshooting": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design health, rollout, autoscaling, overload protection, and incident response for inference services.",
+    "learningOutcome": "Master LLM production reliability engineering, Kubernetes health probe design, zero-downtime rollouts, fallback execution, and incident playbooks for GPU faults.",
     "sections": [
       "Production Reliability and Troubleshooting",
-      "Reliability Controls",
-      "Troubleshooting Tree",
-      "Incident Method",
-      "Common Root Causes"
+      "Learning Objectives",
+      "Production Reliability Architecture",
+      "1. Admission Control and Circuit Breaking",
+      "2. Fallback Execution Strategies",
+      "3. Zero-Downtime Rolling Upgrades",
+      "Kubernetes Health Probes Strategy for LLM Containers",
+      "Production Kubernetes Manifest Template",
+      "Troubleshooting Hierarchy & Diagnostic Flowchart",
+      "Comprehensive Incident Playbooks",
+      "Playbook 1: GPU Memory Leak / KV Cache Fragmentation",
+      "Playbook 2: Silent Accuracy Degradation / FP8 NaN Output Spikes",
+      "Worked Failure Scenarios",
+      "Worked Failure Scenario 1: Readiness Probe Cascading Outage during Scaling Event"
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
+      "text",
+      "yaml",
+      "bash"
     ]
   },
   "Chapter 12 — Volume 12 Summary": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Consolidate production inference architecture, metrics, and operational decisions.",
+    "learningOutcome": "Comprehensive synthesis of AI Inference Infrastructure, master metrics reference, unified architecture blueprint, production readiness checklist, and SA interview cheat sheet.",
     "sections": [
-      "Volume 12 Summary",
-      "Architecture Summary",
-      "Quick Revision",
-      "Production Checklist"
-    ],
-    "codeLanguages": []
-  },
-  "Volume 12 — AI Inference": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Architect and operate production inference with Triton, TensorRT, TensorRT-LLM, vLLM, batching, KV cache, and latency engineering.",
-    "sections": [
-      "Volume 12 — AI Inference",
-      "Big Picture",
-      "Chapters",
-      "Labs"
+      "Volume 12 Summary — AI Inference Infrastructure",
+      "Executive Synthesis across Volume 12",
+      "Unified Production System Blueprint",
+      "Master Metrics & Engine Parameter Reference",
+      "Multi-GPU Parallelism Strategy Selection Matrix",
+      "Production Readiness Audit Checklist",
+      "1. Hardware & Interconnect Topology",
+      "2. Engine & Memory Optimization",
+      "3. Observability & Reliability",
+      "Senior Solutions Architect Interview Cheat Sheet",
+      "1. Training vs. Inference Trade-offs",
+      "2. KV Cache Memory Math",
+      "3. PagedAttention Mechanics",
+      "4. Prefill vs. Decode Disaggregation"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Lab 01 — Deploy and Validate Triton": {
+  "Volume 12 — AI Inference": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Deploy Triton in a controlled environment, load a simple model, validate liveness, readiness, inference, GPU visibility, and metrics.",
+    "learningOutcome": "Architect and operate production inference with Triton, TensorRT, TensorRT-LLM, vLLM, dynamic batching, KV cache, and latency engineering.",
     "sections": [
-      "Lab 01 — Deploy and Validate Triton",
-      "Objective",
-      "Architecture",
-      "Prerequisites",
-      "Deployment",
-      "Validation",
-      "Verification",
-      "Failure Injection",
-      "Troubleshooting",
-      "Cleanup"
+      "Volume 12 — AI Inference",
+      "Big Picture Architecture",
+      "Key Performance Indicators (KPIs) Matrix",
+      "Volume 12 Chapter Roadmap",
+      "Module 1: Foundations & Core Request Lifecycle",
+      "Module 2: Optimization Engines & Runtimes",
+      "Module 3: Advanced Batching, Memory & Scalability",
+      "Module 4: Operations, Telemetry & Reliability",
+      "Production Hands-On Labs"
     ],
     "codeLanguages": [
       "mermaid",
+      "text"
+    ]
+  },
+  "Lab 01 — Deploy and Validate Triton Inference Server": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Deploy NVIDIA Triton Inference Server, load a multi-backend model repository, validate REST and gRPC endpoints, monitor GPU execution and Prometheus metrics, and execute dynamic model lifecycle management.",
+    "sections": [
+      "Lab 01 — Deploy and Validate Triton Inference Server",
+      "1. Title and Metadata",
+      "2. Objective",
+      "3. Prerequisites",
+      "4. Architecture and Lab Topology",
+      "5. Required Tools and Software",
+      "6. Environment Setup",
+      "Define environment variables",
+      "Create workspace and model repository directories",
+      "Download a pre-trained ONNX model (DenseNet-121) for validation",
+      "7. Estimated Duration",
+      "8. Safety and Safeguards",
+      "9. Baseline Verification",
+      "1. Check NVIDIA Driver status"
+    ],
+    "codeLanguages": [
+      "yaml",
       "text",
+      "mermaid",
       "bash"
     ]
   },
   "Lab 02 — Benchmark Dynamic Batching": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Benchmark one model with batching disabled and enabled, then identify the operating point that meets both throughput and latency objectives.",
+    "learningOutcome": "Measure how queue delay, preferred batch sizes, and concurrency scaling influence Triton inference throughput (RPS) and p95/p99 tail latency.",
     "sections": [
       "Lab 02 — Benchmark Dynamic Batching",
-      "Objective",
-      "Method",
-      "Measurements",
-      "Deployment",
-      "Validation",
-      "Failure Injection",
-      "Result",
-      "Cleanup"
+      "1. Title and Metadata",
+      "2. Objective",
+      "3. Prerequisites",
+      "4. Architecture and Lab Topology",
+      "5. Required Tools and Software",
+      "6. Environment Setup",
+      "Create model directory hierarchy",
+      "Download model binary for all three test configurations",
+      "Profile A: No Dynamic Batching ( dense net nobatch/config.pbtxt )",
+      "Profile B: Conservative Dynamic Batching ( dense net conservative/config.pbtxt )",
+      "Profile C: Aggressive Dynamic Batching ( dense net aggressive/config.pbtxt )",
+      "7. Estimated Duration",
+      "8. Safety and Safeguards"
     ],
-    "codeLanguages": []
+    "codeLanguages": [
+      "yaml",
+      "text",
+      "mermaid",
+      "bash"
+    ]
   },
   "Lab 03 — Deploy an LLM with vLLM": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Deploy a model that fits the available GPU, expose an OpenAI-compatible test endpoint, validate streaming, and measure time to first token and token throughput.",
+    "learningOutcome": "Deploy an OpenAI-compatible Large Language Model serving endpoint using vLLM, configure PagedAttention and KV cache allocations, measure streaming latency metrics (TTFT, ITL), and monitor continuous batching telemetry.",
     "sections": [
       "Lab 03 — Deploy an LLM with vLLM",
-      "Objective",
-      "Prerequisites",
-      "Architecture",
-      "Validation",
-      "Performance",
-      "Failure Injection",
-      "Cleanup"
+      "1. Title and Metadata",
+      "2. Objective",
+      "3. Prerequisites",
+      "4. Architecture and Lab Topology",
+      "5. Required Tools and Software",
+      "6. Environment Setup",
+      "Set Hugging Face Token if accessing gated models (optional for open models)",
+      "export HF TOKEN=\"hf xxxxxxxxxxxxxxxxxxxxxxxx\"",
+      "7. Estimated Duration",
+      "8. Safety and Safeguards",
+      "9. Baseline Verification",
+      "Pull the pinned vLLM container image",
+      "Verify CUDA visibility inside container"
     ],
     "codeLanguages": [
+      "yaml",
+      "text",
       "mermaid",
-      "text"
+      "bash"
     ]
   },
   "Lab 04 — Troubleshoot a Slow Inference Pipeline": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Diagnose a service whose average latency is acceptable but p99 latency violates the SLO.",
+    "learningOutcome": "Decompose end-to-end AI inference latency across client gateway, CPU tokenization, queue delays, host-to-device PCIe transfers, and GPU compute kernels to isolate and remediate p99 tail latency spikes.",
     "sections": [
       "Lab 04 — Troubleshoot a Slow Inference Pipeline",
-      "Objective",
-      "Evidence",
-      "Workflow",
-      "Failure Injection",
-      "Resolution",
-      "Prevention"
+      "1. Title and Metadata",
+      "2. Objective",
+      "3. Prerequisites",
+      "4. Architecture and Lab Topology",
+      "5. Required Tools and Software",
+      "6. Environment Setup",
+      "Download model weights for testing",
+      "Write Triton model configuration",
+      "7. Estimated Duration",
+      "8. Safety and Safeguards",
+      "9. Baseline Verification",
+      "10. Step-by-Step Task Instructions",
+      "Task 1: Create a Multi-Stage Preprocessing Pipeline Script"
     ],
-    "codeLanguages": []
+    "codeLanguages": [
+      "yaml",
+      "text",
+      "mermaid",
+      "bash"
+    ]
   },
   "Chapter 01 — Why Distributed Training Exists": {
     "volume": "Academy orientation",
@@ -5587,6 +5767,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "python",
       "text",
       "mermaid"
     ]
@@ -5599,6 +5780,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "python",
       "text",
       "mermaid"
     ]
@@ -5611,8 +5793,9 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
-      "mermaid",
-      "text"
+      "python",
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 5 — Subprocess is a process API, not a shell shortcut": {
@@ -5623,8 +5806,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
-      "text",
       "python",
+      "text",
       "mermaid"
     ]
   },
@@ -5636,8 +5819,9 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
-      "json",
+      "python",
       "text",
+      "json",
       "mermaid"
     ]
   },
@@ -5646,7 +5830,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Senior Deep Dive 7 — Testing infrastructure code: isolate decisions from effects — Python for Production Infrastructure.",
     "sections": [
-      "test\\ retry.py",
+      "retry.py",
+      "test retry.py",
       "Senior addendum"
     ],
     "codeLanguages": [
@@ -5660,11 +5845,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Senior Deep Dive 8 — Complete project: GPU fleet health CLI — Python for Production Infrastructure.",
     "sections": [
+      "package layout",
       "Senior addendum"
     ],
     "codeLanguages": [
-      "python",
       "text",
+      "python",
       "mermaid"
     ]
   },
@@ -5677,8 +5863,9 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
-      "mermaid",
-      "text"
+      "bash",
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 1 - API server, etcd and the object model": {
@@ -5721,8 +5908,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
-      "text",
       "bash",
+      "text",
       "mermaid"
     ]
   },
@@ -5852,8 +6039,9 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Deep Dive 1 — API machinery"
     ],
     "codeLanguages": [
-      "mermaid",
-      "text"
+      "bash",
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 2 — etcd quorum, control-plane failure and recovery boundaries": {
@@ -5864,23 +6052,22 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum",
       "Deep Dive 2 — etcd quorum and control-plane failure boundaries"
     ],
-    "codeLanguages": [
-      "text"
-    ]
+    "codeLanguages": []
   },
   "Senior Deep Dive 3 — Scheduling framework, preemption, gang/topology and DRA": {
     "volume": "Volume 3",
     "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
     "learningOutcome": "Senior Deep Dive 3 — Scheduling framework, preemption, gang/topology and DRA — Kubernetes and Platform Engineering.",
     "sections": [
+      "Scheduling evidence for a Pending Pod",
       "DRA resources on clusters that support them",
       "Senior addendum",
       "Deep Dive 3 — Scheduling framework, preemption, gang/topology and DRA"
     ],
     "codeLanguages": [
-      "mermaid",
+      "bash",
       "text",
-      "bash"
+      "mermaid"
     ]
   },
   "Senior Deep Dive 4 — Kubelet, CRI, pod sandbox and node pressure": {
@@ -5892,6 +6079,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Deep Dive 4 — Kubelet, CRI, pod sandbox and node pressure"
     ],
     "codeLanguages": [
+      "bash",
       "text"
     ]
   },
@@ -5900,14 +6088,16 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
     "learningOutcome": "Senior Deep Dive 5 — Networking: Service abstraction, CNI dataplane, DNS and Gateway API — Kubernetes and Platform Engineering.",
     "sections": [
+      "Service - EndpointSlice - Pod",
       "DNS from inside the workload namespace",
       "Node dataplane - varies by CNI/proxy implementation",
       "Senior addendum",
       "Deep Dive 5 — Networking: Service, CNI dataplane, DNS, Gateway API"
     ],
     "codeLanguages": [
-      "mermaid",
-      "text"
+      "bash",
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 6 — Admission, policy and multi-tenant guardrails": {
@@ -5915,15 +6105,16 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
     "learningOutcome": "Senior Deep Dive 6 — Admission, policy and multi-tenant guardrails — Kubernetes and Platform Engineering.",
     "sections": [
+      "Can this identity perform the action?",
       "Namespace Pod Security Admission example",
       "Inspect admission webhooks and policies",
       "Senior addendum",
       "Deep Dive 6 — Admission, policy and multi-tenant guardrails"
     ],
     "codeLanguages": [
-      "mermaid",
+      "bash",
       "text",
-      "bash"
+      "mermaid"
     ]
   },
   "Senior Deep Dive 7 — Platform patterns from the Staff Engineer guide": {
@@ -5934,9 +6125,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum",
       "Deep Dive 7 — Platform patterns from the Staff Engineer guide"
     ],
-    "codeLanguages": [
-      "text"
-    ]
+    "codeLanguages": []
   },
   "Senior Deep Dive 8 — GPU platform operations: node pools, operators and resource isolation": {
     "volume": "Volume 3",
@@ -6081,8 +6270,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
-      "text",
       "bash",
+      "text",
       "mermaid"
     ]
   },
@@ -6091,12 +6280,14 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
     "learningOutcome": "Senior Deep Dive 3 — Driver, CUDA compatibility and container integration — GPU and Accelerated Computing Foundations.",
     "sections": [
+      "Host",
       "Runtime integration (commands depend on installation)",
       "Container smoke test",
       "or run a vendor-supported CUDA container through your normal runtime",
       "Senior addendum"
     ],
     "codeLanguages": [
+      "bash",
       "text",
       "mermaid"
     ]
@@ -6122,7 +6313,11 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "sections": [
       "Senior addendum"
     ],
-    "codeLanguages": []
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "bash"
+    ]
   },
   "Senior Deep Dive 6 — DCGM, Xid, ECC and health semantics": {
     "volume": "Volume 4",
@@ -6133,6 +6328,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "bash",
       "text",
       "mermaid"
     ]
@@ -6219,6 +6415,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Example Kubernetes resource boundary (illustrative)"
     ],
     "codeLanguages": [
+      "yaml",
       "text",
       "mermaid",
       "bash"
@@ -6268,8 +6465,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Apply familiar platform security controls to models, prompts, data, artifacts and shared GPUs.",
     "sections": [],
     "codeLanguages": [
-      "text",
       "bash",
+      "text",
       "mermaid"
     ]
   },
@@ -6283,6 +6480,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "text",
+      "bash",
       "mermaid"
     ]
   },
@@ -6366,8 +6564,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
-      "text",
-      "mermaid"
+      "mermaid",
+      "text"
     ]
   },
   "Senior Deep Dive 8 — Production benchmark design": {
@@ -6510,10 +6708,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
     "learningOutcome": "Senior Deep Dive 1 — Collective communication and straggler amplification — HPC, Networking and Storage for AI.",
     "sections": [
+      "Topology and fabric evidence",
       "NCCL diagnostics - enable only for diagnosis because logs can be large",
       "Senior addendum"
     ],
     "codeLanguages": [
+      "bash",
       "text",
       "mermaid"
     ]
@@ -6561,7 +6761,9 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
-      "text"
+      "bash",
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 6 — Kubernetes, Slurm and hybrid scheduling": {
@@ -6572,8 +6774,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
-      "text",
-      "mermaid"
+      "mermaid",
+      "text"
     ]
   },
   "Senior Deep Dive 7 — Distributed-system patterns from the Staff Engineer guide": {
@@ -6770,11 +6972,13 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
     "learningOutcome": "Senior Deep Dive 2 — Prometheus internals, cardinality and query cost — Observability, Reliability and Troubleshooting.",
     "sections": [
+      "Request error ratio",
       "p95 from histogram buckets",
       "GPU utilization grouped by node (metric names depend on exporter/version)",
       "Senior addendum"
     ],
     "codeLanguages": [
+      "promql",
       "text"
     ]
   },
@@ -6786,6 +6990,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -6809,6 +7014,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -7079,6 +7285,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -7278,6 +7485,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -7291,7 +7499,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "python",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Question set C — Kubernetes platform depth": {
@@ -7345,6 +7554,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -7369,6 +7579,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -7587,10 +7798,6 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "A safe progression for your first container job",
       "Why not just run Docker on the cluster",
       "What Enroot solves",
-      "downloads image, flattens layers, writes",
-      "nvidia+pytorch+24.05-py3.sqsh (squashed rootless filesystem)",
-      "container filesystem writable for this invocation, --root maps the user to",
-      "container-root (still unprivileged on the host) for install-time operations",
       "Pyxis: the Slurm SPANK plugin",
       "Common failure modes",
       "Worked scenario",
