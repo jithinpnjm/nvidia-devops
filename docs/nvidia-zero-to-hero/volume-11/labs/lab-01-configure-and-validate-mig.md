@@ -220,6 +220,10 @@ spec:
   restartPolicy: Never
   nodeSelector:
     kubernetes.io/hostname: <approved-disposable-gpu-node>
+  tolerations:
+    - key: node.kubernetes.io/unschedulable
+      operator: Exists
+      effect: NoSchedule
   containers:
     - name: validation
       image: <approved-image-with-nvidia-smi>
@@ -237,11 +241,11 @@ kubectl apply -f mig-validation.yaml
 kubectl get pod -n "$LAB_NAMESPACE" mig-validation -w
 ```
 
-**Expected evidence:** The Pod is bound to the approved node and reaches `Completed` if the image and runtime are available.
+**Expected evidence:** The Pod is bound to the approved, still-cordoned node and reaches `Completed` if the image and runtime are available.
 
-**Explanation:** The manifest tests scheduler allocation and runtime initialization. It does not benchmark isolation or establish a production SLO.
+**Explanation:** The narrowly scoped `node.kubernetes.io/unschedulable` toleration allows this named lab Pod to schedule while the cordon continues to protect the node from ordinary placement. Its node selector and disposable namespace are part of that boundary. The manifest tests scheduler allocation and runtime initialization; it does not benchmark isolation or establish a production SLO.
 
-**Common-failure interpretation:** `Pending` requires event inspection; `ImagePullBackOff` is an image supply issue; a runtime creation failure indicates a device/runtime path problem.
+**Common-failure interpretation:** `Pending` without the expected toleration indicates the applied manifest differs from the reviewed file; a taint event requires verification that the cordon taint and toleration match. `ImagePullBackOff` is an image supply issue; a runtime creation failure indicates a device/runtime path problem.
 
 ## 14. Verification and Acceptance Criteria
 
@@ -309,7 +313,7 @@ kubectl patch pod -n "$LAB_NAMESPACE" mig-validation --type merge \
 
 ## 17. Cleanup and Rollback
 
-Delete lab workloads first. Then apply the approved rollback layout through the change runbook. The generic deletion commands below are **hardware-only and state-changing**; validate instance IDs and ordering before use.
+Delete lab workloads first. Namespace deletion is a Kubernetes-only cleanup action. Then apply the approved rollback layout through the change runbook; the later `nvidia-smi` instance-deletion commands are **hardware-only and state-changing** and require validated instance IDs and ordering.
 
 **Purpose:** Remove the disposable workload and namespace.
 
@@ -349,7 +353,7 @@ kubectl get node "$GPU_NODE" -o jsonpath='{.status.allocatable}{"\n"}'
 kubectl uncordon "$GPU_NODE"
 ```
 
-**Expected evidence:** Host and Kubernetes inventory match the approved baseline; the node becomes schedulable only after review.
+**Expected evidence:** Host and Kubernetes inventory match the approved baseline, no lab workload remains, and the node becomes schedulable only after review.
 
 **Explanation:** `uncordon` is the final change, not a substitute for rollback verification.
 

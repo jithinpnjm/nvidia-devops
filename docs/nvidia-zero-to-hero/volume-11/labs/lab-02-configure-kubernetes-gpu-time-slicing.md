@@ -57,6 +57,7 @@ Time-slicing changes resource advertisement and therefore placement behavior. Us
 ```bash
 export GPU_NODE='<approved-disposable-gpu-node>'
 export OPERATOR_NAMESPACE='<namespace-that-owns-the-device-plugin>'
+export CLUSTERPOLICY_NAME='<approved-clusterpolicy-name>'
 export LAB_NAMESPACE='gpu-time-slicing-lab'
 export GPU_TEST_IMAGE='<approved-image-with-nvidia-smi>'
 kubectl config current-context
@@ -147,23 +148,40 @@ kubectl get configmap -n "$OPERATOR_NAMESPACE" time-slicing-lab-config -o yaml
 
 ## 11. Select the Policy Through the Supported Control Plane
 
-Use the platform’s documented selection method. For GPU Operator deployments, a ClusterPolicy device-plugin configuration is commonly used; confirm the installed API and existing policy before making a patch.
+This reproducible path applies only to a **dedicated test GPU Operator installation or a test-only GPU node pool**. The GPU Operator documents `spec.devicePlugin.config.name` and `default` selection; confirm these fields exist in the installed CustomResourceDefinition before use because Operator versions can differ. In a shared Operator installation, stop and use the owner’s versioned, node-scoped configuration workflow instead of replacing its selected ConfigMap.
 
 **Purpose:** Inspect the current owner and configuration reference rather than guessing a resource name.
 
 **Command:**
 ```bash
-kubectl get clusterpolicy -A 2>/dev/null || true
+kubectl explain clusterpolicy.spec.devicePlugin.config
+kubectl get clusterpolicy "$CLUSTERPOLICY_NAME" -o yaml > clusterpolicy-before-time-slicing.yaml
+kubectl get clusterpolicy "$CLUSTERPOLICY_NAME" -o jsonpath='{.spec.devicePlugin.config}{"\n"}'
 kubectl get pods -n "$OPERATOR_NAMESPACE" -o wide
 ```
 
-**Expected evidence:** The first command either identifies the ClusterPolicy or produces no output; the second identifies the device-plugin workload and its node placement.
+**Expected evidence:** `kubectl explain` exposes the installed schema, the backup records the exact prior selection, and the final command identifies the device-plugin workload and its node placement.
 
-**Explanation:** Some installations use the GPU Operator; others directly manage the device-plugin DaemonSet. Only the owner’s approved change method may select the ConfigMap.
+**Explanation:** The GPU Operator selection is a named ConfigMap plus data key, not a generic DaemonSet edit. The backup is the rollback source; do not apply it blindly over unrelated post-capture changes.
 
 **Common-failure interpretation:** No identifiable owner is a stop condition. Do not patch a DaemonSet spec based on assumptions.
 
-**Purpose:** Observe reconciliation after the approved selection action has been completed by the platform owner.
+**Purpose:** Select the `any` key in the named ConfigMap through the documented GPU Operator control plane on the isolated test installation.
+
+**Command:**
+```bash
+kubectl patch clusterpolicy "$CLUSTERPOLICY_NAME" --type merge \
+  --patch '{"spec":{"devicePlugin":{"config":{"name":"time-slicing-lab-config","default":"any"}}}}'
+kubectl get clusterpolicy "$CLUSTERPOLICY_NAME" -o jsonpath='{.spec.devicePlugin.config}{"\n"}'
+```
+
+**Expected evidence:** The returned configuration names `time-slicing-lab-config` and key `any`; no other ClusterPolicy field is changed by this merge patch.
+
+**Explanation:** This is version-aware because the preceding `kubectl explain` validates the local schema. It is reproducible because the ConfigMap key and patch are explicit. It is not a safe shortcut for a shared Operator control plane.
+
+**Common-failure interpretation:** A schema, not-found, or forbidden error means this deployment does not meet the lab assumptions. Do not switch to direct DaemonSet mutation.
+
+**Purpose:** Observe reconciliation after the supported selection action.
 
 **Command:**
 ```bash
@@ -173,7 +191,7 @@ kubectl get node "$GPU_NODE" -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{
 
 **Expected evidence:** The device-plugin Pod on the selected node reconciles and the node reports the approved logical count.
 
-**Explanation:** Capture the previous configuration reference before changing it, then use its documented rollback method. This lab intentionally does not provide a generic `kubectl patch` because it would be unsafe across Operator versions.
+**Explanation:** Device-plugin reconciliation can take time. Record the resource value and platform Pod generation; do not restart the Pod just to accelerate a configuration test.
 
 **Common-failure interpretation:** A Pod crash, node resource disappearance, or unchanged value requires platform-owner logs and rollback—not repeated rollout restarts.
 
@@ -198,6 +216,10 @@ spec:
   restartPolicy: Never
   nodeSelector:
     kubernetes.io/hostname: <approved-disposable-gpu-node>
+  tolerations:
+    - key: node.kubernetes.io/unschedulable
+      operator: Exists
+      effect: NoSchedule
   containers:
     - name: validation
       image: <approved-image-with-nvidia-smi>
@@ -217,6 +239,10 @@ spec:
   restartPolicy: Never
   nodeSelector:
     kubernetes.io/hostname: <approved-disposable-gpu-node>
+  tolerations:
+    - key: node.kubernetes.io/unschedulable
+      operator: Exists
+      effect: NoSchedule
   containers:
     - name: validation
       image: <approved-image-with-nvidia-smi>
@@ -234,11 +260,11 @@ kubectl apply -f time-slicing-validation.yaml
 kubectl get pods -n "$LAB_NAMESPACE" -o wide -w
 ```
 
-**Expected evidence:** Both Pods are bound to the approved node if the logical inventory and policy permit it.
+**Expected evidence:** Both Pods are bound to the approved, still-cordoned node if the logical inventory and policy permit it.
 
-**Explanation:** Concurrent scheduling demonstrates logical allocation. It does not prove that the Pods received exclusive or equal hardware shares.
+**Explanation:** The lab-only unschedulable toleration is paired with an exact node selector and disposable namespace, so the cordon keeps ordinary workloads off the node while these two reviewed Pods run. Concurrent scheduling demonstrates logical allocation; it does not prove that the Pods received exclusive or equal hardware shares.
 
-**Common-failure interpretation:** Pending Pods require `kubectl describe pod`; image failures are unrelated to sharing and must be resolved through the approved image supply path.
+**Common-failure interpretation:** Pending Pods require `kubectl describe pod`. A `node(s) had untolerated taint` event means the reviewed toleration was not applied or differs from the cordon taint. Image failures are unrelated to sharing and must be resolved through the approved image supply path.
 
 ## 13. Verification and Acceptance Criteria
 
@@ -343,7 +369,15 @@ kubectl delete configmap -n "$OPERATOR_NAMESPACE" time-slicing-lab-config --igno
 
 **Expected evidence:** Kubernetes reports deletion or `not found` for only the named lab objects.
 
-**Explanation:** Restore the previously recorded device-plugin/ClusterPolicy configuration using the owner’s approved rollback method before deleting the ConfigMap if it is still selected.
+**Explanation:** Restore the prior `spec.devicePlugin.config` values recorded in `clusterpolicy-before-time-slicing.yaml` with a reviewed merge patch **before** deleting the ConfigMap. For example, if the recorded prior values are `<prior-configmap>` and `<prior-key>`, use:
+
+```bash
+kubectl patch clusterpolicy "$CLUSTERPOLICY_NAME" --type merge \
+  --patch '{"spec":{"devicePlugin":{"config":{"name":"<prior-configmap>","default":"<prior-key>"}}}}'
+kubectl get clusterpolicy "$CLUSTERPOLICY_NAME" -o jsonpath='{.spec.devicePlugin.config}{"\n"}'
+```
+
+The expected evidence is the exact recorded prior configuration, followed by baseline node Allocatable inventory. Do not delete the lab ConfigMap until it is no longer selected.
 
 **Common-failure interpretation:** If reconciliation cannot return the node to its previous resource inventory, keep it cordoned and escalate with the baseline and plugin evidence.
 
@@ -355,7 +389,7 @@ kubectl get node "$GPU_NODE" -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{
 kubectl uncordon "$GPU_NODE"
 ```
 
-**Expected evidence:** The advertised resource value matches the recorded baseline and the node becomes schedulable only after review.
+**Expected evidence:** The advertised resource value matches the recorded baseline, no lab Pods remain, and the node becomes schedulable only after review.
 
 **Explanation:** The policy rollback is complete only when kubelet’s published inventory is back to baseline.
 

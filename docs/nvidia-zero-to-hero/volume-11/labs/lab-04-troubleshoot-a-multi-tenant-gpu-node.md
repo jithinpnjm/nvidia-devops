@@ -60,6 +60,7 @@ export GPU_NODE='<approved-disposable-gpu-node>'
 export LAB_NAMESPACE='gpu-sharing-incident-lab'
 export OPERATOR_NAMESPACE='<namespace-that-owns-the-device-plugin>'
 export EVIDENCE_DIR='shared-gpu-incident'
+export GPU_RESOURCE='<exact-allocatable-resource-name-from-section-9>'
 kubectl config current-context
 kubectl get node "$GPU_NODE" -o wide
 ```
@@ -230,7 +231,7 @@ Record incident start and detection time; time to evidence collection; Pending d
 
 ## 16. Safe Failure Injection and Troubleshooting
 
-Inject a policy failure only in the lab namespace. This validates that a quota denial can be distinguished from a missing device resource without touching shared node configuration.
+Inject a policy failure only in the lab namespace. First copy the **exact** extended-resource name from the `node-resources.txt` evidence in section 9 into `GPU_RESOURCE`; it may be `nvidia.com/gpu` or a profile-specific resource, depending on the sharing strategy. This validates that a quota denial can be distinguished from a missing device resource without touching shared node configuration.
 
 ```yaml
 apiVersion: v1
@@ -240,23 +241,45 @@ metadata:
   namespace: gpu-sharing-incident-lab
 spec:
   hard:
-    requests.nvidia.com/gpu: "0"
-    limits.nvidia.com/gpu: "0"
+    requests.<exact-allocatable-resource-name>: "0"
+    limits.<exact-allocatable-resource-name>: "0"
 ```
 
-**Purpose:** Apply the zero-GPU lab quota, then create a second copy of the diagnostic Pod named `quota-denied-gpu-pod`.
+Replace `<exact-allocatable-resource-name>` in both quota keys with the observed value, preserving its full vendor-qualified name. Then create `quota-denied-gpu-pod.yaml` with the same image, node selector, bounded command, and resource as the diagnostic Pod:
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: quota-denied-gpu-pod
+  namespace: gpu-sharing-incident-lab
+spec:
+  restartPolicy: Never
+  nodeSelector:
+    kubernetes.io/hostname: <approved-disposable-gpu-node>
+  containers:
+    - name: diagnostic
+      image: <approved-image-with-nvidia-smi>
+      command: ["sh", "-c", "nvidia-smi -L; echo QUOTA_DENIAL_RECOVERY_CHECK"]
+      resources:
+        limits:
+          <exact-allocatable-resource-name>: 1
+```
+
+**Purpose:** Apply the zero-capacity lab quota, then submit a second one-resource diagnostic Pod that must match the same discovered resource key.
 
 **Command:**
 ```bash
 kubectl apply -f diagnostic-gpu-denial.yaml
 kubectl get resourcequota -n "$LAB_NAMESPACE" diagnostic-gpu-denial
+kubectl apply -f quota-denied-gpu-pod.yaml 2>&1 | tee "$EVIDENCE_DIR/quota-denial.txt"
 ```
 
-**Expected evidence:** The quota exists and admission rejects a GPU-requesting Pod in this namespace, while the node’s physical and allocatable inventory remains unchanged.
+**Expected evidence:** The quota exists, and the final command is denied by quota admission for the exact named resource. `quota-denial.txt` preserves that API response; no `quota-denied-gpu-pod` is created. The node’s physical and allocatable inventory remains unchanged.
 
-**Explanation:** This produces a reversible, tenant-policy symptom. It does not simulate GPU exhaustion, reset, or device-plugin failure.
+**Explanation:** This produces a reversible, tenant-policy symptom. A quota denial before scheduling differs from an `Insufficient <resource>` scheduler event: it proves the request is blocked by namespace policy, not that the device plugin lost inventory. It does not simulate GPU exhaustion, reset, or device-plugin failure.
 
-**Common-failure interpretation:** If admission allows the Pod, validate that it requests the exact resource limited by the quota. If the node inventory changes, stop and escalate—this lab should not change it.
+**Common-failure interpretation:** If admission allows the Pod, compare the full resource key in the Pod limit and both quota keys; extended-resource names must be identical. If the node inventory changes, stop and escalate—this lab should not change it.
 
 | Symptom | First evidence | Diagnosis direction | Resolution verification |
 |---|---|---|---|
@@ -273,14 +296,29 @@ kubectl get resourcequota -n "$LAB_NAMESPACE" diagnostic-gpu-denial
 **Command:**
 ```bash
 kubectl delete resourcequota -n "$LAB_NAMESPACE" diagnostic-gpu-denial --ignore-not-found
+kubectl get resourcequota -n "$LAB_NAMESPACE" diagnostic-gpu-denial --ignore-not-found -o name
 kubectl delete namespace "$LAB_NAMESPACE" --ignore-not-found
 ```
 
-**Expected evidence:** Kubernetes reports deletion or `not found` only for named lab resources.
+**Expected evidence:** Kubernetes reports deletion or `not found` only for named lab resources; the `get ... -o name` command returns no quota object before namespace deletion.
 
 **Explanation:** Never “clean up” by deleting a tenant quota or a platform resource. Preserve the evidence directory according to incident retention policy.
 
 **Common-failure interpretation:** A namespace stuck in Terminating requires normal cluster troubleshooting; do not bypass finalizers without owner approval.
+
+**Purpose:** Verify policy recovery before namespace deletion by submitting the same bounded diagnostic manifest after the quota is removed.
+
+**Command:**
+```bash
+kubectl apply -f quota-denied-gpu-pod.yaml
+kubectl get pod -n "$LAB_NAMESPACE" quota-denied-gpu-pod -w
+```
+
+**Expected evidence:** The API accepts the Pod after quota removal; it then either reaches its bounded completion marker or shows an independent scheduler/runtime signal.
+
+**Explanation:** Successful admission proves the injected quota was removed. A later scheduling or runtime issue is diagnosed with the normal layered workflow and must not be mislabeled as the quota test.
+
+**Common-failure interpretation:** If API admission is still denied, re-check the named quota and any other policy in the lab namespace. If the Pod is Pending, inspect its events rather than restoring or changing node configuration.
 
 **Purpose:** Verify the node’s advertised inventory matches the recorded baseline after lab cleanup.
 
