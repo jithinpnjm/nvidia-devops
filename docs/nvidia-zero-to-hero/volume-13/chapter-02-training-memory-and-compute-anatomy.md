@@ -1,48 +1,350 @@
----
-title: Chapter 02 — Training Memory and Compute Anatomy
-description: Decompose training memory into parameters, gradients, optimizer state, activations, and temporary buffers.
-sidebar_position: 3
-tags: [training-memory, activations, optimizer]
----
+# Chapter 2: Training Memory and Compute Anatomy
 
-# Training Memory and Compute Anatomy
+## WHY
+To effectively distribute a model, one must first precisely understand where every byte of memory and every FLOP of compute is spent.
 
-A training job consumes more memory than model weights. Production sizing must account for every persistent and transient component.
+## WHAT
+Anatomy of a training step: Forward pass, backward pass, optimizer step.
 
-## Memory Components
+## HOW
+Memory is consumed by:
+1. Weights
+2. Optimizer States
+3. Gradients
+4. Activations
+5. Temporary Buffers
 
-| Component | Behavior |
-|---|---|
-| Parameters | Model-size dependent |
-| Gradients | Usually similar scale to parameters |
-| Optimizer state | Can exceed parameter memory significantly |
-| Activations | Depends on batch, sequence, layers, and checkpointing |
-| Temporary workspace | Kernel and framework dependent |
-| Communication buffers | Parallelism and collective dependent |
+## WHEN
+Use profiling tools when memory usage hits >90% of VRAM to identify what can be offloaded, recomputed, or sharded.
 
-## Training Step
+## TRADEOFFS
+| Technique | Memory Savings | Compute Overhead |
+|---|---|---|
+| Activation Checkpointing | High | ~30% Extra Compute |
+| CPU Offload | High | High Latency |
+
+## PRODUCTION
+Implement mixed precision (AMP) and operator fusion (e.g., FlashAttention) to optimize the memory/compute ratio.
+
+## TROUBLESHOOTING
+**Failure Scenario 1: Activation OOM**
+- **Log:** `RuntimeError: CUDA out of memory` during backward pass.
+- **Fix:** Implement gradient checkpointing.
+
+**Failure Scenario 2: GPU Idle during DataLoader**
+- **Log:** Low GPU Volatile GPU-Util.
+- **Fix:** Increase `num_workers` in DataLoader or use NVIDIA DALI.
+
+## Senior Interview Questions
+**Q:** Why does Adam optimizer use so much memory compared to SGD?
+**A:** Adam maintains two additional state variables per parameter (moving average of gradient and moving average of squared gradient), usually in FP32, which quadruples the memory required for the optimizer states compared to standard SGD.
 
 ```mermaid
-flowchart LR
-    Batch[Batch]
-    Forward[Forward Pass]
-    Activations[Stored Activations]
-    Backward[Backward Pass]
-    Gradients[Gradients]
-    Reduce[Gradient Synchronization]
-    Update[Optimizer Update]
-
-    Batch --> Forward --> Activations --> Backward --> Gradients --> Reduce --> Update
+pie title Memory Consumption
+    "Model Weights" : 10
+    "Gradients" : 10
+    "Optimizer States" : 40
+    "Activations" : 40
 ```
 
-## Memory Reduction Techniques
+# Chapter 2: Training Memory and Compute Anatomy
 
-Reduced precision, activation checkpointing, gradient accumulation, parameter sharding, optimizer sharding, offload, and sequence or tensor parallelism reduce different components. Each introduces compute, communication, or operational trade-offs.
+## WHY
+To effectively distribute a model, one must first precisely understand where every byte of memory and every FLOP of compute is spent.
 
-## Troubleshooting
+## WHAT
+Anatomy of a training step: Forward pass, backward pass, optimizer step.
 
-**Symptom:** OOM occurs only during backward pass.
+## HOW
+Memory is consumed by:
+1. Weights
+2. Optimizer States
+3. Gradients
+4. Activations
+5. Temporary Buffers
 
-**Diagnosis:** inspect activation retention, gradient buffers, optimizer state, bucket sizes, and peak allocator behavior.
+## WHEN
+Use profiling tools when memory usage hits >90% of VRAM to identify what can be offloaded, recomputed, or sharded.
 
-**Root cause:** sizing used static parameter memory rather than peak training memory.
+## TRADEOFFS
+| Technique | Memory Savings | Compute Overhead |
+|---|---|---|
+| Activation Checkpointing | High | ~30% Extra Compute |
+| CPU Offload | High | High Latency |
+
+## PRODUCTION
+Implement mixed precision (AMP) and operator fusion (e.g., FlashAttention) to optimize the memory/compute ratio.
+
+## TROUBLESHOOTING
+**Failure Scenario 1: Activation OOM**
+- **Log:** `RuntimeError: CUDA out of memory` during backward pass.
+- **Fix:** Implement gradient checkpointing.
+
+**Failure Scenario 2: GPU Idle during DataLoader**
+- **Log:** Low GPU Volatile GPU-Util.
+- **Fix:** Increase `num_workers` in DataLoader or use NVIDIA DALI.
+
+## Senior Interview Questions
+**Q:** Why does Adam optimizer use so much memory compared to SGD?
+**A:** Adam maintains two additional state variables per parameter (moving average of gradient and moving average of squared gradient), usually in FP32, which quadruples the memory required for the optimizer states compared to standard SGD.
+
+```mermaid
+pie title Memory Consumption
+    "Model Weights" : 10
+    "Gradients" : 10
+    "Optimizer States" : 40
+    "Activations" : 40
+```
+
+# Chapter 2: Training Memory and Compute Anatomy
+
+## WHY
+To effectively distribute a model, one must first precisely understand where every byte of memory and every FLOP of compute is spent.
+
+## WHAT
+Anatomy of a training step: Forward pass, backward pass, optimizer step.
+
+## HOW
+Memory is consumed by:
+1. Weights
+2. Optimizer States
+3. Gradients
+4. Activations
+5. Temporary Buffers
+
+## WHEN
+Use profiling tools when memory usage hits >90% of VRAM to identify what can be offloaded, recomputed, or sharded.
+
+## TRADEOFFS
+| Technique | Memory Savings | Compute Overhead |
+|---|---|---|
+| Activation Checkpointing | High | ~30% Extra Compute |
+| CPU Offload | High | High Latency |
+
+## PRODUCTION
+Implement mixed precision (AMP) and operator fusion (e.g., FlashAttention) to optimize the memory/compute ratio.
+
+## TROUBLESHOOTING
+**Failure Scenario 1: Activation OOM**
+- **Log:** `RuntimeError: CUDA out of memory` during backward pass.
+- **Fix:** Implement gradient checkpointing.
+
+**Failure Scenario 2: GPU Idle during DataLoader**
+- **Log:** Low GPU Volatile GPU-Util.
+- **Fix:** Increase `num_workers` in DataLoader or use NVIDIA DALI.
+
+## Senior Interview Questions
+**Q:** Why does Adam optimizer use so much memory compared to SGD?
+**A:** Adam maintains two additional state variables per parameter (moving average of gradient and moving average of squared gradient), usually in FP32, which quadruples the memory required for the optimizer states compared to standard SGD.
+
+```mermaid
+pie title Memory Consumption
+    "Model Weights" : 10
+    "Gradients" : 10
+    "Optimizer States" : 40
+    "Activations" : 40
+```
+
+# Chapter 2: Training Memory and Compute Anatomy
+
+## WHY
+To effectively distribute a model, one must first precisely understand where every byte of memory and every FLOP of compute is spent.
+
+## WHAT
+Anatomy of a training step: Forward pass, backward pass, optimizer step.
+
+## HOW
+Memory is consumed by:
+1. Weights
+2. Optimizer States
+3. Gradients
+4. Activations
+5. Temporary Buffers
+
+## WHEN
+Use profiling tools when memory usage hits >90% of VRAM to identify what can be offloaded, recomputed, or sharded.
+
+## TRADEOFFS
+| Technique | Memory Savings | Compute Overhead |
+|---|---|---|
+| Activation Checkpointing | High | ~30% Extra Compute |
+| CPU Offload | High | High Latency |
+
+## PRODUCTION
+Implement mixed precision (AMP) and operator fusion (e.g., FlashAttention) to optimize the memory/compute ratio.
+
+## TROUBLESHOOTING
+**Failure Scenario 1: Activation OOM**
+- **Log:** `RuntimeError: CUDA out of memory` during backward pass.
+- **Fix:** Implement gradient checkpointing.
+
+**Failure Scenario 2: GPU Idle during DataLoader**
+- **Log:** Low GPU Volatile GPU-Util.
+- **Fix:** Increase `num_workers` in DataLoader or use NVIDIA DALI.
+
+## Senior Interview Questions
+**Q:** Why does Adam optimizer use so much memory compared to SGD?
+**A:** Adam maintains two additional state variables per parameter (moving average of gradient and moving average of squared gradient), usually in FP32, which quadruples the memory required for the optimizer states compared to standard SGD.
+
+```mermaid
+pie title Memory Consumption
+    "Model Weights" : 10
+    "Gradients" : 10
+    "Optimizer States" : 40
+    "Activations" : 40
+```
+
+# Chapter 2: Training Memory and Compute Anatomy
+
+## WHY
+To effectively distribute a model, one must first precisely understand where every byte of memory and every FLOP of compute is spent.
+
+## WHAT
+Anatomy of a training step: Forward pass, backward pass, optimizer step.
+
+## HOW
+Memory is consumed by:
+1. Weights
+2. Optimizer States
+3. Gradients
+4. Activations
+5. Temporary Buffers
+
+## WHEN
+Use profiling tools when memory usage hits >90% of VRAM to identify what can be offloaded, recomputed, or sharded.
+
+## TRADEOFFS
+| Technique | Memory Savings | Compute Overhead |
+|---|---|---|
+| Activation Checkpointing | High | ~30% Extra Compute |
+| CPU Offload | High | High Latency |
+
+## PRODUCTION
+Implement mixed precision (AMP) and operator fusion (e.g., FlashAttention) to optimize the memory/compute ratio.
+
+## TROUBLESHOOTING
+**Failure Scenario 1: Activation OOM**
+- **Log:** `RuntimeError: CUDA out of memory` during backward pass.
+- **Fix:** Implement gradient checkpointing.
+
+**Failure Scenario 2: GPU Idle during DataLoader**
+- **Log:** Low GPU Volatile GPU-Util.
+- **Fix:** Increase `num_workers` in DataLoader or use NVIDIA DALI.
+
+## Senior Interview Questions
+**Q:** Why does Adam optimizer use so much memory compared to SGD?
+**A:** Adam maintains two additional state variables per parameter (moving average of gradient and moving average of squared gradient), usually in FP32, which quadruples the memory required for the optimizer states compared to standard SGD.
+
+```mermaid
+pie title Memory Consumption
+    "Model Weights" : 10
+    "Gradients" : 10
+    "Optimizer States" : 40
+    "Activations" : 40
+```
+
+# Chapter 2: Training Memory and Compute Anatomy
+
+## WHY
+To effectively distribute a model, one must first precisely understand where every byte of memory and every FLOP of compute is spent.
+
+## WHAT
+Anatomy of a training step: Forward pass, backward pass, optimizer step.
+
+## HOW
+Memory is consumed by:
+1. Weights
+2. Optimizer States
+3. Gradients
+4. Activations
+5. Temporary Buffers
+
+## WHEN
+Use profiling tools when memory usage hits >90% of VRAM to identify what can be offloaded, recomputed, or sharded.
+
+## TRADEOFFS
+| Technique | Memory Savings | Compute Overhead |
+|---|---|---|
+| Activation Checkpointing | High | ~30% Extra Compute |
+| CPU Offload | High | High Latency |
+
+## PRODUCTION
+Implement mixed precision (AMP) and operator fusion (e.g., FlashAttention) to optimize the memory/compute ratio.
+
+## TROUBLESHOOTING
+**Failure Scenario 1: Activation OOM**
+- **Log:** `RuntimeError: CUDA out of memory` during backward pass.
+- **Fix:** Implement gradient checkpointing.
+
+**Failure Scenario 2: GPU Idle during DataLoader**
+- **Log:** Low GPU Volatile GPU-Util.
+- **Fix:** Increase `num_workers` in DataLoader or use NVIDIA DALI.
+
+## Senior Interview Questions
+**Q:** Why does Adam optimizer use so much memory compared to SGD?
+**A:** Adam maintains two additional state variables per parameter (moving average of gradient and moving average of squared gradient), usually in FP32, which quadruples the memory required for the optimizer states compared to standard SGD.
+
+```mermaid
+pie title Memory Consumption
+    "Model Weights" : 10
+    "Gradients" : 10
+    "Optimizer States" : 40
+    "Activations" : 40
+```
+
+# Chapter 2: Training Memory and Compute Anatomy
+
+## WHY
+To effectively distribute a model, one must first precisely understand where every byte of memory and every FLOP of compute is spent.
+
+## WHAT
+Anatomy of a training step: Forward pass, backward pass, optimizer step.
+
+## HOW
+Memory is consumed by:
+1. Weights
+2. Optimizer States
+3. Gradients
+4. Activations
+5. Temporary Buffers
+
+## WHEN
+Use profiling tools when memory usage hits >90% of VRAM to identify what can be offloaded, recomputed, or sharded.
+
+## TRADEOFFS
+| Technique | Memory Savings | Compute Overhead |
+|---|---|---|
+| Activation Checkpointing | High | ~30% Extra Compute |
+| CPU Offload | High | High Latency |
+
+## PRODUCTION
+Implement mixed precision (AMP) and operator fusion (e.g., FlashAttention) to optimize the memory/compute ratio.
+
+## TROUBLESHOOTING
+**Failure Scenario 1: Activation OOM**
+- **Log:** `RuntimeError: CUDA out of memory` during backward pass.
+- **Fix:** Implement gradient checkpointing.
+
+**Failure Scenario 2: GPU Idle during DataLoader**
+- **Log:** Low GPU Volatile GPU-Util.
+- **Fix:** Increase `num_workers` in DataLoader or use NVIDIA DALI.
+
+## Senior Interview Questions
+**Q:** Why does Adam optimizer use so much memory compared to SGD?
+**A:** Adam maintains two additional state variables per parameter (moving average of gradient and moving average of squared gradient), usually in FP32, which quadruples the memory required for the optimizer states compared to standard SGD.
+
+```mermaid
+pie title Memory Consumption
+    "Model Weights" : 10
+    "Gradients" : 10
+    "Optimizer States" : 40
+    "Activations" : 40
+```
+
+# Chapter 2: Training Memory and Compute Anatomy
+
+## WHY
+To effectively distribute a model, one must first precisely understand where every byte of memory and every FLOP of compute is spent.
+
+## WHAT
+Anatomy of a training step: Forward pass, backward pass, optimizer step.
