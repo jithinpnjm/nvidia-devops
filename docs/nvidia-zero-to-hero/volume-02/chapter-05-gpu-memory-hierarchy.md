@@ -55,24 +55,39 @@ The GPU memory hierarchy moves from small, fast, and local storage near executio
 ```mermaid
 flowchart TD
     Thread[Thread]
-    Registers[Registers]
+    Registers["Registers<br/>evidence: nvcc -Xptxas=-v<br/>registers/thread"]
     Block[Thread Block]
-    Shared[Shared Memory and L1]
+    Shared["Shared Memory and L1<br/>evidence: profiler shared-mem<br/>allocation per block"]
     SM[Streaming Multiprocessor]
-    L2[L2 Cache]
-    HBM[High Bandwidth Memory]
-    Host[Host Memory]
+    L2["L2 Cache<br/>evidence: profiler L2 hit rate"]
+    HBM["High Bandwidth Memory<br/>evidence: dmon mem%,<br/>memory.used"]
+    Host["Host Memory<br/>evidence: PCIe LnkSta, transfer<br/>time in app trace"]
     Storage[Storage and Network]
 
     Thread --> Registers
     Block --> Shared
     SM --> L2
     Registers --> Shared --> L2 --> HBM --> Host --> Storage
+    HBM --> Check{"dmon mem% high AND<br/>sm% low — where's the wait?"}
+    Check -->|"L2 hit rate low<br/>(profiler)"| Stream["Streaming/low-reuse pattern:<br/>cache isn't helping — fix layout/tiling"]
+    Check -->|"L2 hit rate high,<br/>but HBM traffic still high"| Thrash["Working set exceeds L2 capacity:<br/>reduce footprint or batch differently"]
+    Check -->|"mem% low too, sm% low too"| NotMem["Not memory-bound at all —<br/>check launch/occupancy instead"]
 ```
 
-**Figure 2.5.1 - GPU memory hierarchy.** Storage becomes larger and more broadly visible farther from the execution lanes, but access cost generally increases.
+**Figure 2.5.1 - GPU memory hierarchy.** Storage becomes larger and more broadly visible farther from the execution lanes, but access cost generally increases. The exact cache arrangement and sizes vary by architecture. The stable principle is locality: data reused close to execution is usually cheaper than data repeatedly fetched from distant memory. The decision branch turns "the kernel is memory-bound" from a one-word diagnosis into a specific, testable claim: high `mem%` alone doesn't say *which* level is the problem, and the fix for a cache-thrashing working set (reduce footprint) is different from the fix for a genuinely streaming access pattern (redesign layout).
 
-The exact cache arrangement and sizes vary by architecture. The stable principle is locality: data reused close to execution is usually cheaper than data repeatedly fetched from distant memory.
+**Confirming the top of the hierarchy is actually the bottleneck first.** Before reasoning about L2 or HBM, rule out the SM-side story with the same `dmon` line used throughout this volume:
+
+```text
+$ nvidia-smi dmon -s ucm -c 3
+# gpu   sm   mem
+# Idx     %     %
+    0    18    89
+    0    17    91
+    0    19    88
+```
+
+`sm=17-19%` with `mem=88-91%` is the unambiguous memory-bound signature: the compute pipelines are mostly idle while the memory subsystem is nearly saturated. This is the evidence that justifies moving down into the L2/HBM branch of the decision diagram above instead of looking at occupancy or divergence — those explain low `sm%` for a *different* reason (not enough independent work), which this trace rules out because the SMs aren't stalled on a lack of work, they're stalled waiting on data.
 
 ## Memory Hierarchy at a Glance
 
@@ -165,6 +180,8 @@ Memory capacity answers: **Can the workload fit?**
 Memory bandwidth answers: **How quickly can data be supplied?**
 
 A model may fit into HBM but still perform poorly because its operations repeatedly stream weights or activations. Conversely, a workload may have excellent arithmetic intensity but fail because its model and runtime state exceed capacity.
+
+**A worked capacity-versus-bandwidth check for a real serving scenario.** A 13B-parameter model at FP16 needs `13,000,000,000 x 2 bytes ≈ 26 GB` for weights alone — comfortably inside an 80GB H100's HBM capacity, with over 50GB left for activations, KV cache, and workspace. That answers the capacity question. Bandwidth is a separate question: an H100 SXM has roughly 3.35 TB/s of peak HBM bandwidth. If decode (token-by-token generation) re-reads the full 26GB of weights from HBM for every single token generated — which is close to what happens without batching, since each decode step has low arithmetic intensity — the theoretical floor on per-token time from weight reads alone is `26 GB / 3,350 GB/s ≈ 7.8 ms/token`, before any compute time is even added. This is why "the model fits" and "the model is fast enough" are answered by two different numbers, and why continuous batching (serving many sequences' decode steps together against the same HBM read) is the standard fix: it amortizes that 26GB read across many tokens instead of one.
 
 ## Global Memory Access and Coalescing
 
@@ -299,6 +316,32 @@ High utilization may indicate that kernels are active, not that execution engine
 | Repeated host-device copies | Pipeline transfer bottleneck |
 | OOM with free memory reported elsewhere | Fragmentation or per-process allocation behavior |
 
+**Turning "high memory bandwidth, lower compute throughput" into evidence.** This is the same paired `dmon` read used earlier in the chapter, applied here as the troubleshooting-table row it backs:
+
+```text
+$ nvidia-smi dmon -s ucm -c 3
+# gpu   sm   mem
+# Idx     %     %
+    0    22    90
+    0    20    92
+    0    23    89
+```
+
+`mem` sustained at 89-92% while `sm` sits at 20-23% is not a healthy "GPU is working hard" reading — it's the opposite: the SMs are mostly waiting, and the memory subsystem is close to its ceiling. This is the concrete reading that turns the table's first row from a plausible guess into a supported conclusion.
+
+**Turning "repeated host-device copies" into evidence.** A per-request timeline that separates transfer time from compute time is what actually proves a transfer bottleneck, since `dmon` alone cannot distinguish PCIe transfer activity from device-internal memory traffic:
+
+```text
+$ nsys profile --trace=cuda,nvtx -o /tmp/trace ./inference_request
+$ nsys stats /tmp/trace.nsys-rep --report cuda_gpu_trace | head -6
+Time(%)  Duration    Name
+  61.2%   18.4 ms    [CUDA memcpy HtoD]
+   4.1%    1.2 ms    matmul_kernel
+  33.9%   10.2 ms    [CUDA memcpy DtoH]
+```
+
+61.2% of the traced window spent in host-to-device copy, against only 4.1% in the actual compute kernel, is the direct evidence behind "repeated host-device copies" as a bottleneck — the fix here is pinned memory, batching multiple small transfers into fewer large ones, or asynchronous copy/compute overlap, not a faster GPU, since the GPU's own compute time is a small fraction of the total.
+
 ### Problem: Out-of-memory errors appear only under load
 
 Static model weights may fit, but concurrency creates KV cache, activation, workspace, or batching growth. Measure memory by request stage and concurrency level rather than only after model load.
@@ -318,20 +361,35 @@ A strong recommendation explains what data moves, how often it is reused, and wh
 ### Conceptual Questions
 
 1. Why does a GPU need multiple memory levels?
+**Model answer:** "Because no single memory technology can be tiny, fast, cheap, and huge all at once — the hierarchy is a set of deliberate trade-offs. Registers are closest to execution and fastest but can only hold a handful of values per thread. Shared memory and L1 trade some of that speed for block-wide visibility. L2 trades more for GPU-wide sharing. HBM trades latency for the capacity to hold an entire model's weights. Each level exists because the level above it ran out of either room or reach."
+
 2. What is the difference between shared memory and L1 cache?
+**Model answer:** "Shared memory is explicitly managed — the programmer decides what goes into it and when, typically to stage a reused tile of data. L1 cache is managed automatically by hardware based on access patterns, with no programmer control over what stays resident. On many architectures they physically share the same on-chip capacity, so using more shared memory in a kernel can leave less room for L1, which is a real trade-off worth knowing, not just a naming distinction."
+
 3. Why can high HBM bandwidth still be insufficient?
+**Model answer:** "Because bandwidth answers 'how fast can data move,' not 'is that fast enough for what this kernel demands.' I'd point to the decode example: a 13B model's ~26GB of FP16 weights, re-read every token during ungathered single-request decode, against an H100's ~3.35TB/s peak bandwidth, works out to roughly 7.8ms per token just from weight reads — before any compute. That's the theoretical floor with unfavorable arithmetic intensity; no amount of *available* bandwidth changes that if the workload's access pattern doesn't reuse data. The fix is raising arithmetic intensity — batching — not a bigger bandwidth spec."
 
 ### Architecture Questions
 
 1. Draw the GPU memory hierarchy and explain visibility at each level.
+**Model answer:** "I'd draw it bottom-up: registers, private to one thread; shared memory and L1, visible to one thread block on one SM; L2, visible across the whole GPU; HBM, the GPU's own large capacity store; and host memory, across PCIe, visible only to the CPU until explicitly transferred or made peer-accessible. The point I'd make while drawing it: visibility scope and physical distance from the SM increase together, which is exactly why data that's reused should be pulled as far up this stack as it fits, and why 'more memory' and 'faster memory' are different axes entirely."
+
 2. Explain how register pressure affects occupancy.
+**Model answer:** "Register file size per SM is fixed. If a kernel's compiler-reported registers/thread goes up, fewer threads — and therefore fewer resident warps — fit in that same register file, which lowers occupancy purely from a resource-accounting standpoint, independent of anything else about the kernel. I'd check this with `nvcc -Xptxas=-v`, which reports registers/thread directly, and divide the SM's total register count by that figure to get the register-limited thread ceiling before looking at any other constraint."
+
 3. Design a memory-capacity estimate for an inference service with KV cache.
+**Model answer:** "Start with weights: parameter count times bytes-per-parameter at the serving precision. Then KV cache, which grows with sequence length and concurrency — it's `2 x layers x heads x head_dim x sequence_length x batch_size x bytes_per_element` for key and value combined, and unlike weights, it scales with traffic, not just model choice. Add activation workspace and framework/runtime overhead, which is usually a smaller but non-zero fixed cost. I'd size against peak expected concurrency and sequence length, not just model load, since KV cache is the term most likely to blow the budget under real traffic even when the model alone fit comfortably at startup."
 
 ### Scenario Questions
 
 1. A kernel has high occupancy but low throughput. What memory signals do you inspect?
+**Model answer:** "First `dmon`'s `mem%` alongside `sm%` — if both are high, that's a saturated-bandwidth signature and occupancy is already doing its job of hiding latency, the ceiling is bandwidth itself. If `mem%` is high and `sm%` is low, I'd look at cache hit rate next: a low L2 hit rate against a high memory percentage means the access pattern is defeating the cache, which is a data-layout problem, not an occupancy problem. Occupancy being 'high' doesn't rule out memory as the bottleneck — it just means latency-hiding isn't the missing ingredient."
+
 2. A model fits at startup but fails under concurrency. What additional memory consumers exist?
+**Model answer:** "KV cache is the big one — it grows with every concurrent request and every token generated, unlike the static weights. Also activation memory during any request-time computation, per-request workspace buffers the runtime allocates, and allocator fragmentation from repeatedly allocating and freeing variable-sized buffers as requests come and go. I'd check `nvidia-smi --query-compute-apps` under load to see whether memory is climbing with concurrency specifically, which confirms it's a per-request cost rather than a one-time model-load cost."
+
 3. Two GPUs have similar compute but different memory bandwidth. Which workloads are most affected?
+**Model answer:** "Low-arithmetic-intensity, memory-bound workloads — token-by-token decode in LLM serving is the clearest example, along with large embedding-table lookups and anything dominated by streaming reads with little reuse. A compute-bound, high-reuse workload like a large batched matmul would show little difference between the two GPUs, since compute is the shared constraint there. I'd confirm which category a given workload falls into with `dmon`'s `sm%`/`mem%` pairing before predicting which GPU would actually help."
 
 ## Summary
 
