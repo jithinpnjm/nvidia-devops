@@ -29,134 +29,208 @@ By completion, you can collect host, runtime, device-plugin, kubelet, and worklo
 ## 4. Architecture
 
 ```mermaid
-flowchart LR
-  GPU[Physical GPU] --> Driver[NVIDIA driver]
-  Driver --> Runtime[Container runtime + toolkit]
-  Driver --> Plugin[Device plugin]
-  Plugin --> Kubelet --> API[Kubernetes API]
-  API --> Scheduler --> Pod[One-GPU Pod]
-  Pod --> Runtime
+flowchart TD
+  Start[Select approved node] --> Host{Host driver enumerates GPU?}
+  Host -->|"yes: nvidia-smi UUID inventory"| Resource{Kubelet advertises nvidia.com/gpu?}
+  Host -->|"no: driver communication failure"| HostStop[Stop; inspect kernel, firmware, driver]
+  Resource -->|"yes: Capacity and Allocatable"| Schedule{Validation Pod binds?}
+  Resource -->|"no: plugin or registration evidence"| PluginStop[Inspect device plugin and kubelet]
+  Schedule -->|"no: FailedScheduling event"| SchedStop[Inspect request, taints, affinity, free blocks]
+  Schedule -->|yes| Runtime{Fresh sandbox receives device?}
+  Runtime -->|"no: CreateContainerError / CRI"| RuntimeStop[Inspect RuntimeClass, Toolkit, CDI]
+  Runtime -->|"yes: marker and GPU UUID"| Accept[Record accepted baseline]
 ```
+
+**Figure L10.1 — The lab follows the same decision path used during an incident.** Each transition has an observable proof and a stop condition.
 
 ## 5. Prerequisites
 
 - A non-production or approved GPU node, `kubectl` access, and permission to create Pods.
 - SSH or console access to the selected node for host checks.
-- An approved CUDA container image available to the cluster. Substitute it below; do not assume public-registry access.
+- An approved CUDA validation image available to the cluster.
+
+The commands below use the **illustrative** values:
+
+```text
+GPU_NODE=gpu-node-01
+CUDA_VALIDATION_IMAGE=registry.internal.example/platform/cuda-validation@sha256:9a2f...7c10
+```
+
+Replace them with your reviewed node and immutable image digest.
 
 ## 6. Safety and Change Boundaries
 
 This lab is read-only except for one named validation Pod and a local evidence directory. Do not restart kubelet, edit runtime configuration, drain a node, or run the validation Pod against capacity reserved for production work.
 
-## 7. Environment and Variables
+## 7. Environment
 
-Record the client and cluster context first.
+### Confirm the cluster context
 
-**Purpose:** Confirm that commands target the intended cluster.
+**Purpose:** prevent a safe inspection from running against the wrong cluster.
 
-**Command:**
 ```bash
 kubectl config current-context
 kubectl get nodes -o wide
 ```
 
-**Expected evidence:** The expected context and at least one Ready GPU-capable node are listed.
+**Representative output:**
 
-**Explanation:** Context mistakes can turn a safe inspection into a production change.
+```text
+platform-lab-eu1
 
-**Common-failure interpretation:** Authentication or authorization errors require the cluster administrator; do not work around them with broader credentials.
-
-Select a node only after confirming resource advertisement.
-
-**Purpose:** List the Kubernetes view of GPU Capacity and Allocatable.
-
-**Command:**
-```bash
-kubectl get nodes -o custom-columns=NAME:.metadata.name,CAPACITY:.status.capacity.nvidia\.com/gpu,ALLOCATABLE:.status.allocatable.nvidia\.com/gpu
-export GPU_NODE='<approved-gpu-node>'
+NAME          STATUS   ROLES    AGE   VERSION   INTERNAL-IP   OS-IMAGE
+cpu-node-01   Ready    <none>   31d   v1.30.3   10.20.0.11    Ubuntu 24.04 LTS
+gpu-node-01   Ready    <none>   31d   v1.30.3   10.20.0.21    Ubuntu 24.04 LTS
+gpu-node-02   Ready    <none>   31d   v1.30.3   10.20.0.22    Ubuntu 24.04 LTS
 ```
 
-**Expected evidence:** `GPU_NODE` is a single approved node name; a healthy node normally has a numeric resource value.
+`platform-lab-eu1` must match the approved context. `Ready` is general Kubernetes evidence only. It does not prove GPU readiness.
 
-**Explanation:** Capacity is what kubelet reports; Allocatable is what scheduling may consume after reservations.
+Set reviewed variables:
 
-**Common-failure interpretation:** Empty columns are a diagnosis target, not proof that hardware is absent; continue with the layered checks in this lab.
+```bash
+export GPU_NODE='gpu-node-01'
+export CUDA_VALIDATION_IMAGE='registry.internal.example/platform/cuda-validation@sha256:9a2f...7c10'
+```
 
-## 8. Components and Data Flow
+### List GPU Capacity and Allocatable
+
+```bash
+kubectl get nodes -o custom-columns='NAME:.metadata.name,CAPACITY:.status.capacity.nvidia\.com/gpu,ALLOCATABLE:.status.allocatable.nvidia\.com/gpu'
+```
+
+**Representative output:**
+
+```text
+NAME          CAPACITY   ALLOCATABLE
+cpu-node-01   <none>     <none>
+gpu-node-01   8          8
+gpu-node-02   8          8
+```
+
+`capacity=8` means kubelet reports eight healthy units. `allocatable=8` is the scheduling quantity before existing Pod allocations. Empty CPU-node fields are expected. Empty GPU-node fields would move the investigation to host and plugin evidence.
+
+## 8. Components
 
 | Layer | Responsibility | Evidence |
 |---|---|---|
 | Driver | Enumerates and controls the GPU | `nvidia-smi` |
-| Runtime/toolkit | Makes GPU devices and libraries available to containers | runtime configuration and workload result |
-| Device plugin | Registers `nvidia.com/gpu` with kubelet | Pod state and plugin logs |
+| Runtime/toolkit | Makes assigned devices available to containers | fresh validation Pod and CRI events |
+| Device plugin | Registers `nvidia.com/gpu` with kubelet | node Capacity/Allocatable and plugin logs |
 | Kubelet | Publishes node resources | Node status |
 | Scheduler | Binds a Pod that requests a GPU | Pod events and node assignment |
 
-## 9. Procedure: Inspect Kubernetes State
+## 9. Deployment Steps — Inspect Kubernetes State
 
-**Purpose:** Capture the node’s labels, conditions, taints, and advertised resources.
+### Capture conditions, taints, and resources
 
-**Command:**
 ```bash
-kubectl describe node "$GPU_NODE"
-kubectl get node "$GPU_NODE" -o jsonpath='{.status.capacity.nvidia\.com/gpu}{" capacity\n"}{.status.allocatable.nvidia\.com/gpu}{" allocatable\n"}'
+kubectl get node "$GPU_NODE" -o json | jq '{conditions:[.status.conditions[]|select(.type=="Ready" or .type=="MemoryPressure" or .type=="DiskPressure")|{type,status,reason}],taints:.spec.taints,capacity:.status.capacity["nvidia.com/gpu"],allocatable:.status.allocatable["nvidia.com/gpu"]}'
 ```
 
-**Expected evidence:** Node conditions are Ready and the resource values are recorded along with any taints.
+**Representative output:**
 
-**Explanation:** Labels explain capability selection; taints and allocatable values explain why a request may not schedule.
-
-**Common-failure interpretation:** A NotReady node is a cluster/node-health issue. Missing resources move the investigation to Lab 03.
-
-**Purpose:** Identify the deployed GPU platform operands without assuming their namespace or names.
-
-**Command:**
-```bash
-kubectl get pods -A -o wide | grep -Ei 'nvidia|gpu-feature|node-feature|dcgm' || true
+```json
+{
+  "conditions": [
+    {"type":"MemoryPressure","status":"False","reason":"KubeletHasSufficientMemory"},
+    {"type":"DiskPressure","status":"False","reason":"KubeletHasNoDiskPressure"},
+    {"type":"Ready","status":"True","reason":"KubeletReady"}
+  ],
+  "taints": [
+    {"key":"nvidia.com/gpu","value":"present","effect":"NoSchedule"}
+  ],
+  "capacity": "8",
+  "allocatable": "8"
+}
 ```
 
-**Expected evidence:** Operator-managed environments show relevant driver, toolkit, device-plugin, discovery, validator, or telemetry Pods.
+The GPU taint reserves the node for Pods with an approved toleration. It does not make the node unschedulable to every workload. Capacity and Allocatable prove resource registration, not runtime injection.
 
-**Explanation:** The `|| true` preserves a successful inspection when the search has no matches.
+### Identify node-local operands
 
-**Common-failure interpretation:** No matching Pods can be valid for a standalone deployment; establish the deployed ownership model before modifying components.
-
-## 10. Procedure: Inspect the Host (Hardware Only)
-
-Run the following on `$GPU_NODE` through the approved console or SSH path.
-
-**Purpose:** Prove that the host driver can enumerate GPU devices and report topology.
-
-**Command:**
 ```bash
-nvidia-smi
-nvidia-smi -L
+kubectl get pods -A --field-selector spec.nodeName="$GPU_NODE" -o wide | grep -Ei 'nvidia|gpu-feature|node-feature|dcgm' || true
+```
+
+**Representative output:**
+
+```text
+gpu-operator   nvidia-driver-daemonset-m4k7q             1/1   Running   0   gpu-node-01
+gpu-operator   nvidia-container-toolkit-daemonset-x5m2p  1/1   Running   0   gpu-node-01
+gpu-operator   nvidia-device-plugin-daemonset-bp7jf      1/1   Running   0   gpu-node-01
+gpu-operator   gpu-feature-discovery-n2v8d               1/1   Running   0   gpu-node-01
+gpu-operator   nvidia-dcgm-exporter-7p8wd                1/1   Running   0   gpu-node-01
+```
+
+This output establishes deployment presence. `Running` alone does not prove the driver, runtime, or metrics path. The next steps test those contracts.
+
+## 10. Validation — Inspect the Host
+
+Run these commands on `$GPU_NODE` through the approved access path.
+
+### Prove host driver enumeration
+
+```bash
+nvidia-smi --query-gpu=index,name,uuid,driver_version,memory.total --format=csv,noheader
+```
+
+**Representative output:**
+
+```text
+0, NVIDIA H100 80GB HBM3, GPU-3c2e38d1-6a2c-4a31-b44b-9d82a8c80735, 550.54.15, 81559 MiB
+1, NVIDIA H100 80GB HBM3, GPU-722d1344-1b6d-4a95-8cb9-1c572eb5ad94, 550.54.15, 81559 MiB
+... six additional rows ...
+```
+
+The index is a local convenience; record UUIDs as stable identities. The driver version is representative, not a recommendation. If the command prints “couldn’t communicate with the NVIDIA driver,” stop before plugin diagnosis.
+
+### Record topology
+
+```bash
 nvidia-smi topo -m
 ```
 
-**Expected evidence:** GPU model, driver information, logical GPU list, and a topology table appear.
+**Representative excerpt:**
 
-**Explanation:** Kubernetes cannot repair a GPU that the host driver cannot initialize.
-
-**Common-failure interpretation:** “Failed to communicate” or no devices requires driver, kernel, PCIe, firmware, or passthrough investigation before device-plugin work.
-
-**Purpose:** Record the runtime configuration that should select NVIDIA support.
-
-**Command:**
-```bash
-sudo crictl info
-sudo grep -R "nvidia" /etc/containerd /etc/nvidia-container-runtime 2>/dev/null || true
+```text
+        GPU0  GPU1  NIC0  CPU Affinity  NUMA Affinity
+GPU0     X    NV18  NODE  0-31          0
+GPU1    NV18   X    NODE  0-31          0
+NIC0    NODE  NODE   X
 ```
 
-**Expected evidence:** Runtime details and, where configured, NVIDIA-related configuration are captured.
+The table is a baseline for later placement comparison. `NV18` and `NODE` meanings depend on the platform and tool legend; preserve the real output rather than converting it into a universal claim.
 
-**Explanation:** The first command is read-only; the second is intentionally tolerant of distribution-specific paths.
+### Record runtime evidence
 
-**Common-failure interpretation:** Missing configuration does not by itself prove failure; use the validation Pod to test the effective runtime path.
+```bash
+sudo crictl info | jq '{runtimeName:.status.runtimeName,runtimeVersion:.status.runtimeVersion,config:.config}'
+```
 
-## 11. Validation Workload
+**Representative excerpt:**
 
-Replace `<approved-cuda-image>` with a tested image that includes `nvidia-smi`. Save the manifest locally as `gpu-node-validation.yaml`.
+```json
+{
+  "runtimeName": "containerd",
+  "runtimeVersion": "1.7.18",
+  "config": {
+    "containerd": {
+      "runtimes": {
+        "nvidia": {
+          "runtimeType": "io.containerd.runc.v2"
+        }
+      }
+    }
+  }
+}
+```
+
+This proves a configured handler in the effective CRI view. Only a fresh Pod proves it functions.
+
+## 11. Verification — Create a One-GPU Workload
+
+Create `gpu-node-validation.yaml`:
 
 ```yaml
 apiVersion: v1
@@ -165,118 +239,156 @@ metadata:
   name: gpu-node-validation
 spec:
   restartPolicy: Never
-  nodeName: <approved-gpu-node>
+  nodeName: gpu-node-01
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Equal
+      value: present
+      effect: NoSchedule
   containers:
     - name: cuda
-      image: <approved-cuda-image>
-      command: ["bash", "-lc", "nvidia-smi && echo GPU_NODE_VALIDATED"]
+      image: registry.internal.example/platform/cuda-validation@sha256:9a2f...7c10
+      command:
+        - bash
+        - -lc
+        - |
+          nvidia-smi --query-gpu=index,uuid,name --format=csv,noheader
+          echo GPU_NODE_VALIDATED
       resources:
         limits:
           nvidia.com/gpu: 1
 ```
 
-**Purpose:** Create the bounded, one-GPU validation Pod.
+The digest and node are illustrative; replace them before applying.
 
-**Command:**
 ```bash
 kubectl apply -f gpu-node-validation.yaml
 kubectl get pod gpu-node-validation -w
 ```
 
-**Expected evidence:** The Pod is scheduled to the approved node, then reaches `Completed`.
+**Representative lifecycle:**
 
-**Explanation:** `nodeName` intentionally tests this selected node; remove it only when testing scheduler placement.
+```text
+NAME                  READY   STATUS              NODE
+gpu-node-validation   0/1     ContainerCreating   gpu-node-01
+gpu-node-validation   0/1     Completed           gpu-node-01
+```
 
-**Common-failure interpretation:** Pending Pods require event inspection. `ImagePullBackOff` is a registry issue; `CreateContainerError` often points to runtime integration.
+`Completed` proves the command exited successfully. Read logs to prove the device path:
 
-## 12. Verification and Acceptance Criteria
-
-**Purpose:** Verify the executed container rather than only its Kubernetes phase.
-
-**Command:**
 ```bash
 kubectl logs gpu-node-validation
-kubectl describe pod gpu-node-validation
 ```
 
-**Expected evidence:** Logs include the GPU inventory and `GPU_NODE_VALIDATED`; events show no allocation/runtime failure.
+```text
+0, GPU-3c2e38d1-6a2c-4a31-b44b-9d82a8c80735, NVIDIA H100 80GB HBM3
+GPU_NODE_VALIDATED
+```
 
-**Explanation:** Completion proves the container initialized the assigned GPU through the runtime.
+The container saw one assigned GPU and printed the explicit marker. The output does not benchmark performance or validate multi-GPU topology.
 
-**Common-failure interpretation:** A successful schedule with failing logs isolates the problem above resource advertisement; retain the events and runtime evidence.
+## 12. Observability
 
-Acceptance requires: host enumeration (where access exists), a non-empty allocatable resource, a completed one-GPU Pod, and logs that show the explicit marker.
-
-## 13. Observability and Evidence Collection
-
-**Purpose:** Create a small incident-ready evidence bundle.
-
-**Command:**
 ```bash
-mkdir -p gpu-node-baseline
-kubectl describe node "$GPU_NODE" > gpu-node-baseline/node-describe.txt
-kubectl get pod gpu-node-validation -o yaml > gpu-node-baseline/validation-pod.yaml
-kubectl logs gpu-node-validation > gpu-node-baseline/validation.log
+kubectl -n gpu-operator get pod -l app=nvidia-dcgm-exporter --field-selector spec.nodeName="$GPU_NODE"
 ```
 
-**Expected evidence:** Three timestampable files contain node, Pod, and workload evidence.
+**Representative output:**
 
-**Explanation:** Keep this bundle with the change or incident record; redact credentials if any appear.
+```text
+NAME                           READY   STATUS    RESTARTS
+nvidia-dcgm-exporter-7p8wd     1/1     Running   0
+```
 
-**Common-failure interpretation:** If a Pod disappears before logs are collected, use namespace events and controller logs instead of recreating the failure.
+Where Prometheus is available, verify `up{job="dcgm-exporter"}=1` and a recent GPU UUID series. A Running exporter without a healthy target is not sufficient.
 
-## 14. Measurements and Baseline
+## 13. Performance Measurements
 
-Record GPU model, driver version, topology, allocatable count, validation start-to-completion time, idle utilization, memory use, temperature, and power. These are node-specific comparison values, not universal health thresholds.
+Record, but do not enforce as universal thresholds:
 
-## 15. Safe Failure Exercise
+| Measurement | Representative value | Interpretation |
+|---|---:|---|
+| Validation Pod create-to-complete | 11.4 s | Includes scheduling, image availability, sandbox, and command time |
+| Allocatable GPUs | 8 | Kubernetes resource contract |
+| Idle temperature | 38 °C | Node-specific baseline |
+| Idle power | 71 W | Node-specific baseline |
+| Driver version | 550.54.15 | Representative compatibility-set field |
 
-In a disposable cluster only, change the validation limit to `nvidia.com/gpu: 99` and inspect events; then restore the manifest before deleting the Pod.
+Repeat measurements on equivalent nodes before using them for regression detection.
 
-**Purpose:** Observe scheduler evidence for an unsatisfiable extended-resource request.
+## 14. Failure Injection
 
-**Command:**
+Create `gpu-node-unschedulable.yaml` by copying the validation manifest, changing the name to `gpu-node-unschedulable`, removing `nodeName`, and requesting 99 GPUs.
+
 ```bash
-kubectl describe pod gpu-node-validation
+kubectl apply -f gpu-node-unschedulable.yaml
+kubectl describe pod gpu-node-unschedulable | sed -n '/Events:/,$p'
 ```
 
-**Expected evidence:** The Pod remains Pending with an insufficient-resource scheduling event.
+**Representative broken output:**
 
-**Explanation:** This changes only a disposable validation workload and does not alter node software.
+```text
+Events:
+  Warning  FailedScheduling  8s  default-scheduler  0/3 nodes are available:
+  1 node(s) had untolerated taint {node-role.kubernetes.io/control-plane: },
+  2 Insufficient nvidia.com/gpu.
+```
 
-**Common-failure interpretation:** If it schedules, the test cluster has at least 99 allocatable GPUs or the manifest was not updated; stop and verify the applied spec.
+The scheduler cannot satisfy 99 units. This is safe because it changes only a disposable Pod request. It does not alter node software.
 
-## 16. Troubleshooting Decision Table
+## 15. Troubleshooting
 
 | Symptom | First evidence | Likely layer |
 |---|---|---|
 | `nvidia-smi` fails | driver and kernel logs | hardware/driver |
 | No allocatable GPU | plugin state and kubelet logs | plugin/registration |
 | Pod Pending | Pod events, taints, requests | scheduler/policy |
-| Pod runs but CUDA fails | container logs and runtime config | toolkit/runtime |
-| Missing capability labels | discovery Pods and labels | NFD/GFD |
+| Pod bound, `CreateContainerError` | Pod event and CRI log | toolkit/runtime |
+| Pod completes but metrics absent | exporter readiness and scrape target | observability |
 
-## 17. Cleanup and Operational Handoff
+### Broken runtime example
 
-**Purpose:** Remove only the disposable validation workload.
-
-**Command:**
-```bash
-kubectl delete pod gpu-node-validation --ignore-not-found
+```text
+Warning  Failed  kubelet  OCI runtime create failed:
+requested CDI device nvidia.com/gpu=0 not found
 ```
 
-**Expected evidence:** Kubernetes reports deletion or “not found.”
+The Pod is bound and allocation reached the runtime. Inspect CDI generation and Toolkit configuration; scheduler changes are irrelevant.
 
-**Explanation:** Evidence files remain for review; no node component is changed.
+### Broken plugin example
 
-**Common-failure interpretation:** A terminating Pod may need ordinary cluster investigation; do not force-delete it without confirming workload impact.
+```text
+nvidia-device-plugin-daemonset-bp7jf   0/1   CrashLoopBackOff
+error creating plugin manager: no valid devices found
+```
 
-Handoff: attach the evidence bundle, selected node, driver/runtime versions, resource counts, validation result, and any deviation from acceptance criteria.
+If host `nvidia-smi` succeeds, compare plugin configuration and mounts. If it fails, return to the driver gate.
 
-## 18. Summary, Challenges, and Further Reading
+## 16. Cleanup
 
-You validated the end-to-end node path. Next, run the same baseline across a node pool, compare topology and labels, and use [Lab 03](./lab-03-diagnose-a-missing-allocatable-gpu) when Allocatable is absent.
+```bash
+kubectl delete pod gpu-node-validation gpu-node-unschedulable --ignore-not-found
+```
+
+**Representative output:**
+
+```text
+pod "gpu-node-validation" deleted
+pod "gpu-node-unschedulable" deleted
+```
+
+No node component is changed. Keep the evidence bundle for review.
+
+## 17. Challenge Exercises
+
+- Repeat the baseline across every node in a canary pool and diff UUID count, labels, runtime handler, and topology.
+- Add a script that fails when `Ready=True` but GPU Allocatable is missing.
+- Verify the Prometheus sample timestamp for the selected UUID.
+- Compare a one-GPU Pod with a multi-GPU Pod and document what additional topology evidence is required.
+
+## 18. Further Reading
 
 - [Volume 10 introduction](../index)
 - [GPU Software Lifecycle in Kubernetes](../chapter-02-gpu-software-lifecycle-in-kubernetes)
 - [Device Plugin and Kubernetes Resource Model](../chapter-04-device-plugin-and-kubernetes-resource-model)
+- [Lab 03 — Diagnose a Missing Allocatable GPU](./lab-03-diagnose-a-missing-allocatable-gpu)
