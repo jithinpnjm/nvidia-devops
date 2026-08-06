@@ -3556,20 +3556,22 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 01 — Why GPU Sharing Exists": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand the economic and architectural pressures that led to GPU sharing and the risks of treating sharing as simple oversubscription.",
+    "learningOutcome": "Define GPU sharing as a workload contract, not a density setting.",
     "sections": [
       "Why GPU Sharing Exists",
-      "Learning Objectives",
-      "Architecture Before Mechanism",
-      "What Problem Existed Before Sharing?",
-      "Three Different Meanings of Sharing",
-      "When Sharing Helps",
-      "When Sharing Hurts",
-      "Production Story",
-      "Troubleshooting Pattern",
-      "Customer Perspective",
-      "Interview Preparation",
-      "Key Takeaways"
+      "Learning objectives",
+      "The problem is stranded capacity, not merely low utilization",
+      "Four things people call “sharing”",
+      "Production story: the “eight GPUs per GPU” incident",
+      "Build a workload contract",
+      "Trade-offs that survive the design review",
+      "A practical intake workshop",
+      "Capacity signals that should not be collapsed",
+      "Troubleshooting scenario 1: utilization says “idle,” users say “slow”",
+      "Troubleshooting scenario 2: a tenant asks for “isolation”",
+      "Customer architecture discussion",
+      "Production deployment pattern",
+      "First principles: why a GPU is not a CPU socket"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3579,37 +3581,47 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 02 — MIG Architecture and Isolation": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand how Multi-Instance GPU partitions supported GPUs into isolated compute and memory instances.",
+    "learningOutcome": "Understand GPU instances, compute instances, and the boundary that MIG does—and does not—create.",
     "sections": [
       "MIG Architecture and Isolation",
-      "Learning Objectives",
-      "Big Picture",
-      "Isolation Model",
-      "Internal Working",
-      "Production Trade-offs",
-      "Verification",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Questions"
+      "Learning objectives",
+      "The hierarchy",
+      "What MIG isolates—and what it cannot",
+      "Internal working and lifecycle",
+      "Kubernetes consequences",
+      "Validation is a chain, not a command",
+      "Maintenance and rollback",
+      "Resource anatomy in more detail",
+      "Supported-configuration discipline",
+      "Node lifecycle sequence",
+      "Troubleshooting scenario 3: post-reboot drift",
+      "Troubleshooting scenario 4: a container sees an unexpected device",
+      "Production story: the mode-change outage that looked like a scheduler bug"
     ],
     "codeLanguages": [
       "mermaid",
-      "text",
-      "bash"
+      "text"
     ]
   },
   "Chapter 03 — MIG Profiles and Placement": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Plan profile mixes, avoid fragmentation, and align MIG geometry with workload demand.",
+    "learningOutcome": "Plan supported profile layouts as fleet inventory, not as arbitrary fractions.",
     "sections": [
       "MIG Profiles and Placement",
-      "Architecture Model",
-      "Profile Selection",
-      "Placement and Fragmentation",
-      "Production Pattern",
-      "Troubleshooting",
-      "Interview Questions"
+      "Learning objectives",
+      "From model to profile",
+      "Read the driver, not a diagram",
+      "Fragmentation is geometric",
+      "Design patterns",
+      "Profile-sizing worksheet",
+      "Inventory reporting pattern",
+      "Placement strategy and scheduler strategy are different",
+      "Capacity planning example without invented numbers",
+      "Day-two operations",
+      "Troubleshooting scenario 3: inventory varies among identical nodes",
+      "Troubleshooting scenario 4: reconfiguration consumes the recovery reserve",
+      "Production story: the impossible “free” capacity"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3619,15 +3631,22 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 04 — Time-Slicing and Oversubscription": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand logical GPU replicas, contention, fairness, and the limits of scheduler-level sharing.",
+    "learningOutcome": "Use logical GPU replicas honestly: as shared access, not reserved capacity.",
     "sections": [
       "Time-Slicing and Oversubscription",
-      "Big Picture",
-      "Appropriate Workloads",
-      "Oversubscription Risk",
-      "Observability",
-      "Troubleshooting",
-      "Customer Question"
+      "Learning objectives",
+      "What the Kubernetes configuration changes",
+      "Where time-slicing belongs",
+      "Design the service, not the replica count",
+      "Safe rollout sequence",
+      "Fairness and admission",
+      "Internal working and consequence",
+      "Measuring a replica ratio",
+      "Production incident flow",
+      "Troubleshooting scenario 3: shared resource scheduled on the wrong workload class",
+      "Troubleshooting scenario 4: metrics cannot identify the noisy neighbor",
+      "Production story: “all pods are healthy”",
+      "Observability: allocation is not utilization"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3637,15 +3656,22 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 05 — vGPU Architecture and Enterprise Virtualization": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand virtual GPU architecture, mediated access, licensing, and operational boundaries in enterprise virtualization.",
+    "learningOutcome": "Design and operate NVIDIA vGPU platforms by understanding the host, guest, profile, licensing, and lifecycle boundaries.",
     "sections": [
       "vGPU Architecture and Enterprise Virtualization",
-      "Architecture",
-      "Why It Exists",
-      "Trade-offs",
-      "Production Operations",
-      "Troubleshooting",
-      "Customer Perspective"
+      "Learning objectives",
+      "The architecture has two paths",
+      "Profiles are service contracts, not fractions on a spreadsheet",
+      "Time-sliced and MIG-backed vGPU",
+      "Lifecycle: treat the stack as a qualified unit",
+      "Design review checklist",
+      "Production patterns",
+      "Troubleshooting scenario 1: VM boots but no usable GPU appears",
+      "Troubleshooting scenario 2: GPU exists but the application is degraded after startup",
+      "Host, guest, and control-plane responsibilities",
+      "Device lifecycle and state transitions",
+      "Capacity and placement mechanics",
+      "Security boundaries in a VM-oriented GPU service"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3655,56 +3681,98 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 06 — Comparing MIG, Time-Slicing, and vGPU": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Select a GPU sharing model by isolation, workload, platform, and lifecycle requirements.",
+    "learningOutcome": "Choose whole-GPU allocation, MIG, time-slicing, or vGPU from requirements, measured behavior, and operational constraints.",
     "sections": [
       "Comparing MIG, Time-Slicing, and vGPU",
-      "Decision Process",
-      "Anti-Pattern",
-      "Customer Scenario",
-      "Interview Questions"
-    ],
-    "codeLanguages": []
-  },
-  "Chapter 07 — Kubernetes Scheduling for Shared GPUs": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Advertise, label, schedule, and govern shared GPU resources in Kubernetes.",
-    "sections": [
-      "Kubernetes Scheduling for Shared GPUs",
-      "Architecture",
-      "Resource Design",
-      "Scheduling Controls",
-      "Production Failure",
-      "Interview Question"
+      "Learning objectives",
+      "The decision begins with the contract",
+      "What is actually isolated?",
+      "Compare the operational cost, not just the hardware behavior",
+      "A benchmark is the admission test",
+      "Decision record for a sharing class",
+      "Production patterns",
+      "Troubleshooting scenario 1: a supposedly isolated service has erratic latency",
+      "Troubleshooting scenario 2: MIG capacity exists, but requests wait indefinitely",
+      "Model selection by workload behavior",
+      "The hidden costs of each model",
+      "Operational decision workshop",
+      "Incident playbook: sharing method is correct but the service objective fails"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
+  "Chapter 07 — Kubernetes Scheduling for Shared GPUs": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Express GPU-sharing contracts with resource names, node pools, admission controls, quota, and evidence-driven placement policy.",
+    "sections": [
+      "Kubernetes Scheduling for Shared GPUs",
+      "Learning objectives",
+      "What Kubernetes decides, and what it delegates",
+      "Design the resource catalog before workloads arrive",
+      "MIG strategy changes what the scheduler can see",
+      "Layer scheduling controls deliberately",
+      "Quota and fairness begin with namespace boundaries",
+      "Change management for scheduling policy",
+      "A production Pod contract",
+      "Troubleshooting scenario 1: a valid Pod remains Pending",
+      "Troubleshooting scenario 2: a latency-sensitive Pod is Running on shared capacity",
+      "Resource publication and allocation mechanics",
+      "Admission policy is the translation layer",
+      "Namespace onboarding and quota design"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "yaml"
+    ]
+  },
   "Chapter 08 — Tenant Isolation, Security, and Fairness": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design tenant boundaries across identity, scheduling, device sharing, networking, and data.",
+    "learningOutcome": "Build shared-GPU tenant boundaries across identity, Kubernetes policy, host access, data paths, sharing modes, and capacity governance.",
     "sections": [
       "Tenant Isolation, Security, and Fairness",
-      "Isolation Layers",
-      "Fairness",
-      "Security Warning",
-      "Troubleshooting"
+      "Learning objectives",
+      "A tenant boundary is an end-to-end path",
+      "Start with a written threat model",
+      "What sharing mechanisms contribute",
+      "Fairness is a policy, not an equal split",
+      "Production pattern: isolate the control plane from the data plane",
+      "Preemption and maintenance require workload consent",
+      "Evidence and audit design",
+      "Troubleshooting scenario 1: one tenant causes another tenant’s OOM or latency collapse",
+      "Troubleshooting scenario 2: a namespace can consume GPU capacity but cannot reach its model data",
+      "Scope controls by administrative plane",
+      "Image and runtime trust",
+      "Data, model, and telemetry boundaries"
     ],
-    "codeLanguages": []
+    "codeLanguages": [
+      "mermaid",
+      "text"
+    ]
   },
   "Chapter 09 — Capacity Planning and Chargeback": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Convert logical GPU allocations into physical capacity, service levels, and accountable cost models.",
+    "learningOutcome": "Translate shared-GPU demand into physical capacity, service classes, accountable consumption, and defensible rates.",
     "sections": [
       "Capacity Planning and Chargeback",
-      "Capacity Model",
-      "Headroom",
-      "Chargeback Principles",
-      "Customer Question"
+      "Learning objectives",
+      "A planning incident: the cluster that looked half empty",
+      "Capacity is a chain of constraints",
+      "Start with workload classes, not devices",
+      "A simple, auditable capacity model",
+      "Define reserve by failure domain",
+      "MIG planning: shape matters as much as count",
+      "Standardize layouts before pricing them",
+      "Fragmentation indicators worth reviewing",
+      "Time-slicing: plan for contention, not partitions",
+      "vGPU and VM-centric capacity",
+      "From measurement to forecast",
+      "Showback before chargeback"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3714,15 +3782,27 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 10 — Observability and SLOs for Shared GPUs": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Measure shared GPU health, contention, tenant experience, and service guarantees.",
+    "learningOutcome": "Connect GPU health, allocation state, tenant experience, and service objectives without confusing utilization for service quality.",
     "sections": [
       "Observability and SLOs for Shared GPUs",
-      "Metric Layers",
-      "SLO Examples",
-      "Troubleshooting",
-      "Production Advice"
+      "Learning objectives",
+      "The service that was green and still failing",
+      "The shared-GPU evidence path",
+      "Build three views, not one dashboard",
+      "The telemetry contract",
+      "Choose SLIs from the service promise",
+      "Error budgets without invented precision",
+      "Alerts must lead to a safe action",
+      "Correlation: reconstruct the tenant experience",
+      "Sharing-model-specific signals",
+      "MIG",
+      "Time-slicing",
+      "vGPU"
     ],
-    "codeLanguages": []
+    "codeLanguages": [
+      "mermaid",
+      "text"
+    ]
   },
   "Chapter 11 — Production Troubleshooting": {
     "volume": "Academy orientation",
@@ -3743,26 +3823,37 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 12 — Volume 11 Summary": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Consolidate the architecture and operational principles of GPU sharing.",
+    "learningOutcome": "Consolidate the architectural, operational, and decision-making principles of production GPU sharing.",
     "sections": [
       "Volume 11 Summary",
-      "Architecture Summary",
-      "Decision Sheet",
-      "Production Checklist",
-      "Interview Notes",
-      "Next Volume"
+      "Learning objectives",
+      "The end-to-end model",
+      "Mechanisms and their boundaries",
+      "Decision sequence",
+      "Production checklist",
+      "Common traps",
+      "Production recovery scenario",
+      "Review questions",
+      "Senior interview questions",
+      "Customer discussion prompts",
+      "Next volume"
     ],
-    "codeLanguages": []
+    "codeLanguages": [
+      "mermaid",
+      "text"
+    ]
   },
   "Volume 11 — GPU Sharing": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design safe multi-tenant GPU platforms with MIG, time-slicing, vGPU, quotas, scheduling, and production controls.",
+    "learningOutcome": "Design multi-tenant GPU platforms with clear guarantees for isolation, latency, capacity, and recovery.",
     "sections": [
       "Volume 11 — GPU Sharing",
-      "Big Picture",
-      "Chapters",
-      "Labs"
+      "The operating model",
+      "What this volume will and will not promise",
+      "Reading path",
+      "Labs",
+      "Success criteria"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3772,91 +3863,109 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Lab 01 — Configure and Validate MIG": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Configure a supported GPU for MIG, create a profile layout, validate isolation, and restore the baseline.",
+    "learningOutcome": "Safely apply, validate, and roll back a documented MIG layout on a disposable GPU node.",
     "sections": [
       "Lab 01 — Configure and Validate MIG",
       "1. Objective",
-      "2. Background",
+      "2. Production Story",
       "3. Learning Outcomes",
       "4. Architecture",
       "5. Prerequisites",
-      "6. Environment",
-      "7. Components",
-      "8. Deployment",
-      "9. Validation",
-      "10. Verification",
-      "11. Observability",
-      "12. Performance Measurements",
-      "13. Failure Injection"
+      "6. Safety and Change Boundaries",
+      "7. Environment and Variables",
+      "8. Components and Data Flow",
+      "9. Baseline Evidence",
+      "10. Drain and Isolate the Node",
+      "11. Apply the Approved MIG Layout",
+      "12. Validate Host Inventory and Kubernetes Advertisement",
+      "13. Validation Workload"
     ],
     "codeLanguages": [
       "mermaid",
       "text",
-      "bash"
+      "bash",
+      "yaml"
     ]
   },
   "Lab 02 — Configure Kubernetes GPU Time-Slicing": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Configure time-slicing on a test node, schedule multiple workloads, measure the difference between logical allocation and physical service, and restore the baseline.",
+    "learningOutcome": "Safely advertise GPU time-slicing replicas, validate logical scheduling, measure contention, and restore the baseline.",
     "sections": [
       "Lab 02 — Configure Kubernetes GPU Time-Slicing",
-      "Objective",
-      "Architecture",
-      "Prerequisites",
-      "Deployment",
-      "Validation",
-      "Verification",
-      "Observability",
-      "Performance Measurement",
-      "Failure Injection",
-      "Troubleshooting",
-      "Cleanup",
-      "Challenge"
+      "1. Objective",
+      "2. Production Story",
+      "3. Learning Outcomes",
+      "4. Architecture",
+      "5. Prerequisites",
+      "6. Safety and Change Boundaries",
+      "7. Environment and Variables",
+      "8. Components and Resource Semantics",
+      "9. Baseline and Node Isolation",
+      "10. Create an Explicit Policy",
+      "11. Select the Policy Through the Supported Control Plane",
+      "12. Deploy Bounded Validation Workloads",
+      "13. Verification and Acceptance Criteria"
     ],
     "codeLanguages": [
       "mermaid",
       "text",
-      "bash"
+      "bash",
+      "yaml"
     ]
   },
   "Lab 03 — Compare Sharing Performance and Isolation": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Run the same representative workload under whole-GPU, MIG, and time-sliced configurations and produce an evidence-based recommendation.",
+    "learningOutcome": "Compare whole-GPU, MIG, and time-sliced execution with a controlled workload and evidence-based service recommendation.",
     "sections": [
       "Lab 03 — Compare Sharing Performance and Isolation",
-      "Objective",
-      "Method",
-      "Architecture",
-      "Validation",
-      "Measurements",
-      "Failure Injection",
-      "Interpretation",
-      "Cleanup"
+      "1. Objective",
+      "2. Production Story",
+      "3. Learning Outcomes",
+      "4. Architecture",
+      "5. Prerequisites",
+      "6. Safety and Change Boundaries",
+      "7. Environment and Variables",
+      "8. Components and Data Flow",
+      "9. Test Plan and Acceptance Hypotheses",
+      "10. Baseline Inspection",
+      "11. Deploy the Benchmark",
+      "12. Validate Workload Identity",
+      "13. Verification and Acceptance Criteria"
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
+      "text",
+      "bash",
+      "yaml"
     ]
   },
   "Lab 04 — Troubleshoot a Multi-Tenant GPU Node": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Use a bottom-up incident workflow to diagnose a shared GPU node where one tenant reports Pending Pods and another reports latency spikes.",
+    "learningOutcome": "Use a layered, tenant-safe incident workflow to diagnose scheduling, sharing, runtime, and contention symptoms.",
     "sections": [
       "Lab 04 — Troubleshoot a Multi-Tenant GPU Node",
-      "Objective",
-      "Evidence Bundle",
-      "Diagnostic Order",
-      "Failure Injection",
-      "Resolution",
-      "Prevention",
-      "Cleanup"
+      "1. Objective",
+      "2. Production Story",
+      "3. Learning Outcomes",
+      "4. Architecture",
+      "5. Prerequisites",
+      "6. Safety and Incident Boundaries",
+      "7. Environment and Variables",
+      "8. Components and Triage Order",
+      "9. Preserve the Scene",
+      "10. Inspect Hardware and Sharing State",
+      "11. Inspect Scheduling and Policy",
+      "12. Deploy a Bounded Diagnostic Pod",
+      "13. Verification and Acceptance Criteria"
     ],
     "codeLanguages": [
+      "mermaid",
+      "text",
       "bash",
-      "text"
+      "yaml"
     ]
   },
   "Chapter 01 — Why Inference Infrastructure Is Different": {
