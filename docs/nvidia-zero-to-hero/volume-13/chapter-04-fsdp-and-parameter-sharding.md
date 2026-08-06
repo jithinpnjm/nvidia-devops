@@ -43,10 +43,10 @@ FSDP relies on "wrapping" PyTorch modules. Models should be wrapped at the layer
 | :--- | :--- | :--- |
 | **Memory Footprint** | Replicated | Divided by N |
 | **Communication** | `All-Reduce` | `All-Gather`, `Reduce-Scatter` |
-| **Communication Volume** | $2 	imes P$ bytes | $3 	imes P$ bytes |
+| **Communication Volume** | `$2 \times P$ bytes` | `$3 \times P$ bytes` |
 
 ## PRODUCTION: Scalability and Memory Math
-Even with FSDP, a 70B model with a large batch size might OOM due to activation memory. Activation Checkpointing is crucial. A 70B model requires $70B 	imes 12 	ext{ bytes} pprox 840 	ext{ GB}$. With N=8 GPUs, $840 / 8 = 105 	ext{ GB}$ per GPU, which still exceeds 80GB. Production scaling requires more nodes or offloading.
+Even with FSDP, a 70B model with a large batch size might OOM due to activation memory. Activation Checkpointing is crucial. A 70B model requires `$70B \times 12 \text{ bytes} \approx 840 \text{ GB}$`. With N=8 GPUs, `$840 / 8 = 105 \text{ GB}$` per GPU, which still exceeds 80GB. Production scaling requires more nodes or offloading.
 
 ## TROUBLESHOOTING: Failure Scenarios
 
@@ -68,126 +68,6 @@ fsdp_config = {
 
 <br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/>
 <br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
 <br/>
 <br/>
 <br/>
