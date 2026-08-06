@@ -329,6 +329,10 @@ Avoid a universal replica ratio.
 - Can responders correlate application impact with allocation and device evidence?
 - Is there a safe route to MIG or dedicated capacity?
 
+- Does the release validation include concurrent workload evidence?
+
+- Is the shared-pool policy visible to every service owner?
+
 1. Why does a request for two time-sliced replicas not promise twice the compute?
 2. Which signals prove a shared pool is overloaded?
 3. How do you prevent a protected deployment from reaching a best-effort pool?

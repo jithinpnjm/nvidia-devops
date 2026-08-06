@@ -286,6 +286,8 @@ It should include a change-controlled recovery path.
 - Does inventory report allocatable compatible profiles rather than aggregate free memory?
 - Is compatible maintenance and failure reserve available?
 
+- Can the request be fulfilled without a disruptive layout change?
+
 1. Why is aggregate free memory not a MIG capacity metric?
 2. What evidence belongs in a profile-sizing decision?
 3. When does dynamic reconfiguration justify its operational cost?
