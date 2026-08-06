@@ -4424,72 +4424,28 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash"
     ]
   },
-  "Chapter 01 — Why Distributed Training Exists": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand why model scale, dataset size, memory, and time-to-result require distributed training.",
-    "sections": [
-      "Why Distributed Training Exists",
-      "Learning Objectives",
-      "Why One GPU Becomes Insufficient",
-      "Parallelism Map",
-      "Scaling Efficiency",
-      "Production Story",
-      "Troubleshooting",
-      "Interview Questions"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 02 — Training Memory and Compute Anatomy": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Decompose training memory into parameters, gradients, optimizer state, activations, and temporary buffers.",
-    "sections": [
-      "Training Memory and Compute Anatomy",
-      "Memory Components",
-      "Training Step",
-      "Memory Reduction Techniques",
-      "Troubleshooting"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 03 — Data Parallelism and DDP": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand replicated models, gradient synchronization, bucketization, and DistributedDataParallel operations.",
-    "sections": [
-      "Data Parallelism and DDP",
-      "Sequence",
-      "Why DDP Works",
-      "Limits",
-      "Production Concerns",
-      "Troubleshooting"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
   "Chapter 04 — FSDP and Parameter Sharding": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
     "learningOutcome": "Understand parameter, gradient, and optimizer sharding with Fully Sharded Data Parallel.",
     "sections": [
-      "FSDP and Parameter Sharding",
-      "Conceptual Flow",
-      "Trade-off",
-      "Checkpointing",
-      "Troubleshooting"
+      "Chapter 04: FSDP and Parameter Sharding",
+      "The Core Concept: Sharding the State",
+      "Parameter Materialization Lifecycle",
+      "Wrapping Policies",
+      "Trade-off Analysis: FSDP vs DDP",
+      "Memory Math in FSDP",
+      "Scenario: 70B Model on 8x80GB A100s",
+      "Failure Scenarios",
+      "Scenario 1: CPU Offload Bottleneck",
+      "gpu pwr gtemp mtemp sm mem enc dec mclk pclk",
+      "Scenario 2: OOM During Checkpoint Save",
+      "Senior Interview Questions"
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
+      "text",
+      "python"
     ]
   },
   "Chapter 05 — DeepSpeed and ZeRO": {
@@ -4497,36 +4453,62 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
     "learningOutcome": "Understand ZeRO stages, optimizer and parameter partitioning, offload, and production lifecycle trade-offs.",
     "sections": [
-      "DeepSpeed and ZeRO",
-      "Offload",
-      "Production Design",
-      "Troubleshooting"
+      "Chapter 05: DeepSpeed and ZeRO",
+      "The ZeRO Stages Explained",
+      "ZeRO Stage 1: Optimizer State Partitioning",
+      "ZeRO Stage 2: Gradient Partitioning",
+      "ZeRO Stage 3: Parameter Partitioning",
+      "ZeRO Offloading",
+      "Trade-off Analysis: ZeRO Stages and Offload",
+      "Failure Scenarios",
+      "Scenario 1: ZeRO-3 Communication Hang",
+      "Running nvidia-smi on the nodes shows 100% GPU utilization but 0W power draw (stuck in a kernel).",
+      "Scenario 2: NVMe Offload Thrashing",
+      "Senior Interview Questions"
     ],
-    "codeLanguages": []
+    "codeLanguages": [
+      "mermaid",
+      "text"
+    ]
   },
   "Chapter 06 — Tensor, Pipeline, and Expert Parallelism": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
     "learningOutcome": "Partition model computation across devices and understand communication, bubbles, and load balance.",
     "sections": [
-      "Tensor, Pipeline, and Expert Parallelism",
-      "Comparison",
-      "Hybrid Parallelism",
-      "Production Risk",
-      "Troubleshooting"
+      "Chapter 06: Tensor, Pipeline, and Expert Parallelism",
+      "Tensor Parallelism (TP)",
+      "The Communication Topology",
+      "Pipeline Parallelism (PP)",
+      "The Bubble Problem",
+      "Expert Parallelism (EP)",
+      "Trade-off Analysis: 3D Parallelism",
+      "Failure Scenarios",
+      "Scenario 1: Inter-Node Tensor Parallelism",
+      "Scenario 2: Pipeline Bubble Starvation",
+      "Senior Interview Questions"
     ],
-    "codeLanguages": []
+    "codeLanguages": [
+      "mermaid",
+      "text"
+    ]
   },
   "Chapter 07 — Megatron-LM Architecture": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
     "learningOutcome": "Understand Megatron-style model parallelism, rank groups, data flow, and operational complexity.",
     "sections": [
-      "Megatron-LM Architecture",
-      "Rank Groups",
-      "Architecture Decisions",
-      "Production Operations",
-      "Troubleshooting"
+      "Chapter 07: Megatron-LM Architecture",
+      "The 3D Parallel Topology",
+      "1. Tensor Parallel (TP) Dimension",
+      "2. Pipeline Parallel (PP) Dimension",
+      "3. Sequence Parallelism (SP)",
+      "Trade-off Analysis: Megatron-LM vs. DeepSpeed ZeRO",
+      "Failure Scenarios",
+      "Scenario 1: Unbalanced Pipeline Stages",
+      "Scenario 2: The \"Hanging on Initialization\" Issue",
+      "... silence for 20 minutes ...",
+      "Senior Interview Questions"
     ],
     "codeLanguages": [
       "mermaid",
@@ -4539,10 +4521,19 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Understand all-reduce, reduce-scatter, all-gather, all-to-all, topology, and NCCL transport behavior.",
     "sections": [
       "NCCL Collectives and Communication Paths",
-      "Core Operations",
-      "Data Path",
-      "Verification",
-      "Troubleshooting"
+      "The Problem: Data Movement Bottlenecks",
+      "What is NCCL?",
+      "Core Collectives",
+      "Communication Topologies: Rings vs. Trees",
+      "Ring Topology",
+      "Tree Topology",
+      "Tradeoff: Ring vs. Tree",
+      "The Impact of PCIe vs NVLink",
+      "Check Your Understanding",
+      "Failure Scenarios",
+      "Scenario 1: NCCL Timeout (The Slowest Rank Problem)",
+      "Scenario 2: Unexpected Fallback to PCIe",
+      "Advanced NCCL Tuning"
     ],
     "codeLanguages": [
       "mermaid",
@@ -4553,14 +4544,22 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 09 — Checkpointing and Recovery": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design consistent, scalable checkpoints and prove restart behavior before production failure.",
+    "learningOutcome": "Explore checkpoint frequency optimization, asynchronous saving, distributed checkpoints, and recovery strategies.",
     "sections": [
       "Checkpointing and Recovery",
-      "Checkpoint Contents",
-      "Architecture",
-      "Trade-offs",
-      "Troubleshooting",
-      "Prevention"
+      "The Problem: The Inevitability of Failure",
+      "What is a Checkpoint?",
+      "Analogy: Video Game Save Points",
+      "Checkpoint Frequency Optimization",
+      "Tradeoff: Frequency vs Overhead",
+      "Distributed Checkpointing Architectures",
+      "Synchronous vs Asynchronous Checkpointing",
+      "Checkpoint Sharding (Distributed Checkpoints)",
+      "Check Your Understanding",
+      "Failure Scenarios",
+      "Scenario 1: Corrupted Checkpoint on Crash",
+      "Scenario 2: OOM During Asynchronous Checkpoint",
+      "Senior Interview Questions"
     ],
     "codeLanguages": [
       "mermaid",
@@ -4570,12 +4569,21 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 10 — Multi-Node Training Architecture": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design compute, fabric, storage, orchestration, and failure domains for production training clusters.",
+    "learningOutcome": "Understand multi-node topology, rail-optimized network designs, InfiniBand/RoCE, and node-level architecture.",
     "sections": [
       "Multi-Node Training Architecture",
-      "Architecture",
-      "Production Principles",
-      "Failure Domains"
+      "The Problem: Scaling Beyond a Single Box",
+      "Node-Level Architecture",
+      "Rail-Optimized Network Topology",
+      "Why Rail Optimization?",
+      "Network Transports: InfiniBand vs RoCE v2",
+      "Check Your Understanding",
+      "Failure Scenarios",
+      "Scenario 1: Suboptimal Routing (The Noisy Neighbor)",
+      "Scenario 2: GPU to NIC Affinity Mismatch",
+      "Senior Interview Questions",
+      "Glossary",
+      "Ready to Continue Checklist"
     ],
     "codeLanguages": [
       "mermaid",
@@ -4585,112 +4593,149 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 11 — Performance Engineering and Troubleshooting": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Decompose step time, diagnose stragglers, and resolve compute, communication, data, and checkpoint bottlenecks.",
+    "learningOutcome": "Learn how to measure MFU/HFU, profile NCCL, use Nsight Systems, and identify training bottlenecks.",
     "sections": [
       "Performance Engineering and Troubleshooting",
-      "Step-Time Model",
-      "Stragglers",
-      "Common Root Causes",
-      "Incident Workflow"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 12 — Volume 13 Summary": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Consolidate distributed training memory, parallelism, communication, recovery, and operations.",
-    "sections": [
-      "Volume 13 Summary",
-      "Architecture Summary",
-      "Quick Revision",
-      "Production Checklist"
-    ],
-    "codeLanguages": []
-  },
-  "Volume 13 — AI Training": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design and troubleshoot multi-GPU and multi-node training with DDP, FSDP, DeepSpeed, Megatron, NCCL, and checkpointing.",
-    "sections": [
-      "Volume 13 — AI Training",
-      "Big Picture",
-      "Chapters",
-      "Labs"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Lab 01 — Run Multi-GPU DDP Training": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Run a small approved PyTorch DDP workload across multiple GPUs, prove rank-to-device mapping, compare one- and multi-GPU throughput, and clean up.",
-    "sections": [
-      "Lab 01 — Run Multi-GPU DDP Training",
-      "Objective",
-      "Architecture",
-      "Prerequisites",
-      "Deployment",
-      "Validation",
-      "Performance",
-      "Failure Injection",
-      "Troubleshooting"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Lab 02 — Benchmark NCCL Collectives": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Establish a repeatable collective-communication baseline for one node and multiple nodes.",
-    "sections": [
-      "Lab 02 — Benchmark NCCL Collectives",
-      "Objective",
-      "Baseline",
-      "Benchmark",
-      "Validation",
-      "Failure Injection",
-      "Troubleshooting"
+      "The Problem: \"It's Too Slow\"",
+      "Key Metrics: MFU and HFU",
+      "Model Flops Utilization (MFU)",
+      "Hardware Flops Utilization (HFU)",
+      "Profiling the Stack",
+      "Level 1: System Metrics (Prometheus/Grafana)",
+      "Level 2: NCCL Profiling",
+      "Level 3: Micro-Profiling with Nsight Systems",
+      "Tradeoff: Batch Size vs Memory",
+      "Check Your Understanding",
+      "Failure Scenarios",
+      "Scenario 1: The Dataloader Bottleneck",
+      "Scenario 2: Severe Straggler"
     ],
     "codeLanguages": [
       "bash",
       "text"
     ]
   },
+  "Chapter 12 — Volume 13 Summary": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "A high-level recap of distributed training operations, networking, checkpointing, and performance.",
+    "sections": [
+      "Volume 13 Summary",
+      "The Journey So Far",
+      "Core Concepts Reviewed",
+      "Data Movement and NCCL",
+      "Architecture at Scale",
+      "Failure and Recovery",
+      "Performance Engineering",
+      "The Ops Perspective",
+      "Final Review Questions",
+      "Ready for the Next Volume"
+    ],
+    "codeLanguages": []
+  },
+  "Lab 01 — Run Multi-GPU DDP Training": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Launch a deterministic DDP job, validate rank mapping, throughput, and gradient synchronization.",
+    "sections": [
+      "Lab 01 — Run Multi-GPU DDP Training",
+      "1. Objective",
+      "2. Target Audience",
+      "3. Prerequisites",
+      "4. Architecture Diagram",
+      "5. Environment Setup",
+      "6. Execution Specifications",
+      "7. Expected Evidence",
+      "8. Explanation of Behavior",
+      "9. Performance Benchmarking",
+      "10. Common Failures",
+      "11. Safe Failure Injection",
+      "12. Recovery Steps",
+      "13. Troubleshooting Guide"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "bash"
+    ]
+  },
+  "Lab 02 — Benchmark NCCL Collectives": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Benchmark all-reduce across GPU counts and nodes, record topology, and identify degraded paths.",
+    "sections": [
+      "Lab 02 — Benchmark NCCL Collectives",
+      "1. Objective",
+      "2. Target Audience",
+      "3. Prerequisites",
+      "4. Architecture Diagram",
+      "5. Environment Setup",
+      "6. Execution Specifications",
+      "7. Expected Evidence",
+      "8. Explanation of Behavior",
+      "9. Performance Benchmarking",
+      "10. Common Failures",
+      "11. Safe Failure Injection",
+      "12. Recovery Steps",
+      "13. Troubleshooting Guide"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "bash"
+    ]
+  },
   "Lab 03 — Test Sharded Training with FSDP": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Run the same model with DDP and FSDP, compare peak memory and throughput, and validate a sharded checkpoint restore.",
+    "learningOutcome": "Compare DDP and FSDP memory, communication, checkpointing, and step time.",
     "sections": [
       "Lab 03 — Test Sharded Training with FSDP",
-      "Objective",
-      "Method",
-      "Measurements",
-      "Validation",
-      "Failure Injection",
-      "Cleanup"
+      "1. Objective",
+      "2. Target Audience",
+      "3. Prerequisites",
+      "4. Architecture Diagram",
+      "5. Environment Setup",
+      "6. Execution Specifications",
+      "7. Expected Evidence",
+      "8. Explanation of Behavior",
+      "9. Performance Benchmarking",
+      "10. Common Failures",
+      "11. Safe Failure Injection",
+      "12. Recovery Steps",
+      "13. Troubleshooting Guide"
     ],
-    "codeLanguages": []
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "bash"
+    ]
   },
   "Lab 04 — Recover a Distributed Training Job": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Prove that a distributed job can recover after a controlled rank or node failure without silently losing state.",
+    "learningOutcome": "Create, interrupt, and restore a multi-rank training job from a validated checkpoint.",
     "sections": [
       "Lab 04 — Recover a Distributed Training Job",
-      "Objective",
-      "Workflow",
-      "Observability",
-      "Failure Injection",
-      "Prevention"
+      "1. Objective",
+      "2. Target Audience",
+      "3. Prerequisites",
+      "4. Architecture Diagram",
+      "5. Environment Setup",
+      "6. Execution Specifications",
+      "7. Expected Evidence",
+      "8. Explanation of Behavior",
+      "9. Performance Benchmarking",
+      "10. Common Failures",
+      "11. Safe Failure Injection",
+      "12. Recovery Steps",
+      "13. Troubleshooting Guide"
     ],
-    "codeLanguages": []
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "bash"
+    ]
   },
   "Chapter 01 — Why NVIDIA AI Enterprise Exists": {
     "volume": "Academy orientation",
