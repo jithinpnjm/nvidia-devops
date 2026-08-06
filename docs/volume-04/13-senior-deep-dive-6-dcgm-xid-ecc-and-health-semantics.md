@@ -13,18 +13,39 @@ NVIDIA Data Center GPU Manager (DCGM) provides telemetry, diagnostics, health mo
 
 **Health evidence: preserve timestamps and device UUIDs**
 
+```bash
 nvidia-smi -q
-nvidia-smi --query-gpu=uuid,pci.bus\_id,temperature.gpu,power.draw,clocks.sm,memory.used,memory.total,ecc.errors.uncorrected.volatile.total --format=csv
+nvidia-smi --query-gpu=uuid,pci.bus_id,temperature.gpu,power.draw,clocks.sm,memory.used,memory.total,ecc.errors.uncorrected.volatile.total --format=csv
 
 dmesg -T | grep -iE 'NVRM|Xid|nvidia'
 # DCGM tooling if deployed
 dcgmi discovery -l
 dcgmi health -g 0 -c
 dcgmi diag -r 2
+```
 
 ## Senior addendum
 
 *(original text — DCGM as telemetry/diagnostics/health, the "Xid requires context" point, the health-evidence command list — preserved above.)*
+
+➕ **Annotated real output — the two `dcgmi` commands the health-evidence list names but Chapter 6 doesn't show (Chapter 6 only demonstrates `dcgmi diag -r 2`):**
+```
+$ dcgmi discovery -l
+1 GPU found.
++--------+----------------------------------------------------------------------+
+| GPU ID | Device Information                                                    |
++--------+----------------------------------------------------------------------+
+| 0      | Name: NVIDIA H100 80GB HBM3                                           |
+|        | PCI Bus ID: 00000000:1B:00.0                                          |
+|        | UUID: GPU-a1b2c3d4-5678-90ab-cdef-1234567890ab                       |
++--------+----------------------------------------------------------------------+
+$ dcgmi health -g 0 -c
+Health Monitor Report
++--------------------------------------------------------------------------+
+| Overall Health: Healthy                                                  |
++--------------------------------------------------------------------------+
+```
+`discovery -l` is the enumeration step — it tells you which GPU IDs DCGM can see and their UUID/bus-ID, which is what you correlate against a `dmesg` Xid line's `PCI:` address before you know *which* GPU to run diagnostics against. `health -g 0 -c` (`-g 0` = default group containing all GPUs, `-c` = check now) is a fast pass/fail gate — cheaper than `dcgmi diag -r 2` because it only reads already-tracked health state instead of running new hardware checks, so it belongs earlier in triage: `discovery` to find the device, `health -c` to get a fast verdict, `diag -r 2` only if `health` already flagged something or a workload symptom points at this GPU specifically.
 
 ➕ **Xid triage table — this is the genuinely new mechanism Deep Dive 6 names ("the Xid number, frequency, affected device, workload and recovery behavior determine the next action") but doesn't tabulate. Common Xid codes worth recognizing on sight:**
 | Xid | Common meaning | Typical next action |

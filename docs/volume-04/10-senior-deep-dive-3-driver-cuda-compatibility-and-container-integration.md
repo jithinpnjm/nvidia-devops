@@ -9,10 +9,11 @@ The NVIDIA kernel driver owns the device. User-space CUDA libraries and framewor
 
 **Prove each boundary separately**
 
-\# Host
+```bash
+# Host
 nvidia-smi
 modinfo nvidia | head
-ls -l /dev/nvidia\*
+ls -l /dev/nvidia*
 
 # Runtime integration (commands depend on installation)
 nvidia-ctk --version
@@ -21,10 +22,26 @@ find /var/run/cdi /etc/cdi -maxdepth 1 -type f 2>/dev/null
 # Container smoke test
 ctr -n k8s.io containers list | head
 # or run a vendor-supported CUDA container through your normal runtime
+```
 
 ## Senior addendum
 
 *(original text — driver ownership, user-space CUDA libraries, NVIDIA Container Toolkit, the host/runtime/container boundary-proving command sequence — preserved above; Chapter 3's enhanced content already has the layered-stack diagram and the annotated driver-vs-CUDA-version failure output.)*
+
+➕ **Annotated real output — the two commands in the boundary-proving list Chapter 3 doesn't demonstrate (`modinfo` and `ctr`):**
+```
+$ modinfo nvidia | head
+filename:       /lib/modules/6.8.0-generic/updates/dkms/nvidia.ko
+firmware:       nvidia/550.90.07/gsp_tu10x.bin
+firmware:       nvidia/550.90.07/gsp_ad10x.bin
+version:        550.90.07
+supported:      external
+license:        NVIDIA
+$ ctr -n k8s.io containers list | head
+CONTAINER    IMAGE                                        RUNTIME
+a1b2c3d4...  docker.io/nvidia/cuda:12.8.0-base-ubuntu24.04 io.containerd.runc.v2
+```
+`modinfo nvidia`'s `version:` line is the same driver version `nvidia-smi` reports, but read from the kernel module metadata directly — useful when `nvidia-smi` itself won't run (e.g. the userspace tool is missing or broken) but you still need to confirm which driver *is* loaded. `ctr -n k8s.io containers list` bypasses `kubectl`/`docker` entirely and asks containerd directly which containers exist in the `k8s.io` namespace (the one kubelet uses) — it's the lowest-level container smoke test, useful when you suspect the CRI shim or `docker`/`kubectl` client itself, rather than the GPU stack, is lying to you.
 
 ➕ **The one boundary this Deep Dive's command list names that Chapter 3 doesn't drill into — the CDI (Container Device Interface) spec files themselves:**
 ```

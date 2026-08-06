@@ -9,17 +9,32 @@ Topology is performance architecture. PCIe connects GPUs, NICs and CPUs through 
 
 **Topology evidence on a GPU node**
 
+```bash
 nvidia-smi topo -m
 nvidia-smi topo -p2p r
 nvidia-smi nvlink --status
 lspci -tv
 numactl --hardware
+```
 
 NIC locality matters for distributed jobs. GPUDirect RDMA is most effective when GPU and high-speed NIC placement avoids unnecessary CPU/socket crossings. CPU feeder threads, pinned memory, interrupts and storage traffic also interact with NUMA locality. Think of the node as a topology graph, not a bag of identical GPUs.
 
 ## Senior addendum
 
 *(original text — topology-as-performance-architecture, the topology evidence command list, NIC locality and GPUDirect RDMA — preserved above; Chapter 2's enhanced content already has the full topology diagram and annotated `nvidia-smi topo -m`/`numactl --hardware` output plus the NCCL-topology-mismatch worked scenario.)*
+
+➕ **Annotated real `lspci -tv` output — the one command in the evidence list neither Chapter 2 nor this Deep Dive's other additions show:**
+```
+$ lspci -tv
+-[0000:00]-+-00.0  Intel Corporation Device
+           +-01.0-[01]----00.0  NVIDIA Corporation GH100 [H100]
+           +-02.0-[02]----00.0  NVIDIA Corporation GH100 [H100]
+           +-03.0-[03-05]----00.0-[04-05]--+-00.0  PLX/Broadcom PEX8747 PCIe switch
+           |                               +-08.0  NVIDIA Corporation GH100 [H100]
+           |                               \-10.0  NVIDIA Corporation GH100 [H100]
+           \-1f.0  Intel Corporation Device
+```
+This is the raw physical PCIe tree that `nvidia-smi topo -m`'s NV/PHB/SYS matrix is *derived from* — `lspci -tv`'s indentation shows actual bus hierarchy: GPUs hanging directly off `03.0` share a PCIe switch (`04-05` bridge) and therefore a `PHB`-class path to each other, while a GPU on its own root port (`01.0`, `02.0`) has no switch to share. Reach for `lspci -tv` specifically when `topo -m`'s summary labels aren't enough to tell whether two `SYS`-labeled GPUs are merely on different root ports of the same CPU or genuinely on different sockets — the raw tree disambiguates what the matrix abbreviates.
 
 ➕ **The one command this Deep Dive names that Chapter 2 doesn't cover — `nvidia-smi topo -p2p r`, annotated:**
 ```
