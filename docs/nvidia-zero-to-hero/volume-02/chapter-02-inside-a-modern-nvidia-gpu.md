@@ -52,30 +52,40 @@ The GPU can be divided into a control-and-execution hierarchy and a memory-and-d
 ```mermaid
 flowchart TD
     Host[CPU and Host Memory]
-    Interconnect[PCIe or High-Speed Interconnect]
-    Frontend[Command Processor and Work Distribution]
-    SM1[Streaming Multiprocessor]
-    SM2[Streaming Multiprocessor]
-    SMN[Additional SMs]
-    L2[L2 Cache]
+    Interconnect["PCIe or High-Speed Interconnect<br/>evidence: nvidia-smi shows the process,<br/>PCIe LnkSta matches LnkCap"]
+    Frontend["Command Processor and Work Distribution<br/>evidence: kernel appears in nvidia-smi<br/>--query-compute-apps"]
+    SM1["Streaming Multiprocessor(s)<br/>evidence: dmon sm% rises"]
+    L2["L2 Cache<br/>evidence: profiler L2 hit rate"]
     Controllers[Memory Controllers]
-    HBM[Device Memory or HBM]
-    Copy[Copy Engines]
+    HBM["Device Memory or HBM<br/>evidence: dmon mem% and<br/>memory.used rise"]
+    Copy["Copy Engines<br/>evidence: separate copy-engine<br/>row in dmon/DCGM"]
 
     Host <--> Interconnect
     Interconnect --> Frontend
     Frontend --> SM1
-    Frontend --> SM2
-    Frontend --> SMN
     SM1 <--> L2
-    SM2 <--> L2
-    SMN <--> L2
     L2 <--> Controllers <--> HBM
     Copy <--> Interconnect
     Copy <--> HBM
+    SM1 --> Diag{"sm% high,<br/>mem% low?"}
+    Diag -->|"Yes"| ComputeBound["Compute-pipeline bound:<br/>profile which pipeline (FP/Tensor/LSU)"]
+    Diag -->|"No — mem% high too,<br/>or sm% low"| Check2{"mem% high,<br/>sm% low?"}
+    Check2 -->|"Yes"| MemBound["Memory-bandwidth bound:<br/>SM is stalled waiting on HBM"]
+    Check2 -->|"No — both low,<br/>spiky over time"| Starved["Launch/feed-starved:<br/>problem is upstream of the GPU"]
 ```
 
-**Figure 2.2.1 — Simplified GPU architecture.** Work arrives through the host interface, is distributed across Streaming Multiprocessors, and accesses device memory through shared cache and memory controllers.
+**Figure 2.2.1 — Simplified GPU architecture.** Work arrives through the host interface, is distributed across Streaming Multiprocessors, and accesses device memory through shared cache and memory controllers. Each arrow is labeled with the specific tool output that proves that hop is actually active, and the bottom branch turns the diagram into the same three-way split every "GPU is slow" ticket eventually reduces to: compute-bound, memory-bound, or starved before it ever reaches the device.
+
+**The evidence in practice — one `dmon` sample makes the diagnosis:**
+
+```text
+$ nvidia-smi dmon -s ucm -c 1
+# gpu   sm   mem   enc   dec   fb   bar1
+# Idx     %     %     %     %    MB     MB
+    0    97    22     0     0 41200    412
+```
+
+Reading this against the decision diagram above: `sm=97%` (compute pipelines busy) with `mem=22%` (memory subsystem comparatively idle) lands on the **compute-bound** branch — the fix is a faster or more efficient kernel, not more memory bandwidth. If those two numbers were reversed (`sm` low, `mem` high), the same diagram would point at memory-bandwidth-bound instead, and the fix would be data layout or reuse, not raw FLOPs.
 
 ## Streaming Multiprocessors
 
@@ -144,6 +154,8 @@ This creates a common trade-off:
 - Excessive register use can reduce concurrency.
 
 The correct balance depends on the kernel.
+
+**A worked residency calculation.** Take an SM with a 65,536 (64K) 32-bit register file and a maximum of 2,048 resident threads. If a kernel's compiler-reported register use is 32 registers/thread, the register file alone permits `65,536 / 32 = 2,048` resident threads — the full architectural maximum, register-limited exactly at the ceiling. Increase the kernel to 64 registers/thread (a plausible result of loop unrolling or caching more intermediate values) and the same register file now permits only `65,536 / 64 = 1,024` resident threads — occupancy relative to the architectural maximum is cut in half before any other resource is even considered. This is the concrete arithmetic behind the "small changes can cross allocation boundaries" warning above, and it's checkable directly from `nvcc -Xptxas=-v` output, which reports registers/thread per kernel at compile time.
 
 ## Shared Memory and L1 Cache
 
@@ -261,6 +273,34 @@ Possible causes include:
 :::warning
 A single utilization percentage cannot identify the limiting subsystem. Always correlate compute, memory, power, clocks, transfer activity, and application throughput.
 :::
+
+**Turning "high utilization, low throughput" into evidence.** The single most useful pairing for this symptom is `dmon`'s per-engine breakdown against application-level throughput measured over the same window:
+
+```text
+$ nvidia-smi dmon -s ucm -c 5
+# gpu   sm   mem   enc   dec   fb   bar1
+# Idx     %     %     %     %    MB     MB
+    0    94    91     0     0 68120    512
+    0    95    93     0     0 68120    512
+    0    93    90     0     0 68124    512
+    0    96    92     0     0 68120    512
+    0    94    91     0     0 68120    512
+```
+
+`sm=94-96%` and `mem=90-93%` sustained together, not just briefly, is the signature of a genuinely memory-bandwidth-saturated kernel: the SMs report busy because they are actively issuing memory requests, but they are largely stalled waiting on those requests to return, not performing FLOPs. Application throughput (tokens/s, samples/s) measured during this same window will be well below what the GPU's peak compute spec would suggest — and that gap is the actual proof for the table's first row ("Memory bandwidth saturation"), not the utilization number alone.
+
+**Turning "out-of-memory errors with free memory reported earlier" into evidence.** The per-process breakdown, taken right before the failure, distinguishes fragmentation from genuine growth:
+
+```text
+$ nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader
+78,850 MiB, 81,559 MiB
+
+$ nvidia-smi --query-compute-apps=pid,used_memory --format=csv,noheader
+22104, 39,200 MiB
+22188, 39,650 MiB
+```
+
+`78,850 / 81,559 MiB` (~97%) allocated, split almost evenly across two processes, each near 39GB, leaves under 3GiB of headroom — the next allocation (a new request's KV cache, a growing activation buffer) has nowhere to go and fails with an out-of-memory error even though the failure "appeared" only under concurrent load, when both processes' memory grew at the same time. This is the concrete pattern behind "Concurrent model replicas" and "Activation or KV-cache expansion" in the table above.
 
 ## Customer Scenario
 
