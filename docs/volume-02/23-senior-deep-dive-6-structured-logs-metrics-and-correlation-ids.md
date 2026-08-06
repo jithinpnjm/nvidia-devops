@@ -9,20 +9,21 @@ A production tool should explain what it did without a debugger. Log events, not
 
 **Minimal structured logger**
 
-    import json, logging, time, uuid
+```python
+import json, logging, time, uuid
 
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
-        payload = &#123;
+        payload = {
             "ts": time.time(),
             "level": record.levelname,
             "message": record.getMessage(),
             "logger": record.name,
-            "correlation\_id": getattr(record, "correlation\_id", None),
+            "correlation_id": getattr(record, "correlation_id", None),
             "node": getattr(record, "node", None),
-        &#125;
-        if record.exc\_info:
-            payload\["exception"\] = self.formatException(record.exc\_info)
+        }
+        if record.exc_info:
+            payload["exception"] = self.formatException(record.exc_info)
         return json.dumps(payload, separators=(",", ":"))
 
 handler = logging.StreamHandler()
@@ -31,8 +32,9 @@ log = logging.getLogger("fleetcheck")
 log.addHandler(handler); log.setLevel(logging.INFO)
 
 cid = str(uuid.uuid4())
-log.info("gpu check started", extra=&#123;"correlation\_id": cid,
-                                     "node": "gpu-node-07"&#125;)
+log.info("gpu check started", extra={"correlation_id": cid,
+                                     "node": "gpu-node-07"})
+```
 
 ## Senior addendum
 

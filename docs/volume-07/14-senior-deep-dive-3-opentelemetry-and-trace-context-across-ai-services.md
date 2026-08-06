@@ -13,15 +13,17 @@ Traces become valuable when a user request spans gateway, retrieval, reranking, 
 
 ➕ **Agentic fan-out, visualized — why "trace the request" becomes "trace the tree" for agentic systems:**
 
-```text
-user_request (trace_id=X)
-agent_planning_span
-tool_call_1 (web_search)
-tool_call_2 (calculator) fan-out: 3 parallel children,
-tool_call_3 (retrieval, RETRY x2) one with retries nested under it
-retry_attempt_1 (failed, timeout)
-retry_attempt_2 (succeeded)
-final_synthesis_span
+```mermaid
+flowchart TD
+    R["user_request (trace_id=X)"] --> P["agent_planning_span"]
+    P --> T1["tool_call_1 (web_search)"]
+    P --> T2["tool_call_2 (calculator)"]
+    P --> T3["tool_call_3 (retrieval)"]
+    T3 --> RT1["retry_attempt_1 (failed, timeout)"]
+    T3 --> RT2["retry_attempt_2 (succeeded)"]
+    T1 --> S["final_synthesis_span"]
+    T2 --> S
+    RT2 --> S
 ```
 
-A single user action becoming "dozens of downstream operations" (the original text's own phrase) means the waterfall from Ch.7 — a linear sequence — is the wrong mental picture for agentic tracing; it's a **tree**, and retries specifically must nest as children of the operation they're retrying, not as siblings, or the trace misrepresents causality (it would look like 3 independent retrieval attempts instead of 1 operation that needed 2 tries).
+Three parallel children fan out from `agent_planning_span`, and `tool_call_3`'s two attempts nest as *its own children* rather than as siblings of `tool_call_1`/`tool_call_2`. A single user action becoming "dozens of downstream operations" (the original text's own phrase) means the waterfall from Ch.7 — a linear sequence — is the wrong mental picture for agentic tracing; it's a **tree**, and retries specifically must nest as children of the operation they're retrying, or the trace misrepresents causality (it would look like 3 independent retrieval attempts instead of 1 operation that needed 2 tries).

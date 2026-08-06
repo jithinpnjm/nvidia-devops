@@ -9,7 +9,8 @@ Authentication answers who; authorization answers whether that identity may perf
 
 **Policy evidence**
 
-\# Can this identity perform the action?
+```bash
+# Can this identity perform the action?
 kubectl auth can-i create pods --as=system:serviceaccount:team-a:builder -n team-a
 
 # Namespace Pod Security Admission example
@@ -18,6 +19,19 @@ kubectl label ns team-a pod-security.kubernetes.io/enforce=restricted
 # Inspect admission webhooks and policies
 kubectl get validatingwebhookconfigurations,mutatingwebhookconfigurations
 kubectl get validatingadmissionpolicies,validatingadmissionpolicybindings
+```
+
+```text
+$ kubectl auth can-i create pods --as=system:serviceaccount:team-a:builder -n team-a
+yes
+
+$ kubectl get validatingwebhookconfigurations,mutatingwebhookconfigurations
+NAME                                            WEBHOOKS   AGE
+validatingwebhookconfiguration.../vap-guard     1          40d
+mutatingwebhookconfiguration.../sidecar-inject  1          40d
+```
+
+`kubectl auth can-i` runs the same RBAC decision the API server would make, without actually attempting the action — `--as=system:serviceaccount:team-a:builder` impersonates that ServiceAccount specifically, which is how you audit "what can this workload identity do" without needing its token. A `yes`/`no` answer here is authoritative for RBAC only — a `yes` doesn't mean the request will succeed, because admission (mutating/validating webhooks, PSA, ValidatingAdmissionPolicy) still runs afterward and can still reject it; this command answers "may this identity attempt the verb," not "will the object be accepted." `kubectl label ns ... pod-security.kubernetes.io/enforce=restricted` sets the namespace-level Pod Security Standard that PSA checks every Pod create/update against, with no separate policy object required. The two `kubectl get` commands enumerate every webhook and every ValidatingAdmissionPolicy/binding active on the cluster — worth running before debugging a mysterious rejection, since the actual reason is often an object here rather than RBAC.
 
 ## Senior addendum
 

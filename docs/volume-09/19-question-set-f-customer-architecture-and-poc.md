@@ -18,17 +18,15 @@ source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 ## ➕ Additions
 
 ➕ **Diagram: the GPU-sizing discovery funnel (never size from a GPU count alone):**
-```text
-'We want N GPUs for an LLM platform'
-CLARIFY: training, fine-tuning, inference, or a mix?
-Inference Training
-model sizes, largest distributed job's GPU count;
-peak concurrency, is it latency-sensitive to collective
-TTFT vs throughput performance (needs one fast fabric)?
-priority?
-Timeline + existing GPU operations experience
-(changes the recommendation as much as the workload does)
-Only NOW size the platform — never from '32 GPUs' alone
+```mermaid
+flowchart TD
+  Ask["'We want N GPUs for an LLM platform'"]
+  Ask --> Clarify{"CLARIFY: training, fine-tuning,\ninference, or a mix?"}
+  Clarify -->|"inference"| Inf["model sizes; peak concurrency;\nTTFT vs throughput priority?"]
+  Clarify -->|"training"| Train["largest distributed job's GPU count;\nis it latency-sensitive to collective\nperformance (needs one fast fabric)?"]
+  Inf --> Timeline["Timeline + existing GPU operations experience\n(changes the recommendation as much as the workload does)"]
+  Train --> Timeline
+  Timeline --> Size["Only NOW size the platform —\nnever from '32 GPUs' alone"]
 ```
 
 ➕ **Annotated sample discovery transcript — "we need 32 H100-class GPUs for an LLM platform," narrated with WHY each question is asked:**

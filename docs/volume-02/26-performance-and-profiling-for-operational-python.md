@@ -9,10 +9,12 @@ Do not optimize syntax before measuring. First identify whether time is spent in
 
 **Measure before optimizing**
 
+```bash
 python -m cProfile -s cumulative -m fleetcheck.cli report
 python -X tracemalloc=25 -m fleetcheck.cli report
 # external sampler if available:
-py-spy top --pid &lt;PID>
+py-spy top --pid <PID>
+```
 
 ## Senior addendum
 

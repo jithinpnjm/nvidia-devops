@@ -335,6 +335,15 @@ if torch.cuda.is_available():
     run("cuda")
 ```
 
+Representative output on a machine with one GPU available:
+
+```text
+cpu (2048, 2048) 0.0891s
+cuda (2048, 2048) 0.0043s
+```
+
+Two things to notice, not just the raw speedup. First, `0.0043s` is measured *after* `torch.cuda.synchronize()` returns — without that call, `c = a @ b` on a CUDA device only queues the multiply and returns immediately, so an unsynchronized timer would report a near-zero, meaningless number (the launch overhead, not the compute). Second, the GPU number already reflects several fixed costs (context/driver initialization, kernel launch overhead) that dominate for a matrix this small — the ~20x ratio here is not a general "GPU is 20x faster" claim, it moves as `size` grows, since larger matrices amortize those fixed costs and expose more of the raw compute advantage.
+
 Why synchronize? GPU operations are commonly asynchronous with respect to the host. Without synchronization, the timer may measure submission rather than completed work.
 
 Do not publish this as a benchmark. The result depends on hardware, software, warm-up, matrix size, precision and many other factors. Its teaching purpose is to expose host/device placement and asynchronous execution.

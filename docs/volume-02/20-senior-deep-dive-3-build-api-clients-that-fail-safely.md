@@ -13,48 +13,50 @@ Remote APIs fail in several distinct ways: DNS/connect timeout, TLS failure, rea
 
 **Resilient GET client: bounded retries, timeout tuple and full jitter**
 
-from \_\_future\_\_ import annotations
-    import random, time
+```python
+from __future__ import annotations
+import random, time
 from dataclasses import dataclass
-    import requests
+import requests
 
 @dataclass(frozen=True)
 class RetryPolicy:
     attempts: int = 4
-    base\_delay\_s: float = 0.25
-    max\_delay\_s: float = 4.0
+    base_delay_s: float = 0.25
+    max_delay_s: float = 4.0
 
 class JsonApi:
-    def \_\_init\_\_(self, base\_url: str, token: str, policy: RetryPolicy):
-        self.base\_url = base\_url.rstrip("/")
+    def __init__(self, base_url: str, token: str, policy: RetryPolicy):
+        self.base_url = base_url.rstrip("/")
         self.policy = policy
         self.session = requests.Session()
-        self.session.headers.update(&#123;"Authorization": f"Bearer &#123;token&#125;"&#125;)
+        self.session.headers.update({"Authorization": f"Bearer {token}"})
 
     def get(self, path: str) -> dict:
-        last\_error: Exception | None = None
+        last_error: Exception | None = None
         for attempt in range(self.policy.attempts):
             try:
                 r = self.session.get(
-                    self.base\_url + path,
+                    self.base_url + path,
                     timeout=(2.0, 8.0),
                 )
-                if r.status\_code == 429 or 500 &lt;= r.status\_code &lt; 600:
-                    raise requests.HTTPError(f"retryable &#123;r.status\_code&#125;", response=r)
-                r.raise\_for\_status()
+                if r.status_code == 429 or 500 <= r.status_code < 600:
+                    raise requests.HTTPError(f"retryable {r.status_code}", response=r)
+                r.raise_for_status()
                 payload = r.json()
                 if not isinstance(payload, dict):
                     raise ValueError("expected JSON object")
                 return payload
             except (requests.Timeout, requests.ConnectionError,
                     requests.HTTPError) as exc:
-                last\_error = exc
+                last_error = exc
                 if attempt == self.policy.attempts - 1:
                     break
-                cap = min(self.policy.max\_delay\_s,
-                          self.policy.base\_delay\_s \* 2\*\*attempt)
+                cap = min(self.policy.max_delay_s,
+                          self.policy.base_delay_s * 2**attempt)
                 time.sleep(random.uniform(0, cap))
-        raise RuntimeError("API request exhausted retries") from last\_error
+        raise RuntimeError("API request exhausted retries") from last_error
+```
 
 A senior engineer also thinks about budgets. If a CLI checks 500 nodes and each call can wait 8 seconds with four retries, the worst-case runtime is unacceptable. Bound concurrency, set a global deadline, cache immutable responses when appropriate, and expose retry counts and latency in logs/metrics.
 

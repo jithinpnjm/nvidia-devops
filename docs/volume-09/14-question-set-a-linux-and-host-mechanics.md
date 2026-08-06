@@ -28,17 +28,18 @@ source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 > **Conclusion:** "70% full" from `df -h` and "writes fail" are only connected through one of at least three distinct mechanisms (inodes, RO remount, reserved blocks) — never assume block-capacity is the story just because a percentage is quoted.
 
 ➕ **Diagram: "disk has free space, writes still fail" — the three-branch check:**
-```text
-`df -h` shows free space, but write fails with ENOSPC/EROFS
-`df -i` — inodes exhausted (IUse% 100%)?
-no
-`dmesg | grep remount-ro` — filesystem forced read-only
-after an earlier error?
-`tune2fs -l` — reserved-blocks percentage (~5% default)
-eating the 'free' space for non-root writers?
-Whichever branch matches is the actual mechanism —
-never assume block-capacity from `df -h` alone
+```mermaid
+flowchart TD
+  Start["df -h shows free space, but write fails with ENOSPC/EROFS"]
+  Start --> Inode{"df -i: inodes exhausted (IUse% 100%)?"}
+  Inode -->|"yes"| InodeFix["Mechanism: inode table full — free blocks, zero free inodes.\nFind and remove/rotate the runaway small-file source."]
+  Inode -->|"no"| RO{"dmesg | grep remount-ro: filesystem forced read-only after an earlier error?"}
+  RO -->|"yes"| ROFix["Mechanism: FS-level fault remounted the volume RO.\nFix the underlying disk/FS error, then remount rw."]
+  RO -->|"no"| Reserve{"tune2fs -l: reserved-blocks percentage (~5% default) eating the 'free' space for non-root writers?"}
+  Reserve -->|"yes"| ReserveFix["Mechanism: ext-family reserves ~5% of blocks for root.\ndf shows it as used, but a non-root writer can't touch it."]
+  Reserve -->|"no"| Other["Re-check the actual errno and mount options — something\nnarrower than these three common cases (quota, ACL, SELinux)"]
 ```
+Whichever branch matches is the actual mechanism — never assume block-capacity is the story just because `df -h` quotes a percentage.
 
 ## Practice
 ➕ 7. Fill an inode table on a scratch filesystem (`for i in $(seq 1 200000); do touch /mnt/scratch/f$i; done` on a small filesystem) and reproduce ENOSPC with free blocks still showing — narrate the `df -i` evidence out loud.

@@ -9,7 +9,8 @@ Trace north-south and east-west traffic explicitly. A Service is an API abstract
 
 **Network triage follows the actual packet path**
 
-\# Service -> EndpointSlice -> Pod
+```bash
+# Service -> EndpointSlice -> Pod
 kubectl get svc mysvc -o yaml
 kubectl get endpointslice -l kubernetes.io/service-name=mysvc -o yaml
 kubectl get pod -l app=myapp -o wide
@@ -22,6 +23,20 @@ kubectl exec deploy/client -- getent hosts mysvc.default.svc.cluster.local
 ip route
 ip neigh
 nft list ruleset | head -100
+```
+
+```text
+$ kubectl get endpointslice -l kubernetes.io/service-name=mysvc -o yaml
+endpoints:
+- addresses: ["10.244.1.7"]
+  conditions: {ready: true, serving: true, terminating: false}
+  targetRef: {kind: Pod, name: myapp-7d9f-abcde}
+
+$ kubectl exec deploy/client -- getent hosts mysvc.default.svc.cluster.local
+10.96.11.4      mysvc.default.svc.cluster.local
+```
+
+The EndpointSlice is the ground truth for "does the Service actually have somewhere to send traffic" — a Service with correct selectors but zero `ready: true` addresses here means the problem is upstream (Pod not passing readiness), not in the Service/networking layer at all; `terminating: false` matters because a draining Pod stays listed briefly with `terminating: true` so in-flight connections finish. `ip route` / `ip neigh` show the node's own routing table and ARP/neighbor cache — useful for confirming a Pod's overlay/underlay route actually exists on this specific node, since CNI misconfiguration is often per-node, not cluster-wide. `nft list ruleset | head -100` dumps the nftables rules a kube-proxy (or eBPF equivalent) has programmed for Service DNAT; `head -100` caps the output since a cluster with many Services can generate thousands of rule lines. `getent hosts` resolves the same way the application inside the container would, confirming CoreDNS is both reachable and returning the expected ClusterIP — if this fails but `kubectl get svc` shows a ClusterIP, the fault is in DNS, not the Service object itself.
 
 Gateway API is replacing many ad-hoc Ingress patterns with a more expressive role-oriented model. AI inference adds model-aware routing concerns such as cache locality, request criticality and token-aware metrics; the Gateway API Inference Extension exists because ordinary HTTP round-robin is often insufficient for long-running, stateful-ish LLM serving requests.
 

@@ -14,7 +14,7 @@ Run:ai and similar workload managers add scheduling and allocation capabilities 
 ➕ **Cross-reference:** Chapter 5's enhanced version already derives the full autoscaling control-loop diagram, the model-load-lifecycle box, a KEDA/HPA output sample, and the GPU-utilization-thrashing worked scenario — this Deep Dive's genuinely new content vs. Chapter 5 is Run:ai / fractional GPU scheduling as a named lever, expanded below.
 
 ➕ **Fractional GPU scheduling as a TCO lever, and the tenancy tradeoff it reintroduces from Chapter 8:**
-```
+```text
 Whole-GPU-per-replica:        Run:ai / fractional scheduling:
   1 replica = 1 GPU,             N replicas time-share or MIG-share
   simple accounting,              1 GPU, higher utilization/lower
@@ -40,7 +40,7 @@ flowchart TD
 This is the mechanism behind "predictive capacity, warm pools and staged rollout may outperform reactive HPA alone" — the multi-minute model-load lead time from Chapter 5's lifecycle box means a purely reactive loop is structurally unable to keep up with a fast ramp, no matter how well the trigger threshold is tuned.
 
 ➕ **Diagram: isolation guarantee vs. packing density, the tradeoff Run:ai reintroduces**
-```
+```text
              low density                                high density
              (whole-GPU)                              (time-sliced fractional)
 Isolation:   ████████████ strong                       ░░░░░░░░░░░░ weak

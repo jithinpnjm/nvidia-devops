@@ -17,19 +17,15 @@ Measure the application data loader. GPU starvation may be caused by CPU decode/
 
 ➕ **This Deep Dive is the mechanism-level companion to Chapter 6's pattern table — cross-reference rather than re-deriving: Chapter 6's checkpoint-write-path and dataset-fetch-path diagrams, `nvidia-smi dmon` + `iostat` correlation technique, and model-startup fleet-wide-event scenario are the concrete, tool-level version of this Deep Dive's "measure the application data loader" instruction. If this Deep Dive comes up in an interview, answer with Chapter 6's specific commands and numbers, not just this Deep Dive's prose.**
 
-➕ **Diagram: the tiering tradeoff — capacity/throughput/IOPS/durability, plotted against the stack**
-```text
-throughput/IOPS (per GB) durability capacity ($/GB)
-Local NVMe highest lowest smallest, cheapest per node
-node-local failure domain
-Parallel FS / high, shared durable mid-size, mid-cost
-shared store across many clients (replicated/ shared failure domain
-erasure-coded)
-Object store lowest per-op highest largest, cheapest per GB
-(higher latency, durability
-great for fan-out) (multi-AZ/region)
-```
-Reading this top-to-bottom is reading the exact tradeoff Figure B is illustrating: every tier down trades per-operation speed for capacity and durability — which is why the tiering model never picks one tier for everything, it routes each access pattern (hot scratch, active shared dataset, cold durable archive) to the tier whose column actually matches that pattern's requirement.
+➕ **Table: the tiering tradeoff — capacity/throughput/IOPS/durability, plotted against the stack**
+
+| Tier | Throughput/IOPS per GB | Durability | Capacity / cost ($/GB) | Failure domain |
+|---|---|---|---|---|
+| Local NVMe | Highest | Lowest — no replication | Smallest, cheapest per node | Node-local: dies with the node |
+| Parallel FS / shared store | High | Durable (replicated / erasure-coded) | Mid-size, mid-cost | Shared, survives a single node loss |
+| Object store | Lowest per-op (higher latency, great for fan-out) | Highest | Largest, cheapest per GB | Multi-AZ/region |
+
+Reading this table top-to-bottom is reading the exact tradeoff Figure B is illustrating: every tier down trades per-operation speed for capacity and durability — which is why the tiering model never picks one tier for everything, it routes each access pattern (hot scratch, active shared dataset, cold durable archive) to the tier whose column actually matches that pattern's requirement.
 
 ➕ **The one genuinely new framing here: "local NVMe is a node-local failure domain," made concrete.**
 ```text

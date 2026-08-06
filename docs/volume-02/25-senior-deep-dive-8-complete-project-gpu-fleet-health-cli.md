@@ -9,11 +9,12 @@ Build one tool that combines the concepts: discover GPU nodes, query Kubernetes 
 
 **Recommended production package shape**
 
-\# package layout
+```text
+# package layout
 fleetcheck/
   pyproject.toml
   src/fleetcheck/
-    \_\_init\_\_.py
+    __init__.py
     cli.py          # argparse/click/typer boundary
     model.py        # dataclasses / enums
     kubernetes.py   # K8s API adapter
@@ -22,12 +23,14 @@ fleetcheck/
     classify.py     # pure health decisions
     report.py       # table/json output
   tests/
-    test\_classify.py
-    test\_gpu\_parser.py
-    test\_retry.py
+    test_classify.py
+    test_gpu_parser.py
+    test_retry.py
+```
 
 **Keep health policy pure and explicit; UNKNOWN is not HEALTHY**
 
+```python
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -40,19 +43,20 @@ class Health(StrEnum):
 @dataclass(frozen=True)
 class GpuSample:
     uuid: str
-    temperature\_c: int | None
-    power\_w: float | None
-    xid\_errors: int | None
+    temperature_c: int | None
+    power_w: float | None
+    xid_errors: int | None
 
 
-def classify\_gpu(s: GpuSample) -> Health:
-    if s.xid\_errors is None or s.temperature\_c is None:
+def classify_gpu(s: GpuSample) -> Health:
+    if s.xid_errors is None or s.temperature_c is None:
         return Health.UNKNOWN
-    if s.xid\_errors > 0:
+    if s.xid_errors > 0:
         return Health.FAILED
-    if s.temperature\_c >= 85:
+    if s.temperature_c >= 85:
         return Health.DEGRADED
     return Health.HEALTHY
+```
 
 ## Senior addendum
 

@@ -9,23 +9,25 @@ For infrastructure work, most concurrency is I/O concurrency: querying many APIs
 
 **Bounded fan-out for infrastructure checks**
 
-from concurrent.futures import ThreadPoolExecutor, as\_completed
+```python
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-def inspect\_node(name: str) -> tuple\[str, dict\]:
+def inspect_node(name: str) -> tuple[str, dict]:
     # bounded network/subprocess checks live here
-    return name, &#123;"ok": True&#125;
+    return name, {"ok": True}
 
-nodes = \[f"gpu-node-&#123;i:03d&#125;" for i in range(200)\]
-results: dict\[str, dict\] = &#123;&#125;
-with ThreadPoolExecutor(max\_workers=16) as pool:
-    futures = &#123;pool.submit(inspect\_node, n): n for n in nodes&#125;
-    for future in as\_completed(futures):
-        node = futures\[future\]
+nodes = [f"gpu-node-{i:03d}" for i in range(200)]
+results: dict[str, dict] = {}
+with ThreadPoolExecutor(max_workers=16) as pool:
+    futures = {pool.submit(inspect_node, n): n for n in nodes}
+    for future in as_completed(futures):
+        node = futures[future]
         try:
             name, report = future.result(timeout=20)
-            results\[name\] = report
+            results[name] = report
         except Exception as exc:
-            results\[node\] = &#123;"ok": False, "error": str(exc)&#125;
+            results[node] = {"ok": False, "error": str(exc)}
+```
 
 ## Senior addendum
 

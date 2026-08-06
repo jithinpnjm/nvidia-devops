@@ -17,6 +17,8 @@ kubectl get pod <pod> -o yaml
 kubectl describe node <node>
 ```
 
+`get events --sort-by=.lastTimestamp` lists every object-level event in the namespace (scheduling decisions, probe failures, image pulls) ordered oldest-to-newest, so you can read the cluster's own timeline of what it did to the Pod — `--sort-by` takes any field path from the returned objects, and `.lastTimestamp` is the field that makes chronological order actually chronological (unsorted `kubectl get events` output is insertion order, not time order). `get pod <pod> -o yaml` dumps the Pod's full spec and status as YAML (`-o yaml` selects the output format) — use it when you need fields `describe` doesn't surface, such as exact resource requests/limits or the full `status.conditions` array. `describe node <node>` shows the node's allocatable capacity, current allocated resources, taints and recent node-level events — the source to check when a Pod is `Pending` and you suspect the node itself, not the Pod spec, is the constraint. The worked example below shows `describe pod` events output annotated field by field; the same reading discipline applies to all three commands here.
+
 ➕ **"Choose the data source that owns the fact" — a lookup table because this line is the whole chapter compressed, and it's exactly what an interviewer is checking you can produce on demand:**
 | Fact you need | Owning data source | Why the wrong source fails you |
 |---|---|---|
@@ -27,7 +29,7 @@ kubectl describe node <node>
 | Why did a node go NotReady | node conditions + kubelet/journal logs | Pod-level events on that node will lag or vanish once the node stops reporting |
 
 ➕ **Sample `kubectl describe pod` events output, annotated field by field (the pattern this volume's Chapter 9 incident playbook depends on):**
-```
+```text
 $ kubectl describe pod inference-worker-7f9c-xk2p1
 ...
 Events:

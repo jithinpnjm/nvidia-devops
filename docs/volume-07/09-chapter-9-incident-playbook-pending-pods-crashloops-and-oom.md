@@ -21,7 +21,7 @@ source_document: "Volume_07_Observability,_Reliability_and_Troubleshooting(2).do
 **Conclusion:** Pending is a desired placement problem; start with scheduler evidence, not container logs.
 
 ➕ **Sample `kubectl describe pod` output for a GPU-specific Pending case, annotated (the event message that actually names the constraint):**
-```
+```text
 $ kubectl describe pod gpu-train-job-9f2a
 ...
 Events:
@@ -94,18 +94,15 @@ flowchart TD
 Every lap of this loop erases the previous container instance's live process — `kubectl logs -p` is the only window onto the lap that just ended, which is exactly why step 2 calls it out explicitly rather than assuming `kubectl logs` (no `-p`) is good enough.
 
 ➕ **Shortcut — the exit-code decoder every senior SRE should have memorized cold:**
-```text
-exitCode 0
-clean exit (shouldn't be in CrashLoopBackOff at all — check the app's own restart logic)
-exitCode 1
-generic app error (check logs -p for the actual message)
-exitCode 137
-128+9 = SIGKILL — OOMKilled (check reason field) or manual kill -9 / eviction
-exitCode 143
-128+15 = SIGTERM — graceful shutdown signal received (check if it handled it correctly)
-exitCode 139
-128+11 = SIGSEGV — segfault, usually native code/library issue, not 'the app decided to exit'
-```
+
+| Exit code | Decode | What it means |
+|---|---|---|
+| `0` | clean exit | shouldn't be in CrashLoopBackOff at all — check the app's own restart logic |
+| `1` | generic app error | check `logs -p` for the actual message |
+| `137` | 128+9 = SIGKILL | OOMKilled (check `reason` field) or manual `kill -9` / eviction |
+| `143` | 128+15 = SIGTERM | graceful shutdown signal received (check if it handled it correctly) |
+| `139` | 128+11 = SIGSEGV | segfault, usually native code/library issue, not "the app decided to exit" |
+
 **Mnemonic:** *subtract 128 from any exit code ≥128 and you get the signal number.*
 
 ➕ **Worked scenario — OOMKilled vs CUDA OOM, the distinction Chapter 11's own Practice question 3 asks you to articulate, worked end to end here:**
