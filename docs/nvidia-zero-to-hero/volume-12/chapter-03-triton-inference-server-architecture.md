@@ -420,7 +420,7 @@ perf_analyzer -m transformer_enc -u localhost:8001 -i gRPC --concurrency-range 1
 ### Question 2: "Explain the interaction between Triton's `max_batch_size` in `config.pbtxt` and the underlying TensorRT engine's profile dimensions. What happens if a request arrives exceeding the max batch size?"
 
 **Model Answer:**  
-- **`max_batch_size` in `config.pbtxt`:** Specifies Triton's server-level batching ceiling. If set to > 0, Triton prepends an implicit batch dimension (Dimension 0) to all input/output tensor signatures.
+- **`max_batch_size` in `config.pbtxt`:** Specifies Triton's server-level batching ceiling. If set to &gt; 0, Triton prepends an implicit batch dimension (Dimension 0) to all input/output tensor signatures.
 - **TensorRT Optimization Profile:** Specifies the exact hardware execution envelope (`min`, `opt`, `max` shape bounds) compiled into the `.plan` binary file (e.g., `batch_dim: min=1, opt=16, max=64`).
 - **Interaction Rules:**
   1. Triton's `max_batch_size` MUST BE less than or equal to the TensorRT engine's `max` profile batch dimension.

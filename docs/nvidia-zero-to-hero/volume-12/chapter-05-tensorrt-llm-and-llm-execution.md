@@ -19,9 +19,9 @@ Running LLM inference using standard PyTorch pipelines suffers from severe opera
 An AI platform team deployed a 70-billion parameter autoregressive language model across an 8x NVIDIA H100 SXM5 GPU node to serve an internal enterprise assistant. The initial implementation used a naive PyTorch Hugging Face pipeline wrapped in Python multiprocessing with NCCL tensor parallelism ($TP=8$).
 
 Under peak concurrency (150 active request sessions), the system breached production performance targets:
-- **Inter-Token Latency (ITL):** Averaged $115\text{ ms/token}$, failing the target SLA of $< 25\text{ ms/token}$.
-- **GPU Utilization:** Volatile, swinging between $12\%$ during decoding and $98\%$ during prefill due to CUDA kernel launch overheads.
-- **GPU Out-Of-Memory (OOM):** Repeated crashes during long-context RAG prompts ($> 8192$ tokens) caused by static pre-allocation of contiguous KV cache memory tensors.
+- **Inter-Token Latency (ITL):** Averaged 115 ms/token, failing the target SLA of &lt; 25 ms/token.
+- **GPU Utilization:** Volatile, swinging between 12% during decoding and 98% during prefill due to CUDA kernel launch overheads.
+- **GPU Out-Of-Memory (OOM):** Repeated crashes during long-context RAG prompts (> 8192 tokens) caused by static pre-allocation of contiguous KV cache memory tensors.
 
 ```
 [PyTorch Model Definition] ──► [TensorRT-LLM High-Level Builder]
@@ -46,7 +46,7 @@ Under peak concurrency (150 active request sessions), the system breached produc
 (NVLink High-Speed AllReduce)                          (NVLink High-Speed AllReduce)
 ```
 
-By re-architecting the serving layer on **TensorRT-LLM**—compiling the model into Tensor Parallel execution graphs, fusing attention ops via FlashDecoding, enabling FP8 quantized KV caching, and driving request execution through the C++ `GptManager` Executor API—the team reduced ITL from $115\text{ ms}$ to $18.4\text{ ms}$ while doubling total system throughput.
+By re-architecting the serving layer on **TensorRT-LLM**—compiling the model into Tensor Parallel execution graphs, fusing attention ops via FlashDecoding, enabling FP8 quantized KV caching, and driving request execution through the C++ `GptManager` Executor API—the team reduced ITL from 115 ms to 18.4 ms while doubling total system throughput.
 
 ---
 
@@ -238,7 +238,7 @@ TensorRT-LLM separates offline model building from online serving through a high
 
 | Parallelism Strategy | Target Bottleneck | Communication Primitive | NVLink Interconnect Required? | Latency Impact | Max Batch Size Scaling | Multi-Node Suitability |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Tensor Parallelism (TP)** | Single-request latency & Layer VRAM size | AllReduce (Sum), AllGather | **Yes** (Requires > 300 GB/s bus) | **Substantial Reduction** (Parallelizes single GEMM) | Low (Focuses on single-stream speed) | Intra-Node Only (Single 8-GPU box) |
+| **Tensor Parallelism (TP)** | Single-request latency & Layer VRAM size | AllReduce (Sum), AllGather | **Yes** (Requires &gt; 300 GB/s bus) | **Substantial Reduction** (Parallelizes single GEMM) | Low (Focuses on single-stream speed) | Intra-Node Only (Single 8-GPU box) |
 | **Pipeline Parallelism (PP)** | Multi-layer model fitting across GPUs | Point-to-Point (Send/Recv) | No (Tolerates PCIe / InfiniBand) | Slight Increase (Pipeline bubble overhead) | **High** (Requires large micro-batches) | Inter-Node (Across multiple servers) |
 | **Context Parallelism (CP)** | Extreme prompt length (> 32K tokens) | AllGather / Ring-Attention | **Yes** (High-bandwidth communication) | Lowers Memory per GPU | High for long-context prompts | Intra-Node / High-Speed Inter-Node |
 | **Data Parallelism (DP)** | Overall request throughput capacity | AllReduce (Gradient / Sync) | No | None (Independent requests) | Scales linearly with GPU count | Multi-Node Clusters |

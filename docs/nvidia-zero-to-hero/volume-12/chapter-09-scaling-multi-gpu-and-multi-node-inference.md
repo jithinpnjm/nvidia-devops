@@ -242,7 +242,7 @@ After applying the topology fix, the multi-node cluster initialized successfully
 ```
 
 #### Prevention
-- Enforce strict topology validation checks in CI/CD Helm charts: Reject any deployment manifest specifying `TP > 8` unless running on specialized NVLink-Network switch infrastructure.
+- Enforce strict topology validation checks in CI/CD Helm charts: Reject any deployment manifest specifying `TP &gt; 8` unless running on specialized NVLink-Network switch infrastructure.
 
 ---
 

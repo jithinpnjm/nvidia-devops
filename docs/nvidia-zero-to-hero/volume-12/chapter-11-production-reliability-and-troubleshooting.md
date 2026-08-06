@@ -163,7 +163,7 @@ flowchart TD
 
 - **Severity:** Critical (P1)
 - **Symptom:** Gradually increasing baseline GPU memory usage over 24–48 hours until sudden container crash with `torch.cuda.OutOfMemoryError`.
-- **Detection Query:** `increase(vllm:gpu_cache_usage_perc[6h]) > 0.30` while active request count remains constant.
+- **Detection Query:** `increase(vllm:gpu_cache_usage_perc[6h]) &gt; 0.30` while active request count remains constant.
 
 #### Triage Steps:
 1. Inspect PyTorch allocator status: `nvidia-smi --query-gpu=memory.used,memory.free --format=csv -l 2`.

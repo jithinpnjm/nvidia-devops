@@ -411,7 +411,7 @@ In dynamic batching pipelines, input tensors from 64 separate client requests mu
 ## Summary & Authoritative References
 
 ### Key Takeaways
-1. **Optimize Beyond the GPU:** Non-GPU pipeline stages (tokenization, memory allocation, network proxy buffering) frequently account for > 50% of end-to-end request latency.
+1. **Optimize Beyond the GPU:** Non-GPU pipeline stages (tokenization, memory allocation, network proxy buffering) frequently account for &gt; 50% of end-to-end request latency.
 2. **Decouple Data & Control Planes:** Maintain strict isolation between control plane operations (health checks, metric scraping) and lock-free zero-allocation data paths.
 3. **Use Pinned Host RAM (`cudaHostAlloc`):** Eliminate PCIe memory staging overheads to achieve full Gen5 DMA speeds (64 GB/s).
 4. **Disable Stream Buffering:** Configure Nginx and application endpoints with `proxy_buffering off` and `TCP_NODELAY` for real-time per-token SSE streaming.

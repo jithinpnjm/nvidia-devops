@@ -160,7 +160,7 @@ flowchart TB
 | **Admission Queue** | Manages backpressure and prevents server overload | Unbounded queue delay, client timeout | `inference_queue_depth` | &lt; 50 depth |
 | **Batch Scheduler** | Assembles prefill & decode steps into continuous iterations | Prefill starving active decode loops | `scheduler_iteration_time_ms` | &lt; 30 ms/iter |
 | **KV Block Allocator** | Virtual memory management for key-value tensors | Memory fragmentation, out-of-memory | `kv_cache_usage_percent` | 70% - 85% |
-| **GPU Execution Engine** | Launches optimized CUDA kernels (TensorRT / vLLM) | CUDA stream deadlock, illegal memory access | `dcgm_gpu_utilization` | > 75% |
+| **GPU Execution Engine** | Launches optimized CUDA kernels (TensorRT / vLLM) | CUDA stream deadlock, illegal memory access | `dcgm_gpu_utilization` | &gt; 75% |
 | **Stream Handler** | Serializes tokens to SSE/gRPC streaming chunks | Socket buffer bloat, client disconnection | `stream_flush_latency_ms` | &lt; 2 ms |
 
 ---
@@ -225,7 +225,7 @@ Operating a production inference cluster requires enforcing strict bounds on con
 During a promotional event, an e-commerce platform experienced a 3x traffic spike on its customer support LLM service. Within 90 seconds of the spike, multiple Triton inference pods crashed simultaneously, triggering Kubernetes pod restarts. As surviving pods absorbed redirected traffic, they immediately crashed with OOM errors, creating a cascading outage.
 
 #### 2. Root Cause Analysis
-The inference server was configured with dynamic KV cache allocation without an absolute upper block threshold or request admission limiter. As concurrent long-context requests arrived (P_seq > 8192), total memory demanded by active KV cache blocks exceeded available GPU HBM VRAM. The CUDA driver failed a allocation request inside the model execution thread, causing unhandled process termination.
+The inference server was configured with dynamic KV cache allocation without an absolute upper block threshold or request admission limiter. As concurrent long-context requests arrived (P_seq &gt; 8192), total memory demanded by active KV cache blocks exceeded available GPU HBM VRAM. The CUDA driver failed a allocation request inside the model execution thread, causing unhandled process termination.
 
 #### 3. Log & Telemetry Evidence
 Inspection of Triton process logs (`/var/log/triton/server.log`) revealed:

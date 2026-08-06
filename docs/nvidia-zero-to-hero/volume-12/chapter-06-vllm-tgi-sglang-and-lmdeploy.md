@@ -16,9 +16,9 @@ Choosing among these engines requires evaluating fundamental design trade-offs: 
 
 An enterprise platform engineering team was tasked with building a unified LLM inference gateway serving 10,000 requests per minute across a cluster of NVIDIA H100 GPUs. The incoming workload comprised four distinct traffic patterns:
 1. **Multi-turn Customer Chatbots:** Highly repetitive system prompts with incremental user message turns (high KV cache prefix overlap).
-2. **RAG Search Pipelines:** Long document contexts ($> 16,000$ tokens) with single-token output summaries.
+2. **RAG Search Pipelines:** Long document contexts (> 16,000 tokens) with single-token output summaries.
 3. **Structured Data Extraction:** Agents generating strict JSON objects based on Pydantic schemas.
-4. **Real-time Code Autocompletion:** Ultra-low latency requirements ($p99 &lt; 15\text{ ms}$ Time-To-First-Token).
+4. **Real-time Code Autocompletion:** Ultra-low latency requirements (p99 &lt; 15 ms Time-To-First-Token).
 
 ```
                       [ Incoming Multi-Tenant API Traffic ]
@@ -325,7 +325,7 @@ PagedAttention divides the KV cache into fixed-size physical blocks of size `B` 
 Internal Fragmentation < B / S_actual
 ```
 
-For a sequence of 500 tokens with `B=16`, internal fragmentation is &lt; 3.2%, compared to > 87% in contiguous allocation.
+For a sequence of 500 tokens with `B=16`, internal fragmentation is &lt; 3.2%, compared to &gt; 87% in contiguous allocation.
 
 ---
 

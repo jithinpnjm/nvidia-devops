@@ -394,7 +394,7 @@ The time to Recompute the prompt prefill phase on the GPU is:
 t_recompute = (2 * L * S^2 * H + 12 * L * S * H^2) / T_GPU
 ```
 
-**Conclusion:** Because modern GPUs possess massive compute performance (`T_GPU ≈ 10^15 FLOPS`) relative to PCIe transfer speeds (`B_PCIe ≈ 6.4 * 10^10 Bytes/s`), **Recompute is mathematically superior (`t_recompute &lt; t_swap`) for short-to-medium sequence lengths (`S &lt; 8192` tokens)** on modern accelerator architectures. Swapping should only be considered for ultra-long context sequences (`S > 32,000`) where quadratic prefill recomputation time (`O(S^2)`) exceeds PCIe transfer overhead.
+**Conclusion:** Because modern GPUs possess massive compute performance (`T_GPU ≈ 10^15 FLOPS`) relative to PCIe transfer speeds (`B_PCIe ≈ 6.4 * 10^10 Bytes/s`), **Recompute is mathematically superior (`t_recompute &lt; t_swap`) for short-to-medium sequence lengths (`S &lt; 8192` tokens)** on modern accelerator architectures. Swapping should only be considered for ultra-long context sequences (`S &gt; 32,000`) where quadratic prefill recomputation time (`O(S^2)`) exceeds PCIe transfer overhead.
 
 ---
 

@@ -12,7 +12,7 @@ In high-concurrency production environments—such as real-time recommendation e
 
 ## Production Scenario: The Latency and Memory Bottleneck
 
-Consider an enterprise computer vision and multimodal feature-extraction pipeline serving 25,000 requests per second across a cluster of NVIDIA H100 Tensor Core GPUs. Originally deployed using ONNX Runtime with standard CUDA backends, the service suffered from severe tail latency breaches under bursty traffic (p99 > 85 ms, exceeding the 30 ms strict SLA). Additionally, the service experienced frequent GPU Out-Of-Memory (OOM) crashes when dynamic batch sizes surged from B=1 to B=64.
+Consider an enterprise computer vision and multimodal feature-extraction pipeline serving 25,000 requests per second across a cluster of NVIDIA H100 Tensor Core GPUs. Originally deployed using ONNX Runtime with standard CUDA backends, the service suffered from severe tail latency breaches under bursty traffic (p99 &gt; 85 ms, exceeding the 30 ms strict SLA). Additionally, the service experienced frequent GPU Out-Of-Memory (OOM) crashes when dynamic batch sizes surged from B=1 to B=64.
 
 ```
 [PyTorch / ONNX Model]

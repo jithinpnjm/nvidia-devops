@@ -528,7 +528,7 @@ flowchart TD
 | Verification Item | Pass Condition | Status |
 |---|---|---|
 | Latency Script Setup | `pipeline_service.py` executes multi-stage timestamping | [ ] |
-| Incident Reproduction | Initial run reproduces p99 latency > 1,000 ms SLO limit | [ ] |
+| Incident Reproduction | Initial run reproduces p99 latency &gt; 1,000 ms SLO limit | [ ] |
 | System Telemetry Profiled | `nvidia-smi dmon` confirms GPU SM idle during latency spike | [ ] |
 | Core Saturation Identified | `mpstat` proves single CPU core saturation (`100% %usr`) | [ ] |
 | Process Pool Remediation | `ProcessPoolExecutor` parallelizes tokenization across cores | [ ] |
@@ -568,7 +568,7 @@ To prevent non-GPU latency bottlenecks in production AI inference systems:
 2. **Kubernetes CPU Resource Guarantees**:
    - Avoid setting aggressive CPU limits (`resources.limits.cpu`) without testing for CFS throttling. Set CPU request equal to limit (`Guaranteed` QoS class) to prevent CPU quota throttling spikes.
 3. **Distributed Tracing (OpenTelemetry)**:
-   - Instrument inference gateway microservices with OpenTelemetry spans tracking `client_recv`, `preprocess`, `queue`, `gpu_exec`, and `postprocess` durations. Alert on `preprocess_duration_ms > 10ms` rather than total request latency alone.
+   - Instrument inference gateway microservices with OpenTelemetry spans tracking `client_recv`, `preprocess`, `queue`, `gpu_exec`, and `postprocess` durations. Alert on `preprocess_duration_ms &gt; 10ms` rather than total request latency alone.
 
 ---
 

@@ -519,7 +519,7 @@ flowchart TD
 |---|---|---|
 | Model Configuration Setup | `dense_net_nobatch`, `conservative`, `aggressive` models loaded | [ ] |
 | `perf_analyzer` Execution | SDK container successfully executes concurrency sweeps | [ ] |
-| Throughput Scaling Verified | Conservative batching yields > 4x RPS improvement over no-batching | [ ] |
+| Throughput Scaling Verified | Conservative batching yields &gt; 4x RPS improvement over no-batching | [ ] |
 | Metrics Telemetry Analysis | Extracted `nv_inference_queue_duration_us` and compute time | [ ] |
 | Realized Batch Size Computed | Calculated average realized batch size matches expectation | [ ] |
 | Failure Mode Reproduced | 500ms delay with low concurrency reproduces p99 SLO violation | [ ] |
