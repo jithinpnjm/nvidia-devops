@@ -106,19 +106,27 @@ Node 1: CPU 16-31 -- local RAM -- PCIe root complex B -- GPU2, GPU3, NIC1
 ```
 A data-loader thread pinned to Node-0 CPUs feeding GPU2 (Node-1) pays a real, measurable latency tax on every batch — and this is invisible to `nvidia-smi` utilization numbers, which only show the GPU side. `numactl --hardware` + `lscpu -e` (from this Deep Dive's own command list) is how you'd catch this. Kubernetes Topology Manager (`--topology-manager-policy=single-numa-node`) is the cluster-level lever to prevent it at scheduling time — worth naming as the fix, not just the diagnosis.
 
-➕ **Diagram: pinned (page-locked) host memory for GPU transfer, and why it's a different pool than "normal" RAM**
-```mermaid
-flowchart TD
-    subgraph N["Normal (pageable) host memory"]
-        N1["can be swapped/moved by the kernel at any time"]
-        N1 -->|GPU DMA needs a stable physical address| N2["CUDA copies pageable→pinned staging buffer FIRST (extra copy, slower)"]
-    end
-    subgraph P["Pinned (page-locked) host memory"]
-        P1["kernel guarantees this physical page never moves"]
-        P1 -->|DMA engine can transfer directly| P2["No staging copy, higher bandwidth, lower latency"]
-    end
-```
-`cudaHostAlloc`/pinned buffers trade host RAM flexibility (pinned pages can't be reclaimed under pressure, and over-pinning can starve the rest of the host) for materially faster host↔GPU transfer — a NUMA-local pinned buffer plus a cross-node one produce identical `nvidia-smi` output but different real throughput, which is the same "topology is invisible from the GPU-only view" point as the diagram above, one layer earlier in the pipeline.
+➕ **Pinned (page-locked) host memory — why it exists, worked from the actual constraint, not the buzzword:**
+
+Start from what a GPU's DMA (direct memory access) engine actually does: when the GPU copies data to or from host RAM, it doesn't go through the CPU or the kernel's virtual-memory system at all — it reads and writes a *physical* memory address directly over PCIe, on its own, while the CPU does something else. That's the entire point of DMA: it's a transfer the CPU doesn't have to babysit.
+
+Now consider a normal memory allocation (plain `malloc`, or a normal Python/PyTorch host buffer). The kernel is free to move that data's physical location at any time — during memory compaction, or by swapping it out entirely under pressure — because normal virtual memory is *pageable*: the mapping from virtual address to physical address can change, invisibly to the application, whenever the kernel wants. That's a feature everywhere else in this chapter. It becomes a problem the moment you hand that address to a DMA engine that will keep writing to it over the next several milliseconds with no kernel involvement — if the kernel moved or swapped that page mid-transfer, the DMA engine would be reading or writing memory that no longer holds what it thinks it holds, silently corrupting the transfer.
+
+So the driver can't just point the DMA engine at your ordinary buffer. What actually happens when you call `cudaMemcpy` on normal (pageable) host memory is: CUDA first does an ordinary CPU-driven copy from your buffer into an internal buffer it maintains in **pinned** memory — memory the kernel has been told to lock in place and never move or swap — and only *then* triggers the DMA engine to transfer from that pinned staging buffer to the GPU. You paid for two copies (one CPU memcpy, then one DMA) to move data that logically only needed one.
+
+**Pinned memory removes that first copy.** If you allocate your own buffer as pinned (`cudaHostAlloc` / `cudaMallocHost` instead of `malloc`), the kernel gives the same guarantee up front — this physical page will not move — so CUDA can point the DMA engine directly at *your* buffer with no staging copy in between. That's the entire mechanism: pinned memory isn't inherently "faster RAM," it's RAM the kernel has promised to leave alone, which is the one guarantee a DMA engine actually needs.
+
+| | Pageable (normal) memory | Pinned (page-locked) memory |
+|---|---|---|
+| Kernel can move/swap it mid-transfer | Yes | No — that's the guarantee pinning buys |
+| What `cudaMemcpy` actually does | CPU copies your data into an internal pinned staging buffer, *then* DMAs from there | DMA engine transfers directly from your buffer |
+| Extra CPU-driven copy in the critical path | Yes, always | No |
+| Can be used for true async transfers overlapping GPU compute | No — an in-flight async transfer can't tolerate its source moving | Yes — this is why async pipelines require pinned buffers |
+| Reclaimable by the kernel under memory pressure | Yes | No |
+
+That last row is the cost side, and it's why nobody pins gigabytes of RAM casually: every byte pinned is a byte the kernel can never reclaim for anything else on that host, no matter how much memory pressure builds elsewhere — over-pin, and you can starve the rest of the node the same way an unbounded cache would. In practice this means pinning only the specific transfer buffers on your hot path (the input batch about to move to the GPU), not application memory in general.
+
+**Now the actual reason this section lives inside a NUMA deep dive, not a CUDA-programming one:** pinning answers the question "can this transfer skip the staging copy?" — it says nothing about *where* that pinned memory physically sits. A pinned buffer allocated on Node 0, feeding a GPU whose PCIe root complex is under Node 1, still has to cross the slower cross-node link on every single transfer — pinning removed one cost (the staging copy) while NUMA placement quietly left the other cost (cross-node distance) in place. Two independent things have to both be correct — pinned *and* NUMA-local — and `nvidia-smi` shows the outcome of neither; it only ever shows what the GPU itself is doing, never how the bytes got to it.
 
 ## ➕ Worked scenario
 
