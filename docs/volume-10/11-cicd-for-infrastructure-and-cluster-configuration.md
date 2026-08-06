@@ -41,45 +41,28 @@ Volume 2's CI/CD chapter covers the pipeline for a Python package — lint, unit
 
 The discipline is the same one Kubernetes GitOps popularized, applied one layer down: declarative desired state lives in Git, and a controller or pipeline reconciles the live cluster to match it — nobody runs `terraform apply` or `ansible-playbook` ad hoc from a laptop against production.
 
-```text
-Git repo (source of truth)
-terraform/ # cloud VPC, load balancers, IAM, node pools
-ansible/ # OS hardening, driver install, Slurm config
-k8s-manifests/ # GPU Operator, Network Operator, workload CRDs
-golden-image/ # packer/image-builder definitions (Ch.11 topic below)
-CI/CD pipeline or GitOps controller (Flux/Argo CD for k8s manifests;
-a pipeline runner for Terraform/Ansible, since neither has a native
-continuous-reconciliation controller the way Kubernetes does)
-Live cluster state — converges toward Git, drift is detected and
-either auto-corrected (k8s manifests) or flagged for review (Terraform/
-Ansible, where auto-correction of a diff can itself be destructive)
-```
+1. **Git repo (source of truth)**
+   - `terraform/` — cloud VPC, load balancers, IAM, node pools
+   - `ansible/` — OS hardening, driver install, Slurm config
+   - `k8s-manifests/` — GPU Operator, Network Operator, workload CRDs
+   - `golden-image/` — packer/image-builder definitions (topic below)
+2. **CI/CD pipeline or GitOps controller** — Flux/Argo CD for k8s manifests; a pipeline runner for Terraform/Ansible, since neither has a native continuous-reconciliation controller the way Kubernetes does
+3. **Live cluster state** — converges toward Git; drift is detected and either auto-corrected (k8s manifests) or flagged for review (Terraform/Ansible, where auto-correction of a diff can itself be destructive)
 
 The asymmetry matters: Kubernetes manifests are naturally idempotent and low-risk to auto-reconcile continuously (that's what Flux/Argo CD do). Terraform and Ansible changes are not automatically safe to auto-apply on drift-detection alone — a live change made for an emergency reason (e.g., someone hand-patched a firewall rule during an incident) can look like "drift" to the controller and get silently reverted, re-introducing the very problem the emergency change fixed. This is why Terraform/Ansible pipelines are typically triggered by merge, not by continuous reconciliation, with drift detection as a *reporting* signal, not an auto-apply trigger.
 
 ## Pipeline stages for infrastructure changes
 
-```text
-commit (PR opened)
-lint / static validation terraform fmt -check, terraform validate,
-ansible-lint, yamllint / kubeconform
-plan / dry-run terraform plan -out=tfplan
-ansible-playbook --check --diff
-policy check OPA/Conftest or Sentinel against the plan —
-'no security group open to 0.0.0.0/0',
-'no node pool resize > N without approval',
-'no removal of a Slurm partition with
-running jobs'
-manual approval gate REQUIRED specifically when the plan contains
-(destructive changes only) a destroy/replace action — additive-only
-plans may auto-proceed past this gate
-apply to canary apply against a canary node group or staging
-cluster first, exactly as Chapter 10 requires
-for any coordinated cluster-wide change
-post-apply validation re-run health checks (Chapter 10's canary
-validation gate items apply here directly)
-apply to fleet (waved)
-```
+| Stage | Command / tool | Notes |
+|---|---|---|
+| 1. commit | PR opened | — |
+| 2. lint / static validation | `terraform fmt -check`, `terraform validate`, `ansible-lint`, `yamllint` / `kubeconform` | — |
+| 3. plan / dry-run | `terraform plan -out=tfplan`, `ansible-playbook --check --diff` | — |
+| 4. policy check | OPA/Conftest or Sentinel against the plan | e.g. "no security group open to 0.0.0.0/0," "no node pool resize > N without approval," "no removal of a Slurm partition with running jobs" |
+| 5. manual approval gate | required specifically when the plan contains a destroy/replace action | additive-only plans may auto-proceed past this gate |
+| 6. apply to canary | apply against a canary node group or staging cluster first | exactly as Chapter 10 requires for any coordinated cluster-wide change |
+| 7. post-apply validation | re-run health checks | Chapter 10's canary validation gate items apply here directly |
+| 8. apply to fleet | waved rollout | — |
 
 The policy-check stage is what separates infra CI/CD from application CI/CD: an application pipeline's gates are almost entirely about correctness (does the code work); an infrastructure pipeline's gates are substantially about *blast radius* (even a correct change can be catastrophically scoped — a syntactically valid Terraform plan that destroys and recreates a storage volume is "correct" and still wrong to auto-apply).
 
