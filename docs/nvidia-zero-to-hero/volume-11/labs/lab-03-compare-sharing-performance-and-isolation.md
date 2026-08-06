@@ -43,7 +43,7 @@ flowchart TD
 
 - A disposable, supported test node or three equivalent isolated pools. Never change a production node between trials.
 - A pre-approved whole-GPU baseline, MIG layout, and time-slicing policy with documented rollback for each.
-- An approved benchmark image and command. The command must emit structured timestamps, request count, error count, and a completion marker; do not use an ad hoc synthetic load that does not resemble the intended service.
+- An approved immutable image containing `nvidia-smi`. The supplied probe produces reproducible device/runtime evidence. For service performance, additionally approve a workload-specific benchmark whose inputs and SLO match the intended service; do not substitute an ad hoc stress loop.
 - A metrics path for application latency/throughput and GPU health. Use the [NVIDIA DCGM documentation](https://docs.nvidia.com/datacenter/dcgm/latest/) for platform telemetry capabilities.
 
 ## 6. Safety and Change Boundaries
@@ -59,7 +59,6 @@ Only exercise a bounded test workload and an approved noisy-neighbor case in a d
 export GPU_NODE='<approved-test-node>'
 export LAB_NAMESPACE='gpu-sharing-comparison'
 export BENCHMARK_IMAGE='<approved-immutable-benchmark-image>'
-export BENCHMARK_COMMAND='<approved-deterministic-benchmark-command>'
 export RESULTS_DIR='gpu-sharing-results'
 kubectl config current-context
 kubectl get node "$GPU_NODE" -o wide
@@ -67,7 +66,7 @@ kubectl get node "$GPU_NODE" -o wide
 
 **Expected evidence:** The context and node match the approved test plan.
 
-**Explanation:** Record image digest, model/artifact digest, input set version, precision, concurrency, duration, driver, runtime, and policy version alongside these variables.
+**Explanation:** Record image digest, driver, runtime, and policy version alongside these variables. When adding the separate approved service benchmark, record its model/artifact digest, input-set version, precision, concurrency, duration, and request-rate contract.
 
 **Common-failure interpretation:** Missing immutable inputs means postpone the comparison. A mutable image tag invalidates repeatability.
 
@@ -119,7 +118,7 @@ kubectl get node "$GPU_NODE" -o jsonpath='{.status.allocatable}{"\n"}'
 
 ## 11. Deploy the Benchmark
 
-Use a manifest that makes the assigned resource and workload parameters explicit. Replace every placeholder before applying it.
+Use this concrete, safe runtime probe before each performance trial. It records an ISO-8601 time, visible devices, and a driver health snapshot, then holds the allocation for 60 seconds. It is **not** a throughput benchmark; its purpose is to prove identical placement/runtime conditions before the approved service-specific benchmark is run. Replace only the image, node, resource, and trial placeholders.
 
 ```yaml
 apiVersion: v1
@@ -145,7 +144,15 @@ spec:
       containers:
         - name: benchmark
           image: <approved-immutable-benchmark-image>
-          command: ["sh", "-c", "<approved-deterministic-benchmark-command>"]
+          command:
+            - sh
+            - -c
+            - |
+              date -u +%Y-%m-%dT%H:%M:%SZ
+              nvidia-smi -L
+              nvidia-smi --query-gpu=index,name,driver_version,memory.total,memory.used,utilization.gpu --format=csv,noheader
+              sleep 60
+              echo SHARING_RUNTIME_PROBE_COMPLETE
           resources:
             limits:
               <resource-observed-on-node>: 1
@@ -159,9 +166,9 @@ kubectl apply -f sharing-trial.yaml
 kubectl get job -n "$LAB_NAMESPACE" -w
 ```
 
-**Expected evidence:** The Job binds to the approved node and completes without retries.
+**Expected evidence:** The Job binds to the approved node and completes without retries, emitting `SHARING_RUNTIME_PROBE_COMPLETE`.
 
-**Explanation:** A separate manifest or generated label per trial prevents accidental result mixing. Keep node, image, input, and load constant.
+**Explanation:** A separate manifest or generated label per trial prevents accidental result mixing. Keep node and image constant for this probe. Run the separately approved representative workload with its own immutable manifest and preserve its metrics in the same trial bundle.
 
 **Common-failure interpretation:** A Pending Job is a resource or policy issue; an image or runtime error is not a valid performance datapoint.
 
@@ -175,15 +182,15 @@ kubectl get pod -n "$LAB_NAMESPACE" -l job-name=sharing-trial-<whole-or-mig-or-t
 kubectl logs -n "$LAB_NAMESPACE" job/sharing-trial-<whole-or-mig-or-timeslice>
 ```
 
-**Expected evidence:** The Pod runs on the selected node and logs contain the benchmark’s structured completion marker and measured fields.
+**Expected evidence:** The Pod runs on the selected node and logs contain the timestamp, GPU query output, and `SHARING_RUNTIME_PROBE_COMPLETE`.
 
-**Explanation:** The benchmark must identify configuration and workload inputs in its own output; otherwise results cannot be audited.
+**Explanation:** The probe establishes configuration evidence only. The service benchmark must identify configuration and workload inputs in its own output; otherwise performance results cannot be audited.
 
 **Common-failure interpretation:** Missing fields or a different node means discard the trial rather than retroactively guessing its conditions.
 
 ## 13. Verification and Acceptance Criteria
 
-For each trial, acceptance is evidence completeness: immutable workload identity, node/driver/topology record, exact resource request, completed Job, application metrics, and a GPU-health snapshot from the same time window. A performance result is only interpretable after those conditions are met.
+For each trial, acceptance is evidence completeness: immutable probe identity, node/driver/topology record, exact resource request, completed probe, a separately approved representative-workload result, application metrics, and a GPU-health snapshot from the same time window. A performance result is only interpretable after those conditions are met.
 
 ## 14. Observability and Evidence Collection
 
@@ -209,7 +216,32 @@ Measure request count, success/error count, median/p95/p99 latency where the wor
 
 ## 16. Safe Failure Exercise and Troubleshooting
 
-Add a **bounded second copy of the same approved Job** only in the time-sliced trial, with a fixed short duration and a known memory ceiling. Do not use deliberate OOM or unlimited compute loops.
+Add a bounded second runtime probe only in the time-sliced trial. This verifies safe coexistence and resource allocation; it does **not** create enough load to conclude anything about performance contention. Run a second copy of the separately approved representative workload only when its documented memory ceiling, duration, and abort thresholds have been approved. Do not use deliberate OOM or unlimited compute loops.
+
+```yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sharing-trial-neighbor
+  namespace: gpu-sharing-comparison
+  labels:
+    experiment: gpu-sharing-comparison
+    trial: timeslice-neighbor
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      nodeSelector:
+        kubernetes.io/hostname: <approved-test-node>
+      containers:
+        - name: runtime-probe
+          image: <approved-immutable-benchmark-image>
+          command: ["sh", "-c", "date -u +%Y-%m-%dT%H:%M:%SZ; nvidia-smi -L; sleep 60; echo SHARING_NEIGHBOR_PROBE_COMPLETE"]
+          resources:
+            limits:
+              <resource-observed-on-node>: 1
+```
 
 **Purpose:** Observe whether the service class changes under controlled concurrent demand.
 
@@ -219,9 +251,9 @@ kubectl apply -f sharing-trial-neighbor.yaml
 kubectl get pods -n "$LAB_NAMESPACE" -l experiment=gpu-sharing-comparison -o wide
 ```
 
-**Expected evidence:** The neighbor has an explicit identity and bounded lifecycle; scheduler events show whether both Pods received logical allocations.
+**Expected evidence:** The neighbor has an explicit identity and bounded lifecycle; scheduler events show whether both Pods received logical allocations, and its log includes `SHARING_NEIGHBOR_PROBE_COMPLETE`.
 
-**Explanation:** The exercise isolates contention as an experiment variable. It does not establish a security boundary or prove fairness.
+**Explanation:** The defined neighbor makes the lab reproducible without manufacturing unsafe load. The approved representative workload is the only valid source for contention conclusions. Neither exercise establishes a security boundary or proves fairness.
 
 **Common-failure interpretation:** OOM, node pressure, driver errors, or health alerts are stop conditions. Delete the neighbor and preserve evidence before investigating.
 
