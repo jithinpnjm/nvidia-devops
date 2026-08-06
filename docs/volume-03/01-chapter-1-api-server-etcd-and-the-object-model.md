@@ -292,7 +292,7 @@ A: The spec expresses desired state; status reports observations made by Kuberne
 
 With that model in place, here's how the API server and etcd actually make it real.
 
-# Chapter 1 — API server, etcd and the object model
+## Chapter 1 — API server, etcd and the object model
 *(original text preserved in full below; additions marked with ➕ so you can see exactly what changed)*
 
 **Learning outcome:** Trace reads/writes, resourceVersion, watches and declarative desired state through the API control plane.
