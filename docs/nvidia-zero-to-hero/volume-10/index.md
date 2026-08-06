@@ -11,9 +11,9 @@ tags:
 
 # Volume 10 — Kubernetes GPU Platform
 
-Kubernetes schedules containers, but a production GPU platform requires much more than exposing a device file to a Pod. Nodes need compatible drivers, container runtime integration, device discovery, health reporting, scheduling resources, labels, telemetry, upgrade coordination, and failure recovery. Without a lifecycle architecture, every GPU node becomes a manually maintained exception.
+Kubernetes can place Pods, but a production GPU platform requires a deeper operating model than “install a driver and request a device.” A usable GPU node needs a compatible kernel module, runtime integration, discoverable resources, node labels, health reporting, scheduling policy, telemetry, validation, and controlled upgrades. If any of those layers drift, GPU workloads become slow to start, hard to support, or impossible to recover at scale.
 
-This volume explains how NVIDIA GPU resources become schedulable Kubernetes infrastructure. It begins with the control flow from hardware discovery to Pod admission, then develops the GPU Operator architecture, device plugin, feature discovery, runtime integration, driver containers, Helm lifecycle, validation, upgrades, and production troubleshooting.
+This volume explains how NVIDIA GPU resources become a managed Kubernetes platform. It starts with the control path from hardware to schedulable resource, then builds the runtime and device-plumbing model, the operator-managed node stack, topology-aware scheduling, observability, installation, upgrades, and production troubleshooting. The goal is not only to make GPUs work, but to make them predictable under change.
 
 | Volume field | Value |
 |---|---|
@@ -54,20 +54,24 @@ flowchart TD
 
 **Figure 10.0.1 — Kubernetes GPU enablement is a lifecycle pipeline.** Discovery, software installation, resource advertisement, scheduling, runtime configuration, and health must agree before a Pod can use a GPU reliably.
 
-## Planned Chapter Sequence
+## What This Volume Covers
+
+The chapters are arranged from first principles to production operations:
 
 1. Why Kubernetes Needs a GPU Platform Layer
-2. GPU Resource Discovery and Scheduling
-3. NVIDIA Container Toolkit and Runtime Integration
-4. Kubernetes Device Plugin
+2. GPU Software Lifecycle in Kubernetes
+3. NVIDIA Container Toolkit, RuntimeClass, and CDI
+4. Kubernetes Device Plugin and Kubernetes Resource Model
 5. Node Feature Discovery and GPU Feature Discovery
 6. GPU Operator Architecture
-7. Driver Containers and Host-Installed Drivers
-8. RuntimeClass and Workload Admission
-9. Helm Deployment and Configuration
-10. Validation, Upgrades, and Rollback
-11. Production Troubleshooting
+7. Driver Containers and Node Operands
+8. GPU Scheduling and Topology
+9. GPU Observability with DCGM
+10. Production Installation and Configuration
+11. Upgrades and Production Troubleshooting
 12. Volume 10 Summary
+
+The first four chapters establish the platform contract. The remaining chapters show how that contract is deployed, observed, upgraded, and recovered in a real cluster.
 
 ## Planned Labs
 
@@ -76,4 +80,15 @@ flowchart TD
 - Diagnose a missing allocatable GPU
 - Perform a controlled GPU platform upgrade
 
-No pull request will be opened until the complete chapter and lab set exists and the branch passes a full Docusaurus validation review.
+## How to Read This Volume
+
+- Start with Chapter 01 to build the control-path mental model.
+- Read Chapters 02 to 04 as one sequence: lifecycle, runtime integration, and resource advertisement are separate layers that must line up.
+- Use Chapters 05 to 08 to understand how the platform becomes schedulable and operable.
+- Treat Chapters 09 to 12 as the production runbook: observe, install, upgrade, troubleshoot, and summarize the platform.
+
+## Cross References
+
+- [Volume 03 — CUDA Software Stack](../volume-03/chapter-02-cuda-software-stack)
+- [Volume 07 — GPU Networking](../volume-07/index)
+- [Volume 08 — InfiniBand](../volume-08/index)

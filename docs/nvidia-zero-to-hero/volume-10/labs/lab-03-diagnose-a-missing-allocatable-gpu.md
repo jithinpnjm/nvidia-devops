@@ -26,9 +26,9 @@ Lab Type: Failure & Troubleshooting
 
 Diagnose a node that is Ready but does not advertise `nvidia.com/gpu`, separating hardware, driver, runtime, device-plugin, kubelet, and scheduler failures.
 
-## 2. Background
+## 2. Scenario
 
-A missing allocatable GPU is not one failure mode. Kubernetes may be healthy while the driver is broken; the driver may be healthy while the device plugin cannot register. Troubleshooting must start at the lowest layer that can prove the device exists.
+A node can look healthy at the Kubernetes layer and still fail to advertise a GPU. The absence of allocatable GPUs is only a symptom. This lab walks the evidence chain from hardware upward so you can identify the first broken layer instead of restarting random components.
 
 ## 3. Learning Outcomes
 
@@ -59,16 +59,19 @@ flowchart TD
 
 ## 5. Prerequisites
 
-- Permission to inspect Nodes, Pods, DaemonSets, and events
-- Console or SSH access to the affected node
-- A healthy comparison node from the same pool
-- A maintenance window for service restarts
+- Permission to inspect Nodes, Pods, DaemonSets, and events.
+- Console or SSH access to the affected node.
+- A healthy comparison node from the same pool.
+- A maintenance window for service restarts.
 
 ## 6. Environment
+
+Run these commands before you make any changes.
 
 ```bash
 kubectl get nodes -o custom-columns=NAME:.metadata.name,CAPACITY:.status.capacity.nvidia\\.com/gpu,ALLOCATABLE:.status.allocatable.nvidia\\.com/gpu
 export GPU_NODE='<affected-node>'
+export HEALTHY_NODE='<healthy-node>'
 ```
 
 ## 7. Components
@@ -82,7 +85,7 @@ export GPU_NODE='<affected-node>'
 | Kubelet | registration logs and Node status |
 | Scheduler | Pod events, taints, selectors, requests |
 
-## 8. Deployment Steps
+## 8. Procedure
 
 Prepare an evidence directory:
 
@@ -107,41 +110,40 @@ Do not create the failure in production merely to reproduce it.
 
 ### Hardware
 
-```bash
-lspci | grep -i nvidia
-```
-
-No device indicates a hardware, BIOS, passthrough, or PCIe enumeration issue.
+| Purpose | Command | Expected evidence | Explanation | Common failure interpretation |
+|---|---|---|---|---|
+| Enumerate the GPU on the node | `lspci | grep -i nvidia` | NVIDIA device entries appear | Proves the PCIe device is visible to the host | No device suggests hardware, BIOS, passthrough, or PCIe enumeration issues |
 
 ### Driver
 
-```bash
-lsmod | grep '^nvidia'
-nvidia-smi
-journalctl -k | grep -Ei 'nvrm|nvidia|xid' | tail -n 100
-```
+| Purpose | Command | Expected evidence | Explanation | Common failure interpretation |
+|---|---|---|---|---|
+| Confirm driver modules | `lsmod | grep '^nvidia'` | NVIDIA modules are loaded | Verifies the kernel module is present | No modules mean the driver did not load correctly |
+| Query the GPU | `nvidia-smi` | Driver and device summary | Confirms the host can talk to the GPU | Driver communication errors usually stop the chain here |
+| Read kernel messages | `journalctl -k | grep -Ei 'nvrm|nvidia|xid' | tail -n 100` | Driver and XID messages | Helps identify reset, load, or hardware errors | Repeating XID or module errors can explain the missing resource |
 
 ### Device plugin
 
-```bash
-kubectl get pods -A -o wide | grep -i device-plugin | grep "$GPU_NODE"
-kubectl logs -n gpu-operator <device-plugin-pod> --tail=200
-```
+| Purpose | Command | Expected evidence | Explanation | Common failure interpretation |
+|---|---|---|---|---|
+| Find plugin Pods on the node | `kubectl get pods -A -o wide | grep -i device-plugin | grep "$GPU_NODE"` | Device-plugin Pod on the affected node | Proves the DaemonSet is running where it should | No Pod means the plugin is not scheduled or not deployed |
+| Read plugin logs | `kubectl logs -n gpu-operator <device-plugin-pod> --tail=200` | Registration and device-list output | Shows whether the plugin is advertising GPUs to kubelet | Log errors point to device enumeration, permissions, or runtime issues |
 
-Adjust the namespace for standalone deployments.
+Adjust the namespace if you are not using GPU Operator.
 
 ### Kubelet
 
-```bash
-journalctl -u kubelet -n 300 | grep -Ei 'device plugin|nvidia|registration'
-```
+| Purpose | Command | Expected evidence | Explanation | Common failure interpretation |
+|---|---|---|---|---|
+| Read kubelet registration logs | `journalctl -u kubelet -n 300 | grep -Ei 'device plugin|nvidia|registration'` | Kubelet/plugin registration messages | Shows whether kubelet accepted the resource registration | No registration evidence suggests a communication issue between kubelet and the plugin |
 
 ### Scheduling policy
 
-```bash
-kubectl describe node "$GPU_NODE" | sed -n '/Taints:/,/Unschedulable:/p'
-kubectl get node "$GPU_NODE" --show-labels
-```
+| Purpose | Command | Expected evidence | Explanation | Common failure interpretation |
+|---|---|---|---|---|
+| Inspect taints and labels | `kubectl describe node "$GPU_NODE" | sed -n '/Taints:/,/Unschedulable:/p'` | Node taints and scheduling state | Helps rule out a scheduling policy issue | A GPU may be present but unschedulable because of taints or node state |
+| Confirm labels | `kubectl get node "$GPU_NODE" --show-labels` | Node labels printed inline | Lets you compare the failing node with a healthy one | Missing labels can indicate a discovery failure or a node replacement |
+| Compare the healthy node | `kubectl get node "$HEALTHY_NODE" -o jsonpath='{.status.capacity.nvidia\\.com/gpu}{" capacity\n"}{.status.allocatable.nvidia\\.com/gpu}{" allocatable\n"}'` | Healthy capacity and allocatable values | Gives you a known-good comparison point | Differences between nodes often reveal a rollout or host-specific problem |
 
 ## 11. Observability
 

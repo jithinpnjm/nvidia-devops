@@ -10,9 +10,9 @@ tags:
 
 # Why Kubernetes Needs a GPU Platform Layer
 
-A Kubernetes cluster can schedule CPU and memory without installing a special platform stack on every node. A GPU is different. The operating system must load a compatible driver, the container runtime must expose device libraries and files, Kubernetes must discover and advertise the resource, the scheduler must place a Pod on an appropriate node, and the workload must receive a healthy device at runtime.
+A Kubernetes cluster can schedule CPU and memory without learning anything about the underlying silicon. GPUs are not that simple. The operating system must load a compatible driver, the container runtime must expose device files and user-space libraries, Kubernetes must discover and advertise the resource, the scheduler must place the Pod on a suitable node, and the workload must receive a healthy device at runtime.
 
-If any link in that chain fails, the Pod may remain pending, start without GPU access, crash during initialization, or run on a node whose software state is inconsistent with the rest of the fleet.
+If any layer in that chain fails, the Pod may stay Pending, start without GPU access, crash during initialization, or run on a node whose software state no longer matches the rest of the fleet. For a platform team, the core problem is not "can the container see a GPU?" It is "can we make GPU access predictable through upgrades, reboots, node rebuilds, and workload churn?"
 
 ## Learning Objectives
 
@@ -24,6 +24,14 @@ After completing this chapter, you will be able to:
 - explain the operational problem solved by GPU Operator;
 - identify failure domains in a Kubernetes GPU node;
 - describe when operator-managed and host-managed approaches are appropriate.
+
+## A Production Story
+
+A platform team rolls out a routine kernel update to a GPU node pool. CPU workloads recover normally, but GPU Pods never return. The node still appears healthy in Kubernetes, and the hardware has not disappeared, but the NVIDIA driver module did not rebuild successfully after reboot. A device plugin still present on some nodes advertises capacity, while newer nodes silently reject allocation.
+
+The incident is not a single bug. It is a lifecycle mismatch between the operating system, the driver, runtime integration, and Kubernetes resource advertisement. The recovery plan therefore has to include canary nodes, driver readiness checks, a validation Pod, and rollback criteria before the change spreads to the rest of the fleet.
+
+That is why GPU enablement belongs to platform architecture rather than to ad hoc node setup.
 
 ## The Resource Does Not Appear Automatically
 
@@ -48,6 +56,20 @@ flowchart TD
 **Figure 10.1.1 — A GPU becomes usable through two related paths.** The control path advertises the resource to Kubernetes; the runtime path exposes the selected device to the container.
 
 A node can have a functioning driver while advertising no GPU resource. It can advertise a resource while the container runtime is misconfigured. It can schedule a Pod successfully while the workload fails because user-space libraries are incompatible. Each layer needs separate validation.
+
+## From Hardware to a Pod
+
+| Stage | What happens | Why it matters |
+|---|---|---|
+| Hardware discovery | The node exposes a physical GPU to the OS | Confirms the device exists and is healthy |
+| Driver binding | The kernel module binds to the GPU | Makes the device usable by the host |
+| Runtime integration | The container runtime receives GPU-related configuration | Lets Pods access the selected device and libraries |
+| Device discovery | The device plugin reports healthy GPUs to kubelet | Makes the resource visible to Kubernetes |
+| API publication | Kubelet publishes allocatable capacity | Lets the scheduler reason about the node |
+| Pod admission and allocation | The scheduler and kubelet place the Pod and assign a device | Connects the workload to a specific GPU |
+| Workload initialization | The container loads the expected CUDA stack | Confirms the application can actually use the device |
+
+The important point is ownership. No single component can prove the whole path. Platform teams must verify the chain end to end.
 
 ## Extended Resources and Scheduling
 
@@ -119,6 +141,18 @@ flowchart TD
 
 The operator does not remove the need for architecture. Teams must still choose host-installed or containerized drivers, define supported versions, control upgrades, separate node pools, monitor health, and design rollback procedures.
 
+## Operating Model
+
+The platform team owns the contract between the cluster and the node.
+
+| Concern | Platform team question | Good answer |
+|---|---|---|
+| Versioning | Which driver, toolkit, and operator versions are allowed together? | A tested compatibility set with explicit rollout rules |
+| Change control | How do we roll out a kernel or driver change? | Canary, drain, validate, expand, or roll back |
+| Health | How do we know the node is ready for GPU work? | Operator status plus a validation Pod |
+| Placement | Which workloads can use which nodes? | Labels, taints, affinity, and class policies |
+| Recovery | What happens after reboot or failure? | Reconciliation, revalidation, and capacity checks |
+
 ## Host-Managed Versus Operator-Managed Components
 
 | Approach | Strengths | Trade-offs |
@@ -131,7 +165,7 @@ The correct approach depends on platform ownership, OS immutability, security po
 
 ## Production Scenario
 
-A cluster upgrade changes the host kernel on half of the GPU nodes. CPU workloads recover normally, but GPU Pods remain pending because the driver module did not rebuild successfully. Other nodes still advertise GPUs, causing uneven capacity and queue delays.
+A cluster upgrade changes the host kernel on half of the GPU nodes. CPU workloads recover normally, but GPU Pods remain pending because the driver module did not rebuild successfully. Other nodes still advertise GPUs, causing uneven capacity and queue delays. The scheduler cannot tell that "some GPUs are fine" and "some nodes are not," because the platform team has not supplied a complete readiness model.
 
 The incident review finds that the Kubernetes upgrade plan did not include the GPU software compatibility matrix or an explicit validation gate. The remediation introduces a dedicated GPU node canary, drain procedures, driver readiness checks, a CUDA validation Pod, and rollback criteria before expanding the change.
 
@@ -168,9 +202,9 @@ Define a node acceptance test, version policy, canary process, automated validat
 
 ## Customer Perspective
 
-When a customer says, “We already have Kubernetes; why do we need GPU Operator?” the answer should focus on lifecycle coordination. Kubernetes schedules the resource after it has been discovered and advertised. It does not by itself install the vendor driver, configure the runtime, deploy the device plugin, label capabilities, validate the stack, or manage telemetry.
+When a customer says, "We already have Kubernetes; why do we need GPU Operator?" the answer should focus on lifecycle coordination. Kubernetes schedules the resource after it has been discovered and advertised. It does not by itself install the vendor driver, configure the runtime, deploy the device plugin, label capabilities, validate the stack, or manage telemetry.
 
-The value is repeatability and operational control—not merely installation convenience.
+The value is repeatability and operational control, not merely installation convenience.
 
 ## Interview Preparation
 
@@ -197,5 +231,7 @@ Focus on the device plugin, kubelet registration, operator state, plugin logs, n
 ## Cross References
 
 - [Volume 10 Introduction](./index)
+- [GPU Software Lifecycle in Kubernetes](./chapter-02-gpu-software-lifecycle-in-kubernetes)
+- [Kubernetes Device Plugin and Kubernetes Resource Model](./chapter-04-device-plugin-and-kubernetes-resource-model)
 - [Volume 03 — CUDA Software Stack](../volume-03/chapter-02-cuda-software-stack)
 - [Volume 07 — GPU Networking](../volume-07/index)

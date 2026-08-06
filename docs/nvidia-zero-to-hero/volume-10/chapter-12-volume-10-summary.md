@@ -39,6 +39,20 @@ flowchart TD
 | Scheduler policy | Place workloads by quantity and capability |
 | Validators | Prove important layer boundaries |
 
+## Production Synthesis
+
+Volume 10 is really about boundaries:
+
+- hardware versus host software;
+- host software versus container runtime integration;
+- discovery versus scheduling;
+- placement quantity versus placement quality;
+- node health versus workload health;
+- reconciliation versus compatibility;
+- telemetry versus telemetry context.
+
+When a GPU platform fails, one of those boundaries is usually blurred. The fix is to make the boundary explicit, observable, and owned by one team.
+
 ## Production Principles
 
 - Pin and test the complete compatibility matrix.
@@ -48,6 +62,8 @@ flowchart TD
 - Accept nodes only after CUDA, topology, and monitoring validation.
 - Upgrade through canary pools with spare capacity and rollback.
 - Correlate Kubernetes state with host, driver, runtime, and DCGM evidence.
+- Treat label taxonomies and scheduling classes as contracts.
+- Require a real workload and a real reboot before declaring success.
 
 ## Troubleshooting Checklist
 
@@ -63,12 +79,24 @@ flowchart TD
 
 A senior answer should distinguish discovery, allocation, runtime injection, scheduling, and application execution. “The GPU Operator installs drivers” is incomplete; explain the reconciliation architecture, operands, lifecycle decisions, security, observability, and failure handling.
 
+In practice, the strongest answers also explain what the platform does not do: it does not magically solve topology, fairness, application profiling, or workload-specific validation without deliberate policy.
+
 ## Lab Checklist
 
 - Qualify a GPU Kubernetes node.
 - Install the GPU Operator with pinned configuration.
 - Validate scheduling, CUDA, and DCGM metrics.
 - Inject and recover from an operand failure.
+
+## Operational Maturity
+
+If the node pool is stable, the platform is still not finished unless:
+
+- the compatibility matrix is documented;
+- the node acceptance workflow is repeatable;
+- telemetry is connected to workload ownership;
+- the rollback path has been tested;
+- the support handoff is clear for kernel, driver, runtime, and operator changes.
 
 ## Next Volume
 
