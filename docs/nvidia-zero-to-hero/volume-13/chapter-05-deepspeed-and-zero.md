@@ -49,132 +49,25 @@ Architecturally, FSDP `FULL_SHARD` and ZeRO-3 do the same thing. DeepSpeed offer
 **Diagnosis:** PCIe bus and NVMe drives are completely saturated. GPUs are waiting for optimizer states to page in.
 **Resolution:** Use PCIe Gen5 NVMe in RAID0. Reduce offload amount to only optimizer states.
 
+```json
+// In deepspeed_config.json
+"zero_optimization": {
+  "offload_optimizer": {
+    "device": "nvme",
+    "nvme_path": "/mnt/nvme0n1"
+  },
+  "offload_param": {
+    "device": "none"
+  }
+}
+```
+
 ### Senior Interview Questions
 **Q: Explain the memory math difference between ZeRO-2 and ZeRO-3.**
 **A:** For a 10B param model on 8 GPUs, ZeRO-2 replicates parameters (20GB) but shards gradients/optimizer states, taking 37.5GB per GPU. ZeRO-3 shards everything, taking just 20GB per GPU.
 
 <br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/>
 <br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/><br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
-<br/>
 <br/>
 <br/>
 <br/>
