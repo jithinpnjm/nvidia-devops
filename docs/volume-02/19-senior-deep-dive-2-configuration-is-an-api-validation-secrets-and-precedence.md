@@ -9,25 +9,27 @@ Production tools need deterministic configuration precedence. A common pattern i
 
 **Configuration loader with explicit validation**
 
+```python
 from dataclasses import dataclass
 from pathlib import Path
-    import os, yaml
+import os, yaml
 
 @dataclass(frozen=True)
 class Settings:
     namespace: str
-    timeout\_s: float
-    prometheus\_url: str
+    timeout_s: float
+    prometheus_url: str
 
     @classmethod
     def load(cls, path: Path) -> "Settings":
-        raw = yaml.safe\_load(path.read\_text()) or &#123;&#125;
+        raw = yaml.safe_load(path.read_text()) or {}
         namespace = os.getenv("NAMESPACE", raw.get("namespace", "default"))
-        timeout\_s = float(os.getenv("TIMEOUT\_S", raw.get("timeout\_s", 5)))
-        url = os.getenv("PROMETHEUS\_URL", raw.get("prometheus\_url", ""))
+        timeout_s = float(os.getenv("TIMEOUT_S", raw.get("timeout_s", 5)))
+        url = os.getenv("PROMETHEUS_URL", raw.get("prometheus_url", ""))
         if not url.startswith(("http://", "https://")):
-            raise ValueError("prometheus\_url must be http(s)")
-        return cls(namespace, timeout\_s, url)
+            raise ValueError("prometheus_url must be http(s)")
+        return cls(namespace, timeout_s, url)
+```
 
 ## Senior addendum
 

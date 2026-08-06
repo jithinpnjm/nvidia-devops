@@ -9,22 +9,24 @@ Senior Python does not mean clever syntax. It means predictable behavior under c
 
 **Use immutable value objects where accidental mutation would be dangerous**
 
+```python
 from dataclasses import dataclass, field
 from typing import Mapping
 
 @dataclass(frozen=True, slots=True)
 class Node:
     name: str
-    labels: Mapping\[str, str\]
-    allocatable\_gpus: int
+    labels: Mapping[str, str]
+    allocatable_gpus: int
 
 @dataclass(slots=True)
 class FleetReport:
-    nodes: list\[Node\] = field(default\_factory=list)
+    nodes: list[Node] = field(default_factory=list)
 
     @property
-    def total\_gpus(self) -> int:
-        return sum(n.allocatable\_gpus for n in self.nodes)
+    def total_gpus(self) -> int:
+        return sum(n.allocatable_gpus for n in self.nodes)
+```
 
 Dataclasses are useful when a tool has domain objects such as Node, GPU, Incident or Deployment. Composition usually produces clearer infrastructure code than deep inheritance: an ApiClient owns a RetryPolicy and AuthProvider; a ClusterInspector owns clients for Kubernetes, Prometheus and DCGM. Each piece can be replaced in a test.
 

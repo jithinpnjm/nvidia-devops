@@ -9,22 +9,26 @@ The most valuable unit tests target decisions: classification, parsing, retry be
 
 **Test the policy, not requests itself**
 
-\# retry.py
-def should\_retry(status: int | None, exc: Exception | None) -> bool:
+```python
+# retry.py
+def should_retry(status: int | None, exc: Exception | None) -> bool:
     if exc is not None:
         return isinstance(exc, (TimeoutError, ConnectionError))
-    return status == 429 or (status is not None and 500 &lt;= status &lt; 600)
+    return status == 429 or (status is not None and 500 <= status < 600)
+```
 
-# test\_retry.py
-    import pytest
-from retry import should\_retry
+```python
+# test_retry.py
+import pytest
+from retry import should_retry
 
-@pytest.mark.parametrize("status,expected", \[
+@pytest.mark.parametrize("status,expected", [
     (200, False), (400, False), (404, False),
     (429, True), (500, True), (503, True),
-\])
-def test\_status\_classification(status, expected):
-    assert should\_retry(status, None) is expected
+])
+def test_status_classification(status, expected):
+    assert should_retry(status, None) is expected
+```
 
 For a Kubernetes or NVIDIA API wrapper, test parsing with recorded small fixtures; use integration tests against a disposable kind/minikube cluster for the wire contract; reserve end-to-end tests for a few critical workflows. A large suite of tests that all mock the implementation details is fragile and provides false confidence.
 
