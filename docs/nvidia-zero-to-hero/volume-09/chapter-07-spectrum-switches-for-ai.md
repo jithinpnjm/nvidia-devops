@@ -200,9 +200,9 @@ NOS changes can alter command behavior, telemetry availability, supported featur
 
 ## Customer Architecture Discussion
 
-The right switch design begins with workload communication and operations, not a port-count quote. Ask how many concurrent jobs must receive predictable performance, what degradation is acceptable during maintenance, whether the fabric is dedicated, who owns NOS and optics lifecycle, and how evidence will be retained during an incident.
+The right switch design begins with workload communication and operations, not a port-count quote. Establish three explicit criteria before choosing a topology: the number and communication pattern of concurrent jobs that must meet a step-time objective; the capacity and latency behavior permitted after a defined uplink, leaf, or maintenance loss; and the named team that owns NOS, optics, configuration automation, telemetry, and incident evidence.
 
-Full bisection is a cost and resilience choice. Measured oversubscription can be appropriate when traffic locality and concurrency support it. The architecture decision should state normal and degraded service expectations, not only aggregate switch capacity.
+Full bisection is a cost and resilience choice. Measured oversubscription can be appropriate when workload locality and concurrency measurements support it. The architecture decision should document normal and degraded service expectations, the evidence used to accept them, and the escalation owner—not only aggregate switch capacity.
 
 ## Interview Preparation
 
@@ -215,6 +215,13 @@ Full bisection is a cost and resilience choice. Measured oversubscription can be
 ## Architecture Summary
 
 Spectrum switches provide the forwarding, queueing, telemetry, and congestion-signaling layer of an AI Ethernet fabric. Their value comes from a coherent topology, QoS policy, endpoint behavior, and operational release process. Buffers absorb brief mismatch; they do not replace capacity. Telemetry and baselines turn an opaque performance complaint into a path-specific engineering decision.
+
+## Key Takeaways
+
+- Evaluate switch capacity at the relevant traffic cut, including concurrent jobs and degraded states.
+- Use ECN, PFC, queues, and endpoint behavior as one reviewed control system.
+- Prove routing and rail balance with workload and counter evidence, not port-up state.
+- Assign lifecycle and incident ownership for NOS, optics, automation, and telemetry before deployment.
 
 ## Quick Revision Sheet
 
@@ -240,5 +247,5 @@ Spectrum switches provide the forwarding, queueing, telemetry, and congestion-si
 ## Further Reading
 
 - [NVIDIA Spectrum telemetry documentation](https://docs.nvidia.com/networking/display/neov27/telemetry)
-- [NVIDIA WJH configuration documentation](https://docs.nvidia.com/networking/display/onyxv3102002/configure%2Bwhat%2Bjust%2Bhappened%2B%28wjh%29%2Busing%2Bcli)
+- [Historical/reference NVIDIA WJH configuration documentation](https://docs.nvidia.com/networking/display/onyxv3102002/configure%2Bwhat%2Bjust%2Bhappened%2B%28wjh%29%2Busing%2Bcli) — use the current NOS documentation for supported syntax and availability.
 - [NVIDIA RoCE overview](https://docs.nvidia.com/networking-ethernet-software/cumulus-linux-40/Network-Solutions/RDMA-over-Converged-Ethernet-RoCE/)

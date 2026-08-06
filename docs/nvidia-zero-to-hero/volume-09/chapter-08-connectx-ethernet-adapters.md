@@ -194,6 +194,13 @@ Offer customers performance expectations as measured acceptance ranges for a def
 
 ConnectX adapters are active RoCE endpoints and local I/O devices, not just high-speed Ethernet ports. Their delivered performance depends on queueing, PCIe and GPU locality, rail-aware software, fabric behavior, and a qualified lifecycle. Observe and accept the complete path from application to remote memory.
 
+## Key Takeaways
+
+- Treat a ConnectX port as an RDMA endpoint attached to a specific local I/O topology.
+- Validate RoCE resource selection, route, MTU, and traffic treatment together.
+- Prove multi-rail behavior with per-rail workload evidence; active ports alone are insufficient.
+- Qualify adapter firmware and drivers with the host, collective stack, and fabric release set.
+
 ## Quick Revision Sheet
 
 - Link rate is not usable application rate.

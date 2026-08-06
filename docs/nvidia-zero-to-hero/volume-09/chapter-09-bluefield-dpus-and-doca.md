@@ -66,7 +66,7 @@ Do not describe a DPU as simply “a NIC with CPUs.” It has NIC functions, but
 
 ## Operating Modes and Traffic Paths
 
-BlueField documentation describes DPU mode (also called Embedded CPU Function Ownership, or ECPF) as the default for BlueField DPU SKUs. In that mode the embedded Arm subsystem owns NIC resources and the embedded switch; host networking is managed through this DPU-controlled model. NVIDIA also documents restricted variants and mode constraints. Exact supported modes differ by SKU and release, so select and validate the current documentation before deployment.
+BlueField documentation describes DPU mode (also called Embedded CPU Function Ownership, or ECPF) as the default for BlueField **DPU SKUs**. In that mode the embedded Arm subsystem owns NIC resources and the embedded switch; host networking is managed through this DPU-controlled model. This default must not be generalized to BlueField **SuperNIC SKUs**, whose documented default is NIC mode. NVIDIA also documents restricted variants and mode constraints. Exact supported modes and transitions differ by SKU and release, so confirm the current product documentation before deployment.
 
 ```mermaid
 flowchart TD
@@ -189,7 +189,7 @@ The monitoring goal is a traceable failure boundary: “host cannot reach DPU fu
 
 ## Customer Architecture Discussion
 
-Recommend BlueField when a customer has a measurable need for infrastructure isolation, host CPU relief, programmable host-edge services, or standardized per-node policy—and can staff the additional operational domain. It is less compelling when the desired function is already handled adequately by the host or fabric and the organization cannot own DPU image, security, observability, and recovery.
+Recommend a BlueField DPU only when at least one required infrastructure function has a stated measurable outcome—such as a host CPU budget, an enforced host-edge isolation boundary, or a per-node service policy that must remain independent of tenant-host administration—and an identified owner can operate the DPU image, identity, monitoring, patching, and recovery. If neither a measurable requirement nor that operational ownership exists, retain the host/fabric-native design rather than adding a DPU.
 
 Frame the decision in service outcomes: isolation boundary, host CPU budget, failure behavior, upgrade cadence, and evidence required for incidents. Avoid promising a performance improvement without a workload baseline and a defined offload path.
 
@@ -204,6 +204,13 @@ Frame the decision in service outcomes: isolation boundary, host CPU budget, fai
 ## Architecture Summary
 
 BlueField can establish a programmable, independently managed infrastructure boundary at the server edge. DOCA supplies the software framework and deployment building blocks for supported services and applications. The benefit is conditional: the DPU, host, and fabric must be designed, monitored, secured, upgraded, and troubleshot as separate but connected layers.
+
+## Key Takeaways
+
+- Distinguish DPU-SKU default DPU mode from SuperNIC-SKU default NIC mode; validate the exact SKU and release.
+- Adopt a DPU only for a measurable infrastructure requirement with named lifecycle ownership.
+- Separate Arm-side control behavior, embedded-switch fast paths, host functions, and external fabric evidence.
+- Prefer a supported packaged service when it meets the requirement; custom DOCA software carries a full product lifecycle.
 
 ## Quick Revision Sheet
 
