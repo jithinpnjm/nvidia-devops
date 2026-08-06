@@ -44,14 +44,14 @@ sequenceDiagram
     participant R as RoCE receiver
     S->>Q: ECN-capable RoCE traffic
     Q->>R: Packet marked CE as queue crosses policy
-    R-->>S: Congestion notification
+    R-->>S: CNP / congestion notification
     S->>S: Reduce injection rate
     S->>Q: Controlled sending and recovery
 ```
 
 **Figure 9.5.1 — ECN turns queue pressure into a feedback signal.** The return path and sender response are as important as the switch marking policy.
 
-DCQCN combines congestion estimation with rate control. Conceptually, the sender reduces its rate after notifications and cautiously recovers when feedback subsides. This avoids making PFC the normal response to congestion. It does not guarantee fairness across all workloads, repair a broken link, or make an oversubscribed destination nonblocking.
+For a deployed RoCE congestion-control profile, the receiver returns the applicable congestion notification packet (CNP) after observing ECN-marked traffic. DCQCN combines congestion estimation with rate control. Conceptually, the sender reduces its rate after notifications and cautiously recovers when feedback subsides. Exact CNP handling, counters, and configuration controls are implementation- and release-specific. This avoids making PFC the normal response to congestion. It does not guarantee fairness across all workloads, repair a broken link, or make an oversubscribed destination nonblocking.
 
 ## Thresholds Are a Control-System Design
 
@@ -126,7 +126,17 @@ One switch configured for ECN proves nothing about a feedback loop if the receiv
 
 **Prevention:** retain time-series baselines rather than accepting a one-minute average as proof of stability.
 
-### Scenario 3 — A change appears to remove congestion
+### Scenario 3 — ECN marks are visible, but sender response is absent or asymmetric
+
+**Symptoms:** one direction of a workload accumulates ECN marks and queue pressure, while the expected sender-rate response is absent, or only a subset of hosts reacts.
+
+**Diagnosis:** verify that the marked traffic reaches the receiver, that the receiver can return CNPs to the original sender, and that the sender uses the qualified congestion-control profile. Compare endpoint CNP/rate evidence, reverse-path reachability and QoS treatment, and GID/device selection across healthy and unhealthy nodes.
+
+**Resolution:** restore the approved endpoint and reverse-path profile, then repeat the same bounded congestion test. Do not compensate for missing feedback by widening PFC or changing switch thresholds.
+
+**Prevention:** include bidirectional CNP/endpoint response evidence in the validation baseline after routing, QoS, or host-image changes.
+
+### Scenario 4 — A change appears to remove congestion
 
 **Symptoms:** ECN and PFC counters fall, but performance has not improved or drops rise.
 

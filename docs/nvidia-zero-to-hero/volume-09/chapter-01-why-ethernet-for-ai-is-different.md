@@ -178,7 +178,7 @@ Operational complexity is a real cost. An AI Ethernet fabric requires version-qu
 
 For a customer considering Ethernet for a GPU cluster, begin with workload concurrency, job completion objectives, topology, operational ownership, and required isolation. Then describe the control loop in concrete terms: where packets queue, how congestion is signaled, how endpoints respond, what priority can pause, and how operators prove the behavior.
 
-Avoid a binary recommendation. The architecture can be sound for an organization with disciplined qualification and telemetry, or fragile when it relies on undocumented defaults and isolated benchmark results. The differentiator is operational evidence.
+Avoid a binary recommendation. The architecture can be sound for an organization with disciplined qualification and telemetry, or fragile when it relies on undocumented defaults and isolated benchmark results. Require concrete acceptance artifacts: a contention baseline with queue and endpoint counters, proof of the approved traffic-class mapping, and a representative degraded-path result with documented capacity and recovery behavior.
 
 ## Interview Preparation
 

@@ -7,6 +7,8 @@ tags: [pfc, ethernet, roce]
 
 # Priority Flow Control
 
+## Introduction
+
 An all-to-all training run begins to slow down. Link errors and packet-drop counters are quiet, but one receiver-facing port is sending pause frames continuously. Within seconds, upstream ports pause the same priority and unrelated GPU workers wait. The incident is not a link failure; it is backpressure spreading through a fabric.
 
 Priority Flow Control (PFC) is one containment mechanism for this condition. It can stop transmission for one Ethernet priority on a full-duplex link, buying a downstream receiver time to drain its buffer. It is deliberately local and reactive. It does not discover the bottleneck, choose another path, allocate fairness, or add capacity.

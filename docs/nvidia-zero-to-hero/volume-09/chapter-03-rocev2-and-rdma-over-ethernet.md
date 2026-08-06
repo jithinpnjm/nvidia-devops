@@ -81,6 +81,8 @@ Avoid the oversimplification that RoCE “has no reliability” or that a fabric
 
 The architectural response is to prevent avoidable queue overflow through capacity, traffic-class design, ECN-based congestion control, and carefully scoped PFC where required by the approved design. Chapter 04 explains the link-level pause mechanism; Chapter 05 explains ECN and DCQCN.
 
+For a deployed RoCE congestion-control profile, a receiver that observes ECN-marked traffic returns the applicable congestion notification packet (CNP) to the sender, which can then adjust injection rate. Exact packet handling, counters, and configuration controls are implementation- and release-specific; validate them as one endpoint-and-fabric profile.
+
 ## Addressing: GIDs, Network Devices, and Routes
 
 An RDMA port exposes Global Identifier (GID) entries. For RoCE ports, NVIDIA documents that GID-table entries are associated with IP configuration and expose a GID value, type, and network device. A host with multiple NIC ports, VLANs, addresses, address families, or virtual functions can therefore have multiple usable-looking entries.
