@@ -21,7 +21,7 @@ For inference, useful economic units include cost per 1K/1M tokens, cost per req
 **Conclusion:** Architecture cost decisions require normalized workload outcomes, not list price comparisons.
 
 ➕ **The cost-per-token arithmetic, worked all the way through (the calculation the worked scenario describes but doesn't compute):**
-```
+```text
 Premium GPU:  $4.00/hr,  100 tok/s at SLO-compliant batch config
 Cheaper GPU:  $1.80/hr,   60 tok/s at SLO-compliant batch config   (60% throughput, 45% price)
 
@@ -46,7 +46,7 @@ Cheaper: peak 1000 tok/s ÷  60 tok/s/replica ≈ 17 replicas × $1.80/hr = $30.
 The headline "60% throughput at 45% price" sounds like it should be a wash — dividing them out shows the cheaper GPU is actually ~25% cheaper per token, which is the number worth presenting, along with the replica-count operational tradeoff the raw $/token figure hides.
 
 ➕ **Sample output — the training-cost side, where "failed/restarted jobs... can dominate cost" becomes a real invoice line:**
-```
+```bash
 $ cat training_run_ledger.csv | awk -F, '{sum+=$2} END {print sum" GPU-hours total"}'
 14200 GPU-hours total
 

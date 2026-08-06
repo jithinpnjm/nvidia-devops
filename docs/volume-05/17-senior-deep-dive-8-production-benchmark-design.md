@@ -12,7 +12,7 @@ A useful benchmark reproduces workload shape, not only peak throughput. Record i
 ➕ **Cross-reference:** Chapter 9's enhanced version already derives the cost-per-token arithmetic and a warm-vs-cold benchmark worked scenario — this Deep Dive is the methodology checklist behind that scenario. Turn its list into an actual benchmark report template, since "what should a benchmark report contain" is a direct interview question:
 
 ➕ **Minimal credible LLM-serving benchmark report — a checklist you can recite:**
-```
+```text
 Workload shape:     input/output length distribution (not just mean — report p50/p90/p99
                     of BOTH, since a long-tail of long prompts changes prefill cost non-linearly)
 Concurrency:        fixed vs. Poisson arrival; concurrency level(s) tested
