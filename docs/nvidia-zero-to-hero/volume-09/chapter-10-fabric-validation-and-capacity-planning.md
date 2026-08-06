@@ -184,6 +184,31 @@ Present normal and degraded-state behavior separately. A customer may consciousl
 - [ ] Safely simulate one agreed failure in a nonproduction environment.
 - [ ] Document the acceptance range, owner, and rollback decision.
 
+## Acceptance Record Template
+
+Use a consistent record so that operations can compare a future result with commissioning evidence.
+
+| Field | Record |
+|---|---|
+| Design identity | rack, rail, leaf/spine roles, cabling and expected paths |
+| Release identity | host OS, driver, NIC firmware, NOS, DPU image, policy revision |
+| Workload | operation, message range, rank map, concurrency, duration |
+| Measurements | raw result, percentiles, queue/ECN/PFC/error deltas, utilization |
+| Decision | accepted range, deviations, risk owner, promotion/rollback action |
+
+### Capacity-review mistakes to avoid
+
+- Summing port speeds without identifying the traffic cut.
+- Calling a one-job test a shared-fabric acceptance result.
+- Comparing tests with different rank maps, software versions, or topology.
+- Ignoring degraded-state path selection because the normal topology is healthy.
+- Treating a counter snapshot as proof of stable behavior rather than using rates and time series.
+
+## Further Reading
+
+- [NVIDIA Cumulus Linux Quality of Service](https://docs.nvidia.com/networking-ethernet-software/cumulus-linux-57/Layer-1-and-Switch-Ports/Quality-of-Service/)
+- [NVIDIA NCCL documentation](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/)
+
 ## Further Reading
 
 - [NVIDIA Cumulus Linux QoS documentation](https://docs.nvidia.com/networking-ethernet-software/cumulus-linux-57/Layer-1-and-Switch-Ports/Quality-of-Service/)

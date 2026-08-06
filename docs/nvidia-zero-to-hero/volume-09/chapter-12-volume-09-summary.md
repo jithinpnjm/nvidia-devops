@@ -151,6 +151,26 @@ Do not immediately call success. Prove that traffic still uses the intended queu
 - [ ] Produce an incident evidence bundle and test its runbook.
 - [ ] Record release, topology, and policy identifiers with every result.
 
+## Decision Matrix
+
+| Symptom or requirement | First architectural response | Avoid |
+|---|---|---|
+| Brief burst threatens a loss-sensitive queue | Qualified ECN feedback with narrowly scoped PFC protection | Enabling pause for every class |
+| Persistent hot destination | Placement, routing where alternatives exist, or capacity | Treating threshold changes as capacity |
+| Need to protect management during training | Separate class, queue, and verified scheduler behavior | Sharing the RoCE pause domain |
+| Shared tenant demand | Admission, isolation model, and observability ownership | Calling QoS a tenant-security mechanism |
+| Upgrade risk | Canary the complete release set with rollback | Updating endpoint and switch components independently |
+
+## What This Volume Does Not Claim
+
+This volume does not prescribe one priority number, buffer threshold, congestion profile, NIC firmware, switch release, topology, or benchmark target. Those choices are valid only in the context of supported hardware/software combinations and measured workload evidence. The transferable practice is to make the choice explicit, validate the whole path, preserve the baseline, and operate the failure modes.
+
+## Further Reading
+
+- [IEEE 802.1Qbb Priority-based Flow Control overview](https://1.ieee802.org/dcb/802-1qbb/)
+- [RFC 3168: Explicit Congestion Notification](https://www.rfc-editor.org/info/rfc3168/)
+- [NVIDIA Cumulus Linux RoCE documentation](https://docs.nvidia.com/networking-ethernet-software/cumulus-linux-44/Layer-1-and-Switch-Ports/Quality-of-Service/RDMA-over-Converged-Ethernet-RoCE/)
+
 ## Interview Notes
 
 Avoid describing RoCE as “InfiniBand over Ethernet.” It carries RDMA semantics on Ethernet/IP and must be engineered through Ethernet routing, queues, congestion signaling, endpoint behavior, and operations. The senior-level answer is always a system answer: a fast adapter cannot compensate for an unqualified queue policy, a congested cut, or an unobservable change process.

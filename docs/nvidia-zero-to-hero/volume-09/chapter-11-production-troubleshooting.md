@@ -180,6 +180,30 @@ The operating model has a cost: topology inventory, telemetry retention, test ca
 - [ ] Compare a healthy and affected rail without aggregating counters.
 - [ ] Verify rollback restores both configuration revision and workload baseline.
 
+## Incident Communication Template
+
+State facts separately from hypotheses. For example: “Ranks 8–15 show increased collective tail from 10:14 UTC; leaf B queue 3 ECN deltas rose; no physical error delta is observed.” Then state the hypothesis: “The affected rank placement concentrates demand on leaf B’s uplinks.” This prevents a suspicion from becoming incident history.
+
+| Update field | Required content |
+|---|---|
+| Scope | affected jobs, nodes, rails, customer impact, start time |
+| Evidence | comparison baseline, counter windows, release/policy differences |
+| Hypothesis | one testable root cause and its falsifying observation |
+| Action | safe diagnostic/change owner and rollback point |
+| Verification | exact workload and evidence required to close |
+
+### Common anti-patterns
+
+- Resetting endpoints before collecting completion and counter evidence.
+- Changing PFC, ECN, routing, and firmware in one maintenance window.
+- Treating an aggregated fabric graph as evidence that every rail is healthy.
+- Closing an incident because connectivity returned without repeating the affected workload.
+
+## Further Reading
+
+- [RFC 3168: Explicit Congestion Notification](https://www.rfc-editor.org/info/rfc3168/)
+- [NVIDIA networking documentation](https://docs.nvidia.com/networking/)
+
 ## Further Reading
 
 - [NVIDIA RoCE documentation](https://docs.nvidia.com/networking-ethernet-software/cumulus-linux-44/Layer-1-and-Switch-Ports/Quality-of-Service/RDMA-over-Converged-Ethernet-RoCE/)
