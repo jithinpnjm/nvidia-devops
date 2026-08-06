@@ -29,16 +29,18 @@ flowchart TD
     Driver[Driver operand or host driver]
     Runtime[Toolkit/runtime operand]
     Plugin[Device plugin]
+    Kubelet[Kubelet]
     Discovery[Discovery]
     Validation[Validator]
     Workload[GPU workload]
     GPU --> Driver
     Kernel --> Driver
     Driver --> Runtime --> Workload
-    Driver --> Plugin --> Workload
+    Driver --> Plugin --> Kubelet
     Driver --> Discovery
     Runtime --> Validation
     Plugin --> Validation
+    Kubelet --> Validation
 ```
 
 **Figure 10.7.1 — A node is ready for GPU workloads only when host, runtime, allocation, and validation contracts agree.** The GPU Operator architecture and reconciliation model are covered in [Chapter 06](./chapter-06-gpu-operator-architecture).

@@ -17,8 +17,9 @@ That chain is the central model of this volume. It gives the platform team a way
 flowchart TD
     Hardware[GPU hardware and firmware] --> Driver[Kernel driver]
     Driver --> Runtime[Container Toolkit, CDI, or runtime handler]
-    Runtime --> Plugin[Device Plugin and kubelet registration]
+    Driver --> Plugin[Device Plugin and kubelet registration]
     Hardware --> Discovery[NFD and GPU feature discovery]
+    Runtime --> Workload[GPU workload]
     Plugin --> Scheduler[Kubernetes resource and scheduler]
     Discovery --> Scheduler
     Scheduler --> Workload[GPU workload]
