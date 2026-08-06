@@ -11,22 +11,88 @@ NUMA matters on large CPU/GPU servers because memory access latency and bandwidt
 
 **Host commands: memory and NUMA evidence**
 
-\# Memory pressure and reclaim
+```bash
+# Memory pressure and reclaim
 free -h
 vmstat 1
 cat /proc/pressure/memory
 cat /proc/meminfo | egrep 'MemAvailable|Anon|Mapped|Dirty|Writeback|Huge|Unevictable'
 
 # Per-process mappings and faults
-pmap -x &lt;PID> | tail
-pidstat -r -p &lt;PID> 1
+pmap -x <PID> | tail
+pidstat -r -p <PID> 1
 
 # NUMA layout and locality
 numactl --hardware
-numastat -p &lt;PID>
+numastat -p <PID>
 lscpu -e=CPU,NODE,SOCKET,CORE
+```
 
-OOM reasoning must identify the boundary. A container can be OOM-killed inside its cgroup while the node still has free memory. Conversely, global node pressure can trigger the kernel OOM killer or kubelet eviction logic. The right question is not “did we run out of memory?” but “which allocator or control boundary could not satisfy the request, and what evidence records that decision?”
+➕ **`/proc/pressure/memory` (PSI), annotated — the number this Deep Dive's command list has that Chapter 2 doesn't:**
+```text
+$ cat /proc/pressure/memory
+some avg10=2.34 avg60=1.02 avg300=0.41 total=48291822
+full avg10=0.11 avg60=0.05 avg300=0.02 total=1893004
+```
+`some` = the percentage of the last 10/60/300 seconds during which *at least one* task was stalled waiting on memory (reclaim, swap-in, compaction). `full` = the percentage during which *every* runnable task was stalled simultaneously — that's the number that actually correlates with user-visible latency, because it means nothing useful could run at all during that window. `some avg10=2.34` with `full avg10=0.11` describes a system where memory pressure exists but is mostly hidden behind other runnable work — a single average `%used` metric cannot distinguish "some contention, no real stall" from "everything stopped," which is exactly why PSI exists.
+
+➕ **`pmap -x <PID> | tail` and `pidstat -r -p <PID> 1`, annotated — continuing Chapter 2's PID 8842 example:**
+```text
+$ pmap -x 8842 | tail -3
+Address           Kbytes     RSS   Dirty Mode  Mapping
+00007f2c40000000 8388608  412300  380120 rw---   [ anon ]
+---------------- ------- ------- -------
+total kB          8421604  412300  380120
+```
+This is the mapping-level breakdown behind the single `VmRSS`/`VmSize` numbers Chapter 2 already read from `/proc/<PID>/status` — `pmap -x` shows *which* mapping (`[ anon ]` here = heap/stack, not a file) is actually holding the resident memory, which matters when a process has hundreds of mappings and one summary number isn't enough to find the culprit.
+```text
+$ pidstat -r -p 8842 1
+Linux 5.15.0 ...
+UID   PID   minflt/s  majflt/s     VSZ    RSS  %MEM  Command
+1000  8842   1180.00      0.00 8421604 412300   0.6  python3
+```
+`-r` reports faults, not CPU. `minflt/s` (minor faults/sec) climbing with `majflt/s` at `0.00` is Chapter 2's page-fault diagram in one line: this process is faulting in already-cached/shared pages constantly (cheap, no I/O) — if `majflt/s` were nonzero instead, every one of those faults is real disk/swap I/O, and that's a very different incident.
+
+➕ **`numactl --hardware`, `numastat -p <PID>`, `lscpu -e`, annotated — this is where the actual new material in this Deep Dive lives:**
+```text
+$ numactl --hardware
+available: 2 nodes (0-1)
+node 0 cpus: 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+node 0 size: 128772 MB
+node 0 free: 41233 MB
+node 1 cpus: 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31
+node 1 size: 128999 MB
+node 1 free: 39876 MB
+node distances:
+node   0   1
+  0:  10  21
+  1:  21  10
+```
+The **distance table at the bottom is the number that matters**: `10` is the reference cost of a local access; `21` means a Node-0-to-Node-1 access costs roughly twice as much latency. Everything else in this output (node sizes, free memory) is context; the distance matrix is the evidence that a "wrong" placement is measurably, not just theoretically, slower.
+```text
+$ numastat -p 8842
+Per-node process memory usage (in MBs) for PID 8842 (python3)
+                           Node 0          Node 1           Total
+                  --------------- --------------- ---------------
+Heap                        45.20            0.30           45.50
+Stack                        0.10            0.00            0.10
+Private                    380.20            2.10          382.30
+                  --------------- --------------- ---------------
+Total                      425.50            2.40          427.90
+```
+This is the single most useful command in this list: it shows *where a specific process's memory actually landed*, node by node. A process whose memory is ~99% on Node 0 (as here) is fine only if the GPU and NIC it's feeding are also under Node 0's PCIe root complex — check that against `nvidia-smi topo -m` (Chapter 4/Volume 4 territory) or the `lscpu -e` output below.
+```text
+$ lscpu -e=CPU,NODE,SOCKET,CORE
+CPU NODE SOCKET CORE
+0    0    0    0
+1    0    0    1
+...
+16   1    1    0
+17   1    1    1
+```
+This is the lookup table that turns "GPU2 is under PCIe root complex B" into "root complex B is Node 1, which is CPUs 16-31" — without it, `numactl --cpunodebind=1` is just a number with no traceable meaning.
+
+OOM reasoning must identify the boundary — Chapter 2 now covers the three distinct memory-death paths (container cgroup OOM, node-wide OOM, kubelet soft eviction) and the exact `memory.events` fields that prove each one, in full depth, so this Deep Dive doesn't repeat that table. The one-line version worth keeping here: the right question is never "did we run out of memory?" — it's "which allocator or control boundary could not satisfy the request, and what evidence records that decision?"
 
 ## ➕ Senior addendum
 
@@ -53,3 +119,22 @@ flowchart TD
     end
 ```
 `cudaHostAlloc`/pinned buffers trade host RAM flexibility (pinned pages can't be reclaimed under pressure, and over-pinning can starve the rest of the host) for materially faster host↔GPU transfer — a NUMA-local pinned buffer plus a cross-node one produce identical `nvidia-smi` output but different real throughput, which is the same "topology is invisible from the GPU-only view" point as the diagram above, one layer earlier in the pipeline.
+
+## ➕ Worked scenario
+
+**Situation:** Two nodes in the same training cluster have identical GPU models, identical driver/CUDA versions, and near-identical `nvidia-smi` utilization during a run — but one node's per-step time is consistently 15-20% slower, and has been since it was provisioned.
+
+1. Rule out the obvious first: `nvidia-smi topo -m` on both nodes shows the same GPU-to-GPU link types (NVLink where expected), so it isn't a topology defect on the slow node itself.
+2. The remaining candidate is which NUMA node each GPU sits under versus which NUMA node is actually feeding it. Run `lscpu -e=CPU,NODE,SOCKET,CORE` on the slow node to map CPU ranges to NUMA nodes, then cross-reference against `nvidia-smi topo -m`'s PCIe-root-complex grouping to find which node each GPU belongs to.
+3. Run `numastat -p <PID>` on the data-loader/feeder process for the slow GPU. The output shows its memory sitting almost entirely on Node 0 — but the GPU it feeds is enumerated under the PCIe root complex tied to Node 1.
+4. That's the whole incident: the feeder process was never pinned, so the scheduler placed it wherever a CPU happened to be free at process-start time, and it landed on the wrong node relative to its GPU. Every batch pays the cross-node distance (`numactl --hardware`'s `21` vs `10`) on every host-to-device copy, and none of it shows up in `nvidia-smi` utilization, which only reports the GPU side.
+5. Fix at the process level: `numactl --cpunodebind=1 --membind=1 <feeder process>` to force correct placement. Fix at the platform level, so this can't recur silently on future pods: Kubernetes Topology Manager with `--topology-manager-policy=single-numa-node`, which refuses to schedule a pod across mismatched NUMA nodes rather than letting it land wrong and run slow.
+
+**Conclusion:** identical hardware, identical driver stack, identical `nvidia-smi` readings — and a real, reproducible performance gap that only NUMA-locality evidence (not GPU-side evidence) can explain.
+
+## ➕ Practice
+
+1. On a two-socket host, run `numactl --hardware` and `lscpu -e=CPU,NODE,SOCKET,CORE`, and write down which CPU numbers belong to which NUMA node — do this once so the mapping is muscle memory, not a lookup.
+2. Run `numastat -p <PID>` against a long-running process on your own machine or a lab host and explain, in one sentence, what its Node 0 vs Node 1 split tells you about where it was scheduled.
+3. Explain why `nvidia-smi` alone can never catch a NUMA-mismatch performance regression, and name the two commands (from this Deep Dive) that can.
+4. Explain, without looking it up, why a `full avg10` value in `/proc/pressure/memory` is a more urgent signal than a `some avg10` value of the same magnitude.
