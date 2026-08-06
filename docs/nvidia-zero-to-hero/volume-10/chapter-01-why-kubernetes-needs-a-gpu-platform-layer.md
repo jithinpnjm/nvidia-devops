@@ -197,5 +197,5 @@ Focus on the device plugin, kubelet registration, operator state, plugin logs, n
 ## Cross References
 
 - [Volume 10 Introduction](./index)
-- [Volume 03 — CUDA Software Stack](../volume-03/chapter-02-the-cuda-software-stack)
+- [Volume 03 — CUDA Software Stack](../volume-03/chapter-02-cuda-software-stack)
 - [Volume 07 — GPU Networking](../volume-07/index)
