@@ -24,26 +24,22 @@ After this chapter, you will be able to:
 
 ```mermaid
 flowchart TD
-    Kernel[Host kernel and OS]
-    GPU[GPU and firmware]
-    Driver[Driver operand or host driver]
-    Runtime[Toolkit/runtime operand]
-    Plugin[Device plugin]
-    Kubelet[Kubelet]
-    Discovery[Discovery]
-    Validation[Validator]
-    Workload[GPU workload]
-    GPU --> Driver
-    Kernel --> Driver
-    Driver --> Runtime --> Workload
-    Driver --> Plugin --> Kubelet
-    Driver --> Discovery
-    Runtime --> Validation
-    Plugin --> Validation
-    Kubelet --> Validation
+    Join[Node joins cluster] --> Infra{Kernel, registry, labels, taints correct?}
+    Infra -->|no| InfraFix[Keep node cordoned; repair base profile]
+    Infra -->|yes| Driver{Driver operand or host driver healthy?}
+    Driver -->|"yes: module loaded; nvidia-smi works"| Toolkit{Runtime operand applied?}
+    Driver -->|no| DriverFix[Inspect Pod log, kernel log, signing, module state]
+    Toolkit -->|"yes: fresh sandbox starts"| Plugin{Device plugin registered?}
+    Toolkit -->|no| RuntimeFix[Inspect runtime config, service, CDI]
+    Plugin -->|"yes: allocatable resource present"| Discovery{Labels and acceptance state correct?}
+    Plugin -->|no| PluginFix[Inspect plugin and kubelet registration]
+    Discovery -->|yes| Validate{Minimal workload and telemetry pass?}
+    Discovery -->|no| DiscoveryFix[Repair discovery; withhold service class]
+    Validate -->|yes| Admit[Remove quarantine and admit workloads]
+    Validate -->|no| ValidateFix[Preserve node evidence; isolate failed gate]
 ```
 
-**Figure 10.7.1 — A node is ready for GPU workloads only when host, runtime, allocation, and validation contracts agree.** The GPU Operator architecture and reconciliation model are covered in [Chapter 06](./chapter-06-gpu-operator-architecture).
+**Figure 10.7.1 — Node admission follows host-facing gates in dependency order.** A Running DaemonSet Pod is not the decision point. Each edge names the evidence that must exist before the next layer is trusted.
 
 | Operand or layer | Host-facing responsibility | Failure visible to users |
 |---|---|---|
@@ -68,6 +64,44 @@ Host-installed drivers remain reasonable when a golden-image pipeline, immutable
 | Host-installed driver | reproducible image construction and OS-owned maintenance | surface driver version and validation status to the platform |
 | Mixed ownership | accommodates constrained environments | define exactly which system controls each layer |
 
+### Evidence from the node and the operand
+
+**Purpose:** determine whether the driver container is merely Running or has actually made the driver usable.
+
+```bash
+kubectl -n gpu-operator get pod -l app=nvidia-driver-daemonset -o wide
+kubectl -n gpu-operator logs nvidia-driver-daemonset-m4k7q -c nvidia-driver-ctr --tail=12
+```
+
+**Representative output:**
+
+```text
+NAME                              READY   STATUS    NODE
+gpu-driver-daemonset-m4k7q        1/1     Running   gpu-node-10
+
+Loading NVIDIA kernel modules...
+nvidia 550.54.15 loaded
+Creating device nodes...
+Driver installation completed successfully
+```
+
+This is operand-level evidence. It proves that the container reports completing its procedure, but it does not independently prove the running host can use the GPU. Pair it with host evidence:
+
+```bash
+nvidia-smi --query-gpu=index,name,uuid,driver_version --format=csv,noheader
+lsmod | awk '$1 ~ /^nvidia/ {print $1,$3}'
+```
+
+```text
+0, NVIDIA H100 80GB HBM3, GPU-3c2e38d1-6a2c-4a31-b44b-9d82a8c80735, 550.54.15
+1, NVIDIA H100 80GB HBM3, GPU-722d1344-1b6d-4a95-8cb9-1c572eb5ad94, 550.54.15
+nvidia_uvm 2
+nvidia_modeset 1
+nvidia 6
+```
+
+`nvidia-smi` proves NVML communication with the devices. `lsmod` proves the kernel modules are loaded. Neither validates the container runtime; a fresh GPU Pod is still required.
+
 ## Readiness has gates, not one boolean
 
 `NodeReady` proves that kubelet has reported a functioning node. It does not prove that the driver loaded, that a runtime can inject a device, or that the advertised GPU works for a CUDA process. Adopt an explicit acceptance sequence for each GPU node:
@@ -79,6 +113,18 @@ Host-installed drivers remain reasonable when a golden-image pipeline, immutable
 5. **Acceptance gate:** a scoped validation workload and required telemetry checks pass.
 
 Only the last gate should make the node eligible for production workloads that depend on the platform contract. This can be represented by a controlled lifecycle label, taint removal, or pool admission mechanism. The mechanism matters less than documenting who changes it and what evidence permits the change.
+
+### Worked node-admission arithmetic
+
+A 16-node pool uses two node states: `quarantined` and `accepted`. After a base-image rollout, 13 nodes pass all gates and three fail the driver gate.
+
+```text
+accepted capacity = 13 nodes × 8 GPUs = 104 GPUs
+physical inventory = 16 nodes × 8 GPUs = 128 GPUs
+admitted fraction = 104 / 128 = 81.25%
+```
+
+Reporting 128 GPUs to customers would confuse owned inventory with usable service capacity. The three failed nodes should remain tainted or excluded until their evidence bundle passes.
 
 ## Privilege and supply-chain controls
 
@@ -94,6 +140,28 @@ Review the following together:
 
 Avoid the false comfort of a restrictive application Pod policy while leaving the node-management namespace broadly writable. The privileged operand is a legitimate control-plane extension and needs equivalent protection.
 
+**Purpose:** expose the actual privilege and host mounts of the driver DaemonSet.
+
+```bash
+kubectl -n gpu-operator get ds nvidia-driver-daemonset -o json | jq '.spec.template.spec.containers[] | {name,privileged:.securityContext.privileged,capabilities:.securityContext.capabilities,hostMounts:[.volumeMounts[]|select(.name|test("host|run|dev"))|{name,mountPath,readOnly}]}'
+```
+
+**Representative output:**
+
+```json
+{
+  "name": "nvidia-driver-ctr",
+  "privileged": true,
+  "capabilities": null,
+  "hostMounts": [
+    {"name":"host-root","mountPath":"/host","readOnly":false},
+    {"name":"dev-char","mountPath":"/dev/char","readOnly":false}
+  ]
+}
+```
+
+The output shows why this is a node-management component: it is privileged and writes host-facing paths. The security review must protect who can change its image and specification. A tenant Pod should not inherit equivalent access.
+
 ## Recovery and maintenance behavior
 
 Node reboots, kernel updates, runtime restarts, GPU resets, and replacement hardware all interrupt some part of the chain. Design the recovery path before the maintenance window. Drain workloads using their service-specific policy, preserve enough spare capacity, and expect distributed training to require coordinated checkpoint and restart behavior. A PodDisruptionBudget may limit voluntary disruption, but it does not make a driver update non-disruptive.
@@ -101,8 +169,6 @@ Node reboots, kernel updates, runtime restarts, GPU resets, and replacement hard
 After a host change, wait for each readiness gate rather than assuming a DaemonSet rollout has completed. Reconfigure or revalidate feature discovery after partitioning or inventory changes. Keep the previous known-good node image, configuration, and required artifacts reachable long enough to perform the planned rollback.
 
 ## Troubleshooting sequence
-
-Start with the narrowest observable boundary and preserve evidence. On the affected node, verify the intended OS and kernel state, then inspect the driver operand or host driver, kernel messages, runtime configuration, device-plugin registration, and validation results. Compare a failing node with an accepted node in the same class; this often exposes a kernel, label, registry, or configuration difference faster than reading a large cluster-wide log stream.
 
 | Symptom | First evidence | Likely next decision |
 |---|---|---|
@@ -112,21 +178,75 @@ Start with the narrowest observable boundary and preserve evidence. On the affec
 | Node returns after reboot but stays excluded | acceptance label or taint, validator result | complete the failed gate; do not manually mark accepted without evidence |
 | Metrics disappear while workloads run | exporter and scrape path | treat as observability degradation and preserve workload evidence |
 
-For driver investigation, kernel version, installed headers where relevant, secure-boot policy, signing, module-load logs, and node events are meaningful evidence. Commands that query or modify these details are host- and distribution-specific; use the operating system’s supported procedures and execute disruptive actions only in a drained maintenance scope.
+### Evidence row 1: driver Pod restarts on a kernel mismatch
+
+```bash
+kubectl -n gpu-operator get pod nvidia-driver-daemonset-p6j5x
+kubectl -n gpu-operator logs nvidia-driver-daemonset-p6j5x --previous | tail -12
+```
+
+```text
+NAME                                  READY   STATUS             RESTARTS
+nvidia-driver-daemonset-p6j5x          0/1     CrashLoopBackOff   7
+
+ERROR: kernel headers for 6.8.0-41-generic were not found
+ERROR: failed to build NVIDIA kernel module
+```
+
+The previous log preserves the failed container attempt. The driver cannot build for the running kernel. The next decision is to restore the qualified node image or provide the supported host prerequisites—not to restart the device plugin.
+
+### Evidence row 2: node is healthy but remains quarantined
+
+```bash
+kubectl get node gpu-node-11 -o custom-columns='READY:.status.conditions[?(@.type=="Ready")].status,TAINTS:.spec.taints,VALIDATED:.metadata.labels.gpu\.platform\.example/validated,GPU:.status.allocatable.nvidia\.com/gpu'
+kubectl logs gpu-validator-gpu-node-11 --tail=10
+```
+
+```text
+READY   TAINTS                                              VALIDATED   GPU
+True    [map[effect:NoSchedule key:gpu.platform/quarantine]] <none>     8
+
+runtime=PASS
+resource=PASS
+cuda=PASS
+telemetry=FAIL: Prometheus target not discovered
+```
+
+The compute path passes, but the platform contract requires telemetry. The quarantine is intentional. Repair target discovery and rerun validation; manually deleting the taint would admit an unobservable node.
+
+### Evidence row 3: metrics disappear while workloads continue
+
+```bash
+kubectl -n gpu-operator get pod -l app=nvidia-dcgm-exporter -o wide | grep gpu-node-03
+kubectl -n gpu-operator logs nvidia-dcgm-exporter-r8p4s --tail=8
+```
+
+```text
+nvidia-dcgm-exporter-r8p4s   0/1   Running   gpu-node-03
+
+Error connecting to DCGM hostengine: connection refused
+Retrying in 5 seconds
+```
+
+The exporter process is Running but not Ready and cannot reach DCGM. Existing workloads may continue, yet the node has lost a required support signal. Treat this as an observability incident and preserve workload evidence rather than claiming hardware health from silence.
 
 ## Customer architecture discussion
 
-The operational choice is not "containers versus hosts." It is whether host changes are managed by a transparent, reconciled platform contract or hidden across manual processes. A mature service defines accepted node classes, protects privileged operands, and makes a node unavailable until it passes end-to-end validation. That keeps infrastructure change from leaking as an application-team debugging exercise.
+The operational choice is not “containers versus hosts.” It is whether host changes are managed by a transparent, reconciled platform contract or hidden across manual processes. A mature service defines accepted node classes, protects privileged operands, and makes a node unavailable until it passes end-to-end validation. That keeps infrastructure change from leaking as an application-team debugging exercise.
 
 ## Interview preparation
 
 **Why can every GPU operand Pod be Running while a workload still fails?**
 
-Running proves only that Kubernetes started the operands. The driver may not provide a usable interface, runtime injection may be incomplete, the allocated device may be unhealthy, or the workload’s user-space stack may be incompatible. Validate the full workload path.
+> “Running only proves that Kubernetes started each container. It does not prove the driver module loaded, the runtime injected the allocated device, the device remained healthy, or the application image loaded compatible libraries. I would check the acceptance gates in order: host driver, fresh sandbox, allocatable resource, minimal CUDA workload, and telemetry. The first failed proof determines the owner.”
 
 **Why should driver containers be upgraded with a node lifecycle plan?**
 
-They affect host kernel integration and can disrupt GPU workloads. The plan must include compatibility review, drain behavior, acceptance tests, capacity headroom, and rollback—not merely an image tag change.
+> “A driver container changes host kernel integration, so it can invalidate active CUDA contexts and prevent a node from returning after reboot. I would drain according to workload checkpoint policy, preserve spare capacity, update a representative canary, validate host and workload evidence, and retain the known-good node image and driver profile. Changing only an image tag is not a rollback plan.”
+
+**How do you justify privileged operands to a security reviewer?**
+
+> “I start by showing the exact host function that requires privilege, such as loading modules or configuring the runtime. Then I constrain the namespace, service account, image provenance, node selector, host mounts, and change permissions. I also verify that tenant workloads cannot obtain equivalent access. The argument is not that privilege is harmless; it is that the platform has a narrowly defined, audited control-plane extension.”
 
 ## Key takeaways
 
