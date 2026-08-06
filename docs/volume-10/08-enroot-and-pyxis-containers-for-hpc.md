@@ -51,16 +51,11 @@ Enroot is an unprivileged container runtime built for exactly this constraint. I
 
 ```bash
 enroot import docker://nvcr.io#nvidia/pytorch:24.05-py3
-#
-downloads image, flattens layers, writes
-# nvidia+pytorch+24.05-py3.sqsh (squashed rootless filesystem)
 enroot create --name pt2405 nvidia+pytorch+24.05-py3.sqsh
-unpacks/registers a named, runnable container 'pt2405' from the squash file
 enroot start --root --rw pt2405 nvidia-smi
-runs a command inside the container as the invoking user; --rw makes the
-# container filesystem writable for this invocation, --root maps the user to
-# container-root (still unprivileged on the host) for install-time operations
 ```
+
+`enroot import` downloads the image, flattens its layers, and writes `nvidia+pytorch+24.05-py3.sqsh` — a squashed, rootless filesystem image. `enroot create` unpacks that squash file and registers it as a named, runnable container (`pt2405`). `enroot start` runs a command inside the container as the invoking user; `--rw` makes the container filesystem writable for this invocation, and `--root` maps the user to container-root (still unprivileged on the host) for install-time operations.
 
 ## Pyxis: the Slurm SPANK plugin
 
