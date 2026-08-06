@@ -15,14 +15,27 @@ Dynamic Resource Allocation (DRA) is now a key concept for accelerators. Core DR
 
 **Scheduling: prove which constraint eliminates nodes**
 
-\# Scheduling evidence for a Pending Pod
-kubectl describe pod &lt;pod>
-kubectl get pod &lt;pod> -o json | jq '.status.conditions,.spec.priorityClassName'
-kubectl get nodes -o custom-columns=NAME:.metadata.name,GPU:.status.allocatable.nvidia\\.com/gpu
-kubectl get events --field-selector involvedObject.name=&lt;pod> --sort-by=.lastTimestamp
+```bash
+# Scheduling evidence for a Pending Pod
+kubectl describe pod <pod>
+kubectl get pod <pod> -o json | jq '.status.conditions,.spec.priorityClassName'
+kubectl get nodes -o custom-columns=NAME:.metadata.name,GPU:.status.allocatable.nvidia\.com/gpu
+kubectl get events --field-selector involvedObject.name=<pod> --sort-by=.lastTimestamp
 
 # DRA resources on clusters that support them
 kubectl api-resources | grep -Ei 'resourceclaim|deviceclass'
+```
+
+```text
+Conditions:
+  Type           Status  Reason
+  PodScheduled   False   Unschedulable
+Events:
+  Warning  FailedScheduling  0/6 nodes are available: 4 Insufficient nvidia.com/gpu,
+                              2 node(s) didn't match Pod's node affinity/selector.
+```
+
+`kubectl describe pod` prints the human-readable summary, but the `Events` line at the bottom is the load-bearing evidence: it names the exact predicate each excluded node failed (`Insufficient nvidia.com/gpu` vs `node affinity/selector`) rather than a generic "Pending." `kubectl get pod ... -o json | jq '.status.conditions,.spec.priorityClassName'` pulls the same signal machine-readably — `PodScheduled: False` confirms the scheduler never bound it, and `priorityClassName` tells you whether this Pod is even eligible to trigger preemption in the first place. `kubectl get nodes -o custom-columns=...` (`.status.allocatable.nvidia\.com/gpu` — the backslash escapes the dot inside the resource name so JSONPath doesn't treat it as a nested field separator) shows how many GPUs each node actually has free, which is the number the "Insufficient nvidia.com/gpu" event is checked against. `--field-selector involvedObject.name=<pod>` filters the events list down to just this Pod instead of the whole namespace's event stream. Finally, `kubectl api-resources | grep -Ei 'resourceclaim|deviceclass'` is a one-line check for whether this cluster has DRA types registered at all — empty output means the cluster is still device-plugin-only.
 
 ## Senior addendum
 

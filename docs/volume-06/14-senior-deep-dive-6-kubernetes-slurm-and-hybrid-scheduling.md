@@ -12,15 +12,18 @@ Kubernetes excels at declarative services, APIs, controllers and cloud-native pl
 *(Chapter 8's decision tree and 80/20 worked scenario already cover the workload-fit decision in depth — cross-reference rather than re-deriving. This Deep Dive's genuinely new contribution is the ownership question for a hybrid estate, made into a concrete checklist.)*
 
 ➕ **Diagram: the undefined-conflict failure mode checklist item #1 warns about**
-```text
-Physical GPU node
-Slurm admin drains it Kubernetes admin cordons it
-(sees: DRAIN, own reason) (independently, sees: cordoned, own reason)
-node is now in a state NEITHER
-dashboard fully represents —
-two control planes, no shared
-source of truth for 'why is this
-node unavailable'
+```mermaid
+flowchart TD
+    N["Physical GPU node"] --> S["Slurm admin drains it
+    (independently — sees: DRAIN, own reason)"]
+    N --> K["Kubernetes admin cordons it
+    (independently — sees: cordoned, own reason)"]
+    S --> X["node is now in a state NEITHER
+    dashboard fully represents —
+    two control planes, no shared
+    source of truth for 'why is this
+    node unavailable'"]
+    K --> X
 ```
 
 ➕ **Diagram: a dynamically shared node pool crossing the ownership boundary**

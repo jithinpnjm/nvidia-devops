@@ -31,22 +31,14 @@ ALERT: slow_burn_rate > 6 AND fast_burn_rate < 14.4 ← ticket/lower urgency, su
 ```
 The reason for the AND-of-two-windows structure: a short window alone is noisy (a 2-minute blip trips it and pages someone for nothing); a long window alone is slow (by the time a 6-hour average notices, you've already burned hours of budget). Requiring both windows to agree is what makes the alert both *fast* and *precise* — this two-window pattern is Google SRE's published methodology and is worth citing by name.
 
-➕ **Diagram: fast/slow burn-rate windows plotted together — why BOTH must agree before paging**
-```text
-error ratio
-0.018 ╭ ╮ ← 1h window: spikes fast, also noisy
-╱ ╲
-0.007 ╭ ╱ ╲ ← 6h window: smooth, slower to react
-╱
-0.001 ┼ ← SLO budget line (0.1%)
-time
-6h window crosses 1h window crosses
-threshold here threshold here (later
-(slow, confirms start, but both are
-it's sustained) above threshold NOW)
-both true at this point = PAGE
-```
-A 1h-only alert would have paged at the first spike, possibly on noise; a 6h-only alert would page hours later. Requiring both windows above their respective thresholds *at the same time* is what the AND in the fast/slow rule above encodes — precision from the slow window, speed from the fast window.
+➕ **Fast/slow burn-rate windows over time — why BOTH must agree before paging:**
+
+| Time since error spike began | 1h window error ratio | 6h window error ratio | Verdict |
+|---|---|---|---|
+| T+0 (spike just started) | 0.018 (above 14.4x threshold = 0.0144) | 0.002 (below 6x threshold = 0.006) | Fast window alone trips — could still be a 2-minute noise blip, don't page yet |
+| T+3h (spike still ongoing) | 0.018 (still above threshold) | 0.007 (now above threshold too) | Both windows now above threshold — **PAGE** |
+
+A 1h-only alert would have paged at T+0, possibly on noise that clears in minutes. A 6h-only alert would not have paged until the average caught up, hours after the budget started burning. Requiring both windows above their respective thresholds *at the same time* is what the AND in the fast/slow rule above encodes — the fast window supplies speed, the slow window supplies confirmation that the burn is sustained rather than a blip.
 
 ➕ **Sample alert payload, annotated for what makes it "good" per this chapter's own definition (what's broken / scope / severity / where to begin):**
 ```json

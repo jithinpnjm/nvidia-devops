@@ -33,18 +33,14 @@ DCGM_FI_DEV_ECC_DBE_VOL_TOTAL{gpu='0',UUID='GPU-a1b2...',pod='train-job-0'} 0 �
 ```
 Reading order for a "is this GPU healthy vs busy" triage: **XID_ERRORS and ECC_DBE first** (any nonzero value here overrides everything else — it's a hardware-fault signal, go straight to Chapter 10/Deep Dive 4), then **UTIL+POWER+SM_CLOCK together** (all three should move together; if UTIL is high but POWER is low and SM_CLOCK is depressed, that's a throttling or stalling signature, not genuine compute), then **FB_USED/FB_FREE** (memory pressure — this is the metric that predicts CUDA OOM before it happens, seconds to minutes ahead).
 
-➕ **ASCII: the multi-layer model the chapter names, made visual — device health vs workload demand are orthogonal axes, not one scale:**
-```mermaid
-quadrantChart
-    title GPU util (DCGM) vs service saturation (queue depth, TTFT)
-    x-axis Low service saturation --> High service saturation
-    y-axis Low GPU util --> High GPU util
-    quadrant-1 Quadrant B: busy but inefficient -- check batch size, kernel launch overhead, memory-bound ops
-    quadrant-2 Quadrant A: genuinely busy, healthy device
-    quadrant-3 Quadrant D: idle device, healthy -- normal if demand is low
-    quadrant-4 Quadrant C: device thinks its busy but queue/latency degrading anyway -- Sagar Desai trap, util alone cant see it
-```
-The chapter's practitioner-lens point sits in **Quadrant C's boundary**: a service can be saturated (queue growing, TTFT rising) while GPU_UTIL reads modestly, because the bottleneck is elsewhere (CPU-side tokenization, network, batching inefficiency, a single stuck worker not receiving traffic). Conversely Quadrant B is the inverse trap — util is pegged at 100% but that doesn't mean the GPU is doing useful work per request; it can mean tiny batch sizes driving kernel-launch-overhead-bound execution.
+➕ **Device health vs workload demand are orthogonal axes, not one scale — the multi-layer model the chapter names, made concrete:**
+
+| | Low service saturation (queue/TTFT normal) | High service saturation (queue/TTFT degrading) |
+|---|---|---|
+| **High GPU util** | Quadrant A — genuinely busy, healthy device matched to demand | Quadrant B — busy but inefficient: check batch size, kernel launch overhead, memory-bound ops |
+| **Low GPU util** | Quadrant D — idle and healthy, normal if demand is low | Quadrant C — the trap: device *reads* idle-ish while the service is actually degrading |
+
+Quadrant C is the trap this chapter's practitioner-lens point names: GPU_UTIL reads modestly while queue depth/TTFT are degrading anyway, because the bottleneck is elsewhere (CPU-side tokenization, network, batching inefficiency, a single stuck worker not receiving traffic) — util alone cannot see this, which is exactly Sagar Desai's point above. Quadrant B is the inverse trap: util is pegged at 100% but that doesn't mean the GPU is doing useful work per request; it can mean tiny batch sizes driving kernel-launch-overhead-bound execution.
 
 ➕ **Diagram: the DCGM telemetry pipeline, and exactly where the silent-loss scenario below breaks it**
 ```mermaid

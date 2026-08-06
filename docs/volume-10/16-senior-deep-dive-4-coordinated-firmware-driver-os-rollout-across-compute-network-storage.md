@@ -33,35 +33,14 @@ The compute-side compatibility matrix (driver × CUDA × container toolkit × ke
 
 The dangerous scenario is not "network/storage changes are risky" in the abstract — it's that a **compute-side change can pass its canary perfectly** while an unrelated storage-controller firmware update, queued in the same maintenance window because "we had a window anyway," changes I/O latency in a way the canary process never tests, because the canary process's success criteria was written for driver/CUDA correctness, not for checkpoint I/O latency:
 
-```text
 Maintenance window: 2026-08-02 02:00–06:00
-COMPUTE CHANGE STORAGE CHANGE (same window)
-driver 550
-560, canary-tested NVMe-oF target controller
-on node-canary-01, workload firmware v3.2
-v3.4, applied
-correctness + perf: PASS cluster-wide (no per-node
-canary concept for shared
-storage backend)
-rolled forward, applied same night,
-compute side 'validated' NOT covered by the
-compute canary's
-Training job resumes Monday success criteria
-with new driver — correct
-results, no crashes Checkpoint write latency now
-~40ms higher p99 (controller
-firmware changed queue-depth
-behavior under sustained
-write bursts)
-Job's checkpoint cadence (tuned
-assuming old latency profile)
-now causes checkpoint writes to
-overrun into the next training
-step — throughput regression
-misattributed to the driver
-change, because that's the
-change everyone was watching
-```
+
+| | Compute change | Storage change (same window) |
+|---|---|---|
+| What changed | driver 550 → 560, canary-tested on node-canary-01, workload correctness + perf: PASS | NVMe-oF target controller firmware v3.2 → v3.4, applied cluster-wide (no per-node canary concept for shared storage backend) |
+| Rollout | rolled forward, applied same night, compute side "validated" | NOT covered by the compute canary's success criteria |
+| Outcome | Training job resumes Monday with new driver — correct results, no crashes | Checkpoint write latency now ~40ms higher p99 (controller firmware changed queue-depth behavior under sustained write bursts) |
+| Downstream effect | — | Job's checkpoint cadence (tuned assuming old latency profile) now causes checkpoint writes to overrun into the next training step — throughput regression misattributed to the driver change, because that's the change everyone was watching |
 
 The postmortem cost here is entirely attributable to treating "things happening in the same maintenance window" as one validated change instead of two independent changes each needing its own compatibility/impact validation — the driver bump was innocent; the storage firmware was the actual regression; and because only the compute change had a formal canary/rollback gate, the storage change had no equivalent checkpoint before it was already live cluster-wide.
 

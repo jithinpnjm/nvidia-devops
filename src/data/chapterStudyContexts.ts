@@ -2741,19 +2741,19 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Understand why synchronized GPU workloads require different Ethernet design assumptions than ordinary enterprise applications.",
     "sections": [
       "Why Ethernet for AI Is Different",
+      "Introduction",
+      "A Production Story: The Fabric That Passed Every Link Test",
       "Learning Objectives",
-      "The Traffic Pattern Changed",
-      "Why Ordinary Loss Recovery Can Be Expensive",
-      "The End-to-End Control Loop",
-      "Why Link Speed Is Not Enough",
-      "Ethernet as an AI-Fabric Choice",
-      "When AI Ethernet Becomes Appropriate",
-      "Production Scenario",
-      "Troubleshooting Framework",
-      "Customer Perspective",
-      "Interview Preparation",
-      "Architecture question",
-      "Scenario question"
+      "Why: Collective Communication Changes the Traffic Shape",
+      "Incast, elephant flows, and imbalance",
+      "What: The End-to-End Control System",
+      "Loss-sensitive does not mean “make everything lossless”",
+      "How: Design from the Workload Backward",
+      "A layered validation model",
+      "Baselines must include contention",
+      "When: Choosing Ethernet for AI",
+      "Trade-Offs and Production Boundaries",
+      "What the fabric cannot solve alone"
     ],
     "codeLanguages": [
       "mermaid",
@@ -2766,15 +2766,19 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Understand how AI fabrics combine Ethernet switching, RDMA endpoints, loss controls, routing, and workload placement.",
     "sections": [
       "Ethernet Architecture for AI",
+      "Introduction",
+      "Production Story: One Fabric, Four Very Different Traffic Classes",
       "Learning Objectives",
-      "Big Picture",
-      "Network Roles",
-      "Fabric Requirements",
-      "Production Design",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
-      "Key Takeaways"
+      "Big Picture Architecture",
+      "Data path versus control path",
+      "Network Roles and Isolation",
+      "A practical isolation decision",
+      "Topology, Rails, and Capacity",
+      "Oversubscription is a workload decision",
+      "Endpoint locality belongs in the fabric model",
+      "Production Deployment Pattern",
+      "1. Establish a source of truth",
+      "2. Qualify a configuration set"
     ],
     "codeLanguages": [
       "mermaid",
@@ -2787,15 +2791,19 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Learn how RDMA operations are transported over routed Ethernet and what the fabric must provide.",
     "sections": [
       "RoCEv2 and RDMA over Ethernet",
+      "Introduction",
+      "Production Story: The Route Was Correct, the RDMA Path Was Not",
       "Learning Objectives",
-      "Stack",
-      "Addressing",
-      "Loss and Congestion",
-      "Production Design",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
-      "Key Takeaways"
+      "What RDMA Changes—and What It Does Not",
+      "How RoCEv2 Fits the Stack",
+      "Reliability, loss, and ordering",
+      "Addressing: GIDs, Network Devices, and Routes",
+      "The right diagnostic questions",
+      "RoCEv2 design consequences",
+      "MTU and QoS Are Path Properties",
+      "Production Deployment Pattern",
+      "Production Troubleshooting",
+      "Scenario 1 — Ping works, but RDMA connection setup fails"
     ],
     "codeLanguages": [
       "mermaid",
@@ -2808,14 +2816,19 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Understand selective pause, lossless traffic classes, pause propagation, and PFC failure modes.",
     "sections": [
       "Priority Flow Control",
+      "Introduction",
       "Learning Objectives",
-      "Pause Flow",
       "Why Selective Pause Exists",
-      "Production Design",
-      "Troubleshooting",
-      "Customer Scenario",
-      "Interview Preparation",
-      "Key Takeaways"
+      "The Mechanism: A Receiver Protects Its Buffer",
+      "Pause propagation",
+      "Classification Is the Contract",
+      "Headroom and Threshold Design",
+      "PFC Is Not Congestion Control",
+      "Production Deployment Pattern",
+      "Observability and Incident Evidence",
+      "Scenario 1 — One job stalls while errors remain clean",
+      "Scenario 2 — Management traffic becomes unresponsive during training",
+      "Scenario 3 — Repeated pause after a topology change"
     ],
     "codeLanguages": [
       "mermaid",
@@ -2829,13 +2842,18 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "sections": [
       "ECN and DCQCN",
       "Learning Objectives",
-      "Feedback Loop",
-      "Tuning Trade-offs",
-      "Production Method",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
-      "Key Takeaways"
+      "A Production Story: The Fabric Is Fast Until It Is Shared",
+      "From a Mark to a Slower Sender",
+      "Thresholds Are a Control-System Design",
+      "ECN, PFC, and Capacity Have Different Jobs",
+      "Qualification Method",
+      "Production Failure Modes",
+      "Scenario 1 — ECN marks rise, but PFC remains high",
+      "Scenario 2 — Throughput pulses in waves",
+      "Scenario 3 — ECN marks are visible, but sender response is absent or asymmetric",
+      "Scenario 4 — A change appears to remove congestion",
+      "Customer Architecture Discussion",
+      "Interview Preparation"
     ],
     "codeLanguages": [
       "mermaid",
@@ -2849,13 +2867,18 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "sections": [
       "Data Center Bridging and QoS",
       "Learning Objectives",
-      "Classification Pipeline",
-      "Core Controls",
-      "Production Design",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
-      "Key Takeaways"
+      "Architecture Before Configuration",
+      "What Each Control Does",
+      "Build a Small Class Model",
+      "Why trust boundaries matter",
+      "Consistency and Drift Control",
+      "Production Validation Plan",
+      "Operational Troubleshooting",
+      "Scenario 1 — RoCE drops despite PFC being enabled",
+      "Scenario 2 — Management becomes slow during a training burst",
+      "Scenario 3 — Storage misses its expected share",
+      "Customer Architecture Discussion",
+      "Interview Preparation"
     ],
     "codeLanguages": [
       "mermaid",
@@ -2865,17 +2888,22 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 07 — Spectrum Switches for AI": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand the role of NVIDIA Spectrum switches in Ethernet AI fabrics.",
+    "learningOutcome": "Design and operate NVIDIA Spectrum switching layers for predictable AI Ethernet fabrics.",
     "sections": [
       "Spectrum Switches for AI",
+      "Introduction",
+      "Story: The Fast Fabric with a Slow Rack",
       "Learning Objectives",
-      "Architecture",
-      "Selection Dimensions",
-      "Production Design",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
-      "Key Takeaways"
+      "Big Picture",
+      "Why Switch Design Changes for AI",
+      "The Forwarding and Queueing Path",
+      "Buffers are transient protection, not capacity",
+      "Topology, Radix, and Failure Domains",
+      "Routing and Load Distribution",
+      "Spectrum Operations and Telemetry",
+      "Production Deployment Pattern",
+      "Acceptance ladder",
+      "Upgrade discipline"
     ],
     "codeLanguages": [
       "mermaid",
@@ -2885,17 +2913,22 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 08 — ConnectX Ethernet Adapters": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Learn how ConnectX adapters implement RoCE, queues, offloads, telemetry, and GPU-direct paths.",
+    "learningOutcome": "Design, validate, and operate ConnectX Ethernet adapters as RoCE endpoints in AI clusters.",
     "sections": [
       "ConnectX Ethernet Adapters",
+      "Introduction",
+      "Story: Two Ports, One Effective Rail",
       "Learning Objectives",
-      "Data Path",
-      "Capabilities and Constraints",
-      "Production Operations",
+      "Big Picture",
+      "What the Adapter Does",
+      "RoCE Endpoint Responsibilities",
+      "PCIe, NUMA, and GPUDirect Paths",
+      "Multi-Port and Multi-Rail Design",
+      "Offloads, Virtualization, and Boundaries",
+      "Production Lifecycle",
+      "Node acceptance ladder",
       "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
-      "Key Takeaways"
+      "Scenario 1 — One rail is nearly idle"
     ],
     "codeLanguages": [
       "mermaid",
@@ -2905,18 +2938,22 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 09 — BlueField DPUs and DOCA": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand how DPUs offload infrastructure services and where BlueField fits in AI Ethernet architectures.",
+    "learningOutcome": "Evaluate BlueField DPU operating modes, infrastructure boundaries, and DOCA software for AI Ethernet platforms.",
     "sections": [
       "BlueField DPUs and DOCA",
+      "Introduction",
+      "Story: The Security Boundary That Became an Outage Boundary",
       "Learning Objectives",
-      "Architecture",
-      "Why Offload",
-      "DOCA",
-      "Production Design",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
-      "Key Takeaways"
+      "Big Picture",
+      "Why a DPU Exists",
+      "Operating Modes and Traffic Paths",
+      "Trust and administration",
+      "DOCA: Framework, Not a Feature Toggle",
+      "Select the smallest sustainable option",
+      "Production Design Pattern",
+      "Separate desired state from device state",
+      "Change and recovery sequence",
+      "Security and reliability questions"
     ],
     "codeLanguages": [
       "mermaid",
@@ -2930,14 +2967,18 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "sections": [
       "Fabric Validation and Capacity Planning",
       "Learning Objectives",
-      "Validation Ladder",
-      "Capacity Model",
-      "Acceptance Criteria",
-      "Production Planning",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
-      "Key Takeaways"
+      "Story: The Rack That Passed Commissioning",
+      "Validation Is a Ladder",
+      "Model Capacity at the Bottleneck Cut",
+      "Acceptance and Change Control",
+      "Capacity, Reliability, and Cost",
+      "Data Flow and Measurement Design",
+      "Production Trade-offs",
+      "Troubleshooting Scenarios",
+      "Pairwise RoCE is healthy; collectives are not",
+      "A new rack passes idle tests but degrades shared production",
+      "One failure consumes all performance margin",
+      "A release passes microbenchmarks but regresses application tail"
     ],
     "codeLanguages": [
       "mermaid",
@@ -2951,17 +2992,18 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "sections": [
       "Production Ethernet AI Troubleshooting",
       "Learning Objectives",
-      "Incident Flow",
-      "Common Scenarios",
-      "Link Up, High Errors",
-      "Ping Works, RoCE Fails",
-      "Excessive PFC",
-      "ECN Marks but No Rate Change",
-      "Good RDMA, Poor NCCL",
+      "Incident Method",
+      "First ten minutes",
       "Evidence Package",
-      "Prevention",
-      "Interview Preparation",
-      "Key Takeaways"
+      "Escalation Data Flow",
+      "Failure Patterns",
+      "Link up, but errors grow",
+      "Ping works, RoCE fails",
+      "PFC is persistent",
+      "ECN marks rise but senders do not slow",
+      "RDMA is good; NCCL/collective performance is poor",
+      "Only one rail is slow after maintenance",
+      "The problem begins immediately after a policy change"
     ],
     "codeLanguages": [
       "mermaid",
@@ -2974,13 +3016,19 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Consolidate RoCE, PFC, ECN, QoS, Spectrum, ConnectX, BlueField, validation, and operations.",
     "sections": [
       "Volume 09 Summary",
-      "Architecture Summary",
-      "Quick Revision",
-      "Production Principles",
-      "Troubleshooting Checklist",
-      "Interview Notes",
-      "Lab Checklist",
-      "Next Volume"
+      "The System Model",
+      "What You Should Now Be Able to Explain",
+      "Design Principles",
+      "Production Architecture Patterns",
+      "Dedicated training fabric",
+      "Shared platform fabric",
+      "DPU-managed host edge",
+      "Trade-off Guide",
+      "End-to-End Acceptance Checklist",
+      "Before production",
+      "During operations",
+      "Troubleshooting Order",
+      "Architecture Review Questions"
     ],
     "codeLanguages": [
       "mermaid",
@@ -2990,12 +3038,17 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Volume 09 — Ethernet for AI": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Learn how Ethernet is engineered for loss-sensitive RDMA and large-scale AI communication.",
+    "learningOutcome": "Design, validate, and operate Ethernet fabrics for loss-sensitive RDMA and distributed GPU workloads.",
     "sections": [
       "Volume 09 — Ethernet for AI",
+      "The Engineering Problem",
       "The Big Picture",
-      "Planned Chapter Sequence",
-      "Planned Labs"
+      "What You Will Learn",
+      "How to Use This Volume",
+      "Chapter Map",
+      "Lab Map",
+      "Production Principles",
+      "Readiness Checklist"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3005,7 +3058,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Lab 01 — Inventory an AI Ethernet Path": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Map GPU, NIC, DPU, switch, VLAN, route, queue, and cable state.",
+    "learningOutcome": "Build an endpoint-to-endpoint inventory for a RoCE-capable AI Ethernet path.",
     "sections": [
       "Lab 01 — Inventory an AI Ethernet Path",
       "1. Objective",
@@ -3016,21 +3069,22 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "6. Environment",
       "7. Components",
       "8. Deployment Steps",
-      "9. Validation",
-      "10. Verification",
-      "11. Observability",
-      "12. Performance Measurements",
-      "13. Failure Injection"
+      "Step 1 — Capture host interface state",
+      "Step 2 — Map Ethernet to RDMA resources",
+      "Step 3 — Record route, MTU, and physical settings",
+      "Step 4 — Capture locality and counter baseline",
+      "Step 5 — Join switch evidence"
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
+      "text",
+      "bash"
     ]
   },
   "Lab 02 — Validate RoCE Addressing and MTU": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Prove GID, VLAN, route, priority, and MTU consistency between RoCE endpoints.",
+    "learningOutcome": "Validate the selected RoCE endpoint identity, route, and MTU without modifying shared fabric policy.",
     "sections": [
       "Lab 02 — Validate RoCE Addressing and MTU",
       "1. Objective",
@@ -3041,21 +3095,22 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "6. Environment",
       "7. Components",
       "8. Deployment Steps",
-      "9. Validation",
-      "10. Verification",
-      "11. Observability",
-      "12. Performance Measurements",
-      "13. Failure Injection"
+      "Step 1 — Confirm local identity and route",
+      "Step 2 — Inspect MTU and GID information",
+      "Step 3 — Capture pre-test evidence",
+      "Step 4 — Run an approved host-memory RoCE smoke test",
+      "Illustrative perftest pattern; options vary by version."
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
+      "text",
+      "bash"
     ]
   },
   "Lab 03 — Observe PFC and ECN Under Load": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Correlate queue pressure, ECN marking, sender response, and PFC pause during controlled traffic.",
+    "learningOutcome": "Correlate controlled queue pressure, ECN feedback, endpoint response, and PFC evidence on an isolated RoCE fabric.",
     "sections": [
       "Lab 03 — Observe PFC and ECN Under Load",
       "1. Objective",
@@ -3066,21 +3121,22 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "6. Environment",
       "7. Components",
       "8. Deployment Steps",
-      "9. Validation",
-      "10. Verification",
-      "11. Observability",
-      "12. Performance Measurements",
-      "13. Failure Injection"
+      "Step 1 — Confirm isolation and abort path",
+      "Step 2 — Capture idle baseline",
+      "Step 3 — Run an uncongested control",
+      "Step 4 — Introduce bounded contention",
+      "9. Validation"
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
+      "text",
+      "bash"
     ]
   },
   "Lab 04 — Troubleshoot a RoCE Path": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Diagnose a reversible endpoint, priority, or interface selection failure.",
+    "learningOutcome": "Diagnose and repair a safe, reversible RoCE endpoint-selection failure using layered evidence.",
     "sections": [
       "Lab 04 — Troubleshoot a RoCE Path",
       "1. Objective",
@@ -3091,36 +3147,34 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "6. Environment",
       "7. Components",
       "8. Deployment Steps",
-      "9. Validation",
-      "10. Verification",
-      "11. Observability",
-      "12. Performance Measurements",
-      "13. Failure Injection"
+      "Step 1 — Reproduce the healthy baseline",
+      "Step 2 — Inject one process-scoped selection fault",
+      "Inspect supported device/interface-selection options for this installed tool.",
+      "Step 3 — Capture the evidence ladder",
+      "Step 4 — Repair and verify"
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
+      "text",
+      "bash"
     ]
   },
   "Chapter 01 — Why Kubernetes Needs a GPU Platform Layer": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand why making GPUs usable in Kubernetes requires coordinated discovery, drivers, runtime integration, scheduling, health, and lifecycle management.",
+    "learningOutcome": "Understand why production GPU scheduling requires coordinated driver, runtime, discovery, allocation, health, and lifecycle management.",
     "sections": [
       "Why Kubernetes Needs a GPU Platform Layer",
       "Learning Objectives",
-      "The Resource Does Not Appear Automatically",
-      "Extended Resources and Scheduling",
-      "The Five Layers of a GPU Node",
-      "Why Manual Node Configuration Does Not Scale",
-      "The Role of GPU Operator",
-      "Host-Managed Versus Operator-Managed Components",
-      "Production Scenario",
-      "Troubleshooting Framework",
-      "Customer Perspective",
-      "Interview Preparation",
-      "Architecture question",
-      "Troubleshooting question"
+      "Two Paths Must Agree",
+      "Why a Count Is Not a GPU Service",
+      "The Operational Failure of Manual Configuration",
+      "What the GPU Operator Changes—and What It Does Not",
+      "Production Checklist: Before a GPU Node Accepts Work",
+      "Troubleshooting Model",
+      "Customer Architecture Discussion",
+      "Interview Questions",
+      "Key Takeaways"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3130,16 +3184,18 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 02 — GPU Software Lifecycle in Kubernetes": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand how firmware, drivers, runtime, device discovery, scheduling, and workload libraries form one lifecycle.",
+    "learningOutcome": "Operate firmware, drivers, runtimes, discovery, and workload compatibility as one controlled GPU-platform lifecycle.",
     "sections": [
       "GPU Software Lifecycle in Kubernetes",
       "Learning Objectives",
-      "Stack",
-      "Compatibility",
-      "Production Lifecycle",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
+      "The Lifecycle Is a Dependency Graph",
+      "Compatibility Is Policy, Not a Spreadsheet Afterthought",
+      "A Production Change Model",
+      "Node Acceptance Gates",
+      "Production Story: Green Nodes, Failed GPUs",
+      "Troubleshooting by Layer",
+      "Customer Architecture Discussion",
+      "Interview Questions",
       "Key Takeaways"
     ],
     "codeLanguages": [
@@ -3150,16 +3206,18 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 03 — NVIDIA Container Toolkit, RuntimeClass, and CDI": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Learn how containers receive GPU devices, driver libraries, and runtime configuration.",
+    "learningOutcome": "Understand the runtime boundary that turns a Kubernetes GPU allocation into a usable container device interface.",
     "sections": [
       "NVIDIA Container Toolkit, RuntimeClass, and CDI",
       "Learning Objectives",
-      "Runtime Flow",
-      "RuntimeClass and CDI",
-      "Production Design",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
+      "From Allocation to Process",
+      "Three Mechanisms, Three Different Questions",
+      "Design the Runtime Contract",
+      "Production Story: Schedulable but Unusable",
+      "Security and Isolation",
+      "Troubleshooting the Runtime Boundary",
+      "Customer Architecture Discussion",
+      "Interview Questions",
       "Key Takeaways"
     ],
     "codeLanguages": [
@@ -3170,16 +3228,18 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 04 — Device Plugin and Kubernetes Resource Model": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand how GPUs become schedulable extended resources and how allocation reaches a Pod.",
+    "learningOutcome": "Understand how healthy NVIDIA devices become Kubernetes extended resources and how kubelet allocation reaches a Pod.",
     "sections": [
       "Device Plugin and Kubernetes Resource Model",
       "Learning Objectives",
-      "Allocation Flow",
-      "Health and Advertisement",
-      "Production Design",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
+      "The Kubelet Contract",
+      "Read the Resource States Precisely",
+      "The Resource Model’s Productive Limitation",
+      "Production Story: Correct Count, Wrong Outcome",
+      "Operate the Plugin as Infrastructure",
+      "Troubleshooting in Dependency Order",
+      "Customer Architecture Discussion",
+      "Interview Questions",
       "Key Takeaways"
     ],
     "codeLanguages": [
@@ -3187,20 +3247,25 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Chapter 05 — Node Feature Discovery and GPU Feature Discovery": {
+  "Chapter 05 — Node and GPU Feature Discovery": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Learn how hardware capabilities become scheduler-visible labels and why label governance matters.",
+    "learningOutcome": "Turn GPU-node facts into governed Kubernetes scheduling signals without coupling workloads to individual hardware SKUs.",
     "sections": [
-      "Node Feature Discovery and GPU Feature Discovery",
-      "Learning Objectives",
-      "Discovery Flow",
-      "Why Labels Matter",
-      "Production Design",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
-      "Key Takeaways"
+      "Node and GPU Feature Discovery",
+      "Learning objectives",
+      "The problem: quantity is not a platform contract",
+      "From host evidence to a scheduling decision",
+      "Facts, assertions, and classes",
+      "A practical label contract",
+      "Security and integrity boundary",
+      "Drift is an availability issue",
+      "Scheduling patterns and trade-offs",
+      "Troubleshooting: the selector is correct, yet no Pod schedules",
+      "Production checklist",
+      "Customer architecture discussion",
+      "Interview preparation",
+      "Key takeaways"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3210,17 +3275,21 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 06 — GPU Operator Architecture": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand how the NVIDIA GPU Operator manages drivers, runtime integration, discovery, validation, and monitoring.",
+    "learningOutcome": "Design the NVIDIA GPU Operator as a reconciled node-platform lifecycle, with explicit ownership, rollout, and failure boundaries.",
     "sections": [
       "GPU Operator Architecture",
-      "Learning Objectives",
-      "Architecture",
-      "Reconciliation",
-      "Production Design",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
-      "Key Takeaways"
+      "Learning objectives",
+      "Architecture: desired state becomes node-local work",
+      "Responsibilities and boundaries",
+      "Reconciliation is not a serial installer",
+      "Deployment models: choose one owner per layer",
+      "A release is a compatibility decision",
+      "Production story: the policy that spread too far",
+      "Security model",
+      "Troubleshooting: find the first broken contract",
+      "Customer architecture discussion",
+      "Interview preparation",
+      "Key takeaways"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3230,18 +3299,19 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 07 — Driver Containers and Node Operands": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Learn how privileged node-level components install, configure, validate, and monitor GPUs.",
+    "learningOutcome": "Operate privileged GPU node components as a host-lifecycle system, with clear readiness, security, and recovery boundaries.",
     "sections": [
       "Driver Containers and Node Operands",
-      "Learning Objectives",
-      "Node Flow",
-      "Privilege and Mounts",
-      "Startup and Recovery",
-      "Production Design",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
-      "Key Takeaways"
+      "Learning objectives",
+      "One node, several host-facing contracts",
+      "Driver containers are a delivery model, not an abstraction escape hatch",
+      "Readiness has gates, not one boolean",
+      "Privilege and supply-chain controls",
+      "Recovery and maintenance behavior",
+      "Troubleshooting sequence",
+      "Customer architecture discussion",
+      "Interview preparation",
+      "Key takeaways"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3251,18 +3321,22 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 08 — GPU Scheduling and Topology": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design Kubernetes placement for GPU quantity, model, CPU locality, NUMA, NICs, and multi-GPU communication.",
+    "learningOutcome": "Place GPU workloads by capacity, service class, locality, and coordinated-start requirements while controlling fragmentation.",
     "sections": [
       "GPU Scheduling and Topology",
-      "Learning Objectives",
-      "Scheduling Model",
-      "Placement Controls",
-      "Fragmentation",
-      "Production Design",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
-      "Key Takeaways"
+      "Learning objectives",
+      "The scheduler sees a staged decision",
+      "Four placement questions",
+      "Core controls and what they do not do",
+      "Topology is a path, not a label",
+      "Coordinated-start workloads",
+      "Fragmentation is the price of specificity",
+      "Production story: a successful placement that missed the objective",
+      "Fairness, preemption, and disruption",
+      "Troubleshooting placement and performance",
+      "Customer architecture discussion",
+      "Interview preparation",
+      "Key takeaways"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3275,15 +3349,16 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Build Kubernetes monitoring around DCGM, DCGM Exporter, Prometheus, events, and workload context.",
     "sections": [
       "GPU Observability with DCGM",
-      "Learning Objectives",
-      "Monitoring Flow",
-      "Metric Domains",
-      "Kubernetes Context",
-      "Production Design",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
-      "Key Takeaways"
+      "Learning objectives",
+      "Start with an operational question",
+      "The evidence path",
+      "Metrics with an owner and a response",
+      "Build a monitoring contract",
+      "Correlation during an incident",
+      "Failure patterns that mislead operators",
+      "Production design review",
+      "Senior-level design questions",
+      "Key takeaways"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3296,16 +3371,16 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Plan and execute a controlled NVIDIA GPU Operator deployment in Kubernetes.",
     "sections": [
       "Production Installation and Configuration",
-      "Learning Objectives",
-      "Deployment Flow",
-      "Preinstallation Decisions",
-      "Installation",
-      "Acceptance Gates",
-      "Production Risks",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
-      "Key Takeaways"
+      "Learning objectives",
+      "Define the platform boundary first",
+      "Ownership decisions that determine the design",
+      "Treat Helm values as an interface",
+      "Install in an intentionally small blast radius",
+      "Acceptance is an end-to-end proof",
+      "Operational guardrails",
+      "Troubleshooting installation without guesswork",
+      "Senior-level design questions",
+      "Key takeaways"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3318,19 +3393,19 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Operate GPU Kubernetes clusters through driver, runtime, operator, and node failures.",
     "sections": [
       "Upgrades and Production Troubleshooting",
-      "Learning Objectives",
-      "Upgrade Flow",
-      "Change Categories",
-      "Incident Method",
-      "Node Does Not Advertise GPUs",
-      "Pod Pending",
-      "Pod Fails to Start",
-      "Pod Runs but CUDA Fails",
-      "Metrics Missing",
-      "Operator Upgrade Stalls",
-      "Evidence Package",
-      "Rollback",
-      "Customer Perspective"
+      "Learning objectives",
+      "Change the compatibility set, not a component in isolation",
+      "Design the canary as a production experiment",
+      "A layered incident method",
+      "Failure patterns and first safe checks",
+      "A node does not advertise GPUs",
+      "A GPU Pod remains Pending",
+      "A Pod fails before its application starts",
+      "CUDA initialization fails in a Running Pod",
+      "Metrics disappear or report an implausible fleet state",
+      "An operator upgrade stalls",
+      "Containment, rollback, and forward recovery",
+      "Evidence package for escalation"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3343,13 +3418,13 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Consolidate the Kubernetes GPU platform lifecycle from driver and runtime through scheduling, observability, upgrades, and troubleshooting.",
     "sections": [
       "Volume 10 Summary",
-      "Architecture Summary",
-      "Quick Revision",
-      "Production Principles",
-      "Troubleshooting Checklist",
-      "Interview Notes",
-      "Lab Checklist",
-      "Next Volume"
+      "The platform lifecycle",
+      "What each component is responsible for",
+      "The production operating model",
+      "A reusable diagnosis sequence",
+      "Revision prompts",
+      "Continue the practice",
+      "Next volume"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3359,11 +3434,13 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Volume 10 — Kubernetes GPU Platform": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Learn how Kubernetes discovers, advertises, schedules, operates, and upgrades NVIDIA GPU resources in production clusters.",
+    "learningOutcome": "Design and operate the lifecycle that turns NVIDIA GPUs into reliable, schedulable Kubernetes infrastructure.",
     "sections": [
       "Volume 10 — Kubernetes GPU Platform",
-      "The Big Picture",
-      "Planned Chapter Sequence",
+      "The Platform Contract",
+      "How to Read This Volume",
+      "Chapter Sequence",
+      "Operating Perspective",
       "Planned Labs"
     ],
     "codeLanguages": [
@@ -3378,24 +3455,24 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "sections": [
       "Lab 01 — Inspect a Kubernetes GPU Node",
       "1. Objective",
-      "2. Background",
+      "2. Production Story",
       "3. Learning Outcomes",
       "4. Architecture",
       "5. Prerequisites",
-      "6. Environment",
-      "7. Components",
-      "8. Deployment Steps",
-      "Identify GPU nodes",
-      "Inspect hardware and driver state",
-      "Inspect runtime integration",
-      "Inspect platform operands",
-      "9. Validation"
+      "6. Safety and Change Boundaries",
+      "7. Environment and Variables",
+      "8. Components and Data Flow",
+      "9. Procedure: Inspect Kubernetes State",
+      "10. Procedure: Inspect the Host (Hardware Only)",
+      "11. Validation Workload",
+      "12. Verification and Acceptance Criteria",
+      "13. Observability and Evidence Collection"
     ],
     "codeLanguages": [
-      "yaml",
-      "text",
       "mermaid",
-      "bash"
+      "text",
+      "bash",
+      "yaml"
     ]
   },
   "Lab 02 — Install and Validate GPU Operator": {
@@ -3405,23 +3482,22 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "sections": [
       "Lab 02 — Install and Validate GPU Operator",
       "1. Objective",
-      "2. Background",
+      "2. Production Story",
       "3. Learning Outcomes",
       "4. Architecture",
       "5. Prerequisites",
-      "6. Environment",
-      "7. Components",
-      "8. Deployment Steps",
-      "Step 1 — Add the chart repository",
-      "Step 2 — Decide driver ownership",
-      "values-host-driver.yaml",
-      "Step 3 — Install the release",
-      "Step 4 — Inspect the release and policy"
+      "6. Safety and Rollback Boundary",
+      "7. Environment and Variables",
+      "8. Components and Ownership Decision",
+      "9. Preflight Evidence",
+      "10. Procedure: Add and Inspect the Chart",
+      "11. Procedure: Install the Pinned Release",
+      "12. Validation: Reconciliation and Operands",
+      "13. Validation: Resource Advertisement"
     ],
     "codeLanguages": [
-      "yaml",
-      "text",
       "mermaid",
+      "text",
       "bash"
     ]
   },
@@ -3432,23 +3508,22 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "sections": [
       "Lab 03 — Diagnose a Missing Allocatable GPU",
       "1. Objective",
-      "2. Background",
+      "2. Production Story",
       "3. Learning Outcomes",
       "4. Architecture",
       "5. Prerequisites",
-      "6. Environment",
-      "7. Components",
-      "8. Deployment Steps",
-      "9. Validation",
-      "10. Verification Workflow",
-      "Hardware",
-      "Driver",
-      "Device plugin"
+      "6. Safety and Incident Boundary",
+      "7. Environment and Variables",
+      "8. Components and Evidence Map",
+      "9. Procedure: Preserve Initial Evidence",
+      "10. Validate the Symptom and Compare",
+      "11. Procedure: Hardware and Driver (Hardware Only)",
+      "12. Procedure: Device Plugin and Discovery",
+      "13. Procedure: Kubelet and Runtime (Hardware Only)"
     ],
     "codeLanguages": [
-      "yaml",
-      "text",
       "mermaid",
+      "text",
       "bash"
     ]
   },
@@ -3459,43 +3534,44 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "sections": [
       "Lab 04 — Perform a Controlled GPU Platform Upgrade",
       "1. Objective",
-      "2. Background",
+      "2. Production Story",
       "3. Learning Outcomes",
       "4. Architecture",
       "5. Prerequisites",
-      "6. Environment",
-      "7. Components",
-      "8. Deployment Steps",
-      "Build the compatibility matrix",
-      "Establish acceptance gates",
-      "Quarantine and drain the canary",
-      "Upgrade the pinned release",
-      "9. Validation"
+      "6. Safety, Scope, and Stop Conditions",
+      "7. Environment and Variables",
+      "8. Compatibility Matrix and Acceptance Gates",
+      "9. Components and Change Ownership",
+      "10. Baseline and Rollback Evidence",
+      "11. Quarantine and Drain the Canary",
+      "12. Upgrade the Pinned Release",
+      "13. Platform Validation"
     ],
     "codeLanguages": [
-      "yaml",
-      "text",
       "mermaid",
+      "text",
       "bash"
     ]
   },
   "Chapter 01 — Why GPU Sharing Exists": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand the economic and architectural pressures that led to GPU sharing and the risks of treating sharing as simple oversubscription.",
+    "learningOutcome": "Define GPU sharing as a workload contract, not a density setting.",
     "sections": [
       "Why GPU Sharing Exists",
-      "Learning Objectives",
-      "Architecture Before Mechanism",
-      "What Problem Existed Before Sharing?",
-      "Three Different Meanings of Sharing",
-      "When Sharing Helps",
-      "When Sharing Hurts",
-      "Production Story",
-      "Troubleshooting Pattern",
-      "Customer Perspective",
-      "Interview Preparation",
-      "Key Takeaways"
+      "Learning objectives",
+      "The problem is stranded capacity, not merely low utilization",
+      "Four things people call “sharing”",
+      "Production story: the “eight GPUs per GPU” incident",
+      "Build a workload contract",
+      "Trade-offs that survive the design review",
+      "A practical intake workshop",
+      "Capacity signals that should not be collapsed",
+      "Troubleshooting scenario 1: utilization says “idle,” users say “slow”",
+      "Troubleshooting scenario 2: a tenant asks for “isolation”",
+      "Customer architecture discussion",
+      "Production deployment pattern",
+      "First principles: why a GPU is not a CPU socket"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3505,37 +3581,47 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 02 — MIG Architecture and Isolation": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand how Multi-Instance GPU partitions supported GPUs into isolated compute and memory instances.",
+    "learningOutcome": "Understand GPU instances, compute instances, and the boundary that MIG does—and does not—create.",
     "sections": [
       "MIG Architecture and Isolation",
-      "Learning Objectives",
-      "Big Picture",
-      "Isolation Model",
-      "Internal Working",
-      "Production Trade-offs",
-      "Verification",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Questions"
+      "Learning objectives",
+      "The hierarchy",
+      "What MIG isolates—and what it cannot",
+      "Internal working and lifecycle",
+      "Kubernetes consequences",
+      "Validation is a chain, not a command",
+      "Maintenance and rollback",
+      "Resource anatomy in more detail",
+      "Supported-configuration discipline",
+      "Node lifecycle sequence",
+      "Troubleshooting scenario 3: post-reboot drift",
+      "Troubleshooting scenario 4: a container sees an unexpected device",
+      "Production story: the mode-change outage that looked like a scheduler bug"
     ],
     "codeLanguages": [
       "mermaid",
-      "text",
-      "bash"
+      "text"
     ]
   },
   "Chapter 03 — MIG Profiles and Placement": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Plan profile mixes, avoid fragmentation, and align MIG geometry with workload demand.",
+    "learningOutcome": "Plan supported profile layouts as fleet inventory, not as arbitrary fractions.",
     "sections": [
       "MIG Profiles and Placement",
-      "Architecture Model",
-      "Profile Selection",
-      "Placement and Fragmentation",
-      "Production Pattern",
-      "Troubleshooting",
-      "Interview Questions"
+      "Learning objectives",
+      "From model to profile",
+      "Read the driver, not a diagram",
+      "Fragmentation is geometric",
+      "Design patterns",
+      "Profile-sizing worksheet",
+      "Inventory reporting pattern",
+      "Placement strategy and scheduler strategy are different",
+      "Capacity planning example without invented numbers",
+      "Day-two operations",
+      "Troubleshooting scenario 3: inventory varies among identical nodes",
+      "Troubleshooting scenario 4: reconfiguration consumes the recovery reserve",
+      "Production story: the impossible “free” capacity"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3545,15 +3631,22 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 04 — Time-Slicing and Oversubscription": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand logical GPU replicas, contention, fairness, and the limits of scheduler-level sharing.",
+    "learningOutcome": "Use logical GPU replicas honestly: as shared access, not reserved capacity.",
     "sections": [
       "Time-Slicing and Oversubscription",
-      "Big Picture",
-      "Appropriate Workloads",
-      "Oversubscription Risk",
-      "Observability",
-      "Troubleshooting",
-      "Customer Question"
+      "Learning objectives",
+      "What the Kubernetes configuration changes",
+      "Where time-slicing belongs",
+      "Design the service, not the replica count",
+      "Safe rollout sequence",
+      "Fairness and admission",
+      "Internal working and consequence",
+      "Measuring a replica ratio",
+      "Production incident flow",
+      "Troubleshooting scenario 3: shared resource scheduled on the wrong workload class",
+      "Troubleshooting scenario 4: metrics cannot identify the noisy neighbor",
+      "Production story: “all pods are healthy”",
+      "Observability: allocation is not utilization"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3563,15 +3656,22 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 05 — vGPU Architecture and Enterprise Virtualization": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand virtual GPU architecture, mediated access, licensing, and operational boundaries in enterprise virtualization.",
+    "learningOutcome": "Design and operate NVIDIA vGPU platforms by understanding the host, guest, profile, licensing, and lifecycle boundaries.",
     "sections": [
       "vGPU Architecture and Enterprise Virtualization",
-      "Architecture",
-      "Why It Exists",
-      "Trade-offs",
-      "Production Operations",
-      "Troubleshooting",
-      "Customer Perspective"
+      "Learning objectives",
+      "The architecture has two paths",
+      "Profiles are service contracts, not fractions on a spreadsheet",
+      "Time-sliced and MIG-backed vGPU",
+      "Lifecycle: treat the stack as a qualified unit",
+      "Design review checklist",
+      "Production patterns",
+      "Troubleshooting scenario 1: VM boots but no usable GPU appears",
+      "Troubleshooting scenario 2: GPU exists but the application is degraded after startup",
+      "Host, guest, and control-plane responsibilities",
+      "Device lifecycle and state transitions",
+      "Capacity and placement mechanics",
+      "Security boundaries in a VM-oriented GPU service"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3581,56 +3681,98 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 06 — Comparing MIG, Time-Slicing, and vGPU": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Select a GPU sharing model by isolation, workload, platform, and lifecycle requirements.",
+    "learningOutcome": "Choose whole-GPU allocation, MIG, time-slicing, or vGPU from requirements, measured behavior, and operational constraints.",
     "sections": [
       "Comparing MIG, Time-Slicing, and vGPU",
-      "Decision Process",
-      "Anti-Pattern",
-      "Customer Scenario",
-      "Interview Questions"
-    ],
-    "codeLanguages": []
-  },
-  "Chapter 07 — Kubernetes Scheduling for Shared GPUs": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Advertise, label, schedule, and govern shared GPU resources in Kubernetes.",
-    "sections": [
-      "Kubernetes Scheduling for Shared GPUs",
-      "Architecture",
-      "Resource Design",
-      "Scheduling Controls",
-      "Production Failure",
-      "Interview Question"
+      "Learning objectives",
+      "The decision begins with the contract",
+      "What is actually isolated?",
+      "Compare the operational cost, not just the hardware behavior",
+      "A benchmark is the admission test",
+      "Decision record for a sharing class",
+      "Production patterns",
+      "Troubleshooting scenario 1: a supposedly isolated service has erratic latency",
+      "Troubleshooting scenario 2: MIG capacity exists, but requests wait indefinitely",
+      "Model selection by workload behavior",
+      "The hidden costs of each model",
+      "Operational decision workshop",
+      "Incident playbook: sharing method is correct but the service objective fails"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
+  "Chapter 07 — Kubernetes Scheduling for Shared GPUs": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Express GPU-sharing contracts with resource names, node pools, admission controls, quota, and evidence-driven placement policy.",
+    "sections": [
+      "Kubernetes Scheduling for Shared GPUs",
+      "Learning objectives",
+      "What Kubernetes decides, and what it delegates",
+      "Design the resource catalog before workloads arrive",
+      "MIG strategy changes what the scheduler can see",
+      "Layer scheduling controls deliberately",
+      "Quota and fairness begin with namespace boundaries",
+      "Change management for scheduling policy",
+      "A production Pod contract",
+      "Troubleshooting scenario 1: a valid Pod remains Pending",
+      "Troubleshooting scenario 2: a latency-sensitive Pod is Running on shared capacity",
+      "Resource publication and allocation mechanics",
+      "Admission policy is the translation layer",
+      "Namespace onboarding and quota design"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "yaml"
+    ]
+  },
   "Chapter 08 — Tenant Isolation, Security, and Fairness": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design tenant boundaries across identity, scheduling, device sharing, networking, and data.",
+    "learningOutcome": "Build shared-GPU tenant boundaries across identity, Kubernetes policy, host access, data paths, sharing modes, and capacity governance.",
     "sections": [
       "Tenant Isolation, Security, and Fairness",
-      "Isolation Layers",
-      "Fairness",
-      "Security Warning",
-      "Troubleshooting"
+      "Learning objectives",
+      "A tenant boundary is an end-to-end path",
+      "Start with a written threat model",
+      "What sharing mechanisms contribute",
+      "Fairness is a policy, not an equal split",
+      "Production pattern: isolate the control plane from the data plane",
+      "Preemption and maintenance require workload consent",
+      "Evidence and audit design",
+      "Troubleshooting scenario 1: one tenant causes another tenant’s OOM or latency collapse",
+      "Troubleshooting scenario 2: a namespace can consume GPU capacity but cannot reach its model data",
+      "Scope controls by administrative plane",
+      "Image and runtime trust",
+      "Data, model, and telemetry boundaries"
     ],
-    "codeLanguages": []
+    "codeLanguages": [
+      "mermaid",
+      "text"
+    ]
   },
   "Chapter 09 — Capacity Planning and Chargeback": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Convert logical GPU allocations into physical capacity, service levels, and accountable cost models.",
+    "learningOutcome": "Translate shared-GPU demand into physical capacity, service classes, accountable consumption, and defensible rates.",
     "sections": [
       "Capacity Planning and Chargeback",
-      "Capacity Model",
-      "Headroom",
-      "Chargeback Principles",
-      "Customer Question"
+      "Learning objectives",
+      "A planning incident: the cluster that looked half empty",
+      "Capacity is a chain of constraints",
+      "Start with workload classes, not devices",
+      "A simple, auditable capacity model",
+      "Define reserve by failure domain",
+      "MIG planning: shape matters as much as count",
+      "Standardize layouts before pricing them",
+      "Fragmentation indicators worth reviewing",
+      "Time-slicing: plan for contention, not partitions",
+      "vGPU and VM-centric capacity",
+      "From measurement to forecast",
+      "Showback before chargeback"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3640,15 +3782,27 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 10 — Observability and SLOs for Shared GPUs": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Measure shared GPU health, contention, tenant experience, and service guarantees.",
+    "learningOutcome": "Connect GPU health, allocation state, tenant experience, and service objectives without confusing utilization for service quality.",
     "sections": [
       "Observability and SLOs for Shared GPUs",
-      "Metric Layers",
-      "SLO Examples",
-      "Troubleshooting",
-      "Production Advice"
+      "Learning objectives",
+      "The service that was green and still failing",
+      "The shared-GPU evidence path",
+      "Build three views, not one dashboard",
+      "The telemetry contract",
+      "Choose SLIs from the service promise",
+      "Error budgets without invented precision",
+      "Alerts must lead to a safe action",
+      "Correlation: reconstruct the tenant experience",
+      "Sharing-model-specific signals",
+      "MIG",
+      "Time-slicing",
+      "vGPU"
     ],
-    "codeLanguages": []
+    "codeLanguages": [
+      "mermaid",
+      "text"
+    ]
   },
   "Chapter 11 — Production Troubleshooting": {
     "volume": "Academy orientation",
@@ -3669,26 +3823,37 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 12 — Volume 11 Summary": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Consolidate the architecture and operational principles of GPU sharing.",
+    "learningOutcome": "Consolidate the architectural, operational, and decision-making principles of production GPU sharing.",
     "sections": [
       "Volume 11 Summary",
-      "Architecture Summary",
-      "Decision Sheet",
-      "Production Checklist",
-      "Interview Notes",
-      "Next Volume"
+      "Learning objectives",
+      "The end-to-end model",
+      "Mechanisms and their boundaries",
+      "Decision sequence",
+      "Production checklist",
+      "Common traps",
+      "Production recovery scenario",
+      "Review questions",
+      "Senior interview questions",
+      "Customer discussion prompts",
+      "Next volume"
     ],
-    "codeLanguages": []
+    "codeLanguages": [
+      "mermaid",
+      "text"
+    ]
   },
   "Volume 11 — GPU Sharing": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design safe multi-tenant GPU platforms with MIG, time-slicing, vGPU, quotas, scheduling, and production controls.",
+    "learningOutcome": "Design multi-tenant GPU platforms with clear guarantees for isolation, latency, capacity, and recovery.",
     "sections": [
       "Volume 11 — GPU Sharing",
-      "Big Picture",
-      "Chapters",
-      "Labs"
+      "The operating model",
+      "What this volume will and will not promise",
+      "Reading path",
+      "Labs",
+      "Success criteria"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3698,91 +3863,109 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Lab 01 — Configure and Validate MIG": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Configure a supported GPU for MIG, create a profile layout, validate isolation, and restore the baseline.",
+    "learningOutcome": "Safely apply, validate, and roll back a documented MIG layout on a disposable GPU node.",
     "sections": [
       "Lab 01 — Configure and Validate MIG",
       "1. Objective",
-      "2. Background",
+      "2. Production Story",
       "3. Learning Outcomes",
       "4. Architecture",
       "5. Prerequisites",
-      "6. Environment",
-      "7. Components",
-      "8. Deployment",
-      "9. Validation",
-      "10. Verification",
-      "11. Observability",
-      "12. Performance Measurements",
-      "13. Failure Injection"
+      "6. Safety and Change Boundaries",
+      "7. Environment and Variables",
+      "8. Components and Data Flow",
+      "9. Baseline Evidence",
+      "10. Drain and Isolate the Node",
+      "11. Apply the Approved MIG Layout",
+      "12. Validate Host Inventory and Kubernetes Advertisement",
+      "13. Validation Workload"
     ],
     "codeLanguages": [
       "mermaid",
       "text",
-      "bash"
+      "bash",
+      "yaml"
     ]
   },
   "Lab 02 — Configure Kubernetes GPU Time-Slicing": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Configure time-slicing on a test node, schedule multiple workloads, measure the difference between logical allocation and physical service, and restore the baseline.",
+    "learningOutcome": "Safely advertise GPU time-slicing replicas, validate logical scheduling, measure contention, and restore the baseline.",
     "sections": [
       "Lab 02 — Configure Kubernetes GPU Time-Slicing",
-      "Objective",
-      "Architecture",
-      "Prerequisites",
-      "Deployment",
-      "Validation",
-      "Verification",
-      "Observability",
-      "Performance Measurement",
-      "Failure Injection",
-      "Troubleshooting",
-      "Cleanup",
-      "Challenge"
+      "1. Objective",
+      "2. Production Story",
+      "3. Learning Outcomes",
+      "4. Architecture",
+      "5. Prerequisites",
+      "6. Safety and Change Boundaries",
+      "7. Environment and Variables",
+      "8. Components and Resource Semantics",
+      "9. Baseline and Node Isolation",
+      "10. Create an Explicit Policy",
+      "11. Select the Policy Through the Supported Control Plane",
+      "12. Deploy Bounded Validation Workloads",
+      "13. Verification and Acceptance Criteria"
     ],
     "codeLanguages": [
       "mermaid",
       "text",
-      "bash"
+      "bash",
+      "yaml"
     ]
   },
   "Lab 03 — Compare Sharing Performance and Isolation": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Run the same representative workload under whole-GPU, MIG, and time-sliced configurations and produce an evidence-based recommendation.",
+    "learningOutcome": "Compare whole-GPU, MIG, and time-sliced execution with a controlled workload and evidence-based service recommendation.",
     "sections": [
       "Lab 03 — Compare Sharing Performance and Isolation",
-      "Objective",
-      "Method",
-      "Architecture",
-      "Validation",
-      "Measurements",
-      "Failure Injection",
-      "Interpretation",
-      "Cleanup"
+      "1. Objective",
+      "2. Production Story",
+      "3. Learning Outcomes",
+      "4. Architecture",
+      "5. Prerequisites",
+      "6. Safety and Change Boundaries",
+      "7. Environment and Variables",
+      "8. Components and Data Flow",
+      "9. Test Plan and Acceptance Hypotheses",
+      "10. Baseline Inspection",
+      "11. Deploy the Benchmark",
+      "12. Validate Workload Identity",
+      "13. Verification and Acceptance Criteria"
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
+      "text",
+      "bash",
+      "yaml"
     ]
   },
   "Lab 04 — Troubleshoot a Multi-Tenant GPU Node": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Use a bottom-up incident workflow to diagnose a shared GPU node where one tenant reports Pending Pods and another reports latency spikes.",
+    "learningOutcome": "Use a layered, tenant-safe incident workflow to diagnose scheduling, sharing, runtime, and contention symptoms.",
     "sections": [
       "Lab 04 — Troubleshoot a Multi-Tenant GPU Node",
-      "Objective",
-      "Evidence Bundle",
-      "Diagnostic Order",
-      "Failure Injection",
-      "Resolution",
-      "Prevention",
-      "Cleanup"
+      "1. Objective",
+      "2. Production Story",
+      "3. Learning Outcomes",
+      "4. Architecture",
+      "5. Prerequisites",
+      "6. Safety and Incident Boundaries",
+      "7. Environment and Variables",
+      "8. Components and Triage Order",
+      "9. Preserve the Scene",
+      "10. Inspect Hardware and Sharing State",
+      "11. Inspect Scheduling and Policy",
+      "12. Deploy a Bounded Diagnostic Pod",
+      "13. Verification and Acceptance Criteria"
     ],
     "codeLanguages": [
+      "mermaid",
+      "text",
       "bash",
-      "text"
+      "yaml"
     ]
   },
   "Chapter 01 — Why Inference Infrastructure Is Different": {
@@ -5584,6 +5767,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "python",
       "text",
       "mermaid"
     ]
@@ -5596,6 +5780,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "python",
       "text",
       "mermaid"
     ]
@@ -5608,8 +5793,9 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
-      "mermaid",
-      "text"
+      "python",
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 5 — Subprocess is a process API, not a shell shortcut": {
@@ -5620,8 +5806,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
-      "text",
       "python",
+      "text",
       "mermaid"
     ]
   },
@@ -5633,8 +5819,9 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
-      "json",
+      "python",
       "text",
+      "json",
       "mermaid"
     ]
   },
@@ -5643,7 +5830,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Senior Deep Dive 7 — Testing infrastructure code: isolate decisions from effects — Python for Production Infrastructure.",
     "sections": [
-      "test\\ retry.py",
+      "retry.py",
+      "test retry.py",
       "Senior addendum"
     ],
     "codeLanguages": [
@@ -5657,11 +5845,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
     "learningOutcome": "Senior Deep Dive 8 — Complete project: GPU fleet health CLI — Python for Production Infrastructure.",
     "sections": [
+      "package layout",
       "Senior addendum"
     ],
     "codeLanguages": [
-      "python",
       "text",
+      "python",
       "mermaid"
     ]
   },
@@ -5674,8 +5863,9 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
-      "mermaid",
-      "text"
+      "bash",
+      "text",
+      "mermaid"
     ]
   },
   "Chapter 1 - API server, etcd and the object model": {
@@ -5718,8 +5908,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
-      "text",
       "bash",
+      "text",
       "mermaid"
     ]
   },
@@ -5849,8 +6039,9 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Deep Dive 1 — API machinery"
     ],
     "codeLanguages": [
-      "mermaid",
-      "text"
+      "bash",
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 2 — etcd quorum, control-plane failure and recovery boundaries": {
@@ -5861,23 +6052,22 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum",
       "Deep Dive 2 — etcd quorum and control-plane failure boundaries"
     ],
-    "codeLanguages": [
-      "text"
-    ]
+    "codeLanguages": []
   },
   "Senior Deep Dive 3 — Scheduling framework, preemption, gang/topology and DRA": {
     "volume": "Volume 3",
     "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
     "learningOutcome": "Senior Deep Dive 3 — Scheduling framework, preemption, gang/topology and DRA — Kubernetes and Platform Engineering.",
     "sections": [
+      "Scheduling evidence for a Pending Pod",
       "DRA resources on clusters that support them",
       "Senior addendum",
       "Deep Dive 3 — Scheduling framework, preemption, gang/topology and DRA"
     ],
     "codeLanguages": [
-      "mermaid",
+      "bash",
       "text",
-      "bash"
+      "mermaid"
     ]
   },
   "Senior Deep Dive 4 — Kubelet, CRI, pod sandbox and node pressure": {
@@ -5889,6 +6079,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Deep Dive 4 — Kubelet, CRI, pod sandbox and node pressure"
     ],
     "codeLanguages": [
+      "bash",
       "text"
     ]
   },
@@ -5897,14 +6088,16 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
     "learningOutcome": "Senior Deep Dive 5 — Networking: Service abstraction, CNI dataplane, DNS and Gateway API — Kubernetes and Platform Engineering.",
     "sections": [
+      "Service - EndpointSlice - Pod",
       "DNS from inside the workload namespace",
       "Node dataplane - varies by CNI/proxy implementation",
       "Senior addendum",
       "Deep Dive 5 — Networking: Service, CNI dataplane, DNS, Gateway API"
     ],
     "codeLanguages": [
-      "mermaid",
-      "text"
+      "bash",
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 6 — Admission, policy and multi-tenant guardrails": {
@@ -5912,15 +6105,16 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
     "learningOutcome": "Senior Deep Dive 6 — Admission, policy and multi-tenant guardrails — Kubernetes and Platform Engineering.",
     "sections": [
+      "Can this identity perform the action?",
       "Namespace Pod Security Admission example",
       "Inspect admission webhooks and policies",
       "Senior addendum",
       "Deep Dive 6 — Admission, policy and multi-tenant guardrails"
     ],
     "codeLanguages": [
-      "mermaid",
+      "bash",
       "text",
-      "bash"
+      "mermaid"
     ]
   },
   "Senior Deep Dive 7 — Platform patterns from the Staff Engineer guide": {
@@ -5931,9 +6125,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum",
       "Deep Dive 7 — Platform patterns from the Staff Engineer guide"
     ],
-    "codeLanguages": [
-      "text"
-    ]
+    "codeLanguages": []
   },
   "Senior Deep Dive 8 — GPU platform operations: node pools, operators and resource isolation": {
     "volume": "Volume 3",
@@ -6078,8 +6270,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
-      "text",
       "bash",
+      "text",
       "mermaid"
     ]
   },
@@ -6088,12 +6280,14 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
     "learningOutcome": "Senior Deep Dive 3 — Driver, CUDA compatibility and container integration — GPU and Accelerated Computing Foundations.",
     "sections": [
+      "Host",
       "Runtime integration (commands depend on installation)",
       "Container smoke test",
       "or run a vendor-supported CUDA container through your normal runtime",
       "Senior addendum"
     ],
     "codeLanguages": [
+      "bash",
       "text",
       "mermaid"
     ]
@@ -6119,7 +6313,11 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "sections": [
       "Senior addendum"
     ],
-    "codeLanguages": []
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "bash"
+    ]
   },
   "Senior Deep Dive 6 — DCGM, Xid, ECC and health semantics": {
     "volume": "Volume 4",
@@ -6130,6 +6328,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "bash",
       "text",
       "mermaid"
     ]
@@ -6216,6 +6415,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Example Kubernetes resource boundary (illustrative)"
     ],
     "codeLanguages": [
+      "yaml",
       "text",
       "mermaid",
       "bash"
@@ -6265,8 +6465,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Apply familiar platform security controls to models, prompts, data, artifacts and shared GPUs.",
     "sections": [],
     "codeLanguages": [
-      "text",
       "bash",
+      "text",
       "mermaid"
     ]
   },
@@ -6280,6 +6480,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "text",
+      "bash",
       "mermaid"
     ]
   },
@@ -6363,8 +6564,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
-      "text",
-      "mermaid"
+      "mermaid",
+      "text"
     ]
   },
   "Senior Deep Dive 8 — Production benchmark design": {
@@ -6507,10 +6708,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
     "learningOutcome": "Senior Deep Dive 1 — Collective communication and straggler amplification — HPC, Networking and Storage for AI.",
     "sections": [
+      "Topology and fabric evidence",
       "NCCL diagnostics - enable only for diagnosis because logs can be large",
       "Senior addendum"
     ],
     "codeLanguages": [
+      "bash",
       "text",
       "mermaid"
     ]
@@ -6558,7 +6761,9 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
-      "text"
+      "bash",
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 6 — Kubernetes, Slurm and hybrid scheduling": {
@@ -6569,8 +6774,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
-      "text",
-      "mermaid"
+      "mermaid",
+      "text"
     ]
   },
   "Senior Deep Dive 7 — Distributed-system patterns from the Staff Engineer guide": {
@@ -6767,11 +6972,13 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
     "learningOutcome": "Senior Deep Dive 2 — Prometheus internals, cardinality and query cost — Observability, Reliability and Troubleshooting.",
     "sections": [
+      "Request error ratio",
       "p95 from histogram buckets",
       "GPU utilization grouped by node (metric names depend on exporter/version)",
       "Senior addendum"
     ],
     "codeLanguages": [
+      "promql",
       "text"
     ]
   },
@@ -6783,6 +6990,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -6806,6 +7014,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -7076,6 +7285,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Senior addendum"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -7275,6 +7485,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -7288,7 +7499,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "python",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Question set C — Kubernetes platform depth": {
@@ -7342,6 +7554,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -7366,6 +7579,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Practice"
     ],
     "codeLanguages": [
+      "mermaid",
       "text"
     ]
   },
@@ -7584,10 +7798,6 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "A safe progression for your first container job",
       "Why not just run Docker on the cluster",
       "What Enroot solves",
-      "downloads image, flattens layers, writes",
-      "nvidia+pytorch+24.05-py3.sqsh (squashed rootless filesystem)",
-      "container filesystem writable for this invocation, --root maps the user to",
-      "container-root (still unprivileged on the host) for install-time operations",
       "Pyxis: the Slurm SPANK plugin",
       "Common failure modes",
       "Worked scenario",

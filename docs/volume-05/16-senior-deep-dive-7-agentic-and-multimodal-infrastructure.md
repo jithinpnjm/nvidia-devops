@@ -10,15 +10,14 @@ Agentic workloads can turn one user request into many model calls, tool calls an
 ## Senior addendum
 
 ➕ **This is genuinely new ground — no earlier chapter covers fan-out amplification. Worth its own arithmetic and a worked scenario:**
-```text
-Naive capacity model: Amplified reality
-100 user req/s 100 user req/s × 10 model calls/req
-provision for 100 req/s (avg agent loop depth) × 1.3
-of model-endpoint capacity (retry factor for tool failures)
-= 1,300 model-endpoint req/s needed
-— a 13x under-provisioning if
-sized on the user-facing number
-```
+
+| Step | Naive capacity model | Amplified reality |
+|---|---|---|
+| Input | 100 user req/s | 100 user req/s |
+| Multiplier | (none applied) | × 10 model calls/req (avg agent loop depth) × 1.3 (retry factor for tool failures) |
+| Provisioned for | 100 model-endpoint req/s | 1,300 model-endpoint req/s needed |
+
+Sizing model-endpoint capacity on the user-facing number alone is a 13x under-provisioning here — the naive model never applies the loop-depth and retry multipliers at all.
 ➕ **Extra worked scenario — the incident this amplification math prevents:**
 > **Situation:** An agentic coding assistant is capacity-planned at "the same model endpoint sizing as our old single-shot chat feature," based on expected user request rate. After launch, the model endpoint saturates and queue depth spikes at a fraction of the planned user traffic.
 > 1. The chat feature was one user request → one model call. The agentic feature is one user request → an average of 6 tool-call/retrieval/model-call round-trips per task, with occasional loops up to a configured max depth of 15 on complex tasks.

@@ -7,81 +7,102 @@ tags: [gpu-operator, helm, production]
 
 # Production Installation and Configuration
 
-A successful Helm install proves only that Kubernetes accepted the manifests. Production installation begins earlier with node qualification, ownership, version selection, security review, and rollback planning—and ends only after a real CUDA workload, monitoring, and operational runbooks are validated.
+A Helm release in the `deployed` state is not a GPU platform. It says the API server accepted the release resources; it says nothing about a driver loading on the intended kernel, the runtime injecting devices, the kubelet advertising a resource, or a workload completing CUDA initialization. Production installation is a controlled lifecycle decision with a measurable acceptance boundary.
 
-## Learning Objectives
+The NVIDIA GPU Operator can reconcile a set of GPU software operands, but it does not remove the need to decide who owns node images, drivers, runtimes, registry access, security policy, validation, and rollback. Make those choices before a change window, then encode them in reviewed configuration rather than a shell history.
 
-Design prerequisites, select host-managed or operator-managed components, structure Helm values, validate readiness, and define acceptance gates.
+## Learning objectives
 
-## Deployment Flow
+By the end of this chapter, you should be able to qualify a node pool, select component ownership, organize an environment-specific configuration, validate the full workload path, and reject an installation that is syntactically successful but operationally incomplete.
+
+## Define the platform boundary first
 
 ```mermaid
 flowchart TD
-    Qualify[Qualify Nodes and Compatibility]
-    Plan[Choose Driver and Runtime Ownership]
-    Install[Install Operator]
-    Reconcile[Wait for Operands]
-    Validate[Run CUDA and Monitoring Tests]
-    Accept[Accept Node Pool]
-    Qualify --> Plan --> Install --> Reconcile --> Validate --> Accept
+    Qualify[Qualify nodes and compatibility] --> Ownership[Choose driver and runtime ownership]
+    Ownership --> Policy[Review security, registry, and node scope]
+    Policy --> Render[Render and review pinned configuration]
+    Render --> Reconcile[Install and reconcile operands]
+    Reconcile --> Accept[Validate workload, telemetry, and recovery]
+    Accept --> Operate[Accept node pool into service]
 ```
 
-## Preinstallation Decisions
+**Figure 10.10.1 — Installation is a sequence of evidence gates, not a single Helm command.** A failure at any gate should identify the owner and preserve a safe recovery path.
 
-| Decision | Options |
+Before selecting values, document the supported Kubernetes distribution and version, kernel and operating-system image, container runtime, GPU inventory, driver branch, and required firmware posture. Treat this as a compatibility set. “Works on another cluster” is not a compatibility claim when the kernel, runtime, security controls, or node image differs.
+
+## Ownership decisions that determine the design
+
+| Decision | Questions to settle before deployment |
 |---|---|
-| Driver ownership | Host image, package automation, or operator driver container |
-| Runtime ownership | Preconfigured toolkit or operator-managed toolkit |
-| Node scope | Labels, selectors, taints, and dedicated pools |
-| Monitoring | DCGM exporter enabled and scraped |
-| Sharing | Full GPU, MIG, or time-slicing policy |
-| Security | Registry, signatures, RBAC, privileged admission |
-| Upgrade | Canary and maintenance process |
+| Driver ownership | Is the driver part of a curated node image, installed by host automation, or managed by the operator? Who rebuilds it after a kernel change? |
+| Runtime ownership | Does the base image configure the NVIDIA Container Toolkit, or will an operator-managed operand do so? Which runtime handlers and CDI behavior are approved? |
+| Node scope | Which dedicated pools are eligible? How do labels, taints, selectors, and admission policy prevent accidental installation on control-plane or incompatible nodes? |
+| Image supply chain | Which registry is authoritative? Are images mirrored, scanned, signed, and reachable during an incident? |
+| Sharing policy | Are nodes full-GPU, MIG, or time-sliced, and which workload class is allowed on each? |
+| Operations | Who owns values, compatibility review, alert response, maintenance windows, and vendor escalation? |
 
-Use one source-controlled values file per environment. Pin versions according to the qualified matrix. Avoid copying values from unrelated clusters without reviewing kernel, runtime, and node differences.
+There is no universal correct driver-ownership model. A curated host image can simplify compliance and boot-time predictability; operator-managed driver containers can centralize lifecycle handling. Both require a tested compatibility and rollback process. Mixing models within one pool without an explicit design makes incidents needlessly ambiguous.
 
-## Installation
+## Treat Helm values as an interface
 
-Create the namespace, apply required labels/taints, add the approved chart repository or internal mirror, inspect rendered manifests, and install with Helm. Commands should reference the organization’s pinned versions rather than an unverified “latest.”
+Keep one source-controlled values file per environment, with a reviewable overlay mechanism where needed. Pin chart and image versions according to the qualified release documentation and internal policy. Record why non-default settings exist, particularly node selectors, driver and toolkit enablement, MIG or sharing configuration, DCGM Exporter settings, registry locations, tolerations, and security exceptions.
 
-After installation, inspect the ClusterPolicy status, operator logs, DaemonSets, Pods, events, and node labels. Identify the first operand not Ready rather than waiting indefinitely.
+Render the release before applying it. Review service accounts, cluster-scoped permissions, privileged workloads, host mounts, DaemonSet selectors, image references, and namespace-scoped network assumptions. GPU platform operands often require privileged host interaction; that makes an installation review both a reliability and supply-chain review.
 
-## Acceptance Gates
+Do not copy a values file simply because it installed elsewhere. Configuration can be valid YAML and still target the wrong node group, overwrite a runtime assumption, or enable an operand that conflicts with the existing node image.
 
-1. Driver loaded and `nvidia-smi` healthy.
-2. Runtime configured and minimal CUDA container passes.
-3. Device plugin advertises expected allocatable resources.
-4. Feature labels match hardware and policy.
-5. DCGM metrics reach Prometheus with correct identity.
-6. Representative workload and topology test pass.
-7. Drain, reboot, and recovery procedure is documented.
+## Install in an intentionally small blast radius
 
-## Production Risks
+Begin with a dedicated canary pool that represents the intended production hardware and policy. Apply labels and taints before installation so ordinary workloads cannot race into a partially configured pool. Verify registry credentials and internal mirrors before the maintenance window; an image-pull delay is not a driver diagnosis.
 
-Privileged operands, internet image pulls, automatic driver updates, and broad node selectors can create supply-chain or outage risk. Mirror images where required, verify provenance, restrict RBAC, and stage changes.
+Install the pinned release, then follow reconciliation rather than only release status. Inspect the ClusterPolicy (or equivalent operator status), controller logs, events, DaemonSet rollout state, and the Pods for each enabled operand. When the result is incomplete, identify the first operand that cannot become Ready and investigate its dependency. Repeatedly deleting the whole deployment converts a diagnosable state into a larger outage.
 
-## Troubleshooting
+## Acceptance is an end-to-end proof
 
-If operator Pods run but no operands appear, inspect policy and controller logs. If driver operands fail, inspect kernel/header/signing evidence. If runtime operands succeed but validation fails, inspect container runtime configuration and image compatibility.
+Use a small, approved CUDA validation image and a representative workload test. The exact image and commands should be maintained in the platform’s controlled validation procedure, not selected ad hoc during an incident. Acceptance should establish all of the following:
 
-## Customer Perspective
+1. The node detects its expected GPUs and the driver is healthy.
+2. The selected runtime path can create a GPU container and initialize CUDA.
+3. The device plugin advertises the expected allocatable resource after kubelet registration.
+4. Hardware and policy labels describe the intended capability; taints and selectors constrain placement as designed.
+5. A scheduled workload receives the expected device and passes a functional test.
+6. DCGM telemetry is scraped with stable device identity and reaches the intended dashboards.
+7. A controlled drain, reboot, and return-to-service path restores the node without undocumented manual repair.
 
-Installation is a lifecycle commitment. The customer needs ownership for values, compatibility, maintenance, alerts, and support escalation—not only a deployment command.
+The topology-sensitive portion of this test belongs to the workload class. A single-device CUDA smoke test proves a different thing from a distributed training validation. Use [GPU Scheduling and Topology](./chapter-08-gpu-scheduling-and-topology) to decide what the representative test must cover.
 
-## Interview Preparation
+## Operational guardrails
 
-**Question:** What is your definition of done for GPU Operator installation?
+Restrict operator scope to approved GPU nodes. Prefer immutable node-image and release inputs, use internal registries where policy requires them, and make the intended image provenance visible to reviewers. Ensure Pod Security, RBAC, and any admission policy allow the required operands deliberately—not through broad, unexplained exemptions.
 
-A strong answer includes reconciliation, driver/runtime/plugin/discovery/monitoring health, CUDA workload validation, topology checks, metrics, failure recovery, and documented lifecycle.
+Define a negative acceptance path too. A node that fails driver validation, loses the device plugin, or stops exporting telemetry must not silently re-enter the general workload pool. Cordon, quarantine, or keep the node out of the eligible selector until the runbook establishes recovery.
 
-## Key Takeaways
+## Troubleshooting installation without guesswork
 
-- Helm success is not platform acceptance.
-- Decide component ownership before deployment.
-- Use pinned, source-controlled configuration.
-- Validate every layer with a real workload and telemetry.
+**The release installed but no GPU resources appear.** Compare the target node selector with actual nodes, then walk the dependency path: host detection and driver, runtime, device-plugin Pod, kubelet registration, and node allocatable resources. Events and operand logs should reveal the first failed component.
 
-## Cross References
+**The driver operand fails.** Collect kernel release, headers or build dependencies where relevant, signing or Secure Boot evidence where applicable, image logs, and host driver state. Do not attempt a workload-level fix before the host layer is sound.
 
-- [GPU Observability](./chapter-09-gpu-observability-with-dcgm)
-- [Next: Upgrades and Troubleshooting](./chapter-11-upgrades-and-production-troubleshooting)
+**The runtime is present but a CUDA Pod cannot start.** Check the selected runtime handler or CDI configuration, runtime logs, device mounts, security context, and the validation image’s library expectations. A Pod start failure and a CUDA initialization failure are distinct failure boundaries.
+
+**Metrics are missing after the functional test passes.** The compute path may be correct while the telemetry path is not. Investigate exporter readiness, DCGM access, Prometheus target discovery, scrape health, and network policy as a separate acceptance failure. See [GPU Observability with DCGM](./chapter-09-gpu-observability-with-dcgm).
+
+## Senior-level design questions
+
+**What is “done” for a GPU Operator deployment?** The answer is a qualified node pool with an agreed owner, a pinned and reviewed configuration, all intended operands reconciled, a real workload validated, telemetry visible, and a tested recovery procedure. Helm success is evidence, but it is not the acceptance criterion.
+
+**Why isolate a canary pool?** It limits the change blast radius and provides a controlled comparison group. A canary must be representative enough to prove the compatibility set; an unused node with different hardware or policy is not a meaningful canary.
+
+## Key takeaways
+
+- Decide node, driver, runtime, and image-supply-chain ownership before installation.
+- Treat values files and rendered manifests as reviewed platform interfaces.
+- Accept a GPU pool only after the complete workload and telemetry path succeeds.
+- Preserve a small, representative canary pool for both initial deployment and change.
+
+## Cross references
+
+- [GPU Observability with DCGM](./chapter-09-gpu-observability-with-dcgm)
+- [GPU Scheduling and Topology](./chapter-08-gpu-scheduling-and-topology)
+- [Upgrades and Production Troubleshooting](./chapter-11-upgrades-and-production-troubleshooting)

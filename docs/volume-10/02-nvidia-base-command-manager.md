@@ -50,18 +50,18 @@ flowchart TD
     - Provisioning (PXE/DHCP)
     - Monitoring database
     - Workload-manager config (Slurm/Kubernetes install)"]
-    HN -->|management network| C1["Node Category: gpu-a100
+    HN -->|mgmt net| C1["Node Category: gpu-a100
     image: gpu-img-v42
     nodes: 01..30"]
-    HN -->|management network| C2["Node Category: gpu-h100-canary
+    HN -->|mgmt net| C2["Node Category: gpu-h100-canary
     image: gpu-img-v43
     nodes: 31"]
-    HN -->|management network| C3["Node Category: login
+    HN -->|mgmt net| C3["Node Category: login
     image: login-img-v9
     nodes: login-01/02"]
-    C1 -.->|"CMDaemon agent: reports health/metrics, pulls image + config on (re)provision"| HN
-    C2 -.->|"CMDaemon agent: reports health/metrics, pulls image + config on (re)provision"| HN
-    C3 -.->|"CMDaemon agent: reports health/metrics, pulls image + config on (re)provision"| HN
+    C1 -.->|"CMDaemon: health/metrics + image pull"| HN
+    C2 -.->|"CMDaemon: health/metrics + image pull"| HN
+    C3 -.->|"CMDaemon: health/metrics + image pull"| HN
 ```
 
 Key concepts:

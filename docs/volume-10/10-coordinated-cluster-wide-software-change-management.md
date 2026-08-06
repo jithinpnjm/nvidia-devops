@@ -53,33 +53,32 @@ Each arrow is a compatibility contract, not a formality. Bump the kernel and the
 
 Before any coordinated change, the concrete deliverable is a matrix: current known-good combination, proposed new combination, and which pairwise contracts in between have been validated versus merely assumed.
 
-```text
-LAYER CURRENT (known-good) PROPOSED VALIDATED?
-BMC/firmware 2.14.3 2.16.0 vendor compat matrix only
-Host OS/kernel Ubuntu 22.04 / 5.15.0-101 unchanged —
-NVIDIA driver 535.129.03 550.90.07 YES — driver/CUDA table
-CUDA toolkit 12.2 12.4 YES — driver/CUDA table
-Container runtime Enroot 3.4.1 + Pyxis 0.16 unchanged —
-Orchestrator Slurm 23.02.7 unchanged —
-NIC firmware ConnectX-7 22.35.1012 unchanged NOT RE-CHECKED — assumed fine
-NCCL 2.18.5 2.20.5 NO — this is the gap
-```
+| Layer | Current (known-good) | Proposed | Validated? |
+|---|---|---|---|
+| BMC/firmware | 2.14.3 | 2.16.0 | vendor compat matrix only |
+| Host OS/kernel | Ubuntu 22.04 / 5.15.0-101 | unchanged | — |
+| NVIDIA driver | 535.129.03 | 550.90.07 | YES — driver/CUDA table |
+| CUDA toolkit | 12.2 | 12.4 | YES — driver/CUDA table |
+| Container runtime | Enroot 3.4.1 + Pyxis 0.16 | unchanged | — |
+| Orchestrator | Slurm 23.02.7 | unchanged | — |
+| NIC firmware | ConnectX-7 22.35.1012 | unchanged | NOT RE-CHECKED — assumed fine |
+| NCCL | 2.18.5 | 2.20.5 | NO — this is the gap |
 
 The point of drawing it as a table is that "validated" is a per-cell claim, not a per-change claim. A change that touches three layers (driver, CUDA, NCCL here) needs three pairwise validations plus the interactions between them — driver-to-NCCL compatibility is a real, separately documented contract, not something that falls out of driver-to-CUDA and CUDA-to-NCCL being individually fine. Rows you did not intend to touch — NIC firmware in this example — still belong in the matrix, marked as unchanged, because the worked scenario below is exactly the failure mode of skipping that row.
 
-```text
-KNOWN-GOOD COMBINATION
-(the thing under protection)
-BMC/firmware
-Host OS/kernel
-NVIDIA driver any single row moving without
-CUDA toolkit re-validating its neighbors
-Container runtime breaks the whole column, not
-Orchestrator just that row
-CNI / fabric firmware
-Storage client
-MPI / NCCL
-```
+The **known-good combination** — the thing this matrix protects — is all nine rows read together, not any single row in isolation:
+
+- BMC/firmware
+- Host OS/kernel
+- NVIDIA driver
+- CUDA toolkit
+- Container runtime
+- Orchestrator
+- CNI / fabric firmware
+- Storage client
+- MPI / NCCL
+
+Any single row moving without re-validating its neighbors breaks the whole combination, not just that row.
 
 ## Change sequencing: why order is not arbitrary
 

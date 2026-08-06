@@ -83,15 +83,34 @@ flowchart TD
 ```
 
 ➕ **Rail-optimized topology, drawn out (the diagram the "multi-rail designs" sentence needs):**
-```text
-GPU0 NIC0(rail0) NIC0(rail0) GPU0 (node A) (node B)
-GPU1 NIC1(rail1) rail0 switches NIC1(rail1) GPU1
-GPU2 NIC2(rail2) rail1 switches NIC2(rail2) GPU2
-GPU3 NIC3(rail3) rail2/3 switches NIC3(rail3) GPU3
-Each GPU's traffic stays on ITS OWN dedicated rail (switch plane) end-to-end — no rail shares
-switch capacity with another rail's traffic, and NCCL is topology-aware enough to pick the
-matching local NIC for each GPU (this is exactly what Chapter 4's `nvidia-smi topo -m` table
-is telling you to verify per-node before assuming the fabric-wide rail design is being honored).
+```mermaid
+flowchart LR
+    subgraph A["node A"]
+        direction TB
+        AG0["GPU0"] --- AN0["NIC0"]
+        AG1["GPU1"] --- AN1["NIC1"]
+        AG2["GPU2"] --- AN2["NIC2"]
+        AG3["GPU3"] --- AN3["NIC3"]
+    end
+    subgraph RAILS["dedicated rail switches — one switch plane per rail, no shared capacity"]
+        direction TB
+        S0["rail0 switch"]
+        S1["rail1 switch"]
+        S2["rail2 switch"]
+        S3["rail3 switch"]
+    end
+    subgraph B["node B"]
+        direction TB
+        BN0["NIC0"] --- BG0["GPU0"]
+        BN1["NIC1"] --- BG1["GPU1"]
+        BN2["NIC2"] --- BG2["GPU2"]
+        BN3["NIC3"] --- BG3["GPU3"]
+    end
+    AN0 --> S0 --> BN0
+    AN1 --> S1 --> BN1
+    AN2 --> S2 --> BN2
+    AN3 --> S3 --> BN3
 ```
+Each GPU's traffic stays on ITS OWN dedicated rail (switch plane) end-to-end — no rail shares switch capacity with another rail's traffic, and NCCL is topology-aware enough to pick the matching local NIC for each GPU (this is exactly what Chapter 4's `nvidia-smi topo -m` table is telling you to verify per-node before assuming the fabric-wide rail design is being honored).
 
 ➕ **Failure-domain alignment — the sentence in the original text ("failure domains should align with scheduler placement") worked as a concrete failure:** if a training job's data-parallel replica *and* its checkpoint replica both land under the same leaf switch or rack PDU (because the scheduler placed them for locality, not for failure independence), a single leaf/rack event destroys both the live job and its recovery path simultaneously — the exact opposite of what replication was bought to prevent. This is the networking-layer version of the classic "don't put your primary and your backup in the same failure domain" rule, and it requires the scheduler (Slurm topology-aware placement, or a Kubernetes topology spread constraint) to actually know and respect the physical failure-domain map — it does not happen by default.
