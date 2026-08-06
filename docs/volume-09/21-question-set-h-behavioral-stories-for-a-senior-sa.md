@@ -10,14 +10,12 @@ Prepare evidence-rich stories around: a production incident where you reduced un
 ## ➕ Additions
 
 ➕ **Diagram: advisory-vs-autonomous, the reusable decision for any "automation that replaced manual toil" story:**
-```text
-Automation candidate identified (manual, repetitive, toil)
-What's the cost of a FALSE POSITIVE action?
-Low / reversible High / asymmetric
-(e.g. re-run a (e.g. drain a
-report) healthy node)
-Automate fully Automate DETECTION only; keep the ACTION
-end-to-end advisory (ranked list, human confirms)
+```mermaid
+flowchart TD
+  Candidate["Automation candidate identified (manual, repetitive, toil)"]
+  Candidate --> Cost{"What's the cost of a FALSE POSITIVE action?"}
+  Cost -->|"Low / reversible\n(e.g. re-run a report)"| Full["Automate fully end-to-end"]
+  Cost -->|"High / asymmetric\n(e.g. drain a healthy node)"| Advisory["Automate DETECTION only; keep the ACTION\nadvisory (ranked list, human confirms)"]
 ```
 This is the judgment call worth naming explicitly in a behavioral story — choosing a less-automated option deliberately, because the failure cost is asymmetric, reads as more senior than "I automated it."
 
