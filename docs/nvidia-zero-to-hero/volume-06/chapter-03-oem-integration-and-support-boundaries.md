@@ -318,7 +318,7 @@ The governing principle is:
 
 - [Chapter 01 — Why HGX Exists](./chapter-01-why-hgx-exists)
 - [Chapter 02 — Inside an HGX Platform](./chapter-02-inside-an-hgx-platform)
-- [Lab 01 — Compare HGX-Based Server Designs](./labs/lab-01-compare-hgx-based-server-designs)
+- [Lab 01 — Compare HGX-Based Server Designs](./labs/lab-01-compare-hgx-server-designs)
 
 ## Further Reading
 
