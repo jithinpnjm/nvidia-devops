@@ -1,63 +1,135 @@
 ---
 title: Chapter 03 — MIG Profiles and Placement
-description: Plan profile mixes, avoid fragmentation, and align MIG geometry with workload demand.
+description: Plan supported profile layouts as fleet inventory, not as arbitrary fractions.
 sidebar_position: 4
 tags: [mig, capacity-planning, scheduling]
 ---
 
 # MIG Profiles and Placement
 
-A MIG profile is both a technical shape and a capacity promise. The profile must fit the model, runtime buffers, and expected concurrency while preserving enough layout flexibility for the rest of the fleet.
+A MIG profile is a capacity promise with a physical geometry. It is not a percentage slider. The profile encodes a GPU-specific allocation of compute and memory resources; the available combinations and placements come from the driver for the actual device. A platform that ignores placement can report plenty of free capacity and still be unable to create the requested shape.
 
-## Architecture Model
+## Learning objectives
+
+You will be able to size a profile from an observed workload envelope, recognize fragmentation, choose between standardized and dynamic layouts, and troubleshoot a profile request that cannot be placed.
+
+| Prerequisites | Difficulty | Reading time |
+|---|---:|---:|
+| Chapters 01–02 | Advanced | 50 minutes |
+
+## From model to profile
 
 ```mermaid
-flowchart TD
-    Demand[Observed Workload Demand]
-    Memory[Memory Requirement]
-    Compute[Compute Requirement]
-    SLO[Latency or Throughput SLO]
-    Profile[Profile Selection]
-    Layout[Node Layout]
-    Pool[Dedicated Node Pool]
-
-    Demand --> Memory
-    Demand --> Compute
-    Demand --> SLO
-    Memory --> Profile
-    Compute --> Profile
-    SLO --> Profile
-    Profile --> Layout --> Pool
+flowchart LR
+    W[Workload measurement] --> A[Weights, runtime, activation/KV/cache headroom]
+    A --> S[Latency and concurrency target]
+    S --> P[Supported profile candidates]
+    P --> G[Placement-valid node layout]
+    G --> I[Advertised inventory and quota]
+    I --> V[Validation load test]
 ```
 
-## Profile Selection
+**Figure 11.3.1 — Size from evidence, then test on an available geometry.** Model weights alone are not a production memory budget. Include framework allocation, temporary buffers, request-dependent state, and operational headroom.
 
-Do not size only from model weights. Include framework overhead, activations, KV cache, temporary buffers, and operational headroom. A profile that barely loads a model is not a production fit.
+## Read the driver, not a diagram
 
-## Placement and Fragmentation
+Use the installed driver to list GPU-instance profiles and placements. Names such as `1g` and `3g` are device-generation-specific labels, not portable service tiers. NVIDIA’s MIG guide explicitly documents that profiles and placements are returned by the driver and that the order of certain profile combinations can matter.
 
-MIG profiles consume specific physical slices. The remaining slices may be unusable for another requested profile even when arithmetic suggests sufficient capacity. Standardized layouts reduce fragmentation and simplify scheduling.
+The safe workflow is:
 
-| Strategy | Benefit | Cost |
+1. record the GPU SKU, driver, and current layout;
+2. list supported profiles and the placement information on a representative node;
+3. select a short, approved set of layouts per node pool;
+4. test model load, representative concurrency, and failure recovery; and
+5. advertise only inventory the scheduler can actually satisfy.
+
+## Fragmentation is geometric
+
+| Situation | Arithmetic view | Physical result | Operational response |
+|---|---|---|---|
+| several small instances exist | “enough free fractions” | requested larger profile cannot fit | route to compatible pool or reconfigure during a drain |
+| mixed node layouts | same total slice count | inconsistent resource inventory | standardize layouts or label pools precisely |
+| profile just fits model | zero apparent spare memory | runtime bursts cause failures | add measured headroom or select a larger class |
+| dynamic reshaping | maximum theoretical packing | availability interrupted by lifecycle work | use only with an approved drain/rollback path |
+
+Think of a parking garage, not a bucket of water: available spaces need the right size and position. This is why standardized layouts often outperform a constantly optimized fleet in real operations.
+
+## Design patterns
+
+**Static profile pools.** Assign a small profile family to dedicated node pools: for example, a tested small-serving shape, a medium-serving shape, and whole-GPU nodes. This makes quota, capacity reporting, and incident triage legible.
+
+**Reserved large-profile pool.** Keep a limited number of nodes in a layout that can accept an important large workload. The apparent unused capacity is an availability decision, not waste.
+
+**Canary reconfiguration pool.** If business demand requires layout changes, test the exact sequence and restore path on a dedicated canary before moving a production node. Never let an arbitrary user request trigger a node-level reconfiguration.
+
+## Profile-sizing worksheet
+
+Use a worksheet that preserves measurement context. Avoid turning it into a universal profile table because available shapes vary by GPU model.
+
+| Input | Capture | Decision use |
 |---|---|---|
-| One standard layout per pool | Predictable capacity and operations | More pools |
-| Dynamic reconfiguration | Better theoretical utilization | Drains, churn, and failure risk |
-| Mixed layouts | Flexibility | Harder scheduling and support |
+| GPU SKU and driver | exact installed identity | select the valid profile catalog |
+| Model/runtime version | immutable artifact reference | reproduce memory behavior |
+| Peak input and batch shape | production-like request envelope | bound dynamic allocations |
+| Warm and cold memory high-water mark | measured values, not estimates | determine headroom |
+| Concurrency target | active rather than requested clients | test stability |
+| p95/p99 objective | agreed service target | reject profiles that only load |
+| Failure behavior | OOM, restart, queue, fallback | define operational response |
 
-## Production Pattern
+If inputs are unknown, assign the workload to a discovery or dedicated pool until measurement is complete. A profile that “barely fits” creates a fragile service because ordinary cache growth, batching, and framework upgrades turn the margins into incidents.
 
-Create a small number of validated node pools: small inference, medium inference, large single-instance, and whole-GPU. Route workloads by measured requirements rather than allowing arbitrary profile creation.
+## Inventory reporting pattern
 
-## Troubleshooting
+Report capacity in two views. The tenant view states allocatable resource counts by profile and region/pool. The operator view also shows physical GPUs, active layouts, fragmentation, reserved headroom, nodes draining, and nodes excluded by health. Both views are needed: the first supports requests; the second predicts whether a request can be fulfilled without a disruptive reconfiguration.
 
-**Symptom:** Pods request a profile that exists in policy but remain Pending.
+When a pool is intentionally reserved for a larger profile, label it as reserved capacity. Hiding it as “idle” encourages emergency repacking and makes availability look like inefficiency.
 
-**Diagnosis:** inspect node labels, advertised profile resources, current instance geometry, taints, quotas, and selectors.
+## Production story: the impossible “free” capacity
 
-**Root cause:** desired profile inventory does not match actual pool state.
+A platform sold a medium profile as available because the sum of unallocated memory across a node exceeded the profile’s memory. The request stayed pending. The node had been filled with small instances in a placement that could not form the requested GI. Operators tried rescheduling repeatedly and made the capacity report worse.
 
-## Interview Questions
+They fixed it by reporting capacity by **allocatable profile and node pool**, not by aggregate free memory. A reserve pool supplied the urgent workload; later, a planned drain returned a node to the desired standard layout.
 
-- Why should a platform standardize MIG layouts?
-- How would you estimate memory headroom?
-- When is dynamic reconfiguration justified?
+## Troubleshooting scenario 1: profile policy exists, pod remains Pending
+
+**Symptoms:** a deployment requests a documented MIG resource and has no eligible node.
+
+**Evidence:** inspect the pod event, exact extended resource name, node allocatable resources, labels/taints, namespace quota, current GI/CI layout, and the platform’s intended pool layout.
+
+**Diagnosis:** common causes are a resource-name mismatch, a node that has a different layout than policy assumes, exhausted quota, or physical fragmentation.
+
+**Resolution:** correct the request or route it to a compatible pool. Reconfigure only through the approved maintenance workflow; do not delete production instances opportunistically.
+
+## Troubleshooting scenario 2: model loads in test but fails under production traffic
+
+**Symptoms:** initialization succeeds, then requests fail with memory errors or severe latency instability.
+
+**Diagnosis:** profile sizing used static model weights but omitted runtime allocations, activations, cache growth, batching effects, or concurrent request state.
+
+**Resolution:** reproduce with recorded traffic shape, cap concurrency, reserve headroom, and move to a validated larger profile if needed.
+
+**Prevention:** publish the load-test envelope and maximum supported concurrency with every service tier.
+
+## Customer architecture discussion
+
+Customers often ask for arbitrary fractions because their cost model starts at the accelerator price. The more useful offer is a small menu of measured service classes with stated memory envelopes, latency expectations, and lead time for reconfiguration. It is easier to buy, operate, and defend than a promise that every profile can appear instantly on every node.
+
+## Revision checklist
+
+- Is the profile valid for the exact GPU and driver in the pool?
+- Was memory measured under representative concurrency and input shape?
+- Does capacity reporting distinguish allocatable profile inventory from free aggregate memory?
+- Does a larger-profile request have a route other than an unplanned node drain?
+
+## Senior interview questions
+
+1. Why is aggregate free memory not a MIG capacity metric?
+2. What evidence belongs in a profile-sizing decision?
+3. When does dynamic reconfiguration justify its operational cost?
+4. How do standardized layouts improve incident response?
+
+## Further reading
+
+- [NVIDIA MIG: getting started and profile placement](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/getting-started-with-mig.html)
+- [NVIDIA MIG supported GPUs](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/supported-gpus.html)
+- Next: [Time-Slicing and Oversubscription](./chapter-04-time-slicing-and-oversubscription)
