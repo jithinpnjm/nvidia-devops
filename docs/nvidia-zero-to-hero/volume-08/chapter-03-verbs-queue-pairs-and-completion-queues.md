@@ -644,7 +644,7 @@ Before moving on, confirm that you can:
 
 - Previous: [InfiniBand Architecture and Link Layers](./chapter-02-infiniband-architecture-and-link-layers)
 - Next: [LIDs, GIDs, P_Keys, and Addressing](./chapter-04-lids-gids-pkeys-and-addressing)
-- Related chapter: [DMA, RDMA, and Peer-to-Peer](../volume-07/chapter-04-dma-rdma-and-peer-to-peer)
+- Related chapter: [DMA, RDMA, and Peer-to-Peer](pathname://../volume-07/chapter-04-dma-rdma-and-peer-to-peer)
 - Related lab: [Benchmark InfiniBand Bandwidth and Latency](./labs/lab-02-benchmark-infiniband-bandwidth-and-latency)
 
 ## Further Reading

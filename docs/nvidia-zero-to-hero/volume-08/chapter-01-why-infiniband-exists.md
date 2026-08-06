@@ -496,8 +496,8 @@ Before moving on, confirm that you can:
 
 - [Volume 08 Introduction](./index)
 - Next: [InfiniBand Architecture and Link Layers](./chapter-02-infiniband-architecture-and-link-layers)
-- Previous volume: [Volume 07 — GPU Networking](../volume-07/index)
-- Related foundation: [DMA, RDMA, and Peer-to-Peer](../volume-07/chapter-04-dma-rdma-and-peer-to-peer)
+- Previous volume: [Volume 07 — GPU Networking](pathname://../volume-07/index)
+- Related foundation: [DMA, RDMA, and Peer-to-Peer](pathname://../volume-07/chapter-04-dma-rdma-and-peer-to-peer)
 - Related lab: [Inventory an InfiniBand Fabric](./labs/lab-01-inventory-an-infiniband-fabric)
 
 ## Further Reading
