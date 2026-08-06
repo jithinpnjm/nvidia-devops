@@ -22,6 +22,7 @@ For any interview answer you give, score yourself against this checklist:
 **Score 5/5** — this is a Senior SA-shaped answer.
 
 **Score 2-3/5, missing items 1 and 5 specifically** — this is a strong IMPLEMENTATION ENGINEER answer: technically correct, but it skips the discovery framing at the start and the validation framing at the end — exactly the two bookends the source text names as the differentiator.
+
 ➕ **Interview-ready line:** "the gap between an SA and an implementation engineer isn't technical depth — it's that an SA's answer has a constraint-clarifying question at the start and a validation plan at the end, with the technical recommendation sandwiched in between. I try to hit both bookends on every answer, not just the middle."
 
 ➕ **Diagram: the answer structure that separates the two roles:**
