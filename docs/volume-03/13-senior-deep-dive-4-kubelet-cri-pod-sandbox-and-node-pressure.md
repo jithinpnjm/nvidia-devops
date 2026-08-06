@@ -9,12 +9,26 @@ The kubelet is the node control agent. It watches desired Pods for its node, ask
 
 **Node-level evidence**
 
+```bash
 systemctl status kubelet containerd
 journalctl -u kubelet -S -30m
 crictl pods
 crictl ps -a
-crictl inspectp &lt;pod-sandbox-id>
-cat /proc/pressure/&#123;cpu,memory,io&#125;
+crictl inspectp <pod-sandbox-id>
+cat /proc/pressure/{cpu,memory,io}
+```
+
+```text
+● kubelet.service - kubelet: The Kubernetes Node Agent
+     Active: active (running) since Wed 2026-08-06 14:02:11 UTC; 3h ago
+
+some avg10=12.40 avg60=8.10 avg300=3.02 total=48213991
+full avg10=2.10 avg60=1.05 avg300=0.40 total=9012233
+```
+
+`systemctl status kubelet containerd` confirms both host-level daemons the whole Pod-running path depends on are actually up — a healthy Pod status in `kubectl` means nothing if the runtime under it has crashed and simply hasn't been noticed yet. `journalctl -u kubelet -S -30m` scopes the log read to the last 30 minutes (`-S` = since) instead of the whole unit history, keeping the output to the relevant incident window. `crictl pods` / `crictl ps -a` talk to the CRI runtime directly (bypassing the kubelet and API server entirely), so they show ground truth even when the kubelet itself is the thing malfunctioning; `-a` includes exited/stopped containers, not just running ones. `crictl inspectp <pod-sandbox-id>` dumps the full sandbox spec (network namespace, cgroup path, mounts) for one pod sandbox once `crictl pods` has given you its ID.
+
+The `/proc/pressure/{cpu,memory,io}` output (Pressure Stall Information, PSI) reports two lines per resource: `some` (at least one task stalled waiting on this resource) and `full` (all tasks stalled simultaneously — the more severe signal). `avg10`/`avg60`/`avg300` are the percentage of time spent stalled over the last 10/60/300 seconds — an `avg10` climbing well above `avg60` and `avg300` means pressure is actively getting worse right now, not a historical blip. This is the same signal the kubelet's node-pressure eviction thresholds watch.
 
 Node-pressure eviction is not the same as scheduler preemption. The kubelet can evict Pods when memory, disk or inode thresholds are breached. QoS class, usage relative to requests and Pod priority influence victim selection. For GPU nodes, a tiny root filesystem or image filesystem can evict expensive workloads even when GPU memory and compute are healthy.
 

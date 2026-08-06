@@ -11,9 +11,21 @@ Finalizers turn deletion into a two-phase operation. A delete request sets delet
 
 **Inspect API state before guessing**
 
+```bash
 kubectl get pod mypod -o json | jq '.metadata.resourceVersion,.metadata.finalizers,.metadata.ownerReferences'
 kubectl get --raw '/apis/apps/v1/namespaces/default/deployments?limit=5'
 kubectl get events --sort-by=.lastTimestamp
+```
+
+```text
+"223491"
+["example.com/cleanup-protection"]
+null
+```
+
+The three lines of output line up with the three `jq` fields requested: `resourceVersion` is `"223491"` — an opaque string (not a counter you can do arithmetic on) that the API server bumps on every write to that object; clients use it to detect "I read the object at version X, has it changed since?" without a full re-fetch. `finalizers` shows one key, `example.com/cleanup-protection` — if this Pod were deleted, the object would stay visible with `deletionTimestamp` set until whatever controller registered that key removes it (see the two-phase-delete diagram below). `ownerReferences` is `null` here, meaning this specific Pod was created directly rather than by a ReplicaSet/Job/etc. — a Pod owned by a ReplicaSet would show an entry with `controller: true` instead.
+
+`kubectl get --raw` bypasses `kubectl`'s usual object formatting and hits the API path directly — `?limit=5` demonstrates server-side pagination: the response includes a `metadata.continue` token, and a client that ignores it (just reading the first page) will silently miss objects on a large cluster. `kubectl get events --sort-by=.lastTimestamp` orders events chronologically so the most recent state-machine transition (schedule, pull, start, kill, evict) is easy to spot instead of scanning creation order.
 
 ## Senior addendum
 

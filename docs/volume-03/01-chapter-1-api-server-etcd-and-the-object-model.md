@@ -305,7 +305,7 @@ Figure 1. Kubernetes components coordinate through API objects and watch/reconci
 
 A Kubernetes object contains spec-like desired configuration plus metadata; controllers and node agents update status/conditions to describe observed state. The API server authenticates, authorizes, admits and validates requests before persistence. Most components interact through the API rather than directly modifying etcd.
 
-```
+```bash
 kubectl get deploy api -o yaml
 kubectl get deploy api -o jsonpath='{.metadata.resourceVersion}{"\n"}'
 kubectl get events --sort-by=.lastTimestamp
