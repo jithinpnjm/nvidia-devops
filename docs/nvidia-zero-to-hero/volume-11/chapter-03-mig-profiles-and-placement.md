@@ -169,22 +169,6 @@ They fixed it by reporting capacity by **allocatable profile and node pool**, no
 
 Customers often ask for arbitrary fractions because their cost model starts at the accelerator price. The more useful offer is a small menu of measured service classes with stated memory envelopes, latency expectations, and lead time for reconfiguration. It is easier to buy, operate, and defend than a promise that every profile can appear instantly on every node.
 
-## Revision checklist
-
-- Is the profile valid for the exact GPU and driver in the pool?
-- Was memory measured under representative concurrency and input shape?
-- Does capacity reporting distinguish allocatable profile inventory from free aggregate memory?
-- Does a larger-profile request have a route other than an unplanned node drain?
-- Does the capacity plan include a profile-compatible maintenance and failure reserve?
-- Can an operator identify whether a failure is placement, discovery, scheduling, or admission?
-
-## Senior interview questions
-
-1. Why is aggregate free memory not a MIG capacity metric?
-2. What evidence belongs in a profile-sizing decision?
-3. When does dynamic reconfiguration justify its operational cost?
-4. How do standardized layouts improve incident response?
-
 ## Planning example: profile demand as a queueing problem
 
 Imagine three application classes, without assigning universal GPU sizes: an interactive class with short bursts, a sustained inference class with a measured profile, and an exceptional class that needs the largest available shape. The planner should not combine their memory estimates and call the result free capacity. It should maintain independent demand and reserve views for each compatible profile.
@@ -294,6 +278,20 @@ It should include compatible inventory.
 It should include clear admission behavior.
 
 It should include a change-controlled recovery path.
+
+## Revision checklist and senior interview questions
+
+- Is the profile valid for the exact GPU and driver in the pool?
+- Was memory measured under representative concurrency and input shape?
+- Does inventory report allocatable compatible profiles rather than aggregate free memory?
+- Is compatible maintenance and failure reserve available?
+
+- Can the request be fulfilled without a disruptive layout change?
+
+1. Why is aggregate free memory not a MIG capacity metric?
+2. What evidence belongs in a profile-sizing decision?
+3. When does dynamic reconfiguration justify its operational cost?
+4. How do standardized layouts improve incident response?
 
 ## Further reading
 

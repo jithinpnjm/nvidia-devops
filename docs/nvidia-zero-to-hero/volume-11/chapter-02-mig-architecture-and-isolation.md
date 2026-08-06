@@ -183,22 +183,6 @@ The corrected runbook had a maintenance window, cordon/drain checks, a saved pre
 
 MIG is compelling for a stable family of model-serving workloads that fit known profiles and need more predictable behavior than shared execution provides. It is less attractive when every request has an arbitrary shape, when reconfiguration cannot be drained safely, or when a VM boundary is the governing requirement. A small number of standard layouts is usually easier to support than a theoretically optimal but constantly changing geometry.
 
-## Revision checklist
-
-- Can you distinguish GI, CI, and a Kubernetes resource name?
-- Have you stated which failure domains remain common to all instances?
-- Is every layout change paired with drain ownership and a verified rollback baseline?
-- Can the team prove availability in the driver, runtime, scheduler, and application?
-- Is the desired layout validated after reboot and node replacement?
-- Does the rollback record include allocation mapping and platform configuration, not only a shell command?
-
-## Senior interview questions
-
-1. What is the relationship between a GPU instance and a compute instance?
-2. Which dependencies remain shared after MIG partitioning?
-3. Why should a MIG mode change be a planned node lifecycle event?
-4. How would you prove a profile is available end-to-end, not merely visible to `nvidia-smi`?
-
 ## Change workflow runbook
 
 Use the following workflow for a planned MIG layout change. It is intentionally control-plane and evidence focused; exact commands depend on the supported platform image and approved automation.
@@ -346,6 +330,18 @@ Name the remaining shared failure domains.
 List the five layers that must validate before admission reopens.
 
 Explain why a successful driver command is insufficient proof of service readiness.
+
+## Revision checklist and senior interview questions
+
+- Can you distinguish GI, CI, and a Kubernetes resource name?
+- Have you stated the common device, node, and host failure domains?
+- Is every layout change paired with drain ownership and rollback evidence?
+- Can the team prove availability in the driver, runtime, scheduler, and application?
+
+1. What is the relationship between a GPU instance and a compute instance?
+2. Which dependencies remain shared after MIG partitioning?
+3. Why should a MIG mode change be a planned node lifecycle event?
+4. How would you prove a profile is available end-to-end, not merely visible to `nvidia-smi`?
 
 ## Further reading
 

@@ -183,28 +183,6 @@ Time-slicing is valuable when the customer wants access density and can accept a
 
 Time-slicing may improve the number of schedulable users, but it increases incident ambiguity. A single physical-device alert can affect many logical allocations, and container-level attribution can be limited. Account for that support cost when choosing the replica ratio. Chargeback should distinguish reserved shared access from measured service consumption; otherwise a dashboard encourages teams to reserve tokens they cannot safely use at the same time.
 
-## Final checklist
-
-- Shared resources are visibly named and confined to intended pools.
-- A tested replica envelope exists for each workload class.
-- Quota, admission, queueing, and escape-hatch policies are documented.
-- Dashboards correlate application impact with allocation and device evidence.
-- On-call responders know the safe action for overload and memory incidents.
-
-## Senior interview questions
-
-1. Why does a time-sliced request for two replicas not promise twice the compute?
-2. What signals would you use to prove a shared pool is overloaded?
-3. How would you prevent a critical deployment from landing on a best-effort GPU pool?
-4. Compare the operational consequences of time-slicing and MIG during an OOM incident.
-
-## Revision checklist
-
-- Have you labeled shared access as shared access?
-- Are workload-specific latency and memory limits part of the design?
-- Can responders correlate application impact with GPU-level evidence?
-- Is there a safe migration path to MIG or dedicated capacity?
-
 ## Kubernetes resource semantics in practice
 
 The scheduler makes a binary placement decision from advertised extended resources. It does not observe GPU memory pressure or application tail latency while choosing a replica. That is appropriate: those values are dynamic. It also means platform policy has to prevent an allocatable token from becoming an implied performance guarantee.
@@ -343,6 +321,28 @@ When should a service leave the shared pool?
 Answer using measured objectives.
 
 Avoid a universal replica ratio.
+
+## Revision checklist and senior interview questions
+
+- Are shared resources explicitly named and confined to intended pools?
+- Does each workload class have a tested replica envelope and overload policy?
+- Can responders correlate application impact with allocation and device evidence?
+- Is there a safe route to MIG or dedicated capacity?
+
+- Does the release validation include concurrent workload evidence?
+
+- Is the shared-pool policy visible to every service owner?
+
+- Is a protected workload excluded from this pool by admission policy?
+
+- Has the team rehearsed the overload response?
+
+- Is recovery evidence retained for review?
+
+1. Why does a request for two time-sliced replicas not promise twice the compute?
+2. Which signals prove a shared pool is overloaded?
+3. How do you prevent a protected deployment from reaching a best-effort pool?
+4. Compare a time-sliced OOM incident with a MIG-profile incident.
 
 ## Further reading
 
