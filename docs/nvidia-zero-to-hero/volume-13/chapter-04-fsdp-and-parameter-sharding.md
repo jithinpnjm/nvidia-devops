@@ -55,6 +55,13 @@ Even with FSDP, a 70B model with a large batch size might OOM due to activation 
 **Diagnosis:** CPU offloading moves parameters to RAM via PCIe, which is vastly slower than HBM3 bandwidth. GPUs are starved for data.
 **Resolution:** Disable `cpu_offload` and scale the cluster up to fit the model purely in GPU memory.
 
+```python
+# In your PyTorch FSDP config:
+fsdp_config = {
+    'cpu_offload': CPUOffload(offload_params=False),
+}
+```
+
 ### Senior Interview Questions
 **Q: Explain FSDP's FULL_SHARD vs SHARD_GRAD_OP.**
 **A:** FULL_SHARD shards parameters, gradients, and optimizer states, requiring all-gather before forward/backward. SHARD_GRAD_OP shards only gradients and optimizer states, keeping parameters replicated to avoid all-gathers during compute, at the cost of more memory.

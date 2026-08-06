@@ -52,6 +52,14 @@ A mathematically balanced partition can be physically unbalanced when stages hav
 **Diagnosis:** TP All-Reduce operations are forced to cross InfiniBand, choking the GPUs compared to NVLink.
 **Resolution:** Constrain TP to the size of a single node (e.g., TP=8) and use PP for inter-node scaling.
 
+```bash
+# Adjust your Megatron launch arguments:
+python pretrain_gpt.py \
+  --tensor-model-parallel-size 8 \
+  --pipeline-model-parallel-size 4 \
+  # ...
+```
+
 ### Senior Interview Questions
 **Q: How do you reduce the pipeline bubble?**
 **A:** Increase the number of micro-batches (M >> P) or use Interleaved Pipeline Parallelism to give each GPU multiple smaller chunks, allowing earlier stages to start their next chunk sooner.
