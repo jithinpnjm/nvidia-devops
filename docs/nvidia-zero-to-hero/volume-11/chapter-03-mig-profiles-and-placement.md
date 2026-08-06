@@ -190,3 +190,113 @@ Customers often ask for arbitrary fractions because their cost model starts at t
 - [NVIDIA MIG: getting started and profile placement](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/getting-started-with-mig.html)
 - [NVIDIA MIG supported GPUs](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/supported-gpus.html)
 - Next: [Time-Slicing and Oversubscription](./chapter-04-time-slicing-and-oversubscription)
+
+## Planning example: profile demand as a queueing problem
+
+Imagine three application classes, without assigning universal GPU sizes: an interactive class with short bursts, a sustained inference class with a measured profile, and an exceptional class that needs the largest available shape. The planner should not combine their memory estimates and call the result free capacity. It should maintain independent demand and reserve views for each compatible profile.
+
+| Class | Demand behavior | Inventory policy | Failure behavior |
+|---|---|---|---|
+| Interactive | bursty, delay-tolerant | bounded small-profile pool | queue or defer |
+| Sustained service | stable, SLO-bound | dedicated standard layout plus reserve | fail over or protect admission |
+| Exceptional request | infrequent, large | whole/large-profile reserve | scheduled lead time or approved change |
+
+This model forces an honest choice: either reserve compatible capacity, accept queueing, or automate a lifecycle change with a stated availability cost.
+
+## Release and upgrade effects
+
+A profile decision is invalidated by more than hardware changes. A new driver, CUDA runtime, serving engine, model quantization setting, batching policy, or observability agent can alter memory and throughput behavior. Treat these as a reason to repeat the workload envelope, especially before increasing density. A configuration that still lists the same profile may nevertheless no longer deliver the same service.
+
+| Change | Revalidate |
+|---|---|
+| driver or Operator update | discovery, scheduling, device visibility, node drift |
+| model/runtime update | cold/steady/peak memory and latency |
+| concurrency policy change | headroom and p95/p99 behavior |
+| node replacement | GPU SKU, driver, intended layout, labels |
+| capacity ratio change | compatible reserve and recovery time |
+
+## Customer decision narrative: reserve is a feature
+
+When finance sees an unused large-profile node, it may appear inefficient. Explain that it is the same kind of reserve as a spare database node or network path: it converts a high-impact reconfiguration into a placement decision. The decision record should quantify the protected service and state when the reserve can be borrowed. That makes capacity governance explicit rather than informal.
+
+## Revision aid
+
+- Profiles are GPU-specific hardware shapes, not portable fractions.
+- Placement determines which shapes can coexist.
+- Inventory must be reported by allocatable compatible profile.
+- Standardized layouts simplify scheduling, support, and recovery.
+- Headroom is measured under representative peak behavior.
+
+## Profile governance record
+
+Store each approved service profile with its evidence.
+
+| Record field | Reason |
+|---|---|
+| workload artifact/version | makes tests repeatable |
+| compatible GPU and driver | prevents false portability |
+| intended GI/CI profile | ties service to real inventory |
+| test input/concurrency | explains memory and latency result |
+| accepted SLO | distinguishes startup from service success |
+| reserve requirement | preserves recovery capacity |
+| change owner | makes reconfiguration accountable |
+
+## Decision questions
+
+1. Can the profile be placed with the active standard layout?
+2. Does the workload fit during cold start, steady state, and burst?
+3. Is compatible capacity available after one expected failure?
+4. Is the next larger service tier defined?
+5. Does the customer accept queueing instead of dynamic reconfiguration?
+
+## Placement review workflow
+
+Start by listing the actual profiles and placements on the target GPU.
+
+Do not begin from a profile name copied from another fleet.
+
+Compare the desired service shape with the current node layout.
+
+Check whether a compatible profile is allocatable now.
+
+Check whether the requested node is eligible by labels, taints, and quota.
+
+Check the compatible reserve after planned maintenance or one expected failure.
+
+Only then decide whether to schedule, queue, or reconfigure.
+
+If reconfiguration is selected, route through the change workflow in Chapter 02.
+
+## Operational anti-patterns
+
+Do not calculate capacity from total unused memory.
+
+Do not promise a profile that no node advertises.
+
+Do not treat a layout change as a pod-level adjustment.
+
+Do not size only from model artifact size.
+
+Do not borrow emergency reserve without recording the service impact.
+
+Do not mix layouts without exposing the difference to scheduling and support.
+
+## Interview exercise
+
+An application fits in a profile during startup but fails under peak traffic.
+
+Explain which measurements were missing.
+
+Explain how you would choose the next candidate profile.
+
+Explain why free aggregate memory does not resolve the request.
+
+Explain how the platform prevents a repeated incident.
+
+The answer should include measurement.
+
+It should include compatible inventory.
+
+It should include clear admission behavior.
+
+It should include a change-controlled recovery path.

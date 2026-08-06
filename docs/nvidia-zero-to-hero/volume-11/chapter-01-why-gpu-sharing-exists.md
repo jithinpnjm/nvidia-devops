@@ -234,6 +234,103 @@ The platform should retain an allocation-to-device mapping long enough to invest
 - Incident telemetry maps allocation, application impact, and physical health.
 - Change records define the rollback state for any node-level layout change.
 
+## Failure-domain analysis
+
+Before calling a pool multi-tenant, write down every failure domain.
+
+| Domain | Shared by time-sliced replicas | Shared by MIG instances | Typical control |
+|---|---|---|---|
+| Application process | no | no | restart, limits, code review |
+| Device memory capacity | yes | profile-defined partition | admission and profile selection |
+| GPU execution resources | yes | profile-defined partition | workload classification |
+| Physical board | yes | yes | health monitoring and spare capacity |
+| Host OS and driver | yes | yes | staged lifecycle management |
+| Kubernetes node | yes | yes | pools, drain, replacement |
+| Power/cooling/rack | yes | yes | facility and topology design |
+
+This list is useful in a customer meeting because it replaces vague claims with a recovery conversation. A partition may reduce one neighbor’s ability to affect another workload while leaving the node and board as common points of failure. Availability design therefore needs replica placement across nodes, not only more slices on one device.
+
+## Customer decision narrative: research versus production
+
+A research group commonly values immediate access over predictable completion. Its safe service can be a clearly labeled best-effort pool with quotas, limits, and a simple escalation path. The group can accept a queued notebook when a protected service needs capacity.
+
+An external inference service usually has the opposite priority. It needs an agreed tail-latency target, controlled rollout, and a known recovery action. The same physical GPU may host both services only if measured behavior and the isolation model prove it safe. In many cases, separate pools are cheaper than recurring incident response.
+
+Ask customers to choose the failure they prefer: unused capacity, queued work, slower responses, a reconfiguration window, or a larger hardware footprint. There is no mechanism that makes all five disappear.
+
+## Review questions for an architecture board
+
+| Question | Acceptable answer shape |
+|---|---|
+| What is the protected service? | named workloads and measurable objectives |
+| What does a request reserve? | access, profile resources, or dedicated device |
+| What happens at saturation? | documented admission, queue, or failover behavior |
+| How is tenant impact identified? | allocation history plus application and device evidence |
+| How is capacity restored after failure? | compatible spare inventory and tested placement |
+| Who approves a sharing-ratio change? | accountable service and platform owners |
+
+If an answer is “we will see,” the design is not yet production-ready. A sharing system is most likely to be questioned during a demand spike, when experiments are least safe.
+
+## Additional incident playbook: wrong workload admitted
+
+**Symptoms:** a new job type enters a shared pool and protected requests begin timing out.
+
+**Evidence to collect:** deployment identity, image/version, resource request, namespace policy decision, start time, allocation mapping, request latency, queue depth, and device memory/process evidence.
+
+**Containment:** stop new admissions of the workload class; move the protected service to its approved capacity if necessary. Do not immediately terminate all tenants, because the evidence is needed to improve policy.
+
+**Root cause:** eligibility was based on a resource request or team membership, not the workload’s measured memory and latency behavior.
+
+**Verification:** confirm protected-service objectives recover and the excluded workload cannot be scheduled into the tier again.
+
+**Prevention:** version workload classifications and require re-evaluation when model, runtime, input envelope, or concurrency changes.
+
+## Additional incident playbook: capacity report conflicts with reality
+
+**Symptoms:** a dashboard shows available logical GPU allocations while users wait or services are degraded.
+
+**Evidence to collect:** logical requests, allocatable resources, active allocations, physical device count, memory high-water marks, node readiness, reserve policy, and pending events.
+
+**Diagnosis:** the report presents schedulable tokens as capacity and omits physical saturation, incompatible profile inventory, or maintenance reserve.
+
+**Resolution:** publish both tenant-facing allocatable service capacity and operator-facing physical/compatible reserve capacity. Correct the planning model before increasing the advertised ratio.
+
+**Verification:** a new report explains why a request can be admitted, queued, or denied using the same inventory as the scheduler.
+
+## Terms to use precisely
+
+| Term | Use it when | Do not use it for |
+|---|---|---|
+| allocation | scheduler has granted a resource | proof of performance |
+| reservation | capacity is withheld by policy | a best-effort replica |
+| isolation | a named boundary is technically enforced | a vague expectation |
+| utilization | a measured signal with interval/context | a capacity guarantee |
+| headroom | measured spare capacity under stated load | untested free memory |
+
+## Revision prompts
+
+1. What does this tenant receive when all neighbors are active?
+2. Which layer enforces that outcome?
+3. Which failure domains remain shared?
+4. What evidence proves the service objective?
+5. How is capacity restored after a node failure?
+
+## Closing principle
+
+Share only what the platform can describe, observe, and recover.
+
+Anything else is an unbounded production experiment.
+
+Document the guarantee.
+
+Measure the workload.
+
+Protect the failure boundary.
+
+Retain recovery capacity.
+
+Review the service after every material change.
+
 ## Senior interview questions
 
 1. Why is average GPU utilization insufficient evidence for oversubscription?

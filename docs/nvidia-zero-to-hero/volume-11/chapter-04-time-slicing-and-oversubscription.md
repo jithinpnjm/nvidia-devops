@@ -210,3 +210,142 @@ Time-slicing may improve the number of schedulable users, but it increases incid
 - [NVIDIA GPU Operator: time-slicing GPUs](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html)
 - [NVIDIA MIG User Guide: application considerations](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/deployment-considerations.html)
 - Next: [vGPU Architecture and Enterprise Virtualization](./chapter-05-vgpu-architecture-and-enterprise-virtualization)
+
+## Kubernetes resource semantics in practice
+
+The scheduler makes a binary placement decision from advertised extended resources. It does not observe GPU memory pressure or application tail latency while choosing a replica. That is appropriate: those values are dynamic. It also means platform policy has to prevent an allocatable token from becoming an implied performance guarantee.
+
+| Kubernetes concept | Contribution | Limitation for shared GPUs |
+|---|---|---|
+| request/limit | reserves a logical allocation | does not divide physical GPU memory |
+| node selector/affinity | targets intended pool | does not validate workload behavior |
+| taint/toleration | restricts access to special nodes | does not provide tenant isolation |
+| quota | bounds request count by scope | does not arbitrate device execution |
+| priority | influences scheduling/eviction policy | does not create GPU capacity |
+
+Use these primitives to express service eligibility. Use the application and admission layer to express concurrency and overload behavior. Use a stronger sharing mechanism when the required guarantee cannot be implemented by policy.
+
+## Customer decision narrative: the shared development platform
+
+A development organization can safely benefit from time-slicing when it treats the pool as a convenience service. The service contract says that sessions may slow, work may queue, and memory-heavy experiments should use a different tier. The platform publishes a migration path to a measured MIG or dedicated pool. This is honest and usually more valuable than a long wait for exclusive hardware.
+
+The same configuration is unsuitable when sold as a deterministic production service. A customer cannot fix a missing latency guarantee by adding more replicas; that increases the chance of simultaneous demand.
+
+## Upgrade and rollback implications
+
+After an Operator, device-plugin, driver, or node-image update, validate that the resource name, advertised replica count, node label, and workload placement semantics remain as designed. A regression can be subtle: pods may continue to schedule but land on a nonshared or shared resource unexpectedly. Compare pre- and post-change node inventory and run a constrained workload test before opening the pool.
+
+| Validation | Why |
+|---|---|
+| node allocatable resource names/counts | detects changed sharing semantics |
+| labels and selectors | confirms pool separation |
+| namespace policy | prevents accidental production admission |
+| concurrent smoke test | detects behavior change beyond scheduling |
+| dashboard attribution | confirms incident evidence remains usable |
+
+## Revision aid
+
+- A replica is a logical scheduling token.
+- Time-slicing offers access, not reserved compute or memory.
+- Fairness needs quota, admission, and application policy.
+- GPU-level telemetry requires allocation and application context.
+- A protected service needs an explicit escape path.
+
+## Evidence package for a contention incident
+
+Collect the same time range from every layer.
+
+- workload version and request rate;
+- p50/p95/p99 latency and queue depth;
+- pod allocation and placement history;
+- active-process and memory evidence;
+- device health, power, thermal, and error events;
+- node/device-plugin configuration and events;
+- quota/admission decisions; and
+- actions taken and time to recovery.
+
+The purpose is not to blame the last scheduled pod. It is to distinguish a capacity-policy problem from an application regression or a physical-device incident.
+
+## Economic decision
+
+Time-slicing lowers the entry cost for access but raises the cost of ambiguity. Include support effort, queueing impact, telemetry gaps, and critical-workload escape capacity in its business case. The lowest cost per logical allocation is not automatically the lowest cost per reliable outcome.
+
+## Questions for service owners
+
+1. Can requests queue or be rejected safely?
+2. What is the maximum acceptable latency during peer activity?
+3. What memory envelope was observed at peak input?
+4. Which workload may be throttled first?
+5. Where does the service move during a shared-device incident?
+
+## Operating policy template
+
+State the shared-pool purpose in one sentence.
+
+State eligible workloads and excluded workloads.
+
+State the advertised shared resource name.
+
+State the tested replica envelope and its date.
+
+State the memory and latency assumptions.
+
+State the quota scope and admission behavior.
+
+State the overload action.
+
+State the escalation owner.
+
+State the protected-service escape path.
+
+State the rollback action for a configuration change.
+
+This template makes time-slicing a service rather than a hidden cluster setting.
+
+## Failure-domain review
+
+All time-sliced replicas can be affected by physical GPU health.
+
+All replicas can be affected by host and driver lifecycle events.
+
+All replicas can contend for memory capacity.
+
+All replicas can contend for execution and bandwidth.
+
+Kubernetes allocation does not remove those shared conditions.
+
+Application queues and admission policy reduce uncontrolled demand.
+
+Dedicated or MIG capacity can reduce the impact on protected work.
+
+## Pre-production acceptance test
+
+Schedule known concurrent workloads on the intended shared pool.
+
+Confirm the resource name and node selection are explicit.
+
+Measure application latency and queue behavior.
+
+Measure memory high-water marks.
+
+Confirm alert and allocation evidence are available.
+
+Reduce admission and confirm recovery behavior.
+
+Move a protected workload to its escape pool and verify success.
+
+Repeat after relevant runtime or device-plugin upgrades.
+
+## Interview exercise
+
+Why is a time-sliced GPU resource not a performance reservation?
+
+Which controls bound tenant demand before GPU contention occurs?
+
+What evidence would distinguish a noisy neighbor from a driver incident?
+
+When should a service leave the shared pool?
+
+Answer using measured objectives.
+
+Avoid a universal replica ratio.

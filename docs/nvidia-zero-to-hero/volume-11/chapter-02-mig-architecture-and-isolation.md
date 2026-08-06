@@ -205,3 +205,151 @@ MIG is compelling for a stable family of model-serving workloads that fit known 
 - [NVIDIA MIG deployment considerations](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/deployment-considerations.html)
 - [NVIDIA Kubernetes MIG support](https://docs.nvidia.com/datacenter/cloud-native/kubernetes/latest/index.html)
 - Next: [MIG Profiles and Placement](./chapter-03-mig-profiles-and-placement)
+
+## Change workflow runbook
+
+Use the following workflow for a planned MIG layout change. It is intentionally control-plane and evidence focused; exact commands depend on the supported platform image and approved automation.
+
+| Phase | Owner | Required evidence | Abort condition |
+|---|---|---|---|
+| Plan | platform owner | compatible SKU/driver, desired layout, rollback layout | no compatible reserve or unclear ownership |
+| Notify | service owner | maintenance scope and workload drain plan | protected workload cannot move/checkpoint |
+| Prepare | node operator | cordon state, allocation mapping, pre-change inventory | unaccounted tenant still active |
+| Apply | authorized operator | managed tool output and change record | unexpected device/driver event |
+| Validate | platform and service owner | GI/CI, scheduler, runtime, smoke and service test | any validation layer fails |
+| Release | change owner | admission restored and monitoring baseline | alerts or inventory drift remain |
+
+The most important artifact is the pre-change inventory. It makes rollback a restoration of known state rather than a reconstruction under pressure.
+
+## Device-discovery consequences
+
+MIG is not usable by Kubernetes merely because the driver can list an instance. The device plugin and GPU feature discovery components translate host inventory into labels and extended resources. Their configuration determines whether the node advertises a non-MIG resource, a single MIG resource type, or a mixed set of profile-specific resources. The scheduler only sees that advertised representation.
+
+| Observation | Likely layer | Next evidence |
+|---|---|---|
+| GI/CI exists, no node resource | discovery/device-plugin | component logs and configuration |
+| node resource exists, pod Pending | scheduler/admission | events, selector, taint, quota |
+| pod scheduled, no CUDA device | runtime allocation | runtime class and container evidence |
+| CUDA device visible, service fails | application/profile | memory, concurrency, model behavior |
+
+Do not skip layers. A device-plugin restart can mask a stale host configuration briefly; a successful pod allocation can mask an application that no longer fits after a model update.
+
+## Customer decision narrative: why static layouts win
+
+A customer with three recurring model shapes initially requested free-form MIG reconfiguration. Their test results showed that drains and validation took longer than the business value of perfect packing. The resulting design used two standard layouts, a whole-GPU pool for exceptional jobs, and a small reserve. Queueing was visible but predictable; emergency changes fell sharply.
+
+The lesson is not that dynamic layout changes are forbidden. They are justified when demand is volatile and the customer has enough compatible reserve, automation, validation, and maintenance tolerance. They should never be represented as a zero-cost scheduler feature.
+
+## Revision aid: capability boundaries
+
+- MIG partitions supported GPU resources; it is not a hypervisor.
+- A GI/CI layout must be valid for the actual SKU and driver.
+- Device discovery and scheduling are separate from instance creation.
+- Board, host, driver, power, and cooling dependencies remain shared.
+- Reconfiguration is a node lifecycle event with evidence and rollback.
+
+## Operational evidence package
+
+For every MIG change, retain the following evidence with the change record.
+
+- requested and approved layout;
+- node and GPU identity;
+- driver and platform-component versions;
+- pre-change allocation mapping;
+- pre-change and post-change GI/CI inventory;
+- node labels and allocatable resources;
+- device-plugin and relevant node events;
+- smoke-test identity and outcome;
+- service validation outcome;
+- rollback decision and final state.
+
+This package gives a support case or incident commander enough context to determine whether the failure is physical, lifecycle, discovery, scheduling, runtime, or workload-specific.
+
+## Capacity and availability trade-offs
+
+MIG increases granularity but does not guarantee fleet availability. A node with many small instances can have a larger tenant blast radius for a board failure than a dedicated node. The availability decision is therefore two-dimensional: how much isolation exists inside one device, and how replicas are distributed across devices, nodes, racks, and maintenance domains.
+
+| Choice | Availability benefit | Cost |
+|---|---|---|
+| many slices per node | efficient resource use | more tenants share device/node event |
+| replicas across nodes | reduces single-node impact | uses compatible inventory |
+| dedicated reserve | fast recovery | lower average packing |
+| frequent reshaping | adapts to demand | increases change exposure |
+
+## Escalation questions
+
+1. Is the GPU SKU and driver in the approved support set?
+2. What exact GI/CI state existed when impact began?
+3. Did the runtime and device plugin report the same inventory?
+4. Is there driver, XID, node, or power evidence of a shared physical event?
+5. Can the issue be reproduced in a drained canary with the same stack?
+
+## Design review walkthrough
+
+Walk a proposed MIG service through a normal day and a bad day.
+
+On a normal day, a workload selects an eligible node pool.
+
+The device plugin exposes only the intended resources.
+
+The scheduler allocates a matching resource.
+
+The runtime exposes the assigned device.
+
+The application proves its measured envelope.
+
+On a bad day, a node is drained or a device reports a health event.
+
+The platform identifies every allocation on that node.
+
+Protected workloads use compatible reserve capacity or approved failover.
+
+Best-effort workloads queue or restart according to policy.
+
+The team restores the node only after driver, layout, discovery, and application validation.
+
+This walkthrough reveals whether the design is an inventory feature or an operable service.
+
+## Security boundary discussion
+
+MIG reduces resource interference within supported hardware.
+
+It does not authenticate a tenant.
+
+It does not authorize Kubernetes API actions.
+
+It does not segment network traffic.
+
+It does not validate container provenance.
+
+It does not prevent an authorized host administrator from changing the device state.
+
+Use platform security controls for those requirements.
+
+State those controls separately in customer architecture documents.
+
+## Monitoring objectives
+
+Monitor desired versus actual MIG mode.
+
+Monitor desired versus actual GI/CI inventory.
+
+Monitor node resource inventory drift.
+
+Monitor device and node health events.
+
+Monitor application error and latency outcomes.
+
+Monitor drain duration and failed change attempts.
+
+Alert on deviations that make a pool no longer homogeneous.
+
+## Short revision exercise
+
+Describe a request that requires MIG rather than time-slicing.
+
+Name the remaining shared failure domains.
+
+List the five layers that must validate before admission reopens.
+
+Explain why a successful driver command is insufficient proof of service readiness.
