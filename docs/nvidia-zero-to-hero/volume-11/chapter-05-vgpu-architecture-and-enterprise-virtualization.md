@@ -127,7 +127,7 @@ For Kubernetes-native workloads, prefer the native GPU resource model when a VM 
 
 **Evidence path.** Inspect the license client configuration and logs in the guest, DNS and network reachability to the license service, certificate or time prerequisites required by the deployment, and the license edition appropriate to the assigned vGPU type. Validate by acquiring a license from one controlled canary before touching a pool.
 
-**Likely causes.** License-service reachability, an incorrect client configuration, expired or unavailable entitlement, or a mismatch between the assigned profile and entitlement can cause reduced behavior. Licensing behavior is release-specific; use the current license guide for the installed product. [NVIDIA vGPU Client Licensing Guide](https://docs.nvidia.com/vgpu/15.0/grid-licensing-user-guide/index.html)
+**Likely causes.** License-service reachability, an incorrect client configuration, expired or unavailable entitlement, or a mismatch between the assigned profile and entitlement can cause reduced behavior. Licensing behavior is release-specific; use the current guide for the installed product and confirm its release notes. [NVIDIA vGPU Client Licensing Guide](https://docs.nvidia.com/vgpu/latest/grid-licensing-user-guide/index.html)
 
 **Recovery.** Repair the service path or configuration, verify acquisition, and run an application-level validation. Do not treat a green VM power state as a license-health signal.
 
