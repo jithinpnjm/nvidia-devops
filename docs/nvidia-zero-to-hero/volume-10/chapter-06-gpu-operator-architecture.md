@@ -1,128 +1,151 @@
 ---
 title: Chapter 06 — GPU Operator Architecture
-description: Understand how the NVIDIA GPU Operator manages drivers, runtime integration, discovery, validation, and monitoring.
+description: Design the NVIDIA GPU Operator as a reconciled node-platform lifecycle, with explicit ownership, rollout, and failure boundaries.
 sidebar_position: 7
 tags: [gpu-operator, kubernetes, architecture]
 ---
 
 # GPU Operator Architecture
 
-Manually installing GPU software on every Kubernetes node creates drift and makes upgrades difficult. The NVIDIA GPU Operator uses Kubernetes controllers and node-level workloads to manage the GPU software stack as declarative cluster infrastructure.
+A GPU node is not configured when a single installation command returns successfully. Its driver, container-runtime integration, device discovery, allocation, validation, and telemetry must continue to agree as nodes are added, rebooted, drained, patched, and replaced. NVIDIA GPU Operator expresses much of that lifecycle as Kubernetes-managed desired state.
 
-## Learning Objectives
+That is powerful precisely because it is not a thin installer. A bad policy or incompatible version can be reconciled across an entire fleet with the same efficiency that a correct one can. Treat the operator as production infrastructure with an ownership model, a compatibility policy, and staged change control.
 
-After completing this chapter, you will be able to:
+## Learning objectives
 
-- explain the GPU Operator reconciliation model;
-- identify the responsibility of each core operand;
-- describe the boundary between automation and platform ownership;
-- reason about node state transitions during rollout and recovery;
-- choose where canary validation belongs in the lifecycle;
-- troubleshoot an unhealthy operand chain from the top down.
+After this chapter, you will be able to:
 
-## Architecture
+- explain the control loop and the node-level operands it manages;
+- identify the handoffs between platform, operating-system, and Kubernetes ownership;
+- reason about readiness as an ordered set of evidence rather than a Pod phase; and
+- build a rollout and diagnostic process that limits fleet-wide blast radius.
+
+## Architecture: desired state becomes node-local work
 
 ```mermaid
 flowchart TD
-    CR[ClusterPolicy / Configuration]
-    Op[GPU Operator Controller]
-    Driver[Driver DaemonSet]
-    Toolkit[Container Toolkit]
-    Plugin[Device Plugin]
-    NFD[NFD / GFD]
-    DCGM[DCGM Exporter]
-    Validator[Validators]
-    CR --> Op
-    Op --> Driver
-    Op --> Toolkit
-    Op --> Plugin
-    Op --> NFD
-    Op --> DCGM
-    Op --> Validator
+    Policy[ClusterPolicy and release configuration]
+    Controller[GPU Operator controller]
+    Driver[Driver operand]
+    Toolkit[Container Toolkit operand]
+    Plugin[Device plugin operand]
+    Discovery[NFD / GFD operands]
+    Metrics[DCGM exporter operand]
+    Validation[Validator operands]
+    Node[GPU node]
+    Policy --> Controller
+    Controller --> Driver
+    Controller --> Toolkit
+    Controller --> Plugin
+    Controller --> Discovery
+    Controller --> Metrics
+    Controller --> Validation
+    Driver --> Node
+    Toolkit --> Node
+    Plugin --> Node
+    Discovery --> Node
+    Metrics --> Node
+    Validation --> Node
 ```
 
-The exact resources vary by release and configuration. Some environments preinstall drivers or toolkit components; the operator can be configured not to manage those layers.
+**Figure 10.6.1 — The controller manages an interdependent set of operands.** The exact components, resource names, and configuration choices vary by GPU Operator release and the selected deployment model.
 
-## Production Story
+The controller watches its declarative policy and reconciles the child resources needed to reach it. Most node-facing components run as DaemonSets because their work is tied to local hardware and the kubelet. A controller can converge Kubernetes objects, but it cannot make an unsupported kernel, a failed module load, or an unavailable registry safe. Those conditions remain operational dependencies.
 
-A platform team decides to standardize GPU nodes by moving from manual installs to GPU Operator. The first rollout looks promising: the operator Pod is healthy, but one driver DaemonSet stalls on a subset of nodes because the host image changed under the team’s feet. CPU workloads continue, yet the GPU pool is partially unavailable.
+## Responsibilities and boundaries
 
-The lesson is that declarative reconciliation does not make compatibility disappear. It makes drift visible and repeatable. The team still needs a node acceptance gate, a canary pool, and a clear policy for which layer owns the driver.
-
-## Reconciliation
-
-The operator watches desired policy and creates operands. Node labels and state indicate progress. DaemonSets ensure node-local components run where required. Validators test important boundaries such as driver availability, toolkit integration, and CUDA execution.
-
-| Component | Responsibility |
-|---|---|
-| Operator controller | Reconcile policy and operands |
-| Driver | Load kernel modules and expose devices |
-| Toolkit | Integrate GPUs with container runtime |
-| Device plugin | Advertise and allocate GPU resources |
-| NFD/GFD | Label node and GPU capabilities |
-| DCGM exporter | Publish GPU metrics |
-| Validators | Confirm layer health |
-
-The operator is a control loop, not a guarantee. It keeps attempting to converge the desired state, but it cannot invent a compatible kernel, driver, or runtime combination if the cluster policy allows one that does not work.
-
-## Ownership Boundaries
-
-| Question | Host-managed answer | Operator-managed answer |
+| Layer | Primary responsibility | Evidence of success |
 |---|---|---|
-| Who installs the driver? | OS image or config management | Driver DaemonSet or driver container |
-| Who configures runtime integration? | Node image or runtime automation | Toolkit operand |
-| Who advertises resources? | Device plugin installed by the platform team | Device plugin operand |
-| Who validates the node? | External acceptance workflow | Validator workloads plus external checks |
+| Platform engineering | supported configurations, values, rollout policy, node classes | reviewed configuration in source control |
+| Operator controller | reconcile operands and surface component state | intended workloads created and progressing |
+| Driver and toolkit operands | host driver and container runtime integration | usable driver and GPU-enabled container path |
+| Discovery and device plugin | labels, health, and allocatable resources | expected labels and allocatable resource |
+| Validation | test configured boundaries | defined checks pass on the node |
+| Cluster operations | drains, kernels, images, registries, incident response | safe maintenance and recoverability |
 
-The important part is choosing one owner per layer. Shared ownership almost always turns into drift or duplicate remediation.
+The line between the first and second rows deserves special attention. The operator controls only the components it is configured to own. If the OS image pipeline installs the driver, do not also ask the operator to manage that driver. A hybrid model can be valid, but dual ownership of one host component turns reconciliation into conflict.
 
-## Production Design
+## Reconciliation is not a serial installer
 
-Pin operator and operand versions through a tested release process. Store Helm values or custom resources in Git. Decide explicitly whether nodes use host drivers or driver containers. Apply taints and tolerations so operands reach GPU nodes without running unnecessarily elsewhere.
+It is useful to explain the dependency flow—driver before a meaningful CUDA validation, toolkit before a workload runtime path, plugin before allocation—but do not assume the Pods behave like a shell script. Controllers and DaemonSets independently retry. A component may be Running while it waits for a host condition, and a downstream component may report a more visible symptom than the upstream failure.
 
-The operator does not replace maintenance planning. Driver updates can reset GPUs or require node drain. Operator reconciliation can also amplify a bad configuration across every node, so canary pools and staged rollout remain essential.
+For operations, use an evidence chain instead:
 
-Use a release checklist that names the compatibility matrix, the validation Pod, the rollback plan, and the node pool that will absorb the first change. If the operator changes all nodes at once, the blast radius is the entire fleet.
+1. The node is in the intended pool and can run the required operands.
+2. The driver binds to the detected GPU.
+3. The container runtime can create a GPU-enabled container.
+4. The device plugin reports the expected healthy allocatable resources.
+5. Discovery and acceptance labels match the service class.
+6. Validation and telemetry complete successfully.
 
-## Troubleshooting
+This is stronger than waiting for `NodeReady` or for every DaemonSet Pod to appear Running. The former proves basic Kubernetes reachability; the latter does not necessarily prove a workload can execute CUDA.
 
-Start with the ClusterPolicy status, operator logs, node labels, operand Pods, and events. Identify the first operand not Ready. Then move to that component’s logs and host state. Avoid deleting all operands simultaneously; reconciliation may obscure the initial failure.
+## Deployment models: choose one owner per layer
 
-Useful symptom patterns:
+| Model | Best fit | Principal trade-off |
+|---|---|---|
+| Operator-managed driver and runtime | Kubernetes-centric fleets with controlled node OS compatibility | operator rollout must be coordinated with kernel lifecycle |
+| Host-managed driver and runtime | immutable images or established OS configuration management | desired state and drift evidence partly live outside Kubernetes |
+| Hybrid | a constrained enterprise boundary requires host ownership of selected layers | handoffs must be documented, tested, and monitored |
 
-- the controller is healthy but the driver DaemonSet is not;
-- the driver is healthy but the toolkit or plugin is not;
-- the operator reconciles but labels never appear;
-- validators fail even though the core operands are Ready.
+The choice should be decided before installation and encoded in release documentation. It affects image construction, privilege review, rollback, support boundaries, and who responds when a driver no longer loads after a node update. "It was already on the host" is not an ownership model.
 
-Each pattern points to a different layer, so the first job is to identify which layer is actually missing, not which layer produced the most recent log line.
+## A release is a compatibility decision
 
-## Customer Perspective
+Pin and review the operator chart or manifest source, its operand configuration, Kubernetes version, node operating-system and kernel channel, runtime, GPU fleet, and workload images as one release candidate. The goal is not to create an unmanageably large matrix; it is to prevent an unexamined change at one boundary from being treated as independent of the others.
 
-The operator reduces repetitive installation and drift. Its value is lifecycle consistency, not a promise that every hardware, kernel, and workload combination is automatically safe.
+A defensible promotion path uses a disposable environment or non-production pool, a production canary pool, then progressively wider pools. At each gate, confirm the evidence chain above and run a representative workload. Use a maintenance window and drain behavior that match the disruption tolerance of the workloads. Keep the prior known-good configuration and required images available for rollback, especially in restricted or disconnected environments.
 
-Customers usually care about three outcomes: predictable rollout, clear ownership, and a supportable rollback. The operator is the mechanism that helps deliver those outcomes, not the outcome itself.
+## Production story: the policy that spread too far
 
-## Interview Preparation
+A platform team changes a common value to update the driver path. The controller promptly updates all GPU-node operands. New nodes fail validation because their kernel channel differs from the nodes used in testing; existing nodes drain for unrelated maintenance and cannot return to service. The incident is not caused by Kubernetes reconciliation being unreliable. It is caused by treating cluster-wide desired state as if it were a canary.
 
-**Question:** Why use an operator rather than a shell script?
+The corrective design separates node pools by compatibility class, pins configuration in Git, applies it to a canary pool first, and permits production scheduling only after acceptance validation. It also defines the rollback trigger: loss of allocatable capacity or failed representative CUDA execution, not merely a controller log line.
 
-An operator continuously reconciles desired state, reports status, handles node changes, and integrates with Kubernetes lifecycle. A script usually performs a one-time mutation without ongoing state management.
+## Security model
 
-**Question:** What should you inspect first when the operator is degraded?
+Several operands require elevated host access to load modules, configure a runtime, inspect devices, or expose telemetry. Put the operator and its operands in a tightly controlled namespace. Restrict who can modify the policy, DaemonSets, service accounts, and Node labels. Use approved registries and image provenance controls, and account for registry access during node recovery.
 
-Start with the ClusterPolicy and the first operand that is not Ready. Then move downward into host evidence and operand logs.
+Privileged access is justified by host work, not by convenience. Review every operand’s permissions and host mounts as part of the platform threat model. The application namespace must not inherit the authority required to operate the node.
 
-## Key Takeaways
+## Troubleshooting: find the first broken contract
 
-- GPU Operator manages a collection of interdependent operands.
-- Reconciliation reduces drift but can propagate bad policy quickly.
-- Host-managed and operator-managed components must be chosen deliberately.
-- Troubleshooting begins with the first failed operand.
-- The operator is a control loop with a blast radius.
-- Canary pools and explicit ownership keep reconciliation safe.
+Begin with the policy status, controller logs, events, and node labels, then identify the earliest missing evidence in the chain. A missing GPU resource points to driver, discovery, plugin, or kubelet registration; a resource that allocates but fails in a container moves the investigation to runtime and workload compatibility. Do not delete all operands as a first action. That destroys useful ordering evidence and can create a wider outage.
 
-## Cross References
+| Observation | Likely boundary to inspect first |
+|---|---|
+| Operand absent from an intended node | selectors, taints, tolerations, image pull, policy configuration |
+| Driver operand unhealthy | host kernel, module load, secure-boot and signing policy, node logs |
+| No allocatable GPU | driver health, device plugin, kubelet registration |
+| Pod starts without CUDA access | toolkit/runtime integration and allocation path |
+| Validation fails after a change | the changed layer and its declared compatibility assumptions |
+
+## Customer architecture discussion
+
+The operator is most valuable when it establishes a repeatable node contract. It should sit behind a platform interface: documented GPU classes, controlled configuration, acceptance gates, and an upgrade path. It does not remove customer choices about kernel governance, disconnected operations, security controls, or workload maintenance windows; it makes those choices observable and enforceable in the cluster.
+
+## Interview preparation
+
+**Why is a controller better than a configuration script for GPU nodes?**
+
+A controller continuously observes and reconciles declared state as nodes change. A script can perform an initial mutation, but it does not inherently provide drift detection, state reporting, or reconciliation after node replacement. Neither approach eliminates kernel and compatibility risk.
+
+**What is the biggest risk of operator-managed infrastructure?**
+
+The same reconciliation mechanism that reduces drift can distribute a bad configuration rapidly. Scope changes by node pool, validate a canary with real workload evidence, and retain a rollback path.
+
+## Key takeaways
+
+- GPU Operator manages a lifecycle of related operands, not a single package.
+- Configure one clear owner for every host layer.
+- Validate an evidence chain from hardware to CUDA execution.
+- Reconciliation reduces drift but increases the need for controlled rollout scope.
+- Start incident analysis at the first failed contract, not the most visible downstream Pod.
+
+## Cross references and further reading
 
 - [Node and GPU Feature Discovery](./chapter-05-node-and-gpu-feature-discovery)
-- [Next: Driver Containers and Toolkit Operands](./chapter-07-driver-containers-and-node-operands)
+- [Driver Containers and Node Operands](./chapter-07-driver-containers-and-node-operands)
+- [Upgrades and Production Troubleshooting](./chapter-11-upgrades-and-production-troubleshooting)
+- [NVIDIA GPU Operator documentation](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/)
+- [Kubernetes controller pattern](https://kubernetes.io/docs/concepts/architecture/controller/)
