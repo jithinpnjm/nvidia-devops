@@ -196,8 +196,8 @@ nv_gpu_memory_used_bytes{gpu="0"} 24589211648
 ```
 
 From these raw metrics, SREs derive operational KPIs:
-- **Average Queue Wait Time:** $\frac{\Delta \text{nv\_inference\_queue\_duration\_us}}{\Delta \text{nv\_inference\_request\_success\_count}}$
-- **GPU Execution Efficiency:** $\frac{\Delta \text{nv\_inference\_compute\_infer\_duration\_us}}{\Delta \text{nv\_inference\_request\_duration\_us}} \times 100\%$
+- **Average Queue Wait Time:** `Δ(nv_inference_queue_duration_us) / Δ(nv_inference_request_success_count)`
+- **GPU Execution Efficiency:** `(Δ(nv_inference_compute_infer_duration_us) / Δ(nv_inference_request_duration_us)) * 100%`
 
 ---
 
@@ -327,12 +327,14 @@ perf_analyzer -m resnet50 -u localhost:8001 -i gRPC --concurrency-range 16:16 &
 ### Scenario 2: CUDA Stream Contention & VRAM Saturation from Oversubscribed Instance Groups
 
 #### 1. Production Incident Context
-An infrastructure engineer attempted to scale serving capacity for an ONNX Transformer model by configuring `instance_group [ { count: 8, kind: KIND_GPU, gpus: [ 0 ] } ]` inside `config.pbtxt`. Following deployment, average request latency quadrupled from $25\text{ ms}$ to $110\text{ ms}$, and the pod repeatedly encountered Out-Of-Memory host kills.
+An infrastructure engineer attempted to scale serving capacity for an ONNX Transformer model by configuring `instance_group [ { count: 8, kind: KIND_GPU, gpus: [ 0 ] } ]` inside `config.pbtxt`. Following deployment, average request latency quadrupled from 25 ms to 110 ms, and the pod repeatedly encountered Out-Of-Memory host kills.
 
 #### 2. Root Cause Analysis
 The model required 9.5 GB of GPU VRAM per instance. Setting `count: 8` attempted to load 8 separate copies of the model into VRAM on a single 80 GB A100 GPU:
 
-$$M_{\text{total}} = 8 \times 9.5 \text{ GB} = 76 \text{ GB VRAM (Only 4 GB left for execution workspace!)}$$
+```text
+M_total = 8 * 9.5 GB = 76 GB VRAM (Only 4 GB left for execution workspace!)
+```
 
 When concurrent requests arrived, the workspace memory allocator failed. Furthermore, having 8 competing instances issuing CUDA kernel launches simultaneously caused severe CUDA driver stream lock contention, quadrupling kernel execution latency.
 
@@ -365,7 +367,7 @@ nsys profile --stats=true --duration=10 tritonserver --model-repository=/models
 ```
 
 #### 5. Remediation & Configuration Fix
-Reduce instance count to `count: 2` (occupying only $19\text{ GB}$ of VRAM) and enable **Dynamic Batching** with a small queue delay (`max_queue_delay_microseconds: 5000`). Dynamic batching consolidates individual requests into a single, highly efficient GPU kernel launch instead of creating competing execution instances.
+Reduce instance count to `count: 2` (occupying only 19 GB of VRAM) and enable **Dynamic Batching** with a small queue delay (`max_queue_delay_microseconds: 5000`). Dynamic batching consolidates individual requests into a single, highly efficient GPU kernel launch instead of creating competing execution instances.
 
 Corrected `config.pbtxt`:
 
@@ -398,9 +400,9 @@ perf_analyzer -m transformer_enc -u localhost:8001 -i gRPC --concurrency-range 1
 ```
 
 *Verification Results:*
-- Total throughput increases by $340\%$ (from $180\text{ RPS}$ to $792\text{ RPS}$).
-- P99 latency drops from $110\text{ ms}$ down to $18.4\text{ ms}$.
-- GPU VRAM consumption drops from $76\text{ GB}$ down to $19\text{ GB}$, leaving ample memory for KV caching.
+- Total throughput increases by 340% (from 180 RPS to 792 RPS).
+- P99 latency drops from 110 ms down to 18.4 ms.
+- GPU VRAM consumption drops from 76 GB down to 19 GB, leaving ample memory for KV caching.
 
 ---
 
@@ -418,10 +420,10 @@ perf_analyzer -m transformer_enc -u localhost:8001 -i gRPC --concurrency-range 1
 ### Question 2: "Explain the interaction between Triton's `max_batch_size` in `config.pbtxt` and the underlying TensorRT engine's profile dimensions. What happens if a request arrives exceeding the max batch size?"
 
 **Model Answer:**  
-- **`max_batch_size` in `config.pbtxt`:** Specifies Triton's server-level batching ceiling. If set to $> 0$, Triton prepends an implicit batch dimension (Dimension 0) to all input/output tensor signatures.
+- **`max_batch_size` in `config.pbtxt`:** Specifies Triton's server-level batching ceiling. If set to > 0, Triton prepends an implicit batch dimension (Dimension 0) to all input/output tensor signatures.
 - **TensorRT Optimization Profile:** Specifies the exact hardware execution envelope (`min`, `opt`, `max` shape bounds) compiled into the `.plan` binary file (e.g., `batch_dim: min=1, opt=16, max=64`).
 - **Interaction Rules:**
-  1. Triton's `max_batch_size` MUST BE $\le$ the TensorRT engine's `max` profile batch dimension.
+  1. Triton's `max_batch_size` MUST BE <= the TensorRT engine's `max` profile batch dimension.
   2. If a request arrives with a batch size exceeding `max_batch_size` (e.g., Request Batch = 128 when `max_batch_size = 64`), Triton's frontend rejects the request immediately with `HTTP 400 Bad Request ("inference request batch size exceeds maximum allowed")` before it reaches the GPU scheduler.
   3. If dynamic batching is enabled, Triton's scheduler splits large request batches into smaller sub-batches matching the engine's `preferred_batch_size` specification.
 

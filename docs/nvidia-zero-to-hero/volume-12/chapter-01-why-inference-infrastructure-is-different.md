@@ -46,15 +46,17 @@ Input Prompt: "Explain quantum computing in simple terms" (8 tokens)
       - Low Arithmetic Intensity (FLOPs / Byte ≈ 1 - 2).
 ```
 
-- **Arithmetic Intensity ($I$):** Defined as the ratio of floating-point operations performed to bytes of memory transferred from High Bandwidth Memory (HBM) to GPU SRAM ($I = \frac{\text{FLOPs}}{\text{Bytes}}$).
-- **Prefill Phase:** Computes self-attention across all input tokens simultaneously. Matrix multiplications scale as $O(N_{in}^2)$. Because large input matrices reside in fast GPU SRAM during compute, Tensor Cores execute at peak compute capability (e.g., 989 TFLOPS on H100 FP16).
-- **Decode Phase:** Generates one output token at a time. To generate a single token, the GPU must fetch all 140 GB of FP16 model weights from HBM into SRAM. For an H100 GPU with $3.35\text{ TB/s}$ HBM3 memory bandwidth, fetching 140 GB takes $\frac{140\text{ GB}}{3350\text{ GB/s}} \approx 41.7\text{ milliseconds}$ per token—yielding a theoretical hardware ceiling of $\approx 24\text{ tokens/sec}$ per single-sequence stream, regardless of how many TFLOPS the Tensor Cores possess.
+- **Arithmetic Intensity (`I`):** Defined as the ratio of floating-point operations performed to bytes of memory transferred from High Bandwidth Memory (HBM) to GPU SRAM (`I = FLOPs / Bytes`).
+- **Prefill Phase:** Computes self-attention across all input tokens simultaneously. Matrix multiplications scale as `O(N_in^2)`. Because large input matrices reside in fast GPU SRAM during compute, Tensor Cores execute at peak compute capability (e.g., 989 TFLOPS on H100 FP16).
+- **Decode Phase:** Generates one output token at a time. To generate a single token, the GPU must fetch all 140 GB of FP16 model weights from HBM into SRAM. For an H100 GPU with 3.35 TB/s HBM3 memory bandwidth, fetching 140 GB takes `140 GB / 3350 GB/s ≈ 41.7 ms` per token—yielding a theoretical hardware ceiling of `≈ 24 tokens/sec` per single-sequence stream, regardless of how many TFLOPS the Tensor Cores possess.
 
 ### 2. Deconstructing the Inference Latency Budget
 
 Customer-perceived quality depends on three distinct latency metrics:
 
-$$\text{Total End-to-End Latency } (E2E) = t_{\text{network\_ingress}} + t_{\text{queue}} + \text{TTFT} + (N_{\text{out}} - 1) \times \text{ITL} + t_{\text{network\_egress}}$$
+```text
+Total End-to-End Latency (E2E) = t_network_ingress + t_queue + TTFT + (N_out - 1) * ITL + t_network_egress
+```
 
 ```
 Request Timeline:
@@ -64,34 +66,40 @@ Request Timeline:
                            Request Sent          First Token Out      Second Token Out
 ```
 
-- **Time To First Token (TTFT):** Duration from request receipt to the emission of the first generated token. Dominated by queue wait time $t_{\text{queue}}$ and prefill execution time.
-- **Inter-Token Latency (ITL):** Time elapsed between generating token $i$ and token $i+1$. Dictated by the decode iteration cycle time.
+- **Time To First Token (TTFT):** Duration from request receipt to the emission of the first generated token. Dominated by queue wait time `t_queue` and prefill execution time.
+- **Inter-Token Latency (ITL):** Time elapsed between generating token `i` and token `i+1`. Dictated by the decode iteration cycle time.
 - **Time Per Output Token (TPOT):** Average decode time per token across the generated response sequence.
 
 ### 3. Mathematics of KV Cache Memory Consumption
 
 During autoregressive generation, self-attention requires key and value tensors for all previous tokens in the sequence. To avoid recomputing these tensors at every decode step, the inference engine caches them in GPU HBM as the **KV Cache**.
 
-The memory footprint $M_{KV}$ (in bytes) required for storing the KV Cache of a single request sequence is:
+The memory footprint `M_KV` (in bytes) required for storing the KV Cache of a single request sequence is:
 
-$$M_{KV} = 2 \times L \times H \times N_{\text{heads}} \times P_{\text{seq}} \times S_{\text{precision}}$$
+```text
+M_KV = 2 * L * H * N_heads * P_seq * S_precision
+```
 
 Where:
-- $2$: Two matrices (Key tensor and Value tensor).
-- $L$: Number of transformer layers in the model architecture.
-- $H$: Dimension of each attention head ($d_{\text{head}} = \frac{d_{\text{model}}}{N_{\text{heads}}}$).
-- $N_{\text{heads}}$: Number of Key-Value attention heads (accounting for Multi-Query Attention / Grouped-Query Attention).
-- $P_{\text{seq}}$: Total sequence length ($\text{Prompt Length} + \text{Generated Response Length}$).
-- $S_{\text{precision}}$: Bytes per element (2 bytes for FP16/BF16, 1 byte for FP8/INT8).
+- `2`: Two matrices (Key tensor and Value tensor).
+- `L`: Number of transformer layers in the model architecture.
+- `H`: Dimension of each attention head (`d_head = d_model / N_heads`).
+- `N_heads`: Number of Key-Value attention heads (accounting for Multi-Query Attention / Grouped-Query Attention).
+- `P_seq`: Total sequence length (`Prompt Length + Generated Response Length`).
+- `S_precision`: Bytes per element (2 bytes for FP16/BF16, 1 byte for FP8/INT8).
 
 #### Concrete Sizing Example:
-Consider serving Llama-3-70B ($L=80$, $N_{\text{heads\_kv}}=8$, $d_{\text{head}}=128$, Precision=FP16/2 bytes) with a context length $P_{\text{seq}} = 4,096$ tokens:
+Consider serving Llama-3-70B (`L=80`, `N_heads_kv=8`, `d_head=128`, Precision=FP16/2 bytes) with a context length `P_seq = 4096` tokens:
 
-$$M_{KV\_single} = 2 \times 80 \times 8 \times 128 \times 4096 \times 2 \text{ bytes} = 1,342,177,280 \text{ bytes} \approx 1.34 \text{ GB per sequence}$$
+```text
+M_KV_single = 2 * 80 * 8 * 128 * 4096 * 2 bytes = 1,342,177,280 bytes ≈ 1.34 GB per sequence
+```
 
 If an inference server handles **64 concurrent requests** at this sequence length, the KV Cache alone consumes:
 
-$$M_{KV\_total} = 64 \times 1.34 \text{ GB} = 85.76 \text{ GB of VRAM}$$
+```text
+M_KV_total = 64 * 1.34 GB = 85.76 GB of VRAM
+```
 
 This exceeds the entire memory capacity of an 80GB A100 GPU! Model weights require an additional 140 GB (requiring tensor parallelism across multiple GPUs). If memory is unmanaged, dynamic KV cache growth causes catastrophic GPU Out-Of-Memory (OOM) crashes.
 
@@ -147,13 +155,13 @@ flowchart TB
 
 | Component | Primary Function | Key Failure Mode | Operational Metric | Target Threshold |
 |---|---|---|---|---|
-| **API Gateway** | Request authentication, routing, protocol conversion | Connection pool exhaustion | `http_requests_total`, `latency` | $99.99\%$ Uptime |
-| **CPU Tokenizer** | Converts raw UTF-8 strings to integer token IDs | Single-thread CPU saturation | `tokenizer_duration_seconds` | $< 5\text{ ms}$ |
-| **Admission Queue** | Manages backpressure and prevents server overload | Unbounded queue delay, client timeout | `inference_queue_depth` | $< 50\text{ depth}$ |
-| **Batch Scheduler** | Assembles prefill & decode steps into continuous iterations | Prefill starving active decode loops | `scheduler_iteration_time_ms` | $< 30\text{ ms/iter}$ |
-| **KV Block Allocator** | Virtual memory management for key-value tensors | Memory fragmentation, out-of-memory | `kv_cache_usage_percent` | $70\% - 85\%$ |
-| **GPU Execution Engine** | Launches optimized CUDA kernels (TensorRT / vLLM) | CUDA stream deadlock, illegal memory access | `dcgm_gpu_utilization` | $> 75\%$ |
-| **Stream Handler** | Serializes tokens to SSE/gRPC streaming chunks | Socket buffer bloat, client disconnection | `stream_flush_latency_ms` | $< 2\text{ ms}$ |
+| **API Gateway** | Request authentication, routing, protocol conversion | Connection pool exhaustion | `http_requests_total`, `latency` | 99.99% Uptime |
+| **CPU Tokenizer** | Converts raw UTF-8 strings to integer token IDs | Single-thread CPU saturation | `tokenizer_duration_seconds` | &lt; 5 ms |
+| **Admission Queue** | Manages backpressure and prevents server overload | Unbounded queue delay, client timeout | `inference_queue_depth` | &lt; 50 depth |
+| **Batch Scheduler** | Assembles prefill & decode steps into continuous iterations | Prefill starving active decode loops | `scheduler_iteration_time_ms` | &lt; 30 ms/iter |
+| **KV Block Allocator** | Virtual memory management for key-value tensors | Memory fragmentation, out-of-memory | `kv_cache_usage_percent` | 70% - 85% |
+| **GPU Execution Engine** | Launches optimized CUDA kernels (TensorRT / vLLM) | CUDA stream deadlock, illegal memory access | `dcgm_gpu_utilization` | > 75% |
+| **Stream Handler** | Serializes tokens to SSE/gRPC streaming chunks | Socket buffer bloat, client disconnection | `stream_flush_latency_ms` | &lt; 2 ms |
 
 ---
 
@@ -165,7 +173,7 @@ flowchart TB
 |---|---|---|
 | **Primary Goal** | Maximize aggregate training throughput (TFLOPS/sec) | Serve requests within strict latency SLOs (TTFT / ITL) |
 | **Workload Profile** | Offline, long-running, scheduled batch jobs | Online, unpredictable, bursty user traffic |
-| **Batch Size** | Large, static (e.g., 512, 1024 sequences) | Dynamic, variable ($B=1$ to $B=128$) |
+| **Batch Size** | Large, static (e.g., 512, 1024 sequences) | Dynamic, variable (B=1 to B=128) |
 | **Memory Footprint** | Model weights + Gradients + Optimizer States + Activations | Model weights + Dynamic KV Cache + Staging Buffers |
 | **Hardware Bottleneck** | Compute bound (Tensor Cores) & Interconnect bound (NVLink/InfiniBand) | Memory bandwidth bound (HBM) & Host-to-Device latency (PCIe) |
 | **Failure Impact** | High checkpoint save; restart from last step | Immediate user-visible HTTP 5xx errors or broken streams |
@@ -185,7 +193,7 @@ flowchart TB
 ```
 
 - **Large Static Batches vs. Small Dynamic Batches:** Large batches maximize GPU HBM bandwidth efficiency (higher FLOPs/Byte), yielding maximum tokens/second per dollar. However, waiting for a batch to fill inflates queue latency and TTFT.
-- **Precision Quantization (FP16 vs. FP8 vs. INT4):** Quantizing a 70B model from FP16 (140 GB) to INT4 (35 GB) enables fitting the weights onto a single 80GB GPU instead of two. This reduces HBM transfer bandwidth by $4\times$, dramatically improving ITL. *Trade-off:* Minor degradation in output quality/perplexity on complex reasoning tasks.
+- **Precision Quantization (FP16 vs. FP8 vs. INT4):** Quantizing a 70B model from FP16 (140 GB) to INT4 (35 GB) enables fitting the weights onto a single 80GB GPU instead of two. This reduces HBM transfer bandwidth by 4x, dramatically improving ITL. *Trade-off:* Minor degradation in output quality/perplexity on complex reasoning tasks.
 - **Prefill/Decode Co-location vs. Disaggregation:** Executing prefill (compute-bound) and decode (bandwidth-bound) on the same GPU causes long prompt ingestions to stall decode steps. Disaggregating prefill nodes from decode nodes eliminates decode jitter but introduces network transmission latency for sending KV caches over NVLink/InfiniBand.
 
 ---
@@ -217,7 +225,7 @@ Operating a production inference cluster requires enforcing strict bounds on con
 During a promotional event, an e-commerce platform experienced a 3x traffic spike on its customer support LLM service. Within 90 seconds of the spike, multiple Triton inference pods crashed simultaneously, triggering Kubernetes pod restarts. As surviving pods absorbed redirected traffic, they immediately crashed with OOM errors, creating a cascading outage.
 
 #### 2. Root Cause Analysis
-The inference server was configured with dynamic KV cache allocation without an absolute upper block threshold or request admission limiter. As concurrent long-context requests arrived ($P_{\text{seq}} > 8,192$), total memory demanded by active KV cache blocks exceeded available GPU HBM VRAM. The CUDA driver failed a allocation request inside the model execution thread, causing unhandled process termination.
+The inference server was configured with dynamic KV cache allocation without an absolute upper block threshold or request admission limiter. As concurrent long-context requests arrived (P_seq > 8192), total memory demanded by active KV cache blocks exceeded available GPU HBM VRAM. The CUDA driver failed a allocation request inside the model execution thread, causing unhandled process termination.
 
 #### 3. Log & Telemetry Evidence
 Inspection of Triton process logs (`/var/log/triton/server.log`) revealed:
@@ -228,62 +236,31 @@ Inspection of Triton process logs (`/var/log/triton/server.log`) revealed:
   RuntimeError: CUDA error: out of memory
   CUDA kernel errors might be asynchronously reported at some other API call, so the stacktrace below might be incorrect.
   Device Global Memory: Total=81187MB, Used=80912MB, Free=275MB
-2026-08-06T14:22:01.112Z CRITICAL [main.cc:145] Unexpected process exit signal 6 (SIGABRT)
-```
-
-Prometheus DCGM metric snapshot prior to crash:
-```text
-dcgm_fb_used_bytes{gpu="0",pod="triton-inference-7d9b-x2k4"} 84841267200
-triton_gpu_memory_used_bytes{gpu="0"} 84841267200
-triton_request_queue_duration_us{model="llama3-70b"} 4829100
 ```
 
 #### 4. Exact Diagnostic Commands
-To diagnose the memory allocation failure and reproduce the issue safely:
-
 ```bash
-# 1. Inspect live GPU memory state across cluster nodes
-kubectl exec -it pod/triton-inference-7d9b-x2k4 -n inference -- nvidia-smi --query-gpu=memory.total,memory.used,memory.free --format=csv
+# 1. Inspect live KV cache memory allocation via metrics endpoint
+curl -s http://localhost:8002/metrics | grep -E "(kv_cache_usage|gpu_memory_used)"
 
-# 2. Query Prometheus for KV cache memory usage vs queue depth
-curl -G 'http://prometheus-k8s.monitoring:9090/api/v1/query' \
-  --data-urlencode 'query=triton_gpu_memory_used_bytes / triton_gpu_memory_total_bytes * 100'
-
-# 3. Simulate burst load with perf_analyzer to trigger memory pressure threshold
-perf_analyzer -m llama3-70b \
-  -u localhost:8001 -i gRPC \
-  --concurrency-range 32:128:16 \
-  --shape input_ids:1,2048 \
-  --measurement-interval 5000
+# 2. Reproduce memory pressure using perf_analyzer with long prompt payloads
+perf_analyzer -m llama3-70b -u localhost:8001 -i gRPC \
+  --concurrency-range 64:64 \
+  --shape input_ids:4096 \
+  --measurement-interval 10000
 ```
 
 #### 5. Remediation & Configuration Fix
-To resolve the vulnerability, enforce strict virtual block limits (`gpu_memory_utilization`), enable PagedAttention block reuse, and implement HTTP 429 backpressure at the admission layer when VRAM utilization reaches 85%.
-
-Updated vLLM / Triton engine configuration (`config.pbtxt` / startup flags):
+To resolve cascading OOM failures, configure an explicit upper ceiling for KV cache allocation (`gpu_memory_utilization: 0.85`), enforce preemption via block swapping/recomputation, and enable admission control:
 
 ```yaml
-# Triton / vLLM Engine Configuration Fix
-engine_args:
-  # Cap total GPU memory usage reserved for model + KV cache at 85%
-  gpu_memory_utilization: 0.85
-  # Enforce PagedAttention block size to eliminate internal memory fragmentation
-  block_size: 16
-  # Limit max concurrent tokens batched in a single iteration step
-  max_num_batched_tokens: 4096
-  # Maximum allowed active sequences in the continuous batch
-  max_num_seqs: 64
-  # Enable aggressive prefix caching to reuse KV blocks across shared system prompts
-  enable_prefix_caching: true
-```
-
-Kubernetes Ingress Rate Limiting (`ingress.yaml`):
-
-```yaml
-metadata:
-  annotations:
-    nginx.ingress.kubernetes.io/limit-rps: "45"
-    nginx.ingress.kubernetes.io/limit-connections: "100"
+# Fix configuration in backend_config (vLLM / TensorRT-LLM)
+engine_config:
+  gpu_memory_utilization: 0.85   # Hard cap VRAM usage for weights + KV cache at 85%
+  max_num_seqs: 64                # Bound maximum active concurrent sequences
+  max_num_batched_tokens: 8192    # Limit maximum tokens per iteration step
+  swap_space: 16                  # Allocate 16GB host CPU RAM for KV preemption swapping
+  block_size: 16                  # PagedAttention block size
 ```
 
 #### 6. Verification Steps
@@ -294,14 +271,14 @@ After deploying the updated engine parameters, execute a load sweep:
 perf_analyzer -m llama3-70b -u localhost:8001 -i gRPC --concurrency-range 128:128
 ```
 
-*Result:* `nvidia-smi` confirms HBM memory usage stays capped at exactly $85\%$ ($68.8\text{ GB}$), excess requests receive clean 429 status codes, and zero pods crash.
+*Result:* `nvidia-smi` confirms HBM memory usage stays capped at exactly 85% (68.8 GB), excess requests receive clean 429 status codes, and zero pods crash.
 
 ---
 
 ### Scenario 2: Severe P99 Tail Latency Degradation Caused by Prefill Execution Starving Decode Batches
 
 #### 1. Production Incident Context
-An enterprise knowledge base service reported erratic user experience during peak hours. While average latency appeared acceptable (TTFT ~ 300ms), P99 Inter-Token Latency (ITL) spiked to over $4,500\text{ ms}$, causing streaming text delivery in the frontend web application to pause for 4–5 seconds at a time.
+An enterprise knowledge base service reported erratic user experience during peak hours. While average latency appeared acceptable (TTFT ~ 300ms), P99 Inter-Token Latency (ITL) spiked to over 4,500 ms, causing streaming text delivery in the frontend web application to pause for 4–5 seconds at a time.
 
 #### 2. Root Cause Analysis
 The inference cluster served both long document analysis queries (prompts up to 16,000 tokens) and interactive user chat on the same GPU instances. When a 16K token prompt prefill executed, its GEMM compute kernels occupied 100% of the GPU Tensor Cores for 350+ milliseconds. During this time, the iteration scheduler could not execute decode steps for the 32 active streaming chat users, resulting in multi-second inter-token stalls.
@@ -371,7 +348,7 @@ jq '.metrics | {mean_ttft_ms: .mean_ttft_ms, p99_itl_ms: .p99_itl_ms}' results.j
   "p99_itl_ms": 22.8
 }
 ```
-P99 ITL drops from $4,500\text{ ms}$ to $22.8\text{ ms}$, ensuring perfectly fluid text streaming regardless of incoming prompt lengths.
+P99 ITL drops from 4,500 ms to 22.8 ms, ensuring perfectly fluid text streaming regardless of incoming prompt lengths.
 
 ---
 
@@ -383,8 +360,8 @@ P99 ITL drops from $4,500\text{ ms}$ to $22.8\text{ ms}$, ensuring perfectly flu
 `nvidia-smi` reports **Volatile GPU Utilization**, which measures the percentage of time over the past sampling interval (typically 1 second) during which at least one CUDA kernel was active on the GPU execution engine. 
 
 In LLM inference, this metric is deceiving for two reasons:
-1. **Memory-Bandwidth Saturation vs. Compute Utilization:** During the autoregressive decode phase, CUDA kernels are running continuously (showing 100% GPU utilization in `nvidia-smi`), but the Tensor Cores are sitting idle 95% of the time waiting for weights to load from HBM HBM3 (memory-bandwidth bound execution). The GPU is bottlenecked by memory transfer rates, not compute capability.
-2. **Kernel Launch Overheads & Idle Waiting:** A process issuing tiny, unbatched kernel launches (e.g., batch size 1) can register high GPU engine time while delivering under $5\%$ of peak theoretical model token throughput.
+1. **Memory-Bandwidth Saturation vs. Compute Utilization:** During the autoregressive decode phase, CUDA kernels are running continuously (showing 100% GPU utilization in `nvidia-smi`), but the Tensor Cores are sitting idle 95% of the time waiting for weights to load from HBM3 (memory-bandwidth bound execution). The GPU is bottlenecked by memory transfer rates, not compute capability.
+2. **Kernel Launch Overheads & Idle Waiting:** A process issuing tiny, unbatched kernel launches (e.g., batch size 1) can register high GPU engine time while delivering under 5% of peak theoretical model token throughput.
 
 *Production Alternative:* To measure true GPU health, engineers must track **TFLOPS Efficiency** via DCGM (`DCGM_FI_DEV_FB_USED` and Tensor Core activity) alongside application-level metrics: **KV Cache Block Utilization**, **P99 Inter-Token Latency (ITL)**, and **Tokens/Second per GPU**.
 
@@ -393,27 +370,37 @@ In LLM inference, this metric is deceiving for two reasons:
 ### Question 2: "Mathematical breakdown: How do you size the GPU memory requirement for serving a 70B FP16 LLM with a 4K context window for 100 concurrent requests?"
 
 **Model Answer:**  
-Total GPU Memory ($M_{\text{total}}$) consists of three components: $M_{\text{weights}}$, $M_{\text{KV}}$, and $M_{\text{overhead}}$ (activation buffers and engine memory workspaces).
+Total GPU Memory (`M_total`) consists of three components: `M_weights`, `M_KV`, and `M_overhead` (activation buffers and engine memory workspaces).
 
-1. **Model Weights ($M_{\text{weights}}$):**
+1. **Model Weights (`M_weights`):**
    - 70 billion parameters in FP16 (2 bytes per parameter):
-   $$M_{\text{weights}} = 70 \times 10^9 \times 2 \text{ bytes} = 140 \text{ GB}$$
+```text
+M_weights = 70 * 10^9 * 2 bytes = 140 GB
+```
 
-2. **KV Cache ($M_{\text{KV}}$):**
-   - For Llama-3 70B ($L=80$ layers, Grouped-Query Attention with $N_{\text{heads\_kv}}=8$, head dimension $d_{\text{head}}=128$, FP16 precision = 2 bytes):
-   $$M_{\text{KV\_per\_token}} = 2 \text{ (Key+Value)} \times 80 \times 8 \times 128 \times 2 \text{ bytes} = 327,680 \text{ bytes/token} \approx 327.68 \text{ KB/token}$$
+2. **KV Cache (`M_KV`):**
+   - For Llama-3 70B (`L=80` layers, Grouped-Query Attention with `N_heads_kv=8`, head dimension `d_head=128`, FP16 precision = 2 bytes):
+```text
+M_KV_per_token = 2 (Key+Value) * 80 * 8 * 128 * 2 bytes = 327,680 bytes/token ≈ 327.68 KB/token
+```
    - For a 4,096 token sequence length:
-   $$M_{\text{KV\_per\_seq}} = 327.68 \text{ KB} \times 4096 = 1.342 \text{ GB}$$
+```text
+M_KV_per_seq = 327.68 KB * 4096 = 1.342 GB
+```
    - For 100 concurrent sequences:
-   $$M_{\text{KV\_100\_seqs}} = 100 \times 1.342 \text{ GB} = 134.2 \text{ GB}$$
+```text
+M_KV_100_seqs = 100 * 1.342 GB = 134.2 GB
+```
 
-3. **Activation Buffers & Engine Workspace ($M_{\text{overhead}}$):**
+3. **Activation Buffers & Engine Workspace (`M_overhead`):**
    - Typically reserved as ~20% of weight footprint or fixed at ~10 GB.
 
 4. **Total Requirement:**
-   $$M_{\text{total}} = 140 \text{ GB (Weights)} + 134.2 \text{ GB (KV Cache)} + 10 \text{ GB (Workspace)} = 284.2 \text{ GB VRAM}$$
+```text
+M_total = 140 GB (Weights) + 134.2 GB (KV Cache) + 10 GB (Workspace) = 284.2 GB VRAM
+```
 
-*Hardware Provisioning:* Sizing for 284.2 GB requires a minimum of **4x 80GB NVIDIA H100 GPUs** (320 GB total VRAM) configured with Tensor Parallelism ($TP=4$).
+*Hardware Provisioning:* Sizing for 284.2 GB requires a minimum of **4x 80GB NVIDIA H100 GPUs** (320 GB total VRAM) configured with Tensor Parallelism (`TP=4`).
 
 ---
 
@@ -423,8 +410,8 @@ Total GPU Memory ($M_{\text{total}}$) consists of three components: $M_{\text{we
 
 | Dimension | Time To First Token (TTFT) | Inter-Token Latency (ITL) |
 |---|---|---|
-| **CUDA Kernel Execution** | Dominated by **Compute-Bound GEMM** kernels (Prefill Phase). The GPU processes all input prompt tokens in parallel, generating high Tensor Core utilization ($I \gg 100$). | Dominated by **Memory-Bandwidth-Bound GEMV** kernels (Decode Phase). The GPU executes sequential iteration loops, loading model weights for every single token ($I \approx 1-2$). |
-| **Primary System Bottleneck** | Queue wait time ($t_{\text{queue}}$), CPU tokenization speed, and prompt context length ($P_{\text{prompt}}$). | HBM3 Memory Bandwidth ($\text{TB/s}$), Tensor Parallelism interconnect latency (NVLink), and KV cache lookup speed. |
+| **CUDA Kernel Execution** | Dominated by **Compute-Bound GEMM** kernels (Prefill Phase). The GPU processes all input prompt tokens in parallel, generating high Tensor Core utilization (`I >> 100`). | Dominated by **Memory-Bandwidth-Bound GEMV** kernels (Decode Phase). The GPU executes sequential iteration loops, loading model weights for every single token (`I ≈ 1-2`). |
+| **Primary System Bottleneck** | Queue wait time (`t_queue`), CPU tokenization speed, and prompt context length (`P_prompt`). | HBM3 Memory Bandwidth (TB/s), Tensor Parallelism interconnect latency (NVLink), and KV cache lookup speed. |
 | **Customer SLA Perspective** | Perceived responsiveness / "Time to acknowledge." High TTFT makes the application feel unresponsive or frozen. | Perceived output reading speed / fluidity. High ITL causes stuttering, jitter, and unnatural streaming output. |
 | **Optimization Strategy** | Chunked prefill, prompt caching (prefix reuse), prefill node disaggregation, fast C++ tokenizers. | FP8/INT4 weight quantization, PagedAttention, continuous iteration batching, FlashDecoding kernels. |
 
@@ -434,8 +421,8 @@ Total GPU Memory ($M_{\text{total}}$) consists of three components: $M_{\text{we
 
 ### Key Takeaways
 1. **Inference is fundamentally different from training:** Training optimizes long-running compute throughput; inference optimizes real-time user-visible latency percentiles (TTFT, ITL) under strict memory bounds.
-2. **Prefill vs. Decode:** Prefill is compute-bound ($O(N^2)$ GEMM); decode is memory-bandwidth bound ($O(N)$ GEMV).
-3. **KV Cache Management is Critical:** Dynamic KV cache growth consumes massive HBM VRAM ($1.34\text{ GB}$ per 4K sequence on 70B models). Virtualized block allocators (PagedAttention) and memory caps are mandatory to prevent cascading CUDA OOM crashes.
+2. **Prefill vs. Decode:** Prefill is compute-bound (`O(N^2)` GEMM); decode is memory-bandwidth bound (`O(N)` GEMV).
+3. **KV Cache Management is Critical:** Dynamic KV cache growth consumes massive HBM VRAM (1.34 GB per 4K sequence on 70B models). Virtualized block allocators (PagedAttention) and memory caps are mandatory to prevent cascading CUDA OOM crashes.
 4. **Solve Tail Latency:** Enable Chunked Prefill and Continuous Batching to prevent prompt ingestion from starving active streaming decode iterations.
 
 ### Authoritative References

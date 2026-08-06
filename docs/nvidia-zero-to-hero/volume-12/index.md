@@ -81,12 +81,12 @@ Inference engineering requires tracking metrics across multiple operational dime
 
 | Metric | Target / Unit | Mathematical Definition / Scope | Operational Impact |
 |---|---|---|---|
-| **Time To First Token (TTFT)** | $< 200\text{ ms}$ | Latency from request submission to first token delivery | Primary user responsiveness metric for interactive AI applications |
-| **Inter-Token Latency (ITL)** | $< 25\text{ ms/token}$ | Delta time between consecutive output token arrivals | Determines reading smoothness and user-perceived streaming speed |
-| **Time Per Output Token (TPOT)** | $< 30\text{ ms/token}$ | Total decode phase duration divided by generated output token count | Reflects memory-bandwidth-bound GPU kernel execution efficiency |
-| **P99 Queue Latency** | $< 50\text{ ms}$ | Time spent waiting in admission buffers prior to GPU execution | Early indicator of cluster capacity saturation and SLA breach risk |
-| **KV Cache Utilization** | $70\% - 85\%$ | Percentage of GPU HBM allocated to dynamic key-value blocks | Controls maximum concurrent sequence capacity before backpressure |
-| **Model Load Time** | $< 30\text{ sec}$ | Duration to load engine weights from storage into GPU HBM | Dictates pod autoscaling responsiveness and dynamic model swapping |
+| **Time To First Token (TTFT)** | &lt; 200 ms | Latency from request submission to first token delivery | Primary user responsiveness metric for interactive AI applications |
+| **Inter-Token Latency (ITL)** | &lt; 25 ms/token | Delta time between consecutive output token arrivals | Determines reading smoothness and user-perceived streaming speed |
+| **Time Per Output Token (TPOT)** | &lt; 30 ms/token | Total decode phase duration divided by generated output token count | Reflects memory-bandwidth-bound GPU kernel execution efficiency |
+| **P99 Queue Latency** | &lt; 50 ms | Time spent waiting in admission buffers prior to GPU execution | Early indicator of cluster capacity saturation and SLA breach risk |
+| **KV Cache Utilization** | 70% - 85% | Percentage of GPU HBM allocated to dynamic key-value blocks | Controls maximum concurrent sequence capacity before backpressure |
+| **Model Load Time** | &lt; 30 sec | Duration to load engine weights from storage into GPU HBM | Dictates pod autoscaling responsiveness and dynamic model swapping |
 
 ---
 

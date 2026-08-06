@@ -18,12 +18,12 @@ To solve this, modern serving engines implement **Continuous Batching** (also kn
 
 ## Production Scenario: The Tail Latency Spike
 
-An enterprise customer-support platform deployed a multi-tenant LLM microservice handling 5,000 concurrent streaming chat sessions. The initial infrastructure used traditional request-level dynamic batching with a max batch size of $B=32$ and a batch queue timeout of $\tau = 50\text{ ms}$.
+An enterprise customer-support platform deployed a multi-tenant LLM microservice handling 5,000 concurrent streaming chat sessions. The initial infrastructure used traditional request-level dynamic batching with a max batch size of B=32 and a batch queue timeout of τ = 50 ms.
 
 Under heavy load, the platform experienced severe SLA violations:
-- **Inter-Token Latency (ITL):** $p99$ ITL spiked to $420\text{ ms/token}$ (SLA target: $< 30\text{ ms/token}$).
-- **Time-To-First-Token (TTFT):** $p99$ TTFT reached $14.2\text{ seconds}$.
-- **GPU Efficiency:** GPU SM compute occupancy averaged only $18\%$ during decoding iterations, despite VRAM being fully allocated to padded sequence buffers.
+- **Inter-Token Latency (ITL):** p99 ITL spiked to 420 ms/token (SLA target: &lt; 30 ms/token).
+- **Time-To-First-Token (TTFT):** p99 TTFT reached 14.2 seconds.
+- **GPU Efficiency:** GPU SM compute occupancy averaged only 18% during decoding iterations, despite VRAM being fully allocated to padded sequence buffers.
 
 ```
 Request-Level Dynamic Batching (Traditional):
@@ -39,7 +39,7 @@ Iteration Step t+1: [ Req 1 FINISHED ] -> Freed! Slot assigned to newly arrived 
 
 A root-cause investigation revealed that short requests (e.g., simple greeting queries returning 10 tokens) were grouped into batches containing long summarization requests generating 2,048 tokens. The short requests were forced to remain in GPU memory for hundreds of unnecessary decoding iterations. 
 
-By replacing request-level batching with **Iteration-Level Continuous Batching** and **Chunked Prefill**, the engineering team reduced $p99$ ITL from $420\text{ ms}$ to $19.1\text{ ms}$ while increasing total token throughput by $3.8\times$.
+By replacing request-level batching with **Iteration-Level Continuous Batching** and **Chunked Prefill**, the engineering team reduced p99 ITL from 420 ms to 19.1 ms while increasing total token throughput by 3.8x.
 
 ---
 
@@ -97,20 +97,22 @@ flowchart TD
 
 ---
 
-## Deep Architectural & Mathematical Analysis
+## HOW: Continuous Batching & Chunked Prefill Architecture
 
 ### 1. Request-Level Dynamic Batching Limitations
 
-In traditional dynamic batching (used for static DNNs), requests are collected in a queue until either a maximum batch size $B$ is reached or a timeout delay $\tau$ expires.
+In traditional dynamic batching (used for static DNNs), requests are collected in a queue until either a maximum batch size B is reached or a timeout delay τ expires.
 
 #### The Padding Waste Penalty
-Because sequence lengths $L_1, L_2, \dots, L_B$ vary, shorter sequences must be right-padded with dummy `<pad>` tokens to match the maximum sequence length $L_{\max} = \max_i(L_i)$ in the batch.
+Because sequence lengths `L_1, L_2, ..., L_B` vary, shorter sequences must be right-padded with dummy `<pad>` tokens to match the maximum sequence length `L_max = max_i(L_i)` in the batch.
 
 The fraction of wasted compute cycles and memory bandwidth due to padding is expressed as:
 
-$$\text{Padding Waste Ratio} = 1 - \frac{\sum_{i=1}^{B} L_i}{B \cdot \max_{i=1}^B (L_i)}$$
+```text
+Padding Waste Ratio = 1 - (sum_{i=1}^B L_i) / (B * max_{i=1}^B (L_i))
+```
 
-In heterogeneous LLM workloads, the padding waste ratio frequently exceeds $65\%$.
+In heterogeneous LLM workloads, the padding waste ratio frequently exceeds 65%.
 
 #### Tail Latency Locking
 In request-level batching, a batch cannot be released and its GPU memory cannot be deallocated until **every request in the batch completes generation**. If a single request generates 2,000 tokens while all other 31 requests generate 10 tokens, those 31 completed requests remain trapped in GPU VRAM for 1,990 additional iterations, completely blocking new incoming traffic.
@@ -134,7 +136,7 @@ Iteration Step 3:  Newly arrived Req D (Prefill) inserted into Slot 2!
 
 #### Iteration Step Protocol
 1. **At Step $t$:** The scheduler evaluates the active execution batch.
-2. **Eviction:** Any request that emitted an End-of-Sequence (`<EOS>`) token or reached its `max_tokens` limit at step $t-1$ is immediately evicted. Its physical KV cache blocks are returned to the `KVCacheManager` memory pool.
+2. **Eviction:** Any request that emitted an End-of-Sequence (``\<EOS\>``) token or reached its `max_tokens` limit at step $t-1$ is immediately evicted. Its physical KV cache blocks are returned to the `KVCacheManager` memory pool.
 3. **Insertion:** The scheduler inspects the arrival queue. If free execution slots and physical KV cache blocks exist, newly arrived requests are inserted into the open slots immediately.
 4. **Execution:** The GPU executes a single token generation step across all slotted requests without a single `<pad>` token.
 
@@ -158,24 +160,28 @@ Performance (TFLOPs)
 ```
 
 #### Prefill Phase (Compute-Bound)
-- **Input:** Prompt sequence of $N$ tokens processed simultaneously.
+- **Input:** Prompt sequence of N tokens processed simultaneously.
 - **Matrix Operation:** Matrix-Matrix Multiplication (**GEMM**).
-- **Time Complexity:** $O(N^2 \cdot H)$ for self-attention, $O(N \cdot H^2)$ for MLP projections.
+- **Time Complexity:** `O(N^2 * H)` for self-attention, `O(N * H^2)` for MLP projections.
 - **Arithmetic Intensity:** High. The ratio of floating-point operations to memory access bytes is large:
 
-$$\text{Arithmetic Intensity}_{\text{Prefill}} = \frac{\text{FLOPs}}{\text{Bytes Transferred}} \gg \text{GPU Ridge Point}$$
+```text
+Arithmetic Intensity (Prefill) = FLOPs / Bytes Transferred >> GPU Ridge Point
+```
 
 - **Roofline Position:** Operates near peak GPU compute performance (TFLOPs).
 
 #### Decode Phase (Memory-Bandwidth Bound)
-- **Input:** 1 new token per request step ($S_{\text{input}} = 1$).
+- **Input:** 1 new token per request step (`S_input = 1`).
 - **Matrix Operation:** Matrix-Vector Multiplication (**GEMV**).
-- **Time Complexity:** $O(S_{\text{kv}} \cdot H)$ per step, where $S_{\text{kv}}$ is historical KV context length.
-- **Arithmetic Intensity:** Extremely Low. For every single token generated, the GPU must fetch all model weights $W$ and all past Key-Value tensors from HBM to SM registers:
+- **Time Complexity:** `O(S_kv * H)` per step, where `S_kv` is historical KV context length.
+- **Arithmetic Intensity:** Extremely Low. For every single token generated, the GPU must fetch all model weights W and all past Key-Value tensors from HBM to SM registers:
 
-$$\text{Arithmetic Intensity}_{\text{Decode}} \approx \frac{2 \cdot B \cdot H^2}{2 \cdot H^2 + 2 \cdot B \cdot S_{\text{kv}} \cdot H_{\text{kv}}} \approx O(1) \ll \text{GPU Ridge Point}$$
+```text
+Arithmetic Intensity (Decode) ≈ (2 * B * H^2) / (2 * H^2 + 2 * B * S_kv * H_kv) ≈ O(1) << GPU Ridge Point
+```
 
-- **Roofline Position:** Severely limited by HBM memory bandwidth ($\text{GB/s}$ or $\text{TB/s}$).
+- **Roofline Position:** Severely limited by HBM memory bandwidth (GB/s or TB/s).
 
 ---
 
@@ -184,7 +190,7 @@ $$\text{Arithmetic Intensity}_{\text{Decode}} \approx \frac{2 \cdot B \cdot H^2}
 While continuous batching improves GPU utilization, mixing long prefill prompts with ongoing decode steps introduces a severe performance issue: **Inter-Token Latency (ITL) jitter**.
 
 #### The Prefill Bubble Problem
-When a long prompt (e.g., $N = 8192$ tokens) is inserted into a continuous batch during step $t$, its compute-heavy prefill GEMM kernel monopolizes the GPU SMs for several hundred milliseconds. Consequently, ongoing decode requests sharing the batch experience an ITL latency spike during that step.
+When a long prompt (e.g., N = 8192 tokens) is inserted into a continuous batch during step t, its compute-heavy prefill GEMM kernel monopolizes the GPU SMs for several hundred milliseconds. Consequently, ongoing decode requests sharing the batch experience an ITL latency spike during that step.
 
 ```
 Without Chunked Prefill:
@@ -200,13 +206,15 @@ Iter 4: [ Decode (Req 1..16) + Prefill Chunk 2 (Tokens 513..1024) ] ──► [ 
 
 #### Chunked Prefill Mechanics
 To enforce strict ITL bounds, modern schedulers (e.g., **Sarathi-Lean**, vLLM, TensorRT-LLM) implement **Chunked Prefill**:
-1. A long prompt $N$ is sliced into fixed-size chunks of size $C$ (e.g., $C = 512$ tokens).
-2. Rather than executing all $N$ tokens in a single prefill pass, the scheduler schedules **one chunk $C$ per iteration step** alongside active decode requests.
+1. A long prompt N is sliced into fixed-size chunks of size C (e.g., C = 512 tokens).
+2. Rather than executing all N tokens in a single prefill pass, the scheduler schedules **one chunk C per iteration step** alongside active decode requests.
 3. The total token count per iteration step is bounded by a strict budget:
 
-$$\sum_{i \in \text{Decode}} 1 + \sum_{j \in \text{Prefill Chunks}} C_j \le \text{MaxTokensPerIter}$$
+```text
+sum_{i in Decode} 1 + sum_{j in Prefill Chunks} C_j <= MaxTokensPerIter
+```
 
-By capping total tokens per step (e.g., $\text{MaxTokensPerIter} = 2048$), ITL stays bounded under target SLAs (e.g., $< 25\text{ ms}$) while keeping GPU compute units saturated.
+By capping total tokens per step (e.g., `MaxTokensPerIter = 2048`), ITL stays bounded under target SLAs (e.g., &lt; 25 ms) while keeping GPU compute units saturated.
 
 ---
 
@@ -216,13 +224,15 @@ When incoming request volume spikes, physical GPU memory allocated for KV cache 
 
 #### Preemption Policy 1: Host-Device Swapping (`Swap`)
 - **Mechanism:** The scheduler suspends an active request, evacuates its physical KV cache blocks from GPU VRAM, and transfers them across the PCIe bus to host CPU RAM. When VRAM opens up, blocks are transferred back to GPU memory.
-- **Cost:** Limited by PCIe bandwidth ($64\text{ GB/s}$ on PCIe Gen4 x16, $128\text{ GB/s}$ on Gen5). Transferring a 4GB KV cache tensor requires $\sim 62\text{ ms}$ of PCIe transit time, creating bus contention.
+- **Cost:** Limited by PCIe bandwidth (64 GB/s on PCIe Gen4 x16, 128 GB/s on Gen5). Transferring a 4GB KV cache tensor requires ~ 62 ms of PCIe transit time, creating bus contention.
 
 #### Preemption Policy 2: Recomputation (`Recompute`)
 - **Mechanism:** The scheduler drops the preempted request's KV cache blocks completely. When VRAM opens up later, the engine re-runs the initial prompt prefill pass to recompute the KV cache state from scratch.
 - **Cost:** Limited by GPU compute FLOPS. Because GPUs excel at compute (e.g., 989 TFLOPS FP16 on H100), recomputing prompt attention is often **faster** than waiting for PCIe host-device memory transfers for short-to-medium sequence lengths.
 
-$$\text{Decision Threshold:} \quad \text{If } \frac{\text{KV Size (Bytes)}}{\text{PCIe Bandwidth}} > \frac{\text{Prefill FLOPs}}{\text{GPU TFLOPS}}, \quad \text{Select RECOMPUTE}$$
+```text
+Decision Threshold: If (KV Size in Bytes / PCIe Bandwidth) > (Prefill FLOPs / GPU TFLOPS), Select RECOMPUTE
+```
 
 ---
 
@@ -231,10 +241,10 @@ $$\text{Decision Threshold:} \quad \text{If } \frac{\text{KV Size (Bytes)}}{\tex
 | Dimension / Metric | Static Batching | Dynamic Request Batching | Continuous Iteration Batching | Chunked Prefill Continuous Batching |
 | :--- | :--- | :--- | :--- | :--- |
 | **Scheduling Unit** | Fixed Batch Tensor | Full Request Lifecycle | Single Token Iteration Step | Iteration Step + Sliced Prompt Chunks |
-| **Padding Waste Ratio** | Severe ($> 70\%$) | High ($40\% - 65\%$) | **Zero ($0\%$)** | **Zero ($0\%$)** |
-| **Inter-Token Latency (ITL)** | Poor (Blocked by longest req) | Poor (Blocked by longest req) | Moderate (Spikes during prefill) | **Optimal & Deterministic ($< 20\text{ ms}$)** |
+| **Padding Waste Ratio** | Severe (> 70%) | High (40% - 65%) | **Zero (0%)** | **Zero (0%)** |
+| **Inter-Token Latency (ITL)** | Poor (Blocked by longest req) | Poor (Blocked by longest req) | Moderate (Spikes during prefill) | **Optimal & Deterministic (< 20 ms)** |
 | **Time-To-First-Token (TTFT)** | Poor | Poor | Good | **Optimal (Predictable prefill steps)** |
-| **GPU Compute Utilization** | Very Low | Low ($15\% - 30\%$) | Medium ($40\% - 60\%$) | **High ($75\% - 92\%$)** |
+| **GPU Compute Utilization** | Very Low | Low (15% - 30%) | Medium (40% - 60%) | **High (75% - 92%)** |
 | **Memory Allocation** | Static Max Length | Static Max Length | Dynamic Paged KV Blocks | Dynamic Paged KV Blocks |
 | **Implementation Complexity** | Simple | Low | High | Very High (Requires chunked attention kernels) |
 
@@ -245,12 +255,12 @@ $$\text{Decision Threshold:} \quad \text{If } \frac{\text{KV Size (Bytes)}}{\tex
 ### Scenario 1: ITL SLA Breach Caused by Large Prefill Bursts Blocking Decode Iterations
 
 #### Context
-A customer service platform deployed an LLM microservice executing continuous batching on 4x H100 GPUs ($TP=4$). During peak hours, real-time voice assistant streams experienced severe audio stuttering. Telemetry indicated that while average ITL was $18\text{ ms}$, $p99$ ITL spiked to $340\text{ ms}$.
+A customer service platform deployed an LLM microservice executing continuous batching on 4x H100 GPUs (TP=4). During peak hours, real-time voice assistant streams experienced severe audio stuttering. Telemetry indicated that while average ITL was 18 ms, p99 ITL spiked to 340 ms.
 
 #### Root Cause Analysis
 The serving engine was configured with continuous batching enabled (`max_num_seqs=128`), but **Chunked Prefill was disabled**. 
 
-When a user submitted a long document context ($S_{\text{prompt}} = 12,288$ tokens), the continuous batching scheduler scheduled the entire 12,288-token prefill in a single iteration step. The prefill GEMM kernel monopolized all SM compute units for $320\text{ ms}$. The 45 active decoding streams sharing the GPU during that step were blocked until the prefill step finished, causing severe ITL jitter that breached the $30\text{ ms}$ voice SLA.
+When a user submitted a long document context (`S_prompt = 12,288` tokens), the continuous batching scheduler scheduled the entire 12,288-token prefill in a single iteration step. The prefill GEMM kernel monopolized all SM compute units for 320 ms. The 45 active decoding streams sharing the GPU during that step were blocked until the prefill step finished, causing severe ITL jitter that breached the 30 ms voice SLA.
 
 #### Step-by-Step Resolution & Engine Configuration Fix
 1. Enabled Chunked Prefill in the engine configuration.
@@ -279,7 +289,7 @@ if __name__ == "__main__":
 ```
 
 #### Verification
-- Under stress testing with 12,000-token input bursts, $p99$ ITL dropped from $340\text{ ms}$ to $21.4\text{ ms}$.
+- Under stress testing with 12,000-token input bursts, p99 ITL dropped from 340 ms to 21.4 ms.
 - Audio synthesis streams maintained uninterrupted realtime voice output.
 
 ---
@@ -287,7 +297,7 @@ if __name__ == "__main__":
 ### Scenario 2: PCIe Bus Saturation and System Stalls During KV Cache Swapping
 
 #### Context
-A multi-tenant coding assistant platform deployed on a 8x A100 (40GB) PCIe node experienced sudden cluster-wide freeze events. During peak request bursts, GPU utilization plummeted to zero for 4–8 seconds, while host CPU usage surged to $100\%$.
+A multi-tenant coding assistant platform deployed on a 8x A100 (40GB) PCIe node experienced sudden cluster-wide freeze events. During peak request bursts, GPU utilization plummeted to zero for 4–8 seconds, while host CPU usage surged to 100%.
 
 #### Root Cause Analysis
 The engine was configured with `swap_space=32` (allocating 32GB of CPU host memory for KV cache swapping) and `preemption_mode="swap"`. When VRAM hit capacity, the scheduler preempted 12 active long-context requests simultaneously, attempting to push over 28 GB of KV cache tensors across the host PCIe Gen4 bus to CPU RAM.
@@ -297,7 +307,7 @@ The massive DMA transfer saturated the PCIe interconnect, blocking CUDA driver c
 #### Step-by-Step Resolution & Engine Configuration Fix
 1. Disabled host-device PCIe swapping (`swap_space=0`).
 2. Changed the preemption policy to **Recompute** (`preemption_mode="recompute"`).
-3. Applied strict queue admission control to reject incoming requests when free KV block thresholds drop below $5\%$.
+3. Applied strict queue admission control to reject incoming requests when free KV block thresholds drop below 5%.
 
 ```python
 # Tuning TensorRT-LLM / vLLM runtime settings via configuration dictionary
@@ -317,8 +327,8 @@ audit_scheduler_settings(scheduler_config)
 ```
 
 #### Verification
-- PCIe bus saturation dropped from $99.4\%$ to $< 3\%$.
-- System freeze events were eliminated completely, and preempted requests recovered within $< 150\text{ ms}$ via recomputation.
+- PCIe bus saturation dropped from 99.4% to &lt; 3%.
+- System freeze events were eliminated completely, and preempted requests recovered within &lt; 150 ms via recomputation.
 
 ---
 
@@ -330,12 +340,12 @@ audit_scheduler_settings(scheduler_config)
 **Model Answer:**
 Request-level dynamic batching operates on static tensor batches bounded by full request lifecycles. In heterogeneous workloads (where input prompt lengths and generated token counts vary widely), request-level batching suffers from two major inefficiencies:
 
-1. **Padding Waste:** Short sequence tensors inside a batch must be right-padded with dummy `<pad>` tokens to match the batch's longest sequence ($L_{\max}$). The GPU spends memory bandwidth and compute cycles executing matrix multiplications on useless padding tokens.
+1. **Padding Waste:** Short sequence tensors inside a batch must be right-padded with dummy `<pad>` tokens to match the batch's longest sequence (`L_max`). The GPU spends memory bandwidth and compute cycles executing matrix multiplications on useless padding tokens.
 2. **Early Finish Stalls:** When a short sequence finishes generation at iteration 10, its GPU memory allocation and batch slot cannot be freed until the longest sequence (e.g., iteration 1000) completes.
 
 **Iteration-Level Continuous Batching** eliminates both issues by decoupling batch assembly from full request lifecycles:
 - The GPU executes inference step-by-step at the token iteration level.
-- At every single iteration step $t$, completed requests emitting `<EOS>` are immediately evicted from the batch, and their physical KV cache blocks are returned to the memory pool.
+- At every single iteration step t, completed requests emitting ``\<EOS\>`` are immediately evicted from the batch, and their physical KV cache blocks are returned to the memory pool.
 - Open slots are immediately filled by newly arrived requests from the queue.
 - Matrix operations (GEMM/GEMV) are executed strictly on active token vectors without a single padding token, restoring GPU compute and memory bandwidth utilization to optimal levels.
 
@@ -345,16 +355,18 @@ Request-level dynamic batching operates on static tensor batches bounded by full
 **Describe the mathematical principles behind Chunked Prefill. How does it balance the compute-bound prefill phase and memory-bound decode phase to enforce strict Inter-Token Latency (ITL) SLAs?**
 
 **Model Answer:**
-- **Phase Characteristics:** The **Prefill phase** processes $N$ prompt tokens simultaneously via Matrix-Matrix multiplication (GEMM), which is **compute-bound** (high arithmetic intensity). The **Decode phase** processes 1 token per request via Matrix-Vector multiplication (GEMV), which is **memory-bandwidth bound** (low arithmetic intensity).
-- **The Conflict:** If an unchunked long prompt prefill ($N = 8192$ tokens) is scheduled into a continuous batch, its GEMM kernel execution takes hundreds of milliseconds, monopolizing GPU SMs and causing a severe Inter-Token Latency (ITL) spike for all ongoing decode requests sharing the step.
+- **Phase Characteristics:** The **Prefill phase** processes N prompt tokens simultaneously via Matrix-Matrix multiplication (GEMM), which is **compute-bound** (high arithmetic intensity). The **Decode phase** processes 1 token per request via Matrix-Vector multiplication (GEMV), which is **memory-bandwidth bound** (low arithmetic intensity).
+- **The Conflict:** If an unchunked long prompt prefill (N = 8192 tokens) is scheduled into a continuous batch, its GEMM kernel execution takes hundreds of milliseconds, monopolizing GPU SMs and causing a severe Inter-Token Latency (ITL) spike for all ongoing decode requests sharing the step.
 
-**Chunked Prefill** solves this by slicing long prompt sequences into fixed-size chunks of size $C$ (e.g., $C = 512$). In any iteration step $t$, the scheduler builds a hybrid batch containing $M$ active decode requests plus 1 prefill chunk of size $C$.
+**Chunked Prefill** solves this by slicing long prompt sequences into fixed-size chunks of size C (e.g., C = 512). In any iteration step t, the scheduler builds a hybrid batch containing M active decode requests plus 1 prefill chunk of size C.
 
 The total workload per iteration step is governed by a strict token budget constraint:
 
-$$\text{Tokens}_{\text{total}} = \sum_{i=1}^{M} 1_{\text{decode}} + C_{\text{prefill}} \le \text{MaxTokensPerIter}$$
+```text
+Tokens_total = sum_{i=1}^M 1_decode + C_prefill <= MaxTokensPerIter
+```
 
-By capping $\text{Tokens}_{\text{total}}$ (e.g., to 2,048 tokens), the total execution time of the combined iteration kernel is mathematically bounded to a predictable duration (e.g., $< 20\text{ ms}$). This satisfies strict ITL SLAs while simultaneously providing enough parallel prefill tokens to keep GPU compute units saturated.
+By capping `Tokens_total` (e.g., to 2,048 tokens), the total execution time of the combined iteration kernel is mathematically bounded to a predictable duration (e.g., &lt; 20 ms). This satisfies strict ITL SLAs while simultaneously providing enough parallel prefill tokens to keep GPU compute units saturated.
 
 ---
 
@@ -368,17 +380,21 @@ When GPU KV cache memory is depleted, preemption must suspend an active request 
 - **Recompute:** Discards the preempted request's KV cache blocks entirely and re-executes the prompt prefill phase when GPU memory becomes available.
 
 **Mathematical Superiority Condition:**
-Let $S$ be the context sequence length, $H$ be hidden dimension, $L$ be layer count, $B_{\text{PCIe}}$ be PCIe bandwidth (e.g., $64\text{ GB/s}$ for Gen4 x16), and $T_{\text{GPU}}$ be GPU FP16 Compute Performance (e.g., $989\text{ TFLOPS}$ for H100).
+Let S be the context sequence length, H be hidden dimension, L be layer count, B_PCIe be PCIe bandwidth (e.g., 64 GB/s for Gen4 x16), and T_GPU be GPU FP16 Compute Performance (e.g., 989 TFLOPS for H100).
 
 The time to Swap out and Swap in a KV cache tensor is:
 
-$$t_{\text{swap}} = 2 \times \frac{2 \cdot L \cdot S \cdot H_{\text{kv}} \cdot \text{Bytes}}{B_{\text{PCIe}}}$$
+```text
+t_swap = 2 * (2 * L * S * H_kv * Bytes) / B_PCIe
+```
 
 The time to Recompute the prompt prefill phase on the GPU is:
 
-$$t_{\text{recompute}} = \frac{2 \cdot L \cdot S^2 \cdot H + 12 \cdot L \cdot S \cdot H^2}{T_{\text{GPU}}}$$
+```text
+t_recompute = (2 * L * S^2 * H + 12 * L * S * H^2) / T_GPU
+```
 
-**Conclusion:** Because modern GPUs possess massive compute performance ($T_{\text{GPU}} \approx 10^{15} \text{ FLOPS}$) relative to PCIe transfer speeds ($B_{\text{PCIe}} \approx 6.4 \times 10^{10} \text{ Bytes/s}$), **Recompute is mathematically superior ($t_{\text{recompute}} < t_{\text{swap}}$) for short-to-medium sequence lengths ($S < 8192$ tokens)** on modern accelerator architectures. Swapping should only be considered for ultra-long context sequences ($S > 32,000$) where quadratic prefill recomputation time ($O(S^2)$) exceeds PCIe transfer overhead.
+**Conclusion:** Because modern GPUs possess massive compute performance (`T_GPU ≈ 10^15 FLOPS`) relative to PCIe transfer speeds (`B_PCIe ≈ 6.4 * 10^10 Bytes/s`), **Recompute is mathematically superior (`t_recompute &lt; t_swap`) for short-to-medium sequence lengths (`S &lt; 8192` tokens)** on modern accelerator architectures. Swapping should only be considered for ultra-long context sequences (`S > 32,000`) where quadratic prefill recomputation time (`O(S^2)`) exceeds PCIe transfer overhead.
 
 ---
 

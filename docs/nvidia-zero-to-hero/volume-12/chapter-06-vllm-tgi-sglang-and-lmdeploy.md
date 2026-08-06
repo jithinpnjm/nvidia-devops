@@ -18,7 +18,7 @@ An enterprise platform engineering team was tasked with building a unified LLM i
 1. **Multi-turn Customer Chatbots:** Highly repetitive system prompts with incremental user message turns (high KV cache prefix overlap).
 2. **RAG Search Pipelines:** Long document contexts ($> 16,000$ tokens) with single-token output summaries.
 3. **Structured Data Extraction:** Agents generating strict JSON objects based on Pydantic schemas.
-4. **Real-time Code Autocompletion:** Ultra-low latency requirements ($p99 < 15\text{ ms}$ Time-To-First-Token).
+4. **Real-time Code Autocompletion:** Ultra-low latency requirements ($p99 &lt; 15\text{ ms}$ Time-To-First-Token).
 
 ```
                       [ Incoming Multi-Tenant API Traffic ]
@@ -93,19 +93,19 @@ flowchart TD
 
 ---
 
-## Deep Architectural & Mathematical Analysis
+## HOW: Deep Architectural Comparison of Modern Serving Engines
 
 ### 1. vLLM and PagedAttention Virtual Memory Architecture
 
-In traditional LLM serving, Key-Value (KV) cache tensors are allocated as continuous memory arrays dimensioned to the request's maximum potential sequence length ($S_{\max} = 4096 \text{ or } 32768$). Because actual generation length is unpredictable, this pattern causes massive memory waste:
+In traditional LLM serving, Key-Value (KV) cache tensors are allocated as continuous memory arrays dimensioned to the request's maximum potential sequence length (`S_max = 4096 or 32768`). Because actual generation length is unpredictable, this pattern causes massive memory waste:
 - **Internal Fragmentation:** Unused space pre-allocated for tokens that are never generated.
 - **External Fragmentation:** Unusable memory gaps between variable-sized contiguous allocations.
 - **Reservation Waste:** Memory allocated for prompts before generation begins.
 
-Traditional systems waste $60\% - 80\%$ of total GPU VRAM strictly on memory fragmentation.
+Traditional systems waste 60% - 80% of total GPU VRAM strictly on memory fragmentation.
 
 #### Virtual Memory Analogy (OS Paging)
-Inspired by virtual memory paging in operating systems, **vLLM** introduces **PagedAttention**. The KV cache is divided into fixed-size physical memory blocks, each holding Key and Value vectors for a fixed number of tokens ($B = 16 \text{ or } 32$).
+Inspired by virtual memory paging in operating systems, **vLLM** introduces **PagedAttention**. The KV cache is divided into fixed-size physical memory blocks, each holding Key and Value vectors for a fixed number of tokens (`B = 16 or 32`).
 
 ```
 Logical KV Cache (Sequence View):
@@ -123,14 +123,18 @@ Physical GPU Memory (Paged Allocations):
 - **Physical Blocks:** Fixed-size physical memory chunks allocated non-contiguously in GPU VRAM by the `BlockSpaceManager`.
 - **Block Table:** A dynamic mapping table maintained per request:
 
-$$\text{BlockTable}(r): \text{LogicalBlockIndex} \to \text{PhysicalBlockIndex}$$
+```text
+BlockTable(r): LogicalBlockIndex -> PhysicalBlockIndex
+```
 
 #### PagedAttention CUDA Kernel Mechanics
 During the attention operation, the PagedAttention CUDA kernel fetches Keys and Values dynamically by querying the sequence's Block Table inside thread blocks:
 
-$$A_{i, j} = \text{softmax}\left( \frac{Q_i \cdot K_{\text{BlockTable}(j/\text{blockSize})}[j \pmod{\text{blockSize}}]^T}{\sqrt{d}} \right)$$
+```text
+A_{i, j} = softmax((Q_i * K_{BlockTable(j/blockSize)}[j % blockSize]^T) / sqrt(d))
+```
 
-This allows physical blocks to be scattered anywhere across physical HBM. Memory fragmentation drops to **less than $4\%$** (restricted strictly to the final incomplete physical block of size $< B$).
+This allows physical blocks to be scattered anywhere across physical HBM. Memory fragmentation drops to **less than 4%** (restricted strictly to the final incomplete physical block of size &lt; B).
 
 #### Copy-on-Write (Forking) & Parallel Sampling
 When a request forks multiple parallel output branches (e.g., beam search or multi-candidate sampling), vLLM creates a new Block Table referencing the parent's existing physical blocks while incrementing their **reference count**. Physical blocks are copied (Copy-on-Write) *only* when a child branch writes a new, distinct token to an incomplete block.
@@ -201,7 +205,7 @@ SGLang integrates high-performance structured decoding libraries (such as Outlin
 **LMDeploy** (developed by OpenMMLab) addresses Python runtime overhead by implementing its execution core, **TurboMind**, entirely in **pure C++** (derived from NVIDIA FasterTransformer).
 
 #### C++ Execution Pipeline
-LMDeploy bypasses Python async loops completely during runtime generation. Request queues, batch schedulers, custom CUDA kernels, and memory pools operate inside C++ binary threads, minimizing CPU overhead to $< 5\mu\text{s}$ per token step.
+LMDeploy bypasses Python async loops completely during runtime generation. Request queues, batch schedulers, custom CUDA kernels, and memory pools operate inside C++ binary threads, minimizing CPU overhead to &lt; 5μs per token step.
 
 #### Advanced Kernel Fusions & AWQ Precision
 TurboMind features heavily fused multi-head attention (MHA) and grouped-query attention (GQA) kernels optimized for NVIDIA Ampere, Hopper, and Ada Lovelace architectures. It provides native support for **AWQ** and **GPTQ (W4A16)** 4-bit weight quantization, executing inline dequantization inside Tensor Core registers for maximum decoding bandwidth.
@@ -219,7 +223,7 @@ TurboMind features heavily fused multi-head attention (MHA) and grouped-query at
 | **Primary Execution Advantage** | High throughput & broad community model support | Enterprise ops, Rust stability, safetensors cold starts | **Multi-turn Chat & RAG Prompt Reuse Speed** | **Ultra-low latency (Pure C++ execution engine)** |
 | **Quantization Support** | FP8, INT8 (SmoothQuant), INT4 (AWQ/GPTQ) | FP8, INT8, AWQ, GPTQ, EETQ | FP8, INT8, AWQ, GPTQ | **Native Fused AWQ / W4A16 & INT8** |
 | **Multi-GPU Scaling** | Tensor Parallel (Megatron) & Pipeline Parallel | Tensor Parallel (TP) & Sharded | Tensor Parallel & Pipeline Parallel | Tensor Parallel (TurboMind NCCL core) |
-| **Inter-Token Latency (ITL)** | Low ($15-25\text{ ms}$) | Low ($15-25\text{ ms}$) | Low ($12-22\text{ ms}$) | **Extremely Low ($8-14\text{ ms}$)** |
+| **Inter-Token Latency (ITL)** | Low (15-25 ms) | Low (15-25 ms) | Low (12-22 ms) | **Extremely Low (8-14 ms)** |
 
 ---
 
@@ -228,12 +232,14 @@ TurboMind features heavily fused multi-head attention (MHA) and grouped-query at
 ### Scenario 1: vLLM Physical Block Exhaustion Under Heavy RAG Workloads
 
 #### Context
-An enterprise document-processing team deployed vLLM serving Mistral-7B on 2x A100 (80GB) GPUs ($TP=2$) to process incoming legal RAG queries with long input context windows ($S_{\text{prompt}} \approx 24,000$ tokens). During peak traffic, response latency spiked from $1.2\text{ seconds}$ to over $45\text{ seconds}$, accompanied by continuous engine log warnings: `[vLLM] Free physical blocks low. Swapping out requests to CPU RAM.`
+An enterprise document-processing team deployed vLLM serving Mistral-7B on 2x A100 (80GB) GPUs (TP=2) to process incoming legal RAG queries with long input context windows (`S_prompt ≈ 24,000` tokens). During peak traffic, response latency spiked from 1.2 seconds to over 45 seconds, accompanied by continuous engine log warnings: `[vLLM] Free physical blocks low. Swapping out requests to CPU RAM.`
 
 #### Root Cause Analysis
 The vLLM `BlockSpaceManager` was configured with default memory parameters (`gpu_memory_utilization=0.90`, `block_size=16`). Processing concurrent prompts of 24,000 tokens required allocating:
 
-$$\text{Blocks Required Per Prompt} = \left\lceil \frac{24000}{16} \right\rceil = 1500 \text{ physical blocks}$$
+```text
+Blocks Required Per Prompt = ceil(24000 / 16) = 1500 physical blocks
+```
 
 When 10 concurrent requests arrived simultaneously, they demanded 15,000 physical GPU memory blocks, which exceeded the physical GPU KV pool size. Instead of rejecting excess requests, vLLM's scheduler triggered **Request Preemption**, serializing active requests, swapping their KV blocks out over PCIe to host CPU RAM, and re-computing attention prefill steps once GPU memory freed up. This PCIe round-trip swapping destroyed decoding throughput.
 
@@ -267,15 +273,15 @@ if __name__ == "__main__":
 ```
 
 #### Verification
-- Prefix caching matched $68\%$ of incoming document headers, eliminating prefill computation for shared context.
-- PCIe swapping overhead dropped to $0$, stabilizing $p99$ response times at $1.8\text{ seconds}$.
+- Prefix caching matched 68% of incoming document headers, eliminating prefill computation for shared context.
+- PCIe swapping overhead dropped to 0, stabilizing p99 response times at 1.8 seconds.
 
 ---
 
 ### Scenario 2: RadixAttention Cache Thrashing in SGLang under Non-Overlapping Prompts
 
 #### Context
-A software platform deployed SGLang to serve a coding assistant model. While performance was excellent for multi-turn chat sessions, latency degraded significantly ($p90$ TTFT increased by $400\%$) when executing automated unit-test generation tasks where input prompts shared zero common text prefixes.
+A software platform deployed SGLang to serve a coding assistant model. While performance was excellent for multi-turn chat sessions, latency degraded significantly (p90 TTFT increased by 400%) when executing automated unit-test generation tasks where input prompts shared zero common text prefixes.
 
 #### Root Cause Analysis
 SGLang's RadixAttention engine continuously adds new sequence nodes into its global Radix Tree. Under a workload consisting of non-overlapping, distinct prompts, the tree accumulated thousands of unique leaf nodes. 
@@ -298,8 +304,8 @@ python3 -m sglang.launch_server \
 ```
 
 #### Verification
-- Server telemetry (`/get_model_info`) confirmed LRU tree eviction events dropped by $92\%$.
-- Time-To-First-Token (TTFT) for unique non-overlapping prompts stabilized at $22\text{ ms}$.
+- Server telemetry (`/get_model_info`) confirmed LRU tree eviction events dropped by 92%.
+- Time-To-First-Token (TTFT) for unique non-overlapping prompts stabilized at 22 ms.
 
 ---
 
@@ -309,15 +315,17 @@ python3 -m sglang.launch_server \
 **Explain mathematically how vLLM's PagedAttention eliminates external memory fragmentation and caps internal memory fragmentation compared to contiguous memory allocation.**
 
 **Model Answer:**
-In traditional contiguous allocation, a sequence is assigned a fixed memory tensor of size $S_{\max} \times D_{\text{kv}}$, where $S_{\max}$ is the maximum possible sequence length (e.g., 4096 tokens). If the actual generated sequence length is $S_{\text{actual}} = 500$, the remaining $3596 \times D_{\text{kv}}$ bytes are reserved but unused, causing severe **internal fragmentation**. Furthermore, when variable-length requests terminate, they leave non-contiguous memory gaps across VRAM that cannot fit large new sequences, causing **external fragmentation**.
+In traditional contiguous allocation, a sequence is assigned a fixed memory tensor of size `S_max * D_kv`, where `S_max` is the maximum possible sequence length (e.g., 4096 tokens). If the actual generated sequence length is `S_actual = 500`, the remaining `(S_max - 500) * D_kv` bytes are reserved but unused, causing severe **internal fragmentation**. Furthermore, when variable-length requests terminate, they leave non-contiguous memory gaps across VRAM that cannot fit large new sequences, causing **external fragmentation**.
 
-PagedAttention divides the KV cache into fixed-size physical blocks of size $B$ tokens (e.g., $B=16$). 
-1. **External Fragmentation:** Memory is allocated in uniform physical block sizes ($B \times D_{\text{kv}}$). Because physical blocks do not need to be contiguous in physical memory, any free physical block anywhere in VRAM can be assigned to any request via the Block Table. Thus, **external fragmentation is completely eliminated ($0\%$)**.
-2. **Internal Fragmentation:** Memory is allocated dynamically one block at a time as new tokens are generated. Unused reserved space occurs *only* in the final active physical block of a sequence. The maximum memory wasted per sequence is strictly bounded by $(B - 1) \times D_{\text{kv}}$ bytes. For $B=16$, the internal memory fragmentation fraction is mathematically bounded by:
+PagedAttention divides the KV cache into fixed-size physical blocks of size `B` tokens (e.g., `B=16`). 
+1. **External Fragmentation:** Memory is allocated in uniform physical block sizes (`B * D_kv`). Because physical blocks do not need to be contiguous in physical memory, any free physical block anywhere in VRAM can be assigned to any request via the Block Table. Thus, **external fragmentation is completely eliminated (0%)**.
+2. **Internal Fragmentation:** Memory is allocated dynamically one block at a time as new tokens are generated. Unused reserved space occurs *only* in the final active physical block of a sequence. The maximum memory wasted per sequence is strictly bounded by `(B - 1) * D_kv` bytes. For `B=16`, the internal memory fragmentation fraction is mathematically bounded by:
 
-$$\text{Internal Fragmentation} < \frac{B}{S_{\text{actual}}}$$
+```text
+Internal Fragmentation < B / S_actual
+```
 
-For a sequence of 500 tokens with $B=16$, internal fragmentation is $< 3.2\%$, compared to $> 87\%$ in contiguous allocation.
+For a sequence of 500 tokens with `B=16`, internal fragmentation is &lt; 3.2%, compared to > 87% in contiguous allocation.
 
 ---
 
@@ -341,7 +349,7 @@ Both systems aim to reuse KV cache blocks across requests, but they use differen
 **In what production environments would you select LMDeploy TurboMind or Hugging Face TGI over vLLM or SGLang?**
 
 **Model Answer:**
-- **Choose LMDeploy (TurboMind):** When the primary architectural objective is **ultra-low inter-token latency (ITL)** and minimum per-token CPU overhead for single-tenant or edge-cluster deployments. Because TurboMind is written entirely in pure C++ (derived from FasterTransformer), it eliminates Python async loop latency, GIL lock contention, and PyTorch runtime overhead. It is ideal for real-time speech-to-speech agents or code autocompletion where $p99$ per-token generation latency must stay under $10\text{ ms}$.
+- **Choose LMDeploy (TurboMind):** When the primary architectural objective is **ultra-low inter-token latency (ITL)** and minimum per-token CPU overhead for single-tenant or edge-cluster deployments. Because TurboMind is written entirely in pure C++ (derived from FasterTransformer), it eliminates Python async loop latency, GIL lock contention, and PyTorch runtime overhead. It is ideal for real-time speech-to-speech agents or code autocompletion where p99 per-token generation latency must stay under 10 ms.
 - **Choose Hugging Face TGI:** When enterprise operational reliability, strict security, and cold-start deployment speed are paramount. TGI's decoupled Rust frontend router provides high isolation against HTTP/gRPC connection spikes, protecting GPU workers from connection starvation. Additionally, native `safetensors` direct zero-copy memory mapping enables rapid scaling in Kubernetes serverless environments (Knative/Keda) where container startup time must be minimized.
 
 ---

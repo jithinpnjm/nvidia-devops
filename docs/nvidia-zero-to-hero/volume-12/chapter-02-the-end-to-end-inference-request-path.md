@@ -54,42 +54,42 @@ sequenceDiagram
 #### Stage 1: Ingress & TLS Termination
 - **Protocol:** HTTP/2 or gRPC over TLS 1.3.
 - **Mechanics:** The client initiates a TCP handshake and TLS session with the API Gateway (e.g., Envoy, Nginx, or Traefik). The gateway parses the incoming JSON payload (`{"model": "llama3-70b", "messages": [...], "stream": true}`).
-- **Latency Budget:** $2 - 10\text{ ms}$.
+- **Latency Budget:** 2 - 10 ms.
 
 #### Stage 2: Admission Control & Queueing
 - **Mechanics:** The gateway evaluates rate limits (token bucket algorithm) and submits the request to an admission controller. If the GPU inference engine is operating at maximum capacity, the request is placed in an admission queue (M/G/1 queueing model).
-- **Latency Budget:** $1 - 50\text{ ms}$ (under normal load; unbounded during severe capacity overload).
+- **Latency Budget:** 1 - 50 ms (under normal load; unbounded during severe capacity overload).
 
 #### Stage 3: CPU Tokenization & Prompt Engineering
 - **Mechanics:** The raw text prompt string is passed to a tokenizer library (e.g., HuggingFace `tokenizers` C++ bindings or `tiktoken`). The tokenizer splits strings into sub-word tokens, maps sub-words to integer vocabulary indices (`int64`), and appends control tokens (`<|begin_of_text|>`, `<|start_header_id|>`).
-- **Latency Budget:** $2 - 20\text{ ms}$ (depends heavily on prompt length and CPU thread pool availability).
+- **Latency Budget:** 2 - 20 ms (depends heavily on prompt length and CPU thread pool availability).
 
 #### Stage 4: Iteration Scheduling & KV Memory Block Allocation
 - **Mechanics:** The continuous batch scheduler ingests the integer token tensor. It queries the **Paged KV Cache Block Manager** to allocate physical virtual memory pages in GPU HBM. If sufficient blocks are free, the sequence joins the active running batch for the next execution iteration step.
-- **Latency Budget:** $< 1\text{ ms}$.
+- **Latency Budget:** &lt; 1 ms.
 
 #### Stage 5: Host-to-Device Memory Transfer (H2D)
 - **Mechanics:** Input token IDs reside in CPU host RAM. To execute CUDA kernels, the scheduler copies the tensor from host RAM across the PCIe Gen5 bus (or NVLink C2C) to GPU HBM. 
-- **Critical Path:** Copies using standard pageable memory require an intermediate staging step into OS page-locked memory. Using **Pinned Memory (`cudaHostAlloc`)** enables direct Memory Access (DMA) transfers, achieving full PCIe Gen5 speeds ($64\text{ GB/s}$).
-- **Latency Budget:** $< 0.5\text{ ms}$.
+- **Critical Path:** Copies using standard pageable memory require an intermediate staging step into OS page-locked memory. Using **Pinned Memory (`cudaHostAlloc`)** enables direct Memory Access (DMA) transfers, achieving full PCIe Gen5 speeds (64 GB/s).
+- **Latency Budget:** &lt; 0.5 ms.
 
 #### Stage 6: GPU Engine Execution (Prefill & Decode Iterations)
 - **Mechanics:**
   - **Prefill (Iteration 0):** Tensor Cores execute General Matrix Multiply (GEMM) kernels across all prompt tokens in parallel, populating the initial KV Cache blocks.
-  - **Decode (Iterations $1 \dots N$):** The engine executes a single forward-pass iteration per generated token, loading weights from HBM to SRAM for General Matrix-Vector (GEMV) multiplications.
-- **Latency Budget:** TTFT: $50 - 300\text{ ms}$; ITL: $15 - 30\text{ ms/token}$.
+  - **Decode (Iterations 1 ... N):** The engine executes a single forward-pass iteration per generated token, loading weights from HBM to SRAM for General Matrix-Vector (GEMV) multiplications.
+- **Latency Budget:** TTFT: 50 - 300 ms; ITL: 15 - 30 ms/token.
 
 #### Stage 7: GPU Logit Processing & Sampling
-- **Mechanics:** The final transformer layer produces raw unnormalized logit vectors ($V_{\text{vocab}} \approx 128,000$ dimensions). Sampling kernels execute directly on the GPU to apply Temperature scaling, Repetition Penalty, Top-K, Top-P (Nucleus), or Greedy ArgMax selection.
-- **Latency Budget:** $< 1\text{ ms}$.
+- **Mechanics:** The final transformer layer produces raw unnormalized logit vectors (`V_vocab ≈ 128,000` dimensions). Sampling kernels execute directly on the GPU to apply Temperature scaling, Repetition Penalty, Top-K, Top-P (Nucleus), or Greedy ArgMax selection.
+- **Latency Budget:** &lt; 1 ms.
 
 #### Stage 8: Device-to-Host Transfer (D2H) & Detokenization
-- **Mechanics:** The single generated output token ID ($1 \times \text{int32}$) is copied back from GPU VRAM to Pinned Host Memory via `cudaMemcpyAsync`. The CPU tokenizer maps the integer ID back into its UTF-8 string representation.
-- **Latency Budget:** $< 1\text{ ms}$.
+- **Mechanics:** The single generated output token ID (1 x int32) is copied back from GPU VRAM to Pinned Host Memory via `cudaMemcpyAsync`. The CPU tokenizer maps the integer ID back into its UTF-8 string representation.
+- **Latency Budget:** &lt; 1 ms.
 
 #### Stage 9: Response Stream Serialization & Socket Flushing
 - **Mechanics:** The API server formats the UTF-8 string chunk into a Server-Sent Events (SSE) data frame (`data: {"choices": [{"delta": {"content": "text"}}]}`). The frame is written to the TCP socket buffer and explicitly flushed to prevent proxy buffering stalls.
-- **Latency Budget:** $1 - 3\text{ ms}$.
+- **Latency Budget:** 1 - 3 ms.
 
 ---
 
@@ -125,11 +125,11 @@ High-performance inference platforms maintain strict isolation between the **Con
 |---|---|---|---|---|---|
 | **1. Ingress** | HTTP/2 / gRPC over TLS | JSON string | API Gateway / Nginx | Connection backlog drops | TLS Handshake / Proxy CPU |
 | **2. Admission** | Internal Go/C++ Channel | `RequestStruct` pointer | Admission Controller | Unbounded queue accumulation | Lock contention on queue |
-| **3. Tokenize** | C++ API / Rust Bindings | UTF-8 String $\to$ Int64 Tensor | Tokenizer Threadpool | Single-thread CPU saturation | Python GIL / Tokenizer RAM |
+| **3. Tokenize** | C++ API / Rust Bindings | UTF-8 String -> Int64 Tensor | Tokenizer Threadpool | Single-thread CPU saturation | Python GIL / Tokenizer RAM |
 | **4. Schedule** | Lock-Free Queue | `SequenceGroup` objects | Continuous Scheduler | Sequence lock contention | CPU Scheduler iteration delay |
 | **5. Memory H2D** | PCIe Gen5 DMA | Int32 Tensor in Pinned RAM | CUDA Driver | Pageable memory staging copy | PCIe Bandwidth / Host RAM |
 | **6. GPU Compute** | CUDA Streams / NVLink | FP16/FP8 Weight & KV Tensors | TensorRT / vLLM Engine | CUDA OOM / Stream Deadlock | HBM Bandwidth / TFLOPS |
-| **7. Sampler** | CUDA C++ Kernels | Logits ($128\text{k}$) $\to$ Token ID | GPU Sampler Module | Invalid temperature value | GPU Kernel launch overhead |
+| **7. Sampler** | CUDA C++ Kernels | Logits (128k) -> Token ID | GPU Sampler Module | Invalid temperature value | GPU Kernel launch overhead |
 | **8. Memory D2H** | PCIe Gen5 DMA | 4-byte Int32 Token ID | CUDA Driver | Host thread blocking sync | `cudaStreamSynchronize` stalls |
 | **9. Egress** | Server-Sent Events (SSE) | HTTP Chunked Stream | API Endpoint Handler | Socket buffer bloat / Stall | Nginx proxy buffering |
 
@@ -150,14 +150,14 @@ OPTION B: Tokenization inside Inference Engine (Triton C++ / BLS)
 | Dimension | Microservice Tokenizer (Option A) | Engine-Integrated Tokenizer (Option B) |
 |---|---|---|
 | **GPU Node CPU Load** | Minimal (GPU nodes only receive clean integer tensors) | High (GPU host CPU must dedicate cores to BPE string parsing) |
-| **Network Payload Size** | Larger (Integer arrays `int64` take $8\times$ more bytes than UTF-8 strings) | Compact (Sends raw string over network to inference node) |
+| **Network Payload Size** | Larger (Integer arrays `int64` take 8x more bytes than UTF-8 strings) | Compact (Sends raw string over network to inference node) |
 | **System Scalability** | Independent (Scale CPU tokenizer pods separately from GPU pods) | Coupled (Scaling inference capacity scales tokenizer CPU capacity) |
 | **Latency Vector** | Adds network hop between Gateway and GPU engine | Zero extra network hops; faster end-to-end execution |
 
 ### 2. Host RAM Allocation: Standard Pageable Memory vs. Pinned Memory (`cudaHostAlloc`)
 
-- **Pageable Host RAM:** Allocated via standard C++ `malloc()`. The operating system can page memory out to swap disk. When executing `cudaMemcpy`, the CUDA driver must first create a temporary locked page, copy the host data to the locked page, and then perform PCIe DMA. Transfer speed: $\approx 10 - 14\text{ GB/s}$.
-- **Pinned Paged-Locked Memory:** Allocated via `cudaHostAlloc()` or registered via `cudaHostRegister()`. Memory is locked into physical RAM, allowing the GPU DMA engine to read directly from host RAM without CPU staging. Transfer speed: $\approx 55 - 62\text{ GB/s}$ on PCIe Gen5.
+- **Pageable Host RAM:** Allocated via standard C++ `malloc()`. The operating system can page memory out to swap disk. When executing `cudaMemcpy`, the CUDA driver must first create a temporary locked page, copy the host data to the locked page, and then perform PCIe DMA. Transfer speed: ≈ 10 - 14 GB/s.
+- **Pinned Paged-Locked Memory:** Allocated via `cudaHostAlloc()` or registered via `cudaHostRegister()`. Memory is locked into physical RAM, allowing the GPU DMA engine to read directly from host RAM without CPU staging. Transfer speed: ≈ 55 - 62 GB/s on PCIe Gen5.
 
 ---
 
@@ -166,7 +166,7 @@ OPTION B: Tokenization inside Inference Engine (Triton C++ / BLS)
 ### Scenario 1: Host CPU Tokenization Thread Starvation Masking GPU Capacity
 
 #### 1. Production Incident Context
-An MLOps team added 4 additional NVIDIA H100 GPUs to an inference cluster to handle growing request volumes. However, benchmarking revealed that total cluster Request-Per-Second (RPS) remained completely flat at $120\text{ RPS}$, and average latency increased by $300\text{ ms}$. GPU utilization across all nodes dropped from $80\%$ down to $22\%$.
+An MLOps team added 4 additional NVIDIA H100 GPUs to an inference cluster to handle growing request volumes. However, benchmarking revealed that total cluster Request-Per-Second (RPS) remained completely flat at 120 RPS, and average latency increased by 300 ms. GPU utilization across all nodes dropped from 80% down to 22%.
 
 #### 2. Root Cause Analysis
 The API gateway relied on a Python-based FastAPI service that executed HuggingFace `AutoTokenizer` inside the request thread. Because Python's Global Interpreter Lock (GIL) enforced single-threaded execution, processing long prompt strings saturated the gateway node's 8 CPU cores. The GPUs were starved of work because the CPU gateway could not generate input token tensors fast enough to feed the GPU engine queues.
@@ -255,9 +255,9 @@ perf_analyzer -m llama3-70b \
 ```
 
 *Verification Results:*
-- CPU Tokenization latency drops from $320\text{ ms}$ down to $1.4\text{ ms}$.
-- GPU utilization across all 8 H100 GPUs rises from $22\%$ to $88\%$.
-- Total cluster throughput increases from $120\text{ RPS}$ to $780\text{ RPS}$.
+- CPU Tokenization latency drops from 320 ms down to 1.4 ms.
+- GPU utilization across all 8 H100 GPUs rises from 22% to 88%.
+- Total cluster throughput increases from 120 RPS to 780 RPS.
 
 ---
 
@@ -267,7 +267,7 @@ perf_analyzer -m llama3-70b \
 Users of a generative AI writing assistant complained that text generation felt "laggy and bursty." Instead of streaming smooth word-by-word responses, the UI froze for 1–2 seconds and then suddenly dumped large blocks of 40 tokens at once.
 
 #### 2. Root Cause Analysis
-The streaming architecture placed an Nginx reverse proxy between the client and the inference server. Nginx was configured with default response buffering enabled (`proxy_buffering on`). As the GPU generated individual tokens every 20ms and emitted SSE data chunks, Nginx intercepted the chunks, holding them in an OS socket buffer until the buffer size reached $4\text{ KB}$ before flushing the TCP frame to the client.
+The streaming architecture placed an Nginx reverse proxy between the client and the inference server. Nginx was configured with default response buffering enabled (`proxy_buffering on`). As the GPU generated individual tokens every 20ms and emitted SSE data chunks, Nginx intercepted the chunks, holding them in an OS socket buffer until the buffer size reached 4 KB before flushing the TCP frame to the client.
 
 #### 3. Log & Telemetry Evidence
 Packet capture analysis on the client network interface using `tcpdump`:
@@ -360,7 +360,7 @@ curl -N -s -w "\nTime: %{time_starttransfer}s -> %{time_total}s\n" \
   -d '{"model":"llama3-70b","messages":[{"role":"user","content":"Count 1 to 5"}],"stream":true}'
 ```
 
-*Verification Result:* Tokens arrive at steady, uniform $20\text{ ms}$ intervals. The UI renders real-time streaming text seamlessly without freezing or chunking.
+*Verification Result:* Tokens arrive at steady, uniform 20 ms intervals. The UI renders real-time streaming text seamlessly without freezing or chunking.
 
 ---
 
@@ -371,9 +371,9 @@ curl -N -s -w "\nTime: %{time_starttransfer}s -> %{time_total}s\n" \
 **Model Answer:**  
 The top 3 non-GPU latency sinks in a production inference path are:
 
-1. **CPU Tokenization & GIL Contention:** Tokenizing long prompt strings (e.g., 8,000 tokens) using Python-wrapped single-threaded tokenizers on host CPUs. If thread pools are undersized or locked by Python's GIL, this stage can add $100 - 300\text{ ms}$ of pure delay before tensors ever reach the GPU.
-2. **Pageable Host-to-Device Memory Copying (PCIe Staging):** Allocating input tensors in standard C++ pageable RAM forces the CUDA driver to perform a two-step staging copy (RAM $\to$ OS Locked Page $\to$ PCIe DMA $\to$ GPU HBM), reducing PCIe Gen5 throughput from $64\text{ GB/s}$ down to $<12\text{ GB/s}$.
-3. **Proxy Socket Buffering & SSE Frame Buffering:** Intermediate reverse proxies (Nginx / Envoy) holding Server-Sent Events (SSE) token chunks in $4\text{ KB}$ TCP socket buffers before flushing, delaying user-visible stream updates by $500 - 1500\text{ ms}$.
+1. **CPU Tokenization & GIL Contention:** Tokenizing long prompt strings (e.g., 8,000 tokens) using Python-wrapped single-threaded tokenizers on host CPUs. If thread pools are undersized or locked by Python's GIL, this stage can add 100 - 300 ms of pure delay before tensors ever reach the GPU.
+2. **Pageable Host-to-Device Memory Copying (PCIe Staging):** Allocating input tensors in standard C++ pageable RAM forces the CUDA driver to perform a two-step staging copy (RAM -> OS Locked Page -> PCIe DMA -> GPU HBM), reducing PCIe Gen5 throughput from 64 GB/s down to &lt; 12 GB/s.
+3. **Proxy Socket Buffering & SSE Frame Buffering:** Intermediate reverse proxies (Nginx / Envoy) holding Server-Sent Events (SSE) token chunks in 4 KB TCP socket buffers before flushing, delaying user-visible stream updates by 500 - 1500 ms.
 
 ---
 
@@ -404,16 +404,16 @@ PINNED MEMORY (cudaHostAlloc / cudaHostRegister):
 * Zero CPU intervention, single DMA transfer, transfer speeds ~55-62 GB/s (PCIe Gen5).
 ```
 
-In dynamic batching pipelines, input tensors from 64 separate client requests must be assembled into a single contiguous batch tensor on every iteration step. If host buffers are pageable, CPU memory copy overheads and driver lock contention add $5 - 15\text{ ms}$ of latency to every batch launch step, degrading maximum achievable system throughput.
+In dynamic batching pipelines, input tensors from 64 separate client requests must be assembled into a single contiguous batch tensor on every iteration step. If host buffers are pageable, CPU memory copy overheads and driver lock contention add 5 - 15 ms of latency to every batch launch step, degrading maximum achievable system throughput.
 
 ---
 
 ## Summary & Authoritative References
 
 ### Key Takeaways
-1. **Optimize Beyond the GPU:** Non-GPU pipeline stages (tokenization, memory allocation, network proxy buffering) frequently account for $>50\%$ of end-to-end request latency.
+1. **Optimize Beyond the GPU:** Non-GPU pipeline stages (tokenization, memory allocation, network proxy buffering) frequently account for > 50% of end-to-end request latency.
 2. **Decouple Data & Control Planes:** Maintain strict isolation between control plane operations (health checks, metric scraping) and lock-free zero-allocation data paths.
-3. **Use Pinned Host RAM (`cudaHostAlloc`):** Eliminate PCIe memory staging overheads to achieve full Gen5 DMA speeds ($64\text{ GB/s}$).
+3. **Use Pinned Host RAM (`cudaHostAlloc`):** Eliminate PCIe memory staging overheads to achieve full Gen5 DMA speeds (64 GB/s).
 4. **Disable Stream Buffering:** Configure Nginx and application endpoints with `proxy_buffering off` and `TCP_NODELAY` for real-time per-token SSE streaming.
 
 ### Authoritative References

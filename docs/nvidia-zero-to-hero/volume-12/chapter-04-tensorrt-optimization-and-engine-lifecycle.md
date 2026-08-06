@@ -106,7 +106,7 @@ flowchart TD
 
 ---
 
-## Deep Architectural & Mathematical Analysis
+## HOW: Core TensorRT Optimization Engine
 
 ### 1. Graph Rewriting and Layer Fusion Mechanics
 
@@ -114,23 +114,28 @@ During network compilation, TensorRT inspects the computational graph (`INetwork
 
 #### Vertical Fusion
 Vertical fusion combines sequential operations into a single specialized CUDA kernel.
-- **Convolution + Batch Normalization + Activation (ReLU/LeakyReLU/SIGMOID):** Batch Normalization parameters $(\mu, \sigma^2, \gamma, \beta)$ are mathematically folded into the preceding Convolution weight matrix $W$ and bias vector $b$ during graph compilation:
+- **Convolution + Batch Normalization + Activation (ReLU/LeakyReLU/SIGMOID):** Batch Normalization parameters `(μ, σ^2, γ, β)` are mathematically folded into the preceding Convolution weight matrix `W` and bias vector `b` during graph compilation:
 
-$$\hat{W}_{i,j} = W_{i,j} \cdot \frac{\gamma_i}{\sqrt{\sigma_i^2 + \epsilon}}$$
+```text
+W_hat[i,j] = W[i,j] * (γ_i / sqrt(σ_i^2 + ε))
+b_hat[i] = (b_i - μ_i) * (γ_i / sqrt(σ_i^2 + ε)) + β_i
+```
 
-$$\hat{b}_i = (b_i - \mu_i) \cdot \frac{\gamma_i}{\sqrt{\sigma_i^2 + \epsilon}} + \beta_i$$
-
-The resulting fused kernel computes $\text{Activation}(\hat{W} * X + \hat{b})$ in a single pass, completely eliminating HBM round-trips for the intermediate batch normalization and activation tensors.
+The resulting fused kernel computes `Activation(W_hat * X + b_hat)` in a single pass, completely eliminating HBM round-trips for the intermediate batch normalization and activation tensors.
 
 #### Horizontal Fusion
 Horizontal fusion identifies operations operating on the same input tensor in parallel and combines them into a single unified kernel execution.
-- **QKV Attention Projection Fusion:** In Transformer architectures, the Query ($Q$), Key ($K$), and Value ($V$) projections perform three distinct matrix multiplications on identical input hidden states $X$:
+- **QKV Attention Projection Fusion:** In Transformer architectures, the Query (`Q`), Key (`K`), and Value (`V`) projections perform three distinct matrix multiplications on identical input hidden states `X`:
 
-$$Q = X W_Q, \quad K = X W_K, \quad V = X W_V$$
+```text
+Q = X * W_Q,  K = X * W_K,  V = X * W_V
+```
 
-TensorRT horizontally fuses these three weight matrices into a single concatenated projection matrix $W_{QKV} = [W_Q \,|\, W_K \,|\, W_V]$:
+TensorRT horizontally fuses these three weight matrices into a single concatenated projection matrix `W_QKV = [W_Q | W_K | W_V]`:
 
-$$\text{QKV}_{\text{fused}} = X \cdot W_{QKV}$$
+```text
+QKV_fused = X * W_QKV
+```
 
 This reduces CUDA kernel launch overhead from three distinct launches to one, maximizing memory bus utilization.
 
@@ -163,17 +168,21 @@ FP8 E5M2:       [S][ E (5) ][ M (2) ]  --> Optimized for Gradients & KV Cache (H
 ```
 
 #### INT8 Quantization & Entropy Calibration
-Quantizing 32-bit floating-point activations to 8-bit signed integers requires mapping a continuous range $[-|\max|, +|\max|]$ into discrete integer bounds $[-127, +127]$. TensorRT uses a linear quantization scale factor $S$:
+Quantizing 32-bit floating-point activations to 8-bit signed integers requires mapping a continuous range `[-|max|, +|max|]` into discrete integer bounds `[-127, +127]`. TensorRT uses a linear quantization scale factor `S`:
 
-$$X_{\text{quantized}} = \text{clip}\left(\text{round}\left(\frac{X_{\text{float}}}{S}\right), -127, 127\right)$$
+```text
+X_quantized = clip(round(X_float / S), -127, 127)
+```
 
-Determining scale $S$ by simply taking the absolute maximum activation value ($\max(|X|)$) is sensitive to extreme outliers, which squashes the precision of the core activation distribution.
+Determining scale `S` by simply taking the absolute maximum activation value (`max(|X|)`) is sensitive to extreme outliers, which squashes the precision of the core activation distribution.
 
-To prevent precision degradation, TensorRT uses **Kullback-Leibler (KL) Divergence Calibration** (`IInt8EntropyCalibrator2`). The calibrator runs reference inference batches through the FP32 network, collects activation histograms across 2048 bins, and computes a quantized probability distribution $Q$ for candidate threshold clip values $T$. It selects the threshold $T^*$ that minimizes information loss (KL divergence) between original distribution $P$ and quantized distribution $Q$:
+To prevent precision degradation, TensorRT uses **Kullback-Leibler (KL) Divergence Calibration** (`IInt8EntropyCalibrator2`). The calibrator runs reference inference batches through the FP32 network, collects activation histograms across 2048 bins, and computes a quantized probability distribution `Q` for candidate threshold clip values `T`. It selects the threshold `T*` that minimizes information loss (KL divergence) between original distribution `P` and quantized distribution `Q`:
 
-$$D_{\text{KL}}(P \parallel Q) = \sum_{i=1}^{N} P(i) \cdot \log\left(\frac{P(i)}{Q(i)}\right)$$
+```text
+D_KL(P || Q) = sum_{i=1}^N P(i) * log(P(i) / Q(i))
+```
 
-The resulting scale factor is $S = \frac{T^*}{127}$.
+The resulting scale factor is `S = T* / 127`.
 
 #### Explicit Precision Mode (Q/DQ Nodes)
 While legacy Post-Training Quantization (PTQ) uses implicit calibrators, modern workflows use **Explicit Precision Mode**. Quantize (`Q`) and Dequantize (`DQ`) nodes are inserted directly into the ONNX graph during training or post-training quantization (using tools like NVIDIA TensorRT Model Optimizer / `pytorch-quantization`):
@@ -243,10 +252,10 @@ IRuntime ──► ICudaEngine (Deserialized Binary, Shared & Immutable across T
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Bit Width** | 32 bits | 16 bits | 8 bits | 8 bits | 8 bits |
 | **Target GPU Architecture** | All NVIDIA GPUs | Volta (V100) & newer | Turing (T4) & newer | Turing (T4) & newer | Hopper (H100) & Blackwell |
-| **Relative Latency Speedup** | $1.0\times$ | $2.0\times - 3.5\times$ | $3.0\times - 6.0\times$ | $3.5\times - 6.5\times$ | $4.0\times - 8.0\times$ |
-| **Memory Footprint** | $100\%$ | $50\%$ | $25\%$ | $25\%$ | $25\%$ |
-| **Accuracy Loss** | $0.0\%$ (Reference) | $< 0.1\%$ | $0.5\% - 3.0\%$ | $< 0.2\%$ | $< 0.2\%$ |
-| **Calibration Requirement** | None | None | Representative dataset ($500-1000$ samples) | Retraining / Fine-tuning pass | Delayed/Static Scaling Calibration |
+| **Relative Latency Speedup** | 1.0x | 2.0x - 3.5x | 3.0x - 6.0x | 3.5x - 6.5x | 4.0x - 8.0x |
+| **Memory Footprint** | 100% | 50% | 25% | 25% | 25% |
+| **Accuracy Loss** | 0.0% (Reference) | &lt; 0.1% | 0.5% - 3.0% | &lt; 0.2% | &lt; 0.2% |
+| **Calibration Requirement** | None | None | Representative dataset (500-1000 samples) | Retraining / Fine-tuning pass | Delayed/Static Scaling Calibration |
 | **Graph Transformations** | Basic Fusions | Fused FP16 GEMMs | Fused INT8 Conv/GEMM | Explicit Q/DQ Node Fusion | Native Tensor Core FP8 MatMul |
 
 ---
@@ -256,16 +265,16 @@ IRuntime ──► ICudaEngine (Deserialized Binary, Shared & Immutable across T
 ### Scenario 1: Dynamic Shape Binding OOM and Engine Builder Crash
 
 #### Context
-A platform engineering team attempted to build a TensorRT engine for an image segmentation model accepting dynamic batch sizes $B \in [1, 128]$ and variable resolutions $H, W \in [256, 4096]$. The builder script configured an `IOptimizationProfile` with `MIN=(1, 256, 256)`, `OPT=(128, 4096, 4096)`, and `MAX=(128, 4096, 4096)`. The build process crashed on a 80 GB A100 GPU with `out of memory` errors during tactic profiling.
+A platform engineering team attempted to build a TensorRT engine for an image segmentation model accepting dynamic batch sizes B in [1, 128] and variable resolutions H, W in [256, 4096]. The builder script configured an `IOptimizationProfile` with `MIN=(1, 256, 256)`, `OPT=(128, 4096, 4096)`, and `MAX=(128, 4096, 4096)`. The build process crashed on a 80 GB A100 GPU with `out of memory` errors during tactic profiling.
 
 #### Root Cause Analysis
-During tactic search, TensorRT allocates internal memory buffers dimensioned to the `MAX` shape bounds specified in the optimization profile. Setting `MAX` to `(128, 4096, 4096)` required allocating activation tensor workspace for a single batch element of size $128 \times 3 \times 4096 \times 4096 \times 4 \text{ bytes} \approx 25.7 \text{ GB}$ per intermediate activation layer. Multiplying across dozens of fused feature maps exceeded physical GPU VRAM during builder tactic benchmarking. Furthermore, setting `OPT` equal to `MAX` forced the auto-tuner to select tactics optimized exclusively for extreme tensor dimensions, severely degrading inference speed at typical production sizes ($B=8, 512 \times 512$).
+During tactic search, TensorRT allocates internal memory buffers dimensioned to the `MAX` shape bounds specified in the optimization profile. Setting `MAX` to `(128, 4096, 4096)` required allocating activation tensor workspace for a single batch element of size 128 x 3 x 4096 x 4096 x 4 bytes ≈ 25.7 GB per intermediate activation layer. Multiplying across dozens of fused feature maps exceeded physical GPU VRAM during builder tactic benchmarking. Furthermore, setting `OPT` equal to `MAX` forced the auto-tuner to select tactics optimized exclusively for extreme tensor dimensions, severely degrading inference speed at typical production sizes (B=8, 512 x 512).
 
 #### Step-by-Step Resolution & Code Fix
 To resolve this issue, the engineering team restructured the builder configuration:
 1. Split dynamic shape profiles into multiple specialized engines or narrow profile ranges.
 2. Capped workspace memory pools explicitly using `setMemoryPoolLimit`.
-3. Aligned `OPT` dimensions with real production traffic medians ($B=8, 1024 \times 1024$).
+3. Aligned `OPT` dimensions with real production traffic medians (B=8, 1024 x 1024).
 
 ```python
 import tensorrt as trt
@@ -311,17 +320,17 @@ if __name__ == "__main__":
 
 #### Verification
 - Engine build succeeded in 4.2 minutes with peak builder VRAM consumption capped at 6.1 GB.
-- Runtime latency at median production profile ($B=8, 1024 \times 1024$) dropped from $48\text{ ms}$ to $11.3\text{ ms}$.
+- Runtime latency at median production profile (B=8, 1024 x 1024) dropped from 48 ms to 11.3 ms.
 
 ---
 
 ### Scenario 2: Accuracy Collapse in INT8 Engine due to Non-Representative Calibration Dataset
 
 #### Context
-An automatic speech recognition model quantized to INT8 using standard Post-Training Quantization (PTQ) experienced a catastrophic drop in Word Error Rate (WER) accuracy, jumping from $3.2\%$ WER (FP16 baseline) to $24.8\%$ WER in production, despite displaying acceptable accuracy on artificial benchmark synthetic test vectors.
+An automatic speech recognition model quantized to INT8 using standard Post-Training Quantization (PTQ) experienced a catastrophic drop in Word Error Rate (WER) accuracy, jumping from 3.2% WER (FP16 baseline) to 24.8% WER in production, despite displaying acceptable accuracy on artificial benchmark synthetic test vectors.
 
 #### Root Cause Analysis
-The INT8 entropy calibrator (`IInt8EntropyCalibrator2`) was fed a calibration dataset containing short audio segments (averaging 1.2 seconds) recorded in dead silent environments. In production, real-world user queries averaged 8.5 seconds with background noise. The calibration activation histograms failed to capture the high dynamic range and amplitude variances present in production audio streams. Consequently, the calibrator derived overly narrow clipping thresholds $T^*$, causing severe activation saturation (clipping) on high-amplitude hidden features.
+The INT8 entropy calibrator (`IInt8EntropyCalibrator2`) was fed a calibration dataset containing short audio segments (averaging 1.2 seconds) recorded in dead silent environments. In production, real-world user queries averaged 8.5 seconds with background noise. The calibration activation histograms failed to capture the high dynamic range and amplitude variances present in production audio streams. Consequently, the calibrator derived overly narrow clipping thresholds `T*`, causing severe activation saturation (clipping) on high-amplitude hidden features.
 
 #### Step-by-Step Resolution & Code Fix
 1. Built a custom Python calibrator class inheriting from `trt.IInt8EntropyCalibrator2`.
@@ -394,8 +403,8 @@ def build_int8_calibrated_engine(onnx_path: str, engine_path: str, calib_samples
 ```
 
 #### Verification
-- Inspection of `speech_int8.cache` confirmed scale factor shifts across residual block layers up to $3.4\times$.
-- Model WER recovered from $24.8\%$ back to $3.35\%$ (within $0.15\%$ of FP16 reference), while maintaining a $3.1\times$ inference speedup over FP16.
+- Inspection of `speech_int8.cache` confirmed scale factor shifts across residual block layers up to 3.4x.
+- Model WER recovered from 24.8% back to 3.35% (within 0.15% of FP16 reference), while maintaining a 3.1x inference speedup over FP16.
 
 ---
 

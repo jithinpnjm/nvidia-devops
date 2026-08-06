@@ -105,47 +105,60 @@ flowchart TD
 
 ## Deep Architectural & Mathematical Analysis
 
-### 1. Distributed Parallelism Mechanics (Megatron-LM Style)
+### 1. Model Parallelism Execution Graphs
 
-To fit massive LLMs across multiple GPUs and accelerate execution, TensorRT-LLM implements distributed Tensor Parallelism (TP) and Pipeline Parallelism (PP).
+To serve models exceeding single-GPU VRAM capacity (e.g., Llama-3 70B requiring 140GB in FP16), TensorRT-LLM builds parallel execution graphs using **Megatron-LM style Tensor Parallelism (TP)** and **Pipeline Parallelism (PP)**.
 
 ```
-   ColumnParallelLinear (Matrix W split by columns)
-   X ──► [ W_1 ] ──► Y_1 ──┐
-     ──► [ W_2 ] ──► Y_2 ──┼──► Concatenate [Y_1 | Y_2] (No Comm)
-     
-   RowParallelLinear (Matrix W split by rows)
-   X_1 ──► [ W_1 ] ──► Z_1 ──┐
-   X_2 ──► [ W_2 ] ──► Z_2 ──┴──► [ NCCL AllReduce (Sum) ] ──► Z_total
+                  COLUMN PARALLEL LINEAR                          ROW PARALLEL LINEAR
+         ┌──────────────────────────────────────┐        ┌──────────────────────────────────────┐
+         │ Input X                              │        │ Input X = [X1 | X2]                  │
+         │   │                                  │        │   │        │                         │
+         │   ├──► Rank 0: Y1 = X * W1           │        │   ▼        ▼                         │
+         │   │                                  │        │ Rank 0   Rank 1                      │
+         │   └──► Rank 1: Y2 = X * W2           │        │ Z1=X1*W1 Z2=X2*W2                    │
+         │                                      │        │   │        │                         │
+         │ Output Y = [Y1 | Y2] (No Comm Req)   │        │   └───┬────┘                         │
+         └──────────────────────────────────────┘        │       ▼                              │
+                                                         │   AllReduce(SUM) ──► Output Z        │
+                                                         └──────────────────────────────────────┘
 ```
 
 #### ColumnParallelLinear
-In a ColumnParallelLinear layer, the weight matrix $W \in \mathbb{R}^{h \times k}$ is partitioned column-wise across $TP$ ranks ($W = [W_1 \,|\, W_2 \,|\, \dots \,|\, W_{TP}]$). Each GPU rank computes a slice of the output feature dimension:
+In a ColumnParallelLinear layer, the weight matrix `W in R^{h x k}` is partitioned column-wise across `TP` ranks (`W = [W_1 | W_2 | ... | W_{TP}]`). Each GPU rank computes a slice of the output feature dimension:
 
-$$Y_i = X \cdot W_i, \quad Y_i \in \mathbb{R}^{b \times \frac{k}{TP}}$$
+```text
+Y_i = X * W_i,  Y_i in R^{b x (k / TP)}
+```
 
 No GPU-to-GPU communication is required during this forward step.
 
 #### RowParallelLinear
-In a RowParallelLinear layer, the weight matrix $W \in \mathbb{R}^{k \times h}$ is partitioned row-wise across $TP$ ranks ($W = [W_1^T \,|\, W_2^T \,|\, \dots \,|\, W_{TP}^T]^T$). The input tensor $X$ is split along its hidden dimension ($X = [X_1 \,|\, X_2 \,|\, \dots \,|\, X_{TP}]$). Each GPU computes a partial matrix multiplication:
+In a RowParallelLinear layer, the weight matrix `W in R^{k x h}` is partitioned row-wise across `TP` ranks (`W = [W_1^T | W_2^T | ... | W_{TP}^T]^T`). The input tensor `X` is split along its hidden dimension (`X = [X_1 | X_2 | ... | X_{TP}]`). Each GPU computes a partial matrix multiplication:
 
-$$Z_i = X_i \cdot W_i, \quad Z_i \in \mathbb{R}^{b \times h}$$
+```text
+Z_i = X_i * W_i,  Z_i in R^{b x h}
+```
 
-To obtain the final output $Z$, an **AllReduce (SUM)** operation must be executed across all $TP$ ranks:
+To obtain the final output `Z`, an **AllReduce (SUM)** operation must be executed across all `TP` ranks:
 
-$$Z = \sum_{i=1}^{TP} Z_i = \text{AllReduce-Sum}(Z_i)$$
+```text
+Z = sum_{i=1}^{TP} Z_i = AllReduce-Sum(Z_i)
+```
 
 #### Multi-Head Attention (MHA / GQA) Partitioning
 In Transformer layers, Multi-Head Attention projections map directly to this paradigm:
-1. **Query, Key, Value ($W_{QKV}$) Projection:** Implemented as a `ColumnParallelLinear` layer. Weights are partitioned across attention heads.
-2. **Attention Output ($W_O$) Projection:** Implemented as a `RowParallelLinear` layer. An AllReduce operation sums the partial attention projections across ranks.
+1. **Query, Key, Value (`W_{QKV}`) Projection:** Implemented as a `ColumnParallelLinear` layer. Weights are partitioned across attention heads.
+2. **Attention Output (`W_O`) Projection:** Implemented as a `RowParallelLinear` layer. An AllReduce operation sums the partial attention projections across ranks.
 
 #### Communication Overhead Math
 The data volume transmitted per GPU rank during a single RowParallel AllReduce call is:
 
-$$\text{Data Volume} = 2 \times \left( \frac{TP - 1}{TP} \right) \times B \times S \times H \times \text{BytesPerElement}$$
+```text
+Data Volume = 2 * ((TP - 1) / TP) * B * S * H * BytesPerElement
+```
 
-where $B$ is batch size, $S$ is sequence length, $H$ is hidden size. On an 8x H100 node with 900 GB/s NVLink interconnects, fused kernel operations (`TwoShotAllReduce` or `KernelFusedAllReduce`) combine the matrix multiplication output directly with the NCCL reduce step inside SM registers, eliminating intermediate HBM writes.
+where `B` is batch size, `S` is sequence length, `H` is hidden size. On an 8x H100 node with 900 GB/s NVLink interconnects, fused kernel operations (`TwoShotAllReduce` or `KernelFusedAllReduce`) combine the matrix multiplication output directly with the NCCL reduce step inside SM registers, eliminating intermediate HBM writes.
 
 ---
 
@@ -154,9 +167,9 @@ where $B$ is batch size, $S$ is sequence length, $H$ is hidden size. On an 8x H1
 Standard GEMM operations fall short when serving LLMs due to memory bandwidth limits during decoding and quadratic computational complexity during prefill. TensorRT-LLM integrates specialized CUDA kernels:
 
 #### FlashAttention-2 & FlashDecoding
-Standard self-attention computes $A = \text{softmax}\left(\frac{Q K^T}{\sqrt{d}}\right) V$, requiring intermediate $O(S^2)$ memory allocations to store attention matrix $A$ in HBM.
-- **FlashAttention-2:** Uses tiled, online softmax algorithms inside SM shared memory to compute attention in a single fused kernel pass, reducing memory transfers from $O(S^2)$ to $O(S)$.
-- **FlashDecoding:** Standard FlashAttention-2 parallelizes computation across sequence length $S$ during prefill, but during the single-token decode phase ($S_{new}=1$), thread occupancy drops drastically. FlashDecoding splits the long historical KV cache sequence across multiple SM thread blocks, parallelizing the reduction step and achieving up to $8\times$ faster decode throughput on long contexts.
+Standard self-attention computes `A = softmax((Q * K^T) / sqrt(d)) * V`, requiring intermediate `O(S^2)` memory allocations to store attention matrix `A` in HBM.
+- **FlashAttention-2:** Uses tiled, online softmax algorithms inside SM shared memory to compute attention in a single fused kernel pass, reducing memory transfers from `O(S^2)` to `O(S)`.
+- **FlashDecoding:** Standard FlashAttention-2 parallelizes computation across sequence length `S` during prefill, but during the single-token decode phase (`S_new=1`), thread occupancy drops drastically. FlashDecoding splits the long historical KV cache sequence across multiple SM thread blocks, parallelizing the reduction step and achieving up to 8x faster decode throughput on long contexts.
 
 ```
 Standard FlashAttention (Decode Phase):
@@ -169,11 +182,12 @@ FlashDecoding (Decode Phase):
 ```
 
 #### Quantization Kernels
-- **SmoothQuant (W8A8 INT8):** Addresses activation outliers in LLM hidden states (which reach magnitudes up to $100\times$ baseline distributions). It applies per-channel smoothing scales $s$ to migrate quantization difficulty from activations to weights:
+- **SmoothQuant (W8A8 INT8):** Addresses activation outliers in LLM hidden states (which reach magnitudes up to 100x baseline distributions). It applies per-channel smoothing scales `s` to migrate quantization difficulty from activations to weights:
 
-$$\hat{X} = X \cdot \text{diag}(s)^{-1}, \quad \hat{W} = \text{diag}(s) \cdot W$$
-
-$$Y = (\hat{X}_{\text{INT8}} \cdot \hat{W}_{\text{INT8}}) \cdot (\text{scales}_X \cdot \text{scales}_W)$$
+```text
+X_hat = X * diag(s)^{-1},  W_hat = diag(s) * W
+Y = (X_hat_INT8 * W_hat_INT8) * (scales_X * scales_W)
+```
 
 - **AWQ / GPTQ INT4 (W4A16 Weight-Only):** Weights are quantized to 4-bit integers while activations remain in FP16. Custom CUDA kernels load 4-bit weights from HBM, unpack and dequantize them into FP16 inside SM registers on-the-fly, and execute FP16 Tensor Core GEMMs, halving memory bandwidth demand.
 
@@ -183,9 +197,11 @@ $$Y = (\hat{X}_{\text{INT8}} \cdot \hat{W}_{\text{INT8}}) \cdot (\text{scales}_X
 
 During autoregressive decoding, past Key and Value vectors for all attention heads are stored in memory to prevent recomputing them at every generation step. Storing FP16 KV vectors for a 70B model requires significant memory footprint:
 
-$$\text{KV Memory Per Token} = 2 \times L \times H_{\text{kv}} \times d_{\text{head}} \times \text{BytesPerElem}$$
+```text
+KV Memory Per Token = 2 * L * H_kv * d_head * BytesPerElem
+```
 
-For Llama-3-70B ($L=80, H_{\text{kv}}=8, d_{\text{head}}=128$) in FP16, each token consumes $327,680 \text{ bytes} \approx 320 \text{ KB}$. A sequence of 4,096 tokens consumes $1.31 \text{ GB}$ per user session.
+For Llama-3-70B (`L=80, H_kv=8, d_head=128`) in FP16, each token consumes 327,680 bytes ≈ 320 KB. A sequence of 4,096 tokens consumes 1.31 GB per user session.
 
 ```
 FP16 KV Cache:  [ 2 Bytes per Element ]  -->  1.31 GB per 4K sequence
@@ -222,9 +238,9 @@ TensorRT-LLM separates offline model building from online serving through a high
 
 | Parallelism Strategy | Target Bottleneck | Communication Primitive | NVLink Interconnect Required? | Latency Impact | Max Batch Size Scaling | Multi-Node Suitability |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Tensor Parallelism (TP)** | Single-request latency & Layer VRAM size | AllReduce (Sum), AllGather | **Yes** (Requires $> 300\text{ GB/s}$ bus) | **Substantial Reduction** (Parallelizes single GEMM) | Low (Focuses on single-stream speed) | Intra-Node Only (Single 8-GPU box) |
+| **Tensor Parallelism (TP)** | Single-request latency & Layer VRAM size | AllReduce (Sum), AllGather | **Yes** (Requires > 300 GB/s bus) | **Substantial Reduction** (Parallelizes single GEMM) | Low (Focuses on single-stream speed) | Intra-Node Only (Single 8-GPU box) |
 | **Pipeline Parallelism (PP)** | Multi-layer model fitting across GPUs | Point-to-Point (Send/Recv) | No (Tolerates PCIe / InfiniBand) | Slight Increase (Pipeline bubble overhead) | **High** (Requires large micro-batches) | Inter-Node (Across multiple servers) |
-| **Context Parallelism (CP)** | Extreme prompt length ($> 32K$ tokens) | AllGather / Ring-Attention | **Yes** (High-bandwidth communication) | Lowers Memory per GPU | High for long-context prompts | Intra-Node / High-Speed Inter-Node |
+| **Context Parallelism (CP)** | Extreme prompt length (> 32K tokens) | AllGather / Ring-Attention | **Yes** (High-bandwidth communication) | Lowers Memory per GPU | High for long-context prompts | Intra-Node / High-Speed Inter-Node |
 | **Data Parallelism (DP)** | Overall request throughput capacity | AllReduce (Gradient / Sync) | No | None (Independent requests) | Scales linearly with GPU count | Multi-Node Clusters |
 
 ---
@@ -234,15 +250,15 @@ TensorRT-LLM separates offline model building from online serving through a high
 ### Scenario 1: NVLink NCCL AllReduce Deadlock during Multi-Node Tensor Parallelism
 
 #### Context
-A research team deployed a 130B parameter custom LLM across two nodes (each containing 4x H100 GPUs) using Tensor Parallelism $TP=8$. During server execution initialization, the C++ `GptManager` process froze indefinitely during the initial execution context enqueue, yielding a `CUDA driver error: driver shutting down` timeout after 300 seconds.
+A research team deployed a 130B parameter custom LLM across two nodes (each containing 4x H100 GPUs) using Tensor Parallelism TP=8. During server execution initialization, the C++ `GptManager` process froze indefinitely during the initial execution context enqueue, yielding a `CUDA driver error: driver shutting down` timeout after 300 seconds.
 
 #### Root Cause Analysis
-Tensor Parallelism ($TP$) relies on frequent, ultra-low-latency AllReduce operations per Transformer layer. Executing $TP=8$ across two distinct physical servers forced NCCL to route AllReduce packets across external PCIe-to-InfiniBand interfaces between Node 1 (GPUs 0–3) and Node 2 (GPUs 4–7). Because PCIe host bridges lack the nanosecond-level latency and bidirectional bandwidth of NVLink, communication latency spiked by over $30\times$. 
+Tensor Parallelism (TP) relies on frequent, ultra-low-latency AllReduce operations per Transformer layer. Executing TP=8 across two distinct physical servers forced NCCL to route AllReduce packets across external PCIe-to-InfiniBand interfaces between Node 1 (GPUs 0–3) and Node 2 (GPUs 4–7). Because PCIe host bridges lack the nanosecond-level latency and bidirectional bandwidth of NVLink, communication latency spiked by over 30x. 
 
 Furthermore, a misconfigured MPI launcher bound rank communicators incorrectly, leading to an out-of-order barrier synchronization that caused an unrecoverable NCCL kernel deadlock.
 
 #### Step-by-Step Resolution & Builder Configuration Fix
-1. Re-architected parallelism layout: Configured Tensor Parallelism to $TP=4$ (fitting strictly within intra-node NVLink domains) and Pipeline Parallelism to $PP=2$ (crossing InfiniBand between nodes).
+1. Re-architected parallelism layout: Configured Tensor Parallelism to TP=4 (fitting strictly within intra-node NVLink domains) and Pipeline Parallelism to PP=2 (crossing InfiniBand between nodes).
 2. Set explicit NCCL environment variables to prevent inter-node TP binding.
 3. Updated the TensorRT-LLM build script:
 
@@ -281,19 +297,19 @@ if __name__ == "__main__":
 
 #### Verification
 - Server startup completed in under 14 seconds without deadlocks.
-- Inter-node communication over InfiniBand dropped by $88\%$ due to point-to-point PP micro-batching replace multi-node AllReduce calls.
+- Inter-node communication over InfiniBand dropped by 88% due to point-to-point PP micro-batching replace multi-node AllReduce calls.
 
 ---
 
 ### Scenario 2: KV Cache Allocation OOM under High Concurrency due to Block Size and Scale Mismatch
 
 #### Context
-A customer-service AI platform running Llama-3-70B on 4x A100 GPUs ($TP=4$) experienced sporadic runtime service crashes with `[TRT-LLM][ERROR] Out of memory during KVCache block allocation` when concurrent sessions exceeded 64 active requests.
+A customer-service AI platform running Llama-3-70B on 4x A100 GPUs (TP=4) experienced sporadic runtime service crashes with `[TRT-LLM][ERROR] Out of memory during KVCache block allocation` when concurrent sessions exceeded 64 active requests.
 
 #### Root Cause Analysis
-The team configured static contiguous KV cache allocations with an overly large block size (`tokens_per_block=128`) and retained default FP16 precision. When requests arrived with variable sequence lengths (e.g., 129 tokens), the allocator was forced to allocate two full 128-token physical blocks (256 tokens total capacity), wasting nearly $50\%$ of allocated KV memory due to internal fragmentation.
+The team configured static contiguous KV cache allocations with an overly large block size (`tokens_per_block=128`) and retained default FP16 precision. When requests arrived with variable sequence lengths (e.g., 129 tokens), the allocator was forced to allocate two full 128-token physical blocks (256 tokens total capacity), wasting nearly 50% of allocated KV memory due to internal fragmentation.
 
-Additionally, the total physical KV cache pool was configured to claim $95\%$ of remaining GPU memory (`kv_cache_free_gpu_memory_fraction=0.95`), leaving insufficient scratch workspace for intermediate FlashDecoding activations during long-context prefill steps.
+Additionally, the total physical KV cache pool was configured to claim 95% of remaining GPU memory (`kv_cache_free_gpu_memory_fraction=0.95`), leaving insufficient scratch workspace for intermediate FlashDecoding activations during long-context prefill steps.
 
 #### Step-by-Step Resolution & C++ Configuration Fix
 1. Reduced paged KV cache block size from 128 to 32 tokens to minimize internal fragmentation.
@@ -329,7 +345,7 @@ tllm::ExecutorConfig create_optimized_executor_config() {
 
 #### Verification
 - Max concurrent active sessions increased from 64 to 210 requests per node without encountering OOM crashes.
-- Effective GPU KV cache utilization increased from $52\%$ to $91\%$.
+- Effective GPU KV cache utilization increased from 52% to 91%.
 
 ---
 
@@ -339,19 +355,19 @@ tllm::ExecutorConfig create_optimized_executor_config() {
 **Detail the exact sequence of communication primitives executed across GPUs during a forward pass through a Megatron-LM style Transformer layer in TensorRT-LLM.**
 
 **Model Answer:**
-A single Transformer layer in TensorRT-LLM consists of two main sub-modules: Self-Attention and Multi-Layer Perceptron (MLP). Each contains a pair of matrix projections configured for Tensor Parallelism ($TP$):
+A single Transformer layer in TensorRT-LLM consists of two main sub-modules: Self-Attention and Multi-Layer Perceptron (MLP). Each contains a pair of matrix projections configured for Tensor Parallelism (TP):
 
 1. **Self-Attention Sub-Module:**
-   - **QKV Projection (`ColumnParallelLinear`):** Input hidden state $X$ is replicated across all $TP$ ranks. Each rank multiplies $X$ by its local weight slice ($W_{QKV, i}$). **No communication** occurs.
+   - **QKV Projection (`ColumnParallelLinear`):** Input hidden state `X` is replicated across all `TP` ranks. Each rank multiplies `X` by its local weight slice (`W_{QKV, i}`). **No communication** occurs.
    - **Attention Core (FlashAttention/FlashDecoding):** Computed locally per rank on its subset of attention heads.
-   - **Output Projection (`RowParallelLinear`):** Each rank multiplies its local attention output by its local weight slice ($W_{O, i}$).
-   - **Communication Step 1:** An **AllReduce-Sum** is executed across all $TP$ ranks to combine partial sums into the final attention residual tensor.
+   - **Output Projection (`RowParallelLinear`):** Each rank multiplies its local attention output by its local weight slice (`W_{O, i}`).
+   - **Communication Step 1:** An **AllReduce-Sum** is executed across all `TP` ranks to combine partial sums into the final attention residual tensor.
 
 2. **MLP Sub-Module:**
-   - **Gate/Up Projection (`ColumnParallelLinear`):** Input $H$ is multiplied by rank-local weight slices ($W_{\text{gate}, i}, W_{\text{up}, i}$). **No communication** occurs.
+   - **Gate/Up Projection (`ColumnParallelLinear`):** Input `H` is multiplied by rank-local weight slices (`W_{gate, i}`, `W_{up, i}`). **No communication** occurs.
    - **Activation Function (SwiGLU/GeLU):** Applied locally per rank.
-   - **Down Projection (`RowParallelLinear`):** Rank-local intermediate activations are multiplied by rank-local weight slice ($W_{\text{down}, i}$).
-   - **Communication Step 2:** A second **AllReduce-Sum** is executed across all $TP$ ranks.
+   - **Down Projection (`RowParallelLinear`):** Rank-local intermediate activations are multiplied by rank-local weight slice (`W_{down, i}`).
+   - **Communication Step 2:** A second **AllReduce-Sum** is executed across all `TP` ranks.
 
 Total communication overhead per Transformer layer: **2 AllReduce operations**.
 
@@ -361,15 +377,15 @@ Total communication overhead per Transformer layer: **2 AllReduce operations**.
 **How does FlashDecoding differ structurally from standard FlashAttention-2 during the autoregressive Decode phase, and why does it deliver significant speedups for long context lengths?**
 
 **Model Answer:**
-During the initial **Prefill phase**, the input prompt consists of $S$ tokens processed simultaneously. FlashAttention-2 achieves high GPU utilization by parallelizing work across both batch size $B$ and sequence length $S$, tiling matrices $Q, K, V$ into SM shared memory.
+During the initial **Prefill phase**, the input prompt consists of `S` tokens processed simultaneously. FlashAttention-2 achieves high GPU utilization by parallelizing work across both batch size `B` and sequence length `S`, tiling matrices `Q, K, V` into SM shared memory.
 
-However, during the single-token **Decode phase**, input query length is $S_{\text{query}} = 1$. Standard FlashAttention-2 assigns one thread block per attention head. Because $S_{\text{query}} = 1$, a single thread block must iterate sequentially over the entire historical KV cache ($S_{\text{keys}} = 4096 \text{ or } 32768$ tokens). On GPUs with many SMs (such as the H100 with 132 SMs), this results in severe SM under-utilization because there are not enough active thread blocks to occupy the hardware.
+However, during the single-token **Decode phase**, input query length is `S_query = 1`. Standard FlashAttention-2 assigns one thread block per attention head. Because `S_query = 1`, a single thread block must iterate sequentially over the entire historical KV cache (`S_keys = 4096 or 32768` tokens). On GPUs with many SMs (such as the H100 with 132 SMs), this results in severe SM under-utilization because there are not enough active thread blocks to occupy the hardware.
 
 **FlashDecoding** restructures the decode kernel by introducing a two-stage parallel reduction:
-1. **Stage 1 (Splitting KV Cache):** FlashDecoding partitions the historical KV cache sequence into $N$ smaller chunks (e.g., 256 tokens per chunk). It spawns $N$ distinct thread blocks across multiple SMs to compute partial softmax statistics and partial output vectors concurrently.
+1. **Stage 1 (Splitting KV Cache):** FlashDecoding partitions the historical KV cache sequence into `N` smaller chunks (e.g., 256 tokens per chunk). It spawns `N` distinct thread blocks across multiple SMs to compute partial softmax statistics and partial output vectors concurrently.
 2. **Stage 2 (Reduction Kernel):** A lightweight secondary reduction kernel combines the partial softmax outputs from all SMs to produce the final attention vector.
 
-This converts a sequential reduction into a parallel grid execution, restoring full SM occupancy and speeding up decoding on long contexts by up to $8\times$.
+This converts a sequential reduction into a parallel grid execution, restoring full SM occupancy and speeding up decoding on long contexts by up to 8x.
 
 ---
 
@@ -380,7 +396,7 @@ This converts a sequential reduction into a parallel grid execution, restoring f
 `GptManager` is TensorRT-LLM's high-performance C++ runtime engine that coordinates real-time LLM inference requests. Traditional batching operates at the request level, waiting for all sequences in a batch to finish generating before accepting new work. `GptManager` implements **In-Flight Batching** (iteration-level continuous batching):
 
 1. **Iteration Step Loop:** `GptManager` executes inference in step-by-step iterations corresponding to single-token generation passes.
-2. **Dynamic Request Slotting:** At the start of every iteration, `GptManager` checks its internal request queue. If a running sequence emits an End-of-Sequence (`<EOS>`) token or hits its `max_tokens` limit, its slot in the execution batch is immediately released, and its physical KV cache blocks are freed via `KVCacheManager`.
+2. **Dynamic Request Slotting:** At the start of every iteration, `GptManager` checks its internal request queue. If a running sequence emits an End-of-Sequence (``\<EOS\>``) token or hits its `max_tokens` limit, its slot in the execution batch is immediately released, and its physical KV cache blocks are freed via `KVCacheManager`.
 3. **Prefill/Decode Co-Scheduling:** If free KV cache blocks are available, `GptManager` introduces a newly arrived request into the active batch. The new request executes its **Prefill phase** concurrently alongside ongoing requests executing their **Decode phase** in the exact same execution step.
 4. **Non-Blocking Token Streaming:** Generated tokens are emitted via thread-safe queue callbacks to the host client at every iteration step, enabling real-time streaming without blocking worker threads.
 

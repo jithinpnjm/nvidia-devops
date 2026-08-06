@@ -400,7 +400,7 @@ EOF
 python3 "${LAB4_DIR}/src/load_driver_fixed.py"
 ```
 
-Notice how `Total Pipeline Latency p99` drops drastically from **> 1,000 ms to < 45 ms**!
+Notice how `Total Pipeline Latency p99` drops drastically from **> 1,000 ms to &lt; 45 ms**!
 
 ---
 
@@ -488,7 +488,7 @@ In this exercise, you will inject an artificial CPU core quota restriction on th
    ```
 
 3. **Observe Failure Evidence**:
-   - **Throughput**: Collapses to < 3 RPS.
+   - **Throughput**: Collapses to &lt; 3 RPS.
    - **p99 Pipeline Latency**: Explodes to **> 3,500 ms**.
    - **GPU Metrics**: `nvidia-smi dmon` shows GPU SM utilization near 0%.
    - **Root Cause**: The container OS cgroups CFS (Completely Fair Scheduler) quota throttles execution threads because CPU usage exceeds 0.5 core budget.

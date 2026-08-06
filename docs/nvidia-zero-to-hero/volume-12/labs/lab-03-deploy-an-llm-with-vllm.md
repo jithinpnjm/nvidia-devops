@@ -439,8 +439,8 @@ flowchart TD
 | `/v1/models` Query | Returns active model ID string | [ ] |
 | Non-Streaming Completion | HTTP 200 JSON payload with complete generated text | [ ] |
 | Streaming SSE Output | `curl -N` displays streaming `data: {...}` lines | [ ] |
-| TTFT Benchmark Verified | Mean TTFT measured < 100ms for short prompts | [ ] |
-| ITL Benchmark Verified | Mean ITL measured < 25ms per generated token | [ ] |
+| TTFT Benchmark Verified | Mean TTFT measured &lt; 100ms for short prompts | [ ] |
+| ITL Benchmark Verified | Mean ITL measured &lt; 25ms per generated token | [ ] |
 | Telemetry Scraped | `vllm:gpu_cache_usage_perc` metric actively exported | [ ] |
 | Failure Injection Handled | Oversubscription triggers controlled error without host crash | [ ] |
 
