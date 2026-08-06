@@ -11,6 +11,10 @@ GPU sharing is a platform-service decision. The sharing mechanism matters, but i
 
 The recurring question throughout this volume has been: *what guarantee does this workload need, and what evidence shows the platform can keep it?* That question is more useful than asking how many logical users can be placed on a GPU.
 
+## Learning objectives
+
+By the end of this volume, you should be able to select a sharing model from a workload and tenant-risk statement rather than a utilization target; express that choice as a schedulable service class; and operate it through capacity, telemetry, change, and recovery controls. You should also be able to explain where the platform has a firm boundary, where it has only a best-effort behavior, and which evidence supports either claim.
+
 ## The end-to-end model
 
 ```mermaid
@@ -79,6 +83,14 @@ Use this sequence before introducing a new shared service class:
 
 **Charging for a mystery unit.** A rate card must name the allocation, guarantee, attribution source, and exclusions. Otherwise it creates disputes rather than accountability.
 
+## Production recovery scenario
+
+An inference tenant with a protected MIG service reports Pending requests after a planned node-pool rollout. A development pool still shows unused GPU capacity, and an operator proposes moving the requests there immediately. The right response begins by checking scheduler events, the requested profile shape, the approved pool layout, the rollout timeline, and the remaining protected reserve. Unused capacity in an incompatible layout is not a recovery path, and a best-effort time-sliced pool does not automatically satisfy a protected service contract.
+
+Contain the rollout before consuming the healthy comparison capacity. Route work only to an approved compatible pool, or queue it according to the published service policy. Preserve node, layout, resource-advertisement, and workload evidence before a drain or reconfiguration. Recovery is complete only when the intended profile is advertised, a representative request initializes successfully, and the tenant’s application-level outcome returns to its expected range.
+
+The scenario demonstrates the central operational lesson: sharing incidents are resolved by restoring the correct service boundary, not by maximizing the number of Pods that can reach `Running`.
+
 ## Review questions
 
 1. When would you choose a whole GPU even if sharing could raise average utilization?
@@ -88,6 +100,16 @@ Use this sequence before introducing a new shared service class:
 5. Why must a capacity plan include maintenance and node-failure reserve?
 6. What is the difference between physical, advertised, service, and sellable capacity?
 7. What should be in an escalation package before a node reboot removes evidence?
+
+## Senior interview questions
+
+**A stakeholder asks for “90 percent GPU utilization” across every service. How do you respond?** Clarify the desired business outcome, then separate device activity from allocatable and sellable capacity. A latency service may need deliberate headroom; a development pool may tolerate queueing. Propose service-specific measurements and reserve policy rather than a fleet-wide utilization mandate.
+
+**How would you explain MIG fragmentation to a non-specialist?** The platform can have unused accelerator capacity but still lack the exact partition shape a request needs, much like free seats that are not arranged in the required group. The remedy is catalog and layout planning, not an automatic reshuffle of active tenants.
+
+**What proves that a time-sliced service is healthy?** Not merely that its Pods schedule. Evidence must include the documented service outcome—such as access or queue behavior—and workload-specific latency, errors, and memory behavior under the expected concurrency range. Its guarantee must remain explicitly best effort if the platform cannot bound contention.
+
+**What is the first question during a shared-GPU incident?** Establish which tenant-facing outcome is failing and the blast radius. That determines whether to protect a reserved service, reduce best-effort admission, or investigate a single node without disrupting unaffected tenants.
 
 ## Customer discussion prompts
 
