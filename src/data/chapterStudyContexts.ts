@@ -3162,22 +3162,19 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 01 — Why Kubernetes Needs a GPU Platform Layer": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand why making GPUs usable in Kubernetes requires coordinated discovery, drivers, runtime integration, scheduling, health, and lifecycle management.",
+    "learningOutcome": "Understand why production GPU scheduling requires coordinated driver, runtime, discovery, allocation, health, and lifecycle management.",
     "sections": [
       "Why Kubernetes Needs a GPU Platform Layer",
       "Learning Objectives",
-      "A Production Story",
-      "The Resource Does Not Appear Automatically",
-      "From Hardware to a Pod",
-      "Extended Resources and Scheduling",
-      "The Five Layers of a GPU Node",
-      "Why Manual Node Configuration Does Not Scale",
-      "The Role of GPU Operator",
-      "Operating Model",
-      "Host-Managed Versus Operator-Managed Components",
-      "Production Scenario",
-      "Troubleshooting Framework",
-      "Customer Perspective"
+      "Two Paths Must Agree",
+      "Why a Count Is Not a GPU Service",
+      "The Operational Failure of Manual Configuration",
+      "What the GPU Operator Changes—and What It Does Not",
+      "Production Checklist: Before a GPU Node Accepts Work",
+      "Troubleshooting Model",
+      "Customer Architecture Discussion",
+      "Interview Questions",
+      "Key Takeaways"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3187,20 +3184,18 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 02 — GPU Software Lifecycle in Kubernetes": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand how firmware, drivers, runtime, device discovery, scheduling, and workload libraries form one lifecycle.",
+    "learningOutcome": "Operate firmware, drivers, runtimes, discovery, and workload compatibility as one controlled GPU-platform lifecycle.",
     "sections": [
       "GPU Software Lifecycle in Kubernetes",
       "Learning Objectives",
-      "A Production Story",
-      "The Stack",
-      "Lifecycle Boundaries",
-      "Compatibility Is a Matrix, Not a Single Version",
-      "How the Lifecycle Changes",
-      "Safe Rollout Pattern",
-      "What To Validate",
-      "Troubleshooting Patterns",
-      "Customer Perspective",
-      "Interview Preparation",
+      "The Lifecycle Is a Dependency Graph",
+      "Compatibility Is Policy, Not a Spreadsheet Afterthought",
+      "A Production Change Model",
+      "Node Acceptance Gates",
+      "Production Story: Green Nodes, Failed GPUs",
+      "Troubleshooting by Layer",
+      "Customer Architecture Discussion",
+      "Interview Questions",
       "Key Takeaways"
     ],
     "codeLanguages": [
@@ -3211,19 +3206,18 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 03 — NVIDIA Container Toolkit, RuntimeClass, and CDI": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Learn how containers receive GPU devices, driver libraries, and runtime configuration.",
+    "learningOutcome": "Understand the runtime boundary that turns a Kubernetes GPU allocation into a usable container device interface.",
     "sections": [
       "NVIDIA Container Toolkit, RuntimeClass, and CDI",
       "Learning Objectives",
-      "A Production Story",
-      "Runtime Path",
-      "What The Toolkit Does",
-      "RuntimeClass and CDI",
-      "Why The Driver Stays On The Host",
-      "Production Design",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
+      "From Allocation to Process",
+      "Three Mechanisms, Three Different Questions",
+      "Design the Runtime Contract",
+      "Production Story: Schedulable but Unusable",
+      "Security and Isolation",
+      "Troubleshooting the Runtime Boundary",
+      "Customer Architecture Discussion",
+      "Interview Questions",
       "Key Takeaways"
     ],
     "codeLanguages": [
@@ -3234,17 +3228,18 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 04 — Device Plugin and Kubernetes Resource Model": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand how GPUs become schedulable extended resources and how allocation reaches a Pod.",
+    "learningOutcome": "Understand how healthy NVIDIA devices become Kubernetes extended resources and how kubelet allocation reaches a Pod.",
     "sections": [
       "Device Plugin and Kubernetes Resource Model",
       "Learning Objectives",
-      "Allocation Flow",
-      "Production Story",
-      "Health and Advertisement",
-      "Production Design",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
+      "The Kubelet Contract",
+      "Read the Resource States Precisely",
+      "The Resource Model’s Productive Limitation",
+      "Production Story: Correct Count, Wrong Outcome",
+      "Operate the Plugin as Infrastructure",
+      "Troubleshooting in Dependency Order",
+      "Customer Architecture Discussion",
+      "Interview Questions",
       "Key Takeaways"
     ],
     "codeLanguages": [
@@ -3252,21 +3247,25 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Chapter 05 — Node Feature Discovery and GPU Feature Discovery": {
+  "Chapter 05 — Node and GPU Feature Discovery": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Learn how hardware capabilities become scheduler-visible labels and why label governance matters.",
+    "learningOutcome": "Turn GPU-node facts into governed Kubernetes scheduling signals without coupling workloads to individual hardware SKUs.",
     "sections": [
-      "Node Feature Discovery and GPU Feature Discovery",
-      "Learning Objectives",
-      "Discovery Flow",
-      "Production Story",
-      "Why Labels Matter",
-      "Production Design",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
-      "Key Takeaways"
+      "Node and GPU Feature Discovery",
+      "Learning objectives",
+      "The problem: quantity is not a platform contract",
+      "From host evidence to a scheduling decision",
+      "Facts, assertions, and classes",
+      "A practical label contract",
+      "Security and integrity boundary",
+      "Drift is an availability issue",
+      "Scheduling patterns and trade-offs",
+      "Troubleshooting: the selector is correct, yet no Pod schedules",
+      "Production checklist",
+      "Customer architecture discussion",
+      "Interview preparation",
+      "Key takeaways"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3276,19 +3275,21 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 06 — GPU Operator Architecture": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand how the NVIDIA GPU Operator manages drivers, runtime integration, discovery, validation, and monitoring.",
+    "learningOutcome": "Design the NVIDIA GPU Operator as a reconciled node-platform lifecycle, with explicit ownership, rollout, and failure boundaries.",
     "sections": [
       "GPU Operator Architecture",
-      "Learning Objectives",
-      "Architecture",
-      "Production Story",
-      "Reconciliation",
-      "Ownership Boundaries",
-      "Production Design",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
-      "Key Takeaways"
+      "Learning objectives",
+      "Architecture: desired state becomes node-local work",
+      "Responsibilities and boundaries",
+      "Reconciliation is not a serial installer",
+      "Deployment models: choose one owner per layer",
+      "A release is a compatibility decision",
+      "Production story: the policy that spread too far",
+      "Security model",
+      "Troubleshooting: find the first broken contract",
+      "Customer architecture discussion",
+      "Interview preparation",
+      "Key takeaways"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3298,19 +3299,19 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 07 — Driver Containers and Node Operands": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Learn how privileged node-level components install, configure, validate, and monitor GPUs.",
+    "learningOutcome": "Operate privileged GPU node components as a host-lifecycle system, with clear readiness, security, and recovery boundaries.",
     "sections": [
       "Driver Containers and Node Operands",
-      "Learning Objectives",
-      "Node Flow",
-      "Production Story",
-      "Privilege and Mounts",
-      "Startup and Recovery",
-      "Production Design",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
-      "Key Takeaways"
+      "Learning objectives",
+      "One node, several host-facing contracts",
+      "Driver containers are a delivery model, not an abstraction escape hatch",
+      "Readiness has gates, not one boolean",
+      "Privilege and supply-chain controls",
+      "Recovery and maintenance behavior",
+      "Troubleshooting sequence",
+      "Customer architecture discussion",
+      "Interview preparation",
+      "Key takeaways"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3320,19 +3321,22 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 08 — GPU Scheduling and Topology": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design Kubernetes placement for GPU quantity, model, CPU locality, NUMA, NICs, and multi-GPU communication.",
+    "learningOutcome": "Place GPU workloads by capacity, service class, locality, and coordinated-start requirements while controlling fragmentation.",
     "sections": [
       "GPU Scheduling and Topology",
-      "Learning Objectives",
-      "Scheduling Model",
-      "Placement Controls",
-      "Production Story",
-      "Fragmentation",
-      "Production Design",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
-      "Key Takeaways"
+      "Learning objectives",
+      "The scheduler sees a staged decision",
+      "Four placement questions",
+      "Core controls and what they do not do",
+      "Topology is a path, not a label",
+      "Coordinated-start workloads",
+      "Fragmentation is the price of specificity",
+      "Production story: a successful placement that missed the objective",
+      "Fairness, preemption, and disruption",
+      "Troubleshooting placement and performance",
+      "Customer architecture discussion",
+      "Interview preparation",
+      "Key takeaways"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3345,16 +3349,16 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Build Kubernetes monitoring around DCGM, DCGM Exporter, Prometheus, events, and workload context.",
     "sections": [
       "GPU Observability with DCGM",
-      "Learning Objectives",
-      "Monitoring Flow",
-      "Metric Domains",
-      "Production Story",
-      "Kubernetes Context",
-      "Production Design",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
-      "Key Takeaways"
+      "Learning objectives",
+      "Start with an operational question",
+      "The evidence path",
+      "Metrics with an owner and a response",
+      "Build a monitoring contract",
+      "Correlation during an incident",
+      "Failure patterns that mislead operators",
+      "Production design review",
+      "Senior-level design questions",
+      "Key takeaways"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3367,16 +3371,16 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Plan and execute a controlled NVIDIA GPU Operator deployment in Kubernetes.",
     "sections": [
       "Production Installation and Configuration",
-      "Learning Objectives",
-      "Deployment Flow",
-      "Preinstallation Decisions",
-      "Installation",
-      "Acceptance Gates",
-      "Production Risks",
-      "Troubleshooting",
-      "Customer Perspective",
-      "Interview Preparation",
-      "Key Takeaways"
+      "Learning objectives",
+      "Define the platform boundary first",
+      "Ownership decisions that determine the design",
+      "Treat Helm values as an interface",
+      "Install in an intentionally small blast radius",
+      "Acceptance is an end-to-end proof",
+      "Operational guardrails",
+      "Troubleshooting installation without guesswork",
+      "Senior-level design questions",
+      "Key takeaways"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3389,19 +3393,19 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Operate GPU Kubernetes clusters through driver, runtime, operator, and node failures.",
     "sections": [
       "Upgrades and Production Troubleshooting",
-      "Learning Objectives",
-      "Upgrade Flow",
-      "Change Categories",
-      "Incident Method",
-      "Node Does Not Advertise GPUs",
-      "Pod Pending",
-      "Pod Fails to Start",
-      "Pod Runs but CUDA Fails",
-      "Metrics Missing",
-      "Operator Upgrade Stalls",
-      "Evidence Package",
-      "Rollback",
-      "Customer Perspective"
+      "Learning objectives",
+      "Change the compatibility set, not a component in isolation",
+      "Design the canary as a production experiment",
+      "A layered incident method",
+      "Failure patterns and first safe checks",
+      "A node does not advertise GPUs",
+      "A GPU Pod remains Pending",
+      "A Pod fails before its application starts",
+      "CUDA initialization fails in a Running Pod",
+      "Metrics disappear or report an implausible fleet state",
+      "An operator upgrade stalls",
+      "Containment, rollback, and forward recovery",
+      "Evidence package for escalation"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3414,15 +3418,13 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Consolidate the Kubernetes GPU platform lifecycle from driver and runtime through scheduling, observability, upgrades, and troubleshooting.",
     "sections": [
       "Volume 10 Summary",
-      "Architecture Summary",
-      "Quick Revision",
-      "Production Synthesis",
-      "Production Principles",
-      "Troubleshooting Checklist",
-      "Interview Notes",
-      "Lab Checklist",
-      "Operational Maturity",
-      "Next Volume"
+      "The platform lifecycle",
+      "What each component is responsible for",
+      "The production operating model",
+      "A reusable diagnosis sequence",
+      "Revision prompts",
+      "Continue the practice",
+      "Next volume"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3432,13 +3434,14 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Volume 10 — Kubernetes GPU Platform": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Learn how Kubernetes discovers, advertises, schedules, operates, and upgrades NVIDIA GPU resources in production clusters.",
+    "learningOutcome": "Design and operate the lifecycle that turns NVIDIA GPUs into reliable, schedulable Kubernetes infrastructure.",
     "sections": [
       "Volume 10 — Kubernetes GPU Platform",
-      "The Big Picture",
-      "What This Volume Covers",
-      "Planned Labs",
-      "How to Read This Volume"
+      "The Platform Contract",
+      "How to Read This Volume",
+      "Chapter Sequence",
+      "Operating Perspective",
+      "Planned Labs"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3452,24 +3455,24 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "sections": [
       "Lab 01 — Inspect a Kubernetes GPU Node",
       "1. Objective",
-      "2. Scenario",
+      "2. Production Story",
       "3. Learning Outcomes",
       "4. Architecture",
       "5. Prerequisites",
-      "6. Environment",
-      "7. Components",
-      "8. Procedure",
-      "8.1 Identify the node and capture its state",
-      "8.2 Inspect host GPU and driver state",
-      "8.3 Inspect runtime integration",
-      "8.4 Inspect platform operands",
-      "9. Validation"
+      "6. Safety and Change Boundaries",
+      "7. Environment and Variables",
+      "8. Components and Data Flow",
+      "9. Procedure: Inspect Kubernetes State",
+      "10. Procedure: Inspect the Host (Hardware Only)",
+      "11. Validation Workload",
+      "12. Verification and Acceptance Criteria",
+      "13. Observability and Evidence Collection"
     ],
     "codeLanguages": [
-      "yaml",
-      "text",
       "mermaid",
-      "bash"
+      "text",
+      "bash",
+      "yaml"
     ]
   },
   "Lab 02 — Install and Validate GPU Operator": {
@@ -3479,23 +3482,22 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "sections": [
       "Lab 02 — Install and Validate GPU Operator",
       "1. Objective",
-      "2. Scenario",
+      "2. Production Story",
       "3. Learning Outcomes",
       "4. Architecture",
       "5. Prerequisites",
-      "6. Environment",
-      "7. Components",
-      "8. Procedure",
-      "8.1 Add and inspect the chart repository",
-      "8.2 Decide driver ownership",
-      "8.3 Install the release",
-      "8.4 Inspect the release and policy",
-      "8.5 Inspect operand Pods"
+      "6. Safety and Rollback Boundary",
+      "7. Environment and Variables",
+      "8. Components and Ownership Decision",
+      "9. Preflight Evidence",
+      "10. Procedure: Add and Inspect the Chart",
+      "11. Procedure: Install the Pinned Release",
+      "12. Validation: Reconciliation and Operands",
+      "13. Validation: Resource Advertisement"
     ],
     "codeLanguages": [
-      "yaml",
-      "text",
       "mermaid",
+      "text",
       "bash"
     ]
   },
@@ -3506,23 +3508,22 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "sections": [
       "Lab 03 — Diagnose a Missing Allocatable GPU",
       "1. Objective",
-      "2. Scenario",
+      "2. Production Story",
       "3. Learning Outcomes",
       "4. Architecture",
       "5. Prerequisites",
-      "6. Environment",
-      "7. Components",
-      "8. Procedure",
-      "9. Validation",
-      "10. Verification Workflow",
-      "Hardware",
-      "Driver",
-      "Device plugin"
+      "6. Safety and Incident Boundary",
+      "7. Environment and Variables",
+      "8. Components and Evidence Map",
+      "9. Procedure: Preserve Initial Evidence",
+      "10. Validate the Symptom and Compare",
+      "11. Procedure: Hardware and Driver (Hardware Only)",
+      "12. Procedure: Device Plugin and Discovery",
+      "13. Procedure: Kubelet and Runtime (Hardware Only)"
     ],
     "codeLanguages": [
-      "yaml",
-      "text",
       "mermaid",
+      "text",
       "bash"
     ]
   },
@@ -3533,23 +3534,22 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "sections": [
       "Lab 04 — Perform a Controlled GPU Platform Upgrade",
       "1. Objective",
-      "2. Scenario",
+      "2. Production Story",
       "3. Learning Outcomes",
       "4. Architecture",
       "5. Prerequisites",
-      "6. Environment",
-      "7. Components",
-      "8. Procedure",
-      "8.1 Build the compatibility matrix",
-      "8.2 Establish acceptance gates",
-      "8.3 Quarantine and drain the canary",
-      "8.4 Upgrade the pinned release",
-      "9. Validation"
+      "6. Safety, Scope, and Stop Conditions",
+      "7. Environment and Variables",
+      "8. Compatibility Matrix and Acceptance Gates",
+      "9. Components and Change Ownership",
+      "10. Baseline and Rollback Evidence",
+      "11. Quarantine and Drain the Canary",
+      "12. Upgrade the Pinned Release",
+      "13. Platform Validation"
     ],
     "codeLanguages": [
-      "yaml",
-      "text",
       "mermaid",
+      "text",
       "bash"
     ]
   },
