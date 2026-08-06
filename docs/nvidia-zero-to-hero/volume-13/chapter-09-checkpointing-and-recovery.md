@@ -41,7 +41,7 @@ flowchart TD
 ## WHEN
 
 You determine *when* to checkpoint using Daly's Formula for optimal checkpoint intervals:
-$T_{opt} = \sqrt{2 \cdot M \cdot T_c} - T_c$
+`$T_{opt} = \sqrt{2 \cdot M \cdot T_c} - T_c$`
 Where:
 - $M$ = Mean Time Between Failures (MTBF) of the cluster.
 - $T_c$ = Time required to write the checkpoint.

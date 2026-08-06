@@ -4430,15 +4430,16 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Understand parameter, gradient, and optimizer sharding with Fully Sharded Data Parallel.",
     "sections": [
       "Chapter 04: FSDP and Parameter Sharding",
-      "The Core Concept: Sharding the State",
-      "Parameter Materialization Lifecycle",
-      "Wrapping Policies",
-      "Trade-off Analysis: FSDP vs DDP",
-      "Memory Math in FSDP",
+      "WHY",
+      "WHAT",
+      "HOW",
+      "WHEN",
+      "TRADEOFFS",
+      "PRODUCTION",
       "Scenario: 70B Model on 8x80GB A100s",
-      "Failure Scenarios",
+      "TROUBLESHOOTING",
       "Scenario 1: CPU Offload Bottleneck",
-      "gpu pwr gtemp mtemp sm mem enc dec mclk pclk",
+      "In your PyTorch FSDP config:",
       "Scenario 2: OOM During Checkpoint Save",
       "Senior Interview Questions"
     ],
@@ -4454,21 +4455,22 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Understand ZeRO stages, optimizer and parameter partitioning, offload, and production lifecycle trade-offs.",
     "sections": [
       "Chapter 05: DeepSpeed and ZeRO",
-      "The ZeRO Stages Explained",
-      "ZeRO Stage 1: Optimizer State Partitioning",
-      "ZeRO Stage 2: Gradient Partitioning",
-      "ZeRO Stage 3: Parameter Partitioning",
-      "ZeRO Offloading",
-      "Trade-off Analysis: ZeRO Stages and Offload",
-      "Failure Scenarios",
+      "WHY",
+      "WHAT",
+      "HOW",
+      "WHEN",
+      "TRADEOFFS",
+      "PRODUCTION",
+      "TROUBLESHOOTING",
       "Scenario 1: ZeRO-3 Communication Hang",
-      "Running nvidia-smi on the nodes shows 100% GPU utilization but 0W power draw (stuck in a kernel).",
       "Scenario 2: NVMe Offload Thrashing",
       "Senior Interview Questions"
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
+      "text",
+      "bash",
+      "json"
     ]
   },
   "Chapter 06 — Tensor, Pipeline, and Expert Parallelism": {
@@ -4477,20 +4479,23 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Partition model computation across devices and understand communication, bubbles, and load balance.",
     "sections": [
       "Chapter 06: Tensor, Pipeline, and Expert Parallelism",
-      "Tensor Parallelism (TP)",
-      "The Communication Topology",
-      "Pipeline Parallelism (PP)",
-      "The Bubble Problem",
-      "Expert Parallelism (EP)",
-      "Trade-off Analysis: 3D Parallelism",
-      "Failure Scenarios",
+      "WHY",
+      "WHAT",
+      "HOW",
+      "WHEN",
+      "TRADEOFFS",
+      "PRODUCTION",
+      "TROUBLESHOOTING",
       "Scenario 1: Inter-Node Tensor Parallelism",
+      "Adjust your Megatron launch arguments to restrict TP to node boundaries",
       "Scenario 2: Pipeline Bubble Starvation",
+      "Increase micro-batches by scaling global batch size",
       "Senior Interview Questions"
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
+      "text",
+      "bash"
     ]
   },
   "Chapter 07 — Megatron-LM Architecture": {
@@ -4499,20 +4504,22 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Understand Megatron-style model parallelism, rank groups, data flow, and operational complexity.",
     "sections": [
       "Chapter 07: Megatron-LM Architecture",
-      "The 3D Parallel Topology",
-      "1. Tensor Parallel (TP) Dimension",
-      "2. Pipeline Parallel (PP) Dimension",
-      "3. Sequence Parallelism (SP)",
-      "Trade-off Analysis: Megatron-LM vs. DeepSpeed ZeRO",
-      "Failure Scenarios",
-      "Scenario 1: Unbalanced Pipeline Stages",
-      "Scenario 2: The \"Hanging on Initialization\" Issue",
-      "... silence for 20 minutes ...",
+      "WHY",
+      "WHAT",
+      "HOW",
+      "WHEN",
+      "TRADEOFFS",
+      "PRODUCTION",
+      "TROUBLESHOOTING",
+      "Scenario 1: The \"Hanging on Initialization\" Issue",
+      "Set explicit debugging and error handling for NCCL",
+      "Run nccl-tests across nodes to identify the hardware fault",
       "Senior Interview Questions"
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
+      "text",
+      "bash"
     ]
   },
   "Chapter 08 — NCCL Collectives and Communication Paths": {
@@ -4521,19 +4528,18 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Understand all-reduce, reduce-scatter, all-gather, all-to-all, topology, and NCCL transport behavior.",
     "sections": [
       "NCCL Collectives and Communication Paths",
-      "The Problem: Data Movement Bottlenecks",
-      "What is NCCL?",
-      "Core Collectives",
-      "Communication Topologies: Rings vs. Trees",
+      "WHY",
+      "WHAT",
+      "HOW",
       "Ring Topology",
       "Tree Topology",
-      "Tradeoff: Ring vs. Tree",
-      "The Impact of PCIe vs NVLink",
-      "Check Your Understanding",
-      "Failure Scenarios",
+      "WHEN",
+      "TRADEOFFS",
+      "PRODUCTION",
+      "TROUBLESHOOTING",
       "Scenario 1: NCCL Timeout (The Slowest Rank Problem)",
-      "Scenario 2: Unexpected Fallback to PCIe",
-      "Advanced NCCL Tuning"
+      "On the remote node, check for OOM",
+      "Scenario 2: Unexpected Fallback to PCIe"
     ],
     "codeLanguages": [
       "mermaid",
@@ -4547,23 +4553,24 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Explore checkpoint frequency optimization, asynchronous saving, distributed checkpoints, and recovery strategies.",
     "sections": [
       "Checkpointing and Recovery",
-      "The Problem: The Inevitability of Failure",
-      "What is a Checkpoint?",
-      "Analogy: Video Game Save Points",
-      "Checkpoint Frequency Optimization",
-      "Tradeoff: Frequency vs Overhead",
-      "Distributed Checkpointing Architectures",
-      "Synchronous vs Asynchronous Checkpointing",
-      "Checkpoint Sharding (Distributed Checkpoints)",
-      "Check Your Understanding",
-      "Failure Scenarios",
+      "WHY",
+      "WHAT",
+      "HOW",
+      "WHEN",
+      "TRADEOFFS",
+      "PRODUCTION",
+      "TROUBLESHOOTING",
       "Scenario 1: Corrupted Checkpoint on Crash",
+      "Check if the file is incomplete (size mismatch)",
+      "Remove corrupted checkpoint",
+      "Resume training from previous valid step",
       "Scenario 2: OOM During Asynchronous Checkpoint",
-      "Senior Interview Questions"
+      "Create a temporary 100GB swap file"
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
+      "text",
+      "bash"
     ]
   },
   "Chapter 10 — Multi-Node Training Architecture": {
@@ -4572,22 +4579,24 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Understand multi-node topology, rail-optimized network designs, InfiniBand/RoCE, and node-level architecture.",
     "sections": [
       "Multi-Node Training Architecture",
-      "The Problem: Scaling Beyond a Single Box",
-      "Node-Level Architecture",
-      "Rail-Optimized Network Topology",
-      "Why Rail Optimization?",
-      "Network Transports: InfiniBand vs RoCE v2",
-      "Check Your Understanding",
-      "Failure Scenarios",
+      "WHY",
+      "WHAT",
+      "HOW",
+      "WHEN",
+      "TRADEOFFS",
+      "PRODUCTION",
+      "TROUBLESHOOTING",
       "Scenario 1: Suboptimal Routing (The Noisy Neighbor)",
+      "Check the state of the IB ports",
+      "Query counters for symbol errors or packet drops",
       "Scenario 2: GPU to NIC Affinity Mismatch",
-      "Senior Interview Questions",
-      "Glossary",
-      "Ready to Continue Checklist"
+      "Verify the GPU to NIC mapping",
+      "Export environment variables to force GDR"
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
+      "text",
+      "bash"
     ]
   },
   "Chapter 11 — Performance Engineering and Troubleshooting": {
@@ -4596,19 +4605,19 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Learn how to measure MFU/HFU, profile NCCL, use Nsight Systems, and identify training bottlenecks.",
     "sections": [
       "Performance Engineering and Troubleshooting",
-      "The Problem: \"It's Too Slow\"",
-      "Key Metrics: MFU and HFU",
+      "WHY",
+      "WHAT",
       "Model Flops Utilization (MFU)",
       "Hardware Flops Utilization (HFU)",
-      "Profiling the Stack",
+      "HOW",
       "Level 1: System Metrics (Prometheus/Grafana)",
-      "Level 2: NCCL Profiling",
-      "Level 3: Micro-Profiling with Nsight Systems",
-      "Tradeoff: Batch Size vs Memory",
-      "Check Your Understanding",
-      "Failure Scenarios",
+      "Level 2: Micro-Profiling with Nsight Systems",
+      "WHEN",
+      "TRADEOFFS",
+      "PRODUCTION",
+      "TROUBLESHOOTING",
       "Scenario 1: The Dataloader Bottleneck",
-      "Scenario 2: Severe Straggler"
+      "Check CPU IO wait percentages"
     ],
     "codeLanguages": [
       "bash",
@@ -4628,10 +4637,17 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Failure and Recovery",
       "Performance Engineering",
       "The Ops Perspective",
-      "Final Review Questions",
-      "Ready for the Next Volume"
+      "TROUBLESHOOTING",
+      "Scenario 1: GPU ECC Memory Errors",
+      "Check the ECC memory error counters",
+      "Drain the node if using Slurm",
+      "Scenario 2: Broken NVLink Bridge",
+      "Check the current topology matrix"
     ],
-    "codeLanguages": []
+    "codeLanguages": [
+      "bash",
+      "text"
+    ]
   },
   "Lab 01 — Run Multi-GPU DDP Training": {
     "volume": "Academy orientation",

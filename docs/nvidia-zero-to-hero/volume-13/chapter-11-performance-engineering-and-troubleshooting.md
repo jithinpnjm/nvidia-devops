@@ -19,7 +19,7 @@ To know if you are slow, you must know what "fast" looks like. We use two key me
 
 ### Model Flops Utilization (MFU)
 MFU measures how efficiently the model utilizes the theoretical maximum compute of the GPU, independent of hardware specifics. 
-$$ MFU = rac{	ext{Achieved FLOPs/sec}}{	ext{Peak Theoretical FLOPs/sec}} $$
+`$$ MFU = \frac{Achieved FLOPs/sec}{Peak Theoretical FLOPs/sec} $$`
 For LLM training, 40-50% MFU is considered excellent. If your MFU is 15%, something is severely broken.
 
 ### Hardware Flops Utilization (HFU)
