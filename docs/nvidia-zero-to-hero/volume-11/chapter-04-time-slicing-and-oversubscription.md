@@ -79,6 +79,58 @@ This sequence makes a failed density experiment reversible. It also prevents the
 
 GPU time-slicing multiplexes execution; it is not a billing or fairness system. Kubernetes quotas can restrict resource requests, while application admission limits and queues control demand before GPU memory and latency become unstable. A fairness policy should name the protected unit—namespace, team, service tier, or customer—and state what happens during contention. Without that policy, the most aggressive client can consume the practical capacity of a shared pool even when every request is formally valid.
 
+## Internal working and consequence
+
+The device plugin advertises logical replicas of a supported resource. Kubernetes accounts for those replicas during placement. At runtime, the underlying GPU multiplexes work; the logical resource count has not created additional device memory, SMs, memory bandwidth, copy engines, or a new physical fault domain. That is why a time-sliced resource request has a different semantic meaning from a MIG resource request.
+
+| Layer | What it can protect | What it cannot protect |
+|---|---|---|
+| Kubernetes request | number of logical allocations | per-pod GPU memory share |
+| Namespace quota | allocation burst by namespace | kernel execution fairness |
+| Application queue | request admission | a runaway process already on device |
+| Time-slicing | multiple workloads receive turns | memory and fault isolation |
+| MIG/dedicated pool | stronger hardware/capacity boundary | all host or board failures |
+
+Use these layers together. If a workload needs a per-tenant memory reservation, it is a mechanism-selection issue, not a Kubernetes quota tuning issue.
+
+## Measuring a replica ratio
+
+Select a ratio through an experiment, not a generic multiplier. Hold the GPU, driver, runtime, workload version, input distribution, and client concurrency known. Measure a baseline with one workload. Add intended neighbors until the service objective or memory safety boundary is approached. Repeat during the temperature, power, and data-path conditions representative of the target environment. Record the result as an envelope, not a permanent hardware fact.
+
+| Test phase | Purpose | Acceptance evidence |
+|---|---|---|
+| Single tenant | establish normal latency and memory | baseline is stable and reproducible |
+| Concurrent active | identify interference | all protected SLOs remain within limit |
+| Burst | test queue/admission behavior | overload is bounded and observable |
+| Failure/recovery | test response to a bad neighbor or restart | recovery does not rely on manual guesswork |
+| Upgrade repeat | detect changed runtime behavior | prior envelope remains valid or tier is revised |
+
+## Production incident flow
+
+When a shared pool slows, preserve the distinction between control-plane success and service failure. First assess user impact and activate the workload’s approved overload behavior. Then collect a time-correlated snapshot of application latency/queueing, pod allocation, process/memory evidence, GPU health, and node/device-plugin events. If the data supports contention, reduce admission or move the protected service; if it supports host/device failure, follow the node or hardware incident path. Do not delete every pod just to make utilization fall before evidence is captured.
+
+## Troubleshooting scenario 3: shared resource scheduled on the wrong workload class
+
+**Symptoms:** a critical deployment receives a shared device after a manifest or default changed.
+
+**Evidence:** inspect resource names, node selectors, namespace policy, deployment history, and SLO telemetry.
+
+**Diagnosis:** the platform allowed a resource request whose name did not communicate its best-effort semantics, or admission policy did not restrict the service class.
+
+**Resolution:** move the deployment to its protected pool, restore the intended request/policy, and verify traffic recovery. Treat the policy gap as the root cause, not only the manifest.
+
+**Prevention:** use explicit shared resource naming and policy checks for production namespaces.
+
+## Troubleshooting scenario 4: metrics cannot identify the noisy neighbor
+
+**Symptoms:** GPU-level utilization and errors are visible, but responders cannot attribute them to one container.
+
+**Diagnosis:** metric attribution has a known limitation in the time-sliced device-plugin configuration; allocation records and application telemetry were not retained or correlated.
+
+**Resolution:** use scheduler allocation history, pod lifecycle events, application request metrics, and process evidence to narrow scope. Improve the runbook before the next incident.
+
+**Prevention:** validate observability during the rollout, including a controlled multi-pod exercise, rather than discovering the attribution gap during a customer outage.
+
 ## Production story: “all pods are healthy”
 
 An engineering team configured shared replicas for a notebook pool and later placed a customer-facing model endpoint there. Kubernetes reported every pod healthy because the process endpoints continued responding. The application’s own p99 SLO had failed: the endpoint was competing with bursty notebook kernels and cache growth.
@@ -130,6 +182,14 @@ Time-slicing is valuable when the customer wants access density and can accept a
 ## Operational complexity and cost
 
 Time-slicing may improve the number of schedulable users, but it increases incident ambiguity. A single physical-device alert can affect many logical allocations, and container-level attribution can be limited. Account for that support cost when choosing the replica ratio. Chargeback should distinguish reserved shared access from measured service consumption; otherwise a dashboard encourages teams to reserve tokens they cannot safely use at the same time.
+
+## Final checklist
+
+- Shared resources are visibly named and confined to intended pools.
+- A tested replica envelope exists for each workload class.
+- Quota, admission, queueing, and escape-hatch policies are documented.
+- Dashboards correlate application impact with allocation and device evidence.
+- On-call responders know the safe action for overload and memory incidents.
 
 ## Senior interview questions
 

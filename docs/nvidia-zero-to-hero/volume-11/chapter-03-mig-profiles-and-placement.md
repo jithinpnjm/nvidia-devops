@@ -84,6 +84,61 @@ Report capacity in two views. The tenant view states allocatable resource counts
 
 When a pool is intentionally reserved for a larger profile, label it as reserved capacity. Hiding it as “idle” encourages emergency repacking and makes availability look like inefficiency.
 
+## Placement strategy and scheduler strategy are different
+
+Placement is a hardware/driver property: it determines which GI shapes can coexist on a particular GPU. Scheduling is a control-plane property: it chooses a node from the resources advertised to Kubernetes. A scheduler cannot create a missing placement. Conversely, a valid physical layout may be invisible if the device plugin, resource strategy, labels, or node readiness are wrong.
+
+| Layer | Question | Failure evidence |
+|---|---|---|
+| Hardware layout | can this profile coexist with active instances? | GI placement listing rejects or lacks the shape |
+| Node configuration | is the desired layout applied consistently? | peers advertise different inventory |
+| Device plugin | is the inventory discovered and exposed? | no allocatable extended resource |
+| Kubernetes scheduling | can an eligible pod select the node? | Pending event cites resources/taints/affinity |
+| Service admission | should this workload consume the profile? | quota/policy or SLO policy blocks it |
+
+This separation makes incidents faster to diagnose: first ask which layer cannot satisfy the request, then collect evidence for that layer.
+
+## Capacity planning example without invented numbers
+
+Do not use a universal “models per GPU” conversion. Instead, model each service class as a demand vector: required profile type, replicas per service instance, expected concurrent-active percentage, planned headroom, and recovery reserve. Sum demand by profile, then compare it with allocatable profile inventory by node pool. Keep an explicit reserve for failed nodes, maintenance, and large-profile requests.
+
+For a new workload, run three tests: cold start, steady state, and concurrent peak. Record memory high-water marks and service objectives for all three. A profile that passes only cold start is not capacity; it is a deployment experiment.
+
+## Day-two operations
+
+Profile pools need lifecycle ownership. Inventory drift, driver changes, node replacement, and a new model version can invalidate an earlier profile decision. Review the following at a regular cadence:
+
+- profile demand versus allocatable inventory;
+- pending time by requested profile and node pool;
+- fragmentation and reserve consumption;
+- model/runtime version changes that affect memory;
+- drain duration and success rate for planned layout changes; and
+- discrepancies between billing allocation, scheduler allocation, and actual service demand.
+
+The goal is not to maximize instantaneous packing. It is to avoid surprise reconfiguration during a customer incident.
+
+## Troubleshooting scenario 3: inventory varies among identical nodes
+
+**Symptoms:** identical-looking nodes advertise different profile resources; a deployment succeeds on only some nodes.
+
+**Evidence:** compare GPU SKU, driver version, MIG layout, node image, device-plugin configuration, labels, taints, and recent change history.
+
+**Diagnosis:** the fleet is not actually homogeneous, or configuration drift produced different geometry.
+
+**Resolution:** remove inconsistent nodes from the eligible pool until they are converged through the managed lifecycle. Do not broaden a pod selector to hide the drift.
+
+**Prevention:** validate inventory as part of node provisioning and expose drift in fleet dashboards.
+
+## Troubleshooting scenario 4: reconfiguration consumes the recovery reserve
+
+**Symptoms:** a planned profile change completes, but a subsequent node failure leaves no capacity for protected workloads.
+
+**Diagnosis:** the plan optimized packing without reserving enough compatible profile inventory for maintenance and failure.
+
+**Resolution:** stop noncritical admissions, restore or add compatible reserve capacity, and communicate the reduced service tier. Capture the planner assumptions for review.
+
+**Prevention:** calculate reserve by profile and failure domain, not by total free GPU memory.
+
 ## Production story: the impossible “free” capacity
 
 A platform sold a medium profile as available because the sum of unallocated memory across a node exceeded the profile’s memory. The request stayed pending. The node had been filled with small instances in a placement that could not form the requested GI. Operators tried rescheduling repeatedly and made the capacity report worse.
@@ -120,6 +175,8 @@ Customers often ask for arbitrary fractions because their cost model starts at t
 - Was memory measured under representative concurrency and input shape?
 - Does capacity reporting distinguish allocatable profile inventory from free aggregate memory?
 - Does a larger-profile request have a route other than an unplanned node drain?
+- Does the capacity plan include a profile-compatible maintenance and failure reserve?
+- Can an operator identify whether a failure is placement, discovery, scheduling, or admission?
 
 ## Senior interview questions
 

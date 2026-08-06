@@ -150,6 +150,90 @@ Expose sharing as named services, not as a cluster-wide default. For example, a 
 
 During a rollout, start with a canary node pool and a small set of known workloads. Capture baseline throughput, latency, memory, and recovery evidence before increasing density. Keep a dedicated-pool escape hatch while the service is new. The fastest rollback is often placement: stop admitting new shared work and move the critical workload to known-good capacity.
 
+## First principles: why a GPU is not a CPU socket
+
+A CPU scheduler normally shares cores, caches, memory, and I/O among many processes. GPU workloads also share a device, but their demand patterns are unusually coupled. A single model-serving request can allocate persistent weights, request-dependent state, temporary workspace, and kernels that run in bursts. A training step can synchronize many GPUs and make one delayed participant visible to every rank. The platform cannot infer a safe concurrency level from the number of processes alone.
+
+At a high level, a CUDA process creates a context and submits work to GPU engines. The process can be limited by arithmetic throughput, memory bandwidth, device memory capacity, host-to-device transfer, kernel launch behavior, or an upstream dependency. A utilization value sampled over time does not identify which limit applies. This is why a safe sharing design starts with a workload experiment and not a desired tenant count.
+
+| Constraint | Typical outward symptom | Sharing implication |
+|---|---|---|
+| Device-memory capacity | allocation failure, eviction pressure, restart | requires headroom; time-slicing is not a quota |
+| Memory bandwidth | throughput flattens as neighbors activate | consider hardware partitioning or separation |
+| Compute throughput | throughput collapses under concurrent kernels | benchmark contention before admitting peers |
+| Host/data path | low GPU utilization and high request latency | adding replicas may amplify the bottleneck |
+| Tail-latency target | p99 misses while average looks acceptable | reserve or isolate capacity |
+| Failure recovery | restarts are expensive or stateful | reduce shared blast radius |
+
+## A decision tree that can be operated
+
+The following questions should lead to a documented decision, not a verbal preference.
+
+1. **Does the workload need an exclusive failure or performance envelope?** If it does, begin with whole-GPU capacity or a validated MIG shape. Do not start with time-slicing because it creates a later migration when the SLO fails.
+2. **Is the workload’s memory envelope known under peak input and concurrency?** If it is not known, measure it in a discovery pool. A model that starts successfully is not yet sized.
+3. **Is the workload permitted to wait?** Batch work can often queue. Online traffic needs an explicit admission or load-shedding behavior before a GPU is saturated.
+4. **Which boundary is required?** A hardware resource partition, a VM administration boundary, Kubernetes identity, and network/data isolation are separate controls.
+5. **Can the node layout change safely?** If not, use stable profile pools and provision for demand rather than treating every request as dynamically reshapeable.
+
+| Requirement | Default safe direction | Evidence before exception |
+|---|---|---|
+| strict p99 service | dedicated or validated MIG pool | concurrent load test proves a shared design |
+| long-running distributed training | dedicated GPU pool | topology and collective test proves partition suitability |
+| interactive notebook | shared best-effort pool | memory/process limits and fair-use policy |
+| VM-managed application | vGPU evaluation | supported matrix, license, host/guest lifecycle |
+| unknown model behavior | discovery or dedicated capacity | measured memory and latency envelope |
+
+## Service tiers and failure semantics
+
+Every tier should specify what happens when demand exceeds design capacity. “Best effort” is not an absence of responsibility; it is a contract that states that requests can wait, slow down, or be rejected. A latency tier should state its admission limit and fallback. A reserved tier should state its availability target and maintenance behavior.
+
+| Tier | Promise | Overload action | On-call owner |
+|---|---|---|---|
+| Discovery | access for measurement; no production SLO | queue or stop experiment | platform support |
+| Best effort | shared access with variable completion | queue, throttle, or evict by policy | tenant with platform escalation |
+| Bounded service | validated model/profile/concurrency envelope | admission control or failover | service owner |
+| Reserved | capacity and change control | protect reservation; use approved failover | platform and service owner |
+
+This table also prevents an accounting error. A logical allocation can be chargeable as a service entitlement without being interpreted as a physical reservation. The chargeback model in Chapter 09 should preserve that distinction.
+
+## Security and governance implications
+
+Sharing does not remove the need for platform controls. Kubernetes RBAC controls API actions; namespaces and quotas constrain allocation; network policy and identity govern traffic; image provenance affects what code reaches the device; node access and driver changes remain privileged operations. MIG and vGPU influence device exposure, but neither replaces the rest of the control plane.
+
+For each shared pool, record the approved tenant class, allowed image sources, data classification, incident notification expectation, and escalation package. The most damaging production ambiguity is often social: responders do not know which tenant can be disrupted while an unsafe workload is stopped.
+
+## Observability design before rollout
+
+Build the dashboard before increasing density. The dashboard should let an operator answer five questions during the first incident:
+
+1. Which physical GPU and node are involved?
+2. Which pods or VMs were allocated against that device?
+3. Did application latency, queueing, memory, or hardware health change first?
+4. Is the blast radius one workload, one shared device, one node pool, or the fleet?
+5. Is the approved action to throttle, move, drain, or replace?
+
+The platform should retain an allocation-to-device mapping long enough to investigate delayed reports. GPU-level metrics without workload identity are still useful, but they do not prove tenant attribution.
+
+## Design review anti-patterns
+
+| Anti-pattern | Why it fails | Better review question |
+|---|---|---|
+| “The GPU is only 30% utilized.” | average does not expose peak or memory pressure | what occurs under simultaneous peak demand? |
+| “Each pod gets one replica.” | replicas are not compute reservations | what hardware and memory guarantee exists? |
+| “MIG solves multi-tenancy.” | host, policy, and device dependencies remain | what exact threat and fault boundaries are required? |
+| “We can reshape on demand.” | reconfiguration is a lifecycle event | who drains, validates, and rolls back? |
+| “The pods remained healthy.” | process liveness is not SLO success | what did users experience at p99? |
+
+## Final production checklist
+
+- A workload classification exists for every shared service.
+- The chosen mechanism and non-guarantees are visible to users.
+- Load tests include intended neighbors and peak input shape.
+- Quota and admission behavior are documented and tested.
+- Critical services have a dedicated or hardware-partitioned escape path.
+- Incident telemetry maps allocation, application impact, and physical health.
+- Change records define the rollback state for any node-level layout change.
+
 ## Senior interview questions
 
 1. Why is average GPU utilization insufficient evidence for oversubscription?
