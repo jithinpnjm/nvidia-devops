@@ -28,8 +28,20 @@ NVIDIA NIM benchmarking documentation defines TTFT as request submission to firs
 No further addition needed here beyond the cross-reference — Ch.7's addendum already shows the exact bottleneck-family table in action against a real customer complaint, which is stronger than adding a second synthetic example.
 
 ➕ **Visual recall card — latency has two clocks:**
-```text
-request queue prefill first token decode decode final token
-\____________ TTFT ____________/ \___ ITL ___/ repeated
+
+```mermaid
+flowchart LR
+    A["request arrives"] --> B["queue wait"] --> C["prefill"] --> D["first token"]
+    D --> E["decode token"] --> F["decode token"] --> G["... final token"]
+    subgraph TTFT["TTFT: admission + prefill (measured once per request)"]
+        B
+        C
+        D
+    end
+    subgraph ITL["ITL/TPOT: generation cadence (measured per token, repeats)"]
+        E
+        F
+    end
 ```
-**Memory hook:** *"TTFT is admission + prefill; ITL is generation cadence."* Attach each clock to a different saturation hypothesis instead of collapsing both into average latency.
+
+**Memory hook:** *"TTFT is admission + prefill; ITL is generation cadence."* TTFT is a single clock that stops at the first token — it tells you nothing about how the rest of the response streams. ITL is measured between every subsequent token pair and repeats for the whole response — it tells you nothing about how long the request waited to start. Attach each clock to a different saturation hypothesis instead of collapsing both into one average latency number.

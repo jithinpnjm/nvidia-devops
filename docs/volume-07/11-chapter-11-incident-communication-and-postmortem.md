@@ -25,7 +25,7 @@ During an incident, communicate impact, scope, current hypothesis/evidence, miti
 [Prometheus documentation](https://prometheus.io/docs/) - Metric model, PromQL and alerting reference.
 
 ➕ **ASCII: the incident-timeline field structure this chapter's opening paragraph is describing, made concrete — the "five things to say" template:**
-```
+```text
 T+0    DETECTED    "Impact: X% error rate on inference-gateway, us-east.
                      Scope: affects tenants A,B,C, not D. Since: 14:02 UTC."
 T+8m   UPDATE       "Hypothesis: correlates with driver rollout at 13:58.
@@ -40,7 +40,7 @@ T+3d   POSTMORTEM   root cause / contributing factors / action items (below)
 Every update follows the same five-field shape (impact, scope, hypothesis+evidence, mitigation, next decision time) the chapter names — the discipline is saying all five *every time*, even "no change since last update," because silence during an incident is read as "nothing is happening" by anyone watching.
 
 ➕ **Root cause vs contributing factor vs action item, disambiguated with one incident run through all three — because conflating them is the most common postmortem-writing mistake:**
-```
+```text
 ROOT CAUSE (the mechanism):
   "A driver rollout introduced a regression causing Xid 79 (GPU fell off the bus)
    errors under sustained load on affected nodes."

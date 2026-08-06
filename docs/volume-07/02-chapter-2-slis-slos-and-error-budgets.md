@@ -11,7 +11,7 @@ source_document: "Volume_07_Observability,_Reliability_and_Troubleshooting(2).do
 
 An SLI measures an outcome such as successful requests or latency under threshold. An SLO defines the target over a window. Error budget is the tolerated failure proportion. Infrastructure metrics explain causes, but an SLO should usually represent what the service/customer experiences.
 
-```
+```text
 availability = successful_requests / valid_requests
 error_budget = 1 - target_slo
 # 99.9% availability -> 0.1% error budget over the window
@@ -20,7 +20,7 @@ error_budget = 1 - target_slo
 For training platforms, useful SLO-style measures might include job-start latency, successful completion rate, cluster availability or checkpoint/recovery expectations. For inference, request success and latency/tokens are closer to user experience.
 
 ➕ **Turning the formula into an actual operating budget — worked arithmetic an interviewer expects instantly:**
-```
+```text
 Target SLO: 99.9% availability, 30-day rolling window
 Total requests in window: 50,000,000
 error_budget_ratio = 1 - 0.999 = 0.001
@@ -31,22 +31,16 @@ budget_consumed = 12,000 / 50,000 = 24%  of the ENTIRE MONTH'S budget, in one in
 ```
 That last line — "24% of the month's budget in one incident" — is the sentence that makes error budgets real to a stakeholder who otherwise hears "99.9%" and assumes it means "basically never fails." Always convert the percentage into an absolute request count and a burn fraction; percentages alone don't communicate urgency.
 
-➕ **ASCII: error budget as a burn-down, and why burn RATE matters more than remaining balance:**
-```text
-Budget remaining (%)
-100 ●
-●●
-75 ●●● ← slow, sustainable burn (normal noise)
-●●●●●●
-50 ●●●●●●●●
-●●●●●●●●●●●●●●●●●●●●●●●● ← fine, budget lasts the window
-25
-0 incident: burns 24% in <1 hour
-time (30-day window)
-THIS is what a burn-rate alert (Ch.8) is designed to catch —
-not 'budget is low' but 'budget is draining fast enough to
-exhaust before the window ends.'
-```
+➕ **Error budget as a burn-down, and why burn RATE matters more than remaining balance:**
+
+| Day in 30-day window | Budget remaining | What happened | Verdict |
+|---|---|---|---|
+| Day 1 | 100% | window opens | — |
+| Day 10 | 92% | steady background failures (normal noise) | slow, sustainable burn — budget lasts the full window at this rate |
+| Day 20 | 80% | steady background failures continue | still fine — on pace to end the window with budget left |
+| Day 20, +1 hour | 56% | an incident burns 24% of the entire month's budget in under an hour | **fast burn** — at this rate the budget is gone long before the window ends |
+
+Two services can show the exact same "80% budget remaining" snapshot and be in completely different danger: one got there by a slow, sustainable trickle over 20 days: fine. The other got there by a single incident that burned a quarter of the month's budget in an hour: an emergency, because if that rate continued the budget would be exhausted within the day. This is what a burn-rate alert (Ch.8) is designed to catch — not "budget is low" but "budget is draining fast enough to exhaust before the window ends."
 
 ➕ **Diagram: SLI to SLO to error budget, as one funnel**
 ```mermaid
