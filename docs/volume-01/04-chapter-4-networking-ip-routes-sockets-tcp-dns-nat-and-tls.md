@@ -202,6 +202,24 @@ ip route get 10.20.30.40
 ip neigh
 ```
 
+➕ **The four commands above, real output, annotated:**
+```text
+$ ip addr show eth1
+3: eth1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500
+    inet 10.20.30.5/24 scope global eth1
+
+$ ip route
+default via 10.20.0.1 dev eth0
+10.20.30.0/24 dev eth1 proto kernel scope link src 10.20.30.5
+
+$ ip route get 10.20.30.40
+10.20.30.40 via 10.20.30.1 dev eth1 src 10.20.30.5
+
+$ ip neigh
+10.20.30.1 dev eth1 lladdr aa:bb:cc:dd:ee:01 REACHABLE
+```
+`ip addr` proves the address exists on this host and which interface it's bound to. `ip route` is the table of intentions; `ip route get` is which single entry actually wins for one specific destination, including the source address the kernel would use — the two can disagree in ways that matter once more than one route could plausibly match. `ip neigh`'s `REACHABLE` confirms the next hop's MAC address is currently resolved and confirmed, not just cached from some earlier, possibly-stale ARP exchange.
+
 ➕ **Longest-prefix match, worked with real numbers (this is the mechanism, not just the term):**
 ```text
 Routing table
@@ -224,6 +242,22 @@ ss -tn state syn-sent
 ss -tn state established
 tcpdump -ni any host 10.20.30.40 and port 443
 ```
+
+➕ **`ss` and `tcpdump`, annotated:**
+```text
+$ ss -lntp
+State  Recv-Q Send-Q Local Address:Port  Peer Address:Port  Process
+LISTEN 0      128    0.0.0.0:443        0.0.0.0:*           users:(("nginx",pid=812))
+
+$ ss -tn state established
+State      Recv-Q Send-Q  Local Address:Port    Peer Address:Port
+ESTAB      0      0        10.20.30.5:44212      10.20.30.40:443
+
+$ tcpdump -ni any host 10.20.30.40 and port 443
+14:02:11.884213 IP 10.20.30.5.44212 > 10.20.30.40.443: Flags [S], seq 123456789
+14:02:11.884350 IP 10.20.30.40.443 > 10.20.30.5.44212: Flags [S.], seq 987654321, ack 123456790
+```
+`ss -lntp` proves a process is actually listening (and names which one — `nginx`, PID 812), before you spend any time on the client side at all. `ss -tn state established` isolating just `ESTAB` connections confirms the transport layer genuinely completed for a specific peer, distinct from connections stuck earlier in the handshake. `tcpdump` is the ground truth underneath both: seeing the outbound `[S]` (SYN) *and* the inbound `[S.]` (SYN-ACK) on the wire proves the packets themselves crossed the network, which neither `ss` command can show on its own.
 
 ➕ **TCP handshake diagram, mapped to `ss` states you'll actually see:**
 ```mermaid
@@ -256,6 +290,25 @@ resolvectl query api.example.com # systemd-resolved environments
 dig +short api.example.com
 cat /etc/resolv.conf
 ```
+
+➕ **These four, annotated — same name, four different vantage points:**
+```text
+$ getent hosts api.example.com
+93.184.216.34   api.example.com
+
+$ resolvectl query api.example.com
+api.example.com: 93.184.216.34 -- link: eth0
+                  (api.example.com)
+
+$ dig +short api.example.com
+93.184.216.34
+
+$ cat /etc/resolv.conf
+nameserver 10.96.0.10
+search default.svc.cluster.local svc.cluster.local cluster.local
+options ndots:5
+```
+`getent hosts` resolves through the full NSS path (`/etc/hosts`, then DNS) — the same path the application's own code uses. `resolvectl query` (systemd-resolved specifically) additionally shows *which link/interface* answered and whether the response came from a local cache. `dig +short` talks to DNS directly, bypassing NSS and `/etc/hosts` entirely — if `dig` and `getent` disagree, the difference is in `/etc/hosts` or NSS config, not DNS itself. `/etc/resolv.conf`'s `search` list and `ndots:5` are what the next block's amplification problem actually comes from — worth reading this file before assuming any resolver is misbehaving.
 
 ➕ **The K8s-specific DNS trap — `ndots:5` amplification:**
 ```bash
@@ -305,10 +358,18 @@ tcpdump -ni any 'host 203.0.113.10 and port 443'
 ```
 **Interview-ready framing:** every line above is a proof point for one layer. A `curl -v` that dies after "Trying..." = routing/firewall (Ch4.1). Dies after "Connected" but before TLS completes = TLS/cert issue, not network. Completes TLS but returns 503 = the network stack is entirely exonerated — it's an application-layer problem now, stop looking at `tcpdump`.
 
-➕ **NAT — a Kubernetes Service, precisely, not hand-waved:**
+➕ **`nft`/`iptables` and the ClusterIP NAT rules, annotated — a Kubernetes Service, precisely, not hand-waved:**
 ```bash
 iptables -t nat -L KUBE-SERVICES -n | head     # the actual NAT rules kube-proxy wrote
 ```
+```text
+$ iptables -t nat -L KUBE-SERVICES -n | head -4
+Chain KUBE-SERVICES (2 references)
+target             prot opt source               destination
+KUBE-SVC-XYZ123    tcp  --  0.0.0.0/0            10.96.5.20    /* default/my-svc:http */ tcp dpt:80
+```
+`10.96.5.20` is the `ClusterIP` — and this line is the *entire* proof of its existence: a NAT rule saying "traffic to this address gets redirected," not a process bound to it. There is nothing to `ss -lntp` for on the node for that address — searching for a listener on the ClusterIP itself will always come up empty, by design, because that's not how it works.
+
 A `ClusterIP` is not a listening process — it's a set of DNAT rules (or ipvs virtual server entries) redirecting to real pod IPs, written by kube-proxy. **There's nothing to `netstat`/`ss` for on the node for the ClusterIP itself — only the rule.** This is the sentence that separates "I know kubectl commands" from "I understand the mechanism," and it directly extends this chapter's NAT section into the Kubernetes networking chapter (Vol 3).
 
 ## Worked scenario

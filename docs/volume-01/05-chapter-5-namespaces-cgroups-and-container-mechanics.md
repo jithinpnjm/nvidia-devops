@@ -26,10 +26,30 @@ nsenter -t <PID> -n ip addr
 nsenter -t <PID> -n ip route
 ```
 
+➕ **Annotated:**
+```text
+$ lsns
+        NS TYPE   NPROCS   PID USER COMMAND
+4026531840 mnt        180     1 root /sbin/init
+4026532890 net           4  8842 app  python3
+4026532891 pid           3  8842 app  python3
+
+$ readlink /proc/8842/ns/net
+net:[4026532890]
+
+$ nsenter -t 8842 -n ip addr show eth0
+3: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500
+    inet 10.244.1.7/24 scope global eth0
+
+$ nsenter -t 8842 -n ip route
+default via 10.244.1.1 dev eth0
+```
+`lsns`'s `NPROCS` column is the giveaway: `net:[4026532890]` shared by 4 processes (the pause container plus its pod's app containers) confirms real namespace sharing, not just an assumption based on them being "in the same Pod." `readlink .../ns/net` prints that same namespace's inode number directly — two different PIDs resolving to the identical number is the definitive proof two containers share a network namespace. `nsenter -t <PID> -n` runs a command *as if* executing inside that namespace without actually entering the container — this is how you inspect a pod's network from the host, exactly as the pause-container mechanism below relies on.
+
 ➕ **The pause-container mechanism, precisely (why `nsenter` even works this way):**
 ```mermaid
 flowchart TD
-    subgraph POD["Pod \"web\" (2 containers)"]
+    subgraph POD["Pod 'web' (2 containers)"]
         P["pause container: holds open NET+IPC namespace (created first, never restarts)"]
         A1["app container 1: own PID/MNT, shares NET/IPC"]
         A2["app container 2: own PID/MNT, shares NET/IPC"]
@@ -65,6 +85,28 @@ cat /sys/fs/cgroup/cpu.stat
 cat /sys/fs/cgroup/memory.current
 cat /sys/fs/cgroup/memory.events
 ```
+
+➕ **Annotated:**
+```text
+$ cat /proc/8842/cgroup
+0::/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-podabc.slice/cri-containerd-8842.scope
+
+$ cat /sys/fs/cgroup/kubepods.slice/.../cri-containerd-8842.scope/cpu.stat
+usage_usec     48213340192
+nr_periods     128000
+nr_throttled   41200
+throttled_usec 890000000
+
+$ cat .../memory.current
+2136745984
+$ cat .../memory.events
+low 0
+high 12
+max 0
+oom 0
+oom_kill 0
+```
+`/proc/<PID>/cgroup` is the step people skip — it's the only way to find *which* path under `/sys/fs/cgroup` actually belongs to this process, before any of the other three reads mean anything. `cpu.stat`'s `nr_throttled`/`nr_periods` (here: 41200/128000 ≈ 32%) is Chapter 1's throttling arithmetic read from an actual container. `memory.current` (≈2.0GiB) next to a `memory.max` you'd check separately tells you headroom; `memory.events`' `high 12` with `oom`/`oom_kill` still at `0` means this container has been pressured repeatedly but never actually killed — a leading indicator, not yet an incident.
 
 ➕ **requests vs limits — the exact mechanism split, worth stating precisely:**
 | | Where it's used | Kernel enforcement? |

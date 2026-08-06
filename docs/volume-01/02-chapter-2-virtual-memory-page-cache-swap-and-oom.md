@@ -35,6 +35,21 @@ RssFile: 32180 kB ← ~32MB is mapped files (often shared, reclaimable)
 ```
 If asked "why is `VmSize` 20x `VmRSS`" in an interview, the answer is: lazy allocation. `malloc`/`mmap` reserve address space; physical pages are only committed on first touch (demand paging) — that gap is normal, not a leak.
 
+➕ **`smaps_rollup` and `pmap -x`, annotated — the same numbers, broken down by mapping instead of summarized:**
+```text
+$ cat /proc/8842/smaps_rollup
+Rss:              412300 kB
+Pss:              398120 kB
+Shared_Clean:      12800 kB
+Private_Dirty:    380120 kB
+
+$ pmap -x 8842 | tail -3
+Address           Kbytes     RSS   Dirty Mode  Mapping
+00007f2c40000000 8388608  412300  380120 rw---   [ anon ]
+total kB          8421604  412300  380120
+```
+`Pss` (proportional set size) is the number to trust when a mapping is *shared* between processes — it divides shared pages by however many processes are mapping them, so summing `Pss` across processes gives an honest total instead of double-counting shared library pages that `RSS` alone would count once per process. `pmap -x` shows the same total broken out by individual mapping, which matters when a process has many mappings and you need to know *which one* is holding the memory, not just the aggregate.
+
 ➕ **Diagram: what happens on first touch (the page-fault decision path)**
 ```mermaid
 flowchart TD
@@ -69,6 +84,24 @@ Swap:         8.0Gi      0B    8.0Gi
 ```
 A dashboard alerting on `used`+`buff/cache` (i.e. "free" column, 2.1Gi) will page you at 3am for a box that's genuinely fine — `available` (45Gi) is the number that accounts for reclaimability and is what the kernel itself would report as usable. **This single misconfigured alert is one of the most common false-positive memory pages in production, and naming it unprompted is a strong interview signal.**
 
+➕ **`/proc/meminfo` and `vmstat`'s `si`/`so`, annotated:**
+```text
+$ grep -E 'MemAvailable|Cached|Buffers|Swap|Dirty|Writeback' /proc/meminfo
+MemAvailable:   47185920 kB
+Cached:         44021312 kB
+Buffers:          892160 kB
+SwapTotal:       8388604 kB
+SwapFree:        8388604 kB
+Dirty:              4120 kB
+Writeback:              0 kB
+
+$ vmstat 1 3
+procs -----------memory---------- ---swap-- -----io----
+ r  b   swpd   free   buff  cache   si   so    bi    bo
+ 2  0      0 2201312  892160 44021312   0    0    12   140
+```
+`SwapFree` equal to `SwapTotal` confirms swap is configured but genuinely unused right now. `si`/`so` (swap in/out) both at `0` is the number to actually watch over time — any sustained nonzero value here means the kernel is actively moving pages to/from disk under memory pressure, which is a much more direct signal than watching `free` climb or fall. `Dirty` (queued to be written) staying small and `Writeback` (currently being written) near zero means the writeback path isn't backed up.
+
 ➕ **Reclaim order, precisely (this is what Figure 2 above is illustrating — worth stating in words too):**
 ```mermaid
 flowchart TD
@@ -88,6 +121,21 @@ cat /sys/fs/cgroup/memory.current
 cat /sys/fs/cgroup/memory.max
 cat /sys/fs/cgroup/memory.events
 ```
+
+➕ **`dmesg`, `journalctl -k`, and the raw `memory.current`/`memory.max`, annotated:**
+```text
+$ dmesg -T | grep -i -E 'oom|killed process'
+[Wed Jul 30 02:14:11 2026] Out of memory: Killed process 9001 (java) total-vm:12GB, anon-rss:7GB
+
+$ journalctl -k --since '-30 min' | grep -i oom
+Jul 30 02:14:11 host kernel: oom-kill:constraint=CONSTRAINT_NONE,nodemask=(null)
+
+$ cat /sys/fs/cgroup/mycontainer/memory.current
+2136745984
+$ cat /sys/fs/cgroup/mycontainer/memory.max
+2147483648
+```
+`dmesg -T` (`-T` converts the kernel's raw uptime-relative timestamps into human-readable dates) and `journalctl -k` are checking the same kernel ring buffer through two different tools — useful when one has already rotated the entries the other still has. A node-wide OOM entry naming a specific victim process (`Killed process 9001 (java)`) is definitive proof of a *node-wide* kill, distinct from the cgroup-scoped `oom_kill` counter below. `memory.current` (2136745984 bytes ≈ 2.0GiB) sitting just under `memory.max` (2147483648 bytes = exactly 2GiB) is a container about to hit its limit, before it actually does — worth checking proactively, not just after the fact.
 
 ➕ **Three distinct memory-death paths — table worth memorizing verbatim for interview speed:**
 | Failure | Trigger | Where you see it | Who decides the victim |
@@ -112,6 +160,14 @@ oom_kill 1 ← and it actually killed a process (not just invoked, but a kill ha
 cat /proc/<pid>/oom_score_adj    # -1000 (never kill) to +1000 (kill first)
 cat /proc/<pid>/oom_score         # computed score combining adj + memory usage
 ```
+```text
+$ cat /proc/8842/oom_score_adj
+-997
+$ cat /proc/8842/oom_score
+1
+```
+`-997` is close to the protected end of the scale — this is what a Kubernetes `Guaranteed`-QoS pod's process typically gets. A `BestEffort` pod's process would show something close to `+1000` instead, and its computed `oom_score` would run far higher under the same memory pressure, which is why it dies first even if it isn't using the most memory in absolute terms.
+
 Kubernetes sets `oom_score_adj` per QoS class: Guaranteed pods get the most negative (protected) adjustment, BestEffort the least — so under node pressure, BestEffort pods die first by design, regardless of which one happens to be using the most memory at that instant. Knowing this cold answers "why did pod X die and not pod Y" without needing to look at anything else first.
 
 ➕ **Diagram: the three memory-death boundaries, side by side**
