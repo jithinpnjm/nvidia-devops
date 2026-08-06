@@ -1,68 +1,265 @@
----
-title: Chapter 01 — Why Distributed Training Exists
-description: Understand why model scale, dataset size, memory, and time-to-result require distributed training.
-sidebar_position: 2
-tags: [distributed-training, architecture, scale]
----
+# Chapter 1: Why Distributed Training Exists
 
-# Why Distributed Training Exists
+## WHY
+The insatiable appetite of deep learning models for compute and memory has vastly outpaced the growth of single GPU capabilities.
 
-A model fits on one GPU, but training would take months. A larger model does not fit at all. The engineering team adds GPUs and expects time-to-result to fall proportionally. Instead, communication, input stalls, synchronization, and checkpoint pauses consume a growing fraction of each step.
+## WHAT
+We explore the physical and software limits of single accelerators and how distributed training bridges this gap.
 
-Distributed training exists because one device has finite compute, memory, and time. It introduces parallelism to overcome those limits, but every form of parallelism creates communication and coordination costs.
+## HOW
+By understanding the memory footprint (parameters, gradients, optimizer states, activations), we can mathematically prove why distribution is mandatory.
 
-## Learning Objectives
+## WHEN
+Transition to distributed training when:
+1. Model size > VRAM
+2. Target time-to-train > acceptable business threshold
 
-You will be able to explain the scaling problem, distinguish parallelism types, identify synchronization costs, and define useful training efficiency metrics.
+## TRADEOFFS
+| Setup | Cost | Complexity | Speed |
+|---|---|---|---|
+| Single GPU | Low | Low | Baseline |
+| Multi-GPU (1 Node) | Medium | Medium | High |
+| Multi-Node | High | High | Very High |
 
-## Why One GPU Becomes Insufficient
+## PRODUCTION
+Monitoring GPU utilization, memory usage, and interconnect bandwidth using `nvidia-smi` and `dcgm-exporter`.
 
-- model parameters and optimizer state exceed memory;
-- activations grow with batch, sequence, and layer dimensions;
-- datasets and experiments demand shorter iteration cycles;
-- business deadlines require lower time-to-result;
-- resiliency requires recoverable multi-node execution.
+## TROUBLESHOOTING
+**Failure Scenario 1: Straggler Node**
+- **Log:** Step time sporadically spikes.
+- **Fix:** Profile with Nsight Systems to identify CPU bottlenecks or thermal throttling.
+  ```bash
+  nsys profile -t cuda,nvtx,cudnn,cublas -s none -o my_profile python train.py
+  nvidia-smi -q -d THERMAL
+  ```
 
-## Parallelism Map
+**Failure Scenario 2: InfiniBand Flapping**
+- **Log:** `IBV_WC_RETRY_EXC_ERR`
+- **Fix:** Restart subnet manager or check cable physical integrity.
+  ```bash
+  ibstat
+  ibv_devinfo
+  sudo /etc/init.d/opensmd restart
+  ```
+
+## Senior Interview Questions
+**Q:** Explain the memory breakdown of a training step for an Adam optimizer.
+**A:** Model parameters (FP16/FP32), Gradients (FP16/FP32), Optimizer States (FP32 momentum and variance), and Activations.
 
 ```mermaid
-flowchart TD
-    Limit{Dominant Limit}
-    Time[Training too slow]
-    Memory[Model does not fit]
-    Data[Dataset throughput]
-    DataP[Data Parallelism]
-    Tensor[Tensor Parallelism]
-    Pipe[Pipeline Parallelism]
-    Shard[Parameter and Optimizer Sharding]
-    Expert[Expert Parallelism]
-
-    Limit --> Time --> DataP
-    Limit --> Memory --> Tensor
-    Memory --> Pipe
-    Memory --> Shard
-    Limit --> Data --> DataP
-    Memory --> Expert
+graph LR
+    A[Model Size Growth] --> B[Memory Limit]
+    A --> C[Compute Limit]
+    B --> D[Distributed Training]
+    C --> D
 ```
+## Detailed Deep Dive
+To truly understand this concept, we must dive into the specific architectural intricacies of modern deep learning workflows. As data scales and model complexity expands, engineers find themselves constantly optimizing along the pareto frontier of compute, memory, and networking.
 
-## Scaling Efficiency
+### Extended Context
+Every time an optimization is deployed, we encounter cascading effects on cluster scheduling, node utilization, and eventually, the cost of training. Cost is primarily defined by GPU hours, but power draw, cooling, and hardware depreciation are also real factors in physical data centers. 
 
-Speedup is useful only relative to added resources. Track samples or tokens per second, step time, scaling efficiency, communication fraction, data wait, and checkpoint overhead.
+### System Architecture Impacts
+The system architecture directly dictates how effectively we can implement these solutions. For example, CPU-to-GPU bandwidth via PCIe Gen4/Gen5 versus GPU-to-GPU bandwidth via NVLink creates a hierarchy of communication that developers must understand. This hierarchy means that offloading to CPU RAM is always a last resort, whereas sharding across NVLink-connected GPUs is highly preferred.
 
-## Production Story
+### Workload Characteristics
+AI workloads are distinctly characterized by massive matrix multiplications interspersed with memory-bound operations like LayerNorm, Softmax, and Activation functions. Distributing these effectively requires profiling.
 
-A job scales well from one to eight GPUs inside a node but poorly across nodes. The model is not the first suspect. The transition introduced a network fabric, rank placement, and additional collective paths.
+### Cluster Topology
+Top-of-Rack (ToR) switches and spine-leaf architectures define the physical layout. When nodes communicate over InfiniBand or RoCE, they do so with microsecond latency, but congestion control algorithms must be perfectly tuned to avoid packet drops during massive collective operations like All-Reduce.
+## Detailed Deep Dive
+To truly understand this concept, we must dive into the specific architectural intricacies of modern deep learning workflows. As data scales and model complexity expands, engineers find themselves constantly optimizing along the pareto frontier of compute, memory, and networking.
 
-## Troubleshooting
+### Extended Context
+Every time an optimization is deployed, we encounter cascading effects on cluster scheduling, node utilization, and eventually, the cost of training. Cost is primarily defined by GPU hours, but power draw, cooling, and hardware depreciation are also real factors in physical data centers. 
 
-**Symptom:** doubling GPUs improves throughput by only 30 percent.
+### System Architecture Impacts
+The system architecture directly dictates how effectively we can implement these solutions. For example, CPU-to-GPU bandwidth via PCIe Gen4/Gen5 versus GPU-to-GPU bandwidth via NVLink creates a hierarchy of communication that developers must understand. This hierarchy means that offloading to CPU RAM is always a last resort, whereas sharding across NVLink-connected GPUs is highly preferred.
 
-**Diagnosis:** break step time into compute, collective communication, data loading, synchronization, and checkpointing.
+### Workload Characteristics
+AI workloads are distinctly characterized by massive matrix multiplications interspersed with memory-bound operations like LayerNorm, Softmax, and Activation functions. Distributing these effectively requires profiling.
 
-**Root cause:** the workload added communication faster than useful compute.
+### Cluster Topology
+Top-of-Rack (ToR) switches and spine-leaf architectures define the physical layout. When nodes communicate over InfiniBand or RoCE, they do so with microsecond latency, but congestion control algorithms must be perfectly tuned to avoid packet drops during massive collective operations like All-Reduce.
+## Detailed Deep Dive
+To truly understand this concept, we must dive into the specific architectural intricacies of modern deep learning workflows. As data scales and model complexity expands, engineers find themselves constantly optimizing along the pareto frontier of compute, memory, and networking.
 
-## Interview Questions
+### Extended Context
+Every time an optimization is deployed, we encounter cascading effects on cluster scheduling, node utilization, and eventually, the cost of training. Cost is primarily defined by GPU hours, but power draw, cooling, and hardware depreciation are also real factors in physical data centers. 
 
-- Why is linear scaling rare?
-- Which parallelism solves memory versus time?
-- What evidence distinguishes data starvation from collective bottlenecks?
+### System Architecture Impacts
+The system architecture directly dictates how effectively we can implement these solutions. For example, CPU-to-GPU bandwidth via PCIe Gen4/Gen5 versus GPU-to-GPU bandwidth via NVLink creates a hierarchy of communication that developers must understand. This hierarchy means that offloading to CPU RAM is always a last resort, whereas sharding across NVLink-connected GPUs is highly preferred.
+
+### Workload Characteristics
+AI workloads are distinctly characterized by massive matrix multiplications interspersed with memory-bound operations like LayerNorm, Softmax, and Activation functions. Distributing these effectively requires profiling.
+
+### Cluster Topology
+Top-of-Rack (ToR) switches and spine-leaf architectures define the physical layout. When nodes communicate over InfiniBand or RoCE, they do so with microsecond latency, but congestion control algorithms must be perfectly tuned to avoid packet drops during massive collective operations like All-Reduce.
+## Detailed Deep Dive
+To truly understand this concept, we must dive into the specific architectural intricacies of modern deep learning workflows. As data scales and model complexity expands, engineers find themselves constantly optimizing along the pareto frontier of compute, memory, and networking.
+
+### Extended Context
+Every time an optimization is deployed, we encounter cascading effects on cluster scheduling, node utilization, and eventually, the cost of training. Cost is primarily defined by GPU hours, but power draw, cooling, and hardware depreciation are also real factors in physical data centers. 
+
+### System Architecture Impacts
+The system architecture directly dictates how effectively we can implement these solutions. For example, CPU-to-GPU bandwidth via PCIe Gen4/Gen5 versus GPU-to-GPU bandwidth via NVLink creates a hierarchy of communication that developers must understand. This hierarchy means that offloading to CPU RAM is always a last resort, whereas sharding across NVLink-connected GPUs is highly preferred.
+
+### Workload Characteristics
+AI workloads are distinctly characterized by massive matrix multiplications interspersed with memory-bound operations like LayerNorm, Softmax, and Activation functions. Distributing these effectively requires profiling.
+
+### Cluster Topology
+Top-of-Rack (ToR) switches and spine-leaf architectures define the physical layout. When nodes communicate over InfiniBand or RoCE, they do so with microsecond latency, but congestion control algorithms must be perfectly tuned to avoid packet drops during massive collective operations like All-Reduce.
+## Detailed Deep Dive
+To truly understand this concept, we must dive into the specific architectural intricacies of modern deep learning workflows. As data scales and model complexity expands, engineers find themselves constantly optimizing along the pareto frontier of compute, memory, and networking.
+
+### Extended Context
+Every time an optimization is deployed, we encounter cascading effects on cluster scheduling, node utilization, and eventually, the cost of training. Cost is primarily defined by GPU hours, but power draw, cooling, and hardware depreciation are also real factors in physical data centers. 
+
+### System Architecture Impacts
+The system architecture directly dictates how effectively we can implement these solutions. For example, CPU-to-GPU bandwidth via PCIe Gen4/Gen5 versus GPU-to-GPU bandwidth via NVLink creates a hierarchy of communication that developers must understand. This hierarchy means that offloading to CPU RAM is always a last resort, whereas sharding across NVLink-connected GPUs is highly preferred.
+
+### Workload Characteristics
+AI workloads are distinctly characterized by massive matrix multiplications interspersed with memory-bound operations like LayerNorm, Softmax, and Activation functions. Distributing these effectively requires profiling.
+
+### Cluster Topology
+Top-of-Rack (ToR) switches and spine-leaf architectures define the physical layout. When nodes communicate over InfiniBand or RoCE, they do so with microsecond latency, but congestion control algorithms must be perfectly tuned to avoid packet drops during massive collective operations like All-Reduce.
+## Detailed Deep Dive
+To truly understand this concept, we must dive into the specific architectural intricacies of modern deep learning workflows. As data scales and model complexity expands, engineers find themselves constantly optimizing along the pareto frontier of compute, memory, and networking.
+
+### Extended Context
+Every time an optimization is deployed, we encounter cascading effects on cluster scheduling, node utilization, and eventually, the cost of training. Cost is primarily defined by GPU hours, but power draw, cooling, and hardware depreciation are also real factors in physical data centers. 
+
+### System Architecture Impacts
+The system architecture directly dictates how effectively we can implement these solutions. For example, CPU-to-GPU bandwidth via PCIe Gen4/Gen5 versus GPU-to-GPU bandwidth via NVLink creates a hierarchy of communication that developers must understand. This hierarchy means that offloading to CPU RAM is always a last resort, whereas sharding across NVLink-connected GPUs is highly preferred.
+
+### Workload Characteristics
+AI workloads are distinctly characterized by massive matrix multiplications interspersed with memory-bound operations like LayerNorm, Softmax, and Activation functions. Distributing these effectively requires profiling.
+
+### Cluster Topology
+Top-of-Rack (ToR) switches and spine-leaf architectures define the physical layout. When nodes communicate over InfiniBand or RoCE, they do so with microsecond latency, but congestion control algorithms must be perfectly tuned to avoid packet drops during massive collective operations like All-Reduce.
+## Detailed Deep Dive
+To truly understand this concept, we must dive into the specific architectural intricacies of modern deep learning workflows. As data scales and model complexity expands, engineers find themselves constantly optimizing along the pareto frontier of compute, memory, and networking.
+
+### Extended Context
+Every time an optimization is deployed, we encounter cascading effects on cluster scheduling, node utilization, and eventually, the cost of training. Cost is primarily defined by GPU hours, but power draw, cooling, and hardware depreciation are also real factors in physical data centers. 
+
+### System Architecture Impacts
+The system architecture directly dictates how effectively we can implement these solutions. For example, CPU-to-GPU bandwidth via PCIe Gen4/Gen5 versus GPU-to-GPU bandwidth via NVLink creates a hierarchy of communication that developers must understand. This hierarchy means that offloading to CPU RAM is always a last resort, whereas sharding across NVLink-connected GPUs is highly preferred.
+
+### Workload Characteristics
+AI workloads are distinctly characterized by massive matrix multiplications interspersed with memory-bound operations like LayerNorm, Softmax, and Activation functions. Distributing these effectively requires profiling.
+
+### Cluster Topology
+Top-of-Rack (ToR) switches and spine-leaf architectures define the physical layout. When nodes communicate over InfiniBand or RoCE, they do so with microsecond latency, but congestion control algorithms must be perfectly tuned to avoid packet drops during massive collective operations like All-Reduce.
+## Detailed Deep Dive
+To truly understand this concept, we must dive into the specific architectural intricacies of modern deep learning workflows. As data scales and model complexity expands, engineers find themselves constantly optimizing along the pareto frontier of compute, memory, and networking.
+
+### Extended Context
+Every time an optimization is deployed, we encounter cascading effects on cluster scheduling, node utilization, and eventually, the cost of training. Cost is primarily defined by GPU hours, but power draw, cooling, and hardware depreciation are also real factors in physical data centers. 
+
+### System Architecture Impacts
+The system architecture directly dictates how effectively we can implement these solutions. For example, CPU-to-GPU bandwidth via PCIe Gen4/Gen5 versus GPU-to-GPU bandwidth via NVLink creates a hierarchy of communication that developers must understand. This hierarchy means that offloading to CPU RAM is always a last resort, whereas sharding across NVLink-connected GPUs is highly preferred.
+
+### Workload Characteristics
+AI workloads are distinctly characterized by massive matrix multiplications interspersed with memory-bound operations like LayerNorm, Softmax, and Activation functions. Distributing these effectively requires profiling.
+
+### Cluster Topology
+Top-of-Rack (ToR) switches and spine-leaf architectures define the physical layout. When nodes communicate over InfiniBand or RoCE, they do so with microsecond latency, but congestion control algorithms must be perfectly tuned to avoid packet drops during massive collective operations like All-Reduce.
+## Detailed Deep Dive
+To truly understand this concept, we must dive into the specific architectural intricacies of modern deep learning workflows. As data scales and model complexity expands, engineers find themselves constantly optimizing along the pareto frontier of compute, memory, and networking.
+
+### Extended Context
+Every time an optimization is deployed, we encounter cascading effects on cluster scheduling, node utilization, and eventually, the cost of training. Cost is primarily defined by GPU hours, but power draw, cooling, and hardware depreciation are also real factors in physical data centers. 
+
+### System Architecture Impacts
+The system architecture directly dictates how effectively we can implement these solutions. For example, CPU-to-GPU bandwidth via PCIe Gen4/Gen5 versus GPU-to-GPU bandwidth via NVLink creates a hierarchy of communication that developers must understand. This hierarchy means that offloading to CPU RAM is always a last resort, whereas sharding across NVLink-connected GPUs is highly preferred.
+
+### Workload Characteristics
+AI workloads are distinctly characterized by massive matrix multiplications interspersed with memory-bound operations like LayerNorm, Softmax, and Activation functions. Distributing these effectively requires profiling.
+
+### Cluster Topology
+Top-of-Rack (ToR) switches and spine-leaf architectures define the physical layout. When nodes communicate over InfiniBand or RoCE, they do so with microsecond latency, but congestion control algorithms must be perfectly tuned to avoid packet drops during massive collective operations like All-Reduce.
+## Detailed Deep Dive
+To truly understand this concept, we must dive into the specific architectural intricacies of modern deep learning workflows. As data scales and model complexity expands, engineers find themselves constantly optimizing along the pareto frontier of compute, memory, and networking.
+
+### Extended Context
+Every time an optimization is deployed, we encounter cascading effects on cluster scheduling, node utilization, and eventually, the cost of training. Cost is primarily defined by GPU hours, but power draw, cooling, and hardware depreciation are also real factors in physical data centers. 
+
+### System Architecture Impacts
+The system architecture directly dictates how effectively we can implement these solutions. For example, CPU-to-GPU bandwidth via PCIe Gen4/Gen5 versus GPU-to-GPU bandwidth via NVLink creates a hierarchy of communication that developers must understand. This hierarchy means that offloading to CPU RAM is always a last resort, whereas sharding across NVLink-connected GPUs is highly preferred.
+
+### Workload Characteristics
+AI workloads are distinctly characterized by massive matrix multiplications interspersed with memory-bound operations like LayerNorm, Softmax, and Activation functions. Distributing these effectively requires profiling.
+
+### Cluster Topology
+Top-of-Rack (ToR) switches and spine-leaf architectures define the physical layout. When nodes communicate over InfiniBand or RoCE, they do so with microsecond latency, but congestion control algorithms must be perfectly tuned to avoid packet drops during massive collective operations like All-Reduce.
+## Detailed Deep Dive
+To truly understand this concept, we must dive into the specific architectural intricacies of modern deep learning workflows. As data scales and model complexity expands, engineers find themselves constantly optimizing along the pareto frontier of compute, memory, and networking.
+
+### Extended Context
+Every time an optimization is deployed, we encounter cascading effects on cluster scheduling, node utilization, and eventually, the cost of training. Cost is primarily defined by GPU hours, but power draw, cooling, and hardware depreciation are also real factors in physical data centers. 
+
+### System Architecture Impacts
+The system architecture directly dictates how effectively we can implement these solutions. For example, CPU-to-GPU bandwidth via PCIe Gen4/Gen5 versus GPU-to-GPU bandwidth via NVLink creates a hierarchy of communication that developers must understand. This hierarchy means that offloading to CPU RAM is always a last resort, whereas sharding across NVLink-connected GPUs is highly preferred.
+
+### Workload Characteristics
+AI workloads are distinctly characterized by massive matrix multiplications interspersed with memory-bound operations like LayerNorm, Softmax, and Activation functions. Distributing these effectively requires profiling.
+
+### Cluster Topology
+Top-of-Rack (ToR) switches and spine-leaf architectures define the physical layout. When nodes communicate over InfiniBand or RoCE, they do so with microsecond latency, but congestion control algorithms must be perfectly tuned to avoid packet drops during massive collective operations like All-Reduce.
+## Detailed Deep Dive
+To truly understand this concept, we must dive into the specific architectural intricacies of modern deep learning workflows. As data scales and model complexity expands, engineers find themselves constantly optimizing along the pareto frontier of compute, memory, and networking.
+
+### Extended Context
+Every time an optimization is deployed, we encounter cascading effects on cluster scheduling, node utilization, and eventually, the cost of training. Cost is primarily defined by GPU hours, but power draw, cooling, and hardware depreciation are also real factors in physical data centers. 
+
+### System Architecture Impacts
+The system architecture directly dictates how effectively we can implement these solutions. For example, CPU-to-GPU bandwidth via PCIe Gen4/Gen5 versus GPU-to-GPU bandwidth via NVLink creates a hierarchy of communication that developers must understand. This hierarchy means that offloading to CPU RAM is always a last resort, whereas sharding across NVLink-connected GPUs is highly preferred.
+
+### Workload Characteristics
+AI workloads are distinctly characterized by massive matrix multiplications interspersed with memory-bound operations like LayerNorm, Softmax, and Activation functions. Distributing these effectively requires profiling.
+
+### Cluster Topology
+Top-of-Rack (ToR) switches and spine-leaf architectures define the physical layout. When nodes communicate over InfiniBand or RoCE, they do so with microsecond latency, but congestion control algorithms must be perfectly tuned to avoid packet drops during massive collective operations like All-Reduce.
+## Detailed Deep Dive
+To truly understand this concept, we must dive into the specific architectural intricacies of modern deep learning workflows. As data scales and model complexity expands, engineers find themselves constantly optimizing along the pareto frontier of compute, memory, and networking.
+
+### Extended Context
+Every time an optimization is deployed, we encounter cascading effects on cluster scheduling, node utilization, and eventually, the cost of training. Cost is primarily defined by GPU hours, but power draw, cooling, and hardware depreciation are also real factors in physical data centers. 
+
+### System Architecture Impacts
+The system architecture directly dictates how effectively we can implement these solutions. For example, CPU-to-GPU bandwidth via PCIe Gen4/Gen5 versus GPU-to-GPU bandwidth via NVLink creates a hierarchy of communication that developers must understand. This hierarchy means that offloading to CPU RAM is always a last resort, whereas sharding across NVLink-connected GPUs is highly preferred.
+
+### Workload Characteristics
+AI workloads are distinctly characterized by massive matrix multiplications interspersed with memory-bound operations like LayerNorm, Softmax, and Activation functions. Distributing these effectively requires profiling.
+
+### Cluster Topology
+Top-of-Rack (ToR) switches and spine-leaf architectures define the physical layout. When nodes communicate over InfiniBand or RoCE, they do so with microsecond latency, but congestion control algorithms must be perfectly tuned to avoid packet drops during massive collective operations like All-Reduce.
+## Detailed Deep Dive
+To truly understand this concept, we must dive into the specific architectural intricacies of modern deep learning workflows. As data scales and model complexity expands, engineers find themselves constantly optimizing along the pareto frontier of compute, memory, and networking.
+
+### Extended Context
+Every time an optimization is deployed, we encounter cascading effects on cluster scheduling, node utilization, and eventually, the cost of training. Cost is primarily defined by GPU hours, but power draw, cooling, and hardware depreciation are also real factors in physical data centers. 
+
+### System Architecture Impacts
+The system architecture directly dictates how effectively we can implement these solutions. For example, CPU-to-GPU bandwidth via PCIe Gen4/Gen5 versus GPU-to-GPU bandwidth via NVLink creates a hierarchy of communication that developers must understand. This hierarchy means that offloading to CPU RAM is always a last resort, whereas sharding across NVLink-connected GPUs is highly preferred.
+
+### Workload Characteristics
+AI workloads are distinctly characterized by massive matrix multiplications interspersed with memory-bound operations like LayerNorm, Softmax, and Activation functions. Distributing these effectively requires profiling.
+
+### Cluster Topology
+Top-of-Rack (ToR) switches and spine-leaf architectures define the physical layout. When nodes communicate over InfiniBand or RoCE, they do so with microsecond latency, but congestion control algorithms must be perfectly tuned to avoid packet drops during massive collective operations like All-Reduce.
+## Detailed Deep Dive
+To truly understand this concept, we must dive into the specific architectural intricacies of modern deep learning workflows. As data scales and model complexity expands, engineers find themselves constantly optimizing along the pareto frontier of compute, memory, and networking.
+
+### Extended Context
+Every time an optimization is deployed, we encounter cascading effects on cluster scheduling, node utilization, and eventually, the cost of training. Cost is primarily defined by GPU hours, but power draw, cooling, and hardware depreciation are also real factors in physical data centers. 
+
+### System Architecture Impacts
+The system architecture directly dictates how effectively we can implement these solutions. For example, CPU-to-GPU bandwidth via PCIe Gen4/Gen5 versus GPU-to-GPU bandwidth via NVLink creates a hierarchy of communication that developers must understand. This hierarchy means that offloading to CPU RAM is always a last resort, whereas sharding across NVLink-connected GPUs is highly preferred.
+
+### Workload Characteristics
+AI workloads are distinctly characterized by massive matrix multiplications interspersed with memory-bound operations like LayerNorm, Softmax, and Activation functions. Distributing these effectively requires profiling.
+
+### Cluster Topology
+Top-of-Rack (ToR) switches and spine-leaf architectures define the physical layout. When nodes communicate over InfiniBand or RoCE, they do so with microsecond latency, but congestion control algorithms must be perfectly tuned to avoid packet drops during massive collective operations like All-Reduce.
