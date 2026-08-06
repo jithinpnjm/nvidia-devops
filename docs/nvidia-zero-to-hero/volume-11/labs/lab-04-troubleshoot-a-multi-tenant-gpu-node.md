@@ -291,16 +291,15 @@ kubectl apply -f quota-denied-gpu-pod.yaml 2>&1 | tee "$EVIDENCE_DIR/quota-denia
 
 ## 17. Cleanup and Recovery Verification
 
-**Purpose:** Remove the injected policy and all lab-only workloads.
+**Purpose:** Remove the injected policy while preserving the lab namespace for the policy-recovery proof.
 
 **Command:**
 ```bash
 kubectl delete resourcequota -n "$LAB_NAMESPACE" diagnostic-gpu-denial --ignore-not-found
 kubectl get resourcequota -n "$LAB_NAMESPACE" diagnostic-gpu-denial --ignore-not-found -o name
-kubectl delete namespace "$LAB_NAMESPACE" --ignore-not-found
 ```
 
-**Expected evidence:** Kubernetes reports deletion or `not found` only for named lab resources; the `get ... -o name` command returns no quota object before namespace deletion.
+**Expected evidence:** Kubernetes reports quota deletion or `not found`; the `get ... -o name` command returns no quota object while the namespace remains available for the recovery check.
 
 **Explanation:** Never “clean up” by deleting a tenant quota or a platform resource. Preserve the evidence directory according to incident retention policy.
 
@@ -320,15 +319,28 @@ kubectl get pod -n "$LAB_NAMESPACE" quota-denied-gpu-pod -w
 
 **Common-failure interpretation:** If API admission is still denied, re-check the named quota and any other policy in the lab namespace. If the Pod is Pending, inspect its events rather than restoring or changing node configuration.
 
+**Purpose:** Remove the lab namespace only after the policy-recovery proof and verify no lab Pod remains on the node.
+
+**Command:**
+```bash
+kubectl delete namespace "$LAB_NAMESPACE" --ignore-not-found
+kubectl get pods -A --field-selector spec.nodeName="$GPU_NODE" -o wide
+```
+
+**Expected evidence:** The namespace is deleted or absent, and the node-wide Pod list has no Pod from `gpu-sharing-incident-lab`.
+
+**Explanation:** This ordering preserves the namespace until quota removal has been proven by successful API admission. It then removes every named lab object together.
+
+**Common-failure interpretation:** A terminating namespace or remaining lab Pod requires ordinary Kubernetes cleanup; do not bypass finalizers without owner approval.
+
 **Purpose:** Verify the node’s advertised inventory matches the recorded baseline after lab cleanup.
 
 **Command:**
 ```bash
 kubectl get node "$GPU_NODE" -o jsonpath='{.status.allocatable}{"\n"}'
-kubectl get pods -A --field-selector spec.nodeName="$GPU_NODE" -o wide
 ```
 
-**Expected evidence:** Allocatable resources remain at baseline and no lab Pods remain on the node.
+**Expected evidence:** Allocatable resources remain at baseline after the lab namespace is gone.
 
 **Explanation:** Recovery is confirmed by inventory, policy removal, and successful bounded diagnostics—not by an assumption that deleting a namespace solved the underlying incident.
 

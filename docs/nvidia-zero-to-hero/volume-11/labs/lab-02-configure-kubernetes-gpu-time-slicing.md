@@ -359,27 +359,46 @@ kubectl get resourcequota -n "$LAB_NAMESPACE"
 
 ## 17. Cleanup and Rollback
 
-**Purpose:** Remove all disposable workloads, quotas, and evidence-generating objects.
+**Purpose:** Remove the disposable workloads and quota while retaining the ConfigMap and ClusterPolicy evidence needed for a controlled rollback.
 
 **Command:**
 ```bash
 kubectl delete namespace "$LAB_NAMESPACE" --ignore-not-found
-kubectl delete configmap -n "$OPERATOR_NAMESPACE" time-slicing-lab-config --ignore-not-found
 ```
 
-**Expected evidence:** Kubernetes reports deletion or `not found` for only the named lab objects.
+**Expected evidence:** Kubernetes reports namespace deletion or `not found`; the selected `time-slicing-lab-config` remains present until it is no longer referenced.
 
-**Explanation:** Restore the prior `spec.devicePlugin.config` values recorded in `clusterpolicy-before-time-slicing.yaml` with a reviewed merge patch **before** deleting the ConfigMap. For example, if the recorded prior values are `<prior-configmap>` and `<prior-key>`, use:
+**Explanation:** Restore the prior `spec.devicePlugin.config` values recorded in `clusterpolicy-before-time-slicing.yaml` with a reviewed merge patch **before** deleting the ConfigMap. Substitute the recorded `<prior-configmap>` and `<prior-key>` values in the next command.
 
+**Purpose:** Restore the recorded ClusterPolicy selection and wait for the node to recover its baseline inventory before removing the selected ConfigMap.
+
+**Command:**
 ```bash
 kubectl patch clusterpolicy "$CLUSTERPOLICY_NAME" --type merge \
   --patch '{"spec":{"devicePlugin":{"config":{"name":"<prior-configmap>","default":"<prior-key>"}}}}'
 kubectl get clusterpolicy "$CLUSTERPOLICY_NAME" -o jsonpath='{.spec.devicePlugin.config}{"\n"}'
+kubectl get node "$GPU_NODE" -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{" allocatable\n"}'
 ```
 
-The expected evidence is the exact recorded prior configuration, followed by baseline node Allocatable inventory. Do not delete the lab ConfigMap until it is no longer selected.
+**Expected evidence:** The ClusterPolicy configuration exactly matches the values recorded in `clusterpolicy-before-time-slicing.yaml`, and the node’s advertised GPU resource value returns to its recorded baseline.
 
-**Common-failure interpretation:** If reconciliation cannot return the node to its previous resource inventory, keep it cordoned and escalate with the baseline and plugin evidence.
+**Explanation:** Do not delete the lab ConfigMap until it is no longer selected *and* the baseline inventory is visible through kubelet. A node that does not return to baseline remains cordoned.
+
+**Common-failure interpretation:** An unchanged selection, a missing resource, or a resource value different from baseline is a rollback failure. Preserve the ConfigMap and escalate with the platform logs and backup.
+
+**Purpose:** Remove the now-unselected lab ConfigMap and prove it is absent.
+
+**Command:**
+```bash
+kubectl delete configmap -n "$OPERATOR_NAMESPACE" time-slicing-lab-config --ignore-not-found
+kubectl get configmap -n "$OPERATOR_NAMESPACE" time-slicing-lab-config --ignore-not-found -o name
+```
+
+**Expected evidence:** The delete reports success or `not found`, and the follow-up command returns no ConfigMap object.
+
+**Explanation:** This removal comes after—not before—the restored ClusterPolicy and baseline inventory proof.
+
+**Common-failure interpretation:** If the ConfigMap remains selected or cannot be removed, keep the node cordoned and investigate ownership/authorization rather than uncordoning.
 
 **Purpose:** Verify baseline resource recovery before allowing normal scheduling.
 
@@ -389,7 +408,7 @@ kubectl get node "$GPU_NODE" -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{
 kubectl uncordon "$GPU_NODE"
 ```
 
-**Expected evidence:** The advertised resource value matches the recorded baseline, no lab Pods remain, and the node becomes schedulable only after review.
+**Expected evidence:** The advertised resource value matches the recorded baseline, the lab namespace is absent, and the node becomes schedulable only after review.
 
 **Explanation:** The policy rollback is complete only when kubelet’s published inventory is back to baseline.
 
