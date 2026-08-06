@@ -24,17 +24,22 @@ This is why telemetry design begins with decisions. Page only when somebody must
 ## The evidence path
 
 ```mermaid
-flowchart LR
-    GPU[GPU and driver] --> DCGM[DCGM fields]
-    DCGM --> Exporter[DCGM Exporter]
-    Exporter --> Prom[Prometheus]
-    K8s[Kubernetes state and events] --> Prom
-    App[Application metrics and logs] --> Prom
-    Prom --> Alert[Dashboards, recording rules, alerts]
-    Alert --> Runbook[Incident runbook and workload owner]
+flowchart TD
+    GPU[GPU and driver fields] -->|"DCGM field collection"| Exporter{Exporter healthy?}
+    Exporter -->|no: Pod not Ready or DCGM connection error| ExportFix[Inspect exporter log and hostengine access]
+    Exporter -->|yes: /metrics current| Prom{Prometheus target up and fresh?}
+    Prom -->|no: target down or stale timestamp| ScrapeFix[Inspect ServiceMonitor, discovery, network policy]
+    Prom -->|yes| Join[Join node and GPU UUID with Kubernetes workload context]
+    Join --> Context{Identity mapping trustworthy?}
+    Context -->|no| IdentityFix[Use node/UUID view; do not invent Pod attribution]
+    Context -->|yes| Signal{Hardware or performance signal actionable?}
+    Signal -->|health event + impact| Incident[Quarantine, preserve logs, follow runbook]
+    Signal -->|utilization trend only| Diagnose[Correlate app, CPU, network, storage, demand]
+    Incident --> Verify[Confirm recovery and telemetry freshness]
+    Diagnose --> Verify
 ```
 
-**Figure 10.9.1 — GPU metrics become useful only when they can be joined with workload and platform evidence.** The exporter is one observation point, not a complete diagnosis system.
+**Figure 10.9.1 — The monitoring path has its own failure modes.** A blank chart can mean a healthy idle device, a failed exporter, a failed scrape, or a bad label join. The decision branches force the operator to prove data freshness before interpreting GPU state.
 
 The GPU UUID is the durable join key for device evidence. Device indexes are convenient for a local command but can change after a reboot, reset, or inventory change. Preserve node and UUID labels; add Pod, namespace, and container context only where the exporter and platform integration can establish that mapping correctly. Do not manufacture a workload association from a sampled process list and treat it as allocation truth.
 
@@ -51,6 +56,41 @@ The GPU UUID is the durable join key for device evidence. Device indexes are con
 
 Metric names and available fields vary with the DCGM Exporter version and hardware. Build recording rules from the field list actually deployed, and keep the selected metrics under version control with the platform configuration. This avoids an alert rule silently becoming meaningless after an image or configuration change.
 
+### Inspect raw exporter evidence
+
+**Purpose:** verify that the exporter endpoint returns current device series with stable identity.
+
+```bash
+kubectl -n gpu-operator port-forward pod/nvidia-dcgm-exporter-7p8wd 9400:9400
+curl -s http://127.0.0.1:9400/metrics | grep -E 'DCGM_FI_DEV_GPU_UTIL|DCGM_FI_DEV_FB_USED' | head -6
+```
+
+**Representative output:**
+
+```text
+DCGM_FI_DEV_GPU_UTIL{gpu="0",UUID="GPU-3c2e38d1-6a2c-4a31-b44b-9d82a8c80735",device="nvidia0",Hostname="gpu-node-03"} 92
+DCGM_FI_DEV_FB_USED{gpu="0",UUID="GPU-3c2e38d1-6a2c-4a31-b44b-9d82a8c80735",device="nvidia0",Hostname="gpu-node-03"} 61240
+DCGM_FI_DEV_GPU_UTIL{gpu="1",UUID="GPU-722d1344-1b6d-4a95-8cb9-1c572eb5ad94",device="nvidia1",Hostname="gpu-node-03"} 7
+DCGM_FI_DEV_FB_USED{gpu="1",UUID="GPU-722d1344-1b6d-4a95-8cb9-1c572eb5ad94",device="nvidia1",Hostname="gpu-node-03"} 1840
+```
+
+The first GPU is active and uses 61,240 MiB of frame-buffer memory in this representative sample; the second is mostly idle. `UUID` and `Hostname` provide the join keys. A single `92` utilization sample does not prove efficiency, and `61240` used memory does not by itself prove memory pressure. Trend, total memory, application throughput, and error fields are required.
+
+**Purpose:** verify Prometheus target health and freshness.
+
+```bash
+kubectl -n monitoring exec prometheus-0 -- wget -qO- 'http://localhost:9090/api/v1/query?query=up%7Bjob%3D%22dcgm-exporter%22%7D' | jq '.data.result[] | {instance:.metric.instance,value:.value}'
+```
+
+```json
+{
+  "instance": "10.42.3.24:9400",
+  "value": [1786028012.441, "1"]
+}
+```
+
+The final string `"1"` means the scrape target is up. The Unix timestamp must be recent relative to incident time; an old successful sample can leave a dashboard looking populated after the target has failed.
+
 ## Build a monitoring contract
 
 A production GPU pool needs a small, explicit contract:
@@ -63,21 +103,110 @@ A production GPU pool needs a small, explicit contract:
 
 The same contract applies to multi-tenant clusters. Tenant-facing views should expose the capacity and service signals they need without leaking other tenants’ Pod names, namespaces, or detailed hardware inventory.
 
+### Worked cardinality example
+
+A fleet has 100 nodes with eight GPUs each and exports 80 metrics per GPU:
+
+```text
+100 × 8 × 80 = 64,000 base time series
+```
+
+If every series also receives an unbounded `pod_uid` label and each GPU runs 20 short-lived Pods per day, the monitoring system can create roughly:
+
+```text
+64,000 × 20 = 1,280,000 daily label combinations
+```
+
+This simplified arithmetic is illustrative, but it shows why dynamic workload labels require deliberate relabeling and retention design. Stable node and UUID labels should form the base; workload attribution should be added only where its operational value justifies the cardinality.
+
 ## Correlation during an incident
 
 Use a stable order. First establish scope: one Pod, one GPU, one node pool, or the fleet. Then determine whether Kubernetes has allocated the device and whether the application can initialize CUDA. Only then interpret utilization, memory, clocks, power, and reliability signals. An error event close to a workload failure is evidence, not automatically root cause; compare it with a healthy node and the change timeline.
 
 For a workload that is slow but healthy, compare allocated GPU model, peer topology, CPU placement, NIC locality, input rate, and batch behavior before declaring a GPU fault. The scheduler can make a valid allocation that is still a poor fit for a topology-sensitive job. [GPU Scheduling and Topology](./chapter-08-gpu-scheduling-and-topology) develops that placement boundary.
 
+### Worked percentile comparison
+
+Suppose a training job’s step-time samples before and after a node-image change are:
+
+```text
+before: p50=420 ms, p95=455 ms
+ after: p50=431 ms, p95=902 ms
+```
+
+The median changed by only 2.6%:
+
+```text
+(431 − 420) / 420 × 100 = 2.62%
+```
+
+The p95 nearly doubled:
+
+```text
+(902 − 455) / 455 × 100 = 98.24%
+```
+
+An average-only dashboard can hide intermittent stalls. Correlate the p95 spikes with GPU clocks, CPU input latency, network retransmission or fabric counters, storage latency, and Kubernetes events in the same time window.
+
 ## Failure patterns that mislead operators
 
-**No GPU metrics.** Start at the exporter Pod and work outward: scheduling, container logs, host-device access, DCGM connectivity, ServiceMonitor or scrape configuration, target health, and network policy. A green Grafana panel with no recent samples is not proof of a healthy GPU.
+| Symptom | First evidence | Interpretation boundary |
+|---|---|---|
+| No GPU metrics | exporter readiness, log, target health, sample timestamp | telemetry failure versus absent node |
+| Metrics lack workload context | UUID/node labels and allocation source | identity limitation, not necessarily collection failure |
+| Reliability alert after reset | XID/DCGM event, driver log, Pod failure time | correlation before causation |
+| Every GPU appears idle | scrape freshness, query labels, traffic and queue state | monitoring gap, no demand, or upstream bottleneck |
+| Memory used is high | total memory, allocation trend, application behavior | capacity clue, not automatic OOM prediction |
 
-**Metrics have no workload context.** Confirm what association mechanism is enabled and what it promises. Cross-check a known allocated Pod against the device-plugin allocation and the exporter labels. If the mapping is unavailable, make the dashboard explicitly node- and UUID-oriented rather than implying Pod-level precision it does not have.
+### Evidence row 1: exporter process runs but collection is broken
 
-**A reliability alert follows a reset.** Protect workloads first: stop new placement or cordon the affected node according to the runbook. Capture node events, driver logs, relevant DCGM evidence, and the workload timeline before a reboot or replacement removes useful state. Then decide whether recovery, a node drain, or hardware escalation is warranted.
+```bash
+kubectl -n gpu-operator get pod nvidia-dcgm-exporter-r8p4s
+kubectl -n gpu-operator logs nvidia-dcgm-exporter-r8p4s --tail=10
+```
 
-**A utilization alert says every GPU is idle.** Treat this as a possible telemetry failure until scrape freshness, label selection, and time range are confirmed. If the data is real, ask whether the service has traffic, whether jobs are pending for another constraint, and whether capacity policy intentionally keeps headroom.
+```text
+NAME                           READY   STATUS    RESTARTS
+nvidia-dcgm-exporter-r8p4s     0/1     Running   0
+
+Error connecting to DCGM hostengine at localhost:5555: connection refused
+No metrics collected; retrying in 5s
+```
+
+`STATUS=Running` reports the container lifecycle; `READY=0/1` and the log prove the collection dependency is unavailable. Do not infer GPU health from the absence of alerts while this condition exists.
+
+### Evidence row 2: Prometheus is scraping the wrong label set
+
+```bash
+curl -s 'http://prometheus.monitoring.svc:9090/api/v1/query?query=count%28DCGM_FI_DEV_GPU_UTIL%29' | jq -r '.data.result[0].value[1]'
+curl -s 'http://prometheus.monitoring.svc:9090/api/v1/query?query=count%28DCGM_FI_DEV_GPU_UTIL%7BHostname%3D~%22gpu-node-.%2B%22%7D%29' | jq -r '.data.result[0].value[1]'
+```
+
+```text
+800
+0
+```
+
+The metric exists for 800 GPUs, but the dashboard query’s `Hostname` matcher returns zero. The exporter version or relabeling may use a different key such as `node`. Fix the query or relabeling; restarting every exporter would not address the mismatch.
+
+### Evidence row 3: low GPU utilization caused by input starvation
+
+```bash
+kubectl exec trainer-rank-0 -- nvidia-smi dmon -s pucm -c 3
+kubectl top pod trainer-rank-0 --containers
+```
+
+```text
+# gpu   pwr  gtemp  sm  mem  enc  dec  mclk  pclk
+    0    92     48  12    8    0    0  1593  1095
+    0    88     48   9    6    0    0  1593  1095
+    0    94     49  14    9    0    0  1593  1095
+
+POD              NAME      CPU(cores)   MEMORY(bytes)
+trainer-rank-0   trainer   7900m        61Gi
+```
+
+The GPU SM and memory activity remain low while the container consumes nearly eight CPU cores. This paired snapshot supports an upstream preprocessing or data-loading hypothesis. It does not prove the exact CPU function; use application profiling and storage metrics next.
 
 ## Production design review
 
@@ -87,9 +216,17 @@ Acceptance testing should prove more than that an endpoint responds. Schedule a 
 
 ## Senior-level design questions
 
-**Why is a utilization threshold a poor primary paging signal?** It has no inherent failure semantics. A low value may be normal demand, a host-side bottleneck, or missing telemetry; a high value can be healthy throughput. Page on a condition with a defined responder action and use utilization for diagnosis and planning.
+**Why is a utilization threshold a poor primary paging signal?**
 
-**What makes GPU telemetry trustworthy?** Coverage, stable identity, known field semantics, bounded labels, freshness monitoring, and a demonstrated link to Kubernetes and application evidence. A dashboard without those properties is a visualization, not an operational control.
+> “Utilization has no inherent failure meaning. Low utilization can be normal demand, reserved latency headroom, CPU or storage starvation, or missing telemetry. High utilization can be healthy throughput. I page on conditions with a clear owner and action, such as lost capacity, a reliability event with workload impact, sustained throttling, or missing monitoring coverage. I use utilization trends for diagnosis and capacity planning.”
+
+**What makes GPU telemetry trustworthy?**
+
+> “I require coverage, freshness, stable node and GPU UUID identity, documented field semantics, bounded labels, and a demonstrated join to Kubernetes and application evidence. I also monitor the exporter and Prometheus target themselves. A dashboard that cannot prove when its last sample arrived is a visualization, not an operational control.”
+
+**How would you investigate a step-time regression?**
+
+> “I would establish the change window and compare p50 and tail latency, not only the average. Then I would join the job to its node and GPU UUIDs, confirm allocation and placement, and correlate DCGM clocks, utilization, memory, power, and reliability fields with CPU, network, storage, and application input metrics. I would compare a known-good placement before declaring hardware fault.”
 
 ## Key takeaways
 
