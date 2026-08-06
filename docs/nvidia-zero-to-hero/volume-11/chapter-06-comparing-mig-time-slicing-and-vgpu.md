@@ -128,6 +128,195 @@ The platform should show users the meaningful consequences: eligibility, expecte
 
 **Resolution.** Either place the workload in a pool that exposes its validated profile, or change the geometry through a controlled drain/reconciliation process. Do not repartition a production node reactively without considering the workloads that consume the existing geometry.
 
+## Model selection by workload behavior
+
+Classify a workload before choosing an allocator. Capture its peak and steady-state memory, batch or request shape, CPU feed sensitivity, failure-recovery behavior, tenant trust level, and objective. A small GPU memory footprint does not automatically mean a workload belongs in a small partition: it may have bursty allocation, require a particular engine, or be sensitive to shared CPU, storage, or network paths.
+
+| Workload behavior | Questions to measure | Likely starting point |
+|---|---|---|
+| Interactive notebook | startup delay, peak memory, user concurrency, acceptable slowdown | bounded time-slicing or a small validated MIG class |
+| Online inference | p50/p99 latency, queue depth, batch policy, model memory | protected MIG or dedicated capacity after benchmark |
+| Batch inference | completion time, retry cost, queue tolerance, data-feed rate | flexible MIG or dedicated pool depending on shape |
+| Distributed training | device count, topology, checkpoint recovery, collective sensitivity | dedicated/topology-qualified capacity |
+| VM-resident engineering | guest lifecycle, graphics/compute need, tenant boundary | vGPU on a supported virtual platform |
+
+These are starting hypotheses, not automatic assignments. A team must demonstrate that its selected class meets the stated objective at expected concurrency. Record the workload version and test method; otherwise a later model, driver, or batching change can silently invalidate the conclusion.
+
+## The hidden costs of each model
+
+MIG reduces some forms of contention through hardware partitioning, but it introduces profile geometry and lifecycle management. A fleet with many profile shapes can have excellent aggregate utilization and still fail a request because the free slices cannot form the requested profile. Operationally, that means geometry changes, discovery reconciliation, and maintenance reserve are part of the cost model.
+
+Time-slicing reduces the admission barrier, but it moves much of the quality decision into workload governance. The platform must observe physical utilization, memory pressure, process behavior, application queueing, and tail latency. Counting logical replicas alone can produce an attractive capacity report while users experience a saturated physical device.
+
+vGPU can fit a mature VM service, but it adds release compatibility, guest-image, license, host-manager, and hypervisor dependencies. It should be evaluated against the organization’s existing virtualization operations rather than judged only on its GPU isolation characteristics.
+
+Dedicated allocation leaves capacity idle when workloads are small or intermittent, but it has an important benefit: its resource contract and incident attribution are comparatively simple. That simplicity is often worth buying for a high-impact service.
+
+## Operational decision workshop
+
+Use a cross-functional design review before creating a new sharing class. The application owner supplies workload evidence and a recovery objective. The platform owner supplies hardware and scheduler constraints. The security owner defines the tenant boundary. Finance or service management defines the chargeback unit. The output is a documented class, not a promise made in a chat.
+
+```mermaid
+flowchart LR
+    App[Application owner: objective and workload evidence]
+    Plat[Platform owner: eligible hardware and lifecycle]
+    Sec[Security owner: tenant boundary]
+    Fin[Service owner: cost and entitlement]
+    Class[Approved GPU service class]
+    App --> Class
+    Plat --> Class
+    Sec --> Class
+    Fin --> Class
+```
+
+The review should reject unsupported combinations early. For example, a request for a vGPU on a host not in the qualified matrix is not a capacity request; it is an unapproved design. Similarly, a request to place an untrusted, latency-sensitive service into a general time-sliced pool is a mismatch of threat model and performance contract.
+
+## Incident playbook: sharing method is correct but the service objective fails
+
+**Symptoms.** The deployment is healthy and the assigned resource matches policy, but application p99 latency, job completion time, or interactive responsiveness deteriorates under normal tenant load.
+
+**Evidence.** Compare affected workload metrics with a dedicated baseline: application queueing, request or batch distribution, GPU utilization, memory use, CPU saturation, input I/O, and neighboring workload activity. Confirm the exact sharing mode and profile rather than assuming it from the node name.
+
+**Diagnosis.** Decide whether the observed bottleneck is GPU contention, memory headroom, CPU/data-feed limitation, a workload-specific batching behavior, or an SLO that the class was never benchmarked to meet. A low average GPU utilization does not disprove a latency problem; serialization and bursts can dominate tail behavior.
+
+**Remediation.** Adjust the service contract: move to a protected or dedicated class, reduce allowed concurrency, revise batch policy, or correct the non-GPU bottleneck. Do not simply increase time-slice replicas or request a larger profile without evidence that it addresses the limiting resource.
+
+**Verification.** Repeat the original workload shape and concurrency test, compare the same percentiles or completion criteria against the baseline, and observe through a representative busy period.
+
+**Prevention.** Publish a qualification envelope with workload type, input range, concurrency, and SLO. Requalify after meaningful changes to model, runtime, driver, GPU type, or capacity policy.
+
+## Incident playbook: fragmentation blocks a high-value request
+
+**Symptoms.** Fleet dashboards show free capacity, but a high-value workload cannot receive its required MIG profile or vGPU profile before its service deadline.
+
+**Evidence.** Inventory allocatable profiles and geometry per node, current allocations, idle reservations, expected maintenance reserve, and the requested service class. Inspect scheduler events and discovery output; do not rely on aggregate memory charts.
+
+**Diagnosis.** Determine whether the shortage is demand, shape fragmentation, stale discovery, or a quota/policy restriction. Different profile shapes are not fungible merely because their arithmetic sum looks sufficient.
+
+**Remediation.** Use a pre-approved reserve, reclaim expired reservations, place the workload in a compatible alternate class only if its objective permits it, or schedule a controlled reconfiguration. Escalate if the business contract requires capacity that the catalog does not provide.
+
+**Verification.** Confirm the request is fulfilled with the approved profile and that the corrective action did not violate other protected reservations. Update utilization and fragmentation reporting.
+
+**Prevention.** Set service-specific reserve and fragmentation thresholds. Review profile demand distribution and retire rarely used classes that create operational cost without a demonstrated customer need.
+
+## Senior review questions
+
+**What is the difference between allocation efficiency and delivered efficiency?**
+
+Allocation efficiency is the percentage of a resource that appears assigned. Delivered efficiency reflects useful application work within its objective. High logical allocation with long queues, retries, or missed latency targets is not delivered efficiency.
+
+**Why should a platform offer fewer sharing classes than it technically can?**
+
+Every class adds capacity forecasting, documentation, admission, observability, support, and upgrade surface. A class should exist because it has a measured workload or governance requirement, not because the hardware can expose another profile.
+
+**How does an operator decide whether to move a service from time-slicing to MIG?**
+
+Use observed interference, memory behavior, and SLO evidence. MIG is justified when a supported profile can provide the required resource contract and the benefit exceeds geometry and lifecycle cost; it is not a universal upgrade.
+
+## Capacity evaluation worksheet
+
+Before purchasing or reconfiguring capacity, calculate the demand in the service unit, then translate it to physical devices with a deliberately stated reserve. Keep the calculation separate for each class: a time-sliced logical allocation, a MIG profile, a full GPU, and a vGPU profile are not exchangeable inventory units.
+
+| Input | Example question | Reason to track it |
+|---|---|---|
+| Arrival pattern | When do users or requests need the class? | average demand hides peaks |
+| Concurrent demand | How many qualified consumers overlap? | determines admission headroom |
+| Workload envelope | What memory/throughput range was benchmarked? | prevents unsafe substitution |
+| Failure reserve | What must remain after node loss or maintenance? | turns availability into capacity |
+| Geometry reserve | Which profile shapes must remain placeable? | prevents profile fragmentation surprise |
+| Reclaimability | Which reservations may safely be borrowed? | bounds stranded capacity |
+
+Review these inputs with a real incident and maintenance scenario. If a plan cannot place the largest protected profile after a host failure, its average utilization is irrelevant to the availability contract.
+
+## Migration between sharing classes
+
+Move workloads only through a qualification step. First establish a baseline and success criteria. Then deploy the candidate class in parallel or to a small canary, compare the same workload and concurrency, and test rollback. A migration from time-slicing to MIG can improve resource isolation but may expose a profile-memory mismatch. A migration from dedicated GPUs to time-slicing can lower idle cost while invalidating latency objectives.
+
+Treat class migration as an application release: preserve version, input shape, configuration, and benchmark evidence. The operator must be able to explain whether a regression came from the allocator, a runtime update, a changed model, or a different request pattern.
+
+## Selection anti-patterns
+
+- Selecting MIG solely because it is available, without verifying supported profiles and workload fit.
+- Selecting time-slicing because a dashboard reports idle utilization, without measuring concurrent tail behavior.
+- Selecting vGPU solely because workloads are virtual machines, without owning the compatibility and licensing lifecycle.
+- Selecting a whole GPU as permanent policy when a measured, supportable class could safely improve access.
+- Selecting any class from average memory use while ignoring allocation bursts, model load, and recovery behavior.
+
+Each anti-pattern replaces a decision record with a slogan. The correction is not more configuration; it is evidence tied to a service objective.
+
+## Service-catalog example
+
+An organization can offer four deliberately distinct services: interactive best-effort access, fixed-profile inference capacity, dedicated accelerator capacity, and regulated VM compute. The goal is not to expose every underlying hardware possibility; it is to make request, scheduling, support, and billing behavior understandable.
+
+| Service | Mechanism | Admission posture | Failure/maintenance behavior |
+|---|---|---|---|
+| Interactive sandbox | time-sliced | bounded quota and queue | slowdown or recall is acceptable |
+| Protected inference | MIG profile | qualification and protected reserve | controlled failover or queueing |
+| Large job | dedicated GPU | capacity reservation / coordinated start | checkpoint-aware maintenance |
+| Regulated VM | vGPU | VM and identity controls | host/guest lifecycle procedure |
+
+The labels can differ, but the operational clarity should not. If a user cannot decide which service applies from the description, the catalog has hidden an important architectural trade-off.
+
+## Review cadence
+
+Review classes when demand shifts, a new GPU generation arrives, runtime behavior changes, or incidents reveal a hidden assumption. Retire a class when its workload population disappears or its operational burden exceeds its benefit. Preserve historical decisions so utilization and chargeback trends remain interpretable after a migration.
+
+Avoid changing a class definition in place without versioning. A resource that once meant a particular MIG profile or best-effort policy should not silently receive new semantics. Introduce a successor, qualify consumers, migrate them, and then deprecate the old class.
+
+## Chapter review exercises
+
+1. Choose a real workload and document its tenant boundary, SLO, memory pattern, and recovery behavior.
+2. Compare its dedicated baseline with one candidate sharing class under representative concurrency.
+3. Identify the largest profile request that must remain placeable after a node failure.
+4. Define the user-visible difference between a best-effort and protected service.
+5. Write a rollback plan for moving the workload back to its prior class.
+
+The useful output is a decision record with measurements, not a preference for a particular feature.
+
+## Decision-review prompts
+
+**What changes if the workload becomes critical?** A class chosen for best-effort access should not automatically become production serving capacity when its business importance increases. Revisit the threat model, availability objective, performance evidence, recovery plan, and support ownership.
+
+**What changes if the model or dataset grows?** Memory and batching behavior may invalidate a previous profile choice. Establish an admission test that catches the new shape before a rollout exhausts a shared pool.
+
+**What changes if a node fails?** Verify the service can still place its required profile or device class with the planned reserve. A fleet can look healthy in steady state and still violate its availability contract after one failure.
+
+**What changes if the platform team cannot operate the new mechanism?** Operational complexity is a real cost. A simpler dedicated class can be the correct decision until monitoring, capacity management, and support procedures exist for a finer-grained alternative.
+
+## Common misconceptions
+
+- GPU memory usage alone is not a sufficient sharing-class selector.
+- MIG profiles are not interchangeable fractions of a generic capacity pool.
+- Time-slicing is not an entitlement to a predictable fraction of performance.
+- vGPU is not a substitute for tenant identity, data, and operational controls.
+- Dedicated allocation is not a failure of platform maturity; it is often the measured safe choice.
+
+## Final selection questions
+
+What is the user buying: access, a hardware partition, a VM device, or an end-to-end performance objective?
+
+Which mechanism supports that promise on the actual hardware and software release?
+
+What is the measured failure behavior when another tenant becomes active or a node leaves service?
+
+What capacity is unavailable because it is reserved for recovery, profile geometry, or maintenance?
+
+Who accepts the operational cost of the selected mechanism?
+
+These questions turn an allocator choice into an accountable service decision.
+
+## Exit criteria for a new class
+
+A class is ready only when its supported scope is published, its admission policy is tested, its capacity unit is reportable, its benchmark evidence is reproducible, and its failure/rollback behavior is owned. If these criteria are missing, keep the workload in an existing qualified class while the platform work continues.
+
+The decision record should name the next review date.
+
+It should also name the owner who accepts the class’s operating cost.
+
+It should state which workloads are explicitly out of scope.
+
+It should document the required recovery reserve.
+
 ## Customer architecture discussion
 
 Consider a research organization with three needs: student notebooks, a regulated VM-based analytics group, and a model-serving team with a tail-latency objective. A time-sliced notebook pool can optimize access. The analytics group can use a supported vGPU service with VM controls. The serving team can use dedicated or MIG-profile pools validated against its own SLO. The architecture is intentionally plural because the business contracts are different.
