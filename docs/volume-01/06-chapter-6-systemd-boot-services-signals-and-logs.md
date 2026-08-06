@@ -19,6 +19,32 @@ journalctl -u myservice --since '-30 min'
 systemctl list-dependencies myservice
 ```
 
+➕ **Annotated:**
+```text
+$ systemctl status myservice --no-pager
+● myservice.service - My Application
+     Loaded: loaded (/etc/systemd/system/myservice.service; enabled)
+     Active: active (running) since Wed 2026-07-30 09:00:11 UTC; 2h ago
+   Main PID: 8842 (python3)
+
+$ systemctl show myservice -p ActiveState -p SubState -p ExecMainStatus -p NRestarts
+ActiveState=active
+SubState=running
+ExecMainStatus=0
+NRestarts=4
+
+$ journalctl -u myservice --since '-30 min'
+Jul 30 11:02:15 host systemd[1]: myservice.service: Main process exited, code=exited, status=1/FAILURE
+Jul 30 11:02:15 host systemd[1]: myservice.service: Scheduled restart job.
+Jul 30 11:02:16 host systemd[1]: Started myservice.service.
+
+$ systemctl list-dependencies myservice
+myservice.service
+● ├─network-online.target
+● └─system.slice
+```
+`ActiveState=active`/`SubState=running` is the machine-readable version of the human summary — the field a script or alert should check. `NRestarts=4` is the number `status`'s free text doesn't surface as cleanly — four restarts in the unit's lifetime is a fact worth knowing before you conclude "it's fine now" just because the current state is `active`. `journalctl` is the only one of the four with a timeline: it shows *why* the previous instance exited (`status=1/FAILURE`) immediately before the restart, which `status`'s "since 2h ago" line doesn't retain once systemd resets its state on restart. `list-dependencies` confirms what this unit actually waits on before starting — useful when "started" happened later than expected and you need to know what it was ordered after.
+
 ➕ **Boot chain, one line each, for the "explain how Linux boots" baseline:**
 ```mermaid
 flowchart LR

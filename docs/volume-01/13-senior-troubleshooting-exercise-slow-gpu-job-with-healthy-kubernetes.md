@@ -7,17 +7,12 @@ source_document: "Volume_01_Foundations_Beneath_Kubernetes(3).docx"
 ---
 Scenario: a distributed training job runs 35% slower after a node pool refresh. Pods are Running, GPU utilization averages 70%, and no Kubernetes events show errors. A senior investigation does not restart the job first. Establish whether the slowdown is reproducible on specific nodes; compare GPU/NIC topology, CPU NUMA placement, driver versions, NVLink state, RDMA counters, storage throughput and CPU throttling. The goal is to isolate the changed layer before changing configuration.
 
-**•** Scope: is every rank slow, only ranks on one node, or only communication-heavy phases?
-
-**•** Baseline: compare known-good node firmware, driver, kernel, NIC and topology outputs.
-
-**•** Host evidence: CPU throttling, memory PSI, NUMA misses, block latency, softirq saturation.
-
-**•** GPU evidence: clocks, power, thermals, ECC/Xid, NVLink health, per-process utilization.
-
-**•** Network evidence: link speed, RDMA errors/retries, congestion counters and NCCL topology.
-
-**•** Validation: change one variable or move one rank; prove that performance follows the suspected layer.
+- **Scope:** is every rank slow, only ranks on one node, or only communication-heavy phases?
+- **Baseline:** compare known-good node firmware, driver, kernel, NIC and topology outputs.
+- **Host evidence:** CPU throttling, memory PSI, NUMA misses, block latency, softirq saturation.
+- **GPU evidence:** clocks, power, thermals, ECC/Xid, NVLink health, per-process utilization.
+- **Network evidence:** link speed, RDMA errors/retries, congestion counters and NCCL topology.
+- **Validation:** change one variable or move one rank; prove that performance follows the suspected layer.
 
 ## Targeted references and reinforcement
 
@@ -35,19 +30,13 @@ Scenario: a distributed training job runs 35% slower after a node pool refresh. 
 *"Every symptom lives at a layer — don't fix the symptom's layer, fix the mechanism's layer."* CPU-looks-idle-but-slow → check throttling (mechanism, not the symptom's CPU-graph layer). DNS-resolves-but-times-out → check routing/NAT/TLS (mechanism), not DNS (symptom's layer). This one sentence is a legitimate answer to "how do you approach troubleshooting" as an opener, before you even get into specific tools.
 
 ➕ **The generalizable checklist version, worth having as your own mental template for any "X looks healthy but Y is slow" question in the actual interview:**
-```text
-1. Confirm the K8s object state really is healthy (Running, no OOMKilled, no throttling in cpu.stat)
-— this rules out the Volume-1-Ch1/2/5 mechanisms explicitly, don't skip it
-2. Follow the data path the workload actually uses (Ch3's AI data-path chain: disk
-page cache
-pinned memory
-PCIe
-GPU HBM) and instrument each hop
-3. Check the resource plane Kubernetes doesn't account for at all: GPU memory/utilization via
-nvidia-smi/DCGM (Ch2's CUDA-OOM-vs-cgroup-OOM distinction), NUMA locality (Deep Dive 2)
-4. Only after 1-3 are exonerated, suspect the workload's own code/framework behavior
-```
-This ordering — K8s object state → data path → GPU-specific plane → application code — is the generalized version of the specific exercise above, and it's the shape almost every "why is my GPU workload underperforming" interview question takes.
+
+1. **Confirm the Kubernetes object state really is healthy** — `Running`, no `OOMKilled`, no throttling in `cpu.stat`. This explicitly rules out the Volume 1 Chapter 1/2/5 mechanisms; don't skip it just because the symptom is GPU-shaped.
+2. **Follow the data path the workload actually uses** — Chapter 3's AI data-path chain: disk → page cache → pinned memory → PCIe → GPU HBM — and instrument each hop individually rather than assuming the whole path is fine because the ends of it look fine.
+3. **Check the resource plane Kubernetes doesn't account for at all** — GPU memory and utilization via `nvidia-smi`/DCGM (Chapter 2's CUDA-OOM-vs-cgroup-OOM distinction), and NUMA locality (Deep Dive 2).
+4. **Only after 1-3 are exonerated, suspect the workload's own code or framework behavior.**
+
+This ordering — Kubernetes object state → data path → GPU-specific plane → application code — is the generalized version of the specific exercise above, and it's the shape almost every "why is my GPU workload underperforming" interview question takes.
 
 ➕ **Visual triage router — "healthy Kubernetes" is only the first gate:**
 ```mermaid

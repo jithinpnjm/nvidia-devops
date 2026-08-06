@@ -138,6 +138,22 @@ lrwx------ 1 app app 64 Jul 30 10:00 6 -> /data/model-shard-0042.bin
 ```
 The `(deleted)` marker is the single most common real-world fd leak: a log rotation tool `unlink()`s the file, but the process still holds the fd open — disk usage doesn't drop (`du` won't show it, the inode is still allocated) even though `ls` shows the file gone. **`df` and `du` disagreeing after a log rotation is this exact bug, every time — check `lsof +L1` before anything else.**
 
+➕ **`lsof -p`, `/proc/<PID>/limits`, and `ss -s`, annotated:**
+```text
+$ lsof -p 8842 | head -4
+COMMAND  PID USER   FD   TYPE DEVICE SIZE/OFF   NODE NAME
+python3 8842 app  cwd    DIR  259,1     4096 131074 /data
+python3 8842 app    3r   REG  259,1 87654321 200481 /data/dataset.tar
+
+$ cat /proc/8842/limits | grep -i 'open files'
+Max open files            1024                 4096                 files
+
+$ ss -s
+Total: 812 (kernel 0)
+TCP:   634 (estab 210, closed 380, orphaned 0, timewait 372)
+```
+`lsof -p` lists every open file/socket for one process — the per-process view that complements `ls -l /proc/<PID>/fd`, but with more detail per entry (size, offset, device). `/proc/<PID>/limits`' "Max open files" shows two numbers: the soft limit (1024, what actually blocks a new `open()` call right now) and the hard limit (4096, the ceiling the process could raise itself up to) — a process failing with "too many open files" at 1000 open fds is hitting the *soft* limit, not genuinely out of room. `ss -s` gives the system-wide socket count in one line — useful to confirm whether an fd exhaustion is one runaway process or a system-wide condition before chasing a single PID.
+
 ## 3.2 Capacity versus latency
 | Question | Evidence |
 |---|---|
@@ -149,6 +165,31 @@ The `(deleted)` marker is the single most common real-world fd leak: a log rotat
 | Are mounts/network filesystems involved? | `findmnt` / `mount` / storage metrics |
 
 Throughput is data per unit time; IOPS is operations per second; latency is time per operation. A workload can have low throughput but still suffer high latency if it performs small synchronous I/O. Benchmark and diagnose against the application access pattern.
+
+➕ **The rest of the evidence table, annotated:**
+```text
+$ df -hT /data
+Filesystem      Type  Size  Used Avail Use% Mounted on
+/dev/nvme0n1p1  ext4  3.5T  2.1T  1.3T  63% /data
+
+$ df -ih /data
+Filesystem      Inodes IUsed IFree IUse% Mounted on
+/dev/nvme0n1p1    224M   41M  183M   19% /data
+
+$ du -xhd1 /data
+1.8T    /data/checkpoints
+280G    /data/datasets
+21G     /data/logs
+
+$ pidstat -d 1 1
+UID       PID   kB_rd/s   kB_wr/s  kB_ccwr/s  Command
+1000     8842    120.00  81234.00       0.00  python3
+
+$ findmnt /data
+TARGET SOURCE          FSTYPE OPTIONS
+/data  /dev/nvme0n1p1  ext4   rw,relatime
+```
+`df -hT` adds the filesystem type to the usual capacity view — worth checking when a mount's behavior seems off (an `nfs`/`cephfs` type where you expected `ext4` explains a lot by itself). `du -xhd1` (`-x` stays on one filesystem, `-d1` limits depth to one level) is how you find which *subdirectory* owns the space `df` reports as used, without a full recursive walk. `pidstat -d` is the per-process I/O throughput view — pairs with `iostat -xz`'s device-level view below to answer "which process" versus "how busy is the device."
 
 ➕ **Sample `iostat -xz 1` output, read the way an interviewer wants:**
 ```
@@ -178,7 +219,16 @@ Two very different problems produce the same rising `await`: a slow device (serv
 df -h /data      # bytes: might show 60% free
 df -i /data      # inodes: might show 100% used — completely separate resource, same ENOSPC error
 ```
-A checkpoint job writing millions of tiny shard files can exhaust inodes on ext4 (fixed count set at `mkfs` time) while bytes are nowhere near full. xfs allocates inodes dynamically — this becomes a real filesystem-choice architecture decision for checkpoint-heavy training workloads, worth naming unprompted in an SA interview.
+```text
+$ df -h /data
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/nvme0n1p1  3.5T  1.4T  2.1T  40% /data
+
+$ df -i /data
+Filesystem       Inodes   IUsed   IFree IUse% Mounted on
+/dev/nvme0n1p1  22937600 22937598      2  100% /data
+```
+`Use%` at 40% says this filesystem has plenty of room. `IUse%` at 100% on the exact same filesystem says the opposite — every one of its 22,937,600 inodes (fixed at `mkfs` time on ext4) is spoken for, and the next `open()` call for a *new* file fails with `ENOSPC`, the identical error a genuinely full disk produces. A checkpoint job writing millions of tiny shard files can exhaust inodes on ext4 (fixed count set at `mkfs` time) while bytes are nowhere near full. xfs allocates inodes dynamically — this becomes a real filesystem-choice architecture decision for checkpoint-heavy training workloads, worth naming unprompted in an SA interview.
 
 ## Worked scenario
 **Situation:** A database Pod is slow after moving to a new storage class. CPU and memory look normal.

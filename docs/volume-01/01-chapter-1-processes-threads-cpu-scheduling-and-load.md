@@ -181,6 +181,18 @@ cat /proc/meminfo | head -20
 cat /proc/pressure/memory
 ```
 
+```text
+$ free -h
+              total    used    free    shared  buff/cache   available
+Mem:           64Gi    18Gi   2.1Gi     1.2Gi        44Gi        45Gi
+Swap:         8.0Gi      0B    8.0Gi
+
+$ cat /proc/pressure/memory
+some avg10=0.00 avg60=0.00 avg300=0.00 total=0
+full avg10=0.00 avg60=0.00 avg300=0.00 total=0
+```
+The `free` column (2.1Gi) looks alarmingly low; `available` (45Gi) is the number that actually matters, because it accounts for cache that can be reclaimed instantly if a process needs it. The `/proc/pressure/memory` output being all zeros here means the kernel hasn't had to make anyone wait for memory recently — if those numbers were climbing instead, that would mean real stalls, regardless of what `free` shows.
+
 Important distinctions:
 
 - `MemFree` alone is not "available memory"; Linux intentionally uses spare RAM for caching.
@@ -199,6 +211,21 @@ df -i /data
 lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINTS
 ```
 
+```text
+$ findmnt -T /data
+TARGET SOURCE          FSTYPE OPTIONS
+/data  /dev/nvme0n1p1  ext4   rw,relatime
+
+$ df -h /data
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/nvme0n1p1  3.5T  2.1T  1.3T  63% /data
+
+$ df -i /data
+Filesystem       Inodes  IUsed    IFree IUse% Mounted on
+/dev/nvme0n1p1  234881024 41230  234839794    1% /data
+```
+`df -h` (63% used) looks completely fine — but `df -i` tracks a separate resource: the fixed number of inodes (one per file/directory) the filesystem was formatted with. A directory containing millions of tiny files can exhaust inodes and fail every new file creation with "No space left on device" while `df -h` still shows plenty of free bytes — two different capacity ceilings, and only one of them shows up in the number people check by habit.
+
 `df -h` checks byte capacity, while `df -i` checks inode availability. Both can stop file creation. `findmnt -T` answers which filesystem backs the exact path; checking `/` when the application writes `/data` can inspect the wrong storage.
 
 ### Network layers with concrete questions
@@ -210,6 +237,27 @@ getent ahosts example.com
 ip route get 93.184.216.34
 ss -lntup
 ```
+
+```text
+$ ip -brief address
+lo               UNKNOWN 127.0.0.1/8
+eth0             UP      10.20.30.5/24
+
+$ ip route
+default via 10.20.0.1 dev eth0
+10.20.0.0/24 dev eth0 proto kernel scope link src 10.20.30.5
+
+$ getent ahosts example.com
+93.184.216.34   STREAM example.com
+
+$ ip route get 93.184.216.34
+93.184.216.34 via 10.20.0.1 dev eth0 src 10.20.30.5
+
+$ ss -lntup
+Netid State  Local Address:Port  Peer Address:Port Process
+tcp   LISTEN 0.0.0.0:22          0.0.0.0:*         users:(("sshd",pid=812))
+```
+Each of these proves exactly one thing and no more: `ip -brief address` proves what addresses exist locally. `getent ahosts` proves what the resolver returns — nothing about whether that address is reachable. `ip route get` proves which route would actually be used, including the source IP the kernel would pick. `ss -lntup` proves what's listening locally, subject to your own permission to see other users' sockets. None of them, alone or together, proves a remote service actually accepted a connection — that's a separate test.
 
 | Evidence | Question answered |
 |---|---|
@@ -241,6 +289,31 @@ getfacl /path/to/file
 sudo -l
 ```
 
+```text
+$ id
+uid=1000(app) gid=1000(app) groups=1000(app),999(docker)
+
+$ namei -l /data/checkpoints/step.pt
+f: /data/checkpoints/step.pt
+drwxr-xr-x root root /
+drwxr-xr-x root root data
+drwxr-xr-x app  app  checkpoints
+-rw-r--r-- app  app  step.pt
+
+$ getfacl /data/checkpoints/step.pt
+# file: data/checkpoints/step.pt
+# owner: app
+# group: app
+user::rw-
+group::r--
+other::r--
+
+$ sudo -l
+User app may run the following commands on this host:
+    (root) NOPASSWD: /usr/bin/systemctl restart myapp.service
+```
+`namei -l` is the one people forget: it walks *every directory in the path*, not just the final file, and prints the permissions at each step — a file can have perfectly correct permissions while a parent directory somewhere above it blocks access entirely. `getfacl` matters specifically when a file *looks* restrictive under plain `ls -l` but actually has an ACL granting extra access (or the reverse) — `ls -l` alone can't show that. `sudo -l` shows exactly what elevated commands this user can run, which is the fastest way to confirm or rule out a privilege-escalation path without guessing.
+
 Do not solve an access failure with `chmod 777` or disabling SELinux. Prove which check denies the operation, then correct the narrowest policy or ownership error.
 
 ### systemd and evidence preservation
@@ -252,6 +325,25 @@ systemctl status example.service
 systemctl show example.service -p ActiveState -p SubState -p Result -p ExecMainStatus
 journalctl -u example.service --since "15 minutes ago" --no-pager
 ```
+
+```text
+$ systemctl status example.service
+● example.service - Example Application
+     Loaded: loaded (/etc/systemd/system/example.service; enabled)
+     Active: active (running) since Wed 2026-07-30 09:00:11 UTC; 2h 14min ago
+   Main PID: 8842 (python3)
+
+$ systemctl show example.service -p ActiveState -p SubState -p Result -p ExecMainStatus
+ActiveState=active
+SubState=running
+Result=success
+ExecMainStatus=0
+
+$ journalctl -u example.service --since "15 minutes ago" --no-pager
+Jul 30 11:12:03 host example[8842]: request handled in 42ms
+Jul 30 11:12:41 host example[8842]: WARN: upstream timeout, retrying
+```
+`systemctl status` gives a human-readable summary at a glance; `systemctl show -p ...` gives the exact machine-readable fields (`ExecMainStatus=0` specifically is the process's last exit code — nonzero here would mean it crashed, not that it's currently healthy) — the kind of field a script or alert should check, not the free-text summary. `journalctl -u` is the only one of the three with a timeline, which is why it's the one to capture before restarting: `status` only shows the *current* state, but the log entries showing what led up to it disappear from easy view once the service restarts and its state resets.
 
 Status describes current/most recent unit state; the journal provides a timeline. Capture both before restarting. A restart can mitigate impact, but it can also erase process state and change the evidence you were trying to understand.
 
@@ -409,18 +501,26 @@ PID  PPID TID  STAT NI PSR %CPU COMMAND
 The `D` line is the one that fools people: 0% CPU looks "fine" in a CPU-only dashboard, but a process stuck in `D` is exactly what inflates load average while CPU graphs look calm — this is the gap between "looks idle" and "is blocked" that Kubernetes CPU-based HPA metrics will completely miss.
 
 ➕ **Process state machine (what actually drives the transitions):**
+
+`S` and `D` are two *separate, parallel* kinds of blocked, not stages of one path — a process picks one or the other depending on what it blocked on, and each has its own independent way back to `Runnable`. The diagram below deliberately draws them side by side rather than chained, because chaining them (as if D always passes through S on its way back) misrepresents the actual kernel behavior:
+
 ```mermaid
 flowchart TD
-    Start(["fork()/clone()"]) --> Runnable["Runnable (R)"]
-    Runnable -->|scheduled on CPU| Running["Running (R)"]
-    Running -->|preempted/quantum expired| Runnable
-    Running -->|"blocking syscall (read, futex, wait)"| Dstate["D-state (uninterruptible I/O)"]
-    Dstate -->|uninterruptible I/O| Sleeping["Sleeping (S)"]
-    Sleeping -->|event/data ready| Runnable
-    Dstate -->|"I/O completes (signal CANNOT interrupt D — must wait)"| Runnable
-    Running -->|"exit()"| Zombie["Zombie (Z) until parent wait()s"]
-    Zombie -->|reaped| Freed[slot freed]
+    Start(["fork()/clone()"]) --> Runnable["Runnable (R)<br/>waiting for a free CPU"]
+    Runnable -->|"scheduled"| Running["Running (R)<br/>executing right now"]
+    Running -->|"preempted: quantum expired,<br/>or a higher-priority task is ready"| Runnable
+
+    Running -->|"blocking call that CAN be<br/>interrupted by a signal<br/>(e.g. sleep, network read)"| Sleeping["Sleeping (S)<br/>interruptible wait"]
+    Sleeping -->|"the event or data<br/>it was waiting for arrives"| Runnable
+
+    Running -->|"blocking call that CANNOT be<br/>interrupted by a signal<br/>(e.g. disk I/O)"| Dstate["D-state (D)<br/>uninterruptible wait —<br/>not even kill -9 reaches it"]
+    Dstate -->|"the I/O completes —<br/>the only way out of D"| Runnable
+
+    Running -->|"exit()"| Zombie["Zombie (Z)<br/>exited, not yet reaped"]
+    Zombie -->|"parent calls wait()"| Freed["slot freed"]
 ```
+
+Both `Sleeping` and `Dstate` are reached directly from `Running`, and both return directly to `Runnable` — neither one passes through the other. The distinction that actually matters operationally is *which* of the two a blocked process is in: `S` responds to signals (you can interrupt or kill it), `D` does not (a `D`-state process ignores `kill -9` entirely until its I/O finishes on its own).
 
 ➕ **Memory hook:** *"RSDZT — Running Steadily, Dead Zombies Trapped."* R=running/runnable, S=sleeping (interruptible), D=disk-wait (uninterruptible — can't even `kill -9` it out, you have to wait for the I/O), Z=zombie (exited, unreaped), T=traced/stopped. The one to instinctively distrust in dashboards is D — it's invisible to CPU metrics and immune to normal signals.
 
@@ -455,6 +555,23 @@ pidstat -u -w 1
 # vmstat: r=run queue, cs=context switches/s, us/sy/id/wa=CPU state percentages
 ```
 
+➕ **`uptime`, `mpstat -P ALL`, `pidstat -u -w`, annotated:**
+```text
+$ uptime
+ 11:14:02 up 12 days,  3:41,  2 users,  load average: 18.42, 15.90, 14.10
+
+$ mpstat -P ALL 1 1
+CPU  %usr  %nice  %sys %iowait  %irq  %soft  %idle
+all  61.20   0.00  8.10    5.40  0.10   1.20  24.00
+  0  95.30   0.00  4.10    0.00  0.00   0.10   0.50
+  1   8.20   0.00  1.30   40.10  0.00   0.20  50.20
+
+$ pidstat -u -w 1 1
+UID       PID    %usr %system  %CPU  CPU  cswch/s nvcswch/s  Command
+1000     8842   96.00    1.20 97.20    3    12.00    340.00  python3
+```
+`load average: 18.42` on its own means nothing until you know the core count — `uptime` doesn't tell you that, so it's always read alongside `nproc`/`lscpu`. `mpstat -P ALL` is what breaks a suspiciously calm `all` row apart: here CPU 0 is pegged at 95% while CPU 1 is mostly waiting on I/O (`%iowait=40.10`) — a single-core hot spot that an aggregate average would hide entirely. `pidstat -u -w` combines CPU and context-switch columns per process in one line, which is why it's the fast path to "is this process CPU-bound (`%CPU` high, `nvcswch/s` high — getting preempted because it wants the CPU) or something else" without running two separate tools.
+
 ➕ **Sample `vmstat 1` output, read left to right the way an interviewer wants to hear it:**
 ```
 $ vmstat 1
@@ -487,37 +604,16 @@ throttled_usec 890000000
 ```
 `nr_throttled / nr_periods` is your throttling *rate* — 32% here is severe. The tell-tale symptom pattern: **P99 latency spiking in short, regular sawtooth bursts** (every ~100ms period boundary) while host-level `%CPU` for the container looks unremarkable when averaged — averaging hides throttling because the pauses are sub-second. This is the single most common "why is my container slow when the node has plenty of CPU" root cause in Kubernetes, and it's a direct trap for anyone who checks `kubectl top pod` (an average) instead of `cpu.stat` (the actual enforcement counter).
 
-➕ **Diagram: throttling sawtooth, period by period**
+➕ **Diagram: the throttling cycle that repeats every period, not five separate incidents**
+
+Every period runs through the identical two-phase cycle below — the diagram shows one cycle rather than five copies of it, because that repetition is exactly the point: this isn't five different events, it's the same 100ms cycle replaying continuously for as long as the container keeps demanding more than its quota.
+
 ```mermaid
 flowchart LR
-    subgraph P1["period 1"]
-        direction LR
-        U1[used 50ms - quota] --> H1["THROTTLED (halt) 50ms"]
-    end
-    subgraph P2["period 2"]
-        direction LR
-        U2[used 50ms - quota] --> H2["THROTTLED (halt) 50ms"]
-    end
-    subgraph P3["period 3"]
-        direction LR
-        U3[used 50ms - quota] --> H3["THROTTLED (halt) 50ms"]
-    end
-    subgraph P4["period 4"]
-        direction LR
-        U4[used 50ms - quota] --> H4["THROTTLED (halt) 50ms"]
-    end
-    subgraph P5["period 5"]
-        direction LR
-        U5[used 50ms - quota] --> H5["THROTTLED (halt) 50ms"]
-    end
-    P1 --> P2 --> P3 --> P4 --> P5
-    H1 -.->|P99 latency spike at boundary| U2
-    H2 -.->|P99 latency spike at boundary| U3
-    H3 -.->|P99 latency spike at boundary| U4
-    H4 -.->|P99 latency spike at boundary| U5
+    U["0-50ms into the period:<br/>quota available, container runs normally"] -->|"quota exhausted<br/>at 50ms"| T["50-100ms into the period:<br/>THROTTLED — frozen, not slowed,<br/>no matter how idle the rest of the node is"]
+    T -->|"period boundary:<br/>quota resets to 50ms"| U
 ```
-CPU time used by the container within each 100ms period (quota = 50ms → 0.5 core). P99 latency spikes land exactly once per period boundary, right where THROTTLED hands back to used.
-This is why throttling produces a regular, sawtooth-shaped latency pattern instead of steady degradation — the container runs at full speed until it exhausts its slice, then is frozen (not slowed) until the next period opens, and `kubectl top`'s per-minute average smooths the sawtooth away completely.
+CPU time used by the container within each 100ms period (quota = 50ms → 0.5 core). This is why throttling produces a regular, sawtooth-shaped latency pattern instead of steady degradation: the container runs at full speed until it exhausts its slice, is *frozen* (not merely slowed) until the next period opens, and a P99 latency spike lands exactly once per period boundary — right at the U→T transition above. `kubectl top`'s per-minute average smooths this sawtooth away completely, which is exactly why `cpu.stat`'s `nr_throttled` counter, not `kubectl top`, is the number that actually proves this is happening.
 
 ➕ **One-liner to check every pod on a node for throttling, not just one:**
 ```bash
@@ -568,6 +664,20 @@ perf sched record -- sleep 5 && perf sched timehist   # timeline of every contex
 bpftrace -e 'tracepoint:sched:sched_switch { @[comm] = count(); }'   # context switches by process name, live
 bpftrace -e 'kprobe:finish_task_switch { @wait[comm] = hist(nsecs - @start[tid]); }'  # run-queue wait histogram
 ```
+```text
+$ perf top
+   Overhead  Shared Object      Symbol
+    18.20%   [kernel]           [k] copy_user_enhanced_fast_string
+    11.40%   libpython3.11.so   [.] _PyEval_EvalFrameDefault
+     6.80%   [kernel]           [k] futex_wait_queue_me
+
+$ perf sched latency
+ Task              |  Runtime ms | Switches | Avg delay ms | Max delay ms
+ grpc-worker-14     |   842.203   |   1204   |    40.120    |   210.400
+ grpc-worker-09     |   790.115   |   1180   |    38.900    |   198.220
+```
+`perf top` ranks *where CPU cycles are actually going*, by function — `copy_user_enhanced_fast_string` at the top means the kernel is spending real time copying data between user and kernel space, a very different story from time spent in application logic (`_PyEval_EvalFrameDefault`). `perf sched latency`'s `Avg delay` column is the number `vmstat`'s `r` count can't give you: not just "12 tasks are queued" but "this specific worker waits 40ms on average every time it wants the CPU" — naming the actual component losing time, not just the aggregate symptom.
+
 Interview framing: `vmstat` says "r=12, oversubscribed." `perf sched latency` says "this specific gRPC worker pool is waiting 40ms per scheduling cycle because of 200 threads on 8 cores." That second sentence is what "senior" sounds like — mechanism *and* which component, not just the symptom.
 
 ### Scheduling classes, compared (the table the JD's "advanced" bar expects)
@@ -582,6 +692,12 @@ Interview framing: `vmstat` says "r=12, oversubscribed." `perf sched latency` sa
 chrt -p <pid>            # show current policy/priority
 chrt -f -p 50 <pid>       # set SCHED_FIFO priority 50 — dangerous outside controlled contexts
 ```
+```text
+$ chrt -p 8842
+pid 8842's current scheduling policy: SCHED_OTHER
+pid 8842's current scheduling priority: 0
+```
+`SCHED_OTHER` / priority `0` is the ordinary, safe default every process has unless someone deliberately changed it — seeing anything else (`SCHED_FIFO`, a nonzero real-time priority) on a process that shouldn't need real-time scheduling is itself a finding worth investigating, since that's exactly the misconfiguration that can starve every other class on the CPU.
 
 ➕ **Diagram: who gets the CPU first (preemption order among classes)**
 ```mermaid
