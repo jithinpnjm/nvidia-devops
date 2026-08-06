@@ -33,17 +33,13 @@ def summarize(lines: list[str]) -> dict[str, Counter[str]]:
 ## ➕ Additions
 
 ➕ **Diagram: the increment ladder this question set expects (say the shape before typing anything):**
-```text
-Interview prompt lands (parse logs / aggregate / retry / poll / diff state / CLI)
-State the data structure BEFORE code — Counter, dict, set,
-deque, heap — chosen from the dominant operation, not habit
-Write the PURE parsing/policy function — no I/O, no side
-effects, so it's trivially testable in isolation
-Test the pure function against edge cases — malformed line,
-empty input, duplicate keys
-Add effects at the boundary — file I/O, network calls,
-bounded retry — kept OUTSIDE the pure core
-Wrap in a CLI and test the CLI itself, not just the
-function it calls
+```mermaid
+flowchart TD
+  Prompt["Interview prompt lands (parse logs / aggregate / retry / poll / diff state / CLI)"]
+  Prompt --> Structure["1. State the data structure BEFORE code —\nCounter, dict, set, deque, heap — chosen from\nthe dominant operation, not habit"]
+  Structure --> Pure["2. Write the PURE parsing/policy function —\nno I/O, no side effects, so it's trivially\ntestable in isolation"]
+  Pure --> Test["3. Test the pure function against edge cases —\nmalformed line, empty input, duplicate keys"]
+  Test --> Effects["4. Add effects at the boundary — file I/O,\nnetwork calls, bounded retry — kept OUTSIDE\nthe pure core"]
+  Effects --> CLI["5. Wrap in a CLI and test the CLI itself,\nnot just the function it calls"]
 ```
 The recurring mistake this diagram guards against: mixing parsing/policy logic with I/O/effects from the first line, which makes the core untestable and the interviewer unable to see your algorithm separately from your plumbing.
