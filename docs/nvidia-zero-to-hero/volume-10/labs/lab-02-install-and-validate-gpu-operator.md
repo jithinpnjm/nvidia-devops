@@ -2,263 +2,244 @@
 title: Lab 02 — Install and Validate GPU Operator
 description: Deploy NVIDIA GPU Operator with Helm and validate every operand from discovery through workload execution.
 sidebar_position: 21
-tags:
-  - lab
-  - gpu-operator
-  - helm
+tags: [lab, gpu-operator, helm]
 ---
 
 # Lab 02 — Install and Validate GPU Operator
 
-```yaml
-Title: Install and Validate GPU Operator
-Volume: 10
-Chapter: 06
-Difficulty: Advanced
-Estimated Time: 90 Minutes
-Prerequisites: Kubernetes cluster, NVIDIA GPU node, Helm, cluster-admin access
-Target Platform: Kubernetes with containerd
-Target Audience: Platform Engineers and SREs
-Lab Type: Installation
-```
+| Field | Value |
+|---|---|
+| Chapter | 06 — GPU Operator Architecture |
+| Difficulty / time | Advanced / 90 minutes |
+| Type | Installation and validation |
+| Scope | Approved non-production cluster or canary node pool |
 
 ## 1. Objective
 
-Install NVIDIA GPU Operator with Helm, inspect the ClusterPolicy-driven reconciliation model, validate each operand, and prove that a scheduled container can access a GPU.
+Install a pinned GPU Operator chart using an explicit driver-ownership decision, then prove reconciliation, node resource advertisement, and GPU workload access.
 
-## 2. Scenario
+## 2. Production Story
 
-Your platform team has agreed that Kubernetes should own the lifecycle of the GPU stack. This lab treats that decision as an operational contract. A successful install is not just a Helm exit code. It is a reconciled operator, healthy operands, published node labels, allocatable GPU resources, and one workload that actually reaches CUDA.
+An unpinned Helm install can appear healthy while an operand is incompatible with the node kernel, runtime, registry, or existing host driver. Production readiness is the agreement of every operand and an actual GPU workload—not a successful Helm exit code.
 
 ## 3. Learning Outcomes
 
-You will be able to:
-
-- prepare a cluster for GPU Operator;
-- choose host-managed or operator-managed driver ownership;
-- install a pinned chart release;
-- inspect ClusterPolicy and operand health;
-- validate GPU resource advertisement and container access;
-- collect evidence for common installation failures.
+You will select the ownership model, capture rollback artifacts, install a reviewed release, interpret ClusterPolicy and operand status, and collect failure evidence.
 
 ## 4. Architecture
 
 ```mermaid
 flowchart TD
-    Helm[Helm Release]
-    Operator[GPU Operator]
-    Policy[ClusterPolicy]
-    Driver[Driver DaemonSet]
-    Toolkit[Container Toolkit]
-    Plugin[Device Plugin]
-    Discovery[Node and GPU Discovery]
-    Validator[Validator]
-    Workload[GPU Workload]
-
-    Helm --> Operator --> Policy
-    Policy --> Driver
-    Policy --> Toolkit
-    Policy --> Plugin
-    Policy --> Discovery
-    Policy --> Validator
-    Driver --> Workload
-    Toolkit --> Workload
-    Plugin --> Workload
+  Helm[Reviewed Helm values] --> Operator[GPU Operator]
+  Operator --> Policy[ClusterPolicy]
+  Policy --> Driver[Driver]
+  Policy --> Toolkit[Container toolkit]
+  Policy --> Plugin[Device plugin]
+  Policy --> Discovery[Feature discovery]
+  Plugin --> Kubelet --> Node[Node resources]
+  Toolkit --> Workload[GPU workload]
 ```
 
 ## 5. Prerequisites
 
-- Supported Kubernetes and operating-system combination.
-- containerd configured and healthy.
-- At least one visible NVIDIA GPU.
-- Helm 3.
-- Outbound registry access or an approved mirrored registry.
-- A maintenance window for node-level changes.
+- Cluster-admin approval, Helm 3, an approved GPU node/pool, and a maintenance window.
+- A tested chart version, approved registry/mirror, and an approved CUDA test image.
+- A documented decision: operator-managed driver, or a qualified host-installed driver. Review the relevant NVIDIA support documentation for the exact release combination before proceeding.
 
-## 6. Environment
+## 6. Safety and Rollback Boundary
 
-Run the following commands and keep the output with your change record.
+Run only in a disposable cluster or an isolated canary pool. Preserve current values and the previous Helm revision before changing anything. Do not install an operator-managed driver over an unreviewed host-driver configuration.
 
-| Purpose | Command | Expected evidence | Explanation | Common failure interpretation |
-|---|---|---|---|---|
-| Confirm Kubernetes access | `kubectl version` | Client and server versions | Establishes the control plane you are about to modify | Your context may be pointed at the wrong cluster |
-| Confirm Helm access | `helm version` | Helm client version | Verifies the packaging toolchain | An older Helm version can change rendering or install behavior |
-| Confirm node inventory | `kubectl get nodes -o wide` | Node list with OS and internal IP data | Shows which node pool is available for GPU workloads | No GPU node is present, or the node is not Ready |
+## 7. Environment and Variables
 
-Record:
+**Purpose:** Verify tools and define values that prevent an accidental unpinned install.
 
-- Kubernetes version;
-- node OS and kernel;
-- container runtime version;
-- GPU model;
-- whether an NVIDIA driver already exists on the host.
-
-## 7. Components
-
-| Component | Responsibility |
-|---|---|
-| GPU Operator | Reconciles desired GPU platform state |
-| ClusterPolicy | Declares operand configuration |
-| Driver | Makes the physical GPU usable by the OS |
-| Container Toolkit | Injects GPU devices and libraries into containers |
-| Device Plugin | Advertises schedulable GPU resources |
-| NFD/GFD | Adds node and GPU capability labels |
-| Validator | Tests critical platform paths |
-| DCGM Exporter | Exposes GPU telemetry when enabled |
-
-## 8. Procedure
-
-### 8.1 Add and inspect the chart repository
-
-| Purpose | Command | Expected evidence | Explanation | Common failure interpretation |
-|---|---|---|---|---|
-| Register the NVIDIA chart repository | `helm repo add nvidia https://helm.ngc.nvidia.com/nvidia` | Repository is added locally | Gives Helm a source for the operator chart | Network, proxy, or certificate issues block access |
-| Refresh repository metadata | `helm repo update` | Repository index downloads successfully | Keeps the local cache aligned with the repository | Stale metadata can point at the wrong release line |
-| List available versions | `helm search repo nvidia/gpu-operator --versions | head` | A version list prints | Lets you choose a pinned chart version | Empty output means the repository is unavailable or misconfigured |
-
-Choose a validated chart version and record it.
-
+**Command:**
 ```bash
-export GPU_OPERATOR_VERSION='<validated-chart-version>'
+kubectl config current-context
+helm version
+export GPU_OPERATOR_VERSION='<reviewed-chart-version>'
+export CUDA_VALIDATION_IMAGE='<approved-cuda-image>'
 ```
 
-### 8.2 Decide driver ownership
+**Expected evidence:** The intended context and Helm client are shown; both variables are non-empty reviewed values.
 
-| Purpose | Command | Expected evidence | Explanation | Common failure interpretation |
-|---|---|---|---|---|
-| Prepare a host-driver values file | `printf '%s\n' 'driver:' '  enabled: false' > values-host-driver.yaml` | A small values file appears | Disables the operator-managed driver when the host already owns it | Installing the wrong ownership model can break a working node |
+**Explanation:** The chart and image are intentionally parameters because support and mirror policy are environment-specific.
 
-If you use an operator-managed driver, keep the default behavior and document that decision in the environment notes.
+**Common-failure interpretation:** Missing `helm` or inaccessible context is a workstation/RBAC issue; do not substitute “latest.”
 
-### 8.3 Install the release
+## 8. Components and Ownership Decision
 
-| Purpose | Command | Expected evidence | Explanation | Common failure interpretation |
-|---|---|---|---|---|
-| Install or upgrade the chart | `helm upgrade --install gpu-operator nvidia/gpu-operator --namespace gpu-operator --create-namespace --version "$GPU_OPERATOR_VERSION" --wait --timeout 15m` | Helm completes without a timeout | Applies the pinned chart in a controlled namespace | A timeout usually means one operand failed to converge |
-| Use host-driver values when required | `helm upgrade --install gpu-operator nvidia/gpu-operator --namespace gpu-operator --create-namespace --version "$GPU_OPERATOR_VERSION" --wait --timeout 15m -f values-host-driver.yaml` | Helm completes with the host-driver policy applied | Keeps the lab aligned with environments that already manage drivers on the node | Forgetting the host-driver file can trigger a conflicting driver install |
-
-### 8.4 Inspect the release and policy
-
-| Purpose | Command | Expected evidence | Explanation | Common failure interpretation |
-|---|---|---|---|---|
-| Read Helm status | `helm status gpu-operator -n gpu-operator` | Release details and notes | Confirms that Helm considers the release deployed | Failed hooks or pending resources need follow-up |
-| Read the ClusterPolicy list | `kubectl get clusterpolicy` | A policy object appears | Shows the operator has created its control object | No policy usually means the install never reconciled |
-| Inspect the policy in detail | `kubectl describe clusterpolicy cluster-policy` | Spec, status, and events | Tells you which operands the operator is trying to manage | Events often point directly to the broken operand |
-
-### 8.5 Inspect operand Pods
-
-| Purpose | Command | Expected evidence | Explanation | Common failure interpretation |
-|---|---|---|---|---|
-| List operator Pods | `kubectl get pods -n gpu-operator -o wide` | Operator and operand Pods are visible | Shows reconciliation progress | CrashLoopBackOff or Pending points to the first failed layer |
-| List DaemonSets | `kubectl get daemonsets -n gpu-operator` | Driver, toolkit, plugin, discovery, and telemetry DaemonSets where enabled | Shows which operands are actually deployed | Missing DaemonSets may be expected for disabled features, but not for the core platform |
-
-## 9. Validation
-
-Create a validation Pod that requests one GPU.
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: gpu-operator-validation
-spec:
-  restartPolicy: Never
-  containers:
-    - name: cuda
-      image: nvcr.io/nvidia/cuda:12.4.1-base-ubuntu22.04
-      command: ["bash", "-lc", "nvidia-smi && echo GPU_OPERATOR_VALIDATED"]
-      resources:
-        limits:
-          nvidia.com/gpu: 1
-```
-
-| Purpose | Command | Expected evidence | Explanation | Common failure interpretation |
-|---|---|---|---|---|
-| Apply the validation Pod | `kubectl apply -f gpu-operator-validation.yaml` | Pod object exists | Forces the scheduler and runtime to exercise the GPU path | Admission, quota, or image policy may block the Pod first |
-| Wait for the Pod to finish | `kubectl wait --for=condition=Ready pod/gpu-operator-validation --timeout=5m || true` | Pod reaches Ready or provides a useful timeout | Gives the operator a chance to finish reconciliation | A timeout is a signal to inspect the underlying operand |
-| Read the logs | `kubectl logs gpu-operator-validation` | `nvidia-smi` output and `GPU_OPERATOR_VALIDATED` | Proves the container could access a GPU | Runtime or driver issues usually show up here first |
-
-## 10. Verification
-
-| Purpose | Command | Expected evidence | Explanation | Common failure interpretation |
-|---|---|---|---|---|
-| Describe the Pod | `kubectl describe pod gpu-operator-validation` | Placement, events, and container state | Gives the exact reason for success or failure | Pending, scheduling, or runtime errors appear here |
-| Confirm the GPU resource exists | `kubectl get node -o json | grep -F 'nvidia.com/gpu'` | Node status includes the GPU resource | Verifies that the resource was registered with Kubernetes | No match means the node is not advertising the resource |
-| Confirm labels | `kubectl get nodes --show-labels | grep -F 'nvidia.com'` | NVIDIA-related labels appear on the node | Confirms discovery components are working | Missing labels usually mean NFD or GFD problems |
-
-Verify:
-
-- the Pod was scheduled on a GPU node;
-- one GPU was allocated;
-- GPU labels exist;
-- no critical operand is crash-looping.
-
-## 11. Observability
-
-| Purpose | Command | Expected evidence | Explanation | Common failure interpretation |
-|---|---|---|---|---|
-| Inspect events | `kubectl get events -n gpu-operator --sort-by=.lastTimestamp` | Recent reconcile and scheduling events | Shows which resource changed last | A repeating event pattern often identifies the broken operand |
-| Read operator logs | `kubectl logs -n gpu-operator deployment/gpu-operator --tail=200` | Operator reconciliation messages | Confirms whether the controller is progressing or stuck | Repeated errors usually point to policy, permissions, or image issues |
-| Check monitoring objects | `kubectl get servicemonitors -A 2>/dev/null` | ServiceMonitor resources when monitoring is enabled | Confirms whether telemetry exposure is wired up | No ServiceMonitor may be normal if telemetry is disabled |
-
-Where DCGM Exporter is enabled, confirm its Pod and metrics endpoint exist.
-
-## 12. Performance Measurements
-
-Use one lightweight compute or bandwidth test approved for the environment. Compare the result only with a same-node baseline. This lab does not define a universal performance threshold.
-
-## 13. Failure Injection
-
-Use a disposable environment only. Either scale the device-plugin DaemonSet to zero or apply a temporary node selector that matches no nodes, then restore the original configuration immediately after observation.
-
-| Purpose | Command | Expected evidence | Explanation | Common failure interpretation |
-|---|---|---|---|---|
-| Back up the DaemonSet | `kubectl get daemonset -n gpu-operator -l app=nvidia-device-plugin-daemonset -o yaml > device-plugin-backup.yaml` | Backup file is written locally | Preserves the known-good resource before any change | Without a backup, restoration becomes guesswork |
-| Observe the impact of removing the plugin | `kubectl scale daemonset -n gpu-operator -l app=nvidia-device-plugin-daemonset --replicas=0` | Allocatable GPU resources stop updating on affected nodes | Demonstrates how the resource disappears when the plugin is absent | If nothing changes, the selector may not match the real DaemonSet |
-| Restore the DaemonSet | `kubectl apply -f device-plugin-backup.yaml` | The DaemonSet returns to its prior spec | Returns the cluster to the pre-test state | If the backup is stale, the restore may not match current values |
-
-## 14. Troubleshooting
-
-| Symptom | Diagnosis | First checks |
+| Operand | Function | Preflight question |
 |---|---|---|
-| Driver Pod fails | Kernel compatibility, secure boot, host driver conflicts | Driver logs, kernel messages, node readiness |
-| Toolkit Pod fails | containerd configuration or filesystem permissions | runtime config and Pod logs |
-| Device plugin runs but no resource appears | Driver state, plugin logs, kubelet registration | node status, logs, and events |
-| Validator fails | Exact validator container log | image pull, runtime, and driver evidence |
-| Image pull fails | Registry, credentials, proxy, or mirror configuration | image reference and pull secrets |
+| Operator / ClusterPolicy | Reconciles desired state | Is the chart version qualified? |
+| Driver | Initializes the GPU | Who owns its lifecycle? |
+| Toolkit | Configures container GPU access | Is the runtime supported? |
+| Device plugin | Registers extended resources | Can it reach kubelet and enumerate GPUs? |
+| NFD/GFD | Publishes labels | Are discovery labels required by scheduling policy? |
+| Validator / DCGM exporter | Validates path / telemetry | Are they enabled and observable? |
 
-Useful commands:
+For a qualified host-installed driver, create and review a values file containing `driver.enabled: false`; otherwise use the approved operator-managed-driver configuration. Treat this as a change-controlled decision, not a lab toggle.
 
-| Purpose | Command | Expected evidence | Explanation | Common failure interpretation |
-|---|---|---|---|---|
-| Read container logs | `kubectl logs -n gpu-operator <pod> --all-containers` | All container output | Gives the full operand story | Missing logs may mean the Pod never started |
-| Describe the failing Pod | `kubectl describe pod -n gpu-operator <pod>` | Events and container state | Shows why the Pod is unhealthy | Image pull, mount, or permission errors show up here |
-| Inspect recent events | `kubectl get events -A --sort-by=.lastTimestamp` | Cluster-wide event timeline | Helps correlate multiple failures | Repeated warnings usually identify the earliest failing layer |
-| Check kubelet logs | `journalctl -u kubelet -n 300` | Kubelet event and registration messages | Useful when the node advertises no GPU resource | No registration messages can mean the device plugin never reached kubelet |
+## 9. Preflight Evidence
 
-## 15. Cleanup
+**Purpose:** Capture the pre-change node and release state.
 
-| Purpose | Command | Expected evidence | Explanation | Common failure interpretation |
-|---|---|---|---|---|
-| Delete the validation Pod | `kubectl delete pod gpu-operator-validation --ignore-not-found` | Pod is removed | Clears the test workload | Stuck termination usually points to node or finalizer issues |
-| Uninstall the release | `helm uninstall gpu-operator -n gpu-operator` | Helm removes the release | Reverses the install in a controlled way | Remaining host changes may still need a qualified uninstall |
-| Remove the namespace | `kubectl delete namespace gpu-operator --ignore-not-found` | Namespace disappears | Cleans up objects left behind after uninstall | Leftover resources mean the uninstall was incomplete |
+**Command:**
+```bash
+mkdir -p gpu-operator-evidence
+kubectl get nodes -o wide > gpu-operator-evidence/nodes-before.txt
+helm list -A > gpu-operator-evidence/helm-before.txt
+kubectl get pods -A -o wide > gpu-operator-evidence/pods-before.txt
+```
 
-Removing the operator does not always restore every host modification automatically. Follow the qualified uninstall procedure for the selected driver strategy.
+**Expected evidence:** Files show the initial cluster, release, and workload state.
 
-## 16. Summary
+**Explanation:** This is the comparison and rollback record.
 
-You installed GPU Operator as a lifecycle controller and validated the path from ClusterPolicy to a functioning GPU container.
+**Common-failure interpretation:** Permission errors mean the operator cannot be safely validated with current access; request scoped read access.
 
-## 17. Challenge Exercises
+## 10. Procedure: Add and Inspect the Chart
 
-- Install from a private registry mirror.
-- Disable one optional operand and document the effect.
-- Export all Helm values into Git.
-- Add policy checks that reject unpinned chart versions.
+**Purpose:** Discover available chart versions from the NVIDIA repository before selecting the reviewed one.
 
-## 18. Further Reading
+**Command:**
+```bash
+helm repo add nvidia https://helm.ngc.nvidia.com/nvidia
+helm repo update
+helm search repo nvidia/gpu-operator --versions | head -n 20
+```
+
+**Expected evidence:** Repository update succeeds and the candidate version is visible.
+
+**Explanation:** Discovery does not approve a version; use the compatibility decision made in preflight.
+
+**Common-failure interpretation:** TLS, proxy, or DNS failures require registry/network remediation or an approved mirror—never an unaudited download.
+
+## 11. Procedure: Install the Pinned Release
+
+Use the reviewed `target-values.yaml`; for host-owned drivers it must contain the reviewed driver-disable setting.
+
+**Purpose:** Install or reconcile exactly the approved GPU Operator release.
+
+**Command:**
+```bash
+helm upgrade --install gpu-operator nvidia/gpu-operator \
+  --namespace gpu-operator --create-namespace \
+  --version "$GPU_OPERATOR_VERSION" -f target-values.yaml \
+  --wait --timeout 15m
+```
+
+**Expected evidence:** Helm reports a deployed release; the namespace and operator resources exist.
+
+**Explanation:** `upgrade --install` is repeatable only when the reviewed values file is retained.
+
+**Common-failure interpretation:** Timeout means operands did not become ready. Stop and inspect Pods/events; do not rerun blindly.
+
+## 12. Validation: Reconciliation and Operands
+
+**Purpose:** Inspect declarative state and every managed operand.
+
+**Command:**
+```bash
+helm status gpu-operator -n gpu-operator
+kubectl get clusterpolicy
+kubectl get pods,daemonsets -n gpu-operator -o wide
+kubectl get events -n gpu-operator --sort-by=.lastTimestamp
+```
+
+**Expected evidence:** The ClusterPolicy is present; required Pods are Running/Completed and DaemonSets have desired availability on intended nodes.
+
+**Explanation:** Names vary by release and configuration, so inspect the actual resources rather than hard-code a Pod name.
+
+**Common-failure interpretation:** Driver failures commonly require kernel/secure-boot/host-driver review; image pull failures require registry credentials or mirror checks.
+
+## 13. Validation: Resource Advertisement
+
+**Purpose:** Verify kubelet exposes GPU resources after operands converge.
+
+**Command:**
+```bash
+kubectl get nodes -o custom-columns=NAME:.metadata.name,ALLOCATABLE:.status.allocatable.nvidia\.com/gpu
+kubectl get nodes --show-labels | grep -F 'nvidia.com' || true
+```
+
+**Expected evidence:** Intended GPU nodes report a numeric allocatable resource and applicable GPU labels.
+
+**Explanation:** This checks discovery and device-plugin registration but not container CUDA access.
+
+**Common-failure interpretation:** Empty allocatable values require the dependency-ordered workflow in [Lab 03](./lab-03-diagnose-a-missing-allocatable-gpu).
+
+## 14. Validation: Workload Execution
+
+Create `gpu-operator-validation.yaml` with `image: <approved-cuda-image>`, command `bash -lc 'nvidia-smi && echo GPU_OPERATOR_VALIDATED'`, `restartPolicy: Never`, and a limit of one `nvidia.com/gpu`.
+
+**Purpose:** Prove allocation and runtime access from an ordinary Pod.
+
+**Command:**
+```bash
+kubectl apply -f gpu-operator-validation.yaml
+kubectl wait --for=jsonpath='{.status.phase}'=Succeeded pod/gpu-operator-validation --timeout=5m
+kubectl logs gpu-operator-validation
+```
+
+**Expected evidence:** The Pod succeeds and its log includes GPU inventory plus `GPU_OPERATOR_VALIDATED`.
+
+**Explanation:** A workload result closes the gap between a reconciled platform and usable infrastructure.
+
+**Common-failure interpretation:** Pending indicates resource or scheduling policy; container startup failure points to driver/toolkit/runtime; nonzero `nvidia-smi` needs node evidence.
+
+## 15. Observability and Measurements
+
+**Purpose:** Preserve operator and workload evidence for support or change review.
+
+**Command:**
+```bash
+kubectl logs -n gpu-operator deployment/gpu-operator --tail=200 > gpu-operator-evidence/operator.log
+kubectl describe pod gpu-operator-validation > gpu-operator-evidence/validation-describe.txt
+kubectl get events -A --sort-by=.lastTimestamp > gpu-operator-evidence/events-after.txt
+```
+
+**Expected evidence:** The bundle contains reconciliation logs, workload events, and post-change events.
+
+**Explanation:** Where DCGM Exporter is enabled, also confirm its target and metric-scrape path with the cluster observability owner.
+
+**Common-failure interpretation:** A missing deployment name can mean a release-specific layout; list resources first and use the actual operator controller.
+
+Record elapsed install time, operand restart counts, allocatable GPU count, workload completion time, and telemetry visibility. Compare only to an equivalent node/pool baseline.
+
+## 16. Safe Failure Exercise and Troubleshooting
+
+In a disposable cluster, apply a validation Pod requesting more GPUs than any node has; inspect its events, then delete it. Do not scale or delete device-plugin resources as a teaching exercise in a shared cluster.
+
+| Symptom | First check | Likely boundary |
+|---|---|---|
+| Helm timeout | events and non-ready Pods | reconciliation/image/runtime |
+| Driver Pod failing | driver container logs, kernel evidence | kernel/driver ownership |
+| No resource | device-plugin logs and kubelet | registration |
+| Pod fails `nvidia-smi` | Pod events and runtime evidence | toolkit/runtime |
+
+## 17. Cleanup and Handoff
+
+**Purpose:** Remove the disposable workload; retain platform evidence.
+
+**Command:**
+```bash
+kubectl delete pod gpu-operator-validation --ignore-not-found
+```
+
+**Expected evidence:** Only the named validation Pod is deleted.
+
+**Explanation:** Leave the installed operator in place unless the approved lab plan explicitly includes uninstall and its driver-strategy-specific procedure.
+
+**Common-failure interpretation:** Do not uninstall to hide an operand problem; first preserve logs and decide rollback through change control.
+
+Handoff includes chart revision, values digest/location, driver ownership, operand status, node resources, workload log, evidence bundle, and rollback revision.
+
+## 18. Summary, Challenges, and Further Reading
+
+You installed a versioned platform and validated it as an end-to-end service. Next, test a private mirror, record values in Git, and rehearse the canary upgrade in [Lab 04](./lab-04-perform-a-controlled-gpu-platform-upgrade).
 
 - [GPU Operator Architecture](../chapter-06-gpu-operator-architecture)
 - [Driver Containers and Node Operands](../chapter-07-driver-containers-and-node-operands)
-- [Volume 10 Introduction](../index)
+- [Production Installation and Configuration](../chapter-10-production-installation-and-configuration)
