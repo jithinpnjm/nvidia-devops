@@ -185,12 +185,6 @@ Customers often ask for arbitrary fractions because their cost model starts at t
 3. When does dynamic reconfiguration justify its operational cost?
 4. How do standardized layouts improve incident response?
 
-## Further reading
-
-- [NVIDIA MIG: getting started and profile placement](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/getting-started-with-mig.html)
-- [NVIDIA MIG supported GPUs](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/supported-gpus.html)
-- Next: [Time-Slicing and Oversubscription](./chapter-04-time-slicing-and-oversubscription)
-
 ## Planning example: profile demand as a queueing problem
 
 Imagine three application classes, without assigning universal GPU sizes: an interactive class with short bursts, a sustained inference class with a measured profile, and an exceptional class that needs the largest available shape. The planner should not combine their memory estimates and call the result free capacity. It should maintain independent demand and reserve views for each compatible profile.
@@ -300,3 +294,9 @@ It should include compatible inventory.
 It should include clear admission behavior.
 
 It should include a change-controlled recovery path.
+
+## Further reading
+
+- [NVIDIA MIG: getting started and profile placement](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/getting-started-with-mig.html)
+- [NVIDIA MIG supported GPUs](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/supported-gpus.html)
+- Next: [Time-Slicing and Oversubscription](./chapter-04-time-slicing-and-oversubscription)

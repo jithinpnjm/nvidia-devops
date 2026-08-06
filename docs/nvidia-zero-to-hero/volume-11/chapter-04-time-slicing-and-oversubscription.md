@@ -205,12 +205,6 @@ Time-slicing may improve the number of schedulable users, but it increases incid
 - Can responders correlate application impact with GPU-level evidence?
 - Is there a safe migration path to MIG or dedicated capacity?
 
-## Further reading
-
-- [NVIDIA GPU Operator: time-slicing GPUs](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html)
-- [NVIDIA MIG User Guide: application considerations](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/deployment-considerations.html)
-- Next: [vGPU Architecture and Enterprise Virtualization](./chapter-05-vgpu-architecture-and-enterprise-virtualization)
-
 ## Kubernetes resource semantics in practice
 
 The scheduler makes a binary placement decision from advertised extended resources. It does not observe GPU memory pressure or application tail latency while choosing a replica. That is appropriate: those values are dynamic. It also means platform policy has to prevent an allocatable token from becoming an implied performance guarantee.
@@ -349,3 +343,9 @@ When should a service leave the shared pool?
 Answer using measured objectives.
 
 Avoid a universal replica ratio.
+
+## Further reading
+
+- [NVIDIA GPU Operator: time-slicing GPUs](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html)
+- [NVIDIA MIG User Guide: application considerations](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/deployment-considerations.html)
+- Next: [vGPU Architecture and Enterprise Virtualization](./chapter-05-vgpu-architecture-and-enterprise-virtualization)
