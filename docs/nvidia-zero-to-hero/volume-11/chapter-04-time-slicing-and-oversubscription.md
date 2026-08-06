@@ -335,6 +335,8 @@ Avoid a universal replica ratio.
 
 - Is a protected workload excluded from this pool by admission policy?
 
+- Has the team rehearsed the overload response?
+
 1. Why does a request for two time-sliced replicas not promise twice the compute?
 2. Which signals prove a shared pool is overloaded?
 3. How do you prevent a protected deployment from reaching a best-effort pool?
