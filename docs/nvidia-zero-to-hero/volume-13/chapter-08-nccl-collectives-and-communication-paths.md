@@ -115,38 +115,48 @@ nvidia-smi topo -m
 systemctl status nvidia-fabricmanager
 sudo systemctl restart nvidia-fabricmanager
 ```
-If it says `PIX` or `PHB` instead of `NV#`, NVLink is not being utilized. Check if the `nvidia-fabricmanager` service is running: `systemctl status nvidia-fabricmanager`.
 
-## Advanced NCCL Tuning
 
-NCCL performance can be tuned using environment variables. 
-- `NCCL_ALGO=Tree`: Forces NCCL to use Tree algorithms.
-- `NCCL_MIN_NCHANNELS` and `NCCL_MAX_NCHANNELS`: Controls the number of concurrent rings or trees. More channels can improve bandwidth utilization on high-end networking hardware but consume more memory.
-- `NCCL_P2P_DISABLE=1`: Forces NCCL to ignore Peer-to-Peer communication. This is useful for debugging to isolate if PCIe P2P is causing a hang.
 
-Always profile before and after setting these variables, as NCCL's default heuristics are usually highly optimized for standard configurations.
 
-## Senior Interview Questions
 
-**Q: How would you design a distributed training job to overlap communication and computation?**
-**A:** I would leverage framework features like PyTorch DDP's gradient bucketing. By grouping gradients into buckets, NCCL can start executing the All-Reduce collective on Bucket 1 while the GPU is still computing the backward pass for Bucket 2. This hides the network latency behind compute operations.
 
-**Q: You notice high network utilization but low GPU utilization during an All-to-All operation. What do you investigate?**
-**A:** This suggests a network bottleneck or imbalanced data distribution. I would first check if the All-to-All message sizes are heavily skewed (e.g., one expert gets 90% of the tokens). Next, I'd check for network congestion or suboptimal routing using tools like `ibstat` or fabric counters, ensuring we have full non-blocking bandwidth across the spine switches.
 
-## Glossary
 
-- **Collective:** A communication operation involving all processes in a group.
-- **Rank:** A unique ID assigned to a GPU participating in distributed training.
-- **NVLink:** NVIDIA's proprietary high-bandwidth, direct GPU-to-GPU interconnect.
-- **MFU (Model Flops Utilization):** The percentage of peak theoretical FLOPs actually achieved during training. Slow collectives directly reduce MFU.
 
-## Ready to Continue Checklist
 
-- [ ] I can explain the difference between All-Reduce and Reduce-Scatter.
-- [ ] I understand why a slow rank causes a cluster-wide hang.
-- [ ] I know how to check the hardware topology using `nvidia-smi topo -m`.
-- [ ] I can interpret the tradeoff between Ring and Tree topologies.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
