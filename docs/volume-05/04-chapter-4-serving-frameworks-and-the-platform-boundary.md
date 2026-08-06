@@ -11,7 +11,7 @@ A model server owns model execution, batching/scheduling and model-specific runt
 
 Benchmark engines on the target model, precision, GPU and request distribution. Do not choose an engine solely from a public benchmark with a different workload.
 
-```text
+```yaml
 # Example Kubernetes resource boundary (illustrative)
 resources:
   requests:

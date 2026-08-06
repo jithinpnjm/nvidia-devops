@@ -12,21 +12,14 @@ AI infrastructure inherits cloud-native security requirements — identity, RBAC
 GPU sharing also becomes a tenancy decision: cost-efficient packing is not enough if isolation requirements demand dedicated resources or hardware partitioning. Logging/telemetry must avoid leaking prompts, tokens or secrets by default.
 
 ➕ **The AI-platform security surface, mapped onto familiar cloud-native controls (the table this chapter implies but doesn't draw):**
-```text
-Cloud-native control AI-platform-specific extension
-Identity/RBAC who can pull a model artifact, call inference,
-burn GPU-hours (a new, expensive quota dimension)
-Network segmentation isolate prefill/decode/KV-transfer traffic (Ch6)
-between tenants sharing a fabric
-Secrets management API keys AND now 'the prompt itself' — prompts can
-contain PII/secrets pasted by users, unlike typical
-service-to-service payloads
-Image provenance model artifact provenance — was this checkpoint
-tampered with, does it match a signed/known hash
-Runtime hardening GPU-level isolation: process-level (no isolation),
-MIG (hardware-partitioned), time-slicing (software
-scheduled, no memory isolation) — different guarantees
-```
+
+| Cloud-native control | AI-platform-specific extension |
+|---|---|
+| Identity/RBAC | Who can pull a model artifact, call inference, burn GPU-hours (a new, expensive quota dimension) |
+| Network segmentation | Isolate prefill/decode/KV-transfer traffic (Ch6) between tenants sharing a fabric |
+| Secrets management | API keys AND now "the prompt itself" — prompts can contain PII/secrets pasted by users, unlike typical service-to-service payloads |
+| Image provenance | Model artifact provenance — was this checkpoint tampered with, does it match a signed/known hash |
+| Runtime hardening | GPU-level isolation: process-level (no isolation), MIG (hardware-partitioned), time-slicing (software scheduled, no memory isolation) — different guarantees |
 ➕ **GPU sharing modes, compared for the isolation question the chapter poses directly:**
 | Mode | Isolation | Noisy-neighbor risk | When required |
 |---|---|---|---|
