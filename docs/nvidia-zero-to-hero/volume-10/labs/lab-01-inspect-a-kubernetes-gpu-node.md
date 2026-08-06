@@ -24,22 +24,15 @@ Lab Type: Exploration
 
 ## 1. Objective
 
-Build a reproducible baseline that proves a Kubernetes node can see its GPU hardware, load the NVIDIA driver, expose the device through the container runtime, advertise `nvidia.com/gpu`, and run a validation Pod.
+Prove that a Kubernetes node can enumerate its GPU hardware, load the NVIDIA driver, expose the device through the container runtime, advertise `nvidia.com/gpu`, and run a validation Pod.
 
 ## 2. Background
 
-A GPU Pod depends on several layers that can fail independently. A healthy `nvidia-smi` on the host does not prove that Kubernetes can schedule the device. An allocatable resource on the Node object does not prove that a container can initialize CUDA. This lab verifies the complete path in order.
+A healthy host-level `nvidia-smi` does not prove that Kubernetes can schedule a GPU. Likewise, an allocatable resource does not prove that a container can initialize CUDA. This lab validates the complete path in dependency order.
 
 ## 3. Learning Outcomes
 
-After completing this lab, you will be able to:
-
-- inspect GPU hardware and driver state;
-- verify container-runtime integration;
-- read node capacity and allocatable GPU resources;
-- identify the device-plugin and discovery components;
-- run a controlled GPU validation Pod;
-- collect a baseline for future incident comparison.
+You will be able to inspect hardware and driver state, verify runtime integration, read Capacity and Allocatable, identify platform operands, run a GPU Pod, and collect a reusable incident baseline.
 
 ## 4. Architecture
 
@@ -59,67 +52,51 @@ flowchart TD
     API --> Scheduler --> Pod --> Runtime
 ```
 
-**Figure 10.L1.1 — GPU node validation path.** Each layer must agree before a workload can use the device.
-
 ## 5. Prerequisites
 
-- A Kubernetes cluster with at least one NVIDIA GPU node
-- `kubectl` access with permission to create Pods
-- SSH or console access to the GPU node
-- `nvidia-smi` installed or provided by the driver container
-- A working container registry path
+- Kubernetes cluster with at least one NVIDIA GPU node
+- Permission to create Pods and inspect Nodes
+- Node console or SSH access
+- Working container registry path
 
 ## 6. Environment
 
-Record the actual environment before beginning.
+```bash
+kubectl version
+kubectl get nodes -o wide
+```
 
-| Field | Value |
-|---|---|
-| Kubernetes version | `kubectl version` |
-| Node operating system | `kubectl get node -o wide` |
-| Container runtime | containerd |
-| GPU model | discovered during lab |
-| Driver version | discovered during lab |
-| GPU platform method | GPU Operator or manually managed components |
+Record the Kubernetes version, node OS and kernel, runtime version, GPU model, driver version, and whether the platform uses GPU Operator or individually managed components.
 
 ## 7. Components
 
-- **NVIDIA driver:** Controls the GPU and exposes kernel interfaces.
-- **NVIDIA Container Toolkit:** Configures GPU devices and libraries inside containers.
-- **NVIDIA Device Plugin:** Advertises GPU resources to kubelet.
-- **Node Feature Discovery:** Labels hardware characteristics.
-- **Kubelet:** Reports capacity and allocatable resources.
-- **Scheduler:** Places Pods that request GPUs.
+| Component | Responsibility |
+|---|---|
+| NVIDIA driver | Controls the physical device |
+| Container Toolkit | Injects devices and libraries into containers |
+| Device Plugin | Advertises schedulable GPU resources |
+| NFD/GFD | Publishes hardware capability labels |
+| Kubelet | Reports capacity and allocatable state |
+| Scheduler | Places Pods that request GPUs |
 
 ## 8. Deployment Steps
 
-### Step 1 — Identify GPU nodes
-
-**Purpose:** Find nodes that advertise NVIDIA GPU capacity.
+### Identify GPU nodes
 
 ```bash
-kubectl get nodes -o custom-columns=NAME:.metadata.name,GPU:.status.capacity.nvidia\.com/gpu,ALLOCATABLE:.status.allocatable.nvidia\.com/gpu
+kubectl get nodes -o custom-columns=NAME:.metadata.name,GPU:.status.capacity.nvidia\\.com/gpu,ALLOCATABLE:.status.allocatable.nvidia\\.com/gpu
 ```
 
-**Expected output:** At least one node shows a non-zero GPU capacity and allocatable value.
-
-**Explanation:** Capacity reflects discovered resources. Allocatable reflects what kubelet can currently offer after reservations and health filtering.
-
-### Step 2 — Inspect node labels and conditions
+Choose one node:
 
 ```bash
-GPU_NODE=$(kubectl get nodes -o jsonpath='{range .items[?(@.status.capacity.nvidia\.com/gpu)]}{.metadata.name}{"\n"}{end}' | head -n1)
+GPU_NODE=$(kubectl get nodes -o jsonpath='{range .items[?(@.status.capacity.nvidia\\.com/gpu)]}{.metadata.name}{"\n"}{end}' | head -n1)
 kubectl describe node "$GPU_NODE"
 ```
 
-Check:
+### Inspect hardware and driver state
 
-- `nvidia.com/gpu` under Capacity and Allocatable;
-- GPU-related labels;
-- `Ready=True`;
-- no repeated kubelet or runtime warnings.
-
-### Step 3 — Inspect hardware and driver state on the node
+On the node:
 
 ```bash
 nvidia-smi
@@ -127,33 +104,26 @@ nvidia-smi -L
 nvidia-smi topo -m
 ```
 
-**Expected output:** The commands list the GPU model, driver version, device identifiers, and topology.
+Expected output includes the GPU model, driver version, device identifiers, and topology. A driver communication error must be resolved before continuing.
 
-**Common errors:**
-
-- `NVIDIA-SMI has failed` indicates a driver or device problem.
-- No devices listed indicates hardware enumeration, passthrough, or driver binding failure.
-
-### Step 4 — Inspect the container runtime
+### Inspect runtime integration
 
 ```bash
 sudo crictl info | grep -i -A4 runtime
 sudo grep -R "nvidia" /etc/containerd /etc/nvidia-container-runtime 2>/dev/null
 ```
 
-**Expected output:** Runtime configuration references the NVIDIA runtime or compatible CDI configuration.
-
-### Step 5 — Find GPU platform Pods
+### Inspect platform operands
 
 ```bash
 kubectl get pods -A -o wide | grep -Ei 'nvidia|gpu-feature|node-feature|dcgm'
 ```
 
-Identify the driver, toolkit, device-plugin, feature-discovery, validation, and telemetry Pods where present.
+Identify the driver, toolkit, device-plugin, discovery, validation, and telemetry Pods present in the environment.
 
 ## 9. Validation
 
-Create a validation Pod.
+Create `gpu-node-validation.yaml`:
 
 ```yaml
 apiVersion: v1
@@ -177,21 +147,17 @@ kubectl get pod gpu-node-validation -w
 kubectl logs gpu-node-validation
 ```
 
-**Expected output:** The Pod reaches `Completed`, and its logs show the assigned GPU and driver information.
-
 ## 10. Verification
 
 ```bash
 kubectl get pod gpu-node-validation -o wide
 kubectl describe pod gpu-node-validation
-kubectl get node "$GPU_NODE" -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{"\n"}'
+kubectl get node "$GPU_NODE" -o jsonpath='{.status.allocatable.nvidia\\.com/gpu}{"\n"}'
 ```
 
-Verify that the Pod ran on a GPU node and requested exactly one GPU resource.
+The Pod must complete on a GPU node and its logs must show the assigned device.
 
 ## 11. Observability
-
-Collect a small baseline bundle.
 
 ```bash
 mkdir -p gpu-node-baseline
@@ -202,47 +168,23 @@ nvidia-smi -q > gpu-node-baseline/nvidia-smi-q.txt
 nvidia-smi topo -m > gpu-node-baseline/topology.txt
 ```
 
-This bundle becomes useful when comparing a future broken state.
-
 ## 12. Performance Measurements
 
-Record idle values with `nvidia-smi dmon` or DCGM where available:
-
-- GPU utilization;
-- memory utilization;
-- temperature;
-- power draw;
-- PCIe link state.
-
-The goal is not to establish universal thresholds. It is to establish a known baseline for this node and hardware generation.
+Record idle utilization, memory use, temperature, power, and PCIe link state. These values form a node-specific baseline rather than universal thresholds.
 
 ## 13. Failure Injection
 
-Delete the validation Pod and recreate it with an impossible request:
-
-```yaml
-resources:
-  limits:
-    nvidia.com/gpu: 99
-```
-
-Observe:
-
-```bash
-kubectl describe pod gpu-node-validation
-```
-
-The Pod should remain Pending with an insufficient GPU scheduling message.
+In a disposable environment, change the Pod request to `nvidia.com/gpu: 99`. The Pod should remain Pending with an insufficient GPU event.
 
 ## 14. Troubleshooting
 
 | Symptom | Likely layer | First checks |
 |---|---|---|
-| Host cannot run `nvidia-smi` | Hardware or driver | PCI enumeration, kernel logs, driver Pods |
-| Host works but allocatable GPU is absent | Device plugin or kubelet | plugin logs, kubelet logs, Node status |
-| Pod is Pending | Scheduler or request | events, selectors, taints, resource count |
-| Pod starts but CUDA fails | Runtime integration | toolkit, containerd config, runtime logs |
-| GPU labels are missing | Feature discovery | NFD and GFD Pods and logs |
+| Host cannot run `nvidia-smi` | Hardware or driver | PCI enumeration, kernel logs, driver Pod |
+| Host works but allocatable is absent | Plugin or kubelet | plugin logs, registration, Node status |
+| Pod is Pending | Scheduler policy | events, taints, selectors, resource count |
+| Pod starts but CUDA fails | Runtime integration | toolkit and containerd configuration |
+| Labels are missing | Feature discovery | NFD and GFD Pods and logs |
 
 ## 15. Cleanup
 
@@ -251,21 +193,16 @@ kubectl delete pod gpu-node-validation --ignore-not-found
 rm -f gpu-node-validation.yaml
 ```
 
-Keep the baseline bundle if it will be used operationally.
-
 ## 16. Summary
 
-You validated GPU hardware, driver state, runtime integration, resource advertisement, scheduling, and in-container visibility as one end-to-end path.
+You validated the end-to-end GPU path from physical hardware to an executing Kubernetes workload.
 
 ## 17. Challenge Exercises
 
-- Run the validation Pod on every GPU node.
-- Compare topology and labels across nodes.
-- Add a node selector for a specific GPU model.
-- Export the baseline into a version-controlled inventory repository.
+Run the validation on every GPU node, compare topology and labels, add a GPU-model selector, and store the resulting baseline in version control.
 
 ## 18. Further Reading
 
 - [Volume 10 Introduction](../index)
-- [GPU Resource Discovery and Scheduling](../chapter-02-gpu-resource-discovery-and-scheduling)
-- [Kubernetes Device Plugin](../chapter-04-kubernetes-device-plugin)
+- [GPU Software Lifecycle in Kubernetes](../chapter-02-gpu-software-lifecycle-in-kubernetes)
+- [Device Plugin and Kubernetes Resource Model](../chapter-04-device-plugin-and-kubernetes-resource-model)
