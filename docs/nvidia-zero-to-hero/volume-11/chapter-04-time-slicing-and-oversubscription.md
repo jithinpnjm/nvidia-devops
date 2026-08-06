@@ -1,6 +1,6 @@
 ---
 title: Chapter 04 — Time-Slicing and Oversubscription
-description: Use logical GPU replicas honestly: as shared access, not reserved capacity.
+description: "Use logical GPU replicas honestly: as shared access, not reserved capacity."
 sidebar_position: 5
 tags: [time-slicing, oversubscription, gpu-sharing]
 ---
