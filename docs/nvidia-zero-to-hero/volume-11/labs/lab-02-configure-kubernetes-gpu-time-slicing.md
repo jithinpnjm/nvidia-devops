@@ -1,71 +1,372 @@
 ---
 title: Lab 02 — Configure Kubernetes GPU Time-Slicing
-description: Advertise logical GPU replicas, validate scheduling, and observe contention under concurrency.
+description: Safely advertise GPU time-slicing replicas, validate logical scheduling, measure contention, and restore the baseline.
 sidebar_position: 21
 tags: [lab, time-slicing, kubernetes]
 ---
 
 # Lab 02 — Configure Kubernetes GPU Time-Slicing
 
-## Objective
+| Field | Value |
+|---|---|
+| Chapter | 04 and 07 — time-slicing and Kubernetes scheduling |
+| Difficulty / time | Advanced / 75–105 minutes |
+| Type | Configuration, validation, and bounded contention test |
+| Audience | Kubernetes platform engineers and SREs |
 
-Configure time-slicing on a test node, schedule multiple workloads, measure the difference between logical allocation and physical service, and restore the baseline.
+## 1. Objective
 
-## Architecture
+Configure a documented NVIDIA device-plugin time-slicing policy on one disposable GPU node, verify the resulting logical resource advertisement, schedule bounded test Pods, collect application and node evidence, and restore the original policy. The lab demonstrates access oversubscription; it does not claim that logical replicas reserve equal compute, memory, or latency.
+
+## 2. Production Story
+
+A developer platform advertises eight logical GPUs for every physical GPU. Queue times improve, but a latency-sensitive service is accidentally admitted to the same pool and its p99 latency becomes unstable. The scheduler performed exactly what it was told: it allocated access tokens. The missing control was workload classification, not a larger replica number.
+
+## 3. Learning Outcomes
+
+You will identify the policy owner, apply an explicit time-slicing configuration, distinguish physical inventory from logical allocation, collect contention evidence, and use a safe workload-only failure exercise to validate scheduler and quota messages.
+
+## 4. Architecture
 
 ```mermaid
 flowchart LR
-    Config[Time-Slicing Config]
-    Plugin[Device Plugin]
-    Node[Logical GPU Replicas]
-    Scheduler[Kubernetes Scheduler]
-    Pods[Concurrent Pods]
-    GPU[One Physical GPU]
-
-    Config --> Plugin --> Node --> Scheduler --> Pods --> GPU
+  Config[Versioned device-plugin policy] --> Plugin[Device plugin]
+  Plugin --> Node[Logical extended resources]
+  Node --> Scheduler[Kubernetes scheduler]
+  Scheduler --> Pods[Concurrent bounded Pods]
+  Pods --> GPU[One physical GPU]
+  GPU --> Metrics[Application and GPU evidence]
 ```
 
-## Prerequisites
+## 5. Prerequisites
 
-GPU Operator or NVIDIA device plugin, one disposable GPU node, kubectl access, approved configuration, and a repeatable test workload.
+- An isolated, non-production GPU node with a known whole-GPU baseline. Do not combine this lab with an active MIG layout unless the platform design explicitly supports that combination.
+- NVIDIA GPU Operator or NVIDIA device plugin ownership is known. The configuration shape below follows the [NVIDIA device-plugin configuration reference](https://github.com/NVIDIA/k8s-device-plugin#configuring-the-nvidia-device-plugin-binary).
+- Permission to create a ConfigMap in the operator-owned namespace *only if* your change process permits it, and permission to create a disposable namespace and Pods.
+- An immutable approved `GPU_TEST_IMAGE` containing `nvidia-smi` and a test command that ends predictably.
 
-## Deployment
+## 6. Safety and Change Boundaries
 
-Save the current values. Apply a version-controlled time-slicing configuration with a conservative replica count. Wait for the device plugin to reconcile.
+Time-slicing changes resource advertisement and therefore placement behavior. Use a tainted or otherwise isolated node, cordon it before policy changes, and do not edit a shared cluster-wide ConfigMap. Use a deliberately conservative replica count from the approved change record. A `Running` Pod is not success if its service objective fails.
 
-## Validation
+## 7. Environment and Variables
 
+**Purpose:** Establish an auditable target and keep lab resources separate from tenant namespaces.
+
+**Command:**
 ```bash
-kubectl describe node <gpu-node>
-kubectl get pods -A -o wide | grep -i device-plugin
+export GPU_NODE='<approved-disposable-gpu-node>'
+export OPERATOR_NAMESPACE='<namespace-that-owns-the-device-plugin>'
+export LAB_NAMESPACE='gpu-time-slicing-lab'
+export GPU_TEST_IMAGE='<approved-image-with-nvidia-smi>'
+kubectl config current-context
+kubectl get node "$GPU_NODE" -o wide
 ```
 
-Confirm that allocatable logical resources increased as expected.
+**Expected evidence:** The expected context and the single approved node are displayed.
 
-## Verification
+**Explanation:** Substitute values from the change record; do not infer the operator namespace from a tutorial.
 
-Launch several Pods requesting one logical GPU each. Confirm that several schedule to the same physical device.
+**Common-failure interpretation:** An unexpected context, node, or authorization error is a stop condition.
 
-## Observability
+## 8. Components and Resource Semantics
 
-Measure per-Pod latency, GPU memory, physical utilization, process count, and scheduler queue time.
+| Component | Responsibility | What it does not guarantee |
+|---|---|---|
+| Device plugin | Advertises configured logical replicas | equal compute share |
+| Kubelet | Publishes Capacity and Allocatable | workload SLOs |
+| Scheduler | Binds Pods that request resources | physical isolation |
+| Kubernetes policy | Limits who can request tokens | memory partitioning |
+| Application telemetry | Shows user-visible behavior | a universal replica limit |
 
-## Performance Measurement
+## 9. Baseline and Node Isolation
 
-Run one workload alone, then two, four, and the configured maximum. Plot throughput and p95 latency. Do not assume equal shares.
+**Purpose:** Capture physical GPU count and current extended-resource advertisement before changing policy.
 
-## Failure Injection
+**Command:**
+```bash
+kubectl get node "$GPU_NODE" -o jsonpath='{.status.capacity.nvidia\.com/gpu}{" capacity\n"}{.status.allocatable.nvidia\.com/gpu}{" allocatable\n"}'
+kubectl describe node "$GPU_NODE"
+```
 
-Increase concurrency until the service objective fails or memory pressure appears. Stop before risking node stability.
+**Expected evidence:** Resource values, labels, taints, conditions, and current allocations are available for the change record.
 
-## Troubleshooting
+**Explanation:** The baseline lets reviewers distinguish an intended logical count from a stale or failed device-plugin update.
 
-A Running Pod does not prove acceptable service. Diagnose application latency and memory behavior, not only scheduler success.
+**Common-failure interpretation:** Missing baseline resources must be resolved as a GPU platform issue before testing time-slicing.
 
-## Cleanup
+**Purpose:** Prevent new workload placement while the node’s advertised capacity changes.
 
-Delete workloads and restore the original device-plugin configuration.
+**Command:**
+```bash
+kubectl get pods -A --field-selector spec.nodeName="$GPU_NODE" -o wide
+kubectl cordon "$GPU_NODE"
+```
 
-## Challenge
+**Expected evidence:** Existing workloads are reviewed and the node becomes unschedulable for ordinary new work.
 
-Create an admission policy that prevents latency-sensitive namespaces from using time-sliced nodes.
+**Explanation:** Cordon does not remove existing Pods. Apply the organization’s approved drain procedure only after reviewing disruption impact.
+
+**Common-failure interpretation:** Unapproved workloads mean stop. Do not use force deletion to make the lab convenient.
+
+## 10. Create an Explicit Policy
+
+This is an example policy for **one approved test node/pool**. The replication count is a policy input, not an NVIDIA recommendation. Check the installed Operator/device-plugin version before applying it; field ownership differs between deployment models.
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: time-slicing-lab-config
+  namespace: <namespace-that-owns-the-device-plugin>
+data:
+  any: |-
+    version: v1
+    sharing:
+      timeSlicing:
+        renameByDefault: false
+        failRequestsGreaterThanOne: true
+        resources:
+          - name: nvidia.com/gpu
+            replicas: <approved-conservative-replica-count>
+```
+
+**Purpose:** Create the version-controlled, named policy after replacing the namespace and replica placeholder with approved values.
+
+**Command:**
+```bash
+kubectl apply -f time-slicing-lab-config.yaml
+kubectl get configmap -n "$OPERATOR_NAMESPACE" time-slicing-lab-config -o yaml
+```
+
+**Expected evidence:** The ConfigMap exists and its rendered data matches the reviewed policy.
+
+**Explanation:** The ConfigMap alone does nothing until the active device-plugin or GPU Operator configuration selects it.
+
+**Common-failure interpretation:** A forbidden or missing namespace error means the platform ownership boundary is not available for this lab. Stop rather than creating an alternative global configuration.
+
+## 11. Select the Policy Through the Supported Control Plane
+
+Use the platform’s documented selection method. For GPU Operator deployments, a ClusterPolicy device-plugin configuration is commonly used; confirm the installed API and existing policy before making a patch.
+
+**Purpose:** Inspect the current owner and configuration reference rather than guessing a resource name.
+
+**Command:**
+```bash
+kubectl get clusterpolicy -A 2>/dev/null || true
+kubectl get pods -n "$OPERATOR_NAMESPACE" -o wide
+```
+
+**Expected evidence:** The first command either identifies the ClusterPolicy or produces no output; the second identifies the device-plugin workload and its node placement.
+
+**Explanation:** Some installations use the GPU Operator; others directly manage the device-plugin DaemonSet. Only the owner’s approved change method may select the ConfigMap.
+
+**Common-failure interpretation:** No identifiable owner is a stop condition. Do not patch a DaemonSet spec based on assumptions.
+
+**Purpose:** Observe reconciliation after the approved selection action has been completed by the platform owner.
+
+**Command:**
+```bash
+kubectl get pods -n "$OPERATOR_NAMESPACE" -o wide
+kubectl get node "$GPU_NODE" -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{" allocatable\n"}'
+```
+
+**Expected evidence:** The device-plugin Pod on the selected node reconciles and the node reports the approved logical count.
+
+**Explanation:** Capture the previous configuration reference before changing it, then use its documented rollback method. This lab intentionally does not provide a generic `kubectl patch` because it would be unsafe across Operator versions.
+
+**Common-failure interpretation:** A Pod crash, node resource disappearance, or unchanged value requires platform-owner logs and rollback—not repeated rollout restarts.
+
+## 12. Deploy Bounded Validation Workloads
+
+Replace the image and node placeholders with approved values. The command sleeps after recording inventory so that two Pods can coexist briefly without an indefinite workload.
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gpu-time-slicing-lab
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: time-slice-a
+  namespace: gpu-time-slicing-lab
+  labels:
+    lab: time-slicing
+spec:
+  restartPolicy: Never
+  nodeSelector:
+    kubernetes.io/hostname: <approved-disposable-gpu-node>
+  containers:
+    - name: validation
+      image: <approved-image-with-nvidia-smi>
+      command: ["sh", "-c", "nvidia-smi -L; sleep 60; echo TIME_SLICE_A_COMPLETE"]
+      resources:
+        limits:
+          nvidia.com/gpu: 1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: time-slice-b
+  namespace: gpu-time-slicing-lab
+  labels:
+    lab: time-slicing
+spec:
+  restartPolicy: Never
+  nodeSelector:
+    kubernetes.io/hostname: <approved-disposable-gpu-node>
+  containers:
+    - name: validation
+      image: <approved-image-with-nvidia-smi>
+      command: ["sh", "-c", "nvidia-smi -L; sleep 60; echo TIME_SLICE_B_COMPLETE"]
+      resources:
+        limits:
+          nvidia.com/gpu: 1
+```
+
+**Purpose:** Create two isolated lab Pods that each request one logical GPU token.
+
+**Command:**
+```bash
+kubectl apply -f time-slicing-validation.yaml
+kubectl get pods -n "$LAB_NAMESPACE" -o wide -w
+```
+
+**Expected evidence:** Both Pods are bound to the approved node if the logical inventory and policy permit it.
+
+**Explanation:** Concurrent scheduling demonstrates logical allocation. It does not prove that the Pods received exclusive or equal hardware shares.
+
+**Common-failure interpretation:** Pending Pods require `kubectl describe pod`; image failures are unrelated to sharing and must be resolved through the approved image supply path.
+
+## 13. Verification and Acceptance Criteria
+
+**Purpose:** Prove allocation and inspect events, not merely Pod phases.
+
+**Command:**
+```bash
+kubectl describe pod -n "$LAB_NAMESPACE" time-slice-a
+kubectl describe pod -n "$LAB_NAMESPACE" time-slice-b
+kubectl logs -n "$LAB_NAMESPACE" time-slice-a
+kubectl logs -n "$LAB_NAMESPACE" time-slice-b
+```
+
+**Expected evidence:** Events show binding to the approved node; logs show each container initialized and printed its completion marker after the bounded wait.
+
+**Explanation:** A successful outcome requires the configured logical resource count, two concurrent allocations, and no unexpected runtime error.
+
+**Common-failure interpretation:** One Pod scheduling while one remains Pending can be an intended capacity limit. Compare actual Allocatable, quota, selectors, and the requested policy.
+
+## 14. Observability and Evidence Collection
+
+**Purpose:** Preserve Kubernetes evidence and the physical GPU process view during the overlap window.
+
+**Command:**
+```bash
+mkdir -p time-slicing-evidence
+kubectl get pods -n "$LAB_NAMESPACE" -o yaml > time-slicing-evidence/pods.yaml
+kubectl get events -n "$LAB_NAMESPACE" --sort-by=.lastTimestamp > time-slicing-evidence/events.txt
+```
+
+**Expected evidence:** The directory contains Pod specifications and timestamped scheduler events.
+
+**Explanation:** Collect DCGM metrics, application latency, and device-plugin logs through approved observability systems. Correlate with Pod UID and namespace; avoid exporting tenant payloads.
+
+**Common-failure interpretation:** If logs rotate or a Pod exits before capture, record that gap and use central logging rather than recreating production-like load.
+
+**Purpose:** Inspect host process and memory evidence during the controlled overlap. **Hardware-only command.**
+
+**Command:**
+```bash
+nvidia-smi
+nvidia-smi pmon -c 1
+```
+
+**Expected evidence:** The output identifies the physical GPU and, where visibility permits, active processes. Process visibility varies by driver and container runtime.
+
+**Explanation:** These snapshots complement application telemetry; they are not a fairness measurement.
+
+**Common-failure interpretation:** Absent process detail is an observability limitation, not proof that no work is running.
+
+## 15. Performance Measurements
+
+Use one approved deterministic workload and keep image, input, precision, request rate, duration, node, and telemetry window constant. Measure it alone, then with two concurrent logical allocations. Record completion count, median and tail latency, errors, GPU memory, utilization, power/thermal signals, and queue time. Report only observed values; do not generalize a replica count to another model or GPU.
+
+## 16. Safe Failure Exercise and Troubleshooting
+
+The safe failure is a namespace-scoped quota, not a node-level overload. It proves that policy denial has a different signal from missing GPU inventory.
+
+```yaml
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: one-logical-gpu
+  namespace: gpu-time-slicing-lab
+spec:
+  hard:
+    requests.nvidia.com/gpu: "1"
+    limits.nvidia.com/gpu: "1"
+```
+
+**Purpose:** Apply a quota only after deleting one validation Pod, then attempt to create two one-GPU Pods in the lab namespace.
+
+**Command:**
+```bash
+kubectl apply -f one-logical-gpu-quota.yaml
+kubectl get resourcequota -n "$LAB_NAMESPACE"
+```
+
+**Expected evidence:** The quota exists and the second request is denied or remains blocked according to the admission implementation.
+
+**Explanation:** Quota creates a reversible tenant-policy failure without changing device-plugin configuration or stressing the node.
+
+**Common-failure interpretation:** If quota does not apply, inspect its resource key and the Pod’s resource request. Do not increase physical load to force a failure.
+
+| Symptom | First evidence | Likely cause | Safe response |
+|---|---|---|---|
+| Logical count unchanged | selected policy and plugin logs | policy not selected/reconciled | roll back and involve owner |
+| Resources disappear | node status and plugin logs | malformed or incompatible config | restore prior policy |
+| Pod Pending | Pod events, quota, taints | policy or placement | correct only lab policy |
+| Pods run but SLO degrades | app metrics and GPU evidence | physical contention | reduce replicas or move service class |
+| OOM or process errors | app logs and memory evidence | shared memory pressure | stop test and protect node |
+
+## 17. Cleanup and Rollback
+
+**Purpose:** Remove all disposable workloads, quotas, and evidence-generating objects.
+
+**Command:**
+```bash
+kubectl delete namespace "$LAB_NAMESPACE" --ignore-not-found
+kubectl delete configmap -n "$OPERATOR_NAMESPACE" time-slicing-lab-config --ignore-not-found
+```
+
+**Expected evidence:** Kubernetes reports deletion or `not found` for only the named lab objects.
+
+**Explanation:** Restore the previously recorded device-plugin/ClusterPolicy configuration using the owner’s approved rollback method before deleting the ConfigMap if it is still selected.
+
+**Common-failure interpretation:** If reconciliation cannot return the node to its previous resource inventory, keep it cordoned and escalate with the baseline and plugin evidence.
+
+**Purpose:** Verify baseline resource recovery before allowing normal scheduling.
+
+**Command:**
+```bash
+kubectl get node "$GPU_NODE" -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{" allocatable\n"}'
+kubectl uncordon "$GPU_NODE"
+```
+
+**Expected evidence:** The advertised resource value matches the recorded baseline and the node becomes schedulable only after review.
+
+**Explanation:** The policy rollback is complete only when kubelet’s published inventory is back to baseline.
+
+**Common-failure interpretation:** A mismatch means retain the cordon and hand off to the GPU platform owner.
+
+## 18. Summary, Challenges, and Further Reading
+
+You configured logical access, validated placement, and separated scheduler success from tenant experience. Next, define three workload classes—best-effort development, batch, and latency-sensitive serving—and write an admission rule that prevents the latter from selecting this node pool.
+
+- [Time-Slicing and Oversubscription](../chapter-04-time-slicing-and-oversubscription)
+- [Kubernetes Scheduling for Shared GPUs](../chapter-07-kubernetes-scheduling-for-shared-gpus)
+- [Tenant Isolation, Security, and Fairness](../chapter-08-tenant-isolation-security-and-fairness)
+- [NVIDIA GPU Operator GPU sharing](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html)
+- [NVIDIA k8s-device-plugin configuration](https://github.com/NVIDIA/k8s-device-plugin#configuring-the-nvidia-device-plugin-binary)
