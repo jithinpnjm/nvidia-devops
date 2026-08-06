@@ -46,6 +46,41 @@ flowchart LR
 7. Measure tail behavior, queue pressure, and path asymmetry—not only link-up or average utilization.
 8. Make recovery and evidence collection part of the deployment design.
 
+## Production Architecture Patterns
+
+### Dedicated training fabric
+
+A dedicated fabric can use a deliberately small RoCE class, a controlled release matrix, and topology-aware job placement. Its advantage is a smaller policy and trust domain. Its trade-off is capital cost and the operational need to keep capacity and firmware baselines current.
+
+### Shared platform fabric
+
+A shared fabric must name infrastructure/control, RoCE compute, storage/service, and best-effort intent; decide where marking is trusted; and protect operational traffic from compute pressure. QoS helps express these rules but does not replace tenant segmentation, admission control, or capacity.
+
+### DPU-managed host edge
+
+Where a DPU is used, the host, DPU, and fabric are separately observable change and failure domains. The benefit is an explicit infrastructure boundary; the trade-off is another image, policy, security, and recovery lifecycle that must be qualified with the rest of the stack.
+
+```mermaid
+flowchart TB
+ W[Workload and scheduler] --> E[GPU/NIC endpoint]
+ E --> Q[Classified fabric queues]
+ Q --> F[Paths and capacity]
+ F --> R[Remote endpoint]
+ O[Inventory, telemetry, release control] -. validates and operates .-> E
+ O -. validates and operates .-> Q
+ O -. validates and operates .-> F
+```
+
+## Trade-off Guide
+
+| Choice | Gains | Obligations |
+|---|---|---|
+| More path capacity | Lower contention and better failure margin | Higher cost, power, cabling, and test scope |
+| More traffic classes | Finer differentiated behavior | More buffers, drift risk, and debugging complexity |
+| PFC-enabled RoCE class | Local transient loss protection | Pause-domain control and root-cause telemetry |
+| Strong ECN/DCQCN qualification | Controlled queue pressure | Endpoint/switch compatibility and workload testing |
+| DPU service layer | Host-edge infrastructure boundary | Separate lifecycle, security, and recovery ownership |
+
 ## End-to-End Acceptance Checklist
 
 ### Before production
@@ -89,6 +124,32 @@ When an AI workload is slow or fails, preserve evidence before changing the syst
 5. What happens to that bottleneck after a link or switch failure?
 6. Which release set is qualified, and how is it rolled back?
 7. Who owns the endpoint, switch, DPU, and application evidence in an incident?
+
+## Final Troubleshooting Scenarios
+
+### The network is reachable but training is erratic
+
+Start with the per-rank timeline, then correlate the slow ranks to rails, routes, queue pressure, and job placement. A reachable IP path does not establish that the intended RDMA queue, endpoint path, or collective topology is healthy.
+
+### A change reduces ECN/PFC counters
+
+Do not immediately call success. Prove that traffic still uses the intended queue, no loss/error counters increased, and the same collective/application workload improved against baseline. A class-mapping error can silence the counters by moving traffic to the wrong place.
+
+## Revision and Interview Materials
+
+**One-minute revision:** RoCE needs correct endpoint addressing and MTU; QoS carries traffic intent to queues; ECN/DCQCN regulates injection; PFC protects a short local buffer event; topology and capacity determine whether demand can drain; telemetry and runbooks make the whole design supportable.
+
+**Whiteboard interview:** draw a two-leaf AI Ethernet fabric with RoCE and management traffic. Add a synchronized incast. Mark the class-to-queue path, ECN feedback, PFC safety boundary, root bottleneck, and the evidence you would collect.
+
+**Customer question:** which guarantee is required during maintenance—connectivity, bounded slowdown, or unchanged collective performance? This determines the cost and complexity of the architecture.
+
+**Final lab checklist:**
+
+- [ ] Validate the complete path from GPU/NIC topology through switch queue to remote endpoint.
+- [ ] Demonstrate end-to-end marking, ECN feedback, and bounded PFC behavior.
+- [ ] Compare a normal and failure-state collective baseline.
+- [ ] Produce an incident evidence bundle and test its runbook.
+- [ ] Record release, topology, and policy identifiers with every result.
 
 ## Interview Notes
 

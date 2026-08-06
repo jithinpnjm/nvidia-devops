@@ -94,6 +94,34 @@ Full bisection bandwidth, spare paths, and unused headroom cost capital and port
 
 Never plan to 100% average utilization. Queues absorb bursts, failures remove paths, and synchronized collectives can generate demand that averages conceal. Monitor headroom, not just utilization: post-failure cut capacity, queue occupancy, ECN/PFC trends, and job placement are operational capacity signals.
 
+## Data Flow and Measurement Design
+
+The validation data path runs in both directions. A scheduler or test controller selects hosts and a workload shape. Endpoints inject traffic through the intended NIC and rail; switches expose queue, marking, pause, utilization, and error deltas; the application exposes operation time and rank skew. Inventory and configuration revisions supply the context needed to decide whether two runs are comparable.
+
+```mermaid
+flowchart LR
+ T[Test plan] --> W[Hosts and workload]
+ W --> F[Endpoint and fabric path]
+ F --> M[Queue and link telemetry]
+ W --> A[Collective/application timing]
+ I[Inventory and policy revision] --> R[Result record]
+ M --> R
+ A --> R
+ R --> D[Accept, investigate, or rollback]
+```
+
+Do not accept a result that cannot be reproduced. For every test, preserve its hypothesis, source and destination identities, traffic pattern, duration, warm-up behavior, concurrency, raw output, counter windows, and limitation. A result measured on an empty fabric answers a component-capability question; it does not establish shared-production behavior.
+
+## Production Trade-offs
+
+| Decision | Benefit | Cost or risk | Required control |
+|---|---|---|---|
+| Full-bisection topology | Predictable remote capacity | Ports, optics, power, and space | Failure and growth model |
+| Measured oversubscription | Lower initial cost | Hot cuts during concurrent jobs | Admission, placement, and degradation objective |
+| Larger validation matrix | Better failure discovery | Time and hardware reservation | Automate repeatable layers |
+| Aggressive canary rollout | Faster expansion | Wider exposure to hidden regression | Promotion gates and rollback |
+| Synthetic-only acceptance | Simple to execute | Misses workload behavior | Add collective and application evidence |
+
 ## Troubleshooting Scenarios
 
 ### Pairwise RoCE is healthy; collectives are not
@@ -107,6 +135,14 @@ Run the same workload matrix with concurrent jobs and inspect the leaf-to-spine 
 ### One failure consumes all performance margin
 
 Verify the actual failed-state route and available cut capacity, then either revise the resilience claim, add path capacity, or use admission control during maintenance. Do not hide the condition by changing the acceptance workload.
+
+### A release passes microbenchmarks but regresses application tail
+
+**Evidence:** pairwise throughput is within its baseline; application iteration percentiles widen; queue and ECN counters increase only during concurrent jobs.
+
+**Diagnosis:** compare rank placement, job concurrency, actual traffic mix, and policy revision with the baseline. The release may be valid at the component layer while a change in path selection or workload interaction exposes a shared cut.
+
+**Resolution and verification:** restrict rollout, restore the known-good release or placement, then rerun the exact collective/application matrix. Promote only after both median and tail behavior return to the agreed range.
 
 ## Customer Architecture Discussion
 
@@ -133,6 +169,20 @@ Present normal and degraded-state behavior separately. A customer may consciousl
 | Bottleneck cut | Links separating offered demand from destination capacity |
 | Baseline | Comparable result tied to topology, workload, and versions |
 | N-1 state | Capacity and behavior after one defined component/path loss |
+
+## Interview and Lab Materials
+
+**Whiteboard prompt:** draw two leaves with a shared spine cut. Add two concurrent jobs, then remove one uplink. Identify the measurements required before claiming the design meets its objective.
+
+**Customer prompt:** which degradation is acceptable during maintenance: reduced job concurrency, reduced performance, or no new jobs? The answer determines the capacity and scheduler design.
+
+**Lab checklist:**
+
+- [ ] Build an inventory-backed path map for one representative job.
+- [ ] Run a physical-to-collective validation ladder and retain raw evidence.
+- [ ] Add concurrent traffic and compare queue/tail metrics with the idle baseline.
+- [ ] Safely simulate one agreed failure in a nonproduction environment.
+- [ ] Document the acceptance range, owner, and rollback decision.
 
 ## Further Reading
 

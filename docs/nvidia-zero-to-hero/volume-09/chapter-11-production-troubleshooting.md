@@ -58,6 +58,25 @@ flowchart TD
 
 Stable identifiers connect the evidence: host, GPU, NIC port, DPU if present, switch port, rack, rail, and job. “Port 17 has errors” is not actionable until it can be placed in that graph.
 
+## Escalation Data Flow
+
+An incident should flow from symptom to evidence to a bounded owner, then back to verified service. The network is only one participant: a job scheduler can concentrate demand, a host change can select the wrong NIC, and a DPU policy can interrupt a healthy uplink. Preserve this causal chain in the incident record.
+
+```mermaid
+flowchart LR
+ J[Job symptom] --> S[Scope and timeline]
+ S --> H[Host/GPU evidence]
+ S --> N[Fabric and queue evidence]
+ S --> P[Policy and change history]
+ H --> X[First divergent layer]
+ N --> X
+ P --> X
+ X --> O[Named owner and safe correction]
+ O --> V[Baseline-based verification]
+```
+
+The incident commander should state the current hypothesis, evidence that would falsify it, and the next safe observation or change. That discipline prevents a restart from being mistaken for a repair.
+
 ## Failure Patterns
 
 ### Link up, but errors grow
@@ -96,6 +115,22 @@ Stable identifiers connect the evidence: host, GPU, NIC port, DPU if present, sw
 
 **Resolution:** correct topology/rank placement or fabric contention, then compare the same collective matrix with the baseline.
 
+### Only one rail is slow after maintenance
+
+**Evidence:** the affected rail has lower utilization or higher tail time; peers may remain clean; topology and release inventory differ from the healthy rail.
+
+**Diagnosis:** compare negotiated link state, cable/peer mapping, route membership, NIC/firmware/driver revision, QoS policy, and GPU/NIC affinity rail by rail. Do not average rails into one healthy aggregate.
+
+**Resolution and verification:** repair the first difference, rerun a per-rail pairwise test and a multi-rail collective, and confirm balance returns under the same workload.
+
+### The problem begins immediately after a policy change
+
+**Evidence:** timestamps align with a QoS, DPU, driver, or switch deployment; only the changed population is affected.
+
+**Diagnosis:** compare actual running policy and release state with the approved revision. Verify class-to-queue mapping using evidence, not just intended configuration.
+
+**Resolution and prevention:** use the prepared rollback or controlled reconciliation procedure; canary future policy changes with an end-to-end RoCE and collective gate.
+
 ## Recovery and Prevention
 
 Every incident should produce a verification statement: the exact test, topology, workload, counters, and time window that demonstrate recovery. “The job succeeded once” is inadequate. Update the runbook with the discriminating evidence, alert on the earliest useful signal, and add the failure to canary validation where practical.
@@ -105,6 +140,8 @@ Use staged upgrades for host drivers, NIC firmware, switch software, DPU images,
 ## Customer Architecture Discussion
 
 Supportability is an architecture feature. Customers should establish one incident owner who can assemble fabric, endpoint, and workload evidence; change ownership for each layer; and a stated escalation boundary for hardware, network operating system, driver, DPU, and application components. Without that model, a multi-team incident becomes a handoff loop.
+
+The operating model has a cost: topology inventory, telemetry retention, test capacity, release management, and on-call expertise. It also prevents expensive prolonged outages. A customer unable to operate PFC/ECN and endpoint versioning consistently should reduce architecture complexity or invest in the ownership model before growing the cluster.
 
 ## Interview Preparation
 
@@ -129,6 +166,19 @@ Supportability is an architecture feature. Customers should establish one incide
 | PFC | downstream queue and upstream propagation |
 | ECN | mark, notification, sender rate, queue timeline |
 | Slow collective | rank, rail, route, locality, concurrency |
+
+## Interview and Lab Materials
+
+**Architecture prompt:** design the telemetry and ownership path that lets an on-call engineer distinguish an optic issue from a pause tree within one incident window.
+
+**Scenario prompt:** a canary rack is slow only under all-to-all traffic. Explain the evidence sequence before changing ECN thresholds.
+
+**Lab checklist:**
+
+- [ ] Capture a healthy evidence bundle for a known job and topology.
+- [ ] Inject one safe, reversible failure in a test environment and practice the decision tree.
+- [ ] Compare a healthy and affected rail without aggregating counters.
+- [ ] Verify rollback restores both configuration revision and workload baseline.
 
 ## Further Reading
 
