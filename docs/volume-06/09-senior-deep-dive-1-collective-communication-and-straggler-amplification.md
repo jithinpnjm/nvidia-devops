@@ -11,15 +11,33 @@ NCCL chooses algorithms and transport based on topology and environment. Trouble
 
 **Multi-node communication evidence**
 
-\# Topology and fabric evidence
+```bash
+# Topology and fabric evidence
 nvidia-smi topo -m
-ibv\_devinfo
+ibv_devinfo
 rdma link
-ethtool -S &lt;iface> | egrep -i 'drop|discard|pause|ecn|error'
+ethtool -S <iface> | egrep -i 'drop|discard|pause|ecn|error'
 
 # NCCL diagnostics - enable only for diagnosis because logs can be large
-    export NCCL\_DEBUG=INFO
-    export NCCL\_DEBUG\_SUBSYS=INIT,NET,GRAPH
+export NCCL_DEBUG=INFO
+export NCCL_DEBUG_SUBSYS=INIT,NET,GRAPH
+```
+
+➕ **Sample output for the topology/fabric evidence commands, annotated:**
+```text
+$ rdma link
+link mlx5_0/1 state ACTIVE physical_state LINK_UP netdev ens5f0
+link mlx5_1/1 state ACTIVE physical_state LINK_UP netdev ens5f1
+
+$ ibv_devinfo | grep -E 'hca_id|state|port_lid|active_speed'
+hca_id: mlx5_0
+        state:                  PORT_ACTIVE (4)
+        port_lid:               12
+        active_speed:           25.0 Gbps (x8 = 200Gb/s effective)
+```
+`rdma link` gives the fast, per-device up/down summary across every RDMA-capable NIC on the host in one line each — the first thing to check before anything else, because a `state DOWN` here makes every layer above it (NCCL, the training job) moot. `ibv_devinfo` gives the same information per-device in more detail, including `port_lid` (this device's address on the InfiniBand fabric, meaningless for RoCE) and `active_speed` (the actually-negotiated link rate — cross-check this against the NIC's rated speed exactly the way Chapter 3's `ibstat` example does, since a link stuck at a lower speed reports "up" everywhere while quietly halving your bandwidth).
+
+➕ **Why `NCCL_DEBUG`/`NCCL_DEBUG_SUBSYS` are set with `export`, and why "enable only for diagnosis":** these are environment variables read once at NCCL library init inside the training process — `export` makes them visible to the child process the shell launches next (`python train.py`, `srun ...`), not to the current shell alone. `NCCL_DEBUG=INFO` turns on NCCL's own internal logging (topology detection, transport selection, channel setup) directly into the job's stdout/stderr; `NCCL_DEBUG_SUBSYS` narrows that logging to specific subsystems (`INIT`, `NET`, `GRAPH`) instead of every subsystem NCCL has, which matters because unfiltered `NCCL_DEBUG=INFO` on a large multi-rank job produces enough log volume per rank to slow the job down and flood log aggregation — this is why the comment says "enable only for diagnosis," not "leave this on by default."
 
 ## Senior addendum
 

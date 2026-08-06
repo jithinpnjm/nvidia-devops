@@ -9,28 +9,65 @@ Slurm separates control and execution: slurmctld schedules jobs; slurmd runs on 
 
 **Slurm operational evidence**
 
+```bash
 sinfo -Nel
 squeue -o '%.18i %.9P %.16j %.8u %.2t %.10M %.6D %R'
-scontrol show job &lt;JOBID>
-scontrol show node &lt;NODE>
-sacct -j &lt;JOBID> --format=JobID,State,Elapsed,AllocTRES,MaxRSS,ExitCode
+scontrol show job <JOBID>
+scontrol show node <NODE>
+sacct -j <JOBID> --format=JobID,State,Elapsed,AllocTRES,MaxRSS,ExitCode
+```
+
+➕ **Sample `sinfo -Nel` output, annotated (the node-centric view — one line per node, not per partition):**
+```text
+$ sinfo -Nel
+NODELIST   NODES PARTITION STATE  CPUS S:C:T MEMORY GRES        REASON
+gpu-node-07    1 gpu-a100  mixed    64 2:16:2 512000 gpu:a100:8  none
+gpu-node-08    1 gpu-a100  alloc    64 2:16:2 512000 gpu:a100:8  none
+gpu-node-09    1 gpu-a100  drain    64 2:16:2 512000 gpu:a100:8  Prolog error
+```
+`-N` switches `sinfo`'s default partition-centric view to one line per node (needed here because a partition can span many nodes in different states); `-e` shows every node individually instead of grouping identical-state nodes into a range; `-l` (long) adds the `CPUS`, `S:C:T` (sockets:cores:threads), `MEMORY`, `GRES` and `REASON` columns that the default view omits. `mixed` means the node has some but not all resources allocated (partially busy); `REASON=Prolog error` on `gpu-node-09` is the same auto-drain evidence the addendum below explains — visible here without having to run `scontrol show node` separately.
+
+➕ **Sample `scontrol show job` / `scontrol show node`, annotated:**
+```text
+$ scontrol show job 40231 | grep -E 'JobState|NodeList|Gres'
+   JobState=RUNNING Reason=None
+   NodeList=gpu-node-[01-08]
+   TresPerNode=gres:gpu:8
+
+$ scontrol show node gpu-node-09 | grep -E 'State|Reason'
+   State=DRAIN Reason=Prolog error on node [slurm@2026-07-28T03:14:02]
+```
+`scontrol show job`/`show node` give the full, single-object detail view that `sinfo`/`squeue`'s tabular output truncates — reach for these once a specific job or node is already the suspect, not as a first-pass survey tool.
 
 NVIDIA Base Command Manager 2026 releases include current Slurm, CUDA, container toolkit and Enroot/Pyxis stacks. Enroot provides an HPC-friendly container runtime model; Pyxis integrates containers with Slurm. This is an important bridge for SAs because many AI factories use Slurm for tightly coupled batch workloads while teams may also run Kubernetes for services and platform workflows.
 
 ## Senior addendum
 
 ➕ **Diagram: Slurm's control/execution split, and where prolog/epilog sit in it**
-```text
-slurmctld ← control plane: scheduling decisions,
-(controller) queue, priority, fair-share
-grants allocation
-┼
-slurmd slurmd slurmd ← execution: one per compute node
-node 07 node 08 node 09
-prolog runs BEFORE user code
-user job steps run node 09's prolog FAILS
-epilog runs AFTER user code node auto-DRAINs, job never started,
-(cleanup) nothing in job's own stdout/stderr
+```mermaid
+flowchart TD
+    CTLD["slurmctld (controller)
+    control plane: scheduling decisions,
+    queue, priority, fair-share
+    grants allocation"]
+    CTLD -->|grants allocation| D07
+    CTLD -->|grants allocation| D08
+    CTLD -->|grants allocation| D09
+
+    subgraph D07["slurmd — node 07"]
+        direction TB
+        P07["prolog runs BEFORE user code"] --> J07["user job steps run"] --> E07["epilog runs AFTER user code (cleanup)"]
+    end
+    subgraph D08["slurmd — node 08"]
+        direction TB
+        P08["prolog runs BEFORE user code"] --> J08["user job steps run"] --> E08["epilog runs AFTER user code (cleanup)"]
+    end
+    subgraph D09["slurmd — node 09"]
+        direction TB
+        P09["prolog runs BEFORE user code"] -->|"FAILS"| F09["node auto-DRAINs,
+        job never started,
+        nothing in job's own stdout/stderr"]
+    end
 ```
 `slurmctld` never runs user code — it only decides placement; the actual prolog/epilog/job-step execution is entirely `slurmd`'s job, on each allocated node independently, which is why a prolog failure is visible in that node's `scontrol show node` reason field, not in `sacct` or the job's own logs.
 
