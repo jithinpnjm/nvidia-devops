@@ -14,7 +14,7 @@ source_document: "Volume_03_Kubernetes_and_Platform_Engineering(3).docx"
 
 The scheduler checks whether candidate nodes satisfy Pod requirements. Resource requests are reservation/accounting inputs for CPU and memory; limits primarily affect runtime enforcement. A node can be 20% utilized yet unable to fit a Pod because its unallocated requested capacity is insufficient.
 
-```
+```bash
 kubectl describe pod <pending-pod>
 kubectl get node <node> -o jsonpath='{.status.allocatable}'
 kubectl describe node <node> | sed -n '/Allocated resources:/,$p'
@@ -58,7 +58,7 @@ paste <(kubectl describe nodes | grep -A2 'Allocated resources' ) <(kubectl top 
 
 Taints repel Pods unless a matching toleration exists. Node affinity constrains or prefers labels. Pod affinity/anti-affinity considers co-location relative to other Pods and topology keys. Topology spread constraints express distribution. These rules can reduce the eligible node set to zero even when aggregate capacity exists.
 
-```
+```bash
 kubectl get nodes --show-labels
 kubectl describe node <node> | grep -A3 Taints
 kubectl get pod <pod> -o yaml | sed -n '/affinity:/,/containers:/p'
