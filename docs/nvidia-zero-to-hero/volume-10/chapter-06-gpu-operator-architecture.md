@@ -27,30 +27,63 @@ flowchart TD
     Policy[ClusterPolicy and release configuration]
     Controller[GPU Operator controller]
     Driver[Driver operand]
+    DriverOK{"Driver module loaded<br/>on this node?"}
     Toolkit[Container Toolkit operand]
     Plugin[Device plugin operand]
     Discovery[NFD / GFD operands]
     Metrics[DCGM exporter operand]
     Validation[Validator operands]
     Node[GPU node]
-    Policy --> Controller
-    Controller --> Driver
-    Controller --> Toolkit
-    Controller --> Plugin
-    Controller --> Discovery
-    Controller --> Metrics
-    Controller --> Validation
-    Driver --> Node
-    Toolkit --> Node
-    Plugin --> Node
-    Discovery --> Node
-    Metrics --> Node
-    Validation --> Node
+    Blocked["Toolkit, plugin, and validator stay<br/>Pending/CrashLoopBackOff —<br/>each depends on this driver"]
+    Policy -->|"evidence: ClusterPolicy .status.state = ready"| Controller
+    Controller -->|"reconciles DaemonSet"| Driver
+    Driver -->|"evidence: driver Pod log shows<br/>'nvidia.ko' module load succeeded"| DriverOK
+    DriverOK -->|"Yes"| Toolkit
+    DriverOK -->|"No: kernel/secure-boot/signing<br/>mismatch"| Blocked
+    Controller -->|"reconciles DaemonSet"| Discovery
+    Controller -->|"reconciles DaemonSet"| Metrics
+    Toolkit -->|"evidence: nvidia-container-cli reports<br/>usable runtime"| Plugin
+    Plugin -->|"evidence: node allocatable<br/>resource published"| Validation
+    Discovery -->|"evidence: labels present"| Node
+    Metrics -->|"evidence: DCGM metrics scraped"| Node
+    Validation -->|"evidence: validator Pod Completed"| Node
 ```
 
-**Figure 10.6.1 — The controller manages an interdependent set of operands.** The exact components, resource names, and configuration choices vary by GPU Operator release and the selected deployment model.
+**Figure 10.6.1 — The controller manages an interdependent set of operands.** The exact components, resource names, and configuration choices vary by GPU Operator release and the selected deployment model. The `DriverOK` decision point makes the "evidence chain" argument in the next section visible in the diagram itself, not just in prose: everything downstream of the driver — toolkit, plugin, validator — depends on that single module load succeeding. A cluster where the driver operand Pod is `Running` but the kernel module never actually loaded looks healthy at the Pod-phase level while every dependent operand quietly stalls, which is precisely the trap the "Reconciliation is not a serial installer" section below is warning about.
 
 The controller watches its declarative policy and reconciles the child resources needed to reach it. Most node-facing components run as DaemonSets because their work is tied to local hardware and the kubelet. A controller can converge Kubernetes objects, but it cannot make an unsupported kernel, a failed module load, or an unavailable registry safe. Those conditions remain operational dependencies.
+
+**What the reconciled state looks like as real output.** `kubectl get clusterpolicy -o yaml` on a healthy install:
+
+```yaml
+$ kubectl get clusterpolicy cluster-policy -o yaml
+apiVersion: nvidia.com/v1
+kind: ClusterPolicy
+metadata:
+  name: cluster-policy
+spec:
+  driver: {enabled: true, version: "550.90.07"}
+  toolkit: {enabled: true}
+status:
+  namespace: gpu-operator
+  state: ready
+  conditions:
+  - type: Ready
+    status: "True"
+    reason: OperandsReady
+```
+
+`status.state: ready` is the controller's own summary claim — the diagram's `Policy` node reaching `Controller` with an evidence label. It means every operand it is configured to own converged at least once; it does **not** mean every node in the fleet is currently healthy, only that the controller has reached its last-observed steady state. Cross-check against the operand Pods themselves:
+
+```text
+$ kubectl get pods,daemonsets -n gpu-operator -o wide | grep -E 'driver|toolkit|device-plugin'
+daemonset.apps/nvidia-driver-daemonset            25   25   25   25   25
+daemonset.apps/nvidia-container-toolkit-daemonset 25   25   25   25   25
+daemonset.apps/nvidia-device-plugin-daemonset      25   24   24   25   24
+pod/nvidia-device-plugin-daemonset-h9x2q            0/1  CrashLoopBackOff  6   14m
+```
+
+The DaemonSet columns (`DESIRED CURRENT READY UP-TO-DATE AVAILABLE`) read `25 25 25 25 25` for driver and toolkit — fully converged. The device-plugin row reads `25 24 24 25 24`: one pod short of `READY`, and the individual Pod line shows why — `CrashLoopBackOff` with `6` restarts on one specific node. `ClusterPolicy.status.state` can still say `ready` while this single Pod fails, because that field reflects the controller's reconciliation of desired objects, not per-node operand health — which is exactly why the evidence-chain approach below insists on checking operand-level state, not just policy state.
 
 ## Responsibilities and boundaries
 

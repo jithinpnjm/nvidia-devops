@@ -31,18 +31,42 @@ sequenceDiagram
     participant CRI as CRI runtime
     participant NCT as NVIDIA Container Toolkit / CDI
     participant C as Container process
-    S->>K: Bind Pod to GPU node
+    S->>K: Bind Pod to GPU node (evidence: Pod.spec.nodeName set)
     K->>DP: Allocate requested devices
-    DP-->>K: Allocation response
+    DP-->>K: Allocation response (evidence: device IDs returned, e.g. GPU-3a1e...)
     K->>CRI: Create Pod sandbox and container
     CRI->>NCT: Resolve NVIDIA device configuration
-    NCT-->>CRI: Device, mount, and environment edits
+    NCT-->>CRI: Device, mount, and environment edits (evidence: CDI spec names /dev/nvidia0, driver libs)
     CRI->>C: Start allocated GPU container
+    Note over C: Does the container process see the device?
+    C-->>CRI: nvidia-smi inside container succeeds (evidence: GPU listed, CUDA_VISIBLE_DEVICES set)
 ```
 
-**Figure 10.3.1 — Runtime injection follows, rather than replaces, Kubernetes allocation.** The components and exact data path vary with the selected runtime and device-plugin configuration, but a scheduled Pod has not succeeded until its sandbox is created with the allocation.
+**Figure 10.3.1 — Runtime injection follows, rather than replaces, Kubernetes allocation.** The components and exact data path vary with the selected runtime and device-plugin configuration, but a scheduled Pod has not succeeded until its sandbox is created with the allocation. The final note-and-return step is the mechanism this chapter keeps returning to: everything up to `CRI->>C: Start allocated GPU container` can succeed while the container still cannot see a working GPU if the CDI/hook edit was wrong — the only proof is running `nvidia-smi` *inside* the container, not trusting that the sequence reached the last arrow.
 
 The host owns the kernel modules and the low-level driver interface. The workload image owns the application, its framework, and its CUDA user-space dependencies. The toolkit bridges those domains at container start. Putting a kernel driver in every application image would not solve the host-kernel problem; it would obscure it and make version control unmanageable.
+
+**The sequence as real command output, node side then container side.** On the node, after the CRI runtime creates the sandbox, `crictl` shows what the toolkit actually injected:
+
+```text
+$ sudo crictl inspect $(sudo crictl ps -q --name resnet-train) | grep -A4 '"devices"'
+"devices": [
+  {
+    "containerPath": "/dev/nvidia0",
+    "hostPath": "/dev/nvidia0",
+    "permissions": "rwm"
+  }
+],
+```
+A `devices` array containing `/dev/nvidia0` confirms the NCT/CDI step in Figure 10.3.1 actually wrote a device edit into this specific container's spec — this is the difference between "the node has a GPU" and "this container was given the GPU." An empty `devices` array here, with the Pod otherwise `Running`, is the exact signature of a CDI/hook misconfiguration: the allocation succeeded but the edit never landed.
+
+Inside the container, the corresponding proof is:
+
+```text
+$ kubectl exec resnet-train -- nvidia-smi -L
+GPU 0: NVIDIA A100-SXM4-80GB (UUID: GPU-3a1e9f2b-...)
+```
+Matching this UUID against `kubectl describe node` events or the device plugin's allocation log for the same Pod closes the loop end-to-end: the specific physical GPU the plugin allocated is the specific GPU the container process can see. A container-side `nvidia-smi` failure here despite a populated `devices` array on the node points at a driver-library or CUDA-user-space mismatch inside the image rather than the injection path itself.
 
 ## Three Mechanisms, Three Different Questions
 

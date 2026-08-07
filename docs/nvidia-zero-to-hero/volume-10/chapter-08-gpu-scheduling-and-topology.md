@@ -26,14 +26,26 @@ After this chapter, you will be able to:
 flowchart LR
     Pod[Pod requests and placement policy]
     Filter[Filter: resources, taints, affinity, policy]
+    FilterOK{"Any node passes<br/>every filter?"}
+    Pending["Pod stays Pending —<br/>FailedScheduling event names<br/>the first predicate that rejected each node"]
     Score[Score eligible nodes]
     Bind[Bind Pod to node]
     Kubelet[Kubelet and device plugin allocation]
+    AllocOK{"Device plugin<br/>Allocate() succeeds?"}
     Device[Selected GPU device]
-    Pod --> Filter --> Score --> Bind --> Kubelet --> Device
+
+    Pod -->|"evidence: PodSpec resources + nodeSelector recorded"| Filter
+    Filter --> FilterOK
+    FilterOK -->|"No — 0 of N nodes eligible"| Pending
+    FilterOK -->|"Yes — evidence: candidate node list non-empty"| Score
+    Score -->|"evidence: per-node scores logged by scheduler"| Bind
+    Bind -->|"evidence: Pod.spec.nodeName set"| Kubelet
+    Kubelet --> AllocOK
+    AllocOK -->|"No — device reserved by another Pod, or unhealthy"| Pending
+    AllocOK -->|"Yes — evidence: NVIDIA_VISIBLE_DEVICES set in container env"| Device
 ```
 
-**Figure 10.8.1 — Node selection precedes device allocation.** A request for `nvidia.com/gpu` constrains quantity. The scheduler does not automatically infer the workload’s preferred NVLink, PCIe, NUMA, or NIC relationship from that quantity alone.
+**Figure 10.8.1 — Node selection precedes device allocation.** A request for `nvidia.com/gpu` constrains quantity. The scheduler does not automatically infer the workload’s preferred NVLink, PCIe, NUMA, or NIC relationship from that quantity alone. The two decision points matter because they are different failure classes with different fixes: `FilterOK=No` is a policy or capacity problem visible entirely from `kubectl describe pod` events before the Pod ever touches a node, while `AllocOK=No` means the scheduler's view of free capacity was already stale by the time kubelet tried to actually reserve the device — a race that shows up as a bound Pod stuck in `ContainerCreating`, not `Pending`.
 
 The device plugin and extended-resource model are described in [Chapter 04](./chapter-04-device-plugin-and-kubernetes-resource-model). Feature discovery supplies the labels that make pool eligibility expressible in [Chapter 05](./chapter-05-node-and-gpu-feature-discovery). Neither component by itself turns a generic scheduler decision into a complete topology policy.
 

@@ -27,19 +27,21 @@ This volume develops the platform layer that makes those contracts repeatable. I
 
 ```mermaid
 flowchart LR
-    HW[GPU, firmware, and PCIe fabric] --> Driver[Host NVIDIA driver]
-    Driver --> Runtime[Container runtime + Toolkit]
-    Driver --> Plugin[Device plugin]
-    Discovery[NFD / GFD] --> API[Kubernetes API]
-    Plugin --> Kubelet[Kubelet]
+    HW[GPU, firmware, and PCIe fabric] -->|"evidence: lspci shows the device;<br/>nvidia-smi initializes it"| Driver[Host NVIDIA driver]
+    Driver -->|"evidence: nvidia-container-cli / CDI<br/>can inject the device"| Runtime[Container runtime + Toolkit]
+    Driver -->|"evidence: device plugin registers<br/>with kubelet's gRPC socket"| Plugin[Device plugin]
+    Discovery[NFD / GFD] -->|"evidence: node labels<br/>nvidia.com/gpu.product=... appear"| API[Kubernetes API]
+    Plugin -->|"evidence: Allocatable.nvidia.com/gpu > 0"| Kubelet[Kubelet]
     Kubelet --> API
     API --> Scheduler[Scheduler]
-    Scheduler --> Pod[GPU Pod]
+    Scheduler --> Bound{"Pod bound to node —<br/>does the container actually see the GPU?"}
+    Bound -->|"Yes: runtime injected device + libs"| Pod[GPU Pod: CUDA initializes]
+    Bound -->|"No: allocation path succeeded,<br/>execution path did not"| Broken["Pod Running or CrashLoop,<br/>nvidia-smi fails inside container —<br/>a runtime/CDI/toolkit boundary, not a scheduling one"]
     Pod --> Runtime
     Runtime --> Driver
 ```
 
-**Figure 10.0.1 — A GPU platform has an allocation path and an execution path.** The device plugin and kubelet make an extended resource schedulable. The runtime and driver make the allocated device usable inside the resulting container. Neither path is sufficient on its own.
+**Figure 10.0.1 — A GPU platform has an allocation path and an execution path, and they fail independently.** The device plugin and kubelet make an extended resource schedulable — that's the top path, proven by `Allocatable.nvidia.com/gpu > 0` and a successful bind. The runtime and driver make the allocated device usable inside the resulting container — that's the bottom path, proven only by `nvidia-smi` succeeding *inside* the container, not by the Pod reaching `Running`. The decision diamond is the single most useful triage question in this volume: a Pod can satisfy the entire top path and still fail the bottom one, which is why "the scheduler put it on a GPU node" is never sufficient evidence that the workload can use a GPU.
 
 The platform team should be able to state, and continuously test, a concrete contract:
 

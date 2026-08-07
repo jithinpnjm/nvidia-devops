@@ -19,16 +19,18 @@ You will be able to plan a canary rollout, define the validation and rollback ga
 
 ```mermaid
 flowchart TD
-    Inventory[Record known-good compatibility set] --> Canary[Change representative canary pool]
-    Canary --> Gate[Run workload and telemetry acceptance gates]
-    Gate --> Rollout[Roll out small, observable batches]
-    Rollout --> Observe[Observe service and fleet signals]
-    Observe --> Decision{Safe to continue?}
-    Decision -->|Yes| Rollout
-    Decision -->|No| Recover[Contain and restore coherent state]
+    Inventory[Record known-good compatibility set] -->|"evidence: prior versions, node image,<br/>and known-good baseline archived"| Canary[Change representative canary pool]
+    Canary -->|"evidence: helm history shows new revision,<br/>clusterpolicy reconciling"| Gate[Run workload and telemetry acceptance gates]
+    Gate --> Pass{"Capacity, workload,<br/>and telemetry gates pass?"}
+    Pass -->|"No — allocatable dropped,<br/>new XID/kernel errors, or metric loss"| Recover[Contain and restore coherent state]
+    Pass -->|"Yes: allocatable == baseline,<br/>validation Pod succeeded,<br/>DCGM series present"| Rollout[Roll out small, observable batches]
+    Rollout -->|"evidence: each batch's acceptance<br/>suite rerun independently"| Observe[Observe service and fleet signals]
+    Observe --> Decision{"Safe to continue to<br/>next batch?"}
+    Decision -->|"Yes"| Rollout
+    Decision -->|"No — fleet signal regresses<br/>or comparison pool diverges"| Recover
 ```
 
-**Figure 10.11.1 — A canary is an evidence gate, not a smaller production outage.** Progression requires explicit acceptance; ambiguity is a reason to stop expansion.
+**Figure 10.11.1 — A canary is an evidence gate, not a smaller production outage.** Progression requires explicit acceptance; ambiguity is a reason to stop expansion. Note there are now two decision points, not one: `Pass` gates the canary itself before any wider rollout is even considered, and `Decision` gates every subsequent batch independently — a canary that passed does not pre-approve batch 3 of 6, because a driver or firmware issue can be node-population-dependent (a specific hardware revision, a specific BIOS setting) and only show up once the rollout reaches the nodes that have it.
 
 The release record should state the prior and proposed values for Kubernetes, node image and kernel, driver, runtime, operator/chart and operand images, relevant firmware, and the GPU workload validation image. It should also name the node pools, maintenance window, workload owners, capacity reservation, and decision authority for pause or rollback.
 
@@ -48,6 +50,15 @@ Use a dedicated canary pool that matches the hardware, node image, runtime, secu
 Run the acceptance suite after every meaningful change, including a fresh CUDA workload, expected allocatable resources, required labels, DCGM scrape and identity checks, and a workload-level test appropriate to the class. A distributed training pool needs a topology and communication validation; a single-device smoke test does not prove that boundary. Establish a comparison baseline before the change so that “it looks slow” can become a measurable difference in startup time, failure rate, step time, or serving latency.
 
 Expand in small batches only while the canary and the first batch remain stable for the agreed observation period. Preserve one healthy comparison pool until the rollout completes. Automation should stop on failed gates; it should not automatically force every node through a broken state.
+
+**Sizing the canary and the batches — a worked, illustrative example.** For a fleet of 120 GPU nodes across 4 identical hardware batches (30 nodes each, procured at different times and therefore not guaranteed to share a BIOS/firmware revision):
+
+- Canary: 2 nodes per hardware batch = 8 nodes total (~7% of the fleet). Fewer than 2 per batch risks mistaking a single bad node for a systemic driver problem; going straight to a fleet-wide canary defeats the point of bounding blast radius.
+- First rollout batch after the canary passes: 10% of the fleet, or 12 nodes — large enough to catch a rollout-order or scheduler-interaction issue the 8-node canary was too small to expose, small enough that losing all 12 still leaves 90% of capacity serving traffic.
+- Subsequent batches: double each time the observation window is clean — 12 → 24 → remaining 76 — rather than a fixed step, so a fault caught late in the rollout has stopped before it reached the majority of the fleet.
+- Blast-radius arithmetic if a bad driver is missed and reaches batch 3 (24 nodes) before detection: at 8 GPUs/node that is `24 x 8 = 192 GPUs` unavailable, against a fleet total of `120 x 8 = 960 GPUs` — 20% of fleet GPU capacity, which is the number that belongs in an incident summary, not "some nodes are affected."
+
+These figures are illustrative — the right canary and batch sizes depend on fleet size, hardware heterogeneity, and how much spare capacity the environment actually has; the arithmetic pattern (bound the canary, size batches to what a clean observation window can prove, compute blast radius in GPUs not nodes) is the transferable part.
 
 ## A layered incident method
 
@@ -69,6 +80,21 @@ This order prevents a scheduler investigation from hiding a driver failure, and 
 ### A node does not advertise GPUs
 
 Confirm the physical inventory and host driver state first. Next inspect the operator policy and the driver, toolkit, and device-plugin operands; then inspect kubelet events and node `capacity` and `allocatable`. Compare labels and operand versions with a healthy node of the same class. A DaemonSet that is Running does not prove the kubelet has accepted its registration.
+
+**Evidence, post-upgrade.** After a driver-version bump, one canary node stops advertising GPUs while its sibling in the same batch is fine:
+
+```text
+$ kubectl get ds -n gpu-operator nvidia-device-plugin-daemonset -o wide
+NAME                              DESIRED   CURRENT   READY   UP-TO-DATE
+nvidia-device-plugin-daemonset    8         8         8       8
+
+$ kubectl get node gpu-node-11 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{"\n"}'
+0
+$ kubectl get node gpu-node-12 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{"\n"}'
+8
+```
+
+The DaemonSet reports `8/8 Ready` fleet-wide — that is the "Running does not prove registration" trap this row warns about. `gpu-node-11` and `gpu-node-12` came from the same rollout batch, but only `gpu-node-11` shows `allocatable: 0`. That per-node asymmetry, not the DaemonSet's aggregate status, is the actual signal: something node-specific (driver load, a stale toolkit socket) broke registration on one host even though the plugin Pod on that host reports `Ready`.
 
 ### A GPU Pod remains Pending
 

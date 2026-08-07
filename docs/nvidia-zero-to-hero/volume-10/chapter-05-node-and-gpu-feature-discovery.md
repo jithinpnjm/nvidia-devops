@@ -35,19 +35,53 @@ flowchart LR
     NFD[NFD worker]
     GFD[GPU feature discovery]
     API[Node labels in Kubernetes API]
+    Fresh{"Do labels match<br/>current node state?"}
+    Stale["Scheduler places Pod using<br/>wrong capability data —<br/>no error, silent mismatch"]
     Policy[Admission and platform policy]
     Scheduler[Kubernetes scheduler]
     Pod[GPU workload]
-    Host --> NFD --> API
-    Host --> GFD --> API
+    Host -->|"evidence: worker reads /sys, /proc, PCI IDs"| NFD -->|"evidence: node-feature.node.kubernetes.io<br/>labels appear in Node object"| API
+    Host -->|"evidence: GFD queries NVML/nvidia-smi fields"| GFD -->|"evidence: nvidia.com/gpu.product,<br/>.memory, .count labels appear"| API
+    API --> Fresh
+    Fresh -->|"Yes: worker ran after last state change"| Policy
+    Fresh -->|"No: driver/MIG/GPU changed since<br/>last discovery run"| Stale
     Policy --> Pod
     API --> Scheduler
     Pod --> Scheduler
+    Stale -.->|"discovered only via drift audit,<br/>not a Pod failure"| Scheduler
 ```
 
-**Figure 10.5.1 — Discovery produces metadata; it does not allocate a GPU.** The device plugin supplies the allocatable extended resource described in [Chapter 04](./chapter-04-device-plugin-and-kubernetes-resource-model). Labels narrow the eligible nodes before allocation.
+**Figure 10.5.1 — Discovery produces metadata; it does not allocate a GPU.** The device plugin supplies the allocatable extended resource described in [Chapter 04](./chapter-04-device-plugin-and-kubernetes-resource-model). Labels narrow the eligible nodes before allocation. The `Fresh` decision point is the diagram's most important edge: a label that is present is not the same claim as a label that is *current*. When discovery has not re-run after a state-changing event, the API still holds a valid-looking label — the scheduler has no way to know it is stale, so it makes a confident, wrong placement decision with zero errors logged anywhere. That silent failure mode is exactly what the "Drift is an availability issue" section below is written to prevent.
 
 NFD normally runs node-local workers and publishes detected host features through Kubernetes resources. GFD is the NVIDIA-specific discovery component commonly deployed with the GPU platform stack. Exact label keys and values are release- and configuration-dependent. Treat them as an implementation detail until they have been reviewed as part of your platform API.
+
+**What discovered labels actually look like.** `kubectl get nodes --show-labels` on a node where both NFD and GFD have completed a run:
+
+```text
+$ kubectl get node gpu-node-03 --show-labels | tr ',' '\n' | grep -E 'nvidia.com|feature.node'
+feature.node.kubernetes.io/cpu-cpuid.AVX512F=true
+feature.node.kubernetes.io/pci-10de.present=true
+nvidia.com/cuda.driver-version.full=550.90.07
+nvidia.com/gpu.compute.major=9
+nvidia.com/gpu.count=8
+nvidia.com/gpu.memory=81920
+nvidia.com/gpu.product=NVIDIA-H100-80GB-HBM3
+nvidia.com/mig.capable=true
+nvidia.com/mig.strategy=single
+```
+
+Read field by field: `pci-10de.present=true` is NFD's raw PCI-vendor evidence (`10de` is NVIDIA's PCI vendor ID) — this is the "Discovered fact" row of the labels table, owned by the discovery component. `gpu.product=NVIDIA-H100-80GB-HBM3` and `gpu.memory=81920` (MiB) are GFD reading NVML directly; they describe inventory, not validated capability. `mig.capable=true` says the hardware supports MIG partitioning — it does **not** say MIG is currently configured or that a `nvidia.com/mig-1g.10gb` resource exists on this node; that check is separate, per the "coordinate labels with the resource names advertised by the device plugin" warning later in this chapter. None of these eight labels is a lifecycle assertion or a service class — a workload manifest that hard-selects on `gpu.product=NVIDIA-H100-80GB-HBM3` directly (instead of a platform class) is exactly the anti-pattern this chapter argues against.
+
+The NFD worker's own log confirms when the probe last ran, which is the evidence the `Fresh` decision in Figure 10.5.1 depends on:
+
+```text
+$ kubectl logs -n node-feature-discovery nfd-worker-gpu-node-03-x7q2n --tail=5
+I0812 11:00:02.771001       1 nfd-worker.go:451] labeling node "gpu-node-03" with feature labels
+I0812 11:00:02.771312       1 nfd-worker.go:452] 42 label(s), 3 changed since last run
+I0812 11:00:02.803009       1 nfd-worker.go:470] sending labeling request to nfd-master
+```
+
+`3 changed since last run` is the concrete evidence of a re-probe actually happening — if a driver upgrade completed at `11:15` and this timestamp still reads `11:00`, that is stale-label drift, not a hypothetical.
 
 ## Facts, assertions, and classes
 
@@ -108,9 +142,54 @@ Use required affinity when a mismatch makes the workload incorrect or unsupporte
 
 For partitioned or shared GPU configurations, coordinate labels with the resource names advertised by the device plugin. A label saying that a node is MIG-enabled does not by itself guarantee that the requested partition resource exists. Check both conditions, and handle reconfiguration as a capacity-changing maintenance operation.
 
+**Quantifying fragmentation from SKU-level affinity.** Suppose a fleet has 80 GPU nodes across three hardware generations acquired over 18 months: 30 nodes with product label `NVIDIA-A100-80GB`, 30 with `NVIDIA-H100-80GB-HBM3`, and 20 with an older `NVIDIA-A100-40GB`. If workload manifests hard-select `nvidia.com/gpu.product=NVIDIA-A100-80GB` directly (the anti-pattern this chapter warns against) instead of a class like `inference-general`, then when the platform adds a fourth generation and retires the 20 oldest nodes, every one of those manifests becomes invalid at once — not gradually. Contrast that with a `service class` label: retiring the 20 old nodes means updating one label's node selector membership in the platform controller, and zero application manifests change. The blast radius of a hardware refresh goes from "N application teams edit N manifests under a deadline" to "one platform config change," which is the concrete cost the "portable platform classes" recommendation is protecting against — illustrative fleet-size numbers, but the ratio (manifests-changed vs. platform-configs-changed) holds regardless of fleet size.
+
 ## Troubleshooting: the selector is correct, yet no Pod schedules
 
 Start at the scheduling event. It states which predicate excluded each node. Then inspect the node’s labels, allocatable GPU resource, taints, and the workload’s required versus preferred terms. Do not begin by changing the selector; first establish whether the intended platform contract is absent, stale, or too narrow.
+
+| Symptom | First evidence | Likely next action |
+|---|---|---|
+| Pod Pending, selector looks correct | `describe pod` predicate message | Separate "no node has the label" from "label is stale" from "capacity is fragmented" |
+| Label present but node just went through maintenance | NFD/GFD worker log timestamp vs. maintenance change time | Re-run discovery; do not trust the label until it postdates the change |
+| Only some nodes in an identical pool advertise the label | Compare `--show-labels` output across the pool | Configuration drift or a per-node discovery Pod failure, not capacity |
+
+**Evidence for row 1 — reading the predicate message.** `kubectl describe pod` on a Pending Pod prints exactly which condition excluded which nodes, which is the difference between "no capacity" and "no label":
+
+```text
+$ kubectl describe pod training-job-0 | tail -5
+Events:
+  Type     Reason            Age   From               Message
+  ----     ------            ----  ---------------     -------
+  Warning  FailedScheduling  55s   default-scheduler  0/40 nodes are available:
+           40 node(s) didn't match Pod's node affinity/selector: key
+           "gpu.platform.example/class" value "training-topology" not found.
+```
+
+`40 node(s) didn't match ... not found` (not "insufficient resource") tells you every node was excluded on the label predicate before capacity was even evaluated. If 25 of those 40 nodes are, in fact, running qualified GPUs, the platform has either never published the `training-topology` class on them or a discovery run silently failed there — this event line rules out "we're out of GPUs" as the explanation in one read.
+
+**Evidence for row 2 — catching a stale label after maintenance.** Compare the discovery worker's last-run timestamp against the maintenance record:
+
+```text
+$ kubectl logs -n node-feature-discovery nfd-worker-gpu-node-19-p8k1 --tail=3
+I0812 08:40:11.002331       1 nfd-worker.go:451] labeling node "gpu-node-19" with feature labels
+I0812 08:40:11.002550       1 nfd-worker.go:452] 0 label(s) changed since last run
+```
+
+`08:40:11` with `0 label(s) changed` sitting next to a maintenance ticket showing the node's MIG configuration was changed at `09:15` is the concrete proof of drift: the worker has not run since the state change, so every MIG-related label on this node is describing hardware that no longer exists in that shape. This is the "labels are stale" branch of the prose above — the fix is re-running discovery, not editing the workload's selector.
+
+**Evidence for row 3 — spotting per-node drift inside one pool.** `grep`-diffing labels across a pool that is supposed to be uniform surfaces the one node that fell behind:
+
+```text
+$ for n in gpu-node-1{9,3}; do echo "== $n =="; kubectl get node $n --show-labels | tr ',' '\n' | grep 'nvidia.com/mig'; done
+== gpu-node-19 ==
+nvidia.com/mig.capable=true
+nvidia.com/mig.strategy=single
+== gpu-node-13 ==
+nvidia.com/mig.capable=true
+```
+
+`gpu-node-13` is missing `mig.strategy` entirely, even though the pool is documented as uniform — this asymmetry, not a Pending Pod, is usually the first sign of drift, since a Pod that happens to schedule on `gpu-node-19` will work fine and mask the problem on `gpu-node-13` until traffic or a rescheduling event lands there.
 
 If labels are stale, identify the state change that made them stale, repair the underlying driver or partition configuration, and use the supported discovery workflow. If the label is correct but no node qualifies, this is a capacity and fragmentation decision, not a discovery incident. Escalate it as such instead of weakening requirements without the workload owner’s agreement.
 
@@ -131,11 +210,11 @@ For a shared platform, discovery is where hardware inventory becomes a product b
 
 **Why is a GPU model label not sufficient evidence that a node can run a workload?**
 
-It describes detected inventory, not the health of the driver, runtime, advertised resource, network path, or application. A production eligibility label needs a governed validation process behind it.
+**Model answer:** "Because a label is just NFD or GFD reporting what it observed through NVML or PCI enumeration at one point in time — it's inventory, not a health check. `nvidia.com/gpu.product=NVIDIA-H100-80GB-HBM3` tells you what chip is physically present. It doesn't tell you the driver actually loaded cleanly, that the device plugin is currently reporting it healthy, that the network path for a distributed job is validated, or that the application image is compatible. I've seen a node keep a perfectly correct product label for hours after its driver crashed, because nothing in the discovery pipeline re-checks that label against live driver health — discovery ran once, found the PCI device, and moved on. That's exactly why this chapter treats a real acceptance label, like `gpu-validation=passed`, as something set only after the driver, runtime, plugin, and a validation workload all succeed — the product label alone was never meant to carry that weight."
 
 **When does node affinity harm a GPU platform?**
 
-When it encodes unnecessary SKU-level constraints. Eligible capacity shrinks, idle devices strand, and a routine refresh becomes a manifest migration. Use hard affinity only for real compatibility or service-contract boundaries.
+**Model answer:** "When it encodes SKU-level constraints that don't actually matter to the workload. If I hard-affinity a manifest to `gpu.product=NVIDIA-A100-80GB` because that's what was available when someone wrote the YAML, I've silently made every other equivalent GPU in the fleet ineligible — including newer, faster ones. Multiply that across dozens of teams and a routine hardware refresh turns into a coordinated manifest migration instead of a platform config change. I only reach for required affinity when there's a real compatibility or contractual boundary — a specific compute capability the code depends on, or a topology guarantee that's part of an SLA. Everything else should resolve through a platform service class, so the fleet can change underneath the workload without anyone noticing."
 
 ## Key takeaways
 
