@@ -51,9 +51,9 @@ Volumes: F-05 (`docs/volume-05`), ZTH-12 (`docs/nvidia-zero-to-hero/volume-12`),
 | ZTH-13 | chapter-10-multi-node-training-architecture.md | done | low |
 | ZTH-13 | chapter-11-performance-engineering-and-troubleshooting.md | done | medium |
 | ZTH-13 | chapter-12-volume-13-summary.md | done | medium |
-| ZTH-13 | labs/lab-01-run-multi-gpu-ddp-training.md | pending | |
-| ZTH-13 | labs/lab-02-benchmark-nccl-collectives.md | pending | |
-| ZTH-13 | labs/lab-03-test-sharded-training-with-fsdp.md | pending | |
-| ZTH-13 | labs/lab-04-recover-a-distributed-training-job.md | pending | |
+| ZTH-13 | labs/lab-01-run-multi-gpu-ddp-training.md | done | high |
+| ZTH-13 | labs/lab-02-benchmark-nccl-collectives.md | done | high |
+| ZTH-13 | labs/lab-03-test-sharded-training-with-fsdp.md | done | high |
+| ZTH-13 | labs/lab-04-recover-a-distributed-training-job.md | done | high |
 
 Note: PR #32 ("Add Volume 13") merged; commit d99bb03 fixed duplicated filler content in volume-13 chapters 1-3 already — check whether that fix is present in this worktree's branch point.
