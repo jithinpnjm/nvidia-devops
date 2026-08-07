@@ -31,17 +31,17 @@ A reliable answer requires more than API knowledge. It requires an execution mod
 
 ```mermaid
 flowchart TD
-    App[Application or Framework]
-    Library[CUDA-Accelerated Libraries]
-    Runtime[CUDA Runtime API]
-    DriverAPI[CUDA Driver API]
-    UserDriver[User-Space Driver Components]
-    KernelDriver[NVIDIA Kernel Driver]
-    Context[CUDA Context]
-    Streams[Streams and Events]
-    Memory[Host and Device Memory]
-    Kernels[GPU Kernels]
-    GPU[GPU Hardware]
+    App["Application or Framework"]
+    Library["CUDA-Accelerated Libraries"]
+    Runtime["CUDA Runtime API\nEvidence: cudaGetDeviceCount() &gt; 0"]
+    DriverAPI["CUDA Driver API"]
+    UserDriver["User-Space Driver Components\nEvidence: ldconfig -p shows libcuda.so"]
+    KernelDriver["NVIDIA Kernel Driver\nEvidence: nvidia-smi succeeds"]
+    Context["CUDA Context\n(often created lazily on first use)"]
+    Streams["Streams and Events"]
+    Memory["Host and Device Memory"]
+    Kernels["GPU Kernels\nEvidence: cudaGetLastError() +\ncudaDeviceSynchronize() both cudaSuccess"]
+    GPU["GPU Hardware"]
 
     App --> Library --> Runtime --> DriverAPI --> UserDriver --> KernelDriver
     KernelDriver --> Context
@@ -49,9 +49,15 @@ flowchart TD
     Context --> Memory
     Streams --> Kernels --> GPU
     Memory <--> GPU
+
+    Symptom{"Where does the\nfailure symptom\nfirst appear?"}
+    Symptom -->|"process sees 0 devices,\nnvidia-smi healthy"| B1["Boundary: User-Space/\nKernel-Driver hop\n(Ch.1-2)"]
+    Symptom -->|"device count &gt; 0,\nfirst kernel launch fails"| B2["Boundary: Runtime/Context/\nDevice-code compatibility\n(Ch.3, Ch.11)"]
+    Symptom -->|"kernel runs, wrong or\nnon-deterministic output"| B3["Boundary: Synchronization/\nownership (Ch.6-7)"]
+    Symptom -->|"correct output,\ntoo slow"| B4["Boundary: Memory/transfer/\nlaunch geometry (Ch.4-5,8-10)"]
 ```
 
-**Figure 3.13.1 — CUDA production stack.** Application behavior emerges from interactions across software, memory, execution, and hardware boundaries.
+**Figure 3.13.1 — CUDA production stack as a fault-isolation map for the whole volume.** Every arrow that mattered enough to get its own chapter now carries the specific evidence that proves it healthy, and the decision diamond routes a symptom directly to the chapter range that owns that boundary — this is the diagram meant to be redrawn from memory in an incident, not just studied once.
 
 ## Mental Model 1 — CUDA Is a Layered Platform
 
@@ -223,6 +229,26 @@ A CUDA workload is not production-ready until the team can answer:
 | Low utilization | Demand, CPU gaps, batching, transfers, launch geometry |
 | High utilization and low throughput | Memory stalls, inefficient work, retries, contention |
 
+**Evidence for the two rows that recur most often across this volume's chapters:**
+
+*No GPU visible* — same-context comparison, from Chapter 12's incident:
+```text
+$ nvidia-smi -L
+GPU 0: NVIDIA A100-SXM4-40GB (UUID: GPU-3f9a1c...)
+$ kubectl exec -it inference-pod-7c9 -- nvidia-smi -L
+Failed to initialize NVML: Unknown Error
+```
+Host healthy, process blind — that gap is always below `nvidia-smi`'s own layer: device injection, `NVIDIA_VISIBLE_DEVICES`, or a Pod spec that never requested `nvidia.com/gpu`.
+
+*Illegal memory access* — `compute-sanitizer` naming the exact line, from Chapter 12:
+```text
+$ compute-sanitizer --tool=memcheck ./inference_engine
+========= Invalid __global__ write of size 4 bytes
+=========     at scale_kernel(float*, int, float)+0x50 in scale.cu:14
+=========     by thread (287,0,0) in block (3906,0,0)
+```
+This is strictly more actionable than "an illegal memory access was encountered" reported at a downstream synchronization call — always reach for the sanitizer before manual bisection when the tool is available.
+
 ## Customer Conversation Framework
 
 When a customer says, “CUDA is slow,” ask:
@@ -242,27 +268,54 @@ These questions transform a vague complaint into an architecture investigation.
 
 ### Knowledge Questions
 
-1. Explain the difference between the CUDA Runtime API and Driver API.
-2. Why can pageable memory limit asynchronous copy behavior?
-3. What is PTX and when is it used?
-4. What guarantee does a stream provide?
-5. Does Unified Memory eliminate transfers?
+1. **Explain the difference between the CUDA Runtime API and Driver API.**
+   "Runtime API is the higher-level, more convenient interface most applications use directly — it manages context creation implicitly. Driver API sits underneath and gives explicit control over devices, contexts, and modules — frameworks and advanced tooling reach for it when they need that control. Every Runtime API call ultimately depends on Driver API capabilities beneath it."
+
+2. **Why can pageable memory limit asynchronous copy behavior?**
+   "Because a DMA engine needs a physically stable address to transfer against, and pageable memory can be relocated by the OS at any time — so the runtime has to stage it through an internal pinned buffer first. That staging copy is hidden, blocking CPU work sitting right behind an API call that looks fully asynchronous from the outside."
+
+3. **What is PTX and when is it used?**
+   "PTX is a virtual, forward-compatible intermediate instruction representation — not the final machine code the GPU executes. It's used when a build wants to run on GPU architectures newer than what was available at compile time; the installed driver JIT-compiles it for the actual target GPU the first time a module using it loads."
+
+4. **What guarantee does a stream provide?**
+   "In-order execution of the operations submitted to that one stream — nothing about timing relative to other streams, and no guarantee of overlap. Overlap requires additional conditions: pinned memory, independent buffers, and no hidden synchronization."
+
+5. **Does Unified Memory eliminate transfers?**
+   "No — it eliminates the explicit copy call from the code, but pages still physically migrate between host and device memory as different processors access them. It changes who's responsible for movement, not whether movement happens."
 
 ### Architecture Questions
 
-1. Draw the path from a framework call to GPU execution.
-2. Design a double-buffered transfer and compute pipeline.
-3. Design a compatibility matrix for a mixed GPU fleet.
-4. Explain how CUDA Graphs fit into an inference service.
-5. Define a profiling hierarchy for a slow training job.
+1. **Draw the path from a framework call to GPU execution.**
+   "Framework call into the CUDA Runtime API, down into the Driver API, into the user-space driver library, across the device-file boundary into the NVIDIA kernel driver, which controls the GPU. I'd annotate each hop with the evidence that proves it's healthy — device count for the runtime hop, library resolution for user-space, `nvidia-smi` for the kernel-driver hop."
+
+2. **Design a double-buffered transfer and compute pipeline.**
+   "Two slots, each with a pinned host buffer, device buffer, dedicated stream, and completion event. While slot 0 computes, slot 1's input transfer proceeds concurrently — but a slot can't be reused for the next batch until its own completion event confirms the previous work is actually done. That ownership rule is the entire difference between real overlap and intermittent corruption."
+
+3. **Design a compatibility matrix for a mixed GPU fleet.**
+   "List every GPU generation actually in the fleet, decide native SASS targets for the currently-deployed ones plus a tested PTX fallback for anything newer or less common, pin a minimum driver policy, and require CI to build and smoke-test against representative hardware for each listed class before release — not just compile cleanly."
+
+4. **Explain how CUDA Graphs fit into an inference service.**
+   "They target host submission overhead for stable, frequently-repeated request shapes — I'd bucket traffic into a small number of shape classes, cache one graph instance per class with a bounded total, and keep a normal stream fallback for anything outside the cached classes, rather than trying to cache every unique shape that ever arrives."
+
+5. **Define a profiling hierarchy for a slow training job.**
+   "Customer-visible metric first — step time or samples per second — then a system timeline to see whether the GPU is starved, serialized, or genuinely compute-bound, and only then kernel-level counters if the timeline actually points at a specific kernel rather than at host gaps or synchronization."
 
 ### Scenario Questions
 
-1. `nvidia-smi` works but a container reports no device.
-2. A kernel error appears during a later memory copy.
-3. Four streams perform no better than one.
-4. A managed-memory workload collapses above a data-size threshold.
-5. A new GPU generation rejects an existing binary.
+1. **`nvidia-smi` works but a container reports no device.**
+   "`nvidia-smi` on the host only proves the kernel driver is healthy — it says nothing about whether the container's process can see the device. I'd check device-node exposure inside the container, `NVIDIA_VISIBLE_DEVICES`, and whether the container runtime's GPU integration actually ran, before touching anything on the host."
+
+2. **A kernel error appears during a later memory copy.**
+   "The copy is very likely just the first synchronization point after an earlier kernel actually faulted asynchronously — I'd bisect backward with temporary `cudaDeviceSynchronize()` calls, or just run once under `compute-sanitizer` to get the true origin directly instead of guessing from where the error surfaced."
+
+3. **Four streams perform no better than one.**
+   "I'd check pinned memory, legacy default-stream interaction, a stray `cudaDeviceSynchronize()` in the hot path, and distinct buffer ownership — then confirm with the actual profiler timeline, because that's the only evidence that proves overlap happened rather than merely being permitted by the API."
+
+4. **A managed-memory workload collapses above a data-size threshold.**
+   "That threshold is almost certainly device memory capacity — below it the working set stays resident, above it the runtime starts evicting and refaulting pages continuously. I'd confirm with memory-used oscillating near the device ceiling during the slow runs and fix it by separating hot and cold data rather than assuming Unified Memory scales transparently past device capacity."
+
+5. **A new GPU generation rejects an existing binary.**
+   "That's a build-matrix gap, not a runtime incident — the binary's embedded device code, native or PTX, simply doesn't cover this architecture. I'd confirm with `cuobjdump` against the GPU's actual compute capability, then fix it at the build level by adding the target or a PTX fallback, not by touching the deployment or the driver."
 
 ## Quick Revision Sheet
 

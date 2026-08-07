@@ -50,17 +50,30 @@ After completing this chapter, you will be able to:
 ## Big Picture
 
 ```mermaid
-flowchart LR
-    H2D[Host-to-Device Copy]
-    Prep[Preprocessing Kernel]
-    Main[Main Compute Kernel]
-    Post[Postprocessing Kernel]
-    D2H[Device-to-Host Copy]
+flowchart TD
+    subgraph StreamPath["Without a graph: re-submit every iteration"]
+        direction LR
+        H2D1["H2D Copy"] --> Prep1["Preprocess"] --> Main1["Compute"] --> Post1["Postprocess"] --> D2H1["D2H Copy"]
+        Cost1["Host pays 5 API-call submission\ncosts EVERY iteration\nEvidence: nsys shows CPU gaps\nbetween each launch, even though\neach kernel itself is short"]
+        D2H1 -.-> Cost1
+    end
 
-    H2D --> Prep --> Main --> Post --> D2H
+    subgraph GraphPath["With a CUDA Graph: capture once, replay many times"]
+        direction LR
+        H2D2["H2D Copy"] --> Prep2["Preprocess"] --> Main2["Compute"] --> Post2["Postprocess"] --> D2H2["D2H Copy"]
+        Cost2["Host submits ONE\ncudaGraphLaunch() call\nEvidence: nsys shows a single\nsubmission point, then the whole\nchain executes with minimal gaps"]
+        D2H2 -.-> Cost2
+    end
+
+    Decide{"Is per-iteration kernel time\n>> per-iteration submission\noverhead?"}
+    Decide -->|"yes (long kernels)"| Skip["Graphs add complexity for\nlittle measured benefit —\nstream path is fine"]
+    Decide -->|"no (many short kernels,\nCPU gaps visible in timeline)"| UseGraph["Graphs remove the\nrepeated submission cost —\nthis is the chapter's Story"]
+
+    StreamPath -.-> Decide
+    GraphPath -.-> Decide
 ```
 
-**Figure 3.10.1 — Repeated dependency graph.** The application can instantiate this stable workflow once and replay it for many iterations.
+**Figure 3.10.1 — Repeated dependency graph shown as a before/after comparison with the decision it's meant to inform.** The stream path and the graph path execute the identical five operations — the diagram's point is that the difference is entirely in *host submission cost*, which is only visible in a timeline as CPU gaps between short kernels, and the decision box states plainly when adopting a graph is and isn't worth it.
 
 ## Why Launch Overhead Matters
 
@@ -228,13 +241,48 @@ Measure end-to-end latency, not only launch API duration.
 
 Look for unsupported calls, broad synchronization, allocation inside capture, cross-thread behavior, or external library operations that are not capture-safe.
 
+**Evidence — a typical capture failure and what it points at:**
+
+```text
+$ ./graph_service --capture
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  cudaStreamEndCapture failed: operation not permitted while stream
+           is capturing
+```
+
+This generic-looking error is the runtime rejecting something that happened *inside* the capture window — commonly a `cudaMalloc` call, a call into a library that internally synchronizes, or a second thread submitting to the captured stream. The fix is not to retry — it's to bisect the captured region by commenting out suspect calls (library calls first, since they're the least visible source) until capture succeeds, then move the offending call outside the capture window.
+
 ### Problem: Graph path returns stale data
 
 Check whether node parameters still point to old buffers, whether updates succeeded, and whether pipeline slots are reused before completion.
 
+**Evidence — an update call whose failure went unchecked:**
+
+```text
+$ ./graph_service --shape=512
+cudaGraphExecUpdate result: cudaGraphExecUpdateErrorTopologyChanged
+falling back to full rebuild... done
+$ ./graph_service --shape=513 --skip-update-check   # bug: ignoring the result
+request shape=513 executed using stale shape=512 buffers
+validation: FAIL
+```
+
+`cudaGraphExecUpdate` can fail — for instance when a shape change alters the node topology rather than just its parameters — and a service that doesn't check its return value keeps launching the *old* executable graph against buffers that no longer match the current request. The second run above shows exactly that: the update silently failed, the service launched the stale graph anyway, and validation caught data computed against the wrong shape. Always branch on the update result and fall back to a full rebuild (as the first run correctly does) rather than assuming update success.
+
 ### Problem: Graphs provide no improvement
 
 The workload may be dominated by long kernels, transfers, queueing, or network latency. Compare host submission gaps before and after adoption.
+
+**Evidence — graphs applied to the wrong bottleneck:**
+
+```text
+$ nsys stats --report cuda_api_sum stream-baseline.nsys-rep | head -3
+ Time(%)  Total Time (ns)  Num Calls  Name
+    2.1        4,120,000       500    cudaLaunchKernel
+   97.3      189,340,000       500    cudaMemcpyAsync   <- one large 512MB transfer per iteration
+```
+
+Here submission overhead (`cudaLaunchKernel` at 2.1%) was never the bottleneck — a single large transfer dominates each iteration at 97.3% of API time. Wrapping this workflow in a CUDA Graph would remove almost none of that time, because graphs target repeated *submission* cost, not transfer bandwidth. This is the diagnostic step this row's symptom demands: compare where time actually goes before adopting graphs, not after a benchmark shows a promising number on a different workload shape.
 
 ### Problem: Memory grows with request diversity
 
@@ -250,21 +298,36 @@ The design creates graph instances for those stable classes and retains a normal
 
 ### Conceptual Questions
 
-1. What problem do CUDA Graphs solve?
-2. How does graph replay differ from launching the same kernels manually?
-3. Why must graph-referenced buffers have stable lifetimes?
+1. **What problem do CUDA Graphs solve?**
+   "Repeated host submission overhead for a stable, recurring sequence of GPU operations. Every kernel launch and copy submission costs the host real time — argument marshaling, driver interaction — and for a workflow of many short operations run thousands of times, that adds up to measurable CPU time and launch-to-launch gaps. A graph lets you pay that submission cost once, at capture and instantiation time, and then replay the whole sequence with a single launch call. It's specifically a submission-overhead fix, not a kernel-efficiency fix."
+
+2. **How does graph replay differ from launching the same kernels manually?**
+   "Manually, the host issues a separate API call for every kernel and copy, every single iteration — full argument preparation and driver submission each time. With a graph, that entire sequence and its dependency structure was captured and validated once during instantiation; replay is a single call that tells the driver 'run the graph you already know about.' The dependency edges are also explicit and pre-validated in a graph, versus implicitly re-derived from stream-ordering semantics on every manual launch."
+
+3. **Why must graph-referenced buffers have stable lifetimes?**
+   "Because a graph node stores the memory addresses it operates on at instantiation time — it's not re-resolving pointers fresh on every replay the way a manually-issued call would. If the buffer a node references gets freed, reused for something else, or overwritten by a different in-flight request before that node's next replay, you get stale data or an outright invalid access. That's why the safe pattern is one executable graph per pipeline slot, where the slot owns stable buffers for its whole lifetime rather than buffers being shared or recycled unpredictably across requests."
 
 ### Architecture Questions
 
-1. Draw the graph lifecycle from capture to replay.
-2. Design a graph cache for a variable-shape inference service.
-3. Explain how graphs and streams work together.
+1. **Draw the graph lifecycle from capture to replay.**
+   "Define or capture the operations and dependencies into a graph object, instantiate that into an executable graph — this is where validation and preparation happen, and it should sit outside the request-latency path — then launch the executable graph repeatedly. I'd also draw the update path as a loop back into the executable-graph state for parameter changes that don't alter topology, and a destroy path at shutdown. The key annotation: instantiation is expensive and belongs at warm-up, replay is cheap and belongs in the hot path."
+
+2. **Design a graph cache for a variable-shape inference service.**
+   "I wouldn't key the cache by exact shape — that grows unbounded with request diversity. Instead I'd bucket requests into a small number of shape classes that cover the traffic distribution, cache one graph instance per class with a bounded maximum instance count, and keep a normal stream-based fallback path for shapes outside the cached classes. I'd track cache hit rate, memory retained per instance, and rebuild/fallback counts as the operational signals that tell me whether the bucketing is actually matching real traffic."
+
+3. **Explain how graphs and streams work together.**
+   "A graph launch is itself submitted to a stream — graphs don't replace streams, they replace the *manual submission* of a repeated sequence that would otherwise go through a stream one call at a time. Multiple executable graphs can run concurrently on different streams if dependencies and resources allow, following the exact same overlap rules as any other stream-submitted work. So all the stream reasoning from earlier chapters — buffer ownership, hidden synchronization, engine capability — still applies fully to graph-based pipelines."
 
 ### Scenario Questions
 
-1. Capture fails after adding a library call. What do you investigate?
-2. Memory grows with every new request shape. What is wrong?
-3. Graph replay is faster at the API layer but service latency is unchanged. Why?
+1. **Capture fails after adding a library call. What do you investigate?**
+   "Whether that library call is capture-safe — specifically whether it allocates memory, performs broad synchronization, or touches state outside the captured stream internally, any of which can invalidate capture. I'd isolate it by capturing with and without that specific call to confirm it's the trigger, then check the library's documentation or source for capture-safety guarantees rather than assuming any CUDA-adjacent call is automatically fine inside a capture window."
+
+2. **Memory grows with every new request shape. What is wrong?**
+   "The graph cache is almost certainly keyed by exact request shape with no admission limit or eviction policy — so every unique shape the service has ever seen accumulates its own retained executable graph and buffers, forever. The fix is bucketing into shape classes with a bounded cache size, an eviction policy for cold entries, and a fallback stream path for shapes that don't justify their own cached graph — not caching every shape that happens to walk in the door."
+
+3. **Graph replay is faster at the API layer but service latency is unchanged. Why?**
+   "Because graphs only remove host submission overhead — if that was never the bottleneck for this service, removing it doesn't move the needle on end-to-end latency. I'd check whether the dominant cost is actually transfer time, queueing, network, or a genuinely long-running kernel — any of which a graph does nothing for. The API-layer win is real but local; I always measure the customer-visible metric before crediting an optimization with anything."
 
 ## Summary
 

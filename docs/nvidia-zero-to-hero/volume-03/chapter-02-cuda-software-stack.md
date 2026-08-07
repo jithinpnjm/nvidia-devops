@@ -48,26 +48,32 @@ After completing this chapter, you will be able to:
 
 ```mermaid
 flowchart TD
-    App[Application]
-    Framework[Framework or CUDA Library]
-    Runtime[CUDA Runtime API]
-    DriverAPI[CUDA Driver API]
-    UserMode[User-Space Driver Library]
-    KernelMode[NVIDIA Kernel Driver]
-    DeviceFiles[Linux Device Interfaces]
-    GPU[GPU Hardware]
+    App["Application"]
+    Framework["Framework or CUDA Library"]
+    Runtime["CUDA Runtime API"]
+    DriverAPI["CUDA Driver API"]
+    UserMode["User-Space Driver Library\n(libcuda.so)"]
+    KernelMode["NVIDIA Kernel Driver"]
+    DeviceFiles["Linux Device Interfaces\n/dev/nvidia*"]
+    GPU["GPU Hardware"]
 
-    App --> Framework
-    App --> Runtime
+    App -->|"import succeeds\n(proves nothing about the device yet)"| Framework
+    App -->|"direct API calls"| Runtime
     Framework --> Runtime
-    Runtime --> DriverAPI
+    Runtime -->|"cudaGetDeviceCount() &gt; 0\n= first real evidence"| DriverAPI
     DriverAPI --> UserMode
-    UserMode --> DeviceFiles
-    DeviceFiles --> KernelMode
-    KernelMode --> GPU
+    UserMode -->|"ldconfig -p shows libcuda.so\nresolved from a real path"| DeviceFiles
+    DeviceFiles -->|"ls -l /dev/nvidia* shows\nnode + rw permission for this uid"| KernelMode
+    KernelMode -->|"nvidia-smi succeeds"| GPU
+
+    Bottleneck1{"cudaGetDeviceCount() == 0\nbut nvidia-smi works?"}
+    Bottleneck1 -->|"yes"| Diag1["Boundary is user-space exposure:\ncheck CUDA_VISIBLE_DEVICES,\ndevice-file permissions, container\nruntime device injection"]
+    Bottleneck1 -->|"no, count &gt; 0 but first\nkernel launch fails"| Diag2["Boundary is above the driver:\ncheck library version match,\nGPU-architecture support in the binary"]
+
+    Runtime -.-> Bottleneck1
 ```
 
-**Figure 3.2.1 — CUDA software layers.** High-level software eventually crosses from user space into the kernel driver before work can reach the device.
+**Figure 3.2.1 — CUDA software layers as a fault-isolation ladder.** Each arrow names the specific evidence that proves that hop is healthy — a successful Python `import` proves almost nothing, while `cudaGetDeviceCount() > 0` is the first real signal a device is reachable from this process. The decision diamond captures the single most common triage split: device count zero with a healthy `nvidia-smi` points at the user-space/exposure boundary, not the driver.
 
 ## Application and Framework Layer
 
@@ -213,6 +219,28 @@ Context creation has operational consequences:
 4. Confirm framework and driver compatibility.
 5. Run a minimal device-query program outside and inside the container.
 
+**Evidence for step 1 — device node access is a permissions problem, not a driver problem:**
+
+```text
+$ ls -l /dev/nvidia*
+crw-rw-rw- 1 root root 195,   0 Mar  3 09:12 /dev/nvidia0
+crw-rw-rw- 1 root root 195, 255 Mar  3 09:12 /dev/nvidiactl
+crw-rw-rw- 1 root root 195, 254 Mar  3 09:12 /dev/nvidia-modeset
+crw-rw-rw- 1 root root 234,   0 Mar  3 09:12 /dev/nvidia-uvm
+```
+
+If this instead returns `No such file or directory` inside a container while the host shows the nodes above, the container runtime never injected the devices — that is a Container Toolkit / CDI configuration gap, not something a driver reinstall touches.
+
+**Evidence for step 2 — confirm `libcuda.so` actually resolves, don't assume it:**
+
+```text
+$ ldconfig -p | grep libcuda
+	libcuda.so.1 (libc6,x86-64) => /usr/lib/x86_64-linux-gnu/libcuda.so.1
+	libcuda.so (libc6,x86-64) => /usr/lib/x86_64-linux-gnu/libcuda.so
+```
+
+An empty result here — inside the container — while the host shows these two lines is the signature of "container has application libraries but not the driver-facing library the host was supposed to mount in."
+
 ### Problem: Works on host, fails in container
 
 | Check | Purpose |
@@ -223,9 +251,35 @@ Context creation has operational consequences:
 | Runtime configuration | Confirm GPU runtime hooks are enabled |
 | Minimal CUDA test | Separate framework failure from platform failure |
 
+**Row 3 evidence — environment variables that silently filter devices:**
+
+```text
+$ env | grep -E 'CUDA_VISIBLE_DEVICES|NVIDIA_VISIBLE_DEVICES'
+NVIDIA_VISIBLE_DEVICES=none
+```
+
+`NVIDIA_VISIBLE_DEVICES=none` is a common accidental leftover from a base image or CI template — it silently produces zero visible GPUs with no error message at all, and it is indistinguishable from a real driver failure unless you check the environment first. This single line explains more "works on host, fails in container" tickets than actual driver incompatibility does.
+
+**Row 5 evidence — the minimal test that separates framework bugs from platform bugs:**
+
+```text
+$ python3 -c "import torch; print(torch.cuda.is_available())"
+```
+Run this once on host, once inside the container, same GPU. If host prints `True` and container prints `False`, the fault is strictly inside the container boundary (rows 1-4 above) — the framework itself is not the suspect.
+
 ### Problem: Import succeeds, first GPU operation fails
 
 The application likely performs lazy initialization. Capture the first failing operation and inspect context creation, memory allocation, and library initialization rather than treating import success as validation.
+
+```text
+>>> import torch          # succeeds — no device touched yet
+>>> torch.cuda.is_available()
+True
+>>> x = torch.zeros(4, device="cuda")   # first real device operation
+RuntimeError: CUDA error: no kernel image is available for execution on the device
+```
+
+This exact sequence is the chapter's core lesson made concrete: `import torch` and even `torch.cuda.is_available()` can both succeed while the first operation that actually needs to *execute code on the device* fails — here because the installed binary's device code doesn't cover this GPU's compute capability (see Chapter 11). Treat only the last line as validation.
 
 ## Customer Scenario
 
@@ -237,21 +291,36 @@ A production design therefore requires both image governance and node conformanc
 
 ### Conceptual Questions
 
-1. Why can a container include CUDA libraries but still require a host driver?
-2. What is the difference between the Runtime API and Driver API?
-3. Why might CUDA initialization be lazy?
+1. **Why can a container include CUDA libraries but still require a host driver?**
+   "Because the kernel driver is privileged code that has to run in the host's kernel — a container shares the host's kernel by design, it doesn't bring its own. So the container can package the user-space CUDA libraries, the runtime, even the compiler, but the actual device control, interrupt handling, and command submission to the physical GPU has to go through whatever kernel driver is loaded on the host. 'The container has CUDA' is really only ever a claim about the user-space half of the stack."
+
+2. **What is the difference between the Runtime API and Driver API?**
+   "The Runtime API is the higher-level, more convenient interface most CUDA applications actually use — it manages context creation implicitly. The Driver API sits underneath it and gives you explicit control over devices, contexts, and modules — it's what frameworks and advanced tooling reach for when they need that control. Every Runtime API call eventually goes through Driver API capabilities, so if I see a driver-level error surface through a runtime-level call, that's expected, not a sign something is broken."
+
+3. **Why might CUDA initialization be lazy?**
+   "Because creating a context and initializing the device costs time and memory, and a process that imports a CUDA library doesn't necessarily know yet whether it will use the GPU. So the runtime defers actual device work — context creation, driver loading — until the first operation that truly needs the device. The operational consequence is the one I keep coming back to: a clean process start and successful import tell you nothing about whether the GPU path actually works, because that work hasn't happened yet."
 
 ### Architecture Questions
 
-1. Draw the path from a framework call to the GPU.
-2. Explain the user-space and kernel-space boundary.
-3. Describe what must be validated for container compatibility.
+1. **Draw the path from a framework call to the GPU.**
+   "Framework call, into the CUDA Runtime API, down into the Driver API, into the user-space driver library — `libcuda.so` — which talks across the device-file boundary to the NVIDIA kernel driver, which finally controls the GPU. I'd draw that as a straight vertical chain and then annotate each arrow with what proves it's working: library resolution for the user-space hop, device-node permissions for the kernel-driver hop, `nvidia-smi` for the final hop to hardware."
+
+2. **Explain the user-space and kernel-space boundary.**
+   "User space is everything the application, framework, and CUDA runtime/driver-API libraries do — it's flexible, replaceable per-container. Kernel space is the actual NVIDIA kernel module, which is privileged, shared across every process and container on that host, and controlled entirely by the host admin. The practical consequence is that you can update, swap, or version-pin everything in user space per-container, but the kernel driver is a single shared fact about the node — which is exactly why fleet-wide driver policy matters so much operationally."
+
+3. **Describe what must be validated for container compatibility.**
+   "Four things, and I check them in this order: device files are actually exposed to the container, the driver-facing user-space libraries resolve inside the container's namespace, the container runtime's GPU hooks or CDI integration are active, and the host driver version is new enough to support whatever the packaged CUDA user-space expects. I don't accept 'nvidia-smi works on the host' as proof of any of these — it only proves the host driver is healthy."
 
 ### Scenario Questions
 
-1. The same image works on one node and fails on another. What do you compare?
-2. `nvidia-smi` works inside a container, but a framework reports no devices. What remains unproven?
-3. Cold-start latency increases after a software upgrade. Which CUDA-layer events might contribute?
+1. **The same image works on one node and fails on another. What do you compare?**
+   "First the host driver versions on both nodes — that's the most common single cause of exactly this symptom, because the image is identical by construction. Then I'd compare `nvidia-smi`'s reported CUDA capability on each node, the exposed device files, and whether the container runtime's GPU integration is configured identically. I would not touch the image at all until I've ruled out the host-side difference, because the story explicitly states the image is the same."
+
+2. **`nvidia-smi` works inside a container, but a framework reports no devices. What remains unproven?**
+   "`nvidia-smi` working inside the container proves the device is exposed and the driver-facing tooling can reach it — but it doesn't prove the framework's own CUDA runtime library resolves correctly, that `CUDA_VISIBLE_DEVICES` isn't filtering the framework's view specifically, or that the framework's build is compatible with the installed driver. Those are three separate things `nvidia-smi` cannot see, because it doesn't go through the framework's code path at all."
+
+3. **Cold-start latency increases after a software upgrade. Which CUDA-layer events might contribute?**
+   "I'd list context creation time, any change in lazy module loading behavior, JIT compilation if the new build shipped PTX instead of native code for this GPU, and library initialization order if a new dependency got pulled in. The way I'd actually find out, rather than guess, is compare a timeline of the first request before and after the upgrade and look for where the extra time actually landed instead of assuming which layer changed."
 
 ## Summary
 

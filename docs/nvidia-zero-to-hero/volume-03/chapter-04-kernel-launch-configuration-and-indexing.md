@@ -51,19 +51,27 @@ After completing this chapter, you will be able to:
 
 ```mermaid
 flowchart TD
-    Host[Host Application]
-    Config[Choose Grid and Block Dimensions]
-    Launch[Launch Kernel]
-    Grid[Grid]
-    Blocks[Thread Blocks]
-    Threads[Logical Threads]
-    Index[Compute Global Index]
-    Data[Process Assigned Data]
+    Host["Host: N = 1,000,003 elements\nthreads_per_block = 256"]
+    Calc["blocks = ceil(N / 256) = 3907\nEvidence: 3907 x 256 = 1,000,192\nlaunched threads &gt;= N"]
+    Launch["Launch kernel&lt;&lt;&lt;3907, 256&gt;&gt;&gt;"]
+    Grid["Grid: 3907 blocks queued"]
+    Blocks["Thread Blocks dispatched to SMs"]
+    Threads["Threads compute\ni = blockIdx.x*256 + threadIdx.x"]
+    Bounds{"i &lt; N ?"}
+    Process["Process element i\n(threads 0 .. 1,000,002)"]
+    Discard["Guard discards the write\n(threads 1,000,003 .. 1,000,191 —\nthe 189 'extra' threads in the final block)"]
 
-    Host --> Config --> Launch --> Grid --> Blocks --> Threads --> Index --> Data
+    Host --> Calc --> Launch --> Grid --> Blocks --> Threads --> Bounds
+    Bounds -->|"yes"| Process
+    Bounds -->|"no"| Discard
+
+    Missing{"No bounds check present?"}
+    Bounds -.-> Missing
+    Missing -->|"grid underfilled\n(too few blocks)"| Trap1["Some valid elements\nnever get a thread —\ntail of array stays unmodified"]
+    Missing -->|"grid overfilled,\nno guard"| Trap2["Extra threads write past\nthe allocation —\nillegal memory access or\nsilent corruption"]
 ```
 
-**Figure 3.4.1 — Launch-to-data mapping.** The host defines the execution geometry. Each thread converts its coordinates into a logical data index before accessing memory.
+**Figure 3.4.1 — Launch-to-data mapping with the bounds-check decision made explicit.** The diagram now carries real numbers from this chapter's own Story (a non-divisible array size) and shows the two concrete failure branches — underfilled grid (some data never processed) versus a missing guard on an overfilled grid (out-of-bounds write) — rather than a single static arrow chain.
 
 ## The Execution Configuration
 
@@ -302,6 +310,25 @@ total threads = gridDim.x × blockDim.x
 
 Compare the result with the logical element count and inspect the bounds condition.
 
+**Evidence — reproducing the underfill with real numbers:**
+
+```text
+$ python3 -c "
+N = 1_000_003
+threads_per_block = 256
+blocks_truncated = N // threads_per_block          # buggy: integer truncation
+blocks_ceiling = -(-N // threads_per_block)         # correct: ceiling division
+print('truncated blocks:', blocks_truncated, '-> covers', blocks_truncated*threads_per_block, 'threads')
+print('ceiling   blocks:', blocks_ceiling,  '-> covers', blocks_ceiling*threads_per_block, 'threads')
+print('elements left unprocessed by truncation:', N - blocks_truncated*threads_per_block)
+"
+truncated blocks: 3906 -> covers 999936 threads
+ceiling   blocks: 3907 -> covers 1000192 threads
+elements left unprocessed by truncation: 67
+```
+
+This is the exact defect from this chapter's Story: `blocks = N / threads_per_block` (integer division, which truncates) instead of ceiling division silently drops the last 67 elements — no crash, no error, just a tail of the output array that is never written. The fix is not a bounds check, it's launching enough blocks in the first place; the bounds check protects the *other* direction (writes past the end).
+
 ### Problem: Illegal memory access after changing block size
 
 **Likely cause**
@@ -311,6 +338,15 @@ The kernel lacks a correct bounds check, or multidimensional coordinates are con
 **Resolution**
 
 Validate each dimension before accessing memory and test non-divisible input sizes.
+
+**Evidence — the same array without a bounds check, reproduced:**
+
+```text
+$ ./vector_add-no-bounds 1000003 256
+CUDA error at vector_add-no-bounds.cu:207: an illegal memory access was encountered
+```
+
+With `threads_per_block=256` and `N=1000003`, ceiling division launches 3907 blocks = 1,000,192 threads — 189 more than `N`. Without `if (i < n)`, those 189 threads write past the end of a buffer sized for exactly `N` floats. Whether this manifests as a hard `illegal memory access` (as above) or as silent heap corruption depends on allocator layout — which is precisely why "it ran without crashing" is not proof of correctness for an unguarded kernel.
 
 ### Problem: Larger GPU gives little improvement
 
@@ -323,6 +359,15 @@ Check:
 - synchronization between launches,
 - whether the workload is memory-bound.
 
+**Evidence — a fixed grid size across two GPU generations:**
+
+| GPU | SM count | Blocks launched | Blocks per SM (best case) | SMs left idle |
+|---|---:|---:|---:|---:|
+| A10 | 72 | 64 | ~1 | 8 |
+| H100 SXM5 | 132 | 64 | &lt;1 | 68 |
+
+A grid hard-coded to 64 blocks — sized for an old maximum image resolution, as in this chapter's Customer Scenario — fills the A10 reasonably well but leaves more than half the H100's SMs with zero assigned blocks for the kernel's entire duration. `nvidia-smi dmon -s pucvmet` on the H100 run would show `sm%` well below 100 on a compute-bound kernel — that ceiling is the signature of a launch-geometry problem, not a memory-bandwidth or driver problem, and no amount of kernel-level tuning fixes it without changing the grid dimensions.
+
 ## Customer Scenario
 
 A customer migrates an image-processing service to a newer GPU. The kernels use a fixed grid sized for the previous maximum image resolution. Larger images silently leave rows unprocessed, while smaller images waste substantial work.
@@ -333,21 +378,36 @@ The architect recommends deriving grid dimensions from each request shape, valid
 
 ### Conceptual Questions
 
-1. What is the difference between grid dimensions and block dimensions?
-2. Why is a bounds check necessary when using ceiling division?
-3. Why can too few blocks underutilize a large GPU?
+1. **What is the difference between grid dimensions and block dimensions?**
+   "Block dimensions describe how many threads sit inside one block and their shape — say, 256 threads in a line, or 16x16 for a tile. Grid dimensions describe how many of those blocks exist for the whole launch. I always think of it as two separate knobs: block shape controls cooperation and resource use per SM, grid size controls how much total parallel work exists and whether it's enough to fill every SM on the device. Getting the total count right — grid times block — matters for correctness; how you split that total between the two matters for performance."
+
+2. **Why is a bounds check necessary when using ceiling division?**
+   "Because ceiling division exists specifically to guarantee you launch *enough* threads to cover a size that isn't a clean multiple of your block size — and doing that necessarily means the last block contains some threads whose computed index is past the end of the array. Ceiling division solves underfill; the bounds check solves the overfill it creates as a side effect. They're a matched pair — using one without the other just trades one bug for the other."
+
+3. **Why can too few blocks underutilize a large GPU?**
+   "Because a block is the atomic unit of placement — the scheduler assigns a whole block to one SM and can't split it across SMs. If I launch 64 blocks on a GPU with 132 SMs, at best 64 SMs get exactly one block and the other 68 get nothing for that kernel's entire runtime — there's no mechanism to redistribute work at finer grain. So a grid sized for a smaller or older GPU literally cannot use a newer, bigger one without changing the launch configuration, no matter how fast that bigger GPU is per-SM."
 
 ### Architecture Questions
 
-1. Draw the mapping from a kernel launch to a one-dimensional array.
-2. Explain how a two-dimensional block maps to a row-major matrix.
-3. Describe the trade-offs involved in selecting block size.
+1. **Draw the mapping from a kernel launch to a one-dimensional array.**
+   "I'd draw the array as a line of N boxes, then show it partitioned into contiguous chunks of `threads_per_block` size, one chunk per block. Underneath, I'd write the index formula: `blockIdx.x * blockDim.x + threadIdx.x`. Then I'd deliberately make N not divisible by the block size, ceiling-divide to get one extra partial block, and shade the boxes past N in that last block — those are the threads the bounds check has to catch."
+
+2. **Explain how a two-dimensional block maps to a row-major matrix.**
+   "I'd compute column from `blockIdx.x * blockDim.x + threadIdx.x` and row from `blockIdx.y * blockDim.y + threadIdx.y`, then convert those two coordinates to a single linear offset with `row * width + column` because the matrix is stored row-major in memory. The key thing I'd call out is that both dimensions need their own bounds check — `row < height && column < width` — because a matrix that isn't an exact multiple of the block's tile size in *either* dimension needs guarding on that dimension independently."
+
+3. **Describe the trade-offs involved in selecting block size.**
+   "There's no single best number — it's a balancing act. A multiple of 32 avoids wasting warp lanes. Too many registers or too much shared memory per thread reduces how many blocks can be resident per SM, hurting latency hiding. Too small a block wastes scheduling overhead relative to useful work. Too large a block can reduce scheduling flexibility if it monopolizes an SM's resources. In practice I pick a reasonable starting point — often 128 or 256 for one-dimensional work — and then actually measure occupancy and throughput rather than assuming a number from a different kernel transfers over."
 
 ### Scenario Questions
 
-1. An application works only when `N` is divisible by 256. What is wrong?
-2. A kernel launches one block per GPU. What utilization pattern do you expect?
-3. A block size increase reduces runtime on one GPU but worsens it on another. Why?
+1. **An application works only when `N` is divisible by 256. What is wrong?**
+   "That's the signature of missing or incorrect ceiling division combined with a missing bounds check — when N happens to be an exact multiple of the block size, every launched thread maps to a valid element, so the bug never gets exercised. The moment N isn't a clean multiple, either the tail of the array goes unprocessed or threads write past the buffer, depending on which half of the ceiling-division-plus-bounds-check pair is missing. I'd immediately test with N, N-1, and N+1 relative to a block-size multiple to confirm and localize it."
+
+2. **A kernel launches one block per GPU. What utilization pattern do you expect?**
+   "Almost total idleness — one block occupies exactly one SM, so on a GPU with dozens or well over a hundred SMs, everything else sits unused for the kernel's entire duration. I'd expect `nvidia-smi dmon` to show low `sm%` even if that one SM is pegged at 100% doing real work, because the utilization metric across the whole device reflects how few of its execution units are actually active."
+
+3. **A block size increase reduces runtime on one GPU but worsens it on another. Why?**
+   "Because block size interacts with per-SM resource limits, and those limits differ by architecture — register file size, shared memory capacity, max resident blocks. A larger block might improve occupancy on a GPU with a roomier resource budget per SM, while on a different GPU the same block size might push per-SM resource usage past a threshold and actually reduce the number of resident blocks, hurting latency hiding. This is exactly why I don't trust a single 'optimal block size' number across hardware generations without re-measuring."
 
 ## Summary
 
