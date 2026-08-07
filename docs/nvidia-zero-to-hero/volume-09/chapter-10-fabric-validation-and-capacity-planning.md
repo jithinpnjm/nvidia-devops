@@ -28,15 +28,18 @@ A new GPU rack passes optics, ping, and a short RDMA test. Its first all-to-all 
 
 ```mermaid
 flowchart TD
- P[Physical: optics, FEC, lanes] --> I[IP: VLAN, MTU, routes]
- I --> Q[QoS: class, queue, ECN, PFC]
- Q --> R[Host-memory RoCE]
- R --> G[GPU-buffer data path]
- G --> C[Collective matrix]
- C --> A[Application and operations]
+ P["Physical: optics, FEC, lanes"] -->|"evidence: 0 FEC-corrected\nerrors above baseline"| I["IP: VLAN, MTU, routes"]
+ I -->|"evidence: route matches\nintended path, MTU consistent\nevery hop"| Q["QoS: class, queue, ECN, PFC"]
+ Q -->|"evidence: marked test traffic\nlands in expected queue"| R["Host-memory RoCE"]
+ R -->|"evidence: ib_write_bw\ncompletes, RTR/RTS succeed"| G["GPU-buffer data path"]
+ G -->|"evidence: GPUDirect test\ncompletes at expected rate"| C["Collective matrix"]
+ C -->|"evidence: tail latency within\nbaseline under concurrency"| A["Application and operations"]
+ A --> PASS{"Did every stage's\nevidence, not just the\nfinal stage, pass?"}
+ PASS -->|"yes"| ACCEPT["Accept — baseline recorded\nwith raw evidence per stage"]
+ PASS -->|"no — later stage passed\nbut an earlier one didn't"| TRAP["Reject: a passing collective test\ncannot retroactively prove a skipped\nphysical/IP/QoS check"]
 ```
 
-**Figure 9.10.1 — Each stage reduces uncertainty before the next adds complexity.** A successful application run is not a substitute for the lower evidence.
+**Figure 9.10.1 — Each stage reduces uncertainty before the next adds complexity, and the diagram now makes explicit the trap this chapter's story fell into: a passing later stage is not proof of an earlier one.** The rack in the opening story passed optics, ping, and a short RDMA test — stages P, I, and a thin slice of R — but nobody captured queue evidence at stage Q or ran the collective matrix at realistic concurrency, so the first all-to-all job under real load was effectively the first time stages C and A were tested at all. The `PASS` decision node is the acceptance discipline: every stage needs its own retained evidence, not just the last one that happened to succeed.
 
 | Stage | Question | Minimum evidence |
 |---|---|---|
@@ -65,6 +68,29 @@ For each traffic pattern, identify the links that separate active sources from t
 | Growth | Which tier reaches its limit first? |
 
 Oversubscription is a design trade-off, not an automatic defect. It is acceptable only when the workload and failure policy tolerate the resulting contention. State the denominator: theoretical port capacity, usable post-failure capacity, or measured workload throughput are not interchangeable.
+
+**A worked capacity calculation — the arithmetic behind "state the denominator," with illustrative but representative numbers:**
+
+A rack of 16 GPU nodes, each with 2×400Gb RoCE rails (800Gb/node injection capacity), connects to a leaf switch with 8×400Gb uplinks to the spine.
+
+```text
+Downlink demand (worst case, all nodes injecting at once):
+  16 nodes × 800 Gb/s  = 12,800 Gb/s
+
+Uplink capacity (normal state):
+  8 × 400 Gb/s          = 3,200 Gb/s
+
+Oversubscription ratio (normal state):
+  12,800 / 3,200 = 4:1
+
+Uplink capacity (N-1: one uplink drained for maintenance):
+  7 × 400 Gb/s           = 2,800 Gb/s
+
+Oversubscription ratio (degraded state):
+  12,800 / 2,800 ≈ 4.57:1
+```
+
+A 4:1 downlink-to-uplink ratio is not automatically a defect — it's fine if the workload's actual traffic pattern rarely has all 16 nodes injecting toward off-rack destinations simultaneously (heavy intra-rack locality, staggered checkpoint writes, etc.). But it is a number that has to be stated and tested against the real collective pattern, not left implicit — a training job whose all-reduce genuinely saturates all rails toward off-rack peers at once will queue heavily at this leaf regardless of how "fast" the spine is. The N-1 recalculation (4.57:1) is the number that answers "what's the capacity impact of one planned uplink drain" — it is not a dramatically different ratio here, which is itself useful evidence that this design tolerates single-uplink maintenance without a large capacity cliff.
 
 ```mermaid
 flowchart LR
@@ -128,9 +154,34 @@ Do not accept a result that cannot be reproduced. For every test, preserve its h
 
 Compare rank mapping, GPU/NIC locality, route distribution, rail balance, concurrency, and queue/ECN/PFC evidence. Pairwise tests prove one path; collectives exercise many paths and synchronization.
 
+**Evidence in practice:**
+
+```text
+$ ib_write_bw -d mlx5_0 <peer-ip> --report_gbits
+  BW average: 392.11 Gb/s        <- pairwise: essentially line rate, looks perfect
+
+$ (during 16-rank all-reduce) ethtool -S swp9 | egrep "rx_ecn_marked_prio3|rx_pfc_prio3"
+     rx_ecn_marked_prio3:     288400
+     rx_pfc_prio3:            61200    <- heavy pause activity that the pairwise test never touched
+```
+
+The pairwise result (392 Gb/s on a 400Gb link) genuinely proves the point-to-point path is healthy — that's real, useful evidence, just narrow. It exercises exactly one source, one destination, one path. The collective's 16 ranks converging on shared leaf/spine cuts simultaneously is a completely different traffic shape, and the PFC activity during the collective run shows a queue under real pressure that the pairwise test had no way to expose, because it never created concurrent demand on a shared egress.
+
 ### A new rack passes idle tests but degrades shared production
 
 Run the same workload matrix with concurrent jobs and inspect the leaf-to-spine cut, queue occupancy, and job placement. The likely correction is capacity, placement, or policy consistency—not a larger single-test result.
+
+**Evidence in practice:**
+
+```text
+$ show what-just-happened drop-reason all | grep -i tail    # new rack's leaf, idle acceptance test
+Tail drop (queue full)       -            -               0     -
+
+$ show what-just-happened drop-reason all | grep -i tail    # same leaf, one week later, shared production
+Tail drop (queue full)      10.20.6.40   10.20.9.12    38210    3s ago
+```
+
+Identical query, same leaf, two weeks apart: zero drops during the isolated acceptance test, active tail drops once the rack joined shared production and started contending with other jobs for the same leaf-to-spine cut. This is the concrete version of "idle tests don't expose contention" — the acceptance test wasn't wrong, it just measured a traffic condition (isolated, single job) that production never actually presents.
 
 ### One failure consumes all performance margin
 
@@ -150,9 +201,17 @@ Present normal and degraded-state behavior separately. A customer may consciousl
 
 ## Interview Preparation
 
-1. Why does a port-speed inventory not constitute a capacity model?
-2. What evidence would you require before accepting a new AI rack?
-3. How do you test a claimed N-1 capacity objective without endangering production?
+**1. Why does a port-speed inventory not constitute a capacity model?**
+
+"Because port speed tells you what a single link can theoretically carry, not what the actual traffic pattern demands from the specific cut that matters. I'd walk through the arithmetic to make the point concrete: 16 nodes at 800Gb/s injection each is 12,800Gb/s of potential downlink demand, against 8×400Gb/s of uplink — that's a real 4:1 ratio, and whether that's fine depends entirely on how much of the actual workload's traffic stays local to the rack versus crosses that uplink simultaneously. A port-speed inventory has all the individual numbers and none of the traffic-pattern context that turns them into a capacity answer."
+
+**2. What evidence would you require before accepting a new AI rack?**
+
+"The full ladder, not just the top of it: physical evidence — clean FEC and error deltas; IP evidence — routes and MTU consistent hop to hop; QoS evidence — known marked test traffic actually landing in the intended queue, verified, not just configured; host-memory RDMA completing cleanly; GPU-buffer tests at expected rate; and critically, a collective matrix run under realistic concurrency, not just a single isolated job. I've seen a rack pass every one of those stages individually while idle and still degrade production once it joined shared traffic, because nobody ran the collective stage under contention — an idle acceptance test and a production traffic pattern are genuinely different tests, and passing one doesn't retroactively validate the other."
+
+**3. How do you test a claimed N-1 capacity objective without endangering production?**
+
+"In a non-production or carefully scoped maintenance window, I'd actually drain the specific link or spine the N-1 claim depends on — not simulate it on paper — and rerun the exact same collective/application matrix used for the normal-state baseline, capturing the same evidence set. I'd calculate the expected degraded ratio beforehand so I know what to expect — going from a 4:1 to a 4.57:1 downlink-to-uplink ratio after one uplink drain, for instance — and then confirm the measured tail latency and queue evidence actually land in a range consistent with that math, not just 'nothing crashed.' If I can't safely drain a real link, the honest answer is that the N-1 claim is unverified, not verified-by-inference — I wouldn't sign off on a resilience number I hadn't actually measured under the failure it claims to tolerate."
 
 ## Key Takeaways
 
@@ -173,6 +232,8 @@ Present normal and degraded-state behavior separately. A customer may consciousl
 ## Interview and Lab Materials
 
 **Whiteboard prompt:** draw two leaves with a shared spine cut. Add two concurrent jobs, then remove one uplink. Identify the measurements required before claiming the design meets its objective.
+
+> "I'll start with two leaves, each with a set of uplinks to a shared spine — this cut here, where both leaves' uplinks converge, is the one that actually matters, not the individual port speeds. Now I'll put Job A on leaf one and Job B on leaf two, both needing to reach peers across the spine at the same time — that's concurrent demand on the same cut, which is the thing a single-job test never exposes. Before I remove anything, I need a baseline: queue occupancy, ECN marks, and PFC counters on this cut, plus each job's collective tail time, under this two-job load, with all uplinks present. Now I pull one uplink — say we're draining it for maintenance. I recompute the cut's capacity with one fewer link, and I re-run the exact same two jobs and re-measure the same things. The claim 'this design meets its N-1 objective' is only proven if that second measurement — the degraded one — falls inside whatever range we agreed was acceptable beforehand. If I only ever measured the healthy state, I haven't tested the objective at all, I've just tested that things work when nothing's broken."
 
 **Customer prompt:** which degradation is acceptable during maintenance: reduced job concurrency, reduced performance, or no new jobs? The answer determines the capacity and scheduler design.
 

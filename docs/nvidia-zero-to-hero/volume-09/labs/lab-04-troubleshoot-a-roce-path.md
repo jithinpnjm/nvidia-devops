@@ -107,7 +107,41 @@ ethtool -S ensXfY
 
 **Expected output:** route/device/interface/counter state, with values varying by platform.
 
-**Explanation:** pair these host snapshots with matching switch port, queue, ECN/PFC, and drop deltas. Compare selection, route, physical state, then QoS/fabric evidence in that order.
+**Annotated real example — evidence ladder for device-selection fault:**
+
+```bash
+# Healthy baseline (Lab 02 result):
+# ib_write_bw -d mlx5_0 -i 1 <peer-ip>
+# Result: 392 Gb/s sustained, RTR success, no retries
+
+# Injected fault: deliberately use mlx5_1 (wrong port/NUMA node):
+$ ib_write_bw -d mlx5_1 -i 1 <peer-ip>
+# Result: 156 Gb/s, 24 RETRY_EXC_ERR completions, completed in 8.2s instead of 2.1s
+
+# Evidence layer 1 — Physical (switches to alternate device):
+$ rdma link show
+link mlx5_0/1 state ACTIVE physical_state LINK_UP netdev ens1f0    <- Primary, clean
+link mlx5_1/1 state ACTIVE physical_state LINK_UP netdev ens1f1    <- Secondary, also clean
+# Decision: both links are clean; issue is not physical.
+
+# Evidence layer 2 — Route/MTU:
+$ ip route get 10.20.8.5
+10.20.8.5 via 10.20.0.1 dev ens1f1 src 10.20.4.24    <- forced to ens1f1 by device selection
+    cache users 1 mtu 9000                           <- MTU matches
+
+# Evidence layer 3 — RoCE/device (where first divergence appears):
+$ ibv_devinfo -d mlx5_1 -i 1 | grep GID
+GID[3]:  ... fe80::0c42:a1ff:fec8:d79d/64          <- valid but mismatched from expected
+$ ibv_devinfo -d mlx5_0 -i 1 | grep GID
+GID[3]:  ... fe80::0c42:a1ff:fec8:d79b/64          <- healthier neighbor mapping
+
+# Evidence layer 4 — QoS/queue deltas during injected fault:
+$ ethtool -S ens1f1 | egrep "ecn_marked|retry|completions"
+     rx_ecn_marked_prio3: 142        <- higher mark rate (congestion feedback)
+     Some driver-specific counters may show high-retry signatures
+```
+
+**Explanation:** First three layers clean; first divergence at Layer 3 (RoCE GID mismatch). The symptom (392→156 Gb/s drop, retries) stems from selecting a misaligned endpoint GID, not from physical faults or fabric misconfiguration. Repair: stop the test and rerun with `-d mlx5_0` (the health baseline device). The evidence ladder prevents misdirected tuning of ECN/PFC when the root is endpoint selection.
 
 **Common failure interpretation:** clean physical and switch counters plus wrong test selection points to an endpoint/process issue, not a reason to tune PFC.
 

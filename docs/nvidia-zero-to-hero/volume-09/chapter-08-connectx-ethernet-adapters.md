@@ -40,16 +40,21 @@ After this chapter, you can:
 
 ```mermaid
 flowchart LR
-    App[AI framework] --> Lib[Collective / RDMA library]
-    Lib --> QP[Work queues and completions]
-    QP --> NIC[ConnectX adapter]
-    GPU[GPU memory] <--> PCIe[PCIe fabric]
+    App["AI framework"] --> Lib["Collective / RDMA library"]
+    Lib --> QP["Work queues and completions"]
+    QP --> NIC["ConnectX adapter"]
+    GPU["GPU memory"] <-->|"evidence: nvidia-smi topo -m\nshows PIX/NV, not SYS"| PCIe["PCIe fabric"]
     PCIe <--> NIC
-    NIC <--> SW[Spectrum Ethernet fabric]
-    SW <--> RN[Remote adapter and memory]
+    NIC <-->|"evidence: rdma link ACTIVE,\nport speed matches spec"| SW["Spectrum Ethernet fabric"]
+    SW <--> RN["Remote adapter and memory"]
+    RATE{"Measured rate vs\nexpected line rate?"}
+    QP --> RATE
+    RATE -->|"near line rate"| OK["Both sides proven —\nno further isolation needed"]
+    RATE -->|"well below line rate,\nPCIe evidence shows SYS\nor narrow link width"| LOCAL["Host-side bottleneck:\nPCIe/NUMA locality"]
+    RATE -->|"well below line rate,\nPCIe clean, fabric ECN/PFC\ncounters active"| FABRIC["Fabric-side bottleneck:\ncongestion, not the adapter"]
 ```
 
-**Figure 9.8.1 — The adapter bridges local I/O topology and the Ethernet fabric.** Both sides must be healthy for an application to reach its expected rate.
+**Figure 9.8.1 — The adapter bridges local I/O topology and the Ethernet fabric, and the diagram now shows how a below-expected rate gets attributed to one side or the other.** A ConnectX port reporting "up" at full link speed proves nothing about achievable throughput on its own — the decision point forces the same evidence this chapter's story needed: PCIe/NUMA topology output to rule in or out the host side, fabric queue counters to rule in or out the network side, before concluding which "half" of the adapter's bridge is actually the constraint.
 
 ## What the Adapter Does
 
@@ -104,6 +109,25 @@ flowchart TD
 
 **Figure 9.8.2 — A multi-rail topology only helps when the workload can use local GPU-to-NIC paths and independent fabric rails.** Cross-socket paths may be valid but deserve measurement.
 
+**Illustrative annotated output — proving (or disproving) that a "200Gb" port can actually sustain that rate from the host:**
+
+```text
+$ lspci -s 41:00.0 -vv | egrep "LnkCap|LnkSta"
+LnkCap: Port #0, Speed 32GT/s, Width x16      <- what the slot/card is CAPABLE of
+LnkSta: Speed 16GT/s (downgraded), Width x8   <- what actually NEGOTIATED
+```
+
+`LnkCap` shows PCIe Gen5 x16 capability, but `LnkSta` (the negotiated state) shows only Gen4 speed at half the lane width — this single adapter is running at roughly a quarter of its designed PCIe bandwidth, most likely because it's seated in a slot that physically only wires x8 lanes, or a riser/bifurcation setting halved it. A 200Gb Ethernet port needs roughly 25GB/s of PCIe bandwidth to sustain line rate in both directions; Gen4 x8 tops out around 16GB/s — this adapter cannot reach its advertised Ethernet line rate no matter how healthy the fabric is, and no switch-side telemetry would ever reveal this, because the bottleneck never leaves the host.
+
+```text
+$ nvidia-smi topo -m | grep -E "GPU0|NIC0"
+        GPU0    NIC0    ...
+GPU0     X      PIX     ...
+NIC0    PIX      X
+```
+
+Here the locality is fine (`PIX`, no NUMA crossing) — this second check would be the one to run if `lspci` had come back clean, confirming the two checks are independent and both required before declaring the local I/O path healthy.
+
 Before accepting a node, inventory PCI bus address, negotiated PCIe state, NUMA node, nearby GPU identifiers, port-to-switch mapping, and expected rail. Treat this as production telemetry context, not an installation-time artifact.
 
 ## Multi-Port and Multi-Rail Design
@@ -156,7 +180,23 @@ Preserve before-and-after configuration and a rollback plan. A successful driver
 
 **Diagnosis:** verify collector coverage first, then compare application interface selection, rank/GPU placement, route state, port-to-leaf mapping, and library configuration. Check whether the desired test actually creates enough concurrent work to use both rails.
 
-**Resolution:** correct the explicit interface or affinity mapping; do not change switch QoS until endpoint selection is proven. Verify per-rail byte deltas and workload throughput together.
+**Evidence in practice:**
+
+```text
+$ ethtool -S ens1f0 | grep rx_bytes_phy; ethtool -S ens1f1 | grep rx_bytes_phy
+     rx_bytes_phy:            892481200384     (rail 0 — heavily used)
+$ sleep 60 && ethtool -S ens1f0 | grep rx_bytes_phy; ethtool -S ens1f1 | grep rx_bytes_phy
+     rx_bytes_phy:            981204882176     (rail 0, +88.7 GB in 60s)
+     rx_bytes_phy:            412992             (rail 1, +~0 GB in 60s — essentially idle)
+
+$ NCCL_DEBUG=INFO python train.py 2>&1 | grep "NCCL INFO NET"
+node05:2201 [0] NCCL INFO NET/IB : Using [0]mlx5_0:1/RoCE ; OOB ens1f0
+node05:2201 [1] NCCL INFO NET/IB : Using [0]mlx5_0:1/RoCE ; OOB ens1f0    <- both ranks selected the SAME device
+```
+
+The 60-second byte-counter delta makes "little workload traffic" concrete: rail 0 moved ~89GB while rail 1 moved essentially nothing. The NCCL log confirms why — both local ranks selected `mlx5_0` (rail 0's device); nothing in the launch configuration told rank 1 to prefer `mlx5_1`. Both ports show "active" in link state the whole time, which is why port status alone never would have caught this.
+
+**Resolution:** correct the explicit interface or affinity mapping; do not change switch QoS until endpoint selection is proven. Verify per-rail byte deltas and workload throughput together — after the fix, both `rx_bytes_phy` deltas should be comparable over the same 60-second window under the same job.
 
 **Prevention:** make the GPU-to-NIC and NIC-to-rail map part of node inventory and admission testing.
 
@@ -184,11 +224,25 @@ Offer customers performance expectations as measured acceptance ranges for a def
 
 ## Interview Preparation
 
-1. Why can two active adapter ports fail to double application throughput?
-2. What differs between proving IP reachability and proving a RoCE path?
-3. How would you detect a GPU-to-NIC locality issue?
-4. When can bonding be counterproductive for an AI data path?
-5. Which components belong in an adapter compatibility release set?
+**1. Why can two active adapter ports fail to double application throughput?**
+
+"'Active' just means link-up — it says nothing about whether software is actually driving traffic through both, or whether the local I/O path can sustain both at once. I've traced this exact failure: two ports both reporting up, but a 60-second byte-counter delta showed one port moved ~89GB while the other moved almost nothing, because both local ranks had selected the same RDMA device — nothing in the launch config told the second rank to prefer the second port. And even with correct selection, a dual-port adapter can share an upstream PCIe link, so the sum of the two ports' line rates can simply exceed what the host's PCIe path can move at once. Active ports are a necessary condition for double throughput, not a sufficient one."
+
+**2. What differs between proving IP reachability and proving a RoCE path?**
+
+"IP reachability — ping, basic TCP — only exercises the kernel's routing and a socket. It never touches the RDMA-capable adapter's queue pairs, memory registration, GID selection, or the priority/QoS mapping the fabric applies to that traffic. I've seen basic connectivity succeed completely while an RDMA test failed at the QP setup stage, because the RoCE path depends on layers ping never reaches. Proving RoCE specifically means running a host-memory RDMA test — `ib_write_bw` or equivalent — and confirming it completes with the expected device and GID, not just that the process exits successfully."
+
+**3. How would you detect a GPU-to-NIC locality issue?**
+
+"`nvidia-smi topo -m` first — it tells me directly whether a given GPU-NIC pair shares a PCIe switch (`PIX`) or crosses a NUMA boundary (`SYS`). Then I'd corroborate with `lspci -vv` on the NIC to confirm the negotiated PCIe link speed and width match what the hardware is capable of — I've caught adapters running at a quarter of their designed bandwidth because of a downgraded link, invisible from the network side entirely. If the topology output says `PIX` and the link negotiated at full speed and width, locality is not the bottleneck; if the workload assigns GPU0 to a NIC that topology shows as `SYS` from it, that assignment is the first thing I'd fix, before looking at the fabric at all."
+
+**4. When can bonding be counterproductive for an AI data path?**
+
+"Conventional NIC bonding is built around the assumption that the application doesn't care which physical port a flow uses — bonding hashes flows across members transparently. A GPU collective library, though, often wants explicit control over which NIC maps to which GPU and which fabric rail, because that mapping is what makes multi-rail parallelism actually independent. If bonding hides that topology from the collective library, you can lose the deliberate rail separation the design was counting on, and end up with a library making suboptimal path choices it doesn't even know it's making. My default for an AI data path is explicit, tested rail mapping — bonding is fine for conventional service traffic where I don't need that control."
+
+**5. Which components belong in an adapter compatibility release set?**
+
+"Adapter firmware, the host kernel driver, the RDMA userspace stack, the GPU driver, the collective communication library, the switch NOS, and the QoS/congestion configuration profile — all of them qualified together, as one tested combination, not as independent tickets. I've seen incidents where a driver update alone, done without re-validating against the rest of the stack, silently changed default RoCE behavior. The release-set discipline exists specifically to prevent 'this one piece looked fine in isolation' from becoming a production surprise."
 
 ## Architecture Summary
 

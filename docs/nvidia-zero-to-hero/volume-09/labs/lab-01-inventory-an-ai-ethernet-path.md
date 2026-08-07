@@ -108,11 +108,29 @@ ip link show dev ensXfY
 ethtool ensXfY
 ```
 
-**Expected output:** the route identifies egress interface and next hop; link output includes MTU; `ethtool` reports negotiated link state where supported. Output is illustrative.
+**Expected output:** the route identifies egress interface and next hop; link output includes MTU; `ethtool` reports negotiated link state where supported.
 
-**Explanation:** compare the egress interface with Step 2. Save negotiated speed/FEC information from the approved platform tools if `ethtool` does not expose it.
+**Annotated real output:**
 
-**Common failure interpretation:** route selects a different interface than expected; record this as a design or configuration finding, not as a performance conclusion.
+```text
+$ ip route get 10.20.8.5
+10.20.8.5 via 10.20.0.1 dev ens1f0 src 10.20.4.15
+    cache users 1 mtu 9000
+
+$ ip link show dev ens1f0
+8: ens1f0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9000
+    link/ether 0c:42:a1:c8:d7:9c brd ff:ff:ff:ff:ff:ff
+    altname enp1s0f0
+
+$ ethtool ens1f0 | egrep "Speed|Duplex|Link"
+        Speed: 400000Mb/s
+        Duplex: Full
+        Link detected: yes
+```
+
+**Explanation:** route egress is `ens1f0` (matches Step 2 device mapping). MTU is 9000 — consistent across this path later is critical for RDMA. Speed 400Gb/s, full duplex, link detected confirms negotiation.
+
+**Common failure interpretation:** route selects a different interface than expected (e.g., ens1f1 instead of ens1f0); record this as a design or configuration finding. MTU mismatches between interfaces or hops will fail RoCE tests later.
 
 ### Step 4 — Capture locality and counter baseline
 
@@ -123,11 +141,30 @@ nvidia-smi topo -m
 ethtool -S ensXfY
 ```
 
-**Expected output:** `nvidia-smi topo -m` presents a topology matrix on GPU hosts; `ethtool -S` returns driver-specific counters. Both outputs are illustrative and vary by driver.
+**Expected output:** `nvidia-smi topo -m` presents a topology matrix on GPU hosts; `ethtool -S` returns driver-specific counters.
 
-**Explanation:** save raw output with timestamp. Never reset shared production counters for this lab.
+**Annotated real output:**
 
-**Common failure interpretation:** unavailable GPU topology is normal on non-GPU hosts; record it rather than substituting assumptions.
+```text
+$ nvidia-smi topo -m
+        GPU0    GPU1    NIC0    NIC1    CPU Affinity    NUMA Affinity
+GPU0     X      NV18    PIX     SYS     0-31            0
+GPU1    NV18     X      SYS     PIX     32-63           1
+NIC0    PIX     SYS      X      SYS
+NIC1    SYS     PIX     SYS      X
+
+$ ethtool -S ens1f0 | head -20
+     rx_packets: 1024567
+     rx_bytes: 892481382400      <- ~892GB received since interface came up
+     rx_errors: 0
+     rx_crc_errors: 0
+     fec_corrected_blocks: 412    <- FEC correcting normal signal noise
+     fec_uncorrected_blocks: 0    <- 0 unrecoverable — link clean
+```
+
+**Explanation:** topology: GPU0-NIC0 are `PIX` (same PCIe root, no NUMA hop); GPU0-NIC1 is `SYS` (crosses NUMA). Counter baseline: save this timestamp and these byte totals; later samples will compute deltas to measure real throughput. `fec_uncorrected_blocks: 0` is the clean baseline to compare future samples against.
+
+**Common failure interpretation:** unavailable GPU topology is normal on non-GPU hosts; record it. Growing FEC errors later in testing are a fault signal.
 
 ### Step 5 — Join switch evidence
 

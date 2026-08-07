@@ -24,17 +24,21 @@ You will be able to scope a failure, collect a support-ready evidence package, d
 
 ```mermaid
 flowchart TD
- S[Slow, failed, or uneven workload] --> E[Preserve scope and timestamps]
- E --> P{Physical baseline healthy?}
- P -->|yes| I{IP and MTU path healthy?}
- I -->|yes| Q{Class, queue, ECN/PFC correct?}
- Q -->|yes| R{RoCE completions healthy?}
- R -->|yes| G{GPU/NIC path healthy?}
- G -->|yes| C[Collective, rank, and workload analysis]
- P -->|no| X[Repair physical layer first]
+ S["Slow, failed, or uneven workload"] --> E["Preserve scope and timestamps"]
+ E --> P{"Physical baseline healthy?\nevidence: FEC/error deltas\nvs known-good peer"}
+ P -->|"yes"| I{"IP and MTU path healthy?\nevidence: route matches\nintended path, MTU\nconsistent every hop"}
+ P -->|"no"| X["Repair physical layer first —\nstop, do not proceed downward"]
+ I -->|"yes"| Q{"Class, queue, ECN/PFC correct?\nevidence: marked test traffic\nlands in expected queue"}
+ I -->|"no"| XI["Fix routing/MTU —\nno RoCE test is meaningful yet"]
+ Q -->|"yes"| R{"RoCE completions healthy?\nevidence: ib_write_bw\ncompletes, RTR/RTS succeed"}
+ Q -->|"no"| XQ["Fix classification/PFC scope —\nChapter 06's trust-boundary check"]
+ R -->|"yes"| G{"GPU/NIC path healthy?\nevidence: nvidia-smi topo -m\nshows expected PIX/NV"}
+ R -->|"no"| XR["Fix GID/device/endpoint —\nnot yet a GPU or app question"]
+ G -->|"yes"| C["Collective, rank, and workload analysis —\nonly reached once every lower\nlayer has its own evidence"]
+ G -->|"no"| XG["Fix locality mapping —\ndon't blame the fabric for a PCIe hop"]
 ```
 
-**Figure 9.11.1 — Move downward from the symptom only until the first diverging layer is found.** Do not continue tuning upper layers while a lower layer is unhealthy.
+**Figure 9.11.1 — Move downward from the symptom only until the first diverging layer is found, and every gate now names the specific evidence that answers it, plus the corrective branch for a "no."** The habit this enforces: a "yes" at physical doesn't mean "physical is probably fine," it means a specific counter comparison was actually made — and a "no" at any gate stops the ladder there. Continuing to check collective behavior while the IP/MTU gate never got a clean "yes" is exactly the wasted-motion pattern this chapter's incident method exists to prevent.
 
 ### First ten minutes
 
@@ -57,6 +61,21 @@ flowchart TD
 | Change history | host/NIC/switch/DPU release and policy revision, deployment timestamps |
 
 Stable identifiers connect the evidence: host, GPU, NIC port, DPU if present, switch port, rack, rail, and job. “Port 17 has errors” is not actionable until it can be placed in that graph.
+
+**Illustrative annotated output — what "Port 17 has errors" looks like once it's actually placed in that graph:**
+
+```text
+$ ethtool -S swp17 | egrep "fec_corrected|fec_uncorrected|rx_crc_errors"
+     fec_corrected_blocks:    41200        <- normal at this rate; FEC correcting routine noise
+     fec_uncorrected_blocks:  3             <- nonzero — these blocks were NOT recoverable
+     rx_crc_errors:           3             <- matches the uncorrected count exactly
+
+$ show inventory port swp17           # illustrative NOS source-of-truth query
+  Peer: rack14-node07, NIC mlx5_1, rail 1, cable: DAC-2m, serial ABC123
+  Job:  training-run-4471, ranks 48-55
+```
+
+`fec_uncorrected_blocks: 3` matching `rx_crc_errors: 3` exactly is the signature that ties a specific physical fault to specific lost data — FEC correcting most errors but failing on 3 blocks means 3 frames arrived corrupted enough that recovery wasn't possible, and those showed up as CRC errors passed up the stack. Joining that with the inventory query turns "port 17 has errors" into "rack14-node07's rail 1 DAC cable ABC123, currently carrying ranks 48-55 of training-run-4471, has 3 uncorrectable errors" — the second statement is what actually lets someone act (replace that cable, and know which job to watch for recovery).
 
 ## Escalation Data Flow
 
@@ -85,6 +104,8 @@ The incident commander should state the current hypothesis, evidence that would 
 
 **Diagnosis:** compare negotiated capability and error deltas with a healthy peer; inspect supported cabling/media, temperature, lane state, and port history. Congestion counters can rise secondarily when a physical link degrades.
 
+**Evidence in practice:** the `fec_uncorrected_blocks: 3` / `rx_crc_errors: 3` pair captured in the Evidence Package section above is this exact failure pattern — and the reason it's listed here as "congestion counters can rise secondarily" is worth showing concretely: retransmission at the RDMA layer caused by these lost frames adds real offered load back onto the same link, which can push `rx_ecn_marked_prio3` up on this port even though the root cause is physical, not a genuine capacity shortfall. Reading the ECN counter alone here would misdirect the investigation toward QoS tuning; the FEC/CRC pair is what correctly points at the cable.
+
 **Resolution:** correct or replace the faulty component under the approved maintenance process, then re-baseline the physical path before tuning QoS.
 
 ### Ping works, RoCE fails
@@ -92,6 +113,20 @@ The incident commander should state the current hypothesis, evidence that would 
 **Symptoms:** IP reachability succeeds while an RDMA application reports connection, completion, retry, or throughput failure.
 
 **Diagnosis:** verify GID/interface selection, VLAN, route, end-to-end MTU, queue/class mapping, RDMA device state, and completion evidence. Ping does not exercise registered memory, queue pairs, RoCE priority, or the same packet size.
+
+**Evidence in practice:**
+
+```text
+$ ping -c3 10.20.8.5
+3 packets transmitted, 3 received, 0% packet loss     <- ICMP is completely healthy
+
+$ ib_write_bw -d mlx5_0 10.20.8.5
+Local address:  ... GID: 0000:0000:0000:0000:0000:ffff:0a14:040f
+Remote address: ... GID: 0000:0000:0000:0000:0000:ffff:0a14:0805
+Failed to modify QP to RTR
+```
+
+Ping's small ICMP packets travel a completely different code path than RDMA's queue-pair setup — they never touch memory registration, never negotiate a queue pair, and are typically far smaller than the MTU an RDMA transfer will actually use. Here, ICMP succeeds cleanly while the RDMA connection manager fails at the RTR (Ready-to-Receive) transition — a failure mode ping has no way to expose, because ping doesn't create a queue pair at all. This is the concrete reason this scenario's diagnosis list starts at GID/interface selection rather than treating the ping result as meaningful evidence about RoCE health.
 
 **Resolution:** repair the first discrepancy, prove host-memory RoCE, then GPU-buffer traffic before retrying the application.
 
@@ -145,10 +180,21 @@ The operating model has a cost: topology inventory, telemetry retention, test ca
 
 ## Interview Preparation
 
-1. Why is an active Ethernet link insufficient evidence for a healthy RoCE job?
-2. How do you distinguish congestion from a physical fault?
-3. What is the first action when PFC is continuous?
-4. Which evidence would you attach to a vendor support case?
+**1. Why is an active Ethernet link insufficient evidence for a healthy RoCE job?**
+
+"Because 'link up' means the physical negotiation succeeded and isn't actively reporting errors — it says nothing about whether RoCE packets are actually making it through, whether they're in the right queue, whether they're being retransmitted, or whether the job itself is proceeding. I've seen a link report completely clean while the RDMA path was misconfigured, or while the actual application was stalled waiting for a collective to complete. Operational state and technical health are different things, and link-up is the former, not the latter."
+
+**2. How do you distinguish congestion from a physical fault?**
+
+"Physical faults leave evidence in the physical layer counters — FEC-corrected and FEC-uncorrected blocks, CRC errors, lane state anomalies — and congestion leaves evidence at the packet/queue layer — ECN marks, PFC pause, queue-depth snapshots at the moment of the symptom. If `fec_uncorrected_blocks` is climbing and `rx_ecn_marked_prio3` rises only as a side effect (because RDMA retransmission adds load), that's physical. If FEC counters are all zeros but ECN marks and PFC are active and queue occupancy is pinned high, that's congestion. Reading only the ECN counter would misdirect toward QoS tuning; reading both layers in parallel is what actually finds the root."
+
+**3. What is the first action when PFC is continuous?**
+
+"Stop changing anything first — just observe and document: which priority is paused, on which port, flowing in which direction, and for how long. Correlate it with queue occupancy on that port and ECN marks, if available. The impulse is to disable PFC 'because it's slowing things down,' but that trades a visible pause for silent loss and retransmission, which can be much worse. The actual first action is tracing the pause toward its source — the most downstream congested queue — before changing configuration at all. Only after I know what's causing the pause can I make an informed choice about whether to relieve the congestion, adjust thresholds, or change the class design."
+
+**4. Which evidence would you attach to a vendor support case?**
+
+"Anything that lets someone who didn't experience the incident reproduce the issue or at least understand the failure boundary: exact topology (who, which port, which queue), counter deltas (not lifetime totals), the working software/firmware/configuration state from before the change, the broken state after, and the exact commands and output that showed the problem. And timestamps — a support engineer reading 'FEC errors grew and queue occupancy climbed at the same time' is near-worthless without knowing when both happened. A time-correlated bundle saying 'at 14:32:15 UTC, FEC errors went from 0 to 3, and at 14:32:16 queue occupancy hit 98%' is actionable."
 
 ## Key Takeaways
 

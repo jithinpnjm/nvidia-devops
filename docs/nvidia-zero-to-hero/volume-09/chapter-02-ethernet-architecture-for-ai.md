@@ -41,20 +41,24 @@ After this chapter, you can:
 
 ```mermaid
 flowchart LR
-    GM0[GPU memory] <--> NIC0[RDMA adapter]
-    NIC0 <--> L0[Leaf switch]
-    L0 <--> S0[Spine layer]
-    S0 <--> L1[Leaf switch]
-    L1 <--> NIC1[RDMA adapter]
-    NIC1 <--> GM1[Remote GPU memory]
-    CP[Routing and QoS policy] -. programs .-> L0
+    GM0["GPU memory"] <-->|"PCIe/NVLink locality —\nevidence: nvidia-smi topo -m"| NIC0["RDMA adapter"]
+    NIC0 <-->|"evidence: rdma link show =\nACTIVE, correct GID"| L0["Leaf switch"]
+    L0 <-->|"evidence: queue/ECN counters\nclean at this hop"| S0["Spine layer"]
+    S0 <-->|"evidence: ECMP path used\nmatches expected next-hop"| L1["Leaf switch"]
+    L1 <-->|"evidence: peer port up,\nno FEC/error deltas"| NIC1["RDMA adapter"]
+    NIC1 <--> GM1["Remote GPU memory"]
+    CP["Routing and QoS policy"] -. programs .-> L0
     CP -. programs .-> S0
-    OBS[Fabric telemetry] --> OPS[Operations]
+    OBS["Fabric telemetry"] --> OPS["Operations"]
     L0 --> OBS
     S0 --> OBS
+    OBS --> DEC{"Where does the evidence\nfirst stop matching\nthe healthy baseline?"}
+    DEC -->|"GM/NIC hop diverges"| BND1["Boundary: host locality\n(PCIe/NUMA) — Volume 07"]
+    DEC -->|"NIC/leaf hop diverges"| BND2["Boundary: endpoint RoCE\nconfig — Chapter 03"]
+    DEC -->|"leaf/spine hop diverges"| BND3["Boundary: routing/QoS\npolicy — this chapter"]
 ```
 
-**Figure 9.2.1 — The data path is only useful when its routing, QoS, endpoint, and telemetry dependencies are compatible.**
+**Figure 9.2.1 — The data path is only useful when its routing, QoS, endpoint, and telemetry dependencies are compatible, and each hop now carries the evidence that proves it, not just its name.** The decision node is the actual troubleshooting move: telemetry doesn't just observe the path, it tells you which of the three ownership boundaries — host locality, endpoint RoCE configuration, or fabric routing/QoS policy — to investigate first, because each one needs a different team and a different fix.
 
 ### Data path versus control path
 
@@ -124,6 +128,23 @@ Do not publish generic throughput claims from a topology ratio. Measure the targ
 
 On a multi-GPU host, the selected NIC and GPU may be connected through different PCIe or NUMA paths. Rail-aware placement should use the actual host topology, not names such as `eth0` or a presumed PCIe ordering. See Volume 07 for the host-side mechanisms; the network design needs to consume that topology information when assigning ports, ranks, and failure domains.
 
+**Illustrative annotated output — the topology evidence this section is asking for:**
+
+```text
+$ nvidia-smi topo -m
+        GPU0    GPU1    NIC0    NIC1    CPU Affinity    NUMA Affinity
+GPU0     X      NV18    PIX     SYS     0-31            0
+GPU1    NV18     X      SYS     PIX     32-63           1
+NIC0    PIX     SYS      X      SYS
+NIC1    SYS     PIX     SYS      X
+
+Legend:
+  NV18 = NVLink, 18 links       PIX  = same PCIe switch, no CPU hop
+  SYS  = crosses CPU/NUMA boundary (PCIe host bridge)
+```
+
+The row that actually matters for rail design is `GPU0`/`NIC0`: `PIX` means GPU0 and NIC0 share a PCIe switch with no NUMA crossing — this is the "local" rail. `GPU0`/`NIC1` shows `SYS`, meaning traffic from GPU0 through NIC1 crosses into NUMA node 1's PCIe tree — a real, measurable latency and bandwidth cost that has nothing to do with the network fabric at all. If a job's placement uses `GPU0` with `NIC1` because of a naming assumption (`eth0` "should" be near `GPU0`), the fabric can be flawless and the job still underperforms — the evidence for that failure lives in this table, not in any switch counter. This is the concrete reason Chapter 02 insists rail assignment consume actual topology output instead of interface names.
+
 ## Production Deployment Pattern
 
 ### 1. Establish a source of truth
@@ -170,7 +191,29 @@ The fabric should be designed for maintenance and failure, not only steady state
 
 **Root cause examples:** a missing or inaccessible RDMA device, incorrect device selection, incompatible endpoint configuration, or host-locality mismatch.
 
-**Resolution and verification:** correct selection or qualification drift, then re-run a minimal RDMA test followed by the same collective test. Record both layers of evidence.
+**Evidence in practice:**
+
+```text
+$ NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=NET python train.py 2>&1 | grep -i "net/"
+node03:14211 [1] NCCL INFO NET/IB : No device found.
+node03:14211 [1] NCCL INFO NET/Socket : Using [0]eth0:10.20.4.15<0>
+node03:14211 [1] NCCL INFO Using network Socket
+```
+
+This is the fallback the symptom describes: NCCL couldn't find a usable IB/RoCE device and silently dropped to TCP sockets over `eth0` — still "working," just at a fraction of RoCE throughput, and with no error the application layer would surface on its own. Cross-checking the host confirms why:
+
+```text
+$ rdma link show
+$ echo $?
+0          <- command succeeded but printed nothing: no RDMA links registered at all
+$ lsmod | grep mlx5
+mlx5_core             1234567  0
+                                  <- mlx5_core loaded, but no mlx5_ib — RDMA verbs stack never came up
+```
+
+`rdma link show` returning cleanly with zero output is the tell: the low-level driver (`mlx5_core`) is present, but the RDMA/IB verbs layer (`mlx5_ib`) never registered a device, which is exactly why NCCL's IB transport reported "No device found" and fell back. This distinguishes a host/driver-stack problem (this case) from a GID/addressing problem, which would instead show a registered device with a completion or connection error.
+
+**Resolution and verification:** correct selection or qualification drift, then re-run a minimal RDMA test followed by the same collective test. Record both layers of evidence — after the fix, `NCCL_DEBUG=INFO` should log `NCCL INFO NET/IB : Using [0]mlx5_0:1/RoCE` instead of the Socket fallback.
 
 **Prevention:** make device inventory and a small transport validation part of node provisioning.
 
@@ -182,7 +225,29 @@ The fabric should be designed for maintenance and failure, not only steady state
 
 **Root cause:** the design was validated only in the normal topology or its failure-state capacity was insufficient for admitted workload concurrency.
 
-**Resolution and verification:** reduce concurrency, restore path diversity, or revise capacity and placement rules. Re-run the documented degraded-state test before closing the change.
+**Evidence in practice:**
+
+```text
+# Before spine drain: 2 spines, ECMP across both
+$ ip route get 10.20.8.5
+10.20.8.5 via 10.20.0.1 dev bond0 src 10.20.4.15
+    cache users 1 mtu 9000
+
+$ ss -ti | grep 10.20.8.5 | head -1
+        cwnd:64 ... <normal steady-state values>
+
+# Spine 1 drained for maintenance — normal topology now has one fewer path
+$ show ip ecmp-groups | grep 10.20.0.0/16      # illustrative NOS query
+  nexthop-group 40: 1 active member (was 2)     <- half the ECMP fan-out for this prefix
+
+$ ethtool -S swp30 | egrep "tx_ecn|pfc_prio3"
+     tx_ecn_marked_prio3:     88120      <- was ~15000/window before drain: same leaves, less capacity
+     rx_pfc_prio3:            0
+```
+
+The ECMP group shrinking from 2 active members to 1 is the structural evidence: every flow that used to have two viable next hops now has one, so the same offered load is concentrated on half the uplinks. `tx_ecn_marked_prio3` roughly 6x higher over the same window on the surviving path is the queue-level confirmation — this is capacity, not a routing bug, because the ECMP behavior is doing exactly what it's configured to do with the remaining path.
+
+**Resolution and verification:** reduce concurrency, restore path diversity, or revise capacity and placement rules. Re-run the documented degraded-state test before closing the change — confirm the ECMP group returns to its expected member count and ECN marking rate returns to the pre-drain baseline once the spine rejoins.
 
 **Prevention:** include planned maintenance and single-failure cases in admission and release reviews.
 
@@ -196,18 +261,33 @@ The goal is an architecture that can evolve. That means reproducible configurati
 
 ### Knowledge questions
 
-1. Why is a VLAN not equivalent to queue isolation?
-2. What belongs to the AI fabric control path?
-3. Why should endpoint PCIe locality influence network placement?
+**1. Why is a VLAN not equivalent to queue isolation?**
+
+"A VLAN is a Layer 2 broadcast-domain and forwarding construct — it controls where a frame is allowed to go, not which queue it lands in once it gets there. Queue isolation happens through DSCP or PCP classification mapped to an internal priority and an egress queue, which is a completely separate policy that has to be configured and verified at every hop. I've seen designs where two VLANs both funnel into the same best-effort queue at a switch because nobody set the classification-to-queue mapping — the VLANs were perfectly isolated for forwarding purposes and completely unisolated for congestion purposes. If someone tells me 'we've isolated that traffic with a VLAN,' my next question is always 'what queue does it land in, and how did you verify that, not just configure it.'"
+
+**2. What belongs to the AI fabric control path?**
+
+"Addressing and route selection, QoS classification policy, ECMP and routing decisions, and the provisioning that pushes all of that to switches and endpoints. It's distinct from the data path — DMA, packet forwarding, the actual queues carrying application bytes — and from the management plane — inventory, credentials, telemetry collection. The reason this split matters operationally is that a server can have a perfectly valid IP address, which is control-path correctness, while its GID selection or priority mapping is wrong, which is also control-path but a different piece of it — and neither of those tells you anything about whether the data path is actually healthy under load."
+
+**3. Why should endpoint PCIe locality influence network placement?**
+
+"Because the network diagram and the actual achievable bandwidth can disagree if you ignore it. I've walked through `nvidia-smi topo -m` output where GPU0 and NIC0 share a PCIe switch — marked `PIX`, no NUMA crossing — while GPU0 to NIC1 crosses into the other NUMA node's PCIe tree, marked `SYS`. If rail assignment is done by interface name instead of that topology table, you can end up routing a GPU's traffic through the 'wrong' NIC for its locality, and the fabric will look completely healthy — clean links, correct QoS, no congestion — while the job still underperforms, because the bottleneck is a PCIe/NUMA hop that has nothing to do with Ethernet at all."
 
 ### Architecture questions
 
-1. Draw a two-rail leaf-spine fabric and identify normal and failure-state bottlenecks.
-2. Propose an isolation model for management, storage, and RoCE compute traffic.
+**1. Draw a two-rail leaf-spine fabric and identify normal and failure-state bottlenecks.**
+
+"I'd draw two GPU racks, each with two NIC rails going to two different leaf switches, both leaves connected to two spines. In the normal state, the bottleneck to watch is the leaf uplink — that's the cut where downlink demand from all the rack's GPUs converges before it even reaches the spine, so I'd size and monitor that first. In the failure state — say one spine goes down for maintenance — the ECMP fan-out on every leaf drops from two active next-hops to one, so I'd expect roughly double the offered load on the surviving uplinks, and I'd want the design to state explicitly whether that's tolerable or whether it needs admission control during maintenance. The point I'd make out loud while drawing this: the failure-state bottleneck isn't a new location, it's the same leaf uplink cut carrying twice the traffic — which is why 'normal state passed' is not the same claim as 'failure state is acceptable.'"
+
+**2. Propose an isolation model for management, storage, and RoCE compute traffic.**
+
+"I'd start from intents, not physical wires: infrastructure/control traffic gets its own priority with a policy that keeps it reachable even under RoCE-class pressure — that's non-negotiable, because losing management during an incident is the worst failure mode. RoCE compute gets a small, deliberately narrow class with consistent ECN and PFC treatment across every hop. Storage or checkpoint traffic gets its own class because it's long-lived and bursty in a different pattern than RoCE bursts. I'd document, for each of those three, the peak/burst characteristics, what it's allowed to share, and what capacity it gets in a degraded state — and I'd insist all three get validated running concurrently, because a design that's only tested one class at a time hasn't proven isolation, it's proven the classes exist."
 
 ### Scenario question
 
-A fabric meets its capacity target normally but slows after a spine drain. What data proves whether the issue is topology, ECMP behavior, QoS, or workload placement?
+**A fabric meets its capacity target normally but slows after a spine drain. What data proves whether the issue is topology, ECMP behavior, QoS, or workload placement?**
+
+"I'd pull the ECMP next-hop group membership for the affected prefix before and after the drain first — if it dropped from two active members to one, that's expected topology behavior, not a bug, and it tells me the remaining uplinks are now carrying roughly double the load. Then I'd check queue-level counters — ECN marks and PFC pause — on those surviving uplinks; a proportional rise there confirms it's a capacity problem, not a misconfiguration. If ECN/PFC counters are flat but the job is still slow, I'd look at QoS mapping next, in case the drain somehow changed which queue traffic lands in. And I'd check workload placement last — whether the affected racks happen to be the ones now sharing the reduced path. The sequence matters: topology and ECMP evidence is fast to check and rules out or confirms the most likely cause before I go chasing QoS drift or placement issues that may not be the actual story."
 
 ## Architecture Summary
 

@@ -46,23 +46,46 @@ In request-response services, independent flows can often tolerate an occasional
 
 ```mermaid
 flowchart LR
-    G0[GPU worker 0] --> L0[Leaf queue]
-    G1[GPU worker 1] --> L0
-    G2[GPU worker 2] --> L1[Leaf queue]
-    G3[GPU worker 3] --> L1
-    L0 --> S[Shared spine or egress]
-    L1 --> S
-    S --> R[Collective peers]
-    R --> B[Next training step]
+    G0["GPU worker 0"] -->|"evidence: ib_write_bw completes,\nlink counters clean"| L0["Leaf queue A"]
+    G1["GPU worker 1"] -->|"same leaf, same egress window"| L0
+    G2["GPU worker 2"] -->|"evidence: ib_write_bw completes,\nlink counters clean"| L1["Leaf queue B"]
+    G3["GPU worker 3"] -->|"same leaf, same egress window"| L1
+    L0 -->|"egress toward spine"| S["Shared spine egress"]
+    L1 -->|"egress toward spine"| S
+    S --> D{"Queue depth evidence\nat the shared egress?"}
+    D -->|"ECN marks rising,\nPFC pause counters flat\n(healthy: source rate backing off)"| R["Collective peers receive on time"]
+    D -->|"PFC pause frames sustained,\nqueue occupancy pinned high\n(congested: receiver can't drain)"| SLOW["Collective step stalls —\nslowest rank sets the pace"]
+    R --> B["Next training step starts on schedule"]
+    SLOW --> INV["Investigate: which leaf/spine cut,\nwhich rack, which job placement"]
 ```
 
-**Figure 9.1.1 — Many senders can create brief, concentrated pressure on shared queues.** Average utilization does not reveal the instantaneous queue depth that affects a synchronized job.
+**Figure 9.1.1 — Many senders can create brief, concentrated pressure on shared queues, and the diagram now shows how to tell the healthy case from the congested one.** The link-level evidence (`ib_write_bw` completing, clean error counters) only proves the point-to-point path works — it says nothing about the shared egress. The decision point is queue-level evidence: rising ECN marks with flat PFC is the control loop working as intended (senders back off before the queue fills); sustained PFC pause with pinned-high occupancy is the queue losing that race, which is what stalls the collective. Average utilization would look identical in both branches — this is why per-queue, per-priority counters are the ones worth alerting on, not interface throughput.
 
 ### Incast, elephant flows, and imbalance
 
 AI traffic commonly combines large transfers with synchronized phases. Multiple senders can target a receiver, a leaf uplink, or a subset of equal-cost paths at once. ECMP path selection distributes eligible flows; it does not guarantee that a particular workload’s flows will balance perfectly. Oversubscription, rail placement, or a failed link can further concentrate traffic.
 
 Do not infer a cause from a traffic label. “Incast” describes convergence; it does not prove that the receiver, route, buffer policy, hashing, or offered load is at fault. Evidence must come from endpoint, queue, and topology data captured in the same time window.
+
+**What that endpoint/queue/topology evidence actually looks like — illustrative counter deltas from the fabric-that-passed-every-link-test story:**
+
+```text
+# Two-node baseline (Job 1 only) — leaf-facing switch port, per-priority counters, 10s window
+$ watch -n2 'ethtool -S swp12 | egrep "pfc_prio3|rx_ecn|tx_ecn"'
+     rx_pfc_prio3:            0
+     tx_pfc_prio3:            0
+     rx_ecn_marked_prio3:     412        <- baseline: some marking, expected under load
+     tx_ecn_marked_prio3:     0
+
+# Same port, ~90s after Job 2 starts on the same leaf
+$ watch -n2 'ethtool -S swp12 | egrep "pfc_prio3|rx_ecn|tx_ecn"'
+     rx_pfc_prio3:            118344     <- climbing every sample: sustained pause, not a blip
+     tx_pfc_prio3:            0
+     rx_ecn_marked_prio3:     198220     <- ECN marking rose too, but PFC still climbed after it
+     tx_ecn_marked_prio3:     0
+```
+
+Reading this pair the way the story's incident team eventually did: `rx_ecn_marked_prio3` climbing on its own (baseline) is the control loop doing its job — sources see marks and back off before the queue fills. The second capture shows `rx_pfc_prio3` climbing *in addition to* rising ECN marks, which means marking alone was not enough to keep the queue under control once a second job started converging on the same leaf egress — the queue filled faster than senders could react, and PFC engaged as the backstop. `tx_pfc_prio3` staying at `0` on this port confirms the pause is arriving here (this switch is the receiver being protected), not being generated here. This is the concrete version of the chapter's claim that average utilization hides the event: neither counter shows up in a five-minute interface-utilization graph, only in per-priority queue counters sampled at the timescale of the collective.
 
 ## What: The End-to-End Control System
 
@@ -158,7 +181,9 @@ Operational complexity is a real cost. An AI Ethernet fabric requires version-qu
 
 **Likely root causes:** transient incast, path imbalance, a shared constrained egress, or a QoS mapping drift.
 
-**Resolution and verification:** correct the topology, placement, or policy that creates the hotspot; repeat the same concurrency profile and confirm that queue pressure and job tail time improve together.
+**Evidence in practice — the counter pair from the "What" section above is exactly this scenario's diagnosis:** the two-node baseline shows `rx_pfc_prio3=0` with modest `rx_ecn_marked_prio3` (control loop absorbing normal bursts). Once Job 2 starts, `rx_pfc_prio3` climbs from `0` to `118344` in ~90 seconds while ECN marks roughly doubled — the queue crossed from "ECN keeps it shallow" to "PFC has to intervene." Correlating this specific leaf-facing port (`swp12`) with the job scheduler's placement record confirms both jobs were landing on the same leaf uplink, which is the shared constrained egress named in the root-cause list, not a link fault (physical error counters on the same port stayed at `0` throughout).
+
+**Resolution and verification:** correct the topology, placement, or policy that creates the hotspot; repeat the same concurrency profile and confirm that queue pressure and job tail time improve together — concretely, `rx_pfc_prio3` should stop incrementing under the same two-job load, and `rx_ecn_marked_prio3` should return to a rate comparable to the single-job baseline rather than to zero (some marking under real concurrency is expected and healthy).
 
 **Prevention:** make contention benchmarks and time-aligned counter capture release gates for network changes.
 
@@ -170,7 +195,27 @@ Operational complexity is a real cost. An AI Ethernet fabric requires version-qu
 
 **Likely root cause:** PFC is masking persistent congestion or an overly broad traffic class.
 
-**Resolution and verification:** restore a narrow RoCE class, address the congestion source, and verify that ECN-based feedback occurs before prolonged pause. Do not disable PFC blindly; that can turn a pause symptom into packet loss.
+**Evidence in practice:**
+
+```text
+# Compare the paused priority's traffic-class membership on the affected leaf
+$ mlnx_qos -i swp12
+DCBX mode: OS controlled
+Priority trust state: pcp
+PFC configuration:
+        priority    0   1   2   3   4   5   6   7
+        enabled     0   0   0   1   0   0   1   0   <- prio3 (RoCE, expected) AND prio6 (unexpected) both PFC-enabled
+tc: 0 ratelimit: unlimited, tsa: strict
+         priority:  0
+tc: 1 ratelimit: unlimited, tsa: strict
+         priority:  3
+tc: 2 ratelimit: unlimited, tsa: strict
+         priority:  1  2  4  5  6  7          <- best-effort/management sharing tc2 with prio6
+```
+
+The `enabled` row is the smoking gun: priority 6 has PFC turned on alongside priority 3, and the scheduler config below shows several unrelated priorities — including the one an SSH/monitoring session was marked into — mapped into the same traffic class as prio6. When prio3 (RoCE) backs up and prio6 shares a queue mapping with it, pausing prio3 traffic upstream can stall anything else riding tc2's queue behind it, which is exactly the "unrelated traffic stalls" symptom. A clean fabric config should show PFC `enabled` on only the one intended priority.
+
+**Resolution and verification:** restore a narrow RoCE class, address the congestion source, and verify that ECN-based feedback occurs before prolonged pause. Do not disable PFC blindly; that can turn a pause symptom into packet loss. After the fix, re-running `mlnx_qos -i swp12` should show `enabled` set on exactly one priority, and a repeat of the same load test should show management-plane latency unaffected by the RoCE class's pause activity.
 
 **Prevention:** alert on sustained pause duration and review queue policies whenever new traffic is admitted.
 
@@ -184,18 +229,33 @@ Avoid a binary recommendation. The architecture can be sound for an organization
 
 ### Knowledge questions
 
-1. Why can low average utilization coexist with high collective latency?
-2. What is the difference between ECN marking and PFC pause?
-3. Why is a successful ping test insufficient for an AI Ethernet fabric?
+**1. Why can low average utilization coexist with high collective latency?**
+
+"Because a five-minute average smooths out exactly the event that hurts a synchronized job. An all-reduce doesn't care about the average — it cares about the slowest participant in a burst that might last a few hundred microseconds. If four workers converge on the same leaf egress for that window, the queue can fill and trigger PFC even though the port's traffic over the full minute looks like it's running at 20% utilization. I've seen this literally: two-node tests were clean, and only under two concurrent jobs did `rx_pfc_prio3` start climbing on one leaf port while the interface-utilization graph stayed unremarkable. The lesson is you have to sample at the timescale of the collective, not the timescale of the dashboard."
+
+**2. What is the difference between ECN marking and PFC pause?**
+
+"ECN is proactive and end-to-end — the switch marks a packet's CE bit when a queue is building, the receiver reflects that back to the sender as a CNP, and the sender turns its injection rate down before anything is lost. PFC is reactive and hop-local — it's a MAC control frame that says 'stop sending this priority on this link right now,' issued only after a receiver's buffer is already under real pressure. If the system's working the way it's supposed to, ECN does almost all the work and PFC rarely fires. If I see sustained PFC with no corresponding ECN activity beforehand, that tells me the marking threshold or the endpoint's rate response isn't doing its job, and PFC is quietly becoming the primary congestion control instead of the safety net it's meant to be."
+
+**3. Why is a successful ping test insufficient for an AI Ethernet fabric?**
+
+"Ping only proves ICMP round-trips over whatever route the kernel picked — it says nothing about which RDMA device and GID the application will actually select, whether that path's MTU is consistent hop to hop, whether the flow lands in the RoCE priority class, or how the fabric behaves once four other jobs are contending for the same egress. I've watched a routing change pass every ping and TCP check while a distributed job's RDMA setup failed outright, because the fault was in GID selection — a layer ping never touches. My baseline test for 'is this fabric ready' is always host-memory RDMA under contention, not ICMP."
 
 ### Architecture questions
 
-1. Design a validation plan for a new 256-GPU Ethernet cluster.
-2. Which traffic should share a physical fabric, and what evidence would justify the choice?
+**1. Design a validation plan for a new 256-GPU Ethernet cluster.**
+
+"I'd build it as a ladder, not a single benchmark. Start at physical — optics, FEC, lane state, clean error counters. Then IP — routes, MTU consistent across every hop, VLAN/DSCP mapping verified, not just configured. Then a host-memory RDMA test between a couple of node pairs to prove the RoCE path itself works before GPUs are involved. Then a GPU-buffer test to bring GPUDirect into the picture. Then representative collectives at realistic message sizes. And critically, I wouldn't stop there — I'd repeat the collective step with two or three jobs running concurrently, because that's the only way to see contention behavior, and I'd pull one uplink to prove the degraded-state capacity claim actually holds. Every stage gets its raw counters and topology recorded as the acceptance baseline, not just a pass/fail."
+
+**2. Which traffic should share a physical fabric, and what evidence would justify the choice?**
+
+"My default is that sharing is fine as long as I can answer three things concretely for each traffic type: what priority and queue does it land in, what happens to it when the RoCE class is under pressure, and what capacity is left for it in a degraded state. I'd want a machine-readable mapping table — not a diagram — showing marking, trust boundary, queue, and PFC/ECN treatment per role, and I'd want it validated with actual concurrent traffic, not just configuration review. If I can't produce that evidence, I default to physical separation for management traffic specifically, because losing the control plane during an incident is the worst failure mode."
 
 ### Scenario question
 
-Two jobs contend on a fabric with no visible drops. Explain how you distinguish queueing, PFC propagation, path imbalance, and endpoint configuration drift.
+**Two jobs contend on a fabric with no visible drops. Explain how you distinguish queueing, PFC propagation, path imbalance, and endpoint configuration drift.**
+
+"First I'd pull time-aligned per-priority counters — ECN marks, PFC pause frames and duration, queue occupancy if the platform exposes it — on every leaf port both jobs touch, and correlate that with the scheduler's placement record. If ECN marks are climbing but PFC stays flat, that's the control loop working as designed — I'd look at whether the *application* is actually slow or just running at expected contention-adjusted speed. If PFC is climbing on a specific leaf and I can trace pause propagating upstream from one congested egress, that's queueing plus PFC doing its job — the fix is placement or capacity, not a PFC setting. If I see the same leaf pattern but the two jobs shouldn't even be sharing that leaf according to the topology map, I'd suspect ECMP hashing put them on the same path anyway — path imbalance, not a queue problem. And if pause frames are showing up on priorities that shouldn't have PFC enabled at all, that's config drift — I'd pull `mlnx_qos` output from that switch and diff it against the source of truth before touching anything else. The key discipline is: gather all four evidence types in the same time window before I form a hypothesis, because the symptom — 'jobs are slow, no drops' — is identical across all four causes."
 
 ## Architecture Summary
 
