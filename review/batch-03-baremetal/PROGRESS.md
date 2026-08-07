@@ -8,10 +8,10 @@
 | F-10 | 03-os-provisioning-and-linux-security-hardening.md | done | 0 high/medium; strong chapter |
 | F-10 | 04-ansible-for-infrastructure-automation.md | done | 0 high/medium; strong chapter |
 | F-10 | 05-terraform-for-infrastructure-as-code.md | done | 0 high/medium; strong chapter |
-| F-10 | 06-slurm-administration-ha-accounting-and-upgrades.md | pending | |
-| F-10 | 07-mpi-fundamentals-for-hpc-ai-workloads.md | pending | |
-| F-10 | 08-enroot-and-pyxis-containers-for-hpc.md | pending | |
-| F-10 | 09-job-provisioning-health-gating-and-workflow-orchestration.md | pending | |
+| F-10 | 06-slurm-administration-ha-accounting-and-upgrades.md | done | 1 medium (version-skew claim needs verification); otherwise strong |
+| F-10 | 07-mpi-fundamentals-for-hpc-ai-workloads.md | done | 0 high/medium; strong chapter |
+| F-10 | 08-enroot-and-pyxis-containers-for-hpc.md | done | 0 high/medium; strong chapter |
+| F-10 | 09-job-provisioning-health-gating-and-workflow-orchestration.md | done | 0 high/medium; strong chapter |
 | F-10 | 10-coordinated-cluster-wide-software-change-management.md | pending | |
 | F-10 | 11-cicd-for-infrastructure-and-cluster-configuration.md | pending | |
 | F-10 | 12-customer-runbooks-onboarding-and-best-practice-documentation.md | pending | |

@@ -35,3 +35,21 @@
 ### 05-terraform-for-infrastructure-as-code.md
 - [SEVERITY: low] No factual errors found. State/plan/apply three-way-diff model, `-/+` replace semantics, S3+DynamoDB locking, `lifecycle { create_before_destroy, ignore_changes }`, and the Terraform/Ansible/BCM ownership boundary are all correct and well-argued.
 - [SEVERITY: low] Chapter correctly scopes itself as "orthogonal to the physical compute node" for on-prem bare metal, consistent with Chapter 2's framing — no cross-chapter contradiction.
+
+### 06-slurm-administration-ha-accounting-and-upgrades.md
+- [SEVERITY: medium] Version-skew claim likely overstates Slurm's restriction. The chapter states RPC compatibility is "guaranteed only between adjacent major versions" and that skipping two major versions of skew (e.g. 21.08 slurmd against a 23.02 controller) "is unsupported and can silently misbehave." Slurm's documented backward-compatibility policy has historically supported `slurmd`/client tools lagging the controller by up to two major releases (i.e., N, N-1, N-2), not just one adjacent version — meaning the specific example given (21.08 vs 23.02, two releases apart) is closer to the edge of what's actually supported, not clearly outside it. This should be verified against the current Slurm upgrade guide for the release this book targets before treating the "adjacent-only" claim as fact.
+  - Evidence: lines 137-139, "RPC compatibility is officially guaranteed only between adjacent major versions... skipping two major versions of skew... is unsupported."
+  - Why it matters for JR2018680: rolling-upgrade skew policy is a specific, checkable HPC-ops fact; stating it more restrictively than the real policy could cause a candidate to answer confidently but incorrectly if probed on exact version-skew rules.
+  - Suggested fix: verify against the current Slurm documentation's "Upgrade Guide" version-skew table and correct the N/N-1/N-2 claim precisely, since this is a checkable, citable fact rather than a judgment call.
+- Otherwise strong: `sacctmgr`/`sshare` fairshare-vs-QoS distinction, the worked fairshare-starvation scenario, DRAIN/DOWN/FAIL semantics, and the `gres.conf`/`cgroup.conf` GPU-binding example (`ConstrainDevices=yes`, `AutoDetect=nvml`, `Cores=` NUMA binding) are accurate, concrete, and exactly the depth an NVIDIA interviewer would probe. This chapter (with 07-09) is the strongest evidence in the volume of real Slurm GPU-scheduling fluency (`--gres=gpu:1` referenced at line 168).
+
+### 07-mpi-fundamentals-for-hpc-ai-workloads.md
+- [SEVERITY: low] No factual errors found. MPI-vs-NCCL division of labor, PMI/PMIx bootstrap role, `srun --mpi=pmix` vs `mpirun`-inside-`salloc` patterns, and the MPI-hang-vs-NCCL-hang diagnostic sequence are accurate and genuinely interview-useful (the "MPI ships the ranks, NCCL ships the gradients" framing is a good compressed answer).
+
+### 08-enroot-and-pyxis-containers-for-hpc.md
+- [SEVERITY: low] No factual errors found. Enroot/Pyxis architecture (SPANK plugin, `.sqsh` unprivileged images, no-daemon model), the Docker-daemon-as-multi-tenant-risk argument, and the Enroot-hook-vs-Kubernetes-CDI GPU-visibility distinction are accurate and well-differentiated from the Volume 4 Kubernetes GPU material (good cross-curriculum consistency).
+- Strength: explicit "why not just run Docker on the cluster" section directly answers a question interviewers ask HPC-container candidates.
+
+### 09-job-provisioning-health-gating-and-workflow-orchestration.md
+- [SEVERITY: low] No factual errors found. The readiness-pipeline gate model, Prolog/Epilog + NHC-style `HealthCheckProgram` mechanism, and the layered GPU-count/DCGM-diag/NVLink-status/mount health-check script are accurate and realistic.
+- Strength: the "enumerated is not the same as healthy" NVLink worked scenario is a genuinely strong, specific interview answer distinguishing device presence from link health — exactly the kind of degraded-not-dead failure mode the task brief calls out.
