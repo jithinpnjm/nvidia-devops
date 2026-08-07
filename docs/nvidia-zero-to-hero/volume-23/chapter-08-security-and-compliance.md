@@ -230,7 +230,7 @@ nvidia-smi --query-compute-apps=gpu_uuid,memory_used --format=csv
 | Power analysis | Sensitive data recovery | Requires physical access; not risk in cloud |
 | Insider threat | Any layer can be bypassed | Employee vetting, 2FA, audit review |
 
-This architecture provides **95%+ security** for multi-tenant workloads. Residual risk is mitigated by monitoring, auditing, and prompt patching."
+This architecture provides **defense in depth**: no single control failure results in cross-tenant exposure, since compute, memory, and network isolation are enforced independently. It is not risk-free — the residual risks above remain — but each one requires a distinct, independent failure to become exploitable, and they're mitigated by monitoring, auditing, and prompt patching."
 
 **Key Reasoning Points:**
 
@@ -440,7 +440,7 @@ HIPAA Breach Response (within 60 days):
 6. Attestation to regulators
 ```
 
-This is not optional—HIPAA violations carry $100-1.5M fines per incident."
+This is not optional—HIPAA violations carry per-violation tiered penalties of roughly $100-$50,000, with an annual cap of about $1.5-2M per identical-violation category."
 
 **Key Reasoning Points:**
 
