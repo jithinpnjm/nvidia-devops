@@ -94,3 +94,11 @@ This volume is exceptional depth: worked numeric examples (SM counts, register-f
 
 ### labs/lab-02-inspect-gpu-engine-and-memory-behavior.md
 - No findings. H100 deviceQuery output is internally consistent: 132 SMs x 128 CUDA cores/SM = 16,896 CUDA cores (correct), 5120-bit memory bus, ~50MB L2 cache (52,428,800 bytes), compute capability 9.0 — all accurate for H100. `docker run --gpus all` vs missing `--gpus` NVML failure distinction is correct and a common real-world container GPU troubleshooting scenario.
+
+### labs/lab-03-profile-memory-and-warp-efficiency.md
+- No findings. CUDA microbenchmark code compiles logically sound (contiguous vs strided copy), Nsight Compute metric usage (`l1tex__average_t_sectors_per_request`, L2 hit rate, achieved occupancy) is correctly interpreted, and the lab explicitly models good scientific practice (separating coalescing effect from modulo-arithmetic overhead, illustrative-vs-actual value framing).
+
+### labs/lab-04-build-a-topology-aware-gpu-placement-plan.md
+- No findings. Topology-group design (2x NV4 pairs on separate NUMA nodes with locally-attached NICs) is coherent and cross-validated across `nvidia-smi topo -m`, sysfs `numa_node`, and `lspci`. `nvidia-smi nvlink --status` per-link bandwidth (~26.5 GB/s) is consistent with H100 4th-gen NVLink specs (18 links, ~900GB/s aggregate bidirectional).
+
+**Volume ZTH-02 labs summary:** All 4 labs are technically sound, commands and expected outputs are accurate, and the labs consistently reinforce the "evidence over assumption" methodology from the chapters. No findings requiring fixes.
