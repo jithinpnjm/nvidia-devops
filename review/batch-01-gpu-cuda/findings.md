@@ -136,3 +136,9 @@ Same exceptional depth and style as ZTH-02: worked evidence chains, real command
 
 ### chapter-09-unified-memory-and-demand-paging.md
 - No findings. Managed-memory fault/migrate mechanics, oversubscription-thrashing example (working set crossing device capacity causing throughput collapse from 104GB/s to 9GB/s), and the "single CPU debug print costs 23x the kernel" example are all technically sound and reflect genuine Unified Memory production pitfalls.
+
+### chapter-10-cuda-graphs-and-repeated-execution.md
+- No findings. CUDA Graph node/edge/instantiation/replay model, stream-capture-safety caveats, and the "graphs fix submission overhead, not transfer/kernel time" distinction (backed by an `nsys` example showing 97.3% of time in one large `cudaMemcpyAsync`) are all accurate.
+
+### chapter-11-compilation-binaries-and-compatibility.md
+- No findings. PTX vs SASS distinction, JIT compilation and caching behavior, and the `cuobjdump --list-elf`/`--list-ptx` diagnostic sequence are accurate. sm_80 (A100), sm_86 (A10/A40), sm_90 (H100) compute-capability-to-architecture mappings are correct.

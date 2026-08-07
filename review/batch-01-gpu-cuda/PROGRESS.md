@@ -44,8 +44,8 @@ Status values: pending / in-progress / done
 | ZTH-03 | chapter-07-streams-events-and-asynchronous-execution.md | done | none |
 | ZTH-03 | chapter-08-pinned-memory-and-transfer-overlap.md | done | none |
 | ZTH-03 | chapter-09-unified-memory-and-demand-paging.md | done | none |
-| ZTH-03 | chapter-10-cuda-graphs-and-repeated-execution.md | pending | |
-| ZTH-03 | chapter-11-compilation-binaries-and-compatibility.md | pending | |
+| ZTH-03 | chapter-10-cuda-graphs-and-repeated-execution.md | done | none |
+| ZTH-03 | chapter-11-compilation-binaries-and-compatibility.md | done | none |
 | ZTH-03 | chapter-12-profiling-and-production-troubleshooting.md | pending | |
 | ZTH-03 | chapter-13-volume-03-summary.md | pending | |
 | ZTH-03 | labs/lab-01-inspect-and-validate-a-cuda-environment.md | pending | |
