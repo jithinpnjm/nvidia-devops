@@ -13,15 +13,15 @@ Volumes: ZTH-04 (NVIDIA Hardware Portfolio), ZTH-05 (DGX Systems), ZTH-06 (HGX P
 | ZTH-04 | chapter-06-training-accelerators-v100-to-b200.md | done | 1 medium |
 | ZTH-04 | labs/lab-01-build-a-gpu-selection-scorecard.md | done | none |
 | ZTH-04 | labs/lab-02-benchmark-an-inference-accelerator-shortlist.md | done | none |
-| ZTH-05 | index.md | pending | |
-| ZTH-05 | chapter-01-why-dgx-exists.md | pending | |
-| ZTH-05 | chapter-02-inside-a-dgx-system.md | pending | |
-| ZTH-05 | chapter-03-dgx-management-plane.md | pending | |
-| ZTH-05 | chapter-04-power-cooling-and-rack-readiness.md | pending | |
-| ZTH-05 | chapter-05-dgx-storage-and-data-paths.md | pending | |
-| ZTH-05 | chapter-06-dgx-networking-and-fabric-integration.md | pending | |
-| ZTH-05 | labs/lab-01-build-a-dgx-health-baseline.md | pending | |
-| ZTH-05 | labs/lab-02-validate-dgx-data-and-network-paths.md | pending | |
+| ZTH-05 | index.md | done | 1 low, 1 medium |
+| ZTH-05 | chapter-01-why-dgx-exists.md | done | none |
+| ZTH-05 | chapter-02-inside-a-dgx-system.md | done | none |
+| ZTH-05 | chapter-03-dgx-management-plane.md | done | none |
+| ZTH-05 | chapter-04-power-cooling-and-rack-readiness.md | done | none |
+| ZTH-05 | chapter-05-dgx-storage-and-data-paths.md | done | none |
+| ZTH-05 | chapter-06-dgx-networking-and-fabric-integration.md | done | none |
+| ZTH-05 | labs/lab-01-build-a-dgx-health-baseline.md | done | none |
+| ZTH-05 | labs/lab-02-validate-dgx-data-and-network-paths.md | done | none |
 | ZTH-06 | index.md | pending | |
 | ZTH-06 | chapter-01-why-hgx-exists.md | pending | |
 | ZTH-06 | chapter-02-inside-an-hgx-platform.md | pending | |

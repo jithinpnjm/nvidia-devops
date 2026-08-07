@@ -50,7 +50,40 @@
 
 ## ZTH-05 — DGX Systems
 
-(pending)
+### index.md
+- [SEVERITY: low] Same pattern as ZTH-04: "Planned Chapter Sequence" lists 15 topics (lines 51-65) but only 6 chapters exist. Notably absent as a dedicated chapter: "GPU Fabric: NVLink and NVSwitch" (#3) and "Multi-DGX Cluster Architecture" (#13) — though NVLink/NVSwitch topology is well covered inside chapter-02 and chapter-06 in practice, so this is a navigation/labeling issue more than a content gap for this particular volume.
+  - Evidence: `index.md` lines 49-65 vs. 6 actual chapter files.
+  - Why it matters for JR2018680: minor — the actual chapters compensate for most of the missing topics with strong integrated coverage; mainly a documentation-hygiene issue.
+  - Suggested fix: trim the planned list to match delivered chapters, or note which existing chapter now covers each originally-planned topic.
+
+- [SEVERITY: medium] No coverage of DGX GH200/GB200 NVL72 rack-scale systems anywhere in this volume — all six chapters discuss "a DGX system" and "DGX cluster" in generic/traditional (8-GPU node) terms only; the newer superchip-based, rack-as-a-unit DGX designs (GB200 NVL72, liquid-cooled rack-scale NVLink domain spanning 72 GPUs) are never mentioned. This compounds the batch-wide Grace/GB200 gap noted under ZTH-04.
+  - Evidence: grep for GB200/GH200/NVL72/Superchip across volume-05 returns zero matches.
+  - Why it matters for JR2018680: DGX GB200 NVL72 is NVIDIA's current flagship rack-scale AI system and a very likely interview topic (72-GPU NVLink domain in one rack, liquid cooling as a first-class requirement, not an option) — this volume's power/cooling chapter (ch04) discusses liquid cooling as "one option among considerations" rather than the necessity it is for current-generation rack-scale systems.
+  - Suggested fix: add a section (in ch02 or ch04) contrasting traditional 8-GPU-node DGX with GB200 NVL72's rack-as-a-single-NVLink-domain design and its mandatory liquid cooling.
+
+### chapter-01-why-dgx-exists.md
+- No significant findings. Strong systems-integration argument with realistic multi-layer evidence (driver drift, NVLink degradation) and honest "what DGX does not solve" framing.
+
+### chapter-02-inside-a-dgx-system.md
+- No significant findings. Thorough domain breakdown (compute, fabric, host I/O, network, storage, management, power/cooling) with strong NUMA/topology troubleshooting evidence.
+
+### chapter-03-dgx-management-plane.md
+- No significant findings. Clear BMC vs. host-OS vs. BCM layering with realistic IPMI/Redfish-style evidence and a sound unreachable-node decision tree.
+
+### chapter-04-power-cooling-and-rack-readiness.md
+- No significant findings. Excellent power/cooling depth with concrete worked numbers (nameplate vs. sustained draw, throttle-reason disambiguation) that matches the depth bar this batch is checking for.
+
+### chapter-05-dgx-storage-and-data-paths.md
+- No significant findings. Good treatment of storage roles, GPUDirect Storage caveats, and a strong worked checkpoint-size/I-O-tax calculation.
+
+### chapter-06-dgx-networking-and-fabric-integration.md
+- No significant findings. Strong scale-up/scale-out distinction, realistic NCCL_DEBUG/ibv_devices troubleshooting, and an honest Ethernet-vs-InfiniBand comparison that avoids declaring a false winner.
+
+### labs/lab-01-build-a-dgx-health-baseline.md
+- No significant findings. Realistic, well-annotated baseline-capture lab with a genuinely useful Xid-severity discussion (Xid 79 vs. corrected AER errors).
+
+### labs/lab-02-validate-dgx-data-and-network-paths.md
+- No significant findings. Strong layered acceptance methodology with realistic fio/ethtool/NCCL output and correct bandwidth-scaling interpretation.
 
 ## ZTH-06 — HGX Platform
 
