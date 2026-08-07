@@ -175,3 +175,11 @@
 
 ### chapter-07-kubernetes-scheduling-for-shared-gpus.md
 - [SEVERITY: low] No issues found. Consistent with and complementary to Volume 10 Chapter 4/8's device-plugin and scheduling coverage — this chapter correctly extends rather than duplicates that material by focusing on the service-catalog/resource-naming layer specific to shared-GPU classes. The illustrative Pod manifest (mig-3g.20gb resource, taint/toleration/nodeAffinity triple) and its five-step validation checklist are accurate and precisely scoped. Correctly notes NVIDIA's documented constraint that a container must not request multiple different MIG device *types* together (device received is undefined) while multiple instances of the same type are fine.
+
+### chapter-08-tenant-isolation-security-and-fairness.md
+- [SEVERITY: low] No issues found. The layered tenant-boundary diagram (identity → admission → namespace → network → data → GPU → host) and the plane-scoped threat model (workload/node/management/observability) are thorough and directly answer the "MIG solves multi-tenancy" misconception this JD would probe. The threat-model verification table for two teams sharing a MIG pool (with concrete `nvidia-smi`/`kubectl`/`curl` verification commands per threat) is a strong, reusable structure.
+
+### chapter-09-capacity-planning-and-chargeback.md
+- [SEVERITY: low] No issues found. The capacity-layer chain (physical → configured → allocatable → service → sellable) and the reserve-by-failure-domain table (node-failure/maintenance/rollout/demand-variance/fragmentation reserve) are accurate and precisely the kind of quantitative capacity-planning rigor a Solutions Architect interview would probe. The `N = ceil((D + F) / (A × (1 - H)))` formula is presented correctly as a capacity calculation, not a performance claim, avoiding the arithmetic-overreach problem found in Chapter 3.
+
+**ZTH-11 chapters 1-9 + index reviewed — 10/17 files done; chapters 10-12 and labs 1-4 remaining.**
