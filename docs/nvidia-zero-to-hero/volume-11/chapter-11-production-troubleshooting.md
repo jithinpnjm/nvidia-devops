@@ -111,15 +111,61 @@ Confirm that the exporter, scrape, log, and dashboard paths are fresh enough to 
 
 **Likely blast radius.** One node after a configuration or host event, or an entire standardized pool after a policy or operator change.
 
-**Triage.** Check the node’s physical inventory and host state. Confirm the intended MIG mode and instance inventory. Inspect the discovery path and node advertised resources. Compare with a healthy node that is supposed to use the same layout.
+**Diagnostic commands — run in order:**
+
+```bash
+# Layer 1: Host-side device and MIG state
+SSH_TARGET=gpu-node-1
+ssh $SSH_TARGET ‘nvidia-smi -i 0 --query-gpu=gpu_name,gpu_uuid,mig.mode.current --format=csv’
+# Expected: NVIDIA H100..., GPU-12345678..., Enabled
+# Broken: ...mig.mode.current not available or "Disabled"
+
+# Layer 2: MIG instances actually exist?
+ssh $SSH_TARGET ‘nvidia-smi mig -lgi -i 0’
+# Expected: GPU instances listed with profiles (e.g., 1g.10gb)
+# Broken: "No GPU Instances are currently running on this GPU"
+
+# Layer 3: Kubernetes node sees them?
+kubectl describe node $GPU_NODE | grep -A 20 "Allocated resources"
+kubectl get nodes -o custom-columns=NAME:.metadata.name,MIG_10GB:.status.allocatable.nvidia\\.com/mig-1g\\.10gb,MIG_20GB:.status.allocatable.nvidia\\.com/mig-1g\\.20gb
+# Expected: Resource names present, counts > 0
+# Broken: Resources absent or count is 0
+
+# Layer 4: Device plugin logs
+kubectl logs -n nvidia-driver-install ds/nvidia-device-plugin-daemonset --tail=50 | grep -i "device\|mig\|error"
+# Expected: "discovered MIG instance" logs, no errors
+# Broken: "failed to discover", "cannot list devices"
+
+# Layer 5: Compare against healthy peer
+kubectl describe node gpu-node-2 | grep -A 20 "Allocated resources"
+# Diff against broken node
+```
 
 **Healthy evidence.** The node has the approved mode and layout, the control plane advertises the expected extended resources, and a small approved validation workload can request and initialize the resource.
 
 **Broken evidence.** Instances are absent, the layout differs from the baseline, the plugin cannot discover devices, or node resources changed after a host/runtime event.
 
-**Diagnosis.** Find the first boundary that differs: host visibility, mode/layout, plugin/runtime discovery, or kubelet advertisement. Do not start with a scheduler workaround when the resource is missing at the node.
+**Diagnosis example:**
+- Host shows "Enabled" and instances exist, but node has zero `nvidia.com/mig-*` resources → device-plugin reconciliation issue
+- Host shows "Disabled" mode → configuration changed (was reset? driver updated?)
+- Device plugin shows no errors but node is NotReady → kubelet registration blocked by taints or node conditions
 
-**Safe resolution.** Cordon the affected node or stop new placement if the service requires it. Restore the known-good configuration through the approved maintenance workflow, then revalidate inventory, advertisement, and a representative workload. If recovery requires a drain or reboot, use the workload recovery plan and preserve evidence first.
+**Safe resolution.** Find the first layer that broke:
+```bash
+# If host instances are missing (layer 2 broken):
+# → Node lifecycle event (reboot, driver change): reapply known-good MIG config
+
+# If plugin logs show discovery failure (layer 4 broken):
+# → Restart the device plugin
+kubectl delete pod -n nvidia-driver-install -l app=nvidia-device-plugin
+# Wait 30s, recheck node allocatable
+
+# If nodes are misaligned (layer 5 shows difference):
+# → Cordon the broken node and route work to healthy peers until maintenance window
+kubectl cordon $GPU_NODE
+```
+
+Avoid modifying MIG mode on a node carrying running workloads. Always cordon and drain first.
 
 **Prevention.** Version-control approved layouts, monitor advertised-resource changes, validate discovery after host changes, and retain a healthy comparison pool during rollouts.
 
@@ -143,11 +189,68 @@ Confirm that the exporter, scrape, log, and dashboard paths are fresh enough to 
 
 **Likely blast radius.** Co-tenants on one device or an entire oversubscribed pool.
 
-**Triage.** Establish the workload class and its stated guarantee. Correlate application latency, errors, queueing, memory use, physical device activity, concurrent allocations, and the configured replica policy. Compare against a controlled low-concurrency baseline where safe.
+**Diagnostic commands — preserve time correlation:**
 
-**Diagnosis.** Time-slicing shares a physical GPU and does not establish memory isolation between clients. The issue may be expected contention, a workload memory change, an incorrect admission decision, or an unrelated application regression. Scheduler success alone does not select among those causes.
+```bash
+# Baseline: establish what changed
+# Capture the start time
+INCIDENT_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+echo "Incident start time: $INCIDENT_TIME"
 
-**Safe resolution.** Protect latency-sensitive or memory-sensitive tenants by moving them to their approved dedicated or MIG service class, reducing admission, or restoring the tested concurrency policy. Avoid raising replica counts to reduce queueing without measuring the service impact.
+# Verify concurrency and policy
+kubectl get nodes gpu-node-1 -o jsonpath='{.status.allocatable}' | jq '.["nvidia.com/gpu"]'
+# Expected: matches device-plugin replica config (e.g., 4, 8, 16)
+
+# List running pods on the device
+kubectl get pods -A -o wide | grep gpu-node-1 | head -20
+# Count actual pods vs replicas available
+
+# Application-level metrics (service-specific)
+# Example for inference service:
+kubectl logs deployment/inference-endpoint --tail=100 | grep "latency_p99\|queue_depth"
+# Example for notebooks:
+curl -s http://notebook-service:8000/metrics | grep latency_p99_ms
+
+# GPU-level activity (host-side)
+SSH_HOST=gpu-node-1
+ssh $SSH_HOST 'nvidia-smi --query-gpu=name,memory.used,memory.total,clocks.current.sm,power.draw --format=csv -l 2' | tee /tmp/gpu-activity.txt
+# Watch for 3-5 seconds; abort with Ctrl+C
+# Expected under light load: memory < 60%, clocks stable, power steady
+# Broken under contention: memory > 80%, clocks reduced (thermal throttle?), power spikes
+
+# Process-level breakdown (can be difficult with time-slicing attribution)
+ssh $SSH_HOST 'nvidia-smi --query-processes=pid,process_name,gpu_memory_usage --format=csv'
+# Time-slicing limitation: can't cleanly attribute which pod owns which process
+# Look for: total memory > GPU capacity, many CUDA processes
+
+# Determine if it's truly memory contention or expected time-sharing
+ssh $SSH_HOST 'cat /proc/meminfo | grep -E "MemTotal|MemAvailable|SwapFree"'
+# Check if host RAM is constrained (pods spilling to host memory = slower)
+```
+
+**Diagnosis checklist:**
+- Is memory > 95% → memory contention confirmed
+- Is p99 latency higher now but concurrency unchanged → config drift (model weights grown?)
+- Is latency unstable but average looks OK → memory pressure causing GC/reclamation spikes
+- Are application errors "CUDA out of memory" → workload changed; profile is too small
+
+**Safe resolution:**
+```bash
+# Immediate containment
+# Move one sensitive service to protected pool (MIG or dedicated)
+kubectl patch deployment critical-service -p '{"spec":{"nodeSelector":{"gpu.sharing":"dedicated"}}}'
+
+# Measure the improvement
+# Wait 5min, compare p99 latency, queue depth vs baseline
+
+# If it recovers: the issue was contention from co-tenants
+# → Route less-critical work elsewhere or reduce replicas until shared pool is stable
+
+# If it doesn't improve: the issue is workload-specific (model grew, regression)
+# → Check deployment history, model versions, framework updates
+```
+
+Avoid raising replica counts to reduce queueing without measuring the service impact.
 
 **Prevention.** Use workload-specific concurrency tests, enforce service-class admission, and make the best-effort contract explicit.
 

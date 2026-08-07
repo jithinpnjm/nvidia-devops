@@ -84,6 +84,71 @@ An SLI is a measured signal tied to a user-facing or operator-facing promise. It
 
 Set an SLO only when the platform controls enough of the delivery chain and has an agreed response when it is missed. A best-effort pool can still have an availability target and a documented access objective; it should not inherit a latency SLO that its sharing model and admission policy cannot enforce.
 
+**Concrete metric definitions and Prometheus queries:**
+
+For a reserved MIG inference service with p99 latency SLO < 100ms:
+
+```yaml
+# Define what success looks like
+sli_mig_inference_request_success: |
+  rate(inference_requests_total{service="mig-inference", status="success"}[5m])
+  / rate(inference_requests_total{service="mig-inference"}[5m])
+  # Expected: > 99.5%
+
+sli_mig_inference_p99_latency: |
+  histogram_quantile(0.99, rate(inference_request_duration_ms_bucket[5m]))
+  # Expected: < 100ms; breach if > 120ms
+
+# Distinguish allocation failure from execution failure
+mig_pod_allocation_rate: |
+  rate(pod_scheduling_attempts_total{resource="nvidia.com/mig-1g.20gb"}[5m])
+  # Track how many pods are actually being scheduled
+
+mig_pod_pending_reasons: |
+  count by (reason) (kube_pod_container_status_state{state="pending"})
+  # "Insufficient nvidia.com/mig-1g.20gb" = profile shortage
+  # Other reasons = policy/affinity issues
+```
+
+For a best-effort time-sliced pool:
+
+```yaml
+# Queue time instead of latency (it's shared access, not exclusive)
+timeslice_queue_time_p95: |
+  histogram_quantile(0.95, rate(gpu_queue_wait_seconds_bucket{pool="time-sliced"}[10m]))
+  # Expected: < 30 seconds
+
+# Visibility into contention
+timeslice_concurrent_workloads: |
+  count(kube_pod_running{node_pool="time-sliced-gpu"})
+  # Correlate with application p99 to establish safe concurrency range
+  
+# Memory pressure indicator
+timeslice_memory_utilization: |
+  nvidia_smi_memory_used_mib{gpu_index="0"}
+  / nvidia_smi_memory_total_mib{gpu_index="0"}
+  # If > 90% for sustained period with high concurrency = expected contention
+```
+
+For platform foundation (infrastructure health):
+
+```yaml
+# Device availability
+gpu_device_available: |
+  count(nvidia_smi_memory_total_mib)
+  # Alert if count drops unexpectedly
+
+# Resource advertisement correctness
+mig_resource_advertised: |
+  count(kube_allocatable{resource=~"nvidia.com/mig.*"})
+  # Alert if count mismatches approved layout
+
+# Telemetry freshness (critical for SLO validation)
+dcgm_exporter_scrape_age_seconds: |
+  time() - scrape_timestamp_seconds{job="dcgm-exporter"}
+  # Alert if > 120 seconds (staleness = uncertainty)
+```
+
 ### Error budgets without invented precision
 
 An error budget is the permitted amount of SLO failure in a defined window. The numerical target is a business decision backed by measured service behavior, not an NVIDIA hardware property. For a new service, begin with an observation period and a proposed objective, publish the measurement definition, and revise it after evidence from representative demand.
