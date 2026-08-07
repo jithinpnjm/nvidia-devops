@@ -57,6 +57,19 @@ flowchart TD
     G2_1 --> Switch1
 ```
 
+### Worked Example: Cross-Node Bandwidth vs. Intra-Node NVLink
+
+Take an 8-GPU H100 node where each GPU is paired 1:1 with its own 400 Gbps InfiniBand NDR NIC in a rail-optimized fabric (the standard DGX SuperPOD-style layout).
+
+```
+Per-GPU cross-node bandwidth: 400 Gbps = 50 GB/s (using 1 Gbps = 0.125 GB/s)
+Aggregate cross-node bandwidth for all 8 GPUs in the node: 8 × 50 GB/s = 400 GB/s
+
+Compare to intra-node NVLink: ~900 GB/s aggregate per GPU (established in Chapter 3)
+```
+
+Cross-node bandwidth (400 GB/s aggregate across 8 GPUs, i.e. 50 GB/s per GPU) is roughly 18x lower *per GPU* than intra-node NVLink (900 GB/s per GPU). This is precisely why Chapter 6's TP-across-nodes failure scenario showed a 16.7x slowdown when Tensor Parallelism — which needs an All-Reduce every layer — was mistakenly allowed to cross the node boundary: the math above is the hardware reason that misconfiguration is so costly, and it's why the rail-optimized design in this chapter exists specifically to make the *inter-node* hop (Pipeline Parallelism activations, Data Parallelism gradient sync) as cheap as possible, while leaving the latency-sensitive TP All-Reduce confined to NVLink. The 400 Gbps/NIC figure is representative of an NDR InfiniBand rail-optimized design; actual per-GPU cross-node bandwidth varies by IB generation (HDR = 200 Gbps, NDR = 400 Gbps) and NIC-to-GPU ratio, so always confirm against your specific fabric's `ibstat` output rather than assuming a fixed number.
+
 ## WHEN
 
 You must use RDMA (Remote Direct Memory Access) over InfiniBand or RoCE v2 when standard TCP/IP over Ethernet is too slow. At 400Gbps, the CPU overhead of processing the TCP stack would overwhelm the system. RDMA allows GPU 0 on Node 1 to write data directly into the memory of GPU 0 on Node 2, completely bypassing the CPU and OS kernel.
@@ -216,6 +229,16 @@ Putting the whole stack together, a training engineer's mental model for "launch
 **Q: "Walk me through how you'd launch a multi-node training job on a Slurm-managed GPU cluster."**
 
 **Model Answer (first-person):** "I think of it as three layers stacked on top of each other. At the bottom, Slurm is the scheduler — I write an `sbatch` script requesting the nodes and GPUs I need, say `--nodes=4 --gres=gpu:8`, and `slurmctld` queues it until it can allocate 4 whole GPU nodes together. On top of that allocation, if I need a specific container image — say the NGC PyTorch container with a pinned CUDA/NCCL version — I don't manage that by hand; I let Pyxis do it, by passing `--container-image` to `srun`. Pyxis uses Enroot to start that container on every allocated node, unprivileged, scoped to exactly the GPUs Slurm gave that node. Inside the container, I launch `torchrun`, and that's the third layer: it reads the Slurm-provided environment — `SLURM_NODEID`, `SLURM_PROCID`, the node list — to figure out each process's rank and the job's world size, and forms the actual NCCL process group for gradient All-Reduce. So the mental chain is: Slurm decides *which physical GPUs*, Pyxis/Enroot decides *what software environment runs on them*, and `torchrun`/NCCL decides *how the processes talk to each other*. If a node dies mid-job, Slurm can't repair the running process group — the job fails and I rely on periodic checkpointing to resume on a fresh allocation rather than losing all progress."
+
+## Interview Preparation
+
+**Conceptual:** "Why does a rail-optimized network topology exist instead of just connecting every node to a single large switch?"
+
+**Model Answer:** "A single large switch has to arbitrate traffic from every GPU on every node contending for the same shared fabric, which creates unpredictable congestion as cluster size grows — that's fine for general data center traffic, but distributed training generates a very specific, structured communication pattern where GPU 0 across all nodes needs to talk to other GPU 0s at the same time, GPU 1s to GPU 1s, and so on, because that's how hierarchical All-Reduce and pipeline communication are structured. Rail-optimized design gives each GPU index its own dedicated, non-blocking switch fabric, so GPU 0's traffic across the whole cluster never contends with GPU 1's traffic. Combined with a 1:1 GPU-to-NIC mapping and GPU-Direct RDMA, this turns what would be a shared, congested resource into 8 independent, predictable, high-bandwidth fabrics — which matters enormously because collective operations are synchronous: if any one rail is congested, every GPU using that rail stalls, and because collectives block on the slowest participant, the whole training step stalls with it."
+
+**Troubleshooting:** "You've confirmed via `nvidia-smi topo -m` that GPU-NIC affinity is correct on every node, and `ibstat` shows all IB ports active. Cross-node All-Reduce is still 3x slower than expected. What do you check next?"
+
+**Model Answer:** "With topology and link state both healthy, I'd move up a layer, from 'is the physical path there' to 'is it lossless and uncongested.' For RoCE v2 specifically, I'd check whether Priority Flow Control is actually enabled end-to-end on every switch hop, not just configured on paper — a single hop with PFC disabled turns the fabric lossy, and RDMA's retransmission behavior under packet loss is far worse than TCP's, so even occasional drops tank throughput disproportionately. For InfiniBand, I'd check the Subnet Manager's routing table and switch port counters (`ibportstate ... LinkErrorRecoveryCounter`) for symbol errors or discards, which point at a marginal cable or transceiver rather than a full link failure — the link can report 'active' while still degrading throughput. I'd also rule out noisy-neighbor contention: if this is a shared multi-tenant fabric, another job's traffic sharing the same physical rail can silently steal bandwidth even when your own topology and link health are perfect."
 
 ## TROUBLESHOOTING
 
