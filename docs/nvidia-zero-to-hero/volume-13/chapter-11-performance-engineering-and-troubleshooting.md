@@ -5,7 +5,15 @@ sidebar_position: 12
 tags: [performance, profiling, troubleshooting, mfu]
 ---
 
-# Performance Engineering and Troubleshooting
+# Chapter 11: Performance Engineering and Troubleshooting
+
+| Chapter metadata | Value |
+|---|---|
+| Volume | 13 — Distributed Training Foundations |
+| Difficulty | Expert |
+| Estimated reading time | 80 minutes |
+| Primary audience | Performance Engineers, Infrastructure Specialists, ML Platform Teams |
+| Core question | How do we measure and optimize GPU utilization in distributed training? |
 
 ## WHY
 

@@ -5,7 +5,15 @@ sidebar_position: 11
 tags: [multi-node, architecture, infiniband, roce, topology]
 ---
 
-# Multi-Node Training Architecture
+# Chapter 10: Multi-Node Training Architecture
+
+| Chapter metadata | Value |
+|---|---|
+| Volume | 13 — Distributed Training Foundations |
+| Difficulty | Advanced |
+| Estimated reading time | 65 minutes |
+| Primary audience | Infrastructure Architects, Network Engineers, Platform Teams |
+| Core question | How do we design networks for thousands-of-GPU training clusters? |
 
 ## WHY
 

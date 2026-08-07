@@ -5,7 +5,15 @@ sidebar_position: 10
 tags: [checkpointing, failure-recovery, distributed-systems]
 ---
 
-# Checkpointing and Recovery
+# Chapter 09: Checkpointing and Recovery
+
+| Chapter metadata | Value |
+|---|---|
+| Volume | 13 — Distributed Training Foundations |
+| Difficulty | Advanced |
+| Estimated reading time | 55 minutes |
+| Primary audience | MLOps, Infrastructure Engineers, SREs |
+| Core question | How do we save and resume training across thousands of GPUs with minimal time loss? |
 
 ## WHY
 

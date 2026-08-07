@@ -7,6 +7,14 @@ tags: [megatron-lm, model-parallelism, llm-training]
 
 # Chapter 07: Megatron-LM Architecture
 
+| Chapter metadata | Value |
+|---|---|
+| Volume | 13 — Distributed Training Foundations |
+| Difficulty | Expert |
+| Estimated reading time | 70 minutes |
+| Primary audience | Infrastructure Engineers specializing in LLM training |
+| Core question | How do we coordinate 3D parallelism across thousands of GPUs? |
+
 ## WHY
 
 While PyTorch provides the primitives (DDP, FSDP, RPC), training the world's absolute largest models requires a hyper-optimized, custom implementation of the Transformer architecture built natively for 3D parallelism. You need extreme control over memory allocations, CUDA kernels, and communication overlap.
