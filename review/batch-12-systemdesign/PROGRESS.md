@@ -4,19 +4,19 @@ Volumes: F-08 (`docs/volume-08`), F-09 (`docs/volume-09`), ZTH-23 (`docs/nvidia-
 
 | Volume | File | Status | Severity Summary |
 |---|---|---|---|
-| F-08 | 01-chapter-1-discovery-that-changes-the-architecture.md | pending | |
-| F-08 | 02-chapter-2-architecture-from-data-and-control-paths.md | pending | |
-| F-08 | 03-chapter-3-trade-off-matrices-with-weighted-requirements.md | pending | |
-| F-08 | 04-chapter-4-kubernetes-versus-slurm-decision-workshop.md | pending | |
-| F-08 | 05-chapter-5-gpu-sharing-and-capacity-recommendation.md | pending | |
-| F-08 | 06-chapter-6-poc-design-test-uncertainty-not-product-demos.md | pending | |
-| F-08 | 07-chapter-7-tco-and-capacity-conversations.md | pending | |
-| F-08 | 08-chapter-8-security-architecture-and-governance.md | pending | |
-| F-08 | 09-chapter-9-migration-and-adoption-strategy.md | pending | |
-| F-08 | 10-chapter-10-customer-communication-and-executive-explanation.md | pending | |
-| F-08 | 11-senior-deep-dive-1-workload-characterization-before-architecture.md | pending | |
-| F-08 | 12-senior-deep-dive-2-ai-factory-layered-architecture.md | pending | |
-| F-08 | 13-senior-deep-dive-3-capacity-and-tco-convert-slo-into-resources.md | pending | |
+| F-08 | 01-chapter-1-discovery-that-changes-the-architecture.md | done | none |
+| F-08 | 02-chapter-2-architecture-from-data-and-control-paths.md | done | none |
+| F-08 | 03-chapter-3-trade-off-matrices-with-weighted-requirements.md | done | none |
+| F-08 | 04-chapter-4-kubernetes-versus-slurm-decision-workshop.md | done | 1 low |
+| F-08 | 05-chapter-5-gpu-sharing-and-capacity-recommendation.md | done | none |
+| F-08 | 06-chapter-6-poc-design-test-uncertainty-not-product-demos.md | done | none |
+| F-08 | 07-chapter-7-tco-and-capacity-conversations.md | done | none |
+| F-08 | 08-chapter-8-security-architecture-and-governance.md | done | none |
+| F-08 | 09-chapter-9-migration-and-adoption-strategy.md | done | none |
+| F-08 | 10-chapter-10-customer-communication-and-executive-explanation.md | done | none |
+| F-08 | 11-senior-deep-dive-1-workload-characterization-before-architecture.md | done | none |
+| F-08 | 12-senior-deep-dive-2-ai-factory-layered-architecture.md | done | none |
+| F-08 | 13-senior-deep-dive-3-capacity-and-tco-convert-slo-into-resources.md | done | none |
 | F-08 | 14-senior-deep-dive-4-poc-design-test-the-uncertainty.md | pending | |
 | F-08 | 15-senior-deep-dive-5-security-and-governance-for-gpu-ai-platforms.md | pending | |
 | F-08 | 16-senior-deep-dive-6-decision-workshops-kubernetes-slurm-run-ai-nim-and-dynamo.md | pending | |
