@@ -1,6 +1,26 @@
 # Batch 07 — AI Workloads & Training — Findings
 
-(Summary to be written at top once review is complete.)
+## Summary
+
+Reviewed all 51 files across F-05 (`docs/volume-05`, 17 chapters), ZTH-12 (`docs/nvidia-zero-to-hero/volume-12`, index + 12 chapters + 4 labs), and ZTH-13 (`docs/nvidia-zero-to-hero/volume-13`, index + 12 chapters + 4 labs). Two low-risk mechanical fixes were applied inline (see below); everything else is filed as findings only.
+
+**Counts by severity:** 3 high · 9 medium · 42 low (54 total finding entries; some sections have more than one).
+
+**Overall quality:** F-05 and ZTH-12 are excellent — both are already at or above the Volume-1 gold-standard bar, with real worked arithmetic (KV-cache formulas, cost-per-token math, communication-volume formulas), annotated CLI/log output, and first-person interview answers. ZTH-13 starts at the same bar for chapters 1-6 but has real problems: two independent memory/communication-math errors, a content-duplication bug, a volume-wide trailing-whitespace artifact, a depth-bar drop-off from chapter 7 onward, and all four labs sharing template boilerplate that doesn't match their actual lab content.
+
+**Top 5 findings for interview prep:**
+
+1. **[HIGH] ZTH-13 ch03 — Ring AllReduce communication-volume math is wrong by ~8x.** The chapter computes "336 GB total traffic / 373 ms" for a 28GB gradient tensor across 4 GPUs on NVLink; the correct ring-AllReduce formula (`2×(N-1)/N × size`) gives ~42GB per GPU / ~47ms. This is exactly the "communication volume per collective operation" math the interview brief calls out — memorizing this page's number would produce a wrong answer under direct questioning. (`docs/nvidia-zero-to-hero/volume-13/chapter-03-data-parallelism-and-ddp.md`)
+2. **[HIGH] ZTH-13 ch04 — FSDP Stage 1 memory total is arithmetically wrong (210GB stated vs. 350GB correct), which flips the chapter's own comparative conclusion** ("Stage 2 worse than Stage 1!" is backwards once corrected — more sharding should mean less memory, and does, once the math is fixed). (`docs/nvidia-zero-to-hero/volume-13/chapter-04-fsdp-and-parameter-sharding.md`)
+3. **[HIGH] ZTH-13 labs 1-4 — all four labs share ~13 of 18 sections as identical boilerplate**, producing factually mismatched instructions (e.g., Lab 02's NCCL-benchmark lab tells you to validate "checkpoint integrity" and clean up `torchrun`/checkpoint artifacts that lab never creates). This falls well short of ZTH-12's labs, which are fully worked and lab-specific — the gold-standard bar this same volume's index.md claims to meet.
+4. **[MEDIUM] ZTH-13 ch05 — ZeRO Stage 2 memory total off by 5GB (50GB stated vs. 55GB correct)**, which also skews the stated reduction factor (3.2x vs. correct ~2.9x). Same category of error as #2, smaller magnitude. (`docs/nvidia-zero-to-hero/volume-13/chapter-05-deepspeed-and-zero.md`)
+5. **[MEDIUM] F-05 ch2 lacks the actual AllReduce communication-volume formula** that ZTH-12 ch05 and ZTH-13 (once corrected) both center on — worth cross-referencing in a future authoring pass so the foundational volume doesn't skip the one formula interviewers are most likely to ask for directly. (`docs/volume-05/02-chapter-2-training-architecture-compute-data-checkpoints-and-collectives.md`)
+
+**Mechanical fixes applied inline (no substantive content changed):**
+- `ZTH-13/chapter-11-performance-engineering-and-troubleshooting.md`: removed a verbatim-duplicated "Scenario 2: Severe Straggler Node" section (same class of bug commit d99bb03 fixed for chapters 1-3, missed here).
+- `ZTH-13/chapter-06` through `chapter-12` (7 files): trimmed large blocks of trailing blank lines (69-263 blank lines per file) left over from a prior edit pass.
+
+**Other notable items:** ZTH-13's depth (worked scenarios, first-person interview Q&A, annotated failure logs) drops off noticeably after chapter 6 — chapters 7-12 are technically accurate but thinner against this volume's own chapters 1-6. ZTH-13 index.md also has a generic "Detailed Deep Dive" filler tail inconsistent with the rest of the page. Full per-chapter detail below.
 
 ## F-05 — docs/volume-05 (AI Workloads and AI Platform Architecture)
 
