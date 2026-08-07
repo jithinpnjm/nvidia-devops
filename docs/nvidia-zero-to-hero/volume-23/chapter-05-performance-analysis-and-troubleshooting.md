@@ -48,30 +48,30 @@ Performance|       Compute Ceiling
 **Example: H100 GPU**
 
 ```
-Peak compute: 989 TFLOPS (FP32)
+Peak compute: 67 TFLOPS (H100 FP32, CUDA core, non-tensor, dense). Note: 989 TFLOPS is H100's dense FP16/BF16 **Tensor Core** peak — a different precision and execution path. Using the Tensor Core number for an FP32 CUDA-core roofline would silently multiply the compute ceiling (and the crossover point) by ~15×, so keep precision consistent throughout.
 Peak bandwidth: 2 TB/s = 2000 GB/s
 
-Crossover point: 989 TFLOPS ÷ 2000 GB/s = 0.495 FLOP/byte
+Crossover point: 67 TFLOPS ÷ 2000 GB/s = 67×10¹² ÷ 2×10¹² = 33.5 FLOP/byte
 
 Kernels with:
-- Intensity < 0.495 FLOP/byte → Memory-bound
-- Intensity > 0.495 FLOP/byte → Compute-bound
+- Intensity < 33.5 FLOP/byte → Memory-bound
+- Intensity > 33.5 FLOP/byte → Compute-bound
 ```
 
 **Real workload examples:**
 
 | Workload | Arithmetic Intensity | Bottleneck | Ceiling |
 |---|---|---|---|
-| Element-wise add | 0.03 FLOP/byte | Memory | ~60 GFLOPS |
-| Matrix multiply (n=1024) | 1 FLOP/byte | Compute | 500 GFLOPS (at 250 GB/s effective BW) |
-| Tiled matrix multiply | 32 FLOP/byte | Compute | 989 GFLOPS (full H100 compute) |
-| Deep learning inference (batched) | 10 FLOP/byte | Compute | 989 GFLOPS |
+| Element-wise add | 0.03 FLOP/byte | Memory | 60 GFLOPS (0.03 × 2000 GB/s) |
+| Matrix multiply (n=1024) | 1 FLOP/byte | Memory | 2 TFLOPS (1 × 2000 GB/s; far below the 67 TFLOPS compute peak) |
+| Tiled matrix multiply | 32 FLOP/byte | Memory (borderline — just under the ~33.5 FLOP/byte crossover) | 64 TFLOPS (32 × 2000 GB/s; just under the 67 TFLOPS compute peak) |
+| Deep learning inference (batched) | 10 FLOP/byte | Memory | 20 TFLOPS (10 × 2000 GB/s) |
 
 ## Interview Questions
 
 ### Question 1: Roofline Model Application
 
-**Scenario:** "You profile a ResNet inference kernel. You measure: 150 GFLOPS actual throughput, 1.2 TB/s memory bandwidth utilization. Peak GPU has 989 TFLOPS compute and 2 TB/s bandwidth. Is your kernel compute-bound or memory-bound? What's your optimization strategy?"
+**Scenario:** "You profile a ResNet inference kernel. You measure: 150 GFLOPS actual throughput, 1.2 TB/s memory bandwidth utilization. Peak GPU has 67 TFLOPS FP32 (CUDA core) compute and 2 TB/s bandwidth. Is your kernel compute-bound or memory-bound? What's your optimization strategy?"
 
 **Model Answer (3.5 minutes):**
 
@@ -84,7 +84,7 @@ Arithmetic Intensity = Measured GFLOPS / Measured Bandwidth
                      = 0.125 FLOP/byte
 ```
 
-Roofline crossover is at 989 TFLOPS ÷ 2 TB/s = 0.495 FLOP/byte.
+Roofline crossover is at 67 TFLOPS ÷ 2 TB/s = 33.5 FLOP/byte.
 
 My kernel intensity (0.125) is **below the crossover**, so it's **memory-bound**.
 
@@ -140,11 +140,11 @@ If memory bandwidth doesn't improve, bottleneck is elsewhere (CPU-GPU transfer, 
 | Roofline crossover | Determines where to optimize (compute vs. memory) |
 | Arithmetic intensity from measurements | Tells you if you're efficiently using memory |
 | Memory bandwidth saturation | If not saturated but memory-bound, optimize access patterns |
-| Diminishing returns | At 150 GFLOPS on 989 TFLOPS GPU, there's 6.6× room to grow |
+| Diminishing returns | At 150 GFLOPS against this kernel's own memory-bound ceiling of 250 GFLOPS, there's only ~1.67× room to grow through memory-efficiency work — not toward the 67 TFLOPS compute peak, which is unreachable without an algorithmic change that raises arithmetic intensity |
 
-**Follow-up Trap:** "If I add more parallelism, can I achieve 989 TFLOPS?"
+**Follow-up Trap:** "If I add more parallelism, can I achieve the GPU's full 67 TFLOPS FP32 peak?"
 
-**Corrective answer:** "No, because intensity is fixed. Max achievable = 0.125 × 2000 = 250 GFLOPS (if memory is fully saturated). Parallelism doesn't change arithmetic intensity. To get closer to 989 TFLOPS, I'd need to change the algorithm to increase intensity (e.g., fuse multiple operations)."
+**Corrective answer:** "No, because intensity is fixed. Max achievable = 0.125 FLOP/byte × 2000 GB/s = 250 GFLOPS (if memory is fully saturated). Parallelism doesn't change arithmetic intensity. To get closer to the 67 TFLOPS compute peak, I'd need to change the algorithm to increase intensity (e.g., fuse multiple operations) — memory-side optimizations alone can only get me from 150 GFLOPS up to the 250 GFLOPS memory ceiling, still 268× below the compute peak."
 
 **Verification Point:** Can the candidate apply roofline model, calculate intensity from measurements, and propose targeted optimizations?
 
