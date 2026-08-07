@@ -242,3 +242,10 @@ Note: all chapter/lab filenames literally say "placeholder" but every file check
   - Why it matters for JR2018680: system-level tuning commands (`nvidia-smi -lgc`) with wrong target clock values are exactly the kind of hands-on detail that would be probed in a bare-metal/hardware round; PCIe bandwidth per-direction vs bidirectional is a common point of confusion this chapter should model correctly rather than repeat.
   - Suggested fix: correct max boost clock to ~1.98 GHz (matching the "nominal" figure — H100 doesn't have a materially higher boost state) and correct PCIe 5.0 x16 to ~64 GB/s per direction (128 GB/s bidirectional aggregate).
 - Otherwise a strong chapter: correct 700W H100 SXM5 TDP, correct throttle-at-80°C/shutdown-at-87°C framing, good NUMA/PCIe topology-awareness worked example with plausible latency numbers (400ns local vs 1200ns cross-socket), sound `nvidia-smi topo -m` interpretation guide.
+
+### chapter-11-placeholder.md (Production Performance Monitoring and SLOs)
+- No findings. Good SLO YAML structure (latency percentiles, throughput bounds, availability, cost-per-token), sound trend-based regression-detection code (compare to 7-day baseline, not just static threshold), correct tail-latency diagnosis reasoning. Consistent with F-07's SLO philosophy (measurable + actionable, not "fast").
+
+### chapter-12-placeholder.md (Volume Summary and Decision Trees)
+- [SEVERITY: low] Repeats the "141 TFLOPS" H100 FP32 peak figure once more in the worked 70B-model optimization journey (line 98, "1200 GFLOPS / 141 TFLOPS peak = 8.5%") — inherited from Ch.03's root-cause finding, not a new error. Not re-detailed.
+- Otherwise an excellent capstone chapter: the unified decision tree correctly routes to the right chapter per bottleneck class, the technique catalog's speedup ranges are plausible and consistent with individual chapters' worked examples, and the "Real Optimization Journey" walkthrough's arithmetic checks out internally (100→109→145→160→185 samples/sec, each step's stated percentage gain matches the before/after numbers).

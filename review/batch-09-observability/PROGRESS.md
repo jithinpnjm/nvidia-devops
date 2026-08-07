@@ -51,8 +51,8 @@ Volumes: F-07 (`docs/volume-07`), ZTH-16 (`docs/nvidia-zero-to-hero/volume-16`),
 | ZTH-17 | chapter-08-placeholder.md | done | high x1 |
 | ZTH-17 | chapter-09-placeholder.md | done | none |
 | ZTH-17 | chapter-10-placeholder.md | done | medium x1 |
-| ZTH-17 | chapter-11-placeholder.md | pending | |
-| ZTH-17 | chapter-12-placeholder.md | pending | |
+| ZTH-17 | chapter-11-placeholder.md | done | none |
+| ZTH-17 | chapter-12-placeholder.md | done | low x1 (repeat) |
 | ZTH-17 | labs/lab-01-placeholder.md | pending | |
 | ZTH-17 | labs/lab-02-placeholder.md | pending | |
 | ZTH-17 | labs/lab-03-placeholder.md | pending | |
