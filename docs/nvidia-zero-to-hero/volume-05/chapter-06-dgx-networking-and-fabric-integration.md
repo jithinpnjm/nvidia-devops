@@ -220,21 +220,21 @@ A customer wants to place storage and distributed training traffic on the same h
 
 ### Architecture question
 
-Why can a high-bandwidth network still provide poor distributed training performance?
+**Why can a high-bandwidth network still provide poor distributed training performance?**
 
-Discuss topology, congestion, message size, rank placement, transport selection, NUMA, application synchronization, and storage interference.
+"Because bandwidth is a ceiling, not a guarantee — the collective only goes as fast as its slowest contributing path, and there are a lot of ways to be slow that have nothing to do with the link speed printed on the NIC. Rank placement that ignores GPU-to-NIC topology can force half a job's traffic across a cross-socket hop even on a 400Gb/s fabric. Congestion from storage or another tenant sharing the same switch can add latency that a synchronous collective can't absorb. Small message sizes can leave a fast fabric mostly idle because the job is latency-bound, not bandwidth-bound, at that message size. I've seen a nominally 400Gb/s fabric deliver training performance that looked more like a 100Gb/s one purely because rank placement wasn't topology-aware — the fabric was never the bottleneck, the mapping onto it was."
 
 ### Troubleshooting question
 
-Local NCCL tests pass but multi-node tests fail. What is your sequence?
+**Local NCCL tests pass but multi-node tests fail. What is your sequence?**
 
-Validate physical and IP/RDMA connectivity, interface consistency, container device exposure, topology, point-to-point GPU communication, then collectives.
+"I'd move outward in layers rather than jump straight to NCCL debug logs. First, plain connectivity — can the hosts reach each other at the IP layer, is DNS or hostname resolution consistent, is a firewall rule blocking a control port. Then interface and RDMA device consistency — same NIC naming, same driver version, and critically, is the RDMA device actually visible *inside the container* if this is containerized, because host-level visibility and container-level visibility are different questions. Only after those pass would I run `NCCL_DEBUG=INFO` and read what transport it actually selected — if it silently fell back from `NET/IB` to `NET/Socket`, that's the answer right there, and it would have looked like a generic hang without the debug log to say so."
 
 ### Customer question
 
-Should management and compute traffic share a network?
+**Should management and compute traffic share a network?**
 
-They can share physical infrastructure in some designs, but security, failure isolation, QoS, capacity, and operational risk must be evaluated explicitly.
+"It's possible, but I wouldn't default to it without an explicit conversation about the trade-off. Sharing physical infrastructure can simplify the build and reduce cost, but it means congestion on your compute fabric can degrade your ability to manage the cluster at the exact moment something's already going wrong — and a security boundary between tenant workload traffic and administrative control becomes harder to enforce. My default recommendation is to keep them logically or physically separate unless there's a specific capacity or cost constraint that makes convergence the right call, and even then I'd want QoS guarantees on the management path so it can't be starved out."
 
 ## Key Takeaways
 
