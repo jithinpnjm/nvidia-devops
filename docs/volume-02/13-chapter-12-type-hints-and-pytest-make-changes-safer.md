@@ -73,7 +73,7 @@ Common annotations in this repository:
 |---|---|---|
 | `list[str]` | ordered list of strings | host names |
 | `dict[str, int]` | string keys and integer values | GPU counts by node |
-| `str | None` | string or explicit absence | optional API field |
+| `str \| None` | string or explicit absence | optional API field |
 | `tuple[str, str]` | fixed two-item result | `(name, status)` |
 | `Mapping[str, object]` | read-only mapping-like input | parsed configuration |
 | `TypedDict` | expected dictionary keys | JSON record boundary |
