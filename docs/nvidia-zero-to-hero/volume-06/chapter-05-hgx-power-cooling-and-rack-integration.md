@@ -37,18 +37,19 @@ After completing this chapter, you will be able to:
 
 ```mermaid
 flowchart LR
-    Utility[Facility Power]
-    PDU[Rack PDU]
-    PSU[Server Power Supplies]
-    Components[GPU, CPU, Memory, NIC, Storage]
-    Cooling[Air or Liquid Cooling]
-    Facility[Facility Heat Rejection]
+    Utility[Facility Power] -->|"evidence: PDU input voltage/phase<br/>within rated range, both feeds live"| PDU[Rack PDU]
+    PDU -->|"evidence: ipmitool sdr — PSU load<br/>per feed within rated continuous limit"| PSU[Server Power Supplies]
+    PSU -->|"evidence: nvidia-smi -q -d POWER —<br/>draw tracks workload phase, not flat-capped"| Components[GPU, CPU, Memory, NIC, Storage]
+    Components -->|"evidence: 30+ min soak, throttle<br/>reasons stay Not Active throughout"| Cooling[Air or Liquid Cooling]
+    Cooling -->|"evidence: supply/return delta-T and<br/>flow within CDU spec, inlet temp stable"| Facility[Facility Heat Rejection]
 
-    Utility --> PDU --> PSU --> Components
-    Components --> Cooling --> Facility
+    Decision{"Sustained load, not just<br/>a short benchmark: still stable?"}
+    Facility --> Decision
+    Decision -->|"NO — clocks/temp drift over minutes"| ThermalBound["Thermal-limited:<br/>rack cannot sustain this density —<br/>a facility problem, not a GPU problem"]
+    Decision -->|"YES"| Accepted["Rack accepted for<br/>this workload's power/thermal envelope"]
 ```
 
-**Figure 6.5.1 — Power and heat form one continuous system.** Every watt consumed eventually becomes heat that the cooling system must remove.
+**Figure 6.5.1 — Power and heat form one continuous system.** Every watt consumed eventually becomes heat that the cooling system must remove. Each hop names the evidence that proves it, and the diagram ends on the question that actually decides rack acceptance: does the system hold steady under a *sustained* load, not just a short benchmark that ends before thermal mass catches up.
 
 ## Power Is More Than GPU TDP
 
@@ -65,7 +66,9 @@ GPU modules
 + conversion losses
 ```
 
-GPU power is a major component, but it is not the rack design value. Use the OEM’s current planning guide and validated configuration for the complete system.
+GPU power is a major component, but it is not the rack design value. Use the OEM's current planning guide and validated configuration for the complete system.
+
+**Worked example — GPU TDP is not the rack number.** An 8-GPU HGX H100 baseboard at 700W per GPU is `8 × 700W = 5,600W` for the accelerators alone (illustrative rate — confirm against the specific SKU's rated TDP). A realistic complete-system budget on top of that: dual high-core-count CPUs at roughly 350W each (~700W), 2TB of system memory at roughly 10-15W per 64GB DIMM across 32 DIMMs (~350W), 8 NICs/DPUs at roughly 25-75W each (~400W), local NVMe and fans/pumps (~250W), and a power-supply conversion loss of roughly 6-8% on top of everything upstream. That pushes total system draw to somewhere around `5,600 + 700 + 350 + 400 + 250 ≈ 7,300W`, and after conversion loss, provisioned input capacity closer to **7,800-7,900W per server** (illustrative — always confirm against the OEM's current planning guide, not this arithmetic). GPU TDP alone would have under-provisioned the rack by roughly 30%.
 
 ## Nameplate, Design, and Measured Power
 
@@ -173,6 +176,29 @@ Correlate these signals with workload phases. A system may remain within thermal
 
 Compare GPU clocks and throttling reasons with server inlet temperature, fan or coolant telemetry, PDU load, and neighboring rack activity. Verify blanking panels, containment, cable obstruction, filter condition, and coolant flow.
 
+Two annotated samples, five minutes apart, make the "short benchmark passes, sustained job slows" symptom concrete:
+```text
+# minute 2 of the job
+$ nvidia-smi -q -d PERFORMANCE,TEMPERATURE,POWER | grep -E 'SM Clock|GPU Current Temp|Power Draw|Thermal Slowdown'
+    SM Clock                         : 1980 MHz
+    GPU Current Temp                 : 61 C
+    Power Draw                       : 690.12 W
+    HW Thermal Slowdown              : Not Active
+
+# minute 14 of the job
+$ nvidia-smi -q -d PERFORMANCE,TEMPERATURE,POWER | grep -E 'SM Clock|GPU Current Temp|Power Draw|Thermal Slowdown'
+    SM Clock                         : 1350 MHz
+    GPU Current Temp                 : 84 C
+    Power Draw                       : 512.40 W
+    HW Thermal Slowdown              : Active
+```
+Between minute 2 and minute 14, temperature climbed from 61C to 84C, `HW Thermal Slowdown` flipped to `Active`, SM clock dropped by roughly a third (1980MHz → 1350MHz), and power draw *fell* even though the workload didn't change — the GPU is throttling itself, not idling. Cross-reference with server inlet temperature at the same two timestamps:
+```text
+$ ipmitool sdr | grep -i inlet
+Inlet Temp      | 34 degrees C      | ok
+```
+An inlet temperature of 34C climbing over the same window (versus a facility spec of, say, 27C max recommended) confirms the rack's own exhaust is recirculating into its intake, or the CRAC/CDU capacity is undersized for this rack's density — not a fault local to one GPU or one server, which is why comparing against neighboring racks in the same row matters before ordering a hardware swap.
+
 **Root cause**
 
 The rack can start the workload but cannot sustain its thermal envelope.
@@ -193,21 +219,21 @@ A customer wants eight HGX-based servers in one rack because they physically fit
 
 ### Architecture question
 
-Why is GPU TDP insufficient for rack planning?
+**Why is GPU TDP insufficient for rack planning?**
 
-Because the complete system includes CPUs, memory, networking, storage, cooling components, conversion losses, and transient behavior.
+"Because GPU TDP is one line item, not the design number. For an 8-GPU H100 board at 700W each, that's 5,600W before you've counted CPUs, memory, NICs, storage, fans or pumps, and power-supply conversion loss — in my rough math that pushes a real system closer to 7,800-7,900W of provisioned input, roughly 30% above GPU TDP alone. If I sized a rack off GPU TDP I'd under-provision the feed and either trip a breaker or, worse, silently starve the system under a synchronized power peak across the rack. I always ask for the OEM's current planning guide number, not a component spec sheet."
 
 ### Scenario question
 
-A server has redundant PSUs. Is it highly available?
+**A server has redundant PSUs. Is it highly available?**
 
-Not necessarily. Trace both feeds through PDUs, breakers, switchgear, and utility paths, and include cooling dependencies.
+"Not on its own — that's a common mistake. Redundant PSUs only help if the two feeds are actually independent all the way upstream. I'd trace both: which PDU, which breaker, which piece of switchgear, back to which utility feed. I've seen designs where both 'redundant' feeds terminate on the same upstream breaker, which means the redundancy is cosmetic. I'd ask the same question about cooling — if there's one shared pump or one CDU serving both loops, a cooling failure takes the node down regardless of how many power supplies it has."
 
 ### Customer question
 
-What evidence is required before approving an HGX rack?
+**What evidence is required before approving an HGX rack?**
 
-Current OEM planning data, rack elevation, power and cooling calculations, weight, cabling, service clearances, commissioning tests, and alarm ownership.
+"I'd want the current OEM planning guide for the exact server model — not a generic HGX spec — plus a rack elevation with weight and airflow direction, a power and cooling calculation that assumes one feed has failed, not just nominal, and a sustained thermal soak test result, because short benchmarks pass on racks that can't hold their thermal envelope for fifteen minutes. On top of that: service clearances, cable routing, and a named owner for monitoring and alarms. If any of those is missing, my answer is conditional-go with that gap listed explicitly, not a blanket approval."
 
 ## Key Takeaways
 

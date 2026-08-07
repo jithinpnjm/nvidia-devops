@@ -77,16 +77,16 @@ Record:
 ```md
 ## Customer requirements
 
-- Workload type:
-- Scale at launch:
-- Growth target:
-- Host-memory requirement:
-- Compute-network requirement:
-- Storage requirement:
-- Availability expectation:
-- Rack-power limit:
-- Cooling method:
-- Support expectation:
+- Workload type: multi-node LLM pretraining (tensor + pipeline parallel), fine-tuning during off-peak windows
+- Scale at launch: 4 nodes (32 GPUs), growth to 16 nodes (128 GPUs) within 12 months
+- Growth target: 128 GPUs, single scheduling pool, no re-architecture at 16 nodes
+- Host-memory requirement: >=1.5TB per node (host-side dataset staging + activation offload headroom)
+- Compute-network requirement: >=400Gb/s per GPU-domain, RDMA-capable, non-blocking within a 32-GPU pod
+- Storage requirement: shared parallel filesystem sustaining >=40GB/s aggregate read for sharded checkpoint restart; local NVMe scratch for shuffle
+- Availability expectation: single-node failure must not stall other jobs; degrade, not cascade
+- Rack-power limit: 18kW per rack (existing facility, no immediate electrical upgrade budget)
+- Cooling method: facility supports air cooling today; conditional budget for liquid cooling if density requires it
+- Support expectation: 4-hour on-site response for GPU/baseboard faults, single escalation contact for the full stack
 ```
 
 ## Step 2 — Separate platform boundaries
@@ -96,15 +96,15 @@ For each proposal, identify:
 ```md
 | Domain | NVIDIA/HGX responsibility | OEM responsibility | Customer responsibility |
 |---|---|---|---|
-| Accelerator subsystem |  |  |  |
-| Host CPUs and memory |  |  |  |
-| PCIe and NIC topology |  |  |  |
-| Local storage |  |  |  |
-| Power and cooling |  |  |  |
-| BIOS and BMC |  |  |  |
-| Driver and CUDA stack |  |  |  |
-| Cluster network |  |  |  |
-| External storage |  |  |  |
+| Accelerator subsystem | GPU/NVSwitch design, NVLink fabric validation, VBIOS releases | Physical integration, thermal solution around the baseboard | Keep VBIOS within OEM-qualified bundle, not "latest" |
+| Host CPUs and memory | None — outside HGX scope | CPU/memory selection, NUMA layout, DIMM population | Validate NUMA-to-GPU locality at acceptance (`numactl --hardware`) |
+| PCIe and NIC topology | Defines GPU-side PCIe endpoints on the baseboard | Root complex layout, switch placement, NIC slotting | Verify with `nvidia-smi topo -m` before production admission |
+| Local storage | None | Device selection, RAID/NVMe layout, firmware | Validate throughput against real access pattern, not vendor peak spec |
+| Power and cooling | Publishes GPU TDP and thermal spec per SKU | Complete-system power envelope, cooling implementation | Facility integration, sustained soak testing before go-live |
+| BIOS and BMC | N/A | Authors and qualifies BIOS/BMC firmware bundle | Enforce change control; no independent firmware updates |
+| Driver and CUDA stack | Publishes driver/CUDA compatibility matrix | Validates driver against their platform, ships qualified image | Pin driver/CUDA version per environment; test before rollout |
+| Cluster network | N/A — internal fabric only | NIC selection and placement | Switch fabric, cabling, routing, congestion control design |
+| External storage | N/A | N/A unless bundled | Filesystem selection, capacity planning, checkpoint strategy |
 ```
 
 The purpose is to expose shared responsibility before an incident occurs.
@@ -114,20 +114,20 @@ The purpose is to expose shared responsibility before an incident occurs.
 ```md
 | Area | Requirement | Platform A | Platform B | Evidence quality |
 |---|---|---|---|---|
-| Accelerator | Required generation and count |  |  |  |
-| Host | CPU architecture and count |  |  |  |
-| Memory | Capacity and NUMA layout |  |  |  |
-| Compute network | Adapter count, speed, placement |  |  |  |
-| Storage network | Adapter design and isolation |  |  |  |
-| Local storage | Capacity, endurance, layout |  |  |  |
-| Management | BMC, API, telemetry, access model |  |  |  |
-| Firmware | Bundle and update process |  |  |  |
-| Cooling | Air or liquid, facility requirements |  |  |  |
-| Power | Feed, redundancy, rack density |  |  |  |
-| Service | Warranty, field replacement, escalation |  |  |  |
+| Accelerator | 8x H100 80GB SXM, NVLink-connected | 8x H100 80GB, `topo -m` confirms NV18 all-to-all | 8x H100 80GB, vendor spec sheet only, no topo output provided | A: Verified / B: Missing |
+| Host | Dual-socket, >=64 cores/socket | 2x 64-core, PCIe Gen5, balanced root ports | 2x 56-core, PCIe Gen5, root port count unconfirmed | A: Verified / B: Partial |
+| Memory | >=1.5TB per node | 2TB DDR5, 32 DIMMs, symmetric | 1.5TB DDR5, population pattern not disclosed | A: Verified / B: Partial |
+| Compute network | 400G RDMA per GPU-domain, non-blocking | 8x 400G ConnectX-7, 2 GPUs per NIC, `topo -m` shows PIX | 4x 400G, 4 GPUs per NIC, locality unconfirmed | A: Verified / B: Missing |
+| Storage network | Isolated from compute fabric | Dedicated 2x 200G storage NICs | Shared with compute fabric, no isolation | A: Verified / B: Verified (fails requirement) |
+| Local storage | NVMe scratch, >=15TB/node | 8x 3.84TB NVMe (RAID0 scratch) | 4x 7.68TB NVMe, redundancy mode unstated | A: Verified / B: Partial |
+| Management | Redfish-capable BMC, telemetry export | Redfish + vendor telemetry agent, Prometheus exporter available | BMC present, telemetry integration "roadmap" | A: Verified / B: Missing |
+| Firmware | Published qualified bundle, staged rollback | Documented bundle + canary/rollback process | Bundle exists, rollback process undocumented | A: Verified / B: Partial |
+| Cooling | Air-capable at launch, liquid-ready | Air-cooled, liquid-cooling variant available same chassis family | Air-cooled only, no liquid path | A: Verified / B: Verified (limits growth) |
+| Power | Redundant feeds, <=1.9kW/node headroom for 18kW/rack at 8 nodes | Dual 3kW PSUs, N+1, ~7.9kW/node measured design estimate | Dual 3kW PSUs, redundancy mode unconfirmed | A: Verified / B: Partial |
+| Service | 4-hour on-site response | Contracted 4-hour SLA, single escalation contact | Best-effort, no contracted SLA yet | A: Verified / B: Missing |
 ```
 
-Use `Verified`, `Partial`, or `Missing` for evidence quality.
+Use `Verified`, `Partial`, or `Missing` for evidence quality. Reading this filled-in matrix is the point of the lab: Platform A is not simply "the better GPUs" — it wins because the proposal *included the evidence* (topology output, measured power, a contracted SLA), while Platform B's GPUs may well be identical but its proposal never proved it. Platform B's shared storage/compute fabric (no isolation) is also a concrete requirement failure, not just a missing-evidence gap — flag mandatory-requirement failures separately from evidence-quality gaps, since a `Verified` failure is worse than a `Missing` unknown.
 
 ## Step 4 — Draw each topology
 
@@ -151,22 +151,34 @@ flowchart TD
     CPU0 <--> NVMe
 ```
 
-Replace the conceptual links with evidence from each proposal.
+Replace the conceptual links with evidence from each proposal. For Platform A, the evidence-backed version looks like this — every arrow annotated from the vendor's actual `nvidia-smi topo -m` output rather than a generic template:
+
+```mermaid
+flowchart TD
+    CPU0["CPU/NUMA 0<br/>(numactl: node 0, 1TB)"] <-->|"topo -m: GPU0-3 local, PIX to CNIC0"| HGX0["HGX GPUs 0-3"]
+    CPU1["CPU/NUMA 1<br/>(numactl: node 1, 1TB)"] <-->|"topo -m: GPU4-7 local, PIX to CNIC1"| HGX1["HGX GPUs 4-7"]
+    CPU0 <-->|"topo -m: PIX, 400G ConnectX-7"| CNIC0["Compute NIC 0-3"]
+    CPU1 <-->|"topo -m: PIX, 400G ConnectX-7"| CNIC1["Compute NIC 4-7"]
+    CPU0 <-->|"dedicated 200G, isolated from CNIC"| SNIC["Storage NICs"]
+    CPU0 <-->|"fio: 11GB/s seq read per device"| NVMe["8x 3.84TB NVMe"]
+```
+
+Platform B's diagram (built from its proposal, which never supplied `topo -m` output) has to be drawn with unlabeled or `unverified` edges instead — visually, that gap is the finding: a diagram that can cite a command for every edge versus one that can't is itself evidence of proposal maturity.
 
 ## Step 5 — Evaluate facility fit
 
 ```md
 | Facility item | Limit | Platform A | Platform B | Status |
 |---|---:|---:|---:|---|
-| Rack units per node |  |  |  |  |
-| Maximum rack power |  |  |  |  |
-| Cooling method |  |  |  |  |
-| Required water conditions |  |  |  |  |
-| Feed redundancy |  |  |  |  |
-| Service clearance |  |  |  |  |
+| Rack units per node | 42U rack, 4 nodes/rack target | 8U per node (4 nodes = 32U, fits) | 10U per node (4 nodes = 40U, tight) | A: Pass / B: Pass with margin risk |
+| Maximum rack power | 18kW/rack (facility limit) | ~7.9kW/node design estimate x4 = ~31.6kW — exceeds limit | ~7.5kW/node x4 = 30kW — also exceeds limit | Both: Fail at 4 nodes/rack, need 2 nodes/rack instead |
+| Cooling method | Air today, liquid budget conditional | Air-cooled, liquid variant available if density forces it | Air-cooled only | A: Pass / B: Pass now, no growth path |
+| Required water conditions | N/A at launch (air-cooled) | N/A | N/A | Both: N/A |
+| Feed redundancy | Dual independent utility feeds | Dual PSU, N+1, feeds traced to separate breakers per vendor doc | Dual PSU, feed independence undocumented | A: Verified / B: Unverified |
+| Service clearance | 1m front, 0.8m rear | 1.1m front, 0.9m rear per vendor drawing | Not specified in proposal | A: Pass / B: Request drawing |
 ```
 
-A platform that fails a mandatory facility requirement is not viable even when its compute design is attractive.
+A platform that fails a mandatory facility requirement is not viable even when its compute design is attractive. Note the power row: both candidates exceed the 18kW/rack limit at 4 nodes per rack once real per-node power (not GPU TDP) is used — the correct resolution is 2 nodes per rack at this facility, doubling the rack count, not picking a "winner" between A and B on this row.
 
 ## Step 6 — Evaluate lifecycle and support
 
@@ -188,17 +200,17 @@ Record answers and unresolved ownership gaps.
 ```md
 | Test | Purpose | Pass criterion | Owner |
 |---|---|---|---|
-| Hardware inventory | Verify delivered configuration | Matches approved BOM |  |
-| Topology inspection | Verify device placement | Matches approved diagram |  |
-| GPU diagnostics | Detect component faults | Approved diagnostic passes |  |
-| Network bandwidth | Validate compute path | Meets agreed threshold |  |
-| Storage throughput | Validate data and checkpoint path | Meets workload target |  |
-| Distributed workload | Validate scale-out behavior | Meets agreed efficiency |  |
-| Power and thermal soak | Validate facility integration | No throttling or alarms |  |
-| Firmware rollback | Validate maintenance safety | Documented recovery succeeds |  |
+| Hardware inventory | Verify delivered configuration | `nvidia-smi -L` + BOM match approved order, 0 discrepancies | Customer acceptance team |
+| Topology inspection | Verify device placement | `nvidia-smi topo -m`: all GPU pairs NV18, all compute NICs PIX to their GPU group | Customer acceptance team |
+| GPU diagnostics | Detect component faults | `dcgmi diag -r 3` passes with no failed tests | OEM field engineer, witnessed by customer |
+| Network bandwidth | Validate compute path | `ib_write_bw` >=90% of rated line rate per adapter | Network team |
+| Storage throughput | Validate data and checkpoint path | `fio` sequential read >=40GB/s aggregate across the pod | Storage team |
+| Distributed workload | Validate scale-out behavior | NCCL all-reduce bus bandwidth within 10% of single-node baseline at 4-node scale | Platform/ML infra team |
+| Power and thermal soak | Validate facility integration | 60-minute sustained load, 0 throttle events, inlet temp stable within 2C | Facilities + customer |
+| Firmware rollback | Validate maintenance safety | Documented rollback to prior qualified bundle completes in <=30 minutes, verified functional | OEM support |
 ```
 
-Do not invent thresholds. Thresholds must come from the workload, contract, or agreed acceptance plan.
+Do not invent thresholds. Thresholds must come from the workload, contract, or agreed acceptance plan — the numbers above (90% of line rate, 10% collective-bandwidth tolerance, 60-minute soak) are illustrative starting points for this lab's scenario, not universal constants; substitute your own contract's agreed values when running this for real.
 
 ## Validation
 

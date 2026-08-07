@@ -42,16 +42,21 @@ flowchart TD
         end
     end
 
-    CPU <--> PCIe
-    PCIe <--> HGX
-    PCIe <--> NIC
-    PCIe <--> Storage
-    Mgmt --> CPU
-    Mgmt --> HGX
-    Cooling --> OEM
+    CPU <-->|"evidence: numactl --hardware — GPU's<br/>PCIe root local to this NUMA node"| PCIe
+    PCIe <-->|"evidence: lspci -tv — HGX baseboard<br/>on full-width root port, no downshift"| HGX
+    PCIe <-->|"evidence: nvidia-smi topo -m — NIC-GPU<br/>pair shares a PCIe switch (PIX), not SYS"| NIC
+    PCIe <-->|"evidence: fio sequential-read test<br/>meets vendor-quoted local NVMe throughput"| Storage
+    Mgmt -->|"evidence: ipmitool sdr — sensors present<br/>and within range"| CPU
+    Mgmt -->|"evidence: nvidia-smi -q shows GPU visible<br/>to BMC inventory, not just to the OS"| HGX
+    Cooling -->|"evidence: 30-min soak, no throttle<br/>reason bit set in nvidia-smi -q"| OEM
+
+    Decision{"Does every edge's<br/>evidence check out?"}
+    OEM --> Decision
+    Decision -->|"NO — e.g. NIC shows SYS not PIX"| Bottleneck["That specific hop is the bottleneck —<br/>not 'the GPU' and not 'the platform'"]
+    Decision -->|"YES"| Healthy["Behavior differences must come from<br/>firmware, BIOS, or workload placement,<br/>not from this static topology"]
 ```
 
-**Figure 6.2.1 — HGX is a major subsystem inside an OEM server.**
+**Figure 6.2.1 — HGX is a major subsystem inside an OEM server.** Each arrow names the command that proves the hop is healthy. The diagram doubles as a fault-isolation checklist: when a server "underperforms," walk the arrows in order and stop at the first one whose evidence doesn't match a healthy node, rather than guessing at the GPU or the platform as a whole.
 
 The final behavior of the server depends on both the accelerator platform and the OEM integration around it.
 
@@ -172,6 +177,8 @@ A meaningful comparison should include more than accelerator specifications.
 - host CPU architecture and count;
 - host memory capacity and topology.
 
+**Worked example — why "accelerator memory capacity" is not an abstract line item:** an 8-GPU HGX system with 80GB HBM3 per GPU has 640GB of aggregate GPU memory. A 405B-parameter model at FP16 needs roughly `405,000,000,000 × 2 bytes ≈ 810GB` for weights alone — before optimizer state, activations, or KV cache. That single system cannot hold that model's weights, full stop, regardless of how well the CPU, PCIe, and networking are designed; it needs to be sharded across at least two such nodes at FP16, or run in a lower precision (FP8 weights would need ~405GB, which just barely fits one node with almost nothing left for KV cache or activations). This is why "compute and memory" evaluation has to happen before the I/O and facilities comparison — a platform can be architecturally excellent and still be the wrong size.
+
 ### I/O and networking
 
 - number and placement of network adapters;
@@ -259,8 +266,29 @@ Two servers use the same HGX generation, but one consistently underperforms.
 
 1. Compare OEM model and exact bill of materials.
 2. Compare CPU and host-memory configuration.
-3. Compare PCIe and network-adapter topology.
-4. Compare firmware bundles, BIOS settings, and power profiles.
+3. Compare PCIe and network-adapter topology — this is usually where the answer is. On the healthy node:
+   ```text
+   $ nvidia-smi topo -m | grep NIC0
+   NIC0     PIX   PIX   SYS   SYS    X    SYS
+   ```
+   and on the underperforming node:
+   ```text
+   $ nvidia-smi topo -m | grep NIC0
+   NIC0     SYS   SYS   SYS   SYS    X    SYS
+   ```
+   Same GPU count, same HGX generation, but `NIC0` on the slow node reaches every GPU over `SYS` (crossing a NUMA boundary) instead of `PIX` for two of them on the healthy node. That's not a tuning problem — it means the OEM populated a different PCIe slot for that NIC, or a riser/root-port mapping differs between the two chassis, and every collective that uses `NIC0` on the slow node pays a cross-socket hop it shouldn't.
+4. Compare firmware bundles, BIOS settings, and power profiles. Check GPU clocks and throttle reasons directly rather than trusting "no alarms":
+   ```text
+   $ nvidia-smi -q -d PERFORMANCE | grep -A6 "Clocks Throttle Reasons"
+   Clocks Throttle Reasons
+       Idle                              : Not Active
+       SW Power Cap                      : Active
+       HW Slowdown                       : Not Active
+       HW Thermal Slowdown               : Not Active
+       SW Thermal Slowdown               : Not Active
+       Sync Boost                        : Not Active
+   ```
+   `SW Power Cap: Active` on the underperforming node (and `Not Active` on the healthy one) is a direct, specific finding — it means the BMC or BIOS power profile is capping the GPUs below their rated power budget, which silently drops sustained clocks without producing any explicit error or alarm anywhere else.
 5. Compare cooling state and thermal telemetry.
 6. Compare driver, CUDA, and framework versions.
 7. Compare workload CPU affinity and device placement.
@@ -301,9 +329,17 @@ Without that matrix, bids that look equivalent may represent materially differen
 
 ### Knowledge questions
 
-1. Why is HGX not equivalent to a complete server?
-2. Which parts of the final system are determined by the OEM?
-3. Why can two HGX-based systems perform differently?
+**1. Why is HGX not equivalent to a complete server?**
+
+"Because HGX only standardizes the accelerator complex — the GPU modules, the baseboard, and the NVLink/NVSwitch fabric between them. Everything that turns that complex into a server you can actually rack and boot — CPUs, system memory, PCIe layout, NICs, local storage, cooling, BIOS, BMC — is OEM-defined. Two servers can be built around the identical HGX baseboard and still be materially different machines."
+
+**2. Which parts of the final system are determined by the OEM?**
+
+"Host CPU generation and socket count, memory capacity and channel population, PCIe topology and switch placement, NIC selection and slot placement, local storage, chassis and cooling design, BMC and firmware tooling, and the first-line support and service model. HGX hands the OEM a validated accelerator subsystem; the OEM builds and owns literally everything around it."
+
+**3. Why can two HGX-based systems perform differently?**
+
+"Most of the time it's not the GPUs — it's the path data takes to reach them. I'd check `nvidia-smi topo -m` first: if a NIC shows `SYS` instead of `PIX` to the GPUs it's supposed to serve, every collective that uses that NIC is paying a cross-socket hop the other system doesn't pay. After topology, I'd check power profile — `nvidia-smi -q -d PERFORMANCE` showing `SW Power Cap: Active` means the BIOS or BMC is capping GPU power below rated, which drops sustained clocks with zero visible errors anywhere else."
 
 ### Architecture questions
 
@@ -311,11 +347,15 @@ Without that matrix, bids that look equivalent may represent materially differen
 2. Create an evaluation matrix for two HGX-based servers.
 3. Explain how network-adapter placement affects scale-out workloads.
 
+**Model answer for #3:** "If a compute NIC sits behind the same PCIe switch as the GPUs it's paired with, `nvidia-smi topo -m` will show `PIX`, and a GPUDirect RDMA transfer from that GPU to the network never has to cross a CPU socket. If instead the NIC is wired to the other socket's root complex, the topology shows `SYS`, and now every outbound tensor for that GPU crosses the inter-socket link before it even reaches the wire — that's added latency and contention on every single collective step, multiplied by however many ranks are in that situation. At 128+ GPU scale, that one placement decision can be the difference between near-linear scaling and a training job that plateaus past eight nodes."
+
 ### Customer questions
 
 1. How would you explain support ownership among the customer, OEM, and NVIDIA?
 2. What evidence would you require before approving an HGX-based platform for production?
 3. How would facility constraints change the server shortlist?
+
+**Model answer for #2:** "I wouldn't approve on a spec sheet. I'd want the `nvidia-smi topo -m` output from the actual delivered unit, not a reference diagram, because that's what proves NIC and storage locality match what was proposed. I'd want a firmware and driver inventory compared against the OEM's published qualified bundle — GPU VBIOS, BMC, BIOS, NIC firmware — because a technically-newer-but-unqualified firmware version is one of the most common sources of unexplained performance drift. And I'd want a sustained thermal and power soak test, because short benchmarks pass on systems that throttle under real workload duration. Inventory plus topology plus a soak test — that's the minimum evidence bar before I'd sign off."
 
 ## Key takeaways
 

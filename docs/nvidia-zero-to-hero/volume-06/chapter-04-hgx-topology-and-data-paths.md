@@ -43,23 +43,24 @@ After completing this chapter, you will be able to:
 
 ```mermaid
 flowchart TD
-    App[Application]
-    CPU[Host CPUs and system memory]
-    PCIe[PCIe fabric]
-    HGX[HGX baseboard]
-    NV[NVLink and NVSwitch]
-    GPUs[GPU memory and execution]
-    NICs[Compute network adapters]
-    Storage[Local or remote storage]
-    Remote[Remote HGX node]
+    App[Application] --> CPU[Host CPUs and system memory]
+    CPU -->|"evidence: numactl --hardware —<br/>process pinned to GPU-local NUMA node"| PCIe[PCIe fabric]
+    PCIe -->|"evidence: lspci -tv — full lane<br/>width, no link downshift"| HGX[HGX baseboard]
+    HGX -->|"evidence: nvidia-smi nvlink -s —<br/>all links Active, 0 replay errors"| NV[NVLink and NVSwitch]
+    NV -->|"evidence: nvidia-smi topo -m —<br/>GPU pairs show NVx, not PIX/SYS"| GPUs[GPU memory and execution]
+    GPUs <-->|"evidence: topo -m shows NIC at PIX<br/>to this GPU, not SYS"| NICs[Compute network adapters]
+    NICs <-->|"evidence: ib_write_bw / perftest<br/>meets link line-rate"| Remote[Remote HGX node]
+    Storage[Local or remote storage] <-->|"evidence: fio meets vendor-quoted<br/>sequential throughput"| CPU
+    Storage -. "GPUDirect Storage path<br/>where supported, bypasses host copy" .-> GPUs
 
-    App --> CPU --> PCIe --> HGX --> NV --> GPUs
-    GPUs <--> NICs <--> Remote
-    Storage <--> CPU
-    Storage -. Direct path where supported .-> GPUs
+    Bottleneck{"Where does the workload<br/>actually stall?"}
+    GPUs --> Bottleneck
+    Bottleneck -->|"stalls waiting on NVLink"| ScaleUpBound["Scale-up bound:<br/>tensor-parallel/collective-heavy job,<br/>fix = better sharding or NVLink health"]
+    Bottleneck -->|"stalls waiting on NIC/fabric"| ScaleOutBound["Scale-out bound:<br/>check GPU-NIC locality first,<br/>then fabric congestion"]
+    Bottleneck -->|"stalls waiting on storage"| IOBound["I/O bound:<br/>check dataset layout and<br/>storage path before blaming compute"]
 ```
 
-**Figure 6.4.1 — HGX communication domains.** Workload performance depends on which path each transfer uses and how often it is used.
+**Figure 6.4.1 — HGX communication domains.** Each edge is labeled with the command that proves that hop is healthy, and the diagram ends in an explicit decision point: which domain is the workload actually stalled on. Performance work in this chapter is the discipline of walking this graph with real command output instead of assuming the bottleneck is wherever the last change happened to be.
 
 ## 4. GPU-Local Data
 
@@ -116,6 +117,8 @@ A model that does not fit on one GPU must be partitioned. Once partitioned, exec
 - overlap between compute and communication;
 - synchronization behavior;
 - topology awareness of the library.
+
+**Worked example — why NVLink versus PCIe is not a rounding error.** A single tensor-parallel all-reduce of a 1GB activation tensor across 8 GPUs, over an NVLink domain running at roughly 900GB/s aggregate bidirectional bandwidth per GPU, completes in low single-digit milliseconds. The same 1GB exchange forced over PCIe Gen5 x16 (roughly 64GB/s per direction, and now also contending with every other host-to-device transfer on that root) takes on the order of 10x longer per hop, and — critically — that cost repeats on every layer of every forward and backward pass. For a model doing hundreds of such exchanges per training step, the difference between "stays on NVLink" and "falls back to PCIe" is not a tuning detail; it is frequently the difference between a job that scales near-linearly to 8 GPUs and one that does not.
 
 ## 6. CPU-to-GPU Paths
 
@@ -211,6 +214,66 @@ numactl --hardware
 ibdev2netdev
 ```
 
+### `nvidia-smi topo -m` — the primary topology map
+
+```text
+$ nvidia-smi topo -m
+        GPU0  GPU1  GPU2  GPU3  GPU4  GPU5  GPU6  GPU7  NIC0  NIC1  CPU Affinity  NUMA Affinity
+GPU0     X    NV18  NV18  NV18  NV18  NV18  NV18  NV18  PIX   SYS   0-63          0
+GPU1    NV18   X    NV18  NV18  NV18  NV18  NV18  NV18  PIX   SYS   0-63          0
+GPU2    NV18  NV18   X    NV18  NV18  NV18  NV18  NV18  SYS   PIX   64-127        1
+GPU3    NV18  NV18  NV18   X    NV18  NV18  NV18  NV18  SYS   PIX   64-127        1
+...
+NIC0     PIX   PIX   SYS   SYS  ...    X    SYS
+NIC1     SYS   SYS   PIX   PIX  ...   SYS    X
+
+Legend:
+  X    = self
+  NV#  = connected via # NVLinks (scale-up fabric — fastest, stays on this row for every healthy 8-GPU HGX node)
+  PIX  = connected through a single PCIe switch (fast, shares a root complex)
+  PHB  = connected through a PCIe host bridge
+  SYS  = crosses a CPU/NUMA boundary (slowest path — expected for the "wrong" NIC, a problem for the "right" one)
+```
+Reading order that matters operationally: first confirm every `GPUx`-`GPUy` cell reads `NV18` — any `PIX`/`SYS` in that block means the scale-up fabric itself is degraded (a failed NVLink, not a placement problem). Then check each NIC's row against the GPUs it's supposed to serve: `NIC0` at `PIX` to `GPU0`/`GPU1` and `SYS` to `GPU2`-`GPU7` is the *expected* pattern on a dual-socket, dual-NIC-domain design — a rank on `GPU2` should be assigned `NIC1`, not `NIC0`. If a rank-to-NIC mapping in the launcher ignores this table, that rank pays a cross-socket hop on every collective step even though the hardware itself is healthy.
+
+### `lspci -tv` — the PCIe tree
+
+```text
+$ lspci -tv
+-+-[0000:16]-+-00.0-[17]----00.0  NVIDIA Corporation GH100 [H100 SXM5 80GB]
+ |           +-01.0-[18]----00.0  Mellanox Technologies MT2910 (ConnectX-7)
+ +-[0000:64]-+-00.0-[65]----00.0  NVIDIA Corporation GH100 [H100 SXM5 80GB]
+             +-01.0-[66]----00.0  Mellanox Technologies MT2910 (ConnectX-7)
+```
+This confirms the GPU and its paired NIC hang off the *same* upstream root (`0000:16` for the first pair), corroborating what `topo -m` reported as `PIX`. If the NIC instead showed up under a different root complex than its "paired" GPU, that mismatch — not the GPU itself — is the finding to escalate.
+
+### `numactl --hardware` — NUMA nodes and CPU memory layout
+
+```text
+$ numactl --hardware
+available: 2 nodes (0-1)
+node 0 cpus: 0 1 2 3 ... 63
+node 0 size: 515000 MB
+node 0 free: 480210 MB
+node 1 cpus: 64 65 66 67 ... 127
+node 1 size: 515000 MB
+node 1 free: 502114 MB
+node distances:
+node   0   1
+  0:  10  21
+  1:  21  10
+```
+`node distances` is the field most people skip: `10` is local access cost, `21` is the relative cost of crossing to the other socket — roughly 2x latency. A process pinned to node 0 but allocating GPU work on a `GPU2`/`GPU3` (node-1-local, per the topology table above) pays that 21-vs-10 penalty on every host-side touch of that data, which is exactly the kind of NUMA imbalance this chapter warns about.
+
+### `ibdev2netdev` — InfiniBand device to network interface mapping
+
+```text
+$ ibdev2netdev
+mlx5_0 port 1 ==> ibs0f0 (Up)
+mlx5_1 port 1 ==> ibs0f1 (Up)
+```
+`(Up)` confirms link state at the OS level; cross-reference the device name (`mlx5_0`) back to the `NIC0`/`NIC1` labels in `nvidia-smi topo -m` — the mapping between NVIDIA's topology-tool naming and the kernel's InfiniBand device naming is exactly what this command exists to resolve, and getting it wrong is a common source of "I fixed NIC0 but the job still uses the wrong adapter" incidents.
+
 ### Purpose
 
 - `nvidia-smi topo -m` shows GPU, NIC, CPU, and interconnect relationships.
@@ -252,6 +315,27 @@ Avoid placements where unrelated tenants compete for the same PCIe root, NIC, or
 | Strong network counters but low job throughput | Collective algorithm or synchronization behavior |
 
 Topology is not merely a diagram. It is a troubleshooting index.
+
+**"Good 8-GPU scaling, poor multi-node scaling," with real evidence.** This is the single most common symptom in this table, and it separates into a mechanical check and a fabric check:
+```text
+# step 1 - confirm NIC-GPU locality inside the node
+$ nvidia-smi topo -m | grep -E 'mlx5_[01]'
+mlx5_0   PIX   PIX   SYS   SYS   SYS   SYS   SYS   SYS    X   SYS
+mlx5_1   SYS   SYS   PIX   PIX   SYS   SYS   SYS   SYS  SYS    X
+
+# step 2 - if locality is fine, measure the fabric directly
+$ ib_write_bw -d mlx5_0 --report_gbits <remote-host>
+#bytes   iterations   BW peak[Gb/sec]  BW average[Gb/sec]
+8388608  1000         394.85           393.02
+```
+If step 1 shows every GPU behind `SYS` for the NIC it's assigned, fix rank-to-NIC mapping before touching the network at all — no fabric tuning fixes a software placement bug. If locality is confirmed correct and `ib_write_bw` still reports well below the adapter's rated line rate (e.g., 393Gb/s average against a 400G link is fine; something in the 200s would not be), the fabric itself — cabling, switch congestion, or a down-negotiated link — is the next thing to check, not the application code.
+
+**"Inconsistent host-to-device copy rate," with real evidence.** This symptom is almost always solved by comparing `numactl --hardware`'s `node distances` (shown in section 10 above — `10` local vs `21` remote) against which NUMA node the process actually landed on:
+```text
+$ taskset -c -p $(pgrep -f train.py)
+pid 84213's current affinity list: 64-127
+```
+If the training process is pinned to CPU range `64-127` (NUMA node 1, per section 10) but is issuing host-to-device copies for a GPU whose PCIe root is under node 0, every copy crosses the inter-socket link at roughly double the latency of a local copy — exactly the "inconsistent" pattern reported, because it depends on which GPU each thread happens to be servicing at that moment.
 
 ## 13. Production Troubleshooting
 
@@ -314,19 +398,19 @@ This prevents a common failure: purchasing an expensive network while leaving th
 
 **What is the difference between scale-up and scale-out communication?**
 
-Scale-up connects accelerators inside a system through the local GPU fabric. Scale-out connects systems through network adapters and the cluster fabric.
+"Scale-up is GPU-to-GPU communication inside one server, over NVLink and NVSwitch — I'd point at `nvidia-smi topo -m` and say every cell in the GPU-to-GPU block should read `NV18` or similar, not `PIX` or `SYS`, on a healthy HGX node. Scale-out is what happens once you need more GPUs than fit in one server: traffic leaves the box over a NIC, crosses a switch fabric — InfiniBand or RDMA-capable Ethernet — and lands on another node's NIC before it ever touches that node's NVLink domain. The practical consequence is a roughly order-of-magnitude bandwidth and latency step-down the moment a collective has to leave the scale-up domain, which is exactly why sharding strategy — what stays inside a node versus what crosses nodes — is a first-class design decision, not an afterthought."
 
 ### Scenario question
 
 **Why might a workload scale well to eight GPUs but poorly to sixteen?**
 
-The first eight GPUs may communicate through the local scale-up domain. Moving to sixteen introduces GPU-to-NIC, network-fabric, remote-node, and synchronization costs.
+"Because the first eight GPUs are probably one HGX node's scale-up domain — all-NVLink, all fast, and `nvidia-smi topo -m` would show it. The moment you go to sixteen, half the ranks now have to cross a NIC, a switch fabric, and land on a second node's PCIe and NUMA topology before they can even start the second node's NVLink hop. I'd want to see the per-step communication time broken out — if it roughly doubles or worse going from 8 to 16 GPUs, that's the scale-out hop dominating, and the fix is usually GPU-to-NIC locality and collective algorithm choice, not 'buy a faster network,' unless the fabric itself is actually saturated."
 
 ### Troubleshooting question
 
 **How do you investigate poor GPU-to-network performance?**
 
-Map GPU, NIC, PCIe, and NUMA topology; verify link state and firmware; inspect CPU affinity; run local link and collective benchmarks; then compare with a healthy node.
+"First I map every rank to its GPU, NUMA node, and NIC — I don't trust that the scheduler did this sanely. Then `nvidia-smi topo -m` tells me whether that NIC is actually local (`PIX`) or crossing sockets (`SYS`) to the GPU it's serving. If topology is clean, I run `ib_write_bw` point-to-point between the two nodes and compare the reported bandwidth against the adapter's rated line rate — if that's healthy too, then it's a collective-algorithm or rank-mapping problem, not a hardware one. I always compare against a known-good node running the exact same test, because 'poor' is meaningless without a baseline from hardware that's provably fine."
 
 ## 16. Summary
 

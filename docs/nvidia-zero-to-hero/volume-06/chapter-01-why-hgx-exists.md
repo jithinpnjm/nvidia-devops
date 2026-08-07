@@ -41,20 +41,25 @@ flowchart TD
     Firmware[OEM and NVIDIA Firmware]
     Operations[Customer Operations]
 
-    GPU <--> ScaleUp
-    ScaleUp <--> Baseboard
-    Baseboard <--> PCIe
-    CPU <--> PCIe
-    NIC <--> PCIe
-    Storage <--> PCIe
-    Chassis --> Baseboard
-    Chassis --> CPU
-    Firmware --> Baseboard
-    Firmware --> Chassis
-    Operations --> Firmware
+    GPU <-->|"healthy: nvidia-smi topo -m shows NV# links,<br/>not PIX/PHB, between all 8 GPUs"| ScaleUp
+    ScaleUp <-->|"healthy: nvidia-smi nvlink -s reports<br/>all links Active, 0 replay errors"| Baseboard
+    Baseboard <-->|"healthy: lspci -tv shows baseboard<br/>on its own root complex, full lane width"| PCIe
+    CPU <-->|"healthy: numactl --hardware shows GPUs'<br/>PCIe root local to the NUMA node running the job"| PCIe
+    NIC <-->|"healthy: ibdev2netdev / nvidia-smi topo -m<br/>shows NIC-GPU pair sharing a PCIe switch"| PCIe
+    Storage <-->|"healthy: fio/checkpoint write test meets<br/>vendor-quoted throughput"| PCIe
+    Chassis -->|"healthy: ipmitool sdr shows fan/PSU<br/>sensors nominal under sustained load"| Baseboard
+    Chassis -->|"healthy: no thermal/power throttle<br/>reason set after 30+ min soak"| CPU
+    Firmware -->|"healthy: OEM-published firmware<br/>bundle version matches installed inventory"| Baseboard
+    Firmware -->|"healthy: BIOS/BMC versions match<br/>the qualified bundle, not just 'latest'"| Chassis
+    Operations -->|"decision: does observed state match<br/>the OEM-qualified baseline?"| Firmware
+
+    Firmware -.->|"NO — drift found"| Divergent["Stop: treat as an unqualified<br/>configuration, escalate before use"]
+    Firmware -.->|"YES — matches baseline"| Accept["Proceed: system is a valid<br/>instance of the qualified design"]
 ```
 
-**Figure 6.1.1 — HGX standardizes the accelerator complex while preserving OEM integration choices.** The complete system remains a joint product of NVIDIA design, OEM engineering, and customer operations.
+**Figure 6.1.1 — HGX standardizes the accelerator complex while preserving OEM integration choices.** Each edge names the command or evidence that proves that hop is healthy, not just that the box exists. The bottom decision point is the one that actually matters operationally: two systems can have an identical-looking diagram and still diverge the moment one of them fails the firmware/BIOS baseline check.
+
+**How to read this in an incident:** start at `Operations` and walk backward. If `nvidia-smi topo -m` shows a GPU pair connected by `PIX` (single PCIe switch hop) instead of `NVx` (NVLink), the fault is in the `GPU <-> ScaleUp` hop, not further downstream — don't waste time comparing firmware bundles until the interconnect evidence itself checks out.
 
 ## What HGX Standardizes
 
@@ -117,7 +122,26 @@ A responsibility matrix should cover at least:
 
 A customer compares two eight-GPU HGX systems. Both appear equivalent in a high-level procurement sheet. During architecture review, one system places network adapters closer to the GPU-serving PCIe roots, while the other provides more local NVMe capacity and a different cooling model. The first may better support communication-heavy distributed training. The second may better fit data-staging or checkpoint requirements. Facility capabilities and operational preferences may decide the final choice.
 
-The lesson is to inspect the whole server rather than purchasing by baseboard identity.
+The lesson is to inspect the whole server rather than purchasing by baseboard identity. "Same HGX generation" is a claim about one subsystem; it is not evidence about the rest of the machine. The way to turn that claim into evidence is to run the same topology query on both candidates and compare the output line by line:
+
+```text
+$ nvidia-smi topo -m
+        GPU0  GPU1  GPU2  GPU3  NIC0  NIC1  CPU Affinity  NUMA Affinity
+GPU0     X    NV18  NV18  NV18  PIX   SYS   0-31          0
+GPU1    NV18   X    NV18  NV18  PIX   SYS   0-31          0
+GPU2    NV18  NV18   X    NV18  SYS   PIX   32-63         1
+GPU3    NV18  NV18  NV18   X    SYS   PIX   32-63         1
+NIC0     PIX   PIX   SYS   SYS    X    SYS
+NIC1     SYS   SYS   PIX   PIX   SYS    X
+
+Legend:
+  X    = self
+  NV#  = connected via # NVLinks (scale-up fabric, fastest)
+  PIX  = connected through a single PCIe switch (fast, same root)
+  SYS  = crosses a CPU/NUMA boundary (slowest, avoid on the hot path)
+```
+
+Reading this output is the actual comparison, not the procurement sheet: `GPU0-GPU3` all show `NV18`, so the scale-up fabric is uniform — the HGX baseboard claim checks out. But `NIC0` reaches `GPU0`/`GPU1` over `PIX` (good — same PCIe switch) while it reaches `GPU2`/`GPU3` over `SYS` (crosses sockets — bad for any collective that expects a rank on GPU2 to use NIC0). If "System B" in the procurement sheet shows `PIX` for every GPU-NIC pair instead of two `SYS` entries, that is the concrete, checkable difference that "more balanced NIC placement" was gesturing at — and it is the kind of difference a spec sheet with matching GPU counts will never surface.
 
 ## Troubleshooting Cross-Vendor Ambiguity
 
@@ -131,9 +155,19 @@ The lesson is to inspect the whole server rather than purchasing by baseboard id
 
 **Diagnosis**
 
-1. Capture the complete system bill of materials and topology.
-2. Record firmware and software versions by ownership domain.
-3. Compare the installed state with the OEM-qualified matrix.
+1. Capture the complete system bill of materials and topology — the `nvidia-smi topo -m` output above is exactly this evidence for the GPU/NIC/NUMA layer; pair it with `lspci -tv` for the full PCIe tree.
+2. Record firmware and software versions by ownership domain. In practice this means capturing at minimum:
+   ```text
+   $ nvidia-smi --query-gpu=driver_version,vbios_version --format=csv
+   driver_version, vbios_version
+   550.90.07, 96.00.74.00.10
+
+   $ ipmitool mc info | grep -E 'Firmware Revision|Manufacturer'
+   Firmware Revision  : 4.86
+   Manufacturer Name  : <OEM BMC vendor>
+   ```
+   The `vbios_version` and BMC `Firmware Revision` are the two numbers most often missing from a "we're on the same driver" conversation — driver version alone says nothing about GPU VBIOS or BMC firmware, both of which are part of the qualified bundle.
+3. Compare the installed state with the OEM-qualified matrix — a mismatch here (e.g., `vbios_version` newer than anything listed in the OEM's published bundle) is the single most common cause of "collective performance varies across nominally identical nodes," because an unqualified VBIOS can silently change default power/clock behavior.
 4. Run GPU, PCIe, network, storage, and thermal diagnostics separately.
 5. Identify the first boundary where observed behavior diverges from the validated design.
 
@@ -155,15 +189,15 @@ The trade-off is increased integration responsibility compared with a more conso
 
 ### Architecture question
 
-Why can two HGX-based servers deliver different application behavior?
+**Why can two HGX-based servers deliver different application behavior?**
 
-A strong answer covers CPU and NUMA topology, PCIe hierarchy, NIC placement, storage design, firmware, cooling, power limits, BIOS settings, and OEM validation—not differences in the HGX GPU complex alone.
+"I wouldn't assume they're the same system just because the baseboard is. I'd start by running `nvidia-smi topo -m` on both — if the GPU-to-GPU links both show `NV18`, the scale-up fabric matches, so the HGX complex itself is a wash. Then I'd look at what topo shows for the NICs: if one box shows `PIX` from every GPU to its nearest NIC and the other shows `SYS` on half of them, that's a real, measurable difference in how expensive it is to get a tensor off that GPU during scale-out training, and it comes entirely from OEM PCIe layout, not from HGX. On top of that I'd check VBIOS and BMC firmware versions, because an unqualified VBIOS can quietly change default clocks and power limits and produce a performance gap that has nothing to do with topology at all. The short version: the GPU complex is the one thing I'd expect to match: everything else — NUMA layout, NIC placement, firmware, cooling, power policy — is OEM-defined and has to be checked, not assumed."
 
 ### Customer question
 
-How would you compare an HGX OEM system with DGX?
+**How would you compare an HGX OEM system with DGX?**
 
-Begin with customer constraints: procurement model, support preference, facility design, management tooling, desired standardization, integration capability, serviceability, and time to deploy. Then compare ownership boundaries and lifecycle risk.
+"I'd start with their constraints, not the hardware. Do they have an approved OEM they have to buy through? Do they need a specific out-of-band management standard for their existing fleet tooling? What's their support model — do they want one throat to choke, or are they fine coordinating across NVIDIA and an OEM when something breaks? DGX gives you a more consolidated, NVIDIA-integrated system with a tighter validation loop — less integration work, less choice. HGX gives you the same scale-up GPU complex but lets you pick the CPU generation, storage, cooling method, and management stack that fits their existing fleet standard, at the cost of having to qualify and support that full combination themselves. Once I know which of those trade-offs they actually care about, the hardware conversation is short."
 
 ## Key Takeaways
 
