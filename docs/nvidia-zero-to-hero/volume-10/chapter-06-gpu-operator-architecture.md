@@ -190,6 +190,54 @@ CUDA error: no kernel image is available for execution on the device
 
 `no kernel image is available for execution on the device` is a compute-capability mismatch — the CUDA sample was built for a different architecture than the driver/GPU actually present, which usually traces straight back to whichever layer's version changed most recently in the release candidate (per "A release is a compatibility decision" above). This log line is the difference between "the operator is broken" and "one specific compatibility assumption in this release regressed" — only the second diagnosis leads to a correct fix.
 
+## NVIDIA Network Operator and RDMA Enablement
+
+GPU Operator, as described above, owns one half of the accelerated-networking story: the driver, container runtime, device plugin, and telemetry that let a Pod get a GPU. It has no opinion about the network path in or out of that GPU. If a workload needs RDMA — multi-node NCCL collectives, GPUDirect RDMA to a storage or network fabric, or any latency-sensitive cross-node transfer — a second, separately-installed operator owns that layer: **NVIDIA Network Operator**.
+
+**Why this is a separate operator, not a GPU Operator feature.** The RDMA-capable NIC (typically a ConnectX adapter) needs its own driver stack — MOFED (Mellanox OFED) — loaded and kept current on the host, independent of the NVIDIA GPU driver. GPU Operator does not manage MOFED, does not expose RDMA devices as a schedulable Kubernetes resource, and does not configure the network-adapter side of the host. Network Operator exists to reconcile that stack the same way GPU Operator reconciles the GPU stack:
+
+| Concern | GPU Operator | Network Operator |
+|---|---|---|
+| Host driver managed | NVIDIA GPU driver | MOFED (RDMA NIC driver) |
+| Kubernetes resource exposed | `nvidia.com/gpu` via device plugin | RDMA device(s) via RDMA device plugin (e.g. `rdma/rdma_shared_device` or an SR-IOV resource name) |
+| Failure domain | driver load, CUDA execution, GPU allocation | NIC driver load, RDMA device visibility, SR-IOV VF provisioning, secondary network attachment |
+| Typical symptom when unhealthy | no allocatable GPU, CUDA init failure | Pod schedules but has no RDMA device; NCCL falls back to a slower path or fails to initialize |
+
+**Architecture, at the same level of detail as the GPU Operator diagram above.** Network Operator reconciles its own set of node-facing DaemonSets: a MOFED driver container (analogous to the GPU driver operand), an RDMA device plugin that discovers RDMA-capable interfaces and publishes them as allocatable Kubernetes resources, and — where SR-IOV is in use — a component that provisions and configures SR-IOV virtual functions (VFs) on the physical NIC so that individual VFs can be handed to individual Pods as close to bare-metal network devices. The exact CRD (commonly `NicClusterPolicy` in current releases) and Helm chart structure evolve between releases, so treat any specific field name as illustrative rather than a version guarantee — verify against the chart deployed in your cluster.
+
+**SR-IOV and secondary networking.** Two things typically have to be true for a Pod to actually use RDMA, and both are things Network Operator helps configure rather than things that happen automatically from having an RDMA NIC in the box:
+
+1. *SR-IOV*, if used, splits one physical NIC into multiple virtual functions, each of which can be passed into a Pod as an isolated, near-native-performance network device rather than sharing one kernel network stack.
+2. *Secondary networking* — commonly via the Multus CNI meta-plugin — gives a Pod a second network interface in addition to its normal pod-network interface, because the default Kubernetes CNI is not designed to hand out RDMA-capable devices. A Pod that needs RDMA typically ends up with its usual `eth0` for cluster/service traffic plus a second interface (an SR-IOV VF or an RDMA-enabled interface) for the high-throughput path. You do not need to know Multus in depth to reason about this — the operational fact worth retaining is that RDMA connectivity for a Pod is a *second* network attachment layered on top of, not a replacement for, its normal pod networking.
+
+**Where GPUDirect RDMA fits.** [Volume 07, Chapter 5](../volume-07/chapter-05-gpudirect-rdma) covers the mechanism itself — a direct DMA path between GPU memory and a network adapter that avoids a staging copy through host memory. Network Operator does not implement that DMA path; it is what makes GPUDirect RDMA *reachable inside a Kubernetes Pod* by ensuring the MOFED driver is present, the RDMA device is exposed to the Pod, and (with GPUDirect-specific peer-memory kernel modules, which Network Operator can also manage as part of its driver stack) the GPU and NIC can find each other across the PCIe topology described in that chapter. Put simply: Volume 07 explains why the direct path is fast; this section explains what has to be true on a Kubernetes node before a Pod can use it at all.
+
+**Boundary for troubleshooting.** When a multi-node training job is slow or fails to initialize NCCL, the first question is which operator's failure domain you are in:
+
+- GPU not allocatable, CUDA init failure, or the DCGM metrics from [Chapter 9](./chapter-09-gpu-observability-with-dcgm) showing driver-level anomalies → GPU Operator's domain.
+- Pod schedules and gets a GPU, but NCCL initialization fails, falls back to TCP instead of RDMA, or hangs on ring/tree setup across nodes → check Network Operator's domain first: is the RDMA device actually present in the Pod, and is MOFED healthy on the host.
+
+**A basic validation workflow.** Three checks, in order of how directly they answer "did Network Operator actually expose RDMA to this Pod":
+
+```text
+# 1. Is the RDMA resource visible to the scheduler at all?
+$ kubectl describe node gpu-node-04 | grep -A2 Allocatable | grep -i rdma
+  rdma/rdma_shared_device_a:  8
+
+# 2. Did this specific Pod actually get one?
+$ kubectl describe pod nccl-worker-2 | grep -i rdma
+  rdma/rdma_shared_device_a:  1
+
+# 3. From inside the Pod, does the RDMA device actually work?
+$ kubectl exec -it nccl-worker-2 -- ibv_devinfo
+hca_id: mlx5_0
+    transport:          InfiniBand (0)
+    fw_ver:              20.36.1010
+    state:               PORT_ACTIVE (4)
+```
+
+If step 1 shows no allocatable RDMA resource, the fault is upstream — Network Operator's device plugin or MOFED driver on that node, not the workload. If step 1 and 2 succeed but step 3 shows `PORT_DOWN` or no devices at all inside the Pod, the resource was scheduled but the device isn't actually functional or the SR-IOV/secondary-network wiring is wrong — the same "Pod-phase healthy but content unhealthy" trap the GPU Operator troubleshooting section above describes, just one layer over in the network stack.
+
 ## Customer architecture discussion
 
 The operator is most valuable when it establishes a repeatable node contract. It should sit behind a platform interface: documented GPU classes, controlled configuration, acceptance gates, and an upgrade path. It does not remove customer choices about kernel governance, disconnected operations, security controls, or workload maintenance windows; it makes those choices observable and enforceable in the cluster.
@@ -217,5 +265,7 @@ The operator is most valuable when it establishes a repeatable node contract. It
 - [Node and GPU Feature Discovery](./chapter-05-node-and-gpu-feature-discovery)
 - [Driver Containers and Node Operands](./chapter-07-driver-containers-and-node-operands)
 - [Upgrades and Production Troubleshooting](./chapter-11-upgrades-and-production-troubleshooting)
+- [Volume 07, Chapter 5 — GPUDirect RDMA](../volume-07/chapter-05-gpudirect-rdma)
 - [NVIDIA GPU Operator documentation](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/)
+- [NVIDIA Network Operator documentation](https://docs.nvidia.com/networking/display/kubernetes)
 - [Kubernetes controller pattern](https://kubernetes.io/docs/concepts/architecture/controller/)

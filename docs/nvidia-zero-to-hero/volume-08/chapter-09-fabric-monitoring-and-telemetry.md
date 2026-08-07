@@ -257,6 +257,19 @@ A production pipeline may include:
 
 Collection must not overload the management plane. Polling frequency should match counter behavior and incident-detection goals.
 
+## UFM: The Product Layer Above These Tools
+
+Everything in this chapter — state, counters, baselines, topology-aware dashboards, alert philosophy, the collection pipeline — describes a *capability*, not a specific product. NVIDIA's product for delivering that capability on InfiniBand is **UFM (Unified Fabric Manager)**. It is worth naming explicitly, because interview questions and job requisitions reference it by name, and because understanding where it sits relative to the CLI tools already covered in this volume prevents a common misconception.
+
+UFM is not a replacement for the subnet manager, `ibstat`, `iblinkinfo`, or `ibdiagnet` — it is the operational layer built on top of them. Concretely:
+
+- it runs (or manages) the subnet manager function described in [Chapter 5](./chapter-05-subnet-management-and-opensm), giving it a supported, centralized home instead of a bare `opensm` process;
+- it continuously collects the same categories of state and counters this chapter walks through by hand — link state, speed/width, error and congestion counters, SM sweep health — across the entire fabric, and persists them as the kind of topology-aware, baselined telemetry this chapter argues you need;
+- it surfaces that telemetry as fabric-wide dashboards and APIs, rather than requiring an engineer to run `ibqueryerrors` or `iblinkinfo` against one switch at a time; and
+- it can act on what it observes: UFM supports automated responses to detected congestion or link degradation — for example, adjusting routing away from a degrading path or triggering an alert/workflow the moment an error-rate acceleration like the one in this chapter's "Day 1 / Day 4 / Day 7" example is detected — instead of waiting for a human to notice the trend across manually pulled snapshots.
+
+That last point is the practical difference in scale. The manual workflow this chapter teaches — pull counters, compute a delta, compare against baseline, correlate with topology — is exactly correct and is what UFM automates under the hood; the value of learning it by hand first is that it is what you fall back on when UFM (or any dashboard) is unavailable, wrong, or itself under investigation, and it is what lets you sanity-check what a dashboard is telling you rather than trust it blindly. In production, most large InfiniBand fleets run UFM (or an equivalent centralized fabric manager) as the day-to-day operational surface, with the CLI tools used for targeted investigation, verification, and any environment where the management plane itself is in question.
+
 ## Counter Semantics
 
 Before alerting on a counter, document:
