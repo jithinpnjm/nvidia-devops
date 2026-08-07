@@ -78,17 +78,17 @@ Do not substitute a generic HGX specification for the final server documentation
 Create a design manifest:
 
 ```yaml
-server_vendor: replace-me
-server_model: replace-me
-hgx_platform: replace-me
-server_count: 0
-rack_type: replace-me
-power_feed_a: replace-me
-power_feed_b: replace-me
-cooling_type: air-or-liquid
-compute_fabric: replace-me
-storage_fabric: replace-me
-management_network: replace-me
+server_vendor: OEM-A (illustrative)
+server_model: 8-GPU HGX H100 SXM5 platform, 4U air-cooled chassis
+hgx_platform: HGX H100 8-GPU baseboard, NVLink/NVSwitch fully connected (NV18 all-to-all)
+server_count: 2   # 2 nodes per rack, per the Step 5 power finding in Lab 01
+rack_type: 42U, 3-phase 415V PDU, front-to-back airflow
+power_feed_a: PDU-A, 32A per phase, breaker panel RPP-3
+power_feed_b: PDU-B, 32A per phase, breaker panel RPP-4 (separate upstream panel from feed A)
+cooling_type: air
+compute_fabric: 8x 400G ConnectX-7 per node, non-blocking leaf switch, 2 GPUs per NIC
+storage_fabric: 2x 200G storage NICs per node, isolated VLAN from compute fabric
+management_network: 1x 1G BMC port per node, dedicated out-of-band switch, no route to production VLANs
 ```
 
 ## 7. Components
@@ -110,7 +110,11 @@ Record each device, rack-unit position, weight, airflow direction, cable exit, a
 
 | RU range | Device | Weight | Power feeds | Network ports | Notes |
 |---|---|---:|---|---:|---|
-| | | | | | |
+| 1-2 | Top-of-rack compute switch | 18 kg | A+B | 32x 400G | Airflow front-to-back, matches rack direction |
+| 3-4 | Out-of-band management switch | 6 kg | A | 48x 1G | Single feed acceptable — non-critical path |
+| 6-9 | HGX server node 1 | 82 kg | A+B (dual PSU) | 8x 400G compute, 2x 200G storage, 1x 1G BMC | Rated 7.9kW design estimate; see Step 2 |
+| 12-15 | HGX server node 2 | 82 kg | A+B (dual PSU) | 8x 400G compute, 2x 200G storage, 1x 1G BMC | 3U gap left below node 1 for airflow/service, not filled with a third node |
+| 20-22 | Storage/leaf switch | 14 kg | A+B | 24x 200G | Serves storage VLAN only, isolated from compute fabric |
 
 ### Step 2 — Calculate power
 
@@ -124,6 +128,19 @@ For each server, record:
 - redundancy mode.
 
 Calculate per-feed load and confirm that the design remains within approved continuous limits after one feed fails.
+
+**Worked calculation for this rack (2 nodes, per the facility-fit finding that 4 nodes exceeded the 18kW limit):**
+
+| Item | Value |
+|---|---|
+| Per-node design estimate (GPUs + CPU + memory + NIC + storage + conversion loss) | ~7.9 kW (illustrative — see Chapter 5's worked TDP breakdown) |
+| 2 nodes | ~15.8 kW |
+| Top-of-rack + management + storage switches | ~0.6 kW |
+| **Total rack design load** | **~16.4 kW**, against an 18 kW facility limit — 1.6kW headroom |
+| PSU configuration | Dual 3kW PSUs per node, N+1 — each node can lose one PSU and stay powered from the other |
+| Single-feed failure test | With feed A down, feed B alone must carry the full ~16.4kW rack load — confirm feed B's breaker (32A @ 415V 3-phase ≈ 23kW capacity) has headroom above 16.4kW; it does, with margin |
+
+This is the calculation that rules out 4 nodes per rack at this facility: `4 × 7.9kW ≈ 31.6kW` plus switches would need roughly 32kW of continuous capacity against an 18kW limit — not close, and no amount of cable or airflow optimization changes that arithmetic.
 
 ### Step 3 — Calculate thermal load
 
@@ -157,7 +174,12 @@ Document management, storage, application, and compute interfaces. Map every ser
 
 | Server port | Fabric | Switch | Speed | Redundant path | Cable type |
 |---|---|---|---|---|---|
-| | | | | | |
+| Node1-CNIC0..3 | Compute | ToR-Compute-A | 400G | Via NCCL rerouting only — no physical redundant NIC | OSFP DAC |
+| Node1-CNIC4..7 | Compute | ToR-Compute-A | 400G | Same as above | OSFP DAC |
+| Node1-SNIC0..1 | Storage | Leaf-Storage-A | 200G | Dual-homed to Leaf-Storage-A and -B | OSFP DAC |
+| Node1-BMC | Out-of-band | Mgmt-Switch-1 | 1G | None — accepted risk per Step 6 finding | Cat6a |
+| Node2-CNIC0..3 | Compute | ToR-Compute-A | 400G | Via NCCL rerouting only | OSFP DAC |
+| Node2-SNIC0..1 | Storage | Leaf-Storage-A | 200G | Dual-homed to Leaf-Storage-A and -B | OSFP DAC |
 
 ### Step 6 — Trace failure domains
 
@@ -207,13 +229,15 @@ Produce a decision table:
 
 | Domain | Status | Evidence | Risk | Required action |
 |---|---|---|---|---|
-| Power | | | | |
-| Cooling | | | | |
-| Weight | | | | |
-| Networking | | | | |
-| Storage | | | | |
-| Serviceability | | | | |
-| Operations | | | | |
+| Power | Conditional go | ~16.4kW design load vs. 18kW limit; single-feed failure carries full load with margin (Step 2) | Low — 1.6kW headroom is thin for future growth | Re-run calculation before adding any third node to this rack |
+| Cooling | Go | Air-cooled, no throttle events in prior soak on same chassis family | Low | None |
+| Weight | Go | 82kg/node x2 + switches well under rack static/dynamic rating | Low | None |
+| Networking | Conditional go | Compute NICs have no physical redundant path (Step 5); NCCL-level rerouting only | Medium — a single NIC failure removes that GPU domain from collectives until repaired | Document accepted risk with platform team; alarm on NIC link-down |
+| Storage | Go | Storage NICs dual-homed to two leaf switches, isolated VLAN from compute | Low | None |
+| Serviceability | Go | 1.1m front / 0.9m rear clearance confirmed against vendor drawing | Low | None |
+| Operations | Conditional go | BMC on isolated out-of-band switch; single 1G port per node, no redundant BMC path | Low — BMC loss delays remote recovery but doesn't affect running workload | Confirm on-site access SLA covers BMC-down scenarios |
+
+Overall: **Conditional go** — the compute-NIC redundancy gap and the thin power headroom are the two items that must be explicitly accepted (with named owners and monitoring) before delivery, not silently assumed away.
 
 Conclude with one decision:
 
