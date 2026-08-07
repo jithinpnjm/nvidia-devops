@@ -22,19 +22,23 @@ InfiniBand is a managed, queue-based RDMA fabric for systems in which communicat
 - telemetry and operational tooling.
 
 ```mermaid
-flowchart LR
-    AppA[Distributed Application]
-    G0[GPU Memory]
-    H0[HCA and QPs]
-    F[Managed InfiniBand Fabric]
-    H1[Remote HCA and QPs]
-    G1[Remote GPU Memory]
-    AppB[Remote Application]
-    SM[Subnet Manager]
+flowchart TD
+    AppA[Distributed Application] --> G0[GPU Memory]
+    G0 <--> H0[HCA and QPs]
+    H0 <-->|"ibstat: Active,<br/>rate/width at design"| F[Managed InfiniBand Fabric]
+    F <-->|"ibstat: Active,<br/>rate/width at design"| H1[Remote HCA and QPs]
+    H1 <--> G1[Remote GPU Memory]
+    G1 --> AppB[Remote Application]
+    SM[Subnet Manager] -. "sminfo: 1 master,<br/>fresh sweep" .-> F
 
-    AppA --> G0 <--> H0 <--> F <--> H1 <--> G1 --> AppB
-    SM -. discovers and programs .-> F
+    Q["Any layer's evidence<br/>fails its own baseline?"] -->|"Physical/link"| R1["Ch.2 -- fix before<br/>anything above it"]
+    Q -->|"Control plane"| R2["Ch.5 -- fix before<br/>routing/transport"]
+    Q -->|"Routing/addressing"| R3["Ch.4/6 -- fix before<br/>transport"]
+    Q -->|"Transport (QP/CQE)"| R4["Ch.3 -- fix before<br/>blaming GPUDirect/app"]
+    Q -->|"None -- all clean"| R5["Application/collective layer<br/>is the correct target"]
 ```
+
+**One diagram, one method: this is Figure 8.10.1's layered gate collapsed onto the whole volume's data path.** Every chapter's evidence — `ibstat`, `sminfo`, P_Key tables, `ib_write_bw`/`lat` percentiles, CQE status — plugs into exactly one of these five gates, and the volume's single most repeated lesson is that skipping a gate to debug a higher layer wastes the most time.
 
 ## Learning Journey Recap
 
@@ -91,6 +95,8 @@ Production health requires expected-state comparison and counter deltas across i
 | GPU direct | GPU-HCA peer path | direct registration and locality | host staging, remote NUMA path |
 | Collective | rings, trees, ranks | scaling within baseline | slow rank, route imbalance |
 | Application | training or inference | service objective met | upstream bottleneck or software failure |
+
+**Two rows, proven.** *Physical*: `ibstat` reporting `Physical state: LinkUp`, `State: Active`, `Rate: 400` matching the documented design value for that HCA generation is the "expected speed and width, stable error rate" claim made concrete (Chapter 2's annotated output) — the common failure column's "bad cable, degraded lane" shows up as `Rate` or lane width silently below that design value while `State` still reads `Active`. *Subnet*: `sminfo` returning exactly one `SMINFO_MASTER` with a climbing `activity count`, cross-checked against `ibstat`'s `SM lid` field on affected ports, is the "active master, valid LIDs, completed sweeps" claim made concrete (Chapter 5) — the common failure column's "missing SM, stale policy" shows up as either an `sminfo` query error (no master) or two hosts each self-reporting master (split authority).
 
 ## Production Design Principles
 
@@ -164,26 +170,53 @@ Do not recommend InfiniBand merely because GPUs are present. Recommend it when w
 ### Conceptual
 
 1. Why does InfiniBand use a Subnet Manager?
+   **Model answer:** "Because InfiniBand switches don't run a distributed routing protocol — they forward using tables that something centralized has to compute and program. The SM is that authority: it discovers topology, assigns LIDs, computes routes, and pushes forwarding state into every switch. Without it, cabled hardware never becomes a usable subnet."
+
 2. Why is RDMA not CPU-free?
+   **Model answer:** "It removes the CPU from the per-message payload path, not from the system. The CPU still creates queue pairs, registers memory, sets up protection domains, handles errors, and processes completions — RDMA's win is eliminating repeated kernel copies and protocol processing per message, not eliminating CPU involvement entirely."
+
 3. What is the difference between a LID and a GUID?
+   **Model answer:** "GUID is a relatively stable hardware object identity — anchor your inventory on it. LID is a runtime forwarding address the SM assigns and can reassign after any sweep or topology change — treat it as observed state, never as a permanent identifier."
+
 4. Why can a lossless network still have high latency?
+   **Model answer:** "Losslessness comes from credit-based backpressure, which converts what would be drops into queueing delay. When credits run low, senders stall and that stall can propagate upstream through several switches as a congestion tree — no packet is ever lost, but latency and jitter climb, which is exactly what synchronized collectives are most sensitive to."
+
 5. Why does `Active` not prove link health?
+   **Model answer:** "`Active` proves two checkpoints passed — physical negotiation and SM admission — and says nothing about negotiated rate or width matching design, error-counter trend, route balance, or congestion on the specific path this traffic takes. I've personally read `Active` at a quarter of designed rate; the state field alone is not sufficient evidence."
 
 ### Architecture
 
 1. Design a 512-GPU nonblocking fabric.
+   **Model answer:** "Start from per-node injection rate and rack layout, not switch count. If each node injects at 400Gb/s and a leaf serves 16 nodes, true 1:1 nonblocking needs 16 uplink ports matching 16 downlink ports — that arithmetic, not a vendor spec sheet, tells you the required leaf radix, and it usually reveals that 'fully nonblocking at this scale' is a real cost conversation, not just an engineering checkbox."
+
 2. Design SM high availability.
+   **Model answer:** "Primary plus at least one standby in a genuinely independent failure domain, identical version-controlled configuration on both, and a tested — not assumed — failover under real traffic. An untested standby with drifted config can take over 'successfully' and still reroute the fabric differently, which shows up later as an unexplained regression."
+
 3. Decide whether storage and compute should share the fabric.
+   **Model answer:** "Model simultaneous worst-case demand — does checkpoint burst traffic overlap in time with peak collective communication. If yes and the overlap is large, I'd lean toward separation or strict traffic-class isolation; if the data doesn't exist yet to answer that, I'd say so rather than guess."
+
 4. Design multi-tenant isolation and fairness.
+   **Model answer:** "Layer P_Key membership, scheduler placement, and service-level policy together — no single control provides both isolation and fairness alone. And I'd explicitly test the denied path, not just the allowed one, because proving isolation holds under real communication load is the only way to know a design works, not just that it was configured."
+
 5. Plan an HDR-to-NDR migration.
+   **Model answer:** "Baseline current application performance first, verify the full compatibility set end to end, pilot on a limited representative path, and measure whether the bottleneck actually moves before rolling out broadly — because Chapter 8's core lesson is that a generation upgrade can pass every negotiation check and still deliver a disappointing application-level gain if the real limiter was somewhere else."
 
 ### Troubleshooting
 
 1. A port is `LinkUp` but remains `Initializing`.
+   **Model answer:** "Physical layer is proven; go straight to the control plane — `sminfo` for exactly one authoritative, actively-sweeping master. I would not touch cables or firmware on a symptom this specific."
+
 2. Host RDMA passes but GPU RDMA fails.
+   **Model answer:** "The fault is in GPUDirect, not the fabric — check GPU-to-HCA PCIe/NUMA locality, GPUDirect compatibility, and container device permissions. Host RDMA passing already rules out the physical, control, and transport layers below it."
+
 3. Pairwise bandwidth is healthy but collectives are slow.
+   **Model answer:** "Pairwise tests one link; collectives load the whole topology at once, so oversubscription and route concentration only surface under that combined pattern. I'd test at increasing scale and correlate per-link telemetry with rank placement rather than trust the two-node result to generalize."
+
 4. One rail is idle.
+   **Model answer:** "Verify it's actually unused rather than just unmonitored — check collector coverage, GPU-to-HCA mapping, and whether the collective library's rail-selection logic is actually spreading traffic across all configured rails or silently collapsing onto one."
+
 5. Physical counters are clean but transmit wait is high.
+   **Model answer:** "That's the congestion signature, not a physical fault — trace the wait-counter gradient across the tier to find the port closest to the actual bottleneck, and address it with placement, routing, or capacity, not a cable replacement."
 
 ## Lab Completion Checklist
 
