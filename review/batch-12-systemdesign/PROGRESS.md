@@ -47,7 +47,7 @@ Volumes: F-08 (`docs/volume-08`), F-09 (`docs/volume-09`), ZTH-23 (`docs/nvidia-
 | ZTH-23 | index.md | done | none |
 | ZTH-23 | chapter-01-gpu-architecture-deep-dive.md | done | 4 high, 1 medium, 1 low |
 | ZTH-23 | chapter-02-cuda-programming-and-optimization.md | done | 3 high |
-| ZTH-23 | chapter-03-multi-gpu-and-distributed-systems.md | pending | |
+| ZTH-23 | chapter-03-multi-gpu-and-distributed-systems.md | done | 2 high, 1 medium, 2 low |
 | ZTH-23 | chapter-04-observability-and-monitoring.md | pending | |
 | ZTH-23 | chapter-05-performance-analysis-and-troubleshooting.md | pending | |
 | ZTH-23 | chapter-06-gpu-sharing-and-virtualization.md | pending | |
