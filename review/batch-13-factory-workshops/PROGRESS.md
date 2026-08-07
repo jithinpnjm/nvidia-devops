@@ -10,8 +10,8 @@ no content) alongside the real chapter files. These are excluded from review as 
 | ZTH-21 | chapter-02-gpu-compute-cluster-design.md | done | high:2, medium:1 (FP32 pattern + TFLOPS 1000x slip) |
 | ZTH-21 | chapter-03-high-speed-networking-architecture.md | done | high:1, medium:1, low:1 (AllReduce BW 6x recurrence) |
 | ZTH-21 | chapter-04-storage-infrastructure-for-ai-pipelines.md | done | high:1, low:1 (10^6 magnitude slip) |
-| ZTH-21 | chapter-05-power-delivery-and-thermal-management.md | pending | |
-| ZTH-21 | chapter-06-software-stack-integration.md | pending | |
+| ZTH-21 | chapter-05-power-delivery-and-thermal-management.md | done | clean |
+| ZTH-21 | chapter-06-software-stack-integration.md | done | low:1 |
 | ZTH-21 | chapter-07-multi-node-distributed-training.md | pending | |
 | ZTH-21 | chapter-08-inference-serving-at-scale.md | pending | |
 | ZTH-21 | chapter-09-multi-region-deployment.md | pending | |

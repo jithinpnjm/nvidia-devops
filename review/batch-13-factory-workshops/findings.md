@@ -61,3 +61,13 @@
   - Evidence: Line ~36.
   - Why it matters for JR2018680: If asked to sanity-check a training throughput number in an interview, reciting 300-500K tokens/sec/GPU for a 70B model would likely draw skepticism.
   - Suggested fix: Cross-check against known reference throughputs (e.g., Megatron-LM/NeMo published numbers) and revise.
+
+### chapter-05-power-delivery-and-thermal-management.md
+- No high/medium findings. Spot-checked power/cost arithmetic (facility power rollups, PDU 3-phase capacity 208V×100A×√3≈36kW, monthly electricity cost, COP calculations) — all verified correct. Matches Volume 1 depth bar with concrete numbers and a real troubleshooting table.
+
+### chapter-06-software-stack-integration.md
+- [SEVERITY: low] Fabricated/incorrect PyTorch API: `timeout=torch.distributed.timedelta(minutes=30)` — `torch.distributed` has no `timedelta` attribute; the correct call is `datetime.timedelta(minutes=30)` from the standard library.
+  - Evidence: Line ~132 (`setup_distributed()`).
+  - Why it matters for JR2018680: Minor, but a candidate copying this snippet into a live-coding round would hit an AttributeError immediately.
+  - Suggested fix: Change to `import datetime` and `timeout=datetime.timedelta(minutes=30)`.
+- Otherwise clean: CUDA/driver compatibility matrix, DDP/DeepSpeed code, and K8s job manifest are consistent with real NVIDIA stack conventions; no FP32/AllReduce/DCGM pattern recurrences found here.
