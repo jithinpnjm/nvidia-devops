@@ -275,3 +275,12 @@ Chapter 5's Question 2 (occupancy/latency diagnosis from profiler metrics) and Q
   - Suggested fix: relabel as "reconfiguration time (changing MIG geometry)" and clarify that running workloads on existing MIG instances have no switching overhead.
 
 Question 1-3 model answers (workload-to-sharing-mode allocation, isolation-failure diagnosis, fairness policy design) are conceptually sound; the numeric examples within them (utilization percentages, cost ratios, Jain's fairness index) are illustrative and internally consistent, not tied to specific hardware specs that could be independently fact-checked.
+
+### chapter-07-kubernetes-and-container-orchestration.md
+
+- [SEVERITY: low] Question 3's monthly cost projection is internally inconsistent: peak and off-peak segments correctly convert hours-at-a-node-count into monthly cost via `(hours × nodes × $500) ÷ 730`, but the "Night/weekend" segment abandons that method and instead computes "1 node running (0.5 capacity idle) = 500 × 0.5 = $250/month" — an arbitrary 0.5 multiplier rather than the actual remaining time fraction. The three segments' hours do sum correctly to 730 (44 + 110 + 576), but 576 hours at 1 node should cost 576/730 × $500 ≈ $394, not $250 — understating the total ("$445/month") by roughly $145.
+  - Evidence: "Night/weekend: 1 node running (0.5 capacity idle) = 500 × 0.5 = $250/month" alongside the correctly-derived peak ($120) and off-peak ($75) lines above it.
+  - Why it matters for JR2018680: minor relative to other findings in this volume, but it's a cost-estimation answer a candidate might reproduce, and the inconsistent methodology (two segments computed one way, the third computed another) would be an easy follow-up catch ("why did you switch formulas for the third segment?").
+  - Suggested fix: apply the same `(hours × nodes × $500) ÷ 730` formula to the night/weekend segment (576 hours × 1 node), giving ≈$394/month and a corrected total near $589/month.
+
+Resource-quota percentages (16/32=50%, 12/32=37.5%, 4/32=12.5%, summing to 32) and the graceful-shutdown/SIGTERM handling content are accurate.
