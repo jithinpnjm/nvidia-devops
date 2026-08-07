@@ -23,8 +23,8 @@ Volumes: F-07 (`docs/volume-07`), ZTH-16 (`docs/nvidia-zero-to-hero/volume-16`),
 | F-07 | 17-senior-deep-dive-6-incident-workflow-evidence-tree-and-safe-mitigation.md | done | none |
 | F-07 | 18-senior-deep-dive-7-alert-design-for-expensive-gpu-systems.md | done | none |
 | F-07 | 19-senior-deep-dive-8-reliability-testing-and-game-days.md | done | none |
-| ZTH-16 | index.md | pending | |
-| ZTH-16 | chapter-01-why-gpu-observability-is-fundamentally-different.md | pending | |
+| ZTH-16 | index.md | done | none |
+| ZTH-16 | chapter-01-why-gpu-observability-is-fundamentally-different.md | done | high x2 |
 | ZTH-16 | chapter-02-signals-metrics-logs-traces-and-evidence.md | pending | |
 | ZTH-16 | chapter-03-core-gpu-metrics-and-interpretation.md | pending | |
 | ZTH-16 | chapter-04-dcgm-the-gpu-metrics-foundation.md | pending | |
