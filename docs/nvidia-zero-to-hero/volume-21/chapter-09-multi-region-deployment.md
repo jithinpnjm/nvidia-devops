@@ -168,13 +168,13 @@ Constraint:
 ## SUMMARY
 
 Multi-region deployment trades off:
-- **Latency:** Each user sees <50ms to nearest region (good UX)
+- **Latency:** Each user sees &lt;50ms to nearest region (good UX)
 - **Cost:** 3x infrastructure for 99.9% SLA (expensive, but necessary for critical services)
 - **Complexity:** Failover, model synchronization, data consistency (operational burden)
 
 **Key metrics:**
-- Regional failover time: <1 second (client-side retry)
+- Regional failover time: &lt;1 second (client-side retry)
 - Inference availability: 99.9% (one region down, traffic reroutes)
-- Model sync overhead: <5% performance loss for eventual consistency
+- Model sync overhead: &lt;5% performance loss for eventual consistency
 
 **In Chapter 10:** Observability and operational monitoring.

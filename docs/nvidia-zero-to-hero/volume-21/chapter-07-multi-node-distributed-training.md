@@ -239,7 +239,7 @@ def train_with_fault_recovery():
 Distributed training at 64+ GPUs requires:
 
 1. **Scaling strategy:** Data parallelism (batch size) scales to 128+ GPU; pipeline/tensor parallelism needed for larger models.
-2. **AllReduce optimization:** Ring AllReduce on high-speed interconnect (IB NDR) keeps overhead <2% at 64 GPU.
+2. **AllReduce optimization:** Ring AllReduce on high-speed interconnect (IB NDR) keeps overhead &lt;2% at 64 GPU.
 3. **Fault tolerance:** Checkpoint every 500 steps; resume from last checkpoint on failure.
 4. **Monitoring:** Track throughput, AllReduce latency, gradient norm, loss trends.
 

@@ -169,7 +169,7 @@ dmesg | grep -i "fan\|thermal" | tail -20
    nvidia-smi -i 0 --query-gpu=temperature.gpu --format=csv,noheader
    ```
 
-3. **If temperature < 70°C, safe to investigate:**
+3. **If temperature &lt; 70°C, safe to investigate:**
    - Can proceed with diagnostics
    - **If temperature > 75°C, immediate power-down required**
 
@@ -277,7 +277,7 @@ sudo nvidia-smi -i 0 -pl 150
 | Symptom | Evidence | Root Cause | Fix | Verification |
 |---------|----------|-----------|-----|--------------|
 | Fan stuck at 0 RPM, temp rising 0.3°C/sec | DCGM shows "Fan speed: 0 RPM", no thermal response | Fan bearing seized or connector loose | Reseat fan power connector; if still stuck, replace fan/GPU | Fan speed > 30% under load, temp stabilizes at 75-80°C |
-| Silent GPU under load, temp 85°C | Fan speed 0%, acoustic: no fan noise | Complete fan failure | Power off node, remove GPU, replace fan assembly or GPU | After replacement, fan audible under load, temp < 75°C |
+| Silent GPU under load, temp 85°C | Fan speed 0%, acoustic: no fan noise | Complete fan failure | Power off node, remove GPU, replace fan assembly or GPU | After replacement, fan audible under load, temp &lt; 75°C |
 | Temperature rising even with 100% fan | Fan speed 100%, thermal sensor active, but temp continues rising | Thermal paste degraded or fan bearing failing | Verify fan is actually spinning (visual inspection); if spinning, replace thermal paste | Temperature drops to 70-75°C after paste replacement |
 | Fan speed erratic (0% → 100% → 0%) | Temperature oscillates, fan response inconsistent | DVFS or fan control firmware oscillation | Disable DVFS in BIOS, set fan to manual mode | Fan maintains stable speed curve matching temperature |
 | Temperature sensor offline but GPU running | nvidia-smi shows no temperature value (N/A), no thermal throttle | Thermal sensor disconnected or faulty | Check sensor connector, reseat if accessible; otherwise replace GPU | Temperature readings appear, throttle capability returns |

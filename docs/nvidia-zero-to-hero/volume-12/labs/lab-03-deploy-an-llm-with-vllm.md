@@ -301,7 +301,7 @@ Command execution details for key deployment operations:
   ```bash
   docker run -d --name vllm_server --gpus '"device=0"' --shm-size=4g -p 8000:8000 -v "${HF_HOME}:/root/.cache/huggingface" vllm/vllm-openai:latest --model "Qwen/Qwen2.5-Coder-1.5B-Instruct" --port 8000 --gpu-memory-utilization 0.85 --max-model-len 4096 --dtype float16 --enforce-eager
   ```
-- **Expected Evidence**: Container starts successfully and output log displays `# GPU blocks: <N>, # CPU blocks: <M>`.
+- **Expected Evidence**: Container starts successfully and output log displays `# GPU blocks: &lt;N&gt;, # CPU blocks: &lt;M&gt;`.
 - **Explanation**: Pre-allocates 85% of total GPU memory. vLLM divides available memory into physical 16-token KV cache blocks managed by PagedAttention.
 - **Common Failure Interpretation**: `ValueError: No available memory for the cache blocks` indicates `--gpu-memory-utilization` is set too low or another process is occupying GPU VRAM.
 

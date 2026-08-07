@@ -25,7 +25,7 @@ You are building a training service that must reliably train large models on mul
 1. Continuously checkpoint model, optimizer state, and training metadata every 5 minutes
 2. If a GPU fails mid-training, automatically restart the job and resume from the last checkpoint
 3. Resume job converges to the same loss as if no failure had occurred
-4. Total training time (including failure + recovery) < 10% overhead
+4. Total training time (including failure + recovery) &lt; 10% overhead
 
 **Real scenario:** Training 30B LLM on 4×H100 cluster. Training loop = 2.5 hours. Without checkpointing, any failure (hardware, network, software) loses all progress. With checkpointing every 5 min, max loss is 5 min of training (~0.2% of total). Recovery overhead (reload model, sync ranks) adds 30 sec per restart.
 
@@ -203,8 +203,8 @@ torchrun --nproc_per_node=4 \
 
 1. **Training runs without manual intervention:** Simulate GPU failure; job automatically restarts and resumes from checkpoint
 2. **Convergence preserved:** Final loss (after recovery) matches expected curve (within 0.1% of baseline)
-3. **Recovery time < 60 seconds:** From failure to resumed training on all 4 GPUs
-4. **Checkpoint overhead < 10%:** Checkpoint writes add < 10% to total training time
+3. **Recovery time &lt; 60 seconds:** From failure to resumed training on all 4 GPUs
+4. **Checkpoint overhead &lt; 10%:** Checkpoint writes add &lt; 10% to total training time
 5. **All ranks recover together:** No rank waits indefinitely for others; synchronization is automatic
 
 ## Real Output: Training Log with Failure and Recovery
@@ -387,12 +387,12 @@ In production, I'd also have a periodic 'health check': every hour, all ranks co
 
 ## Evaluation Rubric
 
-| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (<60%) |
+| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (&lt;60%) |
 |---|---|---|---|---|
 | **Fault tolerance** | Survives failure, auto-recovers, resumes correctly on all criteria | Survives failure, recovers, minor issues with sync | Recovers but slow (>2 min) or requires manual intervention | Doesn't recover or loses significant state |
 | **Checkpoint correctness** | Loss curves identical before/after recovery; verified with multiple seeds | Curves match within 0.5% | Curves match within 2% | Diverges significantly or doesn't validate |
-| **Checkpoint overhead** | <5% time overhead; <50 sec per checkpoint | 5–10% overhead | 10–20% overhead | >20% or checkpoint failures |
-| **Recovery time** | <30 seconds from failure to resumed training | 30–60 seconds | 60–120 seconds | >2 minutes |
+| **Checkpoint overhead** | &lt;5% time overhead; &lt;50 sec per checkpoint | 5–10% overhead | 10–20% overhead | >20% or checkpoint failures |
+| **Recovery time** | &lt;30 seconds from failure to resumed training | 30–60 seconds | 60–120 seconds | >2 minutes |
 | **Documentation** | Describes checkpoint format, failure detection, recovery protocol; clear design choices | Good coverage of main components | Basic documentation present | Minimal or unclear documentation |
 
 ## Key Takeaways

@@ -44,7 +44,7 @@
 **My assumptions:**
 
 - Poisson job arrival (unpredictable)
-- 10% long-running (> 24 hours), 30% medium (1-8 hours), 60% short (< 1 hour)
+- 10% long-running (> 24 hours), 30% medium (1-8 hours), 60% short (&lt; 1 hour)
 - Peak: 50 concurrent short jobs (5 min each) → 1 GPU per team on avg
 - Must handle burst: 10 teams all submitting 8-GPU jobs simultaneously
 
@@ -405,7 +405,7 @@ Answer:
 **Storage for research:**
 - Tiered (local → NFS → tape)
 - Enables recovery from different failure modes
-- Overhead: < 5% for typical workloads
+- Overhead: &lt; 5% for typical workloads
 
 ## Related Chapters
 

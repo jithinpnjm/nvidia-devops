@@ -393,7 +393,7 @@ In practice, this is why monitoring link health (via IB counters) is critical in
 
 ## Evaluation Rubric
 
-| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (<60%) |
+| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (&lt;60%) |
 |---|---|---|---|---|
 | **Ring performance** | 4.5–5.0 ms (40%+ improvement over naive) | 5.5–6.5 ms (25–35% improvement) | 7–8 ms (15–25% improvement) | >8 ms or no improvement |
 | **Correctness** | All ranks produce identical, numerically correct results | Correct within FP32 precision (±1 ULP) | Mostly correct, minor floating-point divergence | Incorrect results or divergence |

@@ -126,7 +126,7 @@ Choose: 90 GPUs, use cheaper IB (HDR100 vs HDR) → CapEx ~$4.8M
 **Latency per step:**
 - Compute: 50B param model, batch 256 per cluster → 100 GFLOP, 1000 TFLOP/s → 100ms compute time
 - AllReduce: 900GB gradients, 4.1 TB/s bandwidth → 220ms if on single GPU; but with ring AllReduce, ~50ms
-- Total step time: 100 + 50 = 150ms (< 300ms target) ✓ Sufficient margin
+- Total step time: 100 + 50 = 150ms (&lt; 300ms target) ✓ Sufficient margin
 
 ### Step 5: Architecture Diagram
 
@@ -181,7 +181,7 @@ flowchart TD
 1. **Hardware justified:** Clear rationale for GPU count, topology, and networking choices
 2. **Throughput validated and gap reported honestly:** Calculate actual achievable throughput for the budget-sized cluster (~22.7T tokens/year for 90 GPUs); explicitly quantify and report the shortfall against the 100T/year requirement rather than making the arithmetic appear to reconcile
 3. **Cost within budget:** Total $5M (including 3 years OpEx)
-4. **Fault tolerance:** Design survives single GPU failure; recovery time < 2 minutes
+4. **Fault tolerance:** Design survives single GPU failure; recovery time &lt; 2 minutes
 5. **Operability:** Automated monitoring and recovery; no manual intervention
 6. **Documentation:** Architecture document with decisions and tradeoffs
 
@@ -338,12 +338,12 @@ Then I'd build a prototype on 8 GPUs, verify my assumptions about throughput and
 
 ## Evaluation Rubric
 
-| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (<60%) |
+| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (&lt;60%) |
 |---|---|---|---|---|
 | **Hardware justified** | Clear calc for GPU count, topology, networking; all choices rationalized | Good justification with minor gaps | Basic hardware selected; limited reasoning | Unjustified or inaccurate choices |
 | **Throughput validated** | Correctly computes ~22.7T tokens/year achievable for the budget-sized cluster (via Step 1 FLOPs-counting AND Step 4 per-GPU methods, cross-checked); explicitly reports the ~4.4× shortfall vs. the 100T/year requirement and proposes concrete options (revise target, add budget, reconsider workload) | Computes achievable throughput correctly but doesn't fully cross-check both methods; shortfall reported but options underdeveloped | Computes throughput with a units/magnitude error but catches that it falls short of 100T | Claims the 100T/year requirement is met (it is not, at this budget) or throughput isn't calculated |
-| **Cost compliance** | Total cost < $5M with ≥10% headroom | < $5.2M, small margin | Exactly on or <5% over | >5% over or no cost detail |
-| **Fault tolerance** | Design survives single GPU failure; recovery < 2 min; checkpointing strategy clear | Survives failure with some manual steps | Recovery works but slow (>5 min) | No fault tolerance or manual only |
+| **Cost compliance** | Total cost &lt; $5M with ≥10% headroom | &lt; $5.2M, small margin | Exactly on or &lt;5% over | >5% over or no cost detail |
+| **Fault tolerance** | Design survives single GPU failure; recovery &lt; 2 min; checkpointing strategy clear | Survives failure with some manual steps | Recovery works but slow (>5 min) | No fault tolerance or manual only |
 | **Architecture document** | Complete spec with diagrams, rationale, tradeoffs, bill of materials | Good spec with most details | Basic design described | Minimal or unclear documentation |
 
 ## Key Takeaways

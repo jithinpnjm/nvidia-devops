@@ -27,7 +27,7 @@ description: "Understand and recover from GPU driver crashes, Xid error codes, a
 
 ### The Xid reference table
 
-Every Xid diagnosis in this curriculum starts here. An Xid is a driver-reported error code, logged to `dmesg`/`/var/log/kern.log` in the form `NVRM: Xid (PCI:<bus>): <code>, <message>`. The code is what matters for triage — the free-text message varies by driver version and should never be pattern-matched on its own.
+Every Xid diagnosis in this curriculum starts here. An Xid is a driver-reported error code, logged to `dmesg`/`/var/log/kern.log` in the form `NVRM: Xid (PCI:&lt;bus&gt;): &lt;code&gt;, &lt;message&gt;`. The code is what matters for triage — the free-text message varies by driver version and should never be pattern-matched on its own.
 
 | Xid | Meaning | Typical Cause | Recoverable? |
 |---|---|---|---|

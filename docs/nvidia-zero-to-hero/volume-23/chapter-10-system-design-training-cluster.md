@@ -314,7 +314,7 @@ Answer:
 - Mean time between failures: 1000 GPU-days
 - Cluster size: 75 GPUs avg active (600 GPUs ÷ 8 utilization)
 - Failures/day: 75 ÷ 1000 = 0.075 failures/day
-- 99% SLA requires < 14 minutes downtime/day
+- 99% SLA requires &lt; 14 minutes downtime/day
 - 1000 iterations × 1 sec/iter = 1000 sec = 16 min overhead
 - Barely achievable; need better checkpoint strategy or higher MTBF
 

@@ -259,13 +259,13 @@ Summary after 5 minutes:
   Network: 50 Mbps (not bottleneck)
 ```
 
-Expected evidence: ✓ Throughput >= 5,000 TPS sustained, ✓ Latency p99 < 50ms
+Expected evidence: ✓ Throughput >= 5,000 TPS sustained, ✓ Latency p99 &lt; 50ms
 
 ## 11. Validation Against SLA
 
 **SLA Requirements (from Chapter 2: Banking):**
 - Throughput: 5,000 TPS sustained ✓ (Achieved: 5,050 TPS)
-- Latency p99: < 100ms ✓ (Achieved: 8.7ms)
+- Latency p99: &lt; 100ms ✓ (Achieved: 8.7ms)
 - Uptime: 99.9% ✓ (Achieved: 99.9% in 5-min test, no crashes)
 
 **Result: PASSED all SLAs**
@@ -351,7 +351,7 @@ If test fails:
 - [ ] Triton server started and model loaded
 - [ ] Synthetic client generates 5,000 TPS without errors
 - [ ] GPU utilization > 90% during load test
-- [ ] Latency p99 < 50ms (well within SLA)
+- [ ] Latency p99 &lt; 50ms (well within SLA)
 - [ ] No memory leaks (GPU memory stable over 5 minutes)
 - [ ] Graceful recovery from single GPU failure
 

@@ -284,7 +284,7 @@ Before declaring "successful deployment":
 - [ ] Readiness probe passed
 - [ ] Health check returned 200
 - [ ] Deterministic inference test passed (same prompt → same output)
-- [ ] Latency < 200ms per request (warm)
+- [ ] Latency &lt; 200ms per request (warm)
 - [ ] GPU memory usage reasonable (~28GB for 7B model)
 - [ ] Failure injection test proved readiness gate works
 - [ ] Rollback procedure verified

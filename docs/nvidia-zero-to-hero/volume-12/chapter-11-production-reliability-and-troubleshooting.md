@@ -259,7 +259,7 @@ vllm-replica-7f9b8-new01        0/1     Running   0          45s (Startup probe 
 ```
 
 #### Prevention
-- Never configure Kubernetes readiness probes with `< 3s` timeouts on LLM serving workloads.
+- Never configure Kubernetes readiness probes with `&lt; 3s` timeouts on LLM serving workloads.
 - Decouple readiness probes from inferencing queues, and isolate model weight storage from shared network bottlenecks.
 
 ---

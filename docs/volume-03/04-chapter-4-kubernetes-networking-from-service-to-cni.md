@@ -72,8 +72,8 @@ Depending on the cluster, Service forwarding may be implemented with iptables, I
 ➕ **Match the tool to the dataplane — don't run iptables commands on an eBPF (Cilium) cluster and conclude "no rules exist":**
 | Dataplane | Where the mapping lives | How to inspect it |
 |---|---|---|
-| iptables (legacy kube-proxy) | `iptables -t nat -L KUBE-SERVICES` chains, one DNAT rule per endpoint | `iptables-save \| grep <service-ip>` |
-| IPVS | kernel IPVS virtual server table | `ipvsadm -L -n \| grep <service-ip>` |
+| iptables (legacy kube-proxy) | `iptables -t nat -L KUBE-SERVICES` chains, one DNAT rule per endpoint | `iptables-save \| grep &lt;service-ip&gt;` |
+| IPVS | kernel IPVS virtual server table | `ipvsadm -L -n \| grep &lt;service-ip&gt;` |
 | eBPF (Cilium, Calico eBPF, kube-proxy replacement) | eBPF maps, not iptables at all | `cilium service list` / `cilium bpf lb list` (tool-specific) |
 
 ➕ **Sample annotated output — IPVS, showing the actual weighting/scheduling that iptables' random-jump chains only approximate:**

@@ -241,7 +241,7 @@ $ sudo grep -R "nvidia" /etc/containerd /etc/nvidia-container-runtime 2>/dev/nul
 
 ## 11. Validation Workload
 
-Replace `<approved-cuda-image>` with a tested image that includes `nvidia-smi`. Save the manifest locally as `gpu-node-validation.yaml`.
+Replace `&lt;approved-cuda-image&gt;` with a tested image that includes `nvidia-smi`. Save the manifest locally as `gpu-node-validation.yaml`.
 
 ```yaml
 apiVersion: v1

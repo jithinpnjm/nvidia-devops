@@ -155,7 +155,7 @@ The file remains edited in the working tree but is no longer selected for the ne
 
 ### Move a branch pointer back safely
 
-`git revert <commit>` creates a new inverse commit and is usually appropriate for a published branch. `git reset` moves a local pointer and can discard or hide commits; use it only when you understand whether the commits are private and what the reflog can recover.
+`git revert &lt;commit&gt;` creates a new inverse commit and is usually appropriate for a published branch. `git reset` moves a local pointer and can discard or hide commits; use it only when you understand whether the commits are private and what the reflog can recover.
 
 ### Find a lost local commit
 

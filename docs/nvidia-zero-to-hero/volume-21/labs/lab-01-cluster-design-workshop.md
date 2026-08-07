@@ -15,7 +15,7 @@ Design a production GPU cluster (hardware, topology, software, operations) for a
 
 Your company (startup, $50M Series B) plans to:
 1. Train a proprietary 100B-parameter LLM every 3 months (model refresh cycle)
-2. Serve Llama-70B inference API (500 QPS peak, 99.5% SLA, <500ms p99 TTFT)
+2. Serve Llama-70B inference API (500 QPS peak, 99.5% SLA, &lt;500ms p99 TTFT)
 3. Run fine-tuning jobs for enterprise customers (100 concurrent LoRA trainers on 7B base)
 
 Budget: $20M year 1 (CAPEX + OPEX combined)
@@ -67,7 +67,7 @@ Budget: $20M year 1 (CAPEX + OPEX combined)
    - Cluster NAS (capacity, throughput)
    - Archive (S3, Glacier)
 
-**Rubric:** All choices must reference cost-per-TFLOP analysis. Topology must support target AllReduce latency (<5ms for 64+ GPU training).
+**Rubric:** All choices must reference cost-per-TFLOP analysis. Topology must support target AllReduce latency (&lt;5ms for 64+ GPU training).
 
 ### Phase 3: Cost-Benefit Analysis (25 min)
 
@@ -88,7 +88,7 @@ Budget: $20M year 1 (CAPEX + OPEX combined)
      - Defer non-critical features (geo-redundancy → single region)
      - Use spot instances for training (70% discount)
      - Reduce GPU count (accept slightly worse SLA)
-   - Target: <$20M year 1
+   - Target: &lt;$20M year 1
 
 **Rubric:** Cost tree must be internally consistent. Optimization choices must be explicit (e.g., "defer EMEA region to year 2, saving $3M").
 
@@ -185,13 +185,13 @@ Remaining budget allocation:
 
 ## Rubric & Scoring
 
-| Dimension | Excellent (100%) | Good (80%) | Acceptable (60%) | Fail (<60%) |
+| Dimension | Excellent (100%) | Good (80%) | Acceptable (60%) | Fail (&lt;60%) |
 |---|---|---|---|---|
 | **Workload specification** | Specific numbers (model size, QPS, latency); traceable to assumptions | Generally specific; most parameters given | Vague; missing key parameters (e.g., model size) | No specification or contradictory |
 | **GPU selection** | Justified by cost/TFLOP, memory needs, verified against workload | GPU choice reasonable but justification incomplete | GPU choice made but not justified | Wrong choice (e.g., A100 for 100B model unquantized) |
-| **Topology & network** | Supports AllReduce <5ms for 64+ GPU training; cost-optimized | Reasonable topology; AllReduce latency plausible | Topology specified; latency assumptions unclear | Topology doesn't support stated workload |
+| **Topology & network** | Supports AllReduce &lt;5ms for 64+ GPU training; cost-optimized | Reasonable topology; AllReduce latency plausible | Topology specified; latency assumptions unclear | Topology doesn't support stated workload |
 | **Cost analysis** | Detailed CAPEX/OPEX tree; cost per output calculated; within budget | Cost breakdown present; cost per output calculated; at or slightly over budget | Basic cost estimate; cost per output not calculated | No cost analysis or vastly over/under budget |
-| **Scaling efficiency** | >85% efficiency verified; bottleneck identified & mitigated | ~80% efficiency; bottleneck identified | Efficiency >70% but not justified | Efficiency <70% or not addressed |
+| **Scaling efficiency** | >85% efficiency verified; bottleneck identified & mitigated | ~80% efficiency; bottleneck identified | Efficiency >70% but not justified | Efficiency &lt;70% or not addressed |
 | **SLA achievability** | SLA met under stated assumptions; risk mitigation for common failures | SLA met but mitigation incomplete | SLA plausible but assumptions questionable | SLA not achievable with stated design |
 | **Presentation** | Clear, concise; answers critique; trade-offs articulated | Clear; mostly answers questions | Understandable; some gaps | Unclear or unprepared |
 
@@ -199,9 +199,9 @@ Remaining budget allocation:
 
 - [ ] Cluster design fits within $20M budget
 - [ ] Training throughput >25M tokens/sec (Llama-100B in 3 days → requires >2.8B tokens/sec)
-- [ ] Inference serves 500 QPS with <500ms p99 TTFT
+- [ ] Inference serves 500 QPS with &lt;500ms p99 TTFT
 - [ ] SLA achievable (specify availability per component)
-- [ ] AllReduce latency <5ms (if 64+ GPU training)
+- [ ] AllReduce latency &lt;5ms (if 64+ GPU training)
 - [ ] Cost per output calculated and defended
 - [ ] Design can be presented in 10 minutes with visual aids
 

@@ -234,7 +234,7 @@ kubectl get events -A --sort-by=.lastTimestamp | tail -n 30
 
 ## 13. Validation Workload
 
-Create a disposable namespace and replace `<advertised-mig-resource>` with the exact allocatable resource name observed in section 12.
+Create a disposable namespace and replace `&lt;advertised-mig-resource&gt;` with the exact allocatable resource name observed in section 12.
 
 ```yaml
 apiVersion: v1

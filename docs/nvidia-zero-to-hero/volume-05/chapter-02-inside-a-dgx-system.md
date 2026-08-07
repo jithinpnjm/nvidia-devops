@@ -286,7 +286,7 @@ $ nvidia-smi topo -m | grep -E "GPU0|CPU Affinity"
        GPU0 ... CPU Affinity  NUMA Affinity
 GPU0     X  ...   32-63           1
 ```
-GPU0 is wired to NUMA node 1 (CPUs 32-63). If the data-loader process for that GPU was launched without CPU affinity and landed on NUMA node 0 instead — checkable with `taskset -pc <pid>` — every batch it prepares crosses the cross-socket interconnect before ever reaching PCIe, adding latency per batch that compounds into exactly the "GPU idles between kernels" signature Step 1 found. This is a common root cause for "one node is slower, nothing is technically broken."
+GPU0 is wired to NUMA node 1 (CPUs 32-63). If the data-loader process for that GPU was launched without CPU affinity and landed on NUMA node 0 instead — checkable with `taskset -pc &lt;pid&gt;` — every batch it prepares crosses the cross-socket interconnect before ever reaching PCIe, adding latency per batch that compounds into exactly the "GPU idles between kernels" signature Step 1 found. This is a common root cause for "one node is slower, nothing is technically broken."
 
 ### Root causes
 

@@ -81,7 +81,7 @@ GPU 1: Utilization: 38%
 GPU 2: Utilization: 40%
 GPU 3: Utilization: 39%
 ```
-→ All GPUs < 50% utilization — go to "Starvation" branch
+→ All GPUs &lt; 50% utilization — go to "Starvation" branch
 
 **Step 3: CPU load on data node?**
 ```bash

@@ -179,7 +179,7 @@ Create a comparison table:
 
 | Metric | PyTorch Profiler | Nsight Systems |
 |---|---|---|
-| Total profiling overhead | <5% (doesn't slow code much) | ~10-15% (more detailed tracking) |
+| Total profiling overhead | &lt;5% (doesn't slow code much) | ~10-15% (more detailed tracking) |
 | Granularity | Kernel-level + ops | Kernel-level + system calls |
 | Best for | Quick app-level analysis | Detailed timeline + system correlation |
 | Output format | Table (console) | Interactive GUI or JSON |

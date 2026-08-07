@@ -1,5 +1,5 @@
 ---
-title: Chapter 14 — Reference Architecture: Multi-Region Inference Deployment
+title: "Chapter 14 — Reference Architecture: Multi-Region Inference Deployment"
 description: Global deployment for latency-sensitive inference with disaster recovery and auto-scaling.
 sidebar_position: 15
 tags: [reference-architecture, inference, multi-region, geo-failover]
@@ -283,7 +283,7 @@ COST OF 3-REGION REDUNDANCY:
 
 Multi-region inference deployment provides:
 
-1. **Low latency:** Users in any region see <50ms TTFT (good UX).
+1. **Low latency:** Users in any region see &lt;50ms TTFT (good UX).
 2. **High availability:** 99.9% SLA despite any single-region failure.
 3. **Elastic scaling:** Auto-scale pods during traffic spikes.
 4. **Cost:** ~$1.96 per million tokens — substantially higher than commercial API pricing (e.g., AWS Bedrock ~$0.005–0.02/1M tokens); self-hosting is not a per-token cost play here.
@@ -298,7 +298,7 @@ Multi-region inference deployment provides:
 
 From strategy (Chapter 1: workload characterization) to execution (Chapter 14: global deployment), an AI factory is built by layering constraints:
 
-1. **Constraints:** Business SLA (99.9% uptime), cost target (<$0.01/token), workload profile (2000 QPS).
+1. **Constraints:** Business SLA (99.9% uptime), cost target (&lt;$0.01/token), workload profile (2000 QPS).
 2. **Hardware:** GPU selection (H100 vs H200), topology (single-rack vs multi-rack), interconnect (NVLink + InfiniBand).
 3. **Software:** Distributed training (DeepSpeed ZeRO), inference serving (vLLM), orchestration (Kubernetes).
 4. **Operations:** Monitoring (Prometheus), automation (HPA), incident response playbooks.

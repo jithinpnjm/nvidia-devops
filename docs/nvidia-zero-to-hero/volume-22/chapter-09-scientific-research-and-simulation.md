@@ -53,7 +53,7 @@ Scientific simulations differ from ML workloads:
 
 **Checkpoint strategy:**
 - Write checkpoint every 10 steps (every 2.4 hours)
-- If crash mid-checkpoint: lose <2.4 hours compute
+- If crash mid-checkpoint: lose &lt;2.4 hours compute
 - If entire cluster fails: restart from previous successful checkpoint
 - Expected failures: ~1 per 2-month job
 

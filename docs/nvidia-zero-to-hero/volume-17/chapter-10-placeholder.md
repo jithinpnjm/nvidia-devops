@@ -191,7 +191,7 @@ A healthy HPL result is typically **70-90% of theoretical peak FLOPS**, with the
 
 | Evidence | Root cause | Fix |
 |---|---|---|
-| Same code, same data: runs show 1000, 1080, 950, 1120 TFLOPS (15% variance) | Thermal/power variance: some runs hit thermal throttle at 80°C, others don't. Clocks drop 50-100 MHz when throttling. | Enable persistence mode, lock power limit at conservative level (350W), lock clocks. Trade peak performance for stability. Variance should drop to <2%. |
+| Same code, same data: runs show 1000, 1080, 950, 1120 TFLOPS (15% variance) | Thermal/power variance: some runs hit thermal throttle at 80°C, others don't. Clocks drop 50-100 MHz when throttling. | Enable persistence mode, lock power limit at conservative level (350W), lock clocks. Trade peak performance for stability. Variance should drop to &lt;2%. |
 
 ### Problem: "Performance different on GPU 0 vs GPU 7"
 
@@ -203,7 +203,7 @@ A healthy HPL result is typically **70-90% of theoretical peak FLOPS**, with the
 
 **Q: You have an 8-GPU system with variable throughput (15% variance). How would you diagnose and fix it?**
 
-> A: I'd first check if it's reproducible. Run the same training script 10 times, measure TFLOPS, and see if it varies every time or if specific runs are slower. If variance is present, I'd check nvidia-smi dmon during training to see clocks, temperature, and power. If temps hit 80°C and clocks drop from 2.0 to 1.8 GHz, I've found the culprit: thermal throttling. Fix: improve cooling (better case airflow, water cooling), reduce power limit to keep temps lower, or enable GPU persistence mode. If temps are stable but power draws vary, it might be PSU contention on the 8 GPUs share a single PSU. Fix: upgrade PSU or limit power per GPU. The goal is consistency: lock clocks, lock power limit, and then variance should be <2%.
+> A: I'd first check if it's reproducible. Run the same training script 10 times, measure TFLOPS, and see if it varies every time or if specific runs are slower. If variance is present, I'd check nvidia-smi dmon during training to see clocks, temperature, and power. If temps hit 80°C and clocks drop from 2.0 to 1.8 GHz, I've found the culprit: thermal throttling. Fix: improve cooling (better case airflow, water cooling), reduce power limit to keep temps lower, or enable GPU persistence mode. If temps are stable but power draws vary, it might be PSU contention on the 8 GPUs share a single PSU. Fix: upgrade PSU or limit power per GPU. The goal is consistency: lock clocks, lock power limit, and then variance should be &lt;2%.
 
 ## Key Takeaways
 

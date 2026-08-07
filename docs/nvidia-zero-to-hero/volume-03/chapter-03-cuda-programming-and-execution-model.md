@@ -273,7 +273,7 @@ The error text is attached to the `cudaMemcpy` call, but `cudaMemcpy` is very li
 
 Check grid size, block count, per-block resource use, CPU launch gaps, memory bandwidth, and synchronization frequency.
 
-**Evidence — a grid too small to use a bigger GPU:** an A10 (72 SMs) and an H100 (132 SMs) both run a kernel launched with `<<<64, 256>>>` — only 64 blocks. On the A10, most of the 72 SMs get at least one block; on the H100, at most 64 of 132 SMs ever receive work, and the other ~68 sit idle for the entire kernel. `nvidia-smi dmon` on the H100 run would show `sm%` capped well below 100 even though the kernel is compute-bound — the ceiling isn't the workload, it's that the grid never exposed enough blocks to fill the larger device. This is a launch-geometry bug, not a memory-bandwidth or driver issue, and it is diagnosed by comparing block count to SM count, not by re-profiling the kernel's instructions.
+**Evidence — a grid too small to use a bigger GPU:** an A10 (72 SMs) and an H100 (132 SMs) both run a kernel launched with `&lt;&lt;&lt;64, 256>>>` — only 64 blocks. On the A10, most of the 72 SMs get at least one block; on the H100, at most 64 of 132 SMs ever receive work, and the other ~68 sit idle for the entire kernel. `nvidia-smi dmon` on the H100 run would show `sm%` capped well below 100 even though the kernel is compute-bound — the ceiling isn't the workload, it's that the grid never exposed enough blocks to fill the larger device. This is a launch-geometry bug, not a memory-bandwidth or driver issue, and it is diagnosed by comparing block count to SM count, not by re-profiling the kernel's instructions.
 
 ## Customer Scenario
 

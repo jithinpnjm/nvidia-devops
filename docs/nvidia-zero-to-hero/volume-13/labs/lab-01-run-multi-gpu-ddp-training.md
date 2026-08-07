@@ -67,7 +67,7 @@ Compare wall-clock time per epoch (or tokens/sec) between a single-GPU run (`pyt
 - **OOM (Out of Memory):** Batch size (per-GPU, not global) is too large for the available VRAM.
 
 ## 11. Safe Failure Injection
-**Action:** Manually kill one of the worker processes (e.g., `kill -9 <PID>`) to simulate a node or GPU crash.
+**Action:** Manually kill one of the worker processes (e.g., `kill -9 &lt;PID&gt;`) to simulate a node or GPU crash.
 **Expected Result:** The process group should hang or crash with an explicit NCCL error.
 
 ## 12. Recovery Steps

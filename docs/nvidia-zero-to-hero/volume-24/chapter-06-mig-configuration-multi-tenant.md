@@ -22,8 +22,8 @@ By the end of this project, you will be able to:
 
 A shared GPU cluster serves three competing workloads:
 
-1. **Batch inference** (CNN image classification): 50 images/sec, p99 latency < 50 ms
-2. **Online inference** (embedding model): 5000 req/sec, p99 latency < 5 ms  
+1. **Batch inference** (CNN image classification): 50 images/sec, p99 latency &lt; 50 ms
+2. **Online inference** (embedding model): 5000 req/sec, p99 latency &lt; 5 ms  
 3. **Research training** (small LLM, 1.3B params): 100 samples/sec, p99 loss improvement >= 0.5% per epoch
 
 You have **one H100 GPU** (80 GB HBM3, ~989 TensorCore TFLOPS BF16 dense, ~3.35 TB/s memory bandwidth). You must partition it so all three workloads meet their SLOs simultaneously.
@@ -201,7 +201,7 @@ if __name__ == '__main__':
 
 ## Success Criteria
 
-1. **All workloads meet SLOs simultaneously:** Batch >= 50 img/s + p99 < 50ms, Online >= 5000 req/s + p99 < 5ms, Training >= 100 samples/sec
+1. **All workloads meet SLOs simultaneously:** Batch >= 50 img/s + p99 &lt; 50ms, Online >= 5000 req/s + p99 &lt; 5ms, Training >= 100 samples/sec
 2. **No cross-partition interference:** Latency on one partition unchanged when other partitions are loaded
 3. **Resource isolation verified:** Memory and compute are strictly partitioned (no time-sharing or contention)
 4. **Storage and documentation:** Detailed MIG configuration saved; rationale for partition sizing explained
@@ -273,7 +273,7 @@ For each workload, estimate compute and memory:
 **Batch Inference (CNN):**
 - Model: ResNet-50 (25.5M parameters, 4 GB memory)
 - Batch size: 32 images × 3×224×224 = 150 MB per batch
-- Latency requirement: p99 < 50 ms
+- Latency requirement: p99 &lt; 50 ms
 - FLOPs: ResNet-50 forward pass = ~4 GFLOP per image; 32 images = 128 GFLOP; at 50 ms = 2.56 TFLOP/s (compute estimate)
 - Bandwidth: ~500 MB for weights + activations per batch; 50 ms batch time = 10 GB/s sustained
 - Allocated: 1g.10gb partition (141 TFLOPS BF16, 10 GB) ✓ sufficient — smallest available profile, still >>50× the compute this workload needs
@@ -281,10 +281,10 @@ For each workload, estimate compute and memory:
 **Online Inference (Embedding):**
 - Model: Dense embedding lookup (768 → 128, 99KB model)
 - Batch: Single query (768 floats = 3 KB)
-- Latency: p99 < 5 ms
+- Latency: p99 &lt; 5 ms
 - FLOPs: 768 × 512 + 512 × 128 = 526K FLOPs; at 5 ms = 105 GFLOP/s = 0.1 TFLOP/s
 - Bandwidth: minimal (~1 KB per query)
-- Allocated: 1g.10gb partition (141 TFLOPS BF16, 10 GB — severe overkill relative to the <1 GB / 0.1 TFLOP/s actually needed, but it's the smallest MIG profile available, and isolation is required by the constraint) ✓
+- Allocated: 1g.10gb partition (141 TFLOPS BF16, 10 GB — severe overkill relative to the &lt;1 GB / 0.1 TFLOP/s actually needed, but it's the smallest MIG profile available, and isolation is required by the constraint) ✓
 
 **Training (1.3B LLM):**
 - Model: 1.3B params (5.2 GB with FP32 weights, 10.4 GB with optimizer state)
@@ -296,12 +296,12 @@ For each workload, estimate compute and memory:
 
 ### Step 2: Select MIG Configuration
 
-Given an 80 GB H100 and three workloads whose actual needs (4 GB, <1 GB, 12.4 GB) are all modest, all three fit comfortably using **mixed-size** MIG partitions — no need to shrink any workload or reach for a second GPU:
+Given an 80 GB H100 and three workloads whose actual needs (4 GB, &lt;1 GB, 12.4 GB) are all modest, all three fit comfortably using **mixed-size** MIG partitions — no need to shrink any workload or reach for a second GPU:
 
 **Configuration: 1×2g.20gb + 2×1g.10gb**
 - `2g.20gb`: Training (1.3B LLM) — the only workload that needs more than the smallest profile (12.4 GB > 10 GB)
 - `1g.10gb`: Batch inference (CNN) — 4 GB needed, 10 GB allocated
-- `1g.10gb`: Online inference (embedding) — <1 GB needed, 10 GB allocated (smallest profile available)
+- `1g.10gb`: Online inference (embedding) — &lt;1 GB needed, 10 GB allocated (smallest profile available)
 
 Total: 4/7 compute slices, 40/80 GB memory. That leaves 3 slices and 40 GB free — enough for a future 4th tenant (e.g., a `3g.40gb` partition), which is only possible because MIG lets you mix profile sizes on one GPU rather than forcing every partition to the same size.
 
@@ -364,8 +364,8 @@ python online_inference.py --mig-instance=1 --duration=10
 "I'd start with understanding what's being shared: compute (SM utilization), memory (VRAM), and I/O (PCIe bandwidth).
 
 For three workloads, I'd calculate the compute and memory needs:
-1. Batch inference: low compute (2–5 TFLOPS), needs low latency (< 50ms)
-2. Online inference: tiny compute (0.1 TFLOP/s), needs ultra-low latency (< 5ms)
+1. Batch inference: low compute (2–5 TFLOPS), needs low latency (&lt; 50ms)
+2. Online inference: tiny compute (0.1 TFLOP/s), needs ultra-low latency (&lt; 5ms)
 3. Training: moderate compute (20+ TFLOPS), needs high throughput (100+ samples/sec)
 
 Compute-wise, I have ~989 TFLOPS (BF16) available, so all three could run concurrently on time-slicing. But the problem specifies no time-slicing (strict isolation).
@@ -384,9 +384,9 @@ If they were different jobs with different priority, I might add QoS (Quality of
 
 ## Evaluation Rubric
 
-| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (<60%) |
+| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (&lt;60%) |
 |---|---|---|---|---|
-| **SLO compliance** | All 3 workloads meet targets simultaneously; measurements match expected | 2/3 meet targets; good explanation for 3rd | 2/3 meet targets; limited explanation | <2/3 or targets not met |
+| **SLO compliance** | All 3 workloads meet targets simultaneously; measurements match expected | 2/3 meet targets; good explanation for 3rd | 2/3 meet targets; limited explanation | &lt;2/3 or targets not met |
 | **MIG configuration** | Well-justified partition sizing; calculation shown; verified | Good justification, some gaps | Basic MIG setup working | MIG not configured or doesn't work |
 | **Isolation verification** | Demonstrates no cross-partition interference; latency stable under load | Shows isolation tested, mostly verified | Isolation tested but incomplete | No isolation testing or interference detected |
 | **Performance measurement** | Actual throughput matches calculated prediction (±10%) | Within ±20% | Within ±30% | >30% or unmeasured |
@@ -404,7 +404,7 @@ If they were different jobs with different priority, I might add QoS (Quality of
 
 1. If batch inference needed 70 img/s (not 50), would you still use 1g.10gb for it?
 2. How would you handle a 4th workload (research inference) needing to fit on the same GPU?
-3. What if online inference's SLO was p99 < 1ms instead of 5ms? Can MIG still guarantee it?
+3. What if online inference's SLO was p99 &lt; 1ms instead of 5ms? Can MIG still guarantee it?
 4. Design a cost model: each partition wastes memory (unused capacity). How would you optimize for cost?
 
 ## Cross-References

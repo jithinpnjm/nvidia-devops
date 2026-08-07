@@ -63,9 +63,9 @@ GPU monitoring requires metrics at four levels:
 | Metric | Definition | Target | Why it matters |
 |---|---|---|---|
 | **GPU health** | Thermal throttling, power limit events | 0 events | Indicates cooling/power issues |
-| **Error rate** | Failed synchronization, NaN gradients | < 0.1% | Detects hardware/software faults |
+| **Error rate** | Failed synchronization, NaN gradients | &lt; 0.1% | Detects hardware/software faults |
 | **Uptime** | Time between restarts | > 99% (SLA) | Business metric |
-| **Mean Time To Recovery (MTTR)** | Time to detect and recover from failure | < 5 min | Operational efficiency |
+| **Mean Time To Recovery (MTTR)** | Time to detect and recover from failure | &lt; 5 min | Operational efficiency |
 
 ## SLO Design Examples
 

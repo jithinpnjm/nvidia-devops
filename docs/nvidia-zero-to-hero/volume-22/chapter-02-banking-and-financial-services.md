@@ -12,16 +12,16 @@
 
 This chapter covers three critical use cases in financial services:
 
-1. **Real-time fraud detection** at 5,000 TPS with < 100ms latency
+1. **Real-time fraud detection** at 5,000 TPS with &lt; 100ms latency
 2. **Overnight risk modeling** (VaR calculations on $500B portfolios) using FP64 A100s
-3. **Algorithmic trading signals** from LLMs with < 50ms end-to-end latency
+3. **Algorithmic trading signals** from LLMs with &lt; 50ms end-to-end latency
 
 ## Use Case 1: Fraud Detection (5,000 TPS)
 
 ### Requirements
 
 - Throughput: 5,000 TPS sustained, 200M transactions/day
-- Latency: p99 < 100ms
+- Latency: p99 &lt; 100ms
 - Model: XGBoost ensemble (5 models, 12GB total)
 - Uptime: 99.9%
 - Compliance: GDPR, audit trails, explainability
@@ -77,8 +77,8 @@ flowchart TD
 
 - Input: News articles (20/sec peak)
 - Model: DistilBERT (66M params, FP16)
-- Latency: < 50ms from article publish to trade submit
-- Model: Inference only, < 50ms target critical
+- Latency: &lt; 50ms from article publish to trade submit
+- Model: Inference only, &lt; 50ms target critical
 
 ### Architecture: Single H100 + ONNX Runtime
 
@@ -104,9 +104,9 @@ flowchart TD
 
 **Q: Why do banks need GPU for fraud detection but maybe not for risk modeling?**
 
-A: Fraud detection is latency + throughput sensitive (5,000 TPS, <100ms). Risk modeling is compute-intensive but latency-insensitive (14 hours fine, want 4 hours = speedup matters). GPU strength is exactly this: massive parallel throughput for fraud, and exceptional FP64 performance for risk.
+A: Fraud detection is latency + throughput sensitive (5,000 TPS, &lt;100ms). Risk modeling is compute-intensive but latency-insensitive (14 hours fine, want 4 hours = speedup matters). GPU strength is exactly this: massive parallel throughput for fraud, and exceptional FP64 performance for risk.
 
-**Q: Design a fraud detection system for 5,000 TPS with <100ms latency.**
+**Q: Design a fraud detection system for 5,000 TPS with &lt;100ms latency.**
 
 A: 8 L40S GPUs (2 clusters of 4) behind load balancers. Each L40S does 750 TPS independently. Total = 6,000 TPS available (headroom above the 5,000 TPS target). Batch size 256, inference time ~8ms, end-to-end with network ~40ms p99. Cost: $161K hardware + $80K/year ops.
 

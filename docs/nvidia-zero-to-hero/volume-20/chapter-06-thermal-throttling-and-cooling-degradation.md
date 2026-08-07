@@ -183,7 +183,7 @@ All fans at 100% but temperature still 85°C → **cooling system is saturated**
    ```
 
 3. **Improve ambient cooling:**
-   - Ensure data center CRAC/CRAH maintains < 24°C ambient
+   - Ensure data center CRAC/CRAH maintains &lt; 24°C ambient
    - Verify no hot-air recirculation around chassis
    - Check for blocked intake vents
 
@@ -264,7 +264,7 @@ $ nvidia-smi -i 0 -q | grep -i dvfs
 
 | Symptom | Evidence | Root Cause | Fix | Verification |
 |---------|----------|-----------|-----|--------------|
-| Clock drops 1980 → 1833 MHz, temp 85°C, fan 100% | DCGM thermal events > 100/min, dmesg shows throttle | Thermal paste degraded or airflow blocked | Replace thermal paste, verify airflow, reduce ambient temp | Temperature < 80°C, clock stable ~1980 MHz, fan 70-80% |
+| Clock drops 1980 → 1833 MHz, temp 85°C, fan 100% | DCGM thermal events > 100/min, dmesg shows throttle | Thermal paste degraded or airflow blocked | Replace thermal paste, verify airflow, reduce ambient temp | Temperature &lt; 80°C, clock stable ~1980 MHz, fan 70-80% |
 | Temperature rises 2°C/min, plateaus at 87°C | Fan speed 100%, no fluctuation, power draw stable | Cooling capacity exhausted (PSU or facility limits) | Reduce GPU power limit to 200W, enable variable fan control | Temp stabilizes at 75°C with lower throughput |
 | Intermittent thermal throttle (appears daily at 3 PM) | Temperature spike correlated with facility AC cycle | Facility HVAC insufficient or datacenter hot spot | Move GPU to cooler location, request facility temp increase | Throttle disappears when relocated or time of day irrelevant |
 | Thermal paste applied but temp still 85°C | Fan speed increases but temperature doesn't improve | Thermal interface material defective or installation error | Re-apply paste, verify paste coverage with thermal camera | Temp drops to 70-75°C, no recurring high temp |
@@ -364,5 +364,5 @@ A: "That timing pattern screams facility issue. The data center probably has pea
 
 **Q: "How would you build a preventive monitoring system to catch thermal degradation before it affects training?"**
 
-A: "I'd set up continuous metrics collection: every 30 seconds, record GPU temperature, fan speed, and clock speed. Then I'd build a Prometheus alert on two things: (1) if temperature > 80°C for > 5 minutes, page on-call to investigate; (2) if throttle events are detected, alert immediately because throttling means we're already losing performance. I'd also run a weekly synthetic load test — schedule a 10-minute constant-load job on each GPU and verify temperature stays < 75°C and clock stays > 1900 MHz. If it doesn't, that GPU is due for thermal paste replacement. This way we catch degradation before it hits production."
+A: "I'd set up continuous metrics collection: every 30 seconds, record GPU temperature, fan speed, and clock speed. Then I'd build a Prometheus alert on two things: (1) if temperature > 80°C for > 5 minutes, page on-call to investigate; (2) if throttle events are detected, alert immediately because throttling means we're already losing performance. I'd also run a weekly synthetic load test — schedule a 10-minute constant-load job on each GPU and verify temperature stays &lt; 75°C and clock stays > 1900 MHz. If it doesn't, that GPU is due for thermal paste replacement. This way we catch degradation before it hits production."
 

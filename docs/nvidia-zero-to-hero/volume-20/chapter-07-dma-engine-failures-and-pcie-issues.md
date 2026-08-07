@@ -345,7 +345,7 @@ At this point:
 - Multiple GPUs in same node show DMA errors simultaneously (motherboard/root complex issue)
 - Link trains down to Gen3 x8 persistently despite retrain attempts
 - GPU becomes unresponsive (falls off bus) after DMA reset
-- Bandwidth remains < 50% of expected even after full reset
+- Bandwidth remains &lt; 50% of expected even after full reset
 
 **Escalation data to collect:**
 

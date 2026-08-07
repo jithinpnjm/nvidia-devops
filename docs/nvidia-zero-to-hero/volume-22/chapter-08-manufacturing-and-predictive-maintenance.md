@@ -26,12 +26,12 @@ Predictive maintenance reduces equipment downtime 30-50%, saving $100Ks-$1Ms per
 - Cost: $449 × 50 = $22.5K (within $50K budget)
 - Power: 25W (acceptable for factory)
 - Model: XGBoost + Isolation Forest locally
-- Latency: <100ms for 25 bearings
+- Latency: &lt;100ms for 25 bearings
 
 **Performance:**
-- Inference: 5ms per bearing if run sequentially (5ms × 25 = 125ms, which would violate the <100ms budget) — bearings are instead processed as a single GPU-batched inference call across all 25 sensors, bringing total latency to ~35ms
+- Inference: 5ms per bearing if run sequentially (5ms × 25 = 125ms, which would violate the &lt;100ms budget) — bearings are instead processed as a single GPU-batched inference call across all 25 sensors, bringing total latency to ~35ms
 - Monitoring: Real-time, detect failures 7-14 days ahead
-- Latency requirement: <100ms ✓ (35ms achieved via batched inference)
+- Latency requirement: &lt;100ms ✓ (35ms achieved via batched inference)
 
 ### ROI
 

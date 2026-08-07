@@ -172,7 +172,7 @@ Rise rate: (83-55)/30 = 0.93°C/sec → **FAN FAILURE**
 | 10:30 | Accuracy diverges | **STOP job immediately** | ECC errors corrupting training data; continued run will waste compute |
 | 10:31 | Isolate failing module | Run memory test to locate bad address range | `cuda-memtest --stress --stress_iterations 5 -d 2` |
 | 10:35 | Memory test results | If errors in specific range, HBM module failing; if scattered, broader issue | Determines if we can work around it |
-| 10:40 | **Decision: salvage or replace?** | If errors in < 5% of HBM, can relocate GPU workload; otherwise replace GPU | Cost-benefit: days to workaround vs. 2-4hr hardware RMA |
+| 10:40 | **Decision: salvage or replace?** | If errors in &lt; 5% of HBM, can relocate GPU workload; otherwise replace GPU | Cost-benefit: days to workaround vs. 2-4hr hardware RMA |
 | 10:45 | **Mitigation: immediate** | Drain GPU from cluster; add to maintenance pool | Prevents cascading failures on other jobs |
 | 11:00 | **Long-term** | Escalate to hardware team for GPU replacement | RMA process and lead time |
 
@@ -213,7 +213,7 @@ $ nvidia-smi -i 2 -q | grep -i "memory"
 ```
 
 **Decision criteria:**
-- **Error rate < 1/hour:** Monitor, maybe continue
+- **Error rate &lt; 1/hour:** Monitor, maybe continue
 - **Error rate 1-10/hour:** Reduce load, plan replacement
 - **Error rate > 10/hour:** **STOP immediately**, escalate
 

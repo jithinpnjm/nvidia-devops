@@ -38,7 +38,7 @@ $ ps -eLo pid,tid,psr,pcpu,stat,wchan:32,comm --sort=-pcpu | head -4
 ```
 `-L` is what makes this list threads (TID), not just processes — a process's own PID row can look idle while one specific thread is pegged. `PSR` is which CPU core the thread last ran on, the same topology fact Chapter 1's `nvidia-smi topo`-style reasoning cares about, just for CPU cores instead of GPUs. `WCHAN` is the kernel function a sleeping thread is parked in: `-` (or `running`) means it isn't blocked in anything identifiable right now; `futex_wait_queue_me` names the exact primitive — a lock — it's waiting on; `io_schedule` names disk I/O. This single column is usually faster than `strace` for a first pass, because it needs no attach and no wait — the kernel already recorded where the thread stopped.
 
-➕ **`vmstat 1`, `pidstat -w`, `/proc/<PID>/sched`, annotated — three views of the same oversubscription:**
+➕ **`vmstat 1`, `pidstat -w`, `/proc/&lt;PID&gt;/sched`, annotated — three views of the same oversubscription:**
 ```text
 $ vmstat 1
 procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
@@ -51,7 +51,7 @@ $ pidstat -w -p 8842 1
 UID       PID   cswch/s nvcswch/s  Command
 1000     8842     12.00    340.00  python3
 ```
-`cswch/s` = voluntary switches (the thread itself chose to block — I/O, a lock, a sleep). `nvcswch/s` = involuntary switches (the scheduler preempted it — its time slice ran out, or a higher-priority task needed the core). `nvcswch/s` at 340/s with `cswch/s` at 12/s means this thread isn't waiting on anything — it's runnable and getting kicked off the CPU repeatedly by contention, which is oversubscription, not I/O. `/proc/<PID>/sched` confirms the same story from the scheduler's own bookkeeping, no sampling required:
+`cswch/s` = voluntary switches (the thread itself chose to block — I/O, a lock, a sleep). `nvcswch/s` = involuntary switches (the scheduler preempted it — its time slice ran out, or a higher-priority task needed the core). `nvcswch/s` at 340/s with `cswch/s` at 12/s means this thread isn't waiting on anything — it's runnable and getting kicked off the CPU repeatedly by contention, which is oversubscription, not I/O. `/proc/&lt;PID&gt;/sched` confirms the same story from the scheduler's own bookkeeping, no sampling required:
 ```text
 $ cat /proc/8842/sched | grep nr_.*switches
 nr_switches                                 :           142857
@@ -60,13 +60,13 @@ nr_involuntary_switches                     :           133656
 ```
 `nr_involuntary_switches` outnumbering `nr_voluntary_switches` roughly 14:1 is the exact-count version of what `pidstat -w`'s ratio already suggested — three tools, same conclusion, increasing confidence rather than three separate facts.
 
-➕ **`strace -tt -T -p <PID>`, annotated — the two flags that turn strace into a timing tool, not just a syscall list:**
+➕ **`strace -tt -T -p &lt;PID&gt;`, annotated — the two flags that turn strace into a timing tool, not just a syscall list:**
 ```text
 $ strace -tt -T -p 8842
 14:02:11.884213 read(4, "..."..., 65536) = 65536 <0.000012>
 14:02:11.884301 futex(0x7f3a2c001000, FUTEX_WAIT, 2, NULL) = -1 EAGAIN <2.401337>
 ```
-`-tt` prints an absolute wall-clock timestamp (microsecond precision) on every line, instead of nothing. `-T` prints the time the syscall itself took, in the trailing `<seconds>`. The `read()` above cost 12 microseconds — noise. The `futex()` call cost **2.4 real seconds** — that's not a fast lock check, that's a thread genuinely stuck waiting for another thread to release something, and `-T` is the only reason that's visible instead of buried in a wall of syscall names with no sense of which ones actually cost time.
+`-tt` prints an absolute wall-clock timestamp (microsecond precision) on every line, instead of nothing. `-T` prints the time the syscall itself took, in the trailing `&lt;seconds&gt;`. The `read()` above cost 12 microseconds — noise. The `futex()` call cost **2.4 real seconds** — that's not a fast lock check, that's a thread genuinely stuck waiting for another thread to release something, and `-T` is the only reason that's visible instead of buried in a wall of syscall names with no sense of which ones actually cost time.
 
 ➕ **cgroup v2 CPU control, annotated — continuing Chapter 1's own throttling numbers:**
 ```text
@@ -82,7 +82,7 @@ throttled_usec    890000000
 ```
 `cpu.max`'s two numbers are quota and period in microseconds — `50000 100000` is Chapter 1's own example: 50ms of CPU time allowed per 100ms period, i.e. a hard cap of 0.5 CPU cores, enforced by the kernel regardless of how many idle cores the node has. `nr_throttled / nr_periods` (41200/128000 ≈ 32%) is the throttling *rate* Chapter 1 already walked through — this Deep Dive's job is just to show you where those exact numbers come from on a live host, so `nr_periods`/`nr_throttled`/`throttled_usec` stop being abstract field names and become a command you've actually run.
 
-<!-- source-table:1 -->
+&lt;!-- source-table:1 --&gt;
 
 | Observation | Likely mechanism | Validate next |
 | --- | --- | --- |

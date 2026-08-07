@@ -72,7 +72,7 @@ Optimization: Increase block size to 512 (if register pressure allows)
   Or: Reduce registers/thread via code rewrite → occupancy increases without spilling
 ```
 
-**Why it matters:** Low occupancy (< 50%) means fewer warps to hide memory latency. If warp A stalls on memory, warp B can execute. Low occupancy = less hiding capacity.
+**Why it matters:** Low occupancy (&lt; 50%) means fewer warps to hide memory latency. If warp A stalls on memory, warp B can execute. Low occupancy = less hiding capacity.
 
 ### 2. Register Pressure and Spilling
 

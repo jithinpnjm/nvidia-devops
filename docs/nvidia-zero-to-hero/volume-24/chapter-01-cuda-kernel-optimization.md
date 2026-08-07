@@ -107,7 +107,7 @@ int main() {
 Your optimized kernel is considered successful when:
 
 1. **Throughput:** Achieves ≥53 TFLOPS (79% of peak ~67 TFLOPS FP32 dense on H100 — no Tensor Cores)
-2. **Correctness:** Output matches cuBLAS reference (element-wise error < 1e-5)
+2. **Correctness:** Output matches cuBLAS reference (element-wise error &lt; 1e-5)
 3. **Profiling evidence:** Nsight Compute profile shows:
    - Memory bandwidth utilization ≥ 75% of HBM3 theoretical peak (4.1 TB/s)
    - Warp efficiency ≥ 90% (few diverged instructions)
@@ -190,8 +190,8 @@ flowchart TD
 | Throughput only 14 TFLOPS (21% of peak) | Insufficient occupancy; register pressure high | `ncu --set full -k optimized_matmul ./kernel` → check "Occupancy" row | Reduce loop unrolling, share more computation across threads |
 | Memory bandwidth 1.2 TB/s (29% of peak) | Poor memory coalescing; threads access non-consecutive addresses | `ncu --set memory_chart -k optimized_matmul ./kernel` → check "Memory Throughput" chart; use `nvprof --print-gpu-trace` to see L1/L2 misses | Restructure tile loading: ensure warp loads a contiguous cache line from global memory |
 | 41 TFLOPS but correctness fails (error > 1e-5) | Shared memory bank conflicts or incorrect synchronization | Run with small matrix (256×256) and compare element-wise to reference | Add `__syncthreads()` between reads and writes; check shared memory layout for 32-way bank conflicts |
-| Kernel times out (hangs indefinitely) | Insufficient shared memory; implicit fallback to global memory thrashing | Check device specs: `nvidia-smi -q \| grep "Max Clocks"` and kernel shared memory limit | Reduce tile size (e.g., 8×8 instead of 32×32); ensure total shared memory < 96 KB per block |
-| Performance degrades with larger N (e.g., 8192×8192) | L2 cache thrashing; working set no longer fits | `ncu -k optimized_matmul --set full` with N=8192 → L2 hit rate drops to <20% | Consider multi-kernel approach: partition matrix into cache-aligned tiles processed sequentially |
+| Kernel times out (hangs indefinitely) | Insufficient shared memory; implicit fallback to global memory thrashing | Check device specs: `nvidia-smi -q \| grep "Max Clocks"` and kernel shared memory limit | Reduce tile size (e.g., 8×8 instead of 32×32); ensure total shared memory &lt; 96 KB per block |
+| Performance degrades with larger N (e.g., 8192×8192) | L2 cache thrashing; working set no longer fits | `ncu -k optimized_matmul --set full` with N=8192 → L2 hit rate drops to &lt;20% | Consider multi-kernel approach: partition matrix into cache-aligned tiles processed sequentially |
 
 ## Solution Walkthrough
 
@@ -375,10 +375,10 @@ I might also consider tensor operations if the framework supports it, or use lib
 
 ## Evaluation Rubric
 
-| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (<60%) |
+| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (&lt;60%) |
 |---|---|---|---|---|
-| **Throughput** | ≥55 TFLOPS (82%+ of peak) | 46–55 TFLOPS (68–82%) | 37–46 TFLOPS (55–68%) | <37 TFLOPS (<55%) |
-| **Correctness** | Element-wise error <1e-6, matches cuBLAS exactly | Error <1e-5, visual agreement with cuBLAS | Error <1e-4, mostly correct outputs | Error >1e-4 or inconsistent results |
+| **Throughput** | ≥55 TFLOPS (82%+ of peak) | 46–55 TFLOPS (68–82%) | 37–46 TFLOPS (55–68%) | &lt;37 TFLOPS (&lt;55%) |
+| **Correctness** | Element-wise error &lt;1e-6, matches cuBLAS exactly | Error &lt;1e-5, visual agreement with cuBLAS | Error &lt;1e-4, mostly correct outputs | Error >1e-4 or inconsistent results |
 | **Profiling Evidence** | Full Nsight Compute profile, roofline analysis, memory bandwidth ≥75% | Good profiling coverage, bandwidth ≥65% | Partial profiling (one tool), basic explanation | No profiling evidence provided |
 | **Documentation** | Code is well-commented; every optimization decision explained with reasoning | Code is clear; most decisions explained | Code comments exist but lack depth | Minimal or no comments |
 | **Reasoning** | Clearly identifies bottleneck progression, justifies all optimization choices, considers tradeoffs | Identifies primary bottleneck, applies correct fixes | Applies multiple optimizations, limited justification | Optimizations appear random or copied without understanding |

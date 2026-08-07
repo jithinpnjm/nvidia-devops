@@ -93,10 +93,10 @@ Solution: Reduce communication frequency, increase compute time per GPU, or use 
 
 | Metric | Query | Healthy | Concerning |
 |---|---|---|---|
-| NVLink BW | DCGM for each link | < 100 GB/s (half capacity) | > 150 GB/s (75%+ capacity) |
-| PCIe Bus | CPU-side metrics (ethtool) | < 15 GB/s | > 20 GB/s (bus saturation) |
-| GPU Memory Controller | `DCGM_FI_PROF_DRAM_ACTIVE` | < 60% bandwidth | > 85% |
-| SM Clock Variation | max(clocks) - min(clocks) on node | < 100 MHz | > 200 MHz (one GPU throttling while other runs) |
+| NVLink BW | DCGM for each link | &lt; 100 GB/s (half capacity) | > 150 GB/s (75%+ capacity) |
+| PCIe Bus | CPU-side metrics (ethtool) | &lt; 15 GB/s | > 20 GB/s (bus saturation) |
+| GPU Memory Controller | `DCGM_FI_PROF_DRAM_ACTIVE` | &lt; 60% bandwidth | > 85% |
+| SM Clock Variation | max(clocks) - min(clocks) on node | &lt; 100 MHz | > 200 MHz (one GPU throttling while other runs) |
 
 ### Real Example: Diagnosing NVLink Saturation
 

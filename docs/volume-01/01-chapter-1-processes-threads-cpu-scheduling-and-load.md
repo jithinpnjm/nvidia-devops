@@ -541,7 +541,7 @@ for p in $(ps -eo pid,stat | awk '$2 ~ /D/ {print $1}'); do
   echo "PID $p: $(cat /proc/$p/comm 2>/dev/null) — waiting on: $(cat /proc/$p/wchan 2>/dev/null)"
 done
 ```
-`/proc/<pid>/wchan` names the *kernel function* it's blocked in — e.g. `wait_on_page_bit` (page cache I/O) vs `nfs_wait_bit_uninterruptible` (NFS specifically) — this single field turns "something is stuck" into "NFS is the actual root cause" in one command, which is exactly the kind of evidence-first move a Senior SA interview is scoring you on.
+`/proc/&lt;pid&gt;/wchan` names the *kernel function* it's blocked in — e.g. `wait_on_page_bit` (page cache I/O) vs `nfs_wait_bit_uninterruptible` (NFS specifically) — this single field turns "something is stuck" into "NFS is the actual root cause" in one command, which is exactly the kind of evidence-first move a Senior SA interview is scoring you on.
 
 ➕ **Zombie cleanup reality check:** a zombie holds almost no resources (just a PID table entry + exit status) — the real problem is never the zombie itself, it's *why the parent isn't calling `wait()`* (buggy supervisor, or — very common in containers — PID 1 in a container image not reaping children at all, which is why `tini`/`dumb-init` exist as PID 1 wrappers). If asked "what's wrong with a container full of zombies," the answer is about PID 1 responsibility, not the zombies.
 
@@ -581,7 +581,7 @@ procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
 ```
 Reading order: **r=12** on (say) an 8-core box already tells you CPU is oversubscribed *before* looking at `us`/`sy` — 12 runnable tasks, 8 cores, 4 are queued no matter what. **b=3** means 3 more are blocked (D-state) on top of that — combine with 1.2's `wchan` trick to name what they're blocked on. `cs=9902` is high; cross-check against thread count and lock-heavy code paths, not "the CPU is broken."
 
-➕ **Scheduling policy — the piece most engineers never touch but a Senior SA should know exists:** default is `SCHED_OTHER` (CFS, fair-share, nice-value weighted). Real-time policies (`SCHED_FIFO`, `SCHED_RR`) exist for latency-critical work and **can starve everything else** if misused — `chrt -p <pid>` shows/sets policy. Relevant to HPC/GPU nodes running latency-sensitive control-plane daemons (e.g. some RDMA/fabric management agents) alongside best-effort workloads — a mis-set real-time priority is a real, if rare, "why is everything else on this node starving" root cause.
+➕ **Scheduling policy — the piece most engineers never touch but a Senior SA should know exists:** default is `SCHED_OTHER` (CFS, fair-share, nice-value weighted). Real-time policies (`SCHED_FIFO`, `SCHED_RR`) exist for latency-critical work and **can starve everything else** if misused — `chrt -p &lt;pid&gt;` shows/sets policy. Relevant to HPC/GPU nodes running latency-sensitive control-plane daemons (e.g. some RDMA/fabric management agents) alongside best-effort workloads — a mis-set real-time priority is a real, if rare, "why is everything else on this node starving" root cause.
 
 ## 1.4 CPU quotas and throttling
 A container can be CPU-starved even when the host has idle CPU if cgroup quota restricts it. Kubernetes CPU limits can translate into CFS bandwidth control. Throttling evidence therefore belongs beside host CPU metrics when an application reports latency under low node utilization.

@@ -69,7 +69,7 @@ Everything in this volume—artifacts, entitlement, lifecycle, Kubernetes integr
 
 | Symptom | First check | Owner | Chapter |
 |---|---|---|---|
-| **NIM Pod Running, not Ready** | `kubectl logs <pod>` for "entitlement", "model download", "cuda error" | NVIDIA/NGC | 03 |
+| **NIM Pod Running, not Ready** | `kubectl logs &lt;pod&gt;` for "entitlement", "model download", "cuda error" | NVIDIA/NGC | 03 |
 | **ImagePullBackOff (401 Unauthorized)** | NGC token scope and expiry; test manual pull with token | Entitlement ops | 07–08 |
 | **Latency increased after driver upgrade** | Canary metrics vs baseline; check compatibility matrix | Platform team | 09 |
 | **GPU not visible in container** | Trace: lspci → nvidia-smi → /dev/nvidia* → GPU Operator pod status | GPU Operator | 10 |

@@ -152,7 +152,7 @@ flowchart LR
     D --> E["running jobs on NOT-YET-upgraded nodes are undisturbed throughout"]
 ```
 
-The practical admin move: `scontrol update nodename=<batch> state=drain` on a batch, wait for `sinfo`/`squeue` to confirm no running jobs remain on that batch (or accept that draining lets current jobs finish before removing the node from scheduling), upgrade `slurmd` and restart it on that batch, `resume` it, move to the next batch — a batch of nodes is unavailable for *new* scheduling during its own upgrade window, but the cluster as a whole, and every job that was running before the upgrade started, is never killed by the process.
+The practical admin move: `scontrol update nodename=&lt;batch&gt; state=drain` on a batch, wait for `sinfo`/`squeue` to confirm no running jobs remain on that batch (or accept that draining lets current jobs finish before removing the node from scheduling), upgrade `slurmd` and restart it on that batch, `resume` it, move to the next batch — a batch of nodes is unavailable for *new* scheduling during its own upgrade window, but the cluster as a whole, and every job that was running before the upgrade started, is never killed by the process.
 
 ## cgroup and GRES configuration for GPU binding
 

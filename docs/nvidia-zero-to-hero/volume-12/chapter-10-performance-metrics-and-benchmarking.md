@@ -55,7 +55,7 @@ TTFT measures the time elapsed from when a client dispatches an HTTP request to 
 TTFT = t_queue + t_preprocess + t_prefill_compute
 ```
 - **Operational Nature:** **Compute-Bound** (Matrix Multiplication on Tensor Cores). Scaling prompt length from 512 to 8,192 tokens increases prefill compute quadrically `O(N^2)` unless FlashAttention or PagedAttention optimizations are present.
-- **Production Target (SLO):** `< 200 ms` (p95) for real-time chat; `< 1,000 ms` for long-context RAG.
+- **Production Target (SLO):** `&lt; 200 ms` (p95) for real-time chat; `&lt; 1,000 ms` for long-context RAG.
 
 #### 2. Inter-Token Latency (ITL) / Time Per Output Token (TPOT)
 ITL (also referred to as TPOT) measures the latency between generating consecutive output tokens during the autoregressive decode phase:
@@ -63,7 +63,7 @@ ITL (also referred to as TPOT) measures the latency between generating consecuti
 ITL_i = t_token_i - t_token_{i-1}
 ```
 - **Operational Nature:** **Memory-Bandwidth-Bound**. Each decode step reads the entire model weight tensor (`W`) and KV cache from High-Bandwidth Memory (HBM) into SRAM to generate a single token.
-- **Production Target (SLO):** `< 25 ms` per token (p95) implying `> 40 tokens/sec`, exceeding human reading speed.
+- **Production Target (SLO):** `&lt; 25 ms` per token (p95) implying `> 40 tokens/sec`, exceeding human reading speed.
 
 #### 3. End-to-End (E2E) Latency
 ```text
@@ -302,8 +302,8 @@ vllm:time_to_first_token_seconds{quantile="0.99"} 0.340
 
 | Prometheus Metric | Metric Type | Operational Target | Description |
 |---|---|---|---|
-| `vllm:time_to_first_token_seconds_bucket` | Histogram | `< 0.200 s` (p95) | Latency to emit first response token |
-| `vllm:time_per_output_token_seconds_bucket` | Histogram | `< 0.020 s` (p95) | Inter-token generation latency |
+| `vllm:time_to_first_token_seconds_bucket` | Histogram | `&lt; 0.200 s` (p95) | Latency to emit first response token |
+| `vllm:time_per_output_token_seconds_bucket` | Histogram | `&lt; 0.020 s` (p95) | Inter-token generation latency |
 | `vllm:generation_tokens_total` | Counter | Monotonic increase | Total output tokens generated |
 | `vllm:prompt_tokens_total` | Counter | Monotonic increase | Total prompt tokens processed |
 | `vllm:request_success_total` | Counter | `> 99.9%` ratio | Total successful requests completed |
@@ -363,7 +363,7 @@ High total token throughput simply indicates high GPU memory bandwidth utilizati
 
 If users report poor experience despite high throughput, the evaluation is likely missing:
 1. **p95 / p99 TTFT:** Users perceive long delays before text streams as system unresponsiveness.
-2. **p95 / p99 ITL:** Irregular or slow token streaming (`< 15 tokens/sec`) feels jarring during interactive read-along.
+2. **p95 / p99 ITL:** Irregular or slow token streaming (`&lt; 15 tokens/sec`) feels jarring during interactive read-along.
 3. **Queue Latency (`t_queue`):** Requests sitting in proxy queues prior to engine entry.
 4. **Context Distribution Metrics:** Benchmarking may have used short prompts, masking severe prefill degradation experienced by users with large context prompts.
 

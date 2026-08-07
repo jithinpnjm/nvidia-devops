@@ -339,7 +339,7 @@ pid 48213's current affinity list: 8-15,40-47
 
 `psr` in the `ps` output is the CPU the process is *currently* running on (core 9, which is in node 1's range) — a live snapshot, not a pinned guarantee. `taskset -cp` shows the actual allowed CPU set for that PID: `8-15,40-47`, which matches node 1 from the `numactl --hardware` output above. If this process were driving a GPU that `nvidia-smi topo -m` reports as NUMA Affinity `0`, that mismatch — CPU set on node 1, GPU on node 0 — is precisely the remote-NUMA condition from Figure 7.2.1's decision branch, and it is verifiable with these two commands alone, no benchmark required.
 
-`numactl -p <pid>` may not be available in every distribution; use `/proc/<pid>/numa_maps` when necessary to see the actual NUMA node each mapped page currently lives on.
+`numactl -p &lt;pid&gt;` may not be available in every distribution; use `/proc/&lt;pid&gt;/numa_maps` when necessary to see the actual NUMA node each mapped page currently lives on.
 
 ## Internal Working: A Host-to-GPU Transfer
 

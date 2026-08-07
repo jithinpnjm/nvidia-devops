@@ -64,10 +64,10 @@ flowchart TD
 
 | Operational Metric / Parameter | Type / Target | Engineering Purpose | Remediation / Optimizing Parameter |
 |---|---|---|---|
-| `vllm:time_to_first_token_seconds` | Metric (Histogram)<br/>Target: `< 200 ms` (p95) | Quantifies prefill phase latency & admission queue delay | Enable `--enable-chunked-prefill`, tune `--max-num-batched-tokens 2048` |
-| `vllm:time_per_output_token_seconds` | Metric (Histogram)<br/>Target: `< 20 ms` (p95) | Quantifies autoregressive decode phase generation speed | Increase HBM memory bandwidth, apply FP8/INT4 weight quantization |
-| `vllm:gpu_cache_usage_perc` | Metric (Gauge)<br/>Target: `< 85%` nominal | Monitors active PagedAttention KV cache block pool | Adjust `--gpu-memory-utilization 0.90`, bound `--max-num-seqs` |
-| `vllm:num_requests_waiting` | Metric (Gauge)<br/>Target: `< 5` nominal | Tracks queued requests awaiting engine admission | Scale DP replicas, enforce ingress rate limiting |
+| `vllm:time_to_first_token_seconds` | Metric (Histogram)<br/>Target: `&lt; 200 ms` (p95) | Quantifies prefill phase latency & admission queue delay | Enable `--enable-chunked-prefill`, tune `--max-num-batched-tokens 2048` |
+| `vllm:time_per_output_token_seconds` | Metric (Histogram)<br/>Target: `&lt; 20 ms` (p95) | Quantifies autoregressive decode phase generation speed | Increase HBM memory bandwidth, apply FP8/INT4 weight quantization |
+| `vllm:gpu_cache_usage_perc` | Metric (Gauge)<br/>Target: `&lt; 85%` nominal | Monitors active PagedAttention KV cache block pool | Adjust `--gpu-memory-utilization 0.90`, bound `--max-num-seqs` |
+| `vllm:num_requests_waiting` | Metric (Gauge)<br/>Target: `&lt; 5` nominal | Tracks queued requests awaiting engine admission | Scale DP replicas, enforce ingress rate limiting |
 | `vllm:num_preempted_requests_total` | Metric (Counter)<br/>Target: Must be `0` | Detects memory thrashing and request preemptions | Set `--swap-space 0`, enable prefix caching |
 | `dcgm_xid_error` | Metric (Counter)<br/>Target: Must be `0` | Detects hardware GPU faults (e.g., XID 62 ECC errors) | Trigger automated node cordon, drain, and GPU reset |
 
@@ -89,7 +89,7 @@ flowchart TD
 Before launching an LLM inference deployment to production, audit your infrastructure against these critical operational requirements:
 
 ### 1. Hardware & Interconnect Topology
-- [ ] Tensor Parallelism (TP) size is strictly bounded within intra-node NVLink/NVSwitch boundaries (e.g., `TP <= 8`).
+- [ ] Tensor Parallelism (TP) size is strictly bounded within intra-node NVLink/NVSwitch boundaries (e.g., `TP &lt;= 8`).
 - [ ] Multi-node Pipeline Parallelism (PP) or Data Parallelism (DP) communicates over dedicated 400G InfiniBand NDR or RoCEv2 with GPUDirect RDMA enabled (`NCCL_NET_GDR_LEVEL=5`).
 - [ ] Topology verification command (`nvidia-smi topo -m`) confirms direct NVLink interconnects across all TP ranks.
 
@@ -97,7 +97,7 @@ Before launching an LLM inference deployment to production, audit your infrastru
 - [ ] PagedAttention block size is tuned (16 or 32 tokens) with zero host CPU swapping (`--swap-space 0`).
 - [ ] Prefix Caching (`--enable-prefix-caching`) is enabled for system prompt reuse.
 - [ ] Chunked Prefill (`--enable-chunked-prefill`) is configured to stabilize Inter-Token Latency under heavy prompt traffic.
-- [ ] GPU Memory Utilization target (`--gpu-memory-utilization`) is set to `<= 0.90` to preserve CUDA/PyTorch workspace headroom.
+- [ ] GPU Memory Utilization target (`--gpu-memory-utilization`) is set to `&lt;= 0.90` to preserve CUDA/PyTorch workspace headroom.
 
 ### 3. Observability & Reliability
 - [ ] Kubernetes Startup Probe allows up to 10 minutes for slow model weight loading (`initialDelaySeconds: 30`, `failureThreshold: 60`).
@@ -117,7 +117,7 @@ Before launching an LLM inference deployment to production, audit your infrastru
 - **Key Insight:** Grouped-Query Attention (GQA) reduces KV cache memory by 8x compared to Multi-Head Attention (MHA) by sharing KV heads across query groups.
 
 ### 3. PagedAttention Mechanics
-- **Core Mechanism:** Virtual block tables map logical sequence tokens to non-contiguous physical memory blocks (16/32 tokens). Eliminates external fragmentation and reduces memory waste from `> 60%` to `< 4%`.
+- **Core Mechanism:** Virtual block tables map logical sequence tokens to non-contiguous physical memory blocks (16/32 tokens). Eliminates external fragmentation and reduces memory waste from `> 60%` to `&lt; 4%`.
 
 ### 4. Prefill vs. Decode Disaggregation
 - **Prefill Phase:** Compute-bound (`O(N^2)` matrix multiplication on Tensor Cores). Determines Time to First Token (TTFT).

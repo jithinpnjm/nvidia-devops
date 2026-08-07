@@ -143,7 +143,7 @@ Resolution:
   If Problem Persists: Escalate to ML engineer (model may need restructuring)
 ```
 
-### Runbook 3: Cluster Availability < SLO
+### Runbook 3: Cluster Availability &lt; SLO
 
 ```yaml
 Alert: ClusterAvailability

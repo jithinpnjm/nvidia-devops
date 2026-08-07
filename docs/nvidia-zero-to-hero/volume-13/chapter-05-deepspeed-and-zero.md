@@ -295,7 +295,7 @@ tail -n 100 train.log | awk '/step_time/ {print}'
 | Signal | Healthy | Red flag |
 |---|---|---|
 | Communication % of step time | 15-30% | > 50% (communication bottleneck) |
-| Per-rank step time variance | < 5% | > 10% (unbalanced load) |
+| Per-rank step time variance | &lt; 5% | > 10% (unbalanced load) |
 | Loss convergence | Smooth, decreasing | Noisy or divergent (indicate numerical issues) |
 
 ## Interview Preparation

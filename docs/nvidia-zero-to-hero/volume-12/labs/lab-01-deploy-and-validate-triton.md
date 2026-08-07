@@ -352,7 +352,7 @@ Every operational command must be understood through its objective, expected evi
   ```
 - **Expected Evidence**: Console prints `Inference successful!` along with output tensor shape `(1, 1000, 1, 1)`.
 - **Explanation**: Serializes input NumPy array into Protobuf binary format, transmits over gRPC channel on port 8001, Triton executes ONNX runtime engine on GPU 0, and returns binary tensor response.
-- **Common Failure Interpretation**: `grpc._channel._InactiveRpcError: <_InactiveRpcError of RPC that terminated with status StatusCode.UNAVAILABLE>` indicates Triton is not running, gRPC port 8001 is unreachable, or host firewall is blocking connections.
+- **Common Failure Interpretation**: `grpc._channel._InactiveRpcError: &lt;_InactiveRpcError of RPC that terminated with status StatusCode.UNAVAILABLE>` indicates Triton is not running, gRPC port 8001 is unreachable, or host firewall is blocking connections.
 
 ### Command 4: Inspect Prometheus Metrics
 - **Purpose**: Verify hardware metric instrumentation and request count tracking.
@@ -409,7 +409,7 @@ nv_gpu_memory_used_bytes{gpu_uuid="GPU-a1b2c3d4-e5f6-7890-1234-56789abcdef0"} 14
 
 ## 13. Failure Injection
 
-In this exercise, you will inject a configuration corruption failure to observe the critical operational difference between **Server Liveness** (`/v2/health/live`) and **Model Readiness** (`/v2/models/<model>/ready`).
+In this exercise, you will inject a configuration corruption failure to observe the critical operational difference between **Server Liveness** (`/v2/health/live`) and **Model Readiness** (`/v2/models/&lt;model&gt;/ready`).
 
 ### Failure Scenario: Corrupting `config.pbtxt` Input Data Type
 
@@ -493,7 +493,7 @@ flowchart TD
 | Verification Item | Pass Condition | Status |
 |---|---|---|
 | GPU Driver & Docker Toolkit | `docker run --gpus all nvidia/cuda...` succeeds | [ ] |
-| Model Repository Structure | Directories `/models/<model_name>/<version>/model.onnx` exist | [ ] |
+| Model Repository Structure | Directories `/models/&lt;model_name&gt;/&lt;version&gt;/model.onnx` exist | [ ] |
 | Server Liveness Endpoint | `GET /v2/health/live` returns HTTP 200 | [ ] |
 | Server Readiness Endpoint | `GET /v2/health/ready` returns HTTP 200 | [ ] |
 | Model Readiness Endpoint | `GET /v2/models/dense_net/ready` returns HTTP 200 | [ ] |

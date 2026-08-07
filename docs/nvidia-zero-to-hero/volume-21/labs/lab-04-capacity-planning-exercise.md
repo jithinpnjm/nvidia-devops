@@ -283,7 +283,7 @@ if tco['utilization'] < 0.70:
     print("  - Multi-tenancy to fill idle capacity")
 ```
 
-**Rubric:** TCO calculation correct. Identify under-utilization if utilization <70%.
+**Rubric:** TCO calculation correct. Identify under-utilization if utilization &lt;70%.
 
 ## Exercise 4: Cost Optimization (30 min)
 
@@ -367,7 +367,7 @@ print(f"Total 3-year cost: ${opt_capex + opt_opex*3:.2f}M")
 print(f"Savings vs. original plan: ${tco['tco_total'] - (opt_capex + opt_opex*3):.2f}M")
 ```
 
-**Rubric:** Optimization achieves <$15M TCO (vs. unoptimized ~$18M). Explain spot instance tradeoff.
+**Rubric:** Optimization achieves &lt;$15M TCO (vs. unoptimized ~$18M). Explain spot instance tradeoff.
 
 ## Deliverables
 

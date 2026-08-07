@@ -290,10 +290,10 @@ Choose your cost model first, then size infrastructure backward:
 | Workload | Business SLA | Cost Target | Infrastructure Implication |
 |---|---|---|---|
 | **Research LLM (internal)** | None; research only | $100–500/training run | Single-rack cluster, no multi-region |
-| **Production LLM Inference** | 99.9% uptime, <500ms p99 | <$0.001/1K tokens | 240+ GPUs across 6 regions; cost-based auto-scaling |
-| **Enterprise Fine-tuning** | 99% uptime, <24h training | <$0.002/1K tokens trained | Multi-tenant scheduling, cost-per-job tracking |
-| **Batch Inference (NLP)** | Best-effort, <1hr e2e | <$0.0001/1K tokens | GPU bin-packing, spot instances, low priority queue |
-| **Interactive Research Notebooks** | Dev only, <5min latency | $0.01/compute-hour | Shared GPU pool, idle termination after 10 min |
+| **Production LLM Inference** | 99.9% uptime, &lt;500ms p99 | &lt;$0.001/1K tokens | 240+ GPUs across 6 regions; cost-based auto-scaling |
+| **Enterprise Fine-tuning** | 99% uptime, &lt;24h training | &lt;$0.002/1K tokens trained | Multi-tenant scheduling, cost-per-job tracking |
+| **Batch Inference (NLP)** | Best-effort, &lt;1hr e2e | &lt;$0.0001/1K tokens | GPU bin-packing, spot instances, low priority queue |
+| **Interactive Research Notebooks** | Dev only, &lt;5min latency | $0.01/compute-hour | Shared GPU pool, idle termination after 10 min |
 
 ---
 
@@ -470,7 +470,7 @@ INTERCONNECT CHOICE FLOWCHART
 
 1. **Characterize the workload (Week 1)**
    - "I ask the teams: How many tokens per second do you need to process? What is your availability SLA? What's your maximum acceptable latency? What's the model size and precision?"
-   - For the LLM service: "500 QPS, 99.9% availability, <500ms p99 TTFT tells me we need: multi-region redundancy (50% more GPUs), continuous batching (vLLM or similar), and aggressive monitoring."
+   - For the LLM service: "500 QPS, 99.9% availability, &lt;500ms p99 TTFT tells me we need: multi-region redundancy (50% more GPUs), continuous batching (vLLM or similar), and aggressive monitoring."
    - For fine-tuning: "100 concurrent jobs on 7B model means I need 8–16 A100 GPUs with good bin-packing and checkpoint management."
    - For training: "How often do you train? If it's one 3-day run per month, I can use the same infrastructure as inference during off-hours via scheduling."
 
@@ -510,7 +510,7 @@ Before choosing GPUs, interconnects, or software, **define your workload, cost t
 **Key Takeaways:**
 1. Workload characterization reduces risk: model tier, execution mode, concurrency, resource bottleneck, availability tier.
 2. Cost per output (not per GPU) drives infrastructure decisions.
-3. Business SLAs (99.9% availability, <500ms latency) translate to infrastructure requirements (multi-region, redundancy, monitoring).
+3. Business SLAs (99.9% availability, &lt;500ms latency) translate to infrastructure requirements (multi-region, redundancy, monitoring).
 4. Design principles flow top-down: SLA → error budget → redundancy → GPU count → topology → software stack.
 
 **In Chapter 2:** We move from strategy to execution. Given your workload and cost target, how do you choose GPUs and design the compute cluster topology?

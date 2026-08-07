@@ -10,7 +10,7 @@ In traditional deep learning inference (e.g., image classification or embedding 
 
 However, autoregressive Large Language Models (LLMs) break the static batching paradigm. LLM requests possess highly variable input prompt lengths and non-deterministic generation sequence lengths.
 
-Applying request-level dynamic batching to LLM generation causes severe operational inefficiencies: short requests are trapped waiting for long sequences to finish, and GPU Tensor Cores waste massive memory bandwidth processing padding tokens (`<pad>`). 
+Applying request-level dynamic batching to LLM generation causes severe operational inefficiencies: short requests are trapped waiting for long sequences to finish, and GPU Tensor Cores waste massive memory bandwidth processing padding tokens (`&lt;pad&gt;`). 
 
 To solve this, modern serving engines implement **Continuous Batching** (also known as *iteration-level batching* or *in-flight batching*), supported by advanced techniques like **Chunked Prefill**. This chapter examines the mathematical models, scheduling algorithms, state transitions, and trade-offs of LLM batching architectures.
 
@@ -104,7 +104,7 @@ flowchart TD
 In traditional dynamic batching (used for static DNNs), requests are collected in a queue until either a maximum batch size B is reached or a timeout delay τ expires.
 
 #### The Padding Waste Penalty
-Because sequence lengths `L_1, L_2, ..., L_B` vary, shorter sequences must be right-padded with dummy `<pad>` tokens to match the maximum sequence length `L_max = max_i(L_i)` in the batch.
+Because sequence lengths `L_1, L_2, ..., L_B` vary, shorter sequences must be right-padded with dummy `&lt;pad&gt;` tokens to match the maximum sequence length `L_max = max_i(L_i)` in the batch.
 
 The fraction of wasted compute cycles and memory bandwidth due to padding is expressed as:
 
@@ -136,9 +136,9 @@ Iteration Step 3:  Newly arrived Req D (Prefill) inserted into Slot 2!
 
 #### Iteration Step Protocol
 1. **At Step $t$:** The scheduler evaluates the active execution batch.
-2. **Eviction:** Any request that emitted an End-of-Sequence (``\<EOS\>``) token or reached its `max_tokens` limit at step $t-1$ is immediately evicted. Its physical KV cache blocks are returned to the `KVCacheManager` memory pool.
+2. **Eviction:** Any request that emitted an End-of-Sequence (``\&lt;EOS\&gt;``) token or reached its `max_tokens` limit at step $t-1$ is immediately evicted. Its physical KV cache blocks are returned to the `KVCacheManager` memory pool.
 3. **Insertion:** The scheduler inspects the arrival queue. If free execution slots and physical KV cache blocks exist, newly arrived requests are inserted into the open slots immediately.
-4. **Execution:** The GPU executes a single token generation step across all slotted requests without a single `<pad>` token.
+4. **Execution:** The GPU executes a single token generation step across all slotted requests without a single `&lt;pad&gt;` token.
 
 ---
 
@@ -242,7 +242,7 @@ Decision Threshold: If (KV Size in Bytes / PCIe Bandwidth) > (Prefill FLOPs / GP
 | :--- | :--- | :--- | :--- | :--- |
 | **Scheduling Unit** | Fixed Batch Tensor | Full Request Lifecycle | Single Token Iteration Step | Iteration Step + Sliced Prompt Chunks |
 | **Padding Waste Ratio** | Severe (> 70%) | High (40% - 65%) | **Zero (0%)** | **Zero (0%)** |
-| **Inter-Token Latency (ITL)** | Poor (Blocked by longest req) | Poor (Blocked by longest req) | Moderate (Spikes during prefill) | **Optimal & Deterministic (< 20 ms)** |
+| **Inter-Token Latency (ITL)** | Poor (Blocked by longest req) | Poor (Blocked by longest req) | Moderate (Spikes during prefill) | **Optimal & Deterministic (&lt; 20 ms)** |
 | **Time-To-First-Token (TTFT)** | Poor | Poor | Good | **Optimal (Predictable prefill steps)** |
 | **GPU Compute Utilization** | Very Low | Low (15% - 30%) | Medium (40% - 60%) | **High (75% - 92%)** |
 | **Memory Allocation** | Static Max Length | Static Max Length | Dynamic Paged KV Blocks | Dynamic Paged KV Blocks |
@@ -340,12 +340,12 @@ audit_scheduler_settings(scheduler_config)
 **Model Answer:**
 Request-level dynamic batching operates on static tensor batches bounded by full request lifecycles. In heterogeneous workloads (where input prompt lengths and generated token counts vary widely), request-level batching suffers from two major inefficiencies:
 
-1. **Padding Waste:** Short sequence tensors inside a batch must be right-padded with dummy `<pad>` tokens to match the batch's longest sequence (`L_max`). The GPU spends memory bandwidth and compute cycles executing matrix multiplications on useless padding tokens.
+1. **Padding Waste:** Short sequence tensors inside a batch must be right-padded with dummy `&lt;pad&gt;` tokens to match the batch's longest sequence (`L_max`). The GPU spends memory bandwidth and compute cycles executing matrix multiplications on useless padding tokens.
 2. **Early Finish Stalls:** When a short sequence finishes generation at iteration 10, its GPU memory allocation and batch slot cannot be freed until the longest sequence (e.g., iteration 1000) completes.
 
 **Iteration-Level Continuous Batching** eliminates both issues by decoupling batch assembly from full request lifecycles:
 - The GPU executes inference step-by-step at the token iteration level.
-- At every single iteration step t, completed requests emitting ``\<EOS\>`` are immediately evicted from the batch, and their physical KV cache blocks are returned to the memory pool.
+- At every single iteration step t, completed requests emitting ``\&lt;EOS\&gt;`` are immediately evicted from the batch, and their physical KV cache blocks are returned to the memory pool.
 - Open slots are immediately filled by newly arrived requests from the queue.
 - Matrix operations (GEMM/GEMV) are executed strictly on active token vectors without a single padding token, restoring GPU compute and memory bandwidth utilization to optimal levels.
 

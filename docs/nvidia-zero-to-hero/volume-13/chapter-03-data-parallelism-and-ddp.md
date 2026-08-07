@@ -275,7 +275,7 @@ watch -n 5 'tail -n 20 train.log | grep "loss:" | awk "{sum+=$NF; count++} END {
 | Signal | Healthy | Red flag |
 |---|---|---|
 | Step times (all ranks) | Identical ±5% | Diverging by >10%; indicates straggler |
-| Loss values (all ranks) | Identical (diff < 0.1%) | Diverging significantly; rank divergence |
+| Loss values (all ranks) | Identical (diff &lt; 0.1%) | Diverging significantly; rank divergence |
 | All-Reduce latency | 1-5% of step time | >10% of step time; network congestion |
 
 ## Interview Preparation

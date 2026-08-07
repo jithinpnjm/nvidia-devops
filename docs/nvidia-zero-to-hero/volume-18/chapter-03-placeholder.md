@@ -325,10 +325,10 @@ trivy image --exit-code 1 --severity HIGH,CRITICAL \
 
 | Issue | Symptom | Check | Fix |
 |---|---|---|---|
-| Image signature missing | `cosign verify` fails; no signature found | `cosign find signatures <image>` | Sign all images at build time; enforce via admission controller |
-| Vulnerable package in image | Trivy scan finds CVE; but image deployed anyway | Run `trivy image <deployed-image>` | Rebuild with patched package version; redeploy all affected images |
-| Tag reuse / mutable tag | Same tag deployed twice; different code both times | `docker pull <tag>` twice; compare digests | Use image digests instead of tags in Kubernetes; enforce via policy |
-| SBOM missing or stale | Vulnerability disclosure published; SBOM doesn't list the package | `cosign find sbom <image>` > /dev/null | Regenerate SBOM at build time; use signed SBOM attachment |
+| Image signature missing | `cosign verify` fails; no signature found | `cosign find signatures &lt;image&gt;` | Sign all images at build time; enforce via admission controller |
+| Vulnerable package in image | Trivy scan finds CVE; but image deployed anyway | Run `trivy image &lt;deployed-image&gt;` | Rebuild with patched package version; redeploy all affected images |
+| Tag reuse / mutable tag | Same tag deployed twice; different code both times | `docker pull &lt;tag&gt;` twice; compare digests | Use image digests instead of tags in Kubernetes; enforce via policy |
+| SBOM missing or stale | Vulnerability disclosure published; SBOM doesn't list the package | `cosign find sbom &lt;image&gt;` > /dev/null | Regenerate SBOM at build time; use signed SBOM attachment |
 | NGC image freshness | NGC container has known CVE; deployed image still uses old tag | Check NGC advisory page; `trivy image nvcr.io/...` | Update FROM directive to newer NGC tag/digest; rebuild; redeploy |
 
 ## 3.7 Interview-ready: the supply-chain audit question

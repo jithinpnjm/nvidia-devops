@@ -389,11 +389,11 @@ Cost Analysis:
 | Interconnect | Bandwidth | Latency | Cost per Node | Scaling to 128 GPU | Collision Handling | Best For |
 |---|---|---|---|---|---|---|
 | **PCIe Gen 5** | 128 GB/s (shared) | ~2 μs | $0 | Poor (AllReduce bottleneck) | No (stop-and-wait) | Single-GPU inference, isolated jobs |
-| **NVLink 5.0** | 600 GB/s (per direction) | <0.5 μs | $0 (GPU-integrated) | Excellent (8 GPU/node) | Yes (full bisection) | Dense training nodes (8–16 GPU/node) |
+| **NVLink 5.0** | 600 GB/s (per direction) | &lt;0.5 μs | $0 (GPU-integrated) | Excellent (8 GPU/node) | Yes (full bisection) | Dense training nodes (8–16 GPU/node) |
 | **IB HDR (200G)** | 200 GB/s | ~1 μs (fabric) | $10K/node | Good (32–64 node feasible) | Yes (lossless) | Medium clusters, training (32–128 GPU) |
 | **IB NDR (400G)** | 400 GB/s | ~1.2 μs (fabric) | $15K/node | Very Good (64–256 node feasible) | Yes (lossless) | Large training (128–256 GPU), inference |
 | **400GbE Ethernet** | 400 GB/s | ~3 μs (fabric) | $8K/node | Fair (32–64 node feasible) | Lossy (TCP backoff) | Cost-sensitive, non-critical loads |
-| **NVSwitch** | 18 TB/s (internal to switch, for Grace Hopper clusters) | <0.1 μs | N/A (integrated) | N/A | Proprietary | GB200+ clusters at scale |
+| **NVSwitch** | 18 TB/s (internal to switch, for Grace Hopper clusters) | &lt;0.1 μs | N/A (integrated) | N/A | Proprietary | GB200+ clusters at scale |
 
 ### 4.2 Decision Tree: Which Interconnect?
 

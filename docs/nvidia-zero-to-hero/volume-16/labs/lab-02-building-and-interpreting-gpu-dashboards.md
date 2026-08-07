@@ -105,7 +105,7 @@ DCGM_FI_DEV_FB_USED / (DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE) * 100
 - Unit: Percent (%)
 
 **Interpretation:**
-- < 75%: Plenty of free memory
+- &lt; 75%: Plenty of free memory
 - 75-90%: Running out of headroom
 - > 90%: OOM risk; next allocation may fail
 
@@ -138,8 +138,8 @@ nvidia-smi dmon -s pucvmet -c 1
 
 **Expected dashboard state:**
 - Utilization: 0-5%
-- Temperature: < 50°C
-- Memory: < 5% used
+- Temperature: &lt; 50°C
+- Memory: &lt; 5% used
 - Clocks: 300 MHz (idle)
 
 **Interpretation:** GPU is healthy but not being used.
@@ -217,7 +217,7 @@ EOF
 **Expected dashboard state:**
 - Memory: 80-95% used
 - Utilization: 0-5% (no compute happening)
-- Temperature: < 50°C (no heat from computation)
+- Temperature: &lt; 50°C (no heat from computation)
 - Clocks: 300 MHz (idle)
 
 **Interpretation:** Memory is heavily used but GPU is not computing. This is normal during large batch allocations.

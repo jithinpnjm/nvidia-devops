@@ -147,7 +147,7 @@ resource "aws_instance" "gpu_worker" {
 }
 ```
 
-`create_before_destroy` matters for anything where losing capacity mid-replacement is expensive — bring up the replacement GPU instance, confirm it's healthy, then tear down the old one, instead of the default destroy-then-create order that briefly has zero capacity. `ignore_changes = [ami]` is a deliberate ownership statement: once the instance exists, Terraform stops trying to reconcile that one attribute even if it drifts, because a downstream tool (Ansible re-imaging with a new driver build) is now the authority on it, not Terraform. `terraform taint`/`terraform apply -replace=<address>` marks a specific resource for forced recreation on the next apply — useful when a specific GPU instance is suspected of bad hardware (Xid errors, ECC failures) and needs to be cycled without touching the other 31.
+`create_before_destroy` matters for anything where losing capacity mid-replacement is expensive — bring up the replacement GPU instance, confirm it's healthy, then tear down the old one, instead of the default destroy-then-create order that briefly has zero capacity. `ignore_changes = [ami]` is a deliberate ownership statement: once the instance exists, Terraform stops trying to reconcile that one attribute even if it drifts, because a downstream tool (Ansible re-imaging with a new driver build) is now the authority on it, not Terraform. `terraform taint`/`terraform apply -replace=&lt;address&gt;` marks a specific resource for forced recreation on the next apply — useful when a specific GPU instance is suspected of bad hardware (Xid errors, ECC failures) and needs to be cycled without touching the other 31.
 
 ## The ownership boundary: what Terraform should and shouldn't own
 

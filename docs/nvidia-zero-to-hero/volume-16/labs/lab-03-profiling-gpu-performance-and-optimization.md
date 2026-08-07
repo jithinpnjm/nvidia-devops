@@ -338,7 +338,7 @@ Speedup: 8.72x
 
 1. **Profile before optimizing** — measure baseline to know what you're improving
 2. **Understand bottleneck type** — compute-bound and memory-bound need different fixes
-3. **Precision tradeoffs are steep** — TF32 can give ~8x speedup over FP32 (CUDA core) on A100 with < 1% accuracy loss, because it runs on Tensor Cores instead of CUDA cores
+3. **Precision tradeoffs are steep** — TF32 can give ~8x speedup over FP32 (CUDA core) on A100 with &lt; 1% accuracy loss, because it runs on Tensor Cores instead of CUDA cores
 4. **Verify improvements** — don't assume optimizations work; measure them
 
 ---

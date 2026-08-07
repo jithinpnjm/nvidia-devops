@@ -33,7 +33,7 @@ E      Inference eval   Short 10min    1 GPU         50×/week
 ```
 
 **Requirements:**
-- No group starved: all groups make progress in reasonable time (< 1 week)
+- No group starved: all groups make progress in reasonable time (&lt; 1 week)
 - Fair allocation: within any 2-week window, total GPU-hours allocated proportional to requests
 - Max utilization: average cluster utilization > 90%
 - Cost transparency: each group sees their cost (GPU hours × rate)
@@ -314,13 +314,13 @@ Also, I'd offer a premium queue: if Group A is willing to pay 2× the cost, they
 
 ## Evaluation Rubric
 
-| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (<60%) |
+| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (&lt;60%) |
 |---|---|---|---|---|
 | **Fairness design** | Clear allocation algorithm with fairness proofs; prevents starvation | Good algorithm with starvation prevention | Algorithm described but limited fairness guarantees | No formal fairness or starvation analysis |
 | **Implementation** | Fully implemented with SLURM/Kubernetes; verified fair over 2-week period | Mostly implemented; fairness verified | Partial implementation; fairness tested partially | No implementation or verification |
-| **Utilization** | 90%+ cluster utilization achieved with fairness | 85%+ utilization | 75%+ utilization | <75% or utilization not measured |
+| **Utilization** | 90%+ cluster utilization achieved with fairness | 85%+ utilization | 75%+ utilization | &lt;75% or utilization not measured |
 | **Cost tracking** | Detailed cost per group; billing verified accurate | Cost tracking working, minor discrepancies | Basic cost calculation | No cost tracking |
-| **Starvation prevention** | No group waits >1 week; verified with tests | Groups wait <2 weeks | Some waits >2 weeks | Starvation observed or not tested |
+| **Starvation prevention** | No group waits >1 week; verified with tests | Groups wait &lt;2 weeks | Some waits >2 weeks | Starvation observed or not tested |
 
 ## Key Takeaways
 

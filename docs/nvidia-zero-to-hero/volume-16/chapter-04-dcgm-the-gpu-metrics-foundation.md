@@ -144,8 +144,8 @@ DCGM exposes hundreds of metrics (called "fields"). The most important ones for 
 
 | DCGM Field | Query | Typical Range | When to Alert |
 |---|---|---|---|
-| `DCGM_FI_DEV_GPU_UTIL` | Current GPU utilization | 0-100% | < 10% for 10+ min (when work expected) |
-| `DCGM_FI_PROF_SM_OCCUPANCY` | % of streaming multiprocessors with active warps | 0-100% | < 20% (kernel not filled) |
+| `DCGM_FI_DEV_GPU_UTIL` | Current GPU utilization | 0-100% | &lt; 10% for 10+ min (when work expected) |
+| `DCGM_FI_PROF_SM_OCCUPANCY` | % of streaming multiprocessors with active warps | 0-100% | &lt; 20% (kernel not filled) |
 | `DCGM_FI_DEV_CLOCK_THROTTLE_REASONS` | Why clocks are reduced | None / Thermal / Power | Any throttling (performance capped) |
 | `DCGM_FI_DEV_POWER_USAGE` | Current instantaneous power | 0-TDP | > 90% of TDP (headroom shrinking) |
 | `DCGM_FI_DEV_THERMAL_VIOLATION` | Count of thermal throttle events | 0-∞ | > 0 (GPU was throttled) |
@@ -154,9 +154,9 @@ DCGM exposes hundreds of metrics (called "fields"). The most important ones for 
 
 | DCGM Field | Query | Typical Range | When to Alert |
 |---|---|---|---|
-| `DCGM_FI_DEV_FB_FREE` | Free GPU memory | 0-total | < 2GB (OOM risk) |
+| `DCGM_FI_DEV_FB_FREE` | Free GPU memory | 0-total | &lt; 2GB (OOM risk) |
 | `DCGM_FI_DEV_FB_USED` | Used GPU memory | 0-total | > 95% (pressure) |
-| `DCGM_FI_PROF_DRAM_ACTIVE` | % of peak memory bandwidth (DRAM active cycles) | 0-100% | < 20% (under-utilizing) or > 95% (saturated) |
+| `DCGM_FI_PROF_DRAM_ACTIVE` | % of peak memory bandwidth (DRAM active cycles) | 0-100% | &lt; 20% (under-utilizing) or > 95% (saturated) |
 | `DCGM_FI_DEV_POWER_VIOLATION` | Power-throttle-driven clock reduction events | 0-∞ | > 0 (memory/compute subsystem throttled) |
 
 ### Reliability Metrics

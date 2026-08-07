@@ -159,6 +159,6 @@ evidence collection is fast and the boundary is clear."
    - Verify NGC token is scoped to the model being deployed.
    - Confirm model license matches customer entitlement.
 5. **Joint diagnosis:**
-   - If GPU memory < model size: platform team must allocate larger GPU or reduce batch size.
+   - If GPU memory &lt; model size: platform team must allocate larger GPU or reduce batch size.
    - If image pull fails with 401: customer’s NGC credentials need renewal.
    - If readiness probe fails: may be model download timeout; NVIDIA advises on GPU/network, customer fixes network path.

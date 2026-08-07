@@ -85,7 +85,7 @@ NVLink Status (GPU 0):
 
 1. **Identify root cause within 15 minutes:** NVLink 2 on GPU 0 degraded/failed
 2. **Propose mitigation within 10 minutes of diagnosis:** Exclude GPU 0, run on 7 GPUs
-3. **Implement fix in < 5 minutes:** Restart job with `--exclude-gpu=0`
+3. **Implement fix in &lt; 5 minutes:** Restart job with `--exclude-gpu=0`
 4. **Verify fix within 30 minutes:** Job converges back to 8 ms per step on 7 GPUs
 5. **Post-mortem:** Understand why NVLink failed (thermal? hardware? driver?)
 
@@ -317,7 +317,7 @@ The time to diagnosis: ~15 minutes if I know where to look. Without structure, i
 
 **Q: What would you change to prevent this in the future?**
 
-**A:** "I'd add automatic link health monitoring. Every 5 minutes, run `nvidia-smi nvlink -sc` on all GPUs and log the results. If a link drops from 25 GB/s to < 10 GB/s, alert immediately.
+**A:** "I'd add automatic link health monitoring. Every 5 minutes, run `nvidia-smi nvlink -sc` on all GPUs and log the results. If a link drops from 25 GB/s to &lt; 10 GB/s, alert immediately.
 
 I'd also add automatic mitigation: if a link fails, automatically exclude that GPU and restart the job. This can be done at the Kubernetes level: if a GPU reports link failure, evict the pod, it reschedules on different node.
 
@@ -327,7 +327,7 @@ These changes move the incident from 30 minutes to resolve to 2 minutes (automat
 
 ## Evaluation Rubric
 
-| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (<60%) |
+| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (&lt;60%) |
 |---|---|---|---|---|
 | **Root cause diagnosis** | Correctly identifies NVLink failure within 15 min; reasoning is sound | Identifies NVLink within 20 min; reasoning mostly sound | Identifies NVLink but takes >25 min or reasoning is unclear | Misidentifies root cause or doesn't find it |
 | **Mitigation time** | Proposes mitigation within 5 min of diagnosis | Within 10 min | Within 15 min | >15 min or no mitigation proposed |

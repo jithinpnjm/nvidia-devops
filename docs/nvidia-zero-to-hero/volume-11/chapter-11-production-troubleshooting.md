@@ -333,8 +333,8 @@ Use local operational standards for access and redaction. The following commands
 |---|---|---|---|
 | Identify GPU and MIG-visible devices | `nvidia-smi -L` | Physical GPU entries and any visible MIG devices | Missing or changed entries require host/mode investigation |
 | Inspect current MIG instances | `nvidia-smi mig -lgi` | Instance inventory on a MIG-configured device | Empty or unexpected output can indicate layout/mode or access differences |
-| Inspect a Pending request | `kubectl describe pod <pod> -n <namespace>` | Scheduler events and requested resources | Events classify placement rather than proving a hardware fault |
-| Compare advertised resources | `kubectl get node <node> -o yaml` | Capacity/allocatable values and node policy context | A missing resource points below scheduling or to configuration drift |
+| Inspect a Pending request | `kubectl describe pod &lt;pod&gt; -n &lt;namespace&gt;` | Scheduler events and requested resources | Events classify placement rather than proving a hardware fault |
+| Compare advertised resources | `kubectl get node &lt;node&gt; -o yaml` | Capacity/allocatable values and node policy context | A missing resource points below scheduling or to configuration drift |
 | Establish recent scope | `kubectl get events -A --sort-by=.lastTimestamp` | Time-ordered cluster events | Event retention may be incomplete; preserve promptly |
 
 These commands do not repair the system. Their value is the evidence they add to a layered diagnosis. Do not paste their raw output into a broad channel without considering tenant metadata and host identifiers.

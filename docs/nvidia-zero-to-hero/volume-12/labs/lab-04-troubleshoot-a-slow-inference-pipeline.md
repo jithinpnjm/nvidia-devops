@@ -305,7 +305,7 @@ Notice how `Total Pipeline Latency p99` exceeds **1,000 ms**, while `Triton Infe
    ```bash
    nvidia-smi dmon -s u -d 1
    ```
-   *Observation*: GPU utilization (`sm%`) remains low (< 20%).
+   *Observation*: GPU utilization (`sm%`) remains low (&lt; 20%).
 
 2. Open another terminal and monitor per-CPU core utilization:
    ```bash
@@ -317,7 +317,7 @@ Notice how `Total Pipeline Latency p99` exceeds **1,000 ms**, while `Triton Infe
    ```bash
    curl -s http://localhost:8002/metrics | grep -E 'nv_inference_queue_duration_us|nv_inference_compute_input_duration_us'
    ```
-   *Observation*: Server queue time is minimal (< 2ms), proving Triton and the GPU are waiting for data from the CPU.
+   *Observation*: Server queue time is minimal (&lt; 2ms), proving Triton and the GPU are waiting for data from the CPU.
 
 ### Task 4: Remediate the Pipeline Bottleneck
 
@@ -425,7 +425,7 @@ Detailed command breakdown for diagnostic operations:
   nvidia-smi dmon -s u -d 1
   ```
 - **Expected Evidence**: Real-time line output updating every 1 second showing `# gpu sm mem enc dec`.
-- **Explanation**: Queries GPU driver counters via NVML interface. Low `sm%` (< 20%) during client load proves the bottleneck lies upstream of GPU kernel execution.
+- **Explanation**: Queries GPU driver counters via NVML interface. Low `sm%` (&lt; 20%) during client load proves the bottleneck lies upstream of GPU kernel execution.
 - **Common Failure Interpretation**: Failed NVML initialization indicates GPU driver conflict or missing device access.
 
 ### Command 3: Query Triton Server Queue Metrics

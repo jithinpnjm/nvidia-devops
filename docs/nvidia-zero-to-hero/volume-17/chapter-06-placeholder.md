@@ -146,7 +146,7 @@ For kernels with low reuse, cache-all is waste (pollutes cache). For kernels wit
 
 **Q: When should you use tiling, and when is it overkill?**
 
-> A: Tiling makes sense when the kernel reuses data across multiple threads. A matrix multiply is a classic case: if you load a block of A and B into shared memory and perform 4096 operations on it, the 32 KB of shared memory is worth it. But an elementwise operation that reads each input once and writes once? Tiling adds shared memory overhead without reuse benefit. The roofline model tells you: if compute intensity is < 10 FLOPS/byte, you're memory-bound and tiling helps. If > 100 FLOPS/byte, you're compute-bound and tiling is wasted complexity.
+> A: Tiling makes sense when the kernel reuses data across multiple threads. A matrix multiply is a classic case: if you load a block of A and B into shared memory and perform 4096 operations on it, the 32 KB of shared memory is worth it. But an elementwise operation that reads each input once and writes once? Tiling adds shared memory overhead without reuse benefit. The roofline model tells you: if compute intensity is &lt; 10 FLOPS/byte, you're memory-bound and tiling helps. If > 100 FLOPS/byte, you're compute-bound and tiling is wasted complexity.
 
 ## Key Takeaways
 

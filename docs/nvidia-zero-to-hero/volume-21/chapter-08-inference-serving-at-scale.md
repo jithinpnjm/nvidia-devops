@@ -211,7 +211,7 @@ Infrastructure cost:
 
 | Challenge | Impact | Solution |
 |---|---|---|
-| **High tail latency (p99 > 1 sec) while p50 < 100ms** | User experience poor during traffic spikes | Implement queue backpressure; reject requests at 99.95% full capacity instead of queueing indefinitely |
+| **High tail latency (p99 > 1 sec) while p50 &lt; 100ms** | User experience poor during traffic spikes | Implement queue backpressure; reject requests at 99.95% full capacity instead of queueing indefinitely |
 | **Model inference timeout (>30 sec, triggers client disconnect)** | Requests dropped, user sees error | Implement per-request timeout budget; reject new requests if response cannot complete within SLA |
 | **KV cache fragmentation (memory wasted by incomplete sequences)** | Max concurrent sequences drops 50% over time | Use paged KV cache (like virtual memory); reuse blocks across requests; periodic defragmentation |
 | **Unbalanced multi-GPU load (one GPU at 100%, others at 40%)** | Worst GPU is bottleneck; others idle | Use load-aware request routing; distribute based on estimated tokens per response |
@@ -223,7 +223,7 @@ Infrastructure cost:
 
 Inference serving differs fundamentally from training:
 
-1. **Latency SLA:** Target p99 TTFT <500ms, not max throughput.
+1. **Latency SLA:** Target p99 TTFT &lt;500ms, not max throughput.
 2. **Continuous batching:** Dynamic batch size (1–64 sequences) achieves throughput of static large batches with latency of small batches.
 3. **Scaling:** Memory-bandwidth bound (36 tokens/sec per H100 for decode); add GPUs for concurrency, not per-GPU speed.
 4. **Multi-region:** Replicate clusters across regions for 99.9% SLA; cost-optimal at 2000+ QPS.

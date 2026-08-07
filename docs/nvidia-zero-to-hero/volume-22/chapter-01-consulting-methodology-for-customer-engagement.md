@@ -39,9 +39,9 @@ Structure every customer engagement around these four questions. Ask them in ord
 
 | Customer | What they said | Actual constraint |
 |---|---|---|
-| Hedge fund | "We need LLM trading signals" | Inference latency < 50ms per signal; must score 100K events/hour |
-| Bank | "We want to modernize fraud detection" | Current system: 30-minute batch, misses 2% of fraud. Need real-time scoring at <100ms. Handle 50K transactions/second. |
-| Telecom | "We're building AI-driven network optimization" | Cell tower congestion prediction must update every 5 minutes; cover 10,000 sites; run 24/7 with <30ms decision latency. |
+| Hedge fund | "We need LLM trading signals" | Inference latency &lt; 50ms per signal; must score 100K events/hour |
+| Bank | "We want to modernize fraud detection" | Current system: 30-minute batch, misses 2% of fraud. Need real-time scoring at &lt;100ms. Handle 50K transactions/second. |
+| Telecom | "We're building AI-driven network optimization" | Cell tower congestion prediction must update every 5 minutes; cover 10,000 sites; run 24/7 with &lt;30ms decision latency. |
 | Pharma | "We need to accelerate drug discovery" | Current: 6 months to screen 10M molecular candidates. Need: 2 weeks. Budget: $500K hardware. |
 
 **How to ask it:**
@@ -95,12 +95,12 @@ Customer: "XGBoost, about 2GB. Runs on CPUs today."
 
 | Metric | Industry | Example target |
 |---|---|---|
-| **Inference latency (p99)** | Financial services | < 50ms |
+| **Inference latency (p99)** | Financial services | &lt; 50ms |
 | **Throughput sustained** | Telecom | 50,000 events/sec |
-| **Cost per inference** | LLM serving | < $0.0001 per token |
+| **Cost per inference** | LLM serving | &lt; $0.0001 per token |
 | **Training time** | Pharma | Reduce from 6 weeks to 2 weeks |
 | **Model accuracy** | Healthcare | Maintain > 94% precision |
-| **Uptime SLA** | Mission-critical | 99.99% (< 52 minutes downtime/year) |
+| **Uptime SLA** | Mission-critical | 99.99% (&lt; 52 minutes downtime/year) |
 
 ## Cost Model: From Infrastructure to Customer Quote
 
@@ -122,7 +122,7 @@ Once you know the architecture, build a cost model.
 
 **Requirements:**
 - 5,000 TPS sustained
-- < 100ms p99 latency
+- &lt; 100ms p99 latency
 - 99.9% uptime
 - On-premises deployment
 - 2-year commitment
@@ -153,7 +153,7 @@ Once you know the architecture, build a cost model.
 
 **What to present to the customer:**
 
-"To handle 5,000 TPS with < 100ms latency and 99.9% uptime, we recommend a dual-cluster setup with 4 L40S GPUs per cluster. Hardware investment is $161,000 upfront. Annual operations cost is $80,416. This breaks down to about $220/day for 157.7 billion inferences/year, or $0.51 per million inferences. This is 4-6× cheaper than cloud inference (AWS SageMaker, Azure ML) at $2-3 per million inferences."
+"To handle 5,000 TPS with &lt; 100ms latency and 99.9% uptime, we recommend a dual-cluster setup with 4 L40S GPUs per cluster. Hardware investment is $161,000 upfront. Annual operations cost is $80,416. This breaks down to about $220/day for 157.7 billion inferences/year, or $0.51 per million inferences. This is 4-6× cheaper than cloud inference (AWS SageMaker, Azure ML) at $2-3 per million inferences."
 
 ## Interview Preparation
 

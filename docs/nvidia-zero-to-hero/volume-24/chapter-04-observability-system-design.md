@@ -13,7 +13,7 @@
 
 By the end of this project, you will be able to:
 - Design metric schema (what to measure, at what frequency)
-- Calculate storage costs for monitoring data (30 sec scrape interval, <1 TB/month)
+- Calculate storage costs for monitoring data (30 sec scrape interval, &lt;1 TB/month)
 - Write alerting rules that detect common GPU cluster failures
 - Correlate metrics across multiple sources to diagnose root cause
 - Optimize storage without losing observability
@@ -24,7 +24,7 @@ You're building monitoring for a 100-GPU production cluster. Your constraints:
 
 1. **Scrape interval:** 30 seconds (60× per hour per metric)
 2. **Retention:** 90 days
-3. **Storage budget:** < 1 TB/month (~3% of budget)
+3. **Storage budget:** &lt; 1 TB/month (~3% of budget)
 4. **Alert latency:** Detect failures within 2 minutes
 5. **Metrics must detect:** memory leak, thermal throttle, link failure, application hang, power anomaly
 
@@ -203,8 +203,8 @@ if __name__ == '__main__':
 3. **Detect link failure:** NVLink errors detected within 1 minute
 4. **Detect application hang:** No GPU kernels but high utilization → alert within 2 minutes
 5. **Detect power anomaly:** 100W+ above baseline → alert within 3 minutes
-6. **Storage < 1 TB/month:** Calculate actual storage with your metrics schema
-7. **Alert fatigue < 5%:** Less than 5% false-positive alerts (spurious alerts)
+6. **Storage &lt; 1 TB/month:** Calculate actual storage with your metrics schema
+7. **Alert fatigue &lt; 5%:** Less than 5% false-positive alerts (spurious alerts)
 
 ## Real Output: Monitoring Dashboard
 
@@ -390,7 +390,7 @@ Second, I use hysteresis. Instead of alerting when memory > 5GB, I alert when me
 
 Third, I segment alerts by severity. 'Warning' alerts go to a Slack channel (batch, once per hour). 'Critical' alerts (e.g., all 4 GPUs on a node down) page the on-call engineer immediately.
 
-Fourth, I calculate alert value. For an alert that fires 10 times per day, I calculate: how many minutes of production time did this alert (if it were critical) cost? If it's < 1% of the time, I probably don't need it.
+Fourth, I calculate alert value. For an alert that fires 10 times per day, I calculate: how many minutes of production time did this alert (if it were critical) cost? If it's &lt; 1% of the time, I probably don't need it.
 
 And finally, I tune over time. After 2 weeks of running, I review alert history: which alerts were genuinely useful? Which fired but were false positives? I adjust thresholds accordingly. This is a continuous process."
 
@@ -410,11 +410,11 @@ The tradeoff: I lose fine-grained data over time, but I keep the storage managea
 
 ## Evaluation Rubric
 
-| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (<60%) |
+| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (&lt;60%) |
 |---|---|---|---|---|
-| **Alert detection** | All 5 scenarios detected within target windows; <2% false positives | 4/5 scenarios detected, <5% false positives | 3/5 scenarios, 5–10% false positives | <3 scenarios or >10% false positives |
+| **Alert detection** | All 5 scenarios detected within target windows; &lt;2% false positives | 4/5 scenarios detected, &lt;5% false positives | 3/5 scenarios, 5–10% false positives | &lt;3 scenarios or >10% false positives |
 | **Storage efficiency** | Stays within 1 TB/month; compressed 4:1 ratio achieved | ~1.5 TB/month; 3:1 compression | ~2–3 TB/month; 2:1 compression | >3 TB/month or uncompressed |
-| **Metric schema** | Well-designed with 15+ metrics; labels chosen to minimize cardinality | 12–15 metrics; reasonable labels | 8–12 metrics; some label bloat | <8 metrics or labels cause cardinality explosion |
+| **Metric schema** | Well-designed with 15+ metrics; labels chosen to minimize cardinality | 12–15 metrics; reasonable labels | 8–12 metrics; some label bloat | &lt;8 metrics or labels cause cardinality explosion |
 | **Alerting rules** | Clear rules for each scenario; includes thresholds and durations; logic is sound | Good coverage, some thresholds unclear | Basic rules present, limited refinement | Minimal or incomplete alert definitions |
 | **Documentation** | Explains metric purpose, alert logic, design tradeoffs; includes runbook | Good explanation of main components | Basic documentation | Minimal or unclear documentation |
 

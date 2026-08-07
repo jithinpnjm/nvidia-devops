@@ -233,9 +233,9 @@ GPU utilization during generation:
 
 | Metric | Target | Achieved | Status |
 |---|---|---|---|
-| TTFT p50 | < 100ms | 45ms | ✓ |
-| TTFT p99 | < 200ms | 92ms | ✓ |
-| Per-token latency | < 100ms | 3.8ms | ✓ |
+| TTFT p50 | &lt; 100ms | 45ms | ✓ |
+| TTFT p99 | &lt; 200ms | 92ms | ✓ |
+| Per-token latency | &lt; 100ms | 3.8ms | ✓ |
 | Throughput | > 2,000 tokens/sec | 2,100 tokens/sec | ✓ |
 | Concurrent users supported | 1,000 | 1,000 (tested) | ✓ |
 
@@ -318,7 +318,7 @@ index   gpu   sm  mem  enc
 
 - What is the difference between time-to-first-token (TTFT) and per-token latency?
 - Why does quantization reduce model size? What's the accuracy trade-off?
-- How many A100s would you need to serve 10,000 concurrent users at < 100ms TTFT?
+- How many A100s would you need to serve 10,000 concurrent users at &lt; 100ms TTFT?
 - What happens to throughput if you increase max_model_len from 2,048 to 4,096?
 
 ## 14. Validation Checklist
@@ -326,9 +326,9 @@ index   gpu   sm  mem  enc
 - [ ] vLLM server started successfully on 2 A100 GPUs
 - [ ] API responds correctly to test request
 - [ ] 100 concurrent users complete 10 requests each
-- [ ] TTFT p50 < 100ms ✓
-- [ ] TTFT p99 < 200ms ✓
-- [ ] Per-token latency < 10ms ✓
+- [ ] TTFT p50 &lt; 100ms ✓
+- [ ] TTFT p99 &lt; 200ms ✓
+- [ ] Per-token latency &lt; 10ms ✓
 - [ ] No memory leaks over 1,000 requests
 - [ ] GPU memory stable over time
 

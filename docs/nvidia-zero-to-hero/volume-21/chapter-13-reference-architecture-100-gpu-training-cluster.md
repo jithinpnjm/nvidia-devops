@@ -1,5 +1,5 @@
 ---
-title: Chapter 13 — Reference Architecture: 100-GPU Training Cluster
+title: "Chapter 13 — Reference Architecture: 100-GPU Training Cluster"
 description: Complete design from hardware selection through network topology to operational procedures. Real topology, cost breakdown, deployment checklist.
 sidebar_position: 14
 tags: [reference-architecture, training-cluster, topology, deployment]
@@ -407,10 +407,10 @@ MTTR Targets:
 A production 100-GPU training cluster requires:
 
 1. **Hardware:** 128 H100s ($3.84M), NDR switch ($350K), liquid cooling, redundant power.
-2. **Network:** Full-bisection interconnect (single-rack); AllReduce latency <5ms.
+2. **Network:** Full-bisection interconnect (single-rack); AllReduce latency &lt;5ms.
 3. **Monitoring:** Real-time GPU/network metrics; alert if ANY metric deviates >10% from baseline.
 4. **Deployment:** 8-week process from bare metal to training (weeks 1-4 hardware, 5-6 software, 7-8 testing).
-5. **Operations:** Daily health checks, weekly trend analysis, MTTR <15 min for most failures.
+5. **Operations:** Daily health checks, weekly trend analysis, MTTR &lt;15 min for most failures.
 
 **Cost:** $6.11M CAPEX + $0.6M OPEX/year = $8.91M over 3 years for a single-rack cluster.
 

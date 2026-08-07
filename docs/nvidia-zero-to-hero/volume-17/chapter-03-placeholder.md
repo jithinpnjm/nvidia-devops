@@ -132,7 +132,7 @@ Verdict: Matches roofline. Kernel is CPU-starved or launch-limited, not memory o
 
 | Evidence | Analysis | Action |
 |---|---|---|
-| Roofline predicts compute-bound (CI=500 FLOPS/B), kernel achieves 45 TFLOPS vs 67 TFLOPS FP32 peak | Either: (1) kernel isn't actually compute-bound despite high CI, or (2) something else is limiting (clock gating, L2 pressure, occupancy) | Run Nsight Compute: check L2 miss rate, occupancy, active warps. If occupancy < 50%, increase block size. If L2 misses high, kernel is thrashing cache. |
+| Roofline predicts compute-bound (CI=500 FLOPS/B), kernel achieves 45 TFLOPS vs 67 TFLOPS FP32 peak | Either: (1) kernel isn't actually compute-bound despite high CI, or (2) something else is limiting (clock gating, L2 pressure, occupancy) | Run Nsight Compute: check L2 miss rate, occupancy, active warps. If occupancy &lt; 50%, increase block size. If L2 misses high, kernel is thrashing cache. |
 | Nsight Compute shows occupancy 95%, L2 hits normal, but TFLOPS still at 45 | Kernel is launching below peak clock speed; check for thermal throttling or power limits | Run nvidia-smi dmon during kernel: watch GPU clocks. If clocks drop during kernel, power limit or thermals are throttling. |
 | Clock speed is 1.9 GHz (max boost is ~1.98 GHz), kernel still at 45 TFLOPS | HBM bandwidth contention from other processes or stale data in L2 | Check if other processes are running on the GPU. Nsight Compute shows if bandwidth to HBM is saturated (>95%). If so, you've hit actual memory limit, not compute limit — roofline analysis was correct, but your CI calculation was wrong. |
 

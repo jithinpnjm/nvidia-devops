@@ -9,7 +9,7 @@ tags: [lab, edge, autonomous-driving, perception]
 
 ## 1. Objective
 
-Deploy YOLOv8 object detection on NVIDIA Jetson Orin, validate latency < 50ms, measure throughput on camera stream.
+Deploy YOLOv8 object detection on NVIDIA Jetson Orin, validate latency &lt; 50ms, measure throughput on camera stream.
 
 ## 2. Target Audience
 
@@ -250,10 +250,10 @@ print(f"Sent {len(events)} detections to vehicle controller")
 
 | Metric | Target | Achieved | Status |
 |---|---|---|---|
-| Inference latency p99 | < 50ms | 26.5ms | ✓ |
+| Inference latency p99 | &lt; 50ms | 26.5ms | ✓ |
 | Throughput (FPS) | 30 Hz | 40.3 FPS | ✓ |
-| Fail-safe trigger | < 2 sec | N/A (single GPU only) | ⚠️ |
-| Power consumption | < 30W | 28W (measured) | ✓ |
+| Fail-safe trigger | &lt; 2 sec | N/A (single GPU only) | ⚠️ |
+| Power consumption | &lt; 30W | 28W (measured) | ✓ |
 
 **Result: Primary SLAs PASSED**
 *(Note: Fail-safe requires dual Jetson setup; see Chapter 4 for production architecture)*
@@ -315,11 +315,11 @@ GPU Temp: 82 C (capped at junction temp limit)
 
 - [ ] Jetson Orin recognized by nvidia-smi
 - [ ] YOLOv8n model downloaded and loaded
-- [ ] Inference latency < 50ms (p99) ✓
+- [ ] Inference latency &lt; 50ms (p99) ✓
 - [ ] Camera stream processed at 30+ FPS ✓
 - [ ] Detections exported successfully to CAN gateway
 - [ ] No thermal throttling during 30-min continuous run
-- [ ] Power consumption < 30W
+- [ ] Power consumption &lt; 30W
 
 ## 14. Advanced: Deploy Multiple Models
 

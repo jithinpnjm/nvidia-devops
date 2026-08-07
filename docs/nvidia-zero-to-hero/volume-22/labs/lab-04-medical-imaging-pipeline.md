@@ -314,7 +314,7 @@ Memory stable: No leaks detected
 
 | Metric | Target | Achieved | Status |
 |---|---|---|---|
-| Inference latency per study | < 15 sec | 8.2 sec | ✓ |
+| Inference latency per study | &lt; 15 sec | 8.2 sec | ✓ |
 | Throughput (50K studies/year) | 2-min avg | ~10 days GPU time | ✓ |
 | HIPAA audit trail | Full logging | Implemented | ✓ |
 | Encryption at rest | Yes | AES-256 | ✓ |
@@ -360,7 +360,7 @@ Memory stable: No leaks detected
 
 - [ ] DICOM files loaded and verified
 - [ ] CT volumes preprocessed and normalized
-- [ ] Model inference latency < 15 sec per study ✓
+- [ ] Model inference latency &lt; 15 sec per study ✓
 - [ ] Risk scores predicted correctly (high/medium/low)
 - [ ] Audit log generated with patient ID hash
 - [ ] Encryption library working (cryptography)

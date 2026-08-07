@@ -97,7 +97,7 @@ Legend:
   SYS  = connection traversing PCIe as well as a NUMA/socket-level link
 ```
 
-Reading this matrix against the Story's failure directly: `GPU0 <-> GPU1` shows `NV4` (a direct 4-link NVLink connection) — the strong pair. `GPU0 <-> GPU2` shows `SYS`, meaning the path crosses both the PCIe hierarchy and a NUMA/socket boundary — exactly the "different PCIe hierarchy" and "different CPU socket" problem the Story describes. `NIC0` shows `PIX` to `GPU0` (same PCIe bridge, good locality) but `SYS` to `GPU2` and `GPU3` — the NIC is close to only one GPU pair, confirming the Story's second claim about network-adapter locality. None of this requires guessing: the legend defines exactly what each label means on the installed driver version, and the labels are the direct evidence for every placement decision later in this chapter.
+Reading this matrix against the Story's failure directly: `GPU0 &lt;-> GPU1` shows `NV4` (a direct 4-link NVLink connection) — the strong pair. `GPU0 &lt;-> GPU2` shows `SYS`, meaning the path crosses both the PCIe hierarchy and a NUMA/socket boundary — exactly the "different PCIe hierarchy" and "different CPU socket" problem the Story describes. `NIC0` shows `PIX` to `GPU0` (same PCIe bridge, good locality) but `SYS` to `GPU2` and `GPU3` — the NIC is close to only one GPU pair, confirming the Story's second claim about network-adapter locality. None of this requires guessing: the legend defines exactly what each label means on the installed driver version, and the labels are the direct evidence for every placement decision later in this chapter.
 
 ## Logical Identity versus Physical Placement
 

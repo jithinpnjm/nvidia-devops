@@ -44,7 +44,7 @@ $ nsenter -t 8842 -n ip addr show eth0
 $ nsenter -t 8842 -n ip route
 default via 10.244.1.1 dev eth0
 ```
-`lsns`'s `NPROCS` column is the giveaway: `net:[4026532890]` shared by 4 processes (the pause container plus its pod's app containers) confirms real namespace sharing, not just an assumption based on them being "in the same Pod." `readlink .../ns/net` prints that same namespace's inode number directly — two different PIDs resolving to the identical number is the definitive proof two containers share a network namespace. `nsenter -t <PID> -n` runs a command *as if* executing inside that namespace without actually entering the container — this is how you inspect a pod's network from the host, exactly as the pause-container mechanism below relies on.
+`lsns`'s `NPROCS` column is the giveaway: `net:[4026532890]` shared by 4 processes (the pause container plus its pod's app containers) confirms real namespace sharing, not just an assumption based on them being "in the same Pod." `readlink .../ns/net` prints that same namespace's inode number directly — two different PIDs resolving to the identical number is the definitive proof two containers share a network namespace. `nsenter -t &lt;PID&gt; -n` runs a command *as if* executing inside that namespace without actually entering the container — this is how you inspect a pod's network from the host, exactly as the pause-container mechanism below relies on.
 
 ➕ **The pause-container mechanism, precisely (why `nsenter` even works this way):**
 ```mermaid
@@ -55,7 +55,7 @@ flowchart TD
         A2["app container 2: own PID/MNT, shares NET/IPC"]
     end
 ```
-`nsenter -t <pause_PID> -n ip addr` and `nsenter -t <app_container_PID> -n ip addr` return the *same* output — proving the shared netns live, not just in theory. Killing the pause container process (rare, but happens on some node-level cleanup bugs) drops pod networking even with app containers still technically alive — a real, if unusual, incident signature worth recognizing.
+`nsenter -t &lt;pause_PID&gt; -n ip addr` and `nsenter -t &lt;app_container_PID&gt; -n ip addr` return the *same* output — proving the shared netns live, not just in theory. Killing the pause container process (rare, but happens on some node-level cleanup bugs) drops pod networking even with app containers still technically alive — a real, if unusual, incident signature worth recognizing.
 
 ➕ **Diagram: which namespaces are shared vs. private, per container in a Pod**
 ```mermaid
@@ -73,7 +73,7 @@ flowchart TD
         IPC --- Containers
     end
 ```
-This is why `kubectl exec` into one container can `curl localhost:<port>` and reach a server listening in a *different* container of the same Pod (shared NET namespace, so "localhost" is genuinely shared) — but cannot see the other container's processes in `ps` (private PID namespaces).
+This is why `kubectl exec` into one container can `curl localhost:&lt;port&gt;` and reach a server listening in a *different* container of the same Pod (shared NET namespace, so "localhost" is genuinely shared) — but cannot see the other container's processes in `ps` (private PID namespaces).
 
 ➕ **`user` namespace — the one most K8s clusters *don't* use by default, and why that matters for the security answer in Chapter 2's capabilities discussion:** without a user namespace, UID 0 inside the container **is** UID 0 on the host kernel (same UID space) — capabilities/seccomp/MAC are what actually constrain it, not the namespace itself. Rootless container runtimes (or K8s user-namespace support, GA more recently) remap container UID 0 to an unprivileged host UID — genuinely stronger isolation, at the cost of complexity (volume ownership, some syscall compatibility). Worth naming as "the isolation upgrade most clusters haven't adopted yet" if asked about container security maturity.
 
@@ -106,7 +106,7 @@ max 0
 oom 0
 oom_kill 0
 ```
-`/proc/<PID>/cgroup` is the step people skip — it's the only way to find *which* path under `/sys/fs/cgroup` actually belongs to this process, before any of the other three reads mean anything. `cpu.stat`'s `nr_throttled`/`nr_periods` (here: 41200/128000 ≈ 32%) is Chapter 1's throttling arithmetic read from an actual container. `memory.current` (≈2.0GiB) next to a `memory.max` you'd check separately tells you headroom; `memory.events`' `high 12` with `oom`/`oom_kill` still at `0` means this container has been pressured repeatedly but never actually killed — a leading indicator, not yet an incident.
+`/proc/&lt;PID&gt;/cgroup` is the step people skip — it's the only way to find *which* path under `/sys/fs/cgroup` actually belongs to this process, before any of the other three reads mean anything. `cpu.stat`'s `nr_throttled`/`nr_periods` (here: 41200/128000 ≈ 32%) is Chapter 1's throttling arithmetic read from an actual container. `memory.current` (≈2.0GiB) next to a `memory.max` you'd check separately tells you headroom; `memory.events`' `high 12` with `oom`/`oom_kill` still at `0` means this container has been pressured repeatedly but never actually killed — a leading indicator, not yet an incident.
 
 ➕ **requests vs limits — the exact mechanism split, worth stating precisely:**
 | | Where it's used | Kernel enforcement? |

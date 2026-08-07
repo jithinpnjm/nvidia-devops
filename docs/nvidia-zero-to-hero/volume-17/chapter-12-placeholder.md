@@ -58,7 +58,7 @@ flowchart TD
 | **Mixed precision (FP32→BF16)** | Compute/memory | 1.8-2.2× | Low | Always start here for training |
 | **Gradient checkpointing** | Memory pressure | Enables larger batches; 1.2-1.5× throughput gain | Medium | When memory limits batch size |
 | **Tiling (shared memory)** | Memory bandwidth | 2-4× for memory-bound kernels | High | GEMM, convolutions with data reuse |
-| **Occupancy optimization** | Compute latency hiding | 1.3-2.0× | Medium | When occupancy < 50% |
+| **Occupancy optimization** | Compute latency hiding | 1.3-2.0× | Medium | When occupancy &lt; 50% |
 | **NCCL ring topology** | Collective latency | 1.5-2.0× speedup in collectives | Low (just parameter) | Multi-GPU when allreduce is >10% time |
 | **Gradient accumulation** | Overlaps collective | Reduces communication overhead by 50%+ | Low | At scale (8+ GPUs) |
 | **Quantization (FP8/INT8)** | Compute throughput | 1.5-2.5× faster kernels; 2-4× memory savings | Medium | When memory is bottleneck or latency-critical |

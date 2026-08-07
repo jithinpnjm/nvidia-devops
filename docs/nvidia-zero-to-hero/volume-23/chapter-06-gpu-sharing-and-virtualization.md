@@ -69,7 +69,7 @@ Time-slicing preempts jobs and switches between them, amortizing GPU cost.
 | Feature | MIG | Time-Slicing |
 |---|---|---|
 | Isolation | Hardware (SM-level) | Software (context switching) |
-| Overhead | < 1% | 3-10% (context switch cost) |
+| Overhead | &lt; 1% | 3-10% (context switch cost) |
 | Latency guarantee | Yes (dedicated SMs) | No (subject to scheduling) |
 | Fairness | Hard partition | Scheduler-based |
 | Setup time | ~1 second | Immediate |

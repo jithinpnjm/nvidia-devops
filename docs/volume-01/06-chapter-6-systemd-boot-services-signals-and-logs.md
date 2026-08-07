@@ -102,7 +102,7 @@ signal.signal(signal.SIGTERM, handle_sigterm)
 ➕ **Second worked scenario — CrashLoopBackOff, the Kubernetes mirror of the exact same pattern:**
 > **Situation:** A pod is in `CrashLoopBackOff`, restarting with increasing backoff delay.
 > 1. `kubectl describe pod` → check `Last State: Terminated, Reason, Exit Code` first — exit code 137 = SIGKILL (likely OOM, check `Reason: OOMKilled` specifically), exit code 1 or other = application-level failure, check logs.
-> 2. `kubectl logs <pod> --previous` — the *previous* container's logs, not the current (already-restarting) one — the actual crash evidence is in the previous instance.
+> 2. `kubectl logs &lt;pod&gt; --previous` — the *previous* container's logs, not the current (already-restarting) one — the actual crash evidence is in the previous instance.
 > 3. Same tree as the systemd scenario above: distinguish "crashed because of what it needs" (config, secrets, DNS to a dependency) from "crashed because it was killed" (OOM, node pressure eviction) from "crashed because of its own bug" (unhandled exception, exit code from app logic).
 > **Conclusion:** `CrashLoopBackOff` is systemd's restart-policy pattern, one layer up — same diagnostic tree, different tool (`kubectl describe`/`logs --previous` instead of `journalctl`).
 

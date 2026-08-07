@@ -240,10 +240,10 @@ pre_deployment_checklist:
 ```bash
 # Simulate NGC unavailability:
 # 1. Verify model is cached internally:
-kubectl exec <pod> -- ls -lh /model_cache/llama2-7b*
+kubectl exec &lt;pod&gt; -- ls -lh /model_cache/llama2-7b*
 
 # 2. Temporarily block NGC in network policy:
-kubectl apply -f - <<EOF
+kubectl apply -f - &lt;<EOF
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

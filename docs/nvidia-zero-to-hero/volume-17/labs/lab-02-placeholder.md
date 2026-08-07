@@ -210,7 +210,7 @@ print("Roofline plot saved to roofline.png")
 - MatMul: 80-90% of peak TFLOPS (if compute-bound prediction is correct) — i.e. roughly 54-60 TFLOPS on H100 SXM5's 67 TFLOPS FP32 peak
 - Elementwise: a small fraction of a TFLOP (heavily memory-latency limited, not bandwidth limited — well below even the small ~0.84 TFLOPS memory-bound ceiling this CI implies)
 - MatMul CI >> crossover (20.0 FLOPS/byte) → compute-bound
-- Elementwise CI << crossover → memory-bound
+- Elementwise CI &lt;&lt; crossover → memory-bound
 
 ## Troubleshooting
 

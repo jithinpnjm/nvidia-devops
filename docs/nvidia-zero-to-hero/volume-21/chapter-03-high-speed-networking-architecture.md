@@ -174,7 +174,7 @@ Comparison:
 Trade-off: Requires more complex switching; not efficient for heterogeneous bandwidths
 ```
 
-**When to use:** Low-latency requirements (<5ms), <64 GPUs. Becomes unstable at larger scales due to incast congestion.
+**When to use:** Low-latency requirements (&lt;5ms), &lt;64 GPUs. Becomes unstable at larger scales due to incast congestion.
 
 ### 2.3 Tree AllReduce (Moderate Latency)
 
@@ -510,12 +510,12 @@ nsys profile -w=restart --sample=none --trace=cuda,nvtx -o profile --gpu-metrics
 
 Collective communication is the **performance ceiling** for distributed training. Optimizations:
 
-1. **Algorithm selection:** Ring for >8 GPU (linear scaling), Recursive Doubling for <8 GPU (low latency).
+1. **Algorithm selection:** Ring for >8 GPU (linear scaling), Recursive Doubling for &lt;8 GPU (low latency).
 2. **Hardware:** InfiniBand NDR (400G) vs 400GbE Ethernet; IB is 5–10x better for AllReduce.
 3. **Topology:** Single-rack is optimal for 64–128 GPU. Multi-rack requires hierarchical AllReduce to avoid congestion.
 4. **Optimization:** Gradient compression (INT8), communication-overlap (pipelined backward pass), custom collective algorithms for specific topologies.
 5. **Measurement:** Use NCCL tests, NCCL debug traces, and GPU profiling to validate 2–5ms AllReduce on 64+ GPU clusters.
 
-**Key Takeaway:** Collective communication overhead should be **<1% of total training time**. If it's >3%, your network is a bottleneck; upgrade to IB NDR or reduce batch size.
+**Key Takeaway:** Collective communication overhead should be **&lt;1% of total training time**. If it's >3%, your network is a bottleneck; upgrade to IB NDR or reduce batch size.
 
 **In Chapter 4:** We move to storage and I/O. Given your training workload, how do you design data pipelines to feed GPUs with data at the required throughput (hundreds of GB/sec)?

@@ -231,7 +231,7 @@ print(prof.key_averages().table(sort_by="self_cuda_time_total", row_limit=10))
 - [ ] FP32 training completes without errors; measure throughput
 - [ ] BF16 training completes without errors; measure throughput
 - [ ] BF16 is 1.5-2.5× faster than FP32
-- [ ] Accuracy difference is < 0.01 (acceptable)
+- [ ] Accuracy difference is &lt; 0.01 (acceptable)
 - [ ] Profiler shows GEMM kernels run 2× faster in BF16
 - [ ] You can explain why (lower precision = wider SIMD ops, faster throughput)
 

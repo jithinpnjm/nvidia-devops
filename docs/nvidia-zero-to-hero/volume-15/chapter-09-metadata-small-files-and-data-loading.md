@@ -275,7 +275,7 @@ Before deploying a dataset, answer these questions:
 |---|---|---|
 | Is the dataset repackaged (tar, HDF5, or WebDataset)? | Yes / No | Repackage immediately; small files are non-negotiable blocker |
 | Have you measured file-open rate per second? | Yes: _____ opens/sec | Run `strace -e openat -c python train.py` to measure. Should be under 50K total. |
-| Does batch assembly latency < 2 × GPU compute time? | Yes / No | If loader latency > GPU time, GPU is idle. Add more workers or prefetch. |
+| Does batch assembly latency &lt; 2 × GPU compute time? | Yes / No | If loader latency > GPU time, GPU is idle. Add more workers or prefetch. |
 | Is prefetch queue depth monitored? | Yes: _____ items | Should be 5–20 batches ahead. If 0, loader is starved. If >50, memory overhead. |
 | Have you tested with cold cache? | Yes: _____ ms / batch | Warm cache is 2–3x faster. Epoch 1 should use warmed cache from epoch 0. |
 

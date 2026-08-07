@@ -24,8 +24,8 @@ Real-time autonomous driving requires parallel inference:
 - Fleet: 50,000 vehicles, Level 3+ automation
 - Sensor suite: 8 cameras + 5 radar + 1 lidar per vehicle, fused at 30 FPS
 - Operating domain: highway + urban, day/night, all-weather
-- Inference SLA: <50ms (actually <25ms preferred)
-- Fail-safe: <2 seconds to safe state
+- Inference SLA: &lt;50ms (actually &lt;25ms preferred)
+- Fail-safe: &lt;2 seconds to safe state
 
 ### Architecture: 2× Drive Orin per vehicle (primary + safety)
 

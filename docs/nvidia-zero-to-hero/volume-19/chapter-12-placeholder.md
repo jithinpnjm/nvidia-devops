@@ -117,20 +117,20 @@ kubectl get pods -l app=training --field-selector status.phase=Running \
 
 **Step 1a (3 min):** Isolate stalled rank.
 ```
-kubectl logs <pod> --tail=50 | grep -i "nccl\|timeout"
+kubectl logs POD_NAME --tail=50 | grep -i "nccl\|timeout"
 ```
 → Note the rank number and node. Go to Step 2.
 
 **Step 2 (2 min):** Check node health for the stalled rank's node.
 ```
-ssh <node> nvidia-smi -q | grep -E "Xid|ECC|Throttle"
+ssh &lt;node&gt; nvidia-smi -q | grep -E "Xid|ECC|Throttle"
 ```
 → Xid error found? Go to **Chapter 20, relevant Xid chapter** for that
   specific code. Not found? Go to Step 3.
 
 **Step 3 (2 min):** Check fabric health for that node (Ch05 method).
 ```
-ssh <node> ibstat mlx5_0 | grep Rate
+ssh &lt;node&gt; ibstat mlx5_0 | grep Rate
 ```
 → Rate below expected generation? This is the cause — go to Ch05
   remediation. Rate normal? Go to Step 4.

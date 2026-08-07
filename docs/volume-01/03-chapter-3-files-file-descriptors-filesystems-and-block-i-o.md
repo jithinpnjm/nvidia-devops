@@ -140,7 +140,7 @@ lrwx------ 1 app app 64 Jul 30 10:00 6 -> /data/model-shard-0042.bin
 ```
 The `(deleted)` marker is the single most common real-world fd leak: a log rotation tool `unlink()`s the file, but the process still holds the fd open — disk usage doesn't drop (`du` won't show it, the inode is still allocated) even though `ls` shows the file gone. **`df` and `du` disagreeing after a log rotation is this exact bug, every time — check `lsof +L1` before anything else.**
 
-➕ **`lsof -p`, `/proc/<PID>/limits`, and `ss -s`, annotated:**
+➕ **`lsof -p`, `/proc/&lt;PID&gt;/limits`, and `ss -s`, annotated:**
 ```text
 $ lsof -p 8842 | head -4
 COMMAND  PID USER   FD   TYPE DEVICE SIZE/OFF   NODE NAME
@@ -154,7 +154,7 @@ $ ss -s
 Total: 812 (kernel 0)
 TCP:   634 (estab 210, closed 380, orphaned 0, timewait 372)
 ```
-`lsof -p` lists every open file/socket for one process — the per-process view that complements `ls -l /proc/<PID>/fd`, but with more detail per entry (size, offset, device). `/proc/<PID>/limits`' "Max open files" shows two numbers: the soft limit (1024, what actually blocks a new `open()` call right now) and the hard limit (4096, the ceiling the process could raise itself up to) — a process failing with "too many open files" at 1000 open fds is hitting the *soft* limit, not genuinely out of room. `ss -s` gives the system-wide socket count in one line — useful to confirm whether an fd exhaustion is one runaway process or a system-wide condition before chasing a single PID.
+`lsof -p` lists every open file/socket for one process — the per-process view that complements `ls -l /proc/&lt;PID&gt;/fd`, but with more detail per entry (size, offset, device). `/proc/&lt;PID&gt;/limits`' "Max open files" shows two numbers: the soft limit (1024, what actually blocks a new `open()` call right now) and the hard limit (4096, the ceiling the process could raise itself up to) — a process failing with "too many open files" at 1000 open fds is hitting the *soft* limit, not genuinely out of room. `ss -s` gives the system-wide socket count in one line — useful to confirm whether an fd exhaustion is one runaway process or a system-wide condition before chasing a single PID.
 
 ➕ **`O_DIRECT`: bypassing the page cache, and why GPU data pipelines care**
 

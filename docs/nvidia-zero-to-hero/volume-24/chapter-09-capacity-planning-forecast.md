@@ -27,7 +27,7 @@ A company currently operates a 16-GPU cluster. Usage is growing 25% per quarter.
 
 **Constraints:**
 - Budget: $5M total over 2 years
-- SLO: p99 training latency must stay < 30 minutes for 1-hour training jobs
+- SLO: p99 training latency must stay &lt; 30 minutes for 1-hour training jobs
 - Power: data center can support max 500 kW
 
 **Tasks:**
@@ -247,8 +247,8 @@ if __name__ == '__main__':
 ## Success Criteria
 
 1. **Forecast accuracy:** Estimate 3× growth ±10% accuracy
-2. **Budget compliance:** Total cost < $5M (including 10% margin)
-3. **SLO compliance:** p99 latency stays < 30 min through all phases
+2. **Budget compliance:** Total cost &lt; $5M (including 10% margin)
+3. **SLO compliance:** p99 latency stays &lt; 30 min through all phases
 4. **Upgrade plan:** Define clear hardware refresh cycles (every 6 months)
 5. **Cost breakdown:** Itemize CapEx vs OpEx; identify major cost drivers
 
@@ -422,11 +422,11 @@ I'd also set up monitoring: if queue depth hits 20+ jobs, alert me immediately. 
 
 ## Evaluation Rubric
 
-| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (<60%) |
+| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (&lt;60%) |
 |---|---|---|---|---|
 | **Forecast accuracy** | 3× growth within ±10%; trend clearly justified | Forecast within ±15% | Forecast within ±25% | >25% error or unjustified |
-| **Budget compliance** | Total cost < $5M with ≥15% margin | < $5M with 5–15% margin | Exactly on budget or <5% over | >5% over or no margin |
-| **SLO maintenance** | Latency < 30 min in all phases; quantified | Latency met in 4/5 phases | Met in 3/5 phases with good explanation | SLO violated or not checked |
+| **Budget compliance** | Total cost &lt; $5M with ≥15% margin | &lt; $5M with 5–15% margin | Exactly on budget or &lt;5% over | >5% over or no margin |
+| **SLO maintenance** | Latency &lt; 30 min in all phases; quantified | Latency met in 4/5 phases | Met in 3/5 phases with good explanation | SLO violated or not checked |
 | **Upgrade strategy** | Clear phases (6-month intervals); hardware choices justified | Good strategy with minor justification gaps | Basic strategy presented | Vague or no upgrade plan |
 | **Cost analysis** | Detailed CapEx/OpEx breakdown; cost drivers identified | Good breakdown, some drivers missing | Basic cost calculation | Minimal cost detail |
 

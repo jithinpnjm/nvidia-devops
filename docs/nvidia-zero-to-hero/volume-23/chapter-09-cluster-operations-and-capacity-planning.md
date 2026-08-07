@@ -257,10 +257,10 @@ Quarterly GPU health report:
 
 | Failure | Detection | Response Time | Impact |
 |---|---|---|---|
-| CECC events | Monitoring | < 2 hours | Graceful drain, minimal impact |
+| CECC events | Monitoring | &lt; 2 hours | Graceful drain, minimal impact |
 | UE (uncorrectable error) | Immediate crash | Immediate | Job loses checkpoint, must restart |
 | Power failure | Alert | Seconds | Entire node down, auto-restart |
-| Overheating | Throttling | < 1 min | Degraded performance, auto-migrate if threshold crossed |
+| Overheating | Throttling | &lt; 1 min | Degraded performance, auto-migrate if threshold crossed |
 
 The key is **early detection + fast response**. CECC gives 12-24 hours to act; use that window."
 

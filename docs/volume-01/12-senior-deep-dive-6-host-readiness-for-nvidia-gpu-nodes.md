@@ -8,7 +8,7 @@ source_document: "Volume_01_Foundations_Beneath_Kubernetes(3).docx"
 GPU nodes add a second dependency graph to the host: kernel version and modules, NVIDIA driver, device nodes, IOMMU/PCIe topology, container runtime integration, CUDA user-space compatibility, NIC/RDMA stack, firmware, time synchronization, storage mounts and Kubernetes operands. A node can be Ready in Kubernetes while being unusable for accelerated workloads.
 
 
-<!-- source-table:1 -->
+&lt;!-- source-table:1 --&gt;
 
 | Layer | Evidence | Common failure |
 | --- | --- | --- |

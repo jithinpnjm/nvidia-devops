@@ -14,9 +14,9 @@
 
 - Serve multiple LLM models (7B, 13B, 70B parameters)
 - 50,000 concurrent users across 8 hours peak
-- SLO: p99 latency < 500ms
+- SLO: p99 latency &lt; 500ms
 - SLO: uptime 99.9%
-- Cost: < $5/1M tokens
+- Cost: &lt; $5/1M tokens
 - Multi-tenant: customers share infrastructure, but isolation required
 - Variable traffic: 5× difference between peak and off-peak
 

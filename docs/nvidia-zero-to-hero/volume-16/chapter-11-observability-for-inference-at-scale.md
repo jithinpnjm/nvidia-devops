@@ -43,10 +43,10 @@ You will be able to:
 
 | SLI | Definition | Measurement | SLO |
 |---|---|---|---|
-| **P50 Latency** | Median request latency | Histogram bucket at 50th percentile | < 100 ms |
-| **P99 Latency** | 99th percentile latency | Histogram bucket at 99th percentile | < 500 ms |
+| **P50 Latency** | Median request latency | Histogram bucket at 50th percentile | &lt; 100 ms |
+| **P99 Latency** | 99th percentile latency | Histogram bucket at 99th percentile | &lt; 500 ms |
 | **Throughput** | Requests per GPU per second | count(completed requests) / time | 50-200 req/s (model-dependent) |
-| **Error Rate** | % requests that error out | count(errors) / count(total) | < 0.1% |
+| **Error Rate** | % requests that error out | count(errors) / count(total) | &lt; 0.1% |
 | **Model Accuracy** | % predictions that are correct | count(correct) / count(predictions) | > 99% (model-dependent) |
 
 ## Inference Server Observability
@@ -129,8 +129,8 @@ vllm:generation_tokens_total 118400
 |---|---|---|
 | Total requests | 1024 | Good volume |
 | Success rate | 99.8% (1022/1024) | Excellent (99.8%) |
-| P50 latency | < 100ms | Request completed in 100ms or less (median) |
-| P99 latency | < 1s | Even worst-case requests < 1 second |
+| P50 latency | &lt; 100ms | Request completed in 100ms or less (median) |
+| P99 latency | &lt; 1s | Even worst-case requests &lt; 1 second |
 | Cache usage | 87% | KV cache is 87% full; headroom shrinking |
 | Throughput | 2400 tokens/sec | Good utilization of GPU |
 | Queue depth | 8 requests | GPU can handle 8 concurrent requests |
@@ -196,7 +196,7 @@ Cost per request: $2,234 / 259.2M = $0.0000086 per request (~$8.60 per million r
 2. **Use lower precision** — FP16 or INT8 instead of FP32
    - Cost impact: Lower (less memory, can fit larger models or batches)
    - Latency impact: Negligible (often faster)
-   - Quality impact: Usually < 1% accuracy loss
+   - Quality impact: Usually &lt; 1% accuracy loss
 
 3. **Model optimization** — distill, prune, or quantize
    - Cost impact: Much lower (smaller model = less GPU memory = more concurrent requests)

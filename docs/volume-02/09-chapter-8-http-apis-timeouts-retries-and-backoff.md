@@ -201,7 +201,7 @@ Traceback (most recent call last):
   ...
 OSError: [Errno 24] Too many open files
 ```
-`EMFILE` (errno 24) is the process hitting its own soft limit (`ulimit -n`, the same `/proc/<PID>/limits` "Max open files" value from Chapter 3's fd discussion) — the fix there is architectural (stop leaking), not `ulimit -n 65536` (that just raises how many retries-worth of leaked sockets it takes to fail).
+`EMFILE` (errno 24) is the process hitting its own soft limit (`ulimit -n`, the same `/proc/&lt;PID&gt;/limits` "Max open files" value from Chapter 3's fd discussion) — the fix there is architectural (stop leaking), not `ulimit -n 65536` (that just raises how many retries-worth of leaked sockets it takes to fail).
 
 **Check your understanding**
 - Q: The buggy version above creates a new `Session()` per attempt but the *successful* return path still returns fine — why does the leak only show up under sustained failures? A: Because each successful call only ever leaks the sessions from its own prior failed attempts within that one call (bounded by `attempts`), and Python's garbage collector eventually reclaims most of them — the leak becomes a real, cluster-visible problem specifically under a prolonged outage, where many concurrent callers are each retrying `attempts` times, all at once, faster than GC and TCP teardown can keep up.

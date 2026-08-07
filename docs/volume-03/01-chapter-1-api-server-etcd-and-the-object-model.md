@@ -408,7 +408,7 @@ This is the same shape whether the "reconcile" box is the Deployment controller,
 > **Situation:** `kubectl delete ns team-a-gpu` has been running for 40 minutes. `kubectl get ns team-a-gpu` shows `Status: Terminating`. Nobody has force-deleted anything yet — good, because that would be the wrong move.
 > 1. `kubectl get ns team-a-gpu -o json | jq '.spec.finalizers, .status.conditions'` — look for a finalizer that hasn't been cleared and a condition explaining why (commonly `NamespaceFinalizersRemaining` or a specific API group that failed to respond).
 > 2. `kubectl api-resources --verbs=list --namespaced -o name | xargs -I{} kubectl -n team-a-gpu get {} 2>/dev/null` — find what's actually still in the namespace; a custom resource (e.g. a GPU ResourceClaim or an old CRD instance) whose owning controller/CRD was already deleted is the classic cause — the finalizer's owning controller no longer exists to remove the finalizer key.
-> 3. If the CRD/controller is genuinely gone and will never come back, the correct fix is to patch the specific finalizer array (`kubectl patch <resource> -p '{"metadata":{"finalizers":[]}}' --type=merge`) on the *stuck object*, not to force-delete the namespace — the namespace finalizer is just reflecting the fact that a child object still has one.
+> 3. If the CRD/controller is genuinely gone and will never come back, the correct fix is to patch the specific finalizer array (`kubectl patch &lt;resource&gt; -p '{"metadata":{"finalizers":[]}}' --type=merge`) on the *stuck object*, not to force-delete the namespace — the namespace finalizer is just reflecting the fact that a child object still has one.
 > 4. Force-deleting the namespace via the apiserver's `/finalize` subresource without understanding *why* it was stuck can leave orphaned cloud resources (e.g. a PV, an LB, a cloud IAM binding created by a controller) with no controller left to clean them up — this is the exact "force-delete first" anti-pattern the original chapter's finalizer discussion is warning against.
 > **Conclusion:** a stuck Terminating object is a controller-availability question first, and a "which finalizer, whose responsibility" question second — never a "just force it" question.
 
@@ -441,7 +441,7 @@ If `finalizers` is non-empty and `deletionTimestamp` is set, something registere
 ## ➕ Going deeper
 
 ### etcd storage encoding and what actually gets written
-The API server serializes objects (typically protobuf internally between apiserver↔etcd, JSON/YAML at the client boundary) under keys shaped like `/registry/<group>/<resource>/<namespace>/<name>`. You will rarely touch etcd directly in a healthy cluster, but knowing the key layout matters for the one time you do need `etcdctl` in a break-fix:
+The API server serializes objects (typically protobuf internally between apiserver↔etcd, JSON/YAML at the client boundary) under keys shaped like `/registry/&lt;group&gt;/&lt;resource&gt;/&lt;namespace&gt;/&lt;name&gt;`. You will rarely touch etcd directly in a healthy cluster, but knowing the key layout matters for the one time you do need `etcdctl` in a break-fix:
 ```bash
 ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 \
   --cert=/etc/kubernetes/pki/etcd/server.crt --key=/etc/kubernetes/pki/etcd/server.key \
@@ -455,4 +455,4 @@ This is a read-only diagnostic move in almost every real scenario — writing to
 kubectl api-resources | grep -i gpu     # any CRDs a GPU operator/DRA has registered
 kubectl api-versions | grep resource.k8s.io   # DRA's API group, when present
 ```
-`kubectl explain <kind>.spec` walks the same OpenAPI schema the apiserver uses for validation — worth reaching for live in an interview instead of guessing a field name.
+`kubectl explain &lt;kind&gt;.spec` walks the same OpenAPI schema the apiserver uses for validation — worth reaching for live in an interview instead of guessing a field name.

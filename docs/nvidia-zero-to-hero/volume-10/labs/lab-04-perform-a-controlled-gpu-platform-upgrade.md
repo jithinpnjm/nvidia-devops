@@ -191,7 +191,7 @@ $ kubectl get node "$CANARY_NODE" -o jsonpath='{.status.capacity.nvidia\.com/gpu
 
 ## 14. Workload and Observability Validation
 
-Create `gpu-upgrade-validation.yaml` with the approved image, `restartPolicy: Never`, `nodeName: <approved-canary-gpu-node>`, one `nvidia.com/gpu` limit, and command `bash -lc 'nvidia-smi && echo GPU_UPGRADE_VALIDATED'`.
+Create `gpu-upgrade-validation.yaml` with the approved image, `restartPolicy: Never`, `nodeName: &lt;approved-canary-gpu-node&gt;`, one `nvidia.com/gpu` limit, and command `bash -lc 'nvidia-smi && echo GPU_UPGRADE_VALIDATED'`.
 
 **Purpose:** Prove that the upgraded canary can allocate and initialize a GPU.
 

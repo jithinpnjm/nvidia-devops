@@ -101,11 +101,11 @@ flowchart LR
 ## Worked scenario
 **Situation:** A GPU training Pod is stuck `ContainerCreating` for 8 minutes. `kubectl describe pod` shows only "waiting" with no explicit error.
 
-1. `journalctl -u kubelet --since '-15 min' | grep <pod-uid>` — kubelet logs almost always have more detail than the Pod's Events, which throttle/deduplicate.
-2. `crictl ps -a | grep <pod-uid>` — is there even a sandbox/container attempt, or is nothing being created at all (points further upstream, e.g. runtime itself unhealthy)?
-3. `crictl inspectp <sandbox-id>` — check `network.ip`; empty means CNI stalled (see above).
+1. `journalctl -u kubelet --since '-15 min' | grep &lt;pod-uid&gt;` — kubelet logs almost always have more detail than the Pod's Events, which throttle/deduplicate.
+2. `crictl ps -a | grep &lt;pod-uid&gt;` — is there even a sandbox/container attempt, or is nothing being created at all (points further upstream, e.g. runtime itself unhealthy)?
+3. `crictl inspectp &lt;sandbox-id&gt;` — check `network.ip`; empty means CNI stalled (see above).
 4. If IP is assigned but still stuck, check CSI: `kubectl describe pvc` for the Pod's volumes, and `journalctl -u kubelet | grep -i mount`.
-5. If image pull is large (common for GPU/ML images, often multi-GB with CUDA base layers), confirm it isn't just a slow pull: `crictl images` and `crictl pull <image>` timing manually, versus an actual auth/network failure.
+5. If image pull is large (common for GPU/ML images, often multi-GB with CUDA base layers), confirm it isn't just a slow pull: `crictl images` and `crictl pull &lt;image&gt;` timing manually, versus an actual auth/network failure.
 
 **Conclusion:** the correct branch depends on which CRI/CNI/CSI call is stuck — "ContainerCreating" by itself never tells you which of the three.
 

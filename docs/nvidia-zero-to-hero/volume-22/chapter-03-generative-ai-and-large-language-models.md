@@ -42,8 +42,8 @@ LLM projects have two distinct cost phases:
 ### Requirements
 - Model: Llama-2 13B
 - Throughput: 1,000 concurrent users × 500 tokens/session
-- Latency: TTFT < 2 sec, per-token < 100ms
-- Pricing: < $0.0001 cost-per-output-token
+- Latency: TTFT &lt; 2 sec, per-token &lt; 100ms
+- Pricing: &lt; $0.0001 cost-per-output-token
 
 ### Architecture: 8 A100s + vLLM continuous batching
 

@@ -312,7 +312,7 @@ flowchart TD
     I --> J["OS installer or stateless runtime takes over"]
 ```
 
-Two failure classes dominate PXE troubleshooting: nothing offered (DHCP scope exhausted, PXE options not set on the DHCP server, or a rogue DHCP server on the segment answering first with wrong options), or offered-but-nothing-loads (TFTP blocked by a firewall/ACL, wrong `next-server` IP, boot filename mismatched to the node's firmware mode — legacy BIOS asking for an EFI bootloader or vice versa). `tcpdump -i <iface> port 67 or port 68 or port 69` on the boot network is the fastest way to see exactly where in this chain a specific node stalls.
+Two failure classes dominate PXE troubleshooting: nothing offered (DHCP scope exhausted, PXE options not set on the DHCP server, or a rogue DHCP server on the segment answering first with wrong options), or offered-but-nothing-loads (TFTP blocked by a firewall/ACL, wrong `next-server` IP, boot filename mismatched to the node's firmware mode — legacy BIOS asking for an EFI bootloader or vice versa). `tcpdump -i &lt;iface&gt; port 67 or port 68 or port 69` on the boot network is the fastest way to see exactly where in this chain a specific node stalls.
 
 ## RAID/boot-drive configuration before OS install
 
@@ -335,7 +335,7 @@ Only after all six is a node handed to the next layer up — in this book's cont
 
 **Situation:** Node `gpu-node-14` was just RMA'd (new mainboard) and reinserted into the rack. It never appears in the provisioning system's "installing" state; the console shows it sitting at "PXE-E51: No DHCP or proxyDHCP offers were received."
 
-1. **Confirm the BMC/console is reachable at all.** `ipmitool -I lanplus -H <bmc-ip> ... sol activate` — if this fails, the problem is BMC network config, not PXE; fix that first, it's a prerequisite for diagnosing anything else.
+1. **Confirm the BMC/console is reachable at all.** `ipmitool -I lanplus -H &lt;bmc-ip&gt; ... sol activate` — if this fails, the problem is BMC network config, not PXE; fix that first, it's a prerequisite for diagnosing anything else.
 2. **Check whether the NIC is even asking.** From a span port or another box on the same VLAN: `tcpdump -i eth0 port 67 or port 68`. No DHCPDISCOVER seen at all from that MAC → the problem is upstream of the network: cabling, switch port not on the correct VLAN, or the PXE NIC port itself disabled in BIOS (common after a mainboard swap — BIOS defaults may re-enable a different NIC as primary, or disable PXE ROM on the intended port).
 3. **DHCPDISCOVER seen but no OFFER returned** → check the DHCP server's scope utilization and whether the node's MAC is registered (many provisioning systems require MAC pre-registration before offering a PXE-specific option set) — this is the single most common cause after a mainboard swap, since the RMA changed the MAC address and the old registration no longer matches.
 4. **OFFER received, but TFTP/HTTP fetch fails** (`PXE-E32`, `PXE-E11`, or an HTTPBoot TLS/404 error) → check firewall/ACL on the TFTP/HTTP path from that VLAN, and confirm boot-mode match (UEFI node requesting `grubx64.efi`/HTTPBoot vs. a scope only configured to hand out a legacy `undionly.kpxe` filename).

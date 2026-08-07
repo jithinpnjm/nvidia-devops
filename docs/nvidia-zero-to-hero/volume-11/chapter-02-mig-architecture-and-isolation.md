@@ -55,7 +55,7 @@ MIG Profiles (GI):
 [5] 7g.80gb, 1 GI of 80GB with 7 SMs, max 1 (full GPU)
 ```
 
-The profile name encodes: `<SMs>g.<memory>gb`. A `1g.10gb` instance gets 1 SM group (10% of H100 compute) and 10GB of the 80GB HBM, with distinct cache and memory-controller paths. You can create up to 7 such instances on one H100, but **you cannot exceed 100% compute or 80GB memory in aggregate**—this is why profile placement matters.
+The profile name encodes: `&lt;SMs&gt;g.&lt;memory&gt;gb`. A `1g.10gb` instance gets 1 SM group (10% of H100 compute) and 10GB of the 80GB HBM, with distinct cache and memory-controller paths. You can create up to 7 such instances on one H100, but **you cannot exceed 100% compute or 80GB memory in aggregate**—this is why profile placement matters.
 
 ## What MIG isolates—and what it cannot
 

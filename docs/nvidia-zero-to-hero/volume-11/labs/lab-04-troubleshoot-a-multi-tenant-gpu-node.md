@@ -245,7 +245,7 @@ spec:
     limits.<exact-allocatable-resource-name>: "0"
 ```
 
-Replace `<exact-allocatable-resource-name>` in both quota keys with the observed value, preserving its full vendor-qualified name. Then create `quota-denied-gpu-pod.yaml` with the same image, node selector, bounded command, and resource as the diagnostic Pod:
+Replace `&lt;exact-allocatable-resource-name&gt;` in both quota keys with the observed value, preserving its full vendor-qualified name. Then create `quota-denied-gpu-pod.yaml` with the same image, node selector, bounded command, and resource as the diagnostic Pod:
 
 ```yaml
 apiVersion: v1
@@ -277,7 +277,7 @@ kubectl apply -f quota-denied-gpu-pod.yaml 2>&1 | tee "$EVIDENCE_DIR/quota-denia
 
 **Expected evidence:** The quota exists, and the final command is denied by quota admission for the exact named resource. `quota-denial.txt` preserves that API response; no `quota-denied-gpu-pod` is created. The node’s physical and allocatable inventory remains unchanged.
 
-**Explanation:** This produces a reversible, tenant-policy symptom. A quota denial before scheduling differs from an `Insufficient <resource>` scheduler event: it proves the request is blocked by namespace policy, not that the device plugin lost inventory. It does not simulate GPU exhaustion, reset, or device-plugin failure.
+**Explanation:** This produces a reversible, tenant-policy symptom. A quota denial before scheduling differs from an `Insufficient &lt;resource&gt;` scheduler event: it proves the request is blocked by namespace policy, not that the device plugin lost inventory. It does not simulate GPU exhaustion, reset, or device-plugin failure.
 
 **Common-failure interpretation:** If admission allows the Pod, compare the full resource key in the Pod limit and both quota keys; extended-resource names must be identical. If the node inventory changes, stop and escalate—this lab should not change it.
 

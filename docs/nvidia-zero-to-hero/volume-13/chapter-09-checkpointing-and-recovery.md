@@ -102,7 +102,7 @@ The tradeoffs between checkpoint frequency and overhead:
 
 | Strategy | Risk of Lost Work | Compute Overhead | Storage Cost |
 |---|---|---|---|
-| **Frequent (Every hour)** | Low (< 1 hour) | High | Massive |
+| **Frequent (Every hour)** | Low (&lt; 1 hour) | High | Massive |
 | **Infrequent (Every 24h)** | High (Up to 24 hours) | Low | Moderate |
 | **Asynchronous Checkpointing**| Low | Very Low (Hidden) | High (Requires RAM buffering) |
 

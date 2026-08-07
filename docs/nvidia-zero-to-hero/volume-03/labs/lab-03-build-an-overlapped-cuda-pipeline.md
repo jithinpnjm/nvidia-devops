@@ -300,7 +300,7 @@ Expected output resembles:
 validated 67108864 elements in 812.4 ms using 2 streams
 ```
 
-The timing is platform-specific and must not be presented as a universal benchmark. As a sanity check on this specific reference number: 67,108,864 elements x 4 bytes x 2 (one read, one write per element, ignoring the 32-iteration compute loop's negligible extra traffic) is roughly 512 MiB of total transfer; at 812 ms that is an effective ~630 MiB/s of *useful* end-to-end throughput including transform time — a deliberately unoptimized figure at `chunkElements = 1<<22` (16 MiB per chunk) that you should see improve when you compare chunk sizes in Section 12.
+The timing is platform-specific and must not be presented as a universal benchmark. As a sanity check on this specific reference number: 67,108,864 elements x 4 bytes x 2 (one read, one write per element, ignoring the 32-iteration compute loop's negligible extra traffic) is roughly 512 MiB of total transfer; at 812 ms that is an effective ~630 MiB/s of *useful* end-to-end throughput including transform time — a deliberately unoptimized figure at `chunkElements = 1&lt;&lt;22` (16 MiB per chunk) that you should see improve when you compare chunk sizes in Section 12.
 
 ## 9. Validation
 
@@ -384,7 +384,7 @@ terminate called after throwing an instance of 'std::runtime_error'
   what():  validation failed at index 4194304
 ```
 
-Index `4194304` is precisely `chunkElements` (`1<<22`) — the first element of the second chunk. That is not a coincidence: with `Collect` moved after `Refill`, the host overwrites `hostOutput[slot]` with freshly-copied *input* data for the new chunk before ever reading out the previous chunk's *output* — so `fullOutput` at that offset ends up holding leftover/overwritten data instead of the transform result. This is the identical defect class as Lab 03's Chapter 7 counterpart (intermittent corruption after adding streams), reproduced here deterministically because this particular reordering removes the timing dependency entirely rather than leaving it to scheduling luck.
+Index `4194304` is precisely `chunkElements` (`1&lt;&lt;22`) — the first element of the second chunk. That is not a coincidence: with `Collect` moved after `Refill`, the host overwrites `hostOutput[slot]` with freshly-copied *input* data for the new chunk before ever reading out the previous chunk's *output* — so `fullOutput` at that offset ends up holding leftover/overwritten data instead of the transform result. This is the identical defect class as Lab 03's Chapter 7 counterpart (intermittent corruption after adding streams), reproduced here deterministically because this particular reordering removes the timing dependency entirely rather than leaving it to scheduling luck.
 
 ### Failure C — Pageable Buffers
 
