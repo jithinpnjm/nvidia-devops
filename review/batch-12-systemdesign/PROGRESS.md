@@ -17,11 +17,11 @@ Volumes: F-08 (`docs/volume-08`), F-09 (`docs/volume-09`), ZTH-23 (`docs/nvidia-
 | F-08 | 11-senior-deep-dive-1-workload-characterization-before-architecture.md | done | none |
 | F-08 | 12-senior-deep-dive-2-ai-factory-layered-architecture.md | done | none |
 | F-08 | 13-senior-deep-dive-3-capacity-and-tco-convert-slo-into-resources.md | done | none |
-| F-08 | 14-senior-deep-dive-4-poc-design-test-the-uncertainty.md | pending | |
-| F-08 | 15-senior-deep-dive-5-security-and-governance-for-gpu-ai-platforms.md | pending | |
-| F-08 | 16-senior-deep-dive-6-decision-workshops-kubernetes-slurm-run-ai-nim-and-dynamo.md | pending | |
-| F-08 | 17-senior-deep-dive-7-communicate-at-three-levels.md | pending | |
-| F-08 | 18-senior-deep-dive-8-practitioner-role-model-solutions-architect-versus-implemen.md | pending | |
+| F-08 | 14-senior-deep-dive-4-poc-design-test-the-uncertainty.md | done | none |
+| F-08 | 15-senior-deep-dive-5-security-and-governance-for-gpu-ai-platforms.md | done | none |
+| F-08 | 16-senior-deep-dive-6-decision-workshops-kubernetes-slurm-run-ai-nim-and-dynamo.md | done | none |
+| F-08 | 17-senior-deep-dive-7-communicate-at-three-levels.md | done | none |
+| F-08 | 18-senior-deep-dive-8-practitioner-role-model-solutions-architect-versus-implemen.md | done | none |
 | F-09 | 01-chapter-1-the-answer-framework-expose-your-reasoning.md | pending | |
 | F-09 | 02-chapter-2-python-coding-interview-workflow.md | pending | |
 | F-09 | 03-chapter-3-linux-troubleshooting-questions.md | pending | |

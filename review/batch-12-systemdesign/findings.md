@@ -49,3 +49,20 @@ No issues found.
 
 ### 13-senior-deep-dive-3-capacity-and-tco-convert-slo-into-resources.md
 No issues found.
+
+### 14-senior-deep-dive-4-poc-design-test-the-uncertainty.md
+No issues found.
+
+### 15-senior-deep-dive-5-security-and-governance-for-gpu-ai-platforms.md
+No issues found.
+
+### 16-senior-deep-dive-6-decision-workshops-kubernetes-slurm-run-ai-nim-and-dynamo.md
+No issues found. Product descriptions (Run:ai, NIM, Dynamo roles) are accurate at the level of detail given.
+
+### 17-senior-deep-dive-7-communicate-at-three-levels.md
+No issues found (intentional condensed cross-reference of Ch.10).
+
+### 18-senior-deep-dive-8-practitioner-role-model-solutions-architect-versus-implemen.md
+No issues found. Good interview self-check rubric.
+
+**F-08 volume complete.** 18/18 chapters reviewed. 1 low-severity finding (arithmetic error in ch.4 worked matrix).
