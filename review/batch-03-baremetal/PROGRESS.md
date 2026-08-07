@@ -5,9 +5,9 @@
 | F-10 | 00c-slurm-bcm-interview-lab.md | done | 1 medium (missing sbatch/gres/array examples) |
 | F-10 | 01-bare-metal-and-bmc-lifecycle.md | done | 1 medium (sensor table data inconsistency); strong chapter overall |
 | F-10 | 02-nvidia-base-command-manager.md | done | 0 high/medium; 2 low |
-| F-10 | 03-os-provisioning-and-linux-security-hardening.md | pending | |
-| F-10 | 04-ansible-for-infrastructure-automation.md | pending | |
-| F-10 | 05-terraform-for-infrastructure-as-code.md | pending | |
+| F-10 | 03-os-provisioning-and-linux-security-hardening.md | done | 0 high/medium; strong chapter |
+| F-10 | 04-ansible-for-infrastructure-automation.md | done | 0 high/medium; strong chapter |
+| F-10 | 05-terraform-for-infrastructure-as-code.md | done | 0 high/medium; strong chapter |
 | F-10 | 06-slurm-administration-ha-accounting-and-upgrades.md | pending | |
 | F-10 | 07-mpi-fundamentals-for-hpc-ai-workloads.md | pending | |
 | F-10 | 08-enroot-and-pyxis-containers-for-hpc.md | pending | |

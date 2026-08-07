@@ -23,3 +23,15 @@
   - Why it matters for JR2018680: GPU gres allocation and job-array syntax is one of the most concrete, easy-to-verify things an interviewer can ask a bare-metal/HPC candidate to write on a whiteboard; this lab otherwise trains the diagnostic reasoning well but skips the request-side syntax entirely.
   - Suggested fix: add a short Lab covering `sbatch --gres=gpu:2 --ntasks-per-node=2`, a `--array=1-4` example, and `--exclusive` vs. shared-node partition request, with the resulting `scontrol show job` GRES/TRES fields annotated.
 - Otherwise strong: the reason-code table (`Resources`/`Priority`/`Assoc`/`ReqNodeNotAvail`/`Dependency`/`InvalidAccount`), the "drain is not a repair" framing, and the worked "H100 cluster underperforming" scenario are all realistic, evidence-first, and match the depth bar.
+
+### 03-os-provisioning-and-linux-security-hardening.md
+- [SEVERITY: low] No factual errors found. SELinux/AppArmor triage flows, DKMS/kernel-ABI coupling narrative, and the worked "kernel patch broke DKMS fleet-wide" scenario are accurate and match real Linux/NVIDIA driver operational behavior (targeted policy scope, `audit2allow`/`ausearch -m avc`, `dkms status`/`dkms autoinstall`, NVML "Driver/library version mismatch" message).
+- Strength: the driver/CUDA/kernel coupling diagram and the DKMS worked scenario are exactly the kind of concrete, evidence-based troubleshooting narrative an NVIDIA interviewer would want to hear — good depth-bar match.
+
+### 04-ansible-for-infrastructure-automation.md
+- [SEVERITY: low] No factual errors found. Push-model-vs-agent framing (Ansible vs BCM/Puppet), `serial:`/`max_fail_percentage:` semantics, handler dedup-per-play behavior, and the dict-ordering idempotency worked scenario are all accurate.
+- Note: chapter is general IaC/config-management content (applies to any fleet) rather than bare-metal-specific, but ties every example back to a GPU-fleet scenario (DCGM exporter, driver version pinning, NCCL role boundaries), so it stays relevant to this volume's brief.
+
+### 05-terraform-for-infrastructure-as-code.md
+- [SEVERITY: low] No factual errors found. State/plan/apply three-way-diff model, `-/+` replace semantics, S3+DynamoDB locking, `lifecycle { create_before_destroy, ignore_changes }`, and the Terraform/Ansible/BCM ownership boundary are all correct and well-argued.
+- [SEVERITY: low] Chapter correctly scopes itself as "orthogonal to the physical compute node" for on-prem bare metal, consistent with Chapter 2's framing — no cross-chapter contradiction.
