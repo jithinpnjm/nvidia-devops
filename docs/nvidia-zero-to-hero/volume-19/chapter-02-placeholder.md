@@ -272,7 +272,7 @@ Alertmanager receives: 2026-08-07 15:05:44  ← 10 seconds to detection ✓
 On-call paged: 2026-08-07 15:05:46  ← 12 seconds to page
 ```
 
-**Response phase (timing goal: <5 min to drain):**
+**Response phase (timing goal: under 5 min to drain):**
 
 ```bash
 # On-call engineer logs in and investigates
@@ -291,7 +291,7 @@ $ kubectl logs training-job-2048-pod-0 | tail -5
 # Training is now running on 7 nodes, waiting for node-04 to be fixed
 ```
 
-**Recovery phase (goal: <10 min total):**
+**Recovery phase (goal: under 10 min total):**
 
 ```bash
 # Bring node-04's IB link back up

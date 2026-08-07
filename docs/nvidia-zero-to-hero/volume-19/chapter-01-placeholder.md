@@ -127,7 +127,7 @@ Result: PASS — model runs without recompilation on CUDA 12.3 runtime
 
 **Evidence for promotion:**
 - Canary nodes stable 48 hours, no errors
-- Latency baseline matches (within <2% margin)
+- Latency baseline matches (within 2% margin)
 - No backward-compatibility issues
 - No kernel warnings or driver crashes
 
