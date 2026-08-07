@@ -70,3 +70,15 @@ No findings. Exception-hierarchy-as-retry-policy pattern (`except TemporaryAPIEr
 
 ### 07-chapter-6-logging-for-operations-not-print-debugging.md
 No findings. Correctly uses `contextvars.ContextVar` (not a plain global) for correlation-ID propagation across threads/asyncio, and includes a working secret-redaction `logging.Filter` example.
+
+### 08-chapter-7-system-interaction-and-subprocess.md
+No findings. Command-injection demo (`shell=True` with attacker-controlled `namespace`) is correct and concrete; `Popen` vs `run()` streaming distinction is accurate.
+
+### 09-chapter-8-http-apis-timeouts-retries-and-backoff.md
+No findings. `get_json`'s try/except/else control flow is more intricate than it needs to be but is logically correct on inspection (retryable-status branch always terminates via `raise_for_status()` on the final attempt, so the trailing `raise AssertionError("unreachable")` is genuinely unreachable). 4xx-vs-5xx retry framing, idempotency examples, and jitter/backoff-with-real-numbers are all accurate and match the "why a naive retry loop..." depth the task brief wants.
+
+### 10-chapter-9-oop-that-helps-infrastructure-code.md
+No findings. Composition-vs-inheritance guidance (Protocol-based `PodInspector` vs Template-Method `BaseExporter`) is a correct and well-chosen contrast, with a concrete test showing the payoff (zero real kubectl calls).
+
+### 11-chapter-10-generators-and-decorators-without-magic.md
+No findings. `functools.wraps` metadata-preservation point is correct and demonstrated with real before/after output. The retry-decorator example correctly composes with Chapter 8's backoff policy.

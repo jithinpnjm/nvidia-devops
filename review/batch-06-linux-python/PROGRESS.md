@@ -24,10 +24,10 @@ Volumes: `docs/volume-01` (F-01, Linux internals), `docs/volume-02` (F-02, Pytho
 | F-02 | 05-chapter-4-files-pathlib-regex-json-and-yaml.md | done | none |
 | F-02 | 06-chapter-5-exceptions-and-context-managers.md | done | none |
 | F-02 | 07-chapter-6-logging-for-operations-not-print-debugging.md | done | none |
-| F-02 | 08-chapter-7-system-interaction-and-subprocess.md | pending | |
-| F-02 | 09-chapter-8-http-apis-timeouts-retries-and-backoff.md | pending | |
-| F-02 | 10-chapter-9-oop-that-helps-infrastructure-code.md | pending | |
-| F-02 | 11-chapter-10-generators-and-decorators-without-magic.md | pending | |
+| F-02 | 08-chapter-7-system-interaction-and-subprocess.md | done | none |
+| F-02 | 09-chapter-8-http-apis-timeouts-retries-and-backoff.md | done | none |
+| F-02 | 10-chapter-9-oop-that-helps-infrastructure-code.md | done | none |
+| F-02 | 11-chapter-10-generators-and-decorators-without-magic.md | done | none |
 | F-02 | 12-chapter-11-concurrency-for-infrastructure-engineers.md | pending | |
 | F-02 | 13-chapter-12-type-hints-and-pytest-make-changes-safer.md | pending | |
 | F-02 | 14-chapter-13-project-structure-cli-and-ci-cd.md | pending | |
