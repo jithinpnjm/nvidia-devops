@@ -255,3 +255,10 @@
   - Why it matters for JR2018680: Jetson/edge hardware specs are a plausible interview topic for an automotive/robotics-adjacent role; conflating TOPS (INT8) with TFLOPS (FP) is a real-world unit confusion worth getting right, and mirrors the review series' broader pattern of imprecise GPU spec figures.
   - Suggested fix: Use a real Jetson Orin SKU's published spec (e.g., Jetson AGX Orin 64GB: 275 TOPS INT8; Jetson Orin NX 16GB: 100 TOPS INT8) and label it TOPS, not TFLOPS.
 - Otherwise clean: latency/FPS benchmark numbers are internally consistent (24-26ms latency ↔ ~40 FPS), and the SLA validation table correctly flags the fail-safe gap as unresolved (⚠️) rather than falsely marking it passed.
+
+### labs/lab-04-medical-imaging-pipeline.md
+- [SEVERITY: high] RECURRENCE of the ms/sec (1000x) unit-magnitude-slip pattern, and internally self-contradictory within the same lab. Step 4's "Expected output" states "Inference latency: 8.2 ms ✓ (within SLA)" (Section 9), but Step 6's throughput benchmark, in the very same file, uses "8 sec/study" consistently ("Actual GPU time: 50,000 studies × 8 sec/study ÷ 2 GPUs ÷ 86,400 sec/day = 2.31 days" — verified correct at 8 sec/study) and Chapter 7 (the source chapter for this lab) also establishes "Inference time: 8 seconds per study (A100)." The "8.2 ms" figure is a 1,000x understatement of the model's actual per-study inference time used everywhere else.
+  - Evidence: Line ~203 ("8.2 ms") vs line ~300-302 ("8 sec/study") in the same file, and Chapter 7 line ~26 ("Inference time: 8 seconds per study").
+  - Why it matters for JR2018680: The exact ms/sec 1000x-slip pattern flagged repeatedly across this review series, occurring twice in the same lab file with directly conflicting values for the identical metric.
+  - Suggested fix: Correct Section 9's "Expected output" to "8.2 sec" (or the dummy toy model's genuinely-fast synthetic latency should be clearly labeled as illustrative and not conflated with the real 8 sec/study figure used for capacity planning).
+- Otherwise clean: HIPAA audit-logging code, DICOM/Hounsfield-unit preprocessing, and batch-processing code are technically reasonable.
