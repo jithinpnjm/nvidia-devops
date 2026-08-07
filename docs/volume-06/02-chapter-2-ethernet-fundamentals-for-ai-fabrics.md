@@ -52,7 +52,7 @@ Reading `ethtool -S` top-to-bottom is reading how far down this ladder the link 
 ```bash
 $ ping -M do -s 8972 10.0.4.12
 PING 10.0.4.12 (10.0.4.12) 8972(9000) bytes of data.
-ping: local error: message too long, mtu=9000 ← path/local MTU is 9000, payload+headers(28) = 9000 exceeds it
+ping: local error: message too long, mtu=9000 ← path/local MTU is 9000, payload+headers(28) = 9000 hits the MTU exactly — the kernel's DF check requires payload+headers to be strictly less than MTU, so an exact match still fails, not just an actual overage
 $ ping -M do -s 8944 10.0.4.12 # 8944 + 28 (ICMP+IP header) = 8972... adjust for RoCE's extra headers
 64 bytes from 10.0.4.12: icmp_seq=1 ttl=64 time=0.041 ms
 ```
