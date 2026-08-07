@@ -25,14 +25,16 @@ tags: [gpu-cluster, topology, nvlink, infiniband, performance, cost-analysis]
 
 | GPU | Released | Memory | HBM Bandwidth | Peak TFLOPS (FP32) | Peak TFLOPS (TF32) | Peak TFLOPS (BF16) | Peak TFLOPS (FP8) | Tensor Cores | PCIe Bandwidth | Power | Cost per Unit | Cost per TFLOP |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **A100 (PCIe)** | Aug 2020 | 40GB HBM2e | 1.555 TB/s | 77.3 | 312 | 312 | 624 | 6,912 | 64 GB/s | 250W | $10,000 | $32 |
-| **A100 (SXM4)** | Aug 2020 | 40GB HBM2e | 1.555 TB/s | 77.3 | 312 | 312 | 624 | 6,912 | — | 250W | $15,000 | $48 |
-| **A100 (80GB)** | Aug 2021 | 80GB HBM2e | 2.039 TB/s | 77.3 | 312 | 312 | 624 | 6,912 | — | 350W | $25,000 | $80 |
-| **H100 (PCIe)** | Mar 2023 | 80GB HBM3 | 2.457 TB/s | 151 | 606 | 989 | 1,457 | 14,080 | 64 GB/s | 350W | $20,000 | $20 |
-| **H100 (SXM5)** | Mar 2023 | 80GB HBM3 | 3.352 TB/s | 151 | 606 | 989 | 1,457 | 14,080 | — | 350W | $30,000 | $30 |
-| **H200 (SXM5)** | Mar 2024 | 141GB HBM3e | 4.8 TB/s | 151 | 606 | 989 | 1,457 | 14,080 | — | 500W | $40,000 | $40 |
+| **A100 (PCIe)** | Aug 2020 | 40GB HBM2e | 1.555 TB/s | 19.5 | 156 | 312 | N/A | 6,912 | 64 GB/s | 250W | $10,000 | $32 |
+| **A100 (SXM4)** | Aug 2020 | 40GB HBM2e | 1.555 TB/s | 19.5 | 156 | 312 | N/A | 6,912 | — | 250W | $15,000 | $48 |
+| **A100 (80GB)** | Aug 2021 | 80GB HBM2e | 2.039 TB/s | 19.5 | 156 | 312 | N/A | 6,912 | — | 350W | $25,000 | $80 |
+| **H100 (PCIe)** | Mar 2023 | 80GB HBM3 | 2.457 TB/s | 67 | 495 | 989 | 1,979 | 14,080 | 64 GB/s | 350W | $20,000 | $20 |
+| **H100 (SXM5)** | Mar 2023 | 80GB HBM3 | 3.352 TB/s | 67 | 495 | 989 | 1,979 | 14,080 | — | 350W | $30,000 | $30 |
+| **H200 (SXM5)** | Mar 2024 | 141GB HBM3e | 4.8 TB/s | 67 | 495 | 989 | 1,979 | 14,080 | — | 500W | $40,000 | $40 |
 | **GB200** | Jun 2024 | 192GB (Grace CPU + 2×GB100) | 5.6 TB/s | 1,457 | 5,828 | 11,656 | 23,312 | 32,768 | — | 880W | $60,000 | $5 |
 | **L40S (inference)** | Nov 2023 | 48GB GDDR6 | 0.864 TB/s | 91 | 368 | 731 | — | 14,080 | 256 GB/s | 350W | $8,000 | $11 |
+
+*TFLOPS figures above are dense (non-sparsity) Tensor Core throughput, matching the values used in the cost-per-TFLOP examples below. A100 has no native FP8 Tensor Core support (FP8 was introduced with Hopper); its comparable low-precision figure is INT8 at 624 TOPS dense.*
 
 **Key Observations:**
 1. H100 has ~3x higher TFLOPS/$ than A100.
@@ -349,8 +351,8 @@ Cluster Interconnect:
 
 Performance Envelope:
   Single-node theoretical:       8 × 989 TFLOPS (BF16) = 7,912 TFLOPS/node
-  16-node aggregate:             16 × 7,912 TFLOPS = 126 TFLOPS peak
-  Practical after AllReduce:     126 × 0.85 utilization = 107 TFLOPS sustained
+  16-node aggregate:             16 × 7,912 TFLOPS = 126,592 TFLOPS (~126.6 PFLOPS) peak
+  Practical after AllReduce:     126,592 × 0.85 utilization ≈ 107,603 TFLOPS (~107.6 PFLOPS) sustained
   
   AllReduce time for 256 MB (gradient buffer):
     - Within node (8 GPU via NVLink):      ~0.4 ms
@@ -375,7 +377,7 @@ Cost Analysis:
   
   3-year TCO: $5.26M + ($511K × 3) = $6.79M
   Cost per GPU-hour: $6.79M / (128 GPU × 8760 hr × 3 yr) = $0.026/GPU-hour
-  Cost per TFLOP-year: $6.79M / (107 TFLOPS × 3 yr) = $21,121/TFLOP/year
+  Cost per TFLOP-year: $6.79M / (107,603 TFLOPS × 3 yr) ≈ $21/TFLOP/year
 ```
 
 ---
@@ -450,19 +452,21 @@ flowchart TD
    - "That's an 8% total throughput loss, which directly translates to 8% longer training time or 8% more GPU hours."
 
 2. **Quantify training cost impact**
-   - "Training Llama-70B takes 7 days continuous on 64 GPUs. With 8% throughput loss, that becomes 7.56 days. At $0.026/GPU-hour, that's an extra $0.026 × 64 GPU × 13.4 extra hours = $22,400 per training run."
-   - "We run this training twice per month for model iterations. That's $22.4K × 24 runs/year = $537K per year in extra compute cost."
-   - "Over 3 years, that's $1.61M in extra compute costs vs $448K in upfront Ethernet savings. The ROI is negative."
+   - "Training Llama-70B takes 7 days continuous on 64 GPUs (168 hours). With 8% throughput loss, that becomes ~181.4 hours (7.56 days) — 13.4 extra hours. At $0.026/GPU-hour, that's an extra $0.026 × 64 GPU × 13.4 extra hours ≈ $22 per training run."
+   - "We run this training twice per month for model iterations. That's ~$22 × 24 runs/year ≈ $537 per year in extra compute cost."
+   - "Over 3 years, that's only ~$1,611 in extra compute cost — nowhere close to justifying the $448K upfront Ethernet savings on compute overhead alone. The pure 'AllReduce overhead' argument, done correctly, does NOT support paying $7K/node for IB on this workload by itself."
 
 3. **Quantify multi-model impact**
    - "Plus, we don't run just one model. Once we train Llama-70B, we'll train Llama-100B or a custom 80B model. Larger models have bigger gradient tensors and longer AllReduce times—the penalty compounds."
-   - "Doubling gradient tensor size means AllReduce time goes from 10ms to 30ms on Ethernet. Training loop becomes 130ms vs 102ms on IB. That's 27% overhead. Over 2 additional training runs per year: 27% × $0.026/hr × 64 GPU × 168 hours × 2 = $1.2M extra."
+   - "Doubling gradient tensor size means AllReduce time goes from 10ms to 30ms on Ethernet. Training loop becomes 130ms vs 102ms on IB. That's 27% overhead. Over 2 additional training runs per year: 27% × $0.026/GPU-hour × 64 GPU × 168 hours × 2 runs ≈ $151/year extra — again, a small number in isolation."
+   - "So the compute-overhead cost case for IB, even compounded across models, stays in the hundreds-to-low-thousands of dollars per year. It does not by itself justify $448K in upfront hardware cost — I want to be honest about that rather than force a number to fit the conclusion."
 
-4. **Account for future-proofing**
-   - "Today, we assume 64 GPUs. In 18 months, we'll scale to 128 or 256. Ethernet scales poorly (congestion, packet loss) while IB scales linearly. Upgrading Ethernet fabric costs $200K–300K mid-cluster-life. If we buy IB now, we scale without fabric changes."
+4. **Account for future-proofing and fabric quality — the real justification**
+   - "Today, we assume 64 GPUs. In 18 months, we'll scale to 128 or 256. Ethernet fabrics degrade nonlinearly at scale (congestion, incast packet loss, tail latency) while IB with adaptive routing and lossless credit-based flow control scales far more predictably. Retrofitting an Ethernet fabric to IB mid-cluster-life costs on the order of $200K–300K in re-cabling, downtime, and re-validation."
+   - "There's also an engineering-time cost that doesn't show up in the GPU-hour math: debugging intermittent congestion-related training stalls on Ethernet fabrics is expensive in senior-engineer hours, and those incidents get more frequent as GPU count grows."
 
 5. **Recommendation**
-   - "Buy IB NDR. The $448K Ethernet savings evaporates in 3 months of training cost difference. IB is the correct choice when training utilization exceeds 50% of peak compute."
+   - "At 64 GPUs, the pure compute-overhead math doesn't justify IB's premium — that argument is weak and I won't overstate it. The real case for IB is architectural: fabric quality and predictable scaling as we grow past 128-256 GPUs, where Ethernet's congestion behavior and the cost of a mid-life fabric swap outweigh the $448K upfront delta. If we're confident we'll stay at 64 GPUs long-term, Ethernet is defensible; if we're building toward 256+ GPUs, buy IB now."
 
 ---
 
@@ -477,7 +481,7 @@ GPU cluster design is a **three-level decision:**
 **Key Takeaways:**
 1. H100 SXM5 is the right default for training (highest TFLOPS/$, excellent NVLink integration).
 2. NVLink within node (600 GB/s) is 10–30x faster than PCIe (128 GB/s); use 8-GPU SXM5 nodes for training.
-3. Between nodes, InfiniBand NDR (400G) vs 400GbE Ethernet: IB costs $7K more per node but saves $537K/year in training throughput. Always choose IB for production training clusters.
+3. Between nodes, InfiniBand NDR (400G) vs 400GbE Ethernet: IB costs $7K more per node; at 64 GPUs the direct compute-overhead savings are only ~$537/year (not a compute-cost argument on their own), so the real justification for IB is fabric quality and predictable scaling past 128–256 GPUs, not near-term training throughput dollars.
 4. Topology matters: Single-rack is simple and low-cost for 64–128 GPU; Fat-Tree adds complexity but enables fault tolerance at 256+ GPU.
 
 **In Chapter 3:** We zoom into the network layer detail. Given your cluster topology, how do you optimize collective communication (AllReduce, AllGather, ReduceScatter) for maximum throughput and minimum latency?

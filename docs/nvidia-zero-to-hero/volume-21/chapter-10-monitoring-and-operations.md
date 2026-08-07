@@ -74,7 +74,7 @@ scrape_configs:
         # ... all 16 nodes
     metric_relabel_configs:
       - source_labels: [__name__]
-        regex: 'nvidia_smi_.*|dcgm_.*'
+        regex: 'nvidia_smi_.*|DCGM_FI_.*'
         action: keep
   
   - job_name: 'nvidia-dcgm'
@@ -84,7 +84,7 @@ scrape_configs:
         - 'dcgm-exporter:9400'  # NVIDIA DCGM exporter
     metric_relabel_configs:
       - source_labels: [__name__]
-        regex: 'dcgm_gpu_utilization|dcgm_.*_temperature|dcgm_.*_power'
+        regex: 'DCGM_FI_DEV_GPU_UTIL|DCGM_FI_DEV_GPU_TEMP|DCGM_FI_DEV_POWER_USAGE|DCGM_FI_DEV_SM_CLOCK|DCGM_FI_DEV_XID_ERRORS'
         action: keep
   
   - job_name: 'infiniband'
@@ -126,7 +126,7 @@ groups:
       
       # GPU temperature SLO (prevent throttling)
       - alert: GPUTemperatureHigh
-        expr: dcgm_gpu_temp > 75
+        expr: DCGM_FI_DEV_GPU_TEMP > 75
         for: 1m
         annotations:
           summary: "GPU {{ $labels.gpu }} above 75°C"

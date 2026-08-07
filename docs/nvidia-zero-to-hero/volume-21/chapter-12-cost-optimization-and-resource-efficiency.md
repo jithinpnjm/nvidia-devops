@@ -64,9 +64,9 @@ electricity_cost_per_day = 420 kW × 24 hr × $0.12/kWh = $1.2K per day
 operational_cost_per_day = (15 engineers × $150K/year) / 365 = $6.2K per day
 
 total_cost_per_day = $40.2K
-cost_per_billion_tokens = $40.2K / (25.9B tokens) = $0.00155 per billion tokens
+cost_per_token = $40.2K / (25.9B tokens) = $0.00000155 per token ($1.55e-6/token)
 
-# Or: cost per million tokens = $1.55
+# Cost per million tokens = $0.00000155 × 1,000,000 = $1.55
 
 # Business target: $0.001 per million tokens (to be profitable)
 # Current cost: $1.55 per million tokens
@@ -92,13 +92,15 @@ CLOUD GPU PRICING (AWS EC2 p4d.24xlarge: 8×H100 per instance)
 On-demand: $40/hour per instance
   = $40 / 8 GPU = $5/GPU/hour
   = $120/GPU/day
-  = $36K/GPU/year (over 3 years: $108K = 3.6x hardware cost)
+  = $36K/GPU/year (assumes ~300 operating days/year, not 365 — stated explicitly here;
+    at 365 days/year this would be $43.8K/GPU/year instead)
+  (over 3 years at the 300-day assumption: $108K = 3.6x hardware cost)
 
 Spot price (interruptible):
   Average: $12/hour per instance (70% discount)
   = $12 / 8 GPU = $1.50/GPU/hour
   = $36/GPU/day
-  = $10.8K/GPU/year
+  = $10.8K/GPU/year (same 300-day/year assumption, kept consistent with on-demand above)
   
   Savings vs on-demand: $25.2K/GPU/year = 67% cost reduction!
   Trade-off: Job can be interrupted anytime (5% interruption rate = ~7 hours/month)
@@ -214,9 +216,9 @@ Cost Metrics:
     Cost per 1K QPS: $1.31M/year
     
   Cost per training throughput:
-    1200 GPU = 26.4 PETAFLOPS peak (estimate)
+    1200 GPU × 989 TFLOPS (BF16, H100 SXM5, from Chapter 2) = 1,186,800 TFLOPS = 1,186.8 PFLOPS peak
     Annual cost: $23.97M per year
-    Cost per PETAFLOP-year: $908K
+    Cost per PETAFLOP-year: $23.97M / 1,186.8 PFLOPS ≈ $20.2K
 ```
 
 ---

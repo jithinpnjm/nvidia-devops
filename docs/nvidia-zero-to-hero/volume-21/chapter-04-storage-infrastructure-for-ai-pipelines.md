@@ -32,7 +32,9 @@ H100 GPU computing characteristics:
   Per-token compute: ~15 floating-point operations (rough estimate for transformer)
   
 Throughput calculation:
-  Tokens per second per GPU = 989 TFLOPS / 15 FLOPs per token = ~66M tokens/sec theoretical
+  Tokens per second per GPU = 989 TFLOPS / 15 FLOPs per token = ~66 trillion (66T) tokens/sec theoretical
+  (This theoretical ceiling ignores memory bandwidth, attention overhead, and synchronization —
+  it's a useful upper bound, not an achievable number.)
   Practical (accounting for memory, synchronization): ~300K–500K tokens/sec per GPU
   
   For 64 GPU:

@@ -239,16 +239,16 @@ facility_cost_per_hour = total_facility_power_kw * electricity_cost_per_kwh
 # = 30.24 * 0.12 = $3.63/hour
 
 cost_per_compute_day = facility_cost_per_hour * hours_per_compute_day
-# = $3.63 * 24 = $87.12 per GPU compute-day
+# = $3.63 * 24 = $87.12 per cluster compute-day (already accounts for all 64 GPUs)
 ```
 
 For a 7-day training run:
-- **Hardware cost:** $87.12/day × 64 GPUs × 7 days = $39,004.16
+- **Hardware cost:** $87.12/day × 7 days = $609.84 (no additional ×64 — `cost_per_compute_day` is already the whole 64-GPU cluster's daily cost)
 - **Plus personnel overhead** (hourly monitoring): ~$500/day × 7 days = $3,500
 - **Plus checkpoint storage** (1TB every 8h, 21 checkpoints × $0.023/GB/month ≈ $15): ~$300
-- **Total:** ~$43,000 for one training run
+- **Total:** ~$4,410 for one training run
 
-**Cost per training iteration:** $43,000 / ~50 iterations = **$860 per iteration** (assuming 2 iterations for hyperparameter search)
+**Cost per training iteration:** $4,410 / 50 training iterations = **~$88 per iteration**
 
 #### Inference Cost Per Million Tokens
 

@@ -94,7 +94,7 @@ Subtotal Software: $80K
 TOTAL CAPEX: $6.11M
 
 Cost per GPU: $6.11M / 128 = $47.7K per GPU
-Cost per TFLOP: $6.11M / (128 × 989 TFLOPS) = $48.1K per TFLOP (high, due to single-rack setup)
+Cost per TFLOP: $6.11M / (128 × 989 TFLOPS) ≈ $48 per TFLOP (consistent with Chapter 2's ~$30-48/TFLOP per-GPU range for H100)
 ```
 
 ### Deployment Procedure

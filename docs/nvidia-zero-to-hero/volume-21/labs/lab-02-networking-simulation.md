@@ -56,10 +56,10 @@ for N, data_mb, bw in configs:
     latency = ring_allreduce(N, data_mb, bw)
     print(f"N={N}, data={data_mb}MB, bw={bw}Gbps → AllReduce time: {latency:.2f}ms")
 
-# Expected output:
-# N=64, data=1000MB, bw=400Gbps → AllReduce time: 5.03ms
-# N=64, data=1000MB, bw=100Gbps → AllReduce time: 20.10ms
-# N=128, data=1000MB, bw=400Gbps → AllReduce time: 10.05ms
+# Expected output (verified by running the code above):
+# N=64, data=1000MB, bw=400Gbps → AllReduce time: 51.97ms
+# N=64, data=1000MB, bw=100Gbps → AllReduce time: 170.10ms
+# N=128, data=1000MB, bw=400Gbps → AllReduce time: 65.09ms
 ```
 
 **Rubric:** Simulation matches hand calculations (within ±10%). Explain why N=128 is 2x slower than N=64.
@@ -160,10 +160,10 @@ for topo in topologies:
     lat = simulate_topology_allreduce(topo, 64, 400, 1000)
     print(f"{topo:15s}: {lat:6.2f} ms")
 
-# Expected output:
-# single_rack     :   2.51 ms (best)
-# fat_tree        :   5.03 ms (oversubscribed)
-# multi_rack      :  ~20.00 ms (multi-level, slow inter-rack)
+# Expected output (verified by running the code above):
+# single_rack     :  16.54 ms (best)
+# fat_tree        :  91.35 ms (oversubscribed)
+# multi_rack      : 212.80 ms (multi-level, slow inter-rack)
 
 # Question: For 256 GPU, which topology is required to keep AllReduce <10ms?
 ```
@@ -188,11 +188,14 @@ def training_iteration_time(batch_size, sequence_length, num_gpu, allreduce_late
     # Throughput per GPU: 500K tokens/sec (from Chapter 8)
     tokens_per_sec_per_gpu = 500_000
     
-    # Total tokens per iteration
-    total_tokens = batch_size * sequence_length * num_gpu
+    # batch_size is the GLOBAL batch size, split across num_gpu GPUs in data
+    # parallelism, so tokens processed PER GPU = (batch_size / num_gpu) * sequence_length.
+    # (Dividing by num_gpu here is what makes this a data-parallel throughput model —
+    # more GPUs must not make each iteration slower.)
+    tokens_per_gpu_per_iteration = (batch_size / num_gpu) * sequence_length
     
     # Forward + backward time (compute-bound)
-    compute_time_ms = (total_tokens / tokens_per_sec_per_gpu) * 1000
+    compute_time_ms = (tokens_per_gpu_per_iteration / tokens_per_sec_per_gpu) * 1000
     
     # AllReduce time (communication-bound)
     communication_time_ms = allreduce_latency_ms
@@ -222,14 +225,16 @@ for topo, allreduce_lat in topologies.items():
     overhead_pct = (allreduce / iter_time) * 100
     print(f"{topo:15s} {iter_time:10.2f}ms {compute:10.2f}ms {allreduce:10.2f}ms {overhead_pct:9.1f}%")
 
-# Expected output:
+# Expected output (verified by running the code above):
 # Topology        Total     Compute   AllReduce  Overhead
-# single_rack    1053.52ms   1048.58ms   5.00ms     0.5%
-# fat_tree       1058.58ms   1048.58ms  10.00ms     0.9%
-# multi_rack     1098.58ms   1048.58ms  50.00ms     4.6%
+# single_rack      21.38ms     16.38ms   5.00ms    23.4%
+# fat_tree         26.38ms     16.38ms  10.00ms    37.9%
+# multi_rack       66.38ms     16.38ms  50.00ms    75.3%
 
 # Question: What's the training time increase (per epoch) for multi_rack vs single_rack?
-#   Answer: 4.6% slower = need 4.6% more GPU hours = 4.6% higher cost
+#   Answer: 66.38ms / 21.38ms ≈ 3.1x slower = need ~3.1x more GPU hours = ~3.1x higher cost.
+#   This is why AllReduce overhead dominates decisively at small per-GPU batch sizes and
+#   why topology (single-rack NVLink vs. multi-rack IB) matters so much for training economics.
 ```
 
 **Rubric:** Calculations correct. Explain why single-rack is cost-optimal despite higher CAPEX.
