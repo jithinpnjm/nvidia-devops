@@ -1,0 +1,59 @@
+# Batch 07 — AI Workloads & Training — Progress
+
+Volumes: F-05 (`docs/volume-05`), ZTH-12 (`docs/nvidia-zero-to-hero/volume-12`), ZTH-13 (`docs/nvidia-zero-to-hero/volume-13`)
+
+| Volume | File | Status | Severity Summary |
+|---|---|---|---|
+| F-05 | 01-chapter-1-classify-the-ai-workload-before-designing-infrastructure.md | done | low |
+| F-05 | 02-chapter-2-training-architecture-compute-data-checkpoints-and-collectives.md | done | medium |
+| F-05 | 03-chapter-3-llm-inference-prefill-decode-batching-and-kv-cache.md | done | low |
+| F-05 | 04-chapter-4-serving-frameworks-and-the-platform-boundary.md | done | low |
+| F-05 | 05-chapter-5-autoscaling-inference.md | done | low |
+| F-05 | 06-chapter-6-distributed-and-disaggregated-inference.md | done | low |
+| F-05 | 07-chapter-7-state-caches-and-rag-dependencies.md | done | low |
+| F-05 | 08-chapter-8-security-and-tenancy-for-ai-platforms.md | done | low |
+| F-05 | 09-chapter-9-performance-and-cost-engineering.md | done | low |
+| F-05 | 10-senior-deep-dive-1-training-systems-parallelism-collectives-and-checkpoint-eco.md | done | low |
+| F-05 | 11-senior-deep-dive-2-llm-inference-prefill-decode-kv-cache-and-continuous-batchi.md | done | low |
+| F-05 | 12-senior-deep-dive-3-nim-vllm-tensorrt-llm-and-serving-boundaries.md | done | medium |
+| F-05 | 13-senior-deep-dive-4-nvidia-dynamo-system-level-inference-optimization.md | done | low |
+| F-05 | 14-senior-deep-dive-5-autoscaling-inference-from-work-not-only-cpu.md | done | low |
+| F-05 | 15-senior-deep-dive-6-rag-vector-search-and-stateful-dependencies.md | done | low |
+| F-05 | 16-senior-deep-dive-7-agentic-and-multimodal-infrastructure.md | done | low |
+| F-05 | 17-senior-deep-dive-8-production-benchmark-design.md | done | low |
+| ZTH-12 | index.md | done | low |
+| ZTH-12 | chapter-01-why-inference-infrastructure-is-different.md | done | low |
+| ZTH-12 | chapter-02-the-end-to-end-inference-request-path.md | done | low |
+| ZTH-12 | chapter-03-triton-inference-server-architecture.md | done | low |
+| ZTH-12 | chapter-04-tensorrt-optimization-and-engine-lifecycle.md | done | low |
+| ZTH-12 | chapter-05-tensorrt-llm-and-llm-execution.md | done | medium |
+| ZTH-12 | chapter-06-vllm-tgi-sglang-and-lmdeploy.md | done | medium |
+| ZTH-12 | chapter-07-continuous-and-dynamic-batching.md | done | low |
+| ZTH-12 | chapter-08-kv-cache-memory-and-concurrency.md | done | low |
+| ZTH-12 | chapter-09-scaling-multi-gpu-and-multi-node-inference.md | done | low |
+| ZTH-12 | chapter-10-performance-metrics-and-benchmarking.md | done | low |
+| ZTH-12 | chapter-11-production-reliability-and-troubleshooting.md | done | low |
+| ZTH-12 | chapter-12-volume-12-summary.md | done | low |
+| ZTH-12 | labs/lab-01-deploy-and-validate-triton.md | done | low |
+| ZTH-12 | labs/lab-02-benchmark-dynamic-batching.md | done | low |
+| ZTH-12 | labs/lab-03-deploy-an-llm-with-vllm.md | done | low |
+| ZTH-12 | labs/lab-04-troubleshoot-a-slow-inference-pipeline.md | done | low |
+| ZTH-13 | index.md | done | medium |
+| ZTH-13 | chapter-01-why-distributed-training-exists.md | done | low |
+| ZTH-13 | chapter-02-training-memory-and-compute-anatomy.md | done | low |
+| ZTH-13 | chapter-03-data-parallelism-and-ddp.md | done | high |
+| ZTH-13 | chapter-04-fsdp-and-parameter-sharding.md | done | high |
+| ZTH-13 | chapter-05-deepspeed-and-zero.md | done | medium |
+| ZTH-13 | chapter-06-tensor-pipeline-and-expert-parallelism.md | done | low |
+| ZTH-13 | chapter-07-megatron-lm-architecture.md | done | medium |
+| ZTH-13 | chapter-08-nccl-collectives-and-communication-paths.md | done | low |
+| ZTH-13 | chapter-09-checkpointing-and-recovery.md | done | low |
+| ZTH-13 | chapter-10-multi-node-training-architecture.md | done | low |
+| ZTH-13 | chapter-11-performance-engineering-and-troubleshooting.md | done | medium |
+| ZTH-13 | chapter-12-volume-13-summary.md | done | medium |
+| ZTH-13 | labs/lab-01-run-multi-gpu-ddp-training.md | done | high |
+| ZTH-13 | labs/lab-02-benchmark-nccl-collectives.md | done | high |
+| ZTH-13 | labs/lab-03-test-sharded-training-with-fsdp.md | done | high |
+| ZTH-13 | labs/lab-04-recover-a-distributed-training-job.md | done | high |
+
+Note: PR #32 ("Add Volume 13") merged; commit d99bb03 fixed duplicated filler content in volume-13 chapters 1-3 already — check whether that fix is present in this worktree's branch point.
