@@ -69,17 +69,17 @@ Shared Memory: 32 KB (optimal)
 Memory Hierarchy:
   L2 Efficiency:     45.2% (good for memory-bound workload)
   L1 Hit Rate:       62.3% (moderate)
-  HBM Read:          1.8 TB/s of 2.0 TB/s available (90% saturated)
+  HBM Read:          3.02 TB/s of 3.35 TB/s available (90% saturated)
   HBM Latency (ns):  p50=150, p99=850
 
 Roofline:
   Achieved: 45.3 TFLOPS
-  Peak FP32: 141 TFLOPS
-  Roofline Efficiency: 32% of peak
+  Peak FP32: 67 TFLOPS
+  Roofline Efficiency: 68% of peak
   Limited by: Memory Bandwidth
 ```
 
-**Interpretation:** The kernel is memory-bound (HBM at 90% saturation), achieving 45 TFLOPS vs 141 peak. Occupancy is low (68% vs 100%), which is OK if we're memory-limited anyway. But the L1 hit rate (62%) suggests uncoalesced memory access. Fix: improve data locality or increase memory coalescing.
+**Interpretation:** The kernel is memory-bound (HBM at 90% saturation), achieving 45 TFLOPS vs a 67 TFLOPS FP32 peak (68% of peak). Occupancy is low (68% vs 100%), which is OK if we're memory-limited anyway. But the L1 hit rate (62%) suggests uncoalesced memory access. Fix: improve data locality or increase memory coalescing.
 
 **When to use:** You want to understand why a specific kernel is slow. Single kernel iteration. Not for full-application analysis.
 

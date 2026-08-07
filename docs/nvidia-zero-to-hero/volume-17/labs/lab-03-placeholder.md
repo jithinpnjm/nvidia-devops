@@ -121,8 +121,12 @@ Create `train_bf16.py` (same as above but with mixed precision):
 ```python
 # ... (imports and setup same as Exercise 1) ...
 
-# Add AMP (Automatic Mixed Precision)
-scaler = torch.cuda.amp.GradScaler()
+# Note: no GradScaler here. GradScaler exists to prevent gradient *underflow* in FP16,
+# which has a narrow 5-bit exponent (dynamic range ~1e-5 to 65504). BF16 uses the same
+# 8-bit exponent width as FP32 (dynamic range ~1e-38 to ~3e38), so it doesn't suffer
+# FP16's underflow problem and doesn't need loss scaling. GradScaler is an FP16-specific
+# mitigation, not a general "mixed precision" requirement — see the FP16 variant of this
+# exercise (V100 fallback) if you want to see GradScaler actually doing something.
 
 # Train with mixed precision
 print("Training with BF16 (Automatic Mixed Precision)...")
@@ -140,10 +144,9 @@ for epoch in range(2):
             outputs = model(inputs)
             loss = criterion(outputs, targets)
         
-        # Backward in FP32 (gradient scaling)
-        scaler.scale(loss).backward()
-        scaler.step(optimizer)
-        scaler.update()
+        # No gradient scaling needed for BF16 — backward and step directly
+        loss.backward()
+        optimizer.step()
         
         total_samples += inputs.size(0)
         
@@ -246,7 +249,8 @@ print(prof.key_averages().table(sort_by="self_cuda_time_total", row_limit=10))
 - Solution: Your GPU doesn't support BF16. Use FP16 instead: `torch.float16`
 
 **"Accuracy dropped significantly (> 1%)"**
-- Solution: Use gradient scaling (`torch.cuda.amp.GradScaler`) to prevent gradient underflow
+- If training in **FP16**: use gradient scaling (`torch.cuda.amp.GradScaler`) — FP16's narrow exponent range makes small gradients underflow to zero, and `GradScaler` fixes that by scaling the loss up before backward and unscaling gradients before the optimizer step.
+- If training in **BF16**: `GradScaler` will not help — BF16 has the same exponent range as FP32, so it doesn't have FP16's underflow failure mode. Look elsewhere: check for genuine numerical instability (loss spikes, NaN losses), reduce learning rate, or verify the model/optimizer states weren't mixed between FP32 and BF16 checkpoints incorrectly.
 
 **"No speedup observed"**
 - Solution: Ensure CUDA kernels are actually running (check with `nvidia-smi dmon`); CPU-bound code won't benefit from lower precision

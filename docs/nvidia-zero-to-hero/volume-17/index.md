@@ -12,7 +12,7 @@ tags:
 
 # Volume 17 — Performance Engineering
 
-AI workloads do not run at full speed by default. GPUs can execute at 141 TFLOPS, but kernels achieve 15 TFLOPS. Inference should return in 20ms, but latency reaches 200ms. Training should scale linearly to 8 GPUs, but adds only 5× throughput. Between hardware capability and actual performance lie measurement, analysis, diagnosis, and targeted optimization.
+AI workloads do not run at full speed by default. An H100 can execute at up to 67 TFLOPS FP32 (or ~989 TFLOPS TF32 Tensor Core dense), but kernels often achieve only a fraction of that. Inference should return in 20ms, but latency reaches 200ms. Training should scale linearly to 8 GPUs, but adds only 5× throughput. Between hardware capability and actual performance lie measurement, analysis, diagnosis, and targeted optimization.
 
 Performance engineering is the discipline of identifying why a workload is slow, understanding the fundamental limits (roofline model), and applying the right techniques to approach those limits. This volume teaches that discipline: how to profile, how to interpret profilers, how to classify bottlenecks, and how to know when optimization is complete.
 

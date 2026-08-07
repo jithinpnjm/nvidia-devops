@@ -95,7 +95,7 @@ Bottleneck ranking:
 
 **Step 2: Address largest bottleneck (backward pass)**
 
-Roofline analysis shows backward is compute-bound (1200 GFLOPS / 141 TFLOPS peak = 8.5%).
+Roofline analysis shows backward is compute-bound but far under peak (1.2 TFLOPS / 67 TFLOPS FP32 peak ≈ 1.8% of peak) — a strong signal that switching to a Tensor Core-friendly precision should help.
 
 Optimization: Mixed precision (BF16)
 ```

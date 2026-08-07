@@ -172,7 +172,7 @@ Remaining budget: 1.3 hours
 Status: Approaching error budget limit. New deployments frozen until Sept 1.
 ```
 
-## SLO Violationand Impact
+## SLO Violation and Impact
 
 **Alert Levels:**
 

@@ -110,7 +110,7 @@ A single sentence like "this GPU is fast" carries zero engineering value because
 
 **Example of an evidence-based claim:**
 
-> "An H100 GPU achieves 141 TFLOPS FP32 peak (provided by nvidia-smi max_clocks * SMs * ops_per_cycle). Running a real transformer model at batch size 32, mixed precision (FP8 weights, FP16 compute), we achieve 89 TFLOPS sustained (63% of peak), limited by HBM bandwidth at 2 TB/s. The model processes 256 tokens/second end-to-end, matching the 4x speedup we calculated from the roofline model for memory bandwidth improvement."
+> "An H100 GPU achieves 67 TFLOPS FP32 (CUDA core, dense) peak — not to be confused with its much higher Tensor Core numbers (~989 TFLOPS TF32 dense). Running a real transformer model at batch size 32 in FP32, we achieve 42 TFLOPS sustained (63% of peak), limited by HBM bandwidth at 3.35 TB/s. The model processes 256 tokens/second end-to-end, matching the 4x speedup we calculated from the roofline model for switching to a lower-precision (TF32 Tensor Core) execution path."
 
 Notice what's in this claim:
 - Specific hardware (H100)
@@ -131,7 +131,7 @@ This is one of the most common performance issues. High utilization is not proof
 | Step | What to check | Real example | Interpretation |
 |---|---|---|---|
 | 1. Capture profiler data (not just nvidia-smi) | Run 100 iterations, capture Nsight Systems timeline for 10 iterations | Timeline shows continuous SM execution, but kernels have long memory stalls (indicated by green="computing" vs yellow="memory wait" colors) | GPU is executing kernels, but kernels are stalling on memory reads. Not truly parallel work. |
-| 2. Calculate achieved FLOPS vs peak | `nvidia-smi -i 0 --query-gpu=compute_cap --format=csv` → compute 8.0 (H100), 141 TFLOPS peak. Profiler shows 15 TFLOPS sustained. | 15 / 141 = 10.6% of peak FLOPS | Severe underutilization of compute. This is the smoking gun. |
+| 2. Calculate achieved FLOPS vs peak | `nvidia-smi -i 0 --query-gpu=compute_cap --format=csv` → compute 8.0 (H100), 67 TFLOPS FP32 peak. Profiler shows 15 TFLOPS sustained. | 15 / 67 = 22.4% of peak FLOPS | Severe underutilization of compute. This is the smoking gun. |
 | 3. Check occupancy (active threads per SM) | Nsight Compute on representative kernel: Occupancy = 50% of max (e.g., 512 active threads per SM when max is 1024) | Register usage: 64 registers per thread × 512 threads = 32KB used, but SM has 99KB available → room to increase occupancy | Bottleneck: thread blocks too small, or synchronization barriers. Not memory pressure. |
 | 4. Check memory BW utilization vs HBM saturation | `nvidia-smi dmon -s mu` during training: shows Memory Util 65%, but HBM BW is 1.5 TB/s of 2.0 TB/s available (75% of peak) | Profiler HBM latency histograms: p50=50ns, p99=400ns (normal); no memory stalls | Memory is reasonably utilized, not the bottleneck. |
 | 5. Hypothesis check: is CPU starving the GPU? | Profile CPU thread during same test: `pidstat -u -p $PID 1 10` shows CPU thread at 85% utilization, I/O wait 0%, context switches normal | CPU is saturated, GPU is waiting for CPU to submit next kernel | Bottleneck: CPU preprocessing (tokenization, batching, model prep). GPU is idle part of the time. |
@@ -159,7 +159,7 @@ This is one of the most common performance issues. High utilization is not proof
 
 **Q: What does "memory-bound" mean and how would you prove it?**
 
-> A: A kernel is memory-bound when the GPU is waiting on data from memory more often than it's doing useful compute. You prove it with the roofline model: calculate how many floating-point operations your kernel performs per byte of memory moved (the compute intensity), then compare it to the GPU's compute-to-memory-bandwidth ratio. An H100 has 141 TFLOPS FP32 peak and 2 TB/s memory bandwidth. That ratio is 141/2000 = 70.5 FLOPS per byte. If your kernel has compute intensity less than 70.5 FLOPS/byte, it's memory-bound — add one more memory access and you lose more throughput than you gain from the extra compute. Nsight Compute shows this directly: the profiler compares your kernel's "roofline efficiency" against the memory roof and compute roof. Real example: a matrix multiplication kernel with good compute intensity (200+ FLOPS/byte on H100) will be compute-bound, hitting the 141 TFLOPS ceiling. A convolution with poor data reuse (10 FLOPS/byte) will be memory-bound, limited by the 2 TB/s bandwidth, and running at ~20 TFLOPS regardless of how many cores are idle.
+> A: A kernel is memory-bound when the GPU is waiting on data from memory more often than it's doing useful compute. You prove it with the roofline model: calculate how many floating-point operations your kernel performs per byte of memory moved (the compute intensity), then compare it to the GPU's compute-to-memory-bandwidth ratio. An H100 SXM5 has 67 TFLOPS FP32 (CUDA core) peak and 3.35 TB/s HBM3 bandwidth. That ratio is 67/3.35 ≈ 20.0 FLOPS per byte. If your kernel has compute intensity less than ~20 FLOPS/byte, it's memory-bound — add one more memory access and you lose more throughput than you gain from the extra compute. Nsight Compute shows this directly: the profiler compares your kernel's "roofline efficiency" against the memory roof and compute roof. Real example: a matrix multiplication kernel with good compute intensity (200+ FLOPS/byte on H100) will be compute-bound, hitting the 67 TFLOPS ceiling. A convolution with poor data reuse (10 FLOPS/byte) will be memory-bound, limited by the 3.35 TB/s bandwidth, and running well under the compute ceiling regardless of how many cores are idle.
 
 **Q: A colleague says "let's just make the batch size bigger to get better GPU utilization." What's your response?**
 
@@ -171,7 +171,7 @@ This is one of the most common performance issues. High utilization is not proof
 2. **One number is never proof.** High GPU utilization coexists with terrible throughput. Throughput coexists with unacceptable latency. Use the evidence ladder: define target, measure baseline, identify bottleneck, optimize within that domain, re-measure.
 3. **Different workloads have different bottlenecks.** Training often cares about throughput (samples/sec). Inference cares about latency (ms) and concurrency. Batch inference cares about cost per sample. Optimizing for the wrong metric sends you down the wrong path.
 4. **Roofline model is your friend.** Peak FLOPS and peak memory bandwidth are the two ceilings. Any kernel is limited by one of them. Knowing which one means knowing what class of optimization to attempt.
-5. **Real numbers and mechanisms matter in interviews.** "It's slow" is vague. "Roofline model shows memory-bound at 15 FLOPS/byte, achieved 20 TFLOPS vs 141 TFLOPS peak" is specific, measurable, and supports a clear fix.
+5. **Real numbers and mechanisms matter in interviews.** "It's slow" is vague. "Roofline model shows memory-bound at 15 FLOPS/byte, achieved 20 TFLOPS vs 67 TFLOPS FP32 peak" is specific, measurable, and supports a clear fix.
 
 ## Cross References
 

@@ -112,8 +112,8 @@ flowchart TB
         direction TB
         TG["Total GPUs Available<br/>Count metric: count(DCGM_FI_DEV_GPU_UTIL)"]
         TU["Total Utilization<br/>Gauge: avg(DCGM_FI_DEV_GPU_UTIL)"]
-        TR["Throttling Events<br/>Gauge: sum(increase(DCGM_FI_DEV_THERMAL_SLOWDOWN[1h]))"]
-        TE["ECC Errors<br/>Graph: sum(DCGM_FI_DEV_TOTAL_ECC_ERRORS)"]
+        TR["Throttling Events<br/>Gauge: sum(increase(DCGM_FI_DEV_THERMAL_VIOLATION[1h]))"]
+        TE["ECC Errors<br/>Graph: sum(DCGM_FI_DEV_ECC_SBE_VOL_TOTAL + DCGM_FI_DEV_ECC_DBE_VOL_TOTAL)"]
     end
     
     TG --> Status{"If total < available,<br/>GPU is offline"}
@@ -151,7 +151,7 @@ Annotation: Thermal limit at 85°C (red line)
 **Panel 4: Throttle Events (Last 1 Hour)**
 
 ```
-Query: sum(rate(DCGM_FI_DEV_THERMAL_SLOWDOWN[1h]))
+Query: sum(rate(DCGM_FI_DEV_THERMAL_VIOLATION[1h]))
 Type: Stat (count)
 Alert: > 0 (any throttle event)
 Color: Red if > 0
@@ -173,11 +173,11 @@ When you see a problem, drill into a single GPU:
 |---|---|---|
 | Utilization | `DCGM_FI_DEV_GPU_UTIL` | 0-100%, trending |
 | Memory Used | `DCGM_FI_DEV_FB_USED` | In MB, alert if > 95% total |
-| Memory Bandwidth | `DCGM_FI_DEV_MEMORY_BANDWIDTH_USED` | % of peak, shows compute vs memory bound |
+| Memory Bandwidth | `DCGM_FI_PROF_DRAM_ACTIVE` | Fraction of peak DRAM cycles active, shows compute vs memory bound |
 | Temperature | `DCGM_FI_DEV_GPU_TEMP` | °C, alert if > 82°C |
 | Clocks (Graphics) | `DCGM_FI_DEV_SM_CLOCK` | MHz, should be stable at peak |
 | Power Draw | `DCGM_FI_DEV_POWER_USAGE` | Watts, alert if > 90% TDP |
-| ECC Errors | `DCGM_FI_DEV_TOTAL_ECC_ERRORS` | Count, any increase is concerning |
+| ECC Errors | `DCGM_FI_DEV_ECC_SBE_VOL_TOTAL` / `DCGM_FI_DEV_ECC_DBE_VOL_TOTAL` | Count (single-bit / double-bit), any increase is concerning |
 
 **Grafana JSON (simplified):**
 
@@ -229,7 +229,7 @@ groups:
       # Thermal Throttling
       - alert: GPUThermalThrottle
         expr: |
-          increase(DCGM_FI_DEV_THERMAL_SLOWDOWN[1h]) > 0
+          increase(DCGM_FI_DEV_THERMAL_VIOLATION[1h]) > 0
         for: 1m
         annotations:
           summary: "GPU {{ $labels.gpu }} on {{ $labels.node }} is thermally throttled"
@@ -238,7 +238,7 @@ groups:
       # Memory Pressure
       - alert: GPUMemoryPressure
         expr: |
-          (DCGM_FI_DEV_FB_USED / DCGM_FI_DEV_FB_FREE) > 0.95
+          (DCGM_FI_DEV_FB_USED / (DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE)) > 0.95
         for: 10m
         annotations:
           summary: "GPU {{ $labels.gpu }} on {{ $labels.node }} is at 95% memory"
@@ -257,7 +257,7 @@ groups:
       # ECC Error Spike
       - alert: GPUECCErrorSpike
         expr: |
-          increase(DCGM_FI_DEV_TOTAL_ECC_ERRORS[1h]) > 100
+          increase(DCGM_FI_DEV_ECC_SBE_VOL_TOTAL[1h]) + increase(DCGM_FI_DEV_ECC_DBE_VOL_TOTAL[1h]) > 100
         for: 1m
         annotations:
           summary: "GPU {{ $labels.gpu }} on {{ $labels.node }} has ECC error spike"
