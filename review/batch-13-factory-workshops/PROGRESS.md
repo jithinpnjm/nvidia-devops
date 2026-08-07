@@ -50,4 +50,4 @@ no content) alongside the real chapter files. These are excluded from review as 
 | ZTH-24 | chapter-09-capacity-planning-forecast.md | done | high:1 (15x demand/utilization inconsistency in foundational data) |
 | ZTH-24 | chapter-10-training-cluster-design.md | done | high:1 (FLAGSHIP: 10^22 vs 10^25 FLOPs, 1000x slip in core sizing calc) |
 | ZTH-24 | chapter-11-inference-serving-design.md | done | low:1 |
-| ZTH-24 | chapter-12-research-infrastructure-design.md | pending | |
+| ZTH-24 | chapter-12-research-infrastructure-design.md | done | high:1 (utilization claim 91% vs real 7%, ~12.8x off) |
