@@ -4,11 +4,11 @@ Volumes: F-07 (`docs/volume-07`), ZTH-16 (`docs/nvidia-zero-to-hero/volume-16`),
 
 | Volume | File | Status | Severity Summary |
 |---|---|---|---|
-| F-07 | 01-chapter-1-metrics-logs-and-traces-as-different-evidence.md | pending | |
-| F-07 | 02-chapter-2-slis-slos-and-error-budgets.md | pending | |
-| F-07 | 03-chapter-3-prometheus-mental-model-and-promql-reasoning.md | pending | |
-| F-07 | 04-chapter-4-kubernetes-observability-object-state-plus-runtime-evidence.md | pending | |
-| F-07 | 05-chapter-5-gpu-observability-with-dcgm.md | pending | |
+| F-07 | 01-chapter-1-metrics-logs-and-traces-as-different-evidence.md | done | none |
+| F-07 | 02-chapter-2-slis-slos-and-error-budgets.md | done | none |
+| F-07 | 03-chapter-3-prometheus-mental-model-and-promql-reasoning.md | done | low x1 |
+| F-07 | 04-chapter-4-kubernetes-observability-object-state-plus-runtime-evidence.md | done | none |
+| F-07 | 05-chapter-5-gpu-observability-with-dcgm.md | done | low x1 |
 | F-07 | 06-chapter-6-logs-that-survive-incidents.md | pending | |
 | F-07 | 07-chapter-7-traces-and-distributed-latency.md | pending | |
 | F-07 | 08-chapter-8-alert-design-and-runbooks.md | pending | |
