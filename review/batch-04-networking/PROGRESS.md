@@ -36,23 +36,23 @@ Volumes: F-06 (`docs/volume-06`), ZTH-07 (`docs/nvidia-zero-to-hero/volume-07`),
 | ZTH-07 | labs/lab-02-validate-peer-access-and-nvlink.md | done | none |
 | ZTH-07 | labs/lab-03-benchmark-rdma-and-gpudirect-paths.md | done | none |
 | ZTH-07 | labs/lab-04-troubleshoot-a-multi-gpu-data-path.md | done | none |
-| ZTH-08 | chapter-01-why-infiniband-exists.md | pending | |
-| ZTH-08 | chapter-02-infiniband-architecture-and-link-layers.md | pending | |
-| ZTH-08 | chapter-03-verbs-queue-pairs-and-completion-queues.md | pending | |
-| ZTH-08 | chapter-04-lids-gids-pkeys-and-addressing.md | pending | |
-| ZTH-08 | chapter-05-subnet-management-and-opensm.md | pending | |
-| ZTH-08 | chapter-06-routing-topologies-and-oversubscription.md | pending | |
-| ZTH-08 | chapter-07-adaptive-routing-and-congestion-control.md | pending | |
-| ZTH-08 | chapter-08-hdr-ndr-xdr-and-link-evolution.md | pending | |
-| ZTH-08 | chapter-09-fabric-monitoring-and-telemetry.md | pending | |
-| ZTH-08 | chapter-10-production-troubleshooting.md | pending | |
-| ZTH-08 | chapter-11-production-design-scenarios.md | pending | |
-| ZTH-08 | chapter-12-volume-08-summary.md | pending | |
-| ZTH-08 | index.md | pending | |
-| ZTH-08 | labs/lab-01-inventory-an-infiniband-fabric.md | pending | |
-| ZTH-08 | labs/lab-02-benchmark-infiniband-bandwidth-and-latency.md | pending | |
-| ZTH-08 | labs/lab-03-inspect-subnet-routing-and-counters.md | pending | |
-| ZTH-08 | labs/lab-04-troubleshoot-an-infiniband-path.md | pending | |
+| ZTH-08 | chapter-01-why-infiniband-exists.md | done | none |
+| ZTH-08 | chapter-02-infiniband-architecture-and-link-layers.md | done | none |
+| ZTH-08 | chapter-03-verbs-queue-pairs-and-completion-queues.md | done | none |
+| ZTH-08 | chapter-04-lids-gids-pkeys-and-addressing.md | done | none |
+| ZTH-08 | chapter-05-subnet-management-and-opensm.md | done | none |
+| ZTH-08 | chapter-06-routing-topologies-and-oversubscription.md | done | none |
+| ZTH-08 | chapter-07-adaptive-routing-and-congestion-control.md | done | none |
+| ZTH-08 | chapter-08-hdr-ndr-xdr-and-link-evolution.md | done | medium |
+| ZTH-08 | chapter-09-fabric-monitoring-and-telemetry.md | done | none |
+| ZTH-08 | chapter-10-production-troubleshooting.md | done | none |
+| ZTH-08 | chapter-11-production-design-scenarios.md | done | none |
+| ZTH-08 | chapter-12-volume-08-summary.md | done | none |
+| ZTH-08 | index.md | done | none |
+| ZTH-08 | labs/lab-01-inventory-an-infiniband-fabric.md | done | none |
+| ZTH-08 | labs/lab-02-benchmark-infiniband-bandwidth-and-latency.md | done | none |
+| ZTH-08 | labs/lab-03-inspect-subnet-routing-and-counters.md | done | none |
+| ZTH-08 | labs/lab-04-troubleshoot-an-infiniband-path.md | done | none |
 | ZTH-09 | chapter-01-why-ethernet-for-ai-is-different.md | pending | |
 | ZTH-09 | chapter-02-ethernet-architecture-for-ai.md | pending | |
 | ZTH-09 | chapter-03-rocev2-and-rdma-over-ethernet.md | pending | |
