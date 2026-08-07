@@ -297,3 +297,10 @@ cat: +=: No such file or directory
   - Evidence: Line ~31 (Problem Statement, "Real math") vs line ~285-296 (Solution Walkthrough Step 1).
   - Why it matters for JR2018680: This is the volume's observability capstone, and the review series has repeatedly flagged magnitude-slip errors in storage/data-volume math; here the wrong framing number (~207 GB) sits right next to the correct one (2.07 GB) two sections later in the same document, which would confuse anyone trying to reconcile the two while studying.
   - Suggested fix: Correct the Problem Statement's "Real math" box to 259.2 million data points / ≈2.07 GB, matching Step 1's derivation.
+
+### chapter-05-troubleshooting-incident-response.md
+- [SEVERITY: low] Minor baseline inconsistency: "healthy" AllReduce baseline is quoted as "completed in 4.2ms" in the diagnostic-commands section but as "5ms" in the interview-answer narrative ("AllReduce taking 116 seconds for 100 MB, that's a 23,000× slowdown" — 116000/5=23,200x matches, but 116000/4.2=27,619x does not).
+  - Evidence: Line ~147 ("4.2ms") vs line ~308 ("116 seconds... 23,000× slowdown", implying a 5ms baseline).
+  - Why it matters for JR2018680: Very minor; doesn't change the qualitative incident narrative.
+  - Suggested fix: Use a single consistent baseline AllReduce time throughout.
+- Otherwise strong: this is one of the better-constructed chapters in the batch — steps/minute math is internally consistent, the diagnostic narrative (GPU util → NCCL logs → IB → NVLink) is realistic and well-sequenced, and no fabricated GPU-spec or bandwidth numbers were found.
