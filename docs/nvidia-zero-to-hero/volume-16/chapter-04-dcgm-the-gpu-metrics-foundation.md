@@ -144,29 +144,29 @@ DCGM exposes hundreds of metrics (called "fields"). The most important ones for 
 
 | DCGM Field | Query | Typical Range | When to Alert |
 |---|---|---|---|
-| `GPU_UTILIZATION` | Current GPU utilization | 0-100% | < 10% for 10+ min (when work expected) |
-| `SM_OCCUPANCY` | % of streaming multiprocessors with active warps | 0-100% | < 20% (kernel not filled) |
-| `SM_CLOCK_THROTTLE_REASON` | Why clocks are reduced | None / Thermal / Power | Any throttling (performance capped) |
-| `POWER_DRAW` | Current instantaneous power | 0-TDP | > 90% of TDP (headroom shrinking) |
-| `THERMAL_SLOWDOWN` | Count of thermal throttle events | 0-∞ | > 0 (GPU was throttled) |
+| `DCGM_FI_DEV_GPU_UTIL` | Current GPU utilization | 0-100% | < 10% for 10+ min (when work expected) |
+| `DCGM_FI_PROF_SM_OCCUPANCY` | % of streaming multiprocessors with active warps | 0-100% | < 20% (kernel not filled) |
+| `DCGM_FI_DEV_CLOCK_THROTTLE_REASONS` | Why clocks are reduced | None / Thermal / Power | Any throttling (performance capped) |
+| `DCGM_FI_DEV_POWER_USAGE` | Current instantaneous power | 0-TDP | > 90% of TDP (headroom shrinking) |
+| `DCGM_FI_DEV_THERMAL_VIOLATION` | Count of thermal throttle events | 0-∞ | > 0 (GPU was throttled) |
 
 ### Memory Metrics
 
 | DCGM Field | Query | Typical Range | When to Alert |
 |---|---|---|---|
-| `FB_FREE` | Free GPU memory | 0-total | < 2GB (OOM risk) |
-| `FB_USED` | Used GPU memory | 0-total | > 95% (pressure) |
-| `MEMORY_BANDWIDTH_USED` | % of peak memory bandwidth | 0-100% | < 20% (under-utilizing) or > 95% (saturated) |
-| `GPU_MEMORY_CLOCK_THROTTLE` | Memory clock throttle events | 0-∞ | > 0 (memory subsystem throttled) |
+| `DCGM_FI_DEV_FB_FREE` | Free GPU memory | 0-total | < 2GB (OOM risk) |
+| `DCGM_FI_DEV_FB_USED` | Used GPU memory | 0-total | > 95% (pressure) |
+| `DCGM_FI_PROF_DRAM_ACTIVE` | % of peak memory bandwidth (DRAM active cycles) | 0-100% | < 20% (under-utilizing) or > 95% (saturated) |
+| `DCGM_FI_DEV_POWER_VIOLATION` | Power-throttle-driven clock reduction events | 0-∞ | > 0 (memory/compute subsystem throttled) |
 
 ### Reliability Metrics
 
 | DCGM Field | Query | Typical Range | When to Alert |
 |---|---|---|---|
-| `GPU_TEMP` | GPU die temperature | 30-90°C | > 82°C (near throttle threshold) |
-| `ECC_ERRORS_CORRECTED` | Count of corrected single-bit errors | 0-∞ | Any increase (hardware wearing out?) |
-| `ECC_ERRORS_UNCORRECTED` | Count of uncorrected errors | 0-∞ | > 0 (data corruption risk) |
-| `XID_ERRORS` | GPU exceptions (Xid code) | 0 | > 0 (GPU fault) |
+| `DCGM_FI_DEV_GPU_TEMP` | GPU die temperature | 30-90°C | > 82°C (near throttle threshold) |
+| `DCGM_FI_DEV_ECC_SBE_VOL_TOTAL` | Count of corrected single-bit errors | 0-∞ | Any increase (hardware wearing out?) |
+| `DCGM_FI_DEV_ECC_DBE_VOL_TOTAL` | Count of uncorrected double-bit errors | 0-∞ | > 0 (data corruption risk) |
+| `DCGM_FI_DEV_XID_ERRORS` | GPU exceptions (Xid code) | 0 | > 0 (GPU fault) |
 
 ## Querying DCGM: Three Methods
 

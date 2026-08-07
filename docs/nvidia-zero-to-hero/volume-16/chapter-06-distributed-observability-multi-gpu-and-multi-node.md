@@ -95,7 +95,7 @@ Solution: Reduce communication frequency, increase compute time per GPU, or use 
 |---|---|---|---|
 | NVLink BW | DCGM for each link | < 100 GB/s (half capacity) | > 150 GB/s (75%+ capacity) |
 | PCIe Bus | CPU-side metrics (ethtool) | < 15 GB/s | > 20 GB/s (bus saturation) |
-| GPU Memory Controller | `nvidia-smi -q \| grep "Memory Interface"` | < 60% bandwidth | > 85% |
+| GPU Memory Controller | `DCGM_FI_PROF_DRAM_ACTIVE` | < 60% bandwidth | > 85% |
 | SM Clock Variation | max(clocks) - min(clocks) on node | < 100 MHz | > 200 MHz (one GPU throttling while other runs) |
 
 ### Real Example: Diagnosing NVLink Saturation
@@ -185,7 +185,7 @@ Visualization: Heatmap (nodes on Y-axis, time on X-axis)
 Alert: If any node < 30%, check for straggler
 
 -- Query 2: Memory bandwidth per node
-Query: sum by (node) (DCGM_FI_DEV_MEMORY_BANDWIDTH_USED)
+Query: sum by (node) (DCGM_FI_PROF_DRAM_ACTIVE)
 Visualization: Stacked bar chart
 Alert: If all nodes saturated, network is bottleneck
 

@@ -95,7 +95,7 @@ max(DCGM_FI_DEV_GPU_TEMP)
 
 **Query:**
 ```promql
-DCGM_FI_DEV_FB_USED / DCGM_FI_DEV_FB_FREE * 100
+DCGM_FI_DEV_FB_USED / (DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE) * 100
 ```
 
 **Panel Settings:**

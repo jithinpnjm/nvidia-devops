@@ -37,7 +37,7 @@ You will be able to:
 Alert trigger:
   DCGM_FI_DEV_GPU_TEMP > 82°C for 5 min
   AND
-  increase(DCGM_FI_DEV_THERMAL_SLOWDOWN[1h]) > 0
+  increase(DCGM_FI_DEV_THERMAL_VIOLATION[1h]) > 0
 
 Real output (failing):
   Temperature: 85°C (at limit)
@@ -95,9 +95,9 @@ cat /sys/class/thermal/*/temp
 
 ```text
 Alert trigger:
-  increase(DCGM_FI_DEV_ECC_ERRORS_CORRECTED[1h]) > 100
+  increase(DCGM_FI_DEV_ECC_SBE_VOL_TOTAL[1h]) > 100
   OR
-  increase(DCGM_FI_DEV_ECC_ERRORS_UNCORRECTED[1h]) > 0
+  increase(DCGM_FI_DEV_ECC_DBE_VOL_TOTAL[1h]) > 0
 
 Real output (failing):
   Corrected ECC errors: 245 in last hour (normal: 0-5)
@@ -164,7 +164,7 @@ Real output (failing):
   ERROR: Failed to initialize NVML: Driver/library version mismatch
 
   $ dmesg | tail -5
-  NVRM: Xid (PCI:0000:17:00.0): 94, GPU has fallen off the bus.
+  NVRM: Xid (PCI:0000:17:00.0): 79, GPU has fallen off the bus.
   NVRM: GPU at PCI:0000:17:00.0 has fallen off the bus.
   NVRM: The GPU encountered an unrecoverable error. Please reboot.
 ```
