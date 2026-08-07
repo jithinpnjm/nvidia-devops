@@ -24,8 +24,9 @@ kubectl get --raw /readyz?verbose
 kube-apiserver:          the version ceiling — nothing else may exceed it
 kube-controller-manager,
 kube-scheduler:          may be up to 1 minor version BEHIND apiserver
-kubelet:                 may be up to 2 minor versions BEHIND apiserver (older skew
-                         policies allowed up to 3 — always check the policy for the
+kubelet:                 may be up to 3 minor versions BEHIND apiserver as of
+                         Kubernetes v1.28+ (loosened from the previous n-2 policy,
+                         which allowed only 2 — always check the policy for the
                          specific release you're on, it has changed over time)
 kubectl (client):        may be one minor version behind OR ahead of apiserver
 ```

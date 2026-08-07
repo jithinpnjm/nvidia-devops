@@ -58,10 +58,10 @@ flowchart TD
 ```bash
 $ crictl inspectp <sandbox-id> | jq '.status'
 {
-'state': 'SANDBOX_READY',
-'network': {
-'ip': '', ← EMPTY. Sandbox exists but CNI never assigned an IP.
-'additionalIps': []
+"state": "SANDBOX_READY",
+"network": {
+"ip": "", ← EMPTY. Sandbox exists but CNI never assigned an IP.
+"additionalIps": []
 }
 $ journalctl -u kubelet --since '-5 min' | grep -i cni
 kubelet[2140]: E0130 'Failed to setup network for sandbox' err='plugin type=\'calico\' failed (add): error getting ClusterInformation: connection refused'
@@ -74,8 +74,8 @@ crictl inspect <container-id> | jq '.info.runtimeSpec.linux.resources.devices'
 ```
 ```text
 [
-{'allow': true, 'type': 'c', 'major': 195, 'minor': 0, 'access': 'rwm'}, ← /dev/nvidia0
-{'allow': true, 'type': 'c', 'major': 195, 'minor': 255, 'access': 'rwm'} ← /dev/nvidiactl
+{"allow": true, "type": "c", "major": 195, "minor": 0, "access": "rwm"}, ← /dev/nvidia0
+{"allow": true, "type": "c", "major": 195, "minor": 255, "access": "rwm"} ← /dev/nvidiactl
 ]
 ```
 If a Pod's requested `nvidia.com/gpu` device never shows up in this list, but the Pod passed scheduling and is `Running`, look at the NVIDIA device plugin's `Allocate()` gRPC response and the kubelet's device manager checkpoint (`/var/lib/kubelet/device-plugins/kubelet_internal_checkpoint`) — a stale checkpoint after a device plugin restart is a known cause of a container starting with zero actual GPU device nodes bind-mounted despite the Pod object claiming the resource.

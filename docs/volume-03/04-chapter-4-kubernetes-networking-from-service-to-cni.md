@@ -165,7 +165,7 @@ Her public networking breakdown follows client -> LB -> Gateway/Ingress -> Servi
 ➕ **Shortcut — the fastest 4-command triage for any "namespace A works, namespace B doesn't" report:**
 ```bash
 kubectl get endpointslice -l kubernetes.io/service-name=<svc> -A -o wide   # same backend set?
-kubectl get netpol -n <src-ns> -n <dst-ns> -o yaml                          # any policy scoped to one ns?
+kubectl get netpol -n <src-ns> -o yaml && kubectl get netpol -n <dst-ns> -o yaml  # any policy scoped to either ns?
 kubectl exec -n <ns-that-fails> -it <pod> -- curl -sv --max-time 3 <direct-pod-ip>:<port>
 kubectl exec -n <ns-that-works> -it <pod> -- curl -sv --max-time 3 <direct-pod-ip>:<port>
 ```
