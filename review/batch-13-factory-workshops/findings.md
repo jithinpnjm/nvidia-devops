@@ -207,3 +207,9 @@
 
 ### chapter-06-telecommunications.md
 - No high/medium findings. Compute-budget math (10M samples × 10ms = 100K sec, parallelized 1000-way = 100 sec within 300 sec budget) and ROI (40x) check out.
+
+### chapter-07-healthcare-and-medical-imaging.md
+- [SEVERITY: high] Radiologist time-saved value is stated inconsistently, and the discrepancy materially changes the ROI conclusion. Requirements section: "Time saved: 50,000 × 23 min = 19,167 hours/year = **$1.9M value**." Cost Model section (same use case): "Radiologist time saved: **$274K/year**" — a ~7x contradiction for the identical benefit figure. Using $1.9M, net benefit would be ≈$1.76M/year with payback in ≈1 month, not the stated "$129K/year, payback in 1.8 years" (which is consistent only with the $274K figure).
+  - Evidence: Line ~20 vs line ~42-43.
+  - Why it matters for JR2018680: ROI/payback-period justification is exactly the kind of business case a solutions architect presents to a hospital customer; the two contradictory benefit figures in the same chapter would not survive a customer's own back-of-envelope check.
+  - Suggested fix: Reconcile the hourly-rate assumption used to convert 19,167 hours/year into a dollar figure, and make both sections consistent (pick one value, e.g. clarify if $1.9M is gross clinical value and $274K is a discounted/labor-cost-only figure — if so, state that distinction explicitly).
