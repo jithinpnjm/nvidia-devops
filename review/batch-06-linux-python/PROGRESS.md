@@ -17,8 +17,8 @@ Volumes: `docs/volume-01` (F-01, Linux internals), `docs/volume-02` (F-02, Pytho
 | F-01 | 11-senior-deep-dive-5-containers-namespaces-cgroups-v2-overlay-filesystems-and-ru.md | done | none |
 | F-01 | 12-senior-deep-dive-6-host-readiness-for-nvidia-gpu-nodes.md | done | none |
 | F-01 | 13-senior-troubleshooting-exercise-slow-gpu-job-with-healthy-kubernetes.md | done | none |
-| F-02 | 01-book-map.md | pending | |
-| F-02 | 02-chapter-1-how-python-actually-executes-your-infrastructure-script.md | pending | |
+| F-02 | 01-book-map.md | done | none |
+| F-02 | 02-chapter-1-how-python-actually-executes-your-infrastructure-script.md | done | none |
 | F-02 | 03-chapter-2-choosing-data-structures-by-the-problem-not-by-habit.md | pending | |
 | F-02 | 04-chapter-3-functions-turn-scripts-into-testable-decisions.md | pending | |
 | F-02 | 05-chapter-4-files-pathlib-regex-json-and-yaml.md | pending | |

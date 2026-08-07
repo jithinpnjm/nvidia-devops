@@ -47,3 +47,11 @@ No findings. Excellent, tightly GPU-specific content: `nvidia-smi topo -m` NVLin
 No findings. Good capstone triage flow (Kubernetes object state → data path → GPU-specific plane → application code) that ties the whole volume together and matches the shape of a real "why is my GPU workload underperforming" interview question.
 
 **Volume 01 complete.** One finding overall (medium: missing O_DIRECT/GPUDirect Storage coverage, chapter 3). Depth, mechanism-accuracy, and GPU-infra tie-ins are consistently at or above the stated Volume-1 gold-standard bar across all 13 files.
+
+## Volume 02 — Python for Production Infrastructure
+
+### 01-book-map.md
+No findings. Structural front matter, sets accurate three-stage learning path.
+
+### 02-chapter-1-how-python-actually-executes-your-infrastructure-script.md
+No findings. Foundations section is well-paced (variables through try/except with runnable snippets). Reference/mutability/aliasing section (`copy = pods` binding, `add_node` shared-mutable-default-argument trap) is technically correct and is a real, common infra-Python bug shape. Exit-code contract (0/1/2, tool-failure vs finding) is exactly the kind of infra-automation depth called out in the task brief. `__name__ == "__main__"` explanation is accurate.
