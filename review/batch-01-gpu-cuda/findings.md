@@ -150,3 +150,9 @@ Same exceptional depth and style as ZTH-02: worked evidence chains, real command
 - No findings. Consolidation is accurate and consistent with all prior chapters; the fault-isolation decision-tree diagram correctly maps symptom classes to the chapters that own them.
 
 **Volume ZTH-03 summary:** Zero medium/high severity findings across all 13 chapters. Consistent with ZTH-02's exceptional depth — real command transcripts, correct hardware/software facts (A100/H100 SM counts and compute capabilities, sm_80/86/90 mappings, PCIe/NVLink bandwidth figures, KV-cache and register-residency math), and first-person interview answers throughout.
+
+### labs/lab-01-inspect-and-validate-a-cuda-environment.md
+- No findings. PCI vendor/device ID (10de:20b0 for GA100/A100) is correct. Layered evidence chain (PCI -> driver -> device nodes -> libraries -> toolkit -> program) is technically sound and matches the chapter's fault-isolation model.
+
+### labs/lab-02-build-and-validate-a-cuda-vector-pipeline.md
+- No findings. Complete, compilable CUDA vector-add program with correct ceiling-division/bounds-check pattern. 1024 max-threads-per-block limit cited for the "invalid configuration argument" failure injection is correct for current NVIDIA architectures. The underlaunch-vs-out-of-bounds failure signatures (zero-valued mismatches vs illegal memory access) are correctly distinguished.

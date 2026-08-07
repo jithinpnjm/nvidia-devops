@@ -48,8 +48,8 @@ Status values: pending / in-progress / done
 | ZTH-03 | chapter-11-compilation-binaries-and-compatibility.md | done | none |
 | ZTH-03 | chapter-12-profiling-and-production-troubleshooting.md | done | none |
 | ZTH-03 | chapter-13-volume-03-summary.md | done | none |
-| ZTH-03 | labs/lab-01-inspect-and-validate-a-cuda-environment.md | pending | |
-| ZTH-03 | labs/lab-02-build-and-validate-a-cuda-vector-pipeline.md | pending | |
+| ZTH-03 | labs/lab-01-inspect-and-validate-a-cuda-environment.md | done | none |
+| ZTH-03 | labs/lab-02-build-and-validate-a-cuda-vector-pipeline.md | done | none |
 | ZTH-03 | labs/lab-03-build-an-overlapped-cuda-pipeline.md | pending | |
 | ZTH-03 | labs/lab-04-profile-and-diagnose-a-cuda-application.md | pending | |
 | F-04 | 01-chapter-1-gpu-execution-and-memory-mental-model.md | pending | |
