@@ -94,8 +94,12 @@ Amortized (3-year TCO):
 
 Cost per 1K QPS:
   $6.2M / (2000 QPS) = $3.1K per 1K QPS
-  Cost per million tokens: $18.59M / (2000 QPS × 86400s × 150 tokens/seq) = $0.008/1M tokens
-  Competitive vs AWS (Bedrock ~$0.005–0.02/1M tokens)
+  Annual tokens: 2000 QPS × 86,400 s/day × 365 days × 150 tokens/seq ≈ 9.46 trillion tokens/year
+  Cost per million tokens (annual cost / annual tokens, consistent units): $18.59M / (9.46 trillion / 1M) ≈ $1.96/1M tokens
+  NOT competitive vs AWS Bedrock (~$0.005–0.02/1M tokens) — self-hosting here is roughly
+  100-400x more expensive per token than Bedrock's published pricing. The case for self-hosting
+  a multi-region deployment has to rest on data residency, latency, or customization requirements
+  that Bedrock can't meet — not on raw per-token cost.
 ```
 
 ### Kubernetes Deployment
@@ -282,11 +286,11 @@ Multi-region inference deployment provides:
 1. **Low latency:** Users in any region see <50ms TTFT (good UX).
 2. **High availability:** 99.9% SLA despite any single-region failure.
 3. **Elastic scaling:** Auto-scale pods during traffic spikes.
-4. **Cost efficiency:** $0.008 per million tokens (competitive).
+4. **Cost:** ~$1.96 per million tokens — substantially higher than commercial API pricing (e.g., AWS Bedrock ~$0.005–0.02/1M tokens); self-hosting is not a per-token cost play here.
 
 **Deployment complexity:** High (Kubernetes multi-cluster, cross-region failover, monitoring).
 
-**Key insight:** For non-critical services, single-region + spot instances ($0.002/token) is cheaper. For revenue-critical services, multi-region ($0.008/token) is justified despite 4x cost.
+**Key insight:** The economic case for self-hosting a multi-region deployment isn't "cheaper than the cloud API" on raw token cost — it's control over data residency, latency, and customization that a managed API can't offer. For non-critical services where those requirements don't apply, a managed API or a smaller single-region deployment is usually the more cost-effective choice.
 
 ---
 

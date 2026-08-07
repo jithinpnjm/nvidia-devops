@@ -153,7 +153,7 @@ Training:
 Inference:
   GPU: 32 H100 SXM5 (4 nodes × 8 GPU, or use 32 H100 PCIe if cost-sensitive)
   Model: Llama-70B, 2-GPU tensor parallelism = 16 inference replicas
-  Throughput: 243 QPS per GPU × 32 GPU = ~500 QPS (target: met)
+  Throughput: 15.2 QPS per GPU (from Chapter 8) × 32 GPU ≈ 486 QPS ≈ 500 QPS (target: met)
   Latency p99 TTFT: ~300ms (batching + prefill overhead, acceptable)
   Availability: 99.5% (no geographic redundancy, single region)
 

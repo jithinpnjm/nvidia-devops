@@ -132,13 +132,14 @@ Performance Analysis:
   Time per step (send 1/4 of gradient, reduce locally):
     Send: (Total_Gradient / N) / Bandwidth
     Example: 800 MB total gradient / 4 GPU = 200 MB per step
-             200 MB / 300 GB/s (IB NDR per direction) = 0.67 ms per step
-  Total time: 6 steps × (0.67 ms + 2 μs overlap) ≈ 4 ms
+             200 MB / 50 GB/s (IB NDR per direction) = 4 ms per step
+  Total time: 6 steps × (4 ms + 2 μs overlap) ≈ 24 ms
   
   Comparison to naive tree:
-    Tree: Broadcast (2 ms) + AllGather (2 ms) = 4 ms (same)
+    Tree: Broadcast (2 ms) + AllGather (2 ms) = 4 ms (faster for this small, 4-GPU case)
     But Ring scales better: Linear in N, constant per-link bandwidth
-    Tree scales worse: Exponential bandwidth burst at root
+    Tree scales worse: Exponential bandwidth burst at root (root NIC becomes the bottleneck
+    as N grows, which is why ring wins decisively at 8+ GPUs despite losing this toy comparison)
 ```
 
 **When to use:** Default for multi-node AllReduce (>8 GPUs). Scales linearly from 8 GPUs to 1000 GPUs.
@@ -164,11 +165,11 @@ Round 2 (distance = 4):
   GPU 0/1/2/3 ↔ GPU 4/5/6/7
 
 Total rounds: log₂(8) = 3 rounds
-Total latency: 3 × (send + reduce) = 3 × 0.67 ms = 2 ms
+Total latency: 3 × (send + reduce) = 3 × 4 ms = 12 ms
 
 Comparison:
-  Ring: 2(N-1) = 14 steps × 0.67 ms = 9.4 ms
-  Recursive doubling: 3 steps × 0.67 ms = 2 ms (4.7x faster!)
+  Ring: 2(N-1) = 14 steps × 4 ms = 56 ms
+  Recursive doubling: 3 steps × 4 ms = 12 ms (4.7x faster!)
   
 Trade-off: Requires more complex switching; not efficient for heterogeneous bandwidths
 ```
@@ -197,7 +198,7 @@ Broadcast phase (top-down):
   GPU 0 sends to GPU 1, GPU 2
   GPU 1, GPU 2 send to children (4 sends in parallel)
 
-Total latency: 2 × (send + reduce) × depth ≈ 2 × 0.67 ms × 2 = 2.67 ms
+Total latency: 2 × (send + reduce) × depth ≈ 2 × 4 ms × 2 = 16 ms
 Bandwidth utilization: Low (not all links used simultaneously)
 ```
 
@@ -224,7 +225,7 @@ Default behavior:
   
 Performance (64-GPU H100 cluster, 1 GB gradient):
   AllReduce time: 2–5 ms
-  Throughput: 64 GPU × 350W × 100ms = 2.24 MWh per day
+  Energy draw: 64 GPU × 350W = 22.4 kW → 22.4 kW × 24h = 537.6 kWh per day
   Collective overhead: ~3% of total training time
   
 NCCL algorithm selection:
@@ -283,10 +284,10 @@ Within-node AllReduce (8 GPU via NVLink):
   Overhead: <0.1%
 
 Inter-node AllReduce (across 16 nodes):
-  Bandwidth: 400 GB/s per node (IB NDR)
+  Bandwidth: 50 GB/s per GPU uplink (400 Gbps IB NDR per direction)
   Latency: ~1 microsecond per hop (fabric)
-  Algorithm: Ring AllReduce (16 steps × 0.67 ms = 10.7 ms total)
-  Overhead: ~1%
+  Algorithm: Ring AllReduce (16 steps × 4 ms = 64 ms total)
+  Overhead: ~4.3% (64 ms / 1500 ms iteration)
 
 Optimization strategy:
   1. Use NCCL_ALGO=RING for 64+ GPU AllReduce
@@ -297,8 +298,13 @@ Optimization strategy:
   4. Use NCCL_SOCKET_NTHREADS=4 to parallelize NCCL work across CPU cores
   
 Result:
-  Single AllReduce on 128 GPU: ~11 ms (instead of naive ~50 ms)
-  Training iteration overhead: 11 ms / 1500 ms = 0.7% (good scaling)
+  Single AllReduce on 128 GPU: ~65 ms (0.8 ms within-node + 64 ms inter-node), vs. a naive flat
+  128-GPU ring which would need 2×(128−1) = 254 steps × 4 ms ≈ 1,016 ms — the 2-level hierarchy
+  is what makes this efficient.
+  Training iteration overhead: 65 ms / 1500 ms ≈ 4.3% — above the <3% guideline in the Summary
+  below, which is realistic at 128 GPUs over IB NDR without further optimization. This is why
+  larger clusters push toward higher-radix switches, NVLink-domain scale-up, and the gradient
+  compression techniques in Section 5.1 to bring inter-node AllReduce overhead back down.
 ```
 
 ### 4.2 Multi-Rack Fat-Tree Optimization
@@ -311,9 +317,12 @@ Topology:
   2 Agg switches uplink to Core (oversubscribed 2:1)
 
 AllReduce optimization challenge:
-  Uplink congestion: Core has 2×400 Gbps uplinks, but 256 GPU × 0.67 ms = 171 GB data flowing
-  171 GB / 10 ms (multi-hop distance) = 17 GB/s per GPU on average
-  Per-node: 17 GB/s × 8 GPU = 136 GB/s per node (exceeds IB NDR 400 Gbps per node uplink)
+  Uplink congestion: Core has only 2×400 Gbps = 800 Gbps = 100 GB/s of aggregate uplink capacity.
+  A flat (non-hierarchical) ring AllReduce across all 256 GPUs would route nearly every
+  GPU's gradient shard through that shared core in the same time window — with 32 nodes
+  (256 GPUs) all needing sub-second AllReduce completion, the required aggregate throughput
+  through the core is on the order of several hundred GB/s, several times the 100 GB/s
+  the 2 core uplinks can provide.
   
   Result: Incast congestion, packet loss, NCCL retransmits → AllReduce stalls
 
@@ -374,8 +383,9 @@ Mitigation:
 
 # Optimization 1: Gradient Quantization (BF16 → INT8)
 # Quantization: Clip gradient to [-1, 1], quantize to [-128, 127]
-# Result: 140 GB → 35 GB per-model, 2.1875 GB → 546.875 MB per GPU
-# Time to AllReduce: 546.875 MB / 50 GB/s = 10.9 ms (4x faster)
+# BF16 is 2 bytes, INT8 is 1 byte -> 2x data reduction (not 4x)
+# Result: 140 GB → 70 GB per-model, 2.1875 GB → ~1.09 GB per GPU
+# Time to AllReduce: 1.09 GB / 50 GB/s = 21.9 ms (2x faster than the 43.75 ms baseline)
 # Trade-off: Slight training convergence delay, but recovers over 100–1000 steps
 
 # Optimization 2: Gradient Sparsification (Top-K threshold)

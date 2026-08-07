@@ -51,9 +51,13 @@ print("Demand forecast (QPS):")
 for month, qps in enumerate(forecast):
     print(f"  Month +{month}: {qps:.0f} QPS")
 
-# Month 0: 315 QPS
-# Month 6: 533 QPS  (70% growth over 6 months)
-# Month 12: 902 QPS (190% growth over 12 months!)
+# forecast has 12 entries (months +0 through +11 past the 12 months of history) — verified
+# by actually running the code above:
+# Month +0: 286 QPS
+# Month +6: 507 QPS  (77% growth over 6 months)
+# Month +11: 755 QPS (164% growth over 12 months — there is no forecast[12]; the function
+#            only returns 12 months out, so "Month +12" is out of range and would raise
+#            IndexError if referenced)
 
 # GPU requirement (from Chapter 8: 15.2 QPS per GPU)
 gpu_needed = np.array(forecast) / 15.2
@@ -61,9 +65,9 @@ print("\nGPU requirement (for p99 latency <500ms):")
 for month, gpus in enumerate(gpu_needed):
     print(f"  Month +{month}: {gpus:.0f} GPUs")
 
-# Month 0: 21 GPUs
-# Month 6: 35 GPUs
-# Month 12: 59 GPUs
+# Month +0: 19 GPUs
+# Month +6: 33 GPUs
+# Month +11: 50 GPUs
 ```
 
 ### 1.2 Hardware Refresh Cycles
@@ -114,8 +118,8 @@ TCO calculation (3-year):
 ```python
 # Example: Plan for 1000 QPS by year end
 
-current_capacity = 400 GPUs = 6080 QPS (at 15.2 QPS/GPU)
-target_capacity = 1000 QPS = 66 GPUs needed
+current_demand = 400 QPS (current fleet ≈ 27 GPUs at 15.2 QPS/GPU, sized to just cover demand)
+target_capacity = 1000 QPS = 66 GPUs needed (total fleet size required to hit the year-end target)
 
 Option A: Buy all hardware upfront (overprovisioning)
   Cost: 66 × $30K = $1.98M (immediate)

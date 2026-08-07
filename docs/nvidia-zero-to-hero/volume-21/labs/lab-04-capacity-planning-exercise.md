@@ -91,7 +91,7 @@ ax1.grid()
 ax1.legend()
 
 ax2.plot(df['month'], df['total_gpu'], 's-', label='Total GPU', linewidth=2)
-ax2.axhline(y=150, color='r', linestyle='--', label='Facility power limit (50kW @ 0.33 kW/GPU)')
+ax2.axhline(y=143, color='r', linestyle='--', label='Facility power limit (50kW @ 0.35 kW/GPU)')
 ax2.set_xlabel('Month')
 ax2.set_ylabel('GPU Count')
 ax2.set_title('GPU Capacity Forecast')
@@ -105,8 +105,8 @@ print("\nForecast plot saved: capacity_forecast.png")
 # Key insights
 print(f"\nKey insights:")
 print(f"  Month 36 GPU needed: {total_gpu_needed[36]:.0f}")
-print(f"  Facility power limit: ~150 GPU (at 50 kW max)")
-print(f"  => Facility limited! Cannot grow beyond 150 GPU without new data center")
+print(f"  Facility power limit: ~143 GPU (at 50 kW max, 0.35 kW/GPU)")
+print(f"  => Facility limited! Cannot grow beyond 143 GPU without new data center")
 ```
 
 **Expected output:** Exponential growth leads to facility limit by month 24–30. Recognize constraint.

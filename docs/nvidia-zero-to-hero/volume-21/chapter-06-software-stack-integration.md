@@ -104,6 +104,7 @@ check_gpu_memory()
 ### 2.1 DDP (Distributed Data Parallel) Configuration
 
 ```python
+import datetime
 import torch
 import torch.distributed as dist
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -129,7 +130,7 @@ def setup_distributed():
         backend="nccl",  # GPU-optimized collective backend
         rank=rank,
         world_size=world_size,
-        timeout=torch.distributed.timedelta(minutes=30),  # Timeout for hung processes
+        timeout=datetime.timedelta(minutes=30),  # Timeout for hung processes
     )
     
     return device, rank, world_size
