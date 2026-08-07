@@ -50,30 +50,37 @@ After completing this chapter, you will be able to:
 ## Big Picture
 
 ```mermaid
-flowchart LR
-    App[Application Buffer]
-    Pageable[Pageable Host Memory]
-    Staging[Pinned Staging Buffer]
-    DMA[DMA or Copy Engine]
-    Device[Device Memory]
+flowchart TD
+    App["Application calls\ncudaMemcpyAsync(dst, src, bytes, ..., stream)"]
+    Check{"Is src page-locked\n(cudaHostAlloc /\ncudaHostRegister)?"}
 
-    App --> Pageable --> Staging --> DMA --> Device
+    subgraph Pageable["Pageable path"]
+        direction TB
+        StageCopy["Hidden CPU copy:\npageable -> internal pinned\nstaging buffer"]
+        Wait["Host effectively blocks\nuntil staging completes —\neven though the API is 'Async'"]
+        DMA1["DMA to device from\nstaging buffer"]
+        StageCopy --> Wait --> DMA1
+    end
+
+    subgraph Pinned["Pinned path"]
+        direction TB
+        Direct["DMA engine reads directly\nfrom the pinned source —\nno staging hop"]
+        Overlap["Host returns immediately;\nnext stream's work can\nproceed concurrently"]
+        Direct --> Overlap
+    end
+
+    App --> Check
+    Check -->|"no"| Pageable
+    Check -->|"yes"| Pinned
+    Pageable --> Device["Device Memory"]
+    Pinned --> Device
+
+    Evidence["Evidence to tell them apart:\nnsys timeline shows a CPU-side\nmemcpy segment before the H2D\ntransfer on the pageable path;\npinned path shows the H2D\ntransfer starting immediately"]
+    DMA1 -.-> Evidence
+    Overlap -.-> Evidence
 ```
 
-**Figure 3.8.1 — Pageable transfer path.** A pageable source may require an internal staging copy before the device transfer can begin.
-
-With explicit pinned memory, the staging step can be removed from the application-visible path.
-
-```mermaid
-flowchart LR
-    Pinned[Pinned Host Buffer]
-    DMA[DMA or Copy Engine]
-    Device[Device Memory]
-
-    Pinned --> DMA --> Device
-```
-
-**Figure 3.8.2 — Pinned transfer path.** Stable page mappings allow the transfer engine to access host memory directly through the supported platform path.
+**Figure 3.8.1 — Pageable versus pinned transfer path as one decision, not two separate diagrams.** The chapter's core claim — that `cudaMemcpyAsync` on pageable memory is asynchronous in name but frequently blocking in practice — is now a branch with a named evidence source (the profiler timeline segment before the real device transfer) rather than two static side-by-side pipelines the reader has to compare themselves.
 
 ## Pageable Host Memory
 
@@ -288,9 +295,41 @@ A bandwidth number without transfer-size distribution can be misleading.
 
 The runtime stages pageable memory or performs synchronization required by the operation.
 
+**Evidence — measuring pageable versus pinned side by side:**
+
+```text
+$ ./transfer_bench --mode=pageable --bytes=268435456
+pageable H2D: 268435456 bytes in 74.318 ms  (3.61 GB/s effective)
+
+$ ./transfer_bench --mode=pinned --bytes=268435456
+pinned   H2D: 268435456 bytes in 16.902 ms  (15.88 GB/s effective)
+```
+
+A 256 MiB transfer at 3.61 GB/s versus 15.88 GB/s — roughly 4.4x — is the size of gap that pageable staging typically produces relative to a PCIe Gen4 x16 link's practical ceiling (in the 20-25 GB/s range). If a measured "pinned" run still shows numbers close to the pageable row, the most likely explanation is that the allocation didn't actually register as pinned (check the return status of `cudaHostAlloc`/`cudaHostRegister`, not just that the call was made) or the transfer is small enough that fixed per-call overhead dominates either way.
+
 ### Problem: Transfer throughput varies by process placement
 
 Inspect CPU affinity, memory policy, GPU NUMA node, and PCIe topology. The same pinned allocation strategy can behave differently when pages are placed on a remote socket.
+
+**Evidence — same pinned strategy, two NUMA placements:**
+
+```text
+$ numactl --hardware | head -4
+available: 2 nodes (0-1)
+node 0 cpus: 0 1 2 3 4 5 6 7
+node 1 cpus: 8 9 10 11 12 13 14 15
+
+$ nvidia-smi topo -m | grep GPU0
+GPU0	 X 	NODE1	0-7,16-23	0
+
+$ numactl --cpunodebind=1 --membind=1 ./transfer_bench --mode=pinned --bytes=268435456
+pinned   H2D: 268435456 bytes in 16.9 ms   (15.9 GB/s)
+
+$ numactl --cpunodebind=0 --membind=0 ./transfer_bench --mode=pinned --bytes=268435456
+pinned   H2D: 268435456 bytes in 29.4 ms   (9.1 GB/s)
+```
+
+`nvidia-smi topo -m` reports GPU0 as local to NUMA node 1. Binding the allocating thread and its memory to node 0 instead forces the transfer across the inter-socket link before it ever reaches the PCIe root complex — a ~1.75x throughput penalty using the *identical* pinned-memory strategy. This is the mechanism behind this chapter's Customer Scenario: correct pinned memory is not sufficient if the pages themselves are remote from the GPU's I/O path.
 
 ### Problem: Host becomes unstable under load
 
@@ -310,21 +349,36 @@ The architecture fix pairs worker pools with GPUs, applies CPU and memory affini
 
 ### Conceptual Questions
 
-1. Why can pageable memory interfere with asynchronous copies?
-2. What does page locking change from the DMA engine's perspective?
-3. Why is mapped host memory not automatically faster than copying?
+1. **Why can pageable memory interfere with asynchronous copies?**
+   "Because a DMA engine needs a physically stable address range to read from or write to for the duration of the transfer, and the OS is free to move pageable memory's physical pages at any time. So when the source is pageable, the runtime has to first copy the data into an internal pinned staging buffer it controls — and that staging copy is synchronous CPU work that happens before the real device transfer even starts. The API still looks asynchronous from the caller's perspective, but there's blocking work hidden right behind it."
+
+2. **What does page locking change from the DMA engine's perspective?**
+   "It gives the DMA engine a guarantee that the physical address behind that virtual range won't move for as long as the pin is held — so it can issue the transfer directly against that memory with no intermediary copy. Without that guarantee, the DMA engine literally cannot safely target the memory, because the physical backing could be relocated mid-transfer. Pinning is what makes the address stable enough for hardware to trust it."
+
+3. **Why is mapped host memory not automatically faster than copying?**
+   "Because 'zero copy' describes the absence of an explicit copy step, not the absence of cost — every access to mapped host memory from a kernel still has to cross PCIe or whatever host interconnect is in play, transaction by transaction, and that per-access latency and limited bandwidth is usually worse than device-local memory. It's a reasonable choice for small or infrequently-accessed data where avoiding the copy outweighs the per-access cost, and a poor choice for a large working set the kernel touches repeatedly — that data belongs in device memory."
 
 ### Architecture Questions
 
-1. Design a bounded pinned-memory pool for four CUDA streams.
-2. Explain how NUMA locality affects host-to-device transfer.
-3. Compare pinned allocation and host registration.
+1. **Design a bounded pinned-memory pool for four CUDA streams.**
+   "Four slots minimum, one naturally aligned per stream, each with its own pinned host buffer, device buffer, and completion event — sized from measured concurrency, not worst-case theoretical demand. I'd track slot state explicitly — free, filling, submitted, in-flight, complete — and require an event-confirmed completion before a slot returns to free. I'd also put a hard ceiling on total pinned bytes across the pool and monitor pool-exhaustion and wait-time metrics, because unbounded pinned growth degrades host stability independent of the GPU work being correct."
+
+2. **Explain how NUMA locality affects host-to-device transfer.**
+   "The GPU's PCIe root complex is physically attached to one CPU socket. If the pinned buffer's physical pages were allocated on the other socket's memory, the transfer has to cross the inter-socket link before it even reaches the PCIe path to the GPU — adding latency and consuming shared cross-socket bandwidth. The fix is making the thread that allocates the pinned pool run with CPU and memory affinity pinned to the GPU's local NUMA node, which I'd confirm ahead of time with `nvidia-smi topo -m`."
+
+3. **Compare pinned allocation and host registration.**
+   "`cudaHostAlloc` has the runtime create a fresh page-locked region for you — it's the straightforward choice for a buffer you're building specifically as a transfer target. `cudaHostRegister` pins an existing allocation in place, which matters when you're integrating with an external allocator or a framework's own buffers that you don't want to duplicate. Registration can fail on alignment, size, or platform/container policy grounds that allocation typically doesn't hit, so I always check its return status explicitly rather than assuming it succeeded."
 
 ### Scenario Questions
 
-1. A service leaks pinned buffers. What host-level symptoms might appear?
-2. Transfers are fast on one CPU socket and slow on another. What do you inspect?
-3. `cudaMemcpyAsync` does not overlap with compute. List the required checks.
+1. **A service leaks pinned buffers. What host-level symptoms might appear?**
+   "Locked memory doesn't get reclaimed by normal OS paging, so I'd expect the host's available memory to shrink over the service's uptime even though the GPU-side workload looks unchanged, eventually leading to allocation failures, swap pressure, or general host instability under load — all while `nvidia-smi` device memory looks completely normal, because this is a host-memory problem, not a device-memory one. That mismatch — degrading host health with a healthy-looking GPU — is the tell."
+
+2. **Transfers are fast on one CPU socket and slow on another. What do you inspect?**
+   "NUMA topology first — specifically, which socket the GPU's PCIe root complex is attached to, and whether the worker process pinned to the slow socket is also allocating and touching its buffers on that socket's local memory. I'd confirm with `nvidia-smi topo -m` for GPU-to-NUMA-node mapping and `numactl --hardware` for the CPU topology, then reproduce the difference directly with `numactl --cpunodebind`/`--membind` to prove it's placement rather than something else entirely."
+
+3. **`cudaMemcpyAsync` does not overlap with compute. List the required checks.**
+   "Is the source or destination actually pinned — not just requested as pinned, but confirmed via the allocation call's return status. Are the copy and the kernel in different, independent streams. Is there a hidden device-wide synchronization or legacy default-stream interaction serializing them. Is the transfer large enough that overlap benefit exceeds fixed overhead. And finally, does the profiler timeline actually show the copy engine and compute engine busy at overlapping timestamps — that last one is the only check that proves overlap rather than merely permitting it."
 
 ## Summary
 

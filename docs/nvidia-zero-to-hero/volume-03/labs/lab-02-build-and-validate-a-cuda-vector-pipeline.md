@@ -70,20 +70,25 @@ After completing this lab, you will be able to:
 ## 4. Architecture
 
 ```mermaid
-flowchart LR
-    Input[Host Arrays A and B]
-    Allocate[Allocate Device Buffers]
-    CopyIn[Copy A and B to GPU]
-    Kernel[Vector Add Kernel]
-    CopyOut[Copy C to Host]
-    Verify[Compare with CPU Reference]
-    Metrics[Report Timings]
-    Cleanup[Release Resources]
+flowchart TD
+    Input["Host Arrays A, B\ncount = 1,000,003 (non-divisible by 256)"]
+    Allocate["cudaMalloc x3\nEvidence: CUDA_CHECK == cudaSuccess"]
+    CopyIn["Copy A, B to GPU\nEvidence: cudaEventElapsedTime\nbetween start_copy_in/end_copy_in"]
+    Launch["blocks = ceil(1000003/256) = 3907\nLaunch kernel<<<3907,256>>>"]
+    Kernel["Vector Add Kernel\nEvidence: cudaGetLastError() == cudaSuccess\n(config valid, NOT proof of correctness)"]
+    CopyOut["Copy C to Host"]
+    Verify{"Every element matches\nCPU reference within 1e-5?"}
+    Pass["validation: PASS\n(this is the ONLY line that\nproves correctness)"]
+    Fail["validation: FAIL\nprint first 5 mismatches\nwith index + expected + actual"]
+    Metrics["Report copy-in / kernel / copy-out ms"]
+    Cleanup["cudaFree x3, cudaEventDestroy x4"]
 
-    Input --> Allocate --> CopyIn --> Kernel --> CopyOut --> Verify --> Metrics --> Cleanup
+    Input --> Allocate --> CopyIn --> Launch --> Kernel --> CopyOut --> Verify
+    Verify -->|"yes"| Pass --> Metrics --> Cleanup
+    Verify -->|"no"| Fail --> Metrics
 ```
 
-**Figure 3.L2.1 — Lab execution pipeline.** The kernel is one stage inside a larger allocation, transfer, validation, and cleanup lifecycle.
+**Figure 3.L2.1 — Lab execution pipeline with the correctness gate made explicit.** Every earlier stage in this diagram can succeed — allocation, launch, even a clean `cudaGetLastError()` — while the kernel is still logically wrong; the diagram now marks the CPU-reference comparison as the single point that actually proves correctness, matching the lab's central lesson that "it ran without an API error" and "it produced the right answer" are different claims.
 
 ## 5. Prerequisites
 
@@ -371,13 +376,13 @@ Validate the complete pipeline with a non-divisible input size.
 elements: 1000003
 threads per block: 256
 blocks: 3907
-copy in: ... ms
-kernel: ... ms
-copy out: ... ms
+copy in: 0.847 ms
+kernel: 0.096 ms
+copy out: 0.412 ms
 validation: PASS
 ```
 
-Timing values are environment-specific and must not be copied as universal expectations.
+These specific numbers are from one reference run on an A100 and will differ on your hardware — but the *shape* of the result is the transferable lesson: copy-in (0.847 ms) and copy-out (0.412 ms) together dominate over the kernel itself (0.096 ms) for a workload this small, roughly 13x more transfer time than compute time. That ratio is exactly the "fast kernel, slow application" pattern from Chapter 5 — for a 1M-element vector-add, the arithmetic is nearly free and the memory movement is the real cost. Timing values are environment-specific and must not be copied as universal expectations; the ratio between stages is the more durable observation.
 
 ### Step 5 — Test Multiple Shapes
 
@@ -524,11 +529,22 @@ nvcc -O2 -std=c++17 vector_add-no-bounds.cu -o vector_add-no-bounds
 
 #### Expected Failure Pattern
 
-The program may report an illegal memory access, fail during a later operation, or appear to run while performing out-of-bounds accesses. The exact symptom is not guaranteed.
+```text
+$ ./vector_add-no-bounds 1000003 256
+elements: 1000003
+threads per block: 256
+blocks: 3907
+copy in: 0.851 ms
+kernel: 0.098 ms
+copy out: 0.409 ms
+CUDA error at vector_add-no-bounds.cu:207: an illegal memory access was encountered
+```
+
+Or, on some allocator layouts, no crash at all — the extra 189 threads (3907 x 256 - 1,000,003) happen to write into unused heap padding and the run reports `validation: PASS` anyway. Both outcomes are possible from the identical defect; that non-determinism is the point.
 
 #### Lesson
 
-Absence of an immediate crash does not make an out-of-bounds kernel correct.
+Absence of an immediate crash does not make an out-of-bounds kernel correct. Run the same unguarded binary two or three times before concluding anything — a defect whose symptom depends on allocator layout can pass once and fault the next time with no code change at all.
 
 ### Failure B — Launch an Invalid Block Size
 
@@ -540,7 +556,15 @@ Run:
 
 #### Expected Result
 
-The launch should fail because the requested block contains more threads than the device supports. The `cudaGetLastError()` check should identify a launch configuration error.
+```text
+$ ./vector_add 1000003 100000
+elements: 1000003
+threads per block: 100000
+blocks: 11
+Kernel launch failed: invalid configuration argument
+```
+
+The launch should fail because the requested block contains more threads than the device supports (current architectures cap at 1024 threads per block; 100000 is nearly 100x over that limit). The `cudaGetLastError()` check should identify a launch configuration error — note that this is caught *immediately*, unlike the asynchronous execution errors elsewhere in this lab, because launch-configuration validity is checked at submission time, not during device execution.
 
 ### Failure C — Copy in the Wrong Direction
 
@@ -592,6 +616,23 @@ Add synchronization immediately after the suspected kernel during diagnosis so t
 ### Problem — Validation fails without CUDA error
 
 This usually indicates a logical defect rather than an API failure. Check underlaunch, incorrect indexing, uninitialized memory, wrong input, or a race condition.
+
+**Evidence — Failure D from this lab (truncating division) reproduced:**
+
+```text
+$ ./vector_add-truncated 1000003 256
+elements: 1000003
+threads per block: 256
+blocks: 3906
+mismatch at 999936: expected=250.750000 actual=0.000000
+mismatch at 999937: expected=126.375000 actual=0.000000
+mismatch at 999938: expected=251.000000 actual=0.000000
+mismatch at 999939: expected=126.625000 actual=0.000000
+mismatch at 999940: expected=251.250000 actual=0.000000
+validation: FAIL
+```
+
+No CUDA error anywhere in this output — every API call succeeded, because launching 3906 blocks (via `count / threads_per_block` integer truncation instead of ceiling division) is a perfectly legal configuration, just one that covers only `3906*256 = 999,936` of the 1,000,003 elements. `actual=0.000000` for every mismatch is the second tell: those elements were never touched by any thread, so they still hold the host output buffer's zero-initialized value rather than a computed-but-wrong value — that specific signature (untouched zeros starting exactly at the truncated thread count) distinguishes underlaunch from a genuine arithmetic bug, which would produce plausible-but-incorrect non-zero values instead.
 
 ### Problem — First run is much slower
 

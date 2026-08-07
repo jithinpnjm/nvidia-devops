@@ -46,17 +46,27 @@ After completing this chapter, you will be able to:
 ## Big Picture
 
 ```mermaid
-flowchart LR
-    Host[Host Memory]
-    Staging[Pinned Staging Buffer]
-    Device[Device Memory]
-    Kernel[CUDA Kernel]
-    Output[Host Output]
+flowchart TD
+    Host["Host Memory (pageable, e.g. std::vector)"]
+    PinCheck{"Is the source pinned?"}
+    Stage["Hidden staging copy:\nruntime copies pageable -> internal\npinned buffer before DMA can start\nEvidence: cudaMemcpyAsync still\nblocks the host — check with a\nprofiler timeline, not the API name"]
+    DirectDMA["Direct DMA to device\nEvidence: cudaMemcpyAsync returns\nimmediately AND overlaps with\nother stream work in the timeline"]
+    Device["Device Memory"]
+    Kernel["CUDA Kernel executes"]
+    Copy2{"7 milliseconds kernel,\nbut request latency is 40ms?"}
+    Bound["Transfer-bound request:\nmeasure bytes copied / time,\nreuse allocations, batch,\noverlap copy with compute"]
+    Output["Host Output"]
 
-    Host --> Staging --> Device --> Kernel --> Device --> Staging --> Output
+    Host --> PinCheck
+    PinCheck -->|"no (pageable)"| Stage --> Device
+    PinCheck -->|"yes (cudaMallocHost)"| DirectDMA --> Device
+    Device --> Kernel --> Copy2
+    Copy2 -->|"yes"| Bound
+    Copy2 -->|"no, kernel dominates"| Output
+    Bound -.-> Output
 ```
 
-**Figure 3.5.1 — Data movement lifecycle.** A conventional CUDA workflow moves data from host memory to device memory, executes kernels, and returns results. Pinned staging buffers can improve transfer efficiency and enable asynchronous copies.
+**Figure 3.5.1 — Data movement lifecycle as a decision tree.** The pinned-vs-pageable branch is the mechanism this chapter's Story turns on: `cudaMemcpyAsync` is asynchronous *by name* on either path, but only the pinned branch actually avoids a hidden, blocking staging copy. The second decision point captures the chapter's other core lesson — a fast kernel does not prove a fast request when transfer time dominates end-to-end latency.
 
 ## Separate Memory Domains
 
@@ -248,6 +258,8 @@ A model may fit in memory at startup yet fail under concurrency because runtime 
 
 Capacity planning must use peak representative workload behavior rather than static model size alone.
 
+**Worked example — why "the model fits" is not the same question as "the request fits":** a 7-billion-parameter model at FP16 (2 bytes/parameter) needs approximately `7,000,000,000 × 2 ≈ 14 GB` for weights alone. On a 40 GB GPU that looks like 26 GB of headroom. But a single inference request at batch size 8, sequence length 2048, with a KV cache of roughly `2 (K and V) × 32 layers × 8 batch × 2048 tokens × 4096 hidden × 2 bytes ≈ 8.6 GB` (illustrative architecture numbers) consumes over half the remaining capacity — and that is one request's cache, before framework allocator reservations, activation memory, or a second concurrent request are counted. The 14 GB weight estimate answers "does the model fit at startup," not "does this GPU support the concurrency this service needs" — those are different capacity-planning questions with different answers.
+
 ## Architecture Trade-offs
 
 ### Explicit copies versus unified memory
@@ -280,6 +292,20 @@ Shared pools reduce allocation overhead. They also require lifecycle controls so
 
 Measure transfer size and frequency, reuse allocations, batch work, keep intermediate data on the GPU, and overlap copies with compute where possible.
 
+**Evidence — the exact pattern from this chapter's Story, quantified:**
+
+```text
+$ nsys stats --report cuda_api_sum profile-report.nsys-rep
+ Time(%)  Total Time (ns)  Num Calls  Avg (ns)   Name
+ -------  ---------------  ---------  ---------  ------------------
+    71.2       182,340,000       4000     45,585  cudaMalloc
+    18.6        47,610,000       4000     11,903  cudaMemcpy
+     6.4        16,392,000       4000      4,098  cudaFree
+     3.8         9,730,000       4000      2,433  cudaLaunchKernel
+```
+
+Reading this table top to bottom: `cudaMalloc` and `cudaFree` together consume **77.6%** of CUDA API time across 4,000 requests — more than eight times the time spent in the kernel launch itself. This is the chapter's Story made numeric: the kernel is not the bottleneck, the per-request allocate/free cycle is. The fix is allocation reuse (a warmed buffer pool), which removes the `cudaMalloc`/`cudaFree` rows from the hot path entirely rather than trying to make the kernel faster.
+
 ### Problem: `cudaErrorMemoryAllocation`
 
 Inspect:
@@ -292,6 +318,16 @@ Inspect:
 - recent workload-size changes.
 
 Do not treat process memory reports as complete proof of available contiguous capacity.
+
+**Evidence — free memory does not mean a contiguous block is available:**
+
+```text
+$ nvidia-smi --query-gpu=memory.used,memory.free,memory.total --format=csv
+memory.used [MiB], memory.free [MiB], memory.total [MiB]
+71232 MiB, 9727 MiB, 80960 MiB
+```
+
+`9727 MiB` free looks like plenty of headroom for a 4 GB allocation request — yet the request can still fail with `cudaErrorMemoryAllocation` if the framework's caching allocator holds that free space as many small, non-contiguous reserved blocks (common with PyTorch's caching allocator under repeated variable-size allocation). `nvidia-smi` reports device-wide free memory, not the largest contiguous span the CUDA allocator can actually satisfy — the next diagnostic step is the framework's own allocator summary (e.g. `torch.cuda.memory_summary()`), not another `nvidia-smi` snapshot.
 
 ### Problem: Unified memory latency spikes
 
@@ -311,21 +347,36 @@ The architect recommends a persistent worker model with reusable device buffers,
 
 ### Conceptual Questions
 
-1. Why can pinned memory improve host-device transfer?
-2. Why is unified memory not the same as physically shared memory?
-3. What is the difference between memory capacity and transfer bandwidth?
+1. **Why can pinned memory improve host-device transfer?**
+   "Because a DMA engine needs a stable physical address to copy from or to, and ordinary pageable memory can be moved by the OS at any time — so if the source is pageable, the runtime has to first copy it into an internal pinned staging buffer before the real device transfer can even start. That staging copy is hidden CPU work that shows up as extra latency and blocks true asynchronous overlap. Pinned memory removes that hidden step entirely, which is why it's the precondition for real `cudaMemcpyAsync` overlap, not just a nice-to-have."
+
+2. **Why is unified memory not the same as physically shared memory?**
+   "Because under the hood the CPU and GPU still have physically separate memory — unified memory just gives you one virtual pointer that both can use, and the runtime migrates or maps the underlying pages between physical locations based on which processor touches them. It simplifies the *pointer*, not the physics. If my access pattern bounces between CPU and GPU rapidly, I can pay real migration cost repeatedly even though the code looks like it's just dereferencing one simple pointer."
+
+3. **What is the difference between memory capacity and transfer bandwidth?**
+   "Capacity is whether the data fits — the size of the allocation versus the size of device memory. Bandwidth is how fast data can move once it's there or while it's being copied. `nvidia-smi`'s memory-used number tells you about capacity and allocation, nothing about bandwidth. I've seen people treat a memory-used number near the ceiling as evidence of a bandwidth problem, and those are just not the same measurement — you need a profiler's memory-throughput counters to actually assess bandwidth."
 
 ### Architecture Questions
 
-1. Draw an overlapped double-buffered transfer pipeline.
-2. Compare pageable, pinned, and unified memory.
-3. Explain why allocation reuse matters in a long-running inference service.
+1. **Draw an overlapped double-buffered transfer pipeline.**
+   "Two pinned host buffers, two device buffers, two streams. While stream 0 is copying batch A's input to the device and then computing on it, stream 1 is already copying batch B's input in parallel — as long as both source buffers are pinned and the streams are independent with no hidden synchronization between them. I'd label the arrows with what has to be true for the overlap to be real: pinned memory, separate buffers, and a completion event per slot so the host never reuses a buffer before the device is done with it."
+
+2. **Compare pageable, pinned, and unified memory.**
+   "Pageable is the default, simplest, but may force a hidden staging copy for GPU transfers. Pinned removes that staging step and enables true async overlap, but it's a scarce, lockable host resource I have to pool and bound. Unified gives me one pointer both CPU and GPU can use and simplifies the programming model, but placement and migration become implicit — I trade explicit control for convenience, and I still have to reason about locality if performance matters."
+
+3. **Explain why allocation reuse matters in a long-running inference service.**
+   "Because `cudaMalloc` and `cudaFree` are not free — in the profiler evidence I've seen, they can dominate CUDA API time far more than the actual kernel does when a service allocates and frees per request. A long-running service should allocate its buffers once at warm-up and borrow-and-return them from a pool per request. That turns a repeated allocation cost into a one-time startup cost and also makes memory behavior predictable instead of subject to allocator fragmentation over the service's lifetime."
 
 ### Scenario Questions
 
-1. Kernel time is 5% of request latency. What do you investigate?
-2. Unified memory works in testing but produces tail-latency spikes in production. Why?
-3. A service consumes more GPU memory as concurrency rises. What additional allocations may exist?
+1. **Kernel time is 5% of request latency. What do you investigate?**
+   "The other 95% first, obviously — I'd profile the full request timeline, not just the kernel, and look specifically at allocation calls, transfer time, and host-side preprocessing. Given how often this turns out to be per-request `cudaMalloc`/`cudaFree` or unpinned transfer staging, those are exactly where I'd start looking before touching the kernel at all."
+
+2. **Unified memory works in testing but produces tail-latency spikes in production. Why?**
+   "Most likely because test traffic doesn't exercise the access pattern that triggers migration under production load — maybe production has multiple concurrent requests touching overlapping managed ranges from different GPUs, or the production working set exceeds what fits comfortably resident, triggering eviction and refaulting. Testing at low concurrency and low data volume can hide exactly the locality problems that appear once real traffic creates contention for the same pages."
+
+3. **A service consumes more GPU memory as concurrency rises. What additional allocations may exist?**
+   "Beyond the model weights, each concurrent request likely needs its own activation memory and KV cache if this is an LLM-style workload, plus the framework's caching allocator may reserve additional pooled memory it doesn't immediately release. I'd also check for per-request temporary buffers that aren't being reused, and whether the service is creating a new CUDA context or duplicate model instance per worker rather than sharing across replicas."
 
 ## Summary
 

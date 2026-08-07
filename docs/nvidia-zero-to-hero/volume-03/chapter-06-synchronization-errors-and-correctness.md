@@ -51,20 +51,28 @@ After completing this chapter, you will be able to:
 
 ```mermaid
 flowchart TD
-    Host[Host Thread]
-    Queue[Enqueue Copy or Kernel]
-    Stream[CUDA Stream]
-    GPU[GPU Execution]
-    Error[Asynchronous Error]
-    Sync[Synchronization or Query]
-    Report[Error Reported to Host]
+    Host["Host Thread"]
+    LaunchA["Launch kernel_a\ncudaGetLastError() == cudaSuccess\n(config was valid — proves nothing\nabout execution)"]
+    LaunchB["Launch kernel_b\ncudaGetLastError() == cudaSuccess"]
+    Memcpy["cudaMemcpy(D2H) —\nimplicitly synchronizes"]
+    Host --> LaunchA --> LaunchB --> Memcpy
 
-    Host --> Queue --> Stream --> GPU
-    GPU --> Error --> Sync --> Report
-    Host --> Sync
+    subgraph GPUTimeline["GPU timeline (actual execution order)"]
+        direction LR
+        ExecA["kernel_a executes\n... illegal write occurs here ..."]
+        ExecB["kernel_b executes\n(may run despite kernel_a's fault)"]
+        ExecA --> ExecB
+    end
+
+    LaunchA -.->|"queued"| ExecA
+    LaunchB -.->|"queued"| ExecB
+
+    Memcpy --> Detect{"Error detected at memcpy"}
+    Detect -->|"naive read"| Wrong["WRONG conclusion:\n'memcpy is broken'"]
+    Detect -->|"correct read"| Right["RIGHT conclusion:\nmemcpy is just the first\nsync point after the fault —\nbisect with cudaDeviceSynchronize()\nafter kernel_a, then kernel_b"]
 ```
 
-**Figure 3.6.1 — Asynchronous error visibility.** Work can fail after the host has returned from the launch call. The error becomes visible when the application queries or synchronizes the relevant execution context.
+**Figure 3.6.1 — Asynchronous error visibility, with the misdiagnosis trap made explicit.** The API call that reports an error (`cudaMemcpy` here) is frequently not the operation that caused it — the diagram shows the queued launches racing ahead of the host while the actual fault happens earlier on the GPU timeline, and contrasts the wrong read of the evidence against the bisection method that finds the true origin.
 
 ## Ordering Is Scoped
 
@@ -299,13 +307,50 @@ A previous asynchronous operation failed. The later call is the point where the 
 
 Temporarily synchronize after suspected kernels, check each launch, and narrow the failing interval.
 
+**Evidence — bisection in practice:**
+
+```text
+// Add temporarily, remove after locating the fault:
+kernel_a<<<...>>>(buf);
+CUDA_CHECK(cudaDeviceSynchronize());   // <-- checkpoint 1
+kernel_b<<<...>>>(buf);
+CUDA_CHECK(cudaDeviceSynchronize());   // <-- checkpoint 2
+```
+
+```text
+$ ./service_debug
+CUDA error at service.cu:142: an illegal memory access was encountered
+```
+
+If the error now appears at checkpoint 1 (right after `kernel_a`), the fault is in `kernel_a`, not in whatever call originally reported it (a later `cudaMemcpy` in production, per the diagram above). If it appears at checkpoint 2 instead, `kernel_a` is clean and `kernel_b` is the suspect. Remove the synchronize calls once located — they exist only to narrow the search, not as a permanent fix.
+
 ### Problem: Results change between runs
 
 Inspect shared-memory barriers, output ownership, atomics, cross-stream dependencies, host-buffer reuse, and memory initialization.
 
+**Evidence — a race that only shows up under specific scheduling:**
+
+```text
+Run 1: sum = 483920.125000   validation: FAIL (expected 512000.000000)
+Run 2: sum = 501234.875000   validation: FAIL (expected 512000.000000)
+Run 3: sum = 512000.000000   validation: PASS
+```
+
+Three different wrong-or-right answers across three identical runs of the same binary and input is the classic race-condition fingerprint — a deterministic bug produces the same wrong answer every time. Here the cause is typically a reduction kernel missing an atomic add or a block barrier: concurrent threads write the same output location and whichever write happens to land last (which varies by scheduling) wins. Confirm with `cuda-memcheck`/`compute-sanitizer`'s race-detection tool rather than "running it again until it passes."
+
 ### Problem: Performance collapses after adding error checks
 
 Determine whether device-wide synchronization was added inside the steady-state path. Keep immediate launch checks, but place blocking execution checks at justified boundaries.
+
+**Evidence — the cost of checking correctly, isolated:**
+
+| Configuration | Requests/sec | Notes |
+|---|---:|---|
+| No error checks | 4,120 | baseline, unsafe |
+| `cudaGetLastError()` after every launch only | 4,095 | ~0.6% overhead — safe to keep always on |
+| `cudaDeviceSynchronize()` after every launch | 612 | ~85% throughput loss — removes all overlap |
+
+`cudaGetLastError()` is a cheap, non-blocking check of launch-configuration validity and belongs in every build. `cudaDeviceSynchronize()` forces the host to wait for the entire device queue to drain — it is the right tool for isolating a bug during development, and the wrong tool to leave in a steady-state hot path, which is exactly the throughput collapse this row's symptom describes.
 
 ### Problem: Service continues failing after one illegal access
 
@@ -321,21 +366,36 @@ The architect replaces the device-wide barrier with an event recorded after Stag
 
 ### Conceptual Questions
 
-1. Why can a kernel error appear during a later API call?
-2. What is the difference between block and device synchronization?
-3. Why can a program become correct after adding a blocking copy?
+1. **Why can a kernel error appear during a later API call?**
+   "Because kernel execution is asynchronous — the launch call just queues the work and returns, so if the kernel faults, that fault happens on the GPU's own timeline, potentially after the host has already issued several more calls. CUDA reports the error at the next point the host actually synchronizes or queries device state, which could be a completely unrelated memcpy several operations later. I always treat the reporting call as a witness, not necessarily the culprit, and bisect backward with temporary synchronization when I need to find the real source."
+
+2. **What is the difference between block and device synchronization?**
+   "Block synchronization — `__syncthreads()` — coordinates only the threads inside one block, at a barrier they all have to reach, and it's about memory visibility within that block's shared memory. Device synchronization — `cudaDeviceSynchronize()` — is host-side and waits for every preceding operation on the whole device to complete, across all streams. They operate at completely different scopes and for different purposes: one is an on-device correctness primitive for cooperating threads, the other is a host-side completion boundary that happens to also be a blunt performance hammer if overused."
+
+3. **Why can a program become correct after adding a blocking copy?**
+   "Because a blocking `cudaMemcpy` happens to force a synchronization point as a side effect — it accidentally enforces an ordering the program actually needed but never expressed explicitly. That's the trap: the program looks fixed, but what actually happened is a missing dependency got papered over by a coincidentally-blocking call. If someone later 'optimizes' that call to its async form without understanding why it was there, the original race comes right back — which is literally the incident in this chapter's Story."
 
 ### Architecture Questions
 
-1. Design an error-checking strategy for an asynchronous service.
-2. Draw an event dependency between two streams.
-3. Explain why all threads must reach a block barrier safely.
+1. **Design an error-checking strategy for an asynchronous service.**
+   "I'd wrap every CUDA API call, including launches, with an immediate `cudaGetLastError()` check — that's cheap and catches configuration errors right away. For execution errors, I would not sprinkle `cudaDeviceSynchronize()` through the hot path; instead I'd rely on the natural synchronization points that already exist — event waits, the final output copy — and check status there. I'd also define what happens on failure: is the context still trustworthy, does this worker need to restart, how do I preserve the original error text before recovery destroys the evidence."
+
+2. **Draw an event dependency between two streams.**
+   "Stream A does its work and calls `cudaEventRecord()` on a 'ready' event. Stream B calls `cudaStreamWaitEvent()` on that same event before it starts the work that depends on A's output. I'd draw this as two parallel timelines with a single diagonal arrow from the event marker on A's timeline to the wait point on B's timeline — everything else on both streams continues independently, which is the whole point versus a blunt device-wide synchronization."
+
+3. **Explain why all threads must reach a block barrier safely.**
+   "`__syncthreads()` requires every non-exited thread in the block to actually reach it, because the barrier's job is to guarantee all threads see a consistent memory state before proceeding — if some threads take a divergent branch that skips the barrier while others hit it, you get undefined behavior or a hang, because the hardware is waiting for arrivals that will never come. That's why I never put a block barrier inside a conditional unless I've proven every thread in the block takes the same path through that conditional."
 
 ### Scenario Questions
 
-1. Results vary between runs but no API call fails. What do you investigate?
-2. Adding `cudaDeviceSynchronize()` fixes corruption. What does that imply?
-3. An illegal access causes all later requests to fail. How should the service respond?
+1. **Results vary between runs but no API call fails. What do you investigate?**
+   "This is the classic race-condition signature — no error, just non-deterministic wrong answers. I'd look at anywhere multiple threads or streams write to the same memory location without an explicit ordering: missing atomics in a reduction, a barrier missing before consuming shared memory, cross-stream output without an event dependency, or a host buffer reused before its async copy completed. I'd also run it under `compute-sanitizer`'s race checker rather than trying to eyeball it from output alone."
+
+2. **Adding `cudaDeviceSynchronize()` fixes corruption. What does that imply?**
+   "It implies there's a missing dependency somewhere that the blocking call happens to paper over — not that the bug is fixed. Something is racing: probably a cross-stream data dependency, or a buffer being reused before earlier work using it has actually completed. My next step is to find exactly which dependency is missing and replace the blunt device-wide wait with a narrow, explicit one — an event wait scoped to just that dependency — so I get correctness back without destroying the concurrency."
+
+3. **An illegal access causes all later requests to fail. How should the service respond?**
+   "Treat the CUDA context as untrustworthy after a device-side fault like that — continuing to serve requests on a context that already had an illegal access can produce misleading secondary failures, not real results. The service should stop accepting new work on that worker, capture the original error and enough context to diagnose it, and recreate the worker or context according to a recovery path that's been tested ahead of time — not improvised live during the incident."
 
 ## Summary
 

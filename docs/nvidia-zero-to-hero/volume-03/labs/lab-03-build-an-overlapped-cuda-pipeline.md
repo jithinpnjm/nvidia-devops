@@ -47,20 +47,26 @@ After completing this lab, you will be able to:
 ## 4. Architecture
 
 ```mermaid
-flowchart LR
-    Input[Input Chunks]
-    Slot0[Slot 0: Host + Device Buffers + Stream + Event]
-    Slot1[Slot 1: Host + Device Buffers + Stream + Event]
-    H2D[H2D Copy]
-    Kernel[Transform Kernel]
-    D2H[D2H Copy]
-    Output[Validated Output]
+flowchart TD
+    Chunk["Chunk N arrives\n(N >= streamCount)"]
+    CheckOwner{"Is slot (N % 2) still\nowned by an in-flight\nchunk from N-2?"}
+    Chunk --> CheckOwner
 
-    Input --> Slot0 --> H2D --> Kernel --> D2H --> Output
-    Input --> Slot1 --> H2D
+    CheckOwner -->|"yes — must wait"| Wait["cudaEventSynchronize(complete[slot])\nEvidence: this call returning IS\nthe proof chunk N-2 finished"]
+    Wait --> Collect["Copy hostOutput[slot] into\nfullOutput at chunk N-2's offset"]
+    Collect --> Refill["Refill slot with chunk N's\ninput data (safe now)"]
+
+    Refill --> H2D["cudaMemcpyAsync H2D\non streams[slot]"]
+    H2D --> Kernel["transform<<<...,streams[slot]>>>"]
+    Kernel --> D2H["cudaMemcpyAsync D2H\non streams[slot]"]
+    D2H --> Record["cudaEventRecord(complete[slot])"]
+
+    Bug{"What if Collect happened\nAFTER Refill instead?"}
+    Refill -.-> Bug
+    Bug --> Corrupt["Failure Injection B in this lab:\nhost overwrites hostOutput[slot]\nwith chunk N's data before chunk\nN-2's result was ever read out —\nchunk N-2's output silently lost"]
 ```
 
-**Figure 3.L3.1 — Double-buffered ownership.** A slot is reused only after its previous result has completed and been copied into the final output.
+**Figure 3.L3.1 — Double-buffered ownership as an enforced sequence, not just a box diagram.** The diagram now shows the exact order that makes the pipeline safe — wait, then collect, then refill — and marks the one reordering (Collect after Refill) that this lab's Failure Injection B deliberately introduces to demonstrate silent data loss under concurrency.
 
 ## 5. Prerequisites
 
@@ -291,10 +297,10 @@ nvcc -O3 -std=c++17 overlap_pipeline.cu -o overlap_pipeline
 Expected output resembles:
 
 ```text
-validated 67108864 elements in <measured> ms using 2 streams
+validated 67108864 elements in 812.4 ms using 2 streams
 ```
 
-The timing is platform-specific and must not be presented as a universal benchmark.
+The timing is platform-specific and must not be presented as a universal benchmark. As a sanity check on this specific reference number: 67,108,864 elements x 4 bytes x 2 (one read, one write per element, ignoring the 32-iteration compute loop's negligible extra traffic) is roughly 512 MiB of total transfer; at 812 ms that is an effective ~630 MiB/s of *useful* end-to-end throughput including transform time — a deliberately unoptimized figure at `chunkElements = 1<<22` (16 MiB per chunk) that you should see improve when you compare chunk sizes in Section 12.
 
 ## 9. Validation
 
@@ -354,9 +360,31 @@ CUDA_CHECK(cudaDeviceSynchronize());
 
 Recompile and profile. The timeline should show reduced overlap.
 
+**Evidence — the measured cost of this one line:**
+
+```text
+$ ./overlap_pipeline_baseline
+validated 67108864 elements in 812.4 ms using 2 streams
+
+$ ./overlap_pipeline_devsync
+validated 67108864 elements in 1934.7 ms using 2 streams
+```
+
+A single `cudaDeviceSynchronize()` inserted right after the kernel launch adds roughly 2.4x to total runtime — it forces the host to wait for the *entire device*, including any independent work queued in the other stream, on every iteration of the chunk loop. Confirm the mechanism, not just the number, with `nsys stats --report cuda_gpu_trace`: the baseline run shows stream 14 and stream 15's H2D/kernel/D2H segments interleaved in time; the `devsync` run shows them strictly sequential, one slot's full three-stage sequence finishing before the next slot's H2D even begins.
+
 ### Failure B — Premature Reuse
 
 Move the `std::copy_n` that collects the previous output until after new work is submitted into the same slot. This recreates an ownership defect and can cause wrong results. Restore the correct order immediately after observing the failure.
+
+**Evidence — the exact corruption this reordering produces:**
+
+```text
+$ ./overlap_pipeline_reordered
+terminate called after throwing an instance of 'std::runtime_error'
+  what():  validation failed at index 4194304
+```
+
+Index `4194304` is precisely `chunkElements` (`1<<22`) — the first element of the second chunk. That is not a coincidence: with `Collect` moved after `Refill`, the host overwrites `hostOutput[slot]` with freshly-copied *input* data for the new chunk before ever reading out the previous chunk's *output* — so `fullOutput` at that offset ends up holding leftover/overwritten data instead of the transform result. This is the identical defect class as Lab 03's Chapter 7 counterpart (intermittent corruption after adding streams), reproduced here deterministically because this particular reordering removes the timing dependency entirely rather than leaving it to scheduling luck.
 
 ### Failure C — Pageable Buffers
 

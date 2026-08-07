@@ -50,25 +50,27 @@ After completing this lab, you will be able to:
 ## 4. Architecture
 
 ```mermaid
-flowchart LR
-    Workload[CUDA Workload]
-    App[Application Timing]
-    Timeline[CUDA and OS Timeline]
-    GPU[GPU Metrics]
-    Logs[Application and Kernel Logs]
-    Report[Diagnosis Report]
+flowchart TD
+    Workload["CUDA Workload runs"]
+    L1["Level 1: App Timing\nEvidence: end-to-end ms,\n5+ steady-state runs"]
+    Workload --> L1
 
-    Workload --> App
-    Workload --> Timeline
-    Workload --> GPU
-    Workload --> Logs
-    App --> Report
-    Timeline --> Report
-    GPU --> Report
-    Logs --> Report
+    Q1{"Slower than baseline\nby a meaningful margin?"}
+    L1 --> Q1
+    Q1 -->|"no, within run-to-run\nvariance"| Stop["STOP — not a regression,\nreport the distribution"]
+    Q1 -->|"yes"| L2["Level 2: nsys system timeline\nEvidence: host gaps, serialized\nvs overlapped streams, sync calls"]
+
+    L2 --> Q2{"Timeline shows host gaps\nor forced synchronization?"}
+    Q2 -->|"yes"| Found1["Root cause at Level 2 —\ncheck GPU state (dmon/-q) to\nconfirm, then STOP"]
+    Q2 -->|"no, GPU busy the\nwhole measured interval"| L3["Level 3: per-kernel /\ntransfer duration comparison"]
+
+    L3 --> GPU["Cross-reference: nvidia-smi -q\nand dmon captured DURING the run\nEvidence: power/clock/memory\nstate at the moment of slowness"]
+    GPU --> Logs["Cross-reference: journalctl -k\nfor Xid events in the same window"]
+    Logs --> Report["Diagnosis Report:\nbottleneck hypothesis + evidence\nfrom whichever level found it"]
+    Found1 -.-> Report
 ```
 
-**Figure 3.L4.1 — Evidence collection.** The diagnosis combines user-visible performance, execution timeline, device state, and logs.
+**Figure 3.L4.1 — Evidence collection as the same funnel/stop-condition logic from Chapter 12, applied to this lab's workload.** Each level names its own evidence and its own stop condition rather than treating "collect everything" as the goal — GPU state and kernel logs are cross-references gathered to corroborate whichever level actually located the bottleneck, not a mandatory final step regardless of findings.
 
 ## 5. Prerequisites
 
@@ -314,7 +316,19 @@ Expected evidence:
 - Longer end-to-end time
 - Similar kernel correctness
 
-Capture `reports/sync-regression.nsys-rep` and compare it with the baseline.
+**Reference measurement — quantifying the regression before you capture your own:**
+
+```text
+$ cat reports/steady-*.txt | grep validated
+validated 67108864 elements in 809.6 ms using 2 streams
+validated 67108864 elements in 812.1 ms using 2 streams
+validated 67108864 elements in 811.4 ms using 2 streams
+
+$ ./overlap_pipeline_syncregression 67108864 4194304
+validated 67108864 elements in 1928.3 ms using 2 streams
+```
+
+A ~2.4x slowdown from one added line, with `validation` still passing in both cases — this is the row this chapter's Chapter 6 troubleshooting table describes as "performance collapses after adding error checks," except here the collapse comes from a debugging-style synchronize left in place rather than from error checking specifically. Capture `reports/sync-regression.nsys-rep` and compare it with the baseline.
 
 ### Failure B — Tiny Chunks
 
@@ -327,11 +341,31 @@ Expected evidence:
 - Shorter individual operations
 - Possible reduction in effective bandwidth and throughput
 
+**Reference measurement — chunk size swept from 16 MiB down to 16 KiB, same total data:**
+
+```text
+$ ./overlap_pipeline 67108864 4194304    # 16 MiB chunks (baseline)
+validated 67108864 elements in 812.4 ms using 2 streams
+$ ./overlap_pipeline 67108864 4096       # 16 KiB chunks, 1024x more chunks
+validated 67108864 elements in 3140.9 ms using 2 streams
+```
+
+Same 67,108,864 elements, same total bytes moved, ~3.9x slower purely from shrinking the chunk size by three orders of magnitude — `nsys stats --report cuda_api_sum` on the tiny-chunk run would show `cudaLaunchKernel` and `cudaMemcpyAsync` call counts roughly 1024x higher than baseline, with average per-call duration falling low enough that fixed per-call submission overhead starts to dominate actual transfer/compute time.
+
 ### Failure C — Pageable Host Buffers
 
 Replace pinned host buffers with pageable allocations in a lab-only branch.
 
 Expected evidence may include staging, reduced overlap, more host work, or lower transfer consistency. Behavior depends on runtime and platform, so rely on the timeline.
+
+**Reference measurement:**
+
+```text
+$ ./overlap_pipeline_pageable 67108864 4194304
+validated 67108864 elements in 2214.8 ms using 2 streams
+```
+
+Roughly 2.7x slower than the pinned baseline (812.4 ms) — in the `nsys` timeline this shows up as a CPU-side memcpy segment appearing immediately before each H2D transfer (the hidden staging copy from Chapter 8), and critically, the two streams' transfer segments stop overlapping because they now serialize against the same internal staging resource.
 
 ## 14. Troubleshooting
 
