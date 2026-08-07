@@ -55,7 +55,7 @@ Volumes: `docs/nvidia-zero-to-hero/volume-19` (Production Operations), `docs/nvi
 | chapter-09-placeholder.md (dead duplicate) | pending | |
 | chapter-10-clock-instability-and-frequency-scaling-problems.md | done | medium |
 | chapter-10-placeholder.md (dead duplicate) | pending | |
-| chapter-11-multi-gpu-imbalance-and-straggler-detection.md | pending | |
+| chapter-11-multi-gpu-imbalance-and-straggler-detection.md | done | medium |
 | chapter-11-placeholder.md (dead duplicate) | pending | |
 | chapter-12-cross-layer-diagnosis-when-metrics-lie.md | pending | |
 | chapter-12-placeholder.md (dead duplicate) | pending | |

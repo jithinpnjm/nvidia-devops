@@ -87,3 +87,10 @@ _Summary to be filled in when review is complete._
   - Why it matters for JR2018680: a candidate quoting these tool names in an interview would be immediately corrected; low severity because they read as clearly illustrative/placeholder rather than confidently-stated facts.
   - Suggested fix: replace with real commands (`nvidia-smi -q -d PERFORMANCE`, `nvidia-smi -lgc`/`-rgc`, and note that GPU firmware/VBIOS updates go through vendor tools, not a generic driver CLI).
 - Otherwise well-structured: correct P-state concept (P0-P8 is a real NVIDIA GPU power-state range), sound DVFS-vs-thermal-vs-power decision tree, and solid interview answers.
+
+### chapter-11-multi-gpu-imbalance-and-straggler-detection.md
+- [SEVERITY: medium] NVLink per-link bandwidth understated. `nvidia-smi nvlink --status` output shows healthy links at "10GB/sec" — real per-link NVLink bandwidth is much higher: ≈25 GB/s per link for NVLink3 (A100, 12 links / 600 GB/s aggregate) or ≈50 GB/s per link for NVLink4 (H100, 18 links / 900 GB/s aggregate). 10 GB/s is closer to a single PCIe Gen4 x16 link, not NVLink.
+  - Evidence: "Link 0: OK (10GB/sec) ... Link 3: DEGRADED (2GB/sec)"; Prevention section "Verify all links at 10 GB/sec ... Alert if any link < 5 GB/sec".
+  - Why it matters for JR2018680: NVLink bandwidth math is an explicitly called-out interview topic in this review's criteria (topology bandwidth math); stating per-link bandwidth as 10 GB/s instead of ~25-50 GB/s would give a wrong answer if asked "how much bandwidth does one NVLink give you."
+  - Suggested fix: correct the per-link figures to match the GPU generation in the example (state which GPU/NVLink generation is assumed, then use ~25 GB/s for NVLink3 or ~50 GB/s for NVLink4 as the healthy baseline).
+- Otherwise strong: correct `nvidia-smi nvlink --status`/`nccl-tests allreduce_perf` command usage, a clear hardware-vs-software decision tree, and well-reasoned interview answers distinguishing straggler causes.
