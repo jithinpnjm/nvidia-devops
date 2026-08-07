@@ -13,9 +13,9 @@ Volumes: `docs/nvidia-zero-to-hero/volume-19` (Production Operations), `docs/nvi
 | File | Status | Severity Summary |
 |---|---|---|
 | index.md | done | low |
-| chapter-01-placeholder.md (Cluster Lifecycle and Upgrade Operations) | pending | |
-| chapter-02-placeholder.md (Incident Response and Game Day Execution) | pending | |
-| chapter-03-placeholder.md (Capacity Planning and Forecasting) | pending | |
+| chapter-01-placeholder.md (Cluster Lifecycle and Upgrade Operations) | done | medium |
+| chapter-02-placeholder.md (Incident Response and Game Day Execution) | done | none |
+| chapter-03-placeholder.md (Capacity Planning and Forecasting) | done | medium |
 | chapter-04-placeholder.md (GPU Memory and Utilization Troubleshooting) | done | high (unauthored stub) |
 | chapter-05-placeholder.md (Network Reliability and Fabric Validation) | done | high (unauthored stub) |
 | chapter-06-placeholder.md (Cost Optimization and Resource Efficiency) | done | high (unauthored stub) |
