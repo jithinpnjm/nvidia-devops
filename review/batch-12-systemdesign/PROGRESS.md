@@ -32,18 +32,18 @@ Volumes: F-08 (`docs/volume-08`), F-09 (`docs/volume-09`), ZTH-23 (`docs/nvidia-
 | F-09 | 08-chapter-8-solutions-architecture-whiteboard-method.md | done | none |
 | F-09 | 09-chapter-9-customer-discovery-interview.md | done | none |
 | F-09 | 10-chapter-10-behavioral-and-stakeholder-stories.md | done | none |
-| F-09 | 11-chapter-11-question-bank-foundations-to-sa-depth.md | pending | |
-| F-09 | 12-chapter-12-45-minute-mock-interview-structure.md | pending | |
-| F-09 | 13-senior-interview-method-clarify-model-hypothesize-test-recommend.md | pending | |
-| F-09 | 14-question-set-a-linux-and-host-mechanics.md | pending | |
-| F-09 | 15-question-set-b-python-coding-and-production-automation.md | pending | |
-| F-09 | 16-question-set-c-kubernetes-platform-depth.md | pending | |
-| F-09 | 17-question-set-d-gpu-and-accelerated-networking.md | pending | |
-| F-09 | 18-question-set-e-ai-inference-architecture.md | pending | |
-| F-09 | 19-question-set-f-customer-architecture-and-poc.md | pending | |
-| F-09 | 20-question-set-g-whiteboard-production-genai-platform.md | pending | |
-| F-09 | 21-question-set-h-behavioral-stories-for-a-senior-sa.md | pending | |
-| F-09 | 22-current-role-family-signals-to-be-able-to-discuss.md | pending | |
+| F-09 | 11-chapter-11-question-bank-foundations-to-sa-depth.md | done | none |
+| F-09 | 12-chapter-12-45-minute-mock-interview-structure.md | done | none |
+| F-09 | 13-senior-interview-method-clarify-model-hypothesize-test-recommend.md | done | none |
+| F-09 | 14-question-set-a-linux-and-host-mechanics.md | done | 1 medium |
+| F-09 | 15-question-set-b-python-coding-and-production-automation.md | done | none |
+| F-09 | 16-question-set-c-kubernetes-platform-depth.md | done | none |
+| F-09 | 17-question-set-d-gpu-and-accelerated-networking.md | done | none |
+| F-09 | 18-question-set-e-ai-inference-architecture.md | done | none |
+| F-09 | 19-question-set-f-customer-architecture-and-poc.md | done | none |
+| F-09 | 20-question-set-g-whiteboard-production-genai-platform.md | done | none |
+| F-09 | 21-question-set-h-behavioral-stories-for-a-senior-sa.md | done | none |
+| F-09 | 22-current-role-family-signals-to-be-able-to-discuss.md | done | none |
 | ZTH-23 | index.md | pending | |
 | ZTH-23 | chapter-01-gpu-architecture-deep-dive.md | pending | |
 | ZTH-23 | chapter-02-cuda-programming-and-optimization.md | pending | |

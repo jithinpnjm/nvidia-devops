@@ -102,3 +102,44 @@ No issues found.
 
 ### 10-chapter-10-behavioral-and-stakeholder-stories.md
 No issues found.
+
+### 11-chapter-11-question-bank-foundations-to-sa-depth.md
+No issues found. Model answers (load average, driver-to-K8s GPU trace, GPU util as poor HPA trigger, RDMA pairwise diagnosis) all technically accurate.
+
+### 12-chapter-12-45-minute-mock-interview-structure.md
+No issues found. Timing math consistent (5+10+12+11+5+2=45).
+
+### 13-senior-interview-method-clarify-model-hypothesize-test-recommend.md
+No issues found.
+
+### 14-question-set-a-linux-and-host-mechanics.md
+- [SEVERITY: medium] The "disk 70% full yet writes fail" worked scenario's third branch (ext4 reserved-blocks) is technically imprecise: it claims `df -h` can show free space while a non-root writer hits ENOSPC purely because of the ~5% root-reserved blocks. In reality, GNU `df`'s "Avail"/Use% columns are computed from `statvfs.f_bavail`, which already excludes root-reserved blocks for a non-privileged caller — so `df -h` would already show reduced/zero availability once only reserved blocks remain, not "free space" that then unexpectedly fails. The reserved-blocks mechanism actually manifests the opposite way (root can write into space `df` reports as unavailable to normal users), not as a discrepancy where df says free but a normal write fails.
+  - Evidence: "a reserved-blocks percentage (`tune2fs -l` shows `Reserved block count`... a non-root writer can hit ENOSPC while `df` still shows 'free' space that's actually root-reserved)" and the diagram's "Mechanism: ext-family reserves ~5% of blocks for root. df shows it as used, but a non-root writer can't touch it."
+  - Why it matters for JR2018680: this is presented as a memorized three-branch diagnostic ("inode / RO-remount / reserved-blocks") for a classic Linux troubleshooting question; a candidate citing the reserved-blocks branch exactly as written could be corrected by an interviewer who knows `df` already nets out reserved blocks in Avail.
+  - Suggested fix: reframe the third branch as "reserved blocks make df's reported Avail lower than the raw free-block count would suggest" (already accounted for) rather than a case where df misleadingly shows free space; or replace with a genuinely distinct third mechanism (e.g. quota, or a filesystem where du/df disagree due to deleted-but-open files holding blocks).
+
+### 15-question-set-b-python-coding-and-production-automation.md
+No issues found. Note: this chapter defines the `summarize()` function that Chapter 2's Practice question 3 refers to by name — the cross-reference exists but isn't signposted between chapters (see Chapter 2 finding above).
+
+### 16-question-set-c-kubernetes-platform-depth.md
+No issues found. "Driver/library version mismatch" NVML error and device-plugin CrashLoopBackOff chain are accurate.
+
+### 17-question-set-d-gpu-and-accelerated-networking.md
+No issues found. Xid 79 correctly described as "GPU has fallen off the bus" (matches NVIDIA's actual Xid code table — this is a specific area a prior batch found an error in, verified correct here). `nvidia-smi dmon`/throttle-reason and `nvidia-smi topo -m` reasoning both accurate.
+
+### 18-question-set-e-ai-inference-architecture.md
+No issues found. Disaggregated prefill/decode and KV-cache-pressure-under-concurrency reasoning both accurate.
+
+### 19-question-set-f-customer-architecture-and-poc.md
+No issues found.
+
+### 20-question-set-g-whiteboard-production-genai-platform.md
+No issues found.
+
+### 21-question-set-h-behavioral-stories-for-a-senior-sa.md
+No issues found.
+
+### 22-current-role-family-signals-to-be-able-to-discuss.md
+No issues found.
+
+**F-09 volume complete.** 22/22 chapters reviewed. 1 low-severity (stale function name cross-reference), 1 medium-severity (df reserved-blocks mechanism imprecision).
