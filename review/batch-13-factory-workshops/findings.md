@@ -117,3 +117,10 @@
   - Evidence: Line ~92-101.
   - Why it matters for JR2018680: Minor, but an interviewer asking "walk me through that annualization" would expose the unstated assumption.
   - Suggested fix: State the assumed operating days/year explicitly (or use 365 and update the derived annual figures).
+
+### chapter-13-reference-architecture-100-gpu-training-cluster.md
+- [SEVERITY: high] RECURRENCE of the 1000x unit-magnitude-slip pattern in the chapter's own cost-per-TFLOP figure. "Cost per TFLOP: $6.11M / (128 × 989 TFLOPS) = $48.1K per TFLOP" — verified: 6.11e6 / (128×989) = **$48.27 per TFLOP**, not $48.1K (i.e. not $48,100). This is also inconsistent with Chapter 2 of the same volume, which correctly computes the per-GPU figure as "$30 per TFLOP" (no "K") for a single H100 — a cluster-level $/TFLOP in the tens of thousands would be wildly out of line with that.
+  - Evidence: Line ~97 (Hardware Cost Breakdown).
+  - Why it matters for JR2018680: Same 1000x-slip pattern as flagged elsewhere in this volume (Ch. 2, Ch. 8, Ch. 12); a cost-per-compute metric is exactly the kind of number a systems-design interview would sanity-check against a simple order-of-magnitude estimate.
+  - Suggested fix: Correct to ≈$48/TFLOP (drop the erroneous "K").
+- Rest of chapter (topology diagram, deployment checklist, power draw 16×3.86kW=61.8kW, cost per GPU $47.7K) checks out arithmetically and is consistent with the rest of Volume 21.
