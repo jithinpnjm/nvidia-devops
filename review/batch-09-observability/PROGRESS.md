@@ -38,8 +38,8 @@ Volumes: F-07 (`docs/volume-07`), ZTH-16 (`docs/nvidia-zero-to-hero/volume-16`),
 | ZTH-16 | chapter-12-incident-response-and-postmortems.md | done | none |
 | ZTH-16 | labs/lab-01-setting-up-dcgm-and-prometheus-for-gpu-monitoring.md | done | none |
 | ZTH-16 | labs/lab-02-building-and-interpreting-gpu-dashboards.md | done | medium x1 |
-| ZTH-16 | labs/lab-03-profiling-gpu-performance-and-optimization.md | pending | |
-| ZTH-16 | labs/lab-04-incident-response-simulation.md | pending | |
+| ZTH-16 | labs/lab-03-profiling-gpu-performance-and-optimization.md | done | high x1 |
+| ZTH-16 | labs/lab-04-incident-response-simulation.md | done | none |
 | ZTH-17 | index.md | pending | |
 | ZTH-17 | chapter-01-placeholder.md (Performance Engineering Fundamentals) | pending | |
 | ZTH-17 | chapter-02-placeholder.md | pending | |
