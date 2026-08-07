@@ -125,8 +125,8 @@ Nsight Compute shows ILP as "FLOPs per instruction": high ILP = multiple FLOPs p
 ```
 Nsight Compute output:
   Occupancy: 50%
-  Achieved TFLOPS: 45
-  Roofline target: 141
+  Achieved TFLOPS: 21.4
+  Roofline target: 67 (H100 SXM5 FP32 peak)
   Register count: 120 per thread
   ILP: 2.1 FLOPS/instruction
 ```
