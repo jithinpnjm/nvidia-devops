@@ -19,7 +19,7 @@ no content) alongside the real chapter files. These are excluded from review as 
 | ZTH-21 | chapter-11-capacity-planning-and-forecasting.md | done | high:1, medium:1 |
 | ZTH-21 | chapter-12-cost-optimization-and-resource-efficiency.md | done | high:1, low:2 (PFLOPS 45x slip recurrence) |
 | ZTH-21 | chapter-13-reference-architecture-100-gpu-training-cluster.md | done | high:1 (1000x $/TFLOP slip recurrence) |
-| ZTH-21 | chapter-14-reference-architecture-multi-region-inference-deployment.md | pending | |
+| ZTH-21 | chapter-14-reference-architecture-multi-region-inference-deployment.md | done | high:1 (cost/1M-tokens slip recurrence, drives closing claim) |
 | ZTH-21 | labs/lab-01-cluster-design-workshop.md | pending | |
 | ZTH-21 | labs/lab-02-networking-simulation.md | done | high:1 (recurrence of AllReduce bandwidth-math pattern) |
 | ZTH-21 | labs/lab-03-storage-pipeline-design.md | pending | |
