@@ -170,12 +170,12 @@ import torch
 import torch.cuda
 import time
 
-# Requires: nvidia-cuda-gds library or cuFile
+# Requires: RAPIDS kvikio (the real-world Python binding for cuFile/GDS)
 try:
-    from nvidia_gds import cuFile
+    from kvikio import CuFile
     HAS_GDS = True
 except ImportError:
-    print("Warning: nvidia_gds not available, skipping GDS test")
+    print("Warning: kvikio not available, skipping GDS test")
     HAS_GDS = False
 
 if HAS_GDS:
@@ -189,20 +189,19 @@ if HAS_GDS:
     
     # GDS read
     times = []
-    with cuFile.CuFileDriver() as driver:
-        with driver.open(INPUT_FILE) as f:
-            for trial in range(5):
-                torch.cuda.synchronize()
-                t0 = time.time()
-                
-                # Direct read into GPU buffer (no CPU copy)
-                bytes_read = f.read(buffer_size, gpu_buffer.data_ptr(), buffer_size)
-                torch.cuda.synchronize()
-                
-                elapsed = time.time() - t0
-                times.append(elapsed)
-                
-                print(f"Trial {trial+1}: {elapsed:.3f}s, throughput: {buffer_size/1e6/elapsed:.0f} MB/s")
+    with CuFile(INPUT_FILE, "rb") as f:
+        for trial in range(5):
+            torch.cuda.synchronize()
+            t0 = time.time()
+
+            # Direct read into GPU buffer (no CPU copy)
+            bytes_read = f.read(gpu_buffer)
+            torch.cuda.synchronize()
+
+            elapsed = time.time() - t0
+            times.append(elapsed)
+
+            print(f"Trial {trial+1}: {elapsed:.3f}s, throughput: {buffer_size/1e6/elapsed:.0f} MB/s")
     
     print(f"Average: {sum(times)/len(times):.3f}s, Avg throughput: {buffer_size/1e6/(sum(times)/len(times)):.0f} MB/s")
 EOF

@@ -33,7 +33,7 @@ flowchart LR
 
 ## 8.2 DOCA: the DPU security framework
 
-DOCA (Data Center GPU Accelerated) is NVIDIA's SDK for DPU applications. It provides security services:
+DOCA (Data Center-on-a-Chip Architecture) is NVIDIA's SDK for DPU applications. It provides security services. Note: the `doca-firewall`/`doca-crypto`/`doca-attest`/`doca-telemetry` commands below are illustrative shorthand for this chapter, not literal DOCA CLI tools — the real DOCA SDK exposes these capabilities through libraries (e.g., DOCA Flow, DOCA IPsec) and BlueField's `ovs-doca`/`mlnx` tooling, invoked from applications built against the DOCA SDK rather than a single unified CLI verb.
 
 **DOCA Firewall:** Enforces packet filtering rules independent of host.
 

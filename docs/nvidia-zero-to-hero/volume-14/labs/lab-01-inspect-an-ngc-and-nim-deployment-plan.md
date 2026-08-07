@@ -74,7 +74,7 @@ sizing:
   gpu_available_gb: 40  # A100
   fit_check: "✓ Model fits with margin"
   
-  requests_per_gpu: 100  # Expected throughput
+  requests_per_gpu: 50  # Expected throughput
   total_replicas_needed: 2  # 100 req/sec / 50 req/gpu
   
   node_count: 1

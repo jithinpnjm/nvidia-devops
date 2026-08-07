@@ -106,7 +106,9 @@ Group 11:
 
 SR-IOV (Single-Root I/O Virtualization) allows one physical PCIe device (PF = Physical Function) to present multiple virtual devices (VFs = Virtual Functions) to VMs or containers. Each VF appears to be an independent GPU.
 
-**Example: A100 GPU with SR-IOV**
+**Important:** the walkthrough below shows generic Linux SR-IOV mechanics (`sriov_numvfs`, manual VF unbind, raw `vfio-pci` passthrough) to illustrate the IOMMU isolation concept — it is not how NVIDIA's supported data-center GPU virtualization is deployed in production. NVIDIA data-center GPU SR-IOV is normally consumed internally by the **NVIDIA vGPU Manager** (installed in the hypervisor), which creates mediated devices (mdev) for licensed vGPU profiles rather than exposing raw VFs for manual `vfio-pci` passthrough. If vGPU licensing isn't in use, the common alternative for full isolation is **whole-GPU passthrough** (assign an entire physical GPU to one VM), not manual SR-IOV VF slicing. Treat what follows as "how SR-IOV/IOMMU isolation works underneath," not as NVIDIA's supported vGPU deployment procedure.
+
+**Example: A100 GPU with SR-IOV (illustrative mechanics, not the supported NVIDIA vGPU deployment path)**
 
 ```bash
 # Check if GPU supports SR-IOV

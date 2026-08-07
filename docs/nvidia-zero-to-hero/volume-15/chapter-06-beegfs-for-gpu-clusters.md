@@ -23,7 +23,7 @@ BeeGFS is a parallel filesystem designed for simpler deployment than Lustre whil
 flowchart TD
     Client["GPU Node Client<br/>Issues read/write/metadata requests"]
     
-    MetaService["Metadata Service (MDS)<br/>Holds file tree, permissions, stripe info<br/>Capacity: 50K–100K ops/sec<br/>Bottleneck risk: similar to Lustre single MDS"]
+    MetaService["Metadata Service (MDS)<br/>Holds file tree, permissions, stripe info<br/>Capacity: 50K–100K ops/sec per MDS<br/>Scales out: BeeGFS supports multiple MDSs<br/>Bottleneck risk: saturation if MDS count isn't scaled with cluster size"]
     
     StorageService["Storage Service (OSS)<br/>Manages storage targets<br/>Capacity: 500 MB/s–2 GB/s per storage node<br/>Bottleneck risk: target imbalance or network"]
     
@@ -206,11 +206,13 @@ watch -n 1 'df -h /beegfs/checkpoints/'  # Watch available space during checkpoi
 
 | Aspect | BeeGFS | Lustre |
 |---|---|---|
-| **Metadata scalability** | Single MDS, limited to ~50–100K ops/sec | Multiple MDSs with DNE, scales to 500K+ ops/sec |
+| **Metadata scalability** | Distributed metadata: multiple MDSs supported, each ~50–100K ops/sec; scaling is manual (add MDS nodes, spread directories) | Multiple MDTs with DNE, scales to 500K+ ops/sec with more built-in namespace distribution tooling |
 | **Operational complexity** | Simpler: fewer moving parts, easier to add targets | Complex: DNE, recovery procedures, MDS rebalancing |
 | **Striping flexibility** | Simple round-robin, global default | Per-file stripe count, OST-specific preferences |
 | **Failure recovery** | Faster (smaller metadata footprint) | Slower but more resilient |
 | **AI fit** | Good for modest-scale (100–500 GPUs), sequential workloads | Excellent for large-scale (1000+ GPUs), mixed workloads |
+
+**Where GPFS, WEKA, and VAST fit.** This volume focuses on Lustre and BeeGFS because they're the most common open-ecosystem parallel filesystems in AI clusters, but NVIDIA reference architectures (e.g., DGX SuperPOD storage partners) also commonly use: **IBM Storage Scale (GPFS)** — a mature, POSIX-compliant distributed metadata filesystem similar in spirit to Lustre's DNE, popular in enterprises with existing GPFS/HPC investment; **WEKA** — a software-defined parallel filesystem built around fully distributed metadata (no single MDS-class bottleneck at all) and NVMe-first design, commonly deployed for GPU training/inference where extreme small-file and metadata performance matters; and **VAST Data** — a disaggregated, all-flash architecture with a shared-everything metadata approach and native S3/NFS access, popular for large multi-tenant AI data platforms that also need object-store semantics. The evaluation axes are the same ones this chapter uses for BeeGFS vs. Lustre: metadata scalability model (single vs. distributed vs. fully disaggregated), operational complexity, and cost-per-GB vs. cost-per-IOP trade-offs — WEKA and VAST generally trade higher cost-per-GB for higher metadata/small-file throughput and simpler scaling than either Lustre or BeeGFS.
 
 ## Troubleshooting Table
 
@@ -225,7 +227,7 @@ watch -n 1 'df -h /beegfs/checkpoints/'  # Watch available space during checkpoi
 
 **Q: You're deploying BeeGFS for a 256-GPU cluster. What's your single biggest risk, and how do you mitigate it?**
 
-A: "Metadata saturation. With 256 GPUs opening files in parallel during epoch start, metadata operations will spike to 200K+ ops/sec. BeeGFS's single MDS can handle ~50K ops/sec, so I'll hit a ceiling at 1/4 of the load. The fix is dataset repackaging: convert millions of small files into a few hundred large shards (using WebDataset, TFRECORD, or `.tar.gz` files). This reduces metadata ops by 100x during epoch start, keeping the MDS below 5K ops/sec even at full scale. Second mitigation: use multiple BeeGFS management services (MGMTs) for high availability, but that doesn't help with a single MDS. So, dataset repackaging is non-optional for any scale beyond 100 GPUs."
+A: "Metadata saturation. With 256 GPUs opening files in parallel during epoch start, metadata operations will spike to 200K+ ops/sec. Each BeeGFS MDS handles ~50K ops/sec, so with a single MDS I'll hit a ceiling at 1/4 of the load. BeeGFS does support running multiple metadata services and spreading directories across them, so the first mitigation is scaling out to 4+ MDSs to cover the peak. But adding MDSs only buys headroom — it doesn't fix the root cause, which is opening millions of small files at once. The real fix is dataset repackaging: convert millions of small files into a few hundred large shards (using WebDataset, TFRECORD, or `.tar.gz` files). This reduces metadata ops by 100x during epoch start, keeping even a single MDS below 5K ops/sec at full scale. So: scale out MDS count for headroom, but treat dataset repackaging as non-optional for any scale beyond 100 GPUs."
 
 **Q: Your BeeGFS cluster has 8 storage nodes, each with 10 TB, but aggregated stripe width is only 2 targets. Why is this a problem, and how do you fix it?**
 

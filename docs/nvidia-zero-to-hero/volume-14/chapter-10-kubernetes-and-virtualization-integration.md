@@ -74,8 +74,11 @@ $ kubectl run gpu-test -it --image=nvidia/cuda:12.4.1-runtime-ubuntu22.04 \
 # Example: vGPU profile assignment
 vmware_vgpu_config:
   vm_name: "k8s-node-gpu-1"
-  vgpu_profile: "NVIDIA-A100-40-4MIG"  # Time-shared A100, 4 MIG instances
-  # This profile allows 4 VMs to share same A100
+  vgpu_profile: "A100D-40C"  # NVIDIA vGPU compute profile, 1/4 of an A100-40GB per VM
+  # vGPU (hypervisor-level time/space-sliced profiles like A100D-40C) and MIG
+  # (hardware spatial partitioning) are different, combinable mechanisms —
+  # vGPU can itself be backed by MIG instances on MIG-capable GPUs, but the
+  # profile name/mechanism should not be conflated with a MIG partition name.
   
 # Inside K8s cluster on vSphere:
 # GPU Operator sees vGPU device, not bare GPU
