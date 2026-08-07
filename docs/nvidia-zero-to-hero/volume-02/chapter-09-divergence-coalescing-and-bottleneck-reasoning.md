@@ -51,13 +51,13 @@ After completing this chapter, you will be able to:
 ```mermaid
 flowchart TD
     Kernel[Kernel Work]
-    Control{Control Flow Efficient?}
-    Memory{Memory Access Efficient?}
+    Control{"Control Flow Efficient?<br/>evidence: profiler active-lane<br/>efficiency / branch efficiency"}
+    Memory{"Memory Access Efficient?<br/>evidence: profiler sectors-per-request"}
     Warp[High Active-Lane Efficiency]
     Transactions[Efficient Memory Transactions]
     WasteA[Serialized Paths]
     WasteB[Excess Transactions]
-    Result[Delivered Throughput]
+    Result["Delivered Throughput<br/>evidence: tokens/s, samples/s —<br/>not GPU-Util"]
 
     Kernel --> Control
     Control -->|Yes| Warp
@@ -68,9 +68,22 @@ flowchart TD
     Memory -->|No| WasteB
     Transactions --> Result
     WasteB --> Result
+    Result --> Gate{"nvidia-smi shows high util —<br/>does throughput match FLOPs/bandwidth?"}
+    Gate -->|"No — util high,<br/>throughput low"| BothOrEither["One or both gates are leaking:<br/>check active-lane efficiency AND<br/>sectors-per-request separately"]
+    Gate -->|"Yes"| BothPass["Both gates genuinely passing —<br/>this is close to the hardware ceiling"]
 ```
 
-**Figure 2.9.1 — Two major efficiency gates.** A workload must use both warp lanes and memory transactions efficiently to convert hardware capability into delivered throughput.
+**Figure 2.9.1 — Two major efficiency gates.** A workload must use both warp lanes and memory transactions efficiently to convert hardware capability into delivered throughput. Both gates can leak independently and simultaneously — a kernel can waste lanes to divergence *and* waste transactions to poor coalescing at the same time — which is why the closing check compares delivered application throughput (not `nvidia-smi`'s utilization number) against what the hardware's own specs would predict, and only then decides which gate to open next.
+
+**Reading both gates from one profiler pass:**
+
+```text
+$ ncu --metrics smsp__thread_inst_executed_per_inst_executed.ratio,l1tex__average_t_sectors_per_request_pipe_lsu_mem_global_op_ld.ratio ./kernel
+  smsp__thread_inst_executed_per_inst_executed.ratio               19.4
+  l1tex__average_t_sectors_per_request_pipe_lsu_mem_global_op_ld.ratio    3.2
+```
+
+The first metric is active-lane efficiency expressed as threads-executed-per-instruction out of a possible 32 — `19.4` means only about 60% of each warp's lanes are contributing useful work on average, the direct fingerprint of the "Control Flow" gate leaking. The second metric, `3.2` sectors per load request against an ideal near `1`, is the "Memory Access" gate leaking at the same time. Neither number is visible in `nvidia-smi`; both are why the same kernel can report 90%+ `GPU-Util` while delivering a small fraction of the throughput its FLOPs and bandwidth specs would suggest.
 
 ## Warp Divergence
 
