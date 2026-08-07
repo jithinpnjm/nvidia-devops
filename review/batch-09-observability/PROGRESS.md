@@ -15,14 +15,14 @@ Volumes: F-07 (`docs/volume-07`), ZTH-16 (`docs/nvidia-zero-to-hero/volume-16`),
 | F-07 | 09-chapter-9-incident-playbook-pending-pods-crashloops-and-oom.md | done | none |
 | F-07 | 10-chapter-10-incident-playbook-gpu-workload-slow-or-failing.md | done | none |
 | F-07 | 11-chapter-11-incident-communication-and-postmortem.md | done | none |
-| F-07 | 12-senior-deep-dive-1-start-with-slo-impact-and-scope.md | pending | |
-| F-07 | 13-senior-deep-dive-2-prometheus-internals-cardinality-and-query-cost.md | pending | |
-| F-07 | 14-senior-deep-dive-3-opentelemetry-and-trace-context-across-ai-services.md | pending | |
-| F-07 | 15-senior-deep-dive-4-gpu-observability-with-dcgm-and-driver-evidence.md | pending | |
-| F-07 | 16-senior-deep-dive-5-inference-observability-ttft-itl-tpot-and-saturation.md | pending | |
-| F-07 | 17-senior-deep-dive-6-incident-workflow-evidence-tree-and-safe-mitigation.md | pending | |
-| F-07 | 18-senior-deep-dive-7-alert-design-for-expensive-gpu-systems.md | pending | |
-| F-07 | 19-senior-deep-dive-8-reliability-testing-and-game-days.md | pending | |
+| F-07 | 12-senior-deep-dive-1-start-with-slo-impact-and-scope.md | done | none |
+| F-07 | 13-senior-deep-dive-2-prometheus-internals-cardinality-and-query-cost.md | done | none |
+| F-07 | 14-senior-deep-dive-3-opentelemetry-and-trace-context-across-ai-services.md | done | none |
+| F-07 | 15-senior-deep-dive-4-gpu-observability-with-dcgm-and-driver-evidence.md | done | none |
+| F-07 | 16-senior-deep-dive-5-inference-observability-ttft-itl-tpot-and-saturation.md | done | none |
+| F-07 | 17-senior-deep-dive-6-incident-workflow-evidence-tree-and-safe-mitigation.md | done | none |
+| F-07 | 18-senior-deep-dive-7-alert-design-for-expensive-gpu-systems.md | done | none |
+| F-07 | 19-senior-deep-dive-8-reliability-testing-and-game-days.md | done | none |
 | ZTH-16 | index.md | pending | |
 | ZTH-16 | chapter-01-why-gpu-observability-is-fundamentally-different.md | pending | |
 | ZTH-16 | chapter-02-signals-metrics-logs-traces-and-evidence.md | pending | |

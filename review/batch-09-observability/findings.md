@@ -49,3 +49,29 @@
 ### 11-chapter-11-incident-communication-and-postmortem.md
 - No findings. Clean root-cause vs contributing-factor vs action-item disambiguation with a concrete Xid-79 example; explicitly bans "be more careful" action items; good exec-communication worked example preserving factual load (percentages, honest hedging on root cause).
 
+### 12-senior-deep-dive-1-start-with-slo-impact-and-scope.md
+- No findings. USE vs RED framing correctly distinguished (resources vs request-driven services) and correctly mapped onto the Layer 1-4 stack from Ch.4.
+
+### 13-senior-deep-dive-2-prometheus-internals-cardinality-and-query-cost.md
+- No findings. Recording-rules write-time-vs-read-time tradeoff explained correctly; good cross-referencing discipline instead of duplicating Ch.3 content.
+
+### 14-senior-deep-dive-3-opentelemetry-and-trace-context-across-ai-services.md
+- No findings. Agentic fan-out tree vs single-request waterfall distinction is accurate and a good addition (retries must nest as children of the retried span, not siblings).
+
+### 15-senior-deep-dive-4-gpu-observability-with-dcgm-and-driver-evidence.md
+- No findings. Xid code table verified against known NVIDIA Xid semantics: 13 (Graphics Engine Exception), 31 (GPU memory page fault), 48 (double-bit ECC/uncorrectable), 62 (internal microcontroller halt), 79 (GPU fell off the bus), 94/95 (contained/uncontained ECC) — all correct codes and correct severity guidance (79/48/62 = drain immediately).
+
+### 16-senior-deep-dive-5-inference-observability-ttft-itl-tpot-and-saturation.md
+- No findings. Correct TTFT (admission+prefill, once per request) vs ITL/TPOT (per-token cadence, repeats) distinction; bottleneck-family table is genuinely GPU/inference-specific, not generic web-service latency framing.
+
+### 17-senior-deep-dive-6-incident-workflow-evidence-tree-and-safe-mitigation.md
+- No findings. Good discipline on validating recovery via the original symptom metric rather than "pods are green," with a coincidental-recovery counterexample.
+
+### 18-senior-deep-dive-7-alert-design-for-expensive-gpu-systems.md
+- No findings. Multi-signal AND-composition PromQL example (SLO breach AND queue saturation) is syntactically plausible and correctly generalizes Ch.8's two-window burn-rate AND pattern to two telemetry planes.
+
+### 19-senior-deep-dive-8-reliability-testing-and-game-days.md
+- No findings. Good chaos-engineering/game-day checklist mapped back to specific earlier chapters' evidence chains; explicit "name the hypothesis and success criteria first" discipline.
+
+**F-07 volume summary:** Consistently gold-standard depth throughout all 19 chapters — mechanism-first diagrams, annotated real-looking command output, GPU-fleet-specific SLO/alerting examples (not generic web-service framing), correct DCGM metric names and Xid codes, interview-ready lines per chapter. Only 2 real issues found in the whole volume: 1 medium (burn-rate exhaustion-time arithmetic error in Ch.8) and a low-severity cosmetic pattern (single quotes instead of double quotes in JSON/Prometheus-format code blocks, recurring across several chapters).
+
