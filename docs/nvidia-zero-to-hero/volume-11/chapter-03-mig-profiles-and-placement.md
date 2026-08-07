@@ -117,18 +117,32 @@ A customer runs three model-serving workloads on H100s. Measure each:
 Now assign profiles and calculate reserve:
 
 ```text
-Service            | Profile         | Instances | Headroom | Failure blast radius
-Embedding          | 1g.10gb         | 7 on node | 5.8GB    | one embedding pod
-Chat LLM           | 3g.40gb         | 2 on node | 29.8GB   | one LLM pod (multi-replica if HA required)
-Batch              | 7g.80gb (whole) | 1 per node| N/A      | one batch job
+Service            | Profile         | Instances per node | Headroom      | Failure blast radius
+Embedding          | 1g.10gb         | 4 on node           | 5.8GB/inst.   | one embedding pod
+Chat LLM           | 3g.40gb         | 1 on node           | 29.8GB        | one LLM pod (HA via replicas on separate nodes)
+Batch              | 7g.80gb (whole) | 1 per node          | N/A           | one batch job
 
-H100 capacity: 80GB, 14 SMs
-Layout: 7×(1g.10gb) + 2×(3g.40gb) = oversubscribed ❌
-Layout: 4×(1g.10gb) + 2×(3g.40gb) = 4 + 2×3 = 10 SMs used, 80GB used exactly ✓
+H100 capacity: 80GB memory, 7 MIG compute slices (the physical partition tree, not "14 SMs")
+
+Rejected layout: 7×(1g.10gb) + 2×(3g.40gb)
+  compute slices: 7×1 + 2×3 = 13 (> 7 available) ❌
+  memory:         7×10GB + 2×40GB = 150GB (> 80GB physical) ❌
+  → oversubscribed on both dimensions, physically impossible
+
+Accepted layout: 4×(1g.10gb) + 1×(3g.40gb)
+  compute slices: 4×1 + 1×3 = 7 (of 7 available) ✓
+  memory:         4×10GB + 1×40GB = 80GB (of 80GB physical) ✓
+  → matches NVIDIA's published simultaneous-placement table for H100 80GB
+    (one 3g.40gb instance shares the partition tree cleanly with four 1g.10gb
+    instances; there is no spare compute slice or memory slot left over)
+
 But: reserve nodes for batch jobs and maintenance
 
-Decision: 
-- 20 H100 nodes in time-sharing pool (4×embedding + 2×LLM each, 80GB packed)
+Decision:
+- 20 H100 nodes in time-sharing pool (4×embedding + 1×chat LLM each, 80GB packed;
+  chat LLM HA comes from running replicas on multiple nodes, not multiple
+  instances on one node — a single H100 has no room for a second 3g.40gb once
+  four 1g.10gb instances are placed)
 - 4 H100 nodes reserved (whole-GPU batch, maintenance rotation, spare for cluster health)
 - 24 total H100s for this service
 ```
