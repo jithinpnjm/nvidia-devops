@@ -126,3 +126,26 @@ Overall: this volume is already at gold-standard depth (matches or exceeds ZTH V
 - [SEVERITY: low] No issues found. CPU-tokenization-bottleneck scenario (single-threaded GIL-bound preprocessing masking as GPU slowness) is a realistic and well-constructed diagnostic exercise; remediation via ProcessPoolExecutor is appropriate.
 
 **ZTH-12 volume complete.**
+
+## ZTH-13 — docs/nvidia-zero-to-hero/volume-13 (Distributed Training Foundations)
+
+Note: commit d99bb03 on this branch already removed duplicated filler content from chapters 1-3; this review is against that fixed state.
+
+### index.md
+- [SEVERITY: medium] The file ends with a "Detailed Deep Dive" section (Extended Context / System Architecture Impacts / Workload Characteristics / Cluster Topology) that reads as generic, thin filler disconnected from the rest of the page's specific, well-structured content — e.g. "As data scales and model complexity expands, engineers find themselves constantly optimizing along the pareto frontier of compute, memory, and networking" contains no numbers, mechanism, or decision branch, unlike every other chapter in this volume. This looks like the same class of low-value boilerplate that commit d99bb03 already removed from chapters 1-3, just not yet cleaned from index.md.
+  - Evidence: final four subsections of index.md (lines ~69-83).
+  - Why it matters for JR2018680: depth-bar consistency — this volume's chapters are otherwise excellent (concrete math, annotated logs, first-person interview answers); a generic filler tail on the index page is the kind of thing that would stand out as unpolished if a reviewer skimmed the volume's landing page.
+  - Suggested fix: remove or replace the "Detailed Deep Dive" tail section with volume-specific content, consistent with the rest of the index page.
+
+### chapter-01-why-distributed-training-exists.md
+- [SEVERITY: low] No issues found. Verified math: 175B×4 bytes=700GB (8.75× over 80GB H100); 7B-model Adam memory breakdown (28+28+56=~180-190GB with activations) is order-of-magnitude correct; FLOPs calc (2×175B×2048×2048≈1.46×10^18, ÷312 TFLOPS≈4679s≈78min, ÷128 GPUs≈37s) all check out arithmetically.
+
+### chapter-02-training-memory-and-compute-anatomy.md
+- [SEVERITY: low] No issues found. Memory-phase breakdown (forward/backward/optimizer step) and AMP before/after numbers are internally consistent and directionally correct (Adam 4×28GB=112GB bottleneck explanation is accurate and matches the standard "why ZeRO-1 exists" reasoning).
+
+### chapter-03-data-parallelism-and-ddp.md
+- [SEVERITY: high] The Ring All-Reduce communication-volume/time worked example is arithmetically wrong by approximately 8×, and this is precisely the "communication volume per collective operation" math the interview-prep brief for this batch calls out as critical to get right.
+  - Evidence: "Each reduction phase: 2 * (28GB / 4) = 14 GB per GPU ... Total network traffic = 6 × 14 GB × 4 GPUs = 336 GB ... Time on 900 GB/s link = 336 GB / 900 GB/s ≈ 373 ms."
+  - The standard ring-AllReduce formula is: total data moved per GPU = 2×(N-1)/N × tensor_size. For N=4, size=28GB: 2×3/4×28 = **42 GB per GPU**, giving time ≈ 42GB / 900GB/s ≈ **46.7 ms**, not 336GB/373ms. The chapter's derivation double-applies the factor of 2 (once inside the "14 GB per GPU" term, again via the "6 steps" multiplier which already encodes 2(N-1)) and then further multiplies by GPU count (×4), compounding to an 8× overstatement of both total traffic and wall-clock time.
+  - Why it matters for JR2018680: this is exactly the kind of AllReduce bandwidth-math question flagged as expected interview depth; a candidate who memorized "336 GB / 373 ms for a 28GB gradient tensor over 4 GPUs on NVLink" would give a wrong answer under direct questioning, and the error compounds into the chapter's downstream "efficiency" framing (the 373ms figure is then used to justify a 95.7% claimed efficiency figure in the "real observed speedup" section, though that section's raw throughput numbers are independent and not verifiable from the doc alone).
+  - Suggested fix: recompute using total per-GPU data = 2(N-1)/N × size; correct the "336 GB" and "373 ms" figures (and re-check the derived "3% overhead" / "87.5% efficiency" statement that follows from them).

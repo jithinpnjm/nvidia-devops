@@ -38,10 +38,10 @@ Volumes: F-05 (`docs/volume-05`), ZTH-12 (`docs/nvidia-zero-to-hero/volume-12`),
 | ZTH-12 | labs/lab-02-benchmark-dynamic-batching.md | done | low |
 | ZTH-12 | labs/lab-03-deploy-an-llm-with-vllm.md | done | low |
 | ZTH-12 | labs/lab-04-troubleshoot-a-slow-inference-pipeline.md | done | low |
-| ZTH-13 | index.md | pending | |
-| ZTH-13 | chapter-01-why-distributed-training-exists.md | pending | |
-| ZTH-13 | chapter-02-training-memory-and-compute-anatomy.md | pending | |
-| ZTH-13 | chapter-03-data-parallelism-and-ddp.md | pending | |
+| ZTH-13 | index.md | done | medium |
+| ZTH-13 | chapter-01-why-distributed-training-exists.md | done | low |
+| ZTH-13 | chapter-02-training-memory-and-compute-anatomy.md | done | low |
+| ZTH-13 | chapter-03-data-parallelism-and-ddp.md | done | high |
 | ZTH-13 | chapter-04-fsdp-and-parameter-sharding.md | pending | |
 | ZTH-13 | chapter-05-deepspeed-and-zero.md | pending | |
 | ZTH-13 | chapter-06-tensor-pipeline-and-expert-parallelism.md | pending | |
