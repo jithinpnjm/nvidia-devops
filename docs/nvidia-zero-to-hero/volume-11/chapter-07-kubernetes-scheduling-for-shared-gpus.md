@@ -357,6 +357,27 @@ They make the requested capacity unit explicit. A full GPU, a MIG profile, and a
 
 Running proves that the scheduler and kubelet completed placement and startup. It says nothing about SLO compliance, resource-class correctness, interference, license health, or application readiness.
 
+### NVIDIA Operational Reference — Run:ai
+
+**What it is**
+Run:ai is a workload-orchestration and scheduling layer that sits on top of Kubernetes, adding queueing, fractional-GPU allocation, fairness policies, and quota management across teams and projects. NVIDIA acquired Run:ai and is integrating it into its enterprise AI platform stack.
+
+**Why an SA should recognize it**
+Customers running shared GPU clusters often ask why the default Kubernetes scheduler cannot guarantee fair-share access or dynamic quota across teams. Run:ai is a common answer, and interviewers may probe whether a candidate conflates it with a GPU-sharing mechanism.
+
+**Where it fits**
+It replaces or augments the default Kubernetes scheduler and sits above the device plugin and node resource model described earlier in this chapter. **Run:ai is not a GPU-sharing mechanism itself** — it does not create MIG instances or time-sliced replicas. It decides which workload gets access to which already-published resource (a full GPU, a MIG profile, or a time-sliced replica), and enforces fairness, priority, and quota across those requests.
+
+**You should be able to**
+- recognize Run:ai as a scheduler/fairness/quota layer, not a sharing mechanism
+- explain that MIG and time-slicing (Chapters 2–4 of this volume) are the underlying mechanisms Run:ai allocates across
+- identify quota, queue depth, and fair-share reports as the relevant evidence sources when a customer asks "why is my job waiting"
+- know when to involve a specialist: complex multi-tenant scheduling policy design or Run:ai-specific integration issues belong with the platform/partner team, not general Kubernetes troubleshooting
+
+**Go deeper**
+- Search NVIDIA's documentation for "Run:ai platform" and "Run:ai Kubernetes scheduler" for current architecture and integration details
+- [Comparing MIG, Time-Slicing, and vGPU](./chapter-06-comparing-mig-time-slicing-and-vgpu) and [Kubernetes Scheduling for Shared GPUs](./chapter-07-kubernetes-scheduling-for-shared-gpus) (this chapter) for the underlying mechanisms Run:ai schedules across
+
 ## Key takeaways
 
 - Kubernetes schedules resource names and policy constraints, not an implicit sharing promise.

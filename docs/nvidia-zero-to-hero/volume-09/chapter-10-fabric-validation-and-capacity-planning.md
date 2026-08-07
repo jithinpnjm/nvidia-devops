@@ -213,6 +213,14 @@ Present normal and degraded-state behavior separately. A customer may consciousl
 
 "In a non-production or carefully scoped maintenance window, I'd actually drain the specific link or spine the N-1 claim depends on — not simulate it on paper — and rerun the exact same collective/application matrix used for the normal-state baseline, capturing the same evidence set. I'd calculate the expected degraded ratio beforehand so I know what to expect — going from a 4:1 to a 4.57:1 downlink-to-uplink ratio after one uplink drain, for instance — and then confirm the measured tail latency and queue evidence actually land in a range consistent with that math, not just 'nothing crashed.' If I can't safely drain a real link, the honest answer is that the N-1 claim is unverified, not verified-by-inference — I wouldn't sign off on a resilience number I hadn't actually measured under the failure it claims to tolerate."
 
+### NVIDIA Operational Reference — NetQ and NVIDIA Air
+
+**NetQ.** NetQ is NVIDIA's network validation and telemetry tool for Ethernet fabrics — it continuously checks fabric health (routing state, ECMP membership, interface errors, configuration drift) and gives operators a fleet-wide view rather than one switch at a time. Where this chapter's validation ladder asks "what evidence proves the fabric is healthy," NetQ is one of the standard tools that collects and correlates that evidence across the whole fabric — conceptually the Ethernet-fabric counterpart to a dedicated fabric-management tool, the way InfiniBand deployments rely on UFM (Volume 08) for a similar fleet-wide view. An SA should recognize NetQ by name as "the fleet-wide Ethernet validation/telemetry tool," know it can surface the kind of drift and ECMP-membership evidence discussed above, and know that deep NetQ deployment or query design is a specialist task, not something to improvise live.
+
+**NVIDIA Air.** NVIDIA Air is a network simulation and digital-twin platform for modeling a fabric design — topology, cabling, and configuration — before it is physically built or changed. It lets a design be validated on paper (or rather, in simulation) before committing rack time and cabling labor to it. Treat it as a pre-deployment design-validation tool that complements, but does not replace, the physical acceptance ladder described in this chapter: a design that simulates cleanly in Air still needs the physical-to-collective evidence chain run on real hardware before it is accepted into production.
+
+**Go deeper:** search NVIDIA's documentation for "NetQ" and "NVIDIA Air" for current capabilities and licensing.
+
 ## Key Takeaways
 
 - Validate from physical links through the real application, retaining evidence at every layer.
