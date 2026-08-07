@@ -200,27 +200,54 @@ There is no universal winner. The correct design satisfies the workload under cu
 
 ### Knowledge
 
-- Explain PCIe root complexes and NUMA locality.
-- Distinguish NVLink, NVSwitch, DMA, RDMA, and GPUDirect.
-- Explain memory registration and completion semantics.
-- Describe the role of ConnectX adapters.
-- Explain NCCL rings and trees conceptually.
+**Explain PCIe root complexes and NUMA locality.**
+> "A PCIe root complex is where the CPU connects to the I/O hierarchy — it's the host entry point for every device attached to that socket. NUMA locality means device access isn't uniform: a device attached to socket 0's root complex is 'local' to CPU cores and memory on socket 0 (distance 10), but remote to socket 1 (distance ~21x that cost), which matters for every DMA transfer because the path between device and memory goes through the CPU that owns that memory controller."
+
+**Distinguish NVLink, NVSwitch, DMA, RDMA, and GPUDirect.**
+> "NVLink is a point-to-point high-bandwidth GPU-to-GPU link. NVSwitch creates a switched fabric from those links so every GPU-pair connection gets strong throughput instead of relying on a sparse graph of direct links. DMA lets any device move bytes after CPU setup, without CPU copying every byte. RDMA extends that across a network: a remote system can read or write registered memory without the CPU on the receiving end copying the bytes. GPUDirect is NVIDIA's family of extensions that let network and storage devices DMA directly to/from GPU memory instead of bouncing through host buffers. They're all separate concepts, even though they're often mentioned together."
+
+**Explain memory registration and completion semantics.**
+> "Before a device can DMA into a buffer, the OS and driver register that memory region — map it, pin it, mark it accessible. Completion means the device signals that the transfer finished and the data is safe to read. Without explicit completion semantics, software can't know whether the payload is actually in GPU memory yet or whether the DMA is still in flight. Ordering matters: a GPU kernel that runs before a RDMA write finishes will read stale data."
+
+**Describe the role of ConnectX adapters.**
+> "ConnectX adapters are network interface cards that do far more than move bits on the wire. They have built-in packet handling, queue structures (SQ/RQ/CQ), memory regions for RDMA, support for GPUDirect RDMA so they can talk directly to GPU memory, optional offloads like TSO or checksum handling, and extensive counters for telemetry. They're not just 'a NIC' — they're the device that makes RDMA and GPU-Direct RDMA possible and efficient."
+
+**Explain NCCL rings and trees conceptually.**
+> "A ring collective has each rank sending to one neighbor and receiving from another, so multiple hops are pipelined for large messages and everyone stays busy. A tree collective reduces communication steps by routing through a tree structure — logarithmic in the number of ranks — so it's faster for small messages that have high per-hop latency. NCCL picks the algorithm that fits the message size and topology. The key insight is that 'fast collective' and 'optimal algorithm' aren't synonyms — the right algorithm depends on what's actually slow in this topology at this message size."
 
 ### Architecture
 
-- Design an eight-GPU node with GPU-to-NIC affinity.
-- Design a multi-rack training fabric.
-- Explain how storage traffic should be isolated or scheduled.
-- Define a topology-aware scheduler policy.
-- Define acceptance tests for a new GPU node.
+**Design an eight-GPU node with GPU-to-NIC affinity.**
+> "I'd start with `nvidia-smi topo -m` to identify which NICs are PIX (local) to which GPU groups. On a dual-socket 8-GPU node, I'd expect roughly 4 GPUs per socket, one NIC local to each socket. I'd pin data loaders and communication ranks so GPU0-3 use NIC0 and GPU4-7 use NIC1, avoiding cross-socket traffic for every collective. Then I'd validate the assignment with a pairwise test: confirm point-to-point RDMA performance is consistent within each GPU-NIC group, and degraded across groups."
+
+**Design a multi-rack training fabric.**
+> "I'd design intra-node communication over NVLink/NVSwitch (fast, high bandwidth), use hierarchical collectives so each node's gradient gets reduced locally first, then a single per-node aggregate crosses the fabric, reducing inter-node traffic volume. Fabric-wise, I'd use either 3:1 oversubscribed InfiniBand if latency is the requirement, or RoCE Ethernet with PFC/ECN if cost matters and the workload tolerates occasional tail latency. And I'd make sure NICs are pinned to GPU groups: not all 64 GPUs going through 2 shared adapters — that's a bottleneck waiting to happen."
+
+**Explain how storage traffic should be isolated or scheduled.**
+> "Storage I/O can dominate host memory bandwidth and CPU cache if it's not managed. In a shared cluster, I'd separate storage-heavy jobs to their own node pool or use QoS limits so they don't starve compute-focused jobs. Alternatively, tier data: keep hot training samples in memory or a fast local cache, and only use the high-performance storage path for bulk offline reads (checkpoints, rare data reloads), not constant in-epoch access."
+
+**Define a topology-aware scheduler policy.**
+> "The scheduler should preserve GPU groups that share strong NVLink/NVSwitch connectivity — force jobs to use 4 or 8 GPUs from the same NVSwitch mesh, not arbitrary scattered GPUs. Label nodes by their strong-group granule, then use affinity and anti-affinity rules in the scheduler to ensure ranks are mapped to CPUs and NICs in the same NUMA node as their assigned GPU. And have explicit 'reserve group' vs 'fragment' policies: either keep a group intact or say it's unavailable, rather than letting the scheduler quietly fragment it and the job discover later that performance is terrible."
+
+**Define acceptance tests for a new GPU node.**
+> "Acceptance should validate topology (topo matrix stable against baseline), PCIe link negotiation (all devices at expected generation and width), peer access (all GPU pairs read OK in the p2p matrices), collective throughput (nccl-tests at typical message sizes shows expected busbw), storage path (GDS supported and reading at expected throughput), and network path (ib_write_bw or perftest achieves expected RDMA bandwidth). I'd run that battery on every new node before it enters production, and store the baseline; any regression or deviation from later runs gets flagged."
 
 ### Troubleshooting
 
-- Host RDMA passes, but GPU collectives fail.
-- One rank is consistently slower.
-- Performance changed after a firmware update.
-- GPU utilization falls during checkpointing.
-- NCCL selects an unexpected interface.
+**Host RDMA passes, but GPU collectives fail.**
+> "The point-to-point host-memory RDMA path and the GPU-to-GPU path are different — GPU-capable RDMA (GPUDirect RDMA) requires peer-memory support (nv_peer_mem kernel module or similar) and IOMMU pass-through configuration. Check whether the GPU-aware collective test produces NCCL_DEBUG=INFO output with 'NET/Socket' (host-staged fallback) instead of 'NET/IB' with 'GDRDMA' suffix. If it fell back, either the peer-memory module isn't loaded or IOMMU configuration changed. Host RDMA passing is necessary but not sufficient for GPU collectives."
+
+**One rank is consistently slower.**
+> "Check that rank's GPU-to-NIC topology (`nvidia-smi topo -m` for that specific rank's GPU), whether it's using a `SYS` (remote) path instead of `PIX` (local), and whether the rank's CPU affinity matches its GPU's NUMA node. Run an isolated pairwise test on that rank's GPU/NIC pair specifically — if the bandwidth is low compared to others, that's evidence. If pairwise bandwidth is high but collective stalls, the issue is synchronization (the rank is finishing late because the whole collective waits), not the rank's own path."
+
+**Performance changed after a firmware update.**
+> "Firmware updates can change PCIe link training, IOMMU policy, BIOS settings, or NVLink firmware on the GPU side. Compare `lspci -vv` LnkSta before/after (check for width/speed downgrade), run `nvidia-smi topo -m` and diff it (check for topology drift), and run the baseline collective benchmark again and compare busbw. If all those match and performance is still different, capture NCCL_DEBUG=INFO output and check for transport changes — firmware updates can trigger fallback to less-optimal transport even when both the old and new paths are 'supported'."
+
+**GPU utilization falls during checkpointing.**
+> "Checkpointing serializes the job if it's a blocking write to shared storage. GPUs go idle waiting for the checkpoint to complete. Solutions: make checkpointing async or overlapped (issue the write, keep training on different data), use local NVMe with GDS for fast checkpoints and full-sync only at epoch boundaries, or dedicate a background worker to handle checkpoints so training doesn't stall. Measuring the checkpoint time relative to an epoch helps decide: if checkpoint is 10% of epoch, async is enough; if it's 50%, structural change is needed."
+
+**NCCL selects an unexpected interface.**
+> "NCCL discovers topology and picks transports via environment hints and capability detection. If it's not picking the interface you expect, set `NCCL_DEBUG=INFO` to see which interface it actually chose and why. If it shows 'Socket' instead of 'IB', the GPU-Direct RDMA path isn't available — check `lsmod` for nv_peer_mem, check `gdscheck -p` if using GPUDirect Storage, and run a peer-access test. If NCCL is picking the right transport but the wrong *adapter*, check `nvidia-smi topo -m` for which adapter is actually local to the GPU, and set `NCCL_IB_HCA` or `NCCL_SOCKET_IFNAME` to force the right one."
 
 ## Quick Revision Sheet
 
