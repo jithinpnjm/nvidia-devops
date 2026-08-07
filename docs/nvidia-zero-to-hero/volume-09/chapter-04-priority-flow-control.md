@@ -110,6 +110,24 @@ Thresholds must provide room before loss while avoiding an unnecessarily large p
 | Is pause transient? | Pause-frame deltas and duration over workload windows |
 | Is there a root bottleneck? | Egress utilization, queue occupancy, route and job placement |
 
+**Illustrative annotated output — headroom and threshold configuration, read the way the design-question table above expects:**
+
+```text
+$ mlnx_qos -i swp12
+Priority trust state: pcp
+Receive buffer size (bytes): 262144, 262144, 262144, ...
+PFC configuration:
+        priority    0   1   2   3   4   5   6   7
+        enabled     0   0   0   1   0   0   0   0
+        buffer      0   0   0   1   0   0   0   0
+
+Buffer size assigned to priority 3: 65536 bytes
+Xoff threshold: 49152 bytes   (75% of buffer)
+Xon threshold:  32768 bytes   (50% of buffer)
+```
+
+`enabled` on priority 3 only (matches the design goal: one narrow RoCE class). `Xoff threshold` at 75% of the assigned buffer is where the pause frame fires — that's the "trigger too late" versus "trigger too early" tradeoff from the prose made concrete: at 75%, there's 16384 bytes (25%) of headroom left to absorb packets already in flight when the pause is sent. `Xon threshold` at 50% is where the pause is lifted — the 25-point gap between Xoff and Xon (hysteresis) exists specifically so the queue doesn't oscillate rapidly between paused and unpaused at the same fill level. If this gap were too small, `tx_pfc_prio3` on the switch would show a burst of very short pause/unpause events instead of a small number of longer ones — a distinguishing signature of a threshold set too tight for the workload's actual burst size.
+
 ## PFC Is Not Congestion Control
 
 PFC reacts after a local queue is under pressure. It does not ask the original senders to reduce their offered rate, and it does not decide which flow should yield. End-to-end congestion control uses feedback to reduce injection before queue pressure becomes persistent. In an AI Ethernet design, ECN-based feedback and endpoint response should make PFC exceptional rather than routine. Chapter 05 covers that control loop.
@@ -145,6 +163,26 @@ The useful unit of analysis is a time-correlated path, not an isolated pause cou
 
 **Diagnosis:** start at the most downstream saturated egress. Compare its queue occupancy and utilization with peers, then trace the same class upstream. Correlate the destination with job placement, an oversubscribed cut, or a slow receiver. Verify ECN feedback is present rather than assuming PFC alone is a healthy state.
 
+**Evidence in practice:**
+
+```text
+# Downstream (most congested) leaf port
+$ ethtool -S swp7 | egrep "tx_pfc_prio3|rx_ecn_marked_prio3"
+     tx_pfc_prio3:            0            <- this port isn't pausing anyone
+     rx_ecn_marked_prio3:     2200
+
+# One hop upstream from swp7
+$ ethtool -S swp3 | egrep "tx_pfc_prio3|rx_pfc_prio3|rx_ecn_marked_prio3"
+     rx_pfc_prio3:            41823        <- receiving pause FROM downstream
+     tx_pfc_prio3:            41810        <- and propagating pause upstream itself
+     rx_ecn_marked_prio3:     190          <- far fewer ECN marks than swp7 saw
+
+$ ethtool -S swp3 | grep queue3_occupancy   # illustrative buffer telemetry
+     queue3_occupancy:        98%
+```
+
+Tracing from the destination backward: `swp7` (closest to the receiver) shows heavy ECN marking but *no* PFC transmit — it's marking, not pausing, meaning its own queue is under control. `swp3`, one hop upstream, is both receiving pause (from something further downstream not shown here) and transmitting it upstream — that's a queue caught in the middle of a pause chain, confirmed by `queue3_occupancy` at 98%. The low ECN count at `swp3` relative to `swp7` is the tell that ECN marking is not reaching enough of the flows converging here to control the queue — the receiver-side congestion the story describes is real, and the destination (not the middle hops) is where the fix belongs.
+
 **Resolution:** relieve the destination bottleneck through placement, path/capacity change, or the validated congestion-control profile. Do not disable PFC blindly; that can trade a visible pause for loss and retransmission.
 
 **Verification and prevention:** pause returns near the workload baseline, queue occupancy drains, ECN response is visible, and the same workload no longer has an elevated tail. Add a topology-aware alert for the egress and document the capacity constraint.
@@ -155,7 +193,17 @@ The useful unit of analysis is a time-correlated path, not an isolated pause cou
 
 **Diagnosis:** inspect PCP/DSCP markings and trust/rewrite policy at host and switch ingress. Compare the observed queue with the intended class map. Look for global PAUSE or PFC enabled on unintended priorities.
 
-**Resolution:** restore class isolation and remove PFC from traffic classes that do not require it. Validate the change under a controlled congestion test.
+**Evidence in practice:**
+
+```text
+$ mlnx_qos -i swp12 | grep -A2 "enabled"
+        priority    0   1   2   3   4   5   6   7
+        enabled     1   0   0   1   0   0   0   0    <- prio0 (management, unexpected) also PFC-enabled
+```
+
+Priority 0 is conventionally the management/default class, and it should almost never be PFC-enabled. Finding it `enabled` alongside prio3 confirms the symptom's mechanism directly: when the RoCE class backs up, its pause condition can now also stall whatever landed on prio0 sharing the same scheduler/buffer treatment, which is why management SSH sessions became sluggish specifically during training bursts and not otherwise.
+
+**Resolution:** restore class isolation and remove PFC from traffic classes that do not require it. Validate the change under a controlled congestion test — after the fix, `mlnx_qos -i swp12` should show `enabled` set only on priority 3, and a repeat load test should show `rx_pfc_prio0` staying at `0` throughout.
 
 **Verification and prevention:** management packets follow their intended queue while RoCE pressure is injected. Keep a versioned mapping table and automatically compare deployed configuration to it.
 
@@ -177,19 +225,37 @@ The honest design review question is not “can this network be made lossless?�
 
 ### Knowledge
 
-1. What does PFC pause: an application, a flow, a priority, or a whole fabric?
-2. Why can PFC protect delivery while making latency worse?
-3. Why is a PFC frame not proof that the network is healthy?
+**1. What does PFC pause: an application, a flow, a priority, or a whole fabric?**
+
+"A priority, on one link, in one direction. That's a really specific scope and it's the thing people get wrong most often. It doesn't know about applications or individual flows at all — it pauses every frame carrying that priority value on that specific link. So if I've got a lucky, unrelated best-effort flow that got tagged with the same priority as my RoCE traffic, PFC will happily pause it too, even though it has nothing to do with the congestion. That's exactly why classification hygiene — making sure only the traffic that's supposed to be in the RoCE class actually lands there — matters as much as the PFC configuration itself."
+
+**2. Why can PFC protect delivery while making latency worse?**
+
+"Because its entire mechanism is 'stop sending, wait.' It successfully prevents the packet loss that would otherwise happen when a buffer overflows — that's the delivery protection. But every microsecond a sender is paused is a microsecond that data isn't moving, and if that pause propagates upstream through several hops, you can end up with a multi-hop stall that adds far more latency than a single dropped-and-retransmitted packet would have. I've seen incidents where the team's instinct was 'PFC is working, pause counters are up, that's good' — but a synchronized training job doesn't care that data wasn't lost, it cares that its slowest participant took three times as long as normal, and PFC pause time is exactly where that time went."
+
+**3. Why is a PFC frame not proof that the network is healthy?**
+
+"Because PFC firing means a queue already got close enough to its threshold that the reactive, last-resort mechanism had to intervene — that's evidence of pressure, not evidence of a well-functioning system. In a healthy design, ECN marking and endpoint rate response should be absorbing almost all congestion before PFC ever needs to engage. So when I see PFC active, my read isn't 'good, the safety net caught it' — it's 'something upstream of PFC — capacity, placement, or the ECN feedback loop — isn't doing its job, and I need to find out what.'"
 
 ### Architecture
 
-1. Draw the traffic-class and pause domains for a leaf-spine RoCE fabric.
-2. Which counters would you use to find the root of a pause tree?
+**1. Draw the traffic-class and pause domains for a leaf-spine RoCE fabric.**
+
+"I'd draw the leaf-spine topology first, then overlay it with priority classes as colored paths rather than physical links, since PFC domains are per-priority, not per-wire. RoCE gets its own narrow domain — I'd trace it through every leaf and spine hop it touches and mark that as the only place PFC is enabled. Management and best-effort get separate domains that never intersect the RoCE one. Then I'd mark, at each hop in the RoCE domain, where a pause could originate and how far upstream it could realistically propagate before draining — that upstream extent is the actual 'pause domain' I want the interviewer to see, not just the wire diagram."
+
+**2. Which counters would you use to find the root of a pause tree?**
+
+"Per-port, per-priority `rx_pfc` and `tx_pfc` counters at every hop the affected priority touches, read together — `rx_pfc` incrementing without a corresponding `tx_pfc` at the same switch means that's the origin, the queue that's actually congested. Where both increment, that switch is relaying pause upstream, and I keep walking in the `rx_pfc` direction until I find the hop where `tx_pfc` is zero — that's the root. I'd pair that walk with queue occupancy and ECN mark counters at each hop, because the root should also show the highest occupancy and, often, ECN marks that weren't sufficient to prevent the queue from reaching the pause threshold in the first place."
 
 ### Scenario
 
-1. PFC is enabled and RDMA drops continue. What do you check before changing thresholds?
-2. How would you introduce PFC into a shared fabric without risking management traffic?
+**1. PFC is enabled and RDMA drops continue. What do you check before changing thresholds?**
+
+"First I'd separate physical faults from congestion — PFC protects against buffer overflow, not against a bad optic or a corrupted cable, so I'd check FEC and physical error counters before touching anything QoS-related. Then I'd verify PFC is actually enabled on both the transmit and receive side of the relevant hops, in both directions the specific implementation requires — a one-sided PFC configuration will pause nothing and look identical to 'PFC isn't helping.' Then I'd check whether the drops are happening on the priority I think they are, because a classification mismatch means PFC is faithfully protecting the wrong queue while the real RoCE traffic drops somewhere else entirely. Threshold tuning is the last thing I'd touch, not the first — it only makes sense once I know the drops are genuinely a headroom problem on the correctly classified, correctly configured priority."
+
+**2. How would you introduce PFC into a shared fabric without risking management traffic?**
+
+"I'd start by proving the classification contract before I ever enable PFC — capture actual packet markings end to end and confirm management traffic never lands in the RoCE priority under any config path, including default/untrusted host behavior. Then I'd enable PFC on the RoCE priority only, explicitly verify with `mlnx_qos` or the equivalent that no other priority shows `enabled`, and run a controlled congestion test that saturates the RoCE class specifically while continuously exercising management traffic in parallel — watching that its latency and its `rx_pfc` counter for its own priority both stay flat throughout. Only after that evidence exists would I call the isolation proven, not just configured."
 
 ## Key Takeaways
 
