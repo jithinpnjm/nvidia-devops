@@ -116,6 +116,33 @@ Do not conflate device access with tenant isolation. The runtime correctly injec
 
 Use a minimal approved GPU workload to separate the platform from the application. If that workload fails on the node, do not begin by changing framework flags. If it succeeds and the production image fails, retain the Pod specification and compare image behavior and compatibility evidence.
 
+**Evidence for the "Bound Pod fails before application logs" row.** `kubectl describe pod` on the failed Pod and `crictl` on the node together isolate whether this is a sandbox-creation failure or something later:
+
+```text
+$ kubectl describe pod resnet-train | tail -6
+  Warning  Failed     12s   kubelet  Error: failed to create containerd task: failed to create shim:
+  OCI runtime create failed: runc create failed: unable to start container process:
+  error during container init: error running hook #0: nvidia-container-cli: initialization error:
+  nvidia-container-cli: mount error: file creation failed: /var/lib/kubelet/pods/.../nvidia0: no such device
+```
+This event fires before the container's own entrypoint ever runs — no application log line will ever appear for this failure, which is exactly why the table calls it out as its own row instead of folding it into "CUDA initialization fails." `nvidia-container-cli: mount error` naming a missing device node points squarely at the toolkit/CDI injection step in Figure 10.3.1, not at the application image.
+
+**Evidence for the "Same manifest fails on one pool" row.** Comparing toolkit config version across pools turns a vague "one pool is flaky" report into a specific diff:
+
+```text
+$ for n in gpu-pool-a-3 gpu-pool-b-7; do
+    echo "== $n =="; ssh "$n" 'nvidia-ctk --version; cat /etc/containerd/config.toml | grep -A2 nvidia'
+  done
+== gpu-pool-a-3 ==
+NVIDIA Container Toolkit CLI version 1.15.0
+  runtime_type = "io.containerd.runc.v2"
+  [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia.options]
+== gpu-pool-b-7 ==
+NVIDIA Container Toolkit CLI version 1.13.5
+  runtime_type = "io.containerd.runc.v2"
+```
+`1.15.0` vs `1.13.5` across two pools that should be running the same qualified stack is drift, full stop — this is the single fastest way to confirm "fleet drift" as the boundary before spending time on the application image.
+
 ## Customer Architecture Discussion
 
 Application teams should experience a stable request contract—resource name, supported image family, and any documented RuntimeClass—not the internal debate between runtime hooks and CDI. Platform teams should retain the implementation choice because it carries runtime support, security, and upgrade consequences.
@@ -126,11 +153,15 @@ This separation also improves incident communication. “The resource is allocat
 
 **Why does a RuntimeClass not make a GPU workload schedulable by itself?**
 
-RuntimeClass selects a configured runtime handler and can influence scheduling constraints. A GPU resource remains schedulable only after the device plugin has reported it to the kubelet and the Pod requests it.
+**Model answer:** "RuntimeClass only selects which configured runtime handler a Pod uses, and it can add scheduling constraints like tolerations or overhead — but it has no knowledge of GPU inventory at all. A GPU only becomes schedulable once the device plugin has reported an allocatable count to the kubelet and the Pod's `resources.limits` requests it. I've seen teams add a RuntimeClass and assume that alone makes a node GPU-capable — it doesn't; it just says 'use this runtime handler,' and if that handler isn't wired to NVIDIA Container Toolkit on that node, you get a Pod that schedules and then fails at sandbox creation."
 
 **Why keep the NVIDIA driver on the host?**
 
-The driver interfaces with the host kernel and hardware. The host lifecycle must control that relationship; images carry application-level libraries and frameworks that consume the supported host-driver interface.
+**Model answer:** "The driver has kernel-mode components that bind directly to the GPU hardware — that has to live at the host kernel version, not inside a container's user space. If I baked the driver into every application image, I'd lose the ability to patch a security or stability issue once across the fleet, and I'd risk a container's driver disagreeing with the host kernel it's actually running on top of. The image should only carry the CUDA user-space libraries and framework that talk to whatever host driver interface is exposed to it — that's exactly the boundary NVIDIA Container Toolkit exists to bridge."
+
+**Why is `crictl inspect` showing a populated `devices` array not the same proof as `nvidia-smi` succeeding inside the container?**
+
+**Model answer:** "`crictl inspect` on the node tells me the toolkit wrote a device edit into that container's spec — that's proof the injection *path* fired. It doesn't tell me the container's CUDA user-space actually matches the host driver, or that the process inside can initialize a context. I only trust `nvidia-smi -L` run with `kubectl exec` inside the container as proof the workload can actually use the GPU — that's the node-side and container-side halves of the same evidence chain, and skipping the second half is how 'looks fine from the node' incidents happen."
 
 ## Key Takeaways
 

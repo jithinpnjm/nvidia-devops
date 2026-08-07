@@ -128,9 +128,17 @@ An actionable escalation contains the scope and business impact, a timestamped c
 
 ## Senior-level design questions
 
-**Why can chart rollback be unsafe after a GPU platform change?** The chart may be only one part of the compatibility set. If the change also altered a driver, kernel, or runtime, reverting manifests can leave host and control-plane components mismatched. Recovery must restore a tested combination.
+**Why can chart rollback be unsafe after a GPU platform change?**
 
-**What is the most valuable first action after a canary failure?** Stop expansion, protect workload capacity, and preserve a healthy comparison group. Then determine the first failed layer with time-correlated evidence. A fast, broad rollback without that discipline may trade one failure for a harder-to-diagnose one.
+**Model answer:** "`helm rollback` only reverts what's in the chart's control-plane resources — ClusterPolicy, DaemonSet specs, config maps. If the upgrade also pushed a new driver module onto the host, or the node image itself changed, rolling the chart back can leave the operator declaring a driver version that no longer matches what's actually loaded on the kernel. I've seen a chart rollback 'succeed' by every Kubernetes-visible signal while the node stays broken, because the actual fault was in host state the chart doesn't control. My rule is: figure out which layer in the compatibility set actually changed before picking a rollback mechanism, because the answer might be a node reboot to a known-good image, not a Helm command at all."
+
+**What is the most valuable first action after a canary failure?**
+
+**Model answer:** "Stop the rollout — don't let a second batch go out while the first is still unexplained — and protect capacity by making sure I still have a healthy comparison pool to diagnose against. Only after that do I start pulling time-correlated evidence to find the first failed layer. The mistake I'd actively avoid is reaching for a fast, broad rollback before I understand what broke — that can trade one failure state for a different, harder-to-diagnose one, especially if the rollback itself only reverts part of the compatibility set, which is exactly the chart-rollback trap in the previous question."
+
+**A driver upgrade passes the canary but breaks on batch 3 of a 6-batch rollout. What does that pattern tell you, and how do you contain it?**
+
+**Model answer:** "The fact that it passed an 8-node canary and a 12-node first batch but failed at batch 3 tells me this probably isn't a universal driver-compatibility bug — those would have shown up in the canary. It's more likely node-population-dependent: a specific hardware revision, BIOS setting, or firmware version that happens to concentrate in the nodes reached by batch 3. First move is to stop the rollout immediately and diff the failing batch's node inventory — firmware versions, BIOS, exact GPU SKU — against the canary and the batches that passed. Containment is cordon the affected batch, redirect new scheduling to the untouched remainder of the fleet, and only resume once I can either fix the specific hardware-dependent issue or explicitly exclude that hardware class from this rollout."
 
 ## Key takeaways
 

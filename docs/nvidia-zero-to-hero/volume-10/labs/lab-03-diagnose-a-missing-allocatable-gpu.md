@@ -30,16 +30,18 @@ You will distinguish Capacity from Allocatable, compare a healthy node, inspect 
 
 ```mermaid
 flowchart TD
-  A[Missing Allocatable] --> B{PCI device visible?}
-  B -->|yes| C{Driver healthy?}
-  C -->|yes| D{Plugin healthy?}
-  D -->|yes| E{Kubelet registered resource?}
-  E -->|yes| F[Check scheduler policy]
-  B -->|no| H[Hardware, BIOS, passthrough]
-  C -->|no| I[Driver/kernel boundary]
-  D -->|no| J[Plugin configuration]
-  E -->|no| K[Kubelet registration]
+  A["Symptom: ALLOCATABLE column\nempty or 0 on a Ready node"] --> B{"lspci shows an\nNVIDIA device?"}
+  B -->|"yes — evidence: lspci -nn | grep -i nvidia returns a line"| C{"nvidia-smi\nsucceeds on host?"}
+  B -->|"no"| H["Hardware, BIOS, or\npassthrough boundary —\nstop here, escalate to hardware/provider"]
+  C -->|"yes — evidence: driver version + GPU list printed"| D{"Device-plugin Pod\nRunning AND its log shows\nsuccessful enumeration?"}
+  C -->|"no"| I["Driver/kernel boundary —\ncheck journalctl -k for Xid/NVRM lines,\ndo not touch the plugin yet"]
+  D -->|"yes — evidence: plugin log has no\nrepeated registration errors"| E{"kubelet log shows this plugin's\nRegister() call succeeded?"}
+  D -->|"no"| J["Plugin configuration boundary —\nCrashLoopBackOff, image pull error,\nor DaemonSet selector mismatch"]
+  E -->|"yes — evidence: ALLOCATABLE now\nnonzero after this call"| F["Resource present:\nany remaining Pending Pod is a\nscheduler/taint/quota question, not this failure"]
+  E -->|"no"| K["Kubelet registration boundary —\nplugin enumerated devices correctly\nbut kubelet never accepted the gRPC registration"]
 ```
+
+**Figure — this lab's diagnostic path IS this diagram, one step per node.** Each decision point below corresponds to exactly one numbered procedure step (11=B/C, 12=D, 13=E), and the rule that makes this lab fast instead of a fishing expedition is: never skip a `yes` branch to test a `no`-branch hypothesis further down the chain — a driver that hasn't been proven healthy makes every downstream check unreliable, not just slower to interpret.
 
 ## 5. Prerequisites
 
@@ -107,7 +109,16 @@ kubectl get node "$GPU_NODE" -o jsonpath='{.status.capacity.nvidia\.com/gpu}{" c
 kubectl get node "$HEALTHY_GPU_NODE" -o jsonpath='{.status.capacity.nvidia\.com/gpu}{" capacity\n"}{.status.allocatable.nvidia\.com/gpu}{" allocatable\n"}'
 ```
 
-**Expected evidence:** A direct affected-versus-healthy comparison is recorded.
+**Expected evidence:**
+```text
+$ kubectl get node "$GPU_NODE" -o jsonpath='{.status.capacity.nvidia\.com/gpu}{" capacity\n"}{.status.allocatable.nvidia\.com/gpu}{" allocatable\n"}'
+8 capacity
+
+$ kubectl get node "$HEALTHY_GPU_NODE" -o jsonpath='{.status.capacity.nvidia\.com/gpu}{" capacity\n"}{.status.allocatable.nvidia\.com/gpu}{" allocatable\n"}'
+8 capacity
+8 allocatable
+```
+`8 capacity` printed on `$GPU_NODE` with **no second line at all** (not `0 allocatable` — the field is absent) is the exact symptom this lab exists to diagnose: the device plugin registered the node's total device count at some point in the past (that's where `Capacity` comes from), but nothing is currently being reported as schedulable. `$HEALTHY_GPU_NODE` printing both lines with matching values is the comparison baseline every later step will be checked against. This asymmetry — `Capacity` present, `Allocatable` absent — already rules out hardware being physically gone (a `Capacity` value had to come from somewhere) and points the investigation at driver, plugin, or kubelet, which is exactly the order Section 4's diagram walks next.
 
 **Explanation:** A present resource with a Pending Pod is usually a scheduler/request/taint question, not this failure mode.
 
@@ -127,7 +138,26 @@ nvidia-smi
 journalctl -k | grep -Ei 'nvrm|nvidia|xid' | tail -n 100
 ```
 
-**Expected evidence:** NVIDIA PCI devices, loaded driver modules, `nvidia-smi` output, and any relevant kernel events are visible.
+**Expected evidence:**
+```text
+$ lspci | grep -i nvidia
+1b:00.0 3D controller: NVIDIA Corporation GA100 [A100 SXM4 80GB] (rev a1)
+
+$ lsmod | grep '^nvidia' || true
+nvidia_uvm          1622016  0
+nvidia_drm             69632  0
+nvidia_modeset       1249280  1 nvidia_drm
+nvidia              56655872  86 nvidia_uvm,nvidia_modeset
+
+$ nvidia-smi
+NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver.
+Make sure that the latest NVIDIA driver is installed and running.
+
+$ journalctl -k | grep -Ei 'nvrm|nvidia|xid' | tail -n 5
+Aug 12 03:02:11 gpu-node-11 kernel: NVRM: GPU 0000:1b:00.0: RmInitAdapter failed! (0x62:0xffff:1487)
+Aug 12 03:02:11 gpu-node-11 kernel: NVRM: GPU 0000:1b:00.0: rm_init_adapter failed, device minor number 0
+```
+This is a real example of `B: yes, C: no` from the Architecture diagram: `lspci` finds the device (`1b:00.0 ... A100 SXM4 80GB`) and `lsmod` shows the kernel modules are even loaded — but `nvidia-smi` still fails to communicate, and the kernel log names the exact reason: `RmInitAdapter failed`, an initialization failure at the hardware/driver handshake, not a missing module. This is the driver/kernel boundary the diagram routes to — the fix is not "reinstall the device plugin," it's a driver-level remediation (often a GPU reset or node reboot), and jumping ahead to inspect plugin logs at this point would waste a diagnostic step on a layer that can't possibly be healthy yet.
 
 **Explanation:** The device plugin cannot advertise a GPU that the host cannot initialize.
 
@@ -157,7 +187,19 @@ kubectl logs -n <plugin-namespace> <plugin-pod-on-affected-node> --tail=200
 kubectl describe pod -n <plugin-namespace> <plugin-pod-on-affected-node>
 ```
 
-**Expected evidence:** Logs state enumeration/registration progress and describe output shows placement, mounts, and events.
+**Expected evidence:**
+```text
+$ kubectl logs -n gpu-operator nvidia-device-plugin-daemonset-9k2lp --tail=20
+I0812 03:02:15.114231       1 main.go:279] Starting FS watcher.
+I0812 03:02:15.114532       1 main.go:286] Starting OS watcher.
+I0812 03:02:15.119887       1 main.go:365] Failed to initialize NVML: could not load NVML library.
+I0812 03:02:15.119901       1 main.go:366] If this is a GPU node, did you forget to declare it as such using a label?
+E0812 03:02:15.119910       1 main.go:290] error starting plugins: nvml init failed
+
+$ kubectl describe pod -n gpu-operator nvidia-device-plugin-daemonset-9k2lp | tail -4
+  Warning  BackOff   30s (x12 over 5m)  kubelet  Back-off restarting failed container
+```
+`Failed to initialize NVML: could not load NVML library` is the plugin telling you directly it cannot talk to the driver's user-space library — this is the `D: no` branch, and note it's a *downstream symptom* of the same driver failure Section 11 already found, not a second independent bug. `BackOff ... restarting failed container` confirms the plugin container itself is crash-looping, which is why `Capacity` (published once, historically) survived while `Allocatable` (requires an actively-registered plugin) did not. If Section 11's driver check had come back clean, this exact log line would instead point at a genuinely separate plugin-configuration problem — the value of doing the checks in order is knowing which of those two very different fixes you're looking at.
 
 **Explanation:** Substitute the discovered values literally; placeholders prevent accidental inspection of the wrong Pod.
 
@@ -173,7 +215,13 @@ journalctl -u kubelet -n 300 | grep -Ei 'device plugin|nvidia|registration' || t
 sudo crictl info
 ```
 
-**Expected evidence:** Registration-related log lines and the effective CRI runtime details are collected.
+**Expected evidence:**
+```text
+$ journalctl -u kubelet -n 300 | grep -Ei 'device plugin|nvidia|registration' | tail -5
+Aug 12 02:58:40 gpu-node-11 kubelet[1842]: I0812 device_plugin_handler.go:180: Got registration request from device plugin with resource name "nvidia.com/gpu"
+Aug 12 02:58:40 gpu-node-11 kubelet[1842]: E0812 device_plugin_handler.go:212: Failed to dial device plugin with socket /var/lib/kubelet/device-plugins/nvidia.sock: context deadline exceeded
+```
+This is the healthy-plugin-but-failed-registration case (`D: yes, E: no` in the diagram) — different from what Section 12 found, included here to show what that branch's evidence looks like: kubelet logs a registration *request* arriving, then a `context deadline exceeded` dialing the plugin's own gRPC socket back. When you see this pattern instead of Section 12's NVML failure, the fix is entirely different — a kubelet-side socket/permission issue or a plugin that crashed between registering and kubelet's confirmation dial, not a driver problem at all. This is exactly why the table in Section 16 keeps "Plugin healthy, resource absent" and "Plugin absent/unhealthy" as two separate rows with two separate next actions.
 
 **Explanation:** Kubelet owns the Node status update after a plugin registers.
 

@@ -29,7 +29,7 @@ flowchart TD
     Driver -->|"evidence: nvidia-smi reports Driver Version, no Xid errors in dmesg"| Runtime[Toolkit and container runtime]
     GPU -->|"same driver health"| DP[Device plugin]
     DP -->|"evidence: plugin registers nvidia.com/gpu with kubelet via the DevicePlugin gRPC API"| Kubelet[Kubelet]
-    Kubelet -->|"evidence: node status.allocatable['nvidia.com/gpu'] &gt; 0"| API[Kubernetes API]
+    Kubelet -->|"evidence: node status.allocatable nvidia.com/gpu is nonzero"| API[Kubernetes API]
     API --> Scheduler[Scheduler]
     Scheduler --> Bound{"Does the Pod bind to a node?"}
     Bound -->|"No — stays Pending"| Pending["Resource/placement question:\ncompare request to Allocatable,\ncheck taints and affinity"]

@@ -25,18 +25,32 @@ This is why telemetry design begins with decisions. Page only when somebody must
 
 ```mermaid
 flowchart LR
-    GPU[GPU and driver] --> DCGM[DCGM fields]
-    DCGM --> Exporter[DCGM Exporter]
-    Exporter --> Prom[Prometheus]
+    GPU[GPU and driver] -->|"evidence: DCGM field IDs populate,<br/>e.g. DCGM_FI_DEV_GPU_UTIL"| DCGM[DCGM fields]
+    DCGM -->|"evidence: /metrics endpoint<br/>returns non-empty scrape"| Exporter[DCGM Exporter]
+    Exporter -->|"evidence: Prometheus target State=up,<br/>scrape_samples_scraped > 0"| Prom[Prometheus]
     K8s[Kubernetes state and events] --> Prom
     App[Application metrics and logs] --> Prom
-    Prom --> Alert[Dashboards, recording rules, alerts]
+    Prom --> Fresh{"Scrape fresh AND<br/>Pod/UUID join resolves?"}
+    Fresh -->|"No — stale scrape or broken join"| Blind["Telemetry-blind: dashboard shows old or\nunlabeled data — fix observability BEFORE\ntrusting any health conclusion"]
+    Fresh -->|"Yes"| Alert[Dashboards, recording rules, alerts]
     Alert --> Runbook[Incident runbook and workload owner]
 ```
 
-**Figure 10.9.1 — GPU metrics become useful only when they can be joined with workload and platform evidence.** The exporter is one observation point, not a complete diagnosis system.
+**Figure 10.9.1 — GPU metrics become useful only when they can be joined with workload and platform evidence, and that join can itself silently fail.** The exporter is one observation point, not a complete diagnosis system. The decision diamond exists because a green Grafana panel with stale data looks identical to a green panel with fresh data unless someone checks scrape freshness explicitly — this is the "Failure patterns that mislead operators" section's first entry, made mechanical here instead of stated only in prose.
 
 The GPU UUID is the durable join key for device evidence. Device indexes are convenient for a local command but can change after a reboot, reset, or inventory change. Preserve node and UUID labels; add Pod, namespace, and container context only where the exporter and platform integration can establish that mapping correctly. Do not manufacture a workload association from a sampled process list and treat it as allocation truth.
+
+**The exporter's own output, annotated.** DCGM Exporter serves Prometheus-format metrics on `:9400/metrics`; a representative scrape for one GPU looks like:
+
+```text
+$ curl -s localhost:9400/metrics | grep -E 'DCGM_FI_DEV_(GPU_UTIL|MEM_COPY_UTIL|POWER_USAGE|GPU_TEMP|XID_ERRORS)' | grep -v '^#'
+DCGM_FI_DEV_GPU_UTIL{gpu="0",UUID="GPU-3a1e9f2b-...",Hostname="gpu-node-07",pod="train-worker-2",namespace="ml-training"} 91
+DCGM_FI_DEV_MEM_COPY_UTIL{gpu="0",UUID="GPU-3a1e9f2b-...",Hostname="gpu-node-07",pod="train-worker-2",namespace="ml-training"} 74
+DCGM_FI_DEV_POWER_USAGE{gpu="0",UUID="GPU-3a1e9f2b-...",Hostname="gpu-node-07",pod="train-worker-2",namespace="ml-training"} 312.4
+DCGM_FI_DEV_GPU_TEMP{gpu="0",UUID="GPU-3a1e9f2b-...",Hostname="gpu-node-07",pod="train-worker-2",namespace="ml-training"} 61
+DCGM_FI_DEV_XID_ERRORS{gpu="0",UUID="GPU-3a1e9f2b-...",Hostname="gpu-node-07",pod="train-worker-2",namespace="ml-training"} 0
+```
+Every line carries `UUID` alongside the more convenient `gpu="0"` index — the index is what a human reads at a glance, but `UUID` is the field a recording rule or join should key on, because `gpu="0"` on this node after a reboot is not guaranteed to be the same physical card. `pod`/`namespace` labels are present here because this cluster's exporter integration can resolve that mapping; the chapter's warning above applies precisely to deployments where that integration is absent and those labels would otherwise be fabricated from a process scan. `DCGM_FI_DEV_XID_ERRORS` at `0` is the reliability signal from the table below — nonzero here, even briefly, is the row's actionable condition.
 
 ## Metrics with an owner and a response
 
@@ -50,6 +64,26 @@ The GPU UUID is the durable join key for device evidence. Device indexes are con
 | Telemetry pipeline | Exporter, scrape, or series freshness is failing | Restore observability first; mark health conclusions as uncertain until coverage returns |
 
 Metric names and available fields vary with the DCGM Exporter version and hardware. Build recording rules from the field list actually deployed, and keep the selected metrics under version control with the platform configuration. This avoids an alert rule silently becoming meaningless after an image or configuration change.
+
+**Evidence for the Reliability row.** A rising `DCGM_FI_DEV_XID_ERRORS` counter, cross-referenced against the kernel log on the same node, converts "an alert fired" into a specific fault class:
+
+```text
+$ curl -s localhost:9400/metrics | grep DCGM_FI_DEV_XID_ERRORS | grep -v '^#'
+DCGM_FI_DEV_XID_ERRORS{gpu="1",UUID="GPU-9c31...",Hostname="gpu-node-14"} 1
+
+$ ssh gpu-node-14 dmesg -T | grep -i xid
+[Wed Aug  5 03:12:44 2026] NVRM: Xid (PCI:0000:65:00): 79, pid=48213, name=python3, GPU has fallen off the bus
+```
+`Xid 79` ("GPU has fallen off the bus") is one of the small set of Xid codes that means the device itself needs escalation, not a workload retry — pairing the Prometheus counter (which tells you *that* something happened and on which UUID) with the kernel log (which tells you *what* happened) is what turns a page into an actionable next step instead of a guess.
+
+**Evidence for the Telemetry pipeline row.** `up{job="dcgm-exporter"}` and `scrape_samples_scraped` distinguish "the GPU is idle" from "the exporter stopped reporting":
+
+```text
+$ curl -s 'http://prometheus:9090/api/v1/query?query=up{job="dcgm-exporter"}' | jq -r '.data.result[] | "\(.metric.instance) \(.value[1])"'
+gpu-node-07:9400 1
+gpu-node-14:9400 0
+```
+`gpu-node-14:9400` reporting `0` means Prometheus cannot even reach that exporter — every DCGM-derived panel for that node is stale or absent, and the correct response is "restore the scrape target," not "investigate why the GPU looks idle." This is the exact failure this chapter's Big Picture diagram routes to the `Blind` branch: check `up` before trusting any utilization number from that node.
 
 ## Build a monitoring contract
 
@@ -87,9 +121,17 @@ Acceptance testing should prove more than that an endpoint responds. Schedule a 
 
 ## Senior-level design questions
 
-**Why is a utilization threshold a poor primary paging signal?** It has no inherent failure semantics. A low value may be normal demand, a host-side bottleneck, or missing telemetry; a high value can be healthy throughput. Page on a condition with a defined responder action and use utilization for diagnosis and planning.
+**Why is a utilization threshold a poor primary paging signal?**
 
-**What makes GPU telemetry trustworthy?** Coverage, stable identity, known field semantics, bounded labels, freshness monitoring, and a demonstrated link to Kubernetes and application evidence. A dashboard without those properties is a visualization, not an operational control.
+**Model answer:** "Utilization by itself has no failure semantics attached to it — 20% could be a legitimately low-traffic inference service, a data-loader stall, or a broken scrape target reporting stale zeros, and 95% could be a perfectly healthy training job. If I page on 'utilization below X%,' I train the on-call rotation to snooze the alert within a week because most pages turn out to be nothing actionable. I'd rather page on conditions with a defined responder action — lost schedulable capacity, an Xid event, sustained throttling with a measured service impact, or lost monitoring coverage — and push utilization into dashboards and weekly capacity review instead."
+
+**What makes GPU telemetry trustworthy?**
+
+**Model answer:** "Six things, and I'd check all of them before trusting a dashboard during an incident: full coverage so a missing node doesn't look like a healthy one, a stable join key — GPU UUID, not device index, because indexes can renumber after a reboot — documented field semantics so I know what a metric actually measures, bounded label cardinality so Prometheus itself doesn't fall over, active freshness monitoring so a stale scrape doesn't masquerade as current data, and a demonstrated, tested link back to Kubernetes Pod and application context. Miss any one of those and what I'm looking at is a visualization, not something I'd bet an incident response on."
+
+**Walk through how you'd distinguish 'the GPU is genuinely idle' from 'the exporter died' during an incident.**
+
+**Model answer:** "First move, before I look at the utilization number at all, is `up{job=\"dcgm-exporter\"}` for that instance in Prometheus. If that's `0`, I already have my answer — the exporter or the scrape path is down, and every panel for that node is stale, full stop, don't reason about GPU state from it. If `up` is `1`, I'd check `scrape_samples_scraped` and the sample timestamp to confirm the data is actually recent and not just a target that responds but stopped updating internally. Only once both of those check out do I trust the utilization number itself, and even then a real zero needs a second question behind it — does this service have traffic right now, and is anything actually queued waiting for it."
 
 ## Key takeaways
 

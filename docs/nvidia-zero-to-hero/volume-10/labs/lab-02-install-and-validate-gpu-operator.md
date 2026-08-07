@@ -30,15 +30,20 @@ You will select the ownership model, capture rollback artifacts, install a revie
 
 ```mermaid
 flowchart TD
-  Helm[Reviewed Helm values] --> Operator[GPU Operator]
-  Operator --> Policy[ClusterPolicy]
+  Helm[Reviewed Helm values] -->|"evidence: helm upgrade --install exits 0"| Operator[GPU Operator]
+  Operator -->|"evidence: ClusterPolicy created"| Policy[ClusterPolicy]
   Policy --> Driver[Driver]
   Policy --> Toolkit[Container toolkit]
   Policy --> Plugin[Device plugin]
   Policy --> Discovery[Feature discovery]
-  Plugin --> Kubelet --> Node[Node resources]
-  Toolkit --> Workload[GPU workload]
+  Driver -->|"evidence: driver Pod log,<br/>module load line"| DriverCheck{"Module loaded<br/>on this node?"}
+  DriverCheck -->|"Yes"| Toolkit
+  DriverCheck -->|"No"| Fail["Toolkit/plugin/validation Pods<br/>Pending or CrashLoopBackOff —<br/>step 12/14 evidence will show this"]
+  Plugin -->|"evidence: allocatable resource<br/>in kubectl describe node"| Kubelet --> Node[Node resources]
+  Toolkit -->|"evidence: nvidia-smi succeeds<br/>inside validation Pod"| Workload[GPU workload]
 ```
+
+**Figure — install-time evidence chain.** This is the same architecture the lab's steps walk through in order: step 11 proves the `Helm -> Operator` hop, step 12 proves `Operator -> Policy -> operands`, step 13 proves `Plugin -> Kubelet -> Node`, and step 14 proves `Toolkit -> Workload`. The `DriverCheck` decision is the most common way this lab actually fails: a driver Pod can show `Running` while the kernel module never loaded, which blocks every operand downstream of it without the operator itself ever reporting an error — see step 12's annotated output below for what that looks like in practice.
 
 ## 5. Prerequisites
 
@@ -150,9 +155,38 @@ kubectl get events -n gpu-operator --sort-by=.lastTimestamp
 
 **Expected evidence:** The ClusterPolicy is present; required Pods are Running/Completed and DaemonSets have desired availability on intended nodes.
 
+A healthy run looks like this:
+
+```text
+$ helm status gpu-operator -n gpu-operator
+NAME: gpu-operator
+LAST DEPLOYED: Wed Aug 12 09:14:44 2026
+NAMESPACE: gpu-operator
+STATUS: deployed
+REVISION: 1
+
+$ kubectl get clusterpolicy
+NAME             AGE   STATUS
+cluster-policy   6m    ready
+
+$ kubectl get pods,daemonsets -n gpu-operator -o wide
+NAME                                                READY   STATUS      RESTARTS   AGE
+pod/gpu-operator-7d8f9c6b4-xk2p9                    1/1     Running     0          6m
+pod/nvidia-driver-daemonset-7z4kd                   1/1     Running     0          5m
+pod/nvidia-container-toolkit-daemonset-hq9lm        1/1     Running     0          4m
+pod/nvidia-device-plugin-daemonset-k2vqp            1/1     Running     0          4m
+pod/nvidia-cuda-validator-9x2kq                     0/1     Completed   0          3m
+
+NAME                                                 DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE
+daemonset.apps/nvidia-driver-daemonset               3         3         3       3            3
+daemonset.apps/nvidia-device-plugin-daemonset        3         3         3       3            3
+```
+
+Read this field by field: `STATUS: deployed` from `helm status` is the Helm-level claim only — it means the chart applied, not that operands are healthy. `clusterpolicy ... STATUS ready` is the controller's own reconciliation claim (Figure step `Operator -> Policy`). The decisive evidence is the DaemonSet columns: `DESIRED 3 / READY 3 / AVAILABLE 3` for both the driver and device-plugin DaemonSets means all three intended nodes actually have a working operand, not just a scheduled one. The validator Pod shows `0/1 Completed` — that `0/1` is expected and correct for a Job-style validator that ran its check and exited, not a failure; a validator stuck at `0/1 Running` past a few minutes, by contrast, is a hang.
+
 **Explanation:** Names vary by release and configuration, so inspect the actual resources rather than hard-code a Pod name.
 
-**Common-failure interpretation:** Driver failures commonly require kernel/secure-boot/host-driver review; image pull failures require registry credentials or mirror checks.
+**Common-failure interpretation:** Driver failures commonly require kernel/secure-boot/host-driver review; image pull failures require registry credentials or mirror checks. If `READY` lags `DESIRED` on the driver DaemonSet (e.g. `3 3 2 3 2`), do not proceed to step 13 — that gap is the `DriverCheck: No` branch in the architecture figure, and it will surface as an empty allocatable value in the very next step rather than a clear error here.
 
 ## 13. Validation: Resource Advertisement
 
@@ -165,6 +199,19 @@ kubectl get nodes --show-labels | grep -F 'nvidia.com' || true
 ```
 
 **Expected evidence:** Intended GPU nodes report a numeric allocatable resource and applicable GPU labels.
+
+```text
+$ kubectl get nodes -o custom-columns=NAME:.metadata.name,ALLOCATABLE:.status.allocatable.nvidia\.com/gpu
+NAME          ALLOCATABLE
+gpu-node-01   4
+gpu-node-02   4
+gpu-node-03   4
+
+$ kubectl get nodes --show-labels | grep -F 'nvidia.com'
+gpu-node-01   Ready   <none>   6m   nvidia.com/gpu.count=4,nvidia.com/gpu.product=NVIDIA-A100-80GB,nvidia.com/gpu.memory=81920
+```
+
+`ALLOCATABLE: 4` on all three intended nodes is the direct, numeric proof that the device plugin registered with the kubelet and is reporting all devices healthy — this is the same fact as `Allocatable: nvidia.com/gpu: 4` under `kubectl describe node`, just easier to scan across a pool. The label line adds the GFD side: `gpu.count=4` should agree with the allocatable number, and `gpu.product`/`gpu.memory` are what a workload-facing service class would later be built on top of (see Chapter 05). If one node in the `ALLOCATABLE` column instead showed `<none>` (not `0` — the column is absent because the resource was never published), that node did not complete the `DriverCheck` branch in the architecture figure, and no amount of retrying this `kubectl get` will change that; it needs the driver Pod's own logs inspected first.
 
 **Explanation:** This checks discovery and device-plugin registration but not container CUDA access.
 
@@ -184,6 +231,20 @@ kubectl logs gpu-operator-validation
 ```
 
 **Expected evidence:** The Pod succeeds and its log includes GPU inventory plus `GPU_OPERATOR_VALIDATED`.
+
+```text
+$ kubectl logs gpu-operator-validation
+Wed Aug 12 09:31:02 2026
++-----------------------------------------------------------------------------+
+| NVIDIA-SMI 550.90.07   Driver Version: 550.90.07   CUDA Version: 12.4       |
+|-------------------------------+----------------------+----------------------+
+| GPU  Name        Persistence-M| Bus-Id        Disp.A | Volatile Uncorr. ECC |
+|   0  NVIDIA A100-SXM4-80GB  On | 00000000:07:00.0 Off |                  0 |
++-------------------------------+----------------------+----------------------+
+GPU_OPERATOR_VALIDATED
+```
+
+`Driver Version: 550.90.07` and `CUDA Version: 12.4` appearing at all means `nvidia-smi` executed successfully inside the container — the toolkit correctly injected the device and driver libraries, closing the `Toolkit -> Workload` hop in the architecture figure. `GPU_OPERATOR_VALIDATED` printing after it means the shell command's `&&` chain didn't short-circuit, so `nvidia-smi` returned exit code 0, not just partial output. If `nvidia-smi` had failed, this log would stop after the failure and `GPU_OPERATOR_VALIDATED` would never appear — that missing final line, by itself, is enough to tell you the Pod did not actually validate even if `kubectl get pod` shows `Succeeded` from a race in how the phase was checked.
 
 **Explanation:** A workload result closes the gap between a reconciled platform and usable infrastructure.
 
@@ -218,6 +279,25 @@ In a disposable cluster, apply a validation Pod requesting more GPUs than any no
 | Driver Pod failing | driver container logs, kernel evidence | kernel/driver ownership |
 | No resource | device-plugin logs and kubelet | registration |
 | Pod fails `nvidia-smi` | Pod events and runtime evidence | toolkit/runtime |
+
+**Evidence for "Helm timeout."** The exercise itself — over-requesting GPUs — produces the companion evidence for scheduling, but a Helm timeout is a different failure surfaced during install. `kubectl get events -n gpu-operator --sort-by=.lastTimestamp` after a timed-out install typically shows the actual blocker:
+
+```text
+$ kubectl get events -n gpu-operator --sort-by=.lastTimestamp | tail -3
+44s   Warning   FailedScheduling   pod/nvidia-driver-daemonset-7z4kd   0/3 nodes are available: 3 node(s) had taint {nvidia.com/gpu: NoSchedule}, that the pod didn't tolerate.
+```
+
+`didn't tolerate` on the driver's own Pod means the driver DaemonSet's toleration doesn't match the GPU node taint used in this cluster — a values-file mismatch, not a slow pull or a broken registry. This is why the step-11 note says "stop and inspect Pods/events; do not rerun blindly" — rerunning `helm upgrade --install` would time out identically every time until the values file's tolerations are fixed.
+
+**Evidence for the over-request exercise.** Applying a validation Pod that requests more GPUs than any node has produces the scheduling-side companion to the resource-advertisement evidence in step 13:
+
+```text
+$ kubectl describe pod gpu-overrequest-test | tail -4
+Warning  FailedScheduling  9s   default-scheduler  0/3 nodes are available:
+         3 Insufficient nvidia.com/gpu.
+```
+
+`3 Insufficient nvidia.com/gpu` against nodes that step 13 showed reporting `ALLOCATABLE: 4` each confirms the request (say, `limits: {nvidia.com/gpu: 8}`) genuinely exceeds every node's real capacity — this is the expected, correct failure mode for the exercise, and it is evidence the scheduler is enforcing the resource contract rather than a sign anything is broken. Delete the Pod immediately after confirming this event; it exists only to produce this one line.
 
 ## 17. Cleanup and Handoff
 

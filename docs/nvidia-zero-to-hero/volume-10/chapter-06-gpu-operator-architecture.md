@@ -135,6 +135,8 @@ A platform team changes a common value to update the driver path. The controller
 
 The corrective design separates node pools by compatibility class, pins configuration in Git, applies it to a canary pool first, and permits production scheduling only after acceptance validation. It also defines the rollback trigger: loss of allocatable capacity or failed representative CUDA execution, not merely a controller log line.
 
+**Quantifying the blast radius.** Say the fleet is 60 GPU nodes in one `ClusterPolicy` with no pool separation. The DaemonSet controller reconciles the changed driver value across all matching nodes roughly in parallel, bounded mainly by `maxUnavailable`/rollout concurrency, not by node count — so a single `helm upgrade` that changes `driver.version` can put a meaningful fraction of 60 nodes into a driver-reload state within minutes, long before the first validation failure is even observed. If the incompatible kernel channel affects 35 of those 60 nodes (the newer OS image, say), that is 35/60 ≈ 58% of total GPU capacity degraded from one value change, discovered only once workloads start failing to schedule or CUDA-initialize on the affected nodes. Compare that to a canary-first rollout: the same change applied to a 3-node canary pool first caps the worst case at 3/60 = 5% of capacity while validation runs, and the other 57 nodes are never touched until that canary passes representative CUDA execution. The ratio between those two numbers — 58% vs. 5% — is the entire argument for pool separation stated as a number instead of a warning.
+
 ## Security model
 
 Several operands require elevated host access to load modules, configure a runtime, inspect devices, or expose telemetry. Put the operator and its operands in a tightly controlled namespace. Restrict who can modify the policy, DaemonSets, service accounts, and Node labels. Use approved registries and image provenance controls, and account for registry access during node recovery.
@@ -153,6 +155,41 @@ Begin with the policy status, controller logs, events, and node labels, then ide
 | Pod starts without CUDA access | toolkit/runtime integration and allocation path |
 | Validation fails after a change | the changed layer and its declared compatibility assumptions |
 
+**Evidence for "Driver operand unhealthy."** The driver Pod's own logs distinguish a kernel-incompatibility failure from a transient one:
+
+```text
+$ kubectl logs -n gpu-operator nvidia-driver-daemonset-7z4kd
+Detected Kernel version 6.5.0-1015-aws is not supported.
+Only kernel versions supported by the driver branch listed in
+container image nvcr.io/nvidia/driver:550.90.07-ubuntu22.04 are compatible.
+```
+
+`is not supported` naming the exact kernel string and the exact driver-image tag is the direct evidence for this row — it points at the kernel/driver compatibility boundary named in the table, not at the operator or Kubernetes reconciliation, which are both functioning correctly here (the Pod is scheduled and running; the *content* of what it tried to do failed). This is the same failure shape the canary story above describes, caught here at the single-node level before it reaches 35 nodes.
+
+**Evidence for "No allocatable GPU."** Walk the chain in order rather than guessing: driver health first, then plugin, then kubelet's view:
+
+```text
+$ kubectl get pods -n gpu-operator -l app=nvidia-driver-daemonset -o wide | grep gpu-node-22
+nvidia-driver-daemonset-9mvxq   1/1   Running   0   4h   gpu-node-22
+
+$ kubectl logs -n gpu-operator nvidia-device-plugin-daemonset-k2vqp
+I0812 13:02:04.771       1 main.go:145] Unable to load NVML: could not communicate with driver
+
+$ kubectl describe node gpu-node-22 | grep -A1 Allocatable | grep nvidia
+```
+
+The driver Pod reads `1/1 Running` — it looks healthy at the Pod-phase level. But the device-plugin log on the same node reports `Unable to load NVML: could not communicate with driver`, and the final `describe node` grep returns nothing at all (no `nvidia.com/gpu` line). Read together: the driver container is running, but the kernel module it's supposed to have loaded isn't actually usable by NVML — a driver-content failure masquerading as a healthy Pod. This is exactly the gap the `DriverOK` decision in Figure 10.6.1 exists to name: `Running` is not the same evidence as "module load succeeded."
+
+**Evidence for "Validation fails after a change."** The validator operand's job is specifically to catch this, so its logs name the layer that regressed:
+
+```text
+$ kubectl logs -n gpu-operator nvidia-cuda-validator-9x2kq
+running CUDA sample application...
+CUDA error: no kernel image is available for execution on the device
+```
+
+`no kernel image is available for execution on the device` is a compute-capability mismatch — the CUDA sample was built for a different architecture than the driver/GPU actually present, which usually traces straight back to whichever layer's version changed most recently in the release candidate (per "A release is a compatibility decision" above). This log line is the difference between "the operator is broken" and "one specific compatibility assumption in this release regressed" — only the second diagnosis leads to a correct fix.
+
 ## Customer architecture discussion
 
 The operator is most valuable when it establishes a repeatable node contract. It should sit behind a platform interface: documented GPU classes, controlled configuration, acceptance gates, and an upgrade path. It does not remove customer choices about kernel governance, disconnected operations, security controls, or workload maintenance windows; it makes those choices observable and enforceable in the cluster.
@@ -161,11 +198,11 @@ The operator is most valuable when it establishes a repeatable node contract. It
 
 **Why is a controller better than a configuration script for GPU nodes?**
 
-A controller continuously observes and reconciles declared state as nodes change. A script can perform an initial mutation, but it does not inherently provide drift detection, state reporting, or reconciliation after node replacement. Neither approach eliminates kernel and compatibility risk.
+**Model answer:** "A script gives you a point-in-time mutation — it runs once, and from then on it has no relationship with the node. If a GPU gets replaced, the kernel gets patched, or a Pod gets evicted and the DaemonSet re-schedules, nothing re-applies the script's intent unless you rerun it, and usually nobody does until something breaks. A controller like GPU Operator is watching a declared target state continuously, so when a node comes back after replacement, the controller notices the operand is missing or drifted and reconciles it back automatically. That said, I'd be careful not to oversell it — reconciling Kubernetes objects doesn't make an unsupported kernel supported or a failed module load succeed. The controller closes the drift-detection gap; it doesn't remove compatibility risk."
 
 **What is the biggest risk of operator-managed infrastructure?**
 
-The same reconciliation mechanism that reduces drift can distribute a bad configuration rapidly. Scope changes by node pool, validate a canary with real workload evidence, and retain a rollback path.
+**Model answer:** "The exact same reconciliation loop that keeps 60 nodes consistent will apply a mistake to all 60 nodes with equal enthusiasm. I've walked through this with teams as a concrete number: one `ClusterPolicy` covering the whole fleet with no pool separation means a single bad driver-version bump can degrade the majority of your GPU capacity in minutes, versus capping the blast radius at a handful of canary nodes if you'd pooled first. My answer to 'how do you manage that risk' is always the same three things — separate node pools by compatibility class, pin the configuration in Git so every change is reviewable, and gate promotion on real evidence: allocatable capacity holding steady and a representative CUDA workload actually completing, not just a green controller status."
 
 ## Key takeaways
 

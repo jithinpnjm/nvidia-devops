@@ -119,6 +119,29 @@ For a Pending Pod, read its events first. Check its GPU request, matching alloca
 
 For a running but slow workload, prove the allocation and compare the affected placement with a known-good one. Examine assigned GPUs, CPU sets, NUMA relationship, peer topology, network attachment, and competing workload behavior. Pair this with DCGM, application, network, and storage telemetry. A Running Pod proves scheduling success; it does not establish that the chosen placement meets its performance objective.
 
+**Evidence for the Pending-Pod path.** `kubectl describe pod` names the specific predicate that rejected each candidate node, turning "why won't this schedule" into a one-line answer instead of a guess:
+
+```text
+$ kubectl describe pod train-worker-2 | tail -8
+Events:
+  Type     Reason            Age   From               Message
+  ----     ------            ----  ----               -------
+  Warning  FailedScheduling  40s   default-scheduler  0/12 nodes are available:
+    4 Insufficient nvidia.com/gpu, 6 node(s) had untolerated taint
+    {pool: inference-only}, 2 node(s) didn't match Pod's node affinity/selector.
+```
+Three distinct failure reasons across 12 nodes, not one — `4 Insufficient nvidia.com/gpu` says those nodes are simply full (a capacity question), `6 node(s) had untolerated taint` says the inference-only pool was correctly fenced off from this training job (policy working as intended, not a bug), and `2 node(s) didn't match` points at a stale or wrong node-affinity selector on this specific Pod. Reading past the first clause is the difference between fixing the actual cause and relaxing the wrong constraint.
+
+**Evidence for the running-but-slow path.** Comparing NUMA/GPU affinity between a slow worker and a healthy peer is the fastest way to confirm a topology-caused regression instead of a code regression:
+
+```text
+$ kubectl exec train-worker-2 -- nvidia-smi topo -m | head -4
+        GPU0  GPU1  CPU Affinity  NUMA Affinity
+GPU0     X    PHB   0-31          0
+GPU1    PHB    X    32-63         1
+```
+`PHB` (PCIe Host Bridge, not `NVLink`) between GPU0 and GPU1 on this node, compared against a healthy worker on a different node showing `NV4` (four NVLink connections) for the same GPU pair, is the exact evidence from the "Production story" above: identical GPU count, materially different peer bandwidth, and that difference alone can explain a step-time regression the scheduler's resource model had no way to prevent.
+
 ## Customer architecture discussion
 
 One global policy is rarely appropriate for a shared GPU cluster. Offer clear service classes: flexible capacity for elastic work, protected serving capacity for latency-sensitive workloads, and controlled topology-aware capacity for tightly coupled jobs. Make the cost of each class visible in utilization, queue time, and operational complexity. That lets application teams choose a contract instead of reverse-engineering the fleet.
@@ -127,11 +150,15 @@ One global policy is rarely appropriate for a shared GPU cluster. Offer clear se
 
 **Why can topology-aware scheduling lower total utilization?**
 
-It restricts which otherwise free devices are eligible. The restriction is worthwhile only when the workload’s measured benefit from locality exceeds the queueing and stranded-capacity cost.
+**Model answer:** "Every hard constraint I add — a taint, a required affinity, a topology label — shrinks the set of nodes a Pod can land on. That's the whole point when the workload genuinely needs it, but it also means GPUs that are otherwise idle and healthy become ineligible for that workload, so they sit stranded until something that fits the constraint shows up. I'd only accept that cost when I can point to a measured benefit — a step-time or collective-communication number that's worse without the constraint — not because topology-aware placement sounds like the more sophisticated answer."
 
 **Why is `nvidia.com/gpu: 4` insufficient for a distributed training placement policy?**
 
-It asks for four allocatable devices but says nothing about their peer topology, CPU and NIC locality, node class, network path, or whether all required workers can start together.
+**Model answer:** "That request tells the scheduler 'reserve four allocatable units of this resource type' — it says nothing about whether those four GPUs are NVLink-connected on one node or scattered with PCIe-only peer links, whether the CPU cores and NIC assigned are on the same NUMA node as the GPUs, or whether all four workers get admitted together instead of three starting while a fourth waits in a queue. I've seen a job get exactly the requested GPU count, show every Pod Running, and still run 3-4x slower than expected purely because of peer topology the resource request had no way to express — that's why Chapter 8 treats capacity, eligibility, locality, and coordination as four separate questions instead of one number."
+
+**Walk through how you'd design the service-class catalog for a shared GPU cluster with training, batch inference, and online inference workloads.**
+
+**Model answer:** "I'd start with the fewest classes I can justify, not the most granular ones. Online inference gets a protected pool with node affinity and maybe anti-affinity for replica spread — latency and availability matter more than packing density there. Batch inference goes in the flexible pool with queue-aware admission since nobody's watching it in real time and it can tolerate wait. Distributed training gets its own topology-validated class with coordinated admission — gang scheduling — because a partial start burns GPU-hours with zero training progress. Then I'd track queue time and stranded capacity per class after rollout, because a class that never queues and never strands anything is a class I probably didn't need to create in the first place."
 
 ## Key takeaways
 

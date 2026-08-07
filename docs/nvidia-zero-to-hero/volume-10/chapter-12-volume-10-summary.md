@@ -15,20 +15,21 @@ That chain is the central model of this volume. It gives the platform team a way
 
 ```mermaid
 flowchart TD
-    Hardware[GPU hardware and firmware] --> Driver[Kernel driver]
-    Driver --> Runtime[Container Toolkit, CDI, or runtime handler]
-    Driver --> Plugin[Device Plugin and kubelet registration]
-    Hardware --> Discovery[NFD and GPU feature discovery]
-    Runtime --> Workload[GPU workload]
+    Hardware[GPU hardware and firmware] -->|"nvidia-smi initializes (Ch1, Lab1)"| Driver[Kernel driver]
+    Driver -->|"crictl inspect shows /dev/nvidiaN injected (Ch3)"| Runtime[Container Toolkit, CDI, or runtime handler]
+    Driver -->|"kubelet Allocatable.nvidia.com/gpu > 0 (Ch4)"| Plugin[Device Plugin and kubelet registration]
+    Hardware -->|"node labels nvidia.com/gpu.product=... (Ch5)"| Discovery[NFD and GPU feature discovery]
+    Runtime -->|"nvidia-smi succeeds inside container"| Workload[GPU workload]
     Plugin --> Scheduler[Kubernetes resource and scheduler]
     Discovery --> Scheduler
-    Scheduler --> Workload[GPU workload]
-    Hardware --> DCGM[DCGM and exporter]
-    Workload --> Evidence[Workload, node, and device evidence]
+    Scheduler -->|"Pod bound + placement contract met (Ch8)"| Workload
+    Hardware -->|"DCGM_FI_DEV_* fields populate (Ch9)"| DCGM[DCGM and exporter]
+    Workload --> Evidence["Workload, node, and device evidence —\nthe basis for every troubleshooting table in this volume"]
     DCGM --> Evidence
+    Evidence -->|"any single link above unproven"| Gap["Gap = the exact chapter to re-open,\nnot a reason to reinstall everything"]
 ```
 
-**Figure 10.12.1 — The GPU platform is a chain of contracts.** A healthy lower layer is necessary but not sufficient for the layer above it.
+**Figure 10.12.1 — The GPU platform is a chain of contracts, each proven by a specific piece of evidence from earlier chapters.** A healthy lower layer is necessary but not sufficient for the layer above it — this recap diagram exists specifically to show that the volume's individual per-chapter evidence checks (the edge labels, each traceable back to its source chapter) compose into one end-to-end diagnosis path, not eleven unrelated topics. The `Gap` node is the practical payoff: when something fails, the broken edge in this diagram names the chapter to open, instead of restarting the whole install.
 
 ## What each component is responsible for
 
@@ -73,13 +74,21 @@ This is an evidence order, not a claim that every fault starts in hardware. It i
 
 ## Revision prompts
 
-**Why is a `Running` GPU Pod not proof of GPU health?** Pod phase reports Kubernetes lifecycle state. It does not establish CUDA initialization, performance, device health, or telemetry coverage.
+**Why is a `Running` GPU Pod not proof of GPU health?**
 
-**Why is resource quantity insufficient for placement?** GPU model and memory, CPU and NUMA locality, NIC and peer topology, sharing mode, queue semantics, and workload class can all change whether an allocation is useful.
+**Model answer:** "`Running` is Kubernetes telling me the container process started and hasn't exited — that's a lifecycle fact, not a hardware or CUDA fact. I've walked into incidents where a Pod had been `Running` for hours while its GPU had already fallen off the bus, because nothing about the container lifecycle depends on the application actually calling into CUDA successfully. Proof of GPU health is `nvidia-smi` succeeding inside that specific container, DCGM showing no reliability events for that UUID, and the workload's own throughput metrics — three separate checks, none of which `kubectl get pod` can answer for you."
 
-**What makes a deployment production-ready?** A qualified compatibility set, reviewed ownership and security boundaries, reconciled operands, workload and telemetry acceptance, documented recovery, and operating capacity for maintenance.
+**Why is resource quantity insufficient for placement?**
 
-**Why is rollback more than Helm rollback?** Host and workload boundaries may have changed with a kernel, driver, runtime, or firmware update. Recovery must return the affected node to a tested combination.
+**Model answer:** "`nvidia.com/gpu: 4` is an integer — it says nothing about which four GPUs, whether they're NVLink peers or scattered across PCIe roots, whether the CPU cores and NIC assigned sit on the same NUMA node, or whether a sharing mode like MIG changes what 'one unit' even means. Two Pods can both get an allocation that satisfies the same integer request and see completely different real-world performance. That's the whole argument for treating capacity, eligibility, locality, and coordination as four separate questions instead of trusting the count."
+
+**What makes a deployment production-ready?**
+
+**Model answer:** "Six things have to all be true at once, not just one: a compatibility set that's actually been qualified together — kernel, driver, runtime, operator, firmware; clear ownership and security boundaries so I know who's authoritative for each layer; operands that are reconciled and green; a workload and telemetry acceptance gate that ran on this specific node, not just a chart status; a documented recovery path that covers host state, not only Helm; and enough spare capacity to actually execute a canary or drain without an outage. Any one of those missing is a deployment that looks done and isn't."
+
+**Why is rollback more than Helm rollback?**
+
+**Model answer:** "Because `helm rollback` only touches what the chart controls — Kubernetes objects. If the change that broke things also touched the node — a driver module, a kernel, firmware — reverting the chart doesn't put the host back to a matching state, it just makes the control plane's *description* of the state wrong again in the opposite direction. Real rollback means figuring out which layers actually changed and restoring a tested, coherent combination across all of them — sometimes that's a chart revert, sometimes it's booting a known-good node image, and it's often both."
 
 ## Continue the practice
 

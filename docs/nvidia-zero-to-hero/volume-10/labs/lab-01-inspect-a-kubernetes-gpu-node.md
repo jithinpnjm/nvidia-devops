@@ -30,13 +30,17 @@ By completion, you can collect host, runtime, device-plugin, kubelet, and worklo
 
 ```mermaid
 flowchart LR
-  GPU[Physical GPU] --> Driver[NVIDIA driver]
-  Driver --> Runtime[Container runtime + toolkit]
-  Driver --> Plugin[Device plugin]
-  Plugin --> Kubelet --> API[Kubernetes API]
-  API --> Scheduler --> Pod[One-GPU Pod]
+  GPU[Physical GPU] -->|"evidence: nvidia-smi -L lists it"| Driver[NVIDIA driver]
+  Driver -->|"evidence: crictl inspect shows /dev/nvidiaN"| Runtime[Container runtime + toolkit]
+  Driver -->|"evidence: plugin registers with kubelet"| Plugin[Device plugin]
+  Plugin -->|"evidence: Allocatable.nvidia.com/gpu > 0"| Kubelet --> API[Kubernetes API]
+  API --> Scheduler --> Bound{"Pod bound —<br/>does nvidia-smi succeed<br/>INSIDE the container?"}
+  Bound -->|"Yes"| Pod[Completed: GPU_NODE_VALIDATED]
+  Bound -->|"No — Allocatable was true<br/>but injection failed"| Fail["CreateContainerError or<br/>nvidia-smi fails in-container:<br/>this lab's Section 12 catches exactly this"]
   Pod --> Runtime
 ```
+
+**Figure — this lab validates every edge above, in order.** Sections 9-10 prove the host and Kubernetes-state edges; Section 11 crosses the `Bound` decision point; Section 12 is the only step that actually confirms the `Yes` branch instead of assuming it from Pod phase.
 
 ## 5. Prerequisites
 
@@ -60,7 +64,18 @@ kubectl config current-context
 kubectl get nodes -o wide
 ```
 
-**Expected evidence:** The expected context and at least one Ready GPU-capable node are listed.
+**Expected evidence:**
+```text
+$ kubectl config current-context
+gpu-staging-us-east-1
+
+$ kubectl get nodes -o wide
+NAME          STATUS   ROLES    AGE   VERSION   INTERNAL-IP   OS-IMAGE             KERNEL-VERSION
+cpu-node-01   Ready    <none>   40d   v1.29.4   10.0.4.11     Ubuntu 22.04.4 LTS   5.15.0-1053-aws
+gpu-node-07   Ready    <none>   12d   v1.29.4   10.0.4.27     Ubuntu 22.04.4 LTS   5.15.0-1053-aws
+gpu-node-11   Ready    <none>   3d    v1.29.4   10.0.4.31     Ubuntu 22.04.4 LTS   5.15.0-1053-aws
+```
+`gpu-staging-us-east-1` matching the intended cluster is the whole point of this step — proceeding on the wrong context turns a read-only inspection into an accidental production change. `STATUS Ready` on `gpu-node-07`/`gpu-node-11` confirms kubelet is reporting in; it does **not** yet confirm either node has GPU capacity — that's the next step, deliberately kept separate.
 
 **Explanation:** Context mistakes can turn a safe inspection into a production change.
 
@@ -76,7 +91,17 @@ kubectl get nodes -o custom-columns=NAME:.metadata.name,CAPACITY:.status.capacit
 export GPU_NODE='<approved-gpu-node>'
 ```
 
-**Expected evidence:** `GPU_NODE` is a single approved node name; a healthy node normally has a numeric resource value.
+**Expected evidence:**
+```text
+$ kubectl get nodes -o custom-columns=NAME:.metadata.name,CAPACITY:.status.capacity.nvidia\.com/gpu,ALLOCATABLE:.status.allocatable.nvidia\.com/gpu
+NAME          CAPACITY   ALLOCATABLE
+cpu-node-01   <none>     <none>
+gpu-node-07   8          8
+gpu-node-11   8          0
+
+$ export GPU_NODE='gpu-node-07'
+```
+`CAPACITY 8 / ALLOCATABLE 8` on `gpu-node-07` is the number to select for a clean baseline run. `gpu-node-11` showing `CAPACITY 8 / ALLOCATABLE 0` is a real example of the exact failure this lab exists to catch: the kubelet reported the node's total device count (`Capacity`, from the device plugin's last successful registration) but nothing is currently schedulable (`Allocatable`) — a driver reload, plugin crash, or reset in progress. Do not select that node for the baseline run; it belongs in [Lab 03](./lab-03-diagnose-a-missing-allocatable-gpu) instead.
 
 **Explanation:** Capacity is what kubelet reports; Allocatable is what scheduling may consume after reservations.
 
@@ -102,7 +127,25 @@ kubectl describe node "$GPU_NODE"
 kubectl get node "$GPU_NODE" -o jsonpath='{.status.capacity.nvidia\.com/gpu}{" capacity\n"}{.status.allocatable.nvidia\.com/gpu}{" allocatable\n"}'
 ```
 
-**Expected evidence:** Node conditions are Ready and the resource values are recorded along with any taints.
+**Expected evidence:**
+```text
+$ kubectl describe node "$GPU_NODE" | grep -A6 'Conditions:'
+Conditions:
+  Type             Status  LastHeartbeatTime  Reason              Message
+  ----             ------  -----------------  ------              -------
+  MemoryPressure   False   ...                KubeletHasSufficientMemory
+  DiskPressure     False   ...                KubeletHasNoDiskPressure
+  PIDPressure      False   ...                KubeletHasSufficientPID
+  Ready            True    ...                KubeletReady
+
+$ kubectl describe node "$GPU_NODE" | grep -A2 'Taints:'
+Taints:             nvidia.com/gpu=present:NoSchedule
+
+$ kubectl get node "$GPU_NODE" -o jsonpath='{.status.capacity.nvidia\.com/gpu}{" capacity\n"}{.status.allocatable.nvidia\.com/gpu}{" allocatable\n"}'
+8 capacity
+8 allocatable
+```
+`Ready True` plus zero pressure conditions means kubelet itself is healthy — necessary but, as this lab keeps emphasizing, not sufficient. The `nvidia.com/gpu=present:NoSchedule` taint is a deliberate pool-isolation control: a Pod without the matching toleration will never be considered for this node regardless of allocatable capacity, which is exactly the kind of thing that produces a Pending Pod with no obvious resource shortage. `8 capacity` / `8 allocatable` matching confirms no GPU is currently reserved by another allocation on this node.
 
 **Explanation:** Labels explain capability selection; taints and allocatable values explain why a request may not schedule.
 
@@ -115,7 +158,16 @@ kubectl get node "$GPU_NODE" -o jsonpath='{.status.capacity.nvidia\.com/gpu}{" c
 kubectl get pods -A -o wide | grep -Ei 'nvidia|gpu-feature|node-feature|dcgm' || true
 ```
 
-**Expected evidence:** Operator-managed environments show relevant driver, toolkit, device-plugin, discovery, validator, or telemetry Pods.
+**Expected evidence:**
+```text
+$ kubectl get pods -A -o wide | grep -Ei 'nvidia|gpu-feature|node-feature|dcgm' || true
+gpu-operator   nvidia-driver-daemonset-xk2p9        1/1   Running   0   3d   10.0.4.27   gpu-node-07
+gpu-operator   nvidia-container-toolkit-daemonset-9j4   1/1   Running   0   3d   10.0.4.27   gpu-node-07
+gpu-operator   nvidia-device-plugin-daemonset-vqz2t  1/1   Running   0   3d   10.0.4.27   gpu-node-07
+gpu-operator   gpu-feature-discovery-4tnkr           1/1   Running   0   3d   10.0.4.27   gpu-node-07
+gpu-operator   nvidia-dcgm-exporter-p8m2x            1/1   Running   0   3d   10.0.4.27   gpu-node-07
+```
+Five operands, one Pod per DaemonSet on `gpu-node-07`, all `1/1 Running` — this is what an operator-managed node looks like. `1/1 Running` proves the Pod's own container started; it does **not** prove the driver module actually loaded or the plugin actually registered — those are the host and Kubernetes-state checks in Sections 9-10, which is exactly why this step and the next two are kept as separate pieces of evidence instead of one "everything's green" summary.
 
 **Explanation:** The `|| true` preserves a successful inspection when the search has no matches.
 
@@ -134,7 +186,27 @@ nvidia-smi -L
 nvidia-smi topo -m
 ```
 
-**Expected evidence:** GPU model, driver information, logical GPU list, and a topology table appear.
+**Expected evidence:**
+```text
+$ nvidia-smi
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 550.90.07              Driver Version: 550.90.07      CUDA Version: 12.4      |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|===========================================+========================+======================|
+|   0  NVIDIA A100-SXM4-80GB          On  | 00000000:1B:00.0 Off  |                    0 |
+| N/A   34C    P0             62W / 400W |      4MiB / 81920MiB |      0%      Default |
++-----------------------------------------------------------------------------------------+
+
+$ nvidia-smi -L
+GPU 0: NVIDIA A100-SXM4-80GB (UUID: GPU-3a1e9f2b-6c7d-4e91-9a02-1f8b7c0d5e11)
+
+$ nvidia-smi topo -m
+        GPU0  CPU Affinity  NUMA Affinity
+GPU0     X    0-31          0
+```
+`Driver Version: 550.90.07` and `CUDA Version: 12.4` are host driver facts, independent of anything Kubernetes reports — this is the ground truth Section 9's `Allocatable` number depends on but cannot itself confirm. `4MiB / 81920MiB` memory used on an otherwise-idle node is normal driver overhead, not a leak. Record the `UUID` from `nvidia-smi -L` now — it is the join key you will match against the validation Pod's in-container output in Section 12, proving the exact physical device that was allocated is the one the container actually received.
 
 **Explanation:** Kubernetes cannot repair a GPU that the host driver cannot initialize.
 
@@ -148,7 +220,20 @@ sudo crictl info
 sudo grep -R "nvidia" /etc/containerd /etc/nvidia-container-runtime 2>/dev/null || true
 ```
 
-**Expected evidence:** Runtime details and, where configured, NVIDIA-related configuration are captured.
+**Expected evidence:**
+```text
+$ sudo crictl info | grep -A3 '"runtimeType"'
+      "runtimeType": "io.containerd.runc.v2",
+      "runtimeEngine": "",
+      "runtimeRoot": "",
+      "PodSandboxImage": "registry.k8s.io/pause:3.9"
+
+$ sudo grep -R "nvidia" /etc/containerd /etc/nvidia-container-runtime 2>/dev/null || true
+/etc/containerd/config.toml:  default_runtime_name = "nvidia"
+/etc/containerd/config.toml:[plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
+/etc/nvidia-container-runtime/config.toml:accept-nvidia-visible-devices-as-volume-mounts = false
+```
+`default_runtime_name = "nvidia"` means containerd routes container creation through the NVIDIA runtime handler for every container on this node by default (a common operator-managed configuration) rather than requiring each Pod to declare a RuntimeClass explicitly — confirm which model this cluster uses before assuming a Pod without an explicit RuntimeClass will get GPU support.
 
 **Explanation:** The first command is read-only; the second is intentionally tolerant of distribution-specific paths.
 
@@ -183,7 +268,19 @@ kubectl apply -f gpu-node-validation.yaml
 kubectl get pod gpu-node-validation -w
 ```
 
-**Expected evidence:** The Pod is scheduled to the approved node, then reaches `Completed`.
+**Expected evidence:**
+```text
+$ kubectl apply -f gpu-node-validation.yaml
+pod/gpu-node-validation created
+
+$ kubectl get pod gpu-node-validation -w
+NAME                   READY   STATUS              RESTARTS   AGE
+gpu-node-validation    0/1     Pending             0          1s
+gpu-node-validation    0/1     ContainerCreating    0          3s
+gpu-node-validation    1/1     Running             0          9s
+gpu-node-validation    0/1     Completed           0          11s
+```
+The `Pending` → `ContainerCreating` → `Running` → `Completed` sequence crosses exactly the `Bound` decision point in this lab's Architecture diagram: `ContainerCreating` is where runtime injection happens, and a stall here (rather than a fast pass-through) is the first symptom of an injection failure — a Pending Pod and a container stuck in `ContainerCreating` point at different boundaries even though both look like "the Pod isn't ready yet."
 
 **Explanation:** `nodeName` intentionally tests this selected node; remove it only when testing scheduler placement.
 
@@ -199,7 +296,26 @@ kubectl logs gpu-node-validation
 kubectl describe pod gpu-node-validation
 ```
 
-**Expected evidence:** Logs include the GPU inventory and `GPU_NODE_VALIDATED`; events show no allocation/runtime failure.
+**Expected evidence:**
+```text
+$ kubectl logs gpu-node-validation
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 550.90.07              Driver Version: 550.90.07      CUDA Version: 12.4      |
+|===========================================+========================+======================|
+|   0  NVIDIA A100-SXM4-80GB          On  | 00000000:1B:00.0 Off  |                    0 |
++-----------------------------------------------------------------------------------------+
+GPU_NODE_VALIDATED
+
+$ kubectl describe pod gpu-node-validation | tail -4
+Events:
+  Type    Reason     Age   From               Message
+  ----    ------     ----  ----               -------
+  Normal  Scheduled  40s   default-scheduler  Successfully assigned default/gpu-node-validation to gpu-node-07
+  Normal  Pulled     38s   kubelet            Container image already present on machine
+  Normal  Created    38s   kubelet            Created container cuda
+  Normal  Started    37s   kubelet            Started container cuda
+```
+The `NVIDIA-SMI` banner appearing inside `kubectl logs` output (not just on the host) is the proof this whole lab exists to produce: the container process — not just the node — can see the GPU. Confirm the `Bus-Id 00000000:1B:00.0` here matches the host-side `nvidia-smi` output from Section 10; a mismatch would mean the wrong physical device was injected. `GPU_NODE_VALIDATED` on its own line confirms the shell command completed after `nvidia-smi` returned success, not that it crashed partway through. Events showing `Scheduled → Pulled → Created → Started` with no `Failed`/`BackOff` reason between them means every layer up to and including runtime injection succeeded cleanly.
 
 **Explanation:** Completion proves the container initialized the assigned GPU through the runtime.
 
@@ -240,7 +356,16 @@ In a disposable cluster only, change the validation limit to `nvidia.com/gpu: 99
 kubectl describe pod gpu-node-validation
 ```
 
-**Expected evidence:** The Pod remains Pending with an insufficient-resource scheduling event.
+**Expected evidence:**
+```text
+$ kubectl describe pod gpu-node-validation | tail -4
+Events:
+  Type     Reason            Age   From               Message
+  ----     ------            ----  ----               -------
+  Warning  FailedScheduling  8s    default-scheduler  0/3 nodes are available:
+    1 Insufficient nvidia.com/gpu, 2 node(s) didn't match Pod's node affinity/selector.
+```
+`Insufficient nvidia.com/gpu` naming the resource explicitly is the scheduler telling you the exact number requested (99) exceeds what any node advertises — this is the correct, boring failure mode for an unsatisfiable request, and it is the same evidence shape the "Pod Pending" row of the troubleshooting table below uses for a real capacity shortage. Contrast this event text with Section 12's clean `Scheduled` event: an event with `Reason: FailedScheduling` never reaches `ContainerCreating` at all, which is how you can tell from the event log alone, without watching Pod phase, which side of the Architecture diagram's `Bound` decision a failure happened on.
 
 **Explanation:** This changes only a disposable validation workload and does not alter node software.
 

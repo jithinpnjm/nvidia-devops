@@ -30,14 +30,18 @@ You will build a compatibility and rollback plan, protect a canary node, validat
 
 ```mermaid
 flowchart LR
-  B[Qualified baseline] --> P[Plan and evidence]
-  P --> C[Canary node/pool]
-  C --> U[Version-pinned upgrade]
-  U --> V[Platform + workload validation]
-  V --> G{Acceptance gate}
-  G -->|pass| R[Staged rollout]
-  G -->|fail| RB[Rollback and revalidate]
+  B[Qualified baseline] -->|"evidence: helm history + values-before.yaml captured"| P[Plan and evidence]
+  P -->|"evidence: canary cordoned,\neligible Pods drained"| C[Canary node/pool]
+  C -->|"evidence: helm upgrade reports\nnew revision deployed"| U[Version-pinned upgrade]
+  U -->|"evidence: operands Running,\nAllocatable == baseline,\nvalidation Pod GPU_UPGRADE_VALIDATED"| V[Platform + workload validation]
+  V --> G{"Every acceptance gate passed?\n(operands, resource count,\nworkload, telemetry, no new errors)"}
+  G -->|"pass"| R[Staged rollout to next batch]
+  G -->|"fail — evidence: any single\ngate criterion unmet"| RB["Rollback: helm rollback to\nprevious revision, revalidate\nsame gates before uncordon"]
+  RB -->|"evidence: rollback restored\nAllocatable + validation Pod passes"| Recheck{"Rollback itself\nverified healthy?"}
+  Recheck -->|"No — Allocatable still wrong"| Escalate["This is now an incident, not a\nfailed canary — keep node cordoned,\nescalate per Chapter 11"]
 ```
+
+**Figure — the gate is binary and the rollback path has its own gate.** The most common mistake this lab guards against is treating `helm rollback`'s exit code as proof of recovery — the `Recheck` decision exists because a chart-level rollback can succeed by every Kubernetes-visible signal while host state (driver, kernel) is still in the post-upgrade condition, which is precisely the "chart rollback is unsafe" lesson from [Chapter 11](../chapter-11-upgrades-and-production-troubleshooting).
 
 ## 5. Prerequisites
 
@@ -114,7 +118,23 @@ kubectl get pods -A -o wide --field-selector spec.nodeName="$CANARY_NODE"
 kubectl drain "$CANARY_NODE" --ignore-daemonsets --delete-emptydir-data --grace-period=120 --timeout=20m
 ```
 
-**Expected evidence:** The node is cordoned and eligible workloads leave; DaemonSets remain.
+**Expected evidence:**
+```text
+$ kubectl cordon "$CANARY_NODE"
+node/gpu-node-07 cordoned
+
+$ kubectl get pods -A -o wide --field-selector spec.nodeName="$CANARY_NODE"
+NAMESPACE     NAME                    READY   STATUS    NODE
+ml-training   resnet-worker-3         1/1     Running   gpu-node-07
+gpu-operator  nvidia-driver-ds-7z4kd  1/1     Running   gpu-node-07
+
+$ kubectl drain "$CANARY_NODE" --ignore-daemonsets --delete-emptydir-data --grace-period=120 --timeout=20m
+node/gpu-node-07 already cordoned
+evicting pod ml-training/resnet-worker-3
+pod/resnet-worker-3 evicted
+node/gpu-node-07 drained
+```
+`nvidia-driver-ds-7z4kd` staying listed but never evicted is `--ignore-daemonsets` working as intended — the driver DaemonSet Pod belongs to the platform, not the workload, and draining it would defeat the point of a canary upgrade. `resnet-worker-3 evicted` followed by `node/gpu-node-07 drained` is your confirmation the node is now empty of ordinary workloads and safe to upgrade; if that training job's checkpoint path wasn't healthy, this eviction is exactly the moment that would have shown up as a stuck or refused drain — which is why the step's Common-failure interpretation says stop rather than force past it.
 
 **Explanation:** Review the listed Pods with their owners before running drain. `--delete-emptydir-data` discards ephemeral data and is appropriate only after approval.
 
@@ -152,7 +172,18 @@ kubectl get node "$CANARY_NODE" -o jsonpath='{.status.capacity.nvidia\.com/gpu}{
 kubectl get events -n gpu-operator --sort-by=.lastTimestamp
 ```
 
-**Expected evidence:** Required operands are healthy on their intended nodes, resource values meet baseline, and no new critical events appear.
+**Expected evidence:**
+```text
+$ kubectl get pods -n gpu-operator -o wide | grep gpu-node-07
+nvidia-driver-daemonset-9m3vk         1/1   Running   0   4m    gpu-node-07
+nvidia-container-toolkit-daemonset-2  1/1   Running   0   3m    gpu-node-07
+nvidia-device-plugin-daemonset-7q1w   1/1   Running   0   3m    gpu-node-07
+
+$ kubectl get node "$CANARY_NODE" -o jsonpath='{.status.capacity.nvidia\.com/gpu}{" capacity\n"}{.status.allocatable.nvidia\.com/gpu}{" allocatable\n"}'
+8 capacity
+8 allocatable
+```
+`8 capacity` / `8 allocatable` matching the `canary-before.yaml` baseline captured in Step 10 is the acceptance-gate criterion made concrete — this is a diff against a specific archived number, not a vibe check. All three operand Pods restarted (`AGE 3-4m`, post-upgrade) and reached `1/1 Running` on this specific node confirms the new chart revision's operands actually came up here, not just somewhere in the cluster. If `ALLOCATABLE` had come back empty or lower than `8`, this is the `G: fail` branch in the Architecture diagram, and Step 16's rollback procedure runs next — not a retry of this same check.
 
 **Explanation:** This tests the infrastructure path before exposing application traffic.
 
@@ -207,7 +238,20 @@ helm history gpu-operator -n gpu-operator
 helm rollback gpu-operator <previous-revision> --namespace gpu-operator --wait --timeout 20m
 ```
 
-**Expected evidence:** Helm reports the rollback revision; operands, resource counts, telemetry, and the validation workload are rechecked successfully.
+**Expected evidence:**
+```text
+$ helm history gpu-operator -n gpu-operator
+REVISION  UPDATED                   STATUS      CHART               DESCRIPTION
+1         Mon Jul 21 10:02:11 2026  superseded  gpu-operator-24.6.0 Install complete
+2         Tue Aug 12 09:14:44 2026  deployed    gpu-operator-24.9.1 Upgrade complete
+
+$ helm rollback gpu-operator 1 --namespace gpu-operator --wait --timeout 20m
+Rollback was a success! Happy Helming!
+
+$ kubectl get node "$CANARY_NODE" -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{"\n"}'
+0
+```
+Read this exact sequence carefully — it is the scenario [Chapter 11](../chapter-11-upgrades-and-production-troubleshooting)'s "chart rollback can be unsafe" argument is built on: Helm itself reports success (`Rollback was a success!`), the release history shows revision 1 restored, and yet `ALLOCATABLE` still reads `0`. That combination means the *chart* rolled back cleanly but *host* state — most likely the driver module loaded by the 24.9.1 upgrade — did not revert with it. This is precisely the `Recheck: No` branch in this lab's Architecture diagram: a Helm-successful rollback is not, by itself, proof of recovery, and the correct next step is the node-image/driver rollback procedure and an incident escalation, not a second `helm rollback` attempt.
 
 **Explanation:** Helm rollback may not reverse every node-level state for every driver strategy; follow the reviewed driver/node-image rollback procedure too.
 
