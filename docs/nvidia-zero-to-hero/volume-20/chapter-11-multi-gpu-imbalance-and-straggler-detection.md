@@ -141,14 +141,14 @@ GPU 2's AllReduce is 20x slower than expected. This indicates either:
 ```bash
 $ nvidia-smi nvlink --status
 
-GPU 0: NVLink Status
-    Link 0: OK (10GB/sec)
-    Link 1: OK (10GB/sec)
-    Link 2: OK (10GB/sec)
-    Link 3: DEGRADED (2GB/sec)  <- GPU to GPU 2 link slow
+GPU 0: NVLink Status (NVLink3, A100 — healthy per-link bandwidth ~25 GB/sec)
+    Link 0: OK (25GB/sec)
+    Link 1: OK (25GB/sec)
+    Link 2: OK (25GB/sec)
+    Link 3: DEGRADED (5GB/sec)  <- GPU to GPU 2 link slow
 
 GPU 1: NVLink Status
-    Link 0: OK (10GB/sec)
+    Link 0: OK (25GB/sec)
     ...
 
 GPU 2: NVLink Status
@@ -200,7 +200,8 @@ Expected: All GPUs should have dense kernel timeline. If one GPU has gaps, it's 
    ```bash
    nvidia-smi nvlink --status
    
-   # If any links show < 5 GB/sec, reseat GPU or cable
+   # Healthy A100 NVLink3 links run ~25 GB/sec each (12 links,
+   # ~600 GB/sec aggregate). If any link shows < 20 GB/sec, reseat GPU or cable
    ```
 
 3. **If still slow, disable GPU from training:**
@@ -326,8 +327,8 @@ Expected: All GPUs should have dense kernel timeline. If one GPU has gaps, it's 
    ```bash
    nvidia-smi nvlink --status
    
-   # Verify all links at 10 GB/sec
-   # Alert if any link < 5 GB/sec
+   # Verify all links at ~25 GB/sec (NVLink3/A100 per-link)
+   # Alert if any link < 20 GB/sec
    ```
 
 4. **Prometheus alerts:**

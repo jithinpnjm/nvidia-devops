@@ -88,7 +88,7 @@ Practice resolving GPU failures in realistic scenarios. Learn the sequence of ac
 | 09:47 | Enable NCCL_DEBUG | `export NCCL_DEBUG=TRACE` and attach to hanging process | Collect evidence without restarting (might get lucky) |
 | 09:49 | Analyze trace | Last message: "GPU 2 send timeout" after 5 seconds | GPU 2 is the bottleneck |
 | 09:50 | Decision point | Wait 1 more minute, then restart if not progressing | Acknowledge page and buy 60 more seconds to decide |
-| 09:51 | Check GPU 2 metrics | `nvidia-smi -i 2 -q` shows temp 85°C, clock 1.2 GHz | GPU 2 is thermal throttled! |
+| 09:51 | Check GPU 2 metrics | `nvidia-smi -i 2 -q` shows temp 85°C, clock 1200 MHz | GPU 2 is thermal throttled! |
 | 09:52 | Immediate fix | Reduce batch size by 50% to lower temp | Restart with reduced batch size |
 | 09:53 | Restart training | `python train.py --batch-size 128 --gpu 0,1,3 # Skip GPU 2` | Restart without GPU 2 while investigating |
 | 09:55 | Verification | Monitor for progress | Should see normal iteration times now |
@@ -109,7 +109,7 @@ ncclAllReduce: rank=2, nBytes=4MB, hanging...
 # Step 2: GPU 2 investigation
 $ nvidia-smi -i 2 -q | grep -E "Temperature|Clock|Throttle"
 GPU Current Temp                    : 85 C
-Graphics Clock                      : 1200 MHz  (throttled from 2500!)
+Graphics Clock                      : 1200 MHz  (throttled from 1980!)
 Thermal Slowdown                    : Active
 ```
 
