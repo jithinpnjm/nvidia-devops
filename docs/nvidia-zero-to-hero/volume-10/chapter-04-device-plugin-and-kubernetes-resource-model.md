@@ -24,23 +24,22 @@ After this chapter, you can:
 ## The Kubelet Contract
 
 ```mermaid
-sequenceDiagram
-    participant DP as NVIDIA device plugin
-    participant K as Kubelet
-    participant API as Kubernetes API
-    participant S as Scheduler
-    participant P as GPU Pod
-    DP->>K: Register endpoint and resource name
-    DP->>K: ListAndWatch healthy devices
-    K->>API: Publish node capacity / allocatable
-    P->>S: Request nvidia.com/gpu
-    S->>API: Bind Pod to eligible node
-    K->>DP: Allocate devices for bound Pod
-    DP-->>K: Allocation response
-    K->>P: Create sandbox through CRI runtime
+flowchart TD
+    Plugin[Device plugin Pod starts] -->|"registers endpoint with kubelet"| Registered{Registration accepted?}
+    Registered -->|"no: kubelet/plugin log error"| RegFix[Inspect socket, kubelet path, plugin config]
+    Registered -->|yes| Watch[ListAndWatch reports device IDs and health]
+    Watch -->|"node status Capacity/Allocatable"| Healthy{Expected healthy count?}
+    Healthy -->|no| HealthFix[Compare nvidia-smi, plugin log, unhealthy devices]
+    Healthy -->|yes| Request[Pod requests nvidia.com/gpu]
+    Request -->|"scheduler event"| Bound{Eligible node found?}
+    Bound -->|no| SchedFix[Inspect free units, taints, affinity, quota]
+    Bound -->|yes| Allocate[Kubelet calls Allocate]
+    Allocate -->|"allocation response passed to CRI"| Runtime{Fresh container gets device?}
+    Runtime -->|no| RuntimeFix[Inspect CRI, CDI, Toolkit]
+    Runtime -->|yes| Workload[CUDA validation proves execution]
 ```
 
-**Figure 10.4.1 — The kubelet is the bridge between a device plugin and Kubernetes scheduling.** The scheduler reads node resource state from the API; it does not call the plugin. Allocation occurs after a Pod is bound to a node.
+**Figure 10.4.1 — Device-plugin health becomes useful only when it survives the complete kubelet contract.** Registration, health reporting, scheduling, allocation, and runtime use are separate evidence gates.
 
 The plugin exposes a local gRPC endpoint under the device-plugin framework and registers it with the kubelet. `ListAndWatch` keeps the kubelet informed of the discovered device IDs and health state. When the health set changes, the kubelet updates the node’s resource view. During allocation, the plugin returns the device-specific information required by the node’s configured runtime path. [Chapter 3](./chapter-03-container-toolkit-runtimeclass-and-cdi) covers the next handoff to the runtime.
 
@@ -59,6 +58,63 @@ The exact API version and allocation strategy are implementation details that mu
 
 For extended resources such as a GPU, Kubernetes expects the quantity in `limits`; when a request is specified it must match the limit. GPUs are ordinarily consumed as whole allocatable units. Sharing, MIG, and virtual-GPU policies can expose different resource names or quantities, but they are deliberate platform configurations—not implicit overcommit behavior. See [Volume 11](../volume-11/index) before promising concurrency or isolation semantics to tenants.
 
+### Inspect capacity, allocatable, and active requests together
+
+**Purpose:** compare what kubelet reports with what running Pods have requested.
+
+```bash
+kubectl get node gpu-node-03 -o json | jq '{capacity:.status.capacity["nvidia.com/gpu"],allocatable:.status.allocatable["nvidia.com/gpu"]}'
+```
+
+**Representative output:**
+
+```json
+{
+  "capacity": "8",
+  "allocatable": "8"
+}
+```
+
+`capacity=8` means the kubelet currently reports eight healthy units. `allocatable=8` means kubelet has not withheld any from scheduling at the node-status layer. These values are not “free GPU” counters; scheduler availability also depends on Pod allocations.
+
+```bash
+kubectl get pods -A --field-selector spec.nodeName=gpu-node-03 \
+  -o custom-columns='NS:.metadata.namespace,POD:.metadata.name,GPU:.spec.containers[*].resources.limits.nvidia\.com/gpu'
+```
+
+```text
+NS          POD                         GPU
+training    trainer-rank-0              4
+inference   embedding-service-6f9b2     2
+platform    dcgm-exporter-7kc4m         <none>
+```
+
+Six of the eight units are requested by running workload Pods. The exporter row has no extended-resource request and therefore does not consume an allocatable GPU unit in this example. The scheduler should see two units available before considering affinity, taints, or other Pods in transition.
+
+**Purpose:** inspect the exact Pod contract.
+
+```bash
+kubectl get pod trainer-rank-0 -n training -o json | jq '.spec.containers[] | {name,requests:.resources.requests,limits:.resources.limits}'
+```
+
+```json
+{
+  "name": "trainer",
+  "requests": {
+    "cpu": "8",
+    "memory": "64Gi",
+    "nvidia.com/gpu": "4"
+  },
+  "limits": {
+    "cpu": "8",
+    "memory": "64Gi",
+    "nvidia.com/gpu": "4"
+  }
+}
+```
+
+The GPU request and limit both equal four. A manifest that requests one GPU but limits four is invalid for an extended resource; Kubernetes does not interpret that as elastic GPU use.
+
 ## The Resource Model’s Productive Limitation
 
 The default scheduler can filter and score based on resource quantity and Kubernetes placement rules. It does not automatically infer that a training job needs four mutually close GPUs, a particular compute capability, a GPU close to a NIC, or a reserved low-latency pool. A bare resource request is therefore a capacity contract, not a hardware-intent contract.
@@ -72,6 +128,19 @@ The default scheduler can filter and score based on resource quantity and Kubern
 | Shared GPU experience | Explicit MIG, time-slicing, or vGPU design | Different resource and isolation semantics |
 
 This is not a defect in the device plugin. It is a clean separation of responsibilities. The plugin provides device discovery and allocation. The platform adds policy based on workload intent. [Chapter 8](./chapter-08-gpu-scheduling-and-topology) develops the placement consequences.
+
+### Worked fragmentation example
+
+Three nodes each advertise eight GPUs. Their current allocations are seven, four, and eight:
+
+```text
+node-a: 8 − 7 = 1 free
+node-b: 8 − 4 = 4 free
+node-c: 8 − 8 = 0 free
+cluster-wide free = 5 GPUs
+```
+
+A Pod requesting five GPUs cannot schedule because the largest node-local free block is four. A pair of Pods requesting two GPUs each can schedule on node-b, but doing so may leave no node for a later four-GPU job. The device-plugin count is correct in both cases; the platform needs queue policy and workload-aware bin packing to manage the trade-off.
 
 ## Production Story: Correct Count, Wrong Outcome
 
@@ -97,6 +166,57 @@ If GPU Operator manages the plugin, use its policy and status as the desired-sta
 | Pod starts but CUDA fails | Driver/image compatibility and application logs | Compare a minimal approved image on the same node |
 | Only some nodes advertise capacity | Plugin version, node profile, driver and runtime evidence | Find configuration drift or a pool-specific host issue |
 
+### Evidence row 1: plugin fails to register
+
+```bash
+kubectl -n gpu-operator get pod -l app=nvidia-device-plugin-daemonset -o wide
+kubectl -n gpu-operator logs nvidia-device-plugin-daemonset-rgk7m --tail=20
+```
+
+**Representative broken output:**
+
+```text
+NAME                                      READY   STATUS             NODE
+nvidia-device-plugin-daemonset-rgk7m      0/1     CrashLoopBackOff   gpu-node-05
+
+I0806 10:41:08.213004 main.go:235] Starting FS watcher for /var/lib/kubelet/device-plugins
+E0806 10:41:08.214799 main.go:262] failed to create plugin: open /var/lib/kubelet/device-plugins: no such file or directory
+```
+
+The plugin cannot reach the kubelet registration path. The `CrashLoopBackOff` status explains repeated restarts; the log identifies the missing host path. Verify the DaemonSet mount and kubelet path for this node image before changing GPU health settings.
+
+### Evidence row 2: scheduler shortage versus policy
+
+```bash
+kubectl describe pod inference-7b9c5 | sed -n '/Events:/,$p'
+```
+
+```text
+Events:
+  Warning  FailedScheduling  31s  default-scheduler  0/6 nodes are available:
+  2 Insufficient nvidia.com/gpu, 4 node(s) didn't match Pod's node affinity/selector.
+```
+
+This event contains two independent filters. Two nodes pass affinity but lack free GPU capacity; four have capacity status that is irrelevant because the workload excludes them. Removing affinity may increase schedulability but could violate the approved hardware class. The incident decision must use workload intent, not only the quickest placement.
+
+### Evidence row 3: device marked unhealthy
+
+```bash
+kubectl get node gpu-node-06 -o json | jq '{capacity:.status.capacity["nvidia.com/gpu"],allocatable:.status.allocatable["nvidia.com/gpu"]}'
+kubectl -n gpu-operator logs nvidia-device-plugin-daemonset-4qj2x --since=15m | tail -12
+```
+
+```text
+{
+  "capacity": "8",
+  "allocatable": "7"
+}
+I0806 11:02:19.617 device.go:194] Event: XidCriticalError, Device=GPU-722d1344-1b6d-4a95-8cb9-1c572eb5ad94
+I0806 11:02:19.618 server.go:168] Marking device unhealthy: GPU-722d1344-1b6d-4a95-8cb9-1c572eb5ad94
+```
+
+The difference between capacity and allocatable shows one unit withheld from new allocation. The plugin log ties that reduction to a specific UUID and health event. Do not force allocatable back to eight; quarantine and investigate the device according to the hardware runbook.
+
 Do not use `kubectl describe node` as the only test. It is a control-plane view. Pair it with the plugin’s health evidence and a scoped runtime validation before returning a node to service.
 
 ## Customer Architecture Discussion
@@ -109,11 +229,15 @@ Be explicit about the distinction in tenant documentation. It sets the right exp
 
 **Why can a node advertise GPU capacity while a CUDA workload later fails?**
 
-The plugin validates discovery and reports health to the kubelet. CUDA execution still depends on allocation, runtime injection, host-driver compatibility, and the workload image.
+> “I separate discovery from execution. The device plugin can discover devices, report them healthy, and register capacity with kubelet even though a later RuntimeClass, CDI, driver-library, or framework boundary fails. I would check the Pod phase and events first. If it is Pending, I stay with resource and policy evidence. If it is bound but cannot start, I inspect allocation and CRI. If it starts and CUDA fails, I compare a minimal image with the application image.”
 
 **Why does the scheduler not choose the best NVLink topology from a GPU count alone?**
 
-An extended resource communicates quantity. Topology and workload communication needs require additional metadata and scheduling policy.
+> “The extended resource is an integer contract. It tells the scheduler how many units a Pod needs, not how the physical GPUs are connected. I would expose a controlled hardware class through labels and affinity, then use topology-aware policy appropriate to the workload. I would also explain the utilization cost: every additional hard constraint reduces the set of eligible nodes and can increase fragmentation.”
+
+**How would you explain `capacity=8` and `allocatable=7`?**
+
+> “I would say the kubelet knows about eight units but is exposing only seven for new scheduling. I would not infer the reason from the numbers alone. I would inspect device-plugin health logs, kubelet events, and hardware telemetry for an unhealthy device or a policy adjustment. If the plugin marked a UUID unhealthy after an XID event, the correct response is quarantine and diagnosis, not editing node status.”
 
 ## Key Takeaways
 

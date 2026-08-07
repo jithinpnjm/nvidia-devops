@@ -23,17 +23,21 @@ After this chapter, you will be able to:
 ## The scheduler sees a staged decision
 
 ```mermaid
-flowchart LR
-    Pod[Pod requests and placement policy]
-    Filter[Filter: resources, taints, affinity, policy]
-    Score[Score eligible nodes]
-    Bind[Bind Pod to node]
-    Kubelet[Kubelet and device plugin allocation]
-    Device[Selected GPU device]
-    Pod --> Filter --> Score --> Bind --> Kubelet --> Device
+flowchart TD
+    Pod[Pod request, affinity, tolerations, priority] --> Filter{Any node passes filters?}
+    Filter -->|"no: FailedScheduling event"| Diagnose[Read resource, taint, affinity, quota reasons]
+    Filter -->|yes| Score[Score eligible nodes]
+    Score --> Bind[Bind Pod to one node]
+    Bind -->|"kubectl get pod -o wide"| Allocate{Kubelet can allocate requested GPU units?}
+    Allocate -->|no| AllocateFix[Inspect device health and plugin allocation]
+    Allocate -->|yes| Locality{Assigned CPU/GPU/NIC path meets class?}
+    Locality -->|no: workload runs but misses SLO| TopologyFix[Compare CPU set, NUMA, GPU topology, NIC]
+    Locality -->|yes| Group{All related workers admitted?}
+    Group -->|no: partial allocation| QueueFix[Use coordinated admission or release held capacity]
+    Group -->|yes| Run[Workload progresses]
 ```
 
-**Figure 10.8.1 — Node selection precedes device allocation.** A request for `nvidia.com/gpu` constrains quantity. The scheduler does not automatically infer the workload’s preferred NVLink, PCIe, NUMA, or NIC relationship from that quantity alone.
+**Figure 10.8.1 — Scheduling success and workload suitability are separate decisions.** The first branch explains Pending Pods. The later branches explain why a Running job can still be incorrectly placed or make no progress.
 
 The device plugin and extended-resource model are described in [Chapter 04](./chapter-04-device-plugin-and-kubernetes-resource-model). Feature discovery supplies the labels that make pool eligibility expressible in [Chapter 05](./chapter-05-node-and-gpu-feature-discovery). Neither component by itself turns a generic scheduler decision into a complete topology policy.
 
@@ -62,6 +66,52 @@ This order prevents a common design error: encoding topology rules before provin
 
 Use a request and limit consistently for GPU extended resources according to the cluster policy. Then add the fewest eligibility and locality constraints needed to meet a documented workload objective. Required affinity is a compatibility commitment; preferred affinity is usually more appropriate for an optimization.
 
+### Read the scheduler’s actual decision
+
+```bash
+kubectl describe pod trainer-rank-0 | sed -n '/Events:/,$p'
+```
+
+**Representative Pending output:**
+
+```text
+Events:
+  Type     Reason            Age   From               Message
+  ----     ------            ----  ----               -------
+  Warning  FailedScheduling  36s   default-scheduler  0/10 nodes are available:
+  2 Insufficient nvidia.com/gpu,
+  4 node(s) had untolerated taint {gpu.platform/serving: true},
+  4 node(s) didn't match Pod's node affinity/selector.
+```
+
+The event is a compressed decision trace. Two nodes are eligible by policy but short of free GPUs. Four are reserved for serving. Four fail the requested training class. Restarting kubelet or the scheduler would not create capacity or change the workload contract.
+
+**Purpose:** prove the Pod’s effective placement policy.
+
+```bash
+kubectl get pod trainer-rank-0 -o json | jq '{gpu:[.spec.containers[].resources.limits["nvidia.com/gpu"]],nodeSelector:.spec.nodeSelector,affinity:.spec.affinity.nodeAffinity,tolerations:.spec.tolerations}'
+```
+
+```json
+{
+  "gpu": ["8"],
+  "nodeSelector": {
+    "gpu.platform.example/class": "training-topology"
+  },
+  "affinity": null,
+  "tolerations": [
+    {
+      "key": "gpu.platform/training",
+      "operator": "Equal",
+      "value": "true",
+      "effect": "NoSchedule"
+    }
+  ]
+}
+```
+
+The Pod needs eight GPUs on one node, requires the training class, and tolerates only the training taint. This is more precise than saying “the cluster has free GPUs.”
+
 ## Topology is a path, not a label
 
 Performance-sensitive work moves data across paths: CPU memory through a PCIe root complex, GPU-to-GPU links, GPU-to-NIC paths for distributed communication, and storage or network adapters. A label such as `topology=fast` can describe an approved class, but it cannot reveal whether the resources actually assigned to a particular Pod form the intended path.
@@ -70,11 +120,45 @@ Kubernetes CPU Manager and Topology Manager can help coordinate CPU, device, and
 
 For single-node multi-GPU training, a homogeneous pool with documented topology may be simpler and safer than per-Pod topology logic. For multi-node jobs, combine node-class selection with verified fabric configuration and the workload framework’s communication behavior; a perfect local CPU allocation cannot compensate for a congested or misconfigured network path.
 
+### Inspect the assigned locality
+
+**Purpose:** read the CPU set assigned to the container and compare host NUMA placement.
+
+```bash
+kubectl exec trainer-rank-0 -- sh -c 'grep Cpus_allowed_list /proc/self/status; nvidia-smi topo -m'
+```
+
+**Representative output:**
+
+```text
+Cpus_allowed_list: 0-31
+
+        GPU0  GPU1  GPU2  GPU3  NIC0  CPU Affinity  NUMA Affinity
+GPU0     X    NV18  NV18  NV18  NODE  0-31          0
+GPU1    NV18   X    NV18  NV18  NODE  0-31          0
+GPU2    NV18  NV18   X    NV18  SYS   32-63         1
+GPU3    NV18  NV18  NV18   X    SYS   32-63         1
+NIC0    NODE  NODE  SYS   SYS    X
+```
+
+The process is restricted to CPUs `0-31`, corresponding to NUMA node 0 in this representative topology. GPU0 and GPU1 are local to NIC0 through `NODE`; GPU2 and GPU3 cross the broader system path shown as `SYS`. A four-GPU job using all devices may therefore have asymmetric host and NIC locality even though all four GPUs are connected by NVLink. The exact legend is platform-specific; use the command output from the actual node rather than memorizing this example.
+
 ## Coordinated-start workloads
 
 Distributed training often needs a complete set of workers before useful work starts. If independent Pods are scheduled one at a time, some can reserve GPUs while their peers wait in Pending state. The cluster appears allocated, but the job produces no progress.
 
 Queueing or gang-style admission mechanisms can avoid this partial allocation by admitting the group only when its required resources are available. They introduce their own policy decisions: queue fairness, priority, timeout, preemption, and how long capacity may wait for a large job. Do not bolt them onto every GPU workload. They are justified when partial start has material cost, such as tightly coupled training, not merely because the workload uses GPUs.
+
+### Worked partial-allocation cost
+
+A distributed job needs four Pods, each requesting eight GPUs. Only three eight-GPU nodes are available.
+
+```text
+requested = 4 Pods × 8 GPUs = 32 GPUs
+available full-node slots = 3 × 8 GPUs = 24 GPUs
+```
+
+Without coordinated admission, three Pods can reserve 24 GPUs while the fourth remains Pending. If the framework cannot make progress until all ranks join, utilization can show allocated capacity with zero useful training steps. Gang admission can keep all 24 GPUs available to other work until the complete 32-GPU request can start.
 
 ## Fragmentation is the price of specificity
 
@@ -88,6 +172,25 @@ Every hard constraint reduces the candidate set. That can protect SLOs, but it c
 | Distributed training | predictable collective performance | topology-aware class, coordinated admission, checkpoint-aware disruption policy |
 
 Start with a small service catalog and add a class only when it has a measured performance, reliability, or governance reason. Review class utilization and wait time after changes. A constraint that provides no measurable benefit is operational debt.
+
+### Quantify stranded capacity
+
+Assume a 10-node pool with eight GPUs per node. Six nodes belong to the training class and four to serving.
+
+```text
+training capacity = 6 × 8 = 48 GPUs
+serving capacity  = 4 × 8 = 32 GPUs
+```
+
+If training uses 40 GPUs while serving uses only eight, the fleet has 32 physically idle GPUs:
+
+```text
+training idle = 48 − 40 = 8
+serving idle  = 32 − 8  = 24
+total idle    = 32 / 80 = 40%
+```
+
+Only eight of those idle GPUs are eligible for training. The other 24 are intentionally stranded by the service-class boundary. The architecture review should compare the serving SLO benefit with that utilization cost.
 
 ## Production story: a successful placement that missed the objective
 
@@ -103,9 +206,66 @@ Likewise, a drain policy for a topology-sensitive workload must consider the gro
 
 ## Troubleshooting placement and performance
 
-For a Pending Pod, read its events first. Check its GPU request, matching allocatable resources, node-class affinity, taints and tolerations, quota, priority, and—in a group workload—the status of its peers or queue. Determine whether the problem is an incorrect policy, a stale label, or genuine lack of eligible capacity before relaxing any constraint.
+| Symptom | First evidence | Next decision |
+|---|---|---|
+| Pod Pending | scheduler event and effective placement policy | shortage, taint, affinity, quota, or group admission |
+| One rank Pending | peer states, queue/gang object, free full-node slots | wait, preempt, or release partial allocation |
+| Running job is slow | assigned GPUs, CPU set, NUMA, NIC, peer topology | compare path with known-good placement |
+| Pool utilization low | idle GPUs by class and queue wait by class | relax unjustified constraints or resize pools |
+| Drain stalls | PDB, checkpoints, group ownership, termination state | protect progress or escalate maintenance decision |
 
-For a running but slow workload, prove the allocation and compare the affected placement with a known-good one. Examine assigned GPUs, CPU sets, NUMA relationship, peer topology, network attachment, and competing workload behavior. Pair this with DCGM, application, network, and storage telemetry. A Running Pod proves scheduling success; it does not establish that the chosen placement meets its performance objective.
+### Evidence row 1: coordinated group is partially admitted
+
+```bash
+kubectl get pods -l training-job=run-42 -o custom-columns='POD:.metadata.name,PHASE:.status.phase,NODE:.spec.nodeName,GPU:.spec.containers[*].resources.limits.nvidia\.com/gpu'
+```
+
+```text
+POD        PHASE     NODE          GPU
+rank-0     Running   gpu-node-01   8
+rank-1     Running   gpu-node-02   8
+rank-2     Running   gpu-node-03   8
+rank-3     Pending   <none>        8
+```
+
+Three Pods reserve 24 GPUs while the group cannot complete. If the framework requires all four ranks, useful progress is zero. Inspect the queue or gang admission policy; deleting only the Pending Pod does not release the held capacity.
+
+### Evidence row 2: running placement has asymmetric locality
+
+```bash
+kubectl exec rank-0 -- sh -c 'grep Cpus_allowed_list /proc/self/status; nvidia-smi topo -m | head -8'
+```
+
+```text
+Cpus_allowed_list: 32-63
+        GPU0  GPU1  NIC0  CPU Affinity  NUMA Affinity
+GPU0     X    NV18  SYS   0-31          0
+GPU1    NV18   X    SYS   0-31          0
+NIC0    SYS   SYS    X    32-63         1
+```
+
+The container runs on CPUs local to NUMA node 1 and NIC0, while the selected GPUs are associated with NUMA node 0 in this representative output. The job can run, but host preprocessing or network communication may cross sockets. Confirm with workload and fabric telemetry before claiming causality.
+
+### Evidence row 3: hard affinity creates service-class starvation
+
+```bash
+kubectl get pods -A --field-selector=status.phase=Pending -o custom-columns='NS:.metadata.namespace,POD:.metadata.name,CLASS:.spec.nodeSelector.gpu\.platform\.example/class,GPU:.spec.containers[*].resources.limits.nvidia\.com/gpu'
+kubectl get nodes -L gpu.platform.example/class -o custom-columns='NAME:.metadata.name,CLASS:.metadata.labels.gpu\.platform\.example/class,GPU:.status.allocatable.nvidia\.com/gpu'
+```
+
+```text
+NS         POD             CLASS                GPU
+training   trainer-991     training-topology    8
+training   trainer-992     training-topology    8
+
+NAME          CLASS                GPU
+gpu-node-01   training-topology    8
+gpu-node-02   training-topology    8
+gpu-node-03   serving-lowlatency   8
+gpu-node-04   serving-lowlatency   8
+```
+
+The two training-class nodes may be occupied while 16 serving-class GPUs are idle. This is not a scheduler bug; it is the explicit pool boundary. Decide whether the SLO justifies it or whether an overflow policy is acceptable.
 
 ## Customer architecture discussion
 
@@ -115,11 +275,15 @@ One global policy is rarely appropriate for a shared GPU cluster. Offer clear se
 
 **Why can topology-aware scheduling lower total utilization?**
 
-It restricts which otherwise free devices are eligible. The restriction is worthwhile only when the workload’s measured benefit from locality exceeds the queueing and stranded-capacity cost.
+> “Topology-aware policy removes otherwise free devices from the eligible set. That is worthwhile only when measured locality gains exceed the queueing and stranded-capacity cost. I would show utilization and wait time by service class, compare representative workload performance, and keep hard constraints only for compatibility or a proven SLO.”
 
 **Why is `nvidia.com/gpu: 4` insufficient for a distributed training placement policy?**
 
-It asks for four allocatable devices but says nothing about their peer topology, CPU and NIC locality, node class, network path, or whether all required workers can start together.
+> “It asks for four integer resources on one node, but it says nothing about peer links, CPU and NIC locality, the network fabric, or coordinated start across worker Pods. I would combine the resource request with a validated node class, locality policy where measured, and gang-style admission if partial start wastes capacity.”
+
+**How would you troubleshoot a Running but slow GPU job?**
+
+> “I would not start with the scheduler because binding already succeeded. I would record the assigned nodes and GPU UUIDs, the container CPU sets, NUMA and GPU topology, NIC placement, and competing workloads. Then I would compare application step time, DCGM, network, and storage evidence with a known-good placement. A topology difference is a hypothesis until the workload metrics correlate with it.”
 
 ## Key takeaways
 
