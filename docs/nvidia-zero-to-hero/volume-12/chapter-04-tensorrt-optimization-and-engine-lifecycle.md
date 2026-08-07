@@ -448,6 +448,36 @@ Conversely, `IExecutionContext` manages mutable per-inference state: dynamic sha
 
 ---
 
+## Production Troubleshooting: Real-World Evidence
+
+### Problem: Engine Builder Crashes During Tactic Profiling
+
+| Signal | Root Cause | Diagnostic Command | Real Evidence | Remediation |
+|---|---|---|---|---|
+| `trtexec --onnx=model.onnx` fails with `std::bad_alloc` during auto-tuner phase | `MAX` shape in `IOptimizationProfile` too large; builder allocates workspace for maximum dimensions | `trtexec --onnx=model.onnx --optShapes=input:16x2048 --maxShapes=input:128x8192 2>&1 \| head -20` | Output: `INTERNAL ERROR: std::bad_alloc thrown in tactic profiler, out of device memory. MAX shape 128x8192x8192x4 = 34 GB per activation layer` | (1) Split into multiple engines for narrow shape ranges (BatchSize=16 only, or BatchSize=64 only); (2) cap workspace memory `setMemoryPoolLimit(WORKSPACE, 2GB)`; (3) profile on actual deployment GPU to avoid builder OOM on small CI/CD GPUs |
+| Engine builds successfully but starts failing at runtime with shape binding errors | `OPT` shape bounds don't match actual runtime request shapes; kernel tactics were optimized for shapes never actually used in production | `trtexec --onnx=model.onnx --minShapes=input:1x512 --optShapes=input:16x2048 --maxShapes=input:32x4096; # Then at runtime send (8, 1024) shape` | Runtime error: `IExecutionContext shape exceeds OPT bounds (8,1024) > OPT(16,2048)` + kernel performs 40% slower than expected | Align `OPT` with actual production traffic median (e.g., P50 batch size and sequence length). Use profiler to measure kernel performance at various shape points and ensure `OPT` matches peak usage scenario. |
+
+**Interpretation:** TensorRT builder OOM is a configuration issue, not a hardware failure. Set realistic shape bounds and explicit workspace limits before invoking the builder.
+
+### Problem: Accuracy Loss After INT8 Quantization
+
+| Signal | Root Cause | Diagnostic Command | Real Evidence | Remediation |
+|---|---|---|---|---|
+| INT8 model perplexity increases from 8.2 (FP32 baseline) to 11.5 (40% accuracy drop) | Entropy calibrator used too-small or unrepresentative calibration dataset; KL divergence threshold selection suboptimal | `python3 calibrate.py --calibration_dataset tiny_100_samples.jsonl --quantize_mode int8 --entropy_calibrator kl; evaluate.py --model model_int8.engine --val_dataset full_val_set.jsonl` | Calibration: 100 samples → poor histogram coverage; Evaluation: perplexity = 11.5 | (1) Use 500-1000 representative calibration samples; (2) use Explicit Precision Mode (Q/DQ nodes in ONNX) for layer-by-layer control; (3) evaluate per-layer quantization sensitivity (`pytorch-quantization` sensitivity analysis) and skip quantizing sensitive layers |
+| INT8 accuracy acceptable (< 1% loss) but inference latency is 30% slower than FP16 | Fused INT8 GEMM kernel not selected; TensorRT falling back to uint8 kernels with poor arithmetic intensity | `trtexec --onnx=model.onnx --int8 --calib=calibration.cache --dumpProfile=profile.txt; grep -i "tactic\|gemm" profile.txt` | Profile shows: INT8 GEMM tactics not selected; instead using scalar FP32→INT8→FP32 casting per element | Set FP8 mode (Hopper/Blackwell GPUs) if targeting H100+; or revert to FP16 if INT8 kernel availability is poor. Verify INT8 speedup with `trtexec --timingCacheFile=` on your specific GPU model. |
+
+**Interpretation:** Accuracy loss is almost always a calibration dataset problem; latency regression after quantization suggests the architecture (T4, A100) has weak INT8 kernel support. Benchmark on your actual GPU hardware before committing to quantization.
+
+### Problem: Data Corruption or CUDA Illegal Memory Access from Multi-Threaded Execution
+
+| Signal | Root Cause | Diagnostic Command | Real Evidence | Remediation |
+|---|---|---|---|---|
+| Intermittent CUDA errors like `an illegal memory access was encountered` or corrupted output under high concurrency | Multiple inference threads share a single `IExecutionContext` instance; concurrent `enqueueV3()` calls overwrite tensor bindings and scratch buffer pointers | `cuda-gdb ./inference_server --args model.engine; run; # Trigger crash, inspect `setTensorAddress` calls and CUDA memory state` | CUDA GDB shows: Thread 1 calls `setTensorAddress(in1_ptr_A)` while Thread 2 calls `setTensorAddress(in1_ptr_B)` on same context; GPU kernel executes with mixed pointers from both threads | (1) Create one `IExecutionContext` instance per worker thread or use a thread-safe context pool with mutex-protected acquisition/release; (2) use `thread_local` or thread-pool-specific context storage; (3) enable CUDA Error Checking (`cudaGetLastError()` after every CUDA call) in debug builds |
+
+**Interpretation:** TensorRT's `IExecutionContext` is explicitly not thread-safe by design (for performance). Sharing a context across threads without synchronization causes silent data corruption. Use thread-local or pooled contexts exclusively.
+
+---
+
 ## Summary & Authoritative References
 
 NVIDIA TensorRT converts deep learning execution graphs into hyper-optimized binary plans via layer fusion, explicit precision quantization (FP16, INT8, FP8), dynamic shape optimization profiling, and hardware-specific tactic profiling. Mastering engine builder configurations, memory workspace limits, and thread-safe runtime contexts (`ICudaEngine` vs `IExecutionContext`) is essential for building production-grade inference microservices.

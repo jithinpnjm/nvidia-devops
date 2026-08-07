@@ -369,6 +369,28 @@ If users report poor experience despite high throughput, the evaluation is likel
 
 ---
 
+## Production Troubleshooting: Real-World Evidence
+
+### Problem: Benchmark Results Don't Match Production Performance
+
+| Signal | Root Cause | Diagnostic Command | Real Evidence | Remediation |
+|---|---|---|---|---|
+| `vllm_benchmark_serving --concurrency=100` reports 200 tok/s; production monitoring shows only 80 tok/s average | Benchmark uses fixed small prompts (10 tokens); production traffic has diverse prompts including 8K-16K context documents; prefill overhead not measured in benchmark | `python3 benchmark_serving.py --dataset-name sharegpt --num-prompts 100 --output-json bench.json; jq '.data[] \| {prompt_len, generated_len}' bench.json \| head -20` | Benchmark prompt lengths: avg 45 tokens (min=8, max=200); Production logs: avg 3200 tokens (min=100, max=32000)—prefill dominates, not decode | (1) Use realistic prompt distribution: `--dataset-name sharegpt` (actual user LLM requests); (2) stratify benchmarks by prompt length buckets (0-512, 512-4K, 4K+); (3) measure TTFT separately from tokens/sec to account for prefill overhead |
+| `perf_analyzer -m llama-70b --concurrency-range 1:256:16` shows throughput plateaus at 120 tok/s at concurrency=64; but production achieving 180 tok/s | Closed-loop benchmark; `perf_analyzer` waits for each batch to complete before sending next, creating artificial synchronization; production uses open-loop (continuous request arrival) | `perf_analyzer --concurrency=128 --load-model=open_loop \| grep -E "infer_per_sec\|total_output_tokens"; benchmark_serving.py --request-rate 20 --num-prompts 500 \| grep tokens_per_sec` | Closed-loop results: 120 tok/s; Open-loop results at 20 req/s arrival rate: 180 tok/s (50% higher due to continuous queueing) | (1) Use open-loop benchmarking for realistic traffic simulation: `--load-model=open_loop` in perf_analyzer, or use `benchmark_serving.py --request-rate N`; (2) sweep request arrival rates to find optimal throughput/latency tradeoff |
+
+**Interpretation:** Benchmark methodology profoundly impacts measured performance. Closed-loop testing is overly optimistic; open-loop with realistic prompt distributions is production-representative.
+
+### Problem: High Throughput but p99 Latency Unacceptable
+
+| Signal | Root Cause | Diagnostic Command | Real Evidence | Remediation |
+|---|---|---|---|---|
+| Cluster achieving 180 tok/s (meets throughput SLA); but p99 TTFT = 1200ms, p99 ITL = 85ms (both violate latency SLOs: &lt;200ms TTFT, &lt;25ms ITL) | Batch sizes optimized for throughput (B=128) cause queue buildup and per-request wait time; high variance in service time due to prefill-starved decode batches | `curl -s http://localhost:8002/metrics \| grep -E "ttft_milliseconds_bucket\|itl_milliseconds_bucket" \| head -20` | Metrics: `ttft_bucket{le="200"}: 800`; `ttft_bucket{le="2000"}: 4000` (most requests in 200-2000ms range); `itl_bucket{le="25"}: 300`; `itl_bucket{le="100"}: 3900` (decode often stalled 25-100ms) | (1) Reduce `max_num_seqs` to lower queue depth (trade throughput for latency); (2) enable chunked prefill: `--enable-chunked-prefill` to prevent prefill from hogging GPU; (3) monitor p99 latency continuously via Prometheus histogram and alert if percentile exceeds SLA |
+| Benchmark p99 latency acceptable (45ms ITL); but production shows 280ms p99 ITL with same configuration | Production traffic includes long-context documents; benchmark used short prompts; prefill compute for 8K-token prompts blocks decode for other sequences | Benchmark command: `python3 benchmark_serving.py --num-prompts 100 --concurrency 64`; Production logs: `SELECT quantile(0.99, latency_ms) FROM inference_traces WHERE sample_time > now() - interval 1h` (from OpenTelemetry tracing backend) | Benchmark ITL percentiles: p99=45ms; Production ITL percentiles: p99=280ms (6.2x worse); Production prompt distribution: median=2K tokens, p99=16K tokens | (1) Stratify performance by prompt length in production; (2) enable separate prefill nodes if budget allows (prefill/decode disaggregation); (3) reduce `max_num_seqs` for long-context workloads to prevent scheduling stalls |
+
+**Interpretation:** Throughput and latency are conflicting metrics. Optimize one at a time and measure the impact on the other. Production visibility requires OpenTelemetry tracing to break down latency by component.
+
+---
+
 ## Summary & Authoritative References
 
 ### Chapter Summary

@@ -398,6 +398,28 @@ t_recompute = (2 * L * S^2 * H + 12 * L * S * H^2) / T_GPU
 
 ---
 
+## Production Troubleshooting: Real-World Evidence
+
+### Problem: Chunked Prefill Introduces Latency Overhead Instead of Solving Tail Latency
+
+| Signal | Root Cause | Diagnostic Command | Real Evidence | Remediation |
+|---|---|---|---|---|
+| With `enable_chunked_prefill=True` and `max_num_batched_tokens=512`, P99 ITL worsens from 28ms to 45ms; TTFT also increases from 180ms to 320ms | Prefill chunks add scheduling overhead; context switching between prefill chunks and decode iterations causes CPU scheduler thrashing and CUDA stream synchronization latency | `curl -s http://localhost:8002/metrics \| grep -E "iteration_duration_ms\|prefill_chunk_duration_ms\|decode_duration_ms" \| head -20` | Metrics: `prefill_chunk_duration_ms_bucket: 8ms per 512-token chunk`; `decode_duration_ms: 2ms` per iteration; `scheduler_context_switch_count: 450/sec` (excessive switching) | (1) Increase chunk size: `max_num_batched_tokens=1024` or `2048` to reduce context switches; (2) batch multiple prefill chunks before accepting new decode batches (reduces interleaving overhead); (3) use vLLM's `scheduler_config.batch_size_growth_factor` to gradually increase batch sizes without sudden switches |
+| Chunked prefill enabled; throughput improved (90 → 110 tok/s) but P99 ITL still spikes to 200ms intermittently | Preemption policy too aggressive; when new long-context request arrives, scheduler preempts too many active sequences to free KV cache, causing cascading stalls | `curl -s http://localhost:8002/metrics \| grep -E "preemption_count\|preempted_sequences_per_iter\|kv_cache_free_blocks"` | Metrics: `preempted_sequences_per_iter: 15` (preempting 15 sequences per iteration during load spike); `kv_cache_free_blocks: 2 → 128` (from mostly occupied to suddenly freed); `itl_spike_coincides_with_preemption_event: true` | (1) Reduce preemption aggressiveness: set `preemption_threshold: 0.9` (only preempt when cache is > 90% full); (2) prefer swap-to-host over recompute for KV caches >= 4K tokens; (3) monitor preemption frequency and adjust `max_num_seqs` downward to stay below the preemption threshold |
+
+**Interpretation:** Chunked prefill solves tail latency for prefill-starved decode, but can introduce overhead if chunk size is too small or preemption is too aggressive. Tune `max_num_batched_tokens` and preemption thresholds empirically on your hardware.
+
+### Problem: Decode Batch Underutilization Despite High Concurrency
+
+| Signal | Root Cause | Diagnostic Command | Real Evidence | Remediation |
+|---|---|---|---|---|
+| Server configured for 128 concurrent sequences; measured batch sizes in decode phase average only 12 (target: 80+); throughput is only 45% of peak capacity | Many active sequences are waiting in prefill phase before transitioning to decode; batching not applying to prefill, so it starves decoder of work | `curl -s http://localhost:8002/metrics \| grep -E "active_prefill_sequences\|active_decode_sequences\|batch_size_histogram"` | Metrics snapshot: `active_prefill_sequences: 45` (half of capacity stuck in prefill); `active_decode_sequences: 12` (only 12 in decode batch); `prefill_batch_size_avg: 1.2` (prefill unbatched) | (1) Enable prefill batching: ensure prefill phase also uses continuous batching (not just decode); (2) reduce `max_prompt_len` limit or enable chunked prefill to move sequences through prefill faster; (3) monitor prefill queue depth and if > 10, reduce `max_num_seqs` or increase prefill batch parallelism |
+| Dynamic batching working; batch sizes oscillate (25 → 4 → 30 → 8); throughput jerky and P99 latency high | `max_queue_delay_microseconds` too aggressive; batch expiry interval causes constant batch assembly/dispatch cycles, preventing SMs from executing long kernel sequences | `vllm_benchmark_serving --dataset-name sharegpt --model llama3-70b --dataset-size 100 --request-rate 20 2>&1 \| grep -E "batch_latency\|batch_size"` | Benchmark output: `Batch assembly latency: 0.5-2ms` (high variation); `Batch sizes: min=4, max=32, mean=14.2, stdev=9.1` (high variance); `throughput jitter: ±15%` | (1) Increase `max_queue_delay_microseconds` from 5000 to 20000 (accept 20ms queue wait to build larger batches); (2) set `preferred_batch_sizes: [32, 64, 128]` to favor larger stable batch points; (3) measure TTFT impact via benchmark to ensure queue delay doesn't violate SLAs |
+
+**Interpretation:** Batch underutilization and oscillation are scheduling issues, not hardware issues. Use comprehensive metrics to identify whether prefill or decode is the bottleneck, then tune batch delay parameters accordingly.
+
+---
+
 ## Summary & Authoritative References
 
 Continuous batching and chunked prefill represent a fundamental evolution in LLM serving infrastructure. By replacing static, request-level dynamic batching with token-level iteration scheduling, slicing long prompts into compute-bounded prefill chunks, and applying intelligent preemption policies, production inference systems achieve optimal GPU compute occupancy while satisfying strict real-time latency SLAs.

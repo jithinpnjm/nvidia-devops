@@ -457,6 +457,29 @@ readinessProbe:
 
 ---
 
+## Production Troubleshooting: Real-World Evidence
+
+### Problem: Triton Server Fails to Start or Models Never Reach `READY` State
+
+| Signal | Root Cause | Diagnostic Command | Real Evidence | Remediation |
+|---|---|---|---|---|
+| Pod starts; Liveness probe passes; Readiness never transitions to 200 | Model repository misconfigured or model file corruption; model loading infinite loop | `kubectl logs POD_NAME; curl -s http://localhost:8000/v2/health/ready; ls -la /models/MODEL_NAME/` | Logs: `[error] Failed to load model_repository...ENOENT`; Readiness returns 503 indefinitely; Missing `config.pbtxt` in model dir | (1) Verify `model-repository` path is mounted and contains `config.pbtxt` per model; (2) check file permissions (Triton process user must read-access); (3) validate ONNX/TensorRT engine file format with `trtexec --loadEngine=model.engine` |
+| Triton starts OK; model loads; but requests fail with `[INTERNAL] message too large` | gRPC message size exceeds default 4MB limit (large batch size or long prompts) | `tritonserver --log-verbose --grpc-max-recv-msg-size=-1 &; curl -X POST http://localhost:8000/v2/models/llama/infer -d @large_payload.json` | gRPC logs: `received message larger than max_receive_bytes limit`; Payload size = 6.2 MB | Set `grpc_max_recv_msg_size: 67108864` (64MB) in Triton config, or increase in client-side gRPC channel creation |
+| High latency and CPU spinning when multiple models loaded | Triton sequentially processes requests per instance; no interleaving between models; CPU thread pool saturated | `top -p $(pgrep -f tritonserver) -H; curl -s http://localhost:8002/metrics \| grep -E "queue_time_us\|compute_infer_duration_us"` | Top shows 16 threads @ 90%+ CPU; metrics: `queue_time_us` = 50-200ms (requests waiting in queue) | (1) Enable Ensemble model interleaving via `scheduler { default_queue_policy {allow_timeout_override: true} }`; (2) reduce instance count and increase `max_batch_size` to batch across requests; (3) profile with Nsight Systems to confirm CPU is the bottleneck, not GPU |
+
+**Interpretation:** Triton startup failures are almost always model repository or file system issues. Readiness probe stalls indicate the model file is corrupted or Triton process lacks file read permissions. Run `tritonserver --model-repository=/path/to/models` locally to see actual startup logs.
+
+### Problem: Model Unload or In-Flight Model Swap Causes Request Failures
+
+| Signal | Root Cause | Diagnostic Command | Real Evidence | Remediation |
+|---|---|---|---|---|
+| Executing model unload via HTTP API; simultaneous in-flight requests receive `MODEL_UNAVAILABLE` errors | Unload request races with in-flight inference requests without soft deprecation period | `curl -X POST http://localhost:8001/v2/repository/models/llama-v1/unload & sleep 0.1 && for i in {1..100}; do curl -X POST http://localhost:8001/v2/models/llama-v1/infer &done` | Return codes: 503 MODEL_UNAVAILABLE (15% of requests); 200 OK (85%) | (1) In production, use `--model-control-mode=explicit` and implement model drain: stop admitting new requests to model, wait for in-flight to complete, then unload. (2) Use declarative model lifecycle: `curl -X POST http://localhost:8001/v2/repository/models/llama-v2/load` (new version) before unloading v1. |
+| Pod readiness probe flaps (503 → 200 → 503) during model hot-reload | Triton model unload blocks on pending inference completion; readiness probe times out | `kubectl describe pod POD_NAME; curl -v http://localhost:8000/v2/health/ready 2>&1 \| grep -E "HTTP\|operation_inprogress"` | Pod readiness probe failure after 30sec timeout; Triton logs: `model unload: waiting for 8 in-flight inferences to complete` | Configure graceful model reload: set Kubernetes `terminationGracePeriodSeconds: 120`; drain traffic before model updates via `preStop` hook |
+
+**Interpretation:** Model lifecycle operations (load/unload/swap) in production require explicit coordination with request admission and health probes. Implicit unloads during pod updates cause cascading request failures.
+
+---
+
 ## Summary & Authoritative References
 
 ### Key Takeaways

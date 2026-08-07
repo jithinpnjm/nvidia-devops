@@ -468,6 +468,28 @@ Chunked Prefill mitigates this by slicing large prompts into smaller chunks (e.g
 
 ---
 
+## Production Troubleshooting: Real-World Evidence
+
+### Problem: PagedAttention Block Fragmentation Preventing Concurrency Growth
+
+| Signal | Root Cause | Diagnostic Command | Real Evidence | Remediation |
+|---|---|---|---|---|
+| KV cache utilization = 62%; no requests rejected, but concurrent sequence count stalled at 32 (below target 64) | Block fragmentation; many requests finish with partially-filled final blocks (e.g., sequence of 1500 tokens uses 1536 tokens = 96 blocks with last block 12/16 tokens filled); freed blocks are fragmented, cannot accommodate new 16-block requests | `python3 -c "from vllm import get_engine; engine = get_engine(); print(engine.kv_cache_manager.get_fragmentation_report())"` | Fragmentation report: `Total blocks: 8192; Allocated blocks: 5120 (62.5%); Fragmented gaps: 847 blocks (10.3%); Longest free gap: 3 blocks (cannot fit 16-block request)` | (1) Reduce block size: `block_size=8` (from 16) to reduce fragmentation per sequence; (2) enable block recompaction: `defragment()` called on every nth request completion; (3) proactively reserve blocks for incoming requests using predictive allocation based on SLA requirements |
+| After 8 hours of continuous serving, memory utilization climbs from 72% to 89%; OOM imminent despite total free blocks showing 25% | Memory leak in block reference counting or dangling block pointers not freed when sequences complete | `nvidia-smi \| head -3; curl -s http://localhost:8002/metrics \| grep -E "kv_cache_allocated_bytes\|kv_cache_freed_bytes" \| tail -5; dmesg \| grep -i "memory\|oom"` | Metrics: `kv_cache_allocated_bytes: 52.1 GB` (at 8h mark); `kv_cache_freed_bytes: 38.9 GB total` (only 38.9 GB ever freed despite many sequence completions); leaked ≈ 13 GB | (1) Add explicit block deallocation on sequence finish: confirm `block_table.clear()` is called; (2) enable memory audit logging: `--log-allocated-blocks` to trace block lifecycle; (3) restart inference engine weekly to clear accumulated fragmentation (operational workaround) |
+
+**Interpretation:** PagedAttention fragmentation is inevitable at scale. Monitor block allocation metrics and enable defragmentation policies. Memory leaks indicate missing block cleanup on sequence completion—review engine shutdown code.
+
+### Problem: Prefix Caching Hit Ratio Degraded After Enabling Chunked Prefill
+
+| Signal | Root Cause | Diagnostic Command | Real Evidence | Remediation |
+|---|---|---|---|---|
+| Before chunked prefill: prefix cache hit ratio = 45%; after enabling: hit ratio drops to 8% | Chunked prefill breaks logical sequence prefixes into partial chunks; prefix matching operates on complete original sequences, missing the fragmented cache structure created by chunking | `curl -s http://localhost:8002/metrics \| grep -E "prefix_cache_hit_ratio\|chunked_prefill_enabled" \| head -10` | Metrics: `prefix_cache_hit_ratio_before_chunking: 0.45`; `prefix_cache_hit_ratio_after_chunking: 0.08` (5.6x drop) | (1) Disable prefix caching when chunked prefill is enabled: `enable_prefix_caching=False, enable_chunked_prefill=True`; (2) alternatively, implement chunk-aware prefix caching: match prefixes at chunk boundaries (e.g., every 512 tokens) instead of whole sequence boundaries; (3) use SGLang RadixAttention which natively supports both chunked computation and prefix matching |
+| Prefix cache hit ratio = 32%; P99 TTFT = 350ms (high) despite 32% of requests re-using cached prefixes | Prefix cache hits not accelerating TTFT because prefill still executed for non-cached portions; effective speedup is only (hit_ratio * prefill_time_saved) | `perf_analyzer -m llama-70b --concurrency-range 32:32 --dataset-name sharegpt 2>&1 \| grep -E "infer_time\|ttft_ms"` | Benchmark output: `Requests with cache hit: 32%; Avg TTFT with hit: 280ms`; `Avg TTFT without hit: 420ms` (only 140ms saved, or 33% speedup, not 32% cache hit rate); effective throughput gain = (32% * 33%) ≈ 10% | Expected behavior, not a bug. Prefix caching value depends on workload diversity. For RAG with diverse documents, hit ratio stays low. For customer support FAQ, hit ratio climbs to 70%+. Measure actual throughput gain, not just cache hit ratio. |
+
+**Interpretation:** Prefix caching only accelerates if prompts share prefixes. Chunked prefill and prefix caching are orthogonal optimizations; enabling both requires chunk-boundary-aware cache matching. Verify end-to-end latency gain, not just cache metrics.
+
+---
+
 ## Summary & Authoritative References
 
 ### Chapter Summary
