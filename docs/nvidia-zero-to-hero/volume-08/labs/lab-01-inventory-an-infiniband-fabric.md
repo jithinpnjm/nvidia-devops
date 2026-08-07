@@ -90,7 +90,29 @@ ibv_devinfo -v | tee volume08-lab01/host/ibv-devinfo.txt
 
 **Expected healthy output:** at least one device and one port with valid firmware and transport information.
 
-**Common errors:** command missing, driver not loaded, device hidden by container or VM policy.
+**Realistic example output:**
+
+```text
+$ ibv_devices
+    mlx5_0
+    mlx5_1
+
+$ ibv_devinfo -v -d mlx5_0 | head -20
+hca_id: mlx5_0
+    transport:                  InfiniBand (0)
+    fw_ver:                     28.39.2048
+    node_guid:                  08c0:eb03:00f1:a2c3
+    vendor_id:                  0x02c9
+    vendor_part_id:             4129
+    max_mr_size:                0xffffffffffffffff
+    max_qp:                     262144
+    max_qp_wr:                  32768
+    max_sge:                    30
+```
+
+**Reading it:** Two HCAs on this host. `max_qp: 262144` is important for scaling studies — the maximum queue pairs available will constrain any design that assumes "one QP per peer." `fw_ver: 28.39.2048` is the exact firmware level and will matter for version troubleshooting. Two HCAs means this host likely has two independent network rails.
+
+**Common errors:** command missing (driver not installed), driver not loaded (modprobe mlx5 needed), device hidden by container or VM policy (device passthrough or CDI not configured).
 
 ### Step 2 — Inspect port state
 
@@ -108,6 +130,27 @@ Record:
 - SM LID.
 
 A healthy production port is normally expected to be logically active at the designed rate. Exact output varies by platform.
+
+**Realistic example output:**
+
+```text
+$ ibstat
+CA 'mlx5_0'
+    CA type: MT4129
+    Number of ports: 1
+    Port 1:
+        State: Active
+        Physical state: LinkUp
+        Rate: 400
+        Base lid: 12
+        LMC: 0
+        SM lid: 1
+        Capability mask: 0x2651e848
+        Port GUID: 0x08c0eb0300f1a2c3
+        Link layer: InfiniBand
+```
+
+**Reading it:** `State: Active` and `Physical state: LinkUp` are the two checkpoints (Chapter 2). `Rate: 400` is the negotiated Gb/s. `Base lid: 12` means the SM assigned this port local ID 12 (mutable, not for durable inventory). `SM lid: 1` tells you which switch is running the SM. If any of these fields is wrong (state not Active, rate below design, base LID = 0), that's the failure point to investigate before anything above.
 
 ### Step 3 — Inspect GIDs and P_Keys
 

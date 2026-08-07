@@ -49,6 +49,28 @@ After completing this chapter, you will be able to:
 - troubleshoot reduced rate or width;
 - explain generation choices to customers without marketing language.
 
+## Big Picture
+
+```mermaid
+flowchart LR
+    HCA[HCA Port] -->|"lane 1"| L1[Lane 1]
+    HCA -->|"lane 2"| L2[Lane 2]
+    HCA -->|"lane 3"| L3[Lane 3]
+    HCA -->|"lane 4"| L4[Lane 4]
+    L1 & L2 & L3 & L4 --> SW[Switch Port]
+    SW --> PCIe["Host PCIe path<br/>(separate ceiling)"]
+
+    Sym["Upgraded generation,<br/>throughput barely moved"] --> Q1{"ibstat Rate matches new<br/>generation's designed value?"}
+    Q1 -->|No| A1["Negotiation problem: cable/firmware<br/>not qualified for new rate"]
+    Q1 -->|Yes| Q2{"iblinkinfo width == designed<br/>lane count (e.g. 4x)?"}
+    Q2 -->|"Reduced, e.g. 2x"| A2["Lane qualification failure --<br/>half the physical lanes down"]
+    Q2 -->|"Full width"| Q3{"Does host-memory ib_write_bw<br/>hit the new link's rate?"}
+    Q3 -->|"No -- capped below link rate"| A3["Bottleneck moved to PCIe/NUMA/<br/>host injection -- link upgrade<br/>exposed a DIFFERENT ceiling"]
+    Q3 -->|"Yes -- link-rate achieved"| A4["Link is fine -- bottleneck is<br/>topology/oversubscription (Ch.6)<br/>or the app's comm fraction"]
+```
+
+**Figure 8.8.0 — A "link generation" is really four independent ceilings stacked in series, and the diagram's decision path is the direct mechanism behind this chapter's opening story.** Rate, width, host injection (PCIe/NUMA), and topology are each a separate checkpoint that can silently cap delivered bandwidth even when every other checkpoint passed — which is exactly how a generation upgrade can pass every negotiation check and still deliver "only modestly" improved application throughput.
+
 ## Link Rate, Width, and Effective Throughput
 
 A physical link combines one or more lanes. Effective throughput depends on:
@@ -98,6 +120,17 @@ flowchart LR
 ```
 
 **Figure 8.8.1 — A logical link may depend on several physical lanes.** Reduced width preserves reachability in some cases while lowering capacity.
+
+### Annotated `iblinkinfo`: reading rate and width together, with a worked number
+
+```text
+$ iblinkinfo -S <switch-guid>
+   Switch: 0x506b4b0300a1c210:
+       3    1[  ] ==( 4X   400 Gbps Active/  LinkUp)==>       12    1[  ] "node-a hca" ( )
+       4    1[  ] ==( 2X   400 Gbps Active/  LinkUp)==>       15    1[  ] "node-b hca" ( )
+```
+
+Port 3 shows `4X 400 Gbps` — full designed width and rate, meaning all four lanes qualified and negotiated at the target signaling rate. Port 4 shows `2X 400 Gbps` — the *rate label* is unchanged, but width has collapsed from 4 lanes to 2. Naively reading "400 Gbps" from both lines suggests both ports are identical; they are not. Effective throughput on port 4 is proportional to active lane count, so approximately: `400 Gbps (per-lane-scaled label) × (2 active lanes / 4 designed lanes) ≈ half the designed payload bandwidth of port 3`, even though both report `Active` and the same headline rate string. This is precisely why the chapter's `effective payload bandwidth ≈ signaling rate × active lanes × encoding efficiency × protocol efficiency` formula requires reading width as a first-class field, not a footnote to rate.
 
 ## Encoding and Protocol Overhead
 
@@ -202,6 +235,16 @@ Compare both endpoints, cable support, firmware, configured rate, and physical c
 
 Restore a supported endpoint/cable/firmware combination and verify stable negotiation.
 
+**Evidence.** `ibstat` and `iblinkinfo` compared side by side, plus the arithmetic consequence:
+
+```text
+$ ibstat mlx5_1 | grep -E 'State|Rate'
+        State: Active
+        Rate: 200
+```
+
+`Rate: 200` on a port designed and licensed for a 400Gb/s-class generation is a clean, unambiguous negotiation shortfall — not a width issue (that would show full rate label at reduced lane count in `iblinkinfo` instead). At 200Gb/s versus a 400Gb/s design target, a 2MiB RDMA write that should take roughly 2MiB × 8 / 400Gb/s ≈ 42us now takes roughly 2MiB × 8 / 200Gb/s ≈ 84us — a 2x latency-per-message cost that compounds across every message a synchronized job sends on this path.
+
 ### Scenario 2 — Correct speed, reduced width
 
 **Symptoms**
@@ -217,6 +260,8 @@ One or more lanes failed qualification.
 **Resolution**
 
 Isolate cable, connector, port, or adapter by controlled substitution and counter comparison.
+
+**Evidence.** This is precisely the `iblinkinfo` `2X 400 Gbps` example above — the rate label reads correctly while width silently halves. The confirming step is a host-memory `ib_write_bw` result compared against a full-width sibling port: if the reduced-width port's `BW average` lands at roughly half of the full-width port's, that's arithmetic confirmation, not just a suspicion, that lane count — not routing or congestion — is the limiting factor.
 
 ### Scenario 3 — Microbenchmark improves, application does not
 
@@ -243,10 +288,19 @@ The architect explains that the answer depends on the communication fraction of 
 ## Interview Preparation
 
 1. Why is wire rate higher than payload throughput?
+   **Model answer:** "The signaling rate is what the wire physically carries, but line encoding, transport and link headers, integrity checks, acknowledgments, and flow-control overhead all consume part of that capacity before application payload ever gets counted. I always treat the headline generation number as a ceiling, not a promise — realistic payload throughput is meaningfully below it, and benchmark results should be read against that realistic range, not the raw signaling figure."
+
 2. How can a link be active but degraded?
+   **Model answer:** "`Active` only proves the port passed physical negotiation and subnet-manager admission — it doesn't say the negotiated rate or width matches the design. I've seen `ibstat` show `Active` at half the designed rate, and `iblinkinfo` show `Active` at half the designed lane width, with the rate label itself looking correct in the second case. Both are fully 'active' by the state field alone."
+
 3. What host limits can hide a fabric upgrade?
+   **Model answer:** "PCIe generation and width on the HCA's slot, CPU root-complex and NUMA placement, the GPU-to-HCA peer path if it's a GPU-heavy workload, and even memory registration/buffer-reuse patterns in the application. A 400G-class HCA sitting in a PCIe Gen4 x8 slot is capped well below its wire-rate potential regardless of what the fabric side negotiates — the upgrade doesn't fail, it just stops being the bottleneck and hands that role to something you didn't upgrade."
+
 4. How would you validate a mixed-generation fabric?
+   **Model answer:** "I'd inventory every link's expected negotiated state by generation class first, then verify actual state against that expectation port by port rather than sampling. Mixed generations interoperate at the lower mutually-supported rate, which is fine if intentional and documented, but a silent down-negotiation on a link everyone assumed was full-generation is exactly the kind of drift that only shows up if you check systematically."
+
 5. Why should application scaling be measured before buying faster links?
+   **Model answer:** "Because a faster link only helps the specific segment of the path that was actually the bottleneck. If the real limiter is host injection, topology oversubscription, or the workload's communication fraction is just small relative to compute, a generation upgrade can pass every negotiation check and still deliver a disappointing throughput gain — which is exactly this chapter's opening story. I'd want a scaling model and a baseline benchmark before recommending spend on a faster fabric generation, not after."
 
 ## Summary
 

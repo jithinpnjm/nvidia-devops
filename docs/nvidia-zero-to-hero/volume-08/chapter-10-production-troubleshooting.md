@@ -61,19 +61,21 @@ After completing this chapter, you will be able to:
 
 ```mermaid
 flowchart TD
-    S[Application Symptom]
-    I[Inventory and Recent Change]
-    P[Physical Link]
-    C[Subnet Control Plane]
-    R[Routing and Partition]
-    T[RDMA Transport]
-    G[GPU Direct and Collective]
-    A[Application]
-
-    S --> I --> P --> C --> R --> T --> G --> A
+    S[Application Symptom] --> I["Inventory and Recent Change<br/>(diff vs pre-change snapshot)"]
+    I --> P{"ibstat: State Active,<br/>Rate/width match design?"}
+    P -->|No| StopP["STOP -- fix physical layer.<br/>Every layer above is unproven<br/>while this fails."]
+    P -->|Yes| C{"sminfo: 1 master, fresh sweep,<br/>port has valid LID?"}
+    C -->|No| StopC["STOP -- fix SM/control plane.<br/>Do not touch routing or QPs yet."]
+    C -->|Yes| R{"Route/P_Key valid on<br/>BOTH endpoints?"}
+    R -->|No| StopR["STOP -- fix addressing/partition.<br/>Transport will fail for reasons<br/>that look like a QP bug."]
+    R -->|Yes| T{"Host-memory ib_write_bw/lat<br/>matches baseline?"}
+    T -->|No| StopT["STOP -- fault is in RDMA transport,<br/>below GPUDirect. Do not blame NCCL."]
+    T -->|Yes| G{"GPU-memory RDMA and rail<br/>selection match baseline?"}
+    G -->|No| StopG["Fault is GPUDirect/locality --<br/>NOT the fabric"]
+    G -->|Yes| A["Application/collective layer:<br/>only NOW is this the right target"]
 ```
 
-**Figure 8.10.1 — Diagnose from the bottom up.** Do not debug collectives while the physical path or subnet state is unproven.
+**Figure 8.10.1 — Diagnose from the bottom up, and each gate is a specific, checkable pass/fail condition, not a vague 'check this layer' instruction.** The `STOP` boxes are the point: this chapter's opening story is exactly what happens when someone skips past an unproven gate — the team tuned NCCL timeouts (layer G/A) while the physical-layer gate (P) was already failing, and no amount of application-layer tuning could fix a damaged cable.
 
 ## Step 1: Define the Symptom Precisely
 
@@ -163,6 +165,24 @@ Test:
 
 If host-memory RDMA is unhealthy, the fault is below the GPU-direct layer.
 
+### Annotated `ib_write_lat`: reading a latency test against a baseline, not in isolation
+
+```text
+$ ib_write_lat -d mlx5_0 -i 1 --report_gbits -F <server>
+---------------------------------------------------------------------------------------
+                    RDMA_Write Latency Test
+Connection type : RC          Using SRQ      : OFF
+---------------------------------------------------------------------------------------
+ #bytes #iterations    t_min[usec]    t_max[usec]  t_typical[usec]    t_avg[usec]    99% percentile[usec]   99.9% percentile[usec]
+ 2       1000           1.42           6.81         1.58              1.61            2.90                    5.77
+---------------------------------------------------------------------------------------
+
+# Baseline captured during Lab 02, same node pair, same parameters:
+ 2       1000           1.41           2.03         1.55              1.56            1.71                    1.98
+```
+
+`t_typical` (1.58 vs 1.55us) and `t_avg` are nearly identical to baseline — a quick glance at averages alone would call this healthy. The `99% percentile` (2.90 vs 1.71us) and especially `99.9% percentile` (5.77 vs 1.98us) tell a different story: a small fraction of operations are taking roughly 3x longer than baseline. This is the exact "healthy `ib_write_bw` test does not prove a healthy GPU-direct path" caution generalized one layer down — a healthy-looking average does not prove a healthy tail, and tail latency is what synchronized collectives actually pay for (Chapter 1, Figure 8.1.2).
+
 ## Step 7: Test GPU-Memory and Collective Paths
 
 Only after host RDMA is healthy, validate:
@@ -241,6 +261,8 @@ Check SM availability, SM binding, topology reachability, logs, partition state,
 **Root cause**
 
 The physical link exists, but subnet programming is incomplete.
+
+**Evidence.** `ibstat` shows `Physical state: LinkUp` with `State: Initializing` and `Base lid: 0` (full annotated example in Chapter 2), and `sminfo` against the expected master either times out or shows a stale `activity count` (Chapter 5's annotated example) — the pairing confirms the fault is control-plane, not physical.
 
 ## Common Incident 3: Reduced Width or Speed
 
@@ -350,6 +372,8 @@ A hang may be caused by a failed rank rather than the fabric itself.
 - separate traffic classes;
 - add capacity.
 
+**Evidence.** `ibqueryerrors -s XmtWait,SymbolErrorCounter` on the suspect tier (full annotated example in Chapter 7) is the confirming read: `XmtWait` elevated with `SymbolErrorCounter` and `LinkDownedCounter` flat is the specific signature that separates this incident class from Common Incident 4 above — same "throughput falls" symptom, opposite root cause and opposite fix.
+
 ## Common Incident 10: Post-Maintenance Topology Drift
 
 **Symptoms**
@@ -434,10 +458,19 @@ The architect explains that the same symptom can originate from physical media, 
 ## Interview Preparation
 
 1. A port is `LinkUp` but not `Active`. What does that suggest?
+   **Model answer:** "The physical layer negotiated fine, but the subnet manager hasn't admitted this port into the operational subnet — usually a missing or unauthoritative SM, an isolated topology segment, or a partition/policy rejection. I'd check `sminfo` for exactly one healthy master before touching anything physical, since the physical layer already proved itself."
+
 2. Host RDMA passes but GPU RDMA fails. Where do you look?
+   **Model answer:** "The layer between them — GPUDirect. Specifically GPU-to-HCA PCIe locality and NUMA placement, whether GPUDirect support is actually enabled and compatible on this node, container device permissions if it's containerized, and whether the path silently fell back to host-staged copies. Host RDMA passing rules out the fabric and basic transport entirely, so I wouldn't waste time re-checking cables or the SM."
+
 3. Pairwise tests pass but AllReduce is slow. What changes at scale?
+   **Model answer:** "Pairwise tests validate one link in isolation; a collective exercises the whole topology simultaneously, so oversubscription, route concentration, and synchronized congestion only appear under that combined load. I'd run collectives at increasing node counts and correlate per-link telemetry with rank placement, because the failure mode that only exists 'at scale' is specifically the interaction between many flows, which a two-node pairwise test structurally cannot reproduce."
+
 4. How do you distinguish congestion from a bad cable?
+   **Model answer:** "Pull both counter families together: `XmtWait` up with `SymbolErrorCounter`/`LinkDownedCounter` flat is congestion — queueing, no physical fault. Errors and recovery events climbing, regardless of wait counters, is a physical fault. I would never replace a cable because utilization looks high, and I would never tune congestion settings while a link is actively producing physical errors — the two require completely different fixes and mixing them up wastes a maintenance window."
+
 5. Why should counters be collected before resetting a port?
+   **Model answer:** "Because resetting a port or clearing its counters destroys the exact evidence — accumulated error counts, wait history — that would otherwise prove what was actually wrong. I've seen a 'quick reset to see if it helps' erase the only proof that a link had been silently degrading for days, turning a diagnosable incident into a mystery that recurs a week later."
 
 ## Summary
 

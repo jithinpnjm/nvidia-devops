@@ -55,24 +55,24 @@ After completing this chapter, you will be able to:
 
 ```mermaid
 flowchart TD
-    SM1[Primary Subnet Manager]
-    SM2[Standby Subnet Manager]
-    HCA1[HCA Port]
-    SW1[Leaf Switch]
-    SW2[Spine Switch]
-    SW3[Leaf Switch]
-    HCA2[HCA Port]
+    SM1[Primary Subnet Manager] -. "discover + program" .-> HCA1[HCA Port]
+    SM1 -. "discover + program" .-> SW1[Leaf Switch]
+    SM1 -. "discover + program" .-> SW2[Spine Switch]
+    SM1 -. "discover + program" .-> SW3[Leaf Switch]
+    SM1 -. "discover + program" .-> HCA2[HCA Port]
+    SM2[Standby Subnet Manager] -. "watches SM1 via SA,<br/>lower priority" .-> SM1
 
     HCA1 <--> SW1 <--> SW2 <--> SW3 <--> HCA2
-    SM1 -. discover and program .-> HCA1
-    SM1 -. discover and program .-> SW1
-    SM1 -. discover and program .-> SW2
-    SM1 -. discover and program .-> SW3
-    SM1 -. discover and program .-> HCA2
-    SM2 -. standby state .-> SM1
+
+    Sym["Job stuck at init, half the<br/>fleet has no LID"] --> Q1{"sminfo: is exactly ONE SM<br/>reporting MASTER state?"}
+    Q1 -->|"Zero masters"| A1["No authoritative SM --<br/>every affected port stalls<br/>at Initializing"]
+    Q1 -->|"Two masters"| A2["Split authority -- priority/config<br/>mismatch let a second instance<br/>believe it should be master"]
+    Q1 -->|"Exactly one"| Q2{"Does the master's last sweep<br/>timestamp cover the affected ports?"}
+    Q2 -->|"Stale / never swept"| A3["Master can't reach that branch<br/>of the topology -- check its<br/>fabric-facing port, not the<br/>affected node's cable"]
+    Q2 -->|"Recent, clean"| A4["SM state is healthy --<br/>fault is downstream: routing<br/>or partition (Ch.4/6)"]
 ```
 
-**Figure 8.5.1 — The Subnet Manager creates the logical fabric over the physical links.** Data packets do not normally pass through the SM, but the forwarding state they depend on is established by it.
+**Figure 8.5.1 — The Subnet Manager creates the logical fabric over the physical links, and "one authoritative master" is a specific, queryable fact, not an assumption.** Data packets do not pass through the SM in normal operation, but the diagram's decision tree makes explicit what this chapter's opening story took a full incident to discover: zero masters and two competing masters produce different symptom shapes, and both are distinguishable from a healthy SM that simply hasn't reached one branch of the topology yet.
 
 ## Why Centralized Subnet Management Exists
 
@@ -261,6 +261,15 @@ sequenceDiagram
 
 The fabric should not be subject to conflicting policy from unmanaged SM instances. Even when election prevents simultaneous master operation, inconsistent configurations can cause different behavior after failover.
 
+### Annotated `sminfo`: proving there is exactly one master
+
+```text
+$ sminfo
+sminfo: sm lid 1 sm guid 0x0002c903004a1b20, activity count 184223 priority 15 state 3 SMINFO_MASTER
+```
+
+Read this field by field: `state 3` decodes to `SMINFO_MASTER` — this SM believes it is authoritative. `priority 15` is its configured priority (higher wins an election). `activity count` increments on real subnet-management work and should be climbing over successive queries, not frozen — a frozen activity count on a self-declared master is a sign it has stopped actually managing the subnet while still holding the role. Querying `sminfo` against every known SM host and confirming exactly one reports `SMINFO_MASTER`, with the rest reporting `SMINFO_STANDBY` at lower priority, is the single fastest way to rule out the split-authority failure mode above — and it is a read-only query, safe to run mid-incident.
+
 ## Partition Management
 
 The SM distributes P_Key membership and partition policy. A partition configuration should define:
@@ -370,6 +379,15 @@ Store periodic topology snapshots. They provide valuable before-and-after eviden
 
 Restore one authoritative, correctly configured SM and confirm a successful sweep.
 
+**Evidence.** `sminfo` (above) against every candidate host is the first read. If it returns zero masters:
+
+```text
+$ sminfo
+sminfo: iberror: failed: query resp was not SMINFO
+```
+
+This specific failure — a query error rather than a standby response — means no SM on the local management port is responding as authoritative at all, consistent with "no active SM" in the root-cause list. Pair it with `ibstat`'s `SM lid: 0` on affected ports (Chapter 2's annotated output) to confirm the two symptoms are the same root cause observed from two different vantage points, not two separate problems.
+
 ### Scenario 2 — Fabric behavior changes after SM failover
 
 **Symptoms**
@@ -406,6 +424,19 @@ A flapping link, failing cable, unstable port, or power event repeatedly changes
 **Resolution**
 
 Quarantine or replace the unstable component, then verify sweep frequency returns to baseline.
+
+**Evidence.** OpenSM's log at heavy-sweep volume names the trigger explicitly rather than requiring inference:
+
+```text
+Aug 06 14:02:11 [opensm] osm_state_mgr.c:812: OSM_LOG: Received a heavy sweep flag
+Aug 06 14:02:11 [opensm] osm_trap_rcv.c:349: OSM_LOG: Trap 128 received (link state change): LID 44 port 3
+Aug 06 14:02:14 [opensm] osm_state_mgr.c:812: OSM_LOG: Received a heavy sweep flag
+Aug 06 14:02:14 [opensm] osm_trap_rcv.c:349: OSM_LOG: Trap 128 received (link state change): LID 44 port 3
+Aug 06 14:02:18 [opensm] osm_state_mgr.c:812: OSM_LOG: Received a heavy sweep flag
+Aug 06 14:02:18 [opensm] osm_trap_rcv.c:349: OSM_LOG: Trap 128 received (link state change): LID 44 port 3
+```
+
+The repeated `Trap 128` (link state change) against the same `LID 44 port 3` every few seconds is the unstable component identifying itself in the log — this is a flapping link, not a fabric-wide instability. `grep`-ing OpenSM's log for `Trap 128` and counting occurrences by LID/port turns "the fabric feels unstable" into a ranked list of exactly which port to physically inspect first.
 
 ### Scenario 4 — New node is visible but cannot join the intended tenant
 
@@ -446,32 +477,58 @@ The recommendation may still use a VM, but the VM becomes part of a tested HA ar
 ### Knowledge Questions
 
 1. Why can an InfiniBand port be physically up but not operational?
+   **Model answer:** "Because physical link-up only proves signal and lane negotiation succeeded between two directly connected ports — it says nothing about whether the subnet manager has discovered that port, assigned it a LID, and programmed the switches around it into the forwarding tables. Until that happens, the port is electrically fine and logically invisible."
+
 2. What does the Subnet Manager assign and program?
+   **Model answer:** "It assigns Local Identifiers to every port, computes forwarding paths across the topology it discovered, and programs those paths into every switch's forwarding table. It also distributes partition and QoS policy. Switches don't compute any of this themselves — they're pure execution engines for state the SM pushes down."
+
 3. Why are GUIDs more useful than LIDs for inventory?
+   **Model answer:** "LIDs are runtime-assigned and can change on a resweep, a topology event, or a policy change. GUIDs are meant to track the hardware object itself. If your source of truth is keyed on LID, a routine SM operation can silently invalidate your inventory; keyed on GUID, it stays correct and you just refresh the LID field as observed state."
+
 4. What triggers a sweep?
+   **Model answer:** "Startup, periodic revalidation on a timer, a link-state change trap, a switch being added or removed, or an operator-requested configuration change. The important operational point is that a sweep isn't just a startup-time event — it's the ongoing mechanism the SM uses to keep programmed state matching actual topology, which is why repeated sweeps are a symptom worth investigating, not just background noise."
+
 5. How do partitions relate to the SM?
+   **Model answer:** "The SM is the thing that actually distributes P_Key membership into endpoint and switch tables — the partition policy is a configuration input, but it only becomes real fabric behavior once the SM pushes it out. That's why a partition-policy change that 'was applied' still needs verification against the SM's programmed state, not just the source config file."
 
 ### Architecture Questions
 
 1. Design SM high availability for a multi-rack fabric.
+   **Model answer:** "One primary with explicit, documented priority, at least one standby in a genuinely separate failure domain — different power, different management path — running identical, version-controlled routing and partition configuration. I'd insist on testing takeover under real traffic before calling it done, because a standby with drifted config can 'successfully' take over and still reroute the fabric differently, which shows up later as an unexplained performance regression."
+
 2. Explain how routing configuration reaches switches.
+   **Model answer:** "It doesn't get typed into each switch — the SM computes the forwarding tables centrally, based on discovered topology and the selected routing engine's algorithm, then pushes that state into every switch as part of the sweep. Switches are consumers of this state, not participants in computing it, which is exactly why one authoritative SM matters so much: two SMs with different routing policy would push contradictory tables."
+
 3. Design an out-of-band management path for the SM environment.
+   **Model answer:** "The SM management host needs to be reachable through a path that doesn't depend on the InfiniBand fabric it's managing — otherwise a fabric-wide failure also removes your ability to fix it. I'd put SM hosts on a dedicated management network with its own switching, independent of production data-plane connectivity, and make sure that's true for both primary and standby, not just primary."
 
 ### Scenario Questions
 
 1. All links show `LinkUp`, but half the nodes have no LID. What do you inspect?
+   **Model answer:** "SM state first — `sminfo` to confirm exactly one authoritative master exists and is actively sweeping, not zero and not two. `LinkUp` with no LID is the textbook signature of a control-plane gap, not a physical one, so I wouldn't touch cables."
+
 2. Performance changes after failover to a standby SM. What is your hypothesis?
+   **Model answer:** "My first hypothesis is configuration drift — the standby likely has a different routing engine setting, partition policy, or QoS mapping than the primary had, even though both are 'running fine' individually. I'd diff the two configurations directly rather than assume the standby is simply worse hardware."
+
 3. A new rack causes frequent sweeps. How do you isolate the cause?
+   **Model answer:** "Grep the SM log for repeated trap events and see if they cluster on one LID/port — that's almost always a flapping link from a new rack's fresh cabling, not a fabric-wide problem. I'd rank ports by trap frequency and go straight to the top of that list rather than inspecting the whole rack."
 
 ### Customer Questions
 
 1. Can the subnet manager run on a compute node?
+   **Model answer:** "Technically often yes, but I'd advise against it for anything production-scale — you don't want SM availability coupled to whatever else that node is doing, including being rebooted or drained for maintenance as a compute resource. A dedicated management host, or at minimum a clearly protected role, keeps the control plane's failure domain independent of workload scheduling."
+
 2. How many SM instances should we deploy?
+   **Model answer:** "At minimum two — one master, one standby, in separate failure domains — for anything beyond a small lab. The number isn't really the design question though; the design question is whether you've tested that the standby actually takes over cleanly with identical behavior, because two SM processes with drifted config is arguably worse than one, since it creates a false sense of redundancy."
+
 3. What evidence proves SM failover is safe?
+   **Model answer:** "A documented takeover test under real or representative traffic, not just confirming the standby process starts. I want to see: takeover completes within an acceptable time, forwarding state after takeover matches the pre-failover state, and application traffic doesn't observe a correctness issue — only a bounded pause, if any."
 
 ### Whiteboard Question
 
 Draw primary and standby SMs, the fabric-facing management path, the out-of-band management path, and the configuration source of truth. Mark the failure domains.
+
+**What I'd actually say while drawing:** "Primary SM here with a solid line into the fabric — that's its fabric-facing management path, how it discovers and programs switches. Standby SM over here, physically separate power and management infrastructure — I'd circle that separation and label it 'failure domain boundary,' because that's the whole point of having a standby. Both SMs pull from the same configuration source of truth — I'd draw that as a shared box feeding both, version-controlled, because if it feeds them different configs, the standby isn't actually redundant, it's just a second opinion. And critically, I'd draw the out-of-band path — SSH, management API — reaching both SM hosts through a network that doesn't route through the InfiniBand fabric itself, with a note: 'if this depends on the fabric being healthy, I can't fix the fabric when it's unhealthy.'"
 
 ## Summary
 
