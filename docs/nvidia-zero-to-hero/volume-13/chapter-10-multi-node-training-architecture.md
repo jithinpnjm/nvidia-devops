@@ -248,3 +248,24 @@ nvidia-smi topo -m
 export NCCL_NET_GDR_LEVEL=5
 export NCCL_IGNORE_CPU_AFFINITY=1
 ```
+
+### Scenario 3: Node Drains Mid-Job, Distributed Job Hangs Then Dies
+
+**Symptom:** A 4-node `torchrun`/Slurm job that was running fine suddenly shows one rank silently missing from the NCCL logs, and the remaining ranks hang at the next All-Reduce instead of failing immediately.
+```text
+squeue -j 481203
+# JOBID   PARTITION  NAME            USER  ST  TIME     NODES  NODELIST
+# 481203  gpu-h100   llama-70b-fsdp  jdoe  R   2:41:18   3      dgx-[012,014-015]
+
+sinfo -N -p gpu-h100 | grep dgx-013
+# dgx-013  gpu-h100  drained
+```
+**Diagnosis:** `slurmd` on `dgx-013` stopped responding (hardware fault, health-check failure, or a crashed daemon), and `slurmctld` marked the node `drained`. Slurm's scheduler-level fault detection doesn't propagate into the running NCCL process group — the surviving ranks have no way to know rank 3 is gone, so they block waiting on a collective that will never complete until NCCL's own watchdog timeout fires.
+**Evidence vs. Proof:** `sinfo` showing `drained` is evidence Slurm evicted the node from scheduling; it is not proof of what killed `slurmd` there — that requires checking `slurmd` logs and hardware health on `dgx-013` itself, same as any single-node fault investigation.
+**Resolution:** A distributed process group has no partial-membership mode — there is no way to "continue without rank 3." The job step fails (or is killed after the NCCL timeout), and the fix is resubmission onto a fresh allocation, not repair of the running job. This is exactly why periodic checkpointing matters: see Chapter 9 for what a checkpoint contains and how a sharded FSDP/ZeRO checkpoint is reassembled on restart — Slurm's role here stops at detecting the failure and freeing the node for the next allocation.
+```bash
+# Confirm the drain reason before resubmitting
+scontrol show node dgx-013 | grep -i reason
+```
+
+
