@@ -4,14 +4,14 @@ Volumes: F-06 (`docs/volume-06`), ZTH-07 (`docs/nvidia-zero-to-hero/volume-07`),
 
 | Volume | File | Status | Severity Summary |
 |---|---|---|---|
-| F-06 | 01-chapter-1-distributed-systems-performance-for-gpu-jobs.md | pending | |
-| F-06 | 02-chapter-2-ethernet-fundamentals-for-ai-fabrics.md | pending | |
-| F-06 | 03-chapter-3-rdma-roce-and-infiniband.md | pending | |
-| F-06 | 04-chapter-4-gpudirect-rdma-nic-gpu-topology-and-nccl.md | pending | |
-| F-06 | 05-chapter-5-nvidia-network-operator-and-kubernetes-accelerated-networking.md | pending | |
-| F-06 | 06-chapter-6-storage-for-ai-datasets-checkpoints-and-model-distribution.md | pending | |
-| F-06 | 07-chapter-7-slurm-scheduling-model.md | pending | |
-| F-06 | 08-chapter-8-kubernetes-slurm-or-both.md | pending | |
+| F-06 | 01-chapter-1-distributed-systems-performance-for-gpu-jobs.md | done | low |
+| F-06 | 02-chapter-2-ethernet-fundamentals-for-ai-fabrics.md | done | low |
+| F-06 | 03-chapter-3-rdma-roce-and-infiniband.md | done | none |
+| F-06 | 04-chapter-4-gpudirect-rdma-nic-gpu-topology-and-nccl.md | done | none |
+| F-06 | 05-chapter-5-nvidia-network-operator-and-kubernetes-accelerated-networking.md | done | low |
+| F-06 | 06-chapter-6-storage-for-ai-datasets-checkpoints-and-model-distribution.md | done | none |
+| F-06 | 07-chapter-7-slurm-scheduling-model.md | done | none |
+| F-06 | 08-chapter-8-kubernetes-slurm-or-both.md | done | none |
 | F-06 | 09-senior-deep-dive-1-collective-communication-and-straggler-amplification.md | pending | |
 | F-06 | 10-senior-deep-dive-2-rdma-infiniband-versus-roce.md | pending | |
 | F-06 | 11-senior-deep-dive-3-network-design-for-ai-oversubscription-rails-and-failure-do.md | pending | |
