@@ -30,8 +30,8 @@ Volumes: `docs/volume-01` (F-01, Linux internals), `docs/volume-02` (F-02, Pytho
 | F-02 | 11-chapter-10-generators-and-decorators-without-magic.md | done | none |
 | F-02 | 12-chapter-11-concurrency-for-infrastructure-engineers.md | done | none |
 | F-02 | 13-chapter-12-type-hints-and-pytest-make-changes-safer.md | done | 1 low (fixed) |
-| F-02 | 14-chapter-13-project-structure-cli-and-ci-cd.md | pending | |
-| F-02 | 15-chapter-14-capstone-design-a-cluster-diagnostics-cli.md | pending | |
+| F-02 | 14-chapter-13-project-structure-cli-and-ci-cd.md | done | none |
+| F-02 | 15-chapter-14-capstone-design-a-cluster-diagnostics-cli.md | done | 1 low (fixed) |
 | F-02 | 16-targeted-udemy-study-map.md | pending | |
 | F-02 | 17-final-python-checklist.md | pending | |
 | F-02 | 18-senior-deep-dive-1-the-python-object-model-mutability-and-interfaces.md | pending | |

@@ -92,3 +92,14 @@ No findings. This is the chapter the task brief specifically asks about ("how th
   - Why it matters for JR2018680: not interview content — a build/rendering integrity issue only.
   - Fix applied: escaped to `` `str \| None` ``.
   Content otherwise: no findings. "Patch where it's looked up, not where it's defined" mocking explanation is accurate and is the single most common real-world `mocker.patch` mistake, correctly diagnosed.
+
+### 14-chapter-13-project-structure-cli-and-ci-cd.md
+No findings. `src/` layout rationale (prevents `pytest` silently importing the uninstalled local copy instead of the actually-installed package) is accurate and a genuinely good interview answer. CI gate ordering (cheap checks before expensive ones) is sound practice.
+
+### 15-chapter-14-capstone-design-a-cluster-diagnostics-cli.md
+- [SEVERITY: low, FIXED INLINE] Code bug in the capstone's `cli.py` skeleton: `logger.error(json.dumps({"event": "collection_failed", ...}))` used `json.dumps` but `cli.py`'s import line only had `import sys, logging` — `json` was never imported in that module, so this would raise `NameError: name 'json' is not defined` as originally written.
+  - Evidence: import line vs. the `json.dumps(...)` call inside `main()`.
+  - Why it matters for JR2018680: minor — a reader who copies this "full skeleton" verbatim (a live-coding round is exactly this kind of copy-and-adapt pressure) would hit an avoidable crash.
+  - Fix applied: changed `import sys, logging` to `import sys, json, logging`.
+  Everything else in this capstone is strong: the exit-code contract (0/1/2/3 with tool-failure as its own code), stdout/stderr separation for CI-safe JSON piping, and the collection/policy separation are all accurate and tie the whole volume together well.
+
