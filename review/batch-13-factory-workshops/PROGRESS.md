@@ -12,7 +12,7 @@ no content) alongside the real chapter files. These are excluded from review as 
 | ZTH-21 | chapter-04-storage-infrastructure-for-ai-pipelines.md | done | high:1, low:1 (10^6 magnitude slip) |
 | ZTH-21 | chapter-05-power-delivery-and-thermal-management.md | done | clean |
 | ZTH-21 | chapter-06-software-stack-integration.md | done | low:1 |
-| ZTH-21 | chapter-07-multi-node-distributed-training.md | pending | |
+| ZTH-21 | chapter-07-multi-node-distributed-training.md | done | clean |
 | ZTH-21 | chapter-08-inference-serving-at-scale.md | pending | |
 | ZTH-21 | chapter-09-multi-region-deployment.md | pending | |
 | ZTH-21 | chapter-10-monitoring-and-operations.md | pending | |

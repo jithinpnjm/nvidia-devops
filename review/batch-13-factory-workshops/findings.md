@@ -71,3 +71,6 @@
   - Why it matters for JR2018680: Minor, but a candidate copying this snippet into a live-coding round would hit an AttributeError immediately.
   - Suggested fix: Change to `import datetime` and `timeout=datetime.timedelta(minutes=30)`.
 - Otherwise clean: CUDA/driver compatibility matrix, DDP/DeepSpeed code, and K8s job manifest are consistent with real NVIDIA stack conventions; no FP32/AllReduce/DCGM pattern recurrences found here.
+
+### chapter-07-multi-node-distributed-training.md
+- No high/medium findings. LR scaling (sqrt rule), throughput, and tensor-parallelism sharding arithmetic check out. Fault-tolerance code is reasonable and consistent with the checkpoint chapter.
