@@ -12,9 +12,9 @@ Volumes: F-07 (`docs/volume-07`), ZTH-16 (`docs/nvidia-zero-to-hero/volume-16`),
 | F-07 | 06-chapter-6-logs-that-survive-incidents.md | done | none |
 | F-07 | 07-chapter-7-traces-and-distributed-latency.md | done | none |
 | F-07 | 08-chapter-8-alert-design-and-runbooks.md | done | medium x1 |
-| F-07 | 09-chapter-9-incident-playbook-pending-pods-crashloops-and-oom.md | pending | |
-| F-07 | 10-chapter-10-incident-playbook-gpu-workload-slow-or-failing.md | pending | |
-| F-07 | 11-chapter-11-incident-communication-and-postmortem.md | pending | |
+| F-07 | 09-chapter-9-incident-playbook-pending-pods-crashloops-and-oom.md | done | none |
+| F-07 | 10-chapter-10-incident-playbook-gpu-workload-slow-or-failing.md | done | none |
+| F-07 | 11-chapter-11-incident-communication-and-postmortem.md | done | none |
 | F-07 | 12-senior-deep-dive-1-start-with-slo-impact-and-scope.md | pending | |
 | F-07 | 13-senior-deep-dive-2-prometheus-internals-cardinality-and-query-cost.md | pending | |
 | F-07 | 14-senior-deep-dive-3-opentelemetry-and-trace-context-across-ai-services.md | pending | |

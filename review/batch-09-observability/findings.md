@@ -40,3 +40,12 @@
 - [SEVERITY: low] See cross-cutting single-quote finding (DCGM Prometheus label syntax uses single quotes; also `grep gpu='0'` is not valid shell for filtering a label value — should be `grep 'gpu="0"'`).
 - All DCGM_FI_DEV_* metric names used (GPU_UTIL, FB_USED, FB_FREE, GPU_TEMP, POWER_USAGE, SM_CLOCK, XID_ERRORS, ECC_DBE_VOL_TOTAL) are real DCGM field identifiers — verified against known DCGM field naming conventions. Excellent "device health vs workload demand" quadrant model and silent-telemetry-loss (NVML failing but exporter still `up`) worked scenario — this is exactly the depth the review brief asks for (DCGM diagnostics, thermal/health reasoning).
 
+### 09-chapter-9-incident-playbook-pending-pods-crashloops-and-oom.md
+- No findings. Correct exit-code decoding (137=SIGKILL/OOMKilled, 143=SIGTERM, 139=SIGSEGV), correct bin-packing-vs-raw-capacity GPU scheduling nuance (anti-affinity + fragmented free GPUs), reinforces OOMKilled vs CUDAOutOfMemory distinction well.
+
+### 10-chapter-10-incident-playbook-gpu-workload-slow-or-failing.md
+- No findings. Strong fabric-layer evidence walkthrough (`nvidia-smi nvlink -e`, `ibstat`, `ib_write_bw`), correct explanation that a synchronous collective is gated by its slowest link/participant, correct ordering rationale (GPU before host before fabric before storage).
+
+### 11-chapter-11-incident-communication-and-postmortem.md
+- No findings. Clean root-cause vs contributing-factor vs action-item disambiguation with a concrete Xid-79 example; explicitly bans "be more careful" action items; good exec-communication worked example preserving factual load (percentages, honest hedging on root cause).
+
