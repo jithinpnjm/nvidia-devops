@@ -9,9 +9,9 @@ Volumes: F-07 (`docs/volume-07`), ZTH-16 (`docs/nvidia-zero-to-hero/volume-16`),
 | F-07 | 03-chapter-3-prometheus-mental-model-and-promql-reasoning.md | done | low x1 |
 | F-07 | 04-chapter-4-kubernetes-observability-object-state-plus-runtime-evidence.md | done | none |
 | F-07 | 05-chapter-5-gpu-observability-with-dcgm.md | done | low x1 |
-| F-07 | 06-chapter-6-logs-that-survive-incidents.md | pending | |
-| F-07 | 07-chapter-7-traces-and-distributed-latency.md | pending | |
-| F-07 | 08-chapter-8-alert-design-and-runbooks.md | pending | |
+| F-07 | 06-chapter-6-logs-that-survive-incidents.md | done | none |
+| F-07 | 07-chapter-7-traces-and-distributed-latency.md | done | none |
+| F-07 | 08-chapter-8-alert-design-and-runbooks.md | done | medium x1 |
 | F-07 | 09-chapter-9-incident-playbook-pending-pods-crashloops-and-oom.md | pending | |
 | F-07 | 10-chapter-10-incident-playbook-gpu-workload-slow-or-failing.md | pending | |
 | F-07 | 11-chapter-11-incident-communication-and-postmortem.md | pending | |
