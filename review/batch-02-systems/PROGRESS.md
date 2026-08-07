@@ -22,12 +22,14 @@ Volumes: ZTH-04 (NVIDIA Hardware Portfolio), ZTH-05 (DGX Systems), ZTH-06 (HGX P
 | ZTH-05 | chapter-06-dgx-networking-and-fabric-integration.md | done | none |
 | ZTH-05 | labs/lab-01-build-a-dgx-health-baseline.md | done | none |
 | ZTH-05 | labs/lab-02-validate-dgx-data-and-network-paths.md | done | none |
-| ZTH-06 | index.md | pending | |
-| ZTH-06 | chapter-01-why-hgx-exists.md | pending | |
-| ZTH-06 | chapter-02-inside-an-hgx-platform.md | pending | |
-| ZTH-06 | chapter-03-oem-integration-and-support-boundaries.md | pending | |
-| ZTH-06 | chapter-04-hgx-topology-and-data-paths.md | pending | |
-| ZTH-06 | chapter-05-hgx-power-cooling-and-rack-integration.md | pending | |
-| ZTH-06 | chapter-06-hgx-networking-storage-and-cluster-integration.md | pending | |
-| ZTH-06 | labs/lab-01-compare-hgx-server-designs.md | pending | |
-| ZTH-06 | labs/lab-02-review-an-hgx-rack-design.md | pending | |
+| ZTH-06 | index.md | done | 1 low, 1 medium |
+| ZTH-06 | chapter-01-why-hgx-exists.md | done | none |
+| ZTH-06 | chapter-02-inside-an-hgx-platform.md | done | none |
+| ZTH-06 | chapter-03-oem-integration-and-support-boundaries.md | done | none |
+| ZTH-06 | chapter-04-hgx-topology-and-data-paths.md | done | none |
+| ZTH-06 | chapter-05-hgx-power-cooling-and-rack-integration.md | done | none |
+| ZTH-06 | chapter-06-hgx-networking-storage-and-cluster-integration.md | done | none |
+| ZTH-06 | labs/lab-01-compare-hgx-server-designs.md | done | none |
+| ZTH-06 | labs/lab-02-review-an-hgx-rack-design.md | done | none |
+
+**BATCH 02 COMPLETE — all 27 files reviewed.** See `findings.md` summary at top for severity counts and top interview-prep findings.

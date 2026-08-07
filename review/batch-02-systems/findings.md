@@ -1,6 +1,20 @@
 # Batch 02 — NVIDIA Systems Portfolio — Findings
 
-(Summary to be added at top once review is complete.)
+## Summary
+
+Reviewed all 27 files across ZTH-04 (NVIDIA Hardware Portfolio), ZTH-05 (DGX Systems), and ZTH-06 (HGX Platform). Overall depth-bar quality is very high and consistently matches the Volume 1 gold standard — nearly every chapter includes annotated real command output (`nvidia-smi`, `nvidia-smi topo -m`, `nccl-tests`, `ipmitool`, `fio`, `NCCL_DEBUG`), mechanism-first diagrams with evidence-labeled decision branches, and first-person interview answers grounded in that evidence. This is genuinely strong interview-prep material for JR2018680's systems-portfolio rounds.
+
+**Counts by severity:** 1 high, 4 medium, 3 low. 0 critical/blocking technical accuracy errors found — no factual GPU/NVLink/DGX/HGX errors were identified anywhere in this batch.
+
+**Top 5 findings for interview prep:**
+
+1. **[HIGH] Zero coverage of Grace CPU, Grace Hopper (GH200), or Grace Blackwell (GB200/GB200 NVL72) anywhere across all three volumes.** This is the single most consequential gap in the batch — Grace CPU and GB200 NVL72 rack-scale systems are current NVIDIA flagship products and near-certain interview topics (CPU-GPU coherent memory via NVLink-C2C, superchip vs. discrete-GPU tradeoffs, rack-as-a-single-NVLink-domain architecture, mandatory liquid cooling). ZTH-04's own "Planned Chapter Sequence" originally scoped a Grace chapter that was never written.
+2. **[MEDIUM] Chapters 05-06 of ZTH-04 (T4/L4/L40S and V100-B200) deliberately omit concrete specs** (memory capacity, TDP, HBM bandwidth) in favor of qualitative "tendencies," citing spec staleness risk. The reasoning frameworks are excellent, but a candidate who studied only these chapters could not state that T4=16GB/70W, L4=24GB/72W, L40S≈48GB/350W, H100=80GB HBM3/700W, H200=141GB HBM3e — numbers an NVIDIA interviewer would expect as baseline knowledge. (The labs in the same volume do include real numbers, just not surfaced in the chapters themselves.)
+3. **[MEDIUM] No volume in this batch discusses GB200 NVL72 as the current evolution of the HGX/DGX scale-up model** — all HGX/DGX content assumes the classic 8-GPU-baseboard-per-chassis unit of scale, which is accurate for H100/H200-generation systems but incomplete for a candidate expected to speak to NVIDIA's current product line.
+4. **[LOW, structural, all 3 volumes] Every volume's `index.md` "Planned Chapter Sequence" lists far more chapters (12-15) than actually exist (6 each).** This is a documentation-hygiene issue rather than a content gap in most cases (ZTH-05 and ZTH-06's delivered chapters substantively cover most planned topics under different groupings), but it is worth a cleanup pass across the whole curriculum, not just this batch.
+5. **[Strength worth noting] The topology-and-evidence discipline is the standout asset of this batch** — nearly every chapter in ZTH-05 and ZTH-06 teaches the same transferable interview move: never trust "N GPUs, same generation" as proof of equivalent performance; always verify with `nvidia-smi topo -m`, VBIOS/firmware version diffs, and throttle-reason bitmasks before attributing a performance gap to hardware. This pattern, repeated with fresh concrete numbers in chapter after chapter (NUMA cross-socket penalties, PCIe down-training, power-cap vs. thermal-throttle disambiguation), is exactly the kind of first-principles diagnostic reasoning a NVIDIA systems interview would probe.
+
+No MDX/structural integrity issues (broken fences, unescaped angle brackets, broken links) were found in any of the 27 files.
 
 ## ZTH-04 — NVIDIA Hardware Portfolio
 
@@ -87,4 +101,37 @@
 
 ## ZTH-06 — HGX Platform
 
-(pending)
+### index.md
+- [SEVERITY: low] Same pattern as ZTH-04 and ZTH-05: "Planned Chapter Sequence" lists 14 topics (lines 44-57) but only 6 chapters exist. The delivered 6 chapters do cover the substance of most planned topics (SXM/NVLink/NVSwitch, OEM host integration, cooling/power/rack, comparing OEM implementations, cluster/rack design) reasonably well under different titles/groupings, so this is primarily a documentation-hygiene issue, not a content gap, for this volume specifically.
+  - Evidence: `index.md` lines 42-57 vs. 6 actual chapter files.
+  - Why it matters for JR2018680: low impact — unlike ZTH-04's Grace CPU gap, most planned HGX topics are actually covered; a reader following only the "Planned Chapter Sequence" list would be confused about chapter count but not miss core content.
+  - Suggested fix: trim the planned list to match the 6 delivered chapters.
+
+- [SEVERITY: medium] No coverage of GB200 NVL72 / Grace Blackwell superchip-based rack-scale systems, which have effectively superseded the traditional 8-GPU HGX baseboard model as NVIDIA's current flagship scale-up architecture. All six chapters discuss "HGX baseboard" and "8-GPU node" as the unit of scale-up, consistent with H100/H200-generation HGX, but never mention that Blackwell-generation rack-scale designs (GB200 NVL72) change the OEM-integration story significantly (72-GPU NVLink domain spanning multiple compute trays in one rack, not one server chassis).
+  - Evidence: grep for GB200/NVL72/Superchip across volume-06 returns zero matches (see batch-wide finding under ZTH-04/index.md).
+  - Why it matters for JR2018680: an interviewer asking about "the latest NVIDIA scale-up architecture" would expect discussion of GB200 NVL72's rack-as-a-single-NVLink-domain design, which is architecturally distinct from (and a natural evolution of) everything this volume teaches about 8-GPU HGX baseboards — the reasoning frameworks in this volume (OEM integration boundaries, topology verification, power/cooling worked math) transfer well, but the reader would not know the current flagship product exists.
+  - Suggested fix: add a chapter or substantial section explicitly contrasting classic HGX 8-GPU baseboard integration with GB200 NVL72 rack-scale integration, noting what changes (mandatory liquid cooling, cross-tray NVLink, rack-level FRU model) and what stays the same (the OEM-integration reasoning framework this volume teaches).
+
+### chapter-01-why-hgx-exists.md
+- No significant findings. Excellent framing of NVIDIA/OEM/customer responsibility boundaries with realistic `nvidia-smi topo -m`/VBIOS/BMC evidence.
+
+### chapter-02-inside-an-hgx-platform.md
+- No significant findings. Strong accelerator/host/I-O/power/firmware domain breakdown with a genuinely useful worked example (405B-parameter model memory math against 640GB aggregate HGX memory) and realistic cross-vendor troubleshooting evidence.
+
+### chapter-03-oem-integration-and-support-boundaries.md
+- No significant findings. Thorough support-ownership matrix and realistic multi-domain acceptance-gate diagram; the "AND not average" framing for acceptance gates is a good practical heuristic.
+
+### chapter-04-hgx-topology-and-data-paths.md
+- No significant findings. Excellent NVLink-vs-PCIe bandwidth math (~900GB/s vs ~64GB/s per direction), correct and realistic `nvidia-smi topo -m`/`lspci -tv`/`numactl`/`ibdev2netdev` evidence chains, and a sound scale-up vs. scale-out troubleshooting framework — this chapter is one of the strongest in the batch.
+
+### chapter-05-hgx-power-cooling-and-rack-integration.md
+- No significant findings. Strong worked power-budget example (GPU TDP vs. complete-system draw, ~30% underestimate if only counting GPU TDP) and realistic thermal-throttle evidence walkthrough.
+
+### chapter-06-hgx-networking-storage-and-cluster-integration.md
+- No significant findings. Good Kubernetes/device-plugin RDMA-visibility discussion and realistic down-trained-PCIe-link/missing-RDMA-device/switch-CRC-error troubleshooting evidence.
+
+### labs/lab-01-compare-hgx-server-designs.md
+- No significant findings. Very strong lab — realistic, evidence-graded OEM comparison matrix that correctly distinguishes "Missing evidence" from "Verified requirement failure," and a good facility-fit worked example showing both candidates exceeding the rack power limit at the proposed density.
+
+### labs/lab-02-review-an-hgx-rack-design.md
+- No significant findings. Realistic, well-structured rack-design review with correct power-redundancy math (N+1 PSU, single-feed-failure test) and an honest "Conditional go" decision that flags real residual risk (no physical redundant compute NIC) rather than defaulting to an unconditional pass.
