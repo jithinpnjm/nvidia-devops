@@ -38,9 +38,9 @@ Volumes: F-03 (`docs/volume-03`), ZTH-10 (`docs/nvidia-zero-to-hero/volume-10`),
 | ZTH-10 | labs/lab-02-install-and-validate-gpu-operator.md | done | low | |
 | ZTH-10 | labs/lab-03-diagnose-a-missing-allocatable-gpu.md | done | low | |
 | ZTH-10 | labs/lab-04-perform-a-controlled-gpu-platform-upgrade.md | done | low | |
-| ZTH-11 | index.md | pending | |
-| ZTH-11 | chapter-01-why-gpu-sharing-exists.md | pending | |
-| ZTH-11 | chapter-02-mig-architecture-and-isolation.md | pending | |
+| ZTH-11 | index.md | done | low | |
+| ZTH-11 | chapter-01-why-gpu-sharing-exists.md | done | low | |
+| ZTH-11 | chapter-02-mig-architecture-and-isolation.md | done | medium | |
 | ZTH-11 | chapter-03-mig-profiles-and-placement.md | pending | |
 | ZTH-11 | chapter-04-time-slicing-and-oversubscription.md | pending | |
 | ZTH-11 | chapter-05-vgpu-architecture-and-enterprise-virtualization.md | pending | |

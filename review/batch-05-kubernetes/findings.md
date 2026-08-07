@@ -141,3 +141,18 @@
 - [SEVERITY: low] No issues found. The `helm rollback` "success" with `ALLOCATABLE` still `0` scenario is an excellent, realistic demonstration of chart-rollback-does-not-revert-host-state, directly reinforcing Chapter 11's core lesson with lab evidence.
 
 **ZTH-10 (Volume 10) review complete — 17/17 files reviewed. No accuracy issues found across the entire volume; consistently at gold-standard depth.**
+
+## ZTH-11 — Volume 11: GPU Sharing
+
+### index.md
+- [SEVERITY: low] No issues found. The workload-contract framing (memory envelope, latency objective, tenant trust, recovery behavior) is a strong, reusable structure for the rest of the volume.
+
+### chapter-01-why-gpu-sharing-exists.md
+- [SEVERITY: low] No issues found. Extensive and technically sound; the "eight GPUs per GPU" production story and the memory-bandwidth-saturation worked example (15% avg SM utilization masking p99 tail-latency risk) are strong, realistic interview material. Note: this chapter's format (long-form prose with terminal "Senior-level summary" one-sentence-per-line paragraphs) diverges stylistically from Volume 10's tighter ➕-annotated diagram-first style, but content depth is comparable — not a correctness issue, just a style/formatting difference worth normalizing in a later authoring pass.
+
+### chapter-02-mig-architecture-and-isolation.md
+- [SEVERITY: medium] The H100 MIG profile table lists `4g.40gb` as supporting "max 2 concurrent instances." NVIDIA's published MIG profile tables for H100 80GB (and A100 80GB) show `4g.40gb` as max **1** concurrent instance, not 2 — a GPU has enough compute slices for two `3g` instances or one `4g` instance, but not two `4g` instances (4+4=8 exceeds the 7-slice compute budget, and only one placement region fits a 4-slice-wide instance). The other rows (1g.10gb x7, 1g.20gb x4, 2g.20gb x3, 3g.40gb x2, 7g.80gb x1) match published values.
+  - Evidence: line 54, "`[4] 4g.40gb, 1 GI of 80GB with 4 SMs, max 2 concurrent instances`" (also memory should read 40GB per-instance, not 80GB, consistent with the profile name).
+  - Why it matters for JR2018680: MIG profile/placement math (which profiles can co-exist, why) is exactly the kind of "SRE who reads the scheduler/MIG placement doc" depth this batch's brief calls out, and getting the max-instance count wrong for a specific, checkable profile would be caught in a live technical round.
+  - Suggested fix: correct `4g.40gb` to max 1 concurrent instance and verify against current NVIDIA MIG User Guide profile tables for the exact GPU generation being documented.
+- Otherwise strong: GI/CI hierarchy, the six-layer validation chain (driver → MIG config → runtime → Kubernetes → application → rollback), and the shared-failure-domain table (board/power/driver still shared even with MIG) are accurate and precisely scoped.
