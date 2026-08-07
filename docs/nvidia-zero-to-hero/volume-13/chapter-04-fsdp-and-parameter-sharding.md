@@ -68,7 +68,7 @@ Replicated on every GPU:  Model weights (140 GB)
 Sharded across GPUs:      Optimizer states (560 GB total → 560/N GB per GPU)
 ```
 
-Memory per GPU (N=8): 140 + 140 + (560/8) = 210 GB (still too large)
+Memory per GPU (N=8): 140 + 140 + (560/8) = 140 + 140 + 70 = 350 GB (still too large)
 
 **Use case:** Small models that fit in VRAM; want to squeeze out memory headroom for larger batches.
 
@@ -80,9 +80,9 @@ Sharded across GPUs:      Gradients (140 GB total → 140/N GB per GPU)
                           Optimizer states (560 GB total → 560/N GB per GPU)
 ```
 
-Memory per GPU (N=8): 140 + (140/8) + (560/8) = 228 GB (worse than Stage 1!)
+Memory per GPU (N=8): 140 + (140/8) + (560/8) = 140 + 17.5 + 70 = 227.5 GB ≈ 228 GB (better than Stage 1)
 
-Why? Because we still replicate weights. **This stage is rarely used in isolation.**
+Sharding the gradients in addition to the optimizer states removes another 122.5 GB per GPU compared to Stage 1 (350 GB → 228 GB). Weights are still replicated, so this stage doesn't get you all the way down — that's what Stage 3 is for — but each additional shard reduces memory, as expected. **This stage is rarely used in isolation** because Stage 3 costs the same communication pattern (all-gather before every forward/backward) while shedding the remaining 140 GB of replicated weights too, so there's little reason to stop at Stage 2 once you're paying the all-gather cost.
 
 ### Stage 3: Shard Everything (FULL_SHARD) — The Standard
 
