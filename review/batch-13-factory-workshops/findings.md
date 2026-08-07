@@ -204,3 +204,6 @@
   - Evidence: Line ~21, ~28-29 (Use Case 1 Requirements/Performance).
   - Why it matters for JR2018680: This is the chapter's headline "GPU vs CPU speedup" claim for pharma virtual screening — exactly the kind of ROI number a solutions architect would present to a customer, and none of the underlying arithmetic is self-consistent.
   - Suggested fix: Pick one consistent CPU baseline (either the 232-day figure or the 128 molecules/sec figure, not both) and recompute the GPU speedup multiplier from it.
+
+### chapter-06-telecommunications.md
+- No high/medium findings. Compute-budget math (10M samples × 10ms = 100K sec, parallelized 1000-way = 100 sec within 300 sec budget) and ROI (40x) check out.
