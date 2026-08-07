@@ -408,6 +408,29 @@ In dynamic batching pipelines, input tensors from 64 separate client requests mu
 
 ---
 
+## Production Troubleshooting: Real-World Evidence
+
+### Problem: Request Latency Remains High Despite Adding GPU Capacity
+
+| Signal | Root Cause | Diagnostic Command | Real Evidence | Remediation |
+|---|---|---|---|---|
+| Total latency = 580ms; GPU kernel time = 85ms (15% of total) | CPU-bound ingestion/tokenization/egress (non-GPU stages consume 85% of latency) | `curl -s http://localhost:8002/metrics \| grep -E "(tokenizer_latency_seconds\|h2d_transfer_latency\|egress_latency)" \| head -10` | Tokenizer: 220ms avg (38% of total); H2D copy: 12ms; Egress: 263ms (45% of total—socket buffer bloat) | (1) Switch to C++ tokenizer w/ thread pool; (2) enable pinned memory; (3) disable Nginx proxy buffering (`proxy_buffering off`) |
+| P99 latency = 1200ms; P50 latency = 95ms (12x spread) | TCP socket buffer bloat on slow clients; backpressure propagation | `netstat -s \| grep -E "overrun\|dropped"; tcpdump -i eth0 -n "port 8000" \| head -50` | `TCP segments retransmitted: 4200` (high retransmit rate); tcpdump shows 1-2 sec gaps between SSE chunk flushes | (1) Set `TCP_NODELAY` on API server sockets; (2) enforce streaming flush on every token (`if (token_count % 1 == 0) flush();`); (3) enable client-side read timeout to detect stalled clients |
+| Throughput unchanged after 40% more GPU capacity added | CPU gateway/tokenizer or network ingress is the bottleneck, not GPU | `top -p $(pgrep -f "gateway"); nvidia-smi dmon -s gm -c 5 \| tail -3` | Gateway CPU = 95%; GPU util = 22%; memory traffic = 8% | Add more gateway/tokenizer pod replicas; ensure round-robin load balancing spreads traffic; measure actual end-to-end bottleneck via trace profiling |
+
+**Interpretation:** When total end-to-end latency increases after adding GPU resources, the bottleneck has moved outside the GPU. OpenTelemetry spans or explicit timers on every stage reveal which component consumes the added time.
+
+### Problem: Dynamic Batching Not Assembling Full Batches
+
+| Signal | Root Cause | Diagnostic Command | Real Evidence | Remediation |
+|---|---|---|---|---|
+| Actual batch sizes = [1, 2, 1, 3, 1, 2] (avg 1.7) despite `preferred_batch_size: [32]` and `max_queue_delay: 10ms` | Traffic arrival rate too low; queue expires before filling | `curl -s http://localhost:8002/metrics \| grep -E "batch_size_histogram\|queue_wait_time"` | `Histogram bucket le="4": 8420 requests` (most batches < 4 elements); `queue_wait_time le="2ms": 7200` (avg wait < 2ms, queue expires quickly) | Increase `max_queue_delay_microseconds` to 50ms; monitor that P99 latency still meets SLA (100ms target = TTFT 50ms + batch assembly 20ms + GPU exec 20ms + egress 10ms) |
+| Batch sizes correct (avg 28), but GPU exec time unchanged | Batching working but GPU kernel not saturating from assembled batch (memory-bandwidth bound, not compute bound) | `nvidia-smi dmon -s gm; tensorrt profiler log (trtexec --device=0 --profilingVerbosity=detailed)` | `GPU mem traffic: 220 GB/s (saturated); SM compute: 200 TFLOPS (vastly underutilized)` | This is expected for memory-bound workloads (e.g., token generation). Verify with profiler that compute is the intended bottleneck, or accept memory-bound behavior and scale via increasing concurrency instead of batch size. |
+
+**Interpretation:** Dynamic batching provides throughput gains only if the workload is compute-bound. Verify with a GPU profiler before tuning queue delay parameters.
+
+---
+
 ## Summary & Authoritative References
 
 ### Key Takeaways

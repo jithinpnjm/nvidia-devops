@@ -366,6 +366,28 @@ In a scale-out cluster running independent Data Parallel (DP) replicas, standard
 
 ---
 
+## Production Troubleshooting: Real-World Evidence
+
+### Problem: Tensor Parallelism Collective Communication Hangs or Timeouts
+
+| Signal | Root Cause | Diagnostic Command | Real Evidence | Remediation |
+|---|---|---|---|---|
+| Multi-GPU Tensor Parallelism (TP=4) on 4x H100s; after 15 minutes, inference requests hang with `NCCL Timeout waiting for all_reduce` | NCCL all-reduce collective operation deadlocked; typically caused by mismatched tensor shapes across ranks or stale NCCL group context | `export NCCL_DEBUG=INFO; python3 -m vllm.entrypoints.openai.api_server --model llama-70b --tensor-parallel-size 4 2>&1 \| grep -E "all_reduce\|timeout\|rank"` | NCCL debug log: `[Rank 2] sendrecv to rank 3: timeout after 30 sec`; `[Rank 1] group not initialized`  | (1) Verify all GPUs are visible and healthy: `nvidia-smi -L \| wc -l` (confirm 4 GPUs); `nvidia-smi topo -m` (verify NVLink connections); (2) check NCCL environment: `NCCL_DEBUG=TRACE` (very verbose, logs every collective); (3) set explicit timeout: `NCCL_TIMEOUT=600` (600 seconds for debug); (4) restart the inference engine and confirm process group initialization completes |
+| Data Parallel (DP) scale-out across 4 nodes; all-reduce during gradient averaging exhibits 10x higher latency than expected | Inter-node network is PCIe fallback (InfiniBand disabled or GPUDirect RDMA not configured); NCCL using host CPU sockets instead of high-speed fabric | `curl -s http://localhost:8002/metrics \| grep -E "nccl_all_reduce_latency_us\|collective_communication_bandwidth"; ethtool -S eth0 \| grep -i error` | Metrics: `nccl_all_reduce_latency_us: 45000` (45ms, should be < 5ms on InfiniBand); Network errors: `TX_DROPPED: 428, RX_ERRORS: 156` (network lossy) | (1) Enable InfiniBand/RDMA: `NCCL_IB_DISABLE=0 NCCL_NET_GDR_LEVEL=5` before launching engine; (2) verify network is ready: `ibdiagnet -o /tmp/fabric.log`; (3) benchmark NCCL all-reduce directly via `nccl-tests`: `./build/all_reduce_perf -b 1M -e 64M -f 2 -t 2 -G 4` on 4 nodes to isolate communication |
+
+**Interpretation:** NCCL timeouts indicate either shape mismatch between ranks or network misconfiguration. Use NCCL_DEBUG to get detailed logging. Enable InfiniBand explicitly if available.
+
+### Problem: Load Imbalance in Data Parallel Scale-Out Reducing Throughput
+
+| Signal | Root Cause | Diagnostic Command | Real Evidence | Remediation |
+|---|---|---|---|---|
+| 4-node scale-out cluster with Data Parallel replicas; throughput is 110 tok/s (should be 4x single-node = 240 tok/s); GPU utilization varies: 95%, 45%, 88%, 22% across nodes | Requests not being routed evenly; some replicas starved while others saturated; load balancer routing unaware of per-replica KV cache utilization or queue depth | `curl http://node0:8002/metrics \| grep kv_cache_usage; curl http://node1:8002/metrics \| grep kv_cache_usage; curl http://node2:8002/metrics \| grep kv_cache_usage; curl http://node3:8002/metrics \| grep kv_cache_usage` | Metrics: Node 0 kv_cache_usage=91%; Node 1 kv_cache_usage=32%; Node 2 kv_cache_usage=85%; Node 3 kv_cache_usage=18% (high variance) | (1) Switch load balancer from round-robin to least-loaded: route requests to node with lowest `kv_cache_usage_percent` or smallest `queue_depth`; (2) normalize max batch size across replicas; (3) use prefix-aware routing to concentrate identical prompts on same replica for cache hits |
+| Prefix-Aware Routing implemented; prefix cache hit ratio improves to 70%; but throughput remains flat at 110 tok/s instead of expected 140 tok/s | Prefix routing creates uneven load distribution; one node handles 60% of requests (hitting cached prefixes), other nodes stay underutilized | `for i in {0..3}; do echo "Node $i:"; curl -s http://node${i}:8002/metrics \| grep -E "requests_total\|tokens_generated_total"; done` | Node-level metrics: `Node 0: 3600 requests, 280K tokens`; `Node 1: 1100 requests, 95K tokens`; `Ratio: 3.27x imbalance` | (1) Rebalance prefix hash function to distribute prefixes more evenly; (2) consider replicating high-traffic prefixes across multiple nodes; (3) monitor prefix distribution via metrics and adjust hash seed periodically to rebalance |
+
+**Interpretation:** Data Parallel scale-out is simple but requires careful load balancing and prefix routing to achieve linear scaling. Round-robin routing loses both KV cache reuse efficiency and load balance.
+
+---
+
 ## Summary & Authoritative References
 
 ### Chapter Summary

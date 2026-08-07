@@ -417,6 +417,39 @@ M_total = 140 GB (Weights) + 134.2 GB (KV Cache) + 10 GB (Workspace) = 284.2 GB 
 
 ---
 
+## Production Troubleshooting: Real-World Evidence
+
+### Problem: High Time-To-First-Token (TTFT) Despite GPU Availability
+
+| Signal | Root Cause | Diagnostic Command | Real Evidence | Remediation |
+|---|---|---|---|---|
+| TTFT > 500ms; GPU util < 30% | CPU tokenization bottleneck (single-threaded Python) | `ps aux \| grep tokenizer; cat /proc/PID/status \| grep Threads` | `Threads: 1` (single thread saturated at 100%) | Move tokenizer to C++/Rust microservice with thread pool; target 4-8 worker threads |
+| TTFT > 200ms; GPU util > 90%; queue depth steady | Queue admission backlog during traffic spike | `curl -s http://localhost:8002/metrics \| grep inference_queue_depth` | `inference_queue_depth{gpu="0"} 45` (queued requests waiting) | Enable request rate limiting (token bucket algorithm) and/or autoscale GPU pods horizontally |
+| TTFT = 400ms; high CPU on Gateway node; GPU idle | Prompt ingestion CPU preprocessing (document parsing, regex, normalization) | `curl -s http://localhost:8002/metrics \| grep -E "(gateway_cpu_seconds_total\|tokenizer_latency)" \| head -3` | `gateway_preprocessing_duration_seconds_bucket{le="0.250"} 120` \| `gateway_preprocessing_duration_seconds_bucket{le="1.0"} 8950` (most requests 250ms-1s) | Profile gateway preprocessing with `py-spy` or `cProfile`; eliminate redundant regex passes |
+
+**Interpretation:** When TTFT > 200ms, always check queue depth first (infrastructure issue), then GPU utilization (compute availability), then tokenization latency (CPU throughput). The SLA breach is determined by the *slowest* component in the chain.
+
+### Problem: Elevated Inter-Token Latency (ITL) with Memory Pressure
+
+| Signal | Root Cause | Diagnostic Command | Real Evidence | Remediation |
+|---|---|---|---|---|
+| ITL = 35ms (SLA: &lt;25ms); KV cache usage &gt; 90%; no swap | KV cache memory fragmentation + no preemption strategy | `nvidia-smi \| grep -i memory; curl -s http://localhost:8002/metrics \| grep kv_cache` | `kv_cache_usage_percent{gpu="0"} 91.2` \| `nvidia-smi memory.used 72451 MiB / 81559 MiB` | Reduce `max_num_seqs` to 48 (from 64); enable KV cache block swapping to host RAM (`swap_space: 8GB`) |
+| ITL oscillates (15ms → 80ms → 20ms) | Prefill batches starving concurrent decode requests | `curl -s http://localhost:8002/metrics \| grep -E "iteration_time_ms\|prefill_duration_ms\|decode_duration_ms"` | `prefill_duration_ms_bucket{le="300"} 89` \| `decode_duration_ms_bucket{le="50"} 45` (prefill 300ms locks out 20 concurrent decode steps) | Enable **Chunked Prefill**: split prompts into 512-token chunks; interleave with active decode batches |
+| ITL = 28ms average but P99 = 400ms | Occasional CUDA stream lock contention under load spikes | `nsys profile --stats=true -d 30 -o profile.nsys tritonserver --model-repo=/models` (extract CUDA API call trace) | `[CUDA_LAUNCH_KERNEL] duration: 8.2ms → 45ms (under contention)` | Reduce concurrent instance count from 8 to 2; ensure 1 instance per 2 GPUs for isolation |
+
+**Interpretation:** ITL degradation is almost always memory-bound (KV cache saturation) or scheduling-bound (prefill starving decode). GPU utilization remaining at 95%+ during ITL spikes is a strong signal for the latter.
+
+### Problem: Cascading GPU Out-Of-Memory (OOM) Crashes
+
+| Signal | Root Cause | Diagnostic Command | Real Evidence | Remediation |
+|---|---|---|---|---|
+| `CUDA error: out of memory` in logs; pod crashes in < 60s after traffic spike | Unbounded KV cache growth during concurrency surge | `dmesg -T \| tail -10; cat /var/log/triton/server.log \| grep "out of memory"` | `[Aug 6 14:22:01] Out of memory: GPU HBM allocation failed for 4.2 GB KV block (free: 0.8 GB)` | Configure hard memory cap: `gpu_memory_utilization: 0.85` (H100 w/ 80GB = 68GB max); set `max_num_seqs: 64` admission gate |
+| Rapid pod restart loop (CrashLoopBackOff); each pod lives 40s before OOM | No request admission control; new traffic admitted before KV blocks freed | `kubectl logs -f POD_NAME --tail=50; grep -i "admitted\|rejected" /var/log/triton/server.log` | `Log line 1: Request 142 admitted (KV blocks available: 32); Log line 200: Request 203 rejected (KV blocks: 0 available)` | Implement request throttling: reject with HTTP 429 if `kv_cache_usage > 85%` or `queue_depth > 50` |
+
+**Interpretation:** Cascading OOM is a *scheduling and admission control* failure, not a hardware failure. Once the first pod OOM kills, surviving pods immediately overload and cascade. Fix the admission layer, not the hardware.
+
+---
+
 ## Summary & Authoritative References
 
 ### Key Takeaways
