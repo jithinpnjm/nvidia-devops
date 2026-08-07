@@ -102,8 +102,8 @@ NVIDIA HGX H100 NODE ARCHITECTURE (8-GPU NVLink Mesh)
 
 | Interconnect Layer | Physical Interface | Bidirectional Bandwidth | Latency | Viable Parallel Strategy |
 |---|---|---|---|---|
-| **NVLink 4 (H100/H200)** | Custom High-Speed Trace / NVSwitch | 900 GB/s per GPU | `< 1.0 µs` | Tensor Parallelism (TP=2, 4, 8) |
-| **NVLink 3 (A100)** | NVSwitch Mesh | 600 GB/s per GPU | `< 1.5 µs` | Tensor Parallelism (TP=2, 4, 8) |
+| **NVLink 4 (H100/H200)** | Custom High-Speed Trace / NVSwitch | 900 GB/s per GPU | `&lt; 1.0 µs` | Tensor Parallelism (TP=2, 4, 8) |
+| **NVLink 3 (A100)** | NVSwitch Mesh | 600 GB/s per GPU | `&lt; 1.5 µs` | Tensor Parallelism (TP=2, 4, 8) |
 | **PCIe Gen5 x16** | PCIe Bus Switch | 64 GB/s per GPU | `5 - 10 µs` | Pipeline Parallelism (PP) / DP |
 | **InfiniBand NDR / RoCEv2** | CX-7 NIC + GPUDirect RDMA (GDR) | 400 Gbps (50 GB/s) per port | `1.5 - 3.0 µs` | Pipeline Parallelism (PP) / DP |
 | **Standard 100GbE Network** | TCP/IP Host Stack | 100 Gbps (12.5 GB/s) | `50 - 150 µs` | Data Parallel Replicas (DP) ONLY |
@@ -300,9 +300,9 @@ With independent DP=8 replicas, KV cache usage balanced perfectly across both no
 | Metric | Type | Description | Operational Target |
 |---|---|---|---|
 | `dcgm_nvlink_throughput` | Counter | Total byte throughput across intra-node NVLink connections | Saturation monitoring |
-| `nccl_comm_latency_seconds` | Histogram | Latency distribution of NCCL AllReduce and P2P calls | `< 50 µs` per AllReduce |
-| `vllm:gpu_cache_usage_perc` | Gauge | KV cache block usage on rank 0 | `< 85%` |
-| `vllm:num_requests_waiting` | Gauge | Global queued request count in cluster scheduler | `< 5` |
+| `nccl_comm_latency_seconds` | Histogram | Latency distribution of NCCL AllReduce and P2P calls | `&lt; 50 µs` per AllReduce |
+| `vllm:gpu_cache_usage_perc` | Gauge | KV cache block usage on rank 0 | `&lt; 85%` |
+| `vllm:num_requests_waiting` | Gauge | Global queued request count in cluster scheduler | `&lt; 5` |
 
 ### Prometheus Alerting Rules
 
@@ -337,7 +337,7 @@ groups:
 
 **Model Answer:**
 Tensor Parallelism (TP) splits weight matrices *within* individual transformer layers. Each transformer block requires **2 synchronous AllReduce operations** per generated token (one for attention output, one for MLP down projection). For an 80-layer model generating 50 tokens/sec, this requires 8,000 AllReduce calls per second. 
-- Executing AllReduce over NVLink (900 GB/s, `< 1 µs` latency) completes each collective in microseconds.
+- Executing AllReduce over NVLink (900 GB/s, `&lt; 1 µs` latency) completes each collective in microseconds.
 - Executing AllReduce over inter-node PCIe or network interfaces (50–150 µs latency) causes GPUs to spend `> 90%` of their execution time waiting for inter-node network synchronization, destroying token generation performance.
 
 Conversely, Pipeline Parallelism (PP) splits sequential layers across nodes. Inter-node communication occurs **only at stage boundaries** via Point-to-Point activation transfers (`NCCL_Send`/`Recv`), executing only once per stage rather than twice per layer. This lower communication frequency fits cleanly within the bandwidth and latency budgets of 400G InfiniBand NDR with GPUDirect RDMA.
@@ -373,7 +373,7 @@ In a scale-out cluster running independent Data Parallel (DP) replicas, standard
 | Signal | Root Cause | Diagnostic Command | Real Evidence | Remediation |
 |---|---|---|---|---|
 | Multi-GPU Tensor Parallelism (TP=4) on 4x H100s; after 15 minutes, inference requests hang with `NCCL Timeout waiting for all_reduce` | NCCL all-reduce collective operation deadlocked; typically caused by mismatched tensor shapes across ranks or stale NCCL group context | `export NCCL_DEBUG=INFO; python3 -m vllm.entrypoints.openai.api_server --model llama-70b --tensor-parallel-size 4 2>&1 \| grep -E "all_reduce\|timeout\|rank"` | NCCL debug log: `[Rank 2] sendrecv to rank 3: timeout after 30 sec`; `[Rank 1] group not initialized`  | (1) Verify all GPUs are visible and healthy: `nvidia-smi -L \| wc -l` (confirm 4 GPUs); `nvidia-smi topo -m` (verify NVLink connections); (2) check NCCL environment: `NCCL_DEBUG=TRACE` (very verbose, logs every collective); (3) set explicit timeout: `NCCL_TIMEOUT=600` (600 seconds for debug); (4) restart the inference engine and confirm process group initialization completes |
-| Data Parallel (DP) scale-out across 4 nodes; all-reduce during gradient averaging exhibits 10x higher latency than expected | Inter-node network is PCIe fallback (InfiniBand disabled or GPUDirect RDMA not configured); NCCL using host CPU sockets instead of high-speed fabric | `curl -s http://localhost:8002/metrics \| grep -E "nccl_all_reduce_latency_us\|collective_communication_bandwidth"; ethtool -S eth0 \| grep -i error` | Metrics: `nccl_all_reduce_latency_us: 45000` (45ms, should be < 5ms on InfiniBand); Network errors: `TX_DROPPED: 428, RX_ERRORS: 156` (network lossy) | (1) Enable InfiniBand/RDMA: `NCCL_IB_DISABLE=0 NCCL_NET_GDR_LEVEL=5` before launching engine; (2) verify network is ready: `ibdiagnet -o /tmp/fabric.log`; (3) benchmark NCCL all-reduce directly via `nccl-tests`: `./build/all_reduce_perf -b 1M -e 64M -f 2 -t 2 -G 4` on 4 nodes to isolate communication |
+| Data Parallel (DP) scale-out across 4 nodes; all-reduce during gradient averaging exhibits 10x higher latency than expected | Inter-node network is PCIe fallback (InfiniBand disabled or GPUDirect RDMA not configured); NCCL using host CPU sockets instead of high-speed fabric | `curl -s http://localhost:8002/metrics \| grep -E "nccl_all_reduce_latency_us\|collective_communication_bandwidth"; ethtool -S eth0 \| grep -i error` | Metrics: `nccl_all_reduce_latency_us: 45000` (45ms, should be &lt; 5ms on InfiniBand); Network errors: `TX_DROPPED: 428, RX_ERRORS: 156` (network lossy) | (1) Enable InfiniBand/RDMA: `NCCL_IB_DISABLE=0 NCCL_NET_GDR_LEVEL=5` before launching engine; (2) verify network is ready: `ibdiagnet -o /tmp/fabric.log`; (3) benchmark NCCL all-reduce directly via `nccl-tests`: `./build/all_reduce_perf -b 1M -e 64M -f 2 -t 2 -G 4` on 4 nodes to isolate communication |
 
 **Interpretation:** NCCL timeouts indicate either shape mismatch between ranks or network misconfiguration. Use NCCL_DEBUG to get detailed logging. Enable InfiniBand explicitly if available.
 

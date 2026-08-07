@@ -23,18 +23,20 @@ By the end of this project, you will be able to:
 A Kubernetes cluster has 8 GPUs (2 nodes, 4 GPUs per node). Three job types arrive:
 
 1. **Type A (Training):** 10 jobs, each needs 1 GPU, runs for 1 hour
-2. **Type B (Inference):** 6 jobs, each needs 0.5 GPU (share via time-slicing), SLO: p99 latency < 10 ms
+2. **Type B (Inference):** 6 jobs, each needs 0.5 GPU (share via time-slicing), SLO: p99 latency &lt; 10 ms
 3. **Type C (Research):** 4 jobs, "best effort," no strict SLO
 
 Constraints:
 - No job should be starved (all must make progress)
 - Type B inference jobs must meet SLO simultaneously
-- Training jobs should complete in < 1 hour if scheduled immediately
+- Training jobs should complete in &lt; 1 hour if scheduled immediately
 - Fair allocation: no type should consume > 60% of cluster resources
 
 Design a scheduling strategy and verify all constraints are met.
 
 ## Starter YAML
+
+**Prerequisite:** The stock NVIDIA Kubernetes device plugin exposes `nvidia.com/gpu` as an **integer-only** extended resource — you cannot request `"0.5"` or `"0.25"` of a GPU out of the box. The fractional requests below only work if the cluster has the NVIDIA GPU Operator's **time-slicing** ConfigMap applied (or MPS configured) to advertise sub-integer/replicated GPU capacity. Without that prerequisite, these manifests would fail to schedule (`0/1 nodes are available: Insufficient nvidia.com/gpu`) or be silently truncated to `0`, since Kubernetes resource quantities for extended resources must be whole numbers unless the device plugin itself advertises fractional units.
 
 Kubernetes deployment manifests with resource requests/limits and priority classes:
 
@@ -109,7 +111,7 @@ spec:
         command: ["python", "inference_server.py", "--duration", "300"]
         resources:
           requests:
-            nvidia.com/gpu: "0.5"  # Request 50% of GPU
+            nvidia.com/gpu: "0.5"  # Request 50% of GPU (requires GPU Operator time-slicing/MPS config; not native to nvidia.com/gpu)
           limits:
             nvidia.com/gpu: "0.5"
         ports:
@@ -133,7 +135,7 @@ spec:
         command: ["python", "experiment.py"]
         resources:
           requests:
-            nvidia.com/gpu: "0.25"  # Fractional GPU
+            nvidia.com/gpu: "0.25"  # Fractional GPU (requires GPU Operator time-slicing/MPS config; not native to nvidia.com/gpu)
           limits:
             nvidia.com/gpu: "1"
 ```
@@ -141,7 +143,7 @@ spec:
 ## Success Criteria
 
 1. **All jobs are scheduled:** No job is stuck in Pending state (pending > 5 min)
-2. **Type B SLO met:** Inference jobs achieve p99 latency < 10 ms when deployed
+2. **Type B SLO met:** Inference jobs achieve p99 latency &lt; 10 ms when deployed
 3. **Fairness maintained:** No type uses > 60% of cluster resources over 1-hour observation
 4. **Starvation prevention:** Every job makes progress (not preempted indefinitely)
 5. **Scheduling efficiency:** >85% GPU utilization (not idle)
@@ -203,7 +205,7 @@ flowchart TD
 | Observation | Root Cause | Diagnostic | Fix |
 |---|---|---|---|
 | Research jobs stuck in Pending for >10 min; training runs at 100% | Oversubscription; training greedily claims all GPUs; no fairness | `kubectl describe pod research-job` (PodUnschedulable); `kubectl top nodes` | Set resource quotas per priority class; limit training to 60% cluster capacity via ResourceQuota |
-| Inference SLO violated (p99 latency = 25ms instead of < 10ms) | Training job preempted inference; scheduler doesn't enforce SLO | Check event log: `kubectl get events -n gpu-workloads` | Add guaranteed resources for inference (reserve 2 GPUs for inference, training uses rest) |
+| Inference SLO violated (p99 latency = 25ms instead of &lt; 10ms) | Training job preempted inference; scheduler doesn't enforce SLO | Check event log: `kubectl get events -n gpu-workloads` | Add guaranteed resources for inference (reserve 2 GPUs for inference, training uses rest) |
 | Training job restarted multiple times (unstable) | Preempted by higher priority job multiple times; interruption cost high | Check Job status: `kubectl describe job training-001` (restarts counter) | Lower priority of preempting jobs or increase preemption grace period (allows graceful shutdown) |
 | Cluster shows 50% utilization but jobs report slow performance | GPU sharing (multiple jobs on same GPU via time-slicing) causes context switch overhead | Check NVIDIA GPU Operator logs; verify time-slicing is configured | Reduce time-slicing ratio; or use MIG instead of time-slicing for better isolation |
 | Fair scheduler not working; priority classes ignored | Custom scheduler not deployed; default scheduler used | Check active scheduler: `kubectl get pods -n kube-system \| grep scheduler` | Deploy NVIDIA GPU operator with custom scheduler; verify it's the active scheduler |
@@ -318,11 +320,11 @@ I'd also set up monitoring: track how long each job spends in Pending state. If 
 
 ## Evaluation Rubric
 
-| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (<60%) |
+| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (&lt;60%) |
 |---|---|---|---|---|
-| **Scheduling success** | All 20 jobs scheduled; none pending > 5 min | 18/20 scheduled; 1–2 delayed | 15/20 scheduled; some delays | <15/20 or significant delays |
-| **SLO compliance** | Inference p99 < 10 ms consistently | p99 < 12 ms most of time | p99 < 15 ms | p99 > 15 ms or inconsistent |
-| **Fairness** | No type uses > 60% resources; measured over full hour | Allocation skewed but < 65% | Skewed to 70% | >70% or unfair |
+| **Scheduling success** | All 20 jobs scheduled; none pending > 5 min | 18/20 scheduled; 1–2 delayed | 15/20 scheduled; some delays | &lt;15/20 or significant delays |
+| **SLO compliance** | Inference p99 &lt; 10 ms consistently | p99 &lt; 12 ms most of time | p99 &lt; 15 ms | p99 > 15 ms or inconsistent |
+| **Fairness** | No type uses > 60% resources; measured over full hour | Allocation skewed but &lt; 65% | Skewed to 70% | >70% or unfair |
 | **Starvation prevention** | No job pending > 5 min without good reason | Some delays but justified | Occasional delays | Frequent starvation |
 | **Configuration documentation** | Clear resource requests, limits, priority choices, and rationale | Good documentation with minor gaps | Basic configuration shown | Minimal or unclear |
 

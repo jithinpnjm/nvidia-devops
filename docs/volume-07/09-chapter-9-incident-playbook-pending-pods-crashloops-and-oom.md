@@ -30,7 +30,7 @@ Events:
   Warning  FailedScheduling  15m   default-scheduler  0/12 nodes are available: 8 Insufficient nvidia.com/gpu,
                                                         4 node(s) had untolerated taint {dedicated: training-only}.
 ```
-This single event line answers both "how many nodes were even candidates" (0 of 12) and "why, split by reason" (8 lacked free GPU allocatable capacity, 4 were tainted and this Pod has no matching toleration). The arithmetic check that follows immediately: `kubectl describe node <gpu-node> | grep -A5 Allocated` to confirm whether the 8 GPU-insufficient nodes are *genuinely* full or whether requested-vs-allocatable accounting is the actual problem (e.g. a stuck Pod holding a GPU request without using it).
+This single event line answers both "how many nodes were even candidates" (0 of 12) and "why, split by reason" (8 lacked free GPU allocatable capacity, 4 were tainted and this Pod has no matching toleration). The arithmetic check that follows immediately: `kubectl describe node &lt;gpu-node&gt; | grep -A5 Allocated` to confirm whether the 8 GPU-insufficient nodes are *genuinely* full or whether requested-vs-allocatable accounting is the actual problem (e.g. a stuck Pod holding a GPU request without using it).
 
 ➕ **ASCII: the Pending-Pod evidence tree, generalized from steps 1-5 above:**
 ```mermaid

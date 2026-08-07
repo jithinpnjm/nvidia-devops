@@ -222,7 +222,7 @@ Example container pattern:
 docker run --rm --gpus all <approved-cuda-image> nvidia-smi
 ```
 
-Replace `<approved-cuda-image>` with an image allowed by your environment.
+Replace `&lt;approved-cuda-image&gt;` with an image allowed by your environment.
 
 ## Step 8 — Create acceptance criteria
 

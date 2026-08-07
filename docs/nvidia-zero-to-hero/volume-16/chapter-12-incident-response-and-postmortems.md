@@ -35,7 +35,7 @@ A runbook is a decision tree in text form. When an alert fires, execute the runb
 
 ```yaml
 Alert: GPUThermalThrottle
-  condition: increase(DCGM_FI_DEV_THERMAL_SLOWDOWN[1h]) > 0
+  condition: increase(DCGM_FI_DEV_THERMAL_VIOLATION[1h]) > 0
   Severity: Warning
   SLO_Impact: Performance degraded (clocks reduced)
   Estimated_Resolution_Time: 15-60 minutes
@@ -143,7 +143,7 @@ Resolution:
   If Problem Persists: Escalate to ML engineer (model may need restructuring)
 ```
 
-### Runbook 3: Cluster Availability < SLO
+### Runbook 3: Cluster Availability &lt; SLO
 
 ```yaml
 Alert: ClusterAvailability

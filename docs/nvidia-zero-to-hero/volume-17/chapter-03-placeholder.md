@@ -25,14 +25,14 @@ The roofline model is a graph with two lines: one representing peak compute thro
 
 ```mermaid
 flowchart TD
-    A["H100 GPU<br/>Peak: 141 TFLOPS, 2 TB/s HBM BW"] --> B["Calculate compute intensity (CI)<br/>CI = FLOPS / Bytes transferred"]
-    B --> C["Plot kernel on roofline<br/>H100 crossover: 70.5 FLOPS/byte<br/>(141 TFLOPS / 2 TB/s)"]
+    A["H100 SXM5 GPU<br/>Peak: 67 TFLOPS FP32, 3.35 TB/s HBM3 BW"] --> B["Calculate compute intensity (CI)<br/>CI = FLOPS / Bytes transferred"]
+    B --> C["Plot kernel on roofline<br/>H100 crossover: 20.0 FLOPS/byte<br/>(67 TFLOPS / 3.35 TB/s)"]
     C --> D{Where does kernel land?}
-    D -->|"CI < 70.5 FLOPS/byte<br/>(left of crossover)"| MB["MEMORY-BOUND<br/>Peak achievable: CI × 2 TB/s<br/>Optimize: data reuse, coalescing, caching"]
-    D -->|"CI > 70.5 FLOPS/byte<br/>(right of crossover)"| CB["COMPUTE-BOUND<br/>Peak achievable: 141 TFLOPS<br/>Optimize: occupancy, ILP, instruction mix"]
+    D -->|"CI < 20.0 FLOPS/byte<br/>(left of crossover)"| MB["MEMORY-BOUND<br/>Peak achievable: CI × 3.35 TB/s<br/>Optimize: data reuse, coalescing, caching"]
+    D -->|"CI > 20.0 FLOPS/byte<br/>(right of crossover)"| CB["COMPUTE-BOUND<br/>Peak achievable: 67 TFLOPS<br/>Optimize: occupancy, ILP, instruction mix"]
 ```
 
-**Example:** Matrix multiplication has high compute intensity (~5000 FLOPS/byte for large tiles due to data reuse). It's compute-bound, limited by the 141 TFLOPS ceiling. A reduction operation has low compute intensity (~1 FLOPS/byte). It's memory-bound, limited by bandwidth.
+**Example:** Matrix multiplication has high compute intensity (~5000 FLOPS/byte for large tiles due to data reuse). It's compute-bound, limited by the 67 TFLOPS FP32 ceiling (or the much higher Tensor Core ceiling if using TF32/FP16). A reduction operation has low compute intensity (~1 FLOPS/byte). It's memory-bound, limited by bandwidth.
 
 ## Deep Explanation
 
@@ -54,12 +54,12 @@ Same operation, different compute intensity based on data reuse!
 ```
 Kernel: cutlass_gemm_kernel
 Compute Intensity: 487 FLOPS/byte
-Memory Roofline:  2.0 TB/s × 487 = 974 TFLOPS (if only memory-bound)
-Compute Roofline: 141 TFLOPS peak
+Memory Roofline:  3.35 TB/s × 487 = 1631 TFLOPS (if only memory-bound)
+Compute Roofline: 67 TFLOPS FP32 peak
 
-Analysis: 487 FLOPS/byte >> 70.5 crossover → COMPUTE-BOUND
-Expected peak achievable: min(974, 141) = 141 TFLOPS
-Actual achieved: 138 TFLOPS (97.9% of peak)
+Analysis: 487 FLOPS/byte >> 20.0 crossover → COMPUTE-BOUND
+Expected peak achievable: min(1631, 67) = 67 TFLOPS
+Actual achieved: 65.6 TFLOPS (97.9% of peak)
 Verdict: Excellent — kernel is nearly perfectly compute-bound
 ```
 
@@ -67,38 +67,39 @@ Verdict: Excellent — kernel is nearly perfectly compute-bound
 
 Different hardware has different rooflines:
 
-| GPU | Peak FP32 | Peak FP16 | Peak TF32 | HBM BW | Crossover (FP32) |
+| GPU | Peak FP32 (CUDA core, dense) | Peak FP16 Tensor Core (dense) | Peak TF32 Tensor Core (dense) | HBM BW | Crossover (FP32) |
 |---|---|---|---|---|---|
-| H100 HBM3 | 141 TFLOPS | 282 TFLOPS | 283 TFLOPS | 2.0 TB/s | 70.5 FLOPS/B |
-| H100 SXM5 | 141 TFLOPS | 282 TFLOPS | 283 TFLOPS | 2.0 TB/s | 70.5 FLOPS/B |
-| L40S | 91 TFLOPS | 183 TFLOPS | 183 TFLOPS | 1.46 TB/s | 62.3 FLOPS/B |
-| A100 80GB | 78 TFLOPS | 156 TFLOPS | 156 TFLOPS | 1.935 TB/s | 40.2 FLOPS/B |
-| V100 | 125 TFLOPS | 250 TFLOPS | N/A | 900 GB/s | 138.9 FLOPS/B |
+| H100 SXM5 | 67 TFLOPS | 1979 TFLOPS | 989 TFLOPS | 3.35 TB/s | 20.0 FLOPS/B |
+| L40S | 90.5 TFLOPS | 362 TFLOPS | 181 TFLOPS | 0.864 TB/s | 104.7 FLOPS/B |
+| A100 80GB SXM | 19.5 TFLOPS | 312 TFLOPS | 156 TFLOPS | 2.0 TB/s | 9.75 FLOPS/B |
+| V100 | 15.7 TFLOPS | 125 TFLOPS | N/A (pre-Ampere, no TF32) | 900 GB/s | 17.4 FLOPS/B |
 
-**Key insight:** A100 has a *lower* crossover point (40.2 vs 70.5) despite higher memory bandwidth. Why? The ratio of compute to memory bandwidth is lower. A kernel that's compute-bound on H100 might be memory-bound on A100.
+*Figures are commonly-cited NVIDIA datasheet dense (non-sparsity) numbers; sparsity-accelerated Tensor Core throughput can be up to 2x higher on Ampere/Hopper. FP32 here means plain CUDA-core FP32 math, not TF32/FP16 Tensor Core math — these are different execution units with very different peak throughput.*
+
+**Key insight:** A100 has a *lower* crossover point (9.75 vs 20.0) despite similar-order memory bandwidth. Why? The ratio of compute to memory bandwidth is lower on A100 than on H100. A kernel that's compute-bound on H100 might be memory-bound on A100.
 
 ### 3. Plotting Kernels on Roofline
 
 Real example: H100 with several CUDA kernels:
 
 ```
-Roofline (H100, FP32):
+Roofline (H100 SXM5, FP32):
 TFLOPS (log scale)
-  200 ┌─────────────────────────────────────── Compute roof (141 TFLOPS)
-  100 │      
-   50 │      ╱─────────────────────────────
-   20 │     ╱
-   10 │    ╱
-    5 │   ╱
-    1 └────┴──────────────────────────────
+  100 ┌─────────────────────────────────────── Compute roof (67 TFLOPS)
+   50 │      
+   20 │      ╱─────────────────────────────
+   10 │     ╱
+    5 │    ╱
+    1 │   ╱
+  0.2 └────┴──────────────────────────────
         1  5  10  50  100  500  1000
              Compute Intensity (FLOPS/byte)
 
 Kernels plotted:
-• Element-wise add: CI=0.25 FLOPS/B, achieved 2 TFLOPS (memory-bound) ✓
-• Softmax: CI=1.5 FLOPS/B, achieved 12 TFLOPS (memory-bound) ✓
-• Attention: CI=8 FLOPS/B, achieved 45 TFLOPS (memory-bound) ✓
-• GEMM (batch 32): CI=400 FLOPS/B, achieved 135 TFLOPS (near compute roof) ✓
+• Element-wise add: CI=0.25 FLOPS/B, achieved 0.8 TFLOPS (memory-bound) ✓
+• Softmax: CI=1.5 FLOPS/B, achieved 5.0 TFLOPS (memory-bound) ✓
+• Attention: CI=8 FLOPS/B, achieved 26.8 TFLOPS (memory-bound) ✓
+• GEMM (batch 32): CI=400 FLOPS/B, achieved 64 TFLOPS (near compute roof) ✓
 ```
 
 All kernels plot below the roofline or on it (as they must). Kernels on the left are bottlenecked by memory; on the right, by compute.
@@ -109,17 +110,17 @@ Nsight Compute confirms roofline predictions:
 
 **Memory-bound kernel (Softmax):**
 ```
-Predicted (roofline): CI × 2TB/s = 1.5 × 2000 = 3 TFLOPS max
-Actual (Nsight Compute): 2.8 TFLOPS
-HBM utilization: 1.4 GB/s of 2.0 TB/s available (70% occupied, not saturated)
+Predicted (roofline): CI × 3.35 TB/s = 1.5 × 3350 = 5.03 TFLOPS max
+Actual (Nsight Compute): 4.7 TFLOPS
+HBM utilization: 2.35 TB/s of 3.35 TB/s available (70% occupied, not saturated)
 Latency per warp: 450 ns waiting on memory
 Verdict: Matches roofline. Memory throughput is the limit.
 ```
 
 **Compute-bound kernel (Batched GEMM):**
 ```
-Predicted (roofline): Compute roof = 141 TFLOPS
-Actual (Nsight Compute): 138 TFLOPS
+Predicted (roofline): Compute roof = 67 TFLOPS FP32
+Actual (Nsight Compute): 65.6 TFLOPS
 Occupancy: 88% (sufficient for compute-bound work)
 SM utilization: 98% (nearly full)
 Verdict: Matches roofline. Kernel is CPU-starved or launch-limited, not memory or hardware-starved.
@@ -127,13 +128,13 @@ Verdict: Matches roofline. Kernel is CPU-starved or launch-limited, not memory o
 
 ## Production Troubleshooting
 
-### Problem: "Our GEMM kernel achieves 80 TFLOPS on H100, but roofline says it should get 141"
+### Problem: "Our GEMM kernel achieves 45 TFLOPS on H100, but roofline says it should get 67"
 
 | Evidence | Analysis | Action |
 |---|---|---|
-| Roofline predicts compute-bound (CI=500 FLOPS/B), kernel achieves 80 TFLOPS vs 141 peak | Either: (1) kernel isn't actually compute-bound despite high CI, or (2) something else is limiting (clock gating, L2 pressure, occupancy) | Run Nsight Compute: check L2 miss rate, occupancy, active warps. If occupancy < 50%, increase block size. If L2 misses high, kernel is thrashing cache. |
-| Nsight Compute shows occupancy 95%, L2 hits normal, but TFLOPS still at 80 | Kernel is launching below peak clock speed; check for thermal throttling or power limits | Run nvidia-smi dmon during kernel: watch GPU clocks. If clocks drop during kernel, power limit or thermals are throttling. |
-| Clock speed is 1.98 GHz (max is 2.0 GHz), kernel still at 80 TFLOPS | HBM bandwidth contention from other processes or stale data in L2 | Check if other processes are running on the GPU. Nsight Compute shows if bandwidth to HBM is saturated (>95%). If so, you've hit actual memory limit, not compute limit — roofline analysis was correct, but your CI calculation was wrong. |
+| Roofline predicts compute-bound (CI=500 FLOPS/B), kernel achieves 45 TFLOPS vs 67 TFLOPS FP32 peak | Either: (1) kernel isn't actually compute-bound despite high CI, or (2) something else is limiting (clock gating, L2 pressure, occupancy) | Run Nsight Compute: check L2 miss rate, occupancy, active warps. If occupancy &lt; 50%, increase block size. If L2 misses high, kernel is thrashing cache. |
+| Nsight Compute shows occupancy 95%, L2 hits normal, but TFLOPS still at 45 | Kernel is launching below peak clock speed; check for thermal throttling or power limits | Run nvidia-smi dmon during kernel: watch GPU clocks. If clocks drop during kernel, power limit or thermals are throttling. |
+| Clock speed is 1.9 GHz (max boost is ~1.98 GHz), kernel still at 45 TFLOPS | HBM bandwidth contention from other processes or stale data in L2 | Check if other processes are running on the GPU. Nsight Compute shows if bandwidth to HBM is saturated (>95%). If so, you've hit actual memory limit, not compute limit — roofline analysis was correct, but your CI calculation was wrong. |
 
 ### Problem: "Roofline says memory-bound, but we can't make it faster with data reuse"
 
@@ -146,7 +147,7 @@ Verdict: Matches roofline. Kernel is CPU-starved or launch-limited, not memory o
 
 **Q: How would you explain the roofline model to a junior engineer?**
 
-> A: The roofline model tells you the fundamental limits of your hardware and whether a kernel is hitting one of them. Imagine a roof with two edges: one horizontal line representing the compute ceiling (141 TFLOPS for H100), one diagonal line representing memory bandwidth (2 TB/s). A kernel's compute intensity — how much math you do per byte moved — determines which line it hits. If your kernel does lots of reuse (high CI, like matrix multiply), it hits the compute roof. If it barely reuses data (low CI, like elementwise operations), it hits the bandwidth roof. The roofline model tells you which one without needing to run profilers first. It's a quick, analytical way to know whether to optimize compute or memory, before you start coding.
+> A: The roofline model tells you the fundamental limits of your hardware and whether a kernel is hitting one of them. Imagine a roof with two edges: one horizontal line representing the compute ceiling (67 TFLOPS FP32 for H100 SXM5), one diagonal line representing memory bandwidth (3.35 TB/s). A kernel's compute intensity — how much math you do per byte moved — determines which line it hits. If your kernel does lots of reuse (high CI, like matrix multiply), it hits the compute roof. If it barely reuses data (low CI, like elementwise operations), it hits the bandwidth roof. The roofline model tells you which one without needing to run profilers first. It's a quick, analytical way to know whether to optimize compute or memory, before you start coding.
 
 **Q: A colleague says their kernel achieves 90% of the hardware's peak TFLOPS. Does that mean it's well-optimized?**
 

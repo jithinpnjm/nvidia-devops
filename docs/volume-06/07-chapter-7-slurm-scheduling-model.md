@@ -93,7 +93,7 @@ JobID State Elapsed AllocTRES ExitCode
 > **Situation:** A researcher asks why their 16-node job (`40256` above) has been `PD` for six hours on a partition that "looks empty in the dashboard."
 > 1. `squeue` shows reason `(Resources)` — not priority. So it genuinely is a capacity question, not a fairness one.
 > 2. `sinfo` shows only 6 nodes `idle` in that partition, but the job needs 16 — the "looks empty" dashboard was probably showing aggregate GPU utilization percentage, not free *node count*, and 6 idle nodes out of, say, 9 total can look like "mostly idle" while still being short of 16.
-> 3. `scontrol show node <one of the alloc nodes>` confirms those 2 nodes are legitimately allocated to job `40231`, which per `squeue` has 3+ hours of an unknown total wall-clock remaining.
+> 3. `scontrol show node &lt;one of the alloc nodes&gt;` confirms those 2 nodes are legitimately allocated to job `40231`, which per `squeue` has 3+ hours of an unknown total wall-clock remaining.
 > 4. Answer to the researcher: the partition is capacity-constrained for a job of this size specifically, not broken — options are wait, request a smaller node count, or ask whether `40231` has a bounded remaining time you can plan around via `scontrol show job 40231`'s `EndTime` field.
 > **Interview-ready line:** "A queue looking 'mostly idle' on a utilization dashboard and a queue having enough *free, contiguous* capacity for a specific job's request are different claims — gang-scheduled HPC jobs need N whole nodes, not N/total percent."
 

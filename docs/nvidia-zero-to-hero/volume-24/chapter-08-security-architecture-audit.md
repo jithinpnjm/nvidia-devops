@@ -45,12 +45,13 @@ A cloud provider runs a multi-tenant GPU cluster. Three customers lease GPUs:
 
 ## Real Vulnerabilities
 
-### Vulnerability 1: Untrusted Kernel Launch
+### Vulnerability 1: Untrusted Kernel Launch (Same-GPU Time-Slicing)
 
-**Threat:** Customer B's kernel can influence memory access patterns of Customer A's kernel on a different GPU, exposing data via side-channel (timing attack).
+**Threat:** Customer A and Customer B are both scheduled onto the **same physical GPU** via time-slicing (not MIG — a common fallback when hardware-partitioned capacity is scarce). Because their kernels run in the same SMs and share the same L2 cache and memory controller when their contexts are swapped back-to-back, Customer B's kernel can probe residual cache/DRAM state left behind by Customer A's kernel and measure access latency to infer which addresses Customer A recently touched — a classic **same-device** timing side-channel. This does *not* work across two separate, hardware-isolated physical GPUs (they don't share caches or a memory controller), so the attack only applies when A and B are time-sliced onto one GPU or co-located on the same MIG-partitioned die where cache is not partitioned.
 
 ```cuda
-// Customer B's malicious kernel (on GPU 1)
+// Customer B's malicious kernel — running on the SAME physical GPU as
+// Customer A, in the time-slice immediately following Customer A's kernel
 __global__ void timing_side_channel() {
     int shared_secret = 0;
     
@@ -66,16 +67,17 @@ __global__ void timing_side_channel() {
         long long latency = end - start;
         
         if (latency < threshold) {
-            // Memory was cached; A's kernel probably accessed it
+            // Memory was cached (from Customer A's prior time-slice) or the
+            // DRAM row buffer was already open; A's kernel probably accessed it
             shared_secret |= (1 << bit);
         }
     }
 }
 ```
 
-**Impact:** Customer B can infer properties of Customer A's data through timing attacks.
+**Impact:** Customer B can infer properties of Customer A's data through timing attacks, but only when both tenants share the same physical GPU (time-sliced or non-cache-partitioned MIG) — not across separate physical GPUs.
 
-**Fix:** Disable independent GPU kernel execution (MIG isolation) or use kernel execution filtering.
+**Fix:** Use MIG with cache/memory partitioning instead of time-slicing for tenants with differing trust levels, or flush L2 cache and reset memory controller state between time-sliced context switches.
 
 ### Vulnerability 2: Shared L2 Cache Side-Channel
 
@@ -149,7 +151,7 @@ ibmvit -m 0 -r -o traffic.pcap  # Capture all traffic on subnet
 ## Success Criteria
 
 1. **Identify 5+ vulnerabilities:** Each with clear threat model and proof-of-concept
-2. **Propose mitigations:** For each vulnerability, design a fix that preserves performance (<5% overhead)
+2. **Propose mitigations:** For each vulnerability, design a fix that preserves performance (&lt;5% overhead)
 3. **Implement at least 2 fixes:** Demonstrate fix works (vulnerability no longer exploitable)
 4. **Assess risk/impact:** Rank vulnerabilities by likelihood and impact
 5. **Document tradeoffs:** Why some fixes aren't deployed (cost, complexity, performance)
@@ -368,11 +370,11 @@ The tradeoff is always performance. Every security feature costs time. I'd start
 
 ## Evaluation Rubric
 
-| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (<60%) |
+| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (&lt;60%) |
 |---|---|---|---|---|
-| **Vulnerabilities found** | 6+ with clear threat model and PoC | 5 vulnerabilities, good models | 4 vulnerabilities, some models | <4 or weak models |
-| **Fixes implemented** | 3+ fixes verified working; performance impact measured | 2+ fixes implemented, mostly verified | 2 fixes with limited verification | <2 or untested |
-| **Performance impact** | All fixes < 5% overhead; well measured | Most fixes < 5%, overhead quantified | Some overhead > 5% but justified | Overhead not measured or excessive |
+| **Vulnerabilities found** | 6+ with clear threat model and PoC | 5 vulnerabilities, good models | 4 vulnerabilities, some models | &lt;4 or weak models |
+| **Fixes implemented** | 3+ fixes verified working; performance impact measured | 2+ fixes implemented, mostly verified | 2 fixes with limited verification | &lt;2 or untested |
+| **Performance impact** | All fixes &lt; 5% overhead; well measured | Most fixes &lt; 5%, overhead quantified | Some overhead > 5% but justified | Overhead not measured or excessive |
 | **Documentation** | Clear threat model per vulnerability; tradeoff analysis; remediation plan | Good documentation with minor gaps | Basic descriptions present | Minimal or unclear documentation |
 | **Audit rigor** | Systematic approach; considers multiple attack surfaces | Good coverage of main areas | Some areas covered | Limited or ad-hoc analysis |
 
@@ -381,7 +383,7 @@ The tradeoff is always performance. Every security feature costs time. I'd start
 1. **Privilege is dangerous:** Container escape (via --privileged) is the quickest route to data theft. Disable it.
 2. **Side-channels are subtle:** Timing, cache, and power side-channels require sophisticated attacks but are real risks.
 3. **Defense in depth:** No single fix is complete. Layer multiple defenses (isolation, encryption, monitoring).
-4. **Performance matters:** Security features must not tank performance; <5% overhead is practical target.
+4. **Performance matters:** Security features must not tank performance; &lt;5% overhead is practical target.
 5. **Audit regularly:** New vulnerabilities emerge; re-audit annually.
 
 ## Discussion Questions

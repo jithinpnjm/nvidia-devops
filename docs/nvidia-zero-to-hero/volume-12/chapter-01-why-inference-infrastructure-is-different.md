@@ -423,7 +423,7 @@ M_total = 140 GB (Weights) + 134.2 GB (KV Cache) + 10 GB (Workspace) = 284.2 GB 
 
 | Signal | Root Cause | Diagnostic Command | Real Evidence | Remediation |
 |---|---|---|---|---|
-| TTFT > 500ms; GPU util < 30% | CPU tokenization bottleneck (single-threaded Python) | `ps aux \| grep tokenizer; cat /proc/PID/status \| grep Threads` | `Threads: 1` (single thread saturated at 100%) | Move tokenizer to C++/Rust microservice with thread pool; target 4-8 worker threads |
+| TTFT > 500ms; GPU util &lt; 30% | CPU tokenization bottleneck (single-threaded Python) | `ps aux \| grep tokenizer; cat /proc/PID/status \| grep Threads` | `Threads: 1` (single thread saturated at 100%) | Move tokenizer to C++/Rust microservice with thread pool; target 4-8 worker threads |
 | TTFT > 200ms; GPU util > 90%; queue depth steady | Queue admission backlog during traffic spike | `curl -s http://localhost:8002/metrics \| grep inference_queue_depth` | `inference_queue_depth{gpu="0"} 45` (queued requests waiting) | Enable request rate limiting (token bucket algorithm) and/or autoscale GPU pods horizontally |
 | TTFT = 400ms; high CPU on Gateway node; GPU idle | Prompt ingestion CPU preprocessing (document parsing, regex, normalization) | `curl -s http://localhost:8002/metrics \| grep -E "(gateway_cpu_seconds_total\|tokenizer_latency)" \| head -3` | `gateway_preprocessing_duration_seconds_bucket{le="0.250"} 120` \| `gateway_preprocessing_duration_seconds_bucket{le="1.0"} 8950` (most requests 250ms-1s) | Profile gateway preprocessing with `py-spy` or `cProfile`; eliminate redundant regex passes |
 
@@ -443,7 +443,7 @@ M_total = 140 GB (Weights) + 134.2 GB (KV Cache) + 10 GB (Workspace) = 284.2 GB 
 
 | Signal | Root Cause | Diagnostic Command | Real Evidence | Remediation |
 |---|---|---|---|---|
-| `CUDA error: out of memory` in logs; pod crashes in < 60s after traffic spike | Unbounded KV cache growth during concurrency surge | `dmesg -T \| tail -10; cat /var/log/triton/server.log \| grep "out of memory"` | `[Aug 6 14:22:01] Out of memory: GPU HBM allocation failed for 4.2 GB KV block (free: 0.8 GB)` | Configure hard memory cap: `gpu_memory_utilization: 0.85` (H100 w/ 80GB = 68GB max); set `max_num_seqs: 64` admission gate |
+| `CUDA error: out of memory` in logs; pod crashes in &lt; 60s after traffic spike | Unbounded KV cache growth during concurrency surge | `dmesg -T \| tail -10; cat /var/log/triton/server.log \| grep "out of memory"` | `[Aug 6 14:22:01] Out of memory: GPU HBM allocation failed for 4.2 GB KV block (free: 0.8 GB)` | Configure hard memory cap: `gpu_memory_utilization: 0.85` (H100 w/ 80GB = 68GB max); set `max_num_seqs: 64` admission gate |
 | Rapid pod restart loop (CrashLoopBackOff); each pod lives 40s before OOM | No request admission control; new traffic admitted before KV blocks freed | `kubectl logs -f POD_NAME --tail=50; grep -i "admitted\|rejected" /var/log/triton/server.log` | `Log line 1: Request 142 admitted (KV blocks available: 32); Log line 200: Request 203 rejected (KV blocks: 0 available)` | Implement request throttling: reject with HTTP 429 if `kv_cache_usage > 85%` or `queue_depth > 50` |
 
 **Interpretation:** Cascading OOM is a *scheduling and admission control* failure, not a hardware failure. Once the first pod OOM kills, surviving pods immediately overload and cascade. Fix the admission layer, not the hardware.

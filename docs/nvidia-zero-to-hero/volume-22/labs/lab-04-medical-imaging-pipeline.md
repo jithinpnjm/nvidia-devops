@@ -200,7 +200,9 @@ Expected output:
 
 ```
 Risk score: 78.3 (high)
-Inference latency: 8.2 ms ✓ (within SLA)
+Inference latency: 8.2 ms (single forward pass on this toy model — illustrative only;
+  do not confuse with the ~8 sec/study production latency used for capacity planning
+  in Step 6 and Chapter 7, which includes full preprocessing, the real 3D CNN, and I/O)
 ```
 
 ## 10. Step 5: Implement HIPAA Compliance
@@ -312,7 +314,7 @@ Memory stable: No leaks detected
 
 | Metric | Target | Achieved | Status |
 |---|---|---|---|
-| Inference latency per study | < 15 sec | 8.2 sec | ✓ |
+| Inference latency per study | &lt; 15 sec | 8.2 sec | ✓ |
 | Throughput (50K studies/year) | 2-min avg | ~10 days GPU time | ✓ |
 | HIPAA audit trail | Full logging | Implemented | ✓ |
 | Encryption at rest | Yes | AES-256 | ✓ |
@@ -358,7 +360,7 @@ Memory stable: No leaks detected
 
 - [ ] DICOM files loaded and verified
 - [ ] CT volumes preprocessed and normalized
-- [ ] Model inference latency < 15 sec per study ✓
+- [ ] Model inference latency &lt; 15 sec per study ✓
 - [ ] Risk scores predicted correctly (high/medium/low)
 - [ ] Audit log generated with patient ID hash
 - [ ] Encryption library working (cryptography)

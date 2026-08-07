@@ -34,7 +34,7 @@ Study Chapters 9–14, then the capstone. Classes, generators, decorators, concu
 **Gate:** Another engineer can install the tool, understand its CLI, run tests, diagnose a failure from logs, and modify one rule without invoking a real cluster.
 
 
-<!-- source-table:1 -->
+&lt;!-- source-table:1 --&gt;
 
 > Fourth Edition - Rebuilt as a teaching text, not an annotated checklist
 
@@ -42,12 +42,12 @@ Study Chapters 9–14, then the capstone. Classes, generators, decorators, concu
 Independent study guide based on public documentation and public practitioner material. Not an NVIDIA publication.
 
 
-<!-- source-table:2 -->
+&lt;!-- source-table:2 --&gt;
 
 > How to use this volume Read a chapter as a study block. Run the code. Change it. Break it. When you can explain why the broken version fails, move to the scenario and exercises. The tutor should quiz you only after you have studied the block.
 
 
-<!-- source-table:3 -->
+&lt;!-- source-table:3 --&gt;
 
 | Part | What you learn | What you build |
 | --- | --- | --- |

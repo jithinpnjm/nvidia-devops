@@ -239,7 +239,7 @@ echo -e "\n=== FIX TEST: Repackage into TAR ===" >> hypothesis-test.txt
 # Create tar shards (100 images per tar)
 cd ~/test-dataset
 for shard in {0..99}; do
-    tar cf images-$shard.tar $(ls images/img-$((shard*100+1))-img-$((shard*100+100)).bin 2>/dev/null)
+    tar cf images-$shard.tar $(seq $((shard*100+1)) $((shard*100+100)) | xargs -I{} echo images/img-{}.bin)
 done
 
 # Measure new open rate

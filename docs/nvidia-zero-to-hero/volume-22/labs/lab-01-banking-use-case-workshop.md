@@ -253,19 +253,19 @@ Summary after 5 minutes:
   Latency p99: 8.7 ms
   Latency p99.9: 18.2 ms
   
-  GPU memory: 68-70 GB used per GPU (stable, no leak)
+  GPU memory: 38-40 GB used per GPU (stable, no leak)
   GPU utilization: 93% average
   Server CPU: 25% (not bottleneck)
   Network: 50 Mbps (not bottleneck)
 ```
 
-Expected evidence: ✓ Throughput >= 5,000 TPS sustained, ✓ Latency p99 < 50ms
+Expected evidence: ✓ Throughput >= 5,000 TPS sustained, ✓ Latency p99 &lt; 50ms
 
 ## 11. Validation Against SLA
 
 **SLA Requirements (from Chapter 2: Banking):**
 - Throughput: 5,000 TPS sustained ✓ (Achieved: 5,050 TPS)
-- Latency p99: < 100ms ✓ (Achieved: 8.7ms)
+- Latency p99: &lt; 100ms ✓ (Achieved: 8.7ms)
 - Uptime: 99.9% ✓ (Achieved: 99.9% in 5-min test, no crashes)
 
 **Result: PASSED all SLAs**
@@ -282,10 +282,10 @@ $ nvidia-smi -i 0 --query-gpu=index,memory.used,power.draw \
     --format=csv -l 1
 
 index, memory.used [MiB], power.draw [W]
-0, 68200, 210
-0, 68100, 208
-0, 75600, 245  ← Memory spike, power increase
-0, 76000, 248  ← GPU running out of buffer space
+0, 38200, 210
+0, 38100, 208
+0, 45600, 245  ← Memory spike, power increase
+0, 47600, 248  ← GPU running out of buffer space
 ```
 
 **Root cause:** Request batch size grew unexpectedly; not enough GPU memory for max batch
@@ -351,7 +351,7 @@ If test fails:
 - [ ] Triton server started and model loaded
 - [ ] Synthetic client generates 5,000 TPS without errors
 - [ ] GPU utilization > 90% during load test
-- [ ] Latency p99 < 50ms (well within SLA)
+- [ ] Latency p99 &lt; 50ms (well within SLA)
 - [ ] No memory leaks (GPU memory stable over 5 minutes)
 - [ ] Graceful recovery from single GPU failure
 

@@ -27,32 +27,38 @@ MIG partitions a GPU into independent instances. Each instance has dedicated com
 **Architecture (A100 example):**
 
 ```
-A100 GPU (80 GB memory, 432 CUDA cores per partition)
+A100 GPU (108 SMs total, ~2 TB/s HBM2e bandwidth)
 
-┌─────────────────────────────────────────────────────┐
-│ A100 GPU (40 SMs, 640 GB/s bandwidth)              │
-├─────────────────────────────────────────────────────┤
-│ ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐       │
-│ │ MIG-1  │ │ MIG-2  │ │ MIG-3  │ │ MIG-4  │       │
-│ │ 1/4 GPU│ │ 1/4 GPU│ │ 1/4 GPU│ │ 1/4 GPU│       │
-│ │ 10 SMs │ │ 10 SMs │ │ 10 SMs │ │ 10 SMs │       │
-│ │ 20 GB  │ │ 20 GB  │ │ 20 GB  │ │ 20 GB  │       │
-│ └────────┘ └────────┘ └────────┘ └────────┘       │
-│                                                     │
-│ L2 Cache (shared, fair-sharedacross instances)    │
-│ HBM (40 GB per instance, independent)             │
-└─────────────────────────────────────────────────────┘
+Example: maximum-instance-count partitioning (7x MIG-1g profile, 80GB SKU)
+
+┌───────────────────────────────────────────────────────────────────┐
+│ A100 GPU (108 SMs, ~2 TB/s bandwidth)                              │
+├───────────────────────────────────────────────────────────────────┤
+│ ┌───────┐┌───────┐┌───────┐┌───────┐┌───────┐┌───────┐┌───────┐   │
+│ │1g.10gb││1g.10gb││1g.10gb││1g.10gb││1g.10gb││1g.10gb││1g.10gb│   │
+│ │~14 SMs││~14 SMs││~14 SMs││~14 SMs││~14 SMs││~14 SMs││~14 SMs│   │
+│ │ 10 GB ││ 10 GB ││ 10 GB ││ 10 GB ││ 10 GB ││ 10 GB ││ 10 GB │   │
+│ └───────┘└───────┘└───────┘└───────┘└───────┘└───────┘└───────┘   │
+│                                                                     │
+│ L2 Cache (shared, fair-shared across instances)                   │
+│ HBM (80 GB total, statically partitioned per instance)            │
+└───────────────────────────────────────────────────────────────────┘
+
+Other combinations are possible within the same SM/memory budget --
+e.g., 3x MIG-2g + 1x MIG-1g, or a single MIG-7g instance using the
+whole GPU. 7 instances is the maximum, only reachable at 1g granularity;
+there is no native "4-way equal split" profile.
 ```
 
 **Key properties:**
 
 | Property | Value | Implication |
 |---|---|---|
-| **Profiles available** | 7×MIG-1g (8GB), 3×MIG-2g (16GB), 2×MIG-3g (28GB), 1×MIG-7g (40GB) | Choose granularity matching workload |
+| **Profiles available** | 80GB A100: 7×1g.10gb, 3×2g.20gb, 2×3g.40gb, 1×7g.80gb. 40GB A100: 7×1g.5gb, 3×2g.10gb, 2×3g.20gb, 1×7g.40gb | Choose granularity matching workload; memory-per-slice depends on the 40GB vs. 80GB SKU |
 | **Isolation** | Compute SM partitioning, memory isolation | One instance doesn't starve others |
-| **Switching overhead** | ~1-2 seconds per context switch | Suitable for batch workloads, not real-time |
+| **Reconfiguration time** | ~1-2 seconds to change MIG geometry (requires a GPU reset) | Plan partition layout ahead of time; not a per-job or per-context-switch cost |
 | **Performance** | ~95-99% of full GPU (L2 cache shared) | Minimal overhead |
-| **Max instances** | 7 per GPU (MIG-1g profile) | High parallelism for small jobs |
+| **Max instances** | 7 per GPU (MIG-1g profile, 108 total SMs) | High parallelism for small jobs |
 
 ### Time-Slicing
 
@@ -63,7 +69,7 @@ Time-slicing preempts jobs and switches between them, amortizing GPU cost.
 | Feature | MIG | Time-Slicing |
 |---|---|---|
 | Isolation | Hardware (SM-level) | Software (context switching) |
-| Overhead | < 1% | 3-10% (context switch cost) |
+| Overhead | &lt; 1% | 3-10% (context switch cost) |
 | Latency guarantee | Yes (dedicated SMs) | No (subject to scheduling) |
 | Fairness | Hard partition | Scheduler-based |
 | Setup time | ~1 second | Immediate |

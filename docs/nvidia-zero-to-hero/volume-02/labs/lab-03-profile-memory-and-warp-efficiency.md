@@ -455,7 +455,7 @@ Do not assume that more registers always reduce performance. Interpret the resul
 
 ### Failure Scenario — Reduce Workload Size
 
-Change `count` from `1ULL << 24` to a much smaller value. Rebuild and rerun.
+Change `count` from `1ULL &lt;&lt; 24` to a much smaller value. Rebuild and rerun.
 
 Observe whether launch overhead and measurement noise become more significant relative to kernel work.
 

@@ -286,7 +286,7 @@ A: "Assuming 150 MB/s per parallel download and needing to prefetch 1–2 shards
 
 ## Practice
 
-1. **Baseline your S3 path:** Run `aws s3 cp s3://bucket/1gb-file /tmp/test --region <region>` and time it. Repeat 5 times and report average throughput.
+1. **Baseline your S3 path:** Run `aws s3 cp s3://bucket/1gb-file /tmp/test --region &lt;region&gt;` and time it. Repeat 5 times and report average throughput.
 
 2. **Implement manifest versioning:** Create a small manifest JSON for your dataset and update your training loop to use it instead of bucket listing.
 

@@ -96,8 +96,8 @@ Performance Metrics:
   
 Roofline Model:
   FLOPs: 1.4 TFLOP/s achieved
-  Peak compute: 2.4 TFLOP/s (A100 FP32)
-  Achieved / Peak: 58% (underutilizing compute)
+  Peak compute: 19.5 TFLOP/s (A100 FP32, CUDA core)
+  Achieved / Peak: 7% (severely underutilizing compute)
   
 Memory Subsystem:
   L1 Cache Hit Rate: 45%

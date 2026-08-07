@@ -248,7 +248,13 @@ class TieredDataPipeline:
         print(f"  NVMe hits: {nvme_hits:4d} ({nvme_hit_rate*100:5.1f}%)")
         print(f"  NAS hits:  {hit_counts['NAS']:4d} ({hit_counts['NAS']/total_reads*100:5.1f}%)")
         print(f"  S3 reads:  {hit_counts['S3']:4d} ({hit_counts['S3']/total_reads*100:5.1f}%)")
-        print(f"Effective throughput: {nvme_hit_rate * 100:.1f} MB/sec (NVMe) + {(1-nvme_hit_rate) * 10:.1f} MB/sec (NAS/S3) = {nvme_hit_rate*100 + (1-nvme_hit_rate)*10:.1f} MB/sec")
+        # Weight each tier's real bandwidth (NVMe ~7 GB/s local, NAS/S3 ~1 GB/s aggregate over
+        # the network) by the fraction of reads it serves, instead of multiplying the hit-rate
+        # percentage directly by an arbitrary constant.
+        nvme_bw_mbps = 7000  # ~7 GB/s local NVMe
+        nas_s3_bw_mbps = 1000  # ~1 GB/s NAS/S3 aggregate
+        effective_throughput = nvme_hit_rate * nvme_bw_mbps + (1 - nvme_hit_rate) * nas_s3_bw_mbps
+        print(f"Effective throughput: {nvme_hit_rate*100:.1f}% NVMe hits × {nvme_bw_mbps} MB/sec + {(1-nvme_hit_rate)*100:.1f}% NAS/S3 × {nas_s3_bw_mbps} MB/sec = {effective_throughput:.0f} MB/sec")
 
 # Test
 pipeline = TieredDataPipeline(

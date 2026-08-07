@@ -152,6 +152,61 @@ else:
 ```
 **Interview framing:** "if the server tells you how long to wait, that's better information than your own guess — always prefer explicit server guidance over client-side backoff math when it's available."
 
+➕ **A retry loop can leak file descriptors — the failure mode the fd-leak discussion (Chapter 4) and this chapter's retry policy never got tied together**
+
+Every `requests.get(...)` call opens a socket (a file descriptor) to serve the response. `requests` normally closes it for you once the response body is fully consumed or the `Response` object is garbage-collected — but a retry loop that swallows exceptions and keeps a fresh connection object alive per attempt, or one that opens a brand-new `requests.Session()` inside the loop instead of once outside it, can hold every failed attempt's socket open simultaneously. Under a sustained outage — the exact scenario this chapter's backoff policy exists to survive — that's one leaked fd per retry, and with enough concurrent retrying callers, the process eventually hits `EMFILE` ("too many open files", the process's own limit) or the kernel-wide `ENFILE`.
+
+```python
+# Buggy: a fresh Session per attempt, never closed on the failure path
+import requests
+
+def get_json_leaky(url: str, attempts: int = 4) -> dict:
+    for attempt in range(1, attempts + 1):
+        session = requests.Session()          # ← new socket-owning object every attempt
+        try:
+            response = session.get(url, timeout=(2, 8))
+            response.raise_for_status()
+            return response.json()
+        except (requests.Timeout, requests.ConnectionError, requests.HTTPError):
+            if attempt == attempts:
+                raise
+            # session (and its open connection) is never closed here —
+            # it just falls out of scope and waits on the garbage collector,
+            # which is not guaranteed to run promptly, especially on CPython
+            # when the object is still referenced by an exception traceback.
+```
+
+```python
+# Fixed: one Session reused across attempts, explicit cleanup on every path
+import requests
+
+def get_json_safe(url: str, attempts: int = 4) -> dict:
+    with requests.Session() as session:        # ← one socket-owning object, closed by __exit__ no matter how the function returns
+        for attempt in range(1, attempts + 1):
+            try:
+                response = session.get(url, timeout=(2, 8))
+                response.raise_for_status()
+                return response.json()
+            except (requests.Timeout, requests.ConnectionError, requests.HTTPError):
+                if attempt == attempts:
+                    raise
+    raise AssertionError("unreachable")
+```
+
+The fix is the same principle Chapter 4 already covers for plain files (`with open(...)` guarantees `close()` runs even on the exception path) applied to a network connection instead of a file: put the fd-owning object's lifetime under a context manager (or an explicit `finally: session.close()`) *outside* the retry loop, so a failing attempt releases resources exactly like a succeeding one does, and so there's only ever one connection object per logical call — not one per attempt.
+
+```text
+$ python3 many_leaky_retries.py
+Traceback (most recent call last):
+  ...
+OSError: [Errno 24] Too many open files
+```
+`EMFILE` (errno 24) is the process hitting its own soft limit (`ulimit -n`, the same `/proc/&lt;PID&gt;/limits` "Max open files" value from Chapter 3's fd discussion) — the fix there is architectural (stop leaking), not `ulimit -n 65536` (that just raises how many retries-worth of leaked sockets it takes to fail).
+
+**Check your understanding**
+- Q: The buggy version above creates a new `Session()` per attempt but the *successful* return path still returns fine — why does the leak only show up under sustained failures? A: Because each successful call only ever leaks the sessions from its own prior failed attempts within that one call (bounded by `attempts`), and Python's garbage collector eventually reclaims most of them — the leak becomes a real, cluster-visible problem specifically under a prolonged outage, where many concurrent callers are each retrying `attempts` times, all at once, faster than GC and TCP teardown can keep up.
+- Q: Why does moving `Session()` outside the loop fix both the leak *and* make retries faster? A: `requests.Session` reuses the underlying TCP connection (HTTP keep-alive) across calls instead of doing a fresh TCP + TLS handshake every attempt — one object outside the loop means the second and third attempts reuse the connection from the first instead of paying handshake cost and holding an extra socket open, so the same fix addresses both problems at once.
+
 ## Work the scenario step by step
 **Scenario:** A cloud API returns 503 to 500 CI jobs at the same time.
 1. Do not have every job retry at the same fixed one-second interval; that creates synchronized load spikes.

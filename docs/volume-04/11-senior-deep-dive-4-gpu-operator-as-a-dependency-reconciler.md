@@ -8,7 +8,7 @@ source_document: "Volume_04_GPU_and_Accelerated_Computing_Foundations(2).docx"
 The GPU Operator automates the NVIDIA driver, Container Toolkit, Kubernetes device plugin, GPU Feature Discovery / node labels, DCGM-based monitoring and related operands. Operationally, this means one ClusterPolicy expresses desired GPU software state and multiple controllers/DaemonSets converge nodes toward it. When a node exposes zero GPUs, inspect operator state and each operand rather than reinstalling the driver blindly.
 
 
-<!-- source-table:1 -->
+&lt;!-- source-table:1 --&gt;
 
 | Failure | Likely boundary | Evidence |
 | --- | --- | --- |

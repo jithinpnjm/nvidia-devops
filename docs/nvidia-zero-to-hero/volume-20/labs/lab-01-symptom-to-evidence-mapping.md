@@ -122,7 +122,7 @@ Determine the evidence priority:
      nvidia-smi -i $i --query-gpu=clocks.current.graphics --format=csv,noheader
    done
    
-   # GPU at 2500 MHz = actively computing
+   # GPU at 1980 MHz = actively computing
    # GPU at 300 MHz = idle/stalled
    ```
 
@@ -188,7 +188,7 @@ dcgmi diag -r 3 | grep "Thermal slowdown"
 
 # Step 3: Check power/clock correlation
 watch -n 1 'nvidia-smi -i 0 --query-gpu=temperature.gpu,clocks.current.graphics --format=csv,noheader'
-# Output shows: Temp 85°C, Clock 1200 MHz (dropped from 2500) → throttling
+# Output shows: Temp 85°C, Clock 1200 MHz (dropped from 1980) → throttling
 
 # Step 4: Check if NCCL hang is caused by thermal throttle
 # Reduce temperature: improve airflow, reduce power limit

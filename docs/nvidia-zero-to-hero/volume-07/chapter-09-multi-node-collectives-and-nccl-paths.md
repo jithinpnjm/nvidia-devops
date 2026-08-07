@@ -259,6 +259,27 @@ The validation plan adds collective tests at one, two, four, and eight nodes; co
 
    > "I'd diff the `NCCL_DEBUG=INFO` transport-selection log line by line between the old and new library versions on the same hardware. If the old log shows `NET/IB` with `GDRDMA` and the new one shows `NET/Socket`, that's a transport regression, not a performance regression in the algorithm itself — something in the new version's device detection or a changed default environment variable broke GPUDirect RDMA discovery."
 
+### NVIDIA Operational Reference — Magnum IO
+
+**What it is**
+Magnum IO is NVIDIA's umbrella term for its collection of accelerated I/O technologies — it is not a separate product or protocol. It groups together GPUDirect RDMA, GPUDirect Storage, NCCL, and NVSHMEM (among other components) under one architectural and marketing name that describes how NVIDIA thinks about the whole storage-network-compute I/O stack together.
+
+**Why an SA should recognize it**
+Customers and interviewers sometimes say "Magnum IO" as if it were one thing to deploy or troubleshoot. Recognizing it as an umbrella term prevents wasted effort hunting for a distinct "Magnum IO" component to install or debug — the actual mechanisms are the ones already covered individually in this volume: GPUDirect RDMA (Chapter 5), GPUDirect Storage (Chapter 6), and NCCL collective paths (this chapter).
+
+**Where it fits**
+It sits at the architecture-diagram level, above the individual technologies, as NVIDIA's way of describing the full accelerated I/O portfolio in one slide or pitch.
+
+**You should be able to**
+- recognize "Magnum IO" as a name for a collection of technologies, not a new one
+- map it to the specific mechanisms this book already teaches: GPUDirect RDMA, GPUDirect Storage, NCCL, NVSHMEM
+- avoid presenting it as something requiring separate installation or a separate troubleshooting path
+- know when to involve a specialist: only the underlying component (NCCL, GDS, GDRDMA) ever needs deep specialist engagement, not "Magnum IO" as such
+
+**Go deeper**
+- Search NVIDIA's documentation for "Magnum IO" for the current umbrella positioning and component list
+- [GPUDirect RDMA](./chapter-05-gpudirect-rdma) and [GPUDirect Storage](./chapter-06-gpudirect-storage) for the individual mechanisms it groups together
+
 ## Summary
 
 Collectives transform a group of GPUs into one distributed execution system. Their behavior depends on algorithms, topology, rank placement, adapters, fabric health, message size, and synchronization.

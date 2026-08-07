@@ -30,17 +30,17 @@ Always inspect label cardinality. User IDs, request IDs or unbounded model/sessi
 
 ➕ **Sample PromQL query result, annotated — what `rate()` is actually computing under the hood:**
 ```bash
-$ curl -s 'http://prom:9090/api/v1/query?query=rate(http_requests_total{job='api'}[5m])' | jq .
+$ curl -s "http://prom:9090/api/v1/query?query=rate(http_requests_total{job=\"api\"}[5m])" | jq .
 {
-'status': 'success',
-'data': {
-'resultType': 'vector',
-'result': [
-'metric': {'job': 'api', 'instance': '10.0.4.12:8080', 'status': '200'},
-'value': [1753876800, '42.7'] ← 42.7 requests/sec, averaged over the trailing 5m window
+"status": "success",
+"data": {
+"resultType": "vector",
+"result": [
+"metric": {"job": "api", "instance": "10.0.4.12:8080", "status": "200"},
+"value": [1753876800, "42.7"] ← 42.7 requests/sec, averaged over the trailing 5m window
 },
-'metric': {'job': 'api', 'instance': '10.0.4.13:8080', 'status': '200'},
-'value': [1753876800, '0.03'] ← this instance is nearly idle — worth asking why vs its sibling
+"metric": {"job": "api", "instance": "10.0.4.13:8080", "status": "200"},
+"value": [1753876800, "0.03"] ← this instance is nearly idle — worth asking why vs its sibling
 }
 ]
 ```

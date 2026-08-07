@@ -346,7 +346,7 @@ $ ./vector_add-no-bounds 1000003 256
 CUDA error at vector_add-no-bounds.cu:207: an illegal memory access was encountered
 ```
 
-With `threads_per_block=256` and `N=1000003`, ceiling division launches 3907 blocks = 1,000,192 threads — 189 more than `N`. Without `if (i < n)`, those 189 threads write past the end of a buffer sized for exactly `N` floats. Whether this manifests as a hard `illegal memory access` (as above) or as silent heap corruption depends on allocator layout — which is precisely why "it ran without crashing" is not proof of correctness for an unguarded kernel.
+With `threads_per_block=256` and `N=1000003`, ceiling division launches 3907 blocks = 1,000,192 threads — 189 more than `N`. Without `if (i &lt; n)`, those 189 threads write past the end of a buffer sized for exactly `N` floats. Whether this manifests as a hard `illegal memory access` (as above) or as silent heap corruption depends on allocator layout — which is precisely why "it ran without crashing" is not proof of correctness for an unguarded kernel.
 
 ### Problem: Larger GPU gives little improvement
 
@@ -393,7 +393,7 @@ The architect recommends deriving grid dimensions from each request shape, valid
    "I'd draw the array as a line of N boxes, then show it partitioned into contiguous chunks of `threads_per_block` size, one chunk per block. Underneath, I'd write the index formula: `blockIdx.x * blockDim.x + threadIdx.x`. Then I'd deliberately make N not divisible by the block size, ceiling-divide to get one extra partial block, and shade the boxes past N in that last block — those are the threads the bounds check has to catch."
 
 2. **Explain how a two-dimensional block maps to a row-major matrix.**
-   "I'd compute column from `blockIdx.x * blockDim.x + threadIdx.x` and row from `blockIdx.y * blockDim.y + threadIdx.y`, then convert those two coordinates to a single linear offset with `row * width + column` because the matrix is stored row-major in memory. The key thing I'd call out is that both dimensions need their own bounds check — `row < height && column < width` — because a matrix that isn't an exact multiple of the block's tile size in *either* dimension needs guarding on that dimension independently."
+   "I'd compute column from `blockIdx.x * blockDim.x + threadIdx.x` and row from `blockIdx.y * blockDim.y + threadIdx.y`, then convert those two coordinates to a single linear offset with `row * width + column` because the matrix is stored row-major in memory. The key thing I'd call out is that both dimensions need their own bounds check — `row &lt; height && column &lt; width` — because a matrix that isn't an exact multiple of the block's tile size in *either* dimension needs guarding on that dimension independently."
 
 3. **Describe the trade-offs involved in selecting block size.**
    "There's no single best number — it's a balancing act. A multiple of 32 avoids wasting warp lanes. Too many registers or too much shared memory per thread reduces how many blocks can be resident per SM, hurting latency hiding. Too small a block wastes scheduling overhead relative to useful work. Too large a block can reduce scheduling flexibility if it monopolizes an SM's resources. In practice I pick a reasonable starting point — often 128 or 256 for one-dimensional work — and then actually measure occupancy and throughput rather than assuming a number from a different kernel transfers over."

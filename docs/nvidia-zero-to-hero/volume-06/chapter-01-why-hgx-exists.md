@@ -59,7 +59,7 @@ flowchart TD
 
 **Figure 6.1.1 — HGX standardizes the accelerator complex while preserving OEM integration choices.** Each edge names the command or evidence that proves that hop is healthy, not just that the box exists. The bottom decision point is the one that actually matters operationally: two systems can have an identical-looking diagram and still diverge the moment one of them fails the firmware/BIOS baseline check.
 
-**How to read this in an incident:** start at `Operations` and walk backward. If `nvidia-smi topo -m` shows a GPU pair connected by `PIX` (single PCIe switch hop) instead of `NVx` (NVLink), the fault is in the `GPU <-> ScaleUp` hop, not further downstream — don't waste time comparing firmware bundles until the interconnect evidence itself checks out.
+**How to read this in an incident:** start at `Operations` and walk backward. If `nvidia-smi topo -m` shows a GPU pair connected by `PIX` (single PCIe switch hop) instead of `NVx` (NVLink), the fault is in the `GPU &lt;-> ScaleUp` hop, not further downstream — don't waste time comparing firmware bundles until the interconnect evidence itself checks out.
 
 ## What HGX Standardizes
 

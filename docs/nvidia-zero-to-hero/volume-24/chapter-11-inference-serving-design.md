@@ -6,7 +6,7 @@
 | Difficulty | Advanced |
 | Estimated time | 10–12 hours |
 | Primary audience | ML Infrastructure Engineers, Serving Platform Teams, System Designers |
-| Core objective | Design multi-tenant LLM inference service meeting p99 < 500ms, 1000 req/sec, <$0.001/request |
+| Core objective | Design multi-tenant LLM inference service meeting p99 &lt; 500ms, 1000 req/sec, &lt;$0.001/request |
 | Linked interview chapter | Volume 23, Chapter 11: System-Level Design - Inference Serving |
 
 ## Learning Objectives
@@ -22,12 +22,12 @@ By the end of this project, you will be able to:
 
 You need to serve three LLMs simultaneously to external customers:
 
-1. **Model A (7B params):** 1000 req/hour, p99 latency < 500ms
-2. **Model B (13B params):** 2000 req/hour, p99 latency < 800ms
-3. **Model C (70B params):** 500 req/hour, p99 latency < 2000ms
+1. **Model A (7B params):** 1000 req/hour, p99 latency &lt; 500ms
+2. **Model B (13B params):** 2000 req/hour, p99 latency &lt; 800ms
+3. **Model C (70B params):** 500 req/hour, p99 latency &lt; 2000ms
 
 **Constraints:**
-- Combined cost: < $0.001 per inference request (including GPU time, power, amortized hardware)
+- Combined cost: &lt; $0.001 per inference request (including GPU time, power, amortized hardware)
 - Handle 10× traffic spike (10 sec burst up to 38 req/sec)
 - No request dropped; queue acceptable up to 30 sec
 
@@ -109,7 +109,7 @@ Total: 5 GPUs (could fit on 2 nodes with 2-3 GPUs each)
 ```
 Hardware cost:
   5 × H100: 5 × $40K = $200K CapEx
-  amortized over 5 years: $200K / (5 years × 365 days) = $110/day = $0.0046/request (at 1000 req/day)
+  amortized over 5 years: $200K / (5 years × 365 days) = $110/day = $0.0046/request (at 24,000 req/day = 1000 req/hour, Model A's stated rate)
 
 Power cost:
   5 × 700W × 24h × 365 × $0.12/kWh = $150K/year = $0.0006/request
@@ -171,8 +171,8 @@ flowchart TB
 ## Success Criteria
 
 1. **Throughput:** All three models meet req/sec targets while queueing
-2. **Latency:** p99 latency < SLO (500ms, 800ms, 2000ms respectively)
-3. **Cost:** < $0.001 per request (demonstrated calculation)
+2. **Latency:** p99 latency &lt; SLO (500ms, 800ms, 2000ms respectively)
+3. **Cost:** &lt; $0.001 per request (demonstrated calculation)
 4. **Spike handling:** 10× traffic spike doesn't cause dropped requests (only queueing)
 5. **Isolation:** One model's load doesn't affect another's latency
 6. **Documentation:** Architecture with hardware choices, cost breakdown, and capacity plan
@@ -239,7 +239,7 @@ Mitigation: Add 1 more A100 → 3 for Model A → handles spike ✓
 | Model A p99 latency 800ms (vs 500ms target) | Batch size too small; GPUs underutilized | Check GPU utilization: `nvidia-smi | grep Volatile GPU-Util` (should be >90%) | Increase batch size from 32 to 48; or reduce context length |
 | Cost per request $0.002 (vs $0.001 target) | Hardware cost too high; insufficient throughput per GPU | Divide total monthly cost by request count | Use cheaper GPUs (A100 vs H100); increase batch size; reduce model size |
 | One model's load affects another's latency (model isolation failure) | GPU time-slicing causes context switching overhead | Measure model A latency alone vs with B running; compare | Use separate GPUs per model (not time-slicing) or use MIG partitions |
-| Spike causes 500 dropped requests (> 30 sec queue) | Queue overflowed; no auto-scaling | Check error logs for "queue full" or timeout | Implement auto-scaling: add GPU when queue > 100; remove when queue < 20 |
+| Spike causes 500 dropped requests (> 30 sec queue) | Queue overflowed; no auto-scaling | Check error logs for "queue full" or timeout | Implement auto-scaling: add GPU when queue > 100; remove when queue &lt; 20 |
 
 ## Solution Walkthrough
 
@@ -375,12 +375,12 @@ In practice, I'd start with separate GPUs, measure utilization, then consolidate
 
 ## Evaluation Rubric
 
-| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (<60%) |
+| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (&lt;60%) |
 |---|---|---|---|---|
 | **Latency validation** | All 3 models meet SLO in simulation; p99 measured | 2/3 models meet SLO | 1/3 meet SLO; some margin | None meet SLO or unmeasured |
 | **Throughput** | All models achieve target req/sec sustainably | 2/3 target throughput | 1/3 target throughput | Below targets |
-| **Cost** | < $0.001/request demonstrated; cost breakdown clear | $0.001–$0.002/request | $0.002–$0.003/request | >$0.003 or cost not calculated |
-| **Spike handling** | 10× traffic handled without drops; queuing < 30 sec | Handled with some drops | Handled but queue > 30 sec | Drops or unstable |
+| **Cost** | &lt; $0.001/request demonstrated; cost breakdown clear | $0.001–$0.002/request | $0.002–$0.003/request | >$0.003 or cost not calculated |
+| **Spike handling** | 10× traffic handled without drops; queuing &lt; 30 sec | Handled with some drops | Handled but queue > 30 sec | Drops or unstable |
 | **Architecture** | Complete design (hardware, batching, queueing); rationale | Good design with minor gaps | Basic design present | Incomplete or vague |
 
 ## Key Takeaways

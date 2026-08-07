@@ -273,6 +273,10 @@ Full bisection is a cost and resilience choice. Measured oversubscription can be
 
 "The same evidence set as the original acceptance ladder, on a representative rack, before and after — physical state, QoS mapping, host-memory RDMA, GPU-buffer tests, and at least one representative collective under concurrency. NOS upgrades can silently change command syntax, telemetry availability, or even queue scheduling behavior, so 'links came back up' proves almost nothing. I'd insist on comparing the actual counter and workload evidence pre- and post-upgrade on a canary rack, with a tested rollback path, before it touches anything else — an upgrade that looks clean on link state alone has told you nothing about whether the congestion-control loop still behaves the same way."
 
+### NVIDIA Operational Reference — NVUE
+
+NVUE (NVIDIA User Experience) is the modern configuration interface for NVIDIA Ethernet switches running Cumulus Linux — the successor to configuring the switch through scattered traditional Linux networking commands. It exposes a single declarative object model that can be driven from a CLI, a REST API, or configuration-as-code tooling, so the same intended state can be applied consistently across a fleet instead of hand-typed per switch. An SA should recognize NVUE by name as "the current declarative/API-driven config interface for Spectrum switches," understand that it exists specifically to make fleet-wide configuration reproducible and automatable, and know that syntax and supported objects are release-specific — always confirm against the installed NOS version before writing runbook commands.
+
 ## Architecture Summary
 
 Spectrum switches provide the forwarding, queueing, telemetry, and congestion-signaling layer of an AI Ethernet fabric. Their value comes from a coherent topology, QoS policy, endpoint behavior, and operational release process. Buffers absorb brief mismatch; they do not replace capacity. Telemetry and baselines turn an opaque performance complaint into a path-specific engineering decision.

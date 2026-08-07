@@ -334,6 +334,32 @@ $ dmesg | grep -i seccomp
 seccomp: Blocked syscall 313 (init_module) in secure-pod container
 ```
 
+## 5.5b The GPU device-plugin trust boundary (a different problem than workload pods)
+
+Everything above describes securing a generic workload pod under a restricted Pod Security Standard. GPU workloads introduce a second, meaningfully different trust boundary that PSS alone doesn't address: **how the GPU gets exposed to the pod in the first place.**
+
+The **NVIDIA device plugin** (a DaemonSet, part of the NVIDIA GPU Operator stack) and **nvidia-container-toolkit** typically require elevated host access to do their job — `hostPID`, access to `/dev/nvidia*` device nodes, and in some deployment modes, privileged mode or specific host capabilities. This is *not* a mistake or an oversight: device plugins and node-level device drivers are inherently privileged, cluster-infrastructure components, the same way a CNI plugin or a storage CSI driver needs elevated host access that an application pod never should.
+
+The key distinction to keep straight (and the one an interviewer is likely probing for):
+
+- **The device plugin DaemonSet** runs privileged, cluster-wide, once per GPU node — it is infrastructure, managed and audited like any other privileged DaemonSet (CNI, CSI driver), not like a tenant workload.
+- **The GPU workload pod** (the actual training/inference container) does NOT need to be privileged to use a GPU. It requests the device via `resources.limits: {nvidia.com/gpu: 1}` in its pod spec, and the device plugin + kubelet handle exposing the already-initialized device node to that pod. A GPU workload pod can — and should — run under the "Restricted" PSS profile: non-root, no added capabilities, no privileged mode, read-only root filesystem.
+
+**Reconciling PSS with GPU access:** apply "Restricted" PSS to the namespace where GPU workload pods run. Run the device plugin DaemonSet in a separate, infrastructure-owned namespace with its own (necessarily more permissive) PSS level or an explicit namespace-level exemption — the same pattern used for CNI/CSI DaemonSets. Never grant the workload namespace or workload pods `hostPID` or direct `/dev/nvidia*` host-path mounts just to get GPU access; if a workload pod needs that, the device plugin integration is misconfigured.
+
+```bash
+# Verify a GPU workload pod is NOT run privileged just to get GPU access
+$ kubectl get pod inference-server -o jsonpath='{.spec.containers[0].securityContext}'
+{"allowPrivilegeEscalation":false,"capabilities":{"drop":["ALL"]},"readOnlyRootFilesystem":true,"runAsNonRoot":true}
+# GPU access comes from the resource request, not from privilege:
+$ kubectl get pod inference-server -o jsonpath='{.spec.containers[0].resources.limits}'
+{"nvidia.com/gpu":"1"}
+
+# The device plugin DaemonSet, by contrast, legitimately runs with elevated
+# host access — verify it's scoped to its own namespace and audited separately:
+$ kubectl get daemonset nvidia-device-plugin -n gpu-operator -o jsonpath='{.spec.template.spec.hostPID}{"\n"}{.spec.template.spec.containers[0].securityContext}'
+```
+
 ## 5.6 Production troubleshooting: pod security & network policy audit
 
 | Issue | Symptom | Check | Fix |
@@ -355,7 +381,7 @@ seccomp: Blocked syscall 313 (init_module) in secure-pod container
 >
 > For network, I'd deploy a default-deny NetworkPolicy for the namespace, then create allow rules for just what's needed. Inference server ingress from the API gateway, and egress to the model repository and DNS. Nothing else. That way, if the container is compromised, the attacker can't pivot to other pods or exfiltrate data to an external server — the network policy blocks it.
 >
-> I'd also use a seccomp profile. RuntimeDefault blocks dangerous syscalls like init_module and socket. So the attacker cannot load a kernel module or create raw sockets even if they get a shell.
+> I'd also use a seccomp profile. RuntimeDefault blocks dangerous syscalls like init_module — so the attacker cannot load a kernel module even if they get a shell. It's worth being precise here: RuntimeDefault does not block the generic `socket()` syscall (regular TCP/UDP sockets are allowed and needed by virtually any networked container, including this inference server); raw sockets are restricted separately, via the `CAP_NET_RAW` capability we've already dropped, not by seccomp. So the syscall filter and the capability drop are covering different, complementary parts of the same attack surface.
 >
 > To verify: I'd deploy a test pod that tries to violate these policies and confirm it's rejected or blocked. Then I'd monitor the audit logs for any Forbidden events or seccomp blocks.
 >

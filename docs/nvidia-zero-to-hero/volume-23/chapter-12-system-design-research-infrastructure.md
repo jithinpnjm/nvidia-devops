@@ -44,7 +44,7 @@
 **My assumptions:**
 
 - Poisson job arrival (unpredictable)
-- 10% long-running (> 24 hours), 30% medium (1-8 hours), 60% short (< 1 hour)
+- 10% long-running (> 24 hours), 30% medium (1-8 hours), 60% short (&lt; 1 hour)
 - Peak: 50 concurrent short jobs (5 min each) → 1 GPU per team on avg
 - Must handle burst: 10 teams all submitting 8-GPU jobs simultaneously
 
@@ -290,13 +290,19 @@ Storage (NFS): $200K
 Total CapEx: $2.7M
 
 OpEx (annual):
-- Power: 200 GPUs × 400W × 8,760 hrs × $0.15/kWh = $1.05M
+- Power: 200 GPUs × 400W = 80 kW; 80 kW × 8,760 hrs × $0.15/kWh ≈ $105K/year
+  (the earlier "$1.05M" was a 10x arithmetic error)
 - Cooling: $350K
 - Staff (1.5 FTE): $300K
 - Maintenance: $150K
-Total OpEx: $1.85M/year
+Total OpEx: ≈ $0.9M/year (not $1.85M — power was the largest line item, so
+  correcting it roughly halves the total)
 
-Cost per GPU-hour: $1.85M ÷ (200 × 8,760 × 0.6 utilization) = $44/GPU-hour
+Cost per GPU-hour: $0.9M ÷ (200 × 8,760 × 0.6 utilization) = $0.9M ÷ 1,051,200 ≈ $0.86/GPU-hour
+(not $44/GPU-hour, which didn't actually follow from dividing $1.85M by
+1,051,200 either — that division gives ~$1.76/GPU-hour even with the
+uncorrected OpEx figure, so this line had a second, independent error on
+top of the inherited power-cost mistake)
 Research universities often accept this (subsidized by grants).
 ```
 
@@ -305,7 +311,7 @@ Research universities often accept this (subsidized by grants).
 ```
 Linear scaling: 
 - 1000 GPUs would cost $13.5M CapEx
-- $9.25M/year OpEx
+- ≈ $4.5M/year OpEx (0.9M × 5, scaling with the corrected 200-GPU baseline)
 - But scheduler complexity increases
 
 Challenges at 1000 GPUs:
@@ -399,7 +405,7 @@ Answer:
 **Storage for research:**
 - Tiered (local → NFS → tape)
 - Enables recovery from different failure modes
-- Overhead: < 5% for typical workloads
+- Overhead: &lt; 5% for typical workloads
 
 ## Related Chapters
 

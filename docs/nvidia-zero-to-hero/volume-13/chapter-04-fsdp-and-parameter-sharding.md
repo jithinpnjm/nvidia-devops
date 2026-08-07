@@ -68,7 +68,7 @@ Replicated on every GPU:  Model weights (140 GB)
 Sharded across GPUs:      Optimizer states (560 GB total → 560/N GB per GPU)
 ```
 
-Memory per GPU (N=8): 140 + 140 + (560/8) = 210 GB (still too large)
+Memory per GPU (N=8): 140 + 140 + (560/8) = 140 + 140 + 70 = 350 GB (still too large)
 
 **Use case:** Small models that fit in VRAM; want to squeeze out memory headroom for larger batches.
 
@@ -80,9 +80,9 @@ Sharded across GPUs:      Gradients (140 GB total → 140/N GB per GPU)
                           Optimizer states (560 GB total → 560/N GB per GPU)
 ```
 
-Memory per GPU (N=8): 140 + (140/8) + (560/8) = 228 GB (worse than Stage 1!)
+Memory per GPU (N=8): 140 + (140/8) + (560/8) = 140 + 17.5 + 70 = 227.5 GB ≈ 228 GB (better than Stage 1)
 
-Why? Because we still replicate weights. **This stage is rarely used in isolation.**
+Sharding the gradients in addition to the optimizer states removes another 122.5 GB per GPU compared to Stage 1 (350 GB → 228 GB). Weights are still replicated, so this stage doesn't get you all the way down — that's what Stage 3 is for — but each additional shard reduces memory, as expected. **This stage is rarely used in isolation** because Stage 3 costs the same communication pattern (all-gather before every forward/backward) while shedding the remaining 140 GB of replicated weights too, so there's little reason to stop at Stage 2 once you're paying the all-gather cost.
 
 ### Stage 3: Shard Everything (FULL_SHARD) — The Standard
 
@@ -350,7 +350,7 @@ tail -n 50 train.log | grep "step_time:"
 
 **Troubleshooting:** "Your FSDP training on 8 GPUs runs at 2.5 tokens/sec. With DDP on 16 GPUs (different config), you get 16 tokens/sec. Both setups are available. Why might FSDP on 8 GPUs be so slow, and what would you check first?"
 
-**Model Answer:** "FSDP has more communication overhead than DDP, but 8 GPUs should still be fast enough if the network is good. 2.5 tokens/sec is suspiciously low—that's only 5× slower than single GPU, when 8 GPUs should give 6-7× speedup. First thing I'd check: is CPU offload enabled? If so, that's the culprit. Second: check GPU utilization with `nvidia-smi`. If it's < 50%, the GPU is waiting for data—either network congestion (check `ibstat` or `ethtool` for packet drops) or the CPU is slow at preparing data (check CPU utilization and data loader performance). Third: enable NCCL_DEBUG=INFO and measure the actual all-gather latency. If all-gather is taking > 50% of the step time, we need a faster network or fewer GPUs with each holding larger shards. FSDP on 8 GPUs with good network should hit 8-10 tokens/sec easily, so 2.5 tokens/sec is a clear signal something is misconfigured."
+**Model Answer:** "FSDP has more communication overhead than DDP, but 8 GPUs should still be fast enough if the network is good. 2.5 tokens/sec is suspiciously low—that's only 5× slower than single GPU, when 8 GPUs should give 6-7× speedup. First thing I'd check: is CPU offload enabled? If so, that's the culprit. Second: check GPU utilization with `nvidia-smi`. If it's &lt; 50%, the GPU is waiting for data—either network congestion (check `ibstat` or `ethtool` for packet drops) or the CPU is slow at preparing data (check CPU utilization and data loader performance). Third: enable NCCL_DEBUG=INFO and measure the actual all-gather latency. If all-gather is taking > 50% of the step time, we need a faster network or fewer GPUs with each holding larger shards. FSDP on 8 GPUs with good network should hit 8-10 tokens/sec easily, so 2.5 tokens/sec is a clear signal something is misconfigured."
 
 ## Related Chapters
 

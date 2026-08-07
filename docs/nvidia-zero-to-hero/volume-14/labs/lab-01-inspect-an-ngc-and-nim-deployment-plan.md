@@ -74,7 +74,7 @@ sizing:
   gpu_available_gb: 40  # A100
   fit_check: "✓ Model fits with margin"
   
-  requests_per_gpu: 100  # Expected throughput
+  requests_per_gpu: 50  # Expected throughput
   total_replicas_needed: 2  # 100 req/sec / 50 req/gpu
   
   node_count: 1
@@ -240,10 +240,10 @@ pre_deployment_checklist:
 ```bash
 # Simulate NGC unavailability:
 # 1. Verify model is cached internally:
-kubectl exec <pod> -- ls -lh /model_cache/llama2-7b*
+kubectl exec &lt;pod&gt; -- ls -lh /model_cache/llama2-7b*
 
 # 2. Temporarily block NGC in network policy:
-kubectl apply -f - <<EOF
+kubectl apply -f - &lt;<EOF
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:

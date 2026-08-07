@@ -66,7 +66,7 @@ checkpoint = {
 
 # Phase 1: Serialization (in-process)
 t0 = time.time()
-state_bytes = torch.serialize(checkpoint)
+state_bytes = serialize(checkpoint)  # pseudo-code; in practice, via pickle/torch.save's internal encoder
 serialize_time = time.time() - t0
 print(f"Serialization time: {serialize_time:.2f}s, size: {len(state_bytes)/1e9:.2f} GB")
 

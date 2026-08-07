@@ -32,7 +32,7 @@ You will be able to:
 | SLI | Definition | Measurement | Why It Matters |
 |---|---|---|---|
 | **GPU Availability** | % of time GPU is available (not in maintenance, not failed) | count(DCGM_FI_DEV_GPU_UTIL >= 0) / total GPUs | Job scheduling depends on GPU availability |
-| **GPU Health** | % of GPUs passing health checks (temp < 82°C, no throttle, no ECC errors) | count(GPUs passing all checks) / total | Predicts job success rate |
+| **GPU Health** | % of GPUs passing health checks (temp &lt; 82°C, no throttle, no ECC errors) | count(GPUs passing all checks) / total | Predicts job success rate |
 | **Job Completion Rate** | % of submitted jobs that complete without error | count(completed jobs) / total submitted | Business SLO: did we do the work customers paid for? |
 | **Training Throughput** | Samples/sec sustained over 1 hour (p50, p99) | benchmark job throughput percentile | Capacity planning and performance regression detection |
 | **All-Reduce Latency** | Time to complete distributed gradient sync | measure NCCL all-reduce time | Multi-GPU training efficiency |

@@ -63,9 +63,9 @@ GPU monitoring requires metrics at four levels:
 | Metric | Definition | Target | Why it matters |
 |---|---|---|---|
 | **GPU health** | Thermal throttling, power limit events | 0 events | Indicates cooling/power issues |
-| **Error rate** | Failed synchronization, NaN gradients | < 0.1% | Detects hardware/software faults |
+| **Error rate** | Failed synchronization, NaN gradients | &lt; 0.1% | Detects hardware/software faults |
 | **Uptime** | Time between restarts | > 99% (SLA) | Business metric |
-| **Mean Time To Recovery (MTTR)** | Time to detect and recover from failure | < 5 min | Operational efficiency |
+| **Mean Time To Recovery (MTTR)** | Time to detect and recover from failure | &lt; 5 min | Operational efficiency |
 
 ## SLO Design Examples
 
@@ -209,7 +209,7 @@ This ensures we're not wasting money on idle GPUs."
    ethtool -S eth0  # Ethernet stats
    netstat -i  # Overall link utilization
    ```
-   Expected: If 1.2 GB gradients × 8 GPUs × 25 GB/s link → ~5 sec. Actual 8 sec suggests congestion.
+   Expected: using the chunked ring-AllReduce formula (2×(N-1)/N × size ÷ bandwidth) for a 1.2 GB gradient across 8 GPUs at 25 GB/s: 2×(7/8)×1.2 GB ÷ 25 GB/s ≈ **84 ms**. Actual observed: 8 sec — nearly 100× higher than the bandwidth-only estimate, a strong signal of network congestion, a suboptimal NCCL algorithm choice, or link degradation, not just bandwidth saturation.
 
 3. **Check other jobs on the cluster:**
    ```bash
@@ -301,11 +301,13 @@ Per iteration: $18,487 ÷ 100,000 = **$0.185 per iteration**
 **Optimization opportunities:**
 
 1. **Increase cluster utilization:** Currently at 5%. Target 70%.
-   - Cost per GPU-hour drops to $2.38
-   - Cost per iteration drops to $0.027
+   - GPU-hours consumed at 70%: 256 GPUs × 8,760 hours × 0.70 ≈ 1,568,900 GPU-hours/year
+   - Cost per GPU-hour drops to $2M ÷ 1,568,900 ≈ **$1.27/GPU-hour**
+   - Cost per iteration: $1.27/GPU-hour × 8 GPUs × 139 hours ÷ 100,000 iterations ≈ **$0.014/iteration**
 
-2. **Optimize training speed:** Each second saved is money.
-   - 1 sec saved × 139 hours × 8 GPUs × $2.38 = **$26 saved**
+2. **Optimize training speed:** Each second saved per iteration is money, scaled across all 100,000 iterations.
+   - Saving 1 sec/iteration over 100,000 iterations = 100,000 sec ≈ 27.8 GPU-hours (per GPU) of time saved
+   - At the 70%-utilization rate ($1.27/GPU-hour × 8 GPUs = $10.16/hour combined): 27.8 hours × $10.16/hour ≈ **$282 saved** for this one job
 
 3. **Use cheaper GPUs (if appropriate):** L40S instead of A100
    - Hardware cost: 30% cheaper

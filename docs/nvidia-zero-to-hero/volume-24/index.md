@@ -35,7 +35,7 @@ Each project includes:
 
 ### Project 4: Observability System Design
 **Problem:** Design monitoring for a 100-GPU cluster.  
-**Constraints:** 30-second scrape interval, keep storage < 1TB/month.  
+**Constraints:** 30-second scrape interval, keep storage &lt; 1TB/month.  
 **Validation:** Detect 5 common failure scenarios from metrics alone.
 
 ### Project 5: Troubleshooting Incident Response
@@ -70,7 +70,7 @@ Each project includes:
 
 ### Project 11: Inference Serving Design
 **Problem:** Design multi-tenant inference service for 3 LLMs.  
-**Constraints:** p99 latency < 500ms, throughput 1000 req/sec, cost < $0.001 per request.  
+**Constraints:** p99 latency &lt; 500ms, throughput 1000 req/sec, cost &lt; $0.001 per request.  
 **Validation:** All constraints met simultaneously, handle traffic spike gracefully.
 
 ### Project 12: Research Infrastructure Design

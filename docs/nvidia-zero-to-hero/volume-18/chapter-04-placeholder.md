@@ -284,9 +284,11 @@ $ kubectl auth can-i list secrets --as=system:serviceaccount:training-ns:trainer
 no
 # Trainer cannot list all secrets
 
-$ kubectl auth can-i get secrets --as=system:serviceaccount:training-ns:trainer \
-  --namespace training-ns --subresource="" --resource-name=model-repo-creds
+$ kubectl auth can-i get secrets model-repo-creds --as=system:serviceaccount:training-ns:trainer \
+  --namespace training-ns
 yes
+# Note: kubectl auth can-i takes the resource name as a positional argument
+# (verb, resource-type, resource-name) — there is no --resource-name flag.
 # Trainer can read this specific secret
 
 $ # Attempt to read a forbidden secret fails

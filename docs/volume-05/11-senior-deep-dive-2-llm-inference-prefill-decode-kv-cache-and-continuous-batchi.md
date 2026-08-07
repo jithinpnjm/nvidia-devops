@@ -10,7 +10,7 @@ Prefill processes the input prompt and creates KV cache state; decode generates 
 KV cache is operational state. Longer context, higher concurrency and more layers increase memory consumption. Prefix caching can avoid recomputing shared prompt prefixes, but it changes routing: a worker that already owns relevant cache may be a better destination than the least-loaded worker. This is one reason LLM-aware routing is different from round-robin HTTP load balancing.
 
 
-<!-- source-table:1 -->
+&lt;!-- source-table:1 --&gt;
 
 | Metric | What it captures | Primary pressure |
 | --- | --- | --- |

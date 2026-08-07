@@ -92,26 +92,30 @@ Setup:
 
 Gradient size: 1 GB (typical for large model)
 
-**Ring AllReduce:**
-1. Send phase: 1 GB around ring = 8 transfers × 1 GB at 25 GB/s = 320 ms
-2. Reduce phase: 8 transfers × 1 GB at 25 GB/s = 320 ms
-3. Total: ~640 ms
+**Ring AllReduce (correctly chunked):**
+
+A properly implemented ring AllReduce splits the gradient into N chunks (N = rank count) and moves only one chunk per link per step, not the full gradient — that's what makes it bandwidth-optimal. Across the reduce-scatter and all-gather phases combined, each GPU sends and receives roughly 2×(N-1)/N of the total gradient size. Total data moved per GPU: 2 × (8-1)/8 × 1 GB = 1.75 GB.
+
+1. Time = 1.75 GB ÷ 25 GB/s ≈ **70 ms**
+2. Total: ~70 ms
 
 **Tree AllReduce:**
 1. Reduce: 3 hops × 1 GB at 25 GB/s = 120 ms
 2. Broadcast: 3 hops × 1 GB at 25 GB/s = 120 ms
 3. Total: ~240 ms
 
-**Tree is 2.6× faster** for this size and topology. But if gradient is 100 MB:
+**Ring is actually ~3.4× faster** for this size and topology, once correctly chunked — the opposite of what an unchunked (naive) ring calculation suggests. A naive, unchunked ring that moves the *full* 1 GB gradient at every one of the 8 hops (a common mistake) would wrongly compute 8 × 1 GB ÷ 25 GB/s = 320 ms per phase, ~640 ms total — about 9× too slow, and it would make ring look far worse than tree. Always chunk the gradient across ranks before computing ring AllReduce time.
 
-Ring:
-- 8 transfers × 100 MB = 800 MB total at 25 GB/s = 32 ms
+If gradient is 100 MB instead:
+
+Ring (chunked):
+- 2 × 7/8 × 100 MB = 175 MB total per GPU ÷ 25 GB/s ≈ **7 ms**
 
 Tree:
 - 3 hops × 100 MB = 300 MB at 25 GB/s = 12 ms per reduction phase
 - Total: ~24 ms
 
-Ring advantage narrows as bandwidth saturates.
+Ring still wins by a similar ratio at this size too (~3.4×), since this simplified bandwidth-only model has no fixed per-hop latency term. In practice, at very small message sizes, per-hop latency (not modeled here) starts to dominate and gives tree-style algorithms a real edge — that crossover is a latency effect, not a bandwidth one, and doesn't show up until message sizes get small enough that fixed per-hop overhead rivals the transfer time itself.
 
 ## Scaling Efficiency and Weak/Strong Scaling
 
@@ -163,7 +167,7 @@ Reality: Time increases slightly due to AllReduce (independent of data size)
 | 8 | 256 | 2048 | 125 | 96% |
 | 16 | 256 | 4096 | 130 | 92% |
 
-**Time increases slightly** because AllReduce time is constant regardless of batch size. At 1 GPU, no AllReduce. At 16 GPUs, AllReduce = 10 ms out of 130 ms = ~8% overhead.
+**Time increases slightly** because AllReduce time is constant regardless of batch size. At 1 GPU, no AllReduce. At 16 GPUs, AllReduce = 10 min out of 130 min = ~8% overhead.
 
 ## Interview Questions
 
@@ -200,15 +204,15 @@ Actually, simpler: use GPU 0 on each node as the reducer. The other 3 GPUs send 
 
 **Stage 2: AllReduce among node leaders (Inter-node, 25 GB/s)**
 
-Now we have 4 leaders (GPU 0 from each node) that need to AllReduce. At 4 GPUs over 200 Gbps links:
+Now we have 4 leaders (GPU 0 from each node) that need to AllReduce. At 4 GPUs over 200 Gbps links, using a correctly-chunked ring: total data moved per leader ≈ 2 × (4-1)/4 × 1 GB = 1.5 GB.
 - Use ring AllReduce
-- Time: 2 × 4 × 1 GB at 25 GB/s = 320 ms
+- Time: 1.5 GB ÷ 25 GB/s ≈ **60 ms**
 
 **Stage 3: Broadcast back within nodes (25 ms)**
 
 Leaders broadcast results to their respective node GPUs using NVLink tree.
 
-**Total:** 5 + 320 + 25 = **350 ms**
+**Total:** 5 + 60 + 25 = **90 ms**
 
 **Why this works:**
 - Stages 1 and 3 use fast intra-node NVLink (600 GB/s)
@@ -329,7 +333,7 @@ Let's diagnose:
 - Forward: ~70% (slightly more due to overhead)
 - Backward + AllReduce: ~30% (20% backward + 10% AllReduce)
 
-The 10% AllReduce overhead accounts for 60 × (1 - 0.73) ÷ 0.73 = ~22% loss. But we only have 10% overhead, so something else is wrong.
+Total efficiency loss = 1 - 0.73 = **27 percentage points**. The 10% AllReduce overhead only explains a fraction of that 27% — so something else is contributing the rest.
 
 **Likely issues:**
 

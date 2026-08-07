@@ -20,7 +20,7 @@ By the end of this project, you will be able to:
 
 ## Problem Statement
 
-A distributed training job runs on 8 GPUs (e.g., 2-node setup: 4 GPUs per node connected via NVLink, nodes connected via 1.6 TB/s Infiniband). Each GPU must synchronize gradients (100 MB tensor) after backward pass. You must:
+A distributed training job runs on 8 GPUs (e.g., 2-node setup: 4 GPUs per node connected via NVLink, nodes connected via InfiniBand at ~50 GB/s per link — an IB4-class fabric). Each GPU must synchronize gradients (100 MB tensor) after backward pass. You must:
 
 1. Implement ring AllReduce that reduces communication time by 40% vs naive broadcast
 2. Measure latency and throughput on real H100 cluster
@@ -41,7 +41,7 @@ Three AllReduce implementations for comparison:
 #include <mpi.h>
 #include <sys/time.h>
 
-#define TENSOR_SIZE (100 * 1024 * 1024)  // 100 MB gradient tensor
+#define TENSOR_SIZE (100 * 1024 * 1024 / 4)  // 100 MB gradient tensor (25M float32 elements)
 #define ITERATIONS 100
 #define NUM_RANKS 8
 
@@ -393,7 +393,7 @@ In practice, this is why monitoring link health (via IB counters) is critical in
 
 ## Evaluation Rubric
 
-| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (<60%) |
+| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (&lt;60%) |
 |---|---|---|---|---|
 | **Ring performance** | 4.5–5.0 ms (40%+ improvement over naive) | 5.5–6.5 ms (25–35% improvement) | 7–8 ms (15–25% improvement) | >8 ms or no improvement |
 | **Correctness** | All ranks produce identical, numerically correct results | Correct within FP32 precision (±1 ULP) | Mostly correct, minor floating-point divergence | Incorrect results or divergence |

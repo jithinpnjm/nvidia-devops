@@ -12,7 +12,7 @@ _Figure B. End-to-end latency hides several different scaling pressures._
 NVIDIA NIM benchmarking documentation defines TTFT as request submission to first received token. TTFT includes queueing, prefill and network components. ITL/TPOT focuses on the decode token cadence. A system can have excellent average tokens/s but unacceptable TTFT because queueing is saturated. Report distributions and workload shape, not only averages.
 
 
-<!-- source-table:1 -->
+&lt;!-- source-table:1 --&gt;
 
 | Symptom | Likely bottleneck families | Evidence |
 | --- | --- | --- |

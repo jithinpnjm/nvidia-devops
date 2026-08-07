@@ -220,7 +220,7 @@ Both are Linux Security Modules (LSM) implementing mandatory access control (MAC
 | Policy granularity | Type Enforcement — very fine-grained, steep learning curve | Path-based profiles — coarser, easier to read/write |
 | Modes | `Enforcing`, `Permissive`, `Disabled` | `enforce`, `complain` (log-only), profile can be `unconfined` |
 | Check status | `sestatus`, `getenforce` | `aa-status` |
-| Set mode | `setenforce 0\|1` (runtime), `/etc/selinux/config` (persistent) | `aa-enforce <profile>`, `aa-complain <profile>` |
+| Set mode | `setenforce 0\|1` (runtime), `/etc/selinux/config` (persistent) | `aa-enforce &lt;profile&gt;`, `aa-complain &lt;profile&gt;` |
 | Denial logs | `/var/log/audit/audit.log`, queried via `ausearch -m avc` | `dmesg`/`journalctl`, `DENIED` lines tagged `apparmor="DENIED"` |
 | Triage tool | `audit2allow` — generates a policy module from denial logs | `aa-genprof`/`aa-logprof` — interactively builds/updates a profile from logs |
 
@@ -325,7 +325,7 @@ In practice this is why some HPC shops run SELinux in `permissive` mode (or AppA
 1. **Confirm the actual failure mode**: `dmesg | grep -i nvidia` on an affected node — typically shows the DKMS-built `nvidia.ko` either failed to build against the new kernel headers, or built against the old kernel and is now mismatched against the running (new) kernel, which is exactly what "Failed to initialize NVML: Driver/library version mismatch" means.
 2. **Check DKMS status**: `dkms status` — shows whether the nvidia module built successfully for the new kernel version or is still only registered against the previous one.
 3. **Root cause**: the patch pipeline updated the kernel package but did not trigger (or wait for) a DKMS rebuild against the new kernel headers before the node rebooted — a sequencing gap between "kernel package updated" and "GPU driver kernel module rebuilt for that kernel," not a driver bug.
-4. **Immediate fix**: `dkms autoinstall` (or a targeted `dkms install nvidia/<version> -k <new-kernel>`) rebuilds the module against the currently running kernel; reboot not always required if the module can be loaded live, but a clean reboot-and-verify is the safer confirmation step.
+4. **Immediate fix**: `dkms autoinstall` (or a targeted `dkms install nvidia/&lt;version&gt; -k &lt;new-kernel&gt;`) rebuilds the module against the currently running kernel; reboot not always required if the module can be loaded live, but a clean reboot-and-verify is the safer confirmation step.
 5. **Prevention**: the patch pipeline must treat "kernel package update" and "DKMS rebuild + verify module load" as one atomic maintenance step per node — never reboot a node into a new kernel without a passing DKMS build gate for that exact kernel version, and the staged/canary rollout (patch one node, confirm `nvidia-smi` clean, then batch) would have caught this before it hit the whole fleet.
 
 **Interview-ready line:** "A kernel patch on a GPU node isn't userspace-only risk — the driver's kernel module is typically DKMS-built against the running kernel, so any patch pipeline that bumps the kernel has to treat a successful DKMS rebuild as a hard gate before reboot, or you get a fleet-wide 'no devices found' the next morning."

@@ -211,7 +211,7 @@ $ kubectl get nodes --show-labels | grep -F 'nvidia.com'
 gpu-node-01   Ready   <none>   6m   nvidia.com/gpu.count=4,nvidia.com/gpu.product=NVIDIA-A100-80GB,nvidia.com/gpu.memory=81920
 ```
 
-`ALLOCATABLE: 4` on all three intended nodes is the direct, numeric proof that the device plugin registered with the kubelet and is reporting all devices healthy — this is the same fact as `Allocatable: nvidia.com/gpu: 4` under `kubectl describe node`, just easier to scan across a pool. The label line adds the GFD side: `gpu.count=4` should agree with the allocatable number, and `gpu.product`/`gpu.memory` are what a workload-facing service class would later be built on top of (see Chapter 05). If one node in the `ALLOCATABLE` column instead showed `<none>` (not `0` — the column is absent because the resource was never published), that node did not complete the `DriverCheck` branch in the architecture figure, and no amount of retrying this `kubectl get` will change that; it needs the driver Pod's own logs inspected first.
+`ALLOCATABLE: 4` on all three intended nodes is the direct, numeric proof that the device plugin registered with the kubelet and is reporting all devices healthy — this is the same fact as `Allocatable: nvidia.com/gpu: 4` under `kubectl describe node`, just easier to scan across a pool. The label line adds the GFD side: `gpu.count=4` should agree with the allocatable number, and `gpu.product`/`gpu.memory` are what a workload-facing service class would later be built on top of (see Chapter 05). If one node in the `ALLOCATABLE` column instead showed `&lt;none&gt;` (not `0` — the column is absent because the resource was never published), that node did not complete the `DriverCheck` branch in the architecture figure, and no amount of retrying this `kubectl get` will change that; it needs the driver Pod's own logs inspected first.
 
 **Explanation:** This checks discovery and device-plugin registration but not container CUDA access.
 
@@ -219,7 +219,7 @@ gpu-node-01   Ready   <none>   6m   nvidia.com/gpu.count=4,nvidia.com/gpu.produc
 
 ## 14. Validation: Workload Execution
 
-Create `gpu-operator-validation.yaml` with `image: <approved-cuda-image>`, command `bash -lc 'nvidia-smi && echo GPU_OPERATOR_VALIDATED'`, `restartPolicy: Never`, and a limit of one `nvidia.com/gpu`.
+Create `gpu-operator-validation.yaml` with `image: &lt;approved-cuda-image&gt;`, command `bash -lc 'nvidia-smi && echo GPU_OPERATOR_VALIDATED'`, `restartPolicy: Never`, and a limit of one `nvidia.com/gpu`.
 
 **Purpose:** Prove allocation and runtime access from an ordinary Pod.
 

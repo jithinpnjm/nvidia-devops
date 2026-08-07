@@ -388,7 +388,7 @@ for iface in /sys/class/net/*; do
 done | tee "$LAB_DIR/interface-pci-map.txt"
 ```
 
-Use `ethtool -i <interface>` or `ibdev2netdev` where appropriate to map logical interfaces to PCI devices.
+Use `ethtool -i &lt;interface&gt;` or `ibdev2netdev` where appropriate to map logical interfaces to PCI devices.
 
 Representative output:
 

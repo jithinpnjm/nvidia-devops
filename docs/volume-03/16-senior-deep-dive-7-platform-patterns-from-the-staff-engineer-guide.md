@@ -8,7 +8,7 @@ source_document: "Volume_03_Kubernetes_and_Platform_Engineering(3).docx"
 Several microservice patterns in your Staff Engineer guide become platform requirements when operated at scale. Circuit breakers protect dependencies but can hide sustained failure if telemetry is weak. Bulkheads isolate queues, worker pools or tenants. Sidecars move cross-cutting behavior next to the workload at the cost of resource and lifecycle complexity. Externalized configuration enables safe promotion. Event-driven systems decouple producers but introduce ordering, lag and replay semantics.
 
 
-<!-- source-table:1 -->
+&lt;!-- source-table:1 --&gt;
 
 | Pattern | Platform implementation question | Failure to design for |
 | --- | --- | --- |

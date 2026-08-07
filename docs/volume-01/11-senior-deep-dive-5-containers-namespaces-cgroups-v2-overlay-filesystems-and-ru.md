@@ -48,7 +48,7 @@ $ sudo nsenter -t 8842 -n ip addr show eth0
 3: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500
     inet 10.244.1.7/24 scope global eth0
 ```
-`-t <PID>` targets the namespaces of that specific process; `-n` selects *which* namespace to enter — network, in this case (`nsenter` can target mount, UTS, IPC, PID, or network namespaces independently, not all at once). This runs `ip addr` as if executing inside that container's network namespace, without actually `exec`-ing into the container itself — the same technique Chapter 5 uses to prove the pause container and its app containers share one live network namespace.
+`-t &lt;PID&gt;` targets the namespaces of that specific process; `-n` selects *which* namespace to enter — network, in this case (`nsenter` can target mount, UTS, IPC, PID, or network namespaces independently, not all at once). This runs `ip addr` as if executing inside that container's network namespace, without actually `exec`-ing into the container itself — the same technique Chapter 5 uses to prove the pause container and its app containers share one live network namespace.
 
 ➕ **cgroup inspection, annotated — resolving the path before trusting any number in it:**
 ```text
@@ -79,7 +79,7 @@ flowchart TD
         end
     end
 ```
-Nesting is the point of this diagram, not decoration: each ring wraps the process independently, and each is independently inspectable *and* independently bypassable if misconfigured. A container with correctly isolated namespaces but an excess capability (`CAP_SYS_ADMIN`, for example) is not actually isolated in the way its "containerness" implies, no matter how clean its namespace boundary looks — which is exactly why `lsns`, `cat /proc/<PID>/cgroup`, and a capability check (`getpcaps <PID>` or the container spec's `securityContext`) are three separate checks, not one.
+Nesting is the point of this diagram, not decoration: each ring wraps the process independently, and each is independently inspectable *and* independently bypassable if misconfigured. A container with correctly isolated namespaces but an excess capability (`CAP_SYS_ADMIN`, for example) is not actually isolated in the way its "containerness" implies, no matter how clean its namespace boundary looks — which is exactly why `lsns`, `cat /proc/&lt;PID&gt;/cgroup`, and a capability check (`getpcaps &lt;PID&gt;` or the container spec's `securityContext`) are three separate checks, not one.
 
 ➕ **Diagram: image → running process, who does what**
 ```mermaid

@@ -131,18 +131,20 @@ GPU workload needs:
 ## Worked scenario
 ➕ **Worked scenario (added — the source didn't include one for this chapter, so this fills the gap the pattern requires):**
 > **Situation:** A security review flags a namespace where every Pod runs with `privileged: true`, justified as "needed for GPU access." You have one meeting to either defend or fix this before a customer audit.
-> 1. `kubectl get pods -n <ns> -o json | jq '.items[].spec.containers[].securityContext'` — confirm scope: is it every container in every Pod, or did a shared base manifest/Helm chart apply it blanket-wide even to sidecars that don't touch the GPU at all (very common root cause — a values.yaml default, not a deliberate per-workload decision)?
-> 2. `kubectl auth can-i --list --as=system:serviceaccount:<ns>:<sa>` for each affected ServiceAccount — privileged Pods often compound with over-broad RBAC, compounding blast radius rather than just isolation failure.
+> 1. `kubectl get pods -n &lt;ns&gt; -o json | jq '.items[].spec.containers[].securityContext'` — confirm scope: is it every container in every Pod, or did a shared base manifest/Helm chart apply it blanket-wide even to sidecars that don't touch the GPU at all (very common root cause — a values.yaml default, not a deliberate per-workload decision)?
+> 2. `kubectl auth can-i --list --as=system:serviceaccount:&lt;ns&gt;:&lt;sa&gt;` for each affected ServiceAccount — privileged Pods often compound with over-broad RBAC, compounding blast radius rather than just isolation failure.
 > 3. Test whether the actual GPU access requirement is satisfiable with the device-plugin path (device cgroup, no privileged) plus a narrow capability list instead — reproduce the workload with `capabilities: add: ["IPC_LOCK"]` (for RDMA) and `runAsNonRoot: true`, confirm it still functions.
 > 4. Present the fix as a namespace-wide Pod Security Admission label change (`pod-security.kubernetes.io/enforce=restricted` or at minimum `baseline`) plus the narrowed securityContext, not a one-off patch — the audit finding is a pattern, the fix should close the pattern, not one Pod.
 > **Conclusion:** "needed for GPU access" is a claim to verify against the actual device-plugin/capability model, not a justification to accept at face value — this is a genuinely realistic customer-facing security conversation for this role.
 
 ➕ **Shortcut — namespace-wide Pod Security Admission audit before enforcing anything:**
 ```bash
-kubectl label ns team-a pod-security.kubernetes.io/audit=restricted --dry-run=server
+kubectl label ns team-a pod-security.kubernetes.io/audit=restricted
 kubectl get events -n team-a --field-selector reason=FailedCreate | grep -i "violates PodSecurity"
 ```
-`audit=` (not `enforce=`) lets you see *what would break* under a stricter policy without actually blocking anything — always run audit before enforce on an existing namespace.
+`audit=` (not `enforce=`) logs a warning to the audit log — not a blocking error — for any Pod *created or updated* after the label is applied, if that Pod would violate the labeled policy. It does **not** retroactively evaluate Pods that are already running: PSA only evaluates at admission time, so a Pod that predates the label (and is never subsequently recreated or updated) will never generate an audit annotation, no matter how long the label sits there. Also note `--dry-run=server` persists nothing at all — it wouldn't even apply the label — so don't combine it with this workflow.
+
+To find out whether *already-running* Pods in a namespace would violate a stricter policy, passive audit-mode observation over time is not enough; you need a one-time check against each existing Pod spec instead — e.g. `kubectl-validate`/`pod-security` static checkers, an OPA/Kyverno dry-run policy evaluation, or (if you want PSA itself to be the judge) forcing re-admission with a rolling restart under the audit label so each Pod actually passes through the admission chain again.
 
 ## Practice
 1. Explain why a ServiceAccount with broad Kubernetes RBAC could still have zero cloud permissions, and vice versa.

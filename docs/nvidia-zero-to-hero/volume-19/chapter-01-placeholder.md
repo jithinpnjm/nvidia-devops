@@ -218,7 +218,7 @@ $ ssh node-05 dmesg | tail -50
 # [timestamp] nouveau: ... (if open-source driver is loaded instead)
 
 $ ssh node-05 lspci | grep -i nvidia
-05:00.0 3D controller [0302]: NVIDIA Corporation Device [10de:2330]
+05:00.0 3D controller [0302]: NVIDIA Corporation Device [10de:20F1]
 # GPU is PCIe-enumerated; hardware is fine.
 
 $ ssh node-05 cat /proc/modules | grep -i nvidia
@@ -339,7 +339,7 @@ $ ssh node-08 'cat /proc/modules | grep -i nvidia'
 # (no nvidia modules loaded)
 
 $ ssh node-08 'cat /var/log/syslog | grep -i gpu'
-[2026-08-09 10:22:05] nouveau: unknown chipset (0x2330)
+[2026-08-09 10:22:05] nouveau: unknown chipset (0x20F1)
 # Open-source driver loaded, NVIDIA driver not present.
 ```
 
@@ -360,7 +360,7 @@ $ ssh node-08 'sudo reboot'
 # Node reboots
 
 $ ssh node-08 'lspci | grep -i nvidia'
-05:00.0 3D controller [0302]: NVIDIA Corporation Device [10de:2330]
+05:00.0 3D controller [0302]: NVIDIA Corporation Device [10de:20F1]
 # GPU is back in PCIe enumeration
 
 $ ssh node-08 'sudo modprobe nvidia && nvidia-smi'

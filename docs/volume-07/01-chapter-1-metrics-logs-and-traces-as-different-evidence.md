@@ -251,11 +251,11 @@ The point of the tree: metrics answer "how much/how often," logs answer "what st
 ➕ **Annotated example — the same incident seen through all three signals, showing what each one adds and what it alone cannot tell you:**
 ```text
 METRIC (Prometheus)
-sum(rate(http_requests_total{status=~'5..'}[5m])) / sum(rate(http_requests_total[5m]))
+sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))
 0.023 (2.3% error rate, up from a 0.1% baseline — tells you THAT and HOW MUCH)
 LOG (structured event, one of the failing requests)
-{'ts':'2026-07-30T14:02:11Z','event':'inference_request_failed','model':'llama-70b',
-'node':'gpu-07','error_class':'CUDAOutOfMemory','request_id':'a91f...','duration_ms':842}
+{"ts":"2026-07-30T14:02:11Z","event":"inference_request_failed","model":"llama-70b",
+"node":"gpu-07","error_class":"CUDAOutOfMemory","request_id":"a91f...","duration_ms":842}
 tells you WHAT STATE: it's CUDA OOM, not an app crash, not a timeout — and WHERE (gpu-07)
 TRACE (span waterfall for request_id a91f...)
 gateway(4ms)

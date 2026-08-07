@@ -43,10 +43,10 @@ You will be able to:
 
 | SLI | Definition | Measurement | SLO |
 |---|---|---|---|
-| **P50 Latency** | Median request latency | Histogram bucket at 50th percentile | < 100 ms |
-| **P99 Latency** | 99th percentile latency | Histogram bucket at 99th percentile | < 500 ms |
+| **P50 Latency** | Median request latency | Histogram bucket at 50th percentile | &lt; 100 ms |
+| **P99 Latency** | 99th percentile latency | Histogram bucket at 99th percentile | &lt; 500 ms |
 | **Throughput** | Requests per GPU per second | count(completed requests) / time | 50-200 req/s (model-dependent) |
-| **Error Rate** | % requests that error out | count(errors) / count(total) | < 0.1% |
+| **Error Rate** | % requests that error out | count(errors) / count(total) | &lt; 0.1% |
 | **Model Accuracy** | % predictions that are correct | count(correct) / count(predictions) | > 99% (model-dependent) |
 
 ## Inference Server Observability
@@ -97,29 +97,30 @@ python -m vllm.entrypoints.openai.api_server \
 **Real metrics from running LLM server:**
 
 ```text
-# HELP vllm_request_prompt_tokens_total Total number of prompt tokens processed.
-# TYPE vllm_request_prompt_tokens_total counter
-vllm_request_prompt_tokens_total 45230
+# HELP vllm:prompt_tokens_total Total number of prompt tokens processed.
+# TYPE vllm:prompt_tokens_total counter
+vllm:prompt_tokens_total 45230
 
-# HELP vllm_request_total Total number of requests.
-vllm_request_total 1024
+# HELP vllm:request_success_total Number of requests that finished without error.
+# TYPE vllm:request_success_total counter
+vllm:request_success_total 1022
 
-# HELP vllm_request_success Number of requests that finished without error.
-vllm_request_success 1022
+# HELP vllm:num_requests_running Number of requests currently running on GPU.
+# TYPE vllm:num_requests_running gauge
+vllm:num_requests_running 8
 
-# HELP vllm_request_latency_seconds Request latency in seconds.
-vllm_request_latency_seconds_bucket{le="0.1"} 450  (450 requests < 100ms)
-vllm_request_latency_seconds_bucket{le="0.5"} 950  (950 requests < 500ms)
-vllm_request_latency_seconds_bucket{le="1.0"} 1000 (all requests < 1s)
+# HELP vllm:time_to_first_token_seconds Time to first token (TTFT) in seconds.
+vllm:time_to_first_token_seconds_bucket{le="0.1"} 450  (450 requests < 100ms TTFT)
+vllm:time_to_first_token_seconds_bucket{le="0.5"} 950  (950 requests < 500ms TTFT)
+vllm:time_to_first_token_seconds_bucket{le="1.0"} 1000 (all requests < 1s TTFT)
 
-# HELP vllm_gpu_cache_usage_perc GPU cache (KV cache for LLM) usage percentage.
-vllm_gpu_cache_usage_perc 87
+# HELP vllm:gpu_cache_usage_perc GPU cache (KV cache for LLM) usage percentage.
+# TYPE vllm:gpu_cache_usage_perc gauge
+vllm:gpu_cache_usage_perc 0.87
 
-# HELP vllm_batch_tokens_per_second Throughput of the model in terms of tokens/sec.
-vllm_batch_tokens_per_second 2400
-
-# HELP gpu_process_inference_requests_total Requests being processed on GPU right now
-gpu_process_inference_requests_total 8  (8 requests currently on GPU)
+# HELP vllm:generation_tokens_total Total number of generated (output) tokens.
+# TYPE vllm:generation_tokens_total counter
+vllm:generation_tokens_total 118400
 ```
 
 **Interpretation:**
@@ -128,8 +129,8 @@ gpu_process_inference_requests_total 8  (8 requests currently on GPU)
 |---|---|---|
 | Total requests | 1024 | Good volume |
 | Success rate | 99.8% (1022/1024) | Excellent (99.8%) |
-| P50 latency | < 100ms | Request completed in 100ms or less (median) |
-| P99 latency | < 1s | Even worst-case requests < 1 second |
+| P50 latency | &lt; 100ms | Request completed in 100ms or less (median) |
+| P99 latency | &lt; 1s | Even worst-case requests &lt; 1 second |
 | Cache usage | 87% | KV cache is 87% full; headroom shrinking |
 | Throughput | 2400 tokens/sec | Good utilization of GPU |
 | Queue depth | 8 requests | GPU can handle 8 concurrent requests |
@@ -183,7 +184,7 @@ Cost: 730 × $3.06 = $2,234/month
 Request rate: 100 req/sec average
 Requests/month: 100 req/sec × 86,400 sec/day × 30 days = 259.2 M requests
 
-Cost per request: $2,234 / 259.2M = $0.0086 per request
+Cost per request: $2,234 / 259.2M = $0.0000086 per request (~$8.60 per million requests)
 ```
 
 **How to reduce cost per request:**
@@ -195,7 +196,7 @@ Cost per request: $2,234 / 259.2M = $0.0086 per request
 2. **Use lower precision** — FP16 or INT8 instead of FP32
    - Cost impact: Lower (less memory, can fit larger models or batches)
    - Latency impact: Negligible (often faster)
-   - Quality impact: Usually < 1% accuracy loss
+   - Quality impact: Usually &lt; 1% accuracy loss
 
 3. **Model optimization** — distill, prune, or quantize
    - Cost impact: Much lower (smaller model = less GPU memory = more concurrent requests)

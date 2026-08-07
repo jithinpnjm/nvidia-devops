@@ -70,13 +70,13 @@ python matmul.py
 
 ```
 Matrix Size, Throughput (TFLOP/s), Time (s)
-512x512, 285.23, 0.140
-1024x1024, 312.45, 0.532
-2048x2048, 325.18, 4.126
-4096x4096, 330.12, 33.042
+512x512, 75.2, 0.140
+1024x1024, 98.4, 0.532
+2048x2048, 112.6, 4.126
+4096x4096, 118.3, 33.042
 ```
 
-**Interpretation:** Throughput rises with matrix size, approaching A100's peak of ~312 TFLOP/s for FP32.
+**Interpretation:** `torch.matmul` on `float32` tensors uses TF32 Tensor Cores by default on Ampere (A100) unless `torch.backends.cuda.matmul.allow_tf32` is explicitly disabled. Throughput rises with matrix size, approaching A100's TF32 Tensor Core dense peak of ~156 TFLOP/s (this is *not* the FP32 CUDA-core peak, which is much lower at ~19.5 TFLOP/s — see Step 6 for a true FP32 baseline).
 
 ## Step 2: Profile with nvidia-smi
 
@@ -259,11 +259,11 @@ python bound_comparison.py
 **Expected output:**
 
 ```
-Compute-bound (N=4096): 310.45 TFLOP/s
+Compute-bound (N=4096): 118.30 TFLOP/s
 Memory-bound (N=4096): 45.12 TFLOP/s
 ```
 
-**Interpretation:** Compute-bound kernel achieves 310 TFLOP/s (near peak); memory-bound kernel achieves only 45 TFLOP/s. This shows that memory is a distinct bottleneck.
+**Interpretation:** Compute-bound kernel (matmul, using TF32 Tensor Cores by default) achieves ~118 TFLOP/s, close to A100's ~156 TFLOP/s TF32 dense peak; memory-bound kernel achieves only 45 TFLOP/s. This shows that memory is a distinct bottleneck.
 
 ## Step 6: Measure Impact of Optimization
 
@@ -271,7 +271,8 @@ Memory-bound (N=4096): 45.12 TFLOP/s
 
 ```python
 def slow_kernel():
-    # Large allocation, poor data locality
+    # True FP32 (CUDA core) baseline — explicitly disable TF32
+    torch.backends.cuda.matmul.allow_tf32 = False
     x = torch.randn(8000, 8000, device='cuda', dtype=torch.float32)
     y = torch.randn(8000, 8000, device='cuda', dtype=torch.float32)
     
@@ -285,7 +286,7 @@ def slow_kernel():
     return time.time() - start
 
 time_before = slow_kernel()
-print(f"Before optimization: {time_before:.3f}s")
+print(f"Before optimization (FP32, CUDA core): {time_before:.3f}s")
 ```
 
 **After Optimization (use lower precision):**
@@ -296,7 +297,9 @@ def fast_kernel():
     x = torch.randn(8000, 8000, device='cuda', dtype=torch.float32)
     y = torch.randn(8000, 8000, device='cuda', dtype=torch.float32)
     
-    # Enable TF32 for tensor operations (trades 3x speedup for minimal accuracy loss)
+    # Enable TF32 for tensor operations (trades a small amount of mantissa precision for
+    # Tensor Core throughput — roughly an 8x peak-FLOPS jump on A100: ~156 TFLOP/s TF32
+    # dense vs. ~19.5 TFLOP/s FP32 CUDA core)
     torch.backends.cuda.matmul.allow_tf32 = True
     
     torch.cuda.synchronize()
@@ -316,10 +319,12 @@ print(f"Speedup: {time_before / time_after:.2f}x")
 **Expected output:**
 
 ```
-Before optimization: 42.105s
-After optimization (TF32): 14.032s
-Speedup: 3.00x
+Before optimization (FP32, CUDA core): 0.375s
+After optimization (TF32): 0.043s
+Speedup: 8.72x
 ```
+
+(5 iterations x 2 x 8000^3 FLOPs = 5.12 x 10^12 FLOPs total. At 0.375s that's ~13.7 TFLOP/s — about 70% of A100's ~19.5 TFLOP/s FP32 peak. At 0.043s that's ~119 TFLOP/s — about 76% of A100's ~156 TFLOP/s TF32 dense peak. The ~8.7x speedup tracks the ~8x ratio between the two hardware peaks, not an arbitrary 3x.)
 
 ## Verification Checklist
 
@@ -333,7 +338,7 @@ Speedup: 3.00x
 
 1. **Profile before optimizing** — measure baseline to know what you're improving
 2. **Understand bottleneck type** — compute-bound and memory-bound need different fixes
-3. **Precision tradeoffs are steep** — TF32 can give 3x speedup with < 1% accuracy loss
+3. **Precision tradeoffs are steep** — TF32 can give ~8x speedup over FP32 (CUDA core) on A100 with &lt; 1% accuracy loss, because it runs on Tensor Cores instead of CUDA cores
 4. **Verify improvements** — don't assume optimizations work; measure them
 
 ---

@@ -265,8 +265,9 @@ FROM nvcr.io/nvidia/pytorch:24.07-py3
 # Digest example (good):
 FROM nvcr.io/nvidia/pytorch@sha256:a1b2c3d4e5f6... (exact hash from NGC)
 
-# Retrieve the digest from NGC console or CLI:
-$ nvcr io-getdown nvcr.io/nvidia/pytorch:24.07-py3
+# Retrieve the digest from the NGC console, or via a real digest-inspection tool:
+$ docker manifest inspect nvcr.io/nvidia/pytorch:24.07-py3
+# or: crane digest nvcr.io/nvidia/pytorch:24.07-py3
 Image: nvcr.io/nvidia/pytorch:24.07-py3
 Digest: sha256:a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t
 
@@ -324,10 +325,10 @@ trivy image --exit-code 1 --severity HIGH,CRITICAL \
 
 | Issue | Symptom | Check | Fix |
 |---|---|---|---|
-| Image signature missing | `cosign verify` fails; no signature found | `cosign find signatures <image>` | Sign all images at build time; enforce via admission controller |
-| Vulnerable package in image | Trivy scan finds CVE; but image deployed anyway | Run `trivy image <deployed-image>` | Rebuild with patched package version; redeploy all affected images |
-| Tag reuse / mutable tag | Same tag deployed twice; different code both times | `docker pull <tag>` twice; compare digests | Use image digests instead of tags in Kubernetes; enforce via policy |
-| SBOM missing or stale | Vulnerability disclosure published; SBOM doesn't list the package | `cosign find sbom <image>` > /dev/null | Regenerate SBOM at build time; use signed SBOM attachment |
+| Image signature missing | `cosign verify` fails; no signature found | `cosign find signatures &lt;image&gt;` | Sign all images at build time; enforce via admission controller |
+| Vulnerable package in image | Trivy scan finds CVE; but image deployed anyway | Run `trivy image &lt;deployed-image&gt;` | Rebuild with patched package version; redeploy all affected images |
+| Tag reuse / mutable tag | Same tag deployed twice; different code both times | `docker pull &lt;tag&gt;` twice; compare digests | Use image digests instead of tags in Kubernetes; enforce via policy |
+| SBOM missing or stale | Vulnerability disclosure published; SBOM doesn't list the package | `cosign find sbom &lt;image&gt;` > /dev/null | Regenerate SBOM at build time; use signed SBOM attachment |
 | NGC image freshness | NGC container has known CVE; deployed image still uses old tag | Check NGC advisory page; `trivy image nvcr.io/...` | Update FROM directive to newer NGC tag/digest; rebuild; redeploy |
 
 ## 3.7 Interview-ready: the supply-chain audit question

@@ -248,4 +248,5 @@ A customer wants to place storage and distributed training traffic on the same h
 
 - [DGX Storage and Data Paths](./chapter-05-dgx-storage-and-data-paths)
 - [Inside a DGX System](./chapter-02-inside-a-dgx-system)
+- [Chapter 07 — DGX GH200 and GB200 NVL72 Systems](./chapter-07-dgx-gh200-and-gb200-systems)
 - [Lab 02 — Validate DGX Data and Network Paths](./labs/lab-02-validate-dgx-data-and-network-paths)

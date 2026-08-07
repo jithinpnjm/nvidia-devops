@@ -289,6 +289,12 @@ The goal is an architecture that can evolve. That means reproducible configurati
 
 "I'd pull the ECMP next-hop group membership for the affected prefix before and after the drain first — if it dropped from two active members to one, that's expected topology behavior, not a bug, and it tells me the remaining uplinks are now carrying roughly double the load. Then I'd check queue-level counters — ECN marks and PFC pause — on those surviving uplinks; a proportional rise there confirms it's a capacity problem, not a misconfiguration. If ECN/PFC counters are flat but the job is still slow, I'd look at QoS mapping next, in case the drain somehow changed which queue traffic lands in. And I'd check workload placement last — whether the affected racks happen to be the ones now sharing the reduced path. The sequence matters: topology and ECMP evidence is fast to check and rules out or confirms the most likely cause before I go chasing QoS drift or placement issues that may not be the actual story."
 
+### NVIDIA Operational Reference — BGP-EVPN coexistence
+
+The AI-fabric traffic classes described in this chapter — RoCE compute, storage, management — do not run in isolation from the rest of the data center. Most enterprise data-center networks use BGP-EVPN (Border Gateway Protocol with Ethernet VPN) to provide multi-tenant Layer 2/3 segmentation across a conventional leaf-spine fabric, and an AI cluster's Ethernet fabric frequently has to interconnect with, or be built alongside, that same BGP-EVPN environment for management access, storage reachability, or shared services.
+
+This book does not teach BGP-EVPN as a protocol — that is a generic enterprise-networking topic outside this curriculum's scope. What an SA needs is narrower: recognize that BGP-EVPN is the likely control plane on the *conventional* side of the boundary, know that the AI fabric's traffic classes and QoS policy (this chapter) must be deliberately mapped at that boundary rather than assumed to blend automatically, and know that BGP-EVPN design and troubleshooting is a core network-engineering specialty to hand off to, not something to design inline while focused on the GPU fabric.
+
 ## Architecture Summary
 
 An AI Ethernet architecture joins a host-local data path to a routed, queueing fabric and a managed control plane. Topology, traffic roles, rails, endpoint qualification, and observability are all design inputs. None can be inferred from link state alone.

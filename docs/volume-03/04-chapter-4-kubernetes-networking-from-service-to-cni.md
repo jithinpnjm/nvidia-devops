@@ -72,8 +72,8 @@ Depending on the cluster, Service forwarding may be implemented with iptables, I
 ➕ **Match the tool to the dataplane — don't run iptables commands on an eBPF (Cilium) cluster and conclude "no rules exist":**
 | Dataplane | Where the mapping lives | How to inspect it |
 |---|---|---|
-| iptables (legacy kube-proxy) | `iptables -t nat -L KUBE-SERVICES` chains, one DNAT rule per endpoint | `iptables-save \| grep <service-ip>` |
-| IPVS | kernel IPVS virtual server table | `ipvsadm -L -n \| grep <service-ip>` |
+| iptables (legacy kube-proxy) | `iptables -t nat -L KUBE-SERVICES` chains, one DNAT rule per endpoint | `iptables-save \| grep &lt;service-ip&gt;` |
+| IPVS | kernel IPVS virtual server table | `ipvsadm -L -n \| grep &lt;service-ip&gt;` |
 | eBPF (Cilium, Calico eBPF, kube-proxy replacement) | eBPF maps, not iptables at all | `cilium service list` / `cilium bpf lb list` (tool-specific) |
 
 ➕ **Sample annotated output — IPVS, showing the actual weighting/scheduling that iptables' random-jump chains only approximate:**
@@ -165,7 +165,7 @@ Her public networking breakdown follows client -> LB -> Gateway/Ingress -> Servi
 ➕ **Shortcut — the fastest 4-command triage for any "namespace A works, namespace B doesn't" report:**
 ```bash
 kubectl get endpointslice -l kubernetes.io/service-name=<svc> -A -o wide   # same backend set?
-kubectl get netpol -n <src-ns> -n <dst-ns> -o yaml                          # any policy scoped to one ns?
+kubectl get netpol -n <src-ns> -o yaml && kubectl get netpol -n <dst-ns> -o yaml  # any policy scoped to either ns?
 kubectl exec -n <ns-that-fails> -it <pod> -- curl -sv --max-time 3 <direct-pod-ip>:<port>
 kubectl exec -n <ns-that-works> -it <pod> -- curl -sv --max-time 3 <direct-pod-ip>:<port>
 ```

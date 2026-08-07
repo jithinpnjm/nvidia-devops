@@ -56,7 +56,7 @@ Each row below is now ONE chapter, not two — the foundation and the advanced m
 | How to choose an order | [Foundation learning path](./02-foundation-learning-path.md) |
 
 
-<!-- source-table:1 -->
+&lt;!-- source-table:1 --&gt;
 
 > Fourth Edition - Rebuilt as a teaching text, not an annotated checklist
 
@@ -64,12 +64,12 @@ Each row below is now ONE chapter, not two — the foundation and the advanced m
 Independent study guide based on public documentation and public practitioner material. Not an NVIDIA publication.
 
 
-<!-- source-table:2 -->
+&lt;!-- source-table:2 --&gt;
 
 > What changed in this rebuild The series was rewritten around teaching. Concepts are explained before “why it matters.” Code is copyable. Visuals are original diagrams. Scenarios show the reasoning path step by step. Practitioner material and Udemy/Coursera/NVIDIA references appear as reinforcement after the teaching, not as substitutes for it.
 
 
-<!-- source-table:3 -->
+&lt;!-- source-table:3 --&gt;
 
 | Volume | Focus | Study style |
 | --- | --- | --- |
@@ -94,7 +94,7 @@ TEACH mode should present one coherent block from the current chapter and stop. 
 The later volumes reuse the same disciplined decision loop: requirements and evidence before recommendation.
 
 
-<!-- source-table:4 -->
+&lt;!-- source-table:4 --&gt;
 
 > FOURTH EDITION — CONTENT-RICH SENIOR ENGINEERING EXPANSION
 
@@ -102,7 +102,7 @@ The later volumes reuse the same disciplined decision loop: requirements and evi
 This edition retains the readable Fourth Edition and adds substantial senior-level depth to every volume. It deliberately avoids priority labels or a prescriptive interview study order. The material is organized as a reference curriculum; study it in whichever sequence fits your preparation.
 
 
-<!-- source-table:5 -->
+&lt;!-- source-table:5 --&gt;
 
 | Volume | Fourth Edition additions |
 | --- | --- |

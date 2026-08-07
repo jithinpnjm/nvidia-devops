@@ -155,7 +155,8 @@ DCGM_FI_DEV_FB_FREE{gpu="0",uuid="GPU-<uuid>"} 12288
 DCGM_FI_DEV_FB_FREE{gpu="1",uuid="GPU-<uuid>"} 10960
 
 # HELP DCGM_FI_DEV_FB_USED Framebuffer memory used (in MB).
-# TYPE DCGM_FI_DEV_FB_USED{gpu="0",uuid="GPU-<uuid>"} 28672
+# TYPE DCGM_FI_DEV_FB_USED gauge
+DCGM_FI_DEV_FB_USED{gpu="0",uuid="GPU-<uuid>"} 28672
 DCGM_FI_DEV_FB_USED{gpu="1",uuid="GPU-<uuid>"} 30000
 
 # HELP DCGM_FI_DEV_GPU_UTIL GPU utilization (%).
@@ -240,13 +241,13 @@ journalctl -k --since '-1 hour' | grep -i -E "nvidia|gpu"
 [Wed Jul 30 14:25:13 2026] nvidia-uvm: Loaded the UVM driver in UVM-Lite mode
 [Wed Jul 30 15:40:22 2026] NVRM: GPU at PCI:0000:17:00.0 has fallen off the bus.
 [Wed Jul 30 15:40:22 2026] nvidia 0000:17:00.0: ERROR: GPU has stopped responding
-[Wed Jul 30 15:40:23 2026] NVRM: Xid (PCI:0000:17:00.0): 94, GPU has fallen off the bus.
+[Wed Jul 30 15:40:23 2026] NVRM: Xid (PCI:0000:17:00.0): 79, GPU has fallen off the bus.
 ```
 
 **This log sequence means:**
 1. GPU driver initialized normally
 2. GPU was working
-3. GPU stopped responding (Xid 94 is "GPU fell off bus" — usually a PCIe link issue or GPU hardware failure)
+3. GPU stopped responding (Xid 79 is "GPU fell off bus" — usually a PCIe link issue or GPU hardware failure)
 4. This GPU is now offline until manually recovered or server is rebooted
 
 ### Level 3: Traces for Deep Profiling

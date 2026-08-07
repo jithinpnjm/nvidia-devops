@@ -397,9 +397,9 @@ ITL latency returned to 18ms per token.
 
 | Prometheus Metric | Type | Description | Target Operational Threshold |
 |---|---|---|---|
-| `vllm:gpu_cache_usage_perc` | Gauge | Percentage of allocated GPU PagedAttention blocks currently in use | `< 85%` nominal, alert at `> 95%` |
+| `vllm:gpu_cache_usage_perc` | Gauge | Percentage of allocated GPU PagedAttention blocks currently in use | `&lt; 85%` nominal, alert at `> 95%` |
 | `vllm:cpu_cache_usage_perc` | Gauge | Percentage of CPU swap space blocks in use | Should strictly be `0%` |
-| `vllm:num_requests_waiting` | Gauge | Number of requests queued in the engine admission queue | `< 10` nominal |
+| `vllm:num_requests_waiting` | Gauge | Number of requests queued in the engine admission queue | `&lt; 10` nominal |
 | `vllm:num_requests_running` | Gauge | Number of requests concurrently executing in GPU engine | Near `C_max` capacity |
 | `vllm:num_preempted_requests_total` | Counter | Total count of requests preempted due to memory exhaustion | Must be `0` |
 | `vllm:prompt_tokens_total` | Counter | Cumulative prefill tokens processed | Used for throughput calculation |

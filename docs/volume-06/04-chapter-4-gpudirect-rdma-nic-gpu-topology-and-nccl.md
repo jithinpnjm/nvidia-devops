@@ -113,9 +113,9 @@ NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=NET python train.py 2>&1 | grep -o 'via [A-Z/]
 
 ➕ **Extended version, with the exact commands for each of the five steps:**
 > 1. `nvidia-smi topo -m` on the replacement node **and** a healthy peer, diffed side by side — a hardware swap that changed PCIe slot assignment will show up here as a different NV-link/PXB/SYS pattern immediately, before touching the network at all.
-> 2. `ibstat` + `ethtool -S <iface> | egrep -i 'drop|pause|ecn|error'` on the replacement node specifically, compared against the same on two healthy peers — asymmetric error counters localize a bad cable/transceiver/port that "the link is up" alone would hide.
+> 2. `ibstat` + `ethtool -S &lt;iface&gt; | egrep -i 'drop|pause|ecn|error'` on the replacement node specifically, compared against the same on two healthy peers — asymmetric error counters localize a bad cable/transceiver/port that "the link is up" alone would hide.
 > 3. `NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=NET` grep for `GDRDMA` as shown above — a node silently missing GPUDirect RDMA on some channels is a very common outcome of a node replacement (new node, old driver/kernel-module version, or BIOS default reset an IOMMU/ACS setting).
-> 4. `numactl --hardware` and `lspci -vvv | grep -A5 <NIC PCI address>` — confirm PCIe link is negotiated at full width/speed (`LnkSta: Speed 16GT/s, Width x16` and not a degraded `x8` or `8GT/s` — a reseated card or dirty slot can silently downgrade this).
+> 4. `numactl --hardware` and `lspci -vvv | grep -A5 &lt;NIC PCI address&gt;` — confirm PCIe link is negotiated at full width/speed (`LnkSta: Speed 16GT/s, Width x16` and not a degraded `x8` or `8GT/s` — a reseated card or dirty slot can silently downgrade this).
 > 5. Pull the node from the job (or run `ib_write_bw`/`nccl-tests` pairwise against it in isolation) and re-measure — this converts "we think it's this node" into "removing this node restored throughput," which is the causal proof a customer or postmortem needs.
 > **Interview-ready line:** "One straggler node doesn't just run slow itself — at a synchronization barrier, everyone waits for it, so a 5% local slowdown on one of 32 nodes can look like a 100% job-wide slowdown if it's bad enough to blow past a collective timeout."
 

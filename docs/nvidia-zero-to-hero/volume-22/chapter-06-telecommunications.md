@@ -9,7 +9,7 @@
 ## Overview
 
 Telecom networks manage 10,000-100,000 network elements. ML operates at:
-1. Real-time anomaly detection (per-device, <5 sec latency)
+1. Real-time anomaly detection (per-device, &lt;5 sec latency)
 2. Optimization modeling (10,000 devices, updated every 5 minutes)
 3. Capacity planning (3-6 month forecast, weekly)
 
@@ -19,7 +19,7 @@ Telecom networks manage 10,000-100,000 network elements. ML operates at:
 - Network elements: 10,000
 - KPIs per element: 1,000 metrics
 - Update frequency: Every 5 minutes
-- Latency SLA: <30 seconds per optimization cycle
+- Latency SLA: &lt;30 seconds per optimization cycle
 - Uptime: 99.99%
 
 ### Architecture: 8 A100s + Kafka streaming
@@ -39,7 +39,7 @@ Telecom networks manage 10,000-100,000 network elements. ML operates at:
 
 **Availability:**
 - Primary: 8 A100s (active inference)
-- Standby: 2 A100s (hot standby, failover <30 sec)
+- Standby: 2 A100s (hot standby, failover &lt;30 sec)
 - Degraded mode: 2 A100s = 30% throughput (acceptable for 30 sec)
 
 ## Cost Justification

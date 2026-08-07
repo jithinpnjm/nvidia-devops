@@ -16,6 +16,7 @@ By the end of this project, you will be able to:
 - Design multi-node GPU interconnect (NVLink, Infiniband, Ethernet)
 - Size storage for checkpointing and fault tolerance
 - Calculate expected throughput and verify via simulation
+- **Sanity-check a stated requirement against a stated budget early — and know how to communicate an honest gap to a stakeholder instead of quietly fudging the numbers**
 - Document architectural decisions and tradeoffs
 
 ## Problem Statement
@@ -27,6 +28,8 @@ A research lab needs a GPU cluster to train large language models:
 - Fault tolerance: Survive any single GPU failure without data loss
 - Cost: $5M all-in (CapEx + 3 years OpEx)
 - Operability: No single point of failure; automatic recovery from failures
+
+**A note on this brief, before you start:** as written, the throughput and budget requirements above are not simultaneously achievable — the FLOPs math in Step 1 will show that hitting 100 trillion tokens/year for a 50B-parameter model takes on the order of 200,000+ H100-years, while $5M buys roughly 100 H100s. That mismatch is deliberate and is part of the exercise: a real infrastructure architect frequently receives requirements that don't reconcile, and the job is to catch that *before* committing to a design, quantify the gap, and bring options back to the stakeholder — not to silently under-deliver or hand-wave the arithmetic until it looks like it works. Design the best $5M cluster you can (Steps 2–5), and treat "quantify and communicate the shortfall" as a first-class deliverable alongside the hardware spec.
 
 **Unknowns (you must decide):**
 - Number of GPUs? (100? 128? 256?)
@@ -46,26 +49,21 @@ Tokens per year: 100 trillion
 Tokens per step: batch_size × seq_length = 256 × 2048 = 524,288 tokens
 Model FLOPs per token: 2 × model_size = 2 × 50B = 100 GFLOP
 
-Total FLOPs per year: 100T × 100G = 10^22 FLOPs
+Total FLOPs per year: 100T × 100G = 10^14 × 10^11 = 10^25 FLOPs
 H100 throughput: 1400 TFLOPS (FP8, with Tensor Cores) = 1.4 × 10^12 FLOPs/sec
 Seconds per year: 365.25 × 24 × 3600 = 31,557,600
-Available compute: 1.4 × 10^12 × 31,557,600 = 4.42 × 10^19 FLOPs
+Available compute per GPU-year: 1.4 × 10^12 × 31,557,600 = 4.42 × 10^19 FLOPs
 
-GPUs needed: 10^22 / (4.42 × 10^19) ≈ 226 GPU-years
+GPUs needed: 10^25 / (4.42 × 10^19) ≈ 226,244 GPU-years
 
-For continuous training (1 year): 226 GPUs
+For continuous training (1 year): ~226,244 GPUs
 ```
 
-**But add overheads:**
-- Fault tolerance: keep 1 GPU idle as hot spare (226 / 0.99 ≈ 228)
-- Synchronization overhead: AllReduce takes 5-10% of time → 228 × 1.08 ≈ 246
-- Practical batch size (memory): can't fit batch 256 on single GPU; need 4-8 GPUs per replica
-  - Total replicas needed: 256 / 32 (batch per GPU) = 8 replicas
-  - If each replica is 246 GPUs, total = 246 × 8 / 8 = 246 (no change, but matters for topology)
+**Design tension — read this before continuing:** 226,244 GPUs is roughly 2,500× more than a $5M budget can buy at ~$40K/H100 (that budget buys ~100 GPUs). Something in the stated requirements doesn't fit together: a 50B-parameter model producing 100 trillion tokens/year of *training* throughput on a $5M cluster is not physically achievable — that combination of (model size × token target × budget) describes different orders of magnitude of infrastructure (this is closer to the compute budget of a large multi-thousand-GPU frontier training run, not a $5M research cluster). Two honest paths forward, both of which a real infrastructure architect would take:
+1. **Push back on the requirement.** Ask what "100T tokens/year" actually needs to mean — is it *inference* serving volume (a very different, much cheaper FLOPs/token workload), or was the token target set without a compute budget sanity-check?
+2. **Design to what the budget can deliver, and report the gap.** This is the path taken below (Steps 2–4): size a cluster to the $5M budget, calculate what it can *actually* deliver using directly-measured per-GPU throughput (Step 4), and report the shortfall honestly rather than reverse-engineering the arithmetic to make the numbers agree.
 
-**Conclusion: 256 GPUs (round up for 50% headroom)** or 128 GPUs (tight) or 100 GPUs (very tight, not recommended)
-
-Choose: **100 GPUs** to stay in budget; will be at 85% utilization (acceptable for research).
+Choose: **90–100 GPUs** to stay in budget. As Step 4 will show, this cluster delivers roughly 22–25 trillion tokens/year — a genuine ~4× shortfall against the stated 100T/year target that any design review should surface, not hide.
 
 ### Step 2: Design Interconnect Topology
 
@@ -115,18 +113,20 @@ Choose: 90 GPUs, use cheaper IB (HDR100 vs HDR) → CapEx ~$4.8M
 **Throughput per GPU:**
 - H100 peak: 1400 TFLOPS (FP8)
 - Real achieved: 1000 TFLOPS (accounting for kernel overhead, memory stalls, synchronization)
-- Per-GPU throughput: 1000 × 3600 seconds = 3.6M GFLOP-seconds per hour
-- Tokens per hour per GPU: 3.6M G / 100 G per token = 36M tokens/hour
+- Per-GPU throughput: 1000 TFLOPS × 3600 seconds = 3.6 × 10^18 FLOP per hour (3.6 EFLOP/hour)
+- Tokens per hour per GPU: 3.6 × 10^18 FLOP / (100 GFLOP/token = 1 × 10^11 FLOP/token) = 36M tokens/hour
 
 **Cluster throughput:**
 - 90 GPUs × 36M tokens/hour = 3.24B tokens/hour
 - Per year (assume 24/7 operation with 80% availability for failures/maintenance):
-  - 3.24B × 24 × 365 × 0.80 = 226T tokens/year ✓ Meets requirement
+  - 3.24B × 24 × 365 × 0.80 ≈ 22.7 trillion tokens/year
+
+**This is the honest answer, and it doesn't meet the stated requirement.** 22.7T tokens/year against a 100T/year target is a **4.4× shortfall** — consistent with Step 1's FLOPs-counting method, which showed the 100T/year target needs ~226,000 GPU-years of compute, not the ~100-GPU-year budget this cluster provides. To close the gap at this same per-GPU rate would take ~396 GPUs (100T / 22.7T × 90 ≈ 396) — call it ~$16M in GPU CapEx alone, well beyond the $5M budget. Report both numbers (22.7T achievable vs. 100T requested) to the stakeholder rather than picking whichever framing looks better.
 
 **Latency per step:**
 - Compute: 50B param model, batch 256 per cluster → 100 GFLOP, 1000 TFLOP/s → 100ms compute time
 - AllReduce: 900GB gradients, 4.1 TB/s bandwidth → 220ms if on single GPU; but with ring AllReduce, ~50ms
-- Total step time: 100 + 50 = 150ms (< 300ms target) ✓ Sufficient margin
+- Total step time: 100 + 50 = 150ms (&lt; 300ms target) ✓ Sufficient margin
 
 ### Step 5: Architecture Diagram
 
@@ -179,9 +179,9 @@ flowchart TD
 ## Success Criteria
 
 1. **Hardware justified:** Clear rationale for GPU count, topology, and networking choices
-2. **Throughput validated:** 226+ tokens/year from cluster, verified via calculation
+2. **Throughput validated and gap reported honestly:** Calculate actual achievable throughput for the budget-sized cluster (~22.7T tokens/year for 90 GPUs); explicitly quantify and report the shortfall against the 100T/year requirement rather than making the arithmetic appear to reconcile
 3. **Cost within budget:** Total $5M (including 3 years OpEx)
-4. **Fault tolerance:** Design survives single GPU failure; recovery time < 2 minutes
+4. **Fault tolerance:** Design survives single GPU failure; recovery time &lt; 2 minutes
 5. **Operability:** Automated monitoring and recovery; no manual intervention
 6. **Documentation:** Architecture document with decisions and tradeoffs
 
@@ -219,13 +219,28 @@ Total Cost: $6.675M ← Exceeds budget by $1.675M
 COST OPTIMIZATION:
 - Reduce to 80 GPUs: saves $0.8M CapEx → Total $4.375M CapEx, fits budget
 - Or: Use A100 + H100 hybrid: A100 for larger batches, H100 for latency-critical
+
+REQUIREMENTS GAP ANALYSIS (report this honestly — do not omit it)
+──────────────────────────────────────────────────────────────────
+Requested throughput:     100 trillion tokens/year
+Achievable throughput:    ~22.7 trillion tokens/year (90 H100s, measured per-GPU rate)
+Shortfall:                 ~4.4×
+GPUs needed to close gap: ~396 (vs. 90-100 in budget)
+Est. CapEx to close gap:  ~$16M (GPUs alone), vs. $5M total budget
+
+Recommendation to stakeholder: proceed with the 90-GPU / $5M design as the
+best cluster this budget can buy, but do not represent it as meeting the
+100T-tokens/year target. Either (a) revisit the token target — confirm
+whether it should describe training or a much-cheaper inference workload,
+or reduce the target to ~20-25T tokens/year to match this budget, or
+(b) request additional budget (~$16M+) to reach the original target.
 ```
 
 ## Production Troubleshooting
 
 | Observation | Root Cause | Diagnostic | Fix |
 |---|---|---|---|
-| Training throughput 150T tokens/year (vs 226T target) | AllReduce bottleneck; IB link saturation or inefficient algorithm | Profile with NCCL trace; check IB link utilization (perfquery) | Optimize AllReduce: use ring instead of tree; or add more IB links (NIC teaming) |
+| Training throughput 15T tokens/year (vs ~22.7T achievable-capacity target) | AllReduce bottleneck; IB link saturation or inefficient algorithm | Profile with NCCL trace; check IB link utilization (perfquery) | Optimize AllReduce: use ring instead of tree; or add more IB links (NIC teaming) |
 | One GPU fails; training stops immediately | Fault tolerance not implemented; checkpointing disabled | Check job logs; no checkpoint files found | Enable checkpoint every 100 steps to NVMe + S3 |
 | Node power consumption 15 kW (exceeds 10 kW budget) | All GPUs at peak throughput simultaneously; power delivery insufficient | Monitor power per node: `ipmitool dcmi power reading` | Implement power cap (85% of peak) or reduce batch size |
 | Inter-node communication slower than expected (80 ms AllReduce vs 50 ms) | IB fabric not fully initialized; link speeds not negotiated correctly | Run `ibnetdiscover` and check link speeds (should be 200 GB/s) | Reseat IB cables; update firmware; check switch port speed settings |
@@ -234,7 +249,7 @@ COST OPTIMIZATION:
 
 ### Phase 1: Requirements to Hardware Mapping
 
-1. **Throughput (100T tokens/year)** → 90–100 GPUs (H100)
+1. **Throughput (100T tokens/year requested)** → budget caps this at 90–100 GPUs (H100), which delivers ~22.7T tokens/year — size to budget, then report the shortfall (see Step 1's design-tension note)
 2. **Fault tolerance** → 10 spare GPUs (10% overhead)
 3. **Cost ($5M)** → H100 is core cost ($40K × 100 = $4M); networking/storage $1M
 4. **Topology (25 nodes, 4 GPUs)** → NVLink intra-node, IB inter-node
@@ -291,11 +306,11 @@ nvidia-smi -q | grep "Temperature\|Power Draw\|VRAM Used"
 
 **A:** (Spoken answer)
 
-"First, I'd calculate how many GPUs I need. 100 trillion tokens per year, 50B parameter model. Each GPU can do about 1400 TFLOPS with Tensor Cores (FP8). That's 1.4 × 10^12 FLOPs per second. Over a year, that's about 4.4 × 10^19 FLOPs available per GPU.
+"First, I'd calculate how many GPUs I need. 100 trillion tokens per year, 50B parameter model, 2 FLOPs per parameter per token. Each GPU can do about 1400 TFLOPS with Tensor Cores (FP8) — 1.4 × 10^12 FLOPs per second, or about 4.4 × 10^19 FLOPs per GPU-year.
 
-100 trillion tokens × 2 (forward + backward) × 50B parameters = 10^22 FLOPs total needed. Divide by 4.4 × 10^19, and I need about 230 GPU-years. But since I'm running for 1 year continuously, that's 230 GPUs.
+100 trillion tokens × 100 GFLOP/token = 10^25 FLOPs total needed. Divide by 4.4 × 10^19 FLOPs/GPU-year, and I need about 226,000 GPU-years. That's not a rounding issue — it's roughly 2,500× more than a $5M budget buys (about 100 GPUs at $40K each).
 
-But I can't afford 230 GPUs on a $5M budget (that's $9M for GPUs alone). So I optimize: use cheaper models, mixed precision (more FP8 than FP32), batch processing (amortize compute). I get down to about 100–120 GPUs.
+At that point I stop and flag it: the throughput target and the budget don't reconcile. I wouldn't quietly shrink the design to fit — I'd go back to the stakeholder with the math and ask whether '100T tokens/year' really means training throughput at this budget, or whether it's actually an inference workload, or whether the budget needs to be ~$16M+ to hit a smaller-but-real gap, or whether the target itself should come down to what $5M can deliver (I calculate that in Step 4: about 22.7 trillion tokens/year for a 90-GPU cluster). For the rest of the design, I proceed with the ~90-100 GPUs the budget actually supports, and I carry the 4.4× shortfall forward as a documented, reported number — not something to paper over.
 
 Next, topology. I can't put 100 GPUs on one node; that's physically impossible. Max is 8 GPUs per node (4 in NVLink groups, or 8 with careful PCIe placement). So I'd build 25 nodes with 4 GPUs each.
 
@@ -311,33 +326,35 @@ The final design: 90 GPUs, 25 nodes, IB HDR fabric, local NVMe + S3 checkpointin
 
 **Q: How do you validate your design meets the requirements?**
 
-**A:** "I'd do three things:
+**A:** "I'd do three things — and I'd report what I find honestly, even when it's not what the requirements doc wanted to hear.
 
-1. **Calculate throughput:** Tokens per year = GPUs × tokens_per_gpu_per_year. 90 GPUs × 36M tokens/hour × 24 hours × 365 days × 80% availability (for failures, maintenance) = ~220T tokens/year. ✓ Meets 100T requirement with margin.
+1. **Calculate throughput:** Tokens per year = GPUs × tokens_per_gpu_per_year. 90 GPUs × 36M tokens/hour × 24 hours × 365 days × 80% availability (for failures, maintenance) ≈ 22.7T tokens/year. That's a 4.4× shortfall against the 100T requirement — I'd say so explicitly, not round it up or bury it in a footnote.
 
-2. **Simulate AllReduce latency:** Ring AllReduce on 25 nodes with 900 GB gradient tensor, IB 200 GB/s link → ~50ms per AllReduce. Training step = 100ms compute + 50ms AllReduce = 150ms per step. ✓ Well under 300ms budget.
+2. **Simulate AllReduce latency:** Ring AllReduce on 25 nodes with 900 GB gradient tensor, IB 200 GB/s link → ~50ms per AllReduce. Training step = 100ms compute + 50ms AllReduce = 150ms per step. ✓ Well under 300ms budget — this constraint is fine.
 
-3. **Verify cost:** CapEx ($4.8M) + 3 years OpEx ($1.2M power, staff) = $6M. Still over budget, so cut 10 GPUs → $5.3M. Negotiate for 10% discount from vendor → $4.8M. Done.
+3. **Verify cost:** CapEx ($4.8M) + 3 years OpEx ($1.2M power, staff) = $6M. Still over budget, so cut 10 GPUs → $5.3M. Negotiate for 10% discount from vendor → $4.8M. Cost fits — but note that a smaller GPU count makes the throughput shortfall worse, not better.
 
-Then I'd build a prototype on 8 GPUs, verify my assumptions about throughput and latency, and scale to 90."
+Then I'd build a prototype on 8 GPUs, verify my assumptions about throughput and latency, and take the throughput gap back to the stakeholder as an explicit decision point: shrink the token target, add budget, or reconsider whether the workload is really training-shaped in the first place."
 
 ## Evaluation Rubric
 
-| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (<60%) |
+| Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (&lt;60%) |
 |---|---|---|---|---|
 | **Hardware justified** | Clear calc for GPU count, topology, networking; all choices rationalized | Good justification with minor gaps | Basic hardware selected; limited reasoning | Unjustified or inaccurate choices |
-| **Throughput validated** | 226+ tokens/year calculated and verified; margin checked | 200T+ tokens; reasonable assumptions | 150+ tokens; some assumptions unclear | <150T or no validation |
-| **Cost compliance** | Total cost < $5M with ≥10% headroom | < $5.2M, small margin | Exactly on or <5% over | >5% over or no cost detail |
-| **Fault tolerance** | Design survives single GPU failure; recovery < 2 min; checkpointing strategy clear | Survives failure with some manual steps | Recovery works but slow (>5 min) | No fault tolerance or manual only |
+| **Throughput validated** | Correctly computes ~22.7T tokens/year achievable for the budget-sized cluster (via Step 1 FLOPs-counting AND Step 4 per-GPU methods, cross-checked); explicitly reports the ~4.4× shortfall vs. the 100T/year requirement and proposes concrete options (revise target, add budget, reconsider workload) | Computes achievable throughput correctly but doesn't fully cross-check both methods; shortfall reported but options underdeveloped | Computes throughput with a units/magnitude error but catches that it falls short of 100T | Claims the 100T/year requirement is met (it is not, at this budget) or throughput isn't calculated |
+| **Cost compliance** | Total cost &lt; $5M with ≥10% headroom | &lt; $5.2M, small margin | Exactly on or &lt;5% over | >5% over or no cost detail |
+| **Fault tolerance** | Design survives single GPU failure; recovery &lt; 2 min; checkpointing strategy clear | Survives failure with some manual steps | Recovery works but slow (>5 min) | No fault tolerance or manual only |
 | **Architecture document** | Complete spec with diagrams, rationale, tradeoffs, bill of materials | Good spec with most details | Basic design described | Minimal or unclear documentation |
 
 ## Key Takeaways
 
 1. **Throughput requirement → GPU count:** Calculate FLOPs needed; divide by per-GPU peak to size cluster.
-2. **Topology matters:** Intra-node (NVLink) vs inter-node (IB) tradeoffs drive design.
-3. **Cost is real:** Dream designs fail budget; optimize aggressively.
-4. **Fault tolerance is essential:** Checkpointing and automatic recovery prevent disasters.
-5. **Document decisions:** Why this topology? Why this network? Future engineers need to understand.
+2. **Sanity-check requirements against budget before you design anything:** A 50B-parameter model at 100T tokens/year needs ~226,000 GPU-years — about 2,500× what a $5M budget buys. Catching that mismatch in Step 1 (via a straightforward order-of-magnitude FLOPs calculation) takes minutes; discovering it after building the cluster does not.
+3. **Report gaps, don't hide them:** When budget and requirements don't reconcile, design the best system the budget affords, quantify the shortfall precisely, and bring it to the stakeholder as a decision (revise target, add budget, change workload) — not as a design failure to be obscured with optimistic arithmetic.
+4. **Topology matters:** Intra-node (NVLink) vs inter-node (IB) tradeoffs drive design.
+5. **Cost is real:** Dream designs fail budget; optimize aggressively.
+6. **Fault tolerance is essential:** Checkpointing and automatic recovery prevent disasters.
+7. **Document decisions:** Why this topology? Why this network? Future engineers need to understand.
 
 ## Discussion Questions
 

@@ -239,7 +239,7 @@ For PP: Monitor bubble via timeline profiler
 
 | Signal | TP indicator | PP indicator |
 |---|---|---|
-| Communication overhead | > 5% of step time | < 1% (communication happens across node boundary) |
+| Communication overhead | > 5% of step time | &lt; 1% (communication happens across node boundary) |
 | GPU utilization pattern | Smooth (constant ~90%) | Sawtooth (fills then empties pipeline) |
 | Per-GPU step time variance | Identical (within 5%) | Varies by stage (edges have bigger bubbles) |
 

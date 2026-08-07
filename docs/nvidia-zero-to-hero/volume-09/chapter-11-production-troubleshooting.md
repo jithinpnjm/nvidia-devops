@@ -249,6 +249,9 @@ State facts separately from hypotheses. For example: “Ranks 8–15 show increa
 
 - [RFC 3168: Explicit Congestion Notification](https://www.rfc-editor.org/info/rfc3168/)
 - [NVIDIA networking documentation](https://docs.nvidia.com/networking/)
+
+## Further Reading
+
 - [NVIDIA RoCE documentation](https://docs.nvidia.com/networking-ethernet-software/cumulus-linux-44/Layer-1-and-Switch-Ports/Quality-of-Service/RDMA-over-Converged-Ethernet-RoCE/)
 - [Volume 07 collective paths](../volume-07/chapter-09-multi-node-collectives-and-nccl-paths)
 

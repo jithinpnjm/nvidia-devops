@@ -8,7 +8,7 @@ source_document: "Volume_08_Senior_Solutions_Architecture_Practice(2).docx"
 A PoC is not a product demo. Start with the architecture uncertainty that could invalidate the recommendation: Can the storage system feed 64 GPUs? Does disaggregated inference improve SLO/TCO for this prompt mix? Does RoCE remain stable under concurrent training? Can the customer’s security controls work with privileged GPU operands? Define success thresholds, workload generator, telemetry and failure tests before implementation.
 
 
-<!-- source-table:1 -->
+&lt;!-- source-table:1 --&gt;
 
 | PoC question | Metric | Pass/fail example |
 | --- | --- | --- |

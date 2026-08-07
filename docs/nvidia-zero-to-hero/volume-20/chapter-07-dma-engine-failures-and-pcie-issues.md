@@ -8,10 +8,10 @@ description: "Detect and diagnose GPU DMA engine failures, PCIe link errors, and
 ## Symptoms
 
 - PCIe error counters increment rapidly in dmesg
-- GPU falls off PCIe bus (`0000:00:1e.0 ... no hotplug support`)
+- GPU falls off PCIe bus (`0000:00:1e.0 ... no hotplug support`), reported as **Xid 79**
 - GPU becomes unresponsive after several minutes of heavy I/O
-- Host-to-GPU memory copies slow or fail
-- Xid 94 or Xid 63 errors (GPU lost PCIe link)
+- Host-to-GPU memory copies slow or fail, sometimes accompanied by **Xid 31** (GPU memory page fault)
+- Xid 94 or Xid 63 may also appear alongside DMA/PCIe events — these are ECC/memory-remapping codes, not bus-link codes (see Interpretation below), and point to the ECC subsystem (Chapter 05) rather than the PCIe link itself
 
 ## Evidence
 
@@ -29,7 +29,7 @@ description: "Detect and diagnose GPU DMA engine failures, PCIe link errors, and
 
 ```mermaid
 flowchart TD
-    A["GPU Falls Off Bus or Xid 94/63?"] -->|Yes| B{"dmesg shows DMA error?"}
+    A["GPU Falls Off Bus (Xid 79) or<br/>DMA Page Fault (Xid 31)?"] -->|Yes| B{"dmesg shows DMA error?"}
     A -->|No| C["Check PCIe bandwidth"]
     B -->|Yes| D{"Error in upstream or GPU?"}
     B -->|No| E{"Check GPU power cables"}
@@ -54,12 +54,14 @@ $ dmesg | grep -i "dma\|pcie\|xid\|fault" | tail -30
 [12345.678910] nvidia: PCIe error detected on slot GPU:0000:08:00.0
 [12345.678915] nvidia: GPU pci_link_speed_mismatch: expected Gen4 x16, got Gen3 x8
 [12345.678920] nvidia: GPU fell off bus - will not recover
-[12345.678925] Xid (PCI 0000:08:00.0): 94 ... GPU video memory access fault
+[12345.678925] Xid (PCI 0000:08:00.0): 79 ... GPU has fallen off the bus
 ```
 
-**Interpretation:**
-- Xid 94 = GPU video memory access fault (DMA engine error)
-- Xid 63 = GPU lost PCIe link
+**Interpretation (correct Xid mapping per NVIDIA's official Xid reference):**
+- **Xid 79 = "GPU has fallen off the bus"** — the GPU is no longer responding on the PCIe bus; this is the code for this chapter's headline symptom. Confirm with `lspci` (device missing) and treat as a hardware/link failure, not software-recoverable.
+- **Xid 31 = "GPU memory page fault"** — the closer code for a genuine GPU-side memory-access/DMA-target fault. If dmesg shows an address-fault message without the GPU disappearing from `lspci`, look for Xid 31, not 94.
+- **Xid 94 = "Contained ECC error"** — a correctable/contained memory error the GPU handled itself; it is an ECC event, not a PCIe/DMA-link failure. Do not treat it as a bus-fall-off signal.
+- **Xid 63 = "ECC page retirement or row remapping recording event"** — the GPU is recording a memory location for retirement/remap after an ECC event; also not a PCIe/DMA-link code. If you see 63, go to the ECC chapter (Chapter 05), not this one.
 - DMAR fault = IOMMU/DMA remapping error
 - Link speed/width mismatch = configuration problem
 
@@ -101,7 +103,7 @@ Transfer Size (Bytes)        Bandwidth (GB/s)
 33554432                     2.3
 ```
 
-**Baseline:** Should see 10-12 GB/s for PCIe Gen4 x16, or 5-6 GB/s for Gen3 x8
+**Baseline:** PCIe Gen4 x16 raw link rate is ~31.5 GB/s unidirectional (64 GB/s bidirectional aggregate); real-world `bandwidthTest` H2D/D2H throughput after encoding/protocol overhead is typically **20-26 GB/s** unidirectional. For Gen3 x16, expect ~10-12 GB/s (roughly half of Gen4).
 
 **Current:** 2.3 GB/s → **80% slower than expected** → DMA engine degraded or link width negotiated wrong.
 
@@ -252,7 +254,7 @@ At this point:
    ```bash
    bandwidthTest --device 0
    
-   # Expected: 10-12 GB/s (Gen4 x16)
+   # Expected: 20-26 GB/s (Gen4 x16)
    ```
 
 4. **No errors in dmesg:**
@@ -282,10 +284,10 @@ At this point:
 
 | Symptom | Evidence | Root Cause | Fix | Verification |
 |---------|----------|-----------|-----|--------------|
-| Xid 94 error, GPU slow | dmesg shows "GPU video memory access fault", DCGM DMA errors > 10/sec | DMA engine bit error or power delivery glitch | Reset GPU with `nvidia-smi --reset`, rescan PCIe bus with echo 1 > /sys/bus/pci/rescan | DMA errors drop to 0, bandwidthTest returns to 10+ GB/s |
-| Xid 63, GPU falls off bus | dmesg shows "GPU lost PCIe link", lspci shows no GPU | PCIe link training failure or power loss | Reseat GPU power cables, run `echo 1 > /sys/bus/pci/devices/.../remove && echo 1 > /sys/bus/pci/rescan` | lspci shows GPU, lspci -vvv shows Gen4 x16 negotiation |
+| Xid 31 error, GPU slow | dmesg shows "GPU memory page fault", DCGM DMA errors > 10/sec | DMA engine bit error or power delivery glitch causing a GPU memory access fault | Reset GPU with `nvidia-smi --reset`, rescan PCIe bus with echo 1 > /sys/bus/pci/rescan | DMA errors drop to 0, bandwidthTest returns to 20+ GB/s |
+| Xid 79, GPU falls off bus | dmesg shows "GPU has fallen off the bus", lspci shows no GPU | PCIe link training failure or power loss | Reseat GPU power cables, run `echo 1 > /sys/bus/pci/devices/.../remove && echo 1 > /sys/bus/pci/rescan` | lspci shows GPU, lspci -vvv shows Gen4 x16 negotiation |
 | Bandwidth drops 12 → 2 GB/s | bandwidthTest shows low throughput, lspci shows x8 instead of x16 | Link trained down to Gen3 x8 due to error resilience | Disable link power management, rescan with PCIe reset | Bandwidth returns to 10+ GB/s, lspci shows x16 |
-| Intermittent Xid 94 errors | DCGM DMA errors spike to 50+/sec then drop to 0 | Thermal stress on GPU power delivery or DMA controller transient error | Check GPU temperature and power stability, reapply thermal paste, reduce GPU power limit | Temperature stable, DMA errors do not recur |
+| Intermittent Xid 94 (contained ECC) events | DCGM ECC error counters increment, no bus/link disruption | Contained/correctable ECC bit flip — GPU handled it without falling off the bus | Note the event, check ECC page-retirement counters; escalate only if frequency rises (see Chapter 05) | ECC event rate stays low, no data corruption, GPU stays on bus |
 | GPU unresponsive after error | nvidia-smi hangs or times out, lspci shows GPU but driver unreachable | GPU stuck in error state, needs full hardware reset | Power-cycle GPU or node, rescan PCIe bus | GPU responsive, nvidia-smi returns immediately |
 
 ## Prevention
@@ -311,7 +313,7 @@ At this point:
    #!/bin/bash
    for gpu in {0..7}; do
      bw=$(bandwidthTest --device $gpu | grep "^[ ]*[0-9]" | tail -1 | awk '{print $NF}')
-     expected=11.0  # Gen4 x16
+     expected=22.0  # Gen4 x16
      if (( $(echo "$bw < $expected * 0.8" | bc -l) )); then
        echo "WARNING: GPU $gpu bandwidth degraded: ${bw} GB/s (expected > 8.8 GB/s)"
      fi
@@ -343,7 +345,7 @@ At this point:
 - Multiple GPUs in same node show DMA errors simultaneously (motherboard/root complex issue)
 - Link trains down to Gen3 x8 persistently despite retrain attempts
 - GPU becomes unresponsive (falls off bus) after DMA reset
-- Bandwidth remains < 50% of expected even after full reset
+- Bandwidth remains &lt; 50% of expected even after full reset
 
 **Escalation data to collect:**
 
@@ -369,9 +371,9 @@ nvidia-smi -i 0 -q >> dma_escalation.log 2>&1
 
 ### Interview Preparation
 
-**Q: "GPU throws a Xid 94 error during a large data transfer and we lose the GPU. How would you diagnose this?"**
+**Q: "GPU throws a Xid 79 error during a large data transfer and we lose the GPU. How would you diagnose this?"**
 
-A: "Xid 94 means GPU video memory access fault — something went wrong when the GPU tried to read or write memory via DMA. First, I'd check dmesg to see if there are any associated error messages. If dmesg shows DMAR faults or IOMMU errors, it's a system-level DMA problem. If not, it's specific to the GPU's DMA engine. I'd immediately try `nvidia-smi --reset` to see if that recovers the GPU. If reset works, I'd run a bandwidth test to see if DMA bandwidth is back to normal — if it's much slower, the link may have trained down and I'd rescan the PCIe bus to retrain it. If reset doesn't work and the GPU falls off the bus, I'd check the power cables to the GPU in case one is loose. If everything looks good electrically, the GPU's DMA engine is probably failing and needs replacement."
+A: "Xid 79 means the GPU has fallen off the PCIe bus — it's no longer enumerable, which is different from an ECC event like Xid 94 or 63 that the GPU can contain and keep running through. First, I'd confirm with `lspci | grep -i nvidia` — if the GPU is missing entirely, that confirms 79 rather than a memory-access fault (which would show as Xid 31 with the GPU still present). I'd check dmesg for DMAR faults or IOMMU errors to see if it's a system-level DMA problem versus something specific to the GPU. I'd try a PCIe rescan first (`echo 1 > .../remove && echo 1 > /sys/bus/pci/rescan`) since that's non-disruptive to other GPUs, and only power-cycle the node if the rescan doesn't bring it back. If reset/rescan works, I'd run a bandwidth test — if it's much slower than the ~20-26 GB/s Gen4 x16 baseline, the link retrained at reduced width and I'd check power cables and PCIe slot seating before escalating to hardware replacement."
 
 **Q: "We see PCIe bandwidth drop from 12 GB/s to 2 GB/s on one GPU. What's your hypothesis?"**
 

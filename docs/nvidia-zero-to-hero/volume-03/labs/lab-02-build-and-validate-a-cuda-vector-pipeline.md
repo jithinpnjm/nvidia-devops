@@ -518,7 +518,7 @@ Create a copy:
 cp vector_add.cu vector_add-no-bounds.cu
 ```
 
-Edit the kernel so it always writes `c[index]` without checking `index < count`.
+Edit the kernel so it always writes `c[index]` without checking `index &lt; count`.
 
 Compile and test with:
 

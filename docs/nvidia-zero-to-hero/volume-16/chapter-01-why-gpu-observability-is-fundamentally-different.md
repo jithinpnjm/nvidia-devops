@@ -168,17 +168,17 @@ index,name,uuid,driver_version,memory.total,memory.used,memory.free,temperature.
    - Check clocks: if they're at idle speeds (300-500 MHz), the GPU is clock-gating and not running
 
 3. **Is the GPU compute-bound or memory-bound?**
-   - DCGM metric `GPU_MEMORY_BANDWIDTH_USED`: if it's above 80% of peak, GPU is waiting for memory, not compute
-   - SM occupancy from `nvidia-smi -q` or DCGM `GPU_SM_OCCUPANCY`: if under 40%, kernel is not filled; scheduler is starved
-   - Achieved throughput vs. peak throughput: a typical A100 should achieve 300+ TFLOP/s on FP32 matrix ops; if you're seeing 20 TFLOP/s with high utilization, memory bandwidth is the ceiling
+   - DCGM metric `DCGM_FI_PROF_DRAM_ACTIVE`: if it's above 80% of peak, GPU is waiting for memory, not compute
+   - SM occupancy from `nvidia-smi -q` or DCGM `DCGM_FI_PROF_SM_OCCUPANCY`: if under 40%, kernel is not filled; scheduler is starved
+   - Achieved throughput vs. peak throughput: a typical A100 should achieve ~19.5 TFLOPS on FP32 (CUDA core) matrix ops (or ~156 TFLOPS on TF32 Tensor Core ops); if you're seeing a small fraction of that with high utilization, memory bandwidth is the ceiling
 
 4. **Is anything throttling?**
    - `nvidia-smi -q` shows thermal throttle count and power throttle count
-   - DCGM exports `GPU_THERMAL_SLOWDOWN` and `GPU_POWER_SLOWDOWN` counters
+   - DCGM exports `DCGM_FI_DEV_THERMAL_VIOLATION` and `DCGM_FI_DEV_POWER_VIOLATION` counters
    - If either is incrementing, performance is capped by limits, not by parallelism
 
 5. **Is there an error the hardware is hiding?**
-   - Check ECC error counters: `nvidia-smi -q | grep -i "ecc"` or DCGM `GPU_ECC_ERRORS_CORRECTED`
+   - Check ECC error counters: `nvidia-smi -q | grep -i "ecc"` or DCGM `DCGM_FI_DEV_ECC_SBE_VOL_TOTAL`
    - If ECC errors are present but not escalating, GPU is working but has bit-flip recoveries; this might explain slight loss stalls but shouldn't halt training
    - If ECC errors suddenly spike or uncorrectable errors appear, GPU is in distress
 

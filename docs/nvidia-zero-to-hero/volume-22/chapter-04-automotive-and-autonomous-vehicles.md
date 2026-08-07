@@ -21,17 +21,18 @@ Real-time autonomous driving requires parallel inference:
 ## Use Case: Edge Deployment on Drive Orin
 
 ### Requirements
-- 50 production lines, 1,250 bearings
-- Prediction window: 7-14 days before failure
-- Inference SLA: <50ms (actually <25ms preferred)
-- Fail-safe: <2 seconds to safe state
+- Fleet: 50,000 vehicles, Level 3+ automation
+- Sensor suite: 8 cameras + 5 radar + 1 lidar per vehicle, fused at 30 FPS
+- Operating domain: highway + urban, day/night, all-weather
+- Inference SLA: &lt;50ms (actually &lt;25ms preferred)
+- Fail-safe: &lt;2 seconds to safe state
 
 ### Architecture: 2× Drive Orin per vehicle (primary + safety)
 
 **Why two GPUs:**
 - Safety-critical (SAE Level 3+ requires functional safety)
 - Single GPU failure rate: ~0.1%/year
-- Dual redundancy: ~0.001%/year
+- Dual redundancy (independent failures): ~(0.1%)² ≈ 0.0001%/year
 - Cost: $4,800 per vehicle (acceptable for $50K+ vehicle)
 
 **Performance:**

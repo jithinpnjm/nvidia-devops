@@ -46,6 +46,35 @@ flowchart TD
     GPU3[GPU 3: Shard 3] --> Storage
 ```
 
+### Worked Example: Sizing a Checkpoint Write for a 70B Model
+
+Take a 70B-parameter model training on 128 H100 GPUs with FSDP. Using the same mixed-precision Adam accounting as Chapter 5 and Chapter 7 (16 bytes/param: 4 FP32 weights + 4 FP32 gradients + 8 FP32 optimizer momentum/variance):
+
+```
+Total checkpoint payload: 70B × 16 bytes = 1,120 GB (~1.09 TB)
+Sharded evenly across 128 GPUs: 1,120 GB / 128 ≈ 8.75 GB per GPU shard
+```
+
+**Naive (gather-to-rank-0) approach:** All 128 shards are gathered onto a single node before writing.
+
+```
+Network cost to gather: 1,120 GB moved to one node
+Even at a generous 25 GB/s effective inbound rate to that one node: 1,120 / 25 ≈ 45 s
+Plus the single-node write at, say, 5 GB/s to local/parallel storage: 1,120 / 5 ≈ 224 s
+Total: ~269 s (4.5 minutes) — and the whole cluster sits idle while it happens
+```
+
+**Distributed (each-GPU-writes-its-own-shard) approach**, assuming a parallel filesystem that can sustain roughly 5 GB/s per concurrent writer up to an aggregate ceiling of, say, 400 GB/s across the whole filesystem (illustrative figures — actual Lustre/GPFS/object-store throughput varies enormously by deployment and must be measured, not assumed):
+
+```
+Per-GPU shard write: 8.75 GB / 5 GB/s ≈ 1.75 s
+Aggregate demand: 128 GPUs × 5 GB/s = 640 GB/s, which exceeds the 400 GB/s filesystem ceiling,
+  so writes queue and the effective per-GPU rate drops to roughly 400/128 ≈ 3.1 GB/s
+Realistic write time: 8.75 GB / 3.1 GB/s ≈ 2.8 s
+```
+
+Even bottlenecked by filesystem aggregate bandwidth, the distributed approach (~3 seconds) is roughly two orders of magnitude faster than the naive gather (~270 seconds), which is exactly why every framework covered in this volume (FSDP, DeepSpeed/ZeRO, Megatron) defaults to sharded, parallel checkpoint writes rather than gathering to one rank.
+
 ## WHEN
 
 You determine *when* to checkpoint using Daly's Formula for optimal checkpoint intervals:
@@ -56,13 +85,24 @@ Where:
 
 If MTBF is low (frequent crashes), you must checkpoint more frequently.
 
+**Applying the formula:** Suppose a 1024-GPU cluster has an observed MTBF of 8 hours (28,800 s) — a plausible, illustrative figure for a large cluster where any one of a thousand-plus GPUs, NICs, or power supplies failing counts as an interrupting event; real MTBF must be measured from your own incident history, not assumed. Using the distributed write time from above, scaled to a larger model where $T_c$ ≈ 180 s:
+
+```
+T_opt = sqrt(2 × 28,800 × 180) - 180
+      = sqrt(10,368,000) - 180
+      ≈ 3,220 - 180
+      = 3,040 s ≈ 50.7 minutes
+```
+
+So under these illustrative assumptions, checkpointing roughly every 50 minutes minimizes total expected lost work across the run — checkpointing every 5 minutes wastes GPU-hours on write overhead, and checkpointing every 4 hours risks losing most of an MTBF interval's worth of progress on a crash.
+
 ## TRADEOFFS
 
 The tradeoffs between checkpoint frequency and overhead:
 
 | Strategy | Risk of Lost Work | Compute Overhead | Storage Cost |
 |---|---|---|---|
-| **Frequent (Every hour)** | Low (< 1 hour) | High | Massive |
+| **Frequent (Every hour)** | Low (&lt; 1 hour) | High | Massive |
 | **Infrequent (Every 24h)** | High (Up to 24 hours) | Low | Moderate |
 | **Asynchronous Checkpointing**| Low | Very Low (Hidden) | High (Requires RAM buffering) |
 
@@ -129,3 +169,39 @@ sudo swapon /swapfile
 # Verify memory and swap limits
 free -m
 ```
+
+### Scenario 3: Resharding Mismatch After Cluster Resize
+
+**Symptom:** Training was checkpointed on a 64-GPU allocation (FSDP, 64-way shard). After a node failure (Chapter 10's Slurm node-drain scenario), the job resubmits onto a fresh 48-GPU allocation — fewer nodes were available — and resume fails:
+```text
+RuntimeError: Number of shards in checkpoint (64) does not match world size (48)
+```
+**Diagnosis:** Naive sharded checkpoints save state 1:1 with the GPU topology that wrote them — shard 0 belongs to rank 0 of a 64-rank world, and there is no rank 48-63 in the new allocation to own the remaining shards. This is exactly the failure mode this chapter's WHEN section referenced under "dynamic checkpoint resharding": a checkpoint format that hard-codes world size cannot survive a topology change, which is precisely the situation Chapter 10 hands off when it says Slurm's job is "detecting the failure and freeing the node," not preserving the shard-to-rank mapping.
+**Evidence vs. Proof:** The shard-count mismatch error is evidence the checkpoint format is topology-coupled. It does not by itself prove data loss — the underlying tensors are almost always still valid and resharding is possible if the checkpoint stored full tensor metadata (shape, dtype, sharding spec) rather than only raw shard bytes.
+**Resolution:** Use a checkpoint format that stores global tensor metadata alongside each shard (PyTorch Distributed Checkpoint / `torch.distributed.checkpoint`, or DeepSpeed's universal checkpoint format both do this) so the framework can compute a new 48-way sharding plan from the same underlying tensors at load time, rather than requiring an exact world-size match.
+```bash
+# Inspect checkpoint metadata to confirm it stores full tensor shape/sharding info,
+# not just raw per-rank shard bytes
+python -c "from torch.distributed.checkpoint import FileSystemReader; \
+r = FileSystemReader('/checkpoints/step_5000'); print(r.read_metadata())"
+```
+
+## Interview Preparation
+
+**Conceptual:** "Why does asynchronous checkpointing reduce GPU idle time, and what new failure mode does it introduce that synchronous checkpointing doesn't have?"
+
+**Model Answer:** "Synchronous checkpointing halts the training loop completely — all GPU compute stops while the state is transferred to CPU RAM and then written to storage, so the write time is pure overhead subtracted from useful training time. Asynchronous checkpointing splits this into two phases: a fast GPU-to-CPU-RAM copy, which is quick because it's a local, high-bandwidth transfer, and then a background CPU thread or process writes that RAM buffer to persistent storage while the GPUs have already resumed the next forward pass. The GPUs are blocked only for the RAM copy, not the full storage write, which is usually the much slower and more variable part. The new failure mode is memory pressure: if you trigger a new checkpoint before the previous one has finished flushing to storage, or if the buffered state is larger than available system RAM, you get a straightforward CPU-side out-of-memory condition — which is a different, and honestly less familiar, failure mode for a team used to debugging GPU OOMs."
+
+**Architecture:** "Design a checkpointing strategy for a 400B-parameter model training on 2048 GPUs, where you've observed an MTBF of roughly 6 hours and a distributed checkpoint write takes about 4 minutes."
+
+**Model Answer:** "I'd start from Daly's formula to get a principled starting interval: with M = 6 hours = 21,600 seconds and Tc = 240 seconds, T_opt = sqrt(2 × 21,600 × 240) − 240 = sqrt(10,368,000) − 240 ≈ 3,220 − 240 ≈ 2,980 seconds, just under 50 minutes. I'd round that down somewhat for safety margin, since MTBF is an average and actual failures cluster more than a pure exponential model predicts, so maybe checkpoint every 30-40 minutes rather than exactly 50. Given the write time is a meaningful 4 minutes, I'd make it asynchronous so those 4 minutes overlap with training rather than blocking it, and I'd use a sharded, metadata-rich checkpoint format — not a gather-to-rank-0 approach, which at this model size would mean moving hundreds of gigabytes to a single node, exactly the bottleneck this chapter's worked example showed being roughly two orders of magnitude slower than a distributed write. I'd also verify the parallel filesystem's aggregate bandwidth can sustain 2048 concurrent writers without collapsing to a fraction of expected per-writer throughput, the same aggregate-ceiling effect from the worked example."
+
+**Troubleshooting:** "A checkpoint write that used to take 90 seconds is now taking 12 minutes, with no change to model size or GPU count. What do you check first?"
+
+**Model Answer:** "A 90-second to 12-minute jump — roughly 8x — with no configuration change points at the storage layer rather than the training code, since nothing about the checkpoint payload size changed. First, I'd check whether the parallel filesystem is now shared with more concurrent tenants than before; this chapter's worked example showed that once aggregate writer demand exceeds the filesystem's bandwidth ceiling, per-writer throughput drops proportionally, and that's a very common silent cause on shared HPC storage. Second, I'd check for a degraded storage node or OST/OSS in the parallel filesystem — a single slow storage target can bottleneck writes from any GPU shard that happens to land on it, similar in spirit to the straggler-node problem from earlier chapters but on the storage side instead of the compute side. Third, I'd rule out a checkpoint format regression — if someone recently changed from a sharded write to an inadvertent gather-based one, that alone reproduces almost exactly this kind of order-of-magnitude slowdown."
+
+## Related Chapters
+
+- **Previous:** [Chapter 8 — NCCL Collectives and Communication Paths](./chapter-08-nccl-collectives-and-communication-paths.md)
+- **Next:** [Chapter 10 — Multi-Node Training Architecture](./chapter-10-multi-node-training-architecture.md) — Slurm-driven job restart onto a fresh allocation after the node failures this chapter plans for
+- **Related:** [Chapter 5 — DeepSpeed and ZeRO](./chapter-05-deepspeed-and-zero.md) — the sharding schemes whose state this chapter's checkpoints must serialize

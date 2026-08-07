@@ -394,7 +394,7 @@ kubectl delete namespace "$LAB_NAMESPACE" --ignore-not-found
 
 **Expected evidence:** Kubernetes reports namespace deletion or `not found`; the selected `time-slicing-lab-config` remains present until it is no longer referenced.
 
-**Explanation:** Restore the prior `spec.devicePlugin.config` values recorded in `clusterpolicy-before-time-slicing.yaml` with a reviewed merge patch **before** deleting the ConfigMap. Substitute the recorded `<prior-configmap>` and `<prior-key>` values in the next command.
+**Explanation:** Restore the prior `spec.devicePlugin.config` values recorded in `clusterpolicy-before-time-slicing.yaml` with a reviewed merge patch **before** deleting the ConfigMap. Substitute the recorded `&lt;prior-configmap&gt;` and `&lt;prior-key&gt;` values in the next command.
 
 **Purpose:** Restore the recorded ClusterPolicy selection and wait for the node to recover its baseline inventory before removing the selected ConfigMap.
 

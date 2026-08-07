@@ -39,6 +39,12 @@ Production AI infrastructure must protect models, data, and computational resour
 - Lab 2: Build and Verify a Signed Container
 - Lab 3: Design and Verify Multi-Tenant RBAC
 - Lab 4: Deploy Restricted Pod with Network Policy
+- Lab 5: Validate GPU Sharing Isolation
+- Lab 6: Verify IOMMU Configuration
+- Lab 7: Deploy BlueField Security Policy
+- Lab 8: Deploy Model in Confidential Compute Mode
+- Lab 9: Model Signing and Verification
+- Lab 10: Query Audit Logs and Generate Incident Report
 
 ## Production Checklist
 

@@ -259,13 +259,13 @@ Annotated `ipmitool sensor list` output — this is the first thing to pull when
 ```bash
 $ ipmitool -I lanplus -H 10.0.1.15 -U admin -P *** sensor list
 CPU1 Temp | 52.000 | degrees C | ok | 0.000 | 3.000 | 5.000 | 92.000 | 95.000 | 98.000
-CPU2 Temp | 108.000 | degrees C | ncr | 0.000 | 3.000 | 5.000 | 92.000 | 95.000 | 98.000 ← non-critical high, near upper-non-recoverable
+CPU2 Temp | 108.000 | degrees C | unr | 0.000 | 3.000 | 5.000 | 92.000 | 95.000 | 98.000 ← past upper-non-recoverable, shutdown/damage risk
 GPU1 Temp | 61.000 | degrees C | ok | 0.000 | 3.000 | 5.000 | 88.000 | 92.000 | 95.000
 FAN1 | 8400.000 | RPM | ok | 500.00 | 700.00 | 900.00 | na | na | na
 PSU1 Status | 0x1 | discrete | 0x0180| na | na | na | na | na | na ← discrete sensor, decode bitmap not a number
 PSU2 Status | 0x0 | discrete | 0x0180| na | na | na | na | na | na ← PSU2 reading 0 — likely no input power, check PDU/breaker
 ```
-Reading this correctly: the six threshold columns are `lnr/lcr/lnc/unc/ucr/unr` (lower/upper non-recoverable, critical, non-critical). `CPU2 Temp` at `ncr` status with a reading of 108°C against an upper-non-critical threshold of 92°C is already past non-critical and closing on `ucr` (95) — this node should be pulled from scheduling before it thermally throttles or shuts down. `PSU2 Status` reading `0x0` on a discrete sensor is not "temperature is zero," it is a bitmap that needs decoding against the SDR — in practice, a PSU reporting nothing usually means no AC input, which is a facilities/PDU check, not a server fault.
+Reading this correctly: the six threshold columns are `lnr/lcr/lnc/unc/ucr/unr` (lower/upper non-recoverable, critical, non-critical). `CPU2 Temp` at 108°C has already blown through every upper threshold on the sensor — `unc` (92), `ucr` (95), and `unr` (98) — so the status correctly reads `unr`, the worst tier IPMI defines: the hardware itself may throttle or force a shutdown at any moment to protect itself, so this isn't a "watch it" reading, it's pull-from-scheduling-and-investigate-now, and if the BMC hasn't already forced a shutdown you should expect one imminently. `PSU2 Status` reading `0x0` on a discrete sensor is not "temperature is zero," it is a bitmap that needs decoding against the SDR — in practice, a PSU reporting nothing usually means no AC input, which is a facilities/PDU check, not a server fault.
 
 The Redfish equivalent returns the same class of information as structured JSON — a `GET /redfish/v1/Systems/1` gives `PowerState`, `Status.Health`, `ProcessorSummary`, `MemorySummary`, and links to `/Processors`, `/Memory`, `/EthernetInterfaces`, `/SecureBoot` — no field-offset guessing required, which is why fleet-scale health polling is built on Redfish, not IPMI, in any modern shop.
 
@@ -312,7 +312,7 @@ flowchart TD
     I --> J["OS installer or stateless runtime takes over"]
 ```
 
-Two failure classes dominate PXE troubleshooting: nothing offered (DHCP scope exhausted, PXE options not set on the DHCP server, or a rogue DHCP server on the segment answering first with wrong options), or offered-but-nothing-loads (TFTP blocked by a firewall/ACL, wrong `next-server` IP, boot filename mismatched to the node's firmware mode — legacy BIOS asking for an EFI bootloader or vice versa). `tcpdump -i <iface> port 67 or port 68 or port 69` on the boot network is the fastest way to see exactly where in this chain a specific node stalls.
+Two failure classes dominate PXE troubleshooting: nothing offered (DHCP scope exhausted, PXE options not set on the DHCP server, or a rogue DHCP server on the segment answering first with wrong options), or offered-but-nothing-loads (TFTP blocked by a firewall/ACL, wrong `next-server` IP, boot filename mismatched to the node's firmware mode — legacy BIOS asking for an EFI bootloader or vice versa). `tcpdump -i &lt;iface&gt; port 67 or port 68 or port 69` on the boot network is the fastest way to see exactly where in this chain a specific node stalls.
 
 ## RAID/boot-drive configuration before OS install
 
@@ -335,7 +335,7 @@ Only after all six is a node handed to the next layer up — in this book's cont
 
 **Situation:** Node `gpu-node-14` was just RMA'd (new mainboard) and reinserted into the rack. It never appears in the provisioning system's "installing" state; the console shows it sitting at "PXE-E51: No DHCP or proxyDHCP offers were received."
 
-1. **Confirm the BMC/console is reachable at all.** `ipmitool -I lanplus -H <bmc-ip> ... sol activate` — if this fails, the problem is BMC network config, not PXE; fix that first, it's a prerequisite for diagnosing anything else.
+1. **Confirm the BMC/console is reachable at all.** `ipmitool -I lanplus -H &lt;bmc-ip&gt; ... sol activate` — if this fails, the problem is BMC network config, not PXE; fix that first, it's a prerequisite for diagnosing anything else.
 2. **Check whether the NIC is even asking.** From a span port or another box on the same VLAN: `tcpdump -i eth0 port 67 or port 68`. No DHCPDISCOVER seen at all from that MAC → the problem is upstream of the network: cabling, switch port not on the correct VLAN, or the PXE NIC port itself disabled in BIOS (common after a mainboard swap — BIOS defaults may re-enable a different NIC as primary, or disable PXE ROM on the intended port).
 3. **DHCPDISCOVER seen but no OFFER returned** → check the DHCP server's scope utilization and whether the node's MAC is registered (many provisioning systems require MAC pre-registration before offering a PXE-specific option set) — this is the single most common cause after a mainboard swap, since the RMA changed the MAC address and the old registration no longer matches.
 4. **OFFER received, but TFTP/HTTP fetch fails** (`PXE-E32`, `PXE-E11`, or an HTTPBoot TLS/404 error) → check firewall/ACL on the TFTP/HTTP path from that VLAN, and confirm boot-mode match (UEFI node requesting `grubx64.efi`/HTTPBoot vs. a scope only configured to hand out a legacy `undionly.kpxe` filename).

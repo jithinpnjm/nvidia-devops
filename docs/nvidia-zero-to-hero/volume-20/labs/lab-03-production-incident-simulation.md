@@ -88,7 +88,7 @@ Practice resolving GPU failures in realistic scenarios. Learn the sequence of ac
 | 09:47 | Enable NCCL_DEBUG | `export NCCL_DEBUG=TRACE` and attach to hanging process | Collect evidence without restarting (might get lucky) |
 | 09:49 | Analyze trace | Last message: "GPU 2 send timeout" after 5 seconds | GPU 2 is the bottleneck |
 | 09:50 | Decision point | Wait 1 more minute, then restart if not progressing | Acknowledge page and buy 60 more seconds to decide |
-| 09:51 | Check GPU 2 metrics | `nvidia-smi -i 2 -q` shows temp 85°C, clock 1.2 GHz | GPU 2 is thermal throttled! |
+| 09:51 | Check GPU 2 metrics | `nvidia-smi -i 2 -q` shows temp 85°C, clock 1200 MHz | GPU 2 is thermal throttled! |
 | 09:52 | Immediate fix | Reduce batch size by 50% to lower temp | Restart with reduced batch size |
 | 09:53 | Restart training | `python train.py --batch-size 128 --gpu 0,1,3 # Skip GPU 2` | Restart without GPU 2 while investigating |
 | 09:55 | Verification | Monitor for progress | Should see normal iteration times now |
@@ -109,7 +109,7 @@ ncclAllReduce: rank=2, nBytes=4MB, hanging...
 # Step 2: GPU 2 investigation
 $ nvidia-smi -i 2 -q | grep -E "Temperature|Clock|Throttle"
 GPU Current Temp                    : 85 C
-Graphics Clock                      : 1200 MHz  (throttled from 2500!)
+Graphics Clock                      : 1200 MHz  (throttled from 1980!)
 Thermal Slowdown                    : Active
 ```
 
@@ -172,7 +172,7 @@ Rise rate: (83-55)/30 = 0.93°C/sec → **FAN FAILURE**
 | 10:30 | Accuracy diverges | **STOP job immediately** | ECC errors corrupting training data; continued run will waste compute |
 | 10:31 | Isolate failing module | Run memory test to locate bad address range | `cuda-memtest --stress --stress_iterations 5 -d 2` |
 | 10:35 | Memory test results | If errors in specific range, HBM module failing; if scattered, broader issue | Determines if we can work around it |
-| 10:40 | **Decision: salvage or replace?** | If errors in < 5% of HBM, can relocate GPU workload; otherwise replace GPU | Cost-benefit: days to workaround vs. 2-4hr hardware RMA |
+| 10:40 | **Decision: salvage or replace?** | If errors in &lt; 5% of HBM, can relocate GPU workload; otherwise replace GPU | Cost-benefit: days to workaround vs. 2-4hr hardware RMA |
 | 10:45 | **Mitigation: immediate** | Drain GPU from cluster; add to maintenance pool | Prevents cascading failures on other jobs |
 | 11:00 | **Long-term** | Escalate to hardware team for GPU replacement | RMA process and lead time |
 
@@ -213,7 +213,7 @@ $ nvidia-smi -i 2 -q | grep -i "memory"
 ```
 
 **Decision criteria:**
-- **Error rate < 1/hour:** Monitor, maybe continue
+- **Error rate &lt; 1/hour:** Monitor, maybe continue
 - **Error rate 1-10/hour:** Reduce load, plan replacement
 - **Error rate > 10/hour:** **STOP immediately**, escalate
 

@@ -78,8 +78,10 @@ If `nvidia.com/roce_gdr` shows `0` allocatable on a node that otherwise looks he
 
 ➕ **Shortcut — one-liner to check whether GPU Operator and Network Operator are both healthy and actually cooperating on a node:**
 ```bash
-kubectl get pods -n gpu-operator -n network-operator --field-selector=status.phase!=Running 2>/dev/null
-# empty output = both operator stacks are fully reconciled on this node; anything listed is your starting point
+kubectl get pods -n gpu-operator --field-selector=status.phase!=Running 2>/dev/null
+kubectl get pods -n network-operator --field-selector=status.phase!=Running 2>/dev/null
+# a second -n does not merge namespaces — it just overrides the first, so query each namespace separately
+# empty output on both = both operator stacks are fully reconciled on this node; anything listed is your starting point
 ```
 
 ## Practice

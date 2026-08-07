@@ -148,8 +148,8 @@ nvidia-smi --query-gpu=index,memory.used,memory.total,utilization.gpu --format=c
 
 | Signal | Healthy range | Red flag |
 |---|---|---|
-| Memory used / total | 70-90% (working set) | > 95% (no headroom for peaks); < 30% (underutilization) |
-| GPU utilization (%) | 80-95% sustained | < 50% sustained (compute starvation); 100% static (likely hung) |
+| Memory used / total | 70-90% (working set) | > 95% (no headroom for peaks); &lt; 30% (underutilization) |
+| GPU utilization (%) | 80-95% sustained | &lt; 50% sustained (compute starvation); 100% static (likely hung) |
 | Memory growth over time | flat after warmup | climbing linearly (likely memory leak or runaway activations) |
 
 **Real observed output from a healthy 4-GPU distributed training run:**

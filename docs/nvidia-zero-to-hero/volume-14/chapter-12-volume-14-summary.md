@@ -69,7 +69,7 @@ Everything in this volume—artifacts, entitlement, lifecycle, Kubernetes integr
 
 | Symptom | First check | Owner | Chapter |
 |---|---|---|---|
-| **NIM Pod Running, not Ready** | `kubectl logs <pod>` for "entitlement", "model download", "cuda error" | NVIDIA/NGC | 03 |
+| **NIM Pod Running, not Ready** | `kubectl logs &lt;pod&gt;` for "entitlement", "model download", "cuda error" | NVIDIA/NGC | 03 |
 | **ImagePullBackOff (401 Unauthorized)** | NGC token scope and expiry; test manual pull with token | Entitlement ops | 07–08 |
 | **Latency increased after driver upgrade** | Canary metrics vs baseline; check compatibility matrix | Platform team | 09 |
 | **GPU not visible in container** | Trace: lspci → nvidia-smi → /dev/nvidia* → GPU Operator pod status | GPU Operator | 10 |
@@ -152,7 +152,7 @@ Candidates who understand this volume can answer:
 ## Related Volumes
 
 - **Volumes 01–13:** Foundations (virtual memory, GPU execution, distributed training, networking, etc.) — prerequisites for understanding why NVIDIA AI Enterprise choices exist
-- **Volume 15:** Next chapter in the ZTH series (specific specialization or advanced topic — TBD)
+- **Volume 15:** AI Storage, Checkpointing, and Data Pipelines — how storage architecture (Lustre, BeeGFS, GPUDirect Storage) determines whether the GPUs fed by this platform stay busy or stall on I/O
 
 ## Summary Statement
 

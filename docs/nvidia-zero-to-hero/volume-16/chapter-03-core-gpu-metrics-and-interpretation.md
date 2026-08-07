@@ -143,11 +143,11 @@ Time    GPU_Util  Mem_Util
 ### Alert Thresholds for Utilization
 
 **BAD alerts (will fire false positives):**
-- Alert on `GPU utilization < 50%` (GPUs below this might be in I/O, communication, or intentionally load-balanced)
+- Alert on `GPU utilization &lt; 50%` (GPUs below this might be in I/O, communication, or intentionally load-balanced)
 - Alert on `GPU utilization > 90%` (GPUs over this might be fine and just fully loaded)
 
 **GOOD alerts (will catch real problems):**
-- Alert on `GPU utilization < 10% for 5+ minutes` (GPU not being used when it should be)
+- Alert on `GPU utilization &lt; 10% for 5+ minutes` (GPU not being used when it should be)
 - Alert on `GPU utilization oscillating between 5% and 95% every 10 seconds` (data pipeline starvation)
 - Alert on `GPU utilization = 100% AND temperature rising AND clocks throttling` (GPU overheating under load)
 
@@ -222,7 +222,7 @@ Free: 40.0 - 30.2 = 9.8 GB
 - 28.4 GB actively in use
 - 1.8 GB reserved but not actively used (overhead, caches, allocator fragmentation)
 - 9.8 GB free and available
-- Safe zone: if next batch needs < 9.8 GB, it will fit; beyond that, OOM
+- Safe zone: if next batch needs &lt; 9.8 GB, it will fit; beyond that, OOM
 
 ### Memory Pressure and the Reclaim Path
 
@@ -260,12 +260,12 @@ flowchart TD
 
 **BAD alerts:**
 - Alert on `memory used > 90%` (normal for large models, not always OOM)
-- Alert on `memory free < 2GB` (might be fine if no new allocations are coming)
+- Alert on `memory free &lt; 2GB` (might be fine if no new allocations are coming)
 
 **GOOD alerts:**
 - Alert on `memory used > 95% AND allocation latency > 100ms` (GPU is in compaction, workload is stalling)
 - Alert on `memory used rising steadily over 10 minutes` (possible memory leak)
-- Alert on `memory free < 500MB AND running workload` (very little headroom, next batch might fail)
+- Alert on `memory free &lt; 500MB AND running workload` (very little headroom, next batch might fail)
 
 ## Metric 3: Temperature
 
@@ -333,7 +333,7 @@ flowchart LR
 
 | Temperature | Action | Urgency |
 |---|---|---|
-| < 60°C | Nothing; GPU has ample thermal headroom | Low |
+| &lt; 60°C | Nothing; GPU has ample thermal headroom | Low |
 | 60-75°C | Monitor; ensure cooling is adequate | Low |
 | 75-82°C | Watch closely; alert if rising; check for unusual workloads | Medium |
 | 82-85°C | Alert; GPU is at throttle threshold; may be about to throttle | High |
@@ -403,11 +403,11 @@ flowchart TD
 ### Alert Thresholds for Clocks
 
 **GOOD alerts:**
-- Alert on `clocks < 50% of max for > 10 minutes while utilization > 50%` (throttling is happening; diagnose why)
+- Alert on `clocks &lt; 50% of max for > 10 minutes while utilization > 50%` (throttling is happening; diagnose why)
 - Alert on `clocks at idle while utilization > 10%` (something is wrong; GPU should be running)
 
 **BAD alerts:**
-- Alert on `clocks < 100% of max` (clocks vary naturally; this fires constantly)
+- Alert on `clocks &lt; 100% of max` (clocks vary naturally; this fires constantly)
 - Alert on `clocks at idle` (normal between batches; not an error)
 
 ## Metric 5: Power Consumption
@@ -477,9 +477,9 @@ Metrics snapshot:
 
 1. **Utilization alone is meaningless.** Pair with memory bandwidth, clocks, and temperature to interpret.
 2. **Memory "used" ≠ "actively accessed."** Check reserved vs. allocated vs. free to detect fragmentation and OOM risk.
-3. **Temperature and thermal throttling are different signals.** Temperature < 85°C is normal; thermal throttling is the red flag.
+3. **Temperature and thermal throttling are different signals.** Temperature &lt; 85°C is normal; thermal throttling is the red flag.
 4. **Clocks tell you what the GPU is doing.** Peak clocks = working; idle clocks = not running; reduced clocks = throttled.
-5. **Alert on trends and combinations, not single numbers.** "utilization < 10% for 10 min" is better than "utilization < 50%."
+5. **Alert on trends and combinations, not single numbers.** "utilization &lt; 10% for 10 min" is better than "utilization &lt; 50%."
 
 ## Cross-References
 

@@ -124,10 +124,10 @@ flowchart TD
 ```
 ➕ **Sample annotated output — proving what a node actually advertises, MIG or not:**
 ```bash
-$ kubectl get node gpu-a100-04 -o json | jq '.status.allocatable | with_entries(select(.key | contains('nvidia')))'
+$ kubectl get node gpu-a100-04 -o json | jq '.status.allocatable | with_entries(select(.key | contains("nvidia")))'
 {
-'nvidia.com/mig-1g.5gb': '7', ← MIG-sliced: 7 slices of the 1g.5gb profile
-'nvidia.com/mig-2g.10gb': '0' ← this profile is defined but exhausted/unconfigured — 0 available
+"nvidia.com/mig-1g.5gb": "7", ← MIG-sliced: 7 slices of the 1g.5gb profile
+"nvidia.com/mig-2g.10gb": "0" ← this profile is defined but exhausted/unconfigured — 0 available
 }
 ```
 A Pod manifest requesting `nvidia.com/gpu: 1` against this node will Filter out with `Insufficient nvidia.com/gpu` even though the node has physical GPU capacity — because the node isn't advertising *that* resource name at all once MIG reconfiguration has taken over the resource namespace. This single fact — **MIG changes the resource name, not just the resource quantity** — is one of the most common "why is my GPU pod Pending on an idle-looking GPU node" root causes in real fleets.

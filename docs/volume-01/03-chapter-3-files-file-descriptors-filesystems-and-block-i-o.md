@@ -94,6 +94,8 @@ This is a deliberately practical section, because the phrase hides real ambiguit
 - **Shared/network storage** — storage reachable over a network from more than one machine, appearing as if local at its mount point.
 - **Inode** — a filesystem's metadata record for one file or folder (ownership, permissions, block locations); a separate, exhaustible resource from raw byte capacity.
 - **Quota** — an administratively imposed storage limit smaller than the device's physical capacity.
+- **`O_DIRECT`** — an `open()` flag that bypasses the page cache, DMA'ing data straight to/from the application's own (block-size-aligned) buffer.
+- **GPUDirect Storage (GDS)** — NVIDIA's extension of the same bypass concept from storage straight to GPU memory, skipping the CPU bounce buffer entirely.
 
 ### Before you go deeper, make sure you can...
 
@@ -138,7 +140,7 @@ lrwx------ 1 app app 64 Jul 30 10:00 6 -> /data/model-shard-0042.bin
 ```
 The `(deleted)` marker is the single most common real-world fd leak: a log rotation tool `unlink()`s the file, but the process still holds the fd open — disk usage doesn't drop (`du` won't show it, the inode is still allocated) even though `ls` shows the file gone. **`df` and `du` disagreeing after a log rotation is this exact bug, every time — check `lsof +L1` before anything else.**
 
-➕ **`lsof -p`, `/proc/<PID>/limits`, and `ss -s`, annotated:**
+➕ **`lsof -p`, `/proc/&lt;PID&gt;/limits`, and `ss -s`, annotated:**
 ```text
 $ lsof -p 8842 | head -4
 COMMAND  PID USER   FD   TYPE DEVICE SIZE/OFF   NODE NAME
@@ -152,7 +154,71 @@ $ ss -s
 Total: 812 (kernel 0)
 TCP:   634 (estab 210, closed 380, orphaned 0, timewait 372)
 ```
-`lsof -p` lists every open file/socket for one process — the per-process view that complements `ls -l /proc/<PID>/fd`, but with more detail per entry (size, offset, device). `/proc/<PID>/limits`' "Max open files" shows two numbers: the soft limit (1024, what actually blocks a new `open()` call right now) and the hard limit (4096, the ceiling the process could raise itself up to) — a process failing with "too many open files" at 1000 open fds is hitting the *soft* limit, not genuinely out of room. `ss -s` gives the system-wide socket count in one line — useful to confirm whether an fd exhaustion is one runaway process or a system-wide condition before chasing a single PID.
+`lsof -p` lists every open file/socket for one process — the per-process view that complements `ls -l /proc/&lt;PID&gt;/fd`, but with more detail per entry (size, offset, device). `/proc/&lt;PID&gt;/limits`' "Max open files" shows two numbers: the soft limit (1024, what actually blocks a new `open()` call right now) and the hard limit (4096, the ceiling the process could raise itself up to) — a process failing with "too many open files" at 1000 open fds is hitting the *soft* limit, not genuinely out of room. `ss -s` gives the system-wide socket count in one line — useful to confirm whether an fd exhaustion is one runaway process or a system-wide condition before chasing a single PID.
+
+➕ **`O_DIRECT`: bypassing the page cache, and why GPU data pipelines care**
+
+Every read/write path in the diagram above — local ext4/xfs, network nfs/cephfs, even overlayfs — routes through **page cache lookup** first. That's the right default: the kernel keeps recently-used file data in RAM so a second read of the same block is a memory copy, not a device round-trip. But it has a cost the diagram doesn't show: on a normal `read()`, the kernel first DMAs the data from the device into a page-cache page it owns, then **copies** that page into your application's buffer — two copies, one extra buffer, and a page cache that keeps growing with data you may never re-read (a multi-terabyte training shard streamed once, then never again, still evicts other useful pages on its way through).
+
+`O_DIRECT` (an `open()` flag) tells the kernel to skip the page cache entirely: the device DMAs data straight into (or out of) the application's own buffer. No kernel-owned intermediate copy, no cache pollution from a one-pass streaming read, no double-buffering.
+
+```mermaid
+flowchart TD
+    R["read(fd, buf, n)"] --> C{"opened with O_DIRECT?"}
+    C -->|"no (default)"| P["page cache lookup/populate"] --> P2["copy: page cache → application buffer"] --> P3[application buffer]
+    C -->|"yes"| D["DMA straight from device"] --> P3
+```
+
+Why this matters for GPU data pipelines specifically: a data-loader process streaming multi-GB training shards, or a checkpoint writer flushing a multi-GB model state, typically reads/writes each byte range **exactly once**. Routing that through the page cache buys you a cache that will never be hit again, at the cost of an extra copy and memory pressure that can evict pages other processes actually need. `O_DIRECT` removes both costs for this specific, common AI-infra access pattern — it is not a general-purpose speedup, it is the correct tool for "I am not going to re-read this."
+
+➕ **The alignment requirement — and the exact failure mode**
+
+`O_DIRECT` isn't free of rules: because the DMA engine writes straight into your buffer with no kernel copy to paper over mismatches, the buffer address, the file offset, and the transfer length must all be aligned to the device's logical block size (usually 512 bytes, often 4096 on modern NVMe). Miss any one of the three and the kernel refuses the I/O.
+
+```c
+#include <fcntl.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+int fd = open("/data/checkpoints/shard-0042.bin", O_RDONLY | O_DIRECT);
+
+char *buf = malloc(4096);        /* ordinary heap allocation — NOT block-aligned */
+ssize_t n = read(fd, buf, 4096); /* fails: EINVAL — buf isn't aligned to the block size */
+
+void *aligned;
+posix_memalign(&aligned, 4096, 4096);   /* 4096-byte-aligned address, required for O_DIRECT */
+n = read(fd, aligned, 4096);            /* offset 0 and length 4096 are also block-aligned: succeeds */
+```
+
+```text
+$ strace -e trace=open,read ./direct_read_bad
+openat(AT_FDCWD, "/data/checkpoints/shard-0042.bin", O_RDONLY|O_DIRECT) = 3
+read(3, 0x55d1a2b3c010, 4096)          = -1 EINVAL (Invalid argument)
+```
+`EINVAL` here is the single most common `O_DIRECT` bug in the field: a plain `malloc()`'d buffer, a file offset that isn't a block-size multiple (e.g. seeking to an odd byte count before an `O_DIRECT` read), or a transfer length that isn't a block-size multiple, all produce the identical `EINVAL` with no further detail — the kernel doesn't tell you which of the three constraints you violated. `posix_memalign()` (or `aligned_alloc()`) is the fix for the buffer; the offset and length constraints are on the caller to enforce explicitly, which is why most production code doesn't call `O_DIRECT` by hand and instead goes through a library (or, for GPU transfers specifically, GDS — next) that already gets the alignment right.
+
+➕ **GPUDirect Storage (GDS): the same bypass, extended past the CPU entirely**
+
+`O_DIRECT` removes the page-cache copy but the data still lands in a CPU-side application buffer — from there, a normal `cudaMemcpy` still has to copy it again from host memory into GPU memory (and if that host buffer is pageable rather than pinned, Volume 1's Deep Dive 2 covers the *additional* staging copy that adds). **GPUDirect Storage** is NVIDIA's extension of the identical bypass concept one hop further: instead of `storage → page cache → app buffer → GPU memory`, GDS sets up a direct DMA path `storage → GPU memory`, skipping the CPU bounce buffer altogether.
+
+```mermaid
+flowchart LR
+    subgraph Standard["Standard path"]
+        S1[NVMe/storage] --> S2[page cache] --> S3["CPU app buffer (pageable or pinned)"] --> S4[GPU memory]
+    end
+    subgraph ODIRECT["O_DIRECT path"]
+        D1[NVMe/storage] --> D2["CPU app buffer (page cache skipped)"] --> D3[GPU memory]
+    end
+    subgraph GDS["GPUDirect Storage"]
+        G1[NVMe/storage] -->|"direct DMA, no CPU bounce buffer"| G2[GPU memory]
+    end
+```
+
+Same underlying idea across all three rows — every kernel-owned or CPU-owned intermediate copy is a tax paid on data that's only going to be read (or written) once — GDS is just the version of that idea that runs all the way to the GPU. This is why NVIDIA's own storage-for-AI stack (cuFile API, and the filesystems/backends that support it — a subset of local NVMe and specific network filesystems, not universal) exists as a distinct thing from "just use `O_DIRECT`": `O_DIRECT` alone still leaves a CPU-memory hop in the path that GDS is specifically designed to remove for GPU-bound data.
+
+**Check your understanding**
+- Q: A one-pass streaming read of a 50GB training shard, versus a config file re-read on every request — which one is the better `O_DIRECT` candidate, and why? A: The 50GB shard — it's read exactly once, so caching it buys nothing and only costs memory pressure and an extra copy; the config file is re-read repeatedly, so the page cache is doing exactly its job (serving repeat reads from RAM) and `O_DIRECT` would make it slower by forcing a device round-trip every time.
+- Q: An `O_DIRECT` read fails with `EINVAL` and the buffer was allocated with `posix_memalign` at the correct alignment. What else should you check? A: The file offset and the transfer length — both must independently be multiples of the device's block size; a correctly-aligned buffer with a misaligned offset or length still fails with the same `EINVAL`.
 
 ## 3.2 Capacity versus latency
 | Question | Evidence |

@@ -249,5 +249,5 @@ flowchart TD
 ## Cross References
 
 - Next: [Chapter 2 — Hardware and Firmware Trust](./chapter-02-placeholder.md)
-- Related: [Chapter 5 — Kubernetes RBAC and Pod Security](./chapter-05-placeholder.md)
+- Related: [Chapter 4 — Kubernetes RBAC and Access Control](./chapter-04-placeholder.md), [Chapter 5 — Pod Security and Network Policies](./chapter-05-placeholder.md)
 - Lab: [Lab 01 — Validate Secure Boot and Driver State](./labs/lab-01-placeholder.md)

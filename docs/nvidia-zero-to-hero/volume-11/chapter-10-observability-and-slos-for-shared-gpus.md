@@ -86,7 +86,7 @@ Set an SLO only when the platform controls enough of the delivery chain and has 
 
 **Concrete metric definitions and Prometheus queries:**
 
-For a reserved MIG inference service with p99 latency SLO < 100ms:
+For a reserved MIG inference service with p99 latency SLO &lt; 100ms:
 
 ```yaml
 # Define what success looks like

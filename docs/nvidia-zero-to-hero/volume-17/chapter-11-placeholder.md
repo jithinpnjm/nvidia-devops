@@ -162,7 +162,7 @@ Inference cost per token:
 
 ## Key Takeaways
 
-1. **SLOs must be measurable and actionable.** "Fast" is not an SLO. "p99 latency < 100ms" is.
+1. **SLOs must be measurable and actionable.** "Fast" is not an SLO. "p99 latency &lt; 100ms" is.
 2. **Tail latency (p99, p100) matters more than mean.** Users experience the tail, not the average.
 3. **Instrument at request level, not just aggregate.** Know latency per request, not just per minute.
 4. **Correlate metrics with events.** Performance changes correlate with deployments, traffic changes, hardware issues.

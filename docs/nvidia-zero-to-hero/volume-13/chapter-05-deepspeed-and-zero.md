@@ -78,14 +78,14 @@ Sharded across N GPUs:
 
 **Memory per GPU (N=8):**
 ```
-40 GB (weights) + (40/8) GB (gradients) + (80/8) GB (optimizer) = 50 GB
+40 GB (weights) + (40/8) GB (gradients) + (80/8) GB (optimizer) = 40 + 5 + 10 = 55 GB
 ```
 
-Now it fits on an 80 GB GPU with 30 GB headroom for activations!
+Now it fits on an 80 GB GPU with 25 GB headroom for activations!
 
 **Communicat ion cost:** Instead of All-Reduce after backward (which is already necessary), we use Reduce-Scatter to collect gradients back to shards. This is slightly more efficient than All-Reduce, so Stage 2 has minimal communication overhead.
 
-**When to use:** Most production training jobs use Stage 2. It's the sweet spot: meaningful memory savings (~4× reduction in persistent state per GPU) with minimal communication overhead.
+**When to use:** Most production training jobs use Stage 2. It's the sweet spot: meaningful memory savings (~2.9× reduction in persistent state per GPU vs. DDP) with minimal communication overhead.
 
 ## ZeRO Stage 3: Shard Everything
 
@@ -115,7 +115,7 @@ For a 10B-parameter model on 8 GPUs:
 |---|---|---|
 | DDP (no sharding) | 160 GB | 1× (baseline) |
 | ZeRO Stage 1 | 90 GB | 1.78× |
-| ZeRO Stage 2 | 50 GB | 3.2× |
+| ZeRO Stage 2 | 55 GB | ~2.9× |
 | ZeRO Stage 3 | 20 GB | **8× (!!)** |
 
 The memory savings are enormous, but Stage 3 communication overhead can be 2-3× higher than Stage 2.
@@ -295,7 +295,7 @@ tail -n 100 train.log | awk '/step_time/ {print}'
 | Signal | Healthy | Red flag |
 |---|---|---|
 | Communication % of step time | 15-30% | > 50% (communication bottleneck) |
-| Per-rank step time variance | < 5% | > 10% (unbalanced load) |
+| Per-rank step time variance | &lt; 5% | > 10% (unbalanced load) |
 | Loss convergence | Smooth, decreasing | Noisy or divergent (indicate numerical issues) |
 
 ## Interview Preparation

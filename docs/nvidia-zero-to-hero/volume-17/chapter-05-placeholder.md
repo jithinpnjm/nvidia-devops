@@ -13,7 +13,7 @@ description: "Compute optimization — occupancy, instruction-level parallelism,
 | Difficulty | Intermediate |
 | Estimated reading time | 45 minutes |
 | Primary audience | DevOps, SRE, Platform, Cloud and Infrastructure Engineers |
-| Core question | How do you get a GPU from 40 TFLOPS to 120 TFLOPS on a compute-bound kernel? |
+| Core question | How do you get a GPU from 21 TFLOPS to 64 TFLOPS on a compute-bound kernel? |
 
 ## Learning Objectives
 
@@ -72,7 +72,7 @@ Optimization: Increase block size to 512 (if register pressure allows)
   Or: Reduce registers/thread via code rewrite → occupancy increases without spilling
 ```
 
-**Why it matters:** Low occupancy (< 50%) means fewer warps to hide memory latency. If warp A stalls on memory, warp B can execute. Low occupancy = less hiding capacity.
+**Why it matters:** Low occupancy (&lt; 50%) means fewer warps to hide memory latency. If warp A stalls on memory, warp B can execute. Low occupancy = less hiding capacity.
 
 ### 2. Register Pressure and Spilling
 
@@ -125,8 +125,8 @@ Nsight Compute shows ILP as "FLOPs per instruction": high ILP = multiple FLOPs p
 ```
 Nsight Compute output:
   Occupancy: 50%
-  Achieved TFLOPS: 45
-  Roofline target: 141
+  Achieved TFLOPS: 21.4
+  Roofline target: 67 (H100 SXM5 FP32 peak)
   Register count: 120 per thread
   ILP: 2.1 FLOPS/instruction
 ```
@@ -140,13 +140,13 @@ Nsight Compute output:
 ```
 Nsight Compute output:
   Occupancy: 94%
-  Achieved TFLOPS: 135
-  Roofline target: 141
+  Achieved TFLOPS: 64.1
+  Roofline target: 67 (H100 SXM5 FP32 peak)
   Register count: 85 per thread
   ILP: 4.2 FLOPS/instruction
 ```
 
-**Improvement:** 45 → 135 TFLOPS (200% speedup) by addressing all three levers.
+**Improvement:** 21.4 → 64.1 TFLOPS (~200% speedup) by addressing all three levers.
 
 ## Production Troubleshooting
 
@@ -160,7 +160,7 @@ Nsight Compute output:
 
 | Evidence | Diagnosis |
 |---|---|
-| Occupancy 100%, ILP 1.5 FLOPS/instruction, achieved 40 TFLOPS vs 141 peak | Occupancy is good, but instruction-level parallelism is low. The kernel has long dependency chains. Each instruction must wait for previous result. Fix: Unroll loops, interleave independent operations. |
+| Occupancy 100%, ILP 1.5 FLOPS/instruction, achieved 19 TFLOPS vs 67 TFLOPS FP32 peak | Occupancy is good, but instruction-level parallelism is low. The kernel has long dependency chains. Each instruction must wait for previous result. Fix: Unroll loops, interleave independent operations. |
 
 ## Interview Preparation
 
@@ -172,7 +172,7 @@ Nsight Compute output:
 
 1. **Occupancy is the foundation.** Target 75%+ occupancy as a starting point. Below 50% is rarely optimal for compute-bound work.
 2. **Register pressure is the occupancy killer.** Every 10-register reduction might double available slots per SM.
-3. **ILP unlocks peak TFLOPS.** Eliminating dependency chains (via unrolling and interleaving) gets you from 50 to 130 TFLOPS.
+3. **ILP unlocks peak TFLOPS.** Eliminating dependency chains (via unrolling and interleaving) gets you from ~21 to ~64 TFLOPS in this chapter's worked example.
 4. **Roofline is your target.** Compute optimization should asymptotically approach the roofline ceiling, not exceed it.
 
 ## Cross References

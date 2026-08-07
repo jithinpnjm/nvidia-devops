@@ -139,16 +139,15 @@ Step 2 (All-Gather phase):
 
 ```
 For 4 GPUs with NVLink interconnect (900 GB/s per link):
-- Each step moves (model_size / 4) bytes
 - 7B model = 28 GB weights = 28 GB gradients (same size)
-- Each reduction phase: 2 * (28GB / 4) = 14 GB per GPU
-- With Ring All-Reduce taking 2(N-1) = 6 steps:
-  Total network traffic = 6 × 14 GB × 4 GPUs = 336 GB
-  Time on 900 GB/s link = 336 GB / 900 GB/s ≈ 373 ms
+- Ring All-Reduce cost formula: total data moved per GPU = 2 * (N-1)/N * size
+  (reduce-scatter phase moves (N-1)/N * size, all-gather phase moves another (N-1)/N * size)
+- For N=4, size=28GB: 2 * (3/4) * 28 GB = 42 GB moved per GPU
+  Time on 900 GB/s link = 42 GB / 900 GB/s ≈ 47 ms
 
 Without synchronization, 4-GPU training should be 4× faster.
-With 373ms All-Reduce overhead per step (12.3s total step) = 3% overhead.
-Expected speedup: ~3.9× (87.5% efficiency)
+With ~47ms All-Reduce overhead per step (12.3s total step) = 0.38% overhead.
+Expected speedup: ~3.98× (99.6% efficiency)
 ```
 
 **Real observed speedup (4 H100 nodes with NVLink):**
@@ -159,12 +158,13 @@ Single GPU training (baseline):
   Throughput: 8.13 tokens/sec
 
 4-GPU DDP training:
-  Step time: 12.9s (includes 373ms All-Reduce)
+  Step time: 12.9s (includes All-Reduce plus kernel-launch and
+                     synchronization-barrier overhead beyond pure wire time)
   Throughput: 31.2 tokens/sec
   Speedup: 31.2 / 8.13 = 3.83× (95.7% efficiency)
 ```
 
-This is close to optimal. If you saw 3.2× speedup instead (80% efficiency), that's a sign of network congestion or load imbalance.
+The idealized 99.6% figure above is the theoretical ceiling from bandwidth alone; the 95.7% figure is what you actually measure once launch overhead, barrier synchronization, and minor load imbalance are included — still close to optimal. If you saw 3.2× speedup instead (80% efficiency), that's a sign of network congestion or load imbalance.
 
 ## The Decision Flowchart: Debugging DDP Hangs
 
@@ -275,7 +275,7 @@ watch -n 5 'tail -n 20 train.log | grep "loss:" | awk "{sum+=$NF; count++} END {
 | Signal | Healthy | Red flag |
 |---|---|---|
 | Step times (all ranks) | Identical ±5% | Diverging by >10%; indicates straggler |
-| Loss values (all ranks) | Identical (diff < 0.1%) | Diverging significantly; rank divergence |
+| Loss values (all ranks) | Identical (diff &lt; 0.1%) | Diverging significantly; rank divergence |
 | All-Reduce latency | 1-5% of step time | >10% of step time; network congestion |
 
 ## Interview Preparation

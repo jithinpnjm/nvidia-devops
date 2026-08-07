@@ -8,7 +8,7 @@ source_document: "Volume_03_Kubernetes_and_Platform_Engineering(3).docx"
 etcd provides strongly consistent storage using quorum. A three-member cluster tolerates one member failure; a five-member cluster tolerates two, at greater write coordination cost. Losing quorum is different from losing one API server. Running workloads can continue when the control plane is unavailable, but new scheduling, reconciliation and API-driven changes stop progressing.
 
 
-<!-- source-table:1 -->
+&lt;!-- source-table:1 --&gt;
 
 | Symptom | Control-plane hypothesis | Evidence |
 | --- | --- | --- |

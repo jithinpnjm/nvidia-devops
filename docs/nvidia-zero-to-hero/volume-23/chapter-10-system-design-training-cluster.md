@@ -133,12 +133,16 @@ Hardware allocation:
   
 Revised:
 - 600 L40S ($7.2M)
-- 200 L4 ($500K) — smaller, cheaper, for inference fine-tuning
+- 400 L4 ($1M) — smaller, cheaper, for inference fine-tuning; bumped up from
+  an earlier 200-unit draft specifically to close the gap against Phase 1's
+  1000-GPU requirement (600 + 400 = 1000 GPUs, not the 800 an earlier draft
+  left unreconciled)
 - Network: $625K
 - Storage: $2.5M
 - Servers: $375K
 - Power/cooling: $1M
-Total: $12.7M ✓
+Total: $7.2M + $1M + $0.625M + $2.5M + $0.375M + $1M = **$12.7M** ✓ (fits the
+$15M budget with ~$2.3M headroom, and now delivers the full 1000-GPU target)
 ```
 
 ### Phase 4: Communication and Synchronization (3 minutes)
@@ -158,17 +162,24 @@ Topology: Fat tree (Clos network)
 
 Bandwidth per node: 100Gbps
 For 8-GPU node: 100 Gbps ÷ 8 = 12.5 Gbps per GPU
-AllReduce time for 1GB gradient: 1000 Mbps ÷ 12.5 Gbps = 80ms
+AllReduce time for 1GB gradient: a 1 GB gradient is 8 Gb = 8,000 Mb (not
+1,000 Mb — watch bits vs. bytes: 1 byte = 8 bits). Time = 8,000 Mb ÷
+12,500 Mbps (12.5 Gbps) = 0.64 s = **640ms**
 
 Is this acceptable? 
 - Compute time per iteration: 1-10 seconds
-- AllReduce: 80ms = 1-8% overhead
-- Yes, acceptable
+- AllReduce: 640ms = 6-64% overhead (materially worse than the earlier,
+  bits/bytes-confused 80ms/1-8% estimate — this is a real trade-off to
+  discuss with the interviewer, especially at the low end of the 1-second
+  iteration range where communication would dominate)
+- Marginal at best for short iterations; comfortable only for the longer
+  end of the iteration-time range. Worth discussing NVLink/wider fabric
+  for compute-light, communication-heavy jobs.
 
 Alternative (cheaper): Oversubscribed 10:1
 - Cost: 50% savings
-- AllReduce time: 800ms per gradient
-- Overhead: 8-80% (unacceptable at scale!)
+- AllReduce time: 10 × 640ms = 6.4 seconds per gradient
+- Overhead: 64-640% (badly unacceptable at scale!)
 Don't do this for training; kills scaling efficiency.
 ```
 
@@ -221,9 +232,10 @@ def async_checkpoint():
 
 **Expected downtime (SLA impact):**
 
-- Mean time between failures: 1000 GPU-days (1 failure per 1000/8 = 125 days at full capacity)
+- Failure rate assumption: 1 failure per 1,000 GPU-days
+- Mean time between failures, **cluster-wide**, at full capacity (1000 active GPUs): failures/day = 1000 GPUs ÷ 1,000 GPU-days = 1 failure/day → MTBF ≈ 1 day. (Dividing by 8 instead — as an earlier draft did — computes the failure interval for a single 8-GPU *node*, not the cluster; that's a different, much larger number and shouldn't be labeled "at full capacity." Use the cluster-wide GPU count consistently, as the Common Follow-ups section below already does.)
 - Mean time to recovery: 10 minutes
-- Availability: 99.9% ✓
+- Availability: MTBF ÷ (MTBF + MTTR) = 1,440 min ÷ (1,440 + 10) min ≈ **99.3%** — meets the 99% SLA target, but with much less margin than the earlier (incorrectly derived) 99.9% figure suggested. Worth flagging to the interviewer as a risk area: at this failure rate, checkpoint/recovery speed matters a lot.
 
 ### Phase 6: Scheduling and Fairness (2 minutes)
 
@@ -302,7 +314,7 @@ Answer:
 - Mean time between failures: 1000 GPU-days
 - Cluster size: 75 GPUs avg active (600 GPUs ÷ 8 utilization)
 - Failures/day: 75 ÷ 1000 = 0.075 failures/day
-- 99% SLA requires < 14 minutes downtime/day
+- 99% SLA requires &lt; 14 minutes downtime/day
 - 1000 iterations × 1 sec/iter = 1000 sec = 16 min overhead
 - Barely achievable; need better checkpoint strategy or higher MTBF
 

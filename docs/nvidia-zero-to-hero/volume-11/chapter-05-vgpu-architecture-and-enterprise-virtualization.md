@@ -105,7 +105,7 @@ If a guest shows no GPU:
 1. Check host: `/opt/grid/nvidia-smi -lvi` lists the VM's vGPU assignment
 2. Check guest: `lspci | grep NVIDIA` should show NVIDIA VGA device
 3. Check license: host `/opt/grid/nvidia-smi -llic` must be OK
-4. Check VM XML: `virsh dumpxml <vm-name> | grep vgpu`—profile must exist
+4. Check VM XML: `virsh dumpxml &lt;vm-name&gt; | grep vgpu`—profile must exist
 
 This three-tier check (host license, host vGPU assignment, guest PCIe device) quickly rules out host vs. guest configuration problems.
 

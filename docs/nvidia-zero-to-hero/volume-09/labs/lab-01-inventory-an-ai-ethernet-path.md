@@ -47,7 +47,7 @@ flowchart LR
 
 ## 6. Environment
 
-Set the following placeholders locally; do not copy secrets into shell history. Replace `ensXfY`, `mlx5_N`, and `<peer-ip>` with the selected lab path.
+Set the following placeholders locally; do not copy secrets into shell history. Replace `ensXfY`, `mlx5_N`, and `&lt;peer-ip&gt;` with the selected lab path.
 
 | Item | Record |
 |---|---|

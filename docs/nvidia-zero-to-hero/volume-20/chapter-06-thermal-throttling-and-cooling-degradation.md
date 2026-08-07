@@ -7,7 +7,7 @@ description: "Diagnose thermal throttling events, monitor cooling system health,
 
 ## Symptoms
 
-- GPU clock speed drops from 2.5 GHz to 1.8 GHz during load
+- GPU clock speed drops from 1980 MHz (H100 SXM5 boost) to 1833 MHz during load
 - Performance degrades 15-30% mid-training without code changes
 - Temperature rises to 85°C (throttle threshold)
 - DCGM reports thermal slowdown events
@@ -51,11 +51,11 @@ flowchart TD
 ```bash
 $ nvidia-smi dmon -s puctem
 
-# GPU   Pwr Temp SM Mem  Enc Dec XSM Mxm Fbg Xid Pid Name
-     0  245   85  99  62   38   0   0   0   0   0   - python
-     1  250   83  98  61   40   0   0   0   0   0   - python
-     2  249   82  97  60   35   0   0   0   0   0   - python
-     3  250   84  99  61   39   0   0   0   0   0   - python
+# GPU   Pwr Temp   Sm   Mem   Enc   Dec   Jpg   Ofa  Mclk  Pclk
+     0  245   85   99    62     0     0     0     0  2619  1833
+     1  250   83   98    61     0     0     0     0  2619  1833
+     2  249   82   97    60     0     0     0     0  2619  1833
+     3  250   84   99    61     0     0     0     0  2619  1833
 ```
 
 **Interpretation:**
@@ -75,8 +75,8 @@ $ nvidia-smi -i 0 -q -d CLOCK | grep "Current Clocks"
             Video                          : 1440 MHz
 ```
 
-**Before throttle (from logs):** 2500 MHz
-**During throttle:** 1833 MHz → **27% clock reduction**
+**Before throttle (from logs):** 1980 MHz
+**During throttle:** 1833 MHz → **7% clock reduction** (small clock drop, but combined with memory-clock derating this produces the larger 15-30% throughput loss seen in the Symptoms section)
 
 Compare against baseline:
 
@@ -183,7 +183,7 @@ All fans at 100% but temperature still 85°C → **cooling system is saturated**
    ```
 
 3. **Improve ambient cooling:**
-   - Ensure data center CRAC/CRAH maintains < 24°C ambient
+   - Ensure data center CRAC/CRAH maintains &lt; 24°C ambient
    - Verify no hot-air recirculation around chassis
    - Check for blocked intake vents
 
@@ -226,11 +226,11 @@ $ nvidia-smi -i 0 -q | grep -i dvfs
    # Expected: 70-78°C under full load
    ```
 
-2. **Clock speed consistent at 2.5 GHz:**
+2. **Clock speed consistent at 1980 MHz:**
    ```bash
    nvidia-smi -i 0 --query-gpu=clocks.current.graphics --format=csv,noheader
    
-   # Expected: ~2500 MHz sustained
+   # Expected: ~1980 MHz sustained (H100 SXM5 boost)
    ```
 
 3. **Fan speed appropriate for load:**
@@ -264,7 +264,7 @@ $ nvidia-smi -i 0 -q | grep -i dvfs
 
 | Symptom | Evidence | Root Cause | Fix | Verification |
 |---------|----------|-----------|-----|--------------|
-| Clock drops 2.5 → 1.8 GHz, temp 85°C, fan 100% | DCGM thermal events > 100/min, dmesg shows throttle | Thermal paste degraded or airflow blocked | Replace thermal paste, verify airflow, reduce ambient temp | Temperature < 80°C, clock stable 2.5 GHz, fan 70-80% |
+| Clock drops 1980 → 1833 MHz, temp 85°C, fan 100% | DCGM thermal events > 100/min, dmesg shows throttle | Thermal paste degraded or airflow blocked | Replace thermal paste, verify airflow, reduce ambient temp | Temperature &lt; 80°C, clock stable ~1980 MHz, fan 70-80% |
 | Temperature rises 2°C/min, plateaus at 87°C | Fan speed 100%, no fluctuation, power draw stable | Cooling capacity exhausted (PSU or facility limits) | Reduce GPU power limit to 200W, enable variable fan control | Temp stabilizes at 75°C with lower throughput |
 | Intermittent thermal throttle (appears daily at 3 PM) | Temperature spike correlated with facility AC cycle | Facility HVAC insufficient or datacenter hot spot | Move GPU to cooler location, request facility temp increase | Throttle disappears when relocated or time of day irrelevant |
 | Thermal paste applied but temp still 85°C | Fan speed increases but temperature doesn't improve | Thermal interface material defective or installation error | Re-apply paste, verify paste coverage with thermal camera | Temp drops to 70-75°C, no recurring high temp |
@@ -354,7 +354,7 @@ cat /proc/cpuinfo >> thermal_escalation.log
 
 ### Interview Preparation
 
-**Q: "During training, we see GPU clock drop from 2.5 to 1.8 GHz and performance halves. Walk us through your diagnosis."**
+**Q: "During training, we see GPU clock drop from ~1980 MHz to ~1833 MHz and performance halves. Walk us through your diagnosis."**
 
 A: "The first question is: is this thermal throttling or power throttling? They look similar but have different fixes. I'd immediately check the temperature with `nvidia-smi -q -d TEMPERATURE`. If it's > 80°C, then thermal throttling is happening. Next, I'd check if the fan is already at 100% with `nvidia-smi --query-gpu=fan.speed`. If fan is maxed and we're still throttling, then either the thermal paste is degraded, airflow is blocked, or we've hit the data center's ambient cooling limit. I'd try a quick thermal paste reapplication on a test GPU to see if it helps. If temperature doesn't improve and it's a fleet-wide issue at the same time of day, I'd escalate to facilities — could be HVAC struggling during peak hours."
 
@@ -364,5 +364,5 @@ A: "That timing pattern screams facility issue. The data center probably has pea
 
 **Q: "How would you build a preventive monitoring system to catch thermal degradation before it affects training?"**
 
-A: "I'd set up continuous metrics collection: every 30 seconds, record GPU temperature, fan speed, and clock speed. Then I'd build a Prometheus alert on two things: (1) if temperature > 80°C for > 5 minutes, page on-call to investigate; (2) if throttle events are detected, alert immediately because throttling means we're already losing performance. I'd also run a weekly synthetic load test — schedule a 10-minute constant-load job on each GPU and verify temperature stays < 75°C and clock stays > 2400 MHz. If it doesn't, that GPU is due for thermal paste replacement. This way we catch degradation before it hits production."
+A: "I'd set up continuous metrics collection: every 30 seconds, record GPU temperature, fan speed, and clock speed. Then I'd build a Prometheus alert on two things: (1) if temperature > 80°C for > 5 minutes, page on-call to investigate; (2) if throttle events are detected, alert immediately because throttling means we're already losing performance. I'd also run a weekly synthetic load test — schedule a 10-minute constant-load job on each GPU and verify temperature stays &lt; 75°C and clock stays > 1900 MHz. If it doesn't, that GPU is due for thermal paste replacement. This way we catch degradation before it hits production."
 

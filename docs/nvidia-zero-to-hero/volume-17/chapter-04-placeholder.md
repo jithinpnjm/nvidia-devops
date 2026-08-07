@@ -117,7 +117,7 @@ with profile(activities=[ProfilerActivity.CPU, ProfilerActivity.CUDA]):
 
 | Bottleneck | Primary evidence | Typical fixes |
 |---|---|---|
-| **Compute** | Roofline shows compute ceiling reached; occupancy >80%; HBM bandwidth <50% utilized | Increase block size, reduce register pressure, enable higher clock speed |
+| **Compute** | Roofline shows compute ceiling reached; occupancy >80%; HBM bandwidth &lt;50% utilized | Increase block size, reduce register pressure, enable higher clock speed |
 | **Memory** | Roofline shows memory limit reached; HBM util >90%; L1/L2 miss rates high | Improve data reuse (tiling), increase cache line fill, coalescing, texture cache for reads |
 | **I/O** | Data loading > 50% of iteration time; GPU idles between batches | Prefetch in background, increase batch size, cache in GPU memory, faster storage |
 | **Network** | NCCL collectives > 20% of total time; network util >80% during allreduce | Reduce collective frequency (gradient accumulation), use ring topology, async SGD |

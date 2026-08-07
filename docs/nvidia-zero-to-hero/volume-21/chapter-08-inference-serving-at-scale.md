@@ -168,31 +168,41 @@ Scaling calculation:
   Time per response: 150 / 36 = 4.2 sec per sequence
   Concurrent sequences per GPU: 64 (vLLM limit)
   
-  To serve 2000 QPS:
+  To serve 2000 QPS (single region, no failover headroom):
     If each GPU holds 64 concurrent sequences for 4.2 sec
     Sequences per GPU per second: 64 / 4.2 = 15.2 QPS per GPU
-    GPUs needed: 2000 / 15.2 ≈ 132 GPUs minimum
-    
-  With multi-region (3x redundancy for 99.9% availability):
-    Total GPUs: 132 × 3 = 396 GPUs
-    Inference nodes: 396 / 8 GPU per node = 49.5 ≈ 50 nodes
+    Naive GPUs needed (ignoring tensor parallelism): 2000 / 15.2 ≈ 132 GPUs
+
+  Design target — N+1 regional failover (not full triplication): with 3 active-active
+  regions, any ONE region can fail and the remaining TWO must absorb the full 2000 QPS,
+  i.e. each region must independently support ~1000 QPS (2000 / 2), not 2000 QPS alone.
+  Llama-70B also needs 2-GPU tensor parallelism per replica (doesn't fit serving-optimized
+  on a single H100 at this context length), so each "replica" of 15.2 QPS costs 2 GPUs:
+    GPUs needed per region for 1000 QPS: (1000 / 15.2) × 2 GPUs/replica ≈ 132 GPUs
+    Total GPUs across 3 regions: 132 × 3 = 396 GPUs
+    Inference nodes: 396 / 8 GPU per node ≈ 50 nodes (≈17 nodes/region)
 
 Deployment:
-  Region 1 (us-west): 50 nodes (400 GPUs), 2-GPU tensor parallelism per model
-    Nodes 1–25: Llama-70B serving (25 × 8 GPU / 2 per model = 100 model replicas)
-    Throughput: 100 replicas × 15.2 QPS = 1520 QPS
-  Region 2 (us-east): 50 nodes, same setup
-  Region 3 (eu-west): 50 nodes, same setup
-  
-  Total: 150 nodes, 1200 GPUs, serving 2000 QPS globally with 99.9% availability
-  
+  Region 1 (us-west): 17 nodes (136 GPUs), 2-GPU tensor parallelism per model
+    68 model replicas (136 GPU / 2 per replica)
+    Throughput: 68 replicas × 15.2 QPS ≈ 1,034 QPS (comfortably covers the ~1,000 QPS
+    failover requirement for this region)
+  Region 2 (us-east): 17 nodes, same setup
+  Region 3 (eu-west): 17 nodes (or 16, to round to ~400 total), same setup
+
+  Total: ~51 nodes, ~408 GPUs, serving 2000 QPS globally in steady state (each region
+  handles ~667 QPS load-balanced normally, with headroom to ~1,034 QPS during a
+  single-region failover) — this is the correct sizing for N+1 regional redundancy,
+  not the "132 × 3 with full triplication" framing used loosely elsewhere.
+
 Infrastructure cost:
-  Hardware: 1200 GPUs × $30K = $36M
-  Network: Multi-region bandwidth, $2M/year
-  Power: 1200 GPU × 350W = 420 kW peak, 200 kW avg = $200K/year electricity
+  Hardware: 408 GPUs × $30K = $12.24M
+  Network: Multi-region bandwidth (roughly GPU-count independent), $2M/year
+  Power: 408 GPU × 350W = 142.8 kW peak, ~70 kW avg = $70K/year electricity (0.07 MW × 8760h × $0.12/kWh ≈ $73.6K/year)
   Personnel: 10 SRE/Eng × $150K = $1.5M/year
-  Total 3-year cost: $36M + ($2M + $0.2M + $1.5M) × 3 = $46.6M
-  Cost per 1M tokens served: $46.6M / (2000 QPS × 86400 sec/day × 365 days × 150 tokens/seq) = $0.005 per 1M tokens
+  Total 3-year cost: $12.24M + ($2M + $0.074M + $1.5M) × 3 = $12.24M + $10.72M ≈ $22.96M
+  Annual tokens served: 2000 QPS × 86,400 sec/day × 365 days × 150 tokens/seq ≈ 9.46 trillion tokens/year
+  Cost per 1M tokens served (consistent annual/annual): ($22.96M / 3) / (9.46 trillion / 1M) ≈ $7.65M / 9.46M(1M-token units) ≈ $0.81 per 1M tokens
 ```
 
 ---
@@ -201,7 +211,7 @@ Infrastructure cost:
 
 | Challenge | Impact | Solution |
 |---|---|---|
-| **High tail latency (p99 > 1 sec) while p50 < 100ms** | User experience poor during traffic spikes | Implement queue backpressure; reject requests at 99.95% full capacity instead of queueing indefinitely |
+| **High tail latency (p99 > 1 sec) while p50 &lt; 100ms** | User experience poor during traffic spikes | Implement queue backpressure; reject requests at 99.95% full capacity instead of queueing indefinitely |
 | **Model inference timeout (>30 sec, triggers client disconnect)** | Requests dropped, user sees error | Implement per-request timeout budget; reject new requests if response cannot complete within SLA |
 | **KV cache fragmentation (memory wasted by incomplete sequences)** | Max concurrent sequences drops 50% over time | Use paged KV cache (like virtual memory); reuse blocks across requests; periodic defragmentation |
 | **Unbalanced multi-GPU load (one GPU at 100%, others at 40%)** | Worst GPU is bottleneck; others idle | Use load-aware request routing; distribute based on estimated tokens per response |
@@ -213,7 +223,7 @@ Infrastructure cost:
 
 Inference serving differs fundamentally from training:
 
-1. **Latency SLA:** Target p99 TTFT <500ms, not max throughput.
+1. **Latency SLA:** Target p99 TTFT &lt;500ms, not max throughput.
 2. **Continuous batching:** Dynamic batch size (1–64 sequences) achieves throughput of static large batches with latency of small batches.
 3. **Scaling:** Memory-bandwidth bound (36 tokens/sec per H100 for decode); add GPUs for concurrency, not per-GPU speed.
 4. **Multi-region:** Replicate clusters across regions for 99.9% SLA; cost-optimal at 2000+ QPS.

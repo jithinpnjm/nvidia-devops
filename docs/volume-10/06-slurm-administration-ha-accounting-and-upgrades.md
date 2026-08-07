@@ -136,12 +136,12 @@ Not responding       (null)    2026-07-30T11:40:11  gpu-node-22
 
 Slurm's documented upgrade order is strict: **`slurmdbd` first, then `slurmctld`, then `slurmd` on compute nodes**, never the reverse. `slurmdbd` owns and migrates the accounting database schema; a newer `slurmctld` talking to an older `slurmdbd`/schema can encounter accounting calls the older schema doesn't support, but a `slurmdbd` upgraded first (and its schema migration completed) can continue serving an older `slurmctld` without issue, because `slurmdbd`'s RPC compatibility window is generally wider going backward than a not-yet-upgraded piece going forward.
 
-Version skew is explicitly bounded: RPC compatibility is officially guaranteed only between adjacent major versions (Slurm's own documented policy — for example a 23.02 `slurmctld` is compatible with 22.05 `slurmd` compute nodes, but skipping two major versions of skew, e.g. running 21.08 compute nodes against a 23.02 controller, is unsupported and can silently misbehave rather than fail cleanly). This is what makes rolling upgrades possible at all: compute nodes can lag the controller by one major version while jobs continue running on them, which is the mechanism for **not killing running jobs during an upgrade** — you drain and upgrade `slurmd` on a batch of nodes at a time (the same `serial:`-style batching concept as Chapter 4's Ansible rollout, operationally), while the controller itself is upgraded once, during a short maintenance window, without needing every compute node upgraded simultaneously.
+Version skew is bounded, but more generously than a strict "adjacent versions only" rule: Slurm's documented upgrade policy supports `slurmd`/client-side tools lagging the controller by up to **two** major releases (N, N-1, N-2) — for example a 23.02 `slurmctld` can serve 22.05 *and* 21.08 `slurmd` compute nodes without a forced upgrade, and it's only a third major version behind (e.g. 20.11 compute nodes against a 23.02 controller) that moves outside the supported skew window and risks silent misbehavior rather than a clean failure. This wider window is what makes rolling upgrades practical across a large fleet: compute nodes can lag the controller by up to two major versions while jobs continue running on them, which is the mechanism for **not killing running jobs during an upgrade** — you drain and upgrade `slurmd` on a batch of nodes at a time (the same `serial:`-style batching concept as Chapter 4's Ansible rollout, operationally), while the controller itself is upgraded once, during a short maintenance window, without needing every compute node upgraded simultaneously. In practice, most sites still upgrade `slurmd` fleet-wide well before hitting the N-2 boundary — the wider window is a safety margin for a large rolling upgrade taking longer than planned, not a license to defer compute-node upgrades indefinitely.
 
 ```mermaid
 flowchart TD
     A["slurmdbd (schema migrates first)"] --> B["slurmctld (control plane, brief window)"]
-    B --> C["slurmd (compute, rolling, batched) - one version behind controller is supported; two is not"]
+    B --> C["slurmd (compute, rolling, batched) - up to two major versions behind controller (N-2) is supported; three is not"]
 ```
 
 ```mermaid
@@ -152,7 +152,7 @@ flowchart LR
     D --> E["running jobs on NOT-YET-upgraded nodes are undisturbed throughout"]
 ```
 
-The practical admin move: `scontrol update nodename=<batch> state=drain` on a batch, wait for `sinfo`/`squeue` to confirm no running jobs remain on that batch (or accept that draining lets current jobs finish before removing the node from scheduling), upgrade `slurmd` and restart it on that batch, `resume` it, move to the next batch — a batch of nodes is unavailable for *new* scheduling during its own upgrade window, but the cluster as a whole, and every job that was running before the upgrade started, is never killed by the process.
+The practical admin move: `scontrol update nodename=&lt;batch&gt; state=drain` on a batch, wait for `sinfo`/`squeue` to confirm no running jobs remain on that batch (or accept that draining lets current jobs finish before removing the node from scheduling), upgrade `slurmd` and restart it on that batch, `resume` it, move to the next batch — a batch of nodes is unavailable for *new* scheduling during its own upgrade window, but the cluster as a whole, and every job that was running before the upgrade started, is never killed by the process.
 
 ## cgroup and GRES configuration for GPU binding
 
@@ -180,7 +180,7 @@ ConstrainRAMSpace=yes
 
 ## Mnemonic
 
-**D.O.G.F.A.C.E.** — **D**bd first (schema migrates), then controller, then compute (upgrade order); **O**ne major version of skew, no more; **G**RES declares capability per node; **F**airshare is relative, not absolute — review it, don't copy-paste it; **A**ssociations + QoS express org-chart policy and job-class policy separately; **C**onstrainDevices=yes turns GPU isolation from convention into enforcement; **E**xamine `sinfo -R` / `sshare -l` before escalating, not after.
+**D.O.G.F.A.C.E.** — **D**bd first (schema migrates), then controller, then compute (upgrade order); **O**nly up to two major versions of skew (N-2), no more; **G**RES declares capability per node; **F**airshare is relative, not absolute — review it, don't copy-paste it; **A**ssociations + QoS express org-chart policy and job-class policy separately; **C**onstrainDevices=yes turns GPU isolation from convention into enforcement; **E**xamine `sinfo -R` / `sshare -l` before escalating, not after.
 
 ## Practice
 

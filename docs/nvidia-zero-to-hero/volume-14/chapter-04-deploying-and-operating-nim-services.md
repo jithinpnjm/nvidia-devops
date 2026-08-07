@@ -223,7 +223,7 @@ canary_gate_latency_check:
 
 ```
 alert CanaryLatencyRegression
-  expr: histogram_quantile(0.95, nim_request_latency_p95) > 250ms
+  expr: histogram_quantile(0.95, rate(nim_request_latency_seconds_bucket[5m])) > 0.25
   for: 2m
   action: "Pause canary rollout, investigate revision differences"
 ```

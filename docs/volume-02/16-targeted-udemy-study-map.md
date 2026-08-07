@@ -8,7 +8,7 @@ source_document: "Volume_02_Python_for_Production_Infrastructure(3).docx"
 Use the Udemy course as reinforcement after reading the matching chapter. The integration does not expose stable deep links for individual enrolled lectures, so the exact lecture titles and durations are listed below; open the course and jump directly to those titles rather than watching the whole course linearly.
 
 
-<!-- source-table:1 -->
+&lt;!-- source-table:1 --&gt;
 
 | Book topic | Exact Udemy lecture / exercise | Approx. duration |
 | --- | --- | --- |

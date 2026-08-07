@@ -208,8 +208,8 @@ This suggests switch-level congestion or oversubscription.
 
 | Symptom | Check | Evidence | Diagnosis | Action |
 |---|---|---|---|---|
-| GPU util < 30%, queue depth always 0 | Baseline loader throughput | `iperf3`: should be 80%+ of link speed. If 10%, network or storage is slow. | Network or storage bottleneck | Capture network stats. Check target fill, metadata rate, network errors. Isolate which layer. |
-| GPU util < 30%, queue depth 1–2 (not zero) | Batch assembly latency | `time dd if=/storage/file of=/dev/null` should complete in under 100ms. If 500ms, I/O is slow. | Storage or I/O bottleneck | Run fio benchmark. Compare to baseline. Identify which layer (metadata, network, storage). |
+| GPU util &lt; 30%, queue depth always 0 | Baseline loader throughput | `iperf3`: should be 80%+ of link speed. If 10%, network or storage is slow. | Network or storage bottleneck | Capture network stats. Check target fill, metadata rate, network errors. Isolate which layer. |
+| GPU util &lt; 30%, queue depth 1–2 (not zero) | Batch assembly latency | `time dd if=/storage/file of=/dev/null` should complete in under 100ms. If 500ms, I/O is slow. | Storage or I/O bottleneck | Run fio benchmark. Compare to baseline. Identify which layer (metadata, network, storage). |
 | Intermittent stalls (GPU idle for 5–10s, then busy for 20s) | Batch latency variance | `print(time.time() - batch_start)` for each batch. If p99 >> p50, I/O is inconsistent. | Bursty workload or straggler | Synchronize GPU and I/O clocks. Check for scheduler interference or other jobs. |
 
 ### Table 2: Slow Metadata
@@ -218,7 +218,7 @@ This suggests switch-level congestion or oversubscription.
 |---|---|---|---|---|
 | Epoch start takes 2 min, epoch 2 takes 30 sec | Measure metadata ops | `lctl get_param llite.*.stats \| grep open`: should be under 50K ops/sec. If >100K, MDS is saturated. | Metadata server overloaded | Repackage dataset into larger files (tar, HDF5, WebDataset). Reduce opens 100x. |
 | Open latency is 50ms (baseline was 2ms) | Check MDS CPU and thread count | `top -H` on MDS: if all threads at 100%, MDS needs more threads. | MDS thread starvation | Increase MDS thread count: `lctl set_param -P mdt.*.service_watchdog=0` and `mdt.*.num_service_threads=...`. |
-| Files are split across many targets (stripe_count too high) | `lfs getstripe <file>`: check stripe_count | If stripe_count=32 for small files, metadata overhead is high. | Excessive striping | Reduce stripe_count for small files. Use default (1–4). High stripe only for large checkpoints. |
+| Files are split across many targets (stripe_count too high) | `lfs getstripe &lt;file&gt;`: check stripe_count | If stripe_count=32 for small files, metadata overhead is high. | Excessive striping | Reduce stripe_count for small files. Use default (1–4). High stripe only for large checkpoints. |
 
 ### Table 3: Slow Storage
 

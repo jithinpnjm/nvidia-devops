@@ -229,7 +229,7 @@ nvidia-smi --query-gpu=index,uuid,pci.bus_id,utilization.gpu,utilization.memory,
 Capture:
 
 - `nvidia-smi topo -m`;
-- process CPU affinity with `taskset -pc <pid>`;
+- process CPU affinity with `taskset -pc &lt;pid&gt;`;
 - memory policy with `numactl --show`;
 - NIC selection from communication-library logs;
 - adapter and switch counters;
@@ -289,7 +289,7 @@ Only after lower layers pass should you investigate framework scheduling, tensor
 
 ### Root-cause statement template
 
-> The workload was functionally healthy but used `<inefficient path>` because `<placement or selection cause>`. Evidence included `<logs, topology, counters, benchmark delta>`. Restoring `<approved placement>` returned results to the baseline range.
+> The workload was functionally healthy but used `&lt;inefficient path&gt;` because `&lt;placement or selection cause&gt;`. Evidence included `&lt;logs, topology, counters, benchmark delta&gt;`. Restoring `&lt;approved placement&gt;` returned results to the baseline range.
 
 ## 15. Cleanup
 

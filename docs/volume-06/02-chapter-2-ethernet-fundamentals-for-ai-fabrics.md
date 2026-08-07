@@ -52,7 +52,7 @@ Reading `ethtool -S` top-to-bottom is reading how far down this ladder the link 
 ```bash
 $ ping -M do -s 8972 10.0.4.12
 PING 10.0.4.12 (10.0.4.12) 8972(9000) bytes of data.
-ping: local error: message too long, mtu=9000 ← path/local MTU is 9000, payload+headers(28) = 9000 exceeds it
+ping: local error: message too long, mtu=9000 ← path/local MTU is 9000, payload+headers(28) = 9000 hits the MTU exactly — the kernel's DF check requires payload+headers to be strictly less than MTU, so an exact match still fails, not just an actual overage
 $ ping -M do -s 8944 10.0.4.12 # 8944 + 28 (ICMP+IP header) = 8972... adjust for RoCE's extra headers
 64 bytes from 10.0.4.12: icmp_seq=1 ttl=64 time=0.041 ms
 ```
@@ -80,7 +80,7 @@ Anything printed by this loop is a candidate root cause before you even open `ib
 ➕ **Worked scenario — MTU mismatch after a NIC firmware/driver upgrade:**
 > **Situation:** After a routine NIC driver update on half the fleet, a subset of nodes intermittently fail to complete large RDMA writes while small control messages work fine, and `ip link show` reports the same MTU (9000) on every node.
 > 1. `ip link show` matching everywhere rules out the obvious case — but it only reports *configured* MTU, not the effective *path* MTU, which can differ if an intermediate switch port or a bonded/VLAN interface silently reverted to 1500 during the upgrade.
-> 2. `ping -M do -s <size>` node-pair by node-pair, sized to the actual jumbo frame in use, is the only way to prove effective path MTU — sweep sizes with a binary search (`8000, 8972, 9000...`) to find the exact breakpoint.
+> 2. `ping -M do -s &lt;size&gt;` node-pair by node-pair, sized to the actual jumbo frame in use, is the only way to prove effective path MTU — sweep sizes with a binary search (`8000, 8972, 9000...`) to find the exact breakpoint.
 > 3. The breakpoint size, cross-referenced against "which nodes fail," localizes the problem to a specific switch/port/bond that the driver upgrade touched — not a generic "network is flaky" ticket.
 > 4. Fix: correct the MTU on the identified hop; re-run the `ping -M do` sweep to confirm before declaring resolved — don't just restart the job and hope.
 > **Conclusion:** "Configured MTU matches" and "effective path MTU matches" are different claims — this chapter's `ping -M do` command is the tool that closes that gap, and it's worth reaching for before any RDMA-specific tooling.

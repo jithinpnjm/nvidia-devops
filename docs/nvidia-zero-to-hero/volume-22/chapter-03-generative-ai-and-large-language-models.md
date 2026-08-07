@@ -42,8 +42,8 @@ LLM projects have two distinct cost phases:
 ### Requirements
 - Model: Llama-2 13B
 - Throughput: 1,000 concurrent users × 500 tokens/session
-- Latency: TTFT < 2 sec, per-token < 100ms
-- Pricing: < $0.0001 cost-per-output-token
+- Latency: TTFT &lt; 2 sec, per-token &lt; 100ms
+- Pricing: &lt; $0.0001 cost-per-output-token
 
 ### Architecture: 8 A100s + vLLM continuous batching
 
@@ -62,8 +62,8 @@ LLM projects have two distinct cost phases:
 
 **vs cloud:**
 - AWS: $2.00 per 1M tokens ($2,000/year @ 1B tokens)
-- GPU cluster: $0.0011 per 1M tokens ($1.74/year @ 1B tokens)
-- **Savings: 1,000× cheaper at scale**
+- GPU cluster: $1.74 per 1M tokens ($1,740/year @ 1B tokens)
+- **Savings: ~1.15× cheaper (~13%) at this scale** — the GPU cluster only pulls further ahead as token volume grows beyond what a single $110K/year cluster can serve
 
 ## Troubleshooting Decision Tree
 
@@ -80,7 +80,7 @@ flowchart TD
 
 **Q: Why do LLM serving costs often dominate training?**
 
-A: Training is one-time ($100K-$1M), amortized over years. Inference is per-user, every token costs money. 10,000 users × 100 tokens/day = 1B tokens/day. At $2/million (cloud), that's $2,000/day = $730K/year. So inference dominates by 3-4×. That's why LLM businesses obsess over inference efficiency.
+A: Training is one-time ($100K-$1M), amortized over years. Inference is per-user, every token costs money, and volume compounds with the user base. 10,000 users × 100 tokens/day = 1M tokens/day. At $2/million tokens (cloud), that's $2/day ≈ $730/year for this user base — modest at 10,000 users, but it scales linearly and indefinitely. At 10M users the identical math gives ~$730K/year, which now rivals or exceeds a one-time training run. That's why LLM businesses obsess over inference efficiency as user counts grow.
 
 ## Related Chapters
 

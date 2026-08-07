@@ -85,7 +85,7 @@ $ nvidia-smi --query-gpu=name --format=csv,noheader
 NVIDIA H100 80GB HBM3
 ```
 
-An H100 has 132 SMs. A kernel launched with a grid of, say, 40 blocks — one thread block per output tile in a small matrix — can place at most 40 blocks total across 132 SMs; even with perfect scheduling, roughly 92 SMs receive no work at all for that kernel's entire duration. This is checkable from the launch configuration alone (`<<<blocks, threads>>>` in the source, or the equivalent framework log) cross-referenced against the device's SM count — no profiler required to catch the most common version of this bug.
+An H100 has 132 SMs. A kernel launched with a grid of, say, 40 blocks — one thread block per output tile in a small matrix — can place at most 40 blocks total across 132 SMs; even with perfect scheduling, roughly 92 SMs receive no work at all for that kernel's entire duration. This is checkable from the launch configuration alone (`&lt;&lt;&lt;blocks, threads&gt;>>` in the source, or the equivalent framework log) cross-referenced against the device's SM count — no profiler required to catch the most common version of this bug.
 
 ## Threads
 
@@ -353,7 +353,7 @@ The architectural options include batching, request concurrency, smaller GPU par
 ### Architecture Questions
 
 1. Draw the path from kernel launch to warp execution.
-**Model answer:** "Kernel launch creates a grid; the grid is a fixed number of thread blocks. The GPU's work distributor hands blocks to SMs that have enough free registers, shared memory, and warp slots to admit them — that admission check is itself a bottleneck if I've sized the kernel wrong. Once a block is resident, the hardware splits its threads into warps of 32, and each SM's warp scheduler picks eligible warps and issues their next instruction to an execution pipeline. The thing I'd point at while drawing it: the block-to-SM assignment is where 'grid too small for this GPU' actually bites — if blocks < SM count, some SMs never get a block, permanently, for this kernel's whole runtime."
+**Model answer:** "Kernel launch creates a grid; the grid is a fixed number of thread blocks. The GPU's work distributor hands blocks to SMs that have enough free registers, shared memory, and warp slots to admit them — that admission check is itself a bottleneck if I've sized the kernel wrong. Once a block is resident, the hardware splits its threads into warps of 32, and each SM's warp scheduler picks eligible warps and issues their next instruction to an execution pipeline. The thing I'd point at while drawing it: the block-to-SM assignment is where 'grid too small for this GPU' actually bites — if blocks &lt; SM count, some SMs never get a block, permanently, for this kernel's whole runtime."
 
 2. Explain which resources limit block residency.
 **Model answer:** "Five things, and the tightest one wins: threads per SM, warps per SM, registers per SM divided by the kernel's registers/thread, shared memory per SM divided by the kernel's shared-memory/block, and the architectural cap on resident block count itself. I'd check `nvcc -Xptxas=-v` for registers/thread and the kernel's shared-memory request, then divide each against the SM's known limits — whichever gives the smallest number of resident blocks is the actual constraint, and tuning any other resource won't move it."
