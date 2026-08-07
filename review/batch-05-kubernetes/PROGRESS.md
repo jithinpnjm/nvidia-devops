@@ -21,11 +21,11 @@ Volumes: F-03 (`docs/volume-03`), ZTH-10 (`docs/nvidia-zero-to-hero/volume-10`),
 | F-03 | 15-senior-deep-dive-6-admission-policy-and-multi-tenant-guardrails.md | done | low | |
 | F-03 | 16-senior-deep-dive-7-platform-patterns-from-the-staff-engineer-guide.md | done | low | |
 | F-03 | 17-senior-deep-dive-8-gpu-platform-operations-node-pools-operators-and-resource-i.md | done | low | |
-| ZTH-10 | index.md | pending | |
-| ZTH-10 | chapter-01-why-kubernetes-needs-a-gpu-platform-layer.md | pending | |
-| ZTH-10 | chapter-02-gpu-software-lifecycle-in-kubernetes.md | pending | |
-| ZTH-10 | chapter-03-container-toolkit-runtimeclass-and-cdi.md | pending | |
-| ZTH-10 | chapter-04-device-plugin-and-kubernetes-resource-model.md | pending | |
+| ZTH-10 | index.md | done | low | |
+| ZTH-10 | chapter-01-why-kubernetes-needs-a-gpu-platform-layer.md | done | low | |
+| ZTH-10 | chapter-02-gpu-software-lifecycle-in-kubernetes.md | done | low | |
+| ZTH-10 | chapter-03-container-toolkit-runtimeclass-and-cdi.md | done | low | |
+| ZTH-10 | chapter-04-device-plugin-and-kubernetes-resource-model.md | done | low | |
 | ZTH-10 | chapter-05-node-and-gpu-feature-discovery.md | pending | |
 | ZTH-10 | chapter-06-gpu-operator-architecture.md | pending | |
 | ZTH-10 | chapter-07-driver-containers-and-node-operands.md | pending | |

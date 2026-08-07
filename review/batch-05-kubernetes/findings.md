@@ -84,3 +84,20 @@
 - [SEVERITY: low] No material issues found; cleanly cross-references rather than duplicates Chapters 8/9. Notably cites a real source (kubernetes.io blog, Sept 2025) for the DRA v1.34 GA claim used earlier in Deep Dive 3 — reinforces that claim's currency, though the `v1beta1` API-version mismatch flagged in Deep Dive 3's sample output is still worth reconciling.
 
 **F-03 (Volume 03) review complete — 17/17 files reviewed.**
+
+## ZTH-10 — Volume 10: Kubernetes GPU Platform
+
+### index.md
+- [SEVERITY: low] No issues found. Gold-standard framing (allocation path vs. execution path as two independently-failing chains) sets up the whole volume well.
+
+### chapter-01-why-kubernetes-needs-a-gpu-platform-layer.md
+- [SEVERITY: low] No issues found. The fragmentation worked example (32-GPU pool, taint-isolated pools, "24/32 idle but unreachable" framing) is an excellent, concrete answer to a common customer-facing utilization-reporting trap.
+
+### chapter-02-gpu-software-lifecycle-in-kubernetes.md
+- [SEVERITY: low] No issues found. Compatibility-matrix combinatorics worked example (3 kernels x 2 drivers x 4 image families = 24, collapsing to 2 profiles x 4 families = 8) is accurate and a strong interview answer for "why not just test everything."
+
+### chapter-03-container-toolkit-runtimeclass-and-cdi.md
+- [SEVERITY: low] No issues found. RuntimeClass-vs-CDI-vs-Toolkit three-mechanism table and the crictl-inspect-vs-in-container-nvidia-smi two-halves-of-evidence distinction are accurate and precisely scoped.
+
+### chapter-04-device-plugin-and-kubernetes-resource-model.md
+- [SEVERITY: low] No issues found. ListAndWatch/Register sequence diagram, capacity-vs-allocatable-vs-allocated distinction, and the underspecified-request probability worked example (15/40 = 37.5% chance of landing on a non-NVLink node) are accurate and at gold-standard depth, consistent with F-03 Chapter 2's device-plugin coverage (complementary, not redundant — this volume goes deeper on the ListAndWatch health-reporting mechanics).
