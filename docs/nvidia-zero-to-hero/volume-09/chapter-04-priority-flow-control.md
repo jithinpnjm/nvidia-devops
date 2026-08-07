@@ -39,15 +39,19 @@ For a RoCE design, PFC is usually associated with the specifically selected RoCE
 
 ```mermaid
 flowchart LR
-    A[Sender NIC] -->|RoCE priority| U[Upstream switch]
-    U -->|same priority| Q[Congested egress queue]
-    Q --> D[Downstream receiver]
-    Q -. PFC pause for this priority .-> U
-    U -. PFC pause if its queue fills .-> A
-    M[Management priority] -->|continues if separately queued| U
+    A["Sender NIC"] -->|"RoCE priority (prio3)"| U["Upstream switch"]
+    U -->|"same priority"| Q["Congested egress queue"]
+    Q --> D["Downstream receiver"]
+    Q -->|"evidence: queue occupancy\nrising toward threshold"| CHK{"ECN mark sent\nbefore threshold hit?"}
+    CHK -->|"yes — sender saw CE,\nreduced rate in time"| HEALTHY["Queue drains —\nPFC never fires\n(control loop worked)"]
+    CHK -->|"no — occupancy hit\npause threshold"| PAUSE["Q sends PFC pause for prio3 to U"]
+    PAUSE -->|"evidence: rx_pfc_prio3\nincrementing at U"| PROP{"Does U's own\ningress buffer for\nprio3 now fill?"}
+    PROP -->|"no — U drains within\nthe pause interval"| CONTAIN["Contained: one hop paused,\nrecovers before propagating"]
+    PROP -->|"yes — U must also\npause its upstream"| A
+    M["Management priority (prio0)"] -->|"continues — evidence:\nrx_pfc_prio0 stays 0"| U
 ```
 
-**Figure 9.4.1 — PFC is hop-local, but buffer pressure can move upstream.** The management flow remains independent only when marking, mapping, and queue isolation are correct.
+**Figure 9.4.1 — PFC is hop-local, but buffer pressure can move upstream, and the diagram now shows the two branch points that decide whether it stays contained.** The first branch is whether ECN did its job before the queue hit the pause threshold at all — that's the healthy path, and it should be the common case. The second branch, only reached if PFC actually fires, is whether the pause drains within one interval or forces the upstream switch to pause its own upstream neighbor — that's the difference between a contained, forgettable event and a pause tree. `rx_pfc_prio0` staying at zero throughout is the concrete evidence that management traffic's isolation held.
 
 ## The Mechanism: A Receiver Protects Its Buffer
 
