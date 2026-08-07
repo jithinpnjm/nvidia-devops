@@ -46,24 +46,24 @@ Volumes: `docs/nvidia-zero-to-hero/volume-19` (Production Operations), `docs/nvi
 | chapter-05-ecc-errors-and-memory-bit-flips.md | done | high (stub) |
 | chapter-05-placeholder.md (dead duplicate) | done | low (dead file) |
 | chapter-06-thermal-throttling-and-cooling-degradation.md | done | medium |
-| chapter-06-placeholder.md (dead duplicate) | pending | |
+| chapter-06-placeholder.md (dead duplicate) | done | low (dead file) |
 | chapter-07-dma-engine-failures-and-pcie-issues.md | done | high |
-| chapter-07-placeholder.md (dead duplicate) | pending | |
+| chapter-07-placeholder.md (dead duplicate) | done | low (dead file) |
 | chapter-08-fan-failure-and-cooling-system-degradation.md | done | none |
-| chapter-08-placeholder.md (dead duplicate) | pending | |
+| chapter-08-placeholder.md (dead duplicate) | done | low (dead file) |
 | chapter-09-power-supply-issues-and-brownout-scenarios.md | done | low |
-| chapter-09-placeholder.md (dead duplicate) | pending | |
+| chapter-09-placeholder.md (dead duplicate) | done | low (dead file) |
 | chapter-10-clock-instability-and-frequency-scaling-problems.md | done | medium |
-| chapter-10-placeholder.md (dead duplicate) | pending | |
+| chapter-10-placeholder.md (dead duplicate) | done | low (dead file) |
 | chapter-11-multi-gpu-imbalance-and-straggler-detection.md | done | medium |
-| chapter-11-placeholder.md (dead duplicate) | pending | |
+| chapter-11-placeholder.md (dead duplicate) | done | low (dead file) |
 | chapter-12-cross-layer-diagnosis-when-metrics-lie.md | done | none |
-| chapter-12-placeholder.md (dead duplicate) | pending | |
+| chapter-12-placeholder.md (dead duplicate) | done | low (dead file) |
 | labs/lab-01-symptom-to-evidence-mapping.md | done | low |
-| labs/lab-01-placeholder.md (dead duplicate) | pending | |
+| labs/lab-01-placeholder.md (dead duplicate) | done | low (dead file) |
 | labs/lab-02-root-cause-analysis.md | done | low |
-| labs/lab-02-placeholder.md (dead duplicate) | pending | |
+| labs/lab-02-placeholder.md (dead duplicate) | done | low (dead file) |
 | labs/lab-03-production-incident-simulation.md | done | low |
-| labs/lab-03-placeholder.md (dead duplicate) | pending | |
+| labs/lab-03-placeholder.md (dead duplicate) | done | low (dead file) |
 | labs/lab-04-postmortem-analysis.md | done | low |
-| labs/lab-04-placeholder.md (dead duplicate) | pending | |
+| labs/lab-04-placeholder.md (dead duplicate) | done | low (dead file) |

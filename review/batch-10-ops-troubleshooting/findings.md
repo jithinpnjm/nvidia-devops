@@ -1,6 +1,26 @@
 # Batch 10 — Production Ops & Troubleshooting — Findings
 
-_Summary to be filled in when review is complete._
+## Summary
+
+**Review complete.** Volumes reviewed: `docs/nvidia-zero-to-hero/volume-19` (Production Operations) and `docs/nvidia-zero-to-hero/volume-20` (Troubleshooting Encyclopedia).
+
+**Counts by severity:** 2 high (content-completeness) + 2 high (technical accuracy) = 4 high · 6 medium · 5 low · several "none" (clean chapters). Note: the two completeness findings each cover a large block of files (9 Vol 19 chapters/labs; 5 Vol 20 chapters), so the true file-level impact is larger than the finding count suggests.
+
+**Top 5 findings for interview prep, in priority order:**
+
+1. **[HIGH — completeness] Volume 19 is 75% unwritten.** Only Chapters 1-3 (Cluster Upgrades, Incident Response, Capacity Planning) are real content; Chapters 4-12 and all 4 labs are template stubs with literal "Content Under Development" placeholder text. Topics with zero content include GPU memory/utilization troubleshooting, network fabric validation, cost optimization, multi-tenancy, security operations, monitoring at scale, disaster recovery, performance debugging, and on-call handoffs — all plausible NVIDIA ops-interview topics. **Do not rely on this volume for those subtopics; they need to be authored or you need to source the material elsewhere.**
+
+2. **[HIGH — completeness + accuracy risk] Volume 20's own Xid-code chapter (Ch. 2) has no Xid table.** Chapters 1-5 (GPU memory, driver crash/Xid, NCCL timeout, NVLink errors, ECC errors) are stubs — only Symptoms/Evidence are filled in, Diagnosis through Escalation are empty. This is exactly the chapter that should contain the authoritative Xid-code reference for this curriculum, and it currently has none.
+
+3. **[HIGH — wrong Xid codes, confirmed] Chapter 7 (DMA/PCIe) misattributes Xid 94 and 63, and omits the correct code (79) for its own headline symptom.** Per NVIDIA's official Xid reference: Xid 79 = "GPU has fallen off the bus" (never mentioned, despite being this chapter's opening symptom); Xid 94 = "Contained ECC error" (chapter claims it means "GPU video memory access fault / DMA engine error"); Xid 63 = "ECC page retirement or row remapping recording event" (chapter claims it means "GPU lost PCIe link"). This is the exact wrong-Xid-code pattern flagged as high-risk for this batch, now confirmed present — a candidate repeating this chapter's Xid mapping would give wrong answers in the most likely interview scenario ("GPU fell off the bus").
+
+4. **[MEDIUM, recurring] Several data-center GPU hardware specs are stated well outside real values, repeated across multiple chapters/labs.** GPU clock speed given as "2.5 GHz / 2500 MHz" (real A100/H100 boost clocks top out ~1410/1980 MHz — this figure belongs to consumer GPUs, not datacenter parts) appears in Chapters 6, 10, and all 4 labs. NVLink per-link bandwidth given as "10 GB/sec" (real value ~25 GB/s for NVLink3/A100, ~50 GB/s for NVLink4/H100) appears in Chapter 11 and a lab. PCIe Gen4 x16 bandwidth given as "10-12 GB/s" (real achievable ~20-26 GB/s) appears in Chapter 7. A100 TDP given as "350W" (no real A100 SKU uses this; real values are 250/300/400W) appears in Chapter 9. This is the same error shape Batch 09 found with the H100 FP32 TFLOPS figure — specific, checkable numbers, wrong, and repeated.
+
+5. **[MEDIUM] Volume 19 Chapter 3's worked capacity-forecast example doesn't reconcile with its own input data**, and Chapter 1 uses the wrong PCIe device ID (H100's `0x2330` for a stated A100 node). Both read as fabricated/uncomputed illustrative numbers rather than actually-derived examples — worth a second pass before using these as authoritative worked examples in interview prep.
+
+**What's solid:** Volume 19 Chapters 1-3 and Volume 20 Chapters 8, 12, and all 4 labs are clean — no accuracy issues found, real annotated command output, correct tool syntax, and first-person interview answers matching the Volume 1 depth bar. Volume 20's overall diagnostic framework (Symptoms → Evidence → Diagnosis → Resolution → Verification → Prevention → Escalation) is a good structure once the stub chapters are filled in.
+
+**Structural note:** Volume 20 carries 16 dead duplicate `*-placeholder.md` stub files (one per chapter/lab) alongside the real content files — inert, unreferenced, low severity, but repo hygiene clutter similar to the Volume 13 duplication bug already fixed on this branch's base commit.
 
 ## Volume 19 — Production Operations
 
