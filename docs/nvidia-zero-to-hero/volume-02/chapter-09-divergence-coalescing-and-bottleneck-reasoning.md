@@ -166,6 +166,8 @@ A memory system may transfer more data than the application actually uses. The r
 
 High device-memory bandwidth with poor application throughput can indicate that the memory system is moving many unnecessary bytes or serving too many small transactions.
 
+**A worked useful-bytes calculation.** A warp of 32 threads each reading one 4-byte float, at fully coalesced adjacent addresses, needs 128 useful bytes and (on typical architectures with 32-byte sector granularity) around 4 sectors — close to the minimum possible transaction count for that data. The same 32 threads reading the same 128 bytes but scattered across 32 different cache lines can require up to 32 separate sector transactions — 8x the transaction count for the identical useful-byte count. If each sector fetch moves 32 bytes regardless of how many bytes are actually used, this scattered case transfers `32 sectors x 32 bytes = 1,024 bytes` from HBM to deliver 128 useful bytes — an 8x amplification. This is the arithmetic behind why a memory-bound kernel's *effective* bandwidth (useful bytes ÷ time) can be a small fraction of its *measured* bandwidth (total bytes moved ÷ time): `dmon`'s `mem%` reports the latter, not the former.
+
 ## Occupancy, Utilization, and Efficiency
 
 These metrics describe different things.
