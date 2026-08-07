@@ -81,3 +81,53 @@ Good IOMMU/DMA fault mechanics and troubleshooting table.
   - Evidence: `chapter-07-placeholder.md:118-172`.
   - Why it matters for JR2018680: NVIDIA vGPU architecture (vGPU Manager, mdev, licensing) is exactly the kind of NVIDIA-specific systems knowledge this interview loop would probe, and the generic-Linux-SR-IOV framing glosses over it.
   - Suggested fix: add a note that production NVIDIA vGPU deployments go through the vGPU Manager/mdev framework rather than raw `vfio-pci` VF passthrough, and that whole-GPU passthrough (not SR-IOV) is the common alternative when vGPU licensing isn't in use.
+
+## chapter-08-placeholder.md — BlueField and DOCA Security
+
+Good conceptual coverage of DPU-as-trust-boundary and attestation flow.
+
+- [SEVERITY: high] The chapter defines the acronym incorrectly: "DOCA (Data Center GPU Accelerated)" (line 36). NVIDIA's actual DOCA framework name is "Data Center-on-a-Chip Architecture" (NVIDIA DOCA SDK). This is a hard factual error about the volume's own subject-matter branding.
+  - Evidence: `chapter-08-placeholder.md:36`.
+  - Why it matters for JR2018680: getting NVIDIA's own product/acronym name wrong is exactly the kind of error an NVIDIA interviewer would notice immediately, and undermines credibility on a DPU/BlueField question.
+  - Suggested fix: correct to "Data Center-on-a-Chip Architecture."
+
+- [SEVERITY: low] The chapter's CLI examples (`doca-firewall`, `doca-crypto`, `doca-attest`, `doca-telemetry`) are illustrative pseudo-commands, not real DOCA tool names (real DOCA services/libraries include things like DOCA Flow, DOCA Firefly, DOCA IPsec, exposed via `doca_*` libraries/SDK APIs and BlueField's `mlnx`/`ovs-doca` tooling, not single unified `doca-*` CLI verbs shown here). Lower priority since other chapters use similar illustrative pseudo-commands, but worth noting since this chapter's commands read as more literal/copy-pasteable than most.
+  - Evidence: `chapter-08-placeholder.md:42, 61, 71, 176`.
+  - Why it matters for JR2018680: a candidate could reasonably expect these to be real commands and get corrected in an interview.
+  - Suggested fix: label these as "illustrative" or replace with real DOCA SDK/API references.
+
+## chapter-09-placeholder.md — Confidential Computing and Attestation
+
+This is the chapter most directly relevant to the review's GPU confidential-computing focus, and it has the volume's most significant technical error plus a real depth gap. Also fixed a trivial Mermaid syntax bug inline (mismatched bracket/paren on the "Remote Verifier" node, `chapter-09-placeholder.md:116`, which would have broken diagram rendering).
+
+- [SEVERITY: high] Section 9.3 shows enabling GPU confidential compute mode via `nvidia-smi -i 0 -c EXCLUSIVE_THREAD` (line 81), then verifying with `nvidia-smi -i 0 -q | grep Compute` → `Compute Mode: Default` (lines 83-85). This conflates two unrelated `nvidia-smi` concepts: `-c` sets the GPU **Compute Mode** (`DEFAULT`/`EXCLUSIVE_THREAD`/`EXCLUSIVE_PROCESS`/`PROHIBITED`), which controls how many contexts/processes can use the GPU concurrently — it has nothing to do with H100 Confidential Computing (CC) mode. Real GPU CC mode is a firmware/BIOS-level setting queried/toggled via `nvidia-smi conf-compute` subcommands, not the legacy `-c` compute-mode flag. The example's own output ("Compute Mode: Default") even contradicts the command that supposedly just set it to EXCLUSIVE_THREAD, which is a sign the example was not actually run/verified.
+  - Evidence: `chapter-09-placeholder.md:80-85`.
+  - Why it matters for JR2018680: this is the volume's single highest-value technical claim to get right, since the review focus explicitly calls out H100 confidential computing mode and attestation; a candidate repeating this command would visibly get GPU CC mode wrong in a hands-on interview.
+  - Suggested fix: replace with the actual `nvidia-smi conf-compute -f`/query workflow (or note the correct subcommand family) for enabling/verifying H100 CC mode.
+
+- [SEVERITY: medium] Depth/interview-readiness gap: this chapter (177 lines, the shortest chapter in the volume alongside ch-11) never resolves the gap flagged in Chapter 2 (which states GPUs generally lack attestation) — it doesn't name NVIDIA's actual GPU attestation architecture (NVIDIA Remote Attestation Service, local verifier, SPDM-based device identity, RIM/Reference Integrity Manifest for firmware measurement), instead presenting attestation generically via Intel-IAS-style pseudo-commands (`attest-client`, `attest-service`, `attest-verify`) applied uniformly to both SGX and GPU CC without distinguishing NVIDIA's actual attestation flow. It also never mentions that H100's initial CC implementation was not compatible with MIG (CC and MIG were mutually exclusive at launch) — a directly relevant interaction with this volume's own Chapter 6, and a concrete, testable interview fact for anyone asked to combine multi-tenancy (MIG) with confidential computing.
+  - Evidence: chapter-wide (9.1-9.5); cross-reference gap with `chapter-02-placeholder.md:190-193,247` and `chapter-06-placeholder.md` (MIG chapter).
+  - Why it matters for JR2018680: the review brief specifically calls out H100 CC mode and attestation as core topics; a candidate should know NVIDIA's attestation is device-identity + firmware-measurement based (not a rebrand of Intel IAS) and should know the MIG/CC interaction, since GPU sharing (ch6) and confidential computing (ch9) are natural follow-up interview combinations.
+  - Suggested fix: add a subsection naming the NVIDIA Attestation Service/RIM flow specifically, and a line noting MIG+CC compatibility constraints (verify current status against latest NVIDIA CC documentation, as this evolves across driver/CUDA releases).
+
+## chapter-10-placeholder.md — Data and Model Protection
+
+Good data-lifecycle and key-management coverage; solid interview answer.
+
+- [SEVERITY: medium] Section 10.1 presents `export NCCL_TLS_LEVEL=encrypt` as a real, working way to encrypt NCCL allreduce traffic between GPUs (lines 36-42), stating "This protects model gradients during allreduce operations." `NCCL_TLS_LEVEL` is not a documented NCCL environment variable — vanilla open-source NCCL does not provide built-in in-transit encryption of collective communications; this is a genuinely known, nontrivial gap in GPU cluster security (NCCL traffic over NVLink/RDMA/RoCE is typically protected by physical/network isolation rather than application-layer encryption, and adding encryption generally requires a different transport layer or vendor-specific extension). Presenting this as a one-line env-var fix is misleading on a topic (NCCL/RDMA network exposure) the review explicitly flags as important.
+  - Evidence: `chapter-10-placeholder.md:33-42`.
+  - Why it matters for JR2018680: NCCL/RDMA encryption is a real, hard, current problem in GPU cluster security — an interviewer would expect the candidate to know that this is *not* solved by a simple flag, and the chapter's confident one-liner would actively mislead prep.
+  - Suggested fix: replace with an accurate statement of the current state (e.g., network-level isolation/encryption at the RoCE/IB fabric layer, or note this as an open problem/area of active development) rather than a fabricated env var.
+
+- [SEVERITY: low] Section 10.4 repeats the same non-existent `kubectl auth can-i ... --resource-name=model-registry-creds` flag already flagged in Chapter 4 (`chapter-04-placeholder.md:287-289`).
+  - Evidence: `chapter-10-placeholder.md:142-146`.
+  - Why it matters for JR2018680: same as the Chapter 4 finding — command-line precision.
+  - Suggested fix: same fix as Chapter 4; consider a single corrected example reused via cross-reference instead of repeating the flawed command.
+
+## chapter-11-placeholder.md — Audit, Logging, and Compliance
+
+Accurate, well-structured multi-layer audit/compliance chapter (Kubernetes, GPU/DCGM, network, application layers; SOC2/HIPAA mapping). No significant issues found.
+
+## chapter-12-placeholder.md — Incident Response and Troubleshooting
+
+Strong closing chapter: concrete incident playbooks (leaked token, GPU side-channel, container escape), a reusable runbook template, and a tabletop-drill format. No accuracy issues found. Good volume-closing summary table.

@@ -113,7 +113,7 @@ flowchart LR
     
     Quote["Generate Quote<br/>- Firmware hash<br/>- Memory digest<br/>- Nonce from verifier"]
     
-    Verifier["Remote Verifier<br/>(e.g., customer)")
+    Verifier["Remote Verifier<br/>(e.g., customer)"]
     
     Cert["Intel/AMD<br/>Attestation<br/>Certificate"]
     
