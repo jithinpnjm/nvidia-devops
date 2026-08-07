@@ -44,13 +44,13 @@ Volumes: F-05 (`docs/volume-05`), ZTH-12 (`docs/nvidia-zero-to-hero/volume-12`),
 | ZTH-13 | chapter-03-data-parallelism-and-ddp.md | done | high |
 | ZTH-13 | chapter-04-fsdp-and-parameter-sharding.md | done | high |
 | ZTH-13 | chapter-05-deepspeed-and-zero.md | done | medium |
-| ZTH-13 | chapter-06-tensor-pipeline-and-expert-parallelism.md | pending | |
-| ZTH-13 | chapter-07-megatron-lm-architecture.md | pending | |
-| ZTH-13 | chapter-08-nccl-collectives-and-communication-paths.md | pending | |
-| ZTH-13 | chapter-09-checkpointing-and-recovery.md | pending | |
-| ZTH-13 | chapter-10-multi-node-training-architecture.md | pending | |
-| ZTH-13 | chapter-11-performance-engineering-and-troubleshooting.md | pending | |
-| ZTH-13 | chapter-12-volume-13-summary.md | pending | |
+| ZTH-13 | chapter-06-tensor-pipeline-and-expert-parallelism.md | done | low |
+| ZTH-13 | chapter-07-megatron-lm-architecture.md | done | medium |
+| ZTH-13 | chapter-08-nccl-collectives-and-communication-paths.md | done | low |
+| ZTH-13 | chapter-09-checkpointing-and-recovery.md | done | low |
+| ZTH-13 | chapter-10-multi-node-training-architecture.md | done | low |
+| ZTH-13 | chapter-11-performance-engineering-and-troubleshooting.md | done | medium |
+| ZTH-13 | chapter-12-volume-13-summary.md | done | medium |
 | ZTH-13 | labs/lab-01-run-multi-gpu-ddp-training.md | pending | |
 | ZTH-13 | labs/lab-02-benchmark-nccl-collectives.md | pending | |
 | ZTH-13 | labs/lab-03-test-sharded-training-with-fsdp.md | pending | |

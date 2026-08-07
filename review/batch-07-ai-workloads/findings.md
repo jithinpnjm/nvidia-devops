@@ -162,3 +162,35 @@ Note: commit d99bb03 on this branch already removed duplicated filler content fr
   - Evidence: "Memory per GPU (N=8): 40 GB (weights) + (40/8) GB (gradients) + (80/8) GB (optimizer) = 50 GB" — but 40 + 5 + 10 = **55 GB**, not 50 GB. The comparison table then states "ZeRO Stage 2 | 50 GB | 3.2×" — using the correct 55 GB figure, the reduction vs. DDP's 160 GB baseline is 160/55 ≈ **2.91×**, not 3.2×.
   - Why it matters for JR2018680: same category as the Chapter 4 finding — optimizer-state memory math under different ZeRO stages is exactly the kind of arithmetic an interviewer may ask a candidate to derive live; this document's own worked example doesn't add up.
   - Suggested fix: correct "50 GB" to "55 GB" and "3.2×" to "~2.9×" in both the Stage 2 section and the comparison table.
+
+### chapter-06-tensor-pipeline-and-expert-parallelism.md
+- [SEVERITY: low] No issues found in the substantive content. Pipeline-bubble formula `(p-1)/(m+p-1)` and all worked examples (27%/16%/8%/30%/10%/1.35%) check out arithmetically; TP inter-node vs intra-node NVLink/InfiniBand overhead math (60ms vs 2160ms) is internally consistent, though the source figure "219 MB" for "7B model / 32 shards" doesn't state a precision assumption (it implies ~1 byte/param, which is unusual — worth clarifying but not clearly wrong given it's describing sharded activation traffic, not full weights).
+- [SEVERITY: low] STRUCTURAL: file had 163 lines of trailing blank lines after the last content line (432 total vs 269 content) — same pattern found across chapters 6-12 (see volume-wide note below). Fixed inline (trimmed trailing whitespace, no content change).
+
+### chapter-07, 08, 09, 10, 11, 12 — volume-wide structural note
+- [SEVERITY: low] STRUCTURAL: chapters 06 through 12 (all seven) each had a large block of trailing blank lines appended after the actual Markdown content ended — ranging from 69 lines (ch12) to 263 lines (ch08). Chapters 01-05 and all four labs had no such trailing whitespace. This looks like a leftover artifact from a generation/edit pass (possibly related to the same class of issue commit d99bb03 fixed for chapters 1-3's duplicated body content, but manifesting here as trailing empty lines rather than duplicated text). Not a rendering-breaking MDX bug, but untidy and inconsistent with the rest of the volume.
+  - Fix applied inline: trimmed trailing blank lines from chapter-06 through chapter-12 (content unchanged, only whitespace removed). Verified no content was lost — `last_nonblank` line matched the final substantive line in each file before trimming.
+
+### chapter-07-megatron-lm-architecture.md
+- [SEVERITY: low] No issues found technically (column-then-row TP split rationale to minimize AllReduce count is accurate and matches real Megatron-LM design).
+- [SEVERITY: medium] DEPTH-BAR: this chapter (and 8-12 generally, see note below) is markedly thinner than chapters 1-6 — one short troubleshooting scenario and a single Q&A, versus chapters 1-6's multi-scenario worked failures with annotated logs plus a full 3-question "Interview Preparation" section with first-person model answers. Against this volume's own Chapter-1-6 bar (and the stated ZTH gold standard), this is a depth-bar regression partway through the volume.
+
+### chapter-08-nccl-collectives-and-communication-paths.md
+- [SEVERITY: low] No issues found. Collective definitions (Broadcast/AllReduce/ReduceScatter/AllGather/AllToAll) and Ring vs Tree tradeoffs are accurate; NVLink4 "450 GB/s per direction" and PCIe Gen4 x16 "~32 GB/s per direction" figures are correct.
+- [SEVERITY: low] STRUCTURAL: had 263 trailing blank lines; trimmed inline (see volume-wide note under chapter-06).
+
+### chapter-09-checkpointing-and-recovery.md
+- [SEVERITY: low] No issues found. Daly's optimal-checkpoint-interval formula is presented correctly in form; sync vs async checkpointing tradeoffs are accurate.
+
+### chapter-10-multi-node-training-architecture.md
+- [SEVERITY: low] No issues found. Rail-optimized network topology description, RDMA/RoCEv2 vs InfiniBand tradeoffs, and PFC/lossless-fabric explanation are all technically accurate and match real NVIDIA reference architectures.
+
+### chapter-11-performance-engineering-and-troubleshooting.md
+- [SEVERITY: medium] STRUCTURAL BUG (fixed inline): "Scenario 2: Severe Straggler Node" was duplicated verbatim — it appeared once at (original) lines 85-96, then again at lines 253-264, separated by ~150 blank lines. This is the same class of content-duplication issue that commit d99bb03 fixed for volume-13 chapters 1-3, present here in chapter 11 and apparently missed by that earlier pass.
+  - Fix applied inline: removed the duplicate second copy and the intervening blank-line block; file now ends cleanly after the single "Scenario 2" section (96 lines total, content unchanged otherwise).
+- [SEVERITY: low] MFU/HFU definitions and the "40-50% MFU is excellent for LLM training" benchmark figure are accurate and match commonly cited industry figures (e.g., Megatron/PaLM papers).
+
+### chapter-12-volume-13-summary.md
+- [SEVERITY: medium] Closing line is inconsistent with this volume's own content: "In the next volume, we will dive deeper into advanced parallelisms (Pipeline, Tensor, and Sequence parallelism)" — but Pipeline Parallelism, Tensor Parallelism, and Sequence Parallelism are already covered in this volume's Chapter 6 (Tensor/Pipeline/Expert Parallelism) and Chapter 7 (Megatron-LM, which explicitly introduces Sequence Parallelism). Per the batch assignment list, the actual next ZTH volume (14) covers AI Platform & Storage, not advanced parallelism.
+  - Why it matters for JR2018680: minor, but a candidate cross-referencing volume roadmaps during study could be confused about where SP/PP/TP content actually lives.
+  - Suggested fix: correct the closing sentence to describe what Volume 14 actually covers, or remove the specific forward-reference claim.
