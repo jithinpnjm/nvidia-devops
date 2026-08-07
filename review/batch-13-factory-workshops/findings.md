@@ -291,3 +291,9 @@ cat: +=: No such file or directory
   - Why it matters for JR2018680: ResNet-50 is one of the most widely-cited reference models in ML systems interviews; getting its well-known parameter count/size wrong by an order of magnitude is a notable, easily-checked factual error.
   - Suggested fix: Correct to ≈100 MB (FP32) / ≈50 MB (FP16) for ResNet-50 model weights; keep the "optimizer state doubles/quadruples size" framing but rescale from the correct base.
 - Otherwise clean: checkpoint-overhead math (42s/2500s ≈ 1.7%), the failure/recovery mermaid flow, and the fault-tolerance code are technically reasonable and internally consistent.
+
+### chapter-04-observability-system-design.md
+- [SEVERITY: high] RECURRENCE of the 100x unit-magnitude-slip pattern in the opening "Real math" framing box, self-contradicted by a correct calculation later in the same file. "100 GPUs × 20 metrics per GPU × 60 samples/hour × 24 hours × 90 days = 25.9 billion data points. At 8 bytes per point, that's ~207 GB" — verified: 100×20×60×24×90 = **259.2 million** data points (not 25.9 billion, off by 100x), and at 8 bytes/point that's **≈2.07 GB** (not ~207 GB). Solution Walkthrough Step 1, later in the same file, independently derives the *correct* figure ("100 × 20.7 MB = 2.07 GB raw"), directly contradicting the Problem Statement's "~207 GB" claim by exactly 100x.
+  - Evidence: Line ~31 (Problem Statement, "Real math") vs line ~285-296 (Solution Walkthrough Step 1).
+  - Why it matters for JR2018680: This is the volume's observability capstone, and the review series has repeatedly flagged magnitude-slip errors in storage/data-volume math; here the wrong framing number (~207 GB) sits right next to the correct one (2.07 GB) two sections later in the same document, which would confuse anyone trying to reconcile the two while studying.
+  - Suggested fix: Correct the Problem Statement's "Real math" box to 259.2 million data points / ≈2.07 GB, matching Step 1's derivation.

@@ -42,7 +42,7 @@ no content) alongside the real chapter files. These are excluded from review as 
 | ZTH-24 | chapter-01-cuda-kernel-optimization.md | done | high:1 (FLAGSHIP: entire project built on H100 FP32=1456 TFLOPS, real is ~67, 22x error) |
 | ZTH-24 | chapter-02-allreduce-algorithm-design.md | done | high:1, medium:1 (IB bandwidth 32x self-contradiction) |
 | ZTH-24 | chapter-03-distributed-training-fault-tolerance.md | done | medium:1 (ResNet-50 size 12x overstated) |
-| ZTH-24 | chapter-04-observability-system-design.md | pending | |
+| ZTH-24 | chapter-04-observability-system-design.md | done | high:1 (100x data-point/storage slip, self-contradicted later in file) |
 | ZTH-24 | chapter-05-troubleshooting-incident-response.md | pending | |
 | ZTH-24 | chapter-06-mig-configuration-multi-tenant.md | pending | |
 | ZTH-24 | chapter-07-kubernetes-gpu-scheduling.md | pending | |
