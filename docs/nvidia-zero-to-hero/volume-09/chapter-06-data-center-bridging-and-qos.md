@@ -35,17 +35,20 @@ QoS begins with traffic intent. A policy may classify at the host, trust or rewr
 
 ```mermaid
 flowchart LR
-    A[Application or host] --> M[DSCP or PCP marking]
-    M --> N[NIC traffic class]
-    N --> I[Switch ingress classification]
-    I --> Q[Egress queue]
-    Q --> S[Scheduler and ETS]
-    Q --> C[ECN and optional PFC]
-    S --> L[Next link]
+    A["Application or host"] --> M["DSCP or PCP marking"]
+    M -->|"evidence: tcpdump shows\nexpected DSCP/PCP value"| N["NIC traffic class"]
+    N --> I["Switch ingress classification"]
+    I --> CHK{"Does ingress trust\nor rewrite this marking?"}
+    CHK -->|"trusted — evidence: mlnx_qos\nshows expected priority"| Q["Egress queue\n(intended)"]
+    CHK -->|"untrusted/rewritten —\nno matching source-of-truth entry"| WRONGQ["Egress queue (WRONG) —\nsilent misclassification"]
+    Q --> S["Scheduler and ETS"]
+    Q --> C["ECN and optional PFC"]
+    WRONGQ -.->|"still forwards — ping/IP\nstill succeeds"| DRIFT["Drift: RDMA suffers,\nno alarm fires"]
+    S --> L["Next link"]
     C --> L
 ```
 
-**Figure 9.6.1 — Classification is an end-to-end contract.** A queue policy is only meaningful if each hop delivers the intended traffic to that queue.
+**Figure 9.6.1 — Classification is an end-to-end contract, and the diagram now shows the specific failure this chapter is built around: a silent rewrite at ingress.** The dangerous branch isn't a dropped packet — it's the untrusted/rewritten path, where the frame is still forwarded (so ping and basic connectivity checks pass) but lands in the wrong queue with the wrong ECN/PFC treatment. That gap between "still reachable" and "in the intended queue" is exactly why Chapter 06's validation plan tests classification with known marked traffic instead of trusting a config export.
 
 ## What Each Control Does
 
@@ -80,6 +83,38 @@ An endpoint may set DSCP or PCP incorrectly, accidentally or deliberately. Decid
 ## Consistency and Drift Control
 
 The fastest way to create a difficult RoCE incident is to change a single mapping in one place. The source marks a packet as intended, an access switch rewrites it, a spine maps it differently, and the destination sees an ordinary lossy queue. Ping and a basic IP test can still work while the RDMA workload suffers.
+
+**Illustrative annotated output — proving the marking-to-queue contract end to end, hop by hop:**
+
+```text
+# 1. What the source actually puts on the wire
+$ tcpdump -i eth0 -c1 -v host <peer-ip> and udp port 4791
+IP (tos 0xb8, ttl 64, ...) 10.20.4.15.51422 > 10.20.8.5.4791: UDP, length 1200
+```
+
+`tos 0xb8` decodes to DSCP 46 (Expedited Forwarding, `0xb8 >> 2 = 46`) — the host is marking correctly.
+
+```text
+# 2. What the access (leaf) switch believes about this priority
+$ mlnx_qos -i swp4
+Priority trust state: dscp
+DSCP to priority mapping:
+        dscp    0-7  8-15  ...  40-47  48-55  56-63
+        prio     0     0   ...    3      0      0
+```
+
+DSCP 46 falls in the `40-47` bucket, mapped to priority 3 (the RoCE class) — consistent so far.
+
+```text
+# 3. What the far-side (destination leaf) switch believes — the actual drift
+$ mlnx_qos -i swp19
+Priority trust state: pcp        <- DIFFERENT trust mode: this switch ignores DSCP entirely
+PCP to priority mapping:
+        pcp      0   1   2   3   4   5   6   7
+        prio     0   0   0   0   0   0   0   0    <- untagged frames default to priority 0
+```
+
+This is the exact failure this section describes: `swp4` trusts DSCP and correctly classifies the RoCE packet into priority 3. `swp19`, on the destination side, is configured to trust PCP instead — and since this is a routed IP packet with no 802.1Q tag, it has no PCP value at all, so it falls through to priority 0 (best-effort). The packet is still forwarded — ping and TCP still work across this path — but from `swp19` onward it's sharing a lossy best-effort queue with everything else, with no PFC or ECN protection. Nothing in this drift trips an alarm on its own; it only shows up as unexplained RDMA retransmission or throughput loss, which is why Chapter 06 insists on testing the mapping with known marked traffic captured at every hop, not just reviewing each switch's configuration in isolation.
 
 ```mermaid
 flowchart TB
@@ -116,6 +151,16 @@ Record topology, firmware, software, profile version, workload, duration, and ra
 
 **Diagnosis:** trace the packet marking and mapping hop by hop. Verify the selected RoCE priority is actually PFC-enabled in both receive and transmit directions where the implementation requires it. Check MTU, physical errors, ACLs, and endpoint configuration before assuming this is a buffer problem.
 
+**Evidence in practice — this is precisely the trust-mode mismatch captured above:**
+
+```text
+$ ethtool -S swp19 | egrep "rx_prio0_discard|rx_pfc_prio3"
+     rx_prio0_discard:        18420     <- drops on priority 0, not priority 3
+     rx_pfc_prio3:            0         <- PFC on prio3 never even engages
+```
+
+PFC "appears configured" (it's enabled on priority 3 at every switch in the design), but the drops are showing up on priority 0 — because, as the `mlnx_qos -i swp19` capture above showed, this switch's PCP-trust mode silently reclassified the traffic into priority 0, which has no PFC protection at all. Checking PFC configuration alone would show everything correct; only tracing the actual queue the drops occur on reveals the packet never reached the protected class it was supposed to.
+
 **Resolution:** correct the mapping or the independent fault. Re-run a bounded test and collect queue-specific rather than aggregate counters.
 
 **Prevention:** deploy a post-change compliance test that asserts the intended class, queue, and congestion policy on all participating roles.
@@ -126,7 +171,19 @@ Record topology, firmware, software, profile version, workload, duration, and ra
 
 **Diagnosis:** inspect markings, queue mapping, scheduler state, and pause counters. Find whether management shares the RoCE priority, is starved by a scheduling rule, or uses a physically saturated cut.
 
-**Resolution:** restore class separation and validate that scheduler policy protects the control class. If the link is structurally full, add capacity or alter placement; QoS cannot make an exhausted link carry unlimited demand.
+**Evidence in practice:**
+
+```text
+$ mlnx_qos -i swp4 | grep -A3 "tsa"
+tc: 0 ratelimit: unlimited, tsa: dwrr, weight: 5
+         priority:  0
+tc: 1 ratelimit: unlimited, tsa: strict
+         priority:  3
+```
+
+`tc: 1` (carrying priority 3, RoCE) is scheduled `strict` — strict-priority scheduling means this traffic class is always serviced before any `dwrr` (deficit-weighted round robin) class when both have queued packets. Management (`tc: 0`, priority 0) is on `dwrr` with only weight 5 — it gets a share of leftover bandwidth, but only after `tc: 1` has been fully serviced. During a sustained RoCE burst, `tc: 1` can legitimately keep the scheduler busy long enough that `tc: 0`'s round-robin turns become rare, which is starvation by design, not a fault — the scheduler is doing exactly what "strict priority for RoCE" was configured to do, at a cost nobody evaluated for the management class.
+
+**Resolution:** restore class separation and validate that scheduler policy protects the control class. If the link is structurally full, add capacity or alter placement; QoS cannot make an exhausted link carry unlimited demand — in this case, moving management off strict-priority contention (its own class with an ETS-guaranteed minimum rather than leftover dwrr share) was the actual fix, not tuning weight 5 higher.
 
 ### Scenario 3 — Storage misses its expected share
 
@@ -144,10 +201,21 @@ Ask the customer to name the traffic that must remain operational during a worst
 
 ## Interview Preparation
 
-1. Why can a DSCP value be correct at the host and wrong at the egress queue?
-2. What is the difference between ETS and a hard bandwidth reservation?
-3. How do you prove PFC is not affecting management traffic?
-4. Why is QoS not a substitute for tenant isolation or capacity planning?
+**1. Why can a DSCP value be correct at the host and wrong at the egress queue?**
+
+"Because DSCP being present and correct on the wire only proves the source did its job — every switch between the source and that egress queue still gets to decide independently whether to trust that marking, ignore it, or rewrite it. I've actually traced this: `tcpdump` at the source showed `tos 0xb8`, DSCP 46, correctly mapped to priority 3 at the first-hop leaf. But the destination-side leaf was configured to trust PCP instead of DSCP, and since this was a routed IP packet with no 802.1Q tag, it had no PCP value — so it fell through to priority 0, best-effort, with zero protection. The packet was still forwarded, ping still worked, and nothing alerted. That's the whole point of calling classification an end-to-end contract instead of a host setting — every hop is a place the contract can silently break."
+
+**2. What is the difference between ETS and a hard bandwidth reservation?**
+
+"ETS is a configured minimum-share objective under contention — when multiple classes are actively competing for the same egress, ETS decides how the scheduler splits the available bandwidth between them, roughly proportional to whatever percentages were configured. It is not a hard reservation, because if only one class has traffic to send, it can legitimately use the whole link — nothing is walled off and sitting idle waiting for a class that isn't sending. The distinction matters operationally: if someone tells a customer '30% ETS means storage always gets 30% of the link,' that's wrong — it means storage gets at least roughly 30% only when it's actually contending with other classes for that same link, and the exact behavior under contention is device-scheduler-specific, so I'd always validate it under real simultaneous load rather than trust the configured percentage."
+
+**3. How do you prove PFC is not affecting management traffic?**
+
+"I wouldn't just check that management is on a different priority in the config — I'd run a controlled test: saturate the RoCE class deliberately, enough to trigger PFC, and watch management's own priority-specific counters — `rx_pfc_prio0` in the scheme I've been using — throughout. If that counter stays at zero while `rx_pfc_prio3` is actively incrementing, that's proof, not just configuration review. I'd pair that with actual management-plane latency measurements during the same window, because a queue-mapping gap can exist even when the pause counters look clean — for example if management is technically isolated from PFC but sharing a scheduler class that gets starved by strict-priority RoCE traffic, which is a related but different failure mode."
+
+**4. Why is QoS not a substitute for tenant isolation or capacity planning?**
+
+"Because QoS answers 'which queue does this packet use and how is that queue treated,' and that's a completely different question from 'is this workload authorized to be here' or 'is there enough capacity for everyone's demand.' A misbehaving or malicious workload can still mark its own traffic to request a protected class — QoS classification trusts markings according to policy, it doesn't authenticate who's sending them, so it's not an access-control mechanism. And even a perfectly classified, perfectly isolated RoCE class can't manufacture bandwidth that doesn't exist — if the aggregate demand exceeds the link's capacity, QoS decides who waits, it doesn't make the wait go away. I'd tell a customer: QoS answers 'how is contention handled,' tenant isolation answers 'who's allowed to contend,' and capacity planning answers 'how much contention will actually happen' — you need all three, and QoS alone covers none of the other two."
 
 ## Key Takeaways
 
