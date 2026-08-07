@@ -40,8 +40,8 @@ Status values: pending / in-progress / done
 | ZTH-03 | chapter-03-cuda-programming-and-execution-model.md | done | none |
 | ZTH-03 | chapter-04-kernel-launch-configuration-and-indexing.md | done | none |
 | ZTH-03 | chapter-05-cuda-memory-management-and-data-movement.md | done | none |
-| ZTH-03 | chapter-06-synchronization-errors-and-correctness.md | pending | |
-| ZTH-03 | chapter-07-streams-events-and-asynchronous-execution.md | pending | |
+| ZTH-03 | chapter-06-synchronization-errors-and-correctness.md | done | none |
+| ZTH-03 | chapter-07-streams-events-and-asynchronous-execution.md | done | none |
 | ZTH-03 | chapter-08-pinned-memory-and-transfer-overlap.md | pending | |
 | ZTH-03 | chapter-09-unified-memory-and-demand-paging.md | pending | |
 | ZTH-03 | chapter-10-cuda-graphs-and-repeated-execution.md | pending | |

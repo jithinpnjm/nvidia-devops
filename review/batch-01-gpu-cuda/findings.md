@@ -124,3 +124,9 @@ Same exceptional depth and style as ZTH-02: worked evidence chains, real command
 
 ### chapter-05-cuda-memory-management-and-data-movement.md
 - No findings. Pageable-vs-pinned staging-copy mechanism is correct; KV cache worked formula (`2 x layers x batch x seq_len x hidden x bytes`) is dimensionally correct and explicitly marked illustrative; the `cudaMalloc`/`cudaFree` dominating-CUDA-API-time `nsys stats` example is a realistic and common production anti-pattern.
+
+### chapter-06-synchronization-errors-and-correctness.md
+- No findings. Synchronization scope table (thread/warp/block/stream/event/device/host) and the "blocking copy accidentally fixes a race" failure mode are both accurate and reflect genuine, common CUDA production incidents. The error-check overhead table (`cudaGetLastError` ~0.6% vs `cudaDeviceSynchronize` ~85% throughput loss) is a plausible, correctly-reasoned illustration.
+
+### chapter-07-streams-events-and-asynchronous-execution.md
+- No findings. Stream/event semantics, "async API name does not guarantee device overlap" warning, and the `nsys` timeline evidence for detecting fake vs real overlap are all technically accurate and reflect real CUDA debugging practice.
