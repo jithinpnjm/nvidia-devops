@@ -65,3 +65,21 @@
 ### 12-customer-runbooks-onboarding-and-best-practice-documentation.md
 - [SEVERITY: low] No factual errors found; this is a documentation-craft chapter (runbook vs. onboarding-guide template) rather than a technical-accuracy surface, so findings here are about interview-readiness rather than correctness.
 - [SEVERITY: low] Interview-readiness note: this chapter is a strong, concrete answer to "how do you hand off a cluster to a customer's ops team" (a plausible NVIDIA Solutions-Architect-adjacent interview question given JR2018680's scope) — the annotated DRAIN-state runbook with checkable escalation triggers is a good model answer, not just documentation theory.
+
+### 13-senior-deep-dive-1-bcm-at-fleet-scale.md
+- [SEVERITY: low] Minor consistency note: Chapter 2 explicitly hedges that `cmsh` syntax is version-specific and "illustrative... not a syntax reference," but this deep dive presents specific `cmsh`/`healthconf` commands (`grabimage -w`, `imageupdate`, `failafter`, `notify`) without repeating that hedge. The commands are plausible/real BCM concepts (grabimage and healthconf are genuine BCM features), but the confidence level reads higher than Chapter 2 established as safe practice.
+  - Why it matters for JR2018680: minor — a candidate repeating these exact flags in an interview without having verified them against a specific BCM release could be corrected by an interviewer who has hands-on BCM experience.
+  - Suggested fix: add a one-line hedge consistent with Chapter 2's ("verify against the installed BCM release's admin manual") near the `grabimage`/`healthconf` examples.
+- Strength: the three-tier health-check taxonomy (hardware/software/workload-readiness) with tier-specific remediation (alert-only vs. auto-reimage vs. drain-only) is a genuinely senior-level operational insight and a strong interview answer.
+
+### 14-senior-deep-dive-2-slurm-ha-and-accounting-internals.md
+- [SEVERITY: low] No factual errors found. `StateSaveLocation` shared-storage failover mechanics, the fairshare decay-half-life math (`PriorityDecayHalfLife`, `sshare -l` RawShares/NormShares/EffectvUsage/FairShare fields), and the federation summary (`sacctmgr add federation`, shared `slurmdbd`) are accurate and well-explained.
+- Strength: the "burst forgiven, pattern not forgiven" fairshare-decay explanation is precise and directly useful for an interview question on multi-tenant scheduling fairness.
+
+### 15-senior-deep-dive-3-mpi-and-nccl-joint-debugging.md
+- [SEVERITY: low] No factual errors found. The four-layer diagnostic ladder (launch -> PMIx bootstrap -> NCCL collective -> physical fabric), the `NCCL_SOCKET_IFNAME`/`NCCL_IB_HCA` cross-node inconsistency failure mode, and the "works at 2 nodes, hangs at 8" topology-sampling explanation are accurate and exactly the kind of layered-diagnosis narrative the task brief calls out as a differentiator.
+- Strength: distinguishes a hang (silent fallback/negotiation stall) from a hard error, and ties the MPI-pinning-vs-NCCL-GPU-affinity mismatch to a specific symptom (2-3x slower, no error) rather than a generic "check topology" answer.
+
+### 16-senior-deep-dive-4-coordinated-firmware-driver-os-rollout-across-compute-network-storage.md
+- [SEVERITY: low] No factual errors found. The "compute canary doesn't validate network/storage firmware" argument, the p90/p99-job-length-driven maintenance window sizing (with a real `sacct` query), and the rack/rail-sequenced blast-radius containment pattern are accurate and sophisticated.
+- Strength: the worked scenario (compute driver bump passes canary; unrelated storage firmware in the same window causes checkpoint-latency regression misattributed to the driver) is an excellent illustration of a real, non-obvious operational failure mode — strong interview material.

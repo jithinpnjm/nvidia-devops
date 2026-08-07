@@ -15,10 +15,10 @@
 | F-10 | 10-coordinated-cluster-wide-software-change-management.md | done | 0 high/medium; strong chapter |
 | F-10 | 11-cicd-for-infrastructure-and-cluster-configuration.md | done | 0 high/medium; strong chapter |
 | F-10 | 12-customer-runbooks-onboarding-and-best-practice-documentation.md | done | 0 high/medium; strong chapter |
-| F-10 | 13-senior-deep-dive-1-bcm-at-fleet-scale.md | pending | |
-| F-10 | 14-senior-deep-dive-2-slurm-ha-and-accounting-internals.md | pending | |
-| F-10 | 15-senior-deep-dive-3-mpi-and-nccl-joint-debugging.md | pending | |
-| F-10 | 16-senior-deep-dive-4-coordinated-firmware-driver-os-rollout-across-compute-network-storage.md | pending | |
+| F-10 | 13-senior-deep-dive-1-bcm-at-fleet-scale.md | done | 1 low (missing cmsh-syntax hedge consistency) |
+| F-10 | 14-senior-deep-dive-2-slurm-ha-and-accounting-internals.md | done | 0 high/medium; strong chapter |
+| F-10 | 15-senior-deep-dive-3-mpi-and-nccl-joint-debugging.md | done | 0 high/medium; strong chapter |
+| F-10 | 16-senior-deep-dive-4-coordinated-firmware-driver-os-rollout-across-compute-network-storage.md | done | 0 high/medium; strong chapter |
 | F-10 | 17-git-for-infrastructure-and-operations.md | pending | |
 
 Notes:
