@@ -57,7 +57,7 @@ Volumes: `docs/nvidia-zero-to-hero/volume-19` (Production Operations), `docs/nvi
 | chapter-10-placeholder.md (dead duplicate) | pending | |
 | chapter-11-multi-gpu-imbalance-and-straggler-detection.md | done | medium |
 | chapter-11-placeholder.md (dead duplicate) | pending | |
-| chapter-12-cross-layer-diagnosis-when-metrics-lie.md | pending | |
+| chapter-12-cross-layer-diagnosis-when-metrics-lie.md | done | none |
 | chapter-12-placeholder.md (dead duplicate) | pending | |
 | labs/lab-01-symptom-to-evidence-mapping.md | pending | |
 | labs/lab-01-placeholder.md (dead duplicate) | pending | |

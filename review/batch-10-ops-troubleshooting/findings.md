@@ -94,3 +94,6 @@ _Summary to be filled in when review is complete._
   - Why it matters for JR2018680: NVLink bandwidth math is an explicitly called-out interview topic in this review's criteria (topology bandwidth math); stating per-link bandwidth as 10 GB/s instead of ~25-50 GB/s would give a wrong answer if asked "how much bandwidth does one NVLink give you."
   - Suggested fix: correct the per-link figures to match the GPU generation in the example (state which GPU/NVLink generation is assumed, then use ~25 GB/s for NVLink3 or ~50 GB/s for NVLink4 as the healthy baseline).
 - Otherwise strong: correct `nvidia-smi nvlink --status`/`nccl-tests allreduce_perf` command usage, a clear hardware-vs-software decision tree, and well-reasoned interview answers distinguishing straggler causes.
+
+### chapter-12-cross-layer-diagnosis-when-metrics-lie.md
+- [SEVERITY: none] No hardware-spec or Xid-code accuracy issues found. Methodology-focused chapter (layer-by-layer timing, Heisenbug/profiler-overhead reasoning, cross-metric correlation) with no checkable hardware numbers to get wrong. Strong close to the volume — ties together the diagnostic mindset from earlier chapters. Matches depth-rework standard.
