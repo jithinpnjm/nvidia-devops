@@ -45,7 +45,7 @@ Volumes: `docs/nvidia-zero-to-hero/volume-19` (Production Operations), `docs/nvi
 | chapter-04-placeholder.md (dead duplicate) | done | low (dead file) |
 | chapter-05-ecc-errors-and-memory-bit-flips.md | done | high (stub) |
 | chapter-05-placeholder.md (dead duplicate) | done | low (dead file) |
-| chapter-06-thermal-throttling-and-cooling-degradation.md | pending | |
+| chapter-06-thermal-throttling-and-cooling-degradation.md | done | medium |
 | chapter-06-placeholder.md (dead duplicate) | pending | |
 | chapter-07-dma-engine-failures-and-pcie-issues.md | pending | |
 | chapter-07-placeholder.md (dead duplicate) | pending | |

@@ -44,3 +44,14 @@ _Summary to be filled in when review is complete._
   - Evidence: `chapter-01-placeholder.md` (18 lines, generic "## Learning Objectives / Objective 1 / Objective 2" template) vs. `chapter-01-gpu-memory-not-detected.md` (34 lines, real content) in the same directory.
   - Why it matters for JR2018680: not an accuracy risk (dead files, unreferenced), but repo hygiene — same class of leftover-artifact clutter as the Volume 13 duplication bug fixed on this branch's base commit (`d99bb03`). Confusing for future authors/reviewers who might edit the wrong file.
   - Suggested fix: delete all 16 `*-placeholder.md` files in `docs/nvidia-zero-to-hero/volume-20/` and `volume-20/labs/` once confirmed unreferenced (a trivial cleanup, flagged here rather than applied since it touches file existence across the volume — leaving for the coordinator's structural pass).
+
+### chapter-06-thermal-throttling-and-cooling-degradation.md
+- [SEVERITY: medium] Baseline/target GPU clock speed of "2.5 GHz" / "2500 MHz" is unrealistic for any current NVIDIA data-center GPU. Real boost clocks: A100 SXM4 ≈1410 MHz, H100 SXM5 ≈1980 MHz, H100 PCIe ≈1755 MHz — none approach 2.5 GHz (that range is typical of consumer GeForce cards, e.g. RTX 4090 ≈2.5 GHz boost, not datacenter parts).
+  - Evidence: Symptoms section "GPU clock speed drops from 2.5 GHz to 1.8 GHz"; Verification section "Clock speed consistent at 2.5 GHz ... Expected: ~2500 MHz sustained"; interview answer repeats "drop from 2.5 to 1.8 GHz".
+  - Why it matters for JR2018680: this is the same error shape as the H100 FP32 TFLOPS figure flagged in Batch 09 — a specific, checkable hardware number that's wrong and repeated multiple times within one chapter. An interviewer asking "what boost clock would you expect on an H100" would immediately catch ~2.5 GHz as wrong.
+  - Suggested fix: replace with a real GPU's clock range, e.g. H100 SXM5 nominal/boost ≈1590/1980 MHz, and adjust the "27% clock reduction" example math to match (1833 MHz during throttle already sits closer to a real H100 clock, so only the "before throttle" baseline needs correcting).
+- [SEVERITY: low] The `nvidia-smi dmon -s puctem` sample output's column header (`GPU Pwr Temp SM Mem Enc Dec XSM Mxm Fbg Xid Pid Name`) doesn't match real `nvidia-smi dmon` output, which reports columns like `pwr temp sm mem enc dec jpg ofa mclk pclk` and has no `Xid`/`Pid`/`Name` columns by default.
+  - Evidence: lines 52-58.
+  - Why it matters for JR2018680: minor, but a candidate who has actually run `nvidia-smi dmon` in production would notice the mismatch.
+  - Suggested fix: replace with an accurate `nvidia-smi dmon` header/sample or note it's illustrative.
+- Otherwise strong: decision-tree diagnosis flowchart, realistic power-limit tuning (`nvidia-smi -pl 200`), a well-reasoned troubleshooting table distinguishing paste/airflow/facility/DVFS root causes, and first-person interview answers.
