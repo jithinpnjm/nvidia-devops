@@ -25,7 +25,7 @@ no content) alongside the real chapter files. These are excluded from review as 
 | ZTH-21 | labs/lab-03-storage-pipeline-design.md | done | low:1 |
 | ZTH-21 | labs/lab-04-capacity-planning-exercise.md | done | low:1 |
 | ZTH-22 | index.md | pending | |
-| ZTH-22 | chapter-01-consulting-methodology-for-customer-engagement.md | pending | |
+| ZTH-22 | chapter-01-consulting-methodology-for-customer-engagement.md | done | high:1, low:1 (10x power-cost slip) |
 | ZTH-22 | chapter-02-banking-and-financial-services.md | pending | |
 | ZTH-22 | chapter-03-generative-ai-and-large-language-models.md | pending | |
 | ZTH-22 | chapter-04-automotive-and-autonomous-vehicles.md | pending | |

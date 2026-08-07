@@ -156,3 +156,15 @@
   - Evidence: Full file content (6 lines).
   - Why it matters for JR2018680: Cosmetic/structural only — doesn't affect technical content, but is an easy, low-risk fix (structural/build integrity criterion).
   - Suggested fix: Replace with a proper index summarizing the 14 chapters and 4 labs, matching the Volume 22 index style.
+
+## Volume 22 — Customer Workshops: Industry-Specific AI Solutions
+
+### chapter-01-consulting-methodology-for-customer-engagement.md
+- [SEVERITY: high] Power-cost line item is off by 10x, inflating the customer-facing cost quote in the chapter's central worked example. "Power (8 GPUs × 250W × 8,760 × $0.15/kWh) ... $26,280" — verified: 8 × 0.25kW × 8,760h × $0.15/kWh = **$2,628**, not $26,280. The wrong figure propagates into "Subtotal Ops (Annual): $111,164" (which sums power+cooling+network+staff using the inflated power number) and into the customer-facing pitch text ("$0.70 per million inferences... 3-4x cheaper than cloud inference").
+  - Evidence: Line ~146 (Cost Breakdown table, "Power" row) and downstream Subtotal/cost-per-inference figures.
+  - Why it matters for JR2018680: This chapter is explicitly about building a "justifiable cost model" for a customer quote — the flagship consulting skill of the volume — and the worked example's core arithmetic doesn't check out. It's also consistent with the review series' repeated finding of magnitude slips in cost/power calculations across volumes.
+  - Suggested fix: Correct the power line to $2,628/year, recompute cooling (30% of corrected power ≈ $788), Subtotal Ops (≈$80.4K), and the downstream cost-per-inference and "$/day" figures.
+- [SEVERITY: low] Units inconsistency in the customer-facing pitch: "$300/day for 157.7 million inferences/year" should read 157.7 **billion** inferences/year (matches the cost table's "157.7B" figure) — as written it understates annual volume by 1000x.
+  - Evidence: Line ~156.
+  - Why it matters for JR2018680: Minor wording slip, but it's the literal script a solutions architect would read to a customer.
+  - Suggested fix: Change "million" to "billion."
