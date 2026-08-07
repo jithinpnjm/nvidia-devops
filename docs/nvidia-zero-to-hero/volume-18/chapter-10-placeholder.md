@@ -30,16 +30,21 @@ $ curl -v https://training-service.example.com/status
 * OK
 ```
 
-**Training-specific: NCCL encryption**
+**Training-specific: NCCL traffic is not natively encrypted — know this precisely**
+
+`NCCL_TLS_LEVEL` is not a real NCCL environment variable, and open-source NCCL does not provide built-in in-transit encryption for GPU-to-GPU collective operations (allreduce, allgather, etc.) over NVLink, RDMA, or RoCE. This is a genuine, unresolved gap in GPU cluster security — not something a flag turns on — and it's worth understanding accurately rather than memorizing a fabricated fix:
+
+- **Why it's hard:** NCCL is built for minimum-latency, kernel-bypass collective communication (GPUDirect RDMA, NVLink). Adding encryption in that path adds real latency and complexity, and vanilla NCCL simply doesn't do it.
+- **What's actually used in practice today:**
+  - **Physical/network isolation** — run NCCL traffic on a dedicated, non-routed fabric (InfiniBand partition, isolated RoCE VLAN) that untrusted tenants/traffic cannot reach, rather than encrypting the collective traffic itself.
+  - **Fabric-level encryption** — some deployments terminate encryption at the network fabric layer (e.g., IPsec on RoCE/Ethernet transport) rather than inside NCCL, accepting the associated performance cost.
+  - **Trust-boundary design** — treat "who can reach the NCCL fabric" as the actual security control (network policy, physical segmentation, dedicated training VPC/subnet) instead of relying on any collective-library encryption.
+- **What to say in an interview:** "NCCL doesn't natively encrypt gradient traffic — that's a real, actively-discussed gap in GPU cluster security. In practice we secure it by isolating the RDMA/NVLink fabric at the network layer rather than depending on an application-layer flag that doesn't exist."
 
 ```bash
-# Enable NCCL encryption for multi-GPU communication
-$ export NCCL_TLS_LEVEL=encrypt
 $ python train_multinode.py
-
-# Verify in logs
-# NCCL: TLS encryption level: encrypt
-# This protects model gradients during allreduce operations
+# No encryption of NCCL traffic itself; security comes from fabric isolation
+# (dedicated IB partition / isolated RoCE VLAN), not from an NCCL setting.
 ```
 
 ## 10.2 Data at rest: encryption in storage
@@ -138,11 +143,10 @@ $ kubectl create rolebinding model-secrets \
   --namespace training-ns \
   # Add resourceNames: ["model-registry-creds"] to restrict to one secret
 
-# Verify
-$ kubectl auth can-i get secrets \
+# Verify (resource name is a positional argument, not a --resource-name flag)
+$ kubectl auth can-i get secrets model-registry-creds \
   --as=system:serviceaccount:training-ns:trainer \
-  --namespace training-ns \
-  --resource-name=model-registry-creds
+  --namespace training-ns
 yes
 ```
 
@@ -172,7 +176,7 @@ ttl                 3600  # Token valid for 1 hour
 **Question:** "Design the security architecture for protecting a fine-tuned LLM from creation through serving. How do you ensure only approved models run in production, and how do you prevent unauthorized access to model weights?"
 
 **Model answer (spoken):**
-> "I'd design it in stages. During training: model is encrypted via TLS as it's trained across multiple GPUs (NCCL encryption), and training data is encrypted at rest on the storage backend (KMS-encrypted EBS or S3). I'd log every training run with commit hash, data version, and trainer identity.
+> "I'd design it in stages. During training: I'm honest that NCCL doesn't natively encrypt gradient traffic between GPUs, so I protect that path via network isolation — dedicated IB partition or isolated RoCE VLAN that only the training cluster can reach — rather than an application-layer encryption flag that doesn't exist. Training data is encrypted at rest on the storage backend (KMS-encrypted EBS or S3), and all control-plane/API traffic uses TLS 1.3. I'd log every training run with commit hash, data version, and trainer identity.
 >
 > After training, the model is signed. I'd use an industry standard like COSE (CBOR Object Signing and Encryption) to sign the model weights with a training-team private key. This prevents tampering or unauthorized versions from being deployed.
 >
@@ -186,7 +190,7 @@ ttl                 3600  # Token valid for 1 hour
 
 ## Key Takeaways
 
-- Encrypt data in motion: TLS 1.3 for all APIs, NCCL encryption for distributed training.
+- Encrypt data in motion: TLS 1.3 for all APIs. NCCL/RDMA traffic between GPUs is NOT natively encrypted by NCCL — secure it via network/fabric isolation (dedicated IB partition, isolated RoCE VLAN), not a nonexistent env var.
 - Encrypt data at rest: KMS or customer-managed keys for storage backends.
 - Version models immutably: tag with commit hash and approval status.
 - Sign model artifacts: cryptographic signatures prevent tampering.

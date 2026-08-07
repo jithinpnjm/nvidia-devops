@@ -36,7 +36,7 @@ flowchart LR
     
     subgraph Risk["Security Risk"]
         Dedicated -->|"None (physical isolation)"| Risk
-        MIG -->|"Low (hard isolation)"| Risk
+        MIG -->|"Low for compute/memory/cache<br/>side-channels; power/thermal<br/>domain still shared"| Risk
         TimeSlice -->|"Medium (temporal isolation only)"| Risk
     end
 ```
@@ -100,16 +100,20 @@ Bandwidth: 1234 GB/s
 
 **Real scenario: MIG isolation failure detection**
 
-```bash
-# If MIG isolation fails, both instances report same UUID
-$ nvidia-smi -L
-GPU 0: NVIDIA A100-SXM4-80GB (UUID: GPU-SAME-UUID)
-  MIG 3g.20gb Instance ID 1 (UUID: GPU-SAME-UUID)  # <- Bad: same UUID
-  MIG 3g.20gb Instance ID 2 (UUID: GPU-SAME-UUID)  # <- Bad: same UUID
+MIG instance UUIDs are always distinct — they're assigned independently at instance-creation time, so a UUID collision is not how isolation failures actually manifest. The real signal is cross-instance interference: performance in one instance degrading when a workload starts in another, or a read succeeding across an instance boundary that should be walled off.
 
-# This is a malfunction; investigate:
-$ nvidia-smi -i 0 -q  # Check GPU reset required
-# May need to reset GPU or reboot
+```bash
+# Re-run the cross-instance interference test from above under load and watch
+# for throughput degradation that correlates with the *other* instance's activity
+$ cuda-memtest --stress 1 --device 0:1 &
+$ cuda-memtest --stress 1 --device 0:2 &
+# If isolation holds: both report ~independent, steady bandwidth (as above)
+# If isolation has failed: one instance's bandwidth drops/fluctuates in lockstep
+# with the other instance's load, or a deliberate out-of-bounds memory read from
+# instance 2 into instance 1's address range succeeds instead of faulting
+
+# Confirm instance health/reset state directly
+$ nvidia-smi -i 0 -q  # Check GPU reset required, ECC errors, Xid events
 
 # Action: isolate from production; remediate; re-test
 ```
@@ -246,7 +250,7 @@ A sudden power spike + memory utilization spike with no corresponding workload c
 
 | Issue | Symptom | Check | Fix |
 |---|---|---|---|
-| MIG isolation broken | Both instances report same UUID; interference detected | `nvidia-smi -L` shows duplicate UUIDs | Reset GPU: `nvidia-smi -pm 0; nvidia-smi -pm 1` or reboot |
+| MIG isolation broken | Cross-instance interference: one instance's throughput degrades in lockstep with another's load | Re-run cross-instance `cuda-memtest` under simultaneous load; check `nvidia-smi -i 0 -q` for Xid errors/ECC events | Reset GPU: `nvidia-smi -pm 0; nvidia-smi -pm 1` or reboot |
 | Time-slicing starvation | One workload gets GPU time, other starved; latency high | Monitor utilization per process over time | Adjust scheduler weights; consider switching to MIG or dedicated GPU |
 | vGPU escape suspected | Workload can read other vGPU memory; forbidden access succeeds | Check hypervisor security patches; audit vGPU driver version | Update hypervisor and vGPU driver; isolate affected VMs |
 | Side-channel activity detected | Unexplained cache misses + power spikes | Monitor L2 cache metrics + dmon power over time | Investigate source workload; consider moving to MIG or dedicated GPU for sensitive data |
@@ -260,15 +264,17 @@ A sudden power spike + memory utilization spike with no corresponding workload c
 >
 > I'd first ask: are all workloads trusted, or are some potentially adversarial? If all workloads are internal and trusted, time-slicing is fine — the efficiency gain is worth the low-risk side-channel exposure. But if we're running third-party or untrusted code, I'd say no to time-slicing.
 >
-> If we need both efficiency and security, I'd use MIG. MIG gives hard isolation — separate SMs, separate memory, separate L2 cache — so no side-channel is possible. Cost is slightly higher (we can fit fewer instances per GPU) but we get real isolation.
+> If we need both efficiency and security, I'd use MIG. MIG gives hardware-level fault, compute, and memory isolation — separate SMs, separate memory, separate L2 cache slices — which closes the cache-timing and memory-bandwidth side channels that time-slicing leaves wide open. Cost is slightly higher (we can fit fewer instances per GPU) but we get real, hardware-enforced isolation for those channels.
 >
-> I'd also implement monitoring: track L2 cache hit rate and power consumption per workload. If we see sudden spikes that don't match the workload's code, that's a red flag for an attack.
+> One caveat I'd flag explicitly: MIG instances on the same physical GPU still share a single power and thermal domain — there's no per-instance power/thermal partition. So a power- or thermal-based side channel is theoretically still possible even under MIG, which is exactly why I'd keep power/thermal monitoring in place (see the metrics in 6.5) regardless of which sharing mode we use. MIG is not marketed or certified as closing every conceivable side channel — it closes the ones that matter most (compute, memory, cache), and I'd say that precisely rather than claim "no side-channel is possible."
+>
+> I'd also implement monitoring: track L2 cache hit rate and power consumption per workload. If we see sudden spikes that don't match the workload's code, that's a red flag for an attack — and under MIG, power/thermal is the one channel that monitoring still needs to cover.
 >
 > Finally, I'd document the trade-off clearly: 'Time-slicing assumes workloads trust each other; do not time-slice workloads that must be confidential from each other.'"
 
 ## Key Takeaways
 
-- MIG provides hard hardware isolation; use for high-security workloads.
+- MIG provides hardware-level fault/compute/memory isolation (separate SMs, memory, L2 cache slices) — use for high-security workloads. It closes the cache-timing and memory-bandwidth side channels; it does NOT partition power or thermal domains, which remain shared across all MIG instances on the same physical GPU. Keep power/thermal monitoring (6.5) active even under MIG.
 - Time-slicing shares GPU hardware; acceptable only for trusted workloads; monitor for side-channels.
 - vGPU isolation depends entirely on hypervisor security; keep hypervisor patched.
 - Monitor GPU metrics for side-channel signatures: unexpected cache misses, power spikes, thermal anomalies.

@@ -265,8 +265,9 @@ FROM nvcr.io/nvidia/pytorch:24.07-py3
 # Digest example (good):
 FROM nvcr.io/nvidia/pytorch@sha256:a1b2c3d4e5f6... (exact hash from NGC)
 
-# Retrieve the digest from NGC console or CLI:
-$ nvcr io-getdown nvcr.io/nvidia/pytorch:24.07-py3
+# Retrieve the digest from the NGC console, or via a real digest-inspection tool:
+$ docker manifest inspect nvcr.io/nvidia/pytorch:24.07-py3
+# or: crane digest nvcr.io/nvidia/pytorch:24.07-py3
 Image: nvcr.io/nvidia/pytorch:24.07-py3
 Digest: sha256:a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t
 

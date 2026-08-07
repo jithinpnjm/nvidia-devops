@@ -187,7 +187,7 @@ $ dmesg | grep -i 'nvidia\|gv100\|firmware'
 
 A missing or mismatched CRC indicates firmware corruption or injection.
 
-**Problem: current GPUs lack cryptographic verification.** Many data-center GPUs do not validate firmware signatures in hardware. The driver loads firmware from the filesystem and trusts it. This is a known gap:
+**Problem: pre-Hopper GPUs lack cryptographic verification.** Outside of Hopper+ Confidential Computing mode (see Chapter 9), many data-center GPUs do not validate firmware signatures in hardware. The driver loads firmware from the filesystem and trusts it. This is a known gap for those GPUs/modes:
 - A compromised root or driver can load malicious firmware.
 - The firmware runs with full GPU privileges.
 - Standard boot security measures do not protect GPU firmware.
@@ -244,7 +244,7 @@ A known-good system will have consistent PCR values across reboots. If a PCR val
 
 ## 2.7 Measuring what's running on the GPU
 
-Unlike the CPU, GPUs lack built-in attestation. There is no equivalent to TPM for GPU firmware. **This is the security boundary gap for modern GPUs.**
+Outside of Hopper+ Confidential Computing mode, GPUs generally lack built-in attestation comparable to a CPU's TPM. **This is the security boundary gap for GPUs running outside CC mode.** (H100/H200 in CC mode DO support hardware-rooted attestation — device identity certificates plus firmware measurement via the NVIDIA Remote Attestation Service; see Chapter 9, section 9.4, for the full mechanism.)
 
 **Current mitigations:**
 
