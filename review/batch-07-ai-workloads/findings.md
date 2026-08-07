@@ -103,3 +103,26 @@ Overall: this volume is already at gold-standard depth (matches or exceeds ZTH V
 
 ### chapter-09-scaling-multi-gpu-and-multi-node-inference.md
 - [SEVERITY: low] No issues found. "2 AllReduce per layer × 80 layers = 160 AllReduce calls per token" is a correct and interview-relevant derivation; NVLink vs PCIe vs InfiniBand bandwidth/latency table and the TP-must-stay-intra-node guidance are technically sound.
+
+### chapter-10-performance-metrics-and-benchmarking.md
+- [SEVERITY: low] No issues found. Open-loop vs closed-loop benchmarking distinction is accurate and interview-relevant; TTFT/ITL formulas and worked scenarios are technically sound.
+
+### chapter-11-production-reliability-and-troubleshooting.md
+- [SEVERITY: low] No issues found. XID 62 correctly identified as double-bit uncorrectable ECC error; probe design guidance (startup/readiness/liveness separation) is accurate and matches real production pitfalls.
+
+### chapter-12-volume-12-summary.md
+- [SEVERITY: low] No issues found. Consistent synthesis of prior chapters; master reference table and interview cheat sheet accurately reflect chapter content.
+
+### labs/lab-01-deploy-and-validate-triton.md
+- [SEVERITY: low] No issues found. Commands, KServe v2 endpoints, and failure-injection scenario (corrupt config.pbtxt) are technically plausible and consistent with Triton's documented behavior.
+
+### labs/lab-02-benchmark-dynamic-batching.md
+- [SEVERITY: low] No issues found. Three-profile batching comparison (none/conservative/aggressive) and the queue-delay misconfiguration failure injection are pedagogically sound and consistent with Triton's dynamic_batching semantics.
+
+### labs/lab-03-deploy-an-llm-with-vllm.md
+- [SEVERITY: low] No issues found. vLLM CLI flags, OpenAI-compatible endpoint usage, and KV-cache oversubscription failure injection are consistent with documented vLLM behavior.
+
+### labs/lab-04-troubleshoot-a-slow-inference-pipeline.md
+- [SEVERITY: low] No issues found. CPU-tokenization-bottleneck scenario (single-threaded GIL-bound preprocessing masking as GPU slowness) is a realistic and well-constructed diagnostic exercise; remediation via ProcessPoolExecutor is appropriate.
+
+**ZTH-12 volume complete.**

@@ -31,13 +31,13 @@ Volumes: F-05 (`docs/volume-05`), ZTH-12 (`docs/nvidia-zero-to-hero/volume-12`),
 | ZTH-12 | chapter-07-continuous-and-dynamic-batching.md | done | low |
 | ZTH-12 | chapter-08-kv-cache-memory-and-concurrency.md | done | low |
 | ZTH-12 | chapter-09-scaling-multi-gpu-and-multi-node-inference.md | done | low |
-| ZTH-12 | chapter-10-performance-metrics-and-benchmarking.md | pending | |
-| ZTH-12 | chapter-11-production-reliability-and-troubleshooting.md | pending | |
-| ZTH-12 | chapter-12-volume-12-summary.md | pending | |
-| ZTH-12 | labs/lab-01-deploy-and-validate-triton.md | pending | |
-| ZTH-12 | labs/lab-02-benchmark-dynamic-batching.md | pending | |
-| ZTH-12 | labs/lab-03-deploy-an-llm-with-vllm.md | pending | |
-| ZTH-12 | labs/lab-04-troubleshoot-a-slow-inference-pipeline.md | pending | |
+| ZTH-12 | chapter-10-performance-metrics-and-benchmarking.md | done | low |
+| ZTH-12 | chapter-11-production-reliability-and-troubleshooting.md | done | low |
+| ZTH-12 | chapter-12-volume-12-summary.md | done | low |
+| ZTH-12 | labs/lab-01-deploy-and-validate-triton.md | done | low |
+| ZTH-12 | labs/lab-02-benchmark-dynamic-batching.md | done | low |
+| ZTH-12 | labs/lab-03-deploy-an-llm-with-vllm.md | done | low |
+| ZTH-12 | labs/lab-04-troubleshoot-a-slow-inference-pipeline.md | done | low |
 | ZTH-13 | index.md | pending | |
 | ZTH-13 | chapter-01-why-distributed-training-exists.md | pending | |
 | ZTH-13 | chapter-02-training-memory-and-compute-anatomy.md | pending | |
