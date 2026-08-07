@@ -72,4 +72,8 @@ Volumes: F-06 (`docs/volume-06`), ZTH-07 (`docs/nvidia-zero-to-hero/volume-07`),
 | ZTH-09 | labs/lab-04-troubleshoot-a-roce-path.md | done | none |
 
 ## Cross-curriculum check
-- [ ] Compare F-06 ch2/ch3 (Ethernet fundamentals, RDMA/RoCE/IB) against ZTH-08/ZTH-09 for contradictions or thin duplication — pending, do after individual chapter reviews.
+- [x] Compare F-06 ch2/ch3 (Ethernet fundamentals, RDMA/RoCE/IB) against ZTH-08/ZTH-09 for contradictions or thin duplication — DONE. No contradictions found; depth progression (not redundant duplication) confirmed. See findings.md "Cross-Curriculum Consistency Check" section.
+
+## Batch status: COMPLETE
+
+All 4 volumes (F-06, ZTH-07, ZTH-08, ZTH-09) fully reviewed. 65 files total. See findings.md top-of-file Summary for severity counts and top findings.

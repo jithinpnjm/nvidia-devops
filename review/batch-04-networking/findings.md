@@ -1,6 +1,29 @@
 # Batch 04 — Networking & Interconnect — Findings
 
-(Summary to be written at top once all chapters are reviewed.)
+## Summary
+
+All 4 volumes fully reviewed (65 files: F-06's 15 chapters; ZTH-07's 12 chapters + index + 4 labs; ZTH-08's 12 chapters + index + 4 labs; ZTH-09's 12 chapters + index + 4 labs).
+
+**Severity counts:** 0 high, 1 medium, 7 low (3 of the 7 low findings were trivial MDX structural bugs fixed inline per the review protocol; the remaining 4 low findings are minor command/arithmetic nits).
+
+**Overall assessment:** This is the strongest-reviewed batch of the curriculum audits so far. All four volumes consistently hit the Volume-1 gold-standard depth bar — mechanism-first diagrams with real decision branches, annotated real command output (`nvidia-smi topo -m`, `ibstat`/`iblinkinfo`/`sminfo`, `ethtool -S`, `mlnx_qos`, `ib_write_bw`/`ib_write_lat`, `ibqueryerrors`), internally-consistent worked arithmetic (bisection bandwidth, oversubscription ratios, PCIe lane-width bandwidth loss, straggler-amplification math, NCCL busbw efficiency), and first-person interview answers throughout. Critically for this batch's specific mandate, **no chapter hand-waves the RoCE-vs-InfiniBand tradeoff** — every volume that touches it (F-06 Ch3/Deep Dive 2, ZTH-08 throughout, ZTH-09 throughout) explicitly frames it as a fit question (generation/transport/congestion-control/operational-maturity), gives side-by-side decision tables, and correctly distinguishes PFC (hop-local, reactive) from ECN/DCQCN (end-to-end, proactive) as different tools solving different problems. ZTH-09's Volume Summary explicitly states RoCE should never be described as "InfiniBand over Ethernet" — exactly the kind of precise, senior-level framing this role needs.
+
+**Top findings for interview prep:**
+
+1. **[Medium] ZTH-08 Chapter 8 ("HDR, NDR, XDR, and Link Evolution") never states the actual per-generation bandwidth numbers** (HDR=200Gb/s, NDR=400Gb/s, XDR=800Gb/s per port are the standard published figures). The chapter's reasoning about why headline link-speed doesn't predict delivered performance is excellent, but a candidate relying on this chapter alone would not have the raw fact memorized for a direct "what's NDR's bandwidth" interview question — exactly the kind of first-order recall question this batch's brief flagged as high-value. Worth a quick supplemental fact-check before interviews.
+2. **No RoCE vs. InfiniBand hand-waving anywhere in the batch** — this was the brief's top concern and it is not present. F-06 Deep Dive 2 and ZTH-08/09 all give the tradeoff as an explicit decision framework (fabric-native lossless flow control vs. PFC/ECN configured-back-in on Ethernet), not a vague "IB is better/RoCE is cheaper" statement.
+3. **Cross-curriculum consistency (F-06 vs. ZTH-08/09) is clean** — no material contradictions found. F-06 (foundational) covers RDMA/RoCE/IB at appropriately shallower depth and explicitly directs readers to "ask which generation/transport/congestion control," while ZTH-08/09 (Zero-to-Hero) supply the verbs/QP/LID/GID/PFC/ECN mechanics F-06 deliberately defers. This is depth progression, not redundant duplication — both curricula use the same oversubscription-ratio formula, the same PFC-without-ECN anti-pattern warning, and the same rail-optimized topology model, so a reader moving from F-06 into ZTH-08/09 will not encounter contradictory mental models.
+4. **Real, internally-consistent bandwidth/latency math throughout** — worth citing as evidence the curriculum is interview-ready: ZTH-08's bisection-bandwidth worked example (4 leaves × 4 uplinks × 200Gb/s = 3.2Tb/s), ZTH-09's oversubscription arithmetic (16×800Gb/s downlink vs 8×400Gb/s uplink = 4:1, recalculated to 4.57:1 under N-1 failure), and F-06's NCCL busbw/algbw efficiency check (195.88/200Gb/s ≈ 98%) are all the kind of on-the-spot arithmetic an NVIDIA infra interview would expect a candidate to reproduce.
+5. **Minor, low-impact issues only** — two command-syntax nits (F-06 Ch2's MTU-boundary wording, F-06 Ch5's invalid double `kubectl -n` flag) and three trivial duplicate-heading/duplicate-section MDX bugs in ZTH-09 (all fixed inline, no content changed). None of these affect technical accuracy or interview readiness.
+
+## Cross-Curriculum Consistency Check (F-06 vs. ZTH-08/ZTH-09)
+
+Compared explicitly: F-06 Chapter 3 ("RDMA, RoCE and InfiniBand") and Senior Deep Dive 2 ("RDMA: InfiniBand versus RoCE") against ZTH-08 (full InfiniBand volume) and ZTH-09 (full Ethernet-for-AI volume).
+
+- **No contradictions found.** Both curricula agree that InfiniBand's flow control is fabric-native/structural while RoCE's losslessness is configuration (PFC) that must be verified end-to-end, and both give the same PFC-without-ECN "congestion collapse" anti-pattern as the primary RoCE misconfiguration risk.
+- **Depth relationship is progression, not duplication.** F-06 stays at the conceptual/decision-framework level appropriate for a foundational chapter (queue pairs and memory registration explained mechanically, but no LID/GID/P_Key/verbs-state-machine detail). ZTH-08 and ZTH-09 supply that missing depth (verbs/QP state machine, LID/GID/P_Key addressing, subnet management, PFC hysteresis/headroom math, DCQCN rate-control oscillation). A reader who completes F-06 then ZTH-08/09 gains depth without needing to unlearn anything.
+- **Shared models are used consistently.** The oversubscription-ratio formula (downlink capacity / uplink capacity), the rail-optimized topology diagram (dedicated switch plane per GPU/NIC pair), and the "reachability is not performance" framing all appear in F-06 and are extended with more mechanism and more annotated command evidence in ZTH-08/09, never redefined or contradicted.
+- **No thin/redundant duplication.** Where topics overlap (e.g., NCCL busbw interpretation in F-06 Ch4 vs. ZTH-07 Ch10; oversubscription math in F-06 Deep Dive 3 vs. ZTH-08 Ch6 vs. ZTH-09 Ch10), each treatment adds new evidence, new worked numbers, or a different layer of the stack rather than restating the same content.
 
 ## F-06 — docs/volume-06 (HPC, Networking and Storage for AI)
 
