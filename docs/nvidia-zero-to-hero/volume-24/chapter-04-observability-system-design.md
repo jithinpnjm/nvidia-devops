@@ -28,7 +28,7 @@ You're building monitoring for a 100-GPU production cluster. Your constraints:
 4. **Alert latency:** Detect failures within 2 minutes
 5. **Metrics must detect:** memory leak, thermal throttle, link failure, application hang, power anomaly
 
-**Real math:** 100 GPUs × 20 metrics per GPU × 60 samples/hour × 24 hours × 90 days = 25.9 billion data points. At 8 bytes per point, that's ~207 GB. But with compression (time-series databases compress to ~2–4×), you can fit ~50–100 GB uncompressed equivalent. Budget is 1 TB/month (~360 GB/quarter), so you have room.
+**Real math:** 100 GPUs × 20 metrics per GPU × 60 samples/hour × 24 hours × 90 days = 259.2 million data points. At 8 bytes per point, that's ~2.07 GB. With compression (time-series databases compress to ~2–4×), that shrinks further to ~500 MB–1 GB uncompressed equivalent. Budget is 1 TB/month (~360 GB/quarter), so you have plenty of room.
 
 ## Metric Schema
 

@@ -144,7 +144,7 @@ grep "AllReduce completed" nccl.log
 
 Expected healthy output:
 ```
-[14:32:00.123] Rank 0: AllReduce started ... completed in 4.2ms
+[14:32:00.123] Rank 0: AllReduce started ... completed in 5.0ms
 ```
 
 Incident output:

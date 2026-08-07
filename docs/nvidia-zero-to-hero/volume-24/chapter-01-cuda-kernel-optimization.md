@@ -22,7 +22,7 @@ By the end of this project, you will be able to:
 
 You are optimizing a matrix multiplication kernel for inference on NVIDIA H100 GPUs. The kernel must:
 - Compute C = A × B where A is 4096×4096, B is 4096×4096 (FP32)
-- Achieve at least 80% of H100's peak FP32 throughput (1456 TFLOPS)
+- Achieve at least 80% of H100's peak FP32 throughput (~67 TFLOPS — dense CUDA-core FP32, not Tensor Core TF32/FP16/FP8)
 - Fit within 96 GB HBM3 memory
 - Execute in a single kernel call (no tiling at the framework level)
 
@@ -91,7 +91,7 @@ int main() {
     double tflops = (ops / 1e12) / total_time_s;
     
     printf("Naive kernel: %.2f TFLOPS\n", tflops);
-    printf("H100 peak (1456 TFLOPS): %.1f%% utilization\n", (tflops / 1456.0) * 100);
+    printf("H100 peak (67 TFLOPS FP32, dense): %.1f%% utilization\n", (tflops / 67.0) * 100);
     
     // Cleanup
     cudaFree(d_A);
@@ -106,7 +106,7 @@ int main() {
 
 Your optimized kernel is considered successful when:
 
-1. **Throughput:** Achieves ≥1150 TFLOPS (79% of peak 1456 TFLOPS on H100)
+1. **Throughput:** Achieves ≥53 TFLOPS (79% of peak ~67 TFLOPS FP32 dense on H100 — no Tensor Cores)
 2. **Correctness:** Output matches cuBLAS reference (element-wise error < 1e-5)
 3. **Profiling evidence:** Nsight Compute profile shows:
    - Memory bandwidth utilization ≥ 75% of HBM3 theoretical peak (4.1 TB/s)
@@ -135,9 +135,9 @@ Launching 'Full' trace for kernel 'optimized_matmul'...
 
 CHART-BASED RESULTS:
 ╒════════════════════════╕
-│ Kernel Duration        │ 54.2 ms (per kernel, 1000 runs avg)
+│ Kernel Duration        │ 2.41 ms (per kernel, 1000 runs avg)
 │ Memory Bandwidth Used  │ 3.1 TB/s (out of 4.1 TB/s peak)  ← 76% utilization
-│ Compute Throughput     │ 1232 TFLOPS
+│ Compute Throughput     │ 57 TFLOPS
 │ Warp Efficiency        │ 94.2%                             ← 6% warp divergence
 │ L1 Cache Hit Rate      │ 52.3%
 │ L2 Cache Hit Rate      │ 68.1%                             ← Good reuse
@@ -151,15 +151,15 @@ CHART-BASED RESULTS:
 **Roofline model calculation:**
 
 ```
-H100 peak compute (FP32):  1456 TFLOPS
+H100 peak compute (FP32, dense CUDA-core — no Tensor Cores):  67 TFLOPS
 H100 peak memory BW:        4.1 TB/s (HBM3)
 
 For matmul C = A × B (N=4096):
   - Arithmetic intensity = 2N³ FLOPs / (3N² * 4 bytes) = N / 6 = 682.67 FLOP/byte
-  - Compute ceiling = 1456 TFLOPS
+  - Compute ceiling = 67 TFLOPS
   - Memory ceiling = 4.1 TB/s × 682.67 FLOP/byte = 2.8 PFLOPS (not limiting)
   
-Conclusion: Kernel is compute-bound (not memory-bound). At 1232 TFLOPS, it's 84.6% of compute ceiling, which is excellent for a hand-optimized kernel without tensor cores.
+Conclusion: Kernel is compute-bound (not memory-bound). At 57 TFLOPS, it's 85.1% of compute ceiling, which is excellent for a hand-optimized kernel without tensor cores.
 ```
 
 ## Decision Tree: Optimization Strategy
@@ -187,9 +187,9 @@ flowchart TD
 
 | Observation | Root Cause | Diagnostic Command | Fix |
 |---|---|---|---|
-| Throughput only 300 TFLOPS (21% of peak) | Insufficient occupancy; register pressure high | `ncu --set full -k optimized_matmul ./kernel` → check "Occupancy" row | Reduce loop unrolling, share more computation across threads |
+| Throughput only 14 TFLOPS (21% of peak) | Insufficient occupancy; register pressure high | `ncu --set full -k optimized_matmul ./kernel` → check "Occupancy" row | Reduce loop unrolling, share more computation across threads |
 | Memory bandwidth 1.2 TB/s (29% of peak) | Poor memory coalescing; threads access non-consecutive addresses | `ncu --set memory_chart -k optimized_matmul ./kernel` → check "Memory Throughput" chart; use `nvprof --print-gpu-trace` to see L1/L2 misses | Restructure tile loading: ensure warp loads a contiguous cache line from global memory |
-| 900 TFLOPS but correctness fails (error > 1e-5) | Shared memory bank conflicts or incorrect synchronization | Run with small matrix (256×256) and compare element-wise to reference | Add `__syncthreads()` between reads and writes; check shared memory layout for 32-way bank conflicts |
+| 41 TFLOPS but correctness fails (error > 1e-5) | Shared memory bank conflicts or incorrect synchronization | Run with small matrix (256×256) and compare element-wise to reference | Add `__syncthreads()` between reads and writes; check shared memory layout for 32-way bank conflicts |
 | Kernel times out (hangs indefinitely) | Insufficient shared memory; implicit fallback to global memory thrashing | Check device specs: `nvidia-smi -q \| grep "Max Clocks"` and kernel shared memory limit | Reduce tile size (e.g., 8×8 instead of 32×32); ensure total shared memory < 96 KB per block |
 | Performance degrades with larger N (e.g., 8192×8192) | L2 cache thrashing; working set no longer fits | `ncu -k optimized_matmul --set full` with N=8192 → L2 hit rate drops to <20% | Consider multi-kernel approach: partition matrix into cache-aligned tiles processed sequentially |
 
@@ -307,7 +307,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # H100 specs
-peak_compute = 1456  # TFLOPS
+peak_compute = 67  # TFLOPS (FP32 dense, CUDA-core — not Tensor Core)
 peak_memory = 4.1 * 1024  # GB/s → convert to GFLOPS for 32-bit
 memory_bw = 4.1e12 / 4  # Bytes/sec to FP32/sec
 
@@ -323,12 +323,12 @@ roofline = np.minimum(compute_ceiling, memory_ceiling)
 # Plot
 plt.figure(figsize=(10, 6))
 plt.loglog(intensity, roofline, 'b-', linewidth=2, label='Roofline ceiling')
-plt.loglog(intensity, compute_ceiling, 'r--', label='Compute ceiling (1456 TFLOPS)')
+plt.loglog(intensity, compute_ceiling, 'r--', label='Compute ceiling (67 TFLOPS)')
 plt.loglog(intensity, memory_ceiling, 'g--', label='Memory ceiling (4.1 TB/s)')
 
 # Plot actual kernel performance
 actual_intensity = 682.67  # For 4096×4096 matmul
-actual_tflops = 1232  # Measured from optimized kernel
+actual_tflops = 57  # Measured from optimized kernel
 
 plt.plot(actual_intensity, actual_tflops, 'ko', markersize=8, label=f'Optimized kernel ({actual_tflops} TFLOPS)')
 plt.axvline(x=actual_intensity, color='k', linestyle=':', alpha=0.5)
@@ -353,15 +353,15 @@ print("Roofline plot saved to roofline.png")
 
 Given that, I applied shared memory tiling. The idea is simple: instead of having all 256 threads in a block redundantly fetch the same data from global memory, I load a small tile of A and a small tile of B into shared memory—which is 20× faster—then do the computation entirely within the block.
 
-After tiling, I re-profiled. Memory bandwidth improved to 2.8 TB/s, but I was only getting 600 TFLOPS. Nsight showed my warp efficiency was only 65%—a lot of wasted instruction slots. Looking at my code, I realized consecutive threads were accessing non-consecutive memory addresses (poor coalescing). I restructured the load pattern so that thread i and thread i+1 load consecutive addresses from global memory. That aligns with how the GPU prefetches data.
+After tiling, I re-profiled. Memory bandwidth improved to 2.8 TB/s, but I was only getting 28 TFLOPS. Nsight showed my warp efficiency was only 65%—a lot of wasted instruction slots. Looking at my code, I realized consecutive threads were accessing non-consecutive memory addresses (poor coalescing). I restructured the load pattern so that thread i and thread i+1 load consecutive addresses from global memory. That aligns with how the GPU prefetches data.
 
-After that fix, I got to 900 TFLOPS. At this point, I was at 77% of peak. I ran the roofline analysis and saw I was compute-bound—the memory ceiling was actually 2.8 PFLOPS, way above where I was. So I applied register blocking: each thread computes 4 output elements instead of 1, spreading computation across registers to hide memory latency.
+After that fix, I got to 41 TFLOPS. At this point, I was at 61% of peak (peak here is 67 TFLOPS FP32 dense — the real H100 CUDA-core ceiling, not the Tensor Core figure). I ran the roofline analysis and saw I was compute-bound—the memory ceiling was actually 2.8 PFLOPS, way above where I was. So I applied register blocking: each thread computes 4 output elements instead of 1, spreading computation across registers to hide memory latency.
 
-That got me to 1232 TFLOPS, which is 84.6% of peak. I stopped there because diminishing returns kicked in; further optimizations (like using Tensor Cores or complex scheduling tricks) would require architectural changes or trade precision for speed, which isn't worth it for this FP32 kernel."
+That got me to 57 TFLOPS, which is 85.1% of peak. I stopped there because diminishing returns kicked in; further optimizations (like using Tensor Cores or complex scheduling tricks) would require architectural changes or trade precision for speed, which isn't worth it for this FP32 kernel."
 
 **Q: What tradeoffs did you make? Could you have done better?**
 
-**A:** "Yes, I could have reached 90%+ by using Tensor Cores (TF32 or lower precision), but that changes the problem—you're no longer doing FP32 compute. The 84.6% I achieved is actually quite good for hand-optimized code without accelerator units. cuBLAS probably hits 88–90%, but it uses Tensor Cores.
+**A:** "Yes, I could have gone much higher by using Tensor Cores (TF32 gives ~495 TFLOPS dense, FP8 gives ~1979 TFLOPS dense on H100), but that changes the problem—you're no longer doing FP32 compute. The 85.1% of the FP32 ceiling I achieved is actually quite good for hand-optimized code without accelerator units. cuBLAS's FP32 (non-tensor) path probably hits 88–90% of the same 67-TFLOPS ceiling; if you let it use TF32 Tensor Cores instead, it's a completely different (much higher) performance regime.
 
 The other tradeoff was occupancy. By using 72 KB of shared memory, I had to reduce occupancy from 100% (naive kernel) to 75%. But the speedup from faster memory access more than makes up for it.
 
@@ -377,7 +377,7 @@ I might also consider tensor operations if the framework supports it, or use lib
 
 | Criterion | Excellent (100%) | Good (80%) | Acceptable (60%) | Needs Work (<60%) |
 |---|---|---|---|---|
-| **Throughput** | ≥1200 TFLOPS (82%+ of peak) | 1000–1200 TFLOPS (68–82%) | 800–1000 TFLOPS (55–68%) | <800 TFLOPS (<55%) |
+| **Throughput** | ≥55 TFLOPS (82%+ of peak) | 46–55 TFLOPS (68–82%) | 37–46 TFLOPS (55–68%) | <37 TFLOPS (<55%) |
 | **Correctness** | Element-wise error <1e-6, matches cuBLAS exactly | Error <1e-5, visual agreement with cuBLAS | Error <1e-4, mostly correct outputs | Error >1e-4 or inconsistent results |
 | **Profiling Evidence** | Full Nsight Compute profile, roofline analysis, memory bandwidth ≥75% | Good profiling coverage, bandwidth ≥65% | Partial profiling (one tool), basic explanation | No profiling evidence provided |
 | **Documentation** | Code is well-commented; every optimization decision explained with reasoning | Code is clear; most decisions explained | Code comments exist but lack depth | Minimal or no comments |
@@ -389,7 +389,7 @@ I might also consider tensor operations if the framework supports it, or use lib
 2. **Memory is usually slower:** For this problem, memory bandwidth was the constraint, not compute. Shared memory tiling was the biggest win.
 3. **Roofline is your friend:** Plot your kernel against the roofline to see if you're compute-bound or memory-bound. Guides your next optimization.
 4. **Diminishing returns are real:** You can often get 80% of peak easily; the last 10% takes 5× the effort. Know when to stop.
-5. **Correctness over speed:** A 1200-TFLOPS incorrect kernel is useless. Always validate against a reference (cuBLAS, CPU).
+5. **Correctness over speed:** A 55-TFLOPS incorrect kernel is useless. Always validate against a reference (cuBLAS, CPU).
 
 ## Discussion Questions
 

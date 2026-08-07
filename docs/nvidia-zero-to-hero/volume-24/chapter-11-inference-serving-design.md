@@ -109,7 +109,7 @@ Total: 5 GPUs (could fit on 2 nodes with 2-3 GPUs each)
 ```
 Hardware cost:
   5 × H100: 5 × $40K = $200K CapEx
-  amortized over 5 years: $200K / (5 years × 365 days) = $110/day = $0.0046/request (at 1000 req/day)
+  amortized over 5 years: $200K / (5 years × 365 days) = $110/day = $0.0046/request (at 24,000 req/day = 1000 req/hour, Model A's stated rate)
 
 Power cost:
   5 × 700W × 24h × 365 × $0.12/kWh = $150K/year = $0.0006/request
