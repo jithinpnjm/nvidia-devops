@@ -49,22 +49,21 @@ After completing this chapter, you will be able to:
 
 ```mermaid
 flowchart TB
-    N1[GPU Nodes Rack A]
-    N2[GPU Nodes Rack B]
-    L1[Leaf 1]
-    L2[Leaf 2]
-    S1[Spine 1]
-    S2[Spine 2]
+    N1[GPU Nodes Rack A] -->|"16 x 400G downlinks"| L1[Leaf 1]
+    N2[GPU Nodes Rack B] -->|"16 x 400G downlinks"| L2[Leaf 2]
+    L1 <-->|"uplink"| S1[Spine 1]
+    L1 <-->|"uplink"| S2[Spine 2]
+    L2 <-->|"uplink"| S1
+    L2 <-->|"uplink"| S2
 
-    N1 --> L1
-    N2 --> L2
-    L1 <--> S1
-    L1 <--> S2
-    L2 <--> S1
-    L2 <--> S2
+    Sym["Rack A <-> Rack B collective<br/>underperforms rack-local runs"] --> Q1{"Count leaf uplinks vs<br/>downlinks: ratio > 1:1?"}
+    Q1 -->|"e.g. 16 down : 8 up = 2:1"| A1["Oversubscribed by design --<br/>expected under full-fleet<br/>concurrency, not a fault"]
+    Q1 -->|"1:1 or better"| Q2{"Per-port counters: is traffic<br/>spread across BOTH S1 and S2,<br/>or concentrated on one?"}
+    Q2 -->|"Concentrated on one spine"| A2["Path diversity exists but is<br/>UNUSED -- routing/LID/placement<br/>issue, not a capacity issue"]
+    Q2 -->|"Evenly spread"| A3["Capacity and balance are both fine --<br/>check rank placement / collective<br/>algorithm crossing this cut (Ch.7)"]
 ```
 
-**Figure 8.6.1 — A folded Clos provides multiple equal-length paths.** The routing engine decides how destination traffic is assigned across them.
+**Figure 8.6.1 — A folded Clos provides multiple equal-length paths, but the diagram's real question is whether the fabric's nonblocking claim survives the arithmetic and whether the paths it provides are actually used.** Two racks can show identical topology drawings and completely different delivered bandwidth depending on the downlink:uplink ratio (a design fact) and route balance (an operational fact) — Scenario 1 below is exactly the second branch.
 
 ## Topology Is a Graph
 
@@ -174,6 +173,12 @@ Oversubscription can be reasonable when:
 - measurement proves service objectives are met.
 
 It is risky for tightly synchronized all-to-all or AllReduce-heavy workloads because many endpoints can demand upstream capacity at once.
+
+### Worked example: what 2:1 oversubscription actually costs an AllReduce
+
+Take a leaf with 16 endpoint-facing 400Gb/s downlinks and 8 uplink ports of the same 400Gb/s generation: downlink capacity is 16 × 400 = 6,400Gb/s; uplink capacity is 8 × 400 = 3,200Gb/s. That is a 2:1 oversubscription ratio by the formula above.
+
+Now put a synchronized AllReduce on all 16 nodes under that leaf, where each node simultaneously needs to send its full share of gradient data to nodes under other leaves. If every node offered its full 400Gb/s toward the uplinks at once, aggregate demand would be 6,400Gb/s against 3,200Gb/s of available uplink capacity — each node's effective cross-leaf bandwidth collapses to roughly 3,200 / 16 ≈ 200Gb/s, half of its nominal link rate, purely from the oversubscription ratio, before any other contention is even considered. For a ring-based AllReduce moving, illustratively, 2GB of gradient data per node per step, that is the difference between roughly 2GB / 50GB/s (near-full 400Gb/s effective) ≈ 40ms and roughly 2GB / 25GB/s (oversubscription-limited) ≈ 80ms of pure communication time per step — a number that compounds across every synchronized step of a multi-day training run. This is the arithmetic behind "aggregate capacity matters only when the routing and workload can use it": the fabric's total port count never changes, only what fraction of it a synchronized burst can actually claim at once.
 
 ## Bisection Bandwidth
 
@@ -306,6 +311,18 @@ Static routing or placement concentrates flows on a subset of paths.
 
 Adjust routing policy, LID distribution, or workload placement, then validate under concurrent collective traffic.
 
+**Evidence.** Per-port transmit-byte counters across a leaf's uplinks during a running collective, sampled twice one second apart:
+
+```text
+$ ibqueryerrors -s XmtData -k <leaf-lid> | sort -t= -k2 -n
+GUID 0x506b4b0300a1c210 port 5 (uplink to S1): [XmtData == 21474836480]
+GUID 0x506b4b0300a1c210 port 6 (uplink to S2): [XmtData == 21489234432]
+GUID 0x506b4b0300a1c210 port 7 (uplink to S3): [XmtData == 1073741824]
+GUID 0x506b4b0300a1c210 port 8 (uplink to S4): [XmtData == 1081654272]
+```
+
+Four equal-speed uplinks; ports 5-6 have each moved roughly 20GB while ports 7-8 have each moved roughly 1GB in the same window — a 20:1 imbalance across paths that are architecturally identical. That ratio, not the topology diagram, is the evidence that routing or LID distribution is concentrating destination traffic onto two of four available uplinks rather than spreading it, exactly matching this scenario's symptom of "other equal-speed links remain lightly used."
+
 ### Scenario 2 — Performance collapses after one link failure
 
 **Symptoms**
@@ -331,6 +348,20 @@ Measure leaf-local versus spine-crossing traffic, uplink capacity, route balance
 **Likely cause**
 
 An oversubscribed or poorly balanced inter-rack tier.
+
+**Evidence.** `ib_write_bw` run twice with identical parameters — once between two nodes on the same leaf, once between two nodes on different leaves through the spine — isolates the cut directly:
+
+```text
+# Same-leaf pair
+ #bytes  BW average[Gb/sec]
+ 2097152 397.62
+
+# Cross-rack pair (through spine)
+ #bytes  BW average[Gb/sec]
+ 2097152 201.18
+```
+
+The same-leaf result tracks the link's designed rate almost exactly; the cross-rack result is roughly half. Combined with the leaf uplink math above (a 2:1 downlink:uplink leaf design caps cross-leaf bandwidth at about half of local bandwidth under concurrent load), this single paired benchmark either confirms the oversubscription is behaving exactly as designed, or — if the ratio is worse than the documented design value — proves an additional fault (route imbalance, a degraded uplink) is compounding the expected oversubscription.
 
 ### Scenario 4 — One rail carries most traffic
 
@@ -362,26 +393,55 @@ The answer is based on workload and failure measurements, not a universal rule.
 ### Knowledge Questions
 
 1. What is oversubscription?
+   **Model answer:** "The ratio of downlink capacity — bandwidth facing endpoints — to uplink capacity leaving that tier. A leaf with 16 endpoint ports and 8 same-speed uplinks is 2:1 oversubscribed: if every endpoint tries to send cross-leaf traffic simultaneously, they collectively get half of what their individual link rates would suggest."
+
 2. Why does bisection bandwidth matter?
+   **Model answer:** "Because it measures capacity across the worst realistic cut in the topology — split the fabric into two halves and ask how much bandwidth survives between them. Aggregate port bandwidth can look enormous while one particular rack-to-rack cut is narrow, and for synchronized collectives, that narrow cut is what actually limits your job, not the headline total."
+
 3. How can multiple physical paths remain underused?
+   **Model answer:** "Path diversity is a property of the topology; load distribution is a property of routing and placement. Static LID-based forwarding, too few independent flows to hash across paths well, or rank placement that concentrates communicating peers behind the same uplinks can all leave half the available paths idle while the other half saturates. I'd never assume balance from a topology diagram — I'd measure per-link utilization during the actual collective."
+
 4. What is a rail-optimized design?
+   **Model answer:** "Each GPU or GPU group gets its own dedicated HCA mapped to an independent fabric path — a rail — so that GPU 0's traffic and GPU 1's traffic don't contend for the same adapter or uplinks. It preserves parallelism that starts at the GPU-to-HCA hop, but it only works if software actually keeps traffic on its assigned rail — a misconfigured collective library can collapse all rails onto one."
+
 5. Why can reachability survive while performance collapses?
+   **Model answer:** "Because reachability only proves a path exists, not that it has the capacity or balance the workload needs. A fabric can route around a failure and remain fully connected while the surviving path is now oversubscribed at a much worse ratio than the original design — connectivity and capacity are genuinely different properties."
 
 ### Architecture Questions
 
 1. Design a nonblocking fabric for 256 GPU nodes.
+   **Model answer:** "Start from the communication pattern, not the node count — how many nodes are in one synchronized job, and what's the injection rate per node. Size leaf uplinks to match downlink capacity 1:1 for true nonblocking, which for say 16 nodes per leaf at 400G each means 16 uplinks of the same generation, not 8. I'd explicitly flag that true nonblocking at 256 nodes gets expensive fast, and ask whether the workload actually needs it or whether a measured, bounded oversubscription is acceptable — that's a cost conversation, not just an engineering one."
+
 2. Compare a single large fabric with multiple rails.
+   **Model answer:** "A single fabric is simpler to operate and route but concentrates all GPU traffic through fewer paths per node. Multiple rails multiply the number of independent parallel paths — better aggregate injection bandwidth and fault isolation per rail — at the cost of needing rail-aware software and more adapters and cabling. I'd pick rails when the workload's per-node injection bandwidth requirement genuinely exceeds what one HCA can deliver, not by default."
+
 3. Explain how routing and rank placement interact.
+   **Model answer:** "Routing decides which physical path carries a given source-destination pair; placement decides which ranks are the source and destination in the first place. The two together determine whether a job's communication pattern lands evenly across the topology or concentrates on a few links — you can have perfect routing and still get hot links if placement puts frequently-communicating ranks behind the same oversubscribed cut, and you can have good placement undone by routing that doesn't spread traffic across the paths placement made available."
 
 ### Scenario Questions
 
 1. Only cross-rack collectives are slow. What evidence do you collect?
+   **Model answer:** "Paired `ib_write_bw` results — same-leaf versus cross-rack, identical parameters — to quantify exactly how much worse cross-rack is. Then I'd compare that ratio against the documented leaf uplink:downlink design ratio. If they match, it's expected oversubscription behaving as designed; if cross-rack is worse than the design predicts, there's an additional fault — likely route imbalance or a degraded uplink — layered on top."
+
 2. One spine link fails and performance halves. Is that expected?
+   **Model answer:** "It depends entirely on how many spine links existed before the failure. If there were only two spine paths and one fails, losing half your inter-tier capacity and seeing roughly half the cross-rack bandwidth is exactly what the topology predicts — that's the failure-domain math working as designed, not a bug. If there were eight spine links and one failure halves performance, that's disproportionate and points to poor load distribution across the remaining seven, not the failure itself."
+
 3. Per-port counters show persistent imbalance. What do you inspect?
+   **Model answer:** "Routing engine configuration and algorithm first — is it actually distributing destinations across available paths or defaulting to something simpler. Then LID assignment and distribution, and rank placement — whether the workload itself is concentrating communicating pairs behind the same uplinks regardless of what routing does. Persistent, not transient, imbalance usually means a static configuration choice, not momentary contention."
+
+### Customer Questions
+
+1. Is a 2:1 oversubscribed fabric acceptable for our workload?
+   **Model answer:** "That depends entirely on whether your jobs commonly span racks simultaneously with high communication intensity. If most training runs fit within one rack's worth of nodes, 2:1 at the inter-rack tier may never actually bind. If you regularly run all-node synchronized AllReduce across the full cluster, I'd want to benchmark the actual delivered cross-rack bandwidth under that exact pattern before calling any ratio 'acceptable' — the number on a topology diagram and the number your workload experiences can differ."
+
+2. Can we add spine capacity later without redesigning the fabric?
+   **Model answer:** "Only if the leaf switches were speced with enough uplink ports reserved for it and the rack/cable pathways were planned with that growth in mind from day one. This is exactly the trap in Chapter 11's expansion scenario — a design that consumes every spine port on day one has no room to grow without a disruptive rebuild, so I always ask about the three-year plan before finalizing leaf uplink counts, not just the day-one node count."
 
 ### Whiteboard Question
 
 Draw a two-tier folded Clos, label endpoint and uplink capacity, calculate oversubscription, and show the effect of one failed spine link.
+
+**What I'd actually say while drawing:** "Two leaves, two spines, each leaf with, say, 16 downlinks to nodes and 8 uplinks split 4-and-4 to the two spines. Downlink capacity is 16 units, uplink is 8 units — that's 2:1, I'd write the ratio right on the leaf. Now if one spine fails" — crossing it out — "each leaf drops from 8 uplinks to 4, so oversubscription goes from 2:1 to 4:1 for any traffic that needs to leave that leaf. The number to say out loud here: losing one of two spines doesn't just reduce capacity by half proportionally — it doubles your oversubscription ratio, which is a much more useful way to reason about the failure than just 'we lost 50% of spine capacity.'"
 
 ## Summary
 
