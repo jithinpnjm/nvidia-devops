@@ -49,17 +49,19 @@ After completing this chapter, you will be able to:
 
 ```mermaid
 flowchart TB
-    App[Application and Collective Metrics]
-    Transport[QP, Retry, Completion, RDMA Metrics]
-    Fabric[Routes, Congestion, Port Utilization]
-    Link[Speed, Width, Physical and Link Counters]
-    Control[SM State, Sweeps, Topology Changes]
-    Asset[GUID, Cable, Port, Rack, Firmware Inventory]
+    Asset["GUID, Cable, Port, Rack,<br/>Firmware Inventory"] -->|"resolves alert to a<br/>physical object"| Control["SM State, Sweeps,<br/>Topology Changes"]
+    Control -->|"sminfo: 1 master,<br/>sweep timestamp fresh"| Link["Speed, Width, Physical<br/>and Link Counters"]
+    Link -->|"ibstat/iblinkinfo: rate+width<br/>match design, errors stable"| Fabric["Routes, Congestion,<br/>Port Utilization"]
+    Fabric -->|"XmtWait low, route matches<br/>expected topology"| Transport["QP, Retry, Completion,<br/>RDMA Metrics"]
+    Transport -->|"CQE status == SUCCESS,<br/>no retry escalation"| App["Application and<br/>Collective Metrics"]
 
-    Asset --> Control --> Link --> Fabric --> Transport --> App
+    Slow["Training throughput<br/>declining over days"] --> Check{"Walk bottom-up: first layer<br/>whose evidence deviates<br/>from its own baseline?"}
+    Check -->|"Link: errors climbing slowly"| A1["Physical degradation in progress --<br/>this chapter's opening story:<br/>replace before it forces a recovery"]
+    Check -->|"Fabric: one rail's utilization drifting"| A2["Route/rail imbalance developing --<br/>not yet a hard failure"]
+    Check -->|"All layers match baseline"| A3["Regression is outside the fabric --<br/>data pipeline, model, or scheduler"]
 ```
 
-**Figure 8.9.1 — Useful diagnosis requires evidence from multiple layers.** Application symptoms should be traceable down to a physical path and control-plane state.
+**Figure 8.9.1 — Useful diagnosis requires evidence from multiple layers, and each arrow names the specific baseline comparison that proves that layer is not the source of drift.** This is the mechanism behind the chapter's "the fabric failed slowly" story: no single layer ever crossed a hard alert threshold, but the *link* layer's error-rate trend, read against its own baseline instead of a static pass/fail line, was the layer that actually diverged first — days before application throughput visibly declined.
 
 ## State Versus Counters
 
@@ -97,6 +99,24 @@ A cumulative counter value is often less useful than its rate of increase. Alert
 - deviation from baseline;
 - concentration on one path;
 - correlation with application slowdown.
+
+### Annotated counter deltas: what "the fabric failed slowly" looks like in numbers
+
+```text
+# Day 1
+$ ibqueryerrors -s SymbolErrorCounter,LinkDownedCounter -k <switch-lid> | grep "port 12"
+GUID 0x506b... port 12: [SymbolErrorCounter == 4] [LinkDownedCounter == 0]
+
+# Day 4
+$ ibqueryerrors -s SymbolErrorCounter,LinkDownedCounter -k <switch-lid> | grep "port 12"
+GUID 0x506b... port 12: [SymbolErrorCounter == 890] [LinkDownedCounter == 3]
+
+# Day 7
+$ ibqueryerrors -s SymbolErrorCounter,LinkDownedCounter -k <switch-lid> | grep "port 12"
+GUID 0x506b... port 12: [SymbolErrorCounter == 41200] [LinkDownedCounter == 19]
+```
+
+None of these three snapshots alone triggers a naive "nonzero error" alert differently from the others — 4, 890, and 41,200 are all "some errors." Reading them as a *rate* changes the picture entirely: the delta from day 1 to day 4 is ~886 over 3 days (~295/day); day 4 to day 7 is ~40,310 over 3 days (~13,400/day) — a roughly 45x acceleration in error rate, with `LinkDownedCounter` (forced link recovery events) climbing in step. This is exactly the "acceleration in error rate" alert condition this section recommends, and it is the specific evidence that would have caught this chapter's opening incident on day 4, days before the cable finally forced a hard recovery and training throughput visibly collapsed.
 
 ## Inventory Is Telemetry Context
 
@@ -262,6 +282,17 @@ The value may reflect an old event. Compare timestamps and deltas before declari
 
 Retain the history, verify current rate, and correlate with the last maintenance or failure window.
 
+**Evidence.** Two queries a few minutes apart settle it without ambiguity:
+
+```text
+$ ibqueryerrors -s SymbolErrorCounter -k <lid> | grep "port 9"; sleep 300; \
+  ibqueryerrors -s SymbolErrorCounter -k <lid> | grep "port 9"
+GUID 0x506b... port 9: [SymbolErrorCounter == 12034]
+GUID 0x506b... port 9: [SymbolErrorCounter == 12034]
+```
+
+Identical value across a 5-minute window with real traffic flowing means the delta is zero — the count reflects a past event, not an active fault. This single check is what distinguishes "old scar tissue in a cumulative counter" from "actively degrading right now," and it takes thirty seconds against a counter history that might otherwise trigger an unnecessary cable replacement.
+
 ### Scenario 2 — Application slows with clean physical counters
 
 **Diagnosis**
@@ -315,10 +346,19 @@ The dashboard is therefore designed around service outcomes rather than decorati
 ## Interview Preparation
 
 1. Why are cumulative counters easy to misinterpret?
+   **Model answer:** "Because a nonzero cumulative value tells you an event happened at some point in the counter's lifetime, not that it's happening now. I've directly compared two snapshots minutes apart and found zero delta on an alarming-looking counter — the fault was history, not an active condition. Reading rate of change instead of raw value is what turns a counter into evidence rather than noise."
+
 2. Which metrics distinguish congestion from physical failure?
+   **Model answer:** "Wait/credit-stall counters like `XmtWait` rising with `SymbolErrorCounter` and `LinkDownedCounter` flat means congestion — the link itself is healthy, traffic is just queueing. The reverse — errors and recovery events climbing while wait counters stay modest — points to a physical fault. I always pull both counter families together, because reading just one can point you at the wrong fix entirely."
+
 3. How would you detect a reduced-width link?
+   **Model answer:** "`iblinkinfo` reports width alongside rate explicitly — a port showing the correct rate label but fewer active lanes than its sibling ports is the signature. I wouldn't rely on `ibstat` alone for this on every platform, since width isn't always in its default output; I'd cross-check with the tool that actually prints lane count."
+
 4. What belongs in an incident evidence bundle?
+   **Model answer:** "Timestamped topology snapshot, port state/speed/width for the affected path, counter deltas — not just raw values — SM state and recent logs, route information, and the actual benchmark or application evidence that triggered the investigation. The goal is that someone who wasn't there during the incident can reconstruct exactly what was true, in order, without re-running disruptive tests."
+
 5. Why should job placement be joined with fabric telemetry?
+   **Model answer:** "A raw counter alert like 'port 17 errors' creates manual discovery work — which rack, which job, which team to page. Joining telemetry with scheduler placement data means an alert can say 'this port, which currently carries rank 42 of job X, is degrading' — that's the difference between an alert that requires investigation and one that's already actionable."
 
 ## Summary
 
