@@ -52,13 +52,13 @@ Status values: pending / in-progress / done
 | ZTH-03 | labs/lab-02-build-and-validate-a-cuda-vector-pipeline.md | done | none |
 | ZTH-03 | labs/lab-03-build-an-overlapped-cuda-pipeline.md | done | none |
 | ZTH-03 | labs/lab-04-profile-and-diagnose-a-cuda-application.md | done | none |
-| F-04 | 01-chapter-1-gpu-execution-and-memory-mental-model.md | pending | |
-| F-04 | 02-chapter-2-pcie-nvlink-and-topology.md | pending | |
-| F-04 | 03-chapter-3-driver-cuda-runtime-and-container-stack.md | pending | |
-| F-04 | 04-chapter-4-kubernetes-device-plugins-and-gpu-operator.md | pending | |
-| F-04 | 05-chapter-5-gpu-sharing-mig-time-slicing-mps-and-vgpu.md | pending | |
-| F-04 | 06-chapter-6-gpu-telemetry-dcgm-and-health.md | pending | |
-| F-04 | 07-chapter-7-capacity-and-failure-domain-design.md | pending | |
+| F-04 | 01-chapter-1-gpu-execution-and-memory-mental-model.md | done | low |
+| F-04 | 02-chapter-2-pcie-nvlink-and-topology.md | done | none |
+| F-04 | 03-chapter-3-driver-cuda-runtime-and-container-stack.md | done | none |
+| F-04 | 04-chapter-4-kubernetes-device-plugins-and-gpu-operator.md | done | none |
+| F-04 | 05-chapter-5-gpu-sharing-mig-time-slicing-mps-and-vgpu.md | done | none |
+| F-04 | 06-chapter-6-gpu-telemetry-dcgm-and-health.md | done | none |
+| F-04 | 07-chapter-7-capacity-and-failure-domain-design.md | done | none |
 | F-04 | 08-senior-deep-dive-1-gpu-execution-model-without-cuda-programming-overload.md | pending | |
 | F-04 | 09-senior-deep-dive-2-topology-pcie-nvlink-nvswitch-and-numa.md | pending | |
 | F-04 | 10-senior-deep-dive-3-driver-cuda-compatibility-and-container-integration.md | pending | |

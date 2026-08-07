@@ -164,3 +164,32 @@ Same exceptional depth and style as ZTH-02: worked evidence chains, real command
 - No findings. Three regression scenarios (device-wide sync, tiny chunks, pageable buffers) are all realistic and the reasoning behind each measured slowdown is technically sound. Consistent use of the Chapter 12 profiling funnel methodology.
 
 **Volume ZTH-03 labs summary:** All 4 labs are technically sound, self-consistent, and reinforce the volume's evidence-based troubleshooting methodology. No findings requiring fixes.
+
+## Volume F-04 (docs/volume-04) — GPU and Accelerated Computing Foundations
+
+This volume has a visibly different structure than ZTH-01/02/03: each chapter is a short "core" section (source docx-derived) followed by heavily-marked "➕" addition blocks (diagrams, annotated command output, worked scenarios, interview lines, practice questions) that appear to be a later depth-rework pass layered onto an original document. The style is more conversational/annotated ("Reading order that matters...", "Interview-ready line:") vs ZTH's structured chapter template, but technical content is consistently accurate where checked.
+
+### 01-chapter-1-gpu-execution-and-memory-mental-model.md
+- [SEVERITY: low] This chapter substantially duplicates ZTH-01 (why CPUs insufficient, CPU vs GPU) and ZTH-02 chapter 1 (why GPU architecture evolved) and ZTH-03 chapters 1-2 (why CUDA exists, software stack layers, driver vs toolkit vs runtime) — covering nearly identical ground (spreadsheet/parallel analogy, host/device model, nvidia-smi CUDA-Version-is-not-installed-toolkit caveat, driver/toolkit/runtime layering, container/host driver dependency).
+  - Evidence: Compare "What CUDA actually is (and the three things beginners conflate)" (lines 54-78) with ZTH-03 chapter-01/02's driver/toolkit/runtime treatment, and "The NVIDIA software stack, layer by layer" (lines 150-170) with ZTH-01 chapter-07's ecosystem layer table.
+  - Why it matters for JR2018680: this is the cross-curriculum duplication the review brief specifically asks to flag — a candidate studying both curricula sequentially will re-read the same foundational material (CPU-vs-GPU, driver/toolkit split) three times without gaining additional depth in this instance, though F-04's version does add Kubernetes/container-operator context ZTH-01 lacks.
+  - Suggested fix: no factual error to fix inline; flag for a follow-up authoring pass to either cross-reference ZTH-01/03 instead of re-deriving the same explanations, or clearly differentiate F-04's angle (ops/Kubernetes-first) from ZTH's (CUDA-programming-first) in the chapter framing.
+- No factual errors found. H100 PCI device ID (10de:2330), nvidia-smi output format, and driver/toolkit/CUDA-Version distinction are all correct.
+
+### 02-chapter-2-pcie-nvlink-and-topology.md
+- No findings. `nvidia-smi topo -m` legend (NV#, PHB, SYS), NUMA distance interpretation, and GPUDirect RDMA double-copy-avoidance mechanism are all accurate. Overlaps with ZTH-02 chapter-10 topology content but from a Kubernetes/NCCL-operations angle rather than architecture-education angle — less concerning duplication since the framing differs materially (rank placement, NCCL_DEBUG diagnosis).
+
+### 03-chapter-3-driver-cuda-runtime-and-container-stack.md
+- No findings. Driver-sets-CUDA-ceiling compatibility direction is correctly stated; the `docker run` failure example ("please update your driver") is a realistic and correct error message pattern.
+
+### 04-chapter-4-kubernetes-device-plugins-and-gpu-operator.md
+- No findings. Device-plugin registration flow, GFD labeling, and MIG resource-name-changes-the-scheduling-contract explanation are accurate. The "Kubernetes memory limits do not see GPU memory" callout is an important and correctly-stated distinction.
+
+### 05-chapter-5-gpu-sharing-mig-time-slicing-mps-and-vgpu.md
+- No findings. MIG profile names (3g.40gb, 1g.10gb) and instance counts are consistent with real A100 80GB MIG geometries. MPS cooperative-isolation description (shared server process, no hard fences) is accurate.
+
+### 06-chapter-6-gpu-telemetry-dcgm-and-health.md
+- No findings. DCGM field names, `dcgmi diag -r 2` vs `-r 3` tier distinction, and the demand-vs-health-vs-throttling decision framework are all accurate and represent a genuinely important interview-relevant distinction (utilization-based autoscaling under thermal throttling).
+
+### 07-chapter-7-capacity-and-failure-domain-design.md
+- No findings. Fleet-shape-vs-GPU-count reasoning and N+1 node-level (not GPU-level) reserve sizing argument are sound and correctly tied to the NVSwitch-node failure-domain concept from Chapter 2.
