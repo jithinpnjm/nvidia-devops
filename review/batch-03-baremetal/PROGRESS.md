@@ -1,0 +1,26 @@
+# Batch 03 — Bare-Metal & Cluster Management (Volume F-10) — Progress
+
+| Volume | File | Status | Severity Summary |
+|---|---|---|---|
+| F-10 | 00c-slurm-bcm-interview-lab.md | done | 1 medium (missing sbatch/gres/array examples) |
+| F-10 | 01-bare-metal-and-bmc-lifecycle.md | done | 1 medium (sensor table data inconsistency); strong chapter overall |
+| F-10 | 02-nvidia-base-command-manager.md | done | 0 high/medium; 2 low |
+| F-10 | 03-os-provisioning-and-linux-security-hardening.md | done | 0 high/medium; strong chapter |
+| F-10 | 04-ansible-for-infrastructure-automation.md | done | 0 high/medium; strong chapter |
+| F-10 | 05-terraform-for-infrastructure-as-code.md | done | 0 high/medium; strong chapter |
+| F-10 | 06-slurm-administration-ha-accounting-and-upgrades.md | done | 1 medium (version-skew claim needs verification); otherwise strong |
+| F-10 | 07-mpi-fundamentals-for-hpc-ai-workloads.md | done | 0 high/medium; strong chapter |
+| F-10 | 08-enroot-and-pyxis-containers-for-hpc.md | done | 0 high/medium; strong chapter |
+| F-10 | 09-job-provisioning-health-gating-and-workflow-orchestration.md | done | 0 high/medium; strong chapter |
+| F-10 | 10-coordinated-cluster-wide-software-change-management.md | done | 0 high/medium; strong chapter |
+| F-10 | 11-cicd-for-infrastructure-and-cluster-configuration.md | done | 0 high/medium; strong chapter |
+| F-10 | 12-customer-runbooks-onboarding-and-best-practice-documentation.md | done | 0 high/medium; strong chapter |
+| F-10 | 13-senior-deep-dive-1-bcm-at-fleet-scale.md | done | 1 low (missing cmsh-syntax hedge consistency) |
+| F-10 | 14-senior-deep-dive-2-slurm-ha-and-accounting-internals.md | done | 0 high/medium; strong chapter |
+| F-10 | 15-senior-deep-dive-3-mpi-and-nccl-joint-debugging.md | done | 0 high/medium; strong chapter |
+| F-10 | 16-senior-deep-dive-4-coordinated-firmware-driver-os-rollout-across-compute-network-storage.md | done | 0 high/medium; strong chapter |
+| F-10 | 17-git-for-infrastructure-and-operations.md | done | 0 high/medium; strong chapter |
+
+Notes:
+- 13-16 are short "senior deep dive" chapters (73-86 lines) — review in groups of 2-3 per commit per protocol.
+- Special focus per task brief: BMC/IPMI/Redfish, PXE/bare-metal provisioning, firmware/BIOS at scale, BCM node lifecycle & image mgmt, Slurm GPU scheduling (partitions, gres, job arrays, exclusive/shared), bare-metal vs cloud/K8s GPU fleet differences.
