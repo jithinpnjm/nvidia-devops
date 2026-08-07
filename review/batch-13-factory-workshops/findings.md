@@ -130,3 +130,9 @@
   - Evidence: Line ~97 (Cost Breakdown) and reiterated in the chapter Summary (line ~285) and would also affect the "$0.002/token" vs "$0.008/token" comparison in the Key Insight (line ~289 — note these are also inconsistently written as "/token" there vs "/1M tokens" in the cost breakdown, a further units-labeling error).
   - Why it matters for JR2018680: This is the same 1000x-class magnitude-slip pattern recurring for the fourth time within Volume 21 alone (also in Ch. 2, Ch. 8, Ch. 12, Ch. 13), and here it produces the volume's final, headline "is this economically competitive" conclusion — exactly the kind of claim a systems-design interview would stress-test, and it's wrong.
   - Suggested fix: Recompute using consistent annual cost / annual token volume (≈$1.96-2/1M tokens), and revise the "competitive vs Bedrock" claim accordingly since the corrected figure is substantially higher than Bedrock's published range.
+
+### labs/lab-01-cluster-design-workshop.md
+- [SEVERITY: medium] Reference solution arithmetic doesn't multiply out: "Throughput: 243 QPS per GPU × 32 GPU = ~500 QPS" — 243 × 32 = 7,776, not ~500. The final "~500 QPS" figure is actually consistent with the volume's established ~15.2 QPS/GPU figure (Chapter 8: 15.2 × 32 = 486.4 ≈ 500), suggesting "243" is a stray/wrong intermediate number, not the "~500" conclusion.
+  - Evidence: Line ~156 ("Example Solution (Reference)").
+  - Why it matters for JR2018680: This is the lab's official model-answer used for grading; a student (or interview candidate rehearsing this material) checking the arithmetic would find it doesn't hold up.
+  - Suggested fix: Replace "243 QPS per GPU" with the ~15.2 QPS/GPU figure established in Chapter 8, consistent with the rest of the volume.
