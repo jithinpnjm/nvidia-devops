@@ -54,21 +54,26 @@ flowchart TD
     Power[Power supplies]
     BMC[BMC and firmware]
     Chassis[Chassis and mechanics]
-    Server[OEM HGX-based server]
+    Accept{"Acceptance gate:<br/>does each domain pass its check?"}
+    Server[OEM HGX-based server:<br/>approved for production]
+    Reject["Reject / quarantine:<br/>name the first failing domain,<br/>do not average across domains"]
 
-    HGX --> Server
-    CPU --> Server
-    Memory --> Server
-    PCIe --> Server
-    NIC --> Server
-    Storage --> Server
-    Cooling --> Server
-    Power --> Server
-    BMC --> Server
-    Chassis --> Server
+    HGX -->|"nvidia-smi topo -m: all NV# links Active"| Accept
+    CPU -->|"numactl --hardware: symmetric, GPU-local"| Accept
+    Memory -->|"dmidecode -t memory: populated per channel"| Accept
+    PCIe -->|"lspci -tv: full lane width, no downshift"| Accept
+    NIC -->|"ibdev2netdev + topo -m: PIX to paired GPU"| Accept
+    Storage -->|"fio: meets vendor-quoted throughput"| Accept
+    Cooling -->|"30-min soak: no throttle reason set"| Accept
+    Power -->|"ipmitool sdr: PSU load within rated range"| Accept
+    BMC -->|"firmware inventory matches OEM bundle"| Accept
+    Chassis -->|"no sensor/event-log faults at inventory"| Accept
+
+    Accept -->|"every domain passes"| Server
+    Accept -->|"any domain fails"| Reject
 ```
 
-**Figure 6.3.1 — OEM integration boundary.** The HGX baseboard becomes useful only after the surrounding server is engineered, qualified, and supported as one system.
+**Figure 6.3.1 — OEM integration boundary.** The HGX baseboard becomes useful only after the surrounding server is engineered, qualified, and supported as one system. Each domain contributes one specific, checkable piece of evidence into a single acceptance gate — treat the gate as AND, not average: a server with nine passing domains and one failing PCIe check is not "90% ready," it is not ready, because the failing domain is very likely the one the workload will actually hit first.
 
 ## 4. Host CPU and Memory Integration
 
@@ -278,6 +283,41 @@ An HGX server should pass acceptance at several layers.
 | Cooling limitation | Reduced clocks under sustained load | Repair cooling or adjust facility design |
 | Adapter configuration drift | Different link speed or mode | Restore approved network configuration |
 
+**Topology mismatch, with real evidence.** Compare the two nodes' output side by side:
+```text
+# healthy node
+$ nvidia-smi topo -m | grep mlx5_0
+mlx5_0   PIX   PIX   SYS   SYS    X    SYS
+
+# underperforming node
+$ nvidia-smi topo -m | grep mlx5_0
+mlx5_0   SYS   SYS   SYS   SYS    X    SYS
+```
+On the healthy node, `mlx5_0` shares a PCIe switch (`PIX`) with two of the four GPUs. On the underperforming node it reaches all four GPUs over `SYS` — every one of them crosses a NUMA boundary to use that NIC. That is a physical slot/riser difference between the two chassis, not a software setting; it explains lower collective bandwidth without needing to inspect firmware at all.
+
+**Firmware drift, with real evidence.** Compare VBIOS across nodes rather than trusting the driver version alone:
+```text
+$ nvidia-smi --query-gpu=index,vbios_version --format=csv
+index, vbios_version
+0, 96.00.74.00.10
+1, 96.00.74.00.10
+...
+
+# underperforming node
+index, vbios_version
+0, 96.00.89.00.04
+...
+```
+Same driver, same CUDA version, but a different VBIOS on the underperforming node's GPU 0. That is exactly the kind of drift a "driver matches" check misses, and an unqualified VBIOS revision can change default power/clock behavior enough to explain a collective-bandwidth gap on its own.
+
+**Cooling limitation, with real evidence.** Pull throttle reasons directly instead of inferring from temperature alone:
+```text
+$ nvidia-smi -q -d PERFORMANCE | grep -A6 "Clocks Throttle Reasons"
+    HW Thermal Slowdown               : Active
+    SW Thermal Slowdown               : Not Active
+```
+`HW Thermal Slowdown: Active` is definitive — the hardware itself is cutting clocks in response to temperature, independent of any software power cap. Pair this with server inlet temperature at the same timestamp before concluding it's a facility problem rather than a fan/airflow fault local to that node.
+
 ## 13. Customer Scenario
 
 A cloud provider wants multiple OEMs to reduce supply-chain risk. The architecture team defines a common acceptance contract rather than assuming identical servers.
@@ -292,19 +332,19 @@ Multi-vendor sourcing becomes manageable because consistency is defined by measu
 
 **What does the OEM add to an HGX platform?**
 
-The OEM integrates CPUs, memory, PCIe, networking, storage, power, cooling, chassis, BMC, firmware, qualification, serviceability, and support into a complete server.
+"HGX gives you the accelerator complex — GPUs, baseboard, and the NVLink/NVSwitch fabric between them, already validated. Everything else in the box is the OEM's: CPU selection and socket count, memory population, PCIe switch layout, which slots the NICs and NVMe land in, the cooling implementation, the power supplies, the BMC and its firmware tooling, and ultimately who picks up the phone when something in that server breaks. I'd tell an interviewer: buying HGX doesn't buy you a server, it buys you the hardest 20% of the server, engineered once and validated — the OEM still has to do real integration work around it."
 
 ### Scenario question
 
 **Two HGX-based servers have the same GPUs. Why might one perform better?**
 
-Host topology, CPU and memory design, NIC placement, cooling, power policy, firmware, and software qualification can all differ.
+"I wouldn't guess — I'd run `nvidia-smi topo -m` on both first, because NIC-to-GPU placement is the single most common cause of this. If one node shows `PIX` from its NICs to the GPUs and the other shows `SYS`, that's a real physical topology difference the GPU spec sheet can't tell you about. If topology matches, I'd check `nvidia-smi -q -d PERFORMANCE` for throttle reasons — `SW Power Cap` or `HW Thermal Slowdown` being active on one node and not the other explains a clock gap with zero application-level symptoms. Only after topology and throttle state match would I start looking at firmware versions and CPU/NUMA placement."
 
 ### Customer question
 
 **Can we mix HGX servers from different OEMs in one cluster?**
 
-Yes, but operational consistency must be proven. Define common topology, firmware, software, telemetry, performance, and support requirements, then validate each design against them.
+"Technically yes, but I'd push back on doing it without proof first. My recommendation would be: treat each OEM model as its own node class initially, define a common acceptance bar — topology output, firmware inventory, a sustained thermal soak, and a collective-bandwidth benchmark — and only pool them into one scheduling class once both vendors' nodes clear that bar with matching numbers. Mixing on faith, based on 'same GPU generation,' is exactly how you end up with a cluster where job runtime varies by which rack a job landed on, and nobody can explain why."
 
 ## 15. Summary
 
