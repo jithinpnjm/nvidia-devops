@@ -71,3 +71,20 @@ This volume is exceptional depth: worked numeric examples (SM counts, register-f
 
 ### chapter-07-registers-shared-memory-and-local-memory.md
 - No findings. Register spilling and local-memory-is-not-physically-local explanation is accurate; spill traffic worked example is sound.
+
+### chapter-08-global-memory-l1-l2-and-hbm.md
+- No findings. H100 SXM 3.35TB/s bandwidth-utilization worked example (16GB/6ms ≈ 2,667 GB/s, ~80% of peak) is correct.
+
+### chapter-09-divergence-coalescing-and-bottleneck-reasoning.md
+- No findings. Sector/transaction amplification example (32-byte sector granularity, 8x amplification) is architecturally sound and standard.
+
+### chapter-10-gpu-topology-peer-access-and-data-paths.md
+- No findings. `nvidia-smi topo -m` output/legend (NV4, PIX, SYS) is accurate; NVLink (~900GB/s) vs cross-socket PCIe Gen4 x16 (~25-32GB/s) bandwidth comparison and the resulting ~30x latency gap for a 500MB all-reduce is correct order-of-magnitude reasoning.
+
+### chapter-11-building-a-gpu-performance-model.md
+- No findings. H100 ridge-point calculation (989 TFLOPS FP16 dense / 3.35 TB/s ≈ 295 FLOPs/byte) is correct and a strong interview-caliber worked roofline example.
+
+### chapter-12-volume-02-architecture-summary.md
+- No findings. Consolidation is consistent with all prior chapters; continuous-batching justification (26GB/token bandwidth floor amortized across 50 concurrent users) is correct.
+
+**Volume ZTH-02 summary (chapters 1-12 + index):** Zero medium/high severity findings. This is the strongest technical volume reviewed in this batch — every hardware figure checked (SM counts, register file sizes, HBM bandwidth, NVLink bandwidth, PCIe bandwidth) is accurate, and the worked-number style (introduced starting chapter 1) is exactly the kind of first-principles, evidence-based reasoning a NVIDIA AI-infra interview would probe. Recommend this volume's style as the template other batches should be measured against, alongside actual Volume 1 gold standard.
