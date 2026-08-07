@@ -53,17 +53,18 @@ torchrun --nproc_per_node=2 train.py --epochs 5 --batch-size 32
 **Common Failure:** NCCL Timeout or Address already in use if another process is running.
 
 ## 7. Expected Evidence
-Beyond the CLI output, you should observe corresponding GPU utilization using `nvidia-smi dmon` or `nvtop` matching the expected parallel workload behavior.
+Each rank should print its own `RANK`/`LOCAL_RANK`/`WORLD_SIZE` on startup, followed by per-epoch loss values that are identical (or within floating-point tolerance) across both ranks — that identical loss trajectory is the proof that gradient synchronization is actually happening, not just that two independent processes are running. Confirm rank-to-device mapping with `nvidia-smi dmon` showing both GPU 0 and GPU 1 active simultaneously (not sequentially), and cross-check against `CUDA_VISIBLE_DEVICES` inside each rank's logs.
 
 ## 8. Explanation of Behavior
-The distributed process group coordinates across the GPUs using NCCL. When synchronized, all ranks wait at collective boundaries (like All-Reduce or All-Gather).
+`torchrun` spawns one process per GPU and sets `RANK`, `LOCAL_RANK`, and `WORLD_SIZE` as environment variables. Each rank builds an identical model, then `DistributedDataParallel` wraps it so that after `loss.backward()` computes local gradients, DDP triggers an All-Reduce across ranks to average them before the optimizer step — this is why loss values converge identically across ranks even though each rank sees a different shard of the batch (via `DistributedSampler`). The All-Reduce is a synchronization barrier: every rank blocks until all ranks have contributed their gradients.
 
 ## 9. Performance Benchmarking
-Monitor throughput metrics (e.g., items/sec or tokens/sec). The multi-GPU throughput should scale efficiently relative to the single-GPU baseline, typically >80% scaling efficiency.
+Compare wall-clock time per epoch (or tokens/sec) between a single-GPU run (`python train.py`) and the 2-GPU `torchrun` run. Ideal scaling would be 2x throughput; in practice, expect 80-95% scaling efficiency depending on model size, batch size, and interconnect (NVLink vs PCIe) — the gap is the All-Reduce gradient-sync cost from Chapter 3's ring-AllReduce formula (`2×(N-1)/N × gradient_size`). If scaling efficiency is well below 80%, suspect a small batch size (communication not overlapped with compute) or a PCIe-only interconnect.
 
 ## 10. Common Failures
-- **NCCL Timeout:** Usually caused by a network partition or a rank crashing silently without tearing down the process group.
-- **OOM (Out of Memory):** Batch size is too large for the available VRAM.
+- **NCCL Timeout during All-Reduce:** Usually caused by one rank crashing or hanging (e.g., an exception inside the forward pass on only one rank) while the other rank blocks waiting at the collective boundary forever.
+- **"Unused parameters" hang:** If the model has conditional branches where some parameters don't participate in every forward pass, DDP's default `find_unused_parameters=False` will cause a permanent hang at the All-Reduce step (see Chapter 3's "Unused Parameters Bug").
+- **OOM (Out of Memory):** Batch size (per-GPU, not global) is too large for the available VRAM.
 
 ## 11. Safe Failure Injection
 **Action:** Manually kill one of the worker processes (e.g., `kill -9 <PID>`) to simulate a node or GPU crash.
@@ -73,29 +74,31 @@ Monitor throughput metrics (e.g., items/sec or tokens/sec). The multi-GPU throug
 Restart the job using `torchrun`. PyTorch's Elastic launcher can also be configured to restart automatically if `--max_restarts` is set.
 
 ## 13. Troubleshooting Guide
-- Check `dmesg -T` for Xid errors (e.g., Xid 79, Xid 13).
-- Enable NCCL debug logs by setting `export NCCL_DEBUG=INFO`.
-- Ensure firewall rules are not blocking inter-node communication if running across multiple nodes.
+- If ranks hang at startup, confirm both processes can resolve `MASTER_ADDR`/`MASTER_PORT` and that no stale process is already bound to that port (`Address already in use`).
+- Enable NCCL debug logs with `export NCCL_DEBUG=INFO` to see which transport (NVLink, PCIe, or socket) NCCL selected for the All-Reduce.
+- If loss values diverge between ranks (rather than matching), check that `DistributedSampler` is used (not a plain `DataLoader`) — without it, both ranks train on the same data instead of complementary shards.
+- Check `dmesg -T` for Xid errors (e.g., Xid 79, Xid 13) if a rank silently disappears mid-training.
 
 ## 14. Validation
-Validate the outcome by confirming the checkpoint integrity or by ensuring the model loss continues to converge at the expected rate without spikes.
+Validate the outcome by confirming that (a) both ranks report the same loss value at each epoch boundary, proving gradient synchronization occurred, and (b) multi-GPU throughput is within the expected 80-95% scaling-efficiency band computed in Section 9.
 
 ## 15. Real-World Pitfalls
-- Forgetting to synchronize the random number generator (RNG) seeds across ranks can cause divergence.
-- Unmatched tensor shapes in DDP models if dynamic control flow is used without `.join()`.
+- Forgetting to synchronize the random number generator (RNG) seeds across ranks can cause model initialization to diverge before training even starts.
+- Unmatched tensor shapes or execution paths across ranks (e.g., conditional layers) will hang DDP's All-Reduce unless wrapped with `.join()` or `find_unused_parameters=True`.
+- Using a global (not per-GPU) batch size in `--batch-size` silently changes the effective batch size per rank and skews the scaling-efficiency comparison in Section 9.
 
 ## 16. Cleanup Procedures
 ```bash
-# Terminate lingering torchrun processes
+# Terminate lingering torchrun/worker processes
 pkill -f torchrun
-# Remove temporary checkpoints
+# Remove checkpoints written during this run
 rm -rf ./checkpoints/*
 ```
 
 ## 17. Knowledge Check
-- What happens if one rank crashes during an all-reduce operation?
-- How does `torchrun` assign `RANK` and `LOCAL_RANK`?
-- What is the difference between NVLink and PCIe data transfers?
+- What happens if one rank crashes during an All-Reduce operation, and why do the surviving ranks hang instead of erroring immediately?
+- How does `torchrun` assign `RANK`, `LOCAL_RANK`, and `WORLD_SIZE`, and what's the difference between `RANK` and `LOCAL_RANK` on a multi-node job?
+- Why must `DistributedSampler` (not a plain shuffle) be used with DDP, and what happens to correctness if it's omitted?
 
 ## 18. Additional References
 - [PyTorch Distributed Overview](https://pytorch.org/tutorials/beginner/dist_overview.html)

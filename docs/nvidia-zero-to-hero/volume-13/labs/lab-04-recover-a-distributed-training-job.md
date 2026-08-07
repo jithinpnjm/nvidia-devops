@@ -46,17 +46,18 @@ torchrun --nproc_per_node=4 train.py --resume-from ./checkpoints/epoch_3.pt
 **Common Failure:** Checkpoint corrupted, missing keys, or mismatch in tensor sizes.
 
 ## 7. Expected Evidence
-Beyond the CLI output, you should observe corresponding GPU utilization using `nvidia-smi dmon` or `nvtop` matching the expected parallel workload behavior.
+Run a "control" job uninterrupted for 5 epochs and record the loss at each epoch boundary. Then run an "interrupted" job that is killed after epoch 3, resumed from `./checkpoints/epoch_3.pt`, and continued to epoch 5. The evidence of a correct recovery is that the resumed run's epoch 4 and epoch 5 loss values match the control run's, not just that training "continues without error."
 
 ## 8. Explanation of Behavior
-The distributed process group coordinates across the GPUs using NCCL. When synchronized, all ranks wait at collective boundaries (like All-Reduce or All-Gather).
+A correct checkpoint/resume cycle must restore four things, not just model weights: (1) model parameters, (2) optimizer state (Adam's momentum/variance buffers — without these, the optimizer effectively restarts "cold" and loss will spike after resume), (3) the LR scheduler's step count, and (4) RNG state (Python/NumPy/CUDA), so that data shuffling and any stochastic ops (dropout) continue exactly as they would have in the uninterrupted run. Missing any of these produces a resume that "works" (no crash) but silently diverges from the control run.
 
 ## 9. Performance Benchmarking
-Monitor throughput metrics (e.g., items/sec or tokens/sec). The multi-GPU throughput should scale efficiently relative to the single-GPU baseline, typically >80% scaling efficiency.
+Measure checkpoint save latency (time to write `epoch_3.pt` to disk) and restore latency (time from process start to first training step after loading the checkpoint) separately from steady-state training throughput. For large models, synchronous full-state-dict checkpointing can stall training for seconds to minutes; this is the tradeoff Chapter 9's sync-vs-async checkpointing material covers — note whether your checkpoint call blocks the training loop or overlaps with the next forward pass.
 
 ## 10. Common Failures
-- **NCCL Timeout:** Usually caused by a network partition or a rank crashing silently without tearing down the process group.
-- **OOM (Out of Memory):** Batch size is too large for the available VRAM.
+- **Loss spike immediately after resume:** Optimizer state (momentum/variance) wasn't saved or loaded, so Adam restarts from zero state on a mid-training weight configuration.
+- **Silent divergence from the control run without an error:** RNG state wasn't restored, so data ordering or dropout masks differ after resume even though weights loaded correctly.
+- **Checkpoint corrupted or missing keys:** A rank was killed mid-write (`kill -9` during `torch.save`), leaving a truncated/unreadable file.
 
 ## 11. Safe Failure Injection
 **Action:** Delete a chunk of the checkpoint file or rename a parameter key in the state dict and attempt to resume.
@@ -66,29 +67,31 @@ Monitor throughput metrics (e.g., items/sec or tokens/sec). The multi-GPU throug
 Identify the missing shard, restore it from backup storage or a previous epoch, and relaunch the job.
 
 ## 13. Troubleshooting Guide
-- Check `dmesg -T` for Xid errors (e.g., Xid 79, Xid 13).
-- Enable NCCL debug logs by setting `export NCCL_DEBUG=INFO`.
-- Ensure firewall rules are not blocking inter-node communication if running across multiple nodes.
+- Before assuming a bug, verify the checkpoint file itself is readable: `torch.load(path, map_location="cpu")` and check that `optimizer_state_dict`, `model_state_dict`, `scheduler_state_dict`, and `rng_state` keys are all present.
+- If loss diverges after resume but the checkpoint loads without error, diff the restored optimizer state against what you'd expect at epoch 3 — a common bug is saving the checkpoint *before* the optimizer step instead of after, off-by-one epoch.
+- In a multi-rank job, confirm checkpoint writes are gated behind a barrier (`dist.barrier()`) so one rank isn't still writing while another has already moved on — a torn write on one rank's shard will corrupt the resume for everyone.
+- Check `dmesg -T` for OOM-killer or Xid events if the interruption was meant to simulate a crash rather than a clean `kill`.
 
 ## 14. Validation
-Validate the outcome by confirming the checkpoint integrity or by ensuring the model loss continues to converge at the expected rate without spikes.
+Validate the outcome by diffing the resumed run's per-epoch loss values against the uninterrupted control run's — they should match to within floating-point tolerance for epochs 4-5. A resume that "runs without error" but produces different loss values than the control is a failed recovery, even though nothing crashed.
 
 ## 15. Real-World Pitfalls
-- Forgetting to synchronize the random number generator (RNG) seeds across ranks can cause divergence.
-- Unmatched tensor shapes in DDP models if dynamic control flow is used without `.join()`.
+- Saving only `model.state_dict()` and forgetting optimizer/scheduler/RNG state is the single most common checkpointing bug — it "works" (no crash) but silently produces a different, non-reproducible training run after every resume.
+- Writing the checkpoint from every rank independently without a `dist.barrier()` beforehand can let ranks write inconsistent snapshots of an in-flight gradient sync.
+- Checkpoint format drift: loading a checkpoint saved by an older version of the training script (different model architecture or renamed parameters) fails with cryptic key-mismatch errors rather than a clear version-compatibility message — version your checkpoint format explicitly.
 
 ## 16. Cleanup Procedures
 ```bash
 # Terminate lingering torchrun processes
 pkill -f torchrun
-# Remove temporary checkpoints
+# Remove checkpoints created during the control and interrupted runs
 rm -rf ./checkpoints/*
 ```
 
 ## 17. Knowledge Check
-- What happens if one rank crashes during an all-reduce operation?
-- How does `torchrun` assign `RANK` and `LOCAL_RANK`?
-- What is the difference between NVLink and PCIe data transfers?
+- Besides model weights, what else must a checkpoint save to guarantee a bit-for-bit reproducible resume, and what does omitting each one break?
+- Why might a resumed training run avoid crashing but still silently diverge from what an uninterrupted run would have produced?
+- What's the risk of checkpointing without a `dist.barrier()` in a multi-rank job?
 
 ## 18. Additional References
 - [PyTorch Distributed Overview](https://pytorch.org/tutorials/beginner/dist_overview.html)
