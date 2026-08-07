@@ -51,3 +51,13 @@
   - Evidence: Line ~227 (Section 3.1, NCCL performance box).
   - Why it matters for JR2018680: Low interview-relevance but signals sloppy copy/paste of numbers that could confuse a reader trying to reproduce power/energy estimates.
   - Suggested fix: Remove or replace with a correct daily-energy calculation (kW × 24h × kWh cost).
+
+### chapter-04-storage-infrastructure-for-ai-pipelines.md
+- [SEVERITY: high] RECURRENCE of the GFLOPS/TFLOPS-style unit-magnitude slip, this time on a derived tokens/sec figure. "Tokens per second per GPU = 989 TFLOPS / 15 FLOPs per token = ~66M tokens/sec theoretical" — verified: 989e12/15 = 65.93 trillion tokens/sec, not 66 million (off by a factor of ~10^6, i.e. should read "~66 trillion" / "66T", not "66M").
+  - Evidence: Line ~35 (Part 1.1, "Training Data Pipeline Math").
+  - Why it matters for JR2018680: Same class of magnitude error flagged repeatedly across the review series (GFLOPS reported as TFLOPS, etc.) — here a 10^6 error in a foundational throughput estimate that seeds the rest of the storage-bandwidth sizing math in the chapter.
+  - Suggested fix: Correct to ~66 trillion tokens/sec theoretical (still absurdly above the practical 300-500K figure used afterward, which is the point being made, but the stated number should be right).
+- [SEVERITY: low] "Practical (accounting for memory, synchronization): ~300K-500K tokens/sec per GPU" is not independently derived and looks implausibly high for a 70B-parameter model (real-world large-model training throughput is typically in the low thousands of tokens/sec per GPU, not hundreds of thousands); flagged for follow-up verification rather than confirmed wrong.
+  - Evidence: Line ~36.
+  - Why it matters for JR2018680: If asked to sanity-check a training throughput number in an interview, reciting 300-500K tokens/sec/GPU for a 70B model would likely draw skepticism.
+  - Suggested fix: Cross-check against known reference throughputs (e.g., Megatron-LM/NeMo published numbers) and revise.
