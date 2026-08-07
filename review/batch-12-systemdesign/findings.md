@@ -284,3 +284,16 @@ Question 1-3 model answers (workload-to-sharing-mode allocation, isolation-failu
   - Suggested fix: apply the same `(hours × nodes × $500) ÷ 730` formula to the night/weekend segment (576 hours × 1 node), giving ≈$394/month and a corrected total near $589/month.
 
 Resource-quota percentages (16/32=50%, 12/32=37.5%, 4/32=12.5%, summing to 32) and the graceful-shutdown/SIGTERM handling content are accurate.
+
+### chapter-08-security-and-compliance.md
+
+- [SEVERITY: low] Question 1's model answer claims "This architecture provides 95%+ security for multi-tenant workloads" — security is not a meaningfully quantifiable percentage, and stating a specific number here reads as an unfalsifiable, unverifiable claim rather than a defensible engineering statement (especially awkward alongside the same answer's own "Residual risk" table, which lists open risks with no way to derive 95% from them).
+  - Evidence: "This architecture provides **95%+ security** for multi-tenant workloads."
+  - Why it matters for JR2018680: a candidate should avoid quantifying security posture with a bare percentage in an interview — it's the kind of unsupported claim an interviewer would immediately probe ("95% of what, measured how?").
+  - Suggested fix: replace with a qualitative defense-in-depth statement (e.g., "no single control failure results in cross-tenant exposure") rather than a percentage.
+- [SEVERITY: low] "HIPAA violations carry $100-1.5M fines per incident" slightly conflates two different figures: HIPAA's per-violation penalty tiers run roughly $100-$50,000 per violation, with a separate ~$1.5-2M *annual* cap per identical-violation category — describing the full range as "per incident" is imprecise.
+  - Evidence: closing line of Question 2's model answer.
+  - Why it matters for JR2018680: minor; the general point (HIPAA penalties are large and non-optional) is correct and the imprecision is unlikely to be probed deeply, but a compliance-focused interviewer could ask for the actual tier structure.
+  - Suggested fix: distinguish per-violation tier ($100-$50K) from the annual aggregate cap (~$1.5-2M) if precision is needed.
+
+The threat model, defense-in-depth layering (MIG, network policy, RBAC, encryption, audit logging), and HIPAA compliance checklist are otherwise technically reasonable and not tied to any specific hardware numbers that could be independently fact-checked.
