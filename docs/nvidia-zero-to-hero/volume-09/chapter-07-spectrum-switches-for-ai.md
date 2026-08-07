@@ -40,19 +40,24 @@ After this chapter, you can:
 
 ```mermaid
 flowchart LR
-    A[GPU node] --> CA[ConnectX]
-    B[GPU node] --> CB[ConnectX]
-    CA --> L1[Spectrum leaf]
-    CB --> L1
-    L1 --> S1[Spectrum spine]
-    S1 --> L2[Spectrum leaf]
-    L2 --> CC[ConnectX]
-    CC --> C[GPU node]
-    L1 -. queue, ECN, PFC counters .-> T[Telemetry]
-    S1 -. utilization and drops .-> T
+    A["GPU node"] --> CA["ConnectX"]
+    B["GPU node"] --> CB["ConnectX"]
+    CA -->|"evidence: port up,\nclean FEC/errors"| L1["Spectrum leaf"]
+    CB -->|"evidence: port up,\nclean FEC/errors"| L1
+    L1 -->|"evidence: uplink\nutilization + ECN rate"| S1["Spectrum spine"]
+    S1 --> L2["Spectrum leaf"]
+    L2 --> CC["ConnectX"]
+    CC --> C["GPU node"]
+    L1 -. "queue, ECN, PFC counters" .-> T["Telemetry"]
+    S1 -. "utilization and drops" .-> T
+    T --> J{"Which signature\ndoes the evidence show?"}
+    J -->|"port errors/FEC climbing"| PHY["Physical fault —\nisolate cable/optic/port"]
+    J -->|"clean physical, ECN marks\nrising, PFC flat"| HEALTHY["Congestion control working —\nnot an incident"]
+    J -->|"clean physical, PFC pause\nsustained on one leaf"| HOT["Oversubscribed cut or\nbad placement — that leaf"]
+    J -->|"clean physical, low\nutilization, still slow"| ROUTE["ECMP/rail imbalance —\ncheck path distribution"]
 ```
 
-**Figure 9.7.1 — The switch is an active queueing and forwarding participant.** End-to-end behavior emerges from the adapters, switches, routing policy, and workload at once.
+**Figure 9.7.1 — The switch is an active queueing and forwarding participant, and the diagram now routes the evidence to the specific fault it points at.** The four branches map directly to this chapter's troubleshooting scenarios: physical faults, healthy congestion control, an oversubscribed/hot leaf, and ECMP imbalance produce different, distinguishable counter signatures — treating "switch problem" as one bucket instead of these four wastes the first hour of an incident.
 
 ## Why Switch Design Changes for AI
 
@@ -151,6 +156,20 @@ Collect these families, retaining counter deltas rather than only lifetime total
 
 Alert on unexpected rate of change, sustained asymmetry, and deviation from a known-good baseline. A nonzero cumulative counter is not automatically an active incident.
 
+**Illustrative annotated output — WJH drop sampling, the specific tool that tells you *why* a packet was dropped instead of just that it was:**
+
+```text
+# Illustrative What Just Happened (WJH) drop report — syntax is NOS/release specific
+$ show what-just-happened drop-reason all
+REASON                    SRC-IP        DST-IP        COUNT   LAST-SEEN
+L2 table miss              -             -               0     -
+Router ingress miss        10.20.4.15   10.20.9.99       0     -
+Tail drop (queue full)     10.20.4.15   10.20.9.99    18402    2s ago
+ACL deny                    -            -                0     -
+```
+
+The `Tail drop (queue full)` row with a nonzero count and a `LAST-SEEN` of two seconds ago is qualitatively different evidence than an interface `discard` counter: it tells you the specific *reason* class — the egress queue toward `10.20.9.99` was genuinely full when these packets arrived, not an ACL, not a routing miss, not a corrupted frame. That distinction directly answers the decision point in Figure 9.7.1 — clean physical counters plus a WJH tail-drop signature toward one destination is the "oversubscribed cut or bad placement" branch, not the physical-fault branch, even before checking a single ECN or PFC counter.
+
 ## Production Deployment Pattern
 
 Treat switch configuration as a tested release artifact, with templates generated from a source of truth. The artifact should include port roles, breakout and optic expectations, MTU, routing, QoS classification, ECN/PFC profile, management access, telemetry export, and rollback instructions.
@@ -176,7 +195,21 @@ NOS changes can alter command behavior, telemetry availability, supported featur
 
 **Diagnosis:** compare the rack’s uplink utilization, ECN marking rate, PFC deltas, route membership, and workload placement with a healthy rack. Trace the evidence to a shared egress or an imbalanced path before changing thresholds.
 
-**Resolution:** correct the route, placement, cabling, or capacity condition that created the concentration. Re-run the same workload and verify that queue/congestion asymmetry and step-time tail return to baseline.
+**Evidence in practice:**
+
+```text
+# Slow rack's leaf uplinks
+$ show what-just-happened drop-reason all | grep -i tail
+Tail drop (queue full)      10.20.5.20   10.20.9.99    52100    1s ago
+
+# Healthy rack's leaf uplinks, same job, same window
+$ show what-just-happened drop-reason all | grep -i tail
+Tail drop (queue full)       -            -               0     -
+```
+
+Same job, same collective, run at the same time — the slow rack's uplink toward the same destination shows an actively growing tail-drop count while a healthy rack's uplink shows none. Both racks have identical port state and error counters, which is exactly why "links are healthy" is true and irrelevant: the fault is queue-level contention on one specific uplink cut, not anything the physical layer would surface.
+
+**Resolution:** correct the route, placement, cabling, or capacity condition that created the concentration. Re-run the same workload and verify that queue/congestion asymmetry and step-time tail return to baseline — concretely, the WJH tail-drop count on the previously slow rack's uplink should return to zero under the same load.
 
 **Prevention:** include rack-level congestion and rail-balance views in acceptance and admission reviews.
 
@@ -186,7 +219,21 @@ NOS changes can alter command behavior, telemetry availability, supported featur
 
 **Diagnosis:** find the traffic priority and trace the pause direction toward the congested egress. Validate that all hops use the same classification and that PFC is enabled only for the intended priority. Review ECN marking and endpoint reaction rather than assuming PFC is the root cause.
 
-**Resolution:** remove the underlying oversubscription or misclassification; restore the approved ECN/PFC policy; confirm pause counters no longer grow during the test window.
+**Evidence in practice:**
+
+```text
+$ for sw in leaf03 leaf07 leaf12; do echo "== $sw =="; ssh $sw "ethtool -S swp1 | grep rx_pfc_prio3"; done
+== leaf03 ==
+     rx_pfc_prio3:            210500       <- most-downstream, highest count: likely origin
+== leaf07 ==
+     rx_pfc_prio3:            198200       <- propagated from leaf03's direction
+== leaf12 ==
+     rx_pfc_prio3:            41100        <- smaller, further from the source
+```
+
+Walking the pause direction across three leaves in one query confirms `leaf03` as the origin — it has the highest count and is closest to the congested destination, and the counts decrease moving upstream, which is the expected signature of a single congestion source causing a pause tree rather than three independent problems. This rules out "misclassification at each leaf independently" (which would show unrelated, uncorrelated counts) in favor of one destination-side bottleneck whose pause is propagating.
+
+**Resolution:** remove the underlying oversubscription or misclassification; restore the approved ECN/PFC policy; confirm pause counters no longer grow during the test window — across all three leaves, not just the origin.
 
 **Prevention:** deploy QoS from a single source of truth and test congestion scenarios before production rollout.
 
@@ -206,11 +253,25 @@ Full bisection is a cost and resilience choice. Measured oversubscription can be
 
 ## Interview Preparation
 
-1. Why does a switch with sufficient aggregate bandwidth still permit slow collectives?
-2. How do ECN, PFC, egress queues, and endpoint congestion control relate?
-3. What evidence distinguishes a congested path from a failing optical link?
-4. Why can ECMP leave a multi-rail cluster imbalanced?
-5. What must be tested before a switch NOS upgrade?
+**1. Why does a switch with sufficient aggregate bandwidth still permit slow collectives?**
+
+"Because aggregate bandwidth is a sum across every port, and a collective doesn't spread its demand evenly across every port — it converges on specific egresses at specific moments. I've seen a 256-GPU cluster with plenty of aggregate capacity where one rack was still a persistent straggler, because WJH drop sampling showed sustained tail drops on that rack's specific uplink toward a specific destination, while a healthy rack showed zero on the identical query. The aggregate number simply doesn't capture that concentration — it's the wrong denominator for the question 'will this collective's actual traffic pattern fit.'"
+
+**2. How do ECN, PFC, egress queues, and endpoint congestion control relate?**
+
+"The egress queue is the physical thing under pressure. ECN is the switch's early warning — mark packets before the queue is full so the sender has a chance to react before anything worse happens. Endpoint congestion control, DCQCN in this stack, is what actually turns that ECN mark into a reduced injection rate — the switch marking is useless without an endpoint that responds to it. PFC is the last-resort local safety net if that whole loop doesn't relieve pressure in time — it stops transmission for one priority on one link rather than letting the queue overflow and drop. I'd draw it as a chain: queue pressure triggers ECN, ECN should trigger endpoint response, and PFC only fires if that chain didn't work fast enough."
+
+**3. What evidence distinguishes a congested path from a failing optical link?**
+
+"Physical layer evidence — FEC correction rate, error counters, transceiver diagnostics — should be clean on a congested-but-otherwise-healthy path; a failing optic shows those climbing regardless of load. Congestion, on the other hand, shows up in queue and priority-specific counters — WJH tail-drop reasons, ECN marks, PFC pause — while the physical counters stay flat. I've used exactly that split to close an incident fast: same job, same destination, one rack showing active WJH tail-drops with zero FEC/error deltas — that's unambiguously a queueing problem, not a cable or optic, and it told the team not to waste time swapping hardware."
+
+**4. Why can ECMP leave a multi-rail cluster imbalanced?**
+
+"ECMP hashes flows across equal-cost paths using a limited set of header fields — source/destination address and port, typically — which works well statistically across thousands of unrelated flows but can concentrate a small number of large, long-lived flows onto the same path purely by hash coincidence. A multi-rail GPU workload often has exactly that shape — a handful of big, sustained collective flows rather than thousands of small ones — so it's more exposed to this than typical enterprise traffic. On top of that, ECMP has no idea which NIC a GPU is actually attached to, so even perfect hash distribution can send traffic down a path that crosses a NUMA boundary the application never needed to cross. I always check per-rail utilization directly rather than assuming ECMP produced the balance the topology diagram implies."
+
+**5. What must be tested before a switch NOS upgrade?**
+
+"The same evidence set as the original acceptance ladder, on a representative rack, before and after — physical state, QoS mapping, host-memory RDMA, GPU-buffer tests, and at least one representative collective under concurrency. NOS upgrades can silently change command syntax, telemetry availability, or even queue scheduling behavior, so 'links came back up' proves almost nothing. I'd insist on comparing the actual counter and workload evidence pre- and post-upgrade on a canary rack, with a tested rollback path, before it touches anything else — an upgrade that looks clean on link state alone has told you nothing about whether the congestion-control loop still behaves the same way."
 
 ## Architecture Summary
 
