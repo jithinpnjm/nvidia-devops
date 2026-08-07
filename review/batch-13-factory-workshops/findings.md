@@ -168,3 +168,13 @@
   - Evidence: Line ~156.
   - Why it matters for JR2018680: Minor wording slip, but it's the literal script a solutions architect would read to a customer.
   - Suggested fix: Change "million" to "billion."
+
+### chapter-02-banking-and-financial-services.md
+- [SEVERITY: high] RECURRENCE of the wrong-GPU-spec pattern, this time for A100 FP64. "A100 has 312 TFLOPS FP64 (L40S only 25 TFLOPS)" is fabricated — real A100 FP64 (CUDA core) is ≈9.7 TFLOPS, and FP64 Tensor Core (matrix) throughput is ≈19.5 TFLOPS; 312 TFLOPS is actually in the ballpark of A100's FP16/BF16 Tensor Core figure (312 TFLOPS dense), not FP64. It's off by roughly 16-32x. L40S's "25 TFLOPS FP64" is also implausible — Ada Lovelace consumer-class GPUs like L40S have crippled FP64 throughput (~1/64 of FP32, on the order of 1-1.5 TFLOPS), not 25.
+  - Evidence: Line ~65 (Use Case 2, "Why A100 (not L40S)").
+  - Why it matters for JR2018680: This is the same class of error as the repeatedly-flagged wrong H100 FP32 figure (a real GPU's precision-specific TFLOPS stated wildly incorrectly) — here applied to A100 FP64, the exact spec a "why GPU over CPU for VaR" interview question would probe.
+  - Suggested fix: Replace with real figures (A100 FP64 ≈9.7-19.5 TFLOPS; L40S FP64 ≈1-1.5 TFLOPS) and recheck whether the "12x faster" claim still holds (directionally yes, but the stated absolute numbers must change).
+- [SEVERITY: medium] Interview model-answer under-provisions relative to the stated requirement. Q2's answer says "4 L40S GPUs behind load balancer... Total = 3,000 TPS available" as the design for "5,000 TPS with <100ms latency" — 3,000 TPS capacity cannot serve a 5,000 TPS sustained requirement. This also contradicts the chapter's own architecture description a few lines earlier ("2 Clusters of 4 L40S GPUs" = 8 GPUs, 6,000 TPS).
+  - Evidence: Line ~111 vs line ~29, ~39.
+  - Why it matters for JR2018680: This is presented as the "model answer" to recite in an interview; a candidate using it would propose a design that can't meet its own stated throughput target.
+  - Suggested fix: Align the interview answer with the chapter's actual 8-GPU/6,000 TPS architecture.
