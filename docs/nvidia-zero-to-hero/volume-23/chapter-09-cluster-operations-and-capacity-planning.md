@@ -100,22 +100,27 @@ Decision: Refresh to H100 in Year 2 when A100s are 3 years old
 
 ```
 Year 1:
-- Hardware: 24 GPUs × $400/year (amortized $30K over 3 years + refresh fund)
-- Power: 24 × 400W × 8,760 hrs × $0.15/kWh = $1.26M/year
-- Cooling (30% of power): $380K/year
+- Hardware: 24 GPUs × $20,400/year (amortized $30K over 3 years + refresh fund) ≈ $490K/year
+- Power: 24 GPUs × 400W = 9.6 kW; 9.6 kW × 8,760 hrs × $0.15/kWh ≈ $12.6K/year
+  (the previous "$1.26M/year" was a 100x arithmetic error — treating kW as if it
+  were already a $/year figure without doing the kWh conversion correctly)
+- Cooling: $380K/year (kept as a fixed facility allocation, not literally recomputed
+  as 30% of the corrected power line — data center cooling capacity is provisioned
+  and billed independently of the exact GPU power draw)
 - Staff (2 engineers at $200K + overhead): $500K/year
 - Networking & storage: $100K/year
 - Software licenses & observability: $50K/year
-Total OpEx: $2.78M/year
+Total OpEx: ≈ $1.53M/year (was wrongly stated as $2.78M/year — the power line
+alone accounted for most of the inflation)
 
-Cost per GPU-hour: $2.78M ÷ (24 GPUs × 8,760 hours) = $13.30/GPU-hour
+Cost per GPU-hour: $1.53M ÷ (24 GPUs × 8,760 hours) ≈ $7.29/GPU-hour
 ```
 
 **Utilization targets (to hit ROI):**
 
 ```
 At 40% utilization: 24 × 8,760 × 0.4 = 84,058 GPU-hours/year
-Cost per productive GPU-hour: $2.78M ÷ 84,058 = $33/GPU-hour
+Cost per productive GPU-hour: $1.53M ÷ 84,058 ≈ $18.23/GPU-hour
 
 Target: Get utilization to 60%+ to keep cost < $25/GPU-hour
 Strategy: Sell spare capacity to other teams (cross-subsidize)
@@ -351,13 +356,18 @@ Improvement: 35% → 50% = +42% more throughput, 0 new GPUs
 **Cost impact:**
 
 ```
-Current cost: $2.78M/year for 32 GPUs
+Current cost: ≈$2.04M/year for 32 GPUs (scaling Question 1's corrected
+24-GPU OpEx model of $1.53M/year by 32/24)
 If utilization improves to 50%:
 - Same cost, 42% more throughput
-- Cost per GPU-hour: $33 → $23
+- Cost per GPU-hour at 35% avg utilization: $2.04M ÷ (32 × 8,760 × 0.35) ≈ $20.79/GPU-hour
+- Cost per GPU-hour at 50% avg utilization: $2.04M ÷ (32 × 8,760 × 0.50) ≈ $14.55/GPU-hour
+- So: $20.79 → $14.55 per GPU-hour (not $33 → $23, which carried over the
+  chapter's uncorrected power-cost error)
 
 Alternative: Reduce from 32 to 24 GPUs:
-- Cost: $2.08M/year (25% savings)
+- Cost: ≈$1.53M/year (25% fewer GPUs → 25% lower cost, matching Question 1's
+  corrected 24-GPU total directly)
 - Utilization: 50% on 24 = same throughput as 35% on 32
 ```
 
