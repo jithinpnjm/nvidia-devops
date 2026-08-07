@@ -66,3 +66,13 @@ _Summary to be filled in when review is complete._
   - Why it matters for JR2018680: same class of error as the H100 FP32 TFLOPS figure from Batch 09 — a specific, checkable bandwidth number understated by roughly half, which would read as wrong to anyone who has run `bandwidthTest` on Gen4 hardware.
   - Suggested fix: correct the Gen4 x16 baseline to ~20-26 GB/s range (or clarify if the number is meant for a narrower link/older toolkit measurement).
 - Otherwise the chapter's structure (PCIe rescan procedure, decision tree, escalation criteria) is sound and matches the depth-rework standard.
+
+### chapter-08-fan-failure-and-cooling-system-degradation.md
+- [SEVERITY: none] No accuracy issues found. Fan diagnosis flowchart, `nvidia-smi`/DCGM commands, and troubleshooting table are technically plausible and internally consistent; no Xid codes or hardware specs are misstated. Matches depth-rework standard.
+
+### chapter-09-power-supply-issues-and-brownout-scenarios.md
+- [SEVERITY: low] Repeated A100 TDP figure of "350W" doesn't match any real A100 SKU. Standard A100 power limits are 250W (PCIe 40GB), 300W (PCIe 80GB), or 400W (SXM4) — 350W isn't a canonical default for any A100 variant, though it falls within the SXM4 configurable range.
+  - Evidence: "For A100: 350W" (Resolution step 1), "Per GPU max: 350W (A100)" and "4 * 350 * 1.3 = 1820W min PSU" (PSU capacity planning), interview answer "4x A100s at 350W each". H100's figure (700W) in the same chapter is correct for SXM5, making the A100 number stand out as likely wrong rather than intentionally approximate.
+  - Why it matters for JR2018680: PSU capacity-planning questions ("how much power does a node of A100s need") are a plausible NVIDIA ops interview topic, and this specific, repeated number is off from every real A100 SKU's rated TDP.
+  - Suggested fix: use 400W (A100 SXM4, the common cluster deployment) or clarify which A100 variant if 300W/250W (PCIe) is intended, and recompute the PSU sizing example accordingly.
+- Otherwise strong: clean diagnosis flow (software-set vs. hardware voltage-sag branches), realistic IPMI/voltage-rail evidence, and well-reasoned interview answers.

@@ -49,9 +49,9 @@ Volumes: `docs/nvidia-zero-to-hero/volume-19` (Production Operations), `docs/nvi
 | chapter-06-placeholder.md (dead duplicate) | pending | |
 | chapter-07-dma-engine-failures-and-pcie-issues.md | done | high |
 | chapter-07-placeholder.md (dead duplicate) | pending | |
-| chapter-08-fan-failure-and-cooling-system-degradation.md | pending | |
+| chapter-08-fan-failure-and-cooling-system-degradation.md | done | none |
 | chapter-08-placeholder.md (dead duplicate) | pending | |
-| chapter-09-power-supply-issues-and-brownout-scenarios.md | pending | |
+| chapter-09-power-supply-issues-and-brownout-scenarios.md | done | low |
 | chapter-09-placeholder.md (dead duplicate) | pending | |
 | chapter-10-clock-instability-and-frequency-scaling-problems.md | pending | |
 | chapter-10-placeholder.md (dead duplicate) | pending | |
