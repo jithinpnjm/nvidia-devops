@@ -66,7 +66,7 @@ def get_pods(namespace: str) -> list[dict]:
     return json.loads(result.stdout)["items"]
 
 # cli.py — Ch6/Ch13: logging, exit codes, entry point
-import sys, logging
+import sys, json, logging
 from .model import assess_pod
 from .kubernetes import get_pods
 
