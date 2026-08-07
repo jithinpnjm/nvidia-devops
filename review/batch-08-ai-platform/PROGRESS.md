@@ -4,23 +4,23 @@ Volumes: ZTH-14 (NVIDIA AI Enterprise), ZTH-15 (AI Storage)
 
 | Volume | File | Status | Severity Summary |
 |---|---|---|---|
-| ZTH-14 | index.md | pending | |
-| ZTH-14 | chapter-01-why-nvidia-ai-enterprise-exists.md | pending | |
-| ZTH-14 | chapter-02-platform-architecture-and-support-boundary.md | pending | |
-| ZTH-14 | chapter-03-nvidia-nim-architecture.md | pending | |
-| ZTH-14 | chapter-04-deploying-and-operating-nim-services.md | pending | |
-| ZTH-14 | chapter-05-nemo-framework-and-model-customization.md | pending | |
-| ZTH-14 | chapter-06-nemo-guardrails-and-enterprise-controls.md | pending | |
-| ZTH-14 | chapter-07-ngc-catalog-containers-and-artifacts.md | pending | |
-| ZTH-14 | chapter-08-licensing-and-entitlement-operations.md | pending | |
-| ZTH-14 | chapter-09-lifecycle-compatibility-and-upgrades.md | pending | |
-| ZTH-14 | chapter-10-kubernetes-and-virtualization-integration.md | pending | |
-| ZTH-14 | chapter-11-customer-architecture-and-troubleshooting.md | pending | |
-| ZTH-14 | chapter-12-volume-14-summary.md | pending | |
-| ZTH-14 | labs/lab-01-inspect-an-ngc-and-nim-deployment-plan.md | pending | |
-| ZTH-14 | labs/lab-02-deploy-and-validate-a-nim-service.md | pending | |
-| ZTH-14 | labs/lab-03-build-a-nemo-customization-workflow.md | pending | |
-| ZTH-14 | labs/lab-04-troubleshoot-entitlement-and-runtime-failures.md | pending | |
+| ZTH-14 | index.md | done | none |
+| ZTH-14 | chapter-01-why-nvidia-ai-enterprise-exists.md | done | 1 medium |
+| ZTH-14 | chapter-02-platform-architecture-and-support-boundary.md | done | none |
+| ZTH-14 | chapter-03-nvidia-nim-architecture.md | done | none |
+| ZTH-14 | chapter-04-deploying-and-operating-nim-services.md | done | 1 low |
+| ZTH-14 | chapter-05-nemo-framework-and-model-customization.md | done | 2 medium |
+| ZTH-14 | chapter-06-nemo-guardrails-and-enterprise-controls.md | done | none |
+| ZTH-14 | chapter-07-ngc-catalog-containers-and-artifacts.md | done | none |
+| ZTH-14 | chapter-08-licensing-and-entitlement-operations.md | done | none |
+| ZTH-14 | chapter-09-lifecycle-compatibility-and-upgrades.md | done | 1 high (fixed inline) |
+| ZTH-14 | chapter-10-kubernetes-and-virtualization-integration.md | done | 1 low |
+| ZTH-14 | chapter-11-customer-architecture-and-troubleshooting.md | done | 1 medium |
+| ZTH-14 | chapter-12-volume-14-summary.md | done | 1 low |
+| ZTH-14 | labs/lab-01-inspect-an-ngc-and-nim-deployment-plan.md | done | 1 low |
+| ZTH-14 | labs/lab-02-deploy-and-validate-a-nim-service.md | done | none |
+| ZTH-14 | labs/lab-03-build-a-nemo-customization-workflow.md | done | none |
+| ZTH-14 | labs/lab-04-troubleshoot-entitlement-and-runtime-failures.md | done | none |
 | ZTH-15 | index.md | pending | |
 | ZTH-15 | chapter-01-why-ai-storage-is-different.md | pending | |
 | ZTH-15 | chapter-02-the-ai-data-path-from-storage-to-gpu.md | pending | |

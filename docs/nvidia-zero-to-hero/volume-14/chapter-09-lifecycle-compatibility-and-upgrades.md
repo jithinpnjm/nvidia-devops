@@ -70,6 +70,7 @@ ai_enterprise_stack:
     redis_version: "7.2"  # For model cache warmup
     postgresql_version: "15"  # For audit logs
     prometheus_version: "2.52.0"  # Observability
+```
 
 ## Upgrade Workflow
 
