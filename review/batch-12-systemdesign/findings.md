@@ -228,3 +228,17 @@ No issues found.
   - Suggested fix: change "ms" to "min" in that sentence.
 
 **Chapter 3 assessment:** contains the specific ring-AllReduce chunking error already identified as a high-risk recurring bug in a prior batch review of this curriculum, appearing independently in two places in this chapter (and correctly done in a third place in the same chapter), confirming this is a persistent authoring pattern rather than a one-off typo.
+
+### chapter-04-observability-and-monitoring.md
+
+- [SEVERITY: medium] Question 3's "increase utilization to 70%" optimization claims cost drops to "$2.38/GPU-hour" and "$0.027/iteration," but this doesn't follow from the chapter's own numbers. Using the same methodology as the rest of the answer (total facility cost $2M/year ÷ actual GPU-hours consumed), 70% utilization of a 256-GPU cluster (256 × 8760 × 0.70 ≈ 1,568,896 GPU-hours/year) gives $2M ÷ 1,568,896 ≈ $1.27/GPU-hour, not $2.38. No alternate derivation of the given figures reproduces $2.38 cleanly.
+  - Evidence: "Increase cluster utilization: Currently at 5%. Target 70%. Cost per GPU-hour drops to $2.38 / Cost per iteration drops to $0.027" and the related "1 sec saved × 139 hours × 8 GPUs × $2.38 = $26 saved" line, which also mixes seconds and hours without a unit conversion.
+  - Why it matters for JR2018680: cost-per-GPU-hour and utilization-driven cost reduction is a realistic NVIDIA SA/infra cost conversation; an interviewer doing the arithmetic live would catch the mismatch.
+  - Suggested fix: recompute the 70%-utilization cost figure directly from $2M ÷ (0.70 × 256 × 8760) and propagate the corrected number through the iteration-cost and savings-per-second lines.
+
+- [SEVERITY: low] Question 2's network-congestion diagnostic aside — "Expected: If 1.2 GB gradients × 8 GPUs × 25 GB/s link → ~5 sec" — doesn't resolve to 5 seconds under any straightforward reading (1.2 GB × 8 ÷ 25 GB/s ≈ 0.38 s; even applying the chunked ring-AllReduce formula from Chapter 3 gives well under 1 s for this size). The qualitative point (actual 8 sec vs. an expected baseline suggests congestion) still stands, but the specific "~5 sec" isn't traceable to the stated inputs.
+  - Evidence: quoted line above, Question 2 diagnostic steps.
+  - Why it matters for JR2018680: minor, since it's a parenthetical estimate rather than the answer's core conclusion, but it's another instance of unclear bandwidth arithmetic in a chapter otherwise adjacent to Chapter 3's verified AllReduce math errors.
+  - Suggested fix: show the actual formula (chunked ring AllReduce) used to derive the "expected" baseline time before comparing it to the observed 8 sec.
+
+Chapter 4's core content (SLO/SLI design, alert-threshold reasoning, cost-per-GPU-hour walkthrough for the primary 5%-utilization case) is otherwise sound; the two items above are narrower, secondary-calculation issues rather than flagship-answer errors.
