@@ -1,6 +1,23 @@
 # Batch 03 — Bare-Metal & Cluster Management (Volume F-10) — Findings
 
-(Summary to be added at top once all chapters are reviewed.)
+## Summary
+
+All 18 files in `docs/volume-10` reviewed (17 chapters + 1 interview lab). This is the strongest-quality volume reviewed against the stated depth bar so far: essentially every chapter uses real, checkable syntax (`ipmitool`, `redfishtool`/`curl` Redfish calls, `cmsh` category/image commands, `gres.conf`/`cgroup.conf`, `sacctmgr`/`sshare`, `scontrol`, `dkms`, `nccl-tests`, Terraform/Ansible snippets) rather than describing operations abstractly, and nearly every chapter includes a worked incident scenario with root cause and an "interview-ready line."
+
+**Counts by severity:**
+- High: 0
+- Medium: 3
+- Low: 15 (mostly "no issues found" / strength notes, plus a few genuine small gaps)
+
+**Top findings for interview prep (in priority order):**
+
+1. **[medium] Slurm version-skew claim likely too restrictive** (`06-slurm-administration-ha-accounting-and-upgrades.md`). The chapter states RPC compatibility holds only between *adjacent* major Slurm versions, but Slurm's documented policy has historically allowed `slurmd` to lag the controller by up to two major releases (N, N-1, N-2). This is a specific, checkable HPC-ops fact — verify against the current Slurm upgrade guide before relying on it in an interview answer.
+2. **[medium] IPMI sensor-table example is internally inconsistent** (`01-bare-metal-and-bmc-lifecycle.md`). The flagship "read a sensor list like an operator" example shows `CPU2 Temp` at 108°C with status `ncr`, but 108°C is past all six thresholds including `unr` (98°C) — the status should be `unr`, and the prose commentary undersells the severity. This is the chapter's teaching example for threshold semantics (`lnr/lcr/lnc/unc/ucr/unr`), so the inconsistency is worth fixing before using it to rehearse answers.
+3. **[medium] Interview lab lacks concrete `sbatch`/`gres`/job-array syntax** (`00c-slurm-bcm-interview-lab.md`). The dedicated Slurm/BCM interview lab never shows `sbatch --gres=gpu:N`, `--array=`, or `--exclusive` request-side syntax — it covers diagnostic reading (`squeue`, `scontrol`, `sinfo`) well but skips the request-side syntax an interviewer is likely to ask a candidate to write directly. (Chapter 06 does include a `--gres=gpu:1` reference and full `gres.conf`/`cgroup.conf` examples, which partially closes this gap elsewhere in the volume.)
+4. **[low, worth knowing] BCM `cmsh` command confidence inconsistency** (`13-senior-deep-dive-1-bcm-at-fleet-scale.md`). Chapter 2 explicitly and correctly hedges that `cmsh` syntax is version-specific and illustrative only; the fleet-scale deep dive presents specific `cmsh`/`healthconf` commands (`grabimage -w`, `imageupdate`, `failafter`) without repeating that hedge. Verify exact flags against the installed BCM release before quoting them.
+5. **Strength worth calling out explicitly**: chapters 06-09 and the four senior deep dives (13-16) are genuinely excellent — real `gres.conf`/`cgroup.conf` GPU-binding config, real fairshare/decay math with `sshare -l` field-by-field interpretation, a four-layer MPI/NCCL hang diagnostic ladder, and a rack/rail-sequenced firmware rollout pattern with a realistic "compute canary passed, unrelated storage firmware regressed checkpoint latency" worked incident. This is exactly the level of concrete, evidence-first depth the task brief asked this volume to hit, and it should be a candidate's primary rehearsal material for bare-metal/BCM/Slurm interview rounds.
+
+No cross-curriculum contradictions were found between this volume and other NVIDIA-portfolio material referenced (Volume 4/6 GPU-Kubernetes and NCCL/topology content is cited consistently, not contradicted). No broken MDX or structural issues were found in any of the 18 files.
 
 ## Volume F-10 (docs/volume-10)
 
@@ -83,3 +100,7 @@
 ### 16-senior-deep-dive-4-coordinated-firmware-driver-os-rollout-across-compute-network-storage.md
 - [SEVERITY: low] No factual errors found. The "compute canary doesn't validate network/storage firmware" argument, the p90/p99-job-length-driven maintenance window sizing (with a real `sacct` query), and the rack/rail-sequenced blast-radius containment pattern are accurate and sophisticated.
 - Strength: the worked scenario (compute driver bump passes canary; unrelated storage firmware in the same window causes checkpoint-latency regression misattributed to the driver) is an excellent illustration of a real, non-obvious operational failure mode — strong interview material.
+
+### 17-git-for-infrastructure-and-operations.md
+- [SEVERITY: low] No factual errors found. Git object model, merge-vs-rebase guidance, secrets-in-history handling, and `git bisect` usage are accurate.
+- [SEVERITY: low] Chapter is general Git craft (not bare-metal/BCM/Slurm-specific) but every example and worked scenario is deliberately infrastructure/GPU-fleet-flavored (driver golden-image PR, NCCL bandwidth regression tied back to a Git commit), so it stays on-brief for the volume rather than reading as generic Git tutorial content.

@@ -19,7 +19,7 @@
 | F-10 | 14-senior-deep-dive-2-slurm-ha-and-accounting-internals.md | done | 0 high/medium; strong chapter |
 | F-10 | 15-senior-deep-dive-3-mpi-and-nccl-joint-debugging.md | done | 0 high/medium; strong chapter |
 | F-10 | 16-senior-deep-dive-4-coordinated-firmware-driver-os-rollout-across-compute-network-storage.md | done | 0 high/medium; strong chapter |
-| F-10 | 17-git-for-infrastructure-and-operations.md | pending | |
+| F-10 | 17-git-for-infrastructure-and-operations.md | done | 0 high/medium; strong chapter |
 
 Notes:
 - 13-16 are short "senior deep dive" chapters (73-86 lines) — review in groups of 2-3 per commit per protocol.
