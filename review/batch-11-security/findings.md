@@ -26,3 +26,21 @@ Strong chapter with correct Secure Boot / module-signing / TPM PCR mechanics and
   - Evidence: `chapter-02-placeholder.md:190-193, 247`.
   - Why it matters for JR2018680: NVIDIA interviewers will expect precision here — H100/H200 in confidential-computing mode DO support hardware attestation (device identity certs + firmware measurement via the NVIDIA Attestation Service), so an unqualified "GPUs have no attestation" is exactly the kind of imprecision a technical loop would probe. The chapter should say "outside of Hopper+ confidential computing mode" or forward-reference Chapter 9 explicitly.
   - Suggested fix: add a one-line caveat/forward-reference to Chapter 9 clarifying this applies to non-CC-mode GPUs (verify Chapter 9 resolves this when reviewed).
+
+## chapter-03-placeholder.md — Containers and Supply Chain Security
+
+Strong, accurate coverage of Cosign/Sigstore signing, SBOM/SPDX, tag-reuse attacks, and Trivy scanning. Good interview answer.
+
+- [SEVERITY: medium] Section 3.4 (NGC verification) includes a fabricated/non-existent command: `nvcr io-getdown nvcr.io/nvidia/pytorch:24.07-py3`. This is not a real NGC CLI or crane/docker command — it appears to be a typo/placeholder that was never replaced with a working command (likely intended: `docker manifest inspect`, `crane digest`, or `ngc registry image info`).
+  - Evidence: `chapter-03-placeholder.md:269`.
+  - Why it matters for JR2018680: an interview candidate who memorizes this "command" would visibly fumble a live technical demo; NVIDIA's own NGC workflows are exactly the kind of practical thing this interview loop probes.
+  - Suggested fix: replace with a real digest-retrieval command, e.g. `docker manifest inspect nvcr.io/nvidia/pytorch:24.07-py3` or `crane digest nvcr.io/nvidia/pytorch:24.07-py3`.
+
+## chapter-04-placeholder.md — Kubernetes RBAC and Access Control
+
+Accurate core RBAC mechanics (Role/ClusterRole/RoleBinding/ClusterRoleBinding, resourceNames scoping, audit log structure). Good multi-tenant interview answer.
+
+- [SEVERITY: medium] Section 4.5 verification example uses a non-existent kubectl flag: `kubectl auth can-i get secrets ... --subresource="" --resource-name=model-repo-creds` (line 287-289). `kubectl auth can-i` does not have a `--resource-name` flag; the resource name is passed as a positional argument (`kubectl auth can-i get secrets model-repo-creds --namespace ...`), and only on newer kubectl versions.
+  - Evidence: `chapter-04-placeholder.md:287-289`.
+  - Why it matters for JR2018680: this is exactly the kind of command-line precision a hands-on K8s interview would catch; the chapter otherwise correctly uses positional syntax for `--as`/`--namespace`.
+  - Suggested fix: correct to positional resource-name syntax and verify against current kubectl version behavior.
