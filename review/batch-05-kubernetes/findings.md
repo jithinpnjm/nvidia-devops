@@ -67,3 +67,20 @@
   - Why it matters for JR2018680: DRA is called out explicitly as squarely in-scope for this JD's "advanced" bar; a candidate who memorizes the sample output's API version as canonical would state a stale/inconsistent fact if asked live.
   - Suggested fix: confirm the actual GA group/version for the target K8s release and align the sample output (or soften the GA claim to name the specific version if it's still beta at time of writing).
 - Otherwise excellent: preemption's two-gate decision sequence (PDB minAvailable, then re-check Filter predicates) correctly explains why preemption is not a capacity strategy, and the device-plugin-vs-DRA structured-claims contrast (ResourceClaim/DeviceClass/ResourceClaimTemplate, NVLink-topology-aware allocation) is accurate and squarely relevant to GPU scheduling interview questions.
+
+### 13-senior-deep-dive-4-kubelet-cri-pod-sandbox-and-node-pressure.md
+- [SEVERITY: low] No material issues found. Node-pressure eviction vs. scheduler preemption comparison table (notably: node-pressure eviction is NOT subject to PDB) and the host-memory-pressure-vs-GPU-HBM-pressure blind spot (kubelet eviction signals have zero visibility into `CUDA_ERROR_OUT_OF_MEMORY`) are accurate and high-value for interview prep.
+
+### 14-senior-deep-dive-5-networking-service-abstraction-cni-dataplane-dns-and-gatewa.md
+- [SEVERITY: low] No material issues found. Gateway API role-split model (GatewayClass/Gateway/HTTPRoute) and the Gateway API Inference Extension rationale (KV-cache locality, variable per-request GPU cost, queue-depth-aware routing for LLM serving) are accurate, current, and directly relevant to GPU/AI-infra interview questions.
+
+### 15-senior-deep-dive-6-admission-policy-and-multi-tenant-guardrails.md
+- [SEVERITY: low] No material issues found. Correctly reinforces (with explicit evidence) that PSA `audit`/`warn` labels are visibility-only and only `enforce` blocks — this directly corroborates the concern flagged in Chapter 6 about the audit-mode shortcut implying retroactive blocking. Mutating-before-validating admission ordering and the sidecar-injection-breaks-PSA-after-mutation trap are accurate and well-diagrammed. ValidatingAdmissionPolicy vs. webhook tradeoff table is accurate.
+
+### 16-senior-deep-dive-7-platform-patterns-from-the-staff-engineer-guide.md
+- [SEVERITY: low] No material issues found. The GPU bulkhead isolation-tier spectrum (shared/time-sliced → MIG-partitioned → dedicated node pool → dedicated GPU pool, cost vs. blast radius) is accurate and a genuinely useful, reusable interview answer.
+
+### 17-senior-deep-dive-8-gpu-platform-operations-node-pools-operators-and-resource-i.md
+- [SEVERITY: low] No material issues found; cleanly cross-references rather than duplicates Chapters 8/9. Notably cites a real source (kubernetes.io blog, Sept 2025) for the DRA v1.34 GA claim used earlier in Deep Dive 3 — reinforces that claim's currency, though the `v1beta1` API-version mismatch flagged in Deep Dive 3's sample output is still worth reconciling.
+
+**F-03 (Volume 03) review complete — 17/17 files reviewed.**

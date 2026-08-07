@@ -16,11 +16,11 @@ Volumes: F-03 (`docs/volume-03`), ZTH-10 (`docs/nvidia-zero-to-hero/volume-10`),
 | F-03 | 10-senior-deep-dive-1-api-machinery-resourceversion-watches-finalizers-and-owners.md | done | low | |
 | F-03 | 11-senior-deep-dive-2-etcd-quorum-control-plane-failure-and-recovery-boundaries.md | done | low | |
 | F-03 | 12-senior-deep-dive-3-scheduling-framework-preemption-gang-topology-and-dra.md | done | low | |
-| F-03 | 13-senior-deep-dive-4-kubelet-cri-pod-sandbox-and-node-pressure.md | pending | |
-| F-03 | 14-senior-deep-dive-5-networking-service-abstraction-cni-dataplane-dns-and-gatewa.md | pending | |
-| F-03 | 15-senior-deep-dive-6-admission-policy-and-multi-tenant-guardrails.md | pending | |
-| F-03 | 16-senior-deep-dive-7-platform-patterns-from-the-staff-engineer-guide.md | pending | |
-| F-03 | 17-senior-deep-dive-8-gpu-platform-operations-node-pools-operators-and-resource-i.md | pending | |
+| F-03 | 13-senior-deep-dive-4-kubelet-cri-pod-sandbox-and-node-pressure.md | done | low | |
+| F-03 | 14-senior-deep-dive-5-networking-service-abstraction-cni-dataplane-dns-and-gatewa.md | done | low | |
+| F-03 | 15-senior-deep-dive-6-admission-policy-and-multi-tenant-guardrails.md | done | low | |
+| F-03 | 16-senior-deep-dive-7-platform-patterns-from-the-staff-engineer-guide.md | done | low | |
+| F-03 | 17-senior-deep-dive-8-gpu-platform-operations-node-pools-operators-and-resource-i.md | done | low | |
 | ZTH-10 | index.md | pending | |
 | ZTH-10 | chapter-01-why-kubernetes-needs-a-gpu-platform-layer.md | pending | |
 | ZTH-10 | chapter-02-gpu-software-lifecycle-in-kubernetes.md | pending | |
