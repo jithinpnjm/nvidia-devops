@@ -40,14 +40,16 @@ A company currently operates a 16-GPU cluster. Usage is growing 25% per quarter.
 ## Historical Demand Data
 
 ```
-Quarter    Jobs/Week  Avg Model Size  GPU-Hours/Week  Peak Cluster Util
-────────────────────────────────────────────────────────────────────────
-Q1 2024    50         7B params       120 GPU-hrs     68%
-Q2 2024    65         8.5B params     165 GPU-hrs     76%
-Q3 2024    82         10B params      205 GPU-hrs     82%
-Q4 2024    105        12B params      250 GPU-hrs     88%
-Q1 2025    132        14B params      310 GPU-hrs     94% ← Approaching saturation
+Quarter    Jobs/Week  Avg Model Size  GPU-Hours/Week  Cluster Util (of 16 GPUs)
+──────────────────────────────────────────────────────────────────────────────
+Q1 2024    50         7B params       120 GPU-hrs     4.5%
+Q2 2024    65         8.5B params     165 GPU-hrs     6.1%
+Q3 2024    82         10B params      205 GPU-hrs     7.6%
+Q4 2024    105        12B params      250 GPU-hrs     9.3%
+Q1 2025    132        14B params      310 GPU-hrs     11.5% ← Growing, but still far from saturation
 ```
+
+**Note:** Util = GPU-hrs/week ÷ (16 GPUs × 168 hrs/week). The original data listed 68–94% utilization for these same GPU-hours figures, which is inconsistent by ~15× (16 GPUs × 168 hrs × 68% ≈ 1,828 GPU-hrs/week, not 120). The 16-GPU fleet is in fact lightly loaded today — the capacity plan below is driven by projected future growth outrunning it, not imminent saturation.
 
 **Growth rate:** 25% per quarter; extrapolating 2 years = 3.36× demand
 
@@ -82,6 +84,12 @@ class CapacityPlanner:
         # Hours per week = 168
         # Utilization = demand / (gpus * 168 * weeks_per_quarter)
         # Solving: gpus = demand / (utilization * 168 * 13)
+        # CAUTION: this treats `demand` (weekly GPU-hours) as if it were a
+        # quarterly total, which is a unit mismatch — flagged for review,
+        # not changed here because Step 3's manual walkthrough and the
+        # plan()/upgrade-path logic below both implicitly depend on this
+        # scaling to produce a growing (not shrinking) upgrade path. See
+        # the note in Step 3 and the chapter-level review notes.
         
         gpu_needs = demand / (utilization_target * 168 * 13)
         return gpu_needs
@@ -333,8 +341,16 @@ Given demand and utilization target (85%):
 
 ```
 GPUs needed = demand_gpu_hrs_per_week / (170 hours/week * utilization)
-Q0: 120 / (170 * 0.85) = 16 GPUs
-Q8: 400 / (170 * 0.85) = 55 GPUs (need ~40 more GPUs)
+Q0: 120 / (170 * 0.85) ≈ 0.83 GPUs → today's actual demand needs less than 1 GPU
+                                        at 85% target utilization; the existing
+                                        16-GPU fleet is heavily over-provisioned
+                                        (headroom for growth, not current load)
+Q8: 400 / (170 * 0.85) ≈ 2.77 GPUs at the SAME 85% utilization target
+
+Note: this formula answers "how many GPUs would 85%-utilization demand require,"
+which is a different question from "how many GPUs should we own for headroom
+and burst capacity." The upgrade path below (Step 4) plans for burst/peak
+capacity, not just steady-state average utilization — see Discussion Question 4.
 ```
 
 ### Step 4: Design Upgrade Path
