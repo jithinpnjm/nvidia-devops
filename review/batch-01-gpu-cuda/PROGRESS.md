@@ -17,14 +17,14 @@ Status values: pending / in-progress / done
 | ZTH-01 | chapter-09-volume-01-summary.md | done | none |
 | ZTH-01 | labs/lab-01-inspect-an-ai-infrastructure-host.md | done | none |
 | ZTH-01 | labs/lab-02-trace-an-ai-request-path.md | done | none |
-| ZTH-02 | index.md | pending | |
-| ZTH-02 | chapter-01-why-gpu-architecture-evolved.md | pending | |
-| ZTH-02 | chapter-02-inside-a-modern-nvidia-gpu.md | pending | |
-| ZTH-02 | chapter-03-threads-warps-blocks-and-sms.md | pending | |
-| ZTH-02 | chapter-04-cuda-cores-tensor-cores-and-rt-cores.md | pending | |
-| ZTH-02 | chapter-05-gpu-memory-hierarchy.md | pending | |
-| ZTH-02 | chapter-06-scheduling-occupancy-and-instruction-dispatch.md | pending | |
-| ZTH-02 | chapter-07-registers-shared-memory-and-local-memory.md | pending | |
+| ZTH-02 | index.md | done | none |
+| ZTH-02 | chapter-01-why-gpu-architecture-evolved.md | done | none |
+| ZTH-02 | chapter-02-inside-a-modern-nvidia-gpu.md | done | none |
+| ZTH-02 | chapter-03-threads-warps-blocks-and-sms.md | done | none |
+| ZTH-02 | chapter-04-cuda-cores-tensor-cores-and-rt-cores.md | done | none |
+| ZTH-02 | chapter-05-gpu-memory-hierarchy.md | done | none |
+| ZTH-02 | chapter-06-scheduling-occupancy-and-instruction-dispatch.md | done | none |
+| ZTH-02 | chapter-07-registers-shared-memory-and-local-memory.md | done | none |
 | ZTH-02 | chapter-08-global-memory-l1-l2-and-hbm.md | pending | |
 | ZTH-02 | chapter-09-divergence-coalescing-and-bottleneck-reasoning.md | pending | |
 | ZTH-02 | chapter-10-gpu-topology-peer-access-and-data-paths.md | pending | |

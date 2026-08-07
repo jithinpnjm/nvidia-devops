@@ -43,3 +43,31 @@
 - No findings. Self-contained Python lab, technically sound, correct expected outputs.
 
 **Volume ZTH-01 summary:** No medium/high severity findings. This volume is intentionally conceptual (pre-GPU-architecture); depth bar is consistent with itself and appropriately defers hard numbers to Volumes 02/03.
+
+## Volume ZTH-02 — GPU Architecture
+
+This volume is exceptional depth: worked numeric examples (SM counts, register-file math, occupancy calculations, HBM bandwidth math), real `nvidia-smi`/`dmon`/`ncu`/`nvcc -Xptxas=-v` command output tied to specific diagnostic decision trees, and first-person interview model answers. This matches (and in places exceeds) the "Volume 1 gold standard" bar. Spot-checked hardware facts are all correct: H100 = 132 SMs, compute capability 9.0; A100 = 108 SMs, compute capability 8.0; H100 SXM HBM3 ≈ 3.35 TB/s peak bandwidth; 65,536 (64K) 32-bit registers per SM / 2,048 max resident threads per SM (Ampere/Hopper); 13B params × 2 bytes (FP16) ≈ 26 GB — all correct.
+
+### index.md
+- No findings.
+
+### chapter-01-why-gpu-architecture-evolved.md
+- No findings. H100 SM count (132) and compute_cap (9.0) correct. Worked parallelism arithmetic (4096x4096 weight, batch 32) is correct.
+
+### chapter-02-inside-a-modern-nvidia-gpu.md
+- No findings. Register-file worked example (64K registers / 32 or 64 per thread) is correct and matches Ampere/Hopper SM specs.
+
+### chapter-03-threads-warps-blocks-and-sms.md
+- No findings. Warp size (32 threads), A100 (108 SMs) vs H100 (132 SMs) comparison is correct and the worked "grid sized for A100 underfills H100" example is technically sound.
+
+### chapter-04-cuda-cores-tensor-cores-and-rt-cores.md
+- No findings. FP32 vs FP16 byte-size math (67.1MB vs 33.6MB for 4096x4096) is correct. D = A×B+C Tensor Core description is accurate.
+
+### chapter-05-gpu-memory-hierarchy.md
+- No findings. HBM3 3.35 TB/s figure for H100 SXM is correct; 13B-model/26GB FP16 capacity math and the 7.8ms/token decode-bandwidth-floor calculation are both correct and a genuinely excellent worked example for interview prep.
+
+### chapter-06-scheduling-occupancy-and-instruction-dispatch.md
+- No findings. Occupancy worked example (65,536 registers / 40 vs 56 per thread → 75% vs 50% occupancy) is arithmetically correct.
+
+### chapter-07-registers-shared-memory-and-local-memory.md
+- No findings. Register spilling and local-memory-is-not-physically-local explanation is accurate; spill traffic worked example is sound.
