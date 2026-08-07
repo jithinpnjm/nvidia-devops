@@ -51,7 +51,7 @@ MIG Profiles (GI):
 [1] 1g.20gb, 1 GI of 20GB, max 4 concurrent instances
 [2] 2g.20gb, 1 GI of 20GB with 2 SMs, max 3 concurrent instances
 [3] 3g.40gb, 1 GI of 40GB with 3 SMs, max 2 concurrent instances
-[4] 4g.40gb, 1 GI of 40GB with 4 SMs, max 2 concurrent instances
+[4] 4g.40gb, 1 GI of 40GB with 4 SMs, max 1 concurrent instance
 [5] 7g.80gb, 1 GI of 80GB with 7 SMs, max 1 (full GPU)
 ```
 

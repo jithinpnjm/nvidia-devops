@@ -121,7 +121,7 @@ $ nvidia-smi mig -lgip -i 0
 |  1   1g.20gb         |  1 GI of 20GB | 4         | 20 GB  |
 |  2   2g.20gb         |  1 GI of 20GB | 3         | 20 GB  |
 |  3   3g.40gb         |  1 GI of 40GB | 2         | 40 GB  |
-|  4   4g.40gb         |  1 GI of 40GB | 2         | 40 GB  |
+|  4   4g.40gb         |  1 GI of 40GB | 1         | 40 GB  |
 |  5   7g.80gb         |  1 GI of 80GB | 1         | 80 GB  |
 
 $ nvidia-smi mig -lgi -i 0

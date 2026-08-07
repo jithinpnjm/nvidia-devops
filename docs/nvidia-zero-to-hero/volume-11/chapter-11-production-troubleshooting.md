@@ -116,12 +116,12 @@ Confirm that the exporter, scrape, log, and dashboard paths are fresh enough to 
 ```bash
 # Layer 1: Host-side device and MIG state
 SSH_TARGET=gpu-node-1
-ssh $SSH_TARGET ‘nvidia-smi -i 0 --query-gpu=gpu_name,gpu_uuid,mig.mode.current --format=csv’
+ssh $SSH_TARGET 'nvidia-smi -i 0 --query-gpu=gpu_name,gpu_uuid,mig.mode.current --format=csv'
 # Expected: NVIDIA H100..., GPU-12345678..., Enabled
 # Broken: ...mig.mode.current not available or "Disabled"
 
 # Layer 2: MIG instances actually exist?
-ssh $SSH_TARGET ‘nvidia-smi mig -lgi -i 0’
+ssh $SSH_TARGET 'nvidia-smi mig -lgi -i 0'
 # Expected: GPU instances listed with profiles (e.g., 1g.10gb)
 # Broken: "No GPU Instances are currently running on this GPU"
 
