@@ -44,8 +44,8 @@ Volumes: F-03 (`docs/volume-03`), ZTH-10 (`docs/nvidia-zero-to-hero/volume-10`),
 | ZTH-11 | chapter-03-mig-profiles-and-placement.md | done | high | |
 | ZTH-11 | chapter-04-time-slicing-and-oversubscription.md | done | low | |
 | ZTH-11 | chapter-05-vgpu-architecture-and-enterprise-virtualization.md | done | low | |
-| ZTH-11 | chapter-06-comparing-mig-time-slicing-and-vgpu.md | pending | |
-| ZTH-11 | chapter-07-kubernetes-scheduling-for-shared-gpus.md | pending | |
+| ZTH-11 | chapter-06-comparing-mig-time-slicing-and-vgpu.md | done | low | |
+| ZTH-11 | chapter-07-kubernetes-scheduling-for-shared-gpus.md | done | low | |
 | ZTH-11 | chapter-08-tenant-isolation-security-and-fairness.md | pending | |
 | ZTH-11 | chapter-09-capacity-planning-and-chargeback.md | pending | |
 | ZTH-11 | chapter-10-observability-and-slos-for-shared-gpus.md | pending | |

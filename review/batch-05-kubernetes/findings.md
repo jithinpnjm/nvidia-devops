@@ -169,3 +169,9 @@
 
 ### chapter-05-vgpu-architecture-and-enterprise-virtualization.md
 - [SEVERITY: low] No issues found. Host/guest/license three-tier diagnostic path, the state-machine lifecycle (Eligible → Attached → Enumerated → DriverReady → Entitled → ApplicationReady), and the MIG-backed-vGPU-vs-time-sliced-vGPU distinction are accurate and well-scoped to what NVIDIA's vGPU documentation actually supports.
+
+### chapter-06-comparing-mig-time-slicing-and-vgpu.md
+- [SEVERITY: low] No issues found. Strong synthesis chapter; the "allocation efficiency vs. delivered efficiency" framing and the four-model comparison table (capacity unit, reconfiguration, fragmentation risk, observability) are accurate and directly reusable for a design-review-style interview question.
+
+### chapter-07-kubernetes-scheduling-for-shared-gpus.md
+- [SEVERITY: low] No issues found. Consistent with and complementary to Volume 10 Chapter 4/8's device-plugin and scheduling coverage — this chapter correctly extends rather than duplicates that material by focusing on the service-catalog/resource-naming layer specific to shared-GPU classes. The illustrative Pod manifest (mig-3g.20gb resource, taint/toleration/nodeAffinity triple) and its five-step validation checklist are accurate and precisely scoped. Correctly notes NVIDIA's documented constraint that a container must not request multiple different MIG device *types* together (device received is undefined) while multiple instances of the same type are fine.
