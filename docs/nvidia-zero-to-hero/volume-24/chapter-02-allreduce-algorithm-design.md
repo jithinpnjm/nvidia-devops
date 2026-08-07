@@ -20,7 +20,7 @@ By the end of this project, you will be able to:
 
 ## Problem Statement
 
-A distributed training job runs on 8 GPUs (e.g., 2-node setup: 4 GPUs per node connected via NVLink, nodes connected via 1.6 TB/s Infiniband). Each GPU must synchronize gradients (100 MB tensor) after backward pass. You must:
+A distributed training job runs on 8 GPUs (e.g., 2-node setup: 4 GPUs per node connected via NVLink, nodes connected via InfiniBand at ~50 GB/s per link — an IB4-class fabric). Each GPU must synchronize gradients (100 MB tensor) after backward pass. You must:
 
 1. Implement ring AllReduce that reduces communication time by 40% vs naive broadcast
 2. Measure latency and throughput on real H100 cluster
@@ -41,7 +41,7 @@ Three AllReduce implementations for comparison:
 #include <mpi.h>
 #include <sys/time.h>
 
-#define TENSOR_SIZE (100 * 1024 * 1024)  // 100 MB gradient tensor
+#define TENSOR_SIZE (100 * 1024 * 1024 / 4)  // 100 MB gradient tensor (25M float32 elements)
 #define ITERATIONS 100
 #define NUM_RANKS 8
 
