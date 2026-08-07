@@ -31,8 +31,8 @@ Volumes: F-07 (`docs/volume-07`), ZTH-16 (`docs/nvidia-zero-to-hero/volume-16`),
 | ZTH-16 | chapter-05-prometheus-grafana-and-observability-dashboards.md | done | high x1, medium x1 |
 | ZTH-16 | chapter-06-distributed-observability-multi-gpu-and-multi-node.md | done | low x1 |
 | ZTH-16 | chapter-07-traces-profiling-and-deep-performance-diagnosis.md | done | high x1 |
-| ZTH-16 | chapter-08-common-gpu-failure-modes-and-detection.md | pending | |
-| ZTH-16 | chapter-09-health-checks-and-slos-for-gpu-clusters.md | pending | |
+| ZTH-16 | chapter-08-common-gpu-failure-modes-and-detection.md | done | high x1 (repeat), low x1 |
+| ZTH-16 | chapter-09-health-checks-and-slos-for-gpu-clusters.md | done | low x1 (fixed inline) |
 | ZTH-16 | chapter-10-production-troubleshooting-frameworks.md | pending | |
 | ZTH-16 | chapter-11-observability-for-inference-at-scale.md | pending | |
 | ZTH-16 | chapter-12-incident-response-and-postmortems.md | pending | |
