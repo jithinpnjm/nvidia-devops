@@ -126,6 +126,30 @@ spec:
 
 **Illustrative manifest.** It shows the relationship among a resource type, pool taint, and node label. It is not a portable profile recommendation, and it intentionally uses an invalid registry host.
 
+**Validation checklist — before submitting this Pod:**
+
+```bash
+# 1. Does the cluster advertise this resource?
+kubectl get nodes -o custom-columns=NAME:.metadata.name,MIG_3G_20GB:.status.allocatable.nvidia\\.com/mig-3g\\.20gb
+# Expected: at least one node has > 0 allocatable mig-3g.20gb
+
+# 2. Does the namespace have quota remaining?
+kubectl get resourcequota -n default -o custom-columns=NAME:.metadata.name,USED:.status.used.nvidia\\.com/mig-3g\\.20gb,HARD:.status.hard.nvidia\\.com/mig-3g\\.20gb
+# Expected: USED < HARD
+
+# 3. Does this namespace have the tolerations policy?
+kubectl get ns default -o jsonpath='{.metadata.labels}' | grep -i "gpu-service-class"
+# Expected: shows the policy label
+
+# 4. After submitting, trace the scheduling decision:
+kubectl get pod profile-qualified-serving -o jsonpath='{.status.conditions[?(@.type=="PodScheduled")]}'
+# Expected: status=True; if False, check the message for reason (Insufficient resource, Toleration failed, etc.)
+
+# 5. If scheduled, verify device was allocated:
+kubectl describe pod profile-qualified-serving | grep -A5 "nvidia.com"
+# Expected: shows the allocated device index or MIG instance UUID
+```
+
 ## Troubleshooting scenario 1: a valid Pod remains Pending
 
 **Symptom.** A Pod requests a published GPU resource but is never scheduled.

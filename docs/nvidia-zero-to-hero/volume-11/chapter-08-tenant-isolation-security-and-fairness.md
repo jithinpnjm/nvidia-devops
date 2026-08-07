@@ -63,6 +63,24 @@ For each service class, state whether tenants are mutually untrusted, whether ad
 
 Kubernetes RBAC governs API authorization; it is not a substitute for network isolation, credential scope, or node hardening. Kubernetes NetworkPolicy governs traffic for implementations that support it, but it does not establish a GPU security boundary. [Kubernetes RBAC](https://kubernetes.io/docs/reference/access-authn-authz/rbac/) and [Network Policies](https://kubernetes.io/docs/concepts/services-networking/network-policies/)
 
+**Concrete threat model example — two teams sharing a MIG pool:**
+
+| Threat | Assumption | Control verification |
+|---|---|---|
+| Team B reads Team A's model weights from GPU memory | vGPU/MIG prevents cross-read | MIG instances have distinct memory paths ✓. But host/driver can still inspect GPU memory. Require driver-level access control: `ssh gpu-node nvidia-smi --query-processes=gpu_uuid,pid,process_name --format=csv` (can different teams see each other's PIDs?) |
+| Team B's pod gets scheduled onto Team A's MIG instance | device-plugin allocates correctly | Each MIG instance is a distinct Kubernetes resource. Verify: `kubectl get nodes -o json \| jq '.items[0].status.allocatable' \| grep mig` shows distinct resource names per instance. |
+| Team A's data leaks via shared telemetry | observability pipeline exposes team context | Check DCGM exporter labels and Prometheus scrape. Can Team B query metrics with Team A's pod name or dataset path embedded? Run: `curl http://prometheus:9090/api/v1/query?query=nvidia_smi_memory_used_mib | grep -i "team_a"` → should return nothing for Team B. |
+| Team B fills the host kernel memory, starving Team A | host OS is shared | Pod limits and admission control. Verify: `kubectl describe resourcequota team-a-quota` shows memory limits. Test: `kubectl run memory-bomb --limits memory=50Gi -n team-b` → should fail or evict fairly, not leave Team A degraded. |
+| Team B's crash via XID cascades to Team A | physical board failure is common | Expect this. Verify recovery: MIG instances restart cleanly. `nvidia-smi mig -lgi` after a simulated XID. |
+
+Verification command — can Team A's workload observe Team B's processes?
+```bash
+# Inside Team A's pod running on MIG instance
+nvidia-smi --query-processes=pid,process_name,gpu_memory_usage --format=csv
+# Expected: only Team A's process listed
+# Broken: Team B's process visible → MIG isolation is compromised or driver access is wrong
+```
+
 ## What sharing mechanisms contribute
 
 MIG partitions supported GPU hardware into GPU instances with dedicated memory and compute resources, and NVIDIA documents isolated memory paths that help provide predictable QoS. It is a meaningful resource-isolation primitive, but applications still share the host, orchestrator, images, and often external services. [NVIDIA MIG introduction](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/latest/introduction.html)

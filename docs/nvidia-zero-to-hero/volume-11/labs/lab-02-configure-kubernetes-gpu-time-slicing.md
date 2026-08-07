@@ -191,9 +191,35 @@ kubectl get node "$GPU_NODE" -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{
 
 **Expected evidence:** The device-plugin Pod on the selected node reconciles and the node reports the approved logical count.
 
-**Explanation:** Device-plugin reconciliation can take time. Record the resource value and platform Pod generation; do not restart the Pod just to accelerate a configuration test.
+**Example output — time-slicing successfully applied:**
 
-**Common-failure interpretation:** A Pod crash, node resource disappearance, or unchanged value requires platform-owner logs and rollback—not repeated rollout restarts.
+```bash
+# Before patch (baseline):
+$ kubectl get node gpu-node-1 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{" allocatable\n"}'
+1 allocatable
+
+# Apply patch (select time-slicing ConfigMap)
+$ kubectl patch clusterpolicy gpu-cluster-policy --type merge \
+  --patch '{"spec":{"devicePlugin":{"config":{"name":"time-slicing-lab-config","default":"any"}}}}'
+clusterpolicy.nvidia.com/gpu-cluster-policy patched
+
+# Wait 30 seconds for reconciliation
+$ kubectl get pod -n nvidia-driver-install -l app=nvidia-device-plugin --watch
+NAME                           READY   STATUS    RESTARTS   AGE
+nvidia-device-plugin-abc12     1/1     Running   1          2s
+
+# After patch (new state):
+$ kubectl get node gpu-node-1 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{" allocatable\n"}'
+4 allocatable
+# If replicas: 4 was configured, each physical GPU now shows 4 logical allocatable units
+```
+
+**Explanation:** Device-plugin reconciliation can take time. Record the resource value and platform Pod generation; do not restart the Pod just to accelerate a configuration test. A Pod restart indicates a configuration change took effect; if it does not restart, the GPU Operator may not be watching this ConfigMap or patch may have failed.
+
+**Common-failure interpretation:** 
+- Pod crash loop: ConfigMap YAML is malformed
+- Resource count unchanged after 60 seconds: Operator not configured to watch this ConfigMap
+- Node becomes NotReady: Rare; indicates device-plugin or operator issue—rollback immediately
 
 ## 12. Deploy Bounded Validation Workloads
 
