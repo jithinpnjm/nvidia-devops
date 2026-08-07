@@ -178,3 +178,13 @@
   - Evidence: Line ~111 vs line ~29, ~39.
   - Why it matters for JR2018680: This is presented as the "model answer" to recite in an interview; a candidate using it would propose a design that can't meet its own stated throughput target.
   - Suggested fix: Align the interview answer with the chapter's actual 8-GPU/6,000 TPS architecture.
+
+### chapter-03-generative-ai-and-large-language-models.md
+- [SEVERITY: high] RECURRENCE of the cost-per-token magnitude-slip pattern, in the chapter's headline "1,000x cheaper" savings claim, and internally self-contradictory. Two lines earlier the chapter correctly computes cost-per-token as $0.00000174 (from $110K/year ÷ 63B tokens/year), which is **$1.74 per 1M tokens** — but the "vs cloud" comparison then states "GPU cluster: $0.0011 per 1M tokens ($1.74/year @ 1B tokens)" (both figures wrong: should be $1.74/1M tokens and $1,740/year @ 1B tokens) and concludes "Savings: 1,000× cheaper at scale." Using the chapter's own correctly-derived $1.74/1M-token figure against AWS's stated $2.00/1M tokens, the real savings is only **≈1.15x**, not 1,000x.
+  - Evidence: Lines ~60-66.
+  - Why it matters for JR2018680: This is the chapter's headline economic pitch ("GPU beats cloud by 1000x") and it's flatly contradicted by the chapter's own math two lines above it — exactly the kind of number an interviewer or a skeptical customer would immediately challenge.
+  - Suggested fix: Recompute consistently: GPU cost ≈$1.74-1.75/1M tokens vs AWS $2.00/1M tokens ⇒ modest (~13%) savings, not 1,000x. If a larger savings multiple is intended, the underlying $110K/year or 63B tokens/year assumption needs revisiting, not the comparison arithmetic.
+- [SEVERITY: high] RECURRENCE of the 1000x unit-magnitude-slip pattern in the interview-prep answer. "10,000 users × 100 tokens/day = 1B tokens/day" — verified: 10,000 × 100 = 1,000,000 = **1 million** tokens/day, not 1 billion (off by 1000x). This wrong 1B figure is then used consistently: "At $2/million (cloud), that's $2,000/day = $730K/year" (mathematically consistent with the wrong 1B premise, but the correct answer using 1M tokens/day is $2/day ≈ $730/year — 1000x smaller).
+  - Evidence: Line ~83 (Interview Preparation Q&A).
+  - Why it matters for JR2018680: This is presented as a spoken interview answer to memorize; the "$730K/year" conclusion is wrong by exactly 1000x, and is the primary numeric evidence for the answer's central claim that "inference dominates [training cost] by 3-4x."
+  - Suggested fix: Correct to 1M tokens/day → $2/day → ~$730/year, and reconsider whether the "inference dominates training cost" conclusion still holds at the corrected scale (it likely still holds at higher user counts, but the specific numbers given don't support it).
