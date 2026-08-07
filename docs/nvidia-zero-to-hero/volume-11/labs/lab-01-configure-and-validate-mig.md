@@ -104,6 +104,37 @@ nvidia-smi mig -lci -i "$GPU_INDEX"
 
 **Expected evidence:** The output identifies the selected physical GPU. The profile listing is the authoritative source for supported profile IDs on this host; active GPU and compute instance listings may be empty at baseline.
 
+**Example output — baseline state on an H100:**
+```bash
+$ nvidia-smi -L
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-12345678-1234-1234-1234-123456789abc)
+
+$ nvidia-smi -i 0 -q -d MIG
+GPU 0: NVIDIA H100 80GB HBM3
+  MIG Mode: Disabled
+  Current GPU Instance Occupancy: 0 / 1 (no instances)
+
+$ nvidia-smi mig -lgip -i 0
+| GPU  0 MIG Profiles  |  Name         | Instances | Memory |
+|==========================================|
+|  0   1g.10gb         |  1 GI of 10GB | 7         | 10 GB  |
+|  1   1g.20gb         |  1 GI of 20GB | 4         | 20 GB  |
+|  2   2g.20gb         |  1 GI of 20GB | 3         | 20 GB  |
+|  3   3g.40gb         |  1 GI of 40GB | 2         | 40 GB  |
+|  4   4g.40gb         |  1 GI of 40GB | 2         | 40 GB  |
+|  5   7g.80gb         |  1 GI of 80GB | 1         | 80 GB  |
+
+$ nvidia-smi mig -lgi -i 0
+| GPU  0 GPU Instances |
+| No GPU Instances are currently running on this GPU |
+
+$ nvidia-smi mig -lci -i 0
+| GPU  0 Compute Instances |
+| No Compute Instances are currently running on this GPU |
+```
+
+Save this output to `mig-baseline-before.txt` in your change record.
+
 **Explanation:** A profile catalog is not proof that a profile is active. Record both the catalog and active geometry so fragmentation and rollback can be investigated later.
 
 **Common-failure interpretation:** `Failed to communicate with NVIDIA driver`, a missing MIG query, or an unexpected GPU index requires driver, hardware, or access investigation. Do not continue with a reconfiguration.
@@ -242,6 +273,30 @@ kubectl get pod -n "$LAB_NAMESPACE" mig-validation -w
 ```
 
 **Expected evidence:** The Pod is bound to the approved, still-cordoned node and reaches `Completed` if the image and runtime are available.
+
+**Example output — successful validation:**
+```bash
+$ kubectl apply -f mig-validation.yaml
+namespace/gpu-sharing-lab created
+pod/mig-validation created
+
+$ kubectl get pod -n gpu-sharing-lab mig-validation -w
+NAME             READY   STATUS      RESTARTS   AGE
+mig-validation   0/1     Pending     0          2s
+mig-validation   0/1     ContainerCreating 0    5s
+mig-validation   1/1     Running     0          8s
+mig-validation   0/1     Completed   0          10s
+
+$ kubectl logs -n gpu-sharing-lab mig-validation
+GPU 0: NVIDIA H100 80GB HBM3 (GPU instance, not full device)
+MIG_VALIDATION_COMPLETE
+```
+
+If instead you see:
+```
+Pending (Unschedulable (0/1 nodes are available: 1 node(s) had insufficient nvidia.com/mig-20gb resource))
+```
+Then: the resource name is wrong (compare with `kubectl describe node`) or the instance wasn't created.
 
 **Explanation:** The narrowly scoped `node.kubernetes.io/unschedulable` toleration allows this named lab Pod to schedule while the cordon continues to protect the node from ordinary placement. Its node selector and disposable namespace are part of that boundary. The manifest tests scheduler allocation and runtime initialization; it does not benchmark isolation or establish a production SLO.
 

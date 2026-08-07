@@ -36,6 +36,27 @@ flowchart TB
 
 NVIDIA documents distinct paths through the memory system for MIG instances, including assigned cache and memory-controller resources. That is why a MIG-backed workload has a more bounded memory-bandwidth and cache-interference story than time-sliced contexts. It remains a physical GPU with shared board-level dependencies.
 
+**Concrete example — listing available profiles on an H100:**
+```bash
+# Check which profiles are supported on this GPU
+nvidia-smi -i 0 -L
+nvidia-smi mig -lgip -i 0
+```
+Typical H100 output:
+```text
+GPU 0: NVIDIA H100 80GB HBM3
+
+MIG Profiles (GI):
+[0] 1g.10gb, 1 GI of 10GB, max 7 concurrent instances
+[1] 1g.20gb, 1 GI of 20GB, max 4 concurrent instances
+[2] 2g.20gb, 1 GI of 20GB with 2 SMs, max 3 concurrent instances
+[3] 3g.40gb, 1 GI of 40GB with 3 SMs, max 2 concurrent instances
+[4] 4g.40gb, 1 GI of 40GB with 4 SMs, max 2 concurrent instances
+[5] 7g.80gb, 1 GI of 80GB with 7 SMs, max 1 (full GPU)
+```
+
+The profile name encodes: `<SMs>g.<memory>gb`. A `1g.10gb` instance gets 1 SM group (10% of H100 compute) and 10GB of the 80GB HBM, with distinct cache and memory-controller paths. You can create up to 7 such instances on one H100, but **you cannot exceed 100% compute or 80GB memory in aggregate**—this is why profile placement matters.
+
 ## What MIG isolates—and what it cannot
 
 | Resource or event | MIG effect | Platform implication |
@@ -70,16 +91,88 @@ The NVIDIA device plugin can expose MIG inventory with `none`, `single`, or `mix
 
 An engineer can see a MIG mode flag and still have an unusable platform. Validate each boundary in order:
 
-| Layer | Question | Evidence |
-|---|---|---|
-| Hardware and driver | Is this GPU and driver combination supported? | approved inventory and driver documentation |
-| MIG configuration | Do the desired GIs and CIs exist? | `nvidia-smi` inventory captured before and after change |
-| Container runtime | Can a test container see only its assigned device? | controlled smoke test |
-| Kubernetes | Are the intended resources allocatable and schedulable? | node status plus a constrained test pod |
-| Application | Does the workload meet its objective at expected concurrency? | measured latency, throughput, and memory evidence |
-| Operations | Can the team detect drift and reverse the change? | alerts, change record, rollback rehearsal |
+| Layer | Question | Evidence | Example command |
+|---|---|---|---|
+| Hardware and driver | Is this GPU and driver combination supported? | approved inventory and driver documentation | `nvidia-smi --query-gpu=gpu_name,driver_version --format=csv` |
+| MIG configuration | Do the desired GIs and CIs exist? | `nvidia-smi mig -lgi` shows active instances | `nvidia-smi mig -lgi -i 0` |
+| Container runtime | Can a test container see only its assigned device? | container log shows expected device | `docker run --gpus device=gpu:0:0 nvidia/cuda nvidia-smi` |
+| Kubernetes | Are the intended resources allocatable and schedulable? | `kubectl get nodes -o wide` shows resources | `kubectl describe node GPU_NODE` |
+| Application | Does the workload meet its objective at expected concurrency? | measured latency, throughput, and memory evidence | run production workload, capture metrics |
+| Operations | Can the team detect drift and reverse the change? | alerts, change record, rollback rehearsal | test manual rollback on canary node |
 
 Never use a production tenant workload as the first application validation. A minimal, version-pinned smoke test avoids turning an infrastructure change into an unbounded application incident.
+
+**Worked example — enabling MIG on an H100 and validating through all layers:**
+
+```bash
+# Layer 1: Driver support
+nvidia-smi --query-gpu=gpu_name,driver_version --format=csv
+# Output: NVIDIA H100 80GB HBM3, 575.10
+
+# Layer 2: Enable MIG mode (requires GPU reset on some architectures)
+sudo nvidia-smi -i 0 -mig 1
+# May show: Warning: GPU 0 will be reset on next load
+
+# After reset, verify MIG mode is on and create instances
+nvidia-smi -i 0 -mig 1 -pm ENABLED
+nvidia-smi mig -cgi 1g.10gb,1g.10gb,1g.10gb -C -i 0
+# Creates three 1g.10gb instances on GPU 0
+
+# Verify GI and CI exist
+nvidia-smi mig -lgi -i 0
+# Output:
+# | GPU  0 GPU Instance Profile | Placement | Size  |
+# |------|---------------------------|-----------|-------|
+# |   0  1g.10gb                 |   NONE    | 10GB  |
+# |   1  1g.10gb                 |   NONE    | 10GB  |
+# |   2  1g.10gb                 |   NONE    | 10GB  |
+
+# Layer 3: Container runtime visibility (requires Container Toolkit integration)
+docker run --gpus device=gpu:0:0 nvidia/cuda nvidia-smi
+# Output inside container:
+# | NVIDIA-SMI 575.10    Driver Version: 575.10    CUDA Version: 12.5     |
+# +-------------------------------+----------------------+----------------------+
+# | GPU  Name         Temp  Perf  Pwr:Usage/Cap|         Memory-Usage | GPU-Util  Compute M. |
+# |   0  NVIDIA H100...  28C   P0    42W / 700W |    100MiB / 10000MiB |      0%      Default |
+
+# Layer 4: Kubernetes device plugin reconciliation
+kubectl get nodes -o custom-columns=NAME:.metadata.name,GPU_ALLOCATABLE:.status.allocatable.nvidia\\.com/gpu
+# Output: gpu-node-1    3 (three MIG instances advertised)
+
+# Layer 5: Application smoke test
+kubectl create -f - <<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mig-smoke-test
+spec:
+  containers:
+  - name: test
+    image: nvidia/cuda:12.5-runtime
+    resources:
+      limits:
+        nvidia.com/gpu: 1
+    command: ["/bin/bash"]
+    args: ["-c", "nvidia-smi && python3 -c 'import torch; print(torch.cuda.device_count())'"]
+EOF
+
+# Wait for pod to complete and check logs
+kubectl logs mig-smoke-test
+# Expected output: NVIDIA H100 listed, device_count=1 (only the assigned MIG instance visible)
+
+# Layer 6: Validation – can we roll back?
+# Capture the state
+BASELINE_STATE=$(nvidia-smi mig -lgi -i 0)
+echo "$BASELINE_STATE" > /tmp/mig-baseline.txt
+
+# Test rollback: reset to no-MIG
+sudo nvidia-smi -i 0 -mig 0
+nvidia-smi -i 0 -mig 0 -pm DISABLED
+# Verify GPU returns to full device
+nvidia-smi --query-gpu=gpu_name,gpu_uuid --format=csv -i 0
+```
+
+All six layers passing = MIG is production-ready on this node.
 
 ## Maintenance and rollback
 
@@ -161,13 +254,68 @@ The corrected runbook had a maintenance window, cordon/drain checks, a saved pre
 
 **Symptoms:** `nvidia-smi` reports MIG mode, while Kubernetes has no expected profile resource.
 
-**Evidence:** capture GPU inventory, GI/CI listing, device-plugin logs, node labels, allocatable resources, and the configured MIG strategy.
+**Evidence collection:**
+```bash
+# Host: Check MIG mode and instances
+nvidia-smi -i 0 --query-gpu=mig.mode.current --format=csv
+# Output: Enabled
 
-**Diagnosis:** the configuration may lack compute instances, the device plugin may not have reconciled, or the scheduler strategy may not match the layout.
+nvidia-smi mig -lgi -i 0
+# Output: 0  1g.10gb   | placement_id=0  | 10GB
+# (instances exist)
 
-**Resolution:** do not hand-create a partial production state. Drain as required, apply the approved geometry, restart/reconcile the platform component through its managed lifecycle, and validate a test workload.
+# Kubernetes: Check device plugin logs and node status
+kubectl logs -n nvidia-driver-install ds/nvidia-device-plugin-daemonset | tail -20
+# Look for: device discovery errors, resource advertisement failures
 
-**Prevention:** validate driver, runtime, plugin, and profile support together in a canary pool.
+kubectl describe node gpu-node-1 | grep -A 20 "Allocated resources"
+# Expected: nvidia.com/gpu should be listed
+# Actual: not present or count mismatch
+
+# Device plugin config check
+kubectl get daemonsets -n nvidia-driver-install
+kubectl get configmap -n nvidia-driver-install device-plugin-configs -o yaml
+```
+
+**Diagnosis:** common causes:
+- Device plugin not reconciled: GI/CI exist on host but plugin hasn't seen them
+- Wrong MIG strategy: device plugin configured with `mig-strategy: none` instead of `single`
+- Plugin crashed/not running: resource advertisement failed mid-change
+- Cache issue: plugin running but cached old inventory
+
+**Resolution:** do not hand-create a partial production state. Instead:
+```bash
+# 1. Drain the node
+kubectl drain gpu-node-1 --ignore-daemonsets --delete-emptydir-data
+
+# 2. Verify target state matches documentation
+nvidia-smi mig -lgi -i 0
+
+# 3. Restart device plugin to force reconciliation
+kubectl delete pod -n nvidia-driver-install -l app=nvidia-device-plugin
+
+# 4. Wait for plugin to discover and advertise resources
+sleep 30
+kubectl describe node gpu-node-1 | grep nvidia.com/gpu
+
+# 5. Validate with a test pod BEFORE admitting production work
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mig-validation
+spec:
+  containers:
+  - image: nvidia/cuda:12.5-runtime
+    name: test
+    resources:
+      limits:
+        nvidia.com/gpu: 1
+    command: ["nvidia-smi"]
+EOF
+```
+
+**Prevention:** validate driver, runtime, plugin, and profile support together in a canary pool. Include device-plugin log checks in the validation checklist.
 
 ## Troubleshooting scenario 2: one tenant reports a failure and every slice becomes suspect
 

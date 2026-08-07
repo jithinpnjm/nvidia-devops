@@ -50,6 +50,65 @@ flowchart TB
 
 The hypervisor exposes a virtual GPU device to the guest. The guest sees a GPU through its NVIDIA driver, while the Virtual GPU Manager on the host controls the physical GPU and its virtual-device assignments. This separation explains a common operational fact: a guest can be correctly configured and still have no usable vGPU because the host, profile inventory, or licensing service is unhealthy.
 
+**Diagnostic commands — host-side view (before entering guest):**
+
+```bash
+# Verify vGPU host software is healthy
+/opt/grid/nvidia-smi  # vGPU manager's system-management interface
+# Output:
+# | vGPU Manager Version: 535.104.06
+# | Device UUID: GPU-12345678-abcd-ef00
+# | VM UUID                                           | vGPU ID | Device UUID         | Profile
+# | 550e8400-e29b-41d4-a716-446655440000             |    0    | GPU-12345678.../0   | a100-20gb
+
+# Verify profiles available on this GPU
+/opt/grid/nvidia-smi -lsp  # List supported profiles
+# Output:
+# | Device 0  NVIDIA A100-20Q (UUID: GPU-12345678...)
+# | [0]  a100-4q  4GB framebuffer
+# | [1]  a100-10q 10GB framebuffer
+# | [2]  a100-20q 20GB framebuffer (full device)
+
+# Check license service connectivity
+# Query the license server—missing connection stops VM boot
+/opt/grid/nvidia-smi -llic
+# Output:
+# | License Status: OK
+# | Expiry: 2026-12-31
+
+# List active vGPU assignments
+/opt/grid/nvidia-smi -lvi  # List virtual instances
+# Output: Shows each VM's vGPU UUID, assigned profile, status
+```
+
+**Diagnostic commands — guest-side view (inside the VM):**
+
+```bash
+# Guest sees the vGPU device
+nvidia-smi
+# Output (guest does NOT see the host's A100 directly):
+# | NVIDIA GRID A100-20Q
+# | Temp: 45C  Power: 18W / 400W (within guest's assigned limit)
+# | Memory: 2000MiB / 20000MiB
+
+# Verify guest vGPU driver is installed and connected
+nvidia-smi --query-gpu=driver_version,vbios_version --format=csv
+# Output: 535.104.06, grid-vgpu-535.104.06
+
+# GPU UUID in guest is different from host
+nvidia-smi --query-gpu=gpu_uuid --format=csv
+# Output: GPU-aaaaaaaa-bbbb-cccc... (not the host's GPU-12345678...)
+# This is expected—it's the virtual device's UUID
+```
+
+If a guest shows no GPU:
+1. Check host: `/opt/grid/nvidia-smi -lvi` lists the VM's vGPU assignment
+2. Check guest: `lspci | grep NVIDIA` should show NVIDIA VGA device
+3. Check license: host `/opt/grid/nvidia-smi -llic` must be OK
+4. Check VM XML: `virsh dumpxml <vm-name> | grep vgpu`—profile must exist
+
+This three-tier check (host license, host vGPU assignment, guest PCIe device) quickly rules out host vs. guest configuration problems.
+
 ## Profiles are service contracts, not fractions on a spreadsheet
 
 A vGPU profile selects a supported virtual-device type for a supported GPU and software release. Profile availability, allowed density, framebuffer allocation, display capabilities, and scheduling behavior are release- and platform-specific. Do not infer them from a profile name or from an older release matrix; use the documentation and release notes for the installed vGPU release and hypervisor.

@@ -31,19 +31,39 @@ Whole-GPU allocation is simple: Kubernetes grants a device, the runtime exposes 
 
 Average device utilization is a clue, not proof. A workload can have low SM activity while it consumes most memory, waits on data, or periodically bursts into a critical latency window. Sharing it with another workload may improve a monthly utilization report while breaking the only SLO that mattered.
 
+**Concrete example — the deceptive utilization report:**
+```bash
+# Weekly dashboard shows this GPU with only 15% average utilization
+nvidia-smi --query-gpu=name,utilization.gpu,memory.used,memory.total --format=csv -l 60
+```
+Sample output over one hour:
+```
+name, utilization.gpu [%], memory.used [MiB], memory.total [MiB]
+NVIDIA H100 80GB HBM3, 15, 72000, 81559
+NVIDIA H100 80GB HBM3, 18, 72100, 81559
+NVIDIA H100 80GB HBM3, 14, 72050, 81559
+```
+This looks like capacity available for sharing. But inspect what's actually happening:
+```bash
+# Check if workload is bursty
+nvidia-smi --query-processes=gpu_uuid,process_name,gpu_memory_usage --format=csv
+nvidia-smi dmon -s puctem  # Real-time SM activity, memory bandwidth, clocks, throttle
+```
+A real H100 with a language model inference workload shows: **15% average utili, but p99 latency must remain under 100ms**. When two inference requests overlap — a 1-in-20 event — utilization spikes to 85%, memory bandwidth saturates, and requests timeout. The "idle" capacity is actually reserved for latency tail behavior.
+
 ```mermaid
 flowchart TD
     R[Workload request] --> M{Memory high-water mark known?}
-    M -->|No| P[Profile before sharing]
+    M -->|No — run load test| P["Profile before sharing<br/>(measure: peak RSS, activations, KV cache, framework overhead)"]
     M -->|Yes| L{Strict tail-latency or coordinated job?}
-    L -->|Yes| E[Whole GPU or validated MIG pool]
+    L -->|Yes| E["Whole GPU or validated MIG pool<br/>(evidence: p99 latency under concurrent load)"]
     L -->|No| T{Trusted best-effort tenant?}
-    T -->|Yes| S[Time-sliced or MPS policy evaluation]
-    T -->|No| I[Isolation and VM requirement review]
-    I --> V[vGPU or dedicated boundary]
+    T -->|Yes| S["Time-sliced or MPS<br/>(verify: no shared memory pressure, no burst overlap)"]
+    T -->|No| I["Isolation and VM requirement review<br/>(define: threat model, blast radius)"]
+    I --> V["vGPU or dedicated boundary<br/>(test: RBAC, network policy, failure domains)"]
 ```
 
-**Figure 11.1.1 — Classification precedes mechanism selection.** A request without memory and SLO evidence is not ready for a density decision.
+**Figure 11.1.1 — Classification precedes mechanism selection.** Every decision point has an evidence requirement; a "yes" answer without supporting data is an assumption, not a decision.
 
 ## Four things people call “sharing”
 
@@ -124,6 +144,24 @@ This distinction prevents a common failure mode: choosing a sharing mechanism fr
 
 **Diagnosis:** low average SM utilization does not establish spare latency capacity. The workload may be memory-bound, bursty, or blocked on a dependency before issuing GPU work.
 
+**Evidence collection — the commands an on-call engineer runs:**
+```bash
+# See which processes hold GPU contexts
+nvidia-smi --query-processes=gpu_uuid,pid,process_name,gpu_memory_usage --format=csv
+# Real-time streaming shows memory-bound behavior: high memory, low SM
+nvidia-smi dmon -s puctem
+# Application-side latency histogram (must match business SLO)
+curl http://service-endpoint/metrics | grep latency_p99_ms
+# Current allocatable capacity vs. actual demand
+kubectl get nodes -o custom-columns=NAME:.metadata.name,NVIDIA_GPU:.status.allocatable.nvidia\\.com/gpu
+kubectl top nodes  # Show actual load
+```
+
+**Expected diagnosis output:**
+- Original service alone: p99 = 42ms, memory used = 48GB, peak SM = 35%
+- After second tenant admitted: p99 = 180ms, memory used = 76GB, peak SM = 92%
+- Memory bandwidth is saturated; both workloads queue for the same DRAM paths
+
 **Resolution:** reproduce with a workload-specific load envelope; reduce concurrency or move the latency-sensitive service to MIG or a dedicated pool. Do not declare a density ratio from a single dashboard screenshot.
 
 **Prevention:** make p95/p99 latency, memory headroom, and concurrent-active-load tests part of admission.
@@ -136,9 +174,46 @@ This distinction prevents a common failure mode: choosing a sharing mechanism fr
 
 **Diagnosis:** “isolation” was used as a product adjective instead of an engineering claim.
 
-**Resolution:** document the selected mechanism’s guarantees and remaining shared dependencies. Use vGPU when the VM boundary is material; use MIG only on supported hardware and only for the resources it partitions; keep platform controls such as RBAC and network policy separate.
+**Evidence collection — what you actually observe:**
+```bash
+# Check which contexts (tenants) share the same physical device
+nvidia-smi --query-processes=gpu_uuid,pid,process_name --format=csv
 
-**Prevention:** require threat-model sign-off for cross-tenant pools.
+# Time-slicing: both processes see the same GPU index (no isolation)
+# Output:
+GPU-12345678-abcd-ef00/process_1 12345 model_a
+GPU-12345678-abcd-ef00/process_2 12346 model_b
+
+# MIG: processes see different GI/CI indices (hardware-partitioned memory/compute)
+GPU-12345678-abcd-ef00:1:0/process_1 12345 model_a
+GPU-12345678-abcd-ef00:2:0/process_2 12346 model_b
+
+# vGPU: processes run inside separate VMs (full isolation including identity)
+# Device visible only to that specific VM
+```
+
+**What does NOT improve with time-slicing:**
+```bash
+# Physical board and driver are still shared
+# A driver bug affects all processes:
+dmesg | grep -i xid  # XID errors cascade to all tenants
+
+# Power and thermal: one tenant’s spike affects others
+nvidia-smi --query-gpu=power.draw,clocks.current --format=csv
+
+# Kubernetes identity (RBAC) is still platform-level, not GPU-level
+kubectl auth can-i get pods --as=user-a
+```
+
+**Resolution:** document the selected mechanism’s guarantees and remaining shared dependencies. Create a table like:
+| Boundary | Mechanism | Enforced | Still shared |
+|---|---|---|---|
+| Memory bandwidth | MIG | hardware paths | board power, driver |
+| Process isolation | MIG/vGPU | hardware/VM | node, rack |
+| Identity enforcement | RBAC + network policy | Kubernetes | physical PCIe |
+| Tenant accountability | Quotas + labels | scheduler | DCGM telemetry |
+
+**Prevention:** require threat-model sign-off for cross-tenant pools—have security define which boundaries matter and which controls validate them.
 
 ## Customer architecture discussion
 
@@ -257,6 +332,28 @@ A research group commonly values immediate access over predictable completion. I
 An external inference service usually has the opposite priority. It needs an agreed tail-latency target, controlled rollout, and a known recovery action. The same physical GPU may host both services only if measured behavior and the isolation model prove it safe. In many cases, separate pools are cheaper than recurring incident response.
 
 Ask customers to choose the failure they prefer: unused capacity, queued work, slower responses, a reconfiguration window, or a larger hardware footprint. There is no mechanism that makes all five disappear.
+
+## Interview preparation — model answers
+
+**Q: What makes sharing a GPU different from sharing CPU cores?**
+
+A: “A CPU scheduler can share cores because context-switching is cheap—the OS stores register state and resumes. GPU sharing is harder because CUDA contexts hold GPU memory and are expensive to evict. If two workloads time-slice on one GPU, they share memory bandwidth and execution resources, but not memory address space—a fault in one can still crash the other because the driver is shared. That's why we classify workloads first: if tail latency matters, we might use MIG for hardware partitioning. If it's batch work, time-slicing is fine. If we need strong isolation, we move to vGPU. The mechanism is determined by what the workload can tolerate, not by how much memory is free.”
+
+**Q: Walk me through how a pod gets access to a MIG instance.**
+
+A: “The GPU node runs a driver that can partition the hardware into MIG instances. The device plugin queries the driver, sees those instances, and tells Kubernetes 'this node has 4 allocatable GPU slices.' When a pod requests `nvidia.com/gpu`, the scheduler places it on a node with free slices. At runtime, the Container Toolkit uses CDI to inject the assigned device into the container. Inside the container, CUDA sees only that one MIG instance as 'device 0'—the kernel thinks it's working on a full GPU, but the hardware enforces partitioning. The whole chain has to work: hardware, driver, device plugin, Kubernetes API, scheduler, runtime injection. If any layer is broken, the pod either stays Pending or can't see the device.”
+
+**Q: A service has 15% average GPU utilization but p99 latency doubles after admitting a second tenant. How do you diagnose this?**
+
+A: “First, I confirm: is the GPU actually the bottleneck? I run `nvidia-smi dmon -s puctem` to see real-time SM activity, memory bandwidth, and thermal state. If p99 latency went up but SM is still low, it's memory-bound—both workloads are competing for DRAM bandwidth. I collect application metrics: request latency percentiles before/after the change, queue depth, and memory used. Then I measure: does the first workload burst? A 15% average can hide 80% peaks. I test with the actual production load pattern: replaying real request traces at realistic concurrency. Based on findings, either I reduce the second workload's concurrency, move one service to a dedicated pool, or if memory bandwidth is the issue, I enable MIG for hardware-partitioned paths. The point is: utilization alone doesn't prove capacity.”
+
+**Q: What's the difference between a whole-GPU pool failing and a shared-GPU pool failing?**
+
+A: “Whole-GPU failures are usually clean: the pod terminates, usually because of a driver issue, OOM, or device hotplug. Shared-GPU failures are messier because the blast radius is ambiguous. If time-slicing is used, a driver XID kills all processes on that GPU. If MIG is used, the blast radius is limited to one GI—but the shared driver and physical board are still common failure domains. Shared time-sliced failures are worst: one bad workload can degrade or kill others. That's why incident response needs to map allocation: which pods were on that device, can I cordon the node, can I move just the bad pod, or do I lose the whole pool? I'd track: per-pod device assignment, per-device pod inventory, application logs, DCGM/XID events, and Kubernetes events. This lets me answer 'will evicting this pod recover the others' or 'do I need to replace the node.'”
+
+**Q: You've been asked to design a shared-GPU platform for a research group. Where do you start?**
+
+A: “I start by refusing to guess. I ask: what workloads? I need to see a sample: notebook sizes, training batches, inference models, expected concurrency. We measure the largest expected workload—not the average, the peak. We run that workload alone, observe memory high-water mark, latency, and concurrent load behavior. We test two workloads together—does latency change? By how much? Is that acceptable? Only then do I propose a mechanism: if latency is predictable, MIG. If it's bursty dev work, time-slicing with clear best-effort semantics. I never present a 'shared GPU' as a cost-saving feature. I present it as a service contract: 'X requests per second with Y millisecond p99 latency, or Z concurrent notebooks with W-minute queue time.' The researchers choose their failure mode—unused capacity, queued work, or slower responses. No sharing mechanism removes all three.”
 
 ## Decision review and senior interview close
 

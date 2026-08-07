@@ -79,6 +79,43 @@ vGPU creates a virtual device for a guest VM under the hypervisor’s Virtual GP
 
 The comparisons should not be reduced to “MIG is secure” or “time-slicing is cheaper.” Security depends on the entire tenant boundary; cost includes stranded capacity, support entitlement, personnel, and the price of missed SLOs. See [Chapter 08](./chapter-08-tenant-isolation-security-and-fairness) and [Chapter 09](./chapter-09-capacity-planning-and-chargeback).
 
+## Quick diagnostic: which mechanism is active?
+
+When responding to an incident, identify the mechanism in use:
+
+| Observation | What it tells you |
+|---|---|
+| `nvidia-smi -i 0 --query-gpu=mig.mode.current` outputs “Enabled” | MIG is active; each pod should see distinct MIG instances |
+| `nvidia-smi` shows one physical GPU but many pods are Running | Time-slicing is likely; check device-plugin replicas config |
+| Process inside pod sees `/dev/nvidia*` with high device number | Possible MIG or vGPU device mapping (ask `nvidia-smi --query-processes` on host) |
+| Pod running inside a VM; host shows vGPU manager running | vGPU mechanism; check `/opt/grid/nvidia-smi -lvi` on host |
+| `kubectl get nodes -o custom-columns=NAME:.metadata.name,GPU:.status.allocatable.nvidia\\.com/gpu` shows high GPU counts (e.g., 4 or 8 per node) | Time-slicing with replicas configured to 4 or 8 |
+
+**Evidence-gathering playbook during an incident:**
+
+1. On the host running the GPU:
+   ```bash
+   nvidia-smi mig -lgi  # Are GI/CI present? (MIG is in use)
+   /opt/grid/nvidia-smi -lvi  # Are vGPUs listed? (vGPU is in use)
+   nvidia-smi --query-processes=pid,process_name --format=csv  # How many processes? (time-slicing has many)
+   ```
+
+2. Inside the affected pod:
+   ```bash
+   nvidia-smi  # Which device does the pod see?
+   echo $NVIDIA_VISIBLE_DEVICES  # Device assignment if env var is set
+   ```
+
+3. Cross-reference:
+   ```bash
+   # Host view: which device did the scheduler assign?
+   kubectl get pod <name> -o jsonpath='{.status.containerStatuses[0].state}'
+   # Guest/pod view: which device does the workload see inside?
+   kubectl exec <pod> -- nvidia-smi --query-gpu=uuid --format=csv
+   # Match them: are they the same? (expected for MIG or vGPU)
+   # Or is it seeing a full GPU while other pods also see GPUs? (time-slicing)
+   ```
+
 ## A benchmark is the admission test
 
 Before classifying a workload, capture a baseline on a dedicated GPU. Then test the intended sharing model with realistic concurrency, input distributions, GPU memory pressure, CPU and network contention, and failure recovery. Define success in the application’s language: request rate and p99 latency for online serving, completion time and error rate for batch work, or notebook startup and interactive responsiveness for development.

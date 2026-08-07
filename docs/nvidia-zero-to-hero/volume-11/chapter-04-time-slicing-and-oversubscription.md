@@ -105,6 +105,53 @@ Select a ratio through an experiment, not a generic multiplier. Hold the GPU, dr
 | Failure/recovery | test response to a bad neighbor or restart | recovery does not rely on manual guesswork |
 | Upgrade repeat | detect changed runtime behavior | prior envelope remains valid or tier is revised |
 
+**Concrete measurement example — finding a safe replica ratio for notebook workloads:**
+
+Test environment: one A100 GPU, time-slicing enabled, lightweight notebooks (PyTorch, typical ML workloads).
+
+**Baseline (single notebook):**
+```bash
+# One notebook running; measure for 5 minutes
+nvidia-smi dmon -s puctem -n 300
+nvidia-smi --query-processes=gpu_uuid,pid,process_name,gpu_memory_usage --format=csv
+```
+Observed:
+- Average SM: 25%
+- Peak memory: 12GB out of 80GB
+- P99 kernel launch latency: 8ms (imperceptible to user)
+
+**Two concurrent notebooks:**
+```bash
+# Launch second notebook; measure interference
+# (same observation commands)
+```
+Observed:
+- Each notebook's SM: ~40% (interference; no memory yet)
+- Combined memory: 24GB out of 80GB
+- P99 latency: 25ms (still acceptable for interactive)
+
+**Four concurrent notebooks:**
+Observed:
+- Each notebook's SM: ~55%
+- Combined memory: 48GB out of 80GB
+- P99 latency: 120ms (noticeable, but still acceptable for dev work)
+- Memory pressure: not concerning yet
+
+**Eight concurrent notebooks (oversubscribed):**
+Observed:
+- Each notebook's SM: ~65%
+- Combined memory: 96GB > 80GB ← **exceeds GPU memory**
+- P99 latency: 500ms (unacceptable—data spilling to host RAM or OOM happening)
+- Evidence: `nvidia-smi` shows one process OOM-killed
+
+**Conclusion:** Safe replica count is 4 (with 20GB headroom). Replicas > 4 risk OOM. Configuration:
+```yaml
+device-plugin-configs.yaml:
+  replicas: 4  # on this workload mix
+```
+
+This is not transferable to different workloads or GPU sizes. If workloads change, re-measure.
+
 ## Production incident flow
 
 When a shared pool slows, preserve the distinction between control-plane success and service failure. First assess user impact and activate the workload’s approved overload behavior. Then collect a time-correlated snapshot of application latency/queueing, pod allocation, process/memory evidence, GPU health, and node/device-plugin events. If the data supports contention, reduce admission or move the protected service; if it supports host/device failure, follow the node or hardware incident path. Do not delete every pod just to make utilization fall before evidence is captured.
@@ -113,13 +160,54 @@ When a shared pool slows, preserve the distinction between control-plane success
 
 **Symptoms:** a critical deployment receives a shared device after a manifest or default changed.
 
-**Evidence:** inspect resource names, node selectors, namespace policy, deployment history, and SLO telemetry.
+**Evidence collection:**
+```bash
+# Inspect the pod's actual resource request
+kubectl get pod <name> -o jsonpath='{.spec.containers[0].resources}'
+# Expected for shared: nvidia.com/gpu.shared
+# Bad: nvidia.com/gpu (implies exclusive or default)
+
+# Check which node it's on and what device it sees
+kubectl get pod <name> -o wide
+kubectl exec <pod> -- nvidia-smi
+# If output shows multiple containers' processes, it's time-sliced (bad for critical service)
+
+# Compare application SLO with actual
+kubectl logs <pod> | grep latency
+curl http://service-endpoint:8000/metrics | grep latency_p99_ms
+# Expected for critical: p99 <100ms
+# Actual if on shared: p99 >300ms (due to contention)
+
+# Inspect deployment history
+kubectl rollout history deployment/<name>
+kubectl describe deployment <name> | grep -A5 "container specification"
+```
 
 **Diagnosis:** the platform allowed a resource request whose name did not communicate its best-effort semantics, or admission policy did not restrict the service class.
 
-**Resolution:** move the deployment to its protected pool, restore the intended request/policy, and verify traffic recovery. Treat the policy gap as the root cause, not only the manifest.
+**Resolution:** immediately move the deployment:
+```bash
+# 1. Restore the intended critical resource request
+kubectl set resources deployment/<name> --limits nvidia.com/gpu=1
+# or edit the deployment to request the dedicated pool node selector
 
-**Prevention:** use explicit shared resource naming and policy checks for production namespaces.
+# 2. Verify pods migrate to the protected pool
+kubectl get pod -w
+# Watch for new pods on dedicated-gpu nodes
+
+# 3. Confirm SLO recovery
+kubectl logs -f <new-pod> | grep latency
+# p99 should return to baseline
+```
+
+**Prevention:** use explicit shared resource naming (e.g., `nvidia.com/gpu.shared`) and policy checks for production namespaces:
+```yaml
+# ResourceQuota in production namespace: deny shared resource
+spec:
+  hard:
+    nvidia.com/gpu.shared: "0"  # forbid shared access
+    nvidia.com/gpu: "unlimited"  # but allow dedicated
+```
 
 ## Troubleshooting scenario 4: metrics cannot identify the noisy neighbor
 

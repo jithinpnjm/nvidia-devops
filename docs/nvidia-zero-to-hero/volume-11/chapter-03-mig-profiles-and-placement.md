@@ -104,6 +104,37 @@ Do not use a universal “models per GPU” conversion. Instead, model each serv
 
 For a new workload, run three tests: cold start, steady state, and concurrent peak. Record memory high-water marks and service objectives for all three. A profile that passes only cold start is not capacity; it is a deployment experiment.
 
+**Concrete sizing example:**
+
+A customer runs three model-serving workloads on H100s. Measure each:
+
+1. **Embedding model (inference only, bursty):** Cold-start memory 2GB, steady 3GB, peak (100 concurrent requests) 4.2GB. Latency p99 must stay under 50ms. Fits in a 1g.10gb profile with 5.8GB headroom.
+
+2. **Small LLM (chat, streaming tokens):** Weights 7GB + KV cache (varies with sequence length). Cold start 8GB, steady 8.5GB, peak (50 concurrent sequences, 2k context) 10.2GB. P99 latency 200ms. Does NOT fit in 1g.10gb (would need 3g.40gb with 29.8GB headroom for safety).
+
+3. **Batch inference job (offline, throughput-oriented):** Batch size 32, memory 18GB steady. Can tolerate queueing. Needs whole GPU or large profile.
+
+Now assign profiles and calculate reserve:
+
+```text
+Service            | Profile         | Instances | Headroom | Failure blast radius
+Embedding          | 1g.10gb         | 7 on node | 5.8GB    | one embedding pod
+Chat LLM           | 3g.40gb         | 2 on node | 29.8GB   | one LLM pod (multi-replica if HA required)
+Batch              | 7g.80gb (whole) | 1 per node| N/A      | one batch job
+
+H100 capacity: 80GB, 14 SMs
+Layout: 7×(1g.10gb) + 2×(3g.40gb) = oversubscribed ❌
+Layout: 4×(1g.10gb) + 2×(3g.40gb) = 4 + 2×3 = 10 SMs used, 80GB used exactly ✓
+But: reserve nodes for batch jobs and maintenance
+
+Decision: 
+- 20 H100 nodes in time-sharing pool (4×embedding + 2×LLM each, 80GB packed)
+- 4 H100 nodes reserved (whole-GPU batch, maintenance rotation, spare for cluster health)
+- 24 total H100s for this service
+```
+
+This is not a “3 models per GPU” formula. It's evidence-based: measured memory at the workload's actual concurrency, chosen profiles with headroom, and a deliberate reserve calculation.
+
 ## Day-two operations
 
 Profile pools need lifecycle ownership. Inventory drift, driver changes, node replacement, and a new model version can invalidate an earlier profile decision. Review the following at a regular cadence:
