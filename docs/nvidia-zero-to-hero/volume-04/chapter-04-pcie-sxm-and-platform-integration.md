@@ -54,20 +54,43 @@ After completing this chapter, you will be able to:
 
 ```mermaid
 flowchart TD
-    Workload[Workload requirements]
-    GPU[Accelerator]
-    Form[Form factor]
-    Baseboard[Baseboard and PCIe topology]
-    Server[Server design]
-    Rack[Rack power and cooling]
-    Cluster[Cluster fabric and operations]
-
-    Workload --> GPU --> Form --> Baseboard --> Server --> Rack --> Cluster
+    Workload[Workload requirements] --> GPU[Accelerator selected]
+    GPU --> Form{"Form factor decision —<br/>what does the workload's communication<br/>pattern actually require?"}
+    Form -->|"Little/no GPU-to-GPU traffic<br/>(independent inference replicas)"| PCIePath["PCIe card<br/>evidence: nvidia-smi topo -m shows<br/>PHB/PXB paths are fine, never queried"]
+    Form -->|"Heavy intra-node collective traffic<br/>(large-batch training, tensor-parallel inference)"| SXMPath["SXM module<br/>evidence: nccl-tests all-reduce time<br/>would dominate step time on PCIe-only paths"]
+    PCIePath --> Baseboard1["Standard PCIe topology<br/>verify: nvidia-smi topo -m"]
+    SXMPath --> Baseboard2["NVLink/NVSwitch baseboard<br/>verify: nvidia-smi topo -m shows NV# links"]
+    Baseboard1 --> Server[Server design]
+    Baseboard2 --> Server
+    Server --> Rack{"Rack power and cooling —<br/>measured, not assumed"}
+    Rack -->|"power.draw sustained near power.limit,<br/>PDU headroom checked"| RackOK["Facility fit confirmed"]
+    Rack -->|"sustained draw would exceed<br/>rack PDU or airflow budget"| RackFail["Facility mismatch —<br/>re-open form factor decision"]
+    RackFail -.->|"loop back"| Form
+    RackOK --> Cluster[Cluster fabric and operations]
 ```
 
-**Figure 4.4.1 — Accelerator integration stack.** The GPU is one layer in a chain of platform decisions.
+**Figure 4.4.1 — Accelerator integration stack, with the evidence that justifies each layer's decision, not just the layers themselves.** The loop-back from a failed facility check to the form-factor decision is the important edge: a technically correct SXM choice that the rack can't power sends the process back to reconsider the integration model, not straight to a purchase order.
 
 A form factor should therefore be treated as an architectural contract, not a mechanical detail.
+
+**Reading `nvidia-smi topo -m`, the command this whole diagram depends on:**
+
+```bash
+$ nvidia-smi topo -m
+        GPU0    GPU1    GPU2    GPU3    NIC0    CPU Affinity
+GPU0     X      NV18    NV18    NV18    PXB     0-31
+GPU1    NV18     X      NV18    NV18    PXB     0-31
+GPU2    NV18    NV18     X      NV18    PXB     32-63
+GPU3    NV18    NV18    NV18     X      PXB     32-63
+
+Legend:
+  X    = self
+  NV#  = NVLink, # = number of links
+  PXB  = connection traversing multiple PCIe bridges (no NVLink)
+  PHB  = connection traversing a single PCIe host bridge
+```
+
+`NV18` between every GPU pair (18 NVLink connections) is the signature of an SXM/NVSwitch baseboard — every GPU reaches every other GPU through the high-bandwidth fabric, not through PCIe. A PCIe-card server running the same command would show `PHB` or `PXB` instead of `NV#` between GPUs, meaning GPU-to-GPU traffic has to traverse PCIe switches or the CPU root complex — the exact distinction Figure 4.4.1's decision point is testing for. `PXB` next to `NIC0` on both rows also confirms both GPUs reach the network adapter through the same PCIe path, relevant for the scale-out check in [Section 8](#8-network-adapter-placement).
 
 ## 4. PCIe Accelerator Integration
 
@@ -277,6 +300,41 @@ The commands reveal GPU, NIC, PCIe, and NUMA relationships. Compare the outputs 
 | Firmware drift | Same hardware, different firmware bundle | Return to approved baseline |
 | Thermal limitation | Reduced clocks under sustained load | Correct airflow or cooling capacity |
 
+**Evidence walkthrough — "cross-socket CPU feeding," comparing the two servers' `numactl --hardware` output:**
+
+```bash
+# Server A (fast)
+$ numactl --hardware
+available: 2 nodes (0-1)
+node 0 cpus: 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+node 0 size: 515000 MB
+node 1 cpus: 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31
+node 1 size: 515000 MB
+node distances:
+node   0   1
+  0:  10  21
+  1:  21  10
+
+# Server B (slow)
+$ ps -o pid,psr,comm -p $(pgrep -f train.py)
+    PID PSR COMMAND
+  48213  22 python
+$ nvidia-smi topo -m | grep GPU0
+GPU0     X   ...   NODE    0-15
+```
+
+On Server B, `ps -o psr` shows the training process's thread scheduled on core `22` — which `numactl --hardware`'s node layout places on NUMA node 1 — while `nvidia-smi topo -m` shows GPU0 is attached to NUMA node 0 (`0-15`). Every host-to-device transfer for that process crosses the CPU interconnect (`node distances` above shows node 0↔1 is `21`, roughly double the same-node cost of `10`). Server A's process was pinned to a core in GPU0's own node, avoiding that penalty entirely — this is the actual mechanism behind "cross-socket CPU feeding," not just a label in a table.
+
+**Evidence walkthrough — "thermal limitation," confirmed with clocks rather than assumed from temperature:**
+
+```bash
+$ nvidia-smi --query-gpu=clocks.sm,clocks.max.sm,power.draw,power.limit,temperature.gpu --format=csv
+clocks.sm [MHz], clocks.max.sm [MHz], power.draw [W], power.limit [W], temperature.gpu [C]
+1305 MHz, 1980 MHz, 612.40 W, 700.00 W, 87 C
+```
+
+`clocks.sm` running well below `clocks.max.sm` while `power.draw` still has headroom under `power.limit` (612W vs 700W) points at thermal throttling specifically, not power throttling — if this were power-bound, `power.draw` would be pinned at `power.limit` the way it was in the Chapter 3 power-throttle example. `temperature.gpu` at 87C corroborates it. The distinction matters operationally: a power throttle is fixed by facility power delivery, a thermal throttle by airflow or cooling capacity — the same "reduced clocks" symptom, two different corrective actions.
+
 ## 12. Customer Scenario
 
 A telecom customer needs two platforms. The first runs many independent inference services with moderate model sizes and strict cost controls. The second trains a large model using all GPUs in a node.
@@ -291,19 +349,19 @@ The architect uses the workload communication pattern—not brand preference—t
 
 **Why can two eight-GPU servers behave differently?**
 
-Because GPU count does not describe PCIe roots, switches, NUMA attachment, GPU fabric, NIC affinity, power limits, cooling, firmware, or software configuration.
+**Model answer:** "Because 'eight GPUs' describes a count, not a topology. I'd want to see `nvidia-smi topo -m` from both servers before assuming they're equivalent — one might show `NV18` between every GPU pair on an NVSwitch baseboard, and the other might show `PXB` or `PHB`, meaning GPU-to-GPU traffic has to cross PCIe switches or the CPU root complex. On top of that, NUMA attachment matters just as much: I've debugged a case where the process was pinned to a CPU core on the wrong NUMA node relative to its GPU, and `numactl --hardware` showed a 2x latency penalty crossing to the GPU's actual node — same GPU count, same GPU model, materially different delivered performance because of a placement issue nothing in the spec sheet would show."
 
 ### Scenario question
 
 **When would you choose PCIe accelerators instead of an SXM platform?**
 
-Choose PCIe when configuration flexibility, lower density, independent workloads, broad OEM options, or cost structure matters more than maximum intra-node GPU communication.
+**Model answer:** "When the workload's own communication pattern doesn't need the fabric SXM is built for — independent inference replicas that barely talk to each other, for example. In that case I'd rather have PCIe's configuration flexibility, broader OEM choice, and familiar service procedures than pay for NVSwitch bandwidth the workload will never use. The test I'd actually run before committing either way is `nccl-tests` — if all-reduce time barely factors into the workload's total time at all, PCIe is the right call; if it dominates step time, that's the signal SXM's scale-up fabric is worth its extra power, cooling, and procurement complexity."
 
 ### Troubleshooting question
 
 **What is the first command you use to understand GPU topology?**
 
-`nvidia-smi topo -m` is a useful starting point, followed by PCIe and NUMA inspection. The command is not the conclusion; it is the map used to reason about data paths.
+**Model answer:** "`nvidia-smi topo -m` — it's the fastest way to see the actual GPU-to-GPU and GPU-to-NIC paths instead of assuming them from the bill of materials. But I treat its output as a map, not a verdict — an `NV18` link tells me the fabric exists, it doesn't tell me a specific job is actually using it efficiently. From there I'd follow up with `lspci -tv` to see the full PCIe tree and `numactl --hardware` to check CPU-to-GPU locality, because a topology that looks fine in `nvidia-smi topo -m` can still have a NUMA placement problem that `topo -m` alone won't show."
 
 ## 14. Summary
 

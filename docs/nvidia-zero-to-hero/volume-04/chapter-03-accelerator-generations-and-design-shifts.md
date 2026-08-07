@@ -56,17 +56,33 @@ Accelerator architecture evolves through a repeating cycle.
 
 ```mermaid
 flowchart LR
-    Workload[New workload behavior]
-    Bottleneck[Dominant bottleneck appears]
-    Design[Hardware and software redesign]
-    Platform[New accelerator generation]
-    Scale[Deployment at larger scale]
-    NewLimit[Next bottleneck emerges]
-
-    Workload --> Bottleneck --> Design --> Platform --> Scale --> NewLimit --> Workload
+    Workload["New workload behavior<br/>e.g. transformer attention at scale"] --> Bottleneck{"Dominant bottleneck —<br/>proven by which metric?"}
+    Bottleneck -->|"Peak FLOPs achieved plateaus<br/>while sm% stays near 100%"| ComputeGap["Compute-path gap:<br/>no hardware path for this op shape"]
+    Bottleneck -->|"HBM util high, tokens/s flat<br/>even with more SMs"| BandwidthGap["Bandwidth gap:<br/>compute outpaces data delivery"]
+    Bottleneck -->|"nccl-tests all-reduce time<br/>dominates step time at N nodes"| InterconnectGap["Interconnect gap:<br/>scale-up/out fabric saturates first"]
+    ComputeGap --> Design["Hardware + software redesign<br/>(new Tensor Core generation, new precision)"]
+    BandwidthGap --> Design2["Hardware + software redesign<br/>(new HBM generation, bigger L2)"]
+    InterconnectGap --> Design3["Hardware + software redesign<br/>(new NVLink/NVSwitch generation)"]
+    Design --> Platform[New accelerator generation ships]
+    Design2 --> Platform
+    Design3 --> Platform
+    Platform --> Scale["Deployment at larger scale —<br/>re-measure the same three metrics"]
+    Scale --> NewLimit["Next bottleneck emerges<br/>(one of the three re-saturates)"]
+    NewLimit --> Workload
 ```
 
-**Figure 4.3.1 — Accelerator evolution as a feedback loop.** New workloads expose limits, architects redesign the platform, and larger deployments reveal the next constraint.
+**Figure 4.3.1 — Accelerator evolution as a feedback loop, with the actual measurement that proves which of the three bottlenecks fired.** This is the mechanism behind "why generations look different" — each generation is a targeted fix for whichever of compute, bandwidth, or interconnect saturated first in the previous one, and the same three metrics (FLOPs achieved, HBM utilization, collective time share) are what an architect measures to find out which fix a *current* workload actually needs, rather than assuming "newer" addresses the right one.
+
+**Concretely, this is measurable — comparing two generations on the same workload shape:**
+
+```bash
+$ nvidia-smi --query-gpu=name,memory.total,power.limit,clocks.max.sm --format=csv
+name, memory.total [MiB], power.limit [W], clocks.max.sm [MHz]
+NVIDIA A100-SXM4-80GB, 81920 MiB, 400.00 W, 1410
+NVIDIA H100-SXM5-80GB, 81920 MiB, 700.00 W, 1980
+```
+
+Same 80GB capacity on paper — a naive read says "no memory improvement between generations." The number that actually moved is HBM generation and bandwidth (not shown by `memory.total`, which only reports capacity): H100 pairs the same nominal capacity with substantially higher HBM bandwidth and a higher power envelope to sustain higher sustained clocks (`clocks.max.sm` 1980MHz vs. 1410MHz). This is exactly the trap Figure 4.3.1 is warning about — reading one field (`memory.total`) and concluding "no change" when the actual generational improvement is in a different field (bandwidth, sustained clocks) entirely.
 
 The most important lesson is that generations evolve as systems. Compute engines, memory technology, interconnects, packaging, power delivery, firmware, and software support all move together.
 
@@ -233,6 +249,30 @@ A new accelerator generation delivers much less improvement than expected.
 | Thermal or power limit | Clocks below expected range | Review cooling, power caps, and rack design |
 | Poor benchmark design | Different workload parameters | Rebuild an apples-to-apples baseline |
 
+**Evidence walkthrough — "software fallback," the most common reason a new generation underperforms its spec sheet:**
+
+```bash
+$ nvidia-smi --query-gpu=name,driver_version,compute_cap --format=csv
+name, driver_version, compute_cap
+NVIDIA H100 80GB HBM3, 550.90.07, 9.0
+
+$ python -c "import torch; print(torch.backends.cuda.matmul.allow_tf32, torch.get_default_dtype())"
+True torch.float32
+```
+
+Driver and compute capability both report correctly (`9.0` confirms Hopper), so the naive check "is the GPU healthy" passes. The actual fallback shows up one layer up the stack: the model is running its matmuls in `torch.float32` by default rather than the BF16/FP8 path the H100's Tensor Cores are built for. `nvidia-smi` cannot see this — it only reports device health, not which precision kernel a framework chose. This is why the diagnosis workflow above insists on checking "whether the optimized execution path is active" as a separate step from confirming the hardware is present; a perfectly healthy H100 running FP32 matmuls will benchmark closer to a previous generation than to its own spec sheet.
+
+**Evidence walkthrough — "thermal or power limit," confirmed rather than assumed:**
+
+```bash
+$ nvidia-smi --query-gpu=power.draw,power.limit,clocks.sm,clocks.max.sm,temperature.gpu --format=csv
+power.draw [W], power.limit [W], clocks.sm [MHz], clocks.max.sm [MHz], temperature.gpu [C]
+698.20 W, 700.00 W, 1410 MHz, 1980 MHz, 84 C
+
+```
+
+`power.draw` (698W) sitting right at `power.limit` (700W) while `clocks.sm` (1410MHz) is well below `clocks.max.sm` (1980MHz) is direct proof of power throttling — the GPU is capping its own clock to stay under the power cap, not choosing to run slower. `temperature.gpu` at 84C is elevated but the power ceiling is hit first here, which is the common case on data-center GPUs — power caps usually bind before thermal caps do, so checking `power.draw/power.limit` is a better first move than checking temperature alone.
+
 ## 12. Customer Scenario
 
 A financial-services customer operates an older accelerator fleet that still meets overnight training windows but cannot support a new interactive generative-AI service. The architect separates the decision into two tracks.
@@ -247,19 +287,19 @@ The customer is not buying a generation. The customer is buying a measurable imp
 
 **How would you compare two NVIDIA accelerator generations for an enterprise platform?**
 
-A strong answer starts with workload baselines and then evaluates compute paths, memory capacity, memory bandwidth, scale-up communication, scale-out communication, power, cooling, software qualification, reliability, and lifecycle cost.
+**Model answer:** "I'd start by establishing a baseline on the current generation with the real workload, not a synthetic benchmark — step time, throughput, GPU utilization, memory use, and communication time share, all captured with `nvidia-smi dmon` and the application's own metrics. Then I'd reproduce that exact workload on the new generation and compare the same numbers side by side, not the spec sheets. Specifically, I want to know: did `memory.total` or bandwidth change in a way this workload can use, is the intended precision path actually active — I've seen H100s benchmark like A100s because a model was silently running FP32 — and does collective time share grow the same way at scale on the new interconnect generation? Only after that comparison do power, cooling, and software qualification enter the conversation, because a generation that wins every performance metric can still be disqualified by a rack that can't power it."
 
 ### Scenario question
 
 **A newer GPU has substantially higher peak throughput but only improves a customer workload by 20 percent. What do you investigate?**
 
-Investigate whether the workload uses the intended precision and optimized kernels, then inspect memory behavior, CPU feeding, network communication, storage, synchronization, and power or thermal limits.
+**Model answer:** "First, whether the workload is actually using the new generation's optimized path — I'd check the precision the framework selected, because a 20% gain despite a much higher peak-throughput spec is the classic signature of a software fallback: the model runs on the new silicon but not through its new Tensor Core path. If that checks out, I'd move to memory: is HBM bandwidth the actual ceiling now, shown by high memory utilization while SM utilization is also high but throughput is flat? Then CPU feeding and I/O — is the host now the bottleneck because the GPU got faster and the data pipeline didn't? And finally power and thermal — I'd pull `power.draw` against `power.limit` and `clocks.sm` against `clocks.max.sm` to rule out the new part throttling under a rack that wasn't provisioned for its higher TDP. A 20% gain on a generation with a much bigger peak-throughput jump almost always traces back to one of these four, not to the silicon underperforming."
 
 ### Customer question
 
 **Why should we replace hardware that still works?**
 
-Do not argue from age. Demonstrate whether the current fleet fails capacity, latency, throughput, efficiency, supportability, or growth requirements. If it still meets those requirements, replacement may not be justified.
+**Model answer:** "I wouldn't argue from age, and I'd tell the customer that directly — 'it still works' isn't actually the question. The question is whether the current fleet is failing a specific, measurable requirement: capacity, because newer workloads don't fit; latency, because tail behavior is degrading under current load; throughput, because it can't keep pace with demand growth; efficiency, because cost-per-request has drifted up; or supportability, because the vendor lifecycle is ending. If I can show the current fleet is genuinely failing one of those, replacement is justified and I can quantify the business impact. If it's meeting all of them, I'll say so — recommending a refresh the numbers don't support costs me credibility on the next recommendation I do need them to trust."
 
 ## 14. Summary
 

@@ -43,20 +43,20 @@ After completing this lab, you will be able to:
 
 ```mermaid
 flowchart LR
-    Load[Load Generator]
-    Service[Inference Service]
-    Runtime[Inference Runtime]
-    GPU[Candidate GPU]
-    Metrics[Metrics Collector]
-    Report[Comparison Report]
-
-    Load --> Service --> Runtime --> GPU
-    Load --> Metrics
+    Load[Load Generator] --> Service[Inference Service]
+    Service --> Runtime[Inference Runtime]
+    Runtime --> GPU[Candidate GPU]
+    Load --> Metrics[Metrics Collector]
     Service --> Metrics
     Runtime --> Metrics
     GPU --> Metrics
-    Metrics --> Report
+    Metrics --> Valid{"Run valid?<br/>(Step 9 checklist)"}
+    Valid -->|"warm-up excluded, no driver/error<br/>drift, identical input distribution"| Report[Comparison Report]
+    Valid -.->|"undocumented software/config<br/>difference between candidates"| Discard["Discard run —<br/>fix the variable, re-run"]
+    Discard -.-> Load
 ```
+
+The `Valid?` gate and its discard loop-back are the point of the whole exercise: a comparison report built from a run that skipped Step 9's validation (different driver versions, warm-up requests counted in steady state, mismatched input distributions) produces numbers that look precise and are not comparable — the loop-back forces a re-run with the variable controlled, rather than letting an invalid run reach the report.
 
 ## 5. Prerequisites
 
@@ -111,7 +111,31 @@ nvidia-smi
 nvidia-smi topo -m
 ```
 
-**Expected output:** The GPU is visible, no critical health error is reported, and the topology matches the intended server design.
+**Expected output:**
+
+```
+$ nvidia-smi
++-----------------------------------------------------------------------------------------+
+| NVIDIA-SMI 550.90.07              Driver Version: 550.90.07      CUDA Version: 12.4      |
+|-----------------------------------------+------------------------+----------------------+
+| GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+| Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+|===========================================+========================+======================|
+|   0  NVIDIA L4                      On  | 00000000:31:00.0 Off  |                    0 |
+| N/A   34C    P8              9W /  72W |      4MiB / 24576MiB |      0%      Default |
++-----------------------------------------------------------------------------------------+
+
+$ nvidia-smi topo -m
+        GPU0    NIC0    CPU Affinity
+GPU0     X      PHB     0-15
+NIC0    PHB      X      0-15
+
+Legend:
+  X   = self
+  PHB = connection traversing a single PCIe host bridge
+```
+
+Reading this before running a single benchmark request: `Pwr:Usage/Cap` at `9W / 72W` and `GPU-Util 0%` confirm the card is idle and not already loaded by a stray process — a nonzero `Memory-Usage` here would mean a previous run didn't clean up. `Driver Version 550.90.07` / `CUDA Version 12.4` is the pairing to record in the run manifest verbatim; benchmarking two candidates on different driver versions invalidates the comparison before the first request is sent. `topo -m` showing `PHB` between the GPU and NIC means both share a single PCIe host bridge — the same NUMA node, no cross-socket penalty — which is worth confirming before blaming the accelerator for latency that's actually a host-placement problem. A **critical health error** would show up as `ERR!` in place of a temperature/power reading, or ECC error counts in `nvidia-smi -q` (not shown in the summary view); either should stop the benchmark before it starts.
 
 ### Step 2 — Capture a static baseline
 
@@ -123,6 +147,25 @@ free -h
 
 Save the output with the run manifest.
 
+```
+$ nvidia-smi --query-gpu=name,driver_version,memory.total,power.limit,temperature.gpu --format=csv
+name, driver_version, memory.total [MiB], power.limit [W], temperature.gpu
+NVIDIA L4, 550.90.07, 24564 MiB, 72.00 W, 33
+
+$ lscpu | grep -E 'Model name|Socket|Core|Thread'
+Model name:            AMD EPYC 7513 32-Core Processor
+Socket(s):              2
+Core(s) per socket:     32
+Thread(s) per core:     2
+
+$ free -h
+              total    used    free    shared  buff/cache   available
+Mem:           503Gi    12Gi   478Gi     0.1Gi        13Gi        488Gi
+Swap:            0B      0B      0B
+```
+
+This baseline is what every later step gets compared against. `power.limit 72.00 W` confirms which SKU is actually installed — an L4 caps at 72W, so if this instead read `300.00 W` mid-run, the candidate identity itself would be in question, not just its performance. `2 socket / 32 core-per-socket` from `lscpu` matters for Step 9's host-saturation check: pin the load generator and inference service to cores on the GPU's own NUMA node, not split across sockets, or a host bottleneck will masquerade as a GPU limitation later. `free -h` showing `Swap: 0B` total confirms swap is disabled — relevant because a host that swaps under memory pressure introduces exactly the kind of run-to-run noise this lab's Troubleshooting section (Step 14) warns about.
+
 ### Step 3 — Start telemetry
 
 ```bash
@@ -131,6 +174,16 @@ D_MON_PID=$!
 ```
 
 The selected fields capture power, utilization, clocks, memory, PCIe, errors, and temperature where supported.
+
+```
+$ tail -5 gpu-dmon.log
+# Date       Time        gpu   pwr  gtemp  mtemp    sm   mem   enc   dec   jpg   ofa  mclk  pclk
+2026/08/07   14:41:02      0    58     51     47    62    38     0     0     0     0  6251  1650
+2026/08/07   14:41:03      0    61     52     48    64    39     0     0     0     0  6251  1650
+2026/08/07   14:41:04      0    57     51     47    61    37     0     0     0     0  6251  1650
+```
+
+Even at steady request load, `pwr` (58-61W of the L4's 72W cap) and `sm` (61-64%) both sitting comfortably under their ceilings with `pclk` pinned at its boost clock (1650MHz, no throttling) is what a healthy, non-saturated candidate looks like during the "Moderate load" test in Step 5's matrix — worth capturing now so the later "Saturation search" run has a clean baseline to contrast against when `pwr` and `sm` climb toward their limits.
 
 ### Step 4 — Warm the service
 
@@ -169,12 +222,14 @@ A valid run must satisfy all of the following:
 
 ## 10. Verification
 
-Compare candidates using a service-level table:
+Compare candidates using a service-level table. Illustrative results from a "Moderate load" run (batch policy: runtime default, concurrency 4) comparing an L4 and a T4 on the same 7B-parameter INT8 model:
 
 | Candidate | Throughput | p95 latency | p99 latency | Peak memory | Avg. power | Errors |
 |---|---:|---:|---:|---:|---:|---:|
-| GPU A | | | | | | |
-| GPU B | | | | | | |
+| GPU A (L4) | 142 req/s | 118 ms | 165 ms | 19.2 GiB / 24.6 GiB | 59 W / 72 W | 0 |
+| GPU B (T4) | 61 req/s | 240 ms | 340 ms | 13.8 GiB / 15.4 GiB | 66 W / 70 W | 3 (admission-control rejects at saturation) |
+
+Reading this the way Step 12's economics calculation depends on: raw throughput alone (142 vs. 61 req/s) already favors GPU A by more than 2x, but the number that actually decides fleet sizing is **requests per watt** — GPU A delivers roughly `142/59 ≈ 2.4 req/s per watt` against GPU B's `61/66 ≈ 0.9 req/s per watt`, a gap far larger than the raw throughput difference alone suggests, because GPU B is also running closer to its power ceiling while delivering less. GPU B's 3 errors at this concurrency (T4 is at 90% of its 15.4GiB capacity — `13.8/15.4`) is the "Peak memory" column explaining the "Errors" column directly: this candidate is close enough to its memory ceiling that admission control is already rejecting requests at only moderate load, which is exactly the failure mode Step 13's failure-injection exercise is designed to surface deliberately rather than discover in production.
 
 Add cost and density only after the technical run is valid.
 
