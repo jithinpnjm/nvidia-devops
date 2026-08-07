@@ -127,3 +127,17 @@
 - [SEVERITY: low] No issues found. Clean, accurate consolidation; the "It does not prove" column in the component-responsibility table is a strong, reusable interview framing.
 
 **ZTH-10 (Volume 10) chapters 1-12 + index complete — 13/17 files reviewed; labs 1-4 remaining.**
+
+### labs/lab-01-inspect-a-kubernetes-gpu-node.md
+- [SEVERITY: low] No issues found. Capacity-vs-Allocatable evidence collection and the UUID-as-join-key discipline (host `nvidia-smi -L` vs. in-container output) are accurate and well-sequenced.
+
+### labs/lab-02-install-and-validate-gpu-operator.md
+- [SEVERITY: low] No issues found. `helm status: deployed` vs. `clusterpolicy: ready` vs. per-DaemonSet READY-count layering is accurate; the FailedScheduling-on-the-driver-DaemonSet-itself (untolerated taint) evidence example is a realistic and well-chosen failure mode.
+
+### labs/lab-03-diagnose-a-missing-allocatable-gpu.md
+- [SEVERITY: low] No issues found. The ordered evidence chain (PCI → driver → plugin → kubelet registration) with two clearly-differentiated real failure signatures (NVML load failure vs. gRPC socket dial timeout) is exactly the "SRE who reads scheduler/device-plugin source" depth this batch's brief calls for.
+
+### labs/lab-04-perform-a-controlled-gpu-platform-upgrade.md
+- [SEVERITY: low] No issues found. The `helm rollback` "success" with `ALLOCATABLE` still `0` scenario is an excellent, realistic demonstration of chart-rollback-does-not-revert-host-state, directly reinforcing Chapter 11's core lesson with lab evidence.
+
+**ZTH-10 (Volume 10) review complete — 17/17 files reviewed. No accuracy issues found across the entire volume; consistently at gold-standard depth.**
