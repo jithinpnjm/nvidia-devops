@@ -36,8 +36,8 @@ __global__ void low_pressure(float *data, int n) {
     }
 }
 // Registers per thread: 4
-// A100 limit: 255KB ÷ (4 registers × 4 bytes) = 16K threads possible
-// At 32 threads per warp: 16K ÷ 32 = 500 warps possible (but max is 64 per SM)
+// A100 limit: 256KB ÷ (4 registers × 4 bytes) = 16,384 threads possible
+// At 32 threads per warp: 16,384 ÷ 32 = 512 warps possible (but max is 64 per SM)
 // Occupancy: 64 ÷ 64 = 100%
 ```
 
@@ -63,8 +63,8 @@ __global__ void high_pressure(float *data, int n) {
     }
 }
 // Registers per thread: ~20 (x0-x3, y0-y3, sum, temporaries)
-// A100 limit: 255KB ÷ (20 registers × 4 bytes) = 3.2K threads
-// At 32 threads per warp: 3.2K ÷ 32 = 100 warps possible
+// A100 limit: 256KB ÷ (20 registers × 4 bytes) = 3,277 threads
+// At 32 threads per warp: 3,277 ÷ 32 = ~102 warps possible
 // But SM max is 64 warps, so we hit the SM limit first
 // Occupancy: min(64, 100) ÷ 64 = 100%
 // BUT now blocks won't fit as many per SM due to register usage
@@ -128,29 +128,22 @@ __global__ void stride_conflict(float *data) {
 - Kernel uses 32 registers per thread
 - Kernel uses 4 KB shared memory per block
 - Block size: 256 threads (8 warps)
-- SM: 255 KB registers, 96 KB shared memory (A100)
+- SM: 65,536 registers = 256 KB register file, 96 KB shared memory (A100)
 
 **Calculate occupancy:**
 
-1. **Registers per block:** 32 registers/thread × 256 threads = 8,192 registers
-2. **Max blocks limited by registers:** 255 KB ÷ 8 KB = 31 blocks
+1. **Registers per block:** 32 registers/thread × 256 threads = 8,192 registers = 8,192 × 4 bytes = 32,768 bytes = **32 KB** (registers must be converted to bytes at 4 bytes/register before comparing to a KB budget)
+2. **Max blocks limited by registers:** 256 KB ÷ 32 KB = **8 blocks**
 3. **Max blocks limited by shared:** 96 KB ÷ 4 KB = 24 blocks
-4. **Actual max blocks:** min(31, 24) = **24 blocks per SM**
+4. **Actual max blocks:** min(8, 24) = **8 blocks per SM**
 5. **Warps per block:** 256 threads ÷ 32 = 8 warps
-6. **Total warps per SM:** 24 blocks × 8 warps = **192 warps**
+6. **Total warps per SM:** 8 blocks × 8 warps = **64 warps**
 7. **SM warp limit:** 64 warps maximum
-8. **Occupancy:** min(192, 64) ÷ 64 = **100%**
+8. **Occupancy:** 64 ÷ 64 = **100%**
 
-**Wait, that doesn't make sense. Let me recalculate:**
+In this particular example, the register budget (8 blocks) and the hardware 64-warp cap (also 8 blocks at 8 warps/block) land on exactly the same number — both constraints happen to bind simultaneously. That's a property of this specific register count and block size, not a general rule.
 
-Actually, the SM can only hold 64 warps total (not 192). So the limiting factor is:
-- **Max blocks per SM** (from shared + registers) = 24 blocks
-- **Warps per block** = 8
-- **Total warps** = 24 × 8 = 192, but capped at 64 by hardware
-- **Actual blocks per SM** = 64 ÷ 8 = 8 blocks (not 24)
-- **Occupancy** = (8 blocks × 8 warps) ÷ 64 = 64 ÷ 64 = **100%**
-
-The lesson: reducing register count or shared memory doesn't help if you're already limited by the 64-warp max. It helps only if you want to fit more blocks simultaneously.
+The lesson: always convert register *counts* to bytes (× 4 bytes/register) before dividing into a KB budget — treating a register count as if it were already in KB is the single most common mistake in this kind of calculation, and it silently changes which resource looks like the binding constraint.
 
 ## Tiling and Data Reuse
 
@@ -226,43 +219,40 @@ __global__ void matmul_tiled(float *A, float *B, float *C, int n) {
 **Model Answer (3 minutes):**
 
 "First, let's understand why occupancy is 50%. At 64 registers per thread and 256 threads per block:
-- Register usage per block = 64 × 256 = 16,384 registers
-- A100 has 255 KB = 261,120 registers per SM
-- Blocks per SM limited by registers = 261,120 ÷ 16,384 = ~16 blocks
+- Register usage per block = 64 × 256 = 16,384 registers = 16,384 × 4 bytes = 65,536 bytes = **64 KB**
+- A100 has 65,536 registers per SM = **256 KB** register file
+- Blocks per SM limited by registers = 256 KB ÷ 64 KB = **4 blocks**
 - Warps per block = 256 ÷ 32 = 8
-- Total warps = 16 × 8 = 128, but capped at 64
-- Actual blocks per SM = 64 ÷ 8 = 8 blocks
-- Occupancy = 8 ÷ 16 = 50%
+- Total warps if register-limited = 4 × 8 = 32
+- SM warp cap = 64 warps (not the binding constraint here — registers hit their limit first, at 32 warps)
+- Occupancy = 32 ÷ 64 = **50%**
 
-So the SM register budget supports 16 blocks theoretically, but hardware caps at 64 warps, so only 8 blocks fit. That's the bottleneck.
+So the SM register budget only supports 4 blocks (32 warps) — registers are the bottleneck here, not the 64-warp hardware cap.
 
 **Option 1: Reduce register pressure**
 - Rewrite kernel to use 32 registers per thread (instead of 64)
-- Per-block usage: 32 × 256 = 8,192 registers
-- Blocks per SM: 261,120 ÷ 8,192 = ~32 blocks
-- Actual blocks per SM: 64 ÷ 8 = 8 blocks (still capped by warp limit)
-- Occupancy: still 50%
+- Per-block usage: 32 × 256 = 8,192 registers = 32,768 bytes = 32 KB
+- Blocks per SM (register-limited): 256 KB ÷ 32 KB = **8 blocks**
+- Total warps: 8 × 8 = 64, which now exactly hits the hardware cap
+- Occupancy: 64 ÷ 64 = **100%**
 
-This doesn't help! We're limited by the 64-warp hardware limit, not registers.
+**This works — and it's the fix that matters.** Because registers were the binding constraint (not the warp cap), halving register usage per thread doubles the register-limited block count and takes occupancy from 50% to 100%.
 
 **Option 2: Reduce block size**
-- If I use block size 128 (instead of 256):
+- If I use block size 128 (instead of 256), keeping registers at 64/thread:
 - Warps per block = 128 ÷ 32 = 4
-- Register usage per block = 64 × 128 = 8,192
-- Blocks per SM = 261,120 ÷ 8,192 = ~32 blocks
-- Total warps = 32 × 4 = 128, capped at 64
-- Actual blocks per SM = 64 ÷ 4 = 16 blocks
-- Occupancy = (16 × 4) ÷ 64 = 64 ÷ 64 = **100%**
+- Register usage per block = 64 × 128 = 8,192 registers = 32,768 bytes = 32 KB
+- Blocks per SM (register-limited) = 256 KB ÷ 32 KB = 8 blocks
+- Total warps = 8 × 4 = **32**
+- Occupancy = 32 ÷ 64 = **50%** — unchanged
 
-This works! By reducing block size, I fit more blocks on the SM, achieving 100% occupancy.
-
-**Tradeoff:** Smaller blocks might reduce parallelism within a block, but you get more block-level parallelism. For this kernel, it's a win.
+This does **not** help. Shrinking the block size without touching register usage per thread doesn't change total register demand per warp of work, so occupancy stays exactly where it was.
 
 **Option 3: Reduce shared memory**
 - If shared memory is the constraint (not registers), reduce it and you can fit more blocks.
 - But in this example, registers are the constraint, so this doesn't help.
 
-**Practical recommendation:** Try Option 2. Reduce block size from 256 to 128, test performance. If it improves (due to better occupancy), keep it. If it degrades (due to lost block-level parallelism), revert."
+**Practical recommendation:** Go with Option 1. Reduce register pressure from 64 to 32 registers/thread (e.g., fewer live temporaries, less aggressive unrolling, or letting the compiler spill less-critical values) — this directly doubles register-limited occupancy from 50% to 100%. Option 2 (shrinking block size alone) is a dead end for this specific bottleneck."
 
 **Key Reasoning Points:**
 
@@ -275,7 +265,7 @@ This works! By reducing block size, I fit more blocks on the SM, achieving 100% 
 
 **Follow-up Trap:** "If I reduce registers, I save space. Can't I use that space for more blocks?"
 
-**Corrective answer:** "Only if you're not already limited by the 64-warp hardware cap. In this example, we're limited by warps, not registers, so reducing registers doesn't help. But if you had a kernel with fewer blocks and plenty of register headroom, reducing block size could unlock more blocks."
+**Corrective answer:** "Yes, in this specific example — we're limited by registers, not the 64-warp hardware cap, so reducing register pressure directly unlocks more blocks (and it's the fix that actually improves occupancy here). The general rule: check which resource is binding *before* deciding what to optimize. If a kernel is already sitting at the 64-warp cap with register headroom to spare, then reducing registers further wouldn't help — you'd need to reduce block size or increase blocks-per-SM in some other way instead. Always compute the register-limited, shared-memory-limited, and warp-cap-limited block counts separately, then take the minimum — that tells you which lever to pull."
 
 **Verification Point:** Can the candidate calculate occupancy from register count, block size, and SM specs? Do they understand the hardware limits vs. the resource limits?
 
@@ -381,7 +371,7 @@ For an n × n matrix:
 - Total FLOPs: n³ (one multiply-add per element, over n elements)
 - Arithmetic intensity: n³ ÷ (8n³ + 4n²) ≈ 1 ÷ 8 = **0.125 FLOP/byte**
 
-On a 2 TB/s GPU: achievable throughput = 0.125 × 2 = **250 TFLOPS**
+On a 2 TB/s GPU: achievable throughput = 0.125 FLOP/byte × 2×10¹² bytes/sec = 2.5×10¹¹ FLOP/s = **250 GFLOPS** (0.25 TFLOPS — watch the units, this is GFLOPS not TFLOPS). That's far below any realistic FP32 compute peak (tens of TFLOPS), confirming this naive kernel is deeply memory-bound.
 
 **With tiling (TILE_SIZE = 32):**
 
@@ -413,9 +403,11 @@ Arithmetic intensity: 32,768 FLOPs ÷ (8 × 1024 bytes) = 32,768 ÷ 8192 = **4 F
 
 That's 32× better than naive!
 
-On a 2 TB/s GPU: achievable throughput = 4 × 2 = **8,000 TFLOPS** (compute-bound instead of memory-bound)
+On a 2 TB/s GPU: achievable throughput = 4 FLOP/byte × 2×10¹² bytes/sec = 8×10¹² FLOP/s = **8 TFLOPS** (not 8,000 TFLOPS — that would be 8 PFLOPS, an implausible figure for a single GPU and a red flag to sanity-check).
 
-**Key insight:** By reusing data in shared memory, we increase the compute-to-memory ratio from 0.125 to 4. This shifts the bottleneck from memory to compute."
+Is that actually compute-bound? Compare against a realistic FP32 compute peak: ~19.5 TFLOPS on A100 (non-tensor CUDA core) or ~67 TFLOPS on H100. At 8 TFLOPS, the tiled kernel's memory ceiling is still *below* either of those compute peaks — so strictly speaking it's still memory-bound, just far less severely than the naive version (2-8× headroom to the compute ceiling instead of ~150-500×). To fully cross over into compute-bound territory you'd need roughly 10-34 FLOP/byte depending on the GPU (compute peak ÷ bandwidth) — larger tiles, or offloading to Tensor Cores (which have a much higher compute peak), push further in that direction.
+
+**Key insight:** By reusing data in shared memory, we increase the compute-to-memory ratio from 0.125 to 4 FLOP/byte — a 32× improvement that moves the kernel from deeply memory-bound (250 GFLOPS ceiling, ~0.5-1% of compute peak) to much closer to the compute-bound boundary (8 TFLOPS ceiling), even though it may not fully cross over depending on the GPU's actual compute peak."
 
 **Key Reasoning Points:**
 
