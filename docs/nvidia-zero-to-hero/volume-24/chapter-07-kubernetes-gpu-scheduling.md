@@ -36,6 +36,8 @@ Design a scheduling strategy and verify all constraints are met.
 
 ## Starter YAML
 
+**Prerequisite:** The stock NVIDIA Kubernetes device plugin exposes `nvidia.com/gpu` as an **integer-only** extended resource — you cannot request `"0.5"` or `"0.25"` of a GPU out of the box. The fractional requests below only work if the cluster has the NVIDIA GPU Operator's **time-slicing** ConfigMap applied (or MPS configured) to advertise sub-integer/replicated GPU capacity. Without that prerequisite, these manifests would fail to schedule (`0/1 nodes are available: Insufficient nvidia.com/gpu`) or be silently truncated to `0`, since Kubernetes resource quantities for extended resources must be whole numbers unless the device plugin itself advertises fractional units.
+
 Kubernetes deployment manifests with resource requests/limits and priority classes:
 
 ```yaml
@@ -109,7 +111,7 @@ spec:
         command: ["python", "inference_server.py", "--duration", "300"]
         resources:
           requests:
-            nvidia.com/gpu: "0.5"  # Request 50% of GPU
+            nvidia.com/gpu: "0.5"  # Request 50% of GPU (requires GPU Operator time-slicing/MPS config; not native to nvidia.com/gpu)
           limits:
             nvidia.com/gpu: "0.5"
         ports:
@@ -133,7 +135,7 @@ spec:
         command: ["python", "experiment.py"]
         resources:
           requests:
-            nvidia.com/gpu: "0.25"  # Fractional GPU
+            nvidia.com/gpu: "0.25"  # Fractional GPU (requires GPU Operator time-slicing/MPS config; not native to nvidia.com/gpu)
           limits:
             nvidia.com/gpu: "1"
 ```
