@@ -130,3 +130,9 @@ Same exceptional depth and style as ZTH-02: worked evidence chains, real command
 
 ### chapter-07-streams-events-and-asynchronous-execution.md
 - No findings. Stream/event semantics, "async API name does not guarantee device overlap" warning, and the `nsys` timeline evidence for detecting fake vs real overlap are all technically accurate and reflect real CUDA debugging practice.
+
+### chapter-08-pinned-memory-and-transfer-overlap.md
+- No findings. Pageable-vs-pinned bandwidth comparison (3.61 GB/s vs 15.88 GB/s, ~4.4x) is consistent with PCIe Gen4 x16 practical ceilings (~20-25GB/s) vs staged-copy overhead; the NUMA cross-socket transfer penalty example (15.9GB/s local vs 9.1GB/s remote, ~1.75x) is a realistic and correctly reasoned illustration.
+
+### chapter-09-unified-memory-and-demand-paging.md
+- No findings. Managed-memory fault/migrate mechanics, oversubscription-thrashing example (working set crossing device capacity causing throughput collapse from 104GB/s to 9GB/s), and the "single CPU debug print costs 23x the kernel" example are all technically sound and reflect genuine Unified Memory production pitfalls.
