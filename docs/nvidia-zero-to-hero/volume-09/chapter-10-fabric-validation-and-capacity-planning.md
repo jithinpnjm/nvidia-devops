@@ -269,10 +269,6 @@ Use a consistent record so that operations can compare a future result with comm
 
 - [NVIDIA Cumulus Linux Quality of Service](https://docs.nvidia.com/networking-ethernet-software/cumulus-linux-57/Layer-1-and-Switch-Ports/Quality-of-Service/)
 - [NVIDIA NCCL documentation](https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/)
-
-## Further Reading
-
-- [NVIDIA Cumulus Linux QoS documentation](https://docs.nvidia.com/networking-ethernet-software/cumulus-linux-57/Layer-1-and-Switch-Ports/Quality-of-Service/)
 - [Volume 07 performance benchmarking](../volume-07/chapter-10-performance-bottlenecks-and-benchmarking)
 
 ## Cross References
