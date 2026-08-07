@@ -90,11 +90,11 @@ Decision: Refresh to H100 in Year 2 when A100s are 3 years old
 | Year | Action | A100s | H100s | L40S | Investment |
 |---|---|---|---|---|---|
 | 0 | Current | 16 | 0 | 16 | — |
-| 1 | Add capacity | 16 | 8 | 16 | $320K (8 H100s) |
-| 2 | Refresh A100s | 0 | 16 | 16 | $560K (refresh 16 A100→H100, add 8) |
-| 3 | Add capacity | 0 | 32 | 16 | $440K (add 16 H100s) |
+| 1 | Add capacity | 16 | 8 | 16 | $320K (8 H100s × $40K) |
+| 2 | Refresh A100s | 0 | 16 | 16 | $960K (refresh 16 A100→H100 + add 8 = 24 new H100s × $40K) |
+| 3 | Add capacity | 0 | 32 | 16 | $640K (add 16 H100s × $40K) |
 
-**Total 3-year CapEx: $1.32M**
+**Total 3-year CapEx: $1.92M** (gross hardware spend at $40K/H100; this does not net out any resale/trade-in value for the 16 retired A100s — if the vendor or a secondary market offers trade-in credit, state that assumption explicitly and subtract it from the Year 2 figure)
 
 **Cost model (annual OpEx):**
 
