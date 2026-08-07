@@ -262,3 +262,8 @@
   - Why it matters for JR2018680: The exact ms/sec 1000x-slip pattern flagged repeatedly across this review series, occurring twice in the same lab file with directly conflicting values for the identical metric.
   - Suggested fix: Correct Section 9's "Expected output" to "8.2 sec" (or the dummy toy model's genuinely-fast synthetic latency should be clearly labeled as illustrative and not conflated with the real 8 sec/study figure used for capacity planning).
 - Otherwise clean: HIPAA audit-logging code, DICOM/Hounsfield-unit preprocessing, and batch-processing code are technically reasonable.
+
+## Volume 24 — Capstone Projects: Building Real GPU Systems
+
+### index.md
+- No findings. Well-structured, all 12 projects map to real content files (no orphaned links), consistent with placeholder-exclusion noted in PROGRESS.md.
