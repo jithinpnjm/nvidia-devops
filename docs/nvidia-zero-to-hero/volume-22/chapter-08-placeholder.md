@@ -1,18 +1,8 @@
-# Chapter 08
+# Chapter 08 — Scientific Computing and Digital Twins
 
-## Learning Objectives
-
-- Objective 1
-- Objective 2
-
-## Big Picture
-
-## Deep Explanation
-
-## Production Troubleshooting
-
-## Interview Preparation
-
-## Key Takeaways
-
-## Cross References
+## Business Goal
+## Discovery Questions
+## Workload Profile
+## Constraints
+## Recommendation
+## Cost Analysis

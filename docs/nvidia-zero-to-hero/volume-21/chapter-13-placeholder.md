@@ -1,4 +1,4 @@
-# Chapter 12 — Reference Architecture: 1000-GPU Cloud Training
+# Chapter 13 — Reference Architecture: Edge Pod and Hybrid
 
 ## Overview
 

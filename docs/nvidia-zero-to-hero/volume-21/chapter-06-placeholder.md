@@ -1,18 +1,11 @@
-# Chapter 06
+# Chapter 06 — Power and Cooling Design
 
-## Learning Objectives
+## Overview
 
-- Objective 1
-- Objective 2
+## Architecture Design
 
-## Big Picture
+## Implementation
 
-## Deep Explanation
+## Verification
 
-## Production Troubleshooting
-
-## Interview Preparation
-
-## Key Takeaways
-
-## Cross References
+## Reference Implementation YAML

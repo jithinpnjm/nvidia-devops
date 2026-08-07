@@ -1,18 +1,5 @@
-# Chapter 09
+# Chapter 09 — Consulting: End-to-End Engagement
 
-## Learning Objectives
-
-- Objective 1
-- Objective 2
-
-## Big Picture
-
-## Deep Explanation
-
-## Production Troubleshooting
-
-## Interview Preparation
-
-## Key Takeaways
-
-## Cross References
+## Discovery to Handoff
+## Workshop Facilitation
+## Case Study Synthesis

@@ -1,18 +1,8 @@
-# Chapter 03
+# Chapter 03 — Automotive and Robotics
 
-## Learning Objectives
-
-- Objective 1
-- Objective 2
-
-## Big Picture
-
-## Deep Explanation
-
-## Production Troubleshooting
-
-## Interview Preparation
-
-## Key Takeaways
-
-## Cross References
+## Business Goal
+## Discovery Questions
+## Workload Profile
+## Constraints
+## Recommendation
+## Cost Analysis

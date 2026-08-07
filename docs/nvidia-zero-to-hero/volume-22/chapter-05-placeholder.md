@@ -1,18 +1,8 @@
-# Chapter 05
+# Chapter 05 — Telecom and 5G
 
-## Learning Objectives
-
-- Objective 1
-- Objective 2
-
-## Big Picture
-
-## Deep Explanation
-
-## Production Troubleshooting
-
-## Interview Preparation
-
-## Key Takeaways
-
-## Cross References
+## Business Goal
+## Discovery Questions
+## Workload Profile
+## Constraints
+## Recommendation
+## Cost Analysis

@@ -1,4 +1,4 @@
-# Chapter 12 — Reference Architecture: 1000-GPU Cloud Training
+# Chapter 14 — Acceptance Testing, Commissioning and Handoff
 
 ## Overview
 

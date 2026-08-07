@@ -1,18 +1,11 @@
-# Chapter 04
+# Chapter 04 — Multi-Rack and Scale-Out Networking
 
-## Learning Objectives
+## Overview
 
-- Objective 1
-- Objective 2
+## Architecture Design
 
-## Big Picture
+## Implementation
 
-## Deep Explanation
+## Verification
 
-## Production Troubleshooting
-
-## Interview Preparation
-
-## Key Takeaways
-
-## Cross References
+## Reference Implementation YAML
