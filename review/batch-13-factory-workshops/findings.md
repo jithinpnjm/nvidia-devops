@@ -188,3 +188,13 @@
   - Evidence: Line ~83 (Interview Preparation Q&A).
   - Why it matters for JR2018680: This is presented as a spoken interview answer to memorize; the "$730K/year" conclusion is wrong by exactly 1000x, and is the primary numeric evidence for the answer's central claim that "inference dominates [training cost] by 3-4x."
   - Suggested fix: Correct to 1M tokens/day → $2/day → ~$730/year, and reconsider whether the "inference dominates training cost" conclusion still holds at the corrected scale (it likely still holds at higher user counts, but the specific numbers given don't support it).
+
+### chapter-04-automotive-and-autonomous-vehicles.md
+- [SEVERITY: high] Content mix-up: the "Requirements" section for the Drive Orin edge-deployment use case contains manufacturing/predictive-maintenance content, not automotive content: "50 production lines, 1,250 bearings" and "Prediction window: 7-14 days before failure" describe bearing-failure prediction (matches Chapter 8's predictive-maintenance topic), not autonomous-vehicle perception. This appears to be copy-pasted from the Manufacturing chapter and not adapted.
+  - Evidence: Line ~24-25 (Use Case: Edge Deployment on Drive Orin, "Requirements").
+  - Why it matters for JR2018680: A clear structural/content-integrity defect — a candidate studying this chapter for AV/edge-inference interview prep would be reading requirements for the wrong industry entirely.
+  - Suggested fix: Replace with actual AV requirements (e.g., number of vehicles/fleet size, sensor suite, frame rate, operating domain) consistent with the rest of the use case.
+- [SEVERITY: low] "Single GPU failure rate: ~0.1%/year, Dual redundancy: ~0.001%/year" — for independent failures the dual-redundancy rate should be roughly (0.1%)² ≈ 0.0001%/year, not 0.001%/year (10x higher than the independent-failure model would predict, though plausible if failures are treated as partially correlated).
+  - Evidence: Line ~33-34.
+  - Why it matters for JR2018680: Minor; if asked to justify a redundancy argument with a simple reliability calc, this ratio doesn't quite hold up to a first-principles check.
+  - Suggested fix: Either show the reliability math explicitly (independent vs. correlated failure assumption) or adjust the figure to ≈0.0001%/year.

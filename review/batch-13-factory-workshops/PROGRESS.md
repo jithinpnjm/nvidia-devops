@@ -28,7 +28,7 @@ no content) alongside the real chapter files. These are excluded from review as 
 | ZTH-22 | chapter-01-consulting-methodology-for-customer-engagement.md | done | high:1, low:1 (10x power-cost slip) |
 | ZTH-22 | chapter-02-banking-and-financial-services.md | done | high:1, medium:1 (A100 FP64 spec fabricated) |
 | ZTH-22 | chapter-03-generative-ai-and-large-language-models.md | done | high:2 (1000x cost-per-token slips, headline claims wrong) |
-| ZTH-22 | chapter-04-automotive-and-autonomous-vehicles.md | pending | |
+| ZTH-22 | chapter-04-automotive-and-autonomous-vehicles.md | done | high:1, low:1 (wrong-industry content mix-up) |
 | ZTH-22 | chapter-05-pharmaceuticals-and-drug-discovery.md | pending | |
 | ZTH-22 | chapter-06-telecommunications.md | pending | |
 | ZTH-22 | chapter-07-healthcare-and-medical-imaging.md | pending | |
