@@ -267,7 +267,7 @@ flowchart TD
 ### Step 1: Design Checkpoint Structure
 
 Checkpoint must include:
-- Model weights (e.g., 1.2 GB for ResNet-50)
+- Model weights (e.g., ~100 MB for ResNet-50 at FP32 — 25.6M params × 4 bytes ≈ 0.1 GB)
 - Optimizer state (momentum, variance buffers for Adam)
 - Current epoch and batch index
 - Metadata (learning rate schedule state, RNG seed)
@@ -277,8 +277,8 @@ Checkpoint must include:
 checkpoint = {
     'epoch': 5,
     'batch_idx': 1234,
-    'model_state_dict': model.state_dict(),  # 1.2 GB
-    'optimizer_state_dict': optimizer.state_dict(),  # 2.4 GB (Adam doubles size)
+    'model_state_dict': model.state_dict(),  # ~100 MB (ResNet-50, FP32)
+    'optimizer_state_dict': optimizer.state_dict(),  # ~200 MB (Adam doubles size: momentum + variance buffers)
     'loss_history': [...],
     'timestamp': '2026-08-07T12:34:56Z',
     'world_size': 4,
