@@ -198,3 +198,9 @@
   - Evidence: Line ~33-34.
   - Why it matters for JR2018680: Minor; if asked to justify a redundancy argument with a simple reliability calc, this ratio doesn't quite hold up to a first-principles check.
   - Suggested fix: Either show the reliability math explicitly (independent vs. correlated failure assumption) or adjust the figure to ≈0.0001%/year.
+
+### chapter-05-pharmaceuticals-and-drug-discovery.md
+- [SEVERITY: high] Multiple mutually-inconsistent throughput/speedup figures in the flagship virtual-screening example. Three numbers are given that cannot all be true simultaneously: (1) "Current time: 232 days (CPU)" for 10M molecules implies a CPU baseline of only ≈0.5 molecules/sec; (2) "CPU baseline: 128 molecules/sec (256-core cluster)" implies 10M molecules would take ≈21.7 hours, not 232 days (256x discrepancy); (3) "GPU (8 A100s): 800 molecules/sec (50× faster)" — but 800/128 = 6.25x, not 50x (verified). None of the three reconcile with each other.
+  - Evidence: Line ~21, ~28-29 (Use Case 1 Requirements/Performance).
+  - Why it matters for JR2018680: This is the chapter's headline "GPU vs CPU speedup" claim for pharma virtual screening — exactly the kind of ROI number a solutions architect would present to a customer, and none of the underlying arithmetic is self-consistent.
+  - Suggested fix: Pick one consistent CPU baseline (either the 232-day figure or the 128 molecules/sec figure, not both) and recompute the GPU speedup multiplier from it.
