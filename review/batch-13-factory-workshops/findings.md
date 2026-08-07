@@ -103,3 +103,17 @@
   - Evidence: Lines ~44-66 (`forecast_gpu_demand` and the "Month 0/6/12" comments).
   - Why it matters for JR2018680: A hands-on capstone-adjacent code example whose comments don't match its own output undermines trust in the worked forecasting model.
   - Suggested fix: Either extend the forecast horizon to include month 12 or drop that reference, and regenerate the "Month 0/6" comments from an actual run of the code.
+
+### chapter-12-cost-optimization-and-resource-efficiency.md
+- [SEVERITY: high] RECURRENCE of the TFLOPS/PFLOPS magnitude-slip pattern. "1200 GPU = 26.4 PETAFLOPS peak (estimate)" is ~45x too low: using this same volume's own H100 BF16 figure (989 TFLOPS/GPU, Chapter 2), 1200 GPUs = 1,186,800 TFLOPS = **1,186.8 PFLOPS** (≈1.19 EFLOPS), not 26.4 PFLOPS. This feeds directly into "Cost per PETAFLOP-year: $908K," which is therefore also off by roughly the same ~45x factor.
+  - Evidence: Line ~217-219 (Part 3, "Cost per training throughput").
+  - Why it matters for JR2018680: Same class of TFLOPS-magnitude error flagged across the review series; this is the chapter's own headline "cost per compute" metric for the training cluster.
+  - Suggested fix: Recompute aggregate PFLOPS from the per-GPU BF16 figure already used elsewhere in Volume 21 and recalculate cost-per-PFLOPS-year.
+- [SEVERITY: low] Mislabeled intermediate result, self-corrected two lines later: "`cost_per_billion_tokens = $40.2K / (25.9B tokens) = $0.00155 per billion tokens`" is actually the cost **per token** ($1.55e-6), not per billion tokens (which would be ≈$1,552); the next line correctly restates it as "cost per million tokens = $1.55," which is the figure used in all subsequent conclusions.
+  - Evidence: Line ~67-69.
+  - Why it matters for JR2018680: Low impact since the correct figure is used downstream, but the mislabeled line could confuse a reader trying to verify the unit conversion.
+  - Suggested fix: Relabel or remove the "$0.00155 per billion tokens" line; keep only the verified $1.55/million-tokens figure.
+- [SEVERITY: low] Spot/on-demand annual pricing appears to assume ~300 operating days/year rather than 365, without stating so ($120/GPU/day × 365 = $43.8K, not the stated $36K/GPU/year; ratio is consistent between on-demand and spot figures, suggesting an implicit, undisclosed days-per-year assumption).
+  - Evidence: Line ~92-101.
+  - Why it matters for JR2018680: Minor, but an interviewer asking "walk me through that annualization" would expose the unstated assumption.
+  - Suggested fix: State the assumed operating days/year explicitly (or use 365 and update the derived annual figures).
