@@ -4,9 +4,9 @@ Volumes: `docs/volume-01` (F-01, Linux internals), `docs/volume-02` (F-02, Pytho
 
 | Volume | File | Status | Severity Summary |
 |---|---|---|---|
-| F-01 | 01-chapter-1-processes-threads-cpu-scheduling-and-load.md | pending | |
-| F-01 | 02-chapter-2-virtual-memory-page-cache-swap-and-oom.md | pending | |
-| F-01 | 03-chapter-3-files-file-descriptors-filesystems-and-block-i-o.md | pending | |
+| F-01 | 01-chapter-1-processes-threads-cpu-scheduling-and-load.md | done | none |
+| F-01 | 02-chapter-2-virtual-memory-page-cache-swap-and-oom.md | done | none |
+| F-01 | 03-chapter-3-files-file-descriptors-filesystems-and-block-i-o.md | done | 1 medium |
 | F-01 | 04-chapter-4-networking-ip-routes-sockets-tcp-dns-nat-and-tls.md | pending | |
 | F-01 | 05-chapter-5-namespaces-cgroups-and-container-mechanics.md | pending | |
 | F-01 | 06-chapter-6-systemd-boot-services-signals-and-logs.md | pending | |
