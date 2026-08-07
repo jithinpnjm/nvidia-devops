@@ -259,13 +259,13 @@ Annotated `ipmitool sensor list` output — this is the first thing to pull when
 ```bash
 $ ipmitool -I lanplus -H 10.0.1.15 -U admin -P *** sensor list
 CPU1 Temp | 52.000 | degrees C | ok | 0.000 | 3.000 | 5.000 | 92.000 | 95.000 | 98.000
-CPU2 Temp | 108.000 | degrees C | ncr | 0.000 | 3.000 | 5.000 | 92.000 | 95.000 | 98.000 ← non-critical high, near upper-non-recoverable
+CPU2 Temp | 108.000 | degrees C | unr | 0.000 | 3.000 | 5.000 | 92.000 | 95.000 | 98.000 ← past upper-non-recoverable, shutdown/damage risk
 GPU1 Temp | 61.000 | degrees C | ok | 0.000 | 3.000 | 5.000 | 88.000 | 92.000 | 95.000
 FAN1 | 8400.000 | RPM | ok | 500.00 | 700.00 | 900.00 | na | na | na
 PSU1 Status | 0x1 | discrete | 0x0180| na | na | na | na | na | na ← discrete sensor, decode bitmap not a number
 PSU2 Status | 0x0 | discrete | 0x0180| na | na | na | na | na | na ← PSU2 reading 0 — likely no input power, check PDU/breaker
 ```
-Reading this correctly: the six threshold columns are `lnr/lcr/lnc/unc/ucr/unr` (lower/upper non-recoverable, critical, non-critical). `CPU2 Temp` at `ncr` status with a reading of 108°C against an upper-non-critical threshold of 92°C is already past non-critical and closing on `ucr` (95) — this node should be pulled from scheduling before it thermally throttles or shuts down. `PSU2 Status` reading `0x0` on a discrete sensor is not "temperature is zero," it is a bitmap that needs decoding against the SDR — in practice, a PSU reporting nothing usually means no AC input, which is a facilities/PDU check, not a server fault.
+Reading this correctly: the six threshold columns are `lnr/lcr/lnc/unc/ucr/unr` (lower/upper non-recoverable, critical, non-critical). `CPU2 Temp` at 108°C has already blown through every upper threshold on the sensor — `unc` (92), `ucr` (95), and `unr` (98) — so the status correctly reads `unr`, the worst tier IPMI defines: the hardware itself may throttle or force a shutdown at any moment to protect itself, so this isn't a "watch it" reading, it's pull-from-scheduling-and-investigate-now, and if the BMC hasn't already forced a shutdown you should expect one imminently. `PSU2 Status` reading `0x0` on a discrete sensor is not "temperature is zero," it is a bitmap that needs decoding against the SDR — in practice, a PSU reporting nothing usually means no AC input, which is a facilities/PDU check, not a server fault.
 
 The Redfish equivalent returns the same class of information as structured JSON — a `GET /redfish/v1/Systems/1` gives `PowerState`, `Status.Health`, `ProcessorSummary`, `MemorySummary`, and links to `/Processors`, `/Memory`, `/EthernetInterfaces`, `/SecureBoot` — no field-offset guessing required, which is why fleet-scale health polling is built on Redfish, not IPMI, in any modern shop.
 
