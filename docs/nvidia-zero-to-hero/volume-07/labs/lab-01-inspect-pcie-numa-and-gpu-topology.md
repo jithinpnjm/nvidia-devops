@@ -498,11 +498,38 @@ Observe latency, throughput, CPU utilization, and consistency. Do not disable li
 
 **Resolution:** Follow the server-vendor runbook. Do not force PCIe settings without platform approval.
 
+**Worked evidence for this exact symptom** — this is precisely the GPU3 case captured in Step 6:
+
+```text
+$ sudo lspci -s 0000:5d:00.0 -vv | grep -E 'LnkCap:|LnkSta:'
+        LnkCap: Port #0, Speed 32GT/s, Width x16, ASPM not supported
+        LnkSta: Speed 32GT/s (ok), Width x4 (downgraded)
+
+$ sudo dmesg -T | grep -i "5d:00.0" | tail -5
+[Wed Aug  6 03:14:22 2026] pcieport 0000:5c:00.0: AER: Corrected error received: 0000:5d:00.0
+[Wed Aug  6 03:14:22 2026] pcieport 0000:5c:00.0: AER: can't find device of ID0500
+[Wed Aug  6 03:14:22 2026] pcieport 0000:5c:00.0: AER: Multiple Corrected error received: 0000:5c:00.0
+```
+
+`LnkCap` unchanged at `x16` but `LnkSta` at `Width x4 (downgraded)` confirms the device retrained down from its designed width — a 4x reduction in PCIe lanes. The `dmesg` AER (Advanced Error Reporting) lines around the same boot are the corroborating evidence: repeated "Corrected error" events on the upstream port `0000:5c:00.0` just before the downgrade is exactly the signal that separates "signal-integrity/riser problem" (this case — the link degraded itself to preserve stability) from "BIOS policy" (which would show no AER events at all, just a conservative negotiated state from boot). Compare the same two commands against an identical, healthy node before opening a hardware ticket — matching AER activity on a healthy node's same slot would point at a systemic platform issue instead of a single bad card.
+
 ### Symptom: Correct devices but poor locality
 
 **Diagnosis:** Compare process CPU binding, memory binding, GPU BDF, and NIC BDF.
 
 **Resolution:** Align CPU workers, memory, GPU, and NIC within the same locality domain where possible.
+
+**Worked evidence for this exact symptom.** Combine the worksheet row from Step 8 with the running process's actual affinity:
+
+```text
+$ taskset -cp 71820
+pid 71820's current affinity list: 56-111,168-223
+
+$ grep -A1 "GPU-3a1f9c02" topology-worksheet.md
+| GPU-3a1f9c02-...5e6f | 00000000:19:00.0 | 0 | 0-55,112-167 | enp27s0f0np0 (0000:1b:00.0, PIX) | NVSwitch mesh, all 8 GPUs NV18 |
+```
+
+The worksheet says GPU 0's local CPU set is `0-55,112-167` (NUMA node 0), but `taskset -cp` shows the process actually driving that GPU is pinned to `56-111,168-223` — NUMA node 1. Every host-to-device transfer for this process now crosses the inter-socket interconnect before reaching the correct PCIe root complex, even though every device involved — GPU, NIC, CPU — is individually healthy. This is the "correct devices, wrong relationship" failure mode the symptom name describes: no single `nvidia-smi` or `lspci` check flags it, only cross-referencing the worksheet against live process affinity does.
 
 ## 15. Cleanup
 
