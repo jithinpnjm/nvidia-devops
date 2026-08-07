@@ -2,6 +2,25 @@
 
 Review of `docs/volume-01` (Linux internals) and `docs/volume-02` (Python for infrastructure) against NVIDIA JR2018680 interview readiness. See PROGRESS.md for chapter checklist status.
 
+## Summary
+
+All 39 chapter/lab files across both volumes reviewed (13 in Volume 01, 26 in Volume 02). This batch is the strongest reviewed so far against the stated Volume-1 gold-standard bar: mechanism-first explanations, real annotated command output, and — notably — every chapter in both volumes ties its Linux/Python mechanism back to a concrete GPU-infrastructure scenario rather than staying generic.
+
+**Counts by severity:** 0 high, 1 medium, 3 low (2 of the 3 low findings were trivial and fixed inline).
+
+- 1 medium: `docs/volume-01/03-chapter-3-files-file-descriptors-filesystems-and-block-i-o.md` — no coverage anywhere in the volume of `O_DIRECT`/GPUDirect Storage (the page-cache-bypass mechanism the task brief specifically named as expected interview content for GPU data pipelines).
+- 1 medium: `docs/volume-02/09-chapter-8-http-apis-timeouts-retries-and-backoff.md` — no chapter explicitly connects a retry loop to file-descriptor exhaustion (the specific "naive retry loop leaks file descriptors" mechanism the task brief named), despite fd-leak coverage and retry-loop coverage both existing separately and well.
+- 1 low (fixed inline): unescaped `|` inside a table cell in `docs/volume-02/13-chapter-12-type-hints-and-pytest-make-changes-safer.md` (MDX table-integrity risk).
+- 1 low (fixed inline): missing `import json` in the capstone `cli.py` skeleton in `docs/volume-02/15-chapter-14-capstone-design-a-cluster-diagnostics-cli.md` (would `NameError` if copied verbatim).
+
+**Top 5 findings for interview prep, in priority order:**
+
+1. **(gap, medium)** Volume 01 never covers `O_DIRECT` / GPUDirect Storage — be ready to explain the page-cache-bypass mechanism for NVMe-to-GPU transfers yourself; the curriculum's VFS/page-cache diagrams (chapter 3, Deep Dive 3) are a strong foundation to extend, but don't stop there.
+2. **(gap, medium)** No worked example ties a retry loop directly to fd exhaustion — be ready to explain concretely why a `requests.Session()` (or subprocess pipe) opened fresh on every retry attempt instead of reused/closed leaks descriptors under repeated failures.
+3. **(strength, worth internalizing)** Volume 01's pinned/pageable host memory explanation (Deep Dive 2) — why `cudaMemcpy` on pageable memory does a CPU staging copy before DMA, and why pinning removes it — is genuinely first-principles and exactly the "AI infrastructure depth" bar this role probes.
+4. **(strength, worth internalizing)** Volume 02's `UNKNOWN is not HEALTHY` pattern (Deep Dive 8, GPU fleet health CLI) — an explicit fourth health state so missing telemetry can never be silently conflated with "healthy" — is a genuinely strong, concrete answer to monitoring-design questions and worth having ready verbatim.
+5. **(strength, worth internalizing)** Volume 01's three-distinct-OOM-boundaries table (container cgroup OOM vs. node-wide OOM vs. kubelet soft eviction, chapter 2) and Volume 02's GIL mechanics (chapter 11) are both memorization-ready, interview-exact answers to two of the most likely "what happens when..." questions for this role.
+
 ## Volume 01 — Foundations Beneath Kubernetes (Linux internals)
 
 ### 01-chapter-1-processes-threads-cpu-scheduling-and-load.md
@@ -75,6 +94,10 @@ No findings. Correctly uses `contextvars.ContextVar` (not a plain global) for co
 No findings. Command-injection demo (`shell=True` with attacker-controlled `namespace`) is correct and concrete; `Popen` vs `run()` streaming distinction is accurate.
 
 ### 09-chapter-8-http-apis-timeouts-retries-and-backoff.md
+- [SEVERITY: medium] No chapter in the volume explicitly connects a retry loop to file-descriptor exhaustion — the specific failure mode the task brief names ("why a naive retry loop leaks file descriptors"). Coverage of fd leaks (chapter 4's `with open()` explanation) and retry loops (this chapter, and Deep Dives 3/4) are both present and individually strong, but never joined: none of the retry examples show the concrete anti-pattern (e.g., opening a new `requests.Session()`, socket, or file handle inside each retry attempt without closing the previous one, or a subprocess call inside a retry loop whose pipes aren't drained/closed on timeout) that actually causes fds to leak under repeated retries.
+  - Evidence: `grep -rln "file descriptor\|fd leak\|too many open files" docs/volume-02/*.md` matches only chapter 4 (general file-handle-leak explanation) and Deep Dive 4 (one sentence: "launching 10,000 tasks simultaneously can exhaust file descriptors") — neither ties the mechanism specifically to a retry loop.
+  - Why it matters for JR2018680: named explicitly in this review's task brief as an expected infra-automation interview angle; it's also a very real bug shape (e.g., a `requests.Session()` created fresh on every retry attempt instead of reused, or a subprocess whose stdout/stderr pipes aren't closed on a `TimeoutExpired` path).
+  - Suggested fix: add a short worked example to Chapter 8 or Deep Dive 3 showing a retry loop that leaks fds (new `Session`/connection per attempt) next to the fixed version (one `Session` reused across attempts, or explicit `finally`/context-manager cleanup per attempt), tying chapter 4's fd-handle explanation to chapter 8's retry policy explicitly.
 No findings. `get_json`'s try/except/else control flow is more intricate than it needs to be but is logically correct on inspection (retryable-status branch always terminates via `raise_for_status()` on the final attempt, so the trailing `raise AssertionError("unreachable")` is genuinely unreachable). 4xx-vs-5xx retry framing, idempotency examples, and jitter/backoff-with-real-numbers are all accurate and match the "why a naive retry loop..." depth the task brief wants.
 
 ### 10-chapter-9-oop-that-helps-infrastructure-code.md
@@ -102,4 +125,41 @@ No findings. `src/` layout rationale (prevents `pytest` silently importing the u
   - Why it matters for JR2018680: minor — a reader who copies this "full skeleton" verbatim (a live-coding round is exactly this kind of copy-and-adapt pressure) would hit an avoidable crash.
   - Fix applied: changed `import sys, logging` to `import sys, json, logging`.
   Everything else in this capstone is strong: the exit-code contract (0/1/2/3 with tool-failure as its own code), stdout/stderr separation for CI-safe JSON piping, and the collection/policy separation are all accurate and tie the whole volume together well.
+
+### 16-targeted-udemy-study-map.md
+No findings. Reference/index content.
+
+### 17-final-python-checklist.md
+No findings. Reference/index content.
+
+### 18-senior-deep-dive-1-the-python-object-model-mutability-and-interfaces.md
+No findings. `slots=True` memory/speed explanation is accurate and correctly scoped to "thousands of Node objects in a real GPU fleet" as the motivating case, not a generic micro-optimization.
+
+### 19-senior-deep-dive-2-configuration-is-an-api-validation-secrets-and-precedence.md
+No findings. Precedence chain (defaults < file < env < CLI) is correctly reasoned and matches the actual code shown.
+
+### 20-senior-deep-dive-3-build-api-clients-that-fail-safely.md
+No findings. Budget-math worked example (500 nodes × worst-case retry timeout, sequential vs. bounded-concurrency vs. deadline-capped) is arithmetically correct and exactly the kind of live-calculation an SA interview would probe.
+
+### 21-senior-deep-dive-4-async-threads-and-processes-with-backpressure.md
+No findings. Backpressure correctly defined as bounding in-flight work to protect both the local process and the remote target, not just a throughput knob.
+
+### 22-senior-deep-dive-5-subprocess-is-a-process-api-not-a-shell-shortcut.md
+No findings. `nvidia-smi --query-gpu=... --format=csv,noheader,nounits` wrapper-plus-parser pairing is realistic and GPU-role-specific.
+
+### 23-senior-deep-dive-6-structured-logs-metrics-and-correlation-ids.md
+No findings. Logs/metrics/traces three-way distinction is accurate and concisely stated.
+
+### 24-senior-deep-dive-7-testing-infrastructure-code-isolate-decisions-from-effects.md
+No findings. Correctly demonstrates that a pure-policy unit test (`should_retry`) would catch an off-by-one boundary mutation (`<= 600` vs `< 600`) that a mock-heavy test would miss — a genuinely good illustration of testing decisions over implementation details.
+
+### 25-senior-deep-dive-8-complete-project-gpu-fleet-health-cli.md
+No findings — this is a standout chapter. The `UNKNOWN is not HEALTHY` pattern (explicit fourth state so missing telemetry can never be silently conflated with a healthy fleet node) is exactly the kind of monitoring-design judgment call worth bringing up unprompted in an SA interview, and is correctly and concretely implemented.
+
+### 26-performance-and-profiling-for-operational-python.md
+No findings. Profiling-tool decision tree (py-spy for no-restart production triage vs. cProfile vs. line_profiler vs. tracemalloc) is accurate, and the `cumtime`-vs-`tottime` reading of a sample cProfile trace (retry `time.sleep` dominating, not the wrapped function itself) is a genuinely instructive real-world trace read.
+
+---
+
+**Volume 02 review complete.**
 
