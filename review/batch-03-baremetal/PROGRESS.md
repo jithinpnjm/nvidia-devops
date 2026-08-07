@@ -2,9 +2,9 @@
 
 | Volume | File | Status | Severity Summary |
 |---|---|---|---|
-| F-10 | 00c-slurm-bcm-interview-lab.md | pending | |
-| F-10 | 01-bare-metal-and-bmc-lifecycle.md | pending | |
-| F-10 | 02-nvidia-base-command-manager.md | pending | |
+| F-10 | 00c-slurm-bcm-interview-lab.md | done | 1 medium (missing sbatch/gres/array examples) |
+| F-10 | 01-bare-metal-and-bmc-lifecycle.md | done | 1 medium (sensor table data inconsistency); strong chapter overall |
+| F-10 | 02-nvidia-base-command-manager.md | done | 0 high/medium; 2 low |
 | F-10 | 03-os-provisioning-and-linux-security-hardening.md | pending | |
 | F-10 | 04-ansible-for-infrastructure-automation.md | pending | |
 | F-10 | 05-terraform-for-infrastructure-as-code.md | pending | |
