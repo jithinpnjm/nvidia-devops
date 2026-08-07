@@ -10,13 +10,13 @@ Volumes: `docs/volume-01` (F-01, Linux internals), `docs/volume-02` (F-02, Pytho
 | F-01 | 04-chapter-4-networking-ip-routes-sockets-tcp-dns-nat-and-tls.md | done | none |
 | F-01 | 05-chapter-5-namespaces-cgroups-and-container-mechanics.md | done | none |
 | F-01 | 06-chapter-6-systemd-boot-services-signals-and-logs.md | done | none |
-| F-01 | 07-senior-deep-dive-1-linux-execution-syscalls-scheduling-run-queues-and-cpu-pres.md | pending | |
-| F-01 | 08-senior-deep-dive-2-memory-virtual-address-space-page-faults-numa-and-oom-decis.md | pending | |
-| F-01 | 09-senior-deep-dive-3-storage-i-o-vfs-to-nvme-latency-queues-and-checkpoint-behav.md | pending | |
-| F-01 | 10-senior-deep-dive-4-packet-level-networking-routing-conntrack-tcp-and-dns-failu.md | pending | |
-| F-01 | 11-senior-deep-dive-5-containers-namespaces-cgroups-v2-overlay-filesystems-and-ru.md | pending | |
-| F-01 | 12-senior-deep-dive-6-host-readiness-for-nvidia-gpu-nodes.md | pending | |
-| F-01 | 13-senior-troubleshooting-exercise-slow-gpu-job-with-healthy-kubernetes.md | pending | |
+| F-01 | 07-senior-deep-dive-1-linux-execution-syscalls-scheduling-run-queues-and-cpu-pres.md | done | none |
+| F-01 | 08-senior-deep-dive-2-memory-virtual-address-space-page-faults-numa-and-oom-decis.md | done | none |
+| F-01 | 09-senior-deep-dive-3-storage-i-o-vfs-to-nvme-latency-queues-and-checkpoint-behav.md | done | none |
+| F-01 | 10-senior-deep-dive-4-packet-level-networking-routing-conntrack-tcp-and-dns-failu.md | done | none |
+| F-01 | 11-senior-deep-dive-5-containers-namespaces-cgroups-v2-overlay-filesystems-and-ru.md | done | none |
+| F-01 | 12-senior-deep-dive-6-host-readiness-for-nvidia-gpu-nodes.md | done | none |
+| F-01 | 13-senior-troubleshooting-exercise-slow-gpu-job-with-healthy-kubernetes.md | done | none |
 | F-02 | 01-book-map.md | pending | |
 | F-02 | 02-chapter-1-how-python-actually-executes-your-infrastructure-script.md | pending | |
 | F-02 | 03-chapter-2-choosing-data-structures-by-the-problem-not-by-habit.md | pending | |
