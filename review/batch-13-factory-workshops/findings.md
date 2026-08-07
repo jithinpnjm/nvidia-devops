@@ -87,3 +87,9 @@
 
 ### chapter-09-multi-region-deployment.md
 - No high/medium findings. Cost rollups check out (electricity calc off by <2%, immaterial rounding). Failover/health-check code and cross-region training sync narrative are reasonable and clearly caveated (async, eventual consistency).
+
+### chapter-10-monitoring-and-operations.md
+- [SEVERITY: high] RECURRENCE of the fabricated-DCGM-field-name pattern. The Prometheus scrape config and alerting rules use informal snake_case metric names (`dcgm_gpu_utilization`, `dcgm_.*_temperature`, `dcgm_.*_power`, `dcgm_gpu_temp`) that do not correspond to real dcgm-exporter Prometheus metrics. The actual DCGM field names exposed by dcgm-exporter preserve the `DCGM_FI_DEV_*` naming convention (e.g., `DCGM_FI_DEV_GPU_TEMP`, `DCGM_FI_DEV_GPU_UTIL`, `DCGM_FI_DEV_POWER_USAGE`, `DCGM_FI_DEV_SM_CLOCK`, `DCGM_FI_DEV_XID_ERRORS`), not lowercase `dcgm_gpu_temp`/`dcgm_gpu_utilization`.
+  - Evidence: Line ~77, ~87 (Prometheus relabel_configs regex) and line ~129 (`expr: dcgm_gpu_temp > 75` in the `GPUTemperatureHigh` alert rule).
+  - Why it matters for JR2018680: This is the exact "fabricated DCGM field names that don't correspond to real DCGM_FI_DEV_* metrics" pattern flagged repeatedly across the review series. A candidate reciting or copy-pasting this alert rule into a real Prometheus config would get zero matches — the rule silently never fires.
+  - Suggested fix: Replace with real `DCGM_FI_DEV_*` metric names as exposed by dcgm-exporter (e.g., `DCGM_FI_DEV_GPU_TEMP`, `DCGM_FI_DEV_GPU_UTIL`, `DCGM_FI_DEV_POWER_USAGE`).
