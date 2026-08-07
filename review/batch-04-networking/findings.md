@@ -65,3 +65,14 @@
 
 **F-06 (docs/volume-06) volume-level assessment:** This is a strong, senior-level treatment of RDMA/RoCE/InfiniBand and does not hand-wave the tradeoff — Chapter 3 and Deep Dive 2 both give explicit "ask which generation/transport/congestion-control" framing plus a side-by-side decision table. Bandwidth math (bisection bandwidth, NCCL busbw efficiency, ib_write_bw efficiency) is consistently correct. Only issues found across all 15 files are two low-severity technical/command nits (Ch2 MTU arithmetic wording, Ch5 kubectl double `-n` flag) and one cosmetic structural artifact (Ch1 volume title block appearing mid-chapter). No factual errors, no hand-waved tradeoffs, no thin duplication within the volume.
 
+## ZTH-07 — docs/nvidia-zero-to-hero/volume-07 (GPU Networking)
+
+This volume (12 chapters + index + 4 labs, all reviewed in full) is exceptionally strong and consistent — every chapter matches the Volume-1 gold-standard depth bar: mechanism-first diagrams with decision branches, real annotated command output (`nvidia-smi topo -m`, `lspci -vv`, `ibstat`, `ib_write_bw`, `NCCL_DEBUG=INFO`, `/proc/driver/nvidia-fs/stats`), worked arithmetic that is internally consistent (bisection/PCIe/NVSwitch bandwidth math, straggler-amplification math, scaling-efficiency math), and first-person interview answers throughout. No factual errors, no hand-waved RDMA/GPUDirect claims, and no thin sections were found across chapters 1–12, index.md, or labs 1–4.
+
+Notable strengths directly relevant to JR2018680: Chapter 4 (DMA/RDMA/peer-to-peer) and Chapter 5 (GPUDirect RDMA) give mechanistically correct, non-hand-wavy explanations of memory registration, protection keys, and the CPU's residual role in "zero copy" — exactly the depth an NVIDIA interviewer would probe on RDMA fundamentals. Chapter 3 (NVLink/NVSwitch) deliberately avoids stating generation-specific bandwidth numbers as fact (explicitly directs readers to "use current documentation" since NVLink specs change by generation) rather than risking stale/wrong numbers — a defensible choice, not an accuracy problem, though a reader relying solely on this volume for a specific generation's raw NVLink bandwidth number (e.g. H100 NVLink4 aggregate) would need to supplement from Volume 02/06 or vendor docs.
+
+No MDX/structural issues found (no broken tables, unescaped angle brackets, or malformed code fences in any of the 17 files).
+
+### chapter-01 through chapter-12, index.md, labs 01–04
+- No issues found in any file. All command outputs, bandwidth/latency arithmetic, and topology interpretations (PIX/PXB/NODE/SYS, NUMA distance ratios, NVLink/NVSwitch bonding counts) are technically accurate and internally consistent across the volume.
+

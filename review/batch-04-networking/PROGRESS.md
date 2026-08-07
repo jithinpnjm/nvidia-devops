@@ -19,23 +19,23 @@ Volumes: F-06 (`docs/volume-06`), ZTH-07 (`docs/nvidia-zero-to-hero/volume-07`),
 | F-06 | 13-senior-deep-dive-5-slurm-concepts-beyond-sbatch.md | done | none |
 | F-06 | 14-senior-deep-dive-6-kubernetes-slurm-and-hybrid-scheduling.md | done | none |
 | F-06 | 15-senior-deep-dive-7-distributed-system-patterns-from-the-staff-engineer-guide.md | done | low |
-| ZTH-07 | chapter-01-why-gpu-networking-exists.md | pending | |
-| ZTH-07 | chapter-02-pcie-numa-and-host-data-paths.md | pending | |
-| ZTH-07 | chapter-03-nvlink-and-nvswitch.md | pending | |
-| ZTH-07 | chapter-04-dma-rdma-and-peer-to-peer.md | pending | |
-| ZTH-07 | chapter-05-gpudirect-rdma.md | pending | |
-| ZTH-07 | chapter-06-gpudirect-storage.md | pending | |
-| ZTH-07 | chapter-07-connectx-and-gpu-network-adapters.md | pending | |
-| ZTH-07 | chapter-08-topology-aware-placement.md | pending | |
-| ZTH-07 | chapter-09-multi-node-collectives-and-nccl-paths.md | pending | |
-| ZTH-07 | chapter-10-performance-bottlenecks-and-benchmarking.md | pending | |
-| ZTH-07 | chapter-11-production-design-scenarios.md | pending | |
-| ZTH-07 | chapter-12-volume-07-summary.md | pending | |
-| ZTH-07 | index.md | pending | |
-| ZTH-07 | labs/lab-01-inspect-pcie-numa-and-gpu-topology.md | pending | |
-| ZTH-07 | labs/lab-02-validate-peer-access-and-nvlink.md | pending | |
-| ZTH-07 | labs/lab-03-benchmark-rdma-and-gpudirect-paths.md | pending | |
-| ZTH-07 | labs/lab-04-troubleshoot-a-multi-gpu-data-path.md | pending | |
+| ZTH-07 | chapter-01-why-gpu-networking-exists.md | done | none |
+| ZTH-07 | chapter-02-pcie-numa-and-host-data-paths.md | done | none |
+| ZTH-07 | chapter-03-nvlink-and-nvswitch.md | done | none |
+| ZTH-07 | chapter-04-dma-rdma-and-peer-to-peer.md | done | none |
+| ZTH-07 | chapter-05-gpudirect-rdma.md | done | none |
+| ZTH-07 | chapter-06-gpudirect-storage.md | done | none |
+| ZTH-07 | chapter-07-connectx-and-gpu-network-adapters.md | done | none |
+| ZTH-07 | chapter-08-topology-aware-placement.md | done | none |
+| ZTH-07 | chapter-09-multi-node-collectives-and-nccl-paths.md | done | none |
+| ZTH-07 | chapter-10-performance-bottlenecks-and-benchmarking.md | done | none |
+| ZTH-07 | chapter-11-production-design-scenarios.md | done | none |
+| ZTH-07 | chapter-12-volume-07-summary.md | done | none |
+| ZTH-07 | index.md | done | none |
+| ZTH-07 | labs/lab-01-inspect-pcie-numa-and-gpu-topology.md | done | none |
+| ZTH-07 | labs/lab-02-validate-peer-access-and-nvlink.md | done | none |
+| ZTH-07 | labs/lab-03-benchmark-rdma-and-gpudirect-paths.md | done | none |
+| ZTH-07 | labs/lab-04-troubleshoot-a-multi-gpu-data-path.md | done | none |
 | ZTH-08 | chapter-01-why-infiniband-exists.md | pending | |
 | ZTH-08 | chapter-02-infiniband-architecture-and-link-layers.md | pending | |
 | ZTH-08 | chapter-03-verbs-queue-pairs-and-completion-queues.md | pending | |
