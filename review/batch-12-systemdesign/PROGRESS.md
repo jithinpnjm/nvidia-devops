@@ -54,7 +54,7 @@ Volumes: F-08 (`docs/volume-08`), F-09 (`docs/volume-09`), ZTH-23 (`docs/nvidia-
 | ZTH-23 | chapter-07-kubernetes-and-container-orchestration.md | done | 1 low |
 | ZTH-23 | chapter-08-security-and-compliance.md | done | 2 low |
 | ZTH-23 | chapter-09-cluster-operations-and-capacity-planning.md | done | 1 high, 1 medium |
-| ZTH-23 | chapter-10-system-design-training-cluster.md | pending | |
+| ZTH-23 | chapter-10-system-design-training-cluster.md | done | 1 high, 1 medium, 1 low |
 | ZTH-23 | chapter-11-system-design-inference-serving.md | pending | |
 | ZTH-23 | chapter-12-system-design-research-infrastructure.md | pending | |
 | ZTH-23 | labs/lab-01-placeholder.md | pending | |
