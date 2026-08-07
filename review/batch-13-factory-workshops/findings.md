@@ -223,3 +223,9 @@
   - Evidence: Line ~39 vs ~43.
   - Why it matters for JR2018680: This is the chapter's central ROI/payback pitch; the inconsistent unit cost undermines the "3 weeks payback" headline number used to justify the investment.
   - Suggested fix: Use a single, justified downtime-cost-per-failure figure throughout (state if $150K reflects a different/worse failure class than the historical $50K average).
+
+### chapter-09-scientific-research-and-simulation.md
+- [SEVERITY: high] RECURRENCE of the 1000x unit-magnitude-slip pattern, compounded by an internally inconsistent compute-time claim. "10 runs × 1,200 steps × 1 petaflop-sec = 12 petaflop-seconds" is arithmetically wrong — 10 × 1,200 × 1 = **12,000** petaflop-seconds, not 12 (stated both in Requirements "Total compute: 12 petaflop-seconds" and repeated in the Compute breakdown). Separately, "32 A100s = 1.6 petaflops → ~7.5 days per run" doesn't follow from the stated per-run compute (1,200 petaflop-seconds): at 1.6 PFLOPS sustained, one run would take 1,200/1.6 = 750 seconds (12.5 minutes), not 7.5 days — the "7.5 days" figure would require a throughput of only ≈0.00185 PFLOPS, roughly 865x slower than the stated 1.6 PFLOPS.
+  - Evidence: Line ~24, ~37-38.
+  - Why it matters for JR2018680: This is the chapter's central compute-sizing example ("why 32 A100s, how long does the ensemble take") — exactly the kind of capacity math a systems-design interview would walk through, and the numbers are internally contradictory by three orders of magnitude in one place and ~865x in another.
+  - Suggested fix: Recompute total compute as 12,000 petaflop-seconds, and derive per-run time consistently from the stated 1.6 PFLOPS sustained throughput (≈12.5 min/run compute-bound, so the 6-month "pipelined 3 runs in parallel" timeline claim likely needs to be re-derived from a different bottleneck, e.g. I/O or ensemble post-processing, if 7.5 days/run is otherwise intended).
