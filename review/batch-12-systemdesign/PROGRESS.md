@@ -44,8 +44,8 @@ Volumes: F-08 (`docs/volume-08`), F-09 (`docs/volume-09`), ZTH-23 (`docs/nvidia-
 | F-09 | 20-question-set-g-whiteboard-production-genai-platform.md | done | none |
 | F-09 | 21-question-set-h-behavioral-stories-for-a-senior-sa.md | done | none |
 | F-09 | 22-current-role-family-signals-to-be-able-to-discuss.md | done | none |
-| ZTH-23 | index.md | pending | |
-| ZTH-23 | chapter-01-gpu-architecture-deep-dive.md | pending | |
+| ZTH-23 | index.md | done | none |
+| ZTH-23 | chapter-01-gpu-architecture-deep-dive.md | done | 4 high, 1 medium, 1 low |
 | ZTH-23 | chapter-02-cuda-programming-and-optimization.md | pending | |
 | ZTH-23 | chapter-03-multi-gpu-and-distributed-systems.md | pending | |
 | ZTH-23 | chapter-04-observability-and-monitoring.md | pending | |

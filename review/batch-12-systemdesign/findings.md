@@ -143,3 +143,42 @@ No issues found.
 No issues found.
 
 **F-09 volume complete.** 22/22 chapters reviewed. 1 low-severity (stale function name cross-reference), 1 medium-severity (df reserved-blocks mechanism imprecision).
+
+## Volume ZTH-23 — Interview Masterclass: GPU Systems Engineering
+
+### index.md
+No issues found.
+
+### chapter-01-gpu-architecture-deep-dive.md — MULTIPLE HIGH-SEVERITY HARDWARE/MATH ERRORS (verified independently per task instructions)
+
+- [SEVERITY: high] A100 CUDA-core count per SM is stated as 192; the correct figure is 64 FP32 CUDA cores per SM (108 SMs × 64 = 6,912 total CUDA cores, the well-documented A100 spec). 192 cores/SM is the Kepler-era (GK110) number, not Ampere.
+  - Evidence: "192 CUDA cores per SM (A100)" in the opening SM diagram.
+  - Why it matters for JR2018680: this is a headline hardware fact a candidate would state confidently and get corrected on immediately.
+  - Suggested fix: change 192 to 64.
+
+- [SEVERITY: high] Question 1's entire occupancy worked answer is quantitatively wrong and reaches the opposite conclusion from the correct one. It states "each SM has 192 KB of register file" (real A100 register file is 65,536 32-bit registers = 256 KB) and then conflates kilobytes with register count: "192 KB = 196,608 registers total per SM" (this divides nothing by the 4 bytes/register — it's treating 1 KB as ~1,024 registers instead of 256 registers). The same conflation recurs in "Follow-up Trap 2": "A100 has 255 KB = 261,120 registers." Using the real number (65,536 registers/SM), a kernel at 80 registers/thread (2,560 registers/warp) can only fit 65,536 ÷ 2,560 ≈ 25 warps — registers ARE the binding constraint, giving occupancy ≈ 25/64 ≈ 39%. The chapter's model answer instead concludes "registers aren't the constraint... The limiter is the 64-warp maximum... 100% occupancy" — the exact opposite of the correct result. The "Follow-up Trap 2" answer, whose entire purpose is to correct a candidate's mistake, reinforces the same error instead of catching it.
+  - Evidence: "With 192 KB = 196,608 registers total per SM, I can fit 196,608 ÷ 2,560 = 76 warps theoretically... The limiter is the 64-warp maximum. So my occupancy is 64 ÷ 64 = 100% occupancy." and "A100 has 255 KB = 261,120 registers. So technically it fits."
+  - Why it matters for JR2018680: this is the chapter's flagship "Explain Occupancy" question — the single most likely GPU-architecture question in an NVIDIA interview — and the memorized model answer gets the arithmetic and the conclusion backwards.
+  - Suggested fix: rebuild the worked answer using 65,536 registers/SM (256 KB), correctly compute ≈25 warps as the register-bound ceiling, and restate the conclusion as "registers are the binding constraint, occupancy ≈ 39%, not 100%."
+
+- [SEVERITY: high] H100 FP32 peak is stated as 989 TFLOPS in Question 4 (used twice) and the "Real Profiler Data" example uses the same 989 TFLOPS figure as the FP32 "Peak theoretical" for an A100 kernel. 989 TFLOPS is actually H100's dense FP16/BF16 Tensor Core peak (no sparsity). Real H100 FP32 (CUDA-core, non-tensor) peak is ~67 TFLOPS. Real A100 FP32 peak is ~19.5 TFLOPS (or ~156 TFLOPS TF32 Tensor Core) — nowhere near 989 TFLOPS. This is the same class of error a prior batch flagged as critical (H100 FP32 peak wrong, repeated across multiple files).
+  - Evidence: "Peak compute (ignoring memory): H100 = 989 TFLOPS (FP32)" (Question 4) and "FP32 compute throughput: 750 TFLOPS / Peak theoretical: 989 TFLOPS" in the "Real Profiler Data Example" (whose header states "SM count: 108 (A100)").
+  - Why it matters for JR2018680: identical error category to one already found and flagged as high-severity in a prior batch (H100 FP32 mislabeled 141 vs real 67 TFLOPS) — this volume independently repeats the same mistake with a different wrong number (989 vs real 67), confirming it is not an isolated typo but a systemic sourcing problem across the curriculum.
+  - Suggested fix: use 67 TFLOPS for H100 FP32 (CUDA core) and ~19.5 TFLOPS for A100 FP32; if the intent was Tensor Core throughput, label it explicitly as FP16/BF16 or TF32 Tensor Core, not "FP32."
+
+- [SEVERITY: high] Question 4's roofline calculation has a 1000x unit error: "2 × 10¹² bytes/sec × 0.083 FLOP/byte = 166 TFLOPS achievable" — the arithmetic actually yields 1.66×10¹¹ FLOP/s = 166 GFLOPS (0.166 TFLOPS), not 166 TFLOPS. A second, independent 1000x error appears later in the same worked answer: "If kernel achieves 80% of peak bandwidth = 1.6 TB/s / Execution time = 12 GB ÷ 1.6 GB/s ≈ 7.5 seconds" — dividing by the stated 1.6 TB/s (=1600 GB/s) gives 12/1600 = 0.0075 s = 7.5 milliseconds, not 7.5 seconds; the division line switches units from TB/s to GB/s without converting.
+  - Evidence: quotes above, Question 4 model answer.
+  - Why it matters for JR2018680: this is exactly the shape of error flagged as critical in a prior batch (ring-AllReduce bandwidth math wrong by ~8x) — here two separate 1000x errors sit in the same "model answer" a candidate would rehearse verbatim, and either would be caught instantly by an interviewer doing the arithmetic live.
+  - Suggested fix: recompute both lines with correct unit tracking (166 GFLOPS memory ceiling; ~7.5 ms execution time), and re-examine whether the memory-bound conclusion still holds against the corrected FP32 peak (67 TFLOPS) — it does (166 GFLOPS ≪ 67 TFLOPS), so the qualitative conclusion survives even though the stated numbers are wrong by 3 orders of magnitude.
+
+- [SEVERITY: medium] H100 HBM bandwidth is capped at "1.5-2 TB/s (A100 to H100)" in the opening diagram. Real H100 SXM HBM3 bandwidth is ~3.35 TB/s (up to 3.9 TB/s for H100 NVL) — the stated range understates H100's actual bandwidth by roughly 40-50%.
+  - Evidence: "Bandwidth: 1.5-2 TB/s (A100 to H100)".
+  - Why it matters for JR2018680: bandwidth-hierarchy questions ("A100 vs H100, what changed and why") are common in GPU systems interviews; understating H100's HBM3 bandwidth gap versus A100 undersells one of the most interview-relevant generational deltas.
+  - Suggested fix: state A100 (up to ~2 TB/s, HBM2e) vs H100 (~3.35 TB/s SXM, HBM3) as two distinct figures rather than one blended range.
+
+- [SEVERITY: low] Question 2's per-warp bandwidth conversion skips the clock-frequency step needed to turn bytes/cycle into bytes/second: "128 bytes / 400 cycles (latency) = 0.32 B/cycle = 102.4 GB/s effective." Multiplying 0.32 B/cycle by a realistic GPU clock (~1.4-1.5 GHz) gives well under 1 GB/s per warp, not 102.4 GB/s; the stated conversion implicitly requires an implausible ~320 GHz clock.
+  - Evidence: quoted line above, Question 2 model answer.
+  - Why it matters for JR2018680: a minor but demonstrable unit error in a bandwidth-estimation answer; low severity because the qualitative point (coalesced access is far more bandwidth-efficient than strided) still stands and the number is a throwaway aside, not the question's core conclusion.
+  - Suggested fix: either drop the specific GB/s figure or show the clock-rate multiplication step explicitly.
+
+**Overall assessment of chapter 1:** this chapter has the highest concentration of verified hardware-spec and arithmetic errors found in this batch, all in sections explicitly framed as rehearsable "model answers." Given the pattern (mislabeled FP32 peak reused twice, a 1000x-scale unit error appearing twice in one answer, and a register-file miscalculation that flips the stated conclusion), the remaining ZTH-23 chapters are being reviewed with continued extra scrutiny on any hardware/bandwidth numbers per the task brief.
