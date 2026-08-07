@@ -19,6 +19,8 @@ Be comfortable explaining **head node, compute node, software image, category, d
 
 Read this chapter with an evidence ladder in mind: fleet summary → category comparison → node-level observation → service/image logs → controlled remediation → post-remediation workload test. A dashboard showing green is the beginning of evidence, not the end.
 
+As with Chapter 2's `cmsh` sessions, the exact commands and flags below (`grabimage`, `imageupdate`, `healthconf`, `failafter`) are illustrative of the *shape* of BCM's category-drift and health-check model, not a syntax reference — verify exact flags against the installed BCM release's admin manual before quoting or running them.
+
 ## Category inheritance and drift
 
 A node category in BCM is a template: software image, kernel modules, roles, and a set of category-level configuration overlays that every member node inherits. The model only holds if every node's live state is *derived* from the category, never edited directly. In practice this breaks the first time someone SSHes into a struggling node and hand-fixes it under pressure — a driver downgrade to unblock a job, a `/etc/security/limits.conf` tweak to raise a file-descriptor cap, a manually-added udev rule for a flaky NIC.

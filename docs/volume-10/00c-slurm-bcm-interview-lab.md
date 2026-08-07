@@ -129,6 +129,74 @@ scontrol show node <node> | grep -E 'State|CfgTRES|AllocTRES|Gres|CfgTRES'
 
 The gate asks separate questions: is the hardware visible, is health acceptable, is `slurmd` registered, is GPU capability declared, and is device isolation enforced? One green command cannot answer all five.
 
+## Lab 5b — write the request-side GPU allocation syntax
+
+Labs 1-5 are read-side: they establish whether a job or node is healthy. An interviewer is just as likely to hand you a whiteboard and ask you to *write* the `sbatch` line that requests the resources in the first place. These are the three patterns worth having cold, copy-paste-ready:
+
+**Single job, explicit GPU count per node:**
+
+```bash
+#!/bin/bash
+#SBATCH --job-name=nccl-smoke
+#SBATCH --partition=gpu
+#SBATCH --nodes=2
+#SBATCH --ntasks-per-node=2
+#SBATCH --gres=gpu:2
+#SBATCH --cpus-per-task=8
+#SBATCH --time=00:30:00
+#SBATCH --output=%x-%j.out
+
+srun nvidia-smi --query-gpu=index,uuid --format=csv
+```
+
+`--gres=gpu:2` requests 2 GPUs per node (add a type, e.g. `--gres=gpu:h100:2`, when a partition mixes GPU generations). `--ntasks-per-node=2` pairs one task per requested GPU, which is the usual shape for an `srun`-launched NCCL/MPI job — mismatching tasks and GPUs is a common self-inflicted "why is only half the job running" bug.
+
+**Job array — same script, many independent runs (e.g. a hyperparameter sweep):**
+
+```bash
+#!/bin/bash
+#SBATCH --job-name=sweep
+#SBATCH --partition=gpu
+#SBATCH --gres=gpu:1
+#SBATCH --array=1-8
+#SBATCH --output=sweep-%A_%a.out
+
+python train.py --config configs/run_${SLURM_ARRAY_TASK_ID}.yaml
+```
+
+`--array=1-8` submits 8 independent jobs sharing one script, each with its own `$SLURM_ARRAY_TASK_ID`; `%A_%a` in the output pattern expands to the array's parent job ID and the individual task index, so logs don't collide. Each array task gets its own GRES allocation (`--gres=gpu:1` here), not a shared one — this is the detail interviewers probe to check you understand array tasks are independent jobs, not threads inside one allocation.
+
+**Exclusive whole-node allocation (no other job's processes share the node, even if GPUs are idle):**
+
+```bash
+#!/bin/bash
+#SBATCH --job-name=full-node-training
+#SBATCH --partition=gpu
+#SBATCH --nodes=4
+#SBATCH --exclusive
+#SBATCH --gres=gpu:8
+#SBATCH --time=04:00:00
+
+srun --mpi=pmix ./launch_training.sh
+```
+
+`--exclusive` reserves the whole node for this job even if it doesn't request every core or GPU on it — the difference from a plain `--gres=gpu:8` request is that without `--exclusive`, Slurm is still free to schedule another job's CPU-only work onto the same node's leftover cores while your job runs, which is fine for shared inference nodes but is exactly what you don't want for a bandwidth-sensitive multi-node training job where a noisy neighbor process can perturb NCCL timing.
+
+**Reading the result back — confirm the allocation matches what you asked for:**
+
+```bash
+scontrol show job <job_id> | grep -E 'JobId|NumNodes|NumCPUs|TRES|Gres'
+```
+
+| Field | What it confirms |
+|---|---|
+| `NumNodes` | node count matches `--nodes` |
+| `TRES=...gres/gpu=N` | total GPUs across the allocation matches `--gres` × node count |
+| `Gres=gpu:N(IDX:...)` | which physical GPU indices this job actually holds |
+| `ExclusiveMode` (or `Shared=no` in `scontrol show job` output) | whether `--exclusive` actually took effect |
+
+Never trust that a flag "worked" just because `sbatch` returned a job ID — a malformed `--gres` request that Slurm can't satisfy on any node will sit `PENDING` with `Reason=Resources` (or `ReqNodeNotAvail` if you also named specific nodes) rather than erroring at submit time. Cross-check `scontrol show job` against what you intended before assuming the request-side syntax is correct.
+
 ## Lab 6 — simulate a multi-node failure without changing the cluster
 
 Use captured logs or a test allocation. Classify the failure by the last successful boundary:
@@ -194,6 +262,7 @@ You are ready to discuss this stack when you can explain, without notes:
 - BMC versus BCM versus Linux versus Slurm;
 - category, image, provisioning, health, drain and resume;
 - `squeue` reason, node state, GRES/TRES, association and QoS;
+- how to write `sbatch --gres=gpu:N`, `--array=`, and `--exclusive` from memory, and how to confirm the resulting allocation in `scontrol show job`;
 - why `slurmdbd` and accounting are separate from live scheduling;
 - how a GPU reaches a Slurm job and becomes device-isolated;
 - how to separate launch, GPU, fabric, storage and application failures;
