@@ -13,9 +13,9 @@ Volumes: F-03 (`docs/volume-03`), ZTH-10 (`docs/nvidia-zero-to-hero/volume-10`),
 | F-03 | 07-chapter-7-autoscaling-and-capacity.md | done | low | |
 | F-03 | 08-chapter-8-operators-gitops-and-platform-engineering.md | done | low | |
 | F-03 | 09-chapter-9-upgrades-reliability-and-cluster-operations.md | done | medium | |
-| F-03 | 10-senior-deep-dive-1-api-machinery-resourceversion-watches-finalizers-and-owners.md | pending | |
-| F-03 | 11-senior-deep-dive-2-etcd-quorum-control-plane-failure-and-recovery-boundaries.md | pending | |
-| F-03 | 12-senior-deep-dive-3-scheduling-framework-preemption-gang-topology-and-dra.md | pending | |
+| F-03 | 10-senior-deep-dive-1-api-machinery-resourceversion-watches-finalizers-and-owners.md | done | low | |
+| F-03 | 11-senior-deep-dive-2-etcd-quorum-control-plane-failure-and-recovery-boundaries.md | done | low | |
+| F-03 | 12-senior-deep-dive-3-scheduling-framework-preemption-gang-topology-and-dra.md | done | low | |
 | F-03 | 13-senior-deep-dive-4-kubelet-cri-pod-sandbox-and-node-pressure.md | pending | |
 | F-03 | 14-senior-deep-dive-5-networking-service-abstraction-cni-dataplane-dns-and-gatewa.md | pending | |
 | F-03 | 15-senior-deep-dive-6-admission-policy-and-multi-tenant-guardrails.md | pending | |

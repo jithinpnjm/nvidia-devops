@@ -54,3 +54,16 @@
   - Why it matters for JR2018680: version-skew policy is a textbook K8s-internals interview question; stating the direction of a documented policy change backwards is exactly the kind of error a hiring manager doing a deep technical round would catch.
   - Suggested fix: verify current upstream skew policy for the target K8s version and correct the direction of the "older policy allowed X" claim (should read: older policy allowed 2, current/1.28+ allows up to 3).
 - Otherwise strong: control-plane-first upgrade ordering, `/readyz?verbose` decomposition, PDB `allowedDisruptions` arithmetic gating drain concurrency, and the GPU-node-upgrade validation gate (kubelet Ready is necessary but not sufficient — driver DaemonSet/device-plugin/allocatable/smoke-test) are accurate and interview-depth.
+
+### 10-senior-deep-dive-1-api-machinery-resourceversion-watches-finalizers-and-owners.md
+- [SEVERITY: low] No material issues found. Cleanly cross-references Chapter 1 rather than duplicating it; finalizer two-phase-delete vs. OwnerReferences-cascading-GC distinction (opposite temporal direction) is a genuinely useful, accurate contrast.
+
+### 11-senior-deep-dive-2-etcd-quorum-control-plane-failure-and-recovery-boundaries.md
+- [SEVERITY: low] No material issues found. Quorum math table (including the even-vs-odd member count point: 4 members buys zero extra fault tolerance over 3) and the "control plane down / workloads still serving" split are accurate and address a genuinely common interview misconception well.
+
+### 12-senior-deep-dive-3-scheduling-framework-preemption-gang-topology-and-dra.md
+- [SEVERITY: low] Minor internal inconsistency: the chapter states DRA's "Core DRA APIs graduated to GA in Kubernetes 1.34" but the accompanying sample `kubectl api-resources` output still shows `resource.k8s.io/v1beta1` as the group/version for `resourceclaims`/`deviceclasses`. GA APIs conventionally ship as `v1`, not `v1beta1`, so the sample output contradicts the GA claim stated two paragraphs earlier.
+  - Evidence: line 14 ("Core DRA APIs graduated to GA in Kubernetes 1.34") vs. lines 89-90 (`resource.k8s.io/v1beta1`).
+  - Why it matters for JR2018680: DRA is called out explicitly as squarely in-scope for this JD's "advanced" bar; a candidate who memorizes the sample output's API version as canonical would state a stale/inconsistent fact if asked live.
+  - Suggested fix: confirm the actual GA group/version for the target K8s release and align the sample output (or soften the GA claim to name the specific version if it's still beta at time of writing).
+- Otherwise excellent: preemption's two-gate decision sequence (PDB minAvailable, then re-check Filter predicates) correctly explains why preemption is not a capacity strategy, and the device-plugin-vs-DRA structured-claims contrast (ResourceClaim/DeviceClass/ResourceClaimTemplate, NVLink-topology-aware allocation) is accurate and squarely relevant to GPU scheduling interview questions.
