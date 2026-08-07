@@ -45,12 +45,13 @@ A cloud provider runs a multi-tenant GPU cluster. Three customers lease GPUs:
 
 ## Real Vulnerabilities
 
-### Vulnerability 1: Untrusted Kernel Launch
+### Vulnerability 1: Untrusted Kernel Launch (Same-GPU Time-Slicing)
 
-**Threat:** Customer B's kernel can influence memory access patterns of Customer A's kernel on a different GPU, exposing data via side-channel (timing attack).
+**Threat:** Customer A and Customer B are both scheduled onto the **same physical GPU** via time-slicing (not MIG — a common fallback when hardware-partitioned capacity is scarce). Because their kernels run in the same SMs and share the same L2 cache and memory controller when their contexts are swapped back-to-back, Customer B's kernel can probe residual cache/DRAM state left behind by Customer A's kernel and measure access latency to infer which addresses Customer A recently touched — a classic **same-device** timing side-channel. This does *not* work across two separate, hardware-isolated physical GPUs (they don't share caches or a memory controller), so the attack only applies when A and B are time-sliced onto one GPU or co-located on the same MIG-partitioned die where cache is not partitioned.
 
 ```cuda
-// Customer B's malicious kernel (on GPU 1)
+// Customer B's malicious kernel — running on the SAME physical GPU as
+// Customer A, in the time-slice immediately following Customer A's kernel
 __global__ void timing_side_channel() {
     int shared_secret = 0;
     
@@ -66,16 +67,17 @@ __global__ void timing_side_channel() {
         long long latency = end - start;
         
         if (latency < threshold) {
-            // Memory was cached; A's kernel probably accessed it
+            // Memory was cached (from Customer A's prior time-slice) or the
+            // DRAM row buffer was already open; A's kernel probably accessed it
             shared_secret |= (1 << bit);
         }
     }
 }
 ```
 
-**Impact:** Customer B can infer properties of Customer A's data through timing attacks.
+**Impact:** Customer B can infer properties of Customer A's data through timing attacks, but only when both tenants share the same physical GPU (time-sliced or non-cache-partitioned MIG) — not across separate physical GPUs.
 
-**Fix:** Disable independent GPU kernel execution (MIG isolation) or use kernel execution filtering.
+**Fix:** Use MIG with cache/memory partitioning instead of time-slicing for tenants with differing trust levels, or flush L2 cache and reset memory controller state between time-sliced context switches.
 
 ### Vulnerability 2: Shared L2 Cache Side-Channel
 
