@@ -5,7 +5,15 @@ sidebar_position: 13
 tags: [summary, distributed-training, review]
 ---
 
-# Volume 13 Summary
+# Chapter 12: Volume 13 Summary
+
+| Chapter metadata | Value |
+|---|---|
+| Volume | 13 — Distributed Training Foundations |
+| Difficulty | Recap |
+| Estimated reading time | 30 minutes |
+| Purpose | Consolidate learning from Chapters 1-11 |
+| Review focus | Core concepts, architecture decisions, production lessons |
 
 ## The Journey So Far
 

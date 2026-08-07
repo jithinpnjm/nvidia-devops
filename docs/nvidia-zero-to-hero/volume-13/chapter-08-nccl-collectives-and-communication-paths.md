@@ -7,6 +7,14 @@ tags: [nccl, collectives, gpu-networking]
 
 # NCCL Collectives and Communication Paths
 
+| Chapter metadata | Value |
+|---|---|
+| Volume | 13 — Distributed Training Foundations |
+| Difficulty | Advanced |
+| Estimated reading time | 60 minutes |
+| Primary audience | Infrastructure Engineers, Network specialists |
+| Core question | How do billions of parameters move between GPUs efficiently? |
+
 ## WHY
 
 When training deep neural networks across multiple GPUs, no single GPU holds the entire training state or data. They must constantly exchange gradients, optimizer states, and model parameters. If this communication is slow, your expensive GPUs spend more time waiting than calculating. The problem this solves is ensuring that data movement between GPUs happens as efficiently as physically possible.
