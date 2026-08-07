@@ -139,10 +139,12 @@ GPU workload needs:
 
 ➕ **Shortcut — namespace-wide Pod Security Admission audit before enforcing anything:**
 ```bash
-kubectl label ns team-a pod-security.kubernetes.io/audit=restricted --dry-run=server
+kubectl label ns team-a pod-security.kubernetes.io/audit=restricted
 kubectl get events -n team-a --field-selector reason=FailedCreate | grep -i "violates PodSecurity"
 ```
-`audit=` (not `enforce=`) lets you see *what would break* under a stricter policy without actually blocking anything — always run audit before enforce on an existing namespace.
+`audit=` (not `enforce=`) logs a warning to the audit log — not a blocking error — for any Pod *created or updated* after the label is applied, if that Pod would violate the labeled policy. It does **not** retroactively evaluate Pods that are already running: PSA only evaluates at admission time, so a Pod that predates the label (and is never subsequently recreated or updated) will never generate an audit annotation, no matter how long the label sits there. Also note `--dry-run=server` persists nothing at all — it wouldn't even apply the label — so don't combine it with this workflow.
+
+To find out whether *already-running* Pods in a namespace would violate a stricter policy, passive audit-mode observation over time is not enough; you need a one-time check against each existing Pod spec instead — e.g. `kubectl-validate`/`pod-security` static checkers, an OPA/Kyverno dry-run policy evaluation, or (if you want PSA itself to be the judge) forcing re-admission with a rolling restart under the audit label so each Pod actually passes through the admission chain again.
 
 ## Practice
 1. Explain why a ServiceAccount with broad Kubernetes RBAC could still have zero cloud permissions, and vice versa.
