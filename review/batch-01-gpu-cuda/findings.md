@@ -142,3 +142,11 @@ Same exceptional depth and style as ZTH-02: worked evidence chains, real command
 
 ### chapter-11-compilation-binaries-and-compatibility.md
 - No findings. PTX vs SASS distinction, JIT compilation and caching behavior, and the `cuobjdump --list-elf`/`--list-ptx` diagnostic sequence are accurate. sm_80 (A100), sm_86 (A10/A40), sm_90 (H100) compute-capability-to-architecture mappings are correct.
+
+### chapter-12-profiling-and-production-troubleshooting.md
+- No findings. Three-level profiling funnel (SLO -> system timeline -> kernel analysis) is a sound methodology. `compute-sanitizer` illegal-access example bounds math (thread 287, block 3906, blockDim 256 -> index 1,000,223) is arithmetically correct and consistent with the Chapter 4 bounds-check defect it references.
+
+### chapter-13-volume-03-summary.md
+- No findings. Consolidation is accurate and consistent with all prior chapters; the fault-isolation decision-tree diagram correctly maps symptom classes to the chapters that own them.
+
+**Volume ZTH-03 summary:** Zero medium/high severity findings across all 13 chapters. Consistent with ZTH-02's exceptional depth — real command transcripts, correct hardware/software facts (A100/H100 SM counts and compute capabilities, sm_80/86/90 mappings, PCIe/NVLink bandwidth figures, KV-cache and register-residency math), and first-person interview answers throughout.
