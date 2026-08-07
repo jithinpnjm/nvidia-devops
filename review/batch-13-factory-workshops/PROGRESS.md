@@ -7,7 +7,7 @@ no content) alongside the real chapter files. These are excluded from review as 
 |---|---|---|---|
 | ZTH-21 | index.md | pending | |
 | ZTH-21 | chapter-01-ai-factory-fundamentals-and-design-principles.md | done | high:1, low:1 |
-| ZTH-21 | chapter-02-gpu-compute-cluster-design.md | pending | |
+| ZTH-21 | chapter-02-gpu-compute-cluster-design.md | done | high:2, medium:1 (FP32 pattern + TFLOPS 1000x slip) |
 | ZTH-21 | chapter-03-high-speed-networking-architecture.md | pending | |
 | ZTH-21 | chapter-04-storage-infrastructure-for-ai-pipelines.md | pending | |
 | ZTH-21 | chapter-05-power-delivery-and-thermal-management.md | pending | |
