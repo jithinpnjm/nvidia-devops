@@ -46,26 +46,21 @@ Tokens per year: 100 trillion
 Tokens per step: batch_size × seq_length = 256 × 2048 = 524,288 tokens
 Model FLOPs per token: 2 × model_size = 2 × 50B = 100 GFLOP
 
-Total FLOPs per year: 100T × 100G = 10^22 FLOPs
+Total FLOPs per year: 100T × 100G = 10^14 × 10^11 = 10^25 FLOPs
 H100 throughput: 1400 TFLOPS (FP8, with Tensor Cores) = 1.4 × 10^12 FLOPs/sec
 Seconds per year: 365.25 × 24 × 3600 = 31,557,600
-Available compute: 1.4 × 10^12 × 31,557,600 = 4.42 × 10^19 FLOPs
+Available compute per GPU-year: 1.4 × 10^12 × 31,557,600 = 4.42 × 10^19 FLOPs
 
-GPUs needed: 10^22 / (4.42 × 10^19) ≈ 226 GPU-years
+GPUs needed: 10^25 / (4.42 × 10^19) ≈ 226,244 GPU-years
 
-For continuous training (1 year): 226 GPUs
+For continuous training (1 year): ~226,244 GPUs
 ```
 
-**But add overheads:**
-- Fault tolerance: keep 1 GPU idle as hot spare (226 / 0.99 ≈ 228)
-- Synchronization overhead: AllReduce takes 5-10% of time → 228 × 1.08 ≈ 246
-- Practical batch size (memory): can't fit batch 256 on single GPU; need 4-8 GPUs per replica
-  - Total replicas needed: 256 / 32 (batch per GPU) = 8 replicas
-  - If each replica is 246 GPUs, total = 246 × 8 / 8 = 246 (no change, but matters for topology)
+**Design tension — read this before continuing:** 226,244 GPUs is roughly 2,500× more than a $5M budget can buy at ~$40K/H100 (that budget buys ~100 GPUs). Something in the stated requirements doesn't fit together: a 50B-parameter model producing 100 trillion tokens/year of *training* throughput on a $5M cluster is not physically achievable — that combination of (model size × token target × budget) describes different orders of magnitude of infrastructure (this is closer to the compute budget of a large multi-thousand-GPU frontier training run, not a $5M research cluster). Two honest paths forward, both of which a real infrastructure architect would take:
+1. **Push back on the requirement.** Ask what "100T tokens/year" actually needs to mean — is it *inference* serving volume (a very different, much cheaper FLOPs/token workload), or was the token target set without a compute budget sanity-check?
+2. **Design to what the budget can deliver, and report the gap.** This is the path taken below (Steps 2–4): size a cluster to the $5M budget, calculate what it can *actually* deliver using directly-measured per-GPU throughput (Step 4), and report the shortfall honestly rather than reverse-engineering the arithmetic to make the numbers agree.
 
-**Conclusion: 256 GPUs (round up for 50% headroom)** or 128 GPUs (tight) or 100 GPUs (very tight, not recommended)
-
-Choose: **100 GPUs** to stay in budget; will be at 85% utilization (acceptable for research).
+Choose: **90–100 GPUs** to stay in budget. As Step 4 will show, this cluster delivers roughly 22–25 trillion tokens/year — a genuine ~4× shortfall against the stated 100T/year target that any design review should surface, not hide.
 
 ### Step 2: Design Interconnect Topology
 
