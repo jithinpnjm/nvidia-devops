@@ -59,13 +59,15 @@ Status values: pending / in-progress / done
 | F-04 | 05-chapter-5-gpu-sharing-mig-time-slicing-mps-and-vgpu.md | done | none |
 | F-04 | 06-chapter-6-gpu-telemetry-dcgm-and-health.md | done | none |
 | F-04 | 07-chapter-7-capacity-and-failure-domain-design.md | done | none |
-| F-04 | 08-senior-deep-dive-1-gpu-execution-model-without-cuda-programming-overload.md | pending | |
-| F-04 | 09-senior-deep-dive-2-topology-pcie-nvlink-nvswitch-and-numa.md | pending | |
-| F-04 | 10-senior-deep-dive-3-driver-cuda-compatibility-and-container-integration.md | pending | |
-| F-04 | 11-senior-deep-dive-4-gpu-operator-as-a-dependency-reconciler.md | pending | |
-| F-04 | 12-senior-deep-dive-5-sharing-mig-time-slicing-mps-and-vgpu.md | pending | |
-| F-04 | 13-senior-deep-dive-6-dcgm-xid-ecc-and-health-semantics.md | pending | |
-| F-04 | 14-senior-deep-dive-7-fleet-lifecycle-upgrades-draining-and-known-good-validation.md | pending | |
+| F-04 | 08-senior-deep-dive-1-gpu-execution-model-without-cuda-programming-overload.md | done | low |
+| F-04 | 09-senior-deep-dive-2-topology-pcie-nvlink-nvswitch-and-numa.md | done | none |
+| F-04 | 10-senior-deep-dive-3-driver-cuda-compatibility-and-container-integration.md | done | none |
+| F-04 | 11-senior-deep-dive-4-gpu-operator-as-a-dependency-reconciler.md | done | none |
+| F-04 | 12-senior-deep-dive-5-sharing-mig-time-slicing-mps-and-vgpu.md | done | none |
+| F-04 | 13-senior-deep-dive-6-dcgm-xid-ecc-and-health-semantics.md | done | none |
+| F-04 | 14-senior-deep-dive-7-fleet-lifecycle-upgrades-draining-and-known-good-validation.md | done | none |
 
 ## Cross-curriculum check (ZTH-02/03 vs F-04)
-- pending — to be filled once both sides reviewed.
+- DONE — see findings.md "Cross-curriculum check" section. No contradictions found. One low-severity duplication finding (F-04 Ch1 vs ZTH-01/ZTH-03 foundational material). Volumes otherwise cover materially different territory (CUDA/microarchitecture-first vs infrastructure/platform-ops-first).
+
+## Batch Status: ALL 4 VOLUMES COMPLETE (ZTH-01, ZTH-02, ZTH-03, F-04)

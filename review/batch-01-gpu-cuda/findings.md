@@ -1,6 +1,23 @@
 # Batch 01 — GPU & CUDA Fundamentals — Findings
 
-(Summary to be added at top once review is complete.)
+## Summary (review complete — all 4 volumes: ZTH-01, ZTH-02, ZTH-03, F-04)
+
+**Totals by severity:** High: 0. Medium: 0. Low: 2.
+
+This batch (60 files: 43 ZTH chapters/labs across volumes 01-03, plus 14 F-04 chapters) is the strongest-reviewed content seen in the interview-prep curriculum. No factual/technical errors were found anywhere in the batch. Every checked hardware and software fact was correct: H100 (132 SMs, compute capability 9.0, ~3.35TB/s HBM3, ~900GB/s NVLink aggregate, 989 TFLOPS FP16 dense), A100 (108 SMs, compute capability 8.0), A10 (72 SMs), sm_80/86/90 architecture mappings, PCIe Gen4/Gen5 bandwidth figures, MIG profile geometries, and the full NVIDIA Xid error code table (13, 31, 43, 48, 63/64, 79).
+
+**The 2 low-severity findings, both non-technical:**
+1. ZTH-01 chapter-03 ("CPU vs GPU") is purely qualitative with no concrete FLOPS/bandwidth numbers, even though the chapter title implies a numeric comparison — low severity because Volumes 02/03 supply the numbers immediately after.
+2. F-04 Chapter 1 duplicates CPU/GPU/CUDA/driver-toolkit foundational material already covered by ZTH-01 and ZTH-03 chapters 1-2 — low severity because F-04 itself acknowledges and cross-references this in its own "Senior Deep Dive 1" addendum.
+
+**Top 5 findings most relevant to interview prep (JR2018680):**
+1. **This is genuinely gold-standard interview-prep material.** ZTH-02/03 in particular consistently pair every claim with real command output (`nvidia-smi`, `dmon`, `ncu`, `nvcc -Xptxas=-v`, `nsys`, `compute-sanitizer`) and first-person "model answer" interview responses — this is exactly the mechanism-first, evidence-based reasoning a NVIDIA AI-infra interview probes for.
+2. **GPU memory hierarchy and roofline reasoning are covered with real numbers**, not hand-waving: register-file residency math, HBM bandwidth-per-token decode-latency floors, and the compute-vs-memory-bound roofline crossover (ridge point) are each worked out arithmetically in both ZTH-02 and F-04's Senior Deep Dive 1 — a candidate who internalizes these worked examples can derive bottleneck classifications live in an interview rather than reciting definitions.
+3. **The driver/CUDA-toolkit/container compatibility chain is taught correctly and repeatedly**, including the frequently-confused point that `nvidia-smi`'s "CUDA Version" field reports the driver's maximum supported CUDA version, not an installed toolkit version — this is a common real-world (and interview) trip-up and it's stated correctly in every volume that touches it.
+4. **F-04's Xid/DCGM health-semantics table (Senior Deep Dive 6) is a standout, high-value asset** for the "hardware/bare-metal" portion of the interview loop — it correctly maps specific Xid codes to specific next actions (application-bug vs hardware-degradation vs immediate-drain), which is exactly the kind of on-call-experience knowledge a senior AI-infra interview tests for.
+5. **Cross-curriculum consistency is strong.** ZTH-02/03 (CUDA-programming/microarchitecture-first) and F-04 (infrastructure/platform-ops-first) cover the GPU domain from genuinely different angles with no factual contradictions between them — the only meaningful overlap is F-04 Chapter 1's re-introduction of material ZTH-01 already covers, which F-04 itself flags for the reader.
+
+---
 
 ## Volume ZTH-01 — What Is AI Infrastructure
 
@@ -193,3 +210,36 @@ This volume has a visibly different structure than ZTH-01/02/03: each chapter is
 
 ### 07-chapter-7-capacity-and-failure-domain-design.md
 - No findings. Fleet-shape-vs-GPU-count reasoning and N+1 node-level (not GPU-level) reserve sizing argument are sound and correctly tied to the NVSwitch-node failure-domain concept from Chapter 2.
+
+### 08-senior-deep-dive-1-gpu-execution-model-without-cuda-programming-overload.md
+- [SEVERITY: low] Heavy duplication with Chapter 1 (arithmetic intensity/roofline, prefill vs decode) is explicitly acknowledged and cross-referenced in-text by the document itself ("Rather than duplicate, this addendum adds only what's genuinely new..."), which is good practice, but the underlying chapter-vs-deep-dive split still means a reader covers prefill/decode arithmetic-intensity reasoning up to 3 times across F-04 Ch1 + this Deep Dive + ZTH-02 chapter-11's ridge-point treatment.
+  - Why it matters for JR2018680: not a technical error, just redundant reading load; the self-aware cross-referencing here is actually a good model for how the earlier volumes could have handled overlap.
+  - Suggested fix: none required; content is accurate and the self-referential note already mitigates the concern.
+- No factual errors. Roofline model (balance point = peak FLOPS / peak HBM bandwidth) is correct and consistent with ZTH-02 chapter-11's identical calculation.
+
+### 09-senior-deep-dive-2-topology-pcie-nvlink-nvswitch-and-numa.md
+- No findings. `nvidia-smi topo -p2p r` (OK/NS) and `nvidia-smi nvlink --status` per-link bandwidth output are accurate and correctly distinguished from the `topo -m` NV/PHB/SYS matrix (intended wiring vs actual live link health).
+
+### 10-senior-deep-dive-3-driver-cuda-compatibility-and-container-integration.md
+- No findings. CDI spec file path (`/var/run/cdi/nvidia.com-gpu.json`) and `modinfo nvidia`/`ctr -n k8s.io` diagnostic commands are accurate; CDI-vs-legacy-hook path distinction is correct.
+
+### 11-senior-deep-dive-4-gpu-operator-as-a-dependency-reconciler.md
+- No findings. ClusterPolicy operand dependency ordering (Driver -> Toolkit -> device plugin -> DCGM/GFD/MIG manager) is accurate.
+
+### 12-senior-deep-dive-5-sharing-mig-time-slicing-mps-and-vgpu.md
+- No findings. Requirement-driven decision tree is logically sound; `nvidia-smi vgpu -q` expected-failure-on-bare-metal explanation is correct.
+
+### 13-senior-deep-dive-6-dcgm-xid-ecc-and-health-semantics.md
+- No findings. Xid code table is accurate against NVIDIA's published Xid error reference: Xid 13 (graphics engine exception), Xid 31 (GPU memory page fault), Xid 43 (GPU stopped processing), Xid 48 (double-bit ECC error), Xid 63/64 (row-remapping pending/failed), Xid 79 (GPU fallen off the bus) — all correctly described with appropriate next actions. This is a genuinely high-value, interview-relevant table.
+
+### 14-senior-deep-dive-7-fleet-lifecycle-upgrades-draining-and-known-good-validation.md
+- No findings. Lifecycle state model (provision -> validate -> admit -> observe -> drain -> upgrade -> revalidate -> return) and the canary-node-first rollout pattern are sound operational practice, consistent with the rest of the volume's evidence-based approach.
+
+**Volume F-04 summary:** Across all 14 chapters, one low-severity cross-curriculum duplication finding (Chapter 1 vs ZTH-01/ZTH-03's CPU/GPU/CUDA/driver foundational material — largely self-mitigated by F-04's own Deep-Dive-1 cross-reference table). No technical/factual errors found in any chapter. Xid code table (Deep Dive 6) and the MIG/time-slicing/MPS/vGPU decision framework (Chapter 5 / Deep Dive 5) are particularly strong, interview-ready material.
+
+## Cross-curriculum check: ZTH-02/ZTH-03 vs F-04
+
+- **Contradictions found: none.** All overlapping factual claims (H100 SM count and specs, NVLink/PCIe bandwidth figures, driver-vs-CUDA-toolkit-vs-runtime layering, `nvidia-smi` CUDA-Version-is-a-ceiling-not-installed-version caveat, MIG/time-slicing/MPS isolation semantics, Xid/ECC health signals) are consistent across both curricula.
+- **Duplication assessment:** ZTH-02/ZTH-03 and F-04 cover substantially different territory in practice despite both being "GPU foundations" volumes. ZTH-02/03 are CUDA-programming/GPU-microarchitecture-first (warp scheduling, register allocation, memory coalescing, CUDA API mechanics, kernel launch geometry) — essentially a hardware-and-programming-model curriculum. F-04 is infrastructure/platform-operations-first (Kubernetes device plugins, GPU Operator, DCGM/Xid triage, MIG-as-a-scheduling-resource, fleet lifecycle) — essentially an SRE/platform-engineer curriculum that happens to open with the same "why GPUs exist" material ZTH-01 covers.
+- **The one real overlap worth flagging:** F-04 Chapter 1 ("GPU execution and memory mental model") reintroduces the CPU-vs-GPU/CUDA-vs-driver-vs-toolkit material that ZTH-01 and ZTH-03 chapters 1-2 already cover in comparable or greater depth. This is flagged as a low-severity finding under F-04 Chapter 1 above. Volume-04 Chapter 2 (topology) also covers similar ground to ZTH-02 chapter-10, but from a distinctly different angle (NCCL/Kubernetes operations vs GPU-architecture education) that adds rather than merely repeats.
+- **Depth-bar comparison:** Both curricula reach a very high, evidence-based depth bar (real command output, worked numeric examples, first-person interview answers / "interview-ready lines"). ZTH-02/03 is slightly more rigorous in its consistent chapter template (Learning Objectives, Big Picture, Internal Working, Architecture, Production Troubleshooting, Interview Preparation sections every chapter); F-04 is organized as short core sections plus "➕" addendum blocks that read like a later depth-rework layered onto a shorter original document — the effect is very similar total depth but a less uniform structure within F-04 itself.
