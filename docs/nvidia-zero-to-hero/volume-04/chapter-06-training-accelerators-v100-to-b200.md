@@ -254,4 +254,5 @@ Draw the difference between scale-up and scale-out communication and show where 
 - [Accelerator Generations and Design Shifts](./chapter-03-accelerator-generations-and-design-shifts)
 - [PCIe, SXM, and Platform Integration](./chapter-04-pcie-sxm-and-platform-integration)
 - [Inference Accelerators](./chapter-05-inference-accelerators-t4-l4-and-l40s)
+- [Chapter 07 — Grace CPU, GH200, and GB200 Superchips](./chapter-07-grace-cpu-and-superchips)
 - [Lab 02 — Benchmark an Inference Accelerator Shortlist](./labs/lab-02-benchmark-an-inference-accelerator-shortlist)
