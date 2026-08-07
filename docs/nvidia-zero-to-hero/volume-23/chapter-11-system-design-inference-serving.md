@@ -41,17 +41,19 @@
 - Tokens = (prompt + completion) both counted
 - Monthly updates
 - Batching allowed up to 32 requests per inference
-- Peak: 50K concurrent users × 5 requests/user/hour ÷ 3600 = 70K req/sec peak
+- Peak: 50K concurrent users × 5 requests/user/hour ÷ 3,600 sec/hour = 250,000 requests/hour ÷ 3,600 ≈ **69.4 req/sec peak** (not 70K — watch the arithmetic: 50,000 × 5 = 250,000 requests *per hour*, and dividing that by 3,600 seconds/hour gives requests *per second*, landing at roughly 69-70, not 70,000. Appending three extra zeros here is the single root-cause error that inflated everything downstream in earlier drafts of this walkthrough.)
 - Each request: avg 200 prompt tokens + 100 completion tokens = 300 tokens
 
 **Tokens per second (peak):**
 
 ```
-70K req/sec × 300 tokens/req = 21M tokens/sec peak
-Off-peak: 21M ÷ 5 = 4.2M tokens/sec
+69.4 req/sec × 300 tokens/req ≈ 20,833 tokens/sec peak (~20.8K tokens/sec)
+Off-peak: 20,833 ÷ 5 ≈ 4,167 tokens/sec (~4.2K tokens/sec)
 
-Continuous average (24h): (4.2M × 16 hours + 21M × 8 hours) ÷ 24 = 10M tokens/sec
+Continuous average (24h): (4,167 × 16 hours + 20,833 × 8 hours) ÷ 24 ≈ 9,722 tokens/sec (~9.7K tokens/sec)
 ```
+
+This is a genuinely modest workload — about 70 requests landing per second, sustained. That reframes everything that follows: this system does not need hundreds of GPUs to keep up with raw demand. The interesting design questions become model-tier routing, tail latency, and multi-tenant fairness, not raw throughput scaling.
 
 ### Phase 2: Architecture Overview (4 minutes)
 
@@ -91,22 +93,40 @@ Continuous average (24h): (4.2M × 16 hours + 21M × 8 hours) ÷ 24 = 10M tokens
 13B model: 26GB → Needs tensor parallelism (2 L40S) or pipeline
 70B model: 140GB → Needs 3 L40S with tensor parallelism
 
-GPUs needed (peak 21M tokens/sec):
+GPUs needed (corrected peak: ~20,833 tokens/sec, not 21M):
 
 Throughput per GPU:
 - L40S: ~500 tokens/sec (empirically measured with vLLM)
 - 1 L40S-week dedicated to 7B: 500 × 7 × 24 × 3600 = 302M tokens/week
 
-For 21M tokens/sec peak:
-- 7B pool: 42 L40S (21M ÷ 500 = 42K tokens/sec, × 1 GPU per 500 = 42)
-- 13B pool: 84 L40S (each handles 250 tokens/sec)
-- 70B pool: 42 L40S (with tensor parallelism, 3 GPUs per model instance)
+**Traffic split assumption** (not given in the scenario — state this explicitly to
+the interviewer): 50% of requests route to 7B (simple queries), 30% to 13B
+(balanced), 20% to 70B (complex). Different assumed splits will change the exact
+GPU counts below, but not the qualitative conclusion (a dramatically smaller
+fleet than the uncorrected 252-GPU answer).
 
-Total: 42 + 84 + 126 = 252 L40S for peak
-Cost: 252 × $12K = $3M hardware
+For ~20,833 tokens/sec peak:
+- 7B pool: 50% × 20,833 ≈ 10,417 tokens/sec ÷ 500 tokens/sec/GPU ≈ 21 L40S
+- 13B pool: 30% × 20,833 ≈ 6,250 tokens/sec ÷ 250 tokens/sec/instance ≈ 25 instances × 2 GPUs/instance (tensor parallelism) = 50 L40S
+- 70B pool: 20% × 20,833 ≈ 4,167 tokens/sec ÷ 150 tokens/sec/instance ≈ 28 instances × 3 GPUs/instance (tensor parallelism) = 84 L40S
 
-Off-peak: Scale down to 50 L40S via autoscaling
+Total: 21 + 50 + 84 ≈ **155 L40S for peak** (not 252 — the earlier 252-GPU figure
+was built on the 1000x-inflated 21M tokens/sec input and, independently, its own
+internal arithmetic didn't actually follow from that input either)
+Cost: 155 × $12K ≈ **$1.86M hardware** (not $3M)
+
+Off-peak (~1/5 of peak demand): scale down to roughly 30-35 L40S via autoscaling
+— this reuses the same purchased peak-capacity fleet at lower utilization, it is
+not an incremental hardware purchase (see the Phase 5 cost correction below).
 ```
+
+**Flag for human review:** the 155-GPU figure depends on the 50/30/20 traffic-split
+assumption above, which isn't specified in the original scenario — in a real
+interview, state your assumption explicitly and invite the interviewer to push
+back on it. What doesn't depend on the assumption: the corrected request rate
+(≈69 req/sec) makes this workload roughly three orders of magnitude smaller than
+the chapter's original framing, and no defensible traffic split gets you back to
+anything near 252 GPUs.
 
 **Sharding strategy (for 70B):**
 
@@ -202,16 +222,26 @@ Single GPU failure (70B model, tensor parallelism):
 
 ```
 Revenue: $5 per 1M tokens
-Peak: 21M tokens/sec × 3600 sec = 75.6B tokens/hour peak
+Peak: 20,833 tokens/sec × 3,600 sec = 75,000,000 tokens/hour peak (75M, not 75.6B
+  — this follows directly from the corrected Phase 1 peak; the original also had a
+  second, independent 1000x error in the next line that partly canceled the first,
+  which is exactly the kind of thing that looks fine until an interviewer asks you
+  to show your work)
 Daily (8 hour peak + 16 hour off-peak):
-  Peak revenue: 75.6B × 8 × $5e-6 = $3,024/day
-  Off-peak: 15.12B × 16 × $5e-6 = $1,209/day
-  Total: $4,233/day = $1.55M/year
+  Peak tokens: 75M/hour × 8 hours = 600M tokens → revenue = 600M × $5/1M = $3,000/day
+  Off-peak tokens: 15M/hour × 16 hours = 240M tokens → revenue = 240M × $5/1M = $1,200/day
+  Total: $4,200/day ≈ $1.53M/year
 
-Hardware cost: $3M (peak) + $0.5M (off-peak autoscale)
-OpEx: $2M/year (power, cooling, staff)
-Total cost: $5.5M
-Margin: $1.55M - $5.5M = **-$3.95M/year (LOSS)**
+Hardware cost: $1.86M (155-GPU peak fleet; off-peak autoscaling reuses this same
+  fleet at lower utilization, it's not a separate purchase, so no extra line item)
+OpEx: $2M/year (power, cooling, staff — as originally stated; note this was sized
+  around a much larger 252+ GPU fleet, so it may also be overstated for a
+  155-GPU fleet. Flag for human review: this figure isn't independently
+  re-derived here since no OpEx formula/breakdown was given for this chapter the
+  way Chapters 9 and 12 provide one.)
+Total cost (Year-1 view, full hardware CapEx expensed against Year-1 OpEx): $1.86M + $2M = $3.86M
+Margin: $1.53M - $3.86M = **-$2.33M/year (still a loss, but well under half the
+  magnitude of the original, uncorrected -$3.95M/year figure)**
 
 Options:
 1. Charge more ($15+/1M tokens)
@@ -221,10 +251,13 @@ Options:
 Recommended: Hybrid
 - Offer tiered pricing: standard ($5), priority ($15), enterprise (custom)
 - Serve 70% on $5 tier, 20% on $15 tier, 10% enterprise
-- Average: $7.50/1M tokens
-- Revenue: $1.55M × 1.5 = $2.33M
+- Average: $7.50/1M tokens (1.5× the standard $5 rate)
+- Revenue: $1.53M × 1.5 ≈ $2.30M
 
-Still negative, but closer. Scale required to break even.
+Still negative (~-$1.56M/year against the $3.86M cost base above), but
+meaningfully closer to breakeven than the original math suggested — and closer
+still if the OpEx line is re-derived for the actual (much smaller) fleet size,
+which is flagged above for follow-up rather than guessed at here.
 ```
 
 ### Phase 6: Multi-Tenancy and Isolation (2 minutes)
