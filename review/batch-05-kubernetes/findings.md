@@ -116,3 +116,14 @@
 
 ### chapter-09-gpu-observability-with-dcgm.md
 - [SEVERITY: low] No issues found. GPU-UUID-as-durable-join-key (vs. device index renumbering after reboot), the Xid 79 ("GPU has fallen off the bus") worked example, and the `up{job="dcgm-exporter"}`-before-trusting-utilization discipline are accurate and precisely the kind of DCGM diagnostic depth this JD calls for.
+
+### chapter-10-production-installation-and-configuration.md
+- [SEVERITY: low] No issues found. The `helm install STATUS: deployed` vs. `clusterpolicy notReady` gap, and the seven-item acceptance checklist (allocatable-is-a-kubelet-claim-not-a-driver-claim distinction) are accurate and precisely address the "install looked fine" failure mode this JD would probe.
+
+### chapter-11-upgrades-and-production-troubleshooting.md
+- [SEVERITY: low] No issues found. Canary/batch sizing arithmetic (8-node canary, doubling batches, 192/960 GPU blast-radius framing) and the chart-rollback-does-not-revert-host-state distinction are accurate and directly reusable for a live troubleshooting-design interview question.
+
+### chapter-12-volume-10-summary.md
+- [SEVERITY: low] No issues found. Clean, accurate consolidation; the "It does not prove" column in the component-responsibility table is a strong, reusable interview framing.
+
+**ZTH-10 (Volume 10) chapters 1-12 + index complete — 13/17 files reviewed; labs 1-4 remaining.**

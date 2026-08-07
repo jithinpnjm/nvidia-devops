@@ -31,9 +31,9 @@ Volumes: F-03 (`docs/volume-03`), ZTH-10 (`docs/nvidia-zero-to-hero/volume-10`),
 | ZTH-10 | chapter-07-driver-containers-and-node-operands.md | done | low | |
 | ZTH-10 | chapter-08-gpu-scheduling-and-topology.md | done | low | |
 | ZTH-10 | chapter-09-gpu-observability-with-dcgm.md | done | low | |
-| ZTH-10 | chapter-10-production-installation-and-configuration.md | pending | |
-| ZTH-10 | chapter-11-upgrades-and-production-troubleshooting.md | pending | |
-| ZTH-10 | chapter-12-volume-10-summary.md | pending | |
+| ZTH-10 | chapter-10-production-installation-and-configuration.md | done | low | |
+| ZTH-10 | chapter-11-upgrades-and-production-troubleshooting.md | done | low | |
+| ZTH-10 | chapter-12-volume-10-summary.md | done | low | |
 | ZTH-10 | labs/lab-01-inspect-a-kubernetes-gpu-node.md | pending | |
 | ZTH-10 | labs/lab-02-install-and-validate-gpu-operator.md | pending | |
 | ZTH-10 | labs/lab-03-diagnose-a-missing-allocatable-gpu.md | pending | |
