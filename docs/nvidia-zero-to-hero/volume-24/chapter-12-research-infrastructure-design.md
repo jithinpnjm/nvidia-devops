@@ -147,9 +147,11 @@ E      38.4             38.4             5.0%           ✓ Fair
 ────────────────────────────────────────────────────────────
 Total   768.0            768.0            100.0%         ✓ Fair
 
-Cluster utilization: 768 GPU-hours / (32 GPUs × 14 days × 24 hours) = 91% ✓
+Cluster utilization: 768 GPU-hours / (32 GPUs × 14 days × 24 hours) = 7.1% ✗ NOT meeting the >90% target
 Starvation check: All groups scheduled within 1 week ✓
 ```
+
+**This does not meet the >90% utilization success criterion, and that's worth surfacing rather than glossing over.** The five groups' fair-share allocation only uses 768 of the 10,752 GPU-hours available over 2 weeks (32 GPUs × 14 days × 24 hours) — 7.1%, not 91%. That's consistent with the workload table in the Problem Statement: even at each group's stated typical frequency (e.g., Group A's 2×/week, 8-GPU, 48h jobs), total demand across all 5 groups is only ~2,100 GPU-hours per 2 weeks (~19.5% utilization) — nowhere near 90%. To actually hit the >90% target, the cluster needs **backfill scheduling**: filling the ~8,900 GPU-hours/2wk of otherwise-idle capacity with additional, lower-priority work (extra jobs beyond groups' typical cadence, opportunistic/best-effort jobs, or a queue of deferrable work) whenever the fair-share-guaranteed jobs aren't using their full allocation. This is exactly the fix already called out in the Production Troubleshooting table below ("Cluster utilization only 60%... Implement backfill") — treat that as a required part of this design, not an optional afterthought, since without it the utilization target isn't met at all.
 
 ## Real Output: Job Scheduling Log
 
