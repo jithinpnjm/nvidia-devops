@@ -4,9 +4,9 @@ Volumes: F-03 (`docs/volume-03`), ZTH-10 (`docs/nvidia-zero-to-hero/volume-10`),
 
 | Volume | File | Status | Severity Summary |
 |---|---|---|---|
-| F-03 | 01-chapter-1-api-server-etcd-and-the-object-model.md | done | low | |
-| F-03 | 02-chapter-2-scheduler-mechanics-resources-and-topology.md | done | low x2 | |
-| F-03 | 03-chapter-3-kubelet-cri-and-pod-lifecycle.md | done | low | |
+| F-03 | 01-chapter-1-api-server-etcd-and-the-object-model.md | done | low |
+| F-03 | 02-chapter-2-scheduler-mechanics-resources-and-topology.md | done | low x2 |
+| F-03 | 03-chapter-3-kubelet-cri-and-pod-lifecycle.md | done | low |
 | F-03 | 04-chapter-4-kubernetes-networking-from-service-to-cni.md | pending | |
 | F-03 | 05-chapter-5-storage-and-statefulsets.md | pending | |
 | F-03 | 06-chapter-6-security-authentication-rbac-workload-identity-and-pod-hardening.md | pending | |
