@@ -1,6 +1,28 @@
 # Batch 05 — Kubernetes for GPUs — Findings
 
-(Summary will be added here once review is complete.)
+## Summary (review complete — 51/51 files across F-03, ZTH-10, ZTH-11)
+
+**Counts by severity:** 1 high, 3 medium, 47 low (mostly "no issues found" / trivial mechanical notes).
+
+**Top 5 findings for interview prep (JR2018680):**
+
+1. **[HIGH] MIG capacity-planning arithmetic error** — `docs/nvidia-zero-to-hero/volume-11/chapter-03-mig-profiles-and-placement.md`. The chapter's worked "concrete sizing example" proposes a layout (`4×1g.10gb + 2×3g.40gb`) marked as fitting an H100 exactly, but it actually sums to 120GB memory (vs. 80GB physical) and 10 compute slices (vs. 7 available) — a physically impossible configuration presented as correct. This is exactly the kind of MIG placement/geometry math a hiring-manager round would probe live; internalizing the wrong worked example would produce a bad answer on the spot.
+
+2. **[MEDIUM] Kubernetes version-skew policy direction reversed** — `docs/volume-03/09-chapter-9-upgrades-reliability-and-cluster-operations.md`. States kubelet skew is "up to 2 minor versions behind apiserver (older policies allowed up to 3)" — backwards. The actual K8s change (v1.28+) loosened the policy from n-2 to n-3, not the reverse. Version-skew rules are textbook K8s-internals interview material.
+
+3. **[MEDIUM] H100 MIG profile table error (recurring)** — `chapter-02-mig-architecture-and-isolation.md` and repeated in `labs/lab-01-configure-and-validate-mig.md`. `4g.40gb` is listed as supporting "max 2 concurrent instances"; published NVIDIA tables show max 1. Same root cause as finding #1 — worth fixing in one pass across both files.
+
+4. **[MEDIUM] Pod Security Admission "audit before enforce" shortcut is imprecise** — `docs/volume-03/06-chapter-6-security-authentication-rbac-workload-identity-and-pod-hardening.md`. Suggests `kubectl label ns ... pod-security.kubernetes.io/audit=restricted --dry-run=server` as a way to see what would break under a stricter policy — but PSA audit mode only evaluates Pods at admission time (create/update), not retroactively against already-running Pods, and `--dry-run=server` persists nothing at all. A subtle-but-real "sounds right, is wrong" detail exactly suited to trip up a live technical round. (Chapter 6's own Senior Deep Dive 6, reviewed later in the same volume, independently confirms the underlying audit-vs-enforce distinction — reinforcing that this is a real inconsistency worth fixing, not a matter of interpretation.)
+
+5. **Otherwise, this batch is the strongest reviewed so far** — both F-03 (Kubernetes internals) and ZTH-10/ZTH-11 (GPU platform + sharing) are written at consistent "SRE who reads scheduler/device-plugin source" depth: real annotated command output, mechanism-first diagrams with explicit decision branches, worked failure scenarios with concrete evidence, and interview-ready model answers throughout. ZTH-10 (Kubernetes GPU Platform) in particular had zero accuracy issues across all 17 files. Cross-curriculum consistency is good — F-03 and ZTH-10/11 are complementary rather than redundant (F-03 covers general K8s scheduling/kubelet/CRI mechanics in depth; ZTH-10/11 build the GPU-specific layers — device plugin, GPU Operator, MIG/time-slicing/vGPU — on top without re-deriving the K8s internals).
+
+**Mechanical/MDX fixes applied inline (low severity, no content rewrite):**
+- `docs/nvidia-zero-to-hero/volume-11/chapter-11-production-troubleshooting.md` — two `ssh` commands used curly/typographic quotes instead of straight quotes, which breaks the shell if copy-pasted; fixed.
+
+**Low-severity notes not requiring action beyond awareness:**
+- A handful of `jq`/`kubectl` command snippets across F-03 chapters 2–3 use single-quoted string literals inside jq filters (invalid jq syntax) or double-`-n` flags on one `kubectl` invocation — cosmetic issues that would only surface if a candidate copy-pasted the exact command live.
+
+---
 
 ## F-03 — Volume 03: Kubernetes and Platform Engineering
 
@@ -198,3 +220,19 @@
 - [SEVERITY: low] No issues found. Clean consolidation; the "common traps" list (treating scheduler placement as service success, treating logical replicas as independent capacity, calling arithmetic free capacity usable MIG capacity) accurately restates the volume's core lessons, including the fragmentation-arithmetic point that Chapter 3's own worked example failed to honor.
 
 **ZTH-11 (Volume 11) chapters 1-12 + index complete — 13/17 files reviewed; labs 1-4 remaining.**
+
+### labs/lab-01-configure-and-validate-mig.md
+- [SEVERITY: low] The baseline example H100 MIG profile table repeats the same `4g.40gb ... 2` max-instance-count discrepancy flagged in Chapter 2 (see that finding for detail — real published H100 tables show max 1 for `4g.40gb`). Not re-flagged as a separate high-severity item since it's the same underlying content reused as illustrative baseline output, but worth correcting in the same pass as the Chapter 2 fix.
+  - Evidence: line 124, `| 4 4g.40gb | 1 GI of 40GB | 2 | 40 GB |`.
+- Otherwise excellent: the drain → mode-enable → instance-create → host-validate → Kubernetes-validate → Pod-validate → rollback sequence is exactly the disciplined MIG lifecycle change process the volume argues for, with real stop/go conditions at each gate.
+
+### labs/lab-02-configure-kubernetes-gpu-time-slicing.md
+- [SEVERITY: low] No issues found. The ConfigMap → ClusterPolicy selection → device-plugin reconciliation → node allocatable sequence accurately reflects the real NVIDIA GPU Operator time-slicing configuration mechanism, and the ordered rollback (restore ClusterPolicy selection → verify baseline inventory → only then delete the ConfigMap) correctly avoids a dangling-reference failure mode.
+
+### labs/lab-03-compare-sharing-performance-and-isolation.md
+- [SEVERITY: low] No issues found. The "held constant vs. may change by trial" table and the emphasis on immutable image digests / documented hypotheses before running trials reflect genuinely rigorous experimental design, appropriate for a Solutions Architect who needs to defend a benchmark methodology to a customer.
+
+### labs/lab-04-troubleshoot-a-multi-tenant-gpu-node.md
+- [SEVERITY: low] No issues found. The quota-denial-vs-insufficient-resource distinction (API-level admission denial before scheduling vs. a scheduler-level `Insufficient <resource>` event) is a precise and realistic incident-diagnosis exercise, and the ordered rollback (remove quota → prove recovery via successful admission → only then delete namespace) is methodologically sound.
+
+**ZTH-11 (Volume 11) review complete — 17/17 files reviewed.**

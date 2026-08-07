@@ -51,9 +51,9 @@ Volumes: F-03 (`docs/volume-03`), ZTH-10 (`docs/nvidia-zero-to-hero/volume-10`),
 | ZTH-11 | chapter-10-observability-and-slos-for-shared-gpus.md | done | low | |
 | ZTH-11 | chapter-11-production-troubleshooting.md | done | low | |
 | ZTH-11 | chapter-12-volume-11-summary.md | done | low | |
-| ZTH-11 | labs/lab-01-configure-and-validate-mig.md | pending | |
-| ZTH-11 | labs/lab-02-configure-kubernetes-gpu-time-slicing.md | pending | |
-| ZTH-11 | labs/lab-03-compare-sharing-performance-and-isolation.md | pending | |
-| ZTH-11 | labs/lab-04-troubleshoot-a-multi-tenant-gpu-node.md | pending | |
+| ZTH-11 | labs/lab-01-configure-and-validate-mig.md | done | low | |
+| ZTH-11 | labs/lab-02-configure-kubernetes-gpu-time-slicing.md | done | low | |
+| ZTH-11 | labs/lab-03-compare-sharing-performance-and-isolation.md | done | low | |
+| ZTH-11 | labs/lab-04-troubleshoot-a-multi-tenant-gpu-node.md | done | low | |
 
 Total: 51 files.
