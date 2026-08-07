@@ -180,10 +180,21 @@ The operating model has a cost: topology inventory, telemetry retention, test ca
 
 ## Interview Preparation
 
-1. Why is an active Ethernet link insufficient evidence for a healthy RoCE job?
-2. How do you distinguish congestion from a physical fault?
-3. What is the first action when PFC is continuous?
-4. Which evidence would you attach to a vendor support case?
+**1. Why is an active Ethernet link insufficient evidence for a healthy RoCE job?**
+
+"Because 'link up' means the physical negotiation succeeded and isn't actively reporting errors — it says nothing about whether RoCE packets are actually making it through, whether they're in the right queue, whether they're being retransmitted, or whether the job itself is proceeding. I've seen a link report completely clean while the RDMA path was misconfigured, or while the actual application was stalled waiting for a collective to complete. Operational state and technical health are different things, and link-up is the former, not the latter."
+
+**2. How do you distinguish congestion from a physical fault?**
+
+"Physical faults leave evidence in the physical layer counters — FEC-corrected and FEC-uncorrected blocks, CRC errors, lane state anomalies — and congestion leaves evidence at the packet/queue layer — ECN marks, PFC pause, queue-depth snapshots at the moment of the symptom. If `fec_uncorrected_blocks` is climbing and `rx_ecn_marked_prio3` rises only as a side effect (because RDMA retransmission adds load), that's physical. If FEC counters are all zeros but ECN marks and PFC are active and queue occupancy is pinned high, that's congestion. Reading only the ECN counter would misdirect toward QoS tuning; reading both layers in parallel is what actually finds the root."
+
+**3. What is the first action when PFC is continuous?**
+
+"Stop changing anything first — just observe and document: which priority is paused, on which port, flowing in which direction, and for how long. Correlate it with queue occupancy on that port and ECN marks, if available. The impulse is to disable PFC 'because it's slowing things down,' but that trades a visible pause for silent loss and retransmission, which can be much worse. The actual first action is tracing the pause toward its source — the most downstream congested queue — before changing configuration at all. Only after I know what's causing the pause can I make an informed choice about whether to relieve the congestion, adjust thresholds, or change the class design."
+
+**4. Which evidence would you attach to a vendor support case?**
+
+"Anything that lets someone who didn't experience the incident reproduce the issue or at least understand the failure boundary: exact topology (who, which port, which queue), counter deltas (not lifetime totals), the working software/firmware/configuration state from before the change, the broken state after, and the exact commands and output that showed the problem. And timestamps — a support engineer reading 'FEC errors grew and queue occupancy climbed at the same time' is near-worthless without knowing when both happened. A time-correlated bundle saying 'at 14:32:15 UTC, FEC errors went from 0 to 3, and at 14:32:16 queue occupancy hit 98%' is actionable."
 
 ## Key Takeaways
 
