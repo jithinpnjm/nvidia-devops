@@ -229,3 +229,6 @@
   - Evidence: Line ~24, ~37-38.
   - Why it matters for JR2018680: This is the chapter's central compute-sizing example ("why 32 A100s, how long does the ensemble take") — exactly the kind of capacity math a systems-design interview would walk through, and the numbers are internally contradictory by three orders of magnitude in one place and ~865x in another.
   - Suggested fix: Recompute total compute as 12,000 petaflop-seconds, and derive per-run time consistently from the stated 1.6 PFLOPS sustained throughput (≈12.5 min/run compute-bound, so the 6-month "pipelined 3 runs in parallel" timeline claim likely needs to be re-derived from a different bottleneck, e.g. I/O or ensemble post-processing, if 7.5 days/run is otherwise intended).
+
+### index.md (Volume 22)
+- No findings. Well-structured overview consistent with the 9 chapters and 4 labs actually present; good cross-references to Volumes 4, 11, 16, 21.

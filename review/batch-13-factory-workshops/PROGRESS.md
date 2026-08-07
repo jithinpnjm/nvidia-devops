@@ -24,7 +24,7 @@ no content) alongside the real chapter files. These are excluded from review as 
 | ZTH-21 | labs/lab-02-networking-simulation.md | done | high:1 (recurrence of AllReduce bandwidth-math pattern) |
 | ZTH-21 | labs/lab-03-storage-pipeline-design.md | done | low:1 |
 | ZTH-21 | labs/lab-04-capacity-planning-exercise.md | done | low:1 |
-| ZTH-22 | index.md | pending | |
+| ZTH-22 | index.md | done | clean |
 | ZTH-22 | chapter-01-consulting-methodology-for-customer-engagement.md | done | high:1, low:1 (10x power-cost slip) |
 | ZTH-22 | chapter-02-banking-and-financial-services.md | done | high:1, medium:1 (A100 FP64 spec fabricated) |
 | ZTH-22 | chapter-03-generative-ai-and-large-language-models.md | done | high:2 (1000x cost-per-token slips, headline claims wrong) |
