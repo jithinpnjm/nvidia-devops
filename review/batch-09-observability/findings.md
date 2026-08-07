@@ -1,6 +1,32 @@
 # Batch 09 — Observability & Performance — Findings
 
-(Summary will be added at the top once review is complete.)
+## Summary
+
+Reviewed all 54 files across F-07 (19 chapters), ZTH-16 (12 chapters + index + 4 labs), and ZTH-17 (12 chapters + index + 4 labs). One trivial MDX/typo fix applied inline (ZTH-16 Ch.09 heading). No other content rewrites.
+
+**Counts by severity:** 12 high, 7 medium, 11 low (30 findings total; several "low" entries are noted repeats of an already-detailed high/medium finding recurring in later chapters, not independent new issues).
+
+**Volume-level verdict:**
+- **F-07 (Observability, Reliability and Troubleshooting)** — clean. Gold-standard depth throughout all 19 chapters; only 1 medium (burn-rate exhaustion-time arithmetic in Ch.8) and 1 recurring low-severity cosmetic issue (single quotes instead of double quotes in JSON/Prometheus code blocks) in the entire volume. This is the strongest volume in the batch and matches the Volume-1 depth bar.
+- **ZTH-16 (GPU Observability and Operational Health)** — strong pedagogy, weak on reference numbers. Excellent mechanism-first teaching but has a real, recurring technical-accuracy problem: fabricated/non-existent DCGM field names (not `DCGM_FI_DEV_*`/`DCGM_FI_PROF_*` prefixed) across 6 chapters; a wrong Xid code (94 instead of 79 for "GPU fell off the bus") repeated twice and contradicting F-07's own correct Xid table in the same batch; A100 FP32 peak-FLOPS misstated three different wrong ways across three files; a used/free (not used/total) memory-pressure PromQL formula bug appearing in both a chapter and a lab.
+- **ZTH-17 (Performance Engineering)** — same pattern as ZTH-16, one level up in stakes. "141 TFLOPS" H100 FP32 peak (real value ~67 TFLOPS) repeated across 7 files including a full GPU-comparison roofline reference table with wrong numbers for every GPU listed (H100, A100, V100, L40S); a KV-cache-sizing formula that omits the transformer layer-count term (understating real cache size ~32x for a 7B model); a lab with a systematic 1000x unit-conversion error in roofline crossover-point math that directly contradicts the chapter it's based on; two H100 hardware-spec errors (boost clock, PCIe bandwidth-per-direction); a mixed-precision-training conceptual error (GradScaler presented as necessary for BF16, when it's an FP16-specific mitigation).
+
+**Top 5 findings most important for interview prep (JR2018680):**
+
+1. **[HIGH] A100/H100 FP32 peak-FLOPS is wrong throughout ZTH-16 and ZTH-17**, in multiple different and mutually-inconsistent ways (300+, 2.4, 312, 330, and 141 TFLOPS all appear as "the" FP32 peak for A100 or H100 across different chapters/labs). Real numbers: A100 FP32 (CUDA core) ≈ 19.5 TFLOPS, TF32 Tensor Core ≈ 156 TFLOPS dense; H100 FP32 ≈ 67 TFLOPS, TF32 Tensor Core ≈ 989 TFLOPS dense. Roofline/achieved-vs-peak reasoning is a core NVIDIA performance-engineering interview topic — memorize the real numbers from NVIDIA's own spec sheets, not this curriculum's tables.
+
+2. **[HIGH] DCGM field names in ZTH-16 are frequently fabricated** (`GPU_MEMORY_BANDWIDTH_USED`, `THERMAL_SLOWDOWN`, `ECC_ERRORS_CORRECTED`, etc. instead of real `DCGM_FI_DEV_*`/`DCGM_FI_PROF_*` field IDs). F-07's DCGM chapters use the correct naming convention throughout — use F-07 Ch.5 and Senior Deep Dive 4 as the reference for real DCGM field names, not ZTH-16's tables.
+
+3. **[HIGH] Xid 94 vs Xid 79 confusion in ZTH-16** (Ch.02, Ch.08): "GPU has fallen off the bus" is Xid **79**, not 94 (94 is a contained ECC error). F-07's Senior Deep Dive 4 has the correct Xid table (13, 31, 48, 62, 79, 94/95) — memorize that version.
+
+4. **[HIGH] KV cache sizing formula in ZTH-17 Ch.08 omits the number-of-transformer-layers factor**, understating real memory requirements by roughly the layer count (~32x for a 7B model). Correct formula: `2 (K,V) × num_layers × batch × seq_len × num_heads × head_dim × bytes_per_element`. This is one of the most common LLM-serving capacity-planning interview questions.
+
+5. **[MEDIUM] Multi-window burn-rate alerting arithmetic error in F-07 Ch.8**: a 14.4x burn rate over a 30-day SLO window exhausts the budget in ~2 days (30/14.4), not "~1 day" as stated. Otherwise F-07's error-budget and SLO math is correct throughout and is genuinely GPU-fleet-specific (job-completion-rate, node-uptime-vs-job-outcome, training-cluster SLOs) rather than generic web-service framing — this is the best SLO material in the batch and worth using as the primary study reference over ZTH-16's SLO chapter.
+
+**Overall interview-readiness read:** F-07 is ready to use as-is for SLO/error-budget/PromQL/incident-response interview prep. ZTH-16 and ZTH-17 are strong for *methodology* (evidence hierarchies, roofline reasoning, bottleneck decision trees, DCGM-vs-service-saturation distinctions) but a candidate should NOT memorize specific FLOPS numbers, DCGM field names, or Xid codes from these two volumes without cross-checking against F-07 or NVIDIA's official spec sheets/DCGM documentation first — several of the "memorizable" reference tables in ZTH-16/17 contain fabricated or incorrect numbers that would not survive a hands-on technical round.
+
+---
+
 
 ## Cross-cutting finding (applies to many files across F-07 and ZTH-16/17)
 
@@ -261,3 +287,15 @@ Note: all chapter/lab filenames literally say "placeholder" but every file check
   - Why it matters for JR2018680: this is the volume's hands-on roofline lab — exactly where a candidate builds the muscle memory for computing crossover points under interview pressure; a 1000x unit error here, self-contradicting the volume's own chapter, is a serious "won't survive a whiteboard sanity check" problem.
   - Suggested fix: rework the worked arithmetic in Exercises 3-4 to consistently convert TFLOPS (10¹²) and GB/s (10⁹) to the same base unit before dividing/multiplying, matching Ch.03's correct 70.5 FLOPS/byte crossover, and correct the "141 TFLOPS" H100 peak per the Ch.03 finding.
 - Otherwise the lab's compute-bound vs memory-bound kernel pair (matmul vs elementwise-add) and Nsight Compute profiling workflow are pedagogically sound.
+
+### lab-03-placeholder.md (Mixed Precision Training and Performance)
+- [SEVERITY: medium] The BF16 training exercise uses `torch.cuda.amp.GradScaler()` together with `torch.cuda.amp.autocast(dtype=torch.bfloat16)` (lines 125, 139-146), presenting gradient scaling as standard/necessary practice for BF16 mixed precision. This is a real, checkable inaccuracy: `GradScaler` exists to prevent gradient *underflow* in FP16, which has a narrow exponent range (5 bits); BF16 has the same 8-bit exponent range as FP32, so it does not suffer the underflow problem GradScaler addresses, and PyTorch's own AMP documentation states GradScaler is typically unnecessary for BF16. Using it is mostly harmless (a no-op scale factor in practice) but teaches the wrong mental model of *why* BF16 is used over FP16.
+  - Evidence: line 125 (`scaler = torch.cuda.amp.GradScaler()`), lines 139-146 (autocast with bfloat16 combined with `scaler.scale(loss).backward()`).
+  - Why it matters for JR2018680: FP16 vs BF16 tradeoffs (dynamic range vs precision, and why BF16 doesn't need loss scaling) is a common mixed-precision-training interview question; this lab would teach a candidate to conflate the two precisions' distinct failure modes.
+  - Suggested fix: drop `GradScaler` from the BF16 exercise (or explicitly note it's optional/typically unnecessary for BF16, unlike FP16), and if the lab wants to demonstrate `GradScaler`'s actual purpose, pair it with the FP16 code path instead (which the lab already mentions as the V100 fallback).
+- Otherwise a well-constructed lab: plausible FP32→BF16 speedup (1.84x, within realistic range), sensible accuracy-regression check (<0.01 threshold), good profiler-based "where does the speedup come from" exercise.
+
+### lab-04-placeholder.md (Distributed Training Performance Measurement)
+- No findings. Sound single-GPU vs multi-GPU DDP comparison, correct scaling-efficiency arithmetic (checked: 8.5ms/209ms ≈ 4.07% overhead, matches stated 4.5%; 4 × 0.955 ≈ 3.82x matches stated scaling factor), realistic AllReduce bandwidth measurement methodology, good troubleshooting section (CPU/dataloader bottleneck as the "multi-GPU barely faster than single" root cause).
+
+**ZTH-17 volume summary:** Structurally on par with ZTH-16 — strong mechanism-first teaching (roofline methodology, bottleneck decision trees, occupancy/register-pressure reasoning, prefill-vs-decode framing) with genuinely good interview-answer quality throughout. However, it inherits and compounds the same technical-accuracy problem pattern found in ZTH-16: (1) a wrong "141 TFLOPS" H100 FP32 peak repeated across the index, Ch.02, Ch.03 (in a full hardware-roofline reference table with wrong numbers for every GPU listed: H100, A100, V100, L40S), Ch.05, Ch.06, Ch.12, and Lab 02 — real H100 FP32 (CUDA-core) peak is ~67 TFLOPS; (2) a KV cache sizing formula (Ch.08) that omits the transformer layer-count factor entirely, understating real KV cache memory by roughly the number of layers (~32x for a 7B model), with arithmetic that doesn't even reconcile with itself; (3) a systematic 1000x unit-conversion error in Lab 02's roofline crossover-point and prediction arithmetic that directly contradicts Ch.03's own (differently-wrong) crossover value in the same volume; (4) two H100 spec errors in Ch.10 (boost clock and PCIe per-direction bandwidth); (5) a mixed-precision-training conceptual error in Lab 03 (GradScaler presented as standard practice for BF16, when it's an FP16-specific mitigation). None of these undermine the pedagogical *methodology* being taught (roofline reasoning, bottleneck isolation, occupancy tuning are all taught correctly as processes) — the problem is specifically in the reference numbers and worked-example arithmetic a candidate would memorize or reproduce.
