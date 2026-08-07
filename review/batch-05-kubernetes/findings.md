@@ -44,3 +44,13 @@
 
 ### 07-chapter-7-autoscaling-and-capacity.md
 - [SEVERITY: low] No material issues found. HPA/VPA/KEDA/cluster-autoscaler four-loop model, the VPA/HPA CPU-utilization-denominator conflict, HPA desired-replica arithmetic, and the GPU-specific custom-metrics-pipeline (DCGM→Prometheus→adapter) failure surface plus node pre-warming tradeoff are accurate and at gold-standard depth for GPU infra interview questions.
+
+### 08-chapter-8-operators-gitops-and-platform-engineering.md
+- [SEVERITY: low] No material issues found. Operator-as-controller framing, GitOps drift-detection/revert demo, and the GPU Operator `ClusterPolicy` status-first triage (with the OS-kernel-patch-breaks-driver-DaemonSet worked scenario) are accurate and at gold-standard depth.
+
+### 09-chapter-9-upgrades-reliability-and-cluster-operations.md
+- [SEVERITY: medium] The version-skew direction looks reversed. Text states current kubelet skew is "up to 2 minor versions BEHIND apiserver (older skew policies allowed up to 3)". In reality Kubernetes changed the kubelet skew policy from n-2 to n-3 starting at v1.28 (kubelet may now lag the apiserver by up to 3 minor versions, loosened from the previous 2), i.e. the opposite direction from what's stated.
+  - Evidence: lines 27-29, "kubelet: may be up to 2 minor versions BEHIND apiserver (older skew policies allowed up to 3 — always check the policy for the specific release you're on, it has changed over time)".
+  - Why it matters for JR2018680: version-skew policy is a textbook K8s-internals interview question; stating the direction of a documented policy change backwards is exactly the kind of error a hiring manager doing a deep technical round would catch.
+  - Suggested fix: verify current upstream skew policy for the target K8s version and correct the direction of the "older policy allowed X" claim (should read: older policy allowed 2, current/1.28+ allows up to 3).
+- Otherwise strong: control-plane-first upgrade ordering, `/readyz?verbose` decomposition, PDB `allowedDisruptions` arithmetic gating drain concurrency, and the GPU-node-upgrade validation gate (kubelet Ready is necessary but not sufficient — driver DaemonSet/device-plugin/allocatable/smoke-test) are accurate and interview-depth.

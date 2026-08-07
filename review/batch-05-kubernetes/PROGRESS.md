@@ -11,8 +11,8 @@ Volumes: F-03 (`docs/volume-03`), ZTH-10 (`docs/nvidia-zero-to-hero/volume-10`),
 | F-03 | 05-chapter-5-storage-and-statefulsets.md | done | low | |
 | F-03 | 06-chapter-6-security-authentication-rbac-workload-identity-and-pod-hardening.md | done | medium | |
 | F-03 | 07-chapter-7-autoscaling-and-capacity.md | done | low | |
-| F-03 | 08-chapter-8-operators-gitops-and-platform-engineering.md | pending | |
-| F-03 | 09-chapter-9-upgrades-reliability-and-cluster-operations.md | pending | |
+| F-03 | 08-chapter-8-operators-gitops-and-platform-engineering.md | done | low | |
+| F-03 | 09-chapter-9-upgrades-reliability-and-cluster-operations.md | done | medium | |
 | F-03 | 10-senior-deep-dive-1-api-machinery-resourceversion-watches-finalizers-and-owners.md | pending | |
 | F-03 | 11-senior-deep-dive-2-etcd-quorum-control-plane-failure-and-recovery-boundaries.md | pending | |
 | F-03 | 12-senior-deep-dive-3-scheduling-framework-preemption-gang-topology-and-dra.md | pending | |
