@@ -118,3 +118,9 @@ Same exceptional depth and style as ZTH-02: worked evidence chains, real command
 
 ### chapter-03-cuda-programming-and-execution-model.md
 - No findings. Asynchronous-launch timing trap (host wall-clock vs `cudaEvent` timing) is a genuine, common CUDA pitfall correctly explained. A10 SM count (72) vs H100 (132) comparison for the "grid too small" example is correct.
+
+### chapter-04-kernel-launch-configuration-and-indexing.md
+- No findings. Ceiling-division vs bounds-check distinction is precisely and correctly explained (a genuinely subtle point many CUDA tutorials get muddled). A10 (72 SM) vs H100 SXM5 (132 SM) underfill table is correct.
+
+### chapter-05-cuda-memory-management-and-data-movement.md
+- No findings. Pageable-vs-pinned staging-copy mechanism is correct; KV cache worked formula (`2 x layers x batch x seq_len x hidden x bytes`) is dimensionally correct and explicitly marked illustrative; the `cudaMalloc`/`cudaFree` dominating-CUDA-API-time `nsys stats` example is a realistic and common production anti-pattern.
