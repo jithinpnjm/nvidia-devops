@@ -38,14 +38,14 @@ flowchart TD
     CPUMem -->|"PCIe saturation<br/>nvidia-smi clocks"| PCIe
     PCIe -->|"GPU memory pressure<br/>nvidia-smi"| GPU
 
-    Media -.->|"If here is slow| Storage Bottleneck
-    Server -.->|"If here backs up| Server Bottleneck
-    Fabric -.->|"If here congested| Network Bottleneck
-    ClientFS -.->|"If here stalls| FS Driver Bottleneck
-    PageCache -.->|"If here thrashing| Cache Eviction Bottleneck
-    CPUMem -.->|"If here pinned| NUMA/Affinity Bottleneck
-    PCIe -.->|"If here saturated| PCIe Bottleneck
-    GPU -.->|"If here full| GPU Mem Bottleneck
+    Media -.->|"If here is slow"| StorageBottleneck["Storage Bottleneck"]
+    Server -.->|"If here backs up"| ServerBottleneck["Server Bottleneck"]
+    Fabric -.->|"If here congested"| NetworkBottleneck["Network Bottleneck"]
+    ClientFS -.->|"If here stalls"| FSDriverBottleneck["FS Driver Bottleneck"]
+    PageCache -.->|"If here thrashing"| CacheEvictionBottleneck["Cache Eviction Bottleneck"]
+    CPUMem -.->|"If here pinned"| NUMAAffinityBottleneck["NUMA/Affinity Bottleneck"]
+    PCIe -.->|"If here saturated"| PCIeBottleneck["PCIe Bottleneck"]
+    GPU -.->|"If here full"| GPUMemBottleneck["GPU Mem Bottleneck"]
 ```
 
 The key insight: **Each layer has both latency and capacity. Latency is per-operation; capacity is aggregate throughput. A layer can have low latency but low capacity, or vice versa.**

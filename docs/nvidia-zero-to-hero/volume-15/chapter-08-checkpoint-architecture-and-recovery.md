@@ -42,8 +42,8 @@ flowchart TD
     Write -->|"All writes complete?"| Publish
     Publish --> Resume
     
-    SyncPoint -.->|"If straggler detected| StraggleRisk["Risk: All ranks wait for slowest rank<br/>Slowest rank is 30s behind, entire cluster pauses 30s"]
-    Write -.->|"If synchronous to shared storage| BlockRisk["Risk: Training blocked for write latency<br/>500 GB checkpoint at 1 GB/s = 500s stall"]
+    SyncPoint -.->|"If straggler detected"| StraggleRisk["Risk: All ranks wait for slowest rank<br/>Slowest rank is 30s behind, entire cluster pauses 30s"]
+    Write -.->|"If synchronous to shared storage"| BlockRisk["Risk: Training blocked for write latency<br/>500 GB checkpoint at 1 GB/s = 500s stall"]
 ```
 
 ## Measurement and Diagnostics
