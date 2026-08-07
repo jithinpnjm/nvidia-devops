@@ -42,15 +42,21 @@ flowchart LR
     Checkpoint[Checkpoint Repository]
     App[Training or Inference Process]
     GPU[GPU Memory]
+    Idle{"nvidia-smi dmon shows<br/>periodic sm% drops to near-zero"}
 
-    Boot --> App
-    Local --> App
-    Shared --> App
-    App --> GPU
-    App --> Checkpoint
+    Boot -->|"proof: systemd-analyze shows normal<br/>boot time, no fsck/RAID degraded state"| App
+    Local -->|"proof: fio steady-state IOPS/BW<br/>matches device baseline"| App
+    Shared -->|"proof: read throughput and metadata<br/>ops/s hold under concurrent load"| App
+    App -->|"proof: PCIe traffic counter tracks<br/>batch delivery, no stall gap"| GPU
+    App -->|"proof: checkpoint write completes<br/>within budgeted interval"| Checkpoint
+
+    App -.->|"symptom appears here first"| Idle
+    Idle -->|"local scratch saturated<br/>→ fio queue depth/latency spikes"| Local
+    Idle -->|"shared FS metadata-bound<br/>→ ops/s flat, throughput headroom unused"| Shared
+    Idle -->|"checkpoint write blocking<br/>the training loop"| Checkpoint
 ```
 
-**Figure 5.5.1 — A DGX system uses several storage classes.** Combining every role into one filesystem creates contention and unclear failure boundaries.
+**Figure 5.5.1 — A DGX system uses several storage classes.** Every edge names the counter that proves that class is keeping up; the decision diamond is this chapter's central symptom — a `dmon` trace with periodic idle gaps — routed to the three storage classes most likely to cause it. Combining every role into one filesystem does not just create contention, it also erases exactly the boundary this diagram uses to isolate which class is at fault.
 
 | Storage role | Primary objective | Typical concern |
 |---|---|---|
@@ -89,6 +95,8 @@ Object storage is well suited to durable datasets, model artifacts, and lifecycl
 ## Checkpoints Are a Recovery System
 
 Checkpoint frequency balances lost work against write overhead. A checkpoint that takes longer than the intended interval creates continuous I/O pressure. A checkpoint that cannot be restored is not a backup.
+
+➕ **Worked example — why checkpoint size is not a rounding error:** a 70-billion-parameter model checkpointed at FP16 weights plus FP32 optimizer state (a common Adam-family setup: roughly 2 bytes/param for weights, and roughly 8 bytes/param for optimizer moments plus an FP32 master copy) works out to approximately 70B × (2 + 12) bytes ≈ 980GB per checkpoint — essentially 1TB, not the ~140GB a weights-only estimate would suggest. At a shared filesystem sustaining 4GB/s aggregate write bandwidth (illustrative figure), writing that single checkpoint takes on the order of 1000GB ÷ 4GB/s ≈ 250 seconds — over four minutes where every rank is typically blocked unless the framework overlaps checkpointing with compute. Checkpointing every 30 minutes at that cost is roughly a 14% write-I/O tax on wall-clock training time before accounting for verification or replication; checkpointing every 5 minutes at the same cost would make the job spend more wall-clock time writing checkpoints than training. This is the arithmetic behind "a checkpoint that takes longer than the intended interval creates continuous I/O pressure" — it is not a hypothetical, it is a direct function of model size, optimizer choice, and measured storage bandwidth.
 
 Production validation must include:
 
@@ -160,6 +168,29 @@ Frequently used data is cached locally, while cold datasets and checkpoints rema
 
 Correlate application step time with filesystem latency, local block metrics, network counters, and data-loader behavior. Compare warm-cache and cold-cache runs. Determine whether the bottleneck is bulk bandwidth, metadata, decompression, or request serialization.
 
+➕ **Real paired evidence — GPU trace and storage trace on the same timeline, the correlation this section describes done concretely:**
+
+```text
+$ nvidia-smi dmon -s u -c 6
+# gpu   sm   mem
+    0   94    71
+    0   96    73
+    0    3     1   ← GPU nearly idle
+    0    4     1   ← still idle
+    0   95    72   ← recovered
+    0   96    74
+
+$ iostat -x 1 6 /dev/nvme1n1 | awk '{print $1,$4,$5,$NF}'
+Device  r/s    w/s   %util
+nvme1n1 210.0  4.0   96.0
+nvme1n1 205.0  3.0   94.0
+nvme1n1 2100.0 0.0   99.8   ← queue saturated, tiny reads (metadata-shaped, not bulk)
+nvme1n1 1980.0 0.0   99.5
+nvme1n1 240.0  2.0   40.0   ← recovered
+nvme1n1 230.0  3.0   38.0
+```
+The GPU idle window lines up exactly with a spike to ~2,000 reads/sec at 99%+ device utilization but roughly flat *bandwidth* — a large jump in request count with `%util` pinned but no corresponding bandwidth jump is the signature of a metadata- or small-file-bound storage stage, not a bulk-throughput shortfall. If this were a bandwidth problem, `%util` would climb alongside MB/s, not alongside IOPS on tiny requests. This distinguishes "buy faster storage" (wrong fix here) from "shard the dataset to reduce small-file/metadata pressure" (the fix this evidence actually supports) — the two look identical from the GPU side (`sm%` drops to near zero either way) and only the storage-side trace tells them apart.
+
 **Root cause**
 
 The input pipeline cannot sustain the GPU consumption rate.
@@ -180,21 +211,21 @@ A customer purchases eight DGX systems and connects them to an existing enterpri
 
 ### Architecture question
 
-Why can a DGX system with healthy GPUs still deliver poor training performance?
+**Why can a DGX system with healthy GPUs still deliver poor training performance?**
 
-A strong answer traces the complete data path and discusses storage, metadata, CPU preprocessing, NUMA, network, caching, and checkpoint behavior.
+"Because 'healthy GPUs' only proves the last stage of a long pipeline is working — it says nothing about whether that stage is being fed. I'd trace the whole path out loud: storage device, filesystem, metadata service if it's a shared filesystem, CPU preprocessing and tokenization, NUMA placement of the data-loader process, host-to-device transfer, and only then the GPU. In my experience the most common surprise isn't raw bandwidth, it's metadata — a filesystem that benchmarks fine on large sequential reads can still fall over on a dataset with millions of small files, and that shows up as the exact same 'GPU idle gaps in `dmon`' signature as a bandwidth problem, so you have to actually look at IOPS versus MB/s to tell them apart."
 
 ### Scenario question
 
-When should local NVMe be used for training data?
+**When should local NVMe be used for training data?**
 
-When the data is staged or reproducible, node locality is controlled, and the design does not confuse scratch capacity with durable storage.
+"When the data on that node is disposable or reconstructible — staged from a source of truth, cached, shardable and re-fetchable — and the job's scheduling respects that locality, meaning it either pins to the same node or accepts a re-stage cost on reschedule. What I'd push back on is treating local NVMe as the durable copy of anything, especially a checkpoint — if a node fails and that scratch disk was the only copy of four hours of training progress, that's not a storage tier decision, that's a missing backup, and I've seen that exact mistake cost a team a day of compute."
 
 ### Troubleshooting question
 
-What evidence distinguishes a storage bottleneck from a compute bottleneck?
+**What evidence distinguishes a storage bottleneck from a compute bottleneck?**
 
-Correlate GPU idle periods with loader wait, I/O latency, filesystem counters, network throughput, and CPU I/O wait.
+"I'd put `nvidia-smi dmon` and the storage-side counters — `iostat -x` for local devices, filesystem client stats for a shared mount — on the same timeline and look for correlation, not just correlation in isolation. If GPU utilization drops in a periodic pattern that lines up with spikes in I/O wait or filesystem latency, that's the data pipeline starving the GPU. If GPU utilization stays high but throughput per GPU-second is still low, that's more likely a compute-shape problem — small batches, inefficient kernels — not storage at all. The single most useful discriminator I've found is IOPS versus bandwidth during the stall: a bandwidth-bound stage shows `%util` and MB/s rising together, while a metadata-bound stage shows `%util` pinned with IOPS spiking on tiny reads and bandwidth barely moving — those need completely different fixes."
 
 ## Key Takeaways
 

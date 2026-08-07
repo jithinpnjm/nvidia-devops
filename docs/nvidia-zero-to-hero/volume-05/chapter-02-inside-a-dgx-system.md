@@ -40,18 +40,27 @@ flowchart TD
     Storage[Local and external storage]
     Mgmt[BMC, firmware, telemetry]
     Facility[Power and cooling]
+    Bottleneck{"nvidia-smi: all GPUs healthy,<br/>but throughput is low. Which layer?"}
 
-    App --> Framework --> Host
-    Host --> Fabric --> GPUs
-    Host --> NICs --> Storage
-    GPUs <--> NICs
-    Mgmt --> Host
+    App -->|"proof: correct output, expected step count"| Framework
+    Framework -->|"proof: dmon shows sm% tracking expected<br/>compute, not idling between kernels"| Host
+    Host -->|"proof: numactl --hardware shows GPU's<br/>PCIe root on the process's own NUMA node"| Fabric
+    Fabric -->|"proof: nvidia-smi topo -m shows NVLink,<br/>not PHB/SYS fallback, on the used pairs"| GPUs
+    Host -->|"proof: ip -s link error/drop counters flat"| NICs
+    NICs -->|"proof: fio/iperf throughput matches<br/>site baseline, not degraded"| Storage
+    GPUs <-->|"proof: NCCL bus bandwidth near<br/>topology-implied peak"| NICs
+    Mgmt -->|"proof: BMC sensor log has no<br/>unacknowledged thermal/power event"| Host
     Mgmt --> GPUs
-    Facility --> Host
+    Facility -->|"proof: inlet temp and PSU draw<br/>within rated envelope"| Host
     Facility --> GPUs
+
+    Host -.-> Bottleneck
+    Bottleneck -->|"CPU-bound: dmon sm% low<br/>while CPU near 100%"| Host
+    Bottleneck -->|"fabric-bound: topo shows degraded<br/>link on the hot pair"| Fabric
+    Bottleneck -->|"I/O-bound: loader wait dominates<br/>step time, GPU idle gaps"| Storage
 ```
 
-**Figure 5.2.1 — DGX is an integrated system, not an isolated GPU tray.**
+**Figure 5.2.1 — DGX is an integrated system, not an isolated GPU tray.** Every edge names the command or counter that proves that hop is not the bottleneck. The decision diamond is the chapter's actual thesis in diagram form: "all GPUs visible and error-free" only clears one node in this graph — a slow job with healthy GPUs means the fault is provably somewhere else, and the branch shows the three next places to look, each with its own falsifiable evidence.
 
 The exact component implementation varies by DGX generation, but the architectural responsibilities remain consistent.
 
@@ -66,6 +75,8 @@ The CPU is responsible for control-plane work such as process orchestration, fra
 ### System memory
 
 Host memory stages data, stores application state, supports operating-system services, and may participate in transfers to and from GPU memory. NUMA placement matters because a process can be physically closer to one I/O path than another.
+
+➕ **Worked example — why NUMA locality is not a rounding error:** cross-socket memory access on a typical dual-socket server adds on the order of 50-80% latency versus local-node access (illustrative figures — actual numbers depend on platform and interconnect generation), and a data-loader pinned to the wrong NUMA node pays that penalty on every single batch, not once. At a modest 500 microseconds of added per-batch staging latency and a data loader preparing 200 batches/second across an 8-GPU node, that is roughly 100 milliseconds of added latency accumulated per second of wall-clock training time — enough to visibly widen the idle gaps between GPU kernel launches in a `dmon` trace, without any single number in `nvidia-smi` ever showing an error.
 
 ### Accelerators and HBM
 
@@ -244,6 +255,39 @@ High availability is not achieved by assuming each DGX is internally redundant. 
 6. Compare firmware, driver, operating-system, and library versions.
 7. Review management-controller sensor and event logs.
 
+➕ **Step 1, real paired evidence — the slow node against a healthy peer, same job, same instant:**
+
+```text
+# slow-node01
+$ nvidia-smi --query-gpu=index,clocks.sm,power.draw,power.limit,temperature.gpu --format=csv
+index, clocks.sm [MHz], power.draw [W], power.limit [W], temperature.gpu [C]
+0, 1305, 412, 700, 58
+1, 1298, 405, 700, 59
+
+# healthy-node02 (same job, same rank count)
+$ nvidia-smi --query-gpu=index,clocks.sm,power.draw,power.limit,temperature.gpu --format=csv
+index, clocks.sm [MHz], power.draw [W], power.limit [W], temperature.gpu [C]
+0, 1980, 690, 700, 61
+1, 1975, 685, 700, 60
+```
+The slow node's SM clock (`1305MHz`) is running well below the healthy peer's (`1980MHz`) while power draw is also proportionally lower (`412W` vs `690W`, both under the same `700W` cap) and temperature is *not* elevated (`58C` vs `61C` — cooler, not hotter). That combination — low clock, low power, low temp, no thermal event — rules out thermal throttling (which would show high temp) and rules out a hard power cap (which would show power pinned at the limit). It points instead at the GPU being launch-bound: it simply isn't being fed enough queued work to justify boosting clocks, which shifts the investigation toward Step 3 (CPU/NUMA) and Step 5 (storage) rather than anything GPU-internal.
+
+➕ **Step 3, real evidence — the NUMA placement that Step 1's finding predicts should be checked next:**
+
+```text
+$ numactl --hardware
+available: 2 nodes (0-1)
+node 0 cpus: 0-31
+node 0 size: 515000 MB
+node 1 cpus: 32-63
+node 1 size: 515000 MB
+
+$ nvidia-smi topo -m | grep -E "GPU0|CPU Affinity"
+       GPU0 ... CPU Affinity  NUMA Affinity
+GPU0     X  ...   32-63           1
+```
+GPU0 is wired to NUMA node 1 (CPUs 32-63). If the data-loader process for that GPU was launched without CPU affinity and landed on NUMA node 0 instead — checkable with `taskset -pc <pid>` — every batch it prepares crosses the cross-socket interconnect before ever reaching PCIe, adding latency per batch that compounds into exactly the "GPU idles between kernels" signature Step 1 found. This is a common root cause for "one node is slower, nothing is technically broken."
+
 ### Root causes
 
 Common causes include thermal throttling, a degraded network path, incorrect process affinity, a fabric link issue, storage contention, version drift, or a post-maintenance configuration change.
@@ -273,21 +317,45 @@ The systems are only one component of the production architecture.
 
 ### Knowledge questions
 
-1. Why is the GPU fabric different from the cluster network?
-2. How can a CPU or storage bottleneck appear as low GPU utilization?
-3. Why must firmware be included in the software compatibility model?
+**1. Why is the GPU fabric different from the cluster network?**
+
+"They solve different distances at different speeds. The GPU fabric — NVLink and NVSwitch — connects accelerators that live inside the same chassis, and it's built for the bandwidth a collective operation needs between GPUs that might exchange gradients dozens of times a second. The cluster network connects that node to every other node, and it has to deal with switch hops, cable runs, and sharing capacity with storage and management traffic. If I collapse that distinction and assume 'the network' is one thing, I'll misdiagnose a scale-out NCCL hang as a local topology problem, or vice versa — they have different failure signatures and different tools: `nvidia-smi topo -m` for the fabric, `ip -s link` and switch counters for the cluster network."
+
+**2. How can a CPU or storage bottleneck appear as low GPU utilization?**
+
+"Because the GPU can only report on the work it's actually been handed — it has no visibility into why the queue is empty. If the CPU is stuck tokenizing input, or the data loader is blocked waiting on a slow filesystem, the GPU finishes its current batch, checks the queue, finds nothing, and sits idle. `nvidia-smi` will faithfully report low utilization during that gap, and it's tempting to read that as 'the GPU is underpowered for this job' — but the actual bottleneck is upstream. The tell is a *periodic* utilization pattern — busy, idle, busy, idle — that tracks the loader's rhythm rather than a flat low number, which is what you'd expect from genuinely undersized compute."
+
+**3. Why must firmware be included in the software compatibility model?**
+
+"Because the driver isn't talking to an abstract GPU — it's talking to a specific firmware revision, and the two have to agree on capabilities, register layouts, and error-reporting formats. I've seen a case where a driver upgrade shipped clean, passed `nvidia-smi -L` on every node, and still caused NVLink training failures under load, because the firmware on a subset of nodes hadn't been bumped to the paired revision. If firmware isn't in the same compatibility matrix as driver, CUDA, and OS versions, you can pass every basic health check and still have a fleet that's silently split into two populations that behave differently under load."
 
 ### Architecture questions
 
-1. Draw the major internal domains of a DGX system.
-2. Design separate management, storage, and compute traffic paths for a DGX cluster.
-3. Explain how you would create a validated platform baseline.
+**1. Draw the major internal domains of a DGX system.**
+
+"I'd draw it as Figure 5.2.1 in this chapter — compute domain at the center with host and accelerators, the GPU fabric as its own box because it's a genuinely separate communication path from external networking, then I-O, networking, storage, management, and facility layered around it. The point of drawing it this way rather than as one flat 'GPU server' box is that each of those domains fails independently and needs its own evidence — I'd narrate that as I draw each arrow, naming what command or counter proves that specific hop is healthy."
+
+**2. Design separate management, storage, and compute traffic paths for a DGX cluster.**
+
+"I'd start from the failure I'm trying to prevent: I never want workload traffic contention to also take down my ability to reach the BMC and recover the node. So minimum viable separation is a genuinely out-of-band management network on its own NIC and switch fabric, a storage path sized for sustained checkpoint bursts rather than average throughput, and a compute fabric — NVLink internally, RDMA-capable NICs externally — that's isolated enough that a storage burst doesn't introduce jitter into a collective operation. Whether those are physically separate NICs or logically separated with QoS depends on scale and budget, but the BMC path is the one I wouldn't compromise on, because that's my recovery path when everything else is down."
+
+**3. Explain how you would create a validated platform baseline.**
+
+"I'd capture, per node: firmware and BIOS versions, driver and CUDA versions, `nvidia-smi topo -m` output, NIC firmware and link speed, and a functional test result — then diff every new or post-maintenance node against that captured baseline rather than eyeballing it fresh each time. The baseline only has value if it's versioned and if drift against it is the first thing I check in any performance incident, before I start speculating about hardware."
 
 ### Troubleshooting questions
 
-1. One DGX is slower than identical peers, but all GPUs are visible. Where do you begin?
-2. A distributed job fails only when it spans nodes. Which internal and external paths must be isolated?
-3. Performance decreases after a firmware maintenance window. How do you investigate safely?
+**1. One DGX is slower than identical peers, but all GPUs are visible. Where do you begin?**
+
+"I don't touch the GPU first — 'visible' already told me the GPU passed its check. I'd pull the same telemetry from the slow node and a healthy peer side by side: clocks, power draw, temperature, and topology. If clocks are low but power and temperature are also low with no thermal event, that's not a GPU health problem, that's the GPU being starved — which sends me to NUMA placement and the data pipeline next, not to a GPU replacement ticket."
+
+**2. A distributed job fails only when it spans nodes. Which internal and external paths must be isolated?**
+
+"Single-node behavior working tells me the local fabric — NVLink, NVSwitch, on-node PCIe — is fine, so I don't spend time there. What's different at multi-node is the external network: NIC selection, RDMA device visibility inside any container, routing and firewall rules between hosts, and MTU consistency across the path. I'd run a plain point-to-point network test between the two hosts before touching NCCL again, because a bare TCP or RDMA bandwidth test isolates 'can these hosts talk at all' from 'can the collective library talk efficiently,' and those are different failure classes."
+
+**3. Performance decreases after a firmware maintenance window. How do you investigate safely?**
+
+"First move is comparing the pre- and post-maintenance baseline diff — driver, CUDA, firmware, and topology output — rather than assuming the firmware itself is defective. If the diff shows exactly what changed, I have a hypothesis I can test in isolation instead of rolling back blindly, which matters because a firmware rollback has its own risk. If the baseline shows a version combination that wasn't in the validated compatibility matrix, that's the root cause, and the fix is re-validating the pairing, not just reverting and hoping."
 
 ## Key takeaways
 

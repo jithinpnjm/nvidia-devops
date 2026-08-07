@@ -39,18 +39,29 @@ flowchart TD
     Firmware[Firmware and BMC]
     Facility[Power, Cooling, Rack]
     Operations[Monitoring, Upgrades, Support]
+    Slow{Job runs but throughput<br/>is below expected FLOPs/token-rate}
 
-    Workload --> Framework --> CUDA --> Fabric --> Host
-    Host --> Network
-    Firmware --> Host
-    Facility --> Host
-    Operations --> Firmware
+    Workload -->|"proof: exit code 0, correct output"| Framework
+    Framework -->|"proof: torch.cuda.is_available()==True,<br/>expected op count in profiler trace"| CUDA
+    CUDA -->|"proof: nvidia-smi topo -m shows<br/>expected NVLink/PCIe matrix, not PHB fallback"| Fabric
+    Fabric -->|"proof: nvidia-smi dmon shows sm% and<br/>mem% both high, not one stalling the other"| Host
+    Host -->|"proof: ip -s link error counters flat,<br/>NIC firmware matches baseline"| Network
+    Firmware -->|"proof: BMC inventory matches<br/>approved baseline, no pending updates"| Host
+    Facility -->|"proof: BMC power/thermal telemetry<br/>within rated envelope, no throttle events"| Host
+    Operations -->|"proof: alert routes verified,<br/>rollback plan tested"| Firmware
     Operations --> Network
+
+    Host -.->|"symptom appears here"| Slow
+    Slow -->|"clocks/power throttled?"| Facility
+    Slow -->|"link degraded, not enumerated<br/>at expected width/speed?"| Fabric
+    Slow -->|"firmware/driver mismatch<br/>vs approved baseline?"| Firmware
 ```
 
-**Figure 5.1.1 — AI performance and reliability span the whole system.** A weak link anywhere in the chain can reduce the value of the GPUs.
+**Figure 5.1.1 — AI performance and reliability span the whole system.** Each edge names the evidence that proves that hop is healthy — a job that merely "runs" only proves the top edge, not the chain beneath it. The branch at the bottom is the actual diagnostic habit this chapter argues for: when throughput is low despite a running job, the next question is never "which GPU is broken," it is "which of these three layers is unproven."
 
 Before integrated platforms, customers or system builders had to make and validate many independent choices: GPU placement, PCIe topology, peer-to-peer paths, network adapter locality, firmware combinations, cooling behavior, driver versions, storage layout, and failure procedures. Each choice could be locally reasonable yet collectively poor.
+
+➕ **Why this matters in numbers, not just narrative:** an 8-GPU H100 node retailing in the ballpark of $250,000–$300,000 (illustrative figure — actual pricing varies by configuration and contract) that runs distributed training at 60% of expected scaling efficiency because of one uninvestigated PCIe topology mismatch is not a $0 problem sitting quietly — it is roughly 40% of that capital sitting idle every hour the job runs, for the entire life of the cluster, until someone runs `nvidia-smi topo -m` and compares it against the validated design. Multiply by eight nodes and the annualized waste (at an illustrative $28.00/hr cloud-equivalent GPU rate, 8 GPUs, 24/7) is on the order of tens of thousands of dollars per node, per year — which is why "did anyone validate topology before workloads started" is a legitimate first question in a production incident, not pedantry.
 
 ## What DGX Integrates
 
@@ -124,6 +135,28 @@ The lesson is not that the hardware choice was wrong. The lesson is that DGX mus
 4. Review monitoring coverage and alert ownership.
 5. Confirm maintenance, escalation, and rollback procedures.
 
+➕ **Step 1 and Step 2, with real evidence — not every "installed but not ready" node fails loudly:**
+
+```text
+$ nvidia-smi --query-gpu=index,name,driver_version,pci.bus_id --format=csv
+index, name, driver_version, pci.bus_id
+0, NVIDIA H100 80GB HBM3, 550.90.07, 00000000:1B:00.0
+1, NVIDIA H100 80GB HBM3, 550.90.07, 00000000:1C:00.0
+2, NVIDIA H100 80GB HBM3, 550.54.15, 00000000:3D:00.0   ← driver drift
+3, NVIDIA H100 80GB HBM3, 550.90.07, 00000000:3E:00.0
+```
+Seven of eight GPUs on `550.90.07`, one on `550.54.15` — a driver that installed successfully and passes `nvidia-smi -L` on every GPU individually, yet is not the same *binary version* the other seven are running. This is invisible to "GPU count is correct, no errors" checks and only shows up when you diff the fleet, which is exactly why Step 1 is inventory *before* anything else — a single-node health check cannot catch fleet drift by definition.
+
+```text
+$ nvidia-smi topo -m
+       GPU0  GPU1  GPU2  GPU3  NIC0  NIC1  CPU Affinity
+GPU0    X    NV18  NV18  NV18  PXB   SYS   0-31
+GPU1   NV18   X    NV18  NV18  PXB   SYS   0-31
+GPU2   NV18  NV18   X    PHB   SYS   PXB   32-63   ← expected NV18, degraded to PHB
+GPU3   NV18  NV18  PHB    X    SYS   PXB   32-63
+```
+`NV18` means an NVLink path is negotiated at its expected width; `PHB` (PCIe Host Bridge) between GPU2 and GPU3 means that link fell back to routing through the CPU's PCIe root complex instead of NVSwitch — a real fabric degradation, not a display quirk. Every other pair still shows `NV18`, so this is localized, not systemic — consistent with one bad NVSwitch port or a reseated card that didn't re-train to full width, and it directly explains why a collective spanning GPU2/GPU3 would be slower than one spanning GPU0/GPU1 even though `nvidia-smi -L` reports all four GPUs as healthy.
+
 **Root cause**
 
 The deployment treated DGX as delivered equipment rather than an operational platform component.
@@ -148,15 +181,15 @@ The explanation should also state the boundaries honestly. DGX does not design t
 
 ### Architecture question
 
-Why would an enterprise buy DGX instead of assembling equivalent components?
+**Why would an enterprise buy DGX instead of assembling equivalent components?**
 
-A strong answer discusses integration risk, validated topology, software and firmware compatibility, support ownership, deployment speed, repeatability, and lifecycle operations—not merely performance.
+"I'd frame it as buying down integration risk, not buying performance — the raw FLOPs on the spec sheet are roughly the same whether you assemble it yourself or buy it integrated. What you're actually paying for is that NVIDIA has already validated the GPU-to-GPU topology, the firmware-driver-CUDA compatibility matrix, and the thermal design as one tested unit, and stands behind that combination as a single support boundary. If I build it myself, I own qualifying every one of those combinations — and if something misbehaves at 2am, I'm the one deciding whether it's the GPU, the NIC firmware, or a driver mismatch, with no vendor to hand a single ticket to. So the real trade is: DGX trades design freedom and acquisition-cost optimization for a shorter, more predictable path to a supportable baseline. That's worth it when integration risk and time-to-production matter more than shaving acquisition cost — and worth less if the organization already has mature hardware qualification capability and wants to match an existing fleet standard."
 
 ### Scenario question
 
-Eight DGX systems arrive next month. What work must happen before delivery?
+**Eight DGX systems arrive next month. What work must happen before delivery?**
 
-Cover facility power and cooling, rack layout, management and data networks, cabling, storage, IP and identity planning, firmware baseline, provisioning, acceptance tests, monitoring, security review, support registration, workload onboarding, and maintenance procedures.
+"Nothing about the compute itself should be the long pole — the long pole is always facility and network readiness. Concretely, I'd walk it as: confirm the rack has the power and cooling headroom for eight nodes at sustained draw, not just idle draw; get management and data networks — including a genuinely out-of-band BMC network — cabled and IP-planned before the hardware shows up; agree on a firmware and driver baseline with the vendor so we're not qualifying versions live in production; write an acceptance test plan that includes a sustained-load run, not just a power-on check, because thermal and power problems only show up under load; and get monitoring, security review, and support registration done so day one isn't the first time anyone's looked at the telemetry. If any of those are still open the week the hardware lands, I'd rather delay racking than install into an environment that isn't provably ready — an installed-but-unready node just moves the risk downstream into someone's first production job."
 
 ## Key Takeaways
 
