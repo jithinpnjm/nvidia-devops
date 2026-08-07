@@ -4,15 +4,15 @@ Volumes: ZTH-04 (NVIDIA Hardware Portfolio), ZTH-05 (DGX Systems), ZTH-06 (HGX P
 
 | Volume | File | Status | Severity Summary |
 |---|---|---|---|
-| ZTH-04 | index.md | pending | |
-| ZTH-04 | chapter-01-why-nvidia-has-multiple-gpu-families.md | pending | |
-| ZTH-04 | chapter-02-workload-first-gpu-selection.md | pending | |
-| ZTH-04 | chapter-03-accelerator-generations-and-design-shifts.md | pending | |
-| ZTH-04 | chapter-04-pcie-sxm-and-platform-integration.md | pending | |
-| ZTH-04 | chapter-05-inference-accelerators-t4-l4-and-l40s.md | pending | |
-| ZTH-04 | chapter-06-training-accelerators-v100-to-b200.md | pending | |
-| ZTH-04 | labs/lab-01-build-a-gpu-selection-scorecard.md | pending | |
-| ZTH-04 | labs/lab-02-benchmark-an-inference-accelerator-shortlist.md | pending | |
+| ZTH-04 | index.md | done | 1 medium, 1 high |
+| ZTH-04 | chapter-01-why-nvidia-has-multiple-gpu-families.md | done | none |
+| ZTH-04 | chapter-02-workload-first-gpu-selection.md | done | none |
+| ZTH-04 | chapter-03-accelerator-generations-and-design-shifts.md | done | 1 low |
+| ZTH-04 | chapter-04-pcie-sxm-and-platform-integration.md | done | none |
+| ZTH-04 | chapter-05-inference-accelerators-t4-l4-and-l40s.md | done | 1 medium |
+| ZTH-04 | chapter-06-training-accelerators-v100-to-b200.md | done | 1 medium |
+| ZTH-04 | labs/lab-01-build-a-gpu-selection-scorecard.md | done | none |
+| ZTH-04 | labs/lab-02-benchmark-an-inference-accelerator-shortlist.md | done | none |
 | ZTH-05 | index.md | pending | |
 | ZTH-05 | chapter-01-why-dgx-exists.md | pending | |
 | ZTH-05 | chapter-02-inside-a-dgx-system.md | pending | |
