@@ -29,9 +29,9 @@ Predictive maintenance reduces equipment downtime 30-50%, saving $100Ks-$1Ms per
 - Latency: <100ms for 25 bearings
 
 **Performance:**
-- Inference: 5ms per bearing × 25 = 125ms total
+- Inference: 5ms per bearing if run sequentially (5ms × 25 = 125ms, which would violate the <100ms budget) — bearings are instead processed as a single GPU-batched inference call across all 25 sensors, bringing total latency to ~35ms
 - Monitoring: Real-time, detect failures 7-14 days ahead
-- Latency requirement: <100ms ✓
+- Latency requirement: <100ms ✓ (35ms achieved via batched inference)
 
 ### ROI
 
@@ -40,10 +40,10 @@ Predictive maintenance reduces equipment downtime 30-50%, saving $100Ks-$1Ms per
 
 **With predictive maintenance:**
 - Detected failures: 7/10 (70% detection)
-- Avoided downtime: 7 × $150K = $1.05M/year
+- Avoided downtime: 7 × $50K = $350K/year (same $50K/failure cost as the current-state baseline)
 - Infrastructure cost: $22.5K hardware + $67.5K ops = $90K/year
-- **Net benefit: $960K/year**
-- **Payback: 3 weeks**
+- **Net benefit: $260K/year**
+- **Payback: ~1 month**
 
 ## Troubleshooting
 

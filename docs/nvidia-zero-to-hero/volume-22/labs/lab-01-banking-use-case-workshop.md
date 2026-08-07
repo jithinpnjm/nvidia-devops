@@ -253,7 +253,7 @@ Summary after 5 minutes:
   Latency p99: 8.7 ms
   Latency p99.9: 18.2 ms
   
-  GPU memory: 68-70 GB used per GPU (stable, no leak)
+  GPU memory: 38-40 GB used per GPU (stable, no leak)
   GPU utilization: 93% average
   Server CPU: 25% (not bottleneck)
   Network: 50 Mbps (not bottleneck)
@@ -282,10 +282,10 @@ $ nvidia-smi -i 0 --query-gpu=index,memory.used,power.draw \
     --format=csv -l 1
 
 index, memory.used [MiB], power.draw [W]
-0, 68200, 210
-0, 68100, 208
-0, 75600, 245  ← Memory spike, power increase
-0, 76000, 248  ← GPU running out of buffer space
+0, 38200, 210
+0, 38100, 208
+0, 45600, 245  ← Memory spike, power increase
+0, 47600, 248  ← GPU running out of buffer space
 ```
 
 **Root cause:** Request batch size grew unexpectedly; not enough GPU memory for max batch

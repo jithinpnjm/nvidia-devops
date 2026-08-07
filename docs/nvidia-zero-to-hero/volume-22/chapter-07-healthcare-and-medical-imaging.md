@@ -39,8 +39,8 @@ GPU-accelerated medical imaging analysis reduces radiologist review time 80% whi
 - FDA compliance: $20K/year
 - **Total: $144.6K/year**
 
-- Radiologist time saved: $274K/year
-- **Net benefit: $129K/year, payback in 1.8 years**
+- Radiologist time saved: $1.9M/year (19,167 hours/year × ~$100/hour blended rate, from Requirements)
+- **Net benefit: ~$1.76M/year, payback in under 2 months**
 
 ## Related Chapters
 

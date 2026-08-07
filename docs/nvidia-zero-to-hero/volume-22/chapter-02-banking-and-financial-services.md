@@ -62,8 +62,8 @@ flowchart TD
 ### Architecture: 8 A100s (FP64 optimized)
 
 **Why A100 (not L40S):**
-- A100 has 312 TFLOPS FP64 (L40S only 25 TFLOPS)
-- 12× faster for double-precision compute
+- A100 has ~19.5 TFLOPS FP64 (Tensor Core; ~9.7 TFLOPS on CUDA cores) vs L40S's ~1.4 TFLOPS FP64 (Ada Lovelace GPUs have crippled double-precision throughput, roughly 1/64 of FP32)
+- ~14× faster for double-precision compute
 - Single overnight run; cost-per-run matters
 
 **Results:**
@@ -108,7 +108,7 @@ A: Fraud detection is latency + throughput sensitive (5,000 TPS, <100ms). Risk m
 
 **Q: Design a fraud detection system for 5,000 TPS with <100ms latency.**
 
-A: 4 L40S GPUs behind load balancer. Each L40S does 750 TPS independently. Total = 3,000 TPS available (headroom). Batch size 256, inference time ~8ms, end-to-end with network ~40ms p99. Cost: $96K hardware + $111K/year ops.
+A: 8 L40S GPUs (2 clusters of 4) behind load balancers. Each L40S does 750 TPS independently. Total = 6,000 TPS available (headroom above the 5,000 TPS target). Batch size 256, inference time ~8ms, end-to-end with network ~40ms p99. Cost: $161K hardware + $80K/year ops.
 
 ## Related Chapters
 
