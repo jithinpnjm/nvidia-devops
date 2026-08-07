@@ -82,3 +82,13 @@ No findings. Composition-vs-inheritance guidance (Protocol-based `PodInspector` 
 
 ### 11-chapter-10-generators-and-decorators-without-magic.md
 No findings. `functools.wraps` metadata-preservation point is correct and demonstrated with real before/after output. The retry-decorator example correctly composes with Chapter 8's backoff policy.
+
+### 12-chapter-11-concurrency-for-infrastructure-engineers.md
+No findings. This is the chapter the task brief specifically asks about ("how the GIL affects a multi-threaded orchestration script") and it delivers precisely: correct GIL mechanics (released during I/O wait, not during CPU-bound bytecode execution), correct threads-vs-processes-vs-asyncio decision framing, and a concrete `asyncio.Semaphore` rate-limiting answer. `return_exceptions=True` on `asyncio.gather` is correctly explained as preventing one failure from cancelling the whole batch.
+
+### 13-chapter-12-type-hints-and-pytest-make-changes-safer.md
+- [SEVERITY: low] MDX/table structural bug (fixed inline): the annotation-shapes table had an unescaped `|` inside a backtick code span in a table cell — `` | `str | None` | ... ``. Depending on the markdown table parser, an unescaped pipe inside a cell can split it into extra columns and corrupt the row.
+  - Evidence: `docs/volume-02/13-chapter-12-type-hints-and-pytest-make-changes-safer.md` line 76 (before fix): `` | `str | None` | string or explicit absence | optional API field | ``.
+  - Why it matters for JR2018680: not interview content — a build/rendering integrity issue only.
+  - Fix applied: escaped to `` `str \| None` ``.
+  Content otherwise: no findings. "Patch where it's looked up, not where it's defined" mocking explanation is accurate and is the single most common real-world `mocker.patch` mistake, correctly diagnosed.

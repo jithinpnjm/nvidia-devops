@@ -28,8 +28,8 @@ Volumes: `docs/volume-01` (F-01, Linux internals), `docs/volume-02` (F-02, Pytho
 | F-02 | 09-chapter-8-http-apis-timeouts-retries-and-backoff.md | done | none |
 | F-02 | 10-chapter-9-oop-that-helps-infrastructure-code.md | done | none |
 | F-02 | 11-chapter-10-generators-and-decorators-without-magic.md | done | none |
-| F-02 | 12-chapter-11-concurrency-for-infrastructure-engineers.md | pending | |
-| F-02 | 13-chapter-12-type-hints-and-pytest-make-changes-safer.md | pending | |
+| F-02 | 12-chapter-11-concurrency-for-infrastructure-engineers.md | done | none |
+| F-02 | 13-chapter-12-type-hints-and-pytest-make-changes-safer.md | done | 1 low (fixed) |
 | F-02 | 14-chapter-13-project-structure-cli-and-ci-cd.md | pending | |
 | F-02 | 15-chapter-14-capstone-design-a-cluster-diagnostics-cli.md | pending | |
 | F-02 | 16-targeted-udemy-study-map.md | pending | |
