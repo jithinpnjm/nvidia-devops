@@ -53,3 +53,15 @@
 ### 09-job-provisioning-health-gating-and-workflow-orchestration.md
 - [SEVERITY: low] No factual errors found. The readiness-pipeline gate model, Prolog/Epilog + NHC-style `HealthCheckProgram` mechanism, and the layered GPU-count/DCGM-diag/NVLink-status/mount health-check script are accurate and realistic.
 - Strength: the "enumerated is not the same as healthy" NVLink worked scenario is a genuinely strong, specific interview answer distinguishing device presence from link health — exactly the kind of degraded-not-dead failure mode the task brief calls out.
+
+### 10-coordinated-cluster-wide-software-change-management.md
+- [SEVERITY: low] No factual errors found. The compatibility-matrix model (BMC/firmware -> kernel -> driver -> CUDA -> runtime -> orchestrator -> fabric -> storage -> NCCL), the "silent transport downgrade" NCCL/firmware failure mode, and the "canary that wasn't representative" (ConnectX-6 vs ConnectX-7 firmware) worked scenario are accurate and directly interview-relevant.
+- Strength: explicitly calls out that firmware rollback is not always symmetric/reversible, and sequences changes from least-reversible to most-reversible — this is a sophisticated operational point many candidates miss.
+
+### 11-cicd-for-infrastructure-and-cluster-configuration.md
+- [SEVERITY: low] No factual errors found. GitOps-vs-Terraform/Ansible auto-reconciliation asymmetry, the policy-check-as-blast-radius-gate argument (OPA/Conftest example), and the golden-image-as-CI-pipeline-output model are accurate and well-reasoned.
+- Strength: the "emergency override that made the gate meaningless" worked scenario gives a mature, non-obvious answer (audited-and-rare instead of removed) that reads as genuine operational experience rather than a generic best-practice list.
+
+### 12-customer-runbooks-onboarding-and-best-practice-documentation.md
+- [SEVERITY: low] No factual errors found; this is a documentation-craft chapter (runbook vs. onboarding-guide template) rather than a technical-accuracy surface, so findings here are about interview-readiness rather than correctness.
+- [SEVERITY: low] Interview-readiness note: this chapter is a strong, concrete answer to "how do you hand off a cluster to a customer's ops team" (a plausible NVIDIA Solutions-Architect-adjacent interview question given JR2018680's scope) — the annotated DRAIN-state runbook with checkable escalation triggers is a good model answer, not just documentation theory.

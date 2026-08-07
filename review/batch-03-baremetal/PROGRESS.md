@@ -12,9 +12,9 @@
 | F-10 | 07-mpi-fundamentals-for-hpc-ai-workloads.md | done | 0 high/medium; strong chapter |
 | F-10 | 08-enroot-and-pyxis-containers-for-hpc.md | done | 0 high/medium; strong chapter |
 | F-10 | 09-job-provisioning-health-gating-and-workflow-orchestration.md | done | 0 high/medium; strong chapter |
-| F-10 | 10-coordinated-cluster-wide-software-change-management.md | pending | |
-| F-10 | 11-cicd-for-infrastructure-and-cluster-configuration.md | pending | |
-| F-10 | 12-customer-runbooks-onboarding-and-best-practice-documentation.md | pending | |
+| F-10 | 10-coordinated-cluster-wide-software-change-management.md | done | 0 high/medium; strong chapter |
+| F-10 | 11-cicd-for-infrastructure-and-cluster-configuration.md | done | 0 high/medium; strong chapter |
+| F-10 | 12-customer-runbooks-onboarding-and-best-practice-documentation.md | done | 0 high/medium; strong chapter |
 | F-10 | 13-senior-deep-dive-1-bcm-at-fleet-scale.md | pending | |
 | F-10 | 14-senior-deep-dive-2-slurm-ha-and-accounting-internals.md | pending | |
 | F-10 | 15-senior-deep-dive-3-mpi-and-nccl-joint-debugging.md | pending | |
