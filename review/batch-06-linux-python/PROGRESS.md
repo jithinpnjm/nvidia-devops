@@ -19,11 +19,11 @@ Volumes: `docs/volume-01` (F-01, Linux internals), `docs/volume-02` (F-02, Pytho
 | F-01 | 13-senior-troubleshooting-exercise-slow-gpu-job-with-healthy-kubernetes.md | done | none |
 | F-02 | 01-book-map.md | done | none |
 | F-02 | 02-chapter-1-how-python-actually-executes-your-infrastructure-script.md | done | none |
-| F-02 | 03-chapter-2-choosing-data-structures-by-the-problem-not-by-habit.md | pending | |
-| F-02 | 04-chapter-3-functions-turn-scripts-into-testable-decisions.md | pending | |
-| F-02 | 05-chapter-4-files-pathlib-regex-json-and-yaml.md | pending | |
-| F-02 | 06-chapter-5-exceptions-and-context-managers.md | pending | |
-| F-02 | 07-chapter-6-logging-for-operations-not-print-debugging.md | pending | |
+| F-02 | 03-chapter-2-choosing-data-structures-by-the-problem-not-by-habit.md | done | none |
+| F-02 | 04-chapter-3-functions-turn-scripts-into-testable-decisions.md | done | none |
+| F-02 | 05-chapter-4-files-pathlib-regex-json-and-yaml.md | done | none |
+| F-02 | 06-chapter-5-exceptions-and-context-managers.md | done | none |
+| F-02 | 07-chapter-6-logging-for-operations-not-print-debugging.md | done | none |
 | F-02 | 08-chapter-7-system-interaction-and-subprocess.md | pending | |
 | F-02 | 09-chapter-8-http-apis-timeouts-retries-and-backoff.md | pending | |
 | F-02 | 10-chapter-9-oop-that-helps-infrastructure-code.md | pending | |

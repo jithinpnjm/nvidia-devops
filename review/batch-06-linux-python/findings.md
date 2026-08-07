@@ -55,3 +55,18 @@ No findings. Structural front matter, sets accurate three-stage learning path.
 
 ### 02-chapter-1-how-python-actually-executes-your-infrastructure-script.md
 No findings. Foundations section is well-paced (variables through try/except with runnable snippets). Reference/mutability/aliasing section (`copy = pods` binding, `add_node` shared-mutable-default-argument trap) is technically correct and is a real, common infra-Python bug shape. Exit-code contract (0/1/2, tool-failure vs finding) is exactly the kind of infra-automation depth called out in the task brief. `__name__ == "__main__"` explanation is accurate.
+
+### 03-chapter-2-choosing-data-structures-by-the-problem-not-by-habit.md
+No findings. Big-O framing via the labeled-drawer analogy is clear and correct; the O(n) list-membership-in-a-loop trap and its O(n²) nested-loop consequence is exactly the kind of "data structure choice for a cluster inventory service" depth the task brief calls for. `collections.defaultdict`/`Counter`/`deque(maxlen=N)` coverage is accurate and practically useful (ring buffer for "last N events" tailing).
+
+### 04-chapter-3-functions-turn-scripts-into-testable-decisions.md
+No findings. "Functional core, imperative shell" framing is correctly named and applied to a GPU-fleet-specific `classify_gpu` example (Xid errors → needs_drain, ECC/thermal → degraded) that is genuinely well-suited to a live coding round for this role.
+
+### 05-chapter-4-files-pathlib-regex-json-and-yaml.md
+No findings. Correctly flags `yaml.load()` without a safe `Loader` as a code-execution vector (`!!python/object` tags) and demonstrates the `ijson` streaming fix for multi-GB `kubectl get pods -A -o json` dumps — both are real, specific infra-Python failure modes, not generic content.
+
+### 06-chapter-5-exceptions-and-context-managers.md
+No findings. Exception-hierarchy-as-retry-policy pattern (`except TemporaryAPIError: retry` vs `except AuthenticationError: fail-fast`) and `raise ... from exc` chaining are both accurate and directly useful for "why a naive retry loop leaks file descriptors"-style infra questions from the task brief.
+
+### 07-chapter-6-logging-for-operations-not-print-debugging.md
+No findings. Correctly uses `contextvars.ContextVar` (not a plain global) for correlation-ID propagation across threads/asyncio, and includes a working secret-redaction `logging.Filter` example.
