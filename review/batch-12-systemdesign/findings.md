@@ -66,3 +66,39 @@ No issues found (intentional condensed cross-reference of Ch.10).
 No issues found. Good interview self-check rubric.
 
 **F-08 volume complete.** 18/18 chapters reviewed. 1 low-severity finding (arithmetic error in ch.4 worked matrix).
+
+## Volume F-09 — JR2018680 Interview Preparation
+
+### 01-chapter-1-the-answer-framework-expose-your-reasoning.md
+No issues found. Strong C-M-H-E-R framework, accurate K8s Pending-pod worked answer.
+
+### 02-chapter-2-python-coding-interview-workflow.md
+- [SEVERITY: low] Practice question 3 references a function named `summarize()`, but the chapter's worked example function is named `count_errors()`. No `summarize()` function is defined anywhere in the chapter.
+  - Evidence: "Rewrite `summarize()` so that instead of silently `continue`-ing on a non-matching line, it also returns a count of malformed lines..." vs. the code block defining `def count_errors(lines: Iterable[str]) -> Counter[str]:`.
+  - Why it matters for JR2018680: minor, but a candidate rehearsing this chapter verbatim could be confused referencing a function that doesn't exist in the material; also a leftover from source-document editing that should be cleaned up.
+  - Suggested fix: rename `summarize()` to `count_errors()` in the practice question.
+  Python/async code reviewed (`count_errors`, `check_node`/`check_all`) is correct: regex group indexing, `search` vs `match` justification, exception ordering (`TimeoutException` before more general `HTTPError`), and concurrency-bound reasoning all check out.
+
+### 03-chapter-3-linux-troubleshooting-questions.md
+No issues found. `vmstat` b-column/wchan reasoning and load-average-includes-D-state explanation are correct.
+
+### 04-chapter-4-kubernetes-troubleshooting-questions.md
+No issues found. Exit code mapping correct (137=SIGKILL, 143=SIGTERM).
+
+### 05-chapter-5-gpu-and-ai-infrastructure-troubleshooting.md
+No issues found.
+
+### 06-chapter-6-ai-inference-architecture-questions.md
+No issues found. TTFT (prefill/queue-bound) vs TPOT/ITL (decode/memory-bandwidth-bound) distinction is technically accurate.
+
+### 07-chapter-7-hpc-networking-questions.md
+No issues found on the RDMA/RoCE/InfiniBand conceptual explanation (accurate: RDMA bypasses CPU/kernel, InfiniBand is natively lossless with credit-based flow control, RoCEv2 needs PFC/ECN to approximate lossless behavior). The illustrative `nccl-tests` output table's busbw values are rough/illustrative and don't exactly match the ring-allreduce busbw formula (busbw ≈ algbw × 2(n-1)/n), but the table is explicitly presented as illustrative sample output, not a specific hardware performance claim, so not flagged as a hard error.
+
+### 08-chapter-8-solutions-architecture-whiteboard-method.md
+No issues found.
+
+### 09-chapter-9-customer-discovery-interview.md
+No issues found.
+
+### 10-chapter-10-behavioral-and-stakeholder-stories.md
+No issues found.

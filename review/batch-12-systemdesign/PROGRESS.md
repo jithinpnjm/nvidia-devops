@@ -22,16 +22,16 @@ Volumes: F-08 (`docs/volume-08`), F-09 (`docs/volume-09`), ZTH-23 (`docs/nvidia-
 | F-08 | 16-senior-deep-dive-6-decision-workshops-kubernetes-slurm-run-ai-nim-and-dynamo.md | done | none |
 | F-08 | 17-senior-deep-dive-7-communicate-at-three-levels.md | done | none |
 | F-08 | 18-senior-deep-dive-8-practitioner-role-model-solutions-architect-versus-implemen.md | done | none |
-| F-09 | 01-chapter-1-the-answer-framework-expose-your-reasoning.md | pending | |
-| F-09 | 02-chapter-2-python-coding-interview-workflow.md | pending | |
-| F-09 | 03-chapter-3-linux-troubleshooting-questions.md | pending | |
-| F-09 | 04-chapter-4-kubernetes-troubleshooting-questions.md | pending | |
-| F-09 | 05-chapter-5-gpu-and-ai-infrastructure-troubleshooting.md | pending | |
-| F-09 | 06-chapter-6-ai-inference-architecture-questions.md | pending | |
-| F-09 | 07-chapter-7-hpc-networking-questions.md | pending | |
-| F-09 | 08-chapter-8-solutions-architecture-whiteboard-method.md | pending | |
-| F-09 | 09-chapter-9-customer-discovery-interview.md | pending | |
-| F-09 | 10-chapter-10-behavioral-and-stakeholder-stories.md | pending | |
+| F-09 | 01-chapter-1-the-answer-framework-expose-your-reasoning.md | done | none |
+| F-09 | 02-chapter-2-python-coding-interview-workflow.md | done | 1 low |
+| F-09 | 03-chapter-3-linux-troubleshooting-questions.md | done | none |
+| F-09 | 04-chapter-4-kubernetes-troubleshooting-questions.md | done | none |
+| F-09 | 05-chapter-5-gpu-and-ai-infrastructure-troubleshooting.md | done | none |
+| F-09 | 06-chapter-6-ai-inference-architecture-questions.md | done | none |
+| F-09 | 07-chapter-7-hpc-networking-questions.md | done | none |
+| F-09 | 08-chapter-8-solutions-architecture-whiteboard-method.md | done | none |
+| F-09 | 09-chapter-9-customer-discovery-interview.md | done | none |
+| F-09 | 10-chapter-10-behavioral-and-stakeholder-stories.md | done | none |
 | F-09 | 11-chapter-11-question-bank-foundations-to-sa-depth.md | pending | |
 | F-09 | 12-chapter-12-45-minute-mock-interview-structure.md | pending | |
 | F-09 | 13-senior-interview-method-clarify-model-hypothesize-test-recommend.md | pending | |
