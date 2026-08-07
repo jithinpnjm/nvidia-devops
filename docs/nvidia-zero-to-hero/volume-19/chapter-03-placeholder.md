@@ -68,30 +68,31 @@ avg_utilization = np.array([42, 45, 48, 44, 52, 50, 46, 43, 51, 49, 47, 45])
 # Fit linear trend
 model = LinearRegression()
 model.fit(weeks.reshape(-1, 1), avg_utilization)
-trend_slope = model.coef_[0]  # ≈ +0.3% per week
+trend_slope = model.coef_[0]  # ≈ +0.22% per week
 intercept = model.intercept_
 
-# Forecast next 26 weeks (6 months)
-future_weeks = np.array(list(range(13, 39)))
+# Forecast next 26 weeks (through week 39, ~6 months from "now" at week 12)
+future_weeks = np.array(list(range(13, 40)))
 forecast = model.predict(future_weeks.reshape(-1, 1))
 
 # Results
 print(f"Trend: +{trend_slope:.2f}% per week")
 print(f"Forecast week 13: {forecast[0]:.1f}%")
-print(f"Forecast week 26 (6 months): {forecast[-1]:.1f}%")
+print(f"Forecast week 26 (~3 months out): {forecast[13]:.1f}%")
+print(f"Forecast week 39 (~6 months out): {forecast[-1]:.1f}%")
 
 # Output
-Trend: +0.27% per week
-Forecast week 13 (start of Aug): 46.6%
-Forecast week 26 (end of January): 53.0%
-Forecast week 39 (end of June): 59.5%
+Trend: +0.22% per week
+Forecast week 13 (start of Aug): 48.2%
+Forecast week 26 (~3 months out, end of October): 51.1%
+Forecast week 39 (~6 months out, end of January): 53.9%
 ```
 
 **Interpretation:**
 - Current cluster (10 GPUs at 47% avg = 4.7 GPUs utilized) is meeting demand.
-- In 6 months, estimated utilization is 53% (5.3 GPUs needed).
-- In 12 months, estimated utilization is 59% (5.9 GPUs needed).
-- **Conclusion:** Cluster has capacity for 6-month horizon; plan procurement of 8-10 additional GPUs for month 9-12.
+- In ~3 months (week 26), estimated utilization is 51% (5.1 GPUs needed).
+- In ~6 months (week 39), estimated utilization is 54% (5.4 GPUs needed).
+- **Conclusion:** Average utilization alone shows headroom through the 6-month horizon — but see the p99 check below, which tells a different story and drives the actual procurement decision.
 
 ### Forecast validation: compare to peak utilization
 
@@ -99,13 +100,15 @@ The p99 (peak) utilization tells a different story:
 
 ```
 Week 1-12 average p99: 86%
-Week 13-26 projected p99 (if trend continues): 92%
-Week 27-39 projected p99: 98%
+Week 13-26 projected p99 (~3 months out, if trend continues): 94%
+Week 27-39 projected p99 (~6 months out): 99%
 ```
 
-At week 27, p99 utilization hits 98%, meaning peak weeks will see the cluster at near-full capacity. **This is a hard stop: jobs will start queueing.**
+(Projected by applying the same relative growth rate as the average-utilization regression — +9% by week 26, +15% by week 39 — to the 86% baseline p99, since p99 tracks average utilization but starts from a much higher floor.)
 
-**Decision:** Procurement needed by month 8, not month 12. Order lead time for GPUs is typically 8-12 weeks; ordering now (week 12 of year) ensures delivery by month 8.
+Around week 30 (roughly 4 months from now), p99 utilization crosses 98%, meaning peak weeks will see the cluster at near-full capacity. **This is a hard stop: jobs will start queueing.**
+
+**Decision:** Procurement needed ~4 months from now (around week 30, late November). GPU order lead time is typically 8-12 weeks, so the order needs to go in within the next 4-8 weeks (by mid-to-late September) to land before the cluster hits the p99 ceiling — do not wait for the 6-month average-utilization forecast to look urgent, because peak weeks queue long before the average does.
 
 ### Seasonal adjustment: account for model release cycles
 
@@ -122,12 +125,12 @@ Adjust forecast:
 
 ```python
 # Apply seasonal factor
-weeks_13_26_q3 = forecast[0:14] * 1.15  # Q3 20% higher than trend
-weeks_27_39_q4 = forecast[14:26] * 0.95  # Q4 10% lower
+weeks_13_26_q3 = forecast[0:14] * 1.15  # Q3 15% higher than trend
+weeks_27_39_q4 = forecast[14:27] * 0.95  # Q4 5% lower
 
 # Revised forecast
 print(f"Peak forecast for Q3 (weeks 13-26): {weeks_13_26_q3.max():.1f}% avg")
-# Output: 63% avg utilization for Q3
+# Output: 58.7% avg utilization for Q3 (51.1% trend forecast at week 26 * 1.15)
 
 # New recommendation: procure enough for 70% utilization to avoid queueing
 # 70% of 10 = 7 GPUs; need 3 more GPUs now (adds 1 node)
@@ -138,7 +141,7 @@ print(f"Peak forecast for Q3 (weeks 13-26): {weeks_13_26_q3.max():.1f}% avg")
 
 ```mermaid
 flowchart TD
-    A["New forecast quarter created<br/>Q3 2026 projection: 63% peak util"] --> B{Can current cluster<br/>meet peak demand?}
+    A["New forecast quarter created<br/>Q3 2026 projection: 59% peak util"] --> B{Can current cluster<br/>meet peak demand?}
     B -->|"Yes (headroom > 20%)"| C["No action<br/>Monitor quarterly"]
     B -->|"No (peak exceeds 80%)"| D{Procurement timeline<br/>vs. delivery lead time}
     D -->|"Can order now, receive in time"| E["Issue PO for new GPUs<br/>Target: arrive before peak"]

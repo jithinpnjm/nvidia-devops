@@ -27,8 +27,8 @@ You observe:
 - GPU utilization: 95% (stable)
 - GPU memory: 70% (stable)
 - GPU temperature: 80°C (rising)
-- GPU clock speed: 1.8 GHz (down from 2.5 GHz)
-- GPU power: 250W (down from 350W)
+- GPU clock speed: 1833 MHz (down from 1980 MHz H100 boost)
+- GPU power: 250W (down from 300W)
 - Fan speed: 100%
 
 Is this thermal throttling or power limiting? Construct your evidence chain.
@@ -68,8 +68,8 @@ What is your hypothesis? What evidence would you collect to distinguish between 
 | Observation | Interpretation | Thermal? | Power? |
 |-------------|-----------------|----------|--------|
 | Temp 80°C rising | Close to throttle limit (85°C) | ✓ | ✗ |
-| Clock 2.5 → 1.8 GHz (-28%) | Frequency reduced | ✓ | ✓ |
-| Power 350 → 250W (-29%) | Power draw limited | ✗ | ✓ |
+| Clock 1980 → 1833 MHz (-7%) | Frequency reduced | ✓ | ✓ |
+| Power 300 → 250W (-17%) | Power draw limited | ✗ | ✓ |
 | Fan 100% | Maxed trying to cool | ✓ | ✗ |
 | Utilization 95% stable | GPU still working hard | ✓ | ✓ |
 
@@ -79,7 +79,7 @@ Look at the **asymmetry**: Temperature is rising while power is **capped at 250W
 
 - If this were **thermal throttling alone**: Temperature should plateau at 85°C (throttle limit), not keep rising. Fan at 100% should stabilize it.
 - Since temperature keeps rising despite maxed fan, the cooler is saturated.
-- Simultaneously, power is capped at 250W (down from 350W).
+- Simultaneously, power is capped at 250W (down from 300W).
 
 **Most likely diagnosis: POWER LIMITING**
 - PSU has insufficient capacity
@@ -95,9 +95,9 @@ ipmitool sensor list | grep "PSU.*VOLT"
 # If PSU output voltage is sagging (e.g., 12V → 10.5V), confirms power issue
 
 # Measure power draw when power limit removed
-sudo nvidia-smi -i 0 -pl 350  # Restore original limit
+sudo nvidia-smi -i 0 -pl 300  # Restore original limit
 nvidia-smi -i 0 --query-gpu=power.draw --format=csv,noheader
-# If it immediately jumps to 350W, PSU was the bottleneck
+# If it immediately jumps to 300W, PSU was the bottleneck
 
 # Reduce power limit permanently to stable value
 sudo nvidia-smi -i 0 -pl 280
@@ -145,8 +145,8 @@ nvidia-smi -i 2 -q | grep -E "Temperature|Power|Clock|Throttle"
 # NVLink topology
 nvidia-smi nvlink --status
 # Output example:
-# GPU 2: Link 0 (to GPU 0): 10 GB/sec ✓
-# GPU 2: Link 1 (to GPU 3): 0.5 GB/sec ✗  <- This link is slow!
+# GPU 2: Link 0 (to GPU 0): 25 GB/sec ✓  (NVLink3/A100 healthy per-link)
+# GPU 2: Link 1 (to GPU 3): 3 GB/sec ✗  <- This link is slow!
 
 # NCCL trace (who is slow to send vs receive?)
 NCCL_DEBUG=TRACE python train.py 2>&1 | grep -A 2 "AllReduce.*GPU_2"

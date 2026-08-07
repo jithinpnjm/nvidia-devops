@@ -7,7 +7,7 @@ description: "Diagnose GPU clock instability, frequency scaling failures, and pe
 
 ## Symptoms
 
-- GPU clock speed fluctuates wildly (2.0 GHz → 0.5 GHz → 2.0 GHz) during steady workload
+- GPU clock speed fluctuates wildly (1980 MHz → 500 MHz → 1980 MHz) during steady workload
 - Performance oscillates 30-40% without code changes
 - Frequency stalls at low clock speeds despite low temperature and power headroom
 - Specific GPU in cluster exhibits unstable clocks while others are stable
@@ -59,15 +59,15 @@ This snapshot shows current clock, but oscillation happens over seconds. Use con
 $ watch -n 0.5 'nvidia-smi -i 0 --query-gpu=timestamp,clocks.current.graphics --format=csv,noheader'
 
 # Example output showing oscillation:
-# 2024-01-15 10:30:00.123, 2500
-# 2024-01-15 10:30:00.623, 2500
+# 2024-01-15 10:30:00.123, 1980
+# 2024-01-15 10:30:00.623, 1980
 # 2024-01-15 10:30:01.123, 1200
 # 2024-01-15 10:30:01.623, 0800
-# 2024-01-15 10:30:02.123, 2500
-# 2024-01-15 10:30:02.623, 2500
+# 2024-01-15 10:30:02.123, 1980
+# 2024-01-15 10:30:02.623, 1980
 ```
 
-**Pattern:** Frequency drops 2.5 → 1.2 → 0.8 GHz then recovers. This is DVFS at work.
+**Pattern:** Frequency drops 1980 → 1200 → 800 MHz then recovers. This is DVFS at work.
 
 ### Check Power State (P-States)
 
@@ -80,13 +80,13 @@ Performance State                   : P2
 Query available power states:
 
 ```bash
-$ nvidia-query-gpu -i 0 | grep -A 20 "Performance States"
+$ nvidia-smi -q -d PERFORMANCE -i 0 | grep -A 20 "Performance States"
 
-# P0: 2500 MHz (max performance)
-# P1: 2100 MHz
-# P2: 1800 MHz
-# P3: 1400 MHz
-# P4: 1000 MHz
+# P0: 1980 MHz (max performance, H100 SXM5 boost)
+# P1: 1755 MHz
+# P2: 1590 MHz
+# P3: 1200 MHz
+# P4: 900 MHz
 # ...
 # P8: 300 MHz (min power)
 ```
@@ -113,11 +113,11 @@ done
 
 **Output example:**
 ```
-Freq=2500 MHz, Temp=65°C, Power=310W
-Freq=2500 MHz, Temp=65°C, Power=310W
+Freq=1980 MHz, Temp=65°C, Power=310W
+Freq=1980 MHz, Temp=65°C, Power=310W
 Freq=1200 MHz, Temp=65°C, Power=150W
 Freq=1200 MHz, Temp=65°C, Power=150W
-Freq=2500 MHz, Temp=65°C, Power=310W
+Freq=1980 MHz, Temp=65°C, Power=310W
 ```
 
 **Observation:** Frequency drops but temperature and power both drop proportionally → DVFS responding to something, but temperature is NOT the trigger (temp stays 65°C throughout).
@@ -163,7 +163,7 @@ for i in range(60):
 EOF
 ```
 
-**Expected:** Clock should stabilize at 2400-2500 MHz within first few iterations, then remain stable for all 60 iterations.
+**Expected:** Clock should stabilize at 1900-1980 MHz within first few iterations, then remain stable for all 60 iterations.
 
 **If unstable:** Clock oscillates throughout 60 iterations despite fixed workload.
 
@@ -202,7 +202,7 @@ If temperature and power are NOT triggering oscillation, disable DVFS:
    ```bash
    $ nvidia-smi -i 0 --query-gpu=clocks.current.graphics --format=csv,noheader
    
-   # Expected: Constant 2500 MHz (or max for your GPU)
+   # Expected: Constant 1980 MHz (or max boost for your GPU)
    ```
 
 ### Step 3: If Oscillation Persists After DVFS Disable
@@ -215,13 +215,15 @@ Check for firmware issue:
    sudo reboot
    ```
 
-2. **Update GPU firmware:**
+2. **Update GPU firmware/VBIOS:**
    ```bash
-   # Check current firmware
-   nvidia-smi -i 0 -q | grep "GPU UUID"
+   # Check current VBIOS version
+   nvidia-smi -i 0 -q | grep "VBIOS"
    
-   # Firmware update tool (if available)
-   nvidia-fw-tool update --gpu-index 0
+   # GPU firmware/VBIOS updates ship through the vendor's board
+   # management tooling (OEM firmware bundle or fwupd on supported
+   # platforms) — there is no generic nvidia-smi firmware-flash flag.
+   fwupdmgr refresh && fwupdmgr update
    ```
 
 3. **If still oscillating, GPU likely has a hardware issue:**
@@ -242,7 +244,7 @@ $ nvidia-smi -i 0 --query-gpu=clocks.current.graphics --format=csv,noheader
 # Expected: 1800 (fixed, no variation)
 ```
 
-**Trade-off:** Performance lower than max (1800 MHz vs 2500 MHz) but stable.
+**Trade-off:** Performance lower than max (1800 MHz vs 1980 MHz) but stable.
 
 ## Verification
 
@@ -294,11 +296,11 @@ $ nvidia-smi -i 0 --query-gpu=clocks.current.graphics --format=csv,noheader
 
 | Symptom | Evidence | Root Cause | Fix | Verification |
 |---------|----------|-----------|-----|--------------|
-| Frequency oscillates 2.5 → 1.2 GHz every 2 sec, load fixed | Temperature constant 65°C, power oscillates 310W → 150W → 310W | DVFS over-aggressively scaling, no actual thermal/power need | Disable DVFS in BIOS (set to "Maximum Performance" or "Disabled") | Clock stable at 2500 MHz for 5+ minutes |
-| Clock stalls at 1.2 GHz despite cool temp (65°C) and low power (150W) | DVFS enabled, GPU stuck in P4/P5 state, not returning to P0 | DVFS governor stuck or firmware bug | Try `nvidia-smi -pgc <max_freq>` to unlock, or reboot; if persists, update driver firmware | Clock returns to 2500 MHz after fix |
+| Frequency oscillates 1980 → 1200 MHz every 2 sec, load fixed | Temperature constant 65°C, power oscillates 310W → 150W → 310W | DVFS over-aggressively scaling, no actual thermal/power need | Disable DVFS in BIOS (set to "Maximum Performance" or "Disabled") | Clock stable at 1980 MHz for 5+ minutes |
+| Clock stalls at 1200 MHz despite cool temp (65°C) and low power (150W) | DVFS enabled, GPU stuck in P4/P5 state, not returning to P0 | DVFS governor stuck or firmware bug | Try `nvidia-smi -rgc` to clear any clock lock, or reboot; if persists, update driver firmware | Clock returns to 1980 MHz after fix |
 | Specific GPU oscillates while identical GPUs stable | One GPU shows erratic clock, others steady | Hardware clock generator failing or power delivery oscillating on one GPU | Check power cable to that GPU; if cable OK, GPU hardware is failing | If cable reseating fixes it, done; otherwise plan GPU replacement |
 | Clock oscillation synchronized across all GPUs in node | All GPUs drop clock in unison at same frequency/timing | System-level DVFS governor (BIOS power management) is aggressive | Disable DVFS in BIOS globally | All GPUs maintain high clock stably |
-| Clock stays low (1.0 GHz) even though no thermal/power limit | Frequency locked via nvidia-smi command or driver default | User or automation locked GPU to low frequency | Check if `nvidia-smi -lgc` was called; unlock with `nvidia-smi -rgc` | Clock returns to 2500 MHz after unlock |
+| Clock stays low (1000 MHz) even though no thermal/power limit | Frequency locked via nvidia-smi command or driver default | User or automation locked GPU to low frequency | Check if `nvidia-smi -lgc` was called; unlock with `nvidia-smi -rgc` | Clock returns to 1980 MHz after unlock |
 
 ## Prevention
 
@@ -334,7 +336,7 @@ $ nvidia-smi -i 0 --query-gpu=clocks.current.graphics --format=csv,noheader
    ```bash
    # Prometheus alert: detect if clock locked below max
    alert: LowClockFrequency
-   expr: nvidia_smi_clocks_current_graphics < 2000
+   expr: nvidia_smi_clocks_current_graphics < 1900
    for: 5m
    annotations:
      summary: "GPU {{ $labels.gpu }} stuck at low clock frequency"
@@ -375,13 +377,13 @@ nvidia-smi | head -10 >> clock_escalation.log
 
 ### Interview Preparation
 
-**Q: "GPU clock keeps dropping from 2.5 GHz to 1 GHz and back during training, even though temperature is 65°C and power draw is stable. What's happening?"**
+**Q: "GPU clock keeps dropping from 1980 MHz to 1000 MHz and back during training, even though temperature is 65°C and power draw is stable. What's happening?"**
 
-A: "That's textbook DVFS oscillation — the GPU is rescaling itself even though there's no need. Since temperature and power are both healthy, the driver is just being overly aggressive about power saving. I'd check if DVFS is enabled in BIOS. If it is, I'd disable it in the BIOS settings and set power management to 'Maximum Performance' or 'Disabled'. After reboot, the clock should lock at 2500 MHz and stop oscillating. The reason DVFS exists is for power efficiency, but in high-performance computing, we usually want max performance and we don't care about power consumption for training jobs."
+A: "That's textbook DVFS oscillation — the GPU is rescaling itself even though there's no need. Since temperature and power are both healthy, the driver is just being overly aggressive about power saving. I'd check if DVFS is enabled in BIOS. If it is, I'd disable it in the BIOS settings and set power management to 'Maximum Performance' or 'Disabled'. After reboot, the clock should lock at 1980 MHz and stop oscillating. The reason DVFS exists is for power efficiency, but in high-performance computing, we usually want max performance and we don't care about power consumption for training jobs."
 
-**Q: "One GPU's clock is stuck at 1.2 GHz and won't go higher, but temperature is 60°C and power is well under limit."**
+**Q: "One GPU's clock is stuck at 1200 MHz and won't go higher, but temperature is 60°C and power is well under limit."**
 
-A: "That sounds like the GPU is stuck in a lower P-state and can't transition back up. Could be: (1) someone explicitly locked the clock via nvidia-smi; (2) driver bug; (3) GPU hardware issue. First, I'd check if a clock lock was set: `nvidia-smi -lgc` shows the current lock, and `nvidia-smi -rgc` resets it. If that doesn't work, I'd try rebooting. If the clock still won't go higher after reboot, I'd update the driver — could be a firmware bug fixed in newer version. If it still stalls at 1.2 GHz, the GPU's power management circuit might be failing and I'd escalate to hardware."
+A: "That sounds like the GPU is stuck in a lower P-state and can't transition back up. Could be: (1) someone explicitly locked the clock via nvidia-smi; (2) driver bug; (3) GPU hardware issue. First, I'd check if a clock lock was set: `nvidia-smi -lgc` shows the current lock, and `nvidia-smi -rgc` resets it. If that doesn't work, I'd try rebooting. If the clock still won't go higher after reboot, I'd update the driver — could be a firmware bug fixed in newer version. If it still stalls at 1200 MHz, the GPU's power management circuit might be failing and I'd escalate to hardware."
 
 **Q: "How would you prevent clock instability in a production cluster?"**
 
