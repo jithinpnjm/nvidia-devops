@@ -10,394 +10,273 @@ tags: [lab, upgrade, gpu-operator]
 | Field | Value |
 |---|---|
 | Chapter | 10 — Production Installation and Configuration |
-| Difficulty / time | Expert / 120–150 minutes |
+| Difficulty / time | Expert / 120 minutes |
 | Type | Controlled production-like change |
 | Scope | Isolated canary pool before wider rollout |
 
 ## 1. Objective
 
-Execute a version-pinned GPU platform upgrade through one representative canary, use objective evidence to decide rollout or rollback, and retain a complete before/after record.
+Execute a version-pinned GPU platform upgrade through a canary, use objective gates to decide rollout or rollback, and retain evidence for the change record.
 
 ## 2. Production Story
 
-A GPU platform upgrade crosses the kernel, driver, Container Toolkit, device plugin, GPU Operator, Kubernetes API, telemetry, and workload image boundaries. A chart can report `deployed` while the canary loses GPU resources or a fresh container cannot initialize CUDA. The canary is therefore a bounded experiment with explicit stop conditions, not a ceremonial first node.
+GPU platform upgrades cross the kernel, driver, toolkit, device plugin, operator, Kubernetes API, telemetry, and workload image boundaries. A fleet-wide update converts one compatibility fault into an outage. The canary is a limited failure domain, not a formality.
 
 ## 3. Learning Outcomes
 
-By completion, you can:
-
-- build a compatibility and rollback record;
-- calculate maintenance headroom and select a representative canary;
-- drain without overriding workload safeguards casually;
-- validate operator, host, resource, workload, telemetry, and performance gates;
-- execute and verify rollback when a gate fails.
+You will build a compatibility and rollback plan, protect a canary node, validate infrastructure and representative workloads, interpret gates, and restore a known revision when needed.
 
 ## 4. Architecture
 
 ```mermaid
-flowchart TD
-  B[Known-good compatibility set and workload baseline] --> H{Enough spare capacity for canary outage?}
-  H -->|"No: service capacity or checkpoint risk exceeds policy"| Stop[Stop change and create headroom]
-  H -->|"Yes: capacity calculation and owner approval"| Q[Quarantine and drain representative canary]
-  Q --> U[Apply pinned chart and reviewed values]
-  U --> P{Operands converge and host driver is healthy?}
-  P -->|"No: Pod state, events, driver and kernel evidence"| RB[Rollback coherent release and node state]
-  P -->|"Yes"| R{Capacity and Allocatable match baseline?}
-  R -->|"No: device-plugin or kubelet registration evidence"| RB
-  R -->|"Yes"| W{Smoke test and representative workload pass?}
-  W -->|"No: correctness, latency, throughput, or CUDA evidence"| RB
-  W -->|"Yes"| O{Telemetry is fresh and no new XID or platform errors?}
-  O -->|"No"| RB
-  O -->|"Yes"| Promote[Approve bounded next batch]
-  RB --> V[Re-run every acceptance gate before uncordon]
+flowchart LR
+  B[Qualified baseline] -->|"evidence: helm history + values-before.yaml captured"| P[Plan and evidence]
+  P -->|"evidence: canary cordoned,\neligible Pods drained"| C[Canary node/pool]
+  C -->|"evidence: helm upgrade reports\nnew revision deployed"| U[Version-pinned upgrade]
+  U -->|"evidence: operands Running,\nAllocatable == baseline,\nvalidation Pod GPU_UPGRADE_VALIDATED"| V[Platform + workload validation]
+  V --> G{"Every acceptance gate passed?\n(operands, resource count,\nworkload, telemetry, no new errors)"}
+  G -->|"pass"| R[Staged rollout to next batch]
+  G -->|"fail — evidence: any single\ngate criterion unmet"| RB["Rollback: helm rollback to\nprevious revision, revalidate\nsame gates before uncordon"]
+  RB -->|"evidence: rollback restored\nAllocatable + validation Pod passes"| Recheck{"Rollback itself\nverified healthy?"}
+  Recheck -->|"No — Allocatable still wrong"| Escalate["This is now an incident, not a\nfailed canary — keep node cordoned,\nescalate per Chapter 11"]
 ```
 
-**Figure 10.L4.1 — Promotion requires independent platform, workload, and observability evidence.** A Helm success message proves only release reconciliation from Helm’s perspective.
+**Figure — the gate is binary and the rollback path has its own gate.** The most common mistake this lab guards against is treating `helm rollback`'s exit code as proof of recovery — the `Recheck` decision exists because a chart-level rollback can succeed by every Kubernetes-visible signal while host state (driver, kernel) is still in the post-upgrade condition, which is precisely the "chart rollback is unsafe" lesson from [Chapter 11](../chapter-11-upgrades-and-production-troubleshooting).
 
 ## 5. Prerequisites
 
-- Approved maintenance change and named decision authority.
-- Workload-owner agreement and verified checkpoint or rescheduling behavior.
-- Spare capacity sufficient for the canary to remain unavailable.
-- Reviewed compatibility sources for the target Kubernetes, OS/kernel, GPU Operator, driver ownership, runtime/toolkit, GPU model, validation image, and representative workload.
-- Current and target values files in version control.
-- A known previous Helm revision and a tested node-image or driver rollback path.
-- Working monitoring before the change starts.
+- Approved maintenance change, workload-owner agreement, spare capacity, and a canary node/pool.
+- Reviewed support matrix covering OS/kernel, Kubernetes, GPU Operator, driver ownership, runtime/toolkit, GPU model, and representative CUDA/workload image.
+- Current and target values files in version control, a known previous Helm revision, approved registries, and working monitoring.
 
 ## 6. Safety, Scope, and Stop Conditions
 
-Do not drain stateful or checkpoint-sensitive GPU workloads without owner approval. Stop immediately when any of these occur:
+Do not drain checkpoint-sensitive training or inference workloads without owner approval. Stop rollout immediately if operands fail to converge, GPU resources disappear, a representative workload fails/regresses, telemetry disappears, or new kernel/XID/kubelet errors occur. This lab describes a canary process; do not target all GPU nodes with a global change unless the rollout gate has passed.
 
-- required operands fail to converge;
-- the driver or expected GPUs disappear;
-- Capacity or Allocatable changes unexpectedly;
-- a fresh one-GPU Pod fails;
-- the representative workload fails correctness or exceeds the agreed regression threshold;
-- telemetry becomes stale or absent;
-- new kernel, XID, kubelet, runtime, or operator errors appear.
+## 7. Environment and Variables
 
-Do not convert a failed canary into a fleet-wide test.
+**Purpose:** Bind the activity to approved versions and an explicit canary target.
 
-## 7. Environment and Capacity Calculation
-
-Use concrete examples, then replace them with approved values:
-
+**Command:**
 ```bash
-export CANARY_NODE=gpu-canary-01
-export TARGET_VERSION=25.3.2
-export VALIDATION_IMAGE=registry.example.com/platform/cuda-validation:approved
-export GPU_NAMESPACE=gpu-operator
+export TARGET_VERSION='<reviewed-target-chart-version>'
+export CANARY_NODE='<approved-canary-gpu-node>'
+export CUDA_VALIDATION_IMAGE='<approved-cuda-image>'
 kubectl config current-context
 ```
 
-`TARGET_VERSION` above is an example value for lab structure only. Use the version approved by your current support and compatibility review.
+**Expected evidence:** Values are reviewed/non-empty and the current context is the approved cluster.
 
-Before draining, calculate service headroom. Example:
+**Explanation:** Version and target placeholders prevent a dangerous “latest” or fleet-wide default.
 
-```text
-Current pool: 12 nodes × 8 GPUs = 96 GPUs
-Canary unavailable: 11 nodes × 8 GPUs = 88 GPUs
-Reserved failure headroom: 1 additional node = 8 GPUs
-Guaranteed workload capacity during change: 80 GPUs
-
-Current committed workload demand: 72 GPUs
-Operational margin: 80 - 72 = 8 GPUs
-Margin percentage: 8 / 80 × 100 = 10%
-```
-
-A positive count alone is not enough. Confirm that demand can fit the remaining node shapes; four free GPUs spread one per node cannot satisfy a four-GPU single-node request.
+**Common-failure interpretation:** An uncertain target or context is a stop condition, not a reason to continue with assumptions.
 
 ## 8. Compatibility Matrix and Acceptance Gates
 
-Record the actual current and target values:
+Document current and target versions of Kubernetes, OS, kernel, GPU Operator, driver, container runtime, toolkit, CUDA image, DCGM exporter, and workload framework. Record source links and approval for each combination; do not infer compatibility from version proximity.
 
-| Layer | Current | Target | Verification source | Rollback owner |
-|---|---|---|---|---|
-| Kubernetes | current cluster value | approved target or unchanged | distribution support docs | Kubernetes platform |
-| OS/kernel | current node image | approved image/kernel | OS and NVIDIA support docs | node platform |
-| GPU Operator chart | current Helm revision | approved chart | NVIDIA release docs | GPU platform |
-| Driver ownership | host or operator managed | approved model | internal architecture record | node/GPU platform |
-| Runtime/Toolkit | effective CRI config | approved config | NVIDIA and runtime docs | node platform |
-| Validation image | current digest | approved digest | internal registry record | GPU platform |
-| Representative workload | baseline release | unchanged or approved release | workload owner | application team |
-
-The canary passes only when every gate below passes. Do not average a failure away with several successful checks.
+The canary passes only when all of the following are true: required operands converge; Capacity/Allocatable match the approved baseline; a one-GPU Pod succeeds; representative workload correctness and agreed performance thresholds pass; telemetry/alerts are present; and kernel, XID, kubelet, and operator logs show no new errors.
 
 ## 9. Components and Change Ownership
 
-| Component | Upgrade risk | Decisive evidence |
+| Component | Upgrade risk | Evidence owner |
 |---|---|---|
-| Chart and ClusterPolicy | changed defaults, CRDs, operand configuration | rendered manifest, policy status, controller logs |
-| Driver and kernel | module load, device initialization, CUDA interface | `nvidia-smi`, module and kernel evidence |
-| Toolkit and runtime | sandbox creation and device injection | fresh Pod events, CRI/kubelet evidence |
-| Device plugin | resource registration and allocation | Node Capacity/Allocatable and plugin logs |
-| DCGM/observability | loss of health visibility | scrape freshness, target state, metric continuity |
-| Representative workload | correctness or performance regression | application output and agreed SLI measurements |
+| Chart/ClusterPolicy | CRD/default/operand changes | platform engineering |
+| Driver + kernel | initialization compatibility | node platform |
+| Toolkit/runtime | container startup | node platform |
+| Device plugin | resource registration | GPU platform |
+| DCGM/observability | metric continuity | observability |
+| Workload | CUDA/framework behavior | application owner |
 
 ## 10. Baseline and Rollback Evidence
 
+**Purpose:** Capture recoverable release state and baseline node behavior before change.
+
+**Command:**
 ```bash
 mkdir -p gpu-upgrade-evidence
-helm history gpu-operator -n "$GPU_NAMESPACE" > gpu-upgrade-evidence/helm-history-before.txt
-helm get values gpu-operator -n "$GPU_NAMESPACE" -a > gpu-upgrade-evidence/values-before.yaml
-helm get manifest gpu-operator -n "$GPU_NAMESPACE" > gpu-upgrade-evidence/manifest-before.yaml
+helm history gpu-operator -n gpu-operator > gpu-upgrade-evidence/helm-history-before.txt
+helm get values gpu-operator -n gpu-operator -a > gpu-upgrade-evidence/values-before.yaml
+helm get manifest gpu-operator -n gpu-operator > gpu-upgrade-evidence/manifest-before.yaml
 kubectl get node "$CANARY_NODE" -o yaml > gpu-upgrade-evidence/canary-before.yaml
-kubectl get pods -A -o wide --field-selector spec.nodeName="$CANARY_NODE" > gpu-upgrade-evidence/pods-before.txt
-kubectl get events -A --sort-by=.lastTimestamp > gpu-upgrade-evidence/events-before.txt
 ```
 
-**Representative `helm history` output:**
+**Expected evidence:** Previous revision, effective values, rendered resources, and the canary node’s baseline are retained.
 
-```text
-REVISION  UPDATED                  STATUS      CHART                  DESCRIPTION
-7         2026-07-12 09:14:11      superseded  gpu-operator-25.3.1    Upgrade complete
-8         2026-07-26 10:02:44      deployed    gpu-operator-25.3.1    Upgrade complete
-```
+**Explanation:** These artifacts are inputs to rollback and post-change comparison.
 
-Revision `8` is the known Helm rollback target. It is not automatically a complete node rollback target if the new change modifies kernel, driver, or runtime state outside Helm.
-
-Failure to capture current values, manifests, and node state is a stop condition.
+**Common-failure interpretation:** Failure to read current release state is a stop condition; do not upgrade without a verified rollback target.
 
 ## 11. Quarantine and Drain the Canary
 
-Inspect workloads before draining:
+**Purpose:** Prevent new placements and evacuate only workloads approved for movement.
 
+**Command:**
 ```bash
 kubectl cordon "$CANARY_NODE"
 kubectl get pods -A -o wide --field-selector spec.nodeName="$CANARY_NODE"
-kubectl drain "$CANARY_NODE" \
-  --ignore-daemonsets \
-  --delete-emptydir-data \
-  --grace-period=120 \
-  --timeout=20m
+kubectl drain "$CANARY_NODE" --ignore-daemonsets --delete-emptydir-data --grace-period=120 --timeout=20m
 ```
 
-### Healthy representative output
-
+**Expected evidence:**
 ```text
-node/gpu-canary-01 cordoned
-pod/inference-api-7cdb8 evicted
-pod/training-worker-0 evicted
-node/gpu-canary-01 drained
+$ kubectl cordon "$CANARY_NODE"
+node/gpu-node-07 cordoned
+
+$ kubectl get pods -A -o wide --field-selector spec.nodeName="$CANARY_NODE"
+NAMESPACE     NAME                    READY   STATUS    NODE
+ml-training   resnet-worker-3         1/1     Running   gpu-node-07
+gpu-operator  nvidia-driver-ds-7z4kd  1/1     Running   gpu-node-07
+
+$ kubectl drain "$CANARY_NODE" --ignore-daemonsets --delete-emptydir-data --grace-period=120 --timeout=20m
+node/gpu-node-07 already cordoned
+evicting pod ml-training/resnet-worker-3
+pod/resnet-worker-3 evicted
+node/gpu-node-07 drained
 ```
+`nvidia-driver-ds-7z4kd` staying listed but never evicted is `--ignore-daemonsets` working as intended — the driver DaemonSet Pod belongs to the platform, not the workload, and draining it would defeat the point of a canary upgrade. `resnet-worker-3 evicted` followed by `node/gpu-node-07 drained` is your confirmation the node is now empty of ordinary workloads and safe to upgrade; if that training job's checkpoint path wasn't healthy, this eviction is exactly the moment that would have shown up as a stuck or refused drain — which is why the step's Common-failure interpretation says stop rather than force past it.
 
-### Broken representative output
+**Explanation:** Review the listed Pods with their owners before running drain. `--delete-emptydir-data` discards ephemeral data and is appropriate only after approval.
 
-```text
-error when evicting pods/"training-worker-0":
-Cannot evict pod as it would violate the pod's disruption budget.
-```
+**Common-failure interpretation:** PodDisruptionBudget, local-storage, or long-running-workload blocks are intentional safeguards. Stop and obtain workload-owner direction; do not add `--force` casually.
 
-The PodDisruptionBudget is doing its job. Stop and obtain workload-owner direction. Do not add `--force` simply to keep the maintenance schedule.
+## 12. Upgrade the Pinned Release
 
-## 12. Render and Apply the Pinned Upgrade
+The reviewed `target-values.yaml` must scope operands to the canary mechanism selected by the platform design (for example, an isolated canary pool). Verify that scope in rendered manifests before execution.
 
-First render the exact candidate:
+**Purpose:** Reconcile the approved chart version and values with a bounded change domain.
 
-```bash
-helm template gpu-operator nvidia/gpu-operator \
-  --namespace "$GPU_NAMESPACE" \
-  --version "$TARGET_VERSION" \
-  -f target-values.yaml > gpu-upgrade-evidence/rendered-target.yaml
-```
-
-Review node selectors, tolerations, image references, privileged settings, host mounts, driver ownership, runtime settings, and monitoring configuration.
-
-Then apply:
-
+**Command:**
 ```bash
 helm upgrade gpu-operator nvidia/gpu-operator \
-  --namespace "$GPU_NAMESPACE" \
-  --version "$TARGET_VERSION" \
-  -f target-values.yaml \
-  --wait --timeout 20m
-helm history gpu-operator -n "$GPU_NAMESPACE"
+  --namespace gpu-operator --version "$TARGET_VERSION" \
+  -f target-values.yaml --wait --timeout 20m
+helm history gpu-operator -n gpu-operator
 ```
 
-**Representative output:**
+**Expected evidence:** Helm creates a new revision and reports deployment; history retains the previous revision.
 
-```text
-Release "gpu-operator" has been upgraded. Happy Helming!
-NAME: gpu-operator
-NAMESPACE: gpu-operator
-STATUS: deployed
-REVISION: 9
-```
+**Explanation:** `--wait` covers Kubernetes readiness, not workload correctness or performance.
 
-This proves Helm created revision `9` and considered the watched resources ready. It does not prove GPU resources, CUDA execution, workload performance, or telemetry.
+**Common-failure interpretation:** A timeout or failed revision is an immediate no-go. Preserve evidence and move to rollback assessment rather than retrying different values ad hoc.
 
 ## 13. Platform Validation
 
+**Purpose:** Verify reconciliation, resource continuity, and recent platform events on the canary.
+
+**Command:**
 ```bash
-kubectl get pods,daemonsets -n "$GPU_NAMESPACE" -o wide
+kubectl get pods -n gpu-operator -o wide
 kubectl get clusterpolicy -o yaml
-kubectl get node "$CANARY_NODE" \
-  -o custom-columns=NAME:.metadata.name,READY:.status.conditions[-1].status,CAPACITY:.status.capacity.nvidia\.com/gpu,ALLOCATABLE:.status.allocatable.nvidia\.com/gpu
-kubectl get events -n "$GPU_NAMESPACE" --sort-by=.lastTimestamp
+kubectl get node "$CANARY_NODE" -o jsonpath='{.status.capacity.nvidia\.com/gpu}{" capacity\n"}{.status.allocatable.nvidia\.com/gpu}{" allocatable\n"}'
+kubectl get events -n gpu-operator --sort-by=.lastTimestamp
 ```
 
-### Healthy representative output
-
+**Expected evidence:**
 ```text
-NAME             READY   CAPACITY   ALLOCATABLE
-gpu-canary-01    True    8          8
+$ kubectl get pods -n gpu-operator -o wide | grep gpu-node-07
+nvidia-driver-daemonset-9m3vk         1/1   Running   0   4m    gpu-node-07
+nvidia-container-toolkit-daemonset-2  1/1   Running   0   3m    gpu-node-07
+nvidia-device-plugin-daemonset-7q1w   1/1   Running   0   3m    gpu-node-07
 
-NAME                                      DESIRED   CURRENT   READY   AVAILABLE
-nvidia-driver-daemonset                   1         1         1       1
-nvidia-container-toolkit-daemonset        1         1         1       1
-nvidia-device-plugin-daemonset            1         1         1       1
+$ kubectl get node "$CANARY_NODE" -o jsonpath='{.status.capacity.nvidia\.com/gpu}{" capacity\n"}{.status.allocatable.nvidia\.com/gpu}{" allocatable\n"}'
+8 capacity
+8 allocatable
 ```
+`8 capacity` / `8 allocatable` matching the `canary-before.yaml` baseline captured in Step 10 is the acceptance-gate criterion made concrete — this is a diff against a specific archived number, not a vibe check. All three operand Pods restarted (`AGE 3-4m`, post-upgrade) and reached `1/1 Running` on this specific node confirms the new chart revision's operands actually came up here, not just somewhere in the cluster. If `ALLOCATABLE` had come back empty or lower than `8`, this is the `G: fail` branch in the Architecture diagram, and Step 16's rollback procedure runs next — not a retry of this same check.
 
-### Broken representative output
+**Explanation:** This tests the infrastructure path before exposing application traffic.
 
-```text
-NAME             READY   CAPACITY   ALLOCATABLE
-gpu-canary-01    True    <none>     <none>
-
-Warning  BackOff  pod/nvidia-driver-daemonset-x7k2p
-Back-off restarting failed container nvidia-driver-ctr
-```
-
-This is a rollback or repair gate. `Ready=True` does not offset loss of the GPU resource.
-
-On the canary host, capture:
-
-```bash
-uname -r
-nvidia-smi -L
-nvidia-smi
-journalctl -k --since '-45 min' | grep -Ei 'nvrm|nvidia|xid|module' | tail -n 120
-```
-
-A new XID, module mismatch, missing UUID, or driver communication failure blocks promotion.
+**Common-failure interpretation:** Missing resource returns to [Lab 03](./lab-03-diagnose-a-missing-allocatable-gpu); a failed driver operand is a rollback gate.
 
 ## 14. Workload and Observability Validation
 
-Create `gpu-upgrade-validation.yaml`:
+Create `gpu-upgrade-validation.yaml` with the approved image, `restartPolicy: Never`, `nodeName: <approved-canary-gpu-node>`, one `nvidia.com/gpu` limit, and command `bash -lc 'nvidia-smi && echo GPU_UPGRADE_VALIDATED'`.
 
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: gpu-upgrade-validation
-spec:
-  restartPolicy: Never
-  nodeName: gpu-canary-01
-  containers:
-    - name: cuda
-      image: registry.example.com/platform/cuda-validation:approved
-      command: ["bash", "-lc", "nvidia-smi -L && echo GPU_UPGRADE_VALIDATED"]
-      resources:
-        limits:
-          nvidia.com/gpu: 1
-```
+**Purpose:** Prove that the upgraded canary can allocate and initialize a GPU.
 
+**Command:**
 ```bash
 kubectl apply -f gpu-upgrade-validation.yaml
 kubectl wait --for=jsonpath='{.status.phase}'=Succeeded pod/gpu-upgrade-validation --timeout=5m
 kubectl logs gpu-upgrade-validation
-kubectl describe pod gpu-upgrade-validation
 ```
 
-**Representative output:**
+**Expected evidence:** The Pod completes on the canary and logs `GPU_UPGRADE_VALIDATED` with GPU inventory.
 
-```text
-GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-3f1d...a902)
-GPU_UPGRADE_VALIDATED
+**Explanation:** Run the approved representative application/benchmark after this smoke test, using its established correctness and performance acceptance criteria.
+
+**Common-failure interpretation:** A functional smoke test does not override a representative-workload regression; either is sufficient to stop rollout.
+
+**Purpose:** Capture host-side error evidence and retain it with metrics/dashboard observations.
+
+**Command:**
+```bash
+journalctl -u kubelet --since '30 minutes ago'
+nvidia-smi -q
 ```
 
-The container sees exactly its assigned device and completed CUDA-facing initialization. Next run the approved representative workload.
+**Expected evidence:** Kubelet and GPU state are reviewable with the same time window as the change.
 
-Example acceptance arithmetic:
+**Explanation:** Run these on the canary through approved access. Confirm DCGM metrics and alerting in the organization’s observability system.
 
-```text
-Baseline p95 inference latency: 118 ms
-Canary p95 latency: 123 ms
-Regression: (123 - 118) / 118 × 100 = 4.24%
-Approved threshold: no more than 5%
-Result: PASS, assuming correctness and error-rate gates also pass
-```
-
-The values are illustrative. Use the workload’s pre-approved baseline, sample method, traffic level, and threshold.
-
-For telemetry, verify target freshness and device identity. Example Prometheus query pattern:
-
-```promql
-time() - timestamp(DCGM_FI_DEV_GPU_UTIL{Hostname="gpu-canary-01"})
-```
-
-A result below two scrape intervals indicates fresh data. A missing series or stale timestamp is an observability failure even if the smoke test passes.
+**Common-failure interpretation:** New XID or kernel errors are rollback gates even if the Pod happens to succeed.
 
 ## 15. Measurements and Decision Record
 
-Record:
-
-| Gate | Baseline | Canary | Threshold | Result |
-|---|---:|---:|---:|---|
-| Capacity | 8 | 8 | exact match | Pass |
-| Allocatable | 8 | 8 | exact match | Pass |
-| Operand restarts | 0 | 0 | no unexplained restarts | Pass |
-| Validation Pod completion | 31 s | 34 s | under 60 s | Pass |
-| Representative p95 latency | 118 ms | 123 ms | ≤5% regression | Pass |
-| Telemetry age | 14 s | 16 s | under two scrape intervals | Pass |
-| New XID events | 0 | 0 | zero | Pass |
-
-Do not promote when a required row is unknown. “No dashboard data” is not a pass.
+Compare baseline and canary for resource count, operand restarts, Pod startup time, representative throughput/latency, correctness, GPU utilization/memory/power/thermals, multi-GPU communication where relevant, and telemetry coverage. Record the pre-agreed threshold and the observed value; no generic number is valid across workloads.
 
 ## 16. Failure Exercise and Rollback
 
-A safe disposable-environment exercise is to use an invalid validation-image reference. This should fail the workload gate without changing the host driver.
+In a disposable environment, use an invalid validation-image reference or a reviewed invalid test values file, prove the gate blocks rollout, then restore the last known release. Do not inject an incompatible driver into a shared cluster.
 
-```text
-Failed to pull image "registry.example.com/platform/cuda-validation:does-not-exist":
-manifest unknown
-```
+**Purpose:** Restore the recorded previous Helm revision after a failed canary gate.
 
-That failure tests registry and gate behavior, not GPU compatibility. Restore the approved image and repeat validation.
-
-For a real failed upgrade, identify the previous revision:
-
+**Command:**
 ```bash
-helm history gpu-operator -n "$GPU_NAMESPACE"
-export PREVIOUS_REVISION=8
-helm rollback gpu-operator "$PREVIOUS_REVISION" \
-  --namespace "$GPU_NAMESPACE" \
-  --wait --timeout 20m
+helm history gpu-operator -n gpu-operator
+helm rollback gpu-operator <previous-revision> --namespace gpu-operator --wait --timeout 20m
 ```
 
-**Representative output:**
-
+**Expected evidence:**
 ```text
-Rollback was a success! Happy Helming!
-```
+$ helm history gpu-operator -n gpu-operator
+REVISION  UPDATED                   STATUS      CHART               DESCRIPTION
+1         Mon Jul 21 10:02:11 2026  superseded  gpu-operator-24.6.0 Install complete
+2         Tue Aug 12 09:14:44 2026  deployed    gpu-operator-24.9.1 Upgrade complete
 
-This proves Helm created a rollback revision. It does not prove the node returned to a coherent driver, kernel, runtime, and workload state. Re-run Sections 13–15. If the change touched the node image or driver outside Helm, execute the approved node rollback as well.
+$ helm rollback gpu-operator 1 --namespace gpu-operator --wait --timeout 20m
+Rollback was a success! Happy Helming!
+
+$ kubectl get node "$CANARY_NODE" -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{"\n"}'
+0
+```
+Read this exact sequence carefully — it is the scenario [Chapter 11](../chapter-11-upgrades-and-production-troubleshooting)'s "chart rollback can be unsafe" argument is built on: Helm itself reports success (`Rollback was a success!`), the release history shows revision 1 restored, and yet `ALLOCATABLE` still reads `0`. That combination means the *chart* rolled back cleanly but *host* state — most likely the driver module loaded by the 24.9.1 upgrade — did not revert with it. This is precisely the `Recheck: No` branch in this lab's Architecture diagram: a Helm-successful rollback is not, by itself, proof of recovery, and the correct next step is the node-image/driver rollback procedure and an incident escalation, not a second `helm rollback` attempt.
+
+**Explanation:** Helm rollback may not reverse every node-level state for every driver strategy; follow the reviewed driver/node-image rollback procedure too.
+
+**Common-failure interpretation:** A rollback that does not restore `nvidia.com/gpu` is an incident: keep the node cordoned, collect evidence, and escalate rather than reintroducing workloads.
 
 ## 17. Cleanup and Operational Handoff
 
-Only after every gate passes:
+**Purpose:** Remove only the temporary validation workload and return the canary to scheduling only after gates pass.
 
+**Command:**
 ```bash
 kubectl delete pod gpu-upgrade-validation --ignore-not-found
-kubectl get node "$CANARY_NODE" -o yaml > gpu-upgrade-evidence/canary-after.yaml
-kubectl get events -A --sort-by=.lastTimestamp > gpu-upgrade-evidence/events-after.txt
 kubectl uncordon "$CANARY_NODE"
 ```
 
-**Representative output:**
+**Expected evidence:** The named Pod is absent and the canary becomes schedulable.
 
-```text
-pod "gpu-upgrade-validation" deleted
-node/gpu-canary-01 uncordoned
-```
+**Explanation:** Run `uncordon` only after the decision record approves progression. Evidence files, values, manifests, benchmark results, approvals, and rollback result remain archived.
 
-If any gate remains failed or unknown, do not uncordon. Handoff the target and previous revisions, values, rendered manifests, before/after node state, host evidence, workload results, telemetry proof, capacity calculation, decision record, and rollback result.
+**Common-failure interpretation:** If any gate failed, do not uncordon; retain the failure domain and execute the approved recovery path.
 
 ## 18. Summary, Challenges, and Further Reading
 
-You treated the upgrade as a compatibility-set experiment rather than a chart command. Extend the lab by automating evidence collection, adding a GitOps approval gate, testing a second hardware class, and measuring how long the canary remains unavailable during rollback.
+You treated a GPU platform update as a controlled systems change. Next, design model-specific canaries, automate preflight/rollback checks, and add a GitOps approval gate for values changes.
 
 - [Production Installation and Configuration](../chapter-10-production-installation-and-configuration)
 - [Upgrades and Production Troubleshooting](../chapter-11-upgrades-and-production-troubleshooting)
-- [GPU Observability with DCGM](../chapter-09-gpu-observability-with-dcgm)
 - [Lab 02 — Install and Validate GPU Operator](./lab-02-install-and-validate-gpu-operator)

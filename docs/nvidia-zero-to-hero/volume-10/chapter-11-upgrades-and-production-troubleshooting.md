@@ -19,25 +19,18 @@ You will be able to plan a canary rollout, define the validation and rollback ga
 
 ```mermaid
 flowchart TD
-    Inventory[Capture known-good compatibility set and baselines] --> Canary[Drain and change representative canary]
-    Canary --> Host{Host/driver gate passes?}
-    Host -->|no| HostRollback[Restore known-good node image, kernel, driver]
-    Host -->|yes| Runtime{Fresh GPU sandbox starts?}
-    Runtime -->|no| RuntimeRollback[Restore CRI/Toolkit/CDI profile]
-    Runtime -->|yes| Resource{Expected labels and allocatable GPUs?}
-    Resource -->|no| ResourceFix[Inspect plugin, discovery, kubelet]
-    Resource -->|yes| Workload{Representative workload and telemetry pass?}
-    Workload -->|no| WorkloadFix[Compare image, topology, metrics, baseline]
-    Workload -->|yes| Batch[Expand one bounded batch]
-    Batch --> Observe{Error rate, startup, SLO, and capacity stable?}
-    Observe -->|yes| Continue[Continue rollout]
-    Observe -->|no| Contain[Stop expansion, cordon suspect scope, preserve evidence]
-    Contain --> Recover{Rollback or forward-fix restores coherent profile?}
-    Recover -->|yes| Verify[Repeat full acceptance suite]
-    Recover -->|no| Escalate[Provide complete evidence package]
+    Inventory[Record known-good compatibility set] -->|"evidence: prior versions, node image,<br/>and known-good baseline archived"| Canary[Change representative canary pool]
+    Canary -->|"evidence: helm history shows new revision,<br/>clusterpolicy reconciling"| Gate[Run workload and telemetry acceptance gates]
+    Gate --> Pass{"Capacity, workload,<br/>and telemetry gates pass?"}
+    Pass -->|"No — allocatable dropped,<br/>new XID/kernel errors, or metric loss"| Recover[Contain and restore coherent state]
+    Pass -->|"Yes: allocatable == baseline,<br/>validation Pod succeeded,<br/>DCGM series present"| Rollout[Roll out small, observable batches]
+    Rollout -->|"evidence: each batch's acceptance<br/>suite rerun independently"| Observe[Observe service and fleet signals]
+    Observe --> Decision{"Safe to continue to<br/>next batch?"}
+    Decision -->|"Yes"| Rollout
+    Decision -->|"No — fleet signal regresses<br/>or comparison pool diverges"| Recover
 ```
 
-**Figure 10.11.1 — Upgrade and incident response use the same decision path.** Each gate has a rollback unit and a proof. Ambiguous evidence stops expansion; it is not treated as a reason to wait longer.
+**Figure 10.11.1 — A canary is an evidence gate, not a smaller production outage.** Progression requires explicit acceptance; ambiguity is a reason to stop expansion. Note there are now two decision points, not one: `Pass` gates the canary itself before any wider rollout is even considered, and `Decision` gates every subsequent batch independently — a canary that passed does not pre-approve batch 3 of 6, because a driver or firmware issue can be node-population-dependent (a specific hardware revision, a specific BIOS setting) and only show up once the rollout reaches the nodes that have it.
 
 The release record should state the prior and proposed values for Kubernetes, node image and kernel, driver, runtime, operator/chart and operand images, relevant firmware, and the GPU workload validation image. It should also name the node pools, maintenance window, workload owners, capacity reservation, and decision authority for pause or rollback.
 
@@ -56,55 +49,16 @@ Use a dedicated canary pool that matches the hardware, node image, runtime, secu
 
 Run the acceptance suite after every meaningful change, including a fresh CUDA workload, expected allocatable resources, required labels, DCGM scrape and identity checks, and a workload-level test appropriate to the class. A distributed training pool needs a topology and communication validation; a single-device smoke test does not prove that boundary. Establish a comparison baseline before the change so that “it looks slow” can become a measurable difference in startup time, failure rate, step time, or serving latency.
 
-### Worked rollout and rollback budget
+Expand in small batches only while the canary and the first batch remain stable for the agreed observation period. Preserve one healthy comparison pool until the rollout completes. Automation should stop on failed gates; it should not automatically force every node through a broken state.
 
-A 40-node pool has eight GPUs per node:
+**Sizing the canary and the batches — a worked, illustrative example.** For a fleet of 120 GPU nodes across 4 identical hardware batches (30 nodes each, procured at different times and therefore not guaranteed to share a BIOS/firmware revision):
 
-```text
-40 × 8 = 320 GPUs
-```
+- Canary: 2 nodes per hardware batch = 8 nodes total (~7% of the fleet). Fewer than 2 per batch risks mistaking a single bad node for a systemic driver problem; going straight to a fleet-wide canary defeats the point of bounding blast radius.
+- First rollout batch after the canary passes: 10% of the fleet, or 12 nodes — large enough to catch a rollout-order or scheduler-interaction issue the 8-node canary was too small to expose, small enough that losing all 12 still leaves 90% of capacity serving traffic.
+- Subsequent batches: double each time the observation window is clean — 12 → 24 → remaining 76 — rather than a fixed step, so a fault caught late in the rollout has stopped before it reached the majority of the fleet.
+- Blast-radius arithmetic if a bad driver is missed and reaches batch 3 (24 nodes) before detection: at 8 GPUs/node that is `24 x 8 = 192 GPUs` unavailable, against a fleet total of `120 x 8 = 960 GPUs` — 20% of fleet GPU capacity, which is the number that belongs in an incident summary, not "some nodes are affected."
 
-A two-node canary removes 16 GPUs, leaving 304:
-
-```text
-304 / 320 = 95% raw capacity remains
-```
-
-The maintenance objective allows at most 10% capacity loss. A later four-node batch removes 32 GPUs:
-
-```text
-32 / 320 = 10%
-```
-
-That batch consumes the entire raw-capacity error budget before considering unhealthy devices, fragmented nodes, or checkpoint delays. If one additional node fails during the batch, unavailable capacity becomes:
-
-```text
-5 nodes × 8 = 40 GPUs
-40 / 320 = 12.5%
-```
-
-The rollout automation should stop before the fifth node is disrupted, not after service owners report queue growth.
-
-### Record the baseline and proposed profile
-
-```bash
-kubectl get nodes -l gpu.platform.example/pool=training \
-  -o custom-columns='NAME:.metadata.name,KERNEL:.status.nodeInfo.kernelVersion,RUNTIME:.status.nodeInfo.containerRuntimeVersion,GPU:.status.allocatable.nvidia\.com/gpu' \
-  > before-nodes.txt
-
-helm get values gpu-operator -n gpu-operator -a > before-gpu-operator-values.yaml
-```
-
-**Representative `before-nodes.txt`:**
-
-```text
-NAME          KERNEL             RUNTIME                       GPU
-gpu-node-01   6.8.0-40-generic   containerd://1.7.18            8
-gpu-node-02   6.8.0-40-generic   containerd://1.7.18            8
-gpu-node-03   6.8.0-40-generic   containerd://1.7.18            8
-```
-
-The snapshot records cluster-visible kernel and runtime versions plus resource state. It does not record the driver or actual runtime handler, so add host and workload evidence to the change record rather than treating this table as the complete profile.
+These figures are illustrative — the right canary and batch sizes depend on fleet size, hardware heterogeneity, and how much spare capacity the environment actually has; the arithmetic pattern (bound the canary, size batches to what a clean observation window can prove, compute blast radius in GPUs not nodes) is the transferable part.
 
 ## A layered incident method
 
@@ -123,114 +77,50 @@ This order prevents a scheduler investigation from hiding a driver failure, and 
 
 ## Failure patterns and first safe checks
 
-| Symptom | First evidence | Safe first decision |
-|---|---|---|
-| Node does not advertise GPUs | host driver, plugin, kubelet registration | quarantine node; repair lowest failed layer |
-| GPU Pod remains Pending | scheduler events and effective placement contract | separate shortage, policy, and fragmentation |
-| Pod fails before application logs | admission, image, sandbox, CRI/runtime event | isolate runtime versus generic container failure |
-| CUDA initialization fails | minimal image and application image on same allocation class | identify platform versus image boundary |
-| Metrics disappear | exporter readiness, scrape target, sample freshness | declare observability degraded |
-| Operator upgrade stalls | policy generation, controller, first nonready operand | stop expansion; preserve failed state |
+### A node does not advertise GPUs
 
-### Evidence row 1: node loses allocatable GPUs after reboot
+Confirm the physical inventory and host driver state first. Next inspect the operator policy and the driver, toolkit, and device-plugin operands; then inspect kubelet events and node `capacity` and `allocatable`. Compare labels and operand versions with a healthy node of the same class. A DaemonSet that is Running does not prove the kubelet has accepted its registration.
 
-```bash
-kubectl get node gpu-node-17 -o custom-columns='READY:.status.conditions[?(@.type=="Ready")].status,GPU:.status.allocatable.nvidia\.com/gpu'
-nvidia-smi
-journalctl -k -b | grep -i -E 'nvidia|module verification|secure boot' | tail -8
-```
-
-**Representative output:**
+**Evidence, post-upgrade.** After a driver-version bump, one canary node stops advertising GPUs while its sibling in the same batch is fine:
 
 ```text
-READY   GPU
-True    <none>
+$ kubectl get ds -n gpu-operator nvidia-device-plugin-daemonset -o wide
+NAME                              DESIRED   CURRENT   READY   UP-TO-DATE
+nvidia-device-plugin-daemonset    8         8         8       8
 
-NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver.
-
-Aug 06 10:17:22 gpu-node-17 kernel: Lockdown: modprobe: unsigned module loading is restricted
-Aug 06 10:17:22 gpu-node-17 kernel: nvidia: module verification failed: required key missing
+$ kubectl get node gpu-node-11 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{"\n"}'
+0
+$ kubectl get node gpu-node-12 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{"\n"}'
+8
 ```
 
-Kubernetes general readiness is intact, while the driver and resource gates fail. The kernel log identifies a signing boundary. Keep the node cordoned and restore the qualified signing or node-image path; device-plugin restarts cannot repair this.
+The DaemonSet reports `8/8 Ready` fleet-wide — that is the "Running does not prove registration" trap this row warns about. `gpu-node-11` and `gpu-node-12` came from the same rollout batch, but only `gpu-node-11` shows `allocatable: 0`. That per-node asymmetry, not the DaemonSet's aggregate status, is the actual signal: something node-specific (driver load, a stale toolkit socket) broke registration on one host even though the plugin Pod on that host reports `Ready`.
 
-### Evidence row 2: Pending Pod is blocked by both policy and capacity
+### A GPU Pod remains Pending
 
-```bash
-kubectl describe pod trainer-rank-0 | sed -n '/Events:/,$p'
-```
+Read scheduler events before changing labels. Check the requested extended resource against allocatable capacity, then taints and tolerations, node affinity, quota, priority, and any queue or gang-scheduling requirement. A multi-Pod job can remain unusable even when one member could be placed; avoid claiming capacity is available until its full placement contract can be met.
 
-```text
-Events:
-  Warning  FailedScheduling  43s  default-scheduler  0/20 nodes are available:
-  4 Insufficient nvidia.com/gpu,
-  8 node(s) had untolerated taint {gpu.platform/serving: true},
-  8 node(s) didn't match Pod's node affinity/selector.
-```
+### A Pod fails before its application starts
 
-Four nodes are in the correct class but lack free GPUs. Sixteen others are intentionally excluded by serving policy or affinity. Relaxing the selector may violate the training contract; restarting the scheduler changes none of the three facts.
+Separate image-pull, admission, sandbox, and container-start errors. For GPU-specific failures, examine the selected runtime handler or CDI path, toolkit configuration, device mounts, security context, and runtime logs. These failures occur before application CUDA code, so an application-level workaround rarely fixes them.
 
-### Evidence row 3: runtime regression affects only new Pods
+### CUDA initialization fails in a Running Pod
 
-```bash
-kubectl get pods -l app=cuda-check -o custom-columns='POD:.metadata.name,AGE:.metadata.creationTimestamp,STATUS:.status.phase,NODE:.spec.nodeName'
-kubectl describe pod cuda-check-new | sed -n '/Events:/,$p'
-```
+Run the approved minimal validation workload on the same node and allocation class. Compare image libraries and environment with the failing workload, verify the assigned device, then inspect driver state and device events. If the minimal workload also fails, the platform boundary is implicated; if it passes, focus on the application image or workload configuration.
 
-```text
-POD              AGE                    STATUS    NODE
-cuda-check-old   2026-08-06T08:00:00Z   Running   gpu-node-18
-cuda-check-new   2026-08-06T11:12:00Z   Pending   gpu-node-18
+### Metrics disappear or report an implausible fleet state
 
-Events:
-  Warning  FailedCreatePodSandBox  12s  kubelet  no runtime for "nvidia" is configured
-```
+Validate the monitoring path independently: exporter scheduling and logs, host access, DCGM connectivity, scrape discovery and freshness, network policy, and label mapping. Missing telemetry means hardware health is unknown; it must not be interpreted as healthy hardware. [GPU Observability with DCGM](./chapter-09-gpu-observability-with-dcgm) covers the monitoring contract.
 
-The old sandbox remains alive, while a fresh sandbox cannot resolve the handler. This is classic runtime drift after a change. Existing workload health does not validate new-container creation.
+### An operator upgrade stalls
 
-### Evidence row 4: minimal image succeeds, application image fails
-
-```bash
-kubectl logs cuda-minimal
-kubectl logs llm-server -c server | tail -8
-```
-
-```text
-CUDA devices: 1
-vector-add verification: PASS
-
-RuntimeError: CUDA error: initialization error
-libcuda loaded from /opt/compat/lib/libcuda.so.1
-```
-
-The platform path works for the approved minimal image. The application loads an image-specific compatibility library. Compare image contents and library search path before replacing hardware or rolling back the cluster.
+Inspect the policy status, controller logs, events, and operand rollout state to identify the *first* component not becoming Ready. Compare its node selector, tolerations, image access, and version with the prior state. Do not delete every operand or repeatedly reinstall the release: that removes comparison evidence and can broaden an isolated reconciliation issue into a pool outage.
 
 ## Containment, rollback, and forward recovery
 
 Containment protects users while diagnosis proceeds: stop rollout, cordon a suspect node or pool, drain only when the workload recovery plan allows it, and redirect new work to known-good capacity. Capture volatile evidence before rebooting or replacing a node—events, relevant logs, device identity, driver state, DCGM observations, and the change timeline.
 
 Rollback has to restore a compatible set. Returning Helm values may reverse a control-plane configuration but cannot necessarily revert a driver module, kernel, runtime configuration, or firmware. When host state changed, use the tested node-image and reboot path. After either rollback or forward recovery, rerun the full acceptance suite; a green operator status is not enough.
-
-### Verify recovery rather than assuming it
-
-```bash
-kubectl get node gpu-node-17 -o json | jq '{gpu:.status.allocatable["nvidia.com/gpu"],validated:.metadata.labels["gpu.platform.example/validated"],taints:.spec.taints}'
-kubectl logs cuda-acceptance-gpu-node-17
-```
-
-```text
-{
-  "gpu": "8",
-  "validated": "true",
-  "taints": [
-    {"key":"nvidia.com/gpu","value":"present","effect":"NoSchedule"}
-  ]
-}
-CUDA devices detected: 8
-verification: PASS
-```
-
-The standard GPU-pool taint remains and is expected to be tolerated by approved workloads. The quarantine taint is gone, validation is current, and a fresh workload passes. This is stronger recovery evidence than `NodeReady` alone.
 
 ## Evidence package for escalation
 
@@ -240,15 +130,15 @@ An actionable escalation contains the scope and business impact, a timestamped c
 
 **Why can chart rollback be unsafe after a GPU platform change?**
 
-> “The chart is only one part of the compatibility set. If the change also altered the kernel, driver, runtime, or node image, reverting manifests can leave host and control-plane components mismatched. I restore the known-good profile for every changed layer, then create a fresh GPU Pod and rerun telemetry and workload acceptance. I do not use controller readiness as the sole rollback verification.”
+**Model answer:** "`helm rollback` only reverts what's in the chart's control-plane resources — ClusterPolicy, DaemonSet specs, config maps. If the upgrade also pushed a new driver module onto the host, or the node image itself changed, rolling the chart back can leave the operator declaring a driver version that no longer matches what's actually loaded on the kernel. I've seen a chart rollback 'succeed' by every Kubernetes-visible signal while the node stays broken, because the actual fault was in host state the chart doesn't control. My rule is: figure out which layer in the compatibility set actually changed before picking a rollback mechanism, because the answer might be a node reboot to a known-good image, not a Helm command at all."
 
 **What is the most valuable first action after a canary failure?**
 
-> “I stop expansion and preserve a known-good comparison group. Then I establish blast radius and find the first failed evidence gate—host, runtime, resource, placement, workload, or telemetry. That protects capacity and prevents broad restarts from erasing the state that distinguishes a localized node issue from a release-wide regression.”
+**Model answer:** "Stop the rollout — don't let a second batch go out while the first is still unexplained — and protect capacity by making sure I still have a healthy comparison pool to diagnose against. Only after that do I start pulling time-correlated evidence to find the first failed layer. The mistake I'd actively avoid is reaching for a fast, broad rollback before I understand what broke — that can trade one failure state for a different, harder-to-diagnose one, especially if the rollback itself only reverts part of the compatibility set, which is exactly the chart-rollback trap in the previous question."
 
-**How would you decide between rollback and forward-fix?**
+**A driver upgrade passes the canary but breaks on batch 3 of a 6-batch rollout. What does that pattern tell you, and how do you contain it?**
 
-> “I compare time to restore, confidence, blast radius, data or checkpoint risk, and whether the current state is a coherent supported profile. If rollback is tested and restores service quickly, I favor it. If rollback would create another unqualified combination or firmware state, I contain the scope and use a vendor-supported forward recovery. Either path must end with the full acceptance suite.”
+**Model answer:** "The fact that it passed an 8-node canary and a 12-node first batch but failed at batch 3 tells me this probably isn't a universal driver-compatibility bug — those would have shown up in the canary. It's more likely node-population-dependent: a specific hardware revision, BIOS setting, or firmware version that happens to concentrate in the nodes reached by batch 3. First move is to stop the rollout immediately and diff the failing batch's node inventory — firmware versions, BIOS, exact GPU SKU — against the canary and the batches that passed. Containment is cordon the affected batch, redirect new scheduling to the untouched remainder of the fleet, and only resume once I can either fix the specific hardware-dependent issue or explicitly exclude that hardware class from this rollout."
 
 ## Key takeaways
 

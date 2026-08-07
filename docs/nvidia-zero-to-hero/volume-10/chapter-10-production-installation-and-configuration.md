@@ -19,20 +19,18 @@ By the end of this chapter, you should be able to qualify a node pool, select co
 
 ```mermaid
 flowchart TD
-    Qualify[Qualify node image, kernel, runtime, GPU pool] --> Ownership{One owner per driver and runtime layer?}
-    Ownership -->|no| OwnershipFix[Resolve dual ownership before install]
-    Ownership -->|yes| Render[Render pinned Helm configuration]
-    Render -->|"helm template; review RBAC, mounts, images"| Review{Manifest review passes?}
-    Review -->|no| ConfigFix[Correct scope, privilege, registry, values]
-    Review -->|yes| Canary[Install on representative canary pool]
-    Canary --> Reconcile{All intended operands Ready?}
-    Reconcile -->|no| OperandFix[Find first failed dependency]
-    Reconcile -->|yes| Accept{Fresh GPU workload and telemetry pass?}
-    Accept -->|no| Reject[Keep pool tainted; preserve evidence; roll back or fix]
-    Accept -->|yes| Operate[Accept pool and expand bounded rollout]
+    Qualify[Qualify nodes and compatibility] -->|"evidence: kernel/OS/runtime<br/>matches compatibility matrix"| Ownership[Choose driver and runtime ownership]
+    Ownership -->|"evidence: ownership model<br/>documented and reviewed"| Policy[Review security, registry, and node scope]
+    Policy -->|"evidence: RBAC, registry,<br/>node selector approved"| Render[Render and review pinned configuration]
+    Render -->|"evidence: helm template diff reviewed,<br/>no unexpected privileged objects"| Reconcile[Install and reconcile operands]
+    Reconcile --> Ready{"All operands Ready?<br/>(clusterpolicy status, DaemonSet rollout)"}
+    Ready -->|"No — operand CrashLoopBackOff<br/>or stuck rollout"| Diagnose["Diagnose first failed operand<br/>(do not delete the whole release)"]
+    Diagnose --> Reconcile
+    Ready -->|"Yes — status.state: ready,<br/>all DaemonSets desired = ready"| Accept[Validate workload, telemetry, and recovery]
+    Accept --> Operate[Accept node pool into service]
 ```
 
-**Figure 10.10.1 — Installation is a fault-isolation workflow, not a Helm command.** Every promotion edge carries evidence. The failure branches preserve a small blast radius and an identifiable owner.
+**Figure 10.10.1 — Installation is a sequence of evidence gates, not a single Helm command.** Each edge names the artifact that actually proves the prior gate passed — not just that a command returned success. The `Ready?` decision point is where most "the install looked fine" incidents actually live: `helm install` can report `STATUS: deployed` while `Reconcile` is still failing, because Helm's success only means the API server accepted the manifests, not that any DaemonSet Pod is Running. A failure at any gate should identify the owner and preserve a safe recovery path — the diagnose loop returns to `Reconcile` rather than to a fresh install, so evidence from the failed attempt is not discarded.
 
 Before selecting values, document the supported Kubernetes distribution and version, kernel and operating-system image, container runtime, GPU inventory, driver branch, and required firmware posture. Treat this as a compatibility set. “Works on another cluster” is not a compatibility claim when the kernel, runtime, security controls, or node image differs.
 
@@ -55,54 +53,6 @@ Keep one source-controlled values file per environment, with a reviewable overla
 
 Render the release before applying it. Review service accounts, cluster-scoped permissions, privileged workloads, host mounts, DaemonSet selectors, image references, and namespace-scoped network assumptions. GPU platform operands often require privileged host interaction; that makes an installation review both a reliability and supply-chain review.
 
-### Render and inspect before applying
-
-**Purpose:** render the exact release inputs and count high-risk resources before the API server sees them.
-
-```bash
-helm template gpu-operator nvidia/gpu-operator \
-  --namespace gpu-operator \
-  --values values-production.yaml \
-  > /tmp/gpu-operator-rendered.yaml
-
-yq 'select(.kind == "DaemonSet") | .metadata.name' /tmp/gpu-operator-rendered.yaml
-yq '[select(.kind == "ClusterRole")] | length' /tmp/gpu-operator-rendered.yaml
-```
-
-**Representative output:**
-
-```text
-nvidia-driver-daemonset
-nvidia-container-toolkit-daemonset
-nvidia-device-plugin-daemonset
-gpu-feature-discovery
-nvidia-dcgm-exporter
-6
-```
-
-The DaemonSet list shows the node-local components this configuration intends to deploy. The value `6` is an illustrative count for this rendered example, not a product invariant. A change in the count between releases is a review signal: inspect new cluster-scoped permissions rather than assuming they are harmless.
-
-**Purpose:** inspect node scope and privilege in the rendered driver workload.
-
-```bash
-yq 'select(.kind == "DaemonSet" and .metadata.name == "nvidia-driver-daemonset") | {nodeSelector:.spec.template.spec.nodeSelector,tolerations:.spec.template.spec.tolerations,containers:[.spec.template.spec.containers[]|{name,privileged:.securityContext.privileged,image}]}' /tmp/gpu-operator-rendered.yaml
-```
-
-```yaml
-nodeSelector:
-  gpu.platform.example/driver-owner: operator
-tolerations:
-  - key: nvidia.com/gpu
-    operator: Exists
-    effect: NoSchedule
-containers:
-  - name: nvidia-driver-ctr
-    privileged: true
-    image: registry.internal.example/gpu/driver@sha256:8d4b...a2f1
-```
-
-The selector limits driver ownership to the intended nodes. The digest pins the artifact content. `privileged: true` is a deliberate host-integration requirement and a security review boundary. If `nodeSelector` is empty in a mixed cluster, stop before installation and confirm the operator cannot target control-plane or host-managed-driver nodes.
-
 Do not copy a values file simply because it installed elsewhere. Configuration can be valid YAML and still target the wrong node group, overwrite a runtime assumption, or enable an operand that conflicts with the existing node image.
 
 ## Install in an intentionally small blast radius
@@ -111,39 +61,42 @@ Begin with a dedicated canary pool that represents the intended production hardw
 
 Install the pinned release, then follow reconciliation rather than only release status. Inspect the ClusterPolicy (or equivalent operator status), controller logs, events, DaemonSet rollout state, and the Pods for each enabled operand. When the result is incomplete, identify the first operand that cannot become Ready and investigate its dependency. Repeatedly deleting the whole deployment converts a diagnosable state into a larger outage.
 
-### Follow the rollout with concrete evidence
-
-```bash
-helm status gpu-operator -n gpu-operator
-```
-
-**Representative output:**
+**Why Helm's own status is not the acceptance gate.** A pinned install against a canary pool of 6 nodes:
 
 ```text
+$ helm install gpu-operator nvidia/gpu-operator \
+    --namespace gpu-operator --create-namespace \
+    --version 24.9.1 -f canary-values.yaml --wait --timeout 15m
 NAME: gpu-operator
+LAST DEPLOYED: Tue Aug  4 09:12:03 2026
 NAMESPACE: gpu-operator
 STATUS: deployed
 REVISION: 1
-TEST SUITE: None
 ```
 
-`STATUS: deployed` proves Helm stored the release and Kubernetes accepted its resources. It does not prove operands are Ready.
-
-```bash
-kubectl -n gpu-operator get ds \
-  -o custom-columns='NAME:.metadata.name,DESIRED:.status.desiredNumberScheduled,READY:.status.numberReady,AVAILABLE:.status.numberAvailable'
-```
+`STATUS: deployed` only means the API server accepted the manifests and `--wait` observed the objects it knows how to wait on (Deployments, not every DaemonSet on every labeled node) reach a ready condition within the timeout. It says nothing about whether the driver container actually loaded a kernel module on all 6 canary nodes. The next command is the real gate:
 
 ```text
-NAME                                      DESIRED   READY   AVAILABLE
-nvidia-driver-daemonset                   2         2       2
-nvidia-container-toolkit-daemonset        2         2       2
-nvidia-device-plugin-daemonset            2         2       2
-gpu-feature-discovery                     2         2       2
-nvidia-dcgm-exporter                      2         2       2
+$ kubectl get clusterpolicy cluster-policy -o jsonpath='{.status.state}{"\n"}'
+notReady
+
+$ kubectl get pods -n gpu-operator -o wide | grep -v Running
+NAME                                          READY   STATUS             RESTARTS   NODE
+nvidia-driver-daemonset-7q2kd                 0/1     CrashLoopBackOff   5          gpu-node-04
 ```
 
-The canary scope is two nodes in this example. Matching desired, ready, and available counts proves Kubernetes rollout state for each DaemonSet. A CUDA acceptance Pod remains necessary.
+`clusterpolicy` reports `notReady` even though Helm reported `deployed` — that gap is exactly why this section says "follow reconciliation rather than only release status." One driver Pod is crash-looping on `gpu-node-04` while the other 5 canary nodes are fine, which turns "the install failed" into a much narrower question: what is different about `gpu-node-04` (kernel headers, Secure Boot, a stale image cache) rather than a full re-install.
+
+```text
+$ kubectl logs -n gpu-operator nvidia-driver-daemonset-7q2kd --previous | tail -5
+Stopping NVIDIA persistence daemon...
+Unloading NVIDIA driver kernel modules...
+modprobe: ERROR: could not insert 'nvidia': Key was rejected by service
+mount: /run/nvidia/driver/usr/src/nvidia-535.129.03: No such file or directory
+Failed to install the kernel module through DKMS
+```
+
+`Key was rejected by service` is the Secure Boot signing failure signature, not a generic driver bug — it sends the investigation straight to "is this node's Secure Boot MOK enrollment consistent with the other 5," which the ownership table's Driver row was already asking teams to settle before deployment.
 
 ## Acceptance is an end-to-end proof
 
@@ -159,29 +112,27 @@ Use a small, approved CUDA validation image and a representative workload test. 
 
 The topology-sensitive portion of this test belongs to the workload class. A single-device CUDA smoke test proves a different thing from a distributed training validation. Use [GPU Scheduling and Topology](./chapter-08-gpu-scheduling-and-topology) to decide what the representative test must cover.
 
-### One acceptance bundle
-
-```bash
-kubectl get node gpu-canary-01 -o json | jq '{ready:[.status.conditions[]|select(.type=="Ready")|.status],gpu:.status.allocatable["nvidia.com/gpu"],class:.metadata.labels["gpu.platform.example/class"],validated:.metadata.labels["gpu.platform.example/validated"]}'
-kubectl logs cuda-acceptance-gpu-canary-01
-```
-
-**Representative output:**
+**Item 3 in practice — allocatable is a kubelet claim, not a driver claim.** After the driver issue above is fixed on `gpu-node-04`, allocatable resource is the next thing to check per node, not just cluster-wide:
 
 ```text
-{
-  "ready": ["True"],
-  "gpu": "8",
-  "class": "training-topology",
-  "validated": "true"
-}
-CUDA devices detected: 8
-selected UUID: GPU-3c2e38d1-6a2c-4a31-b44b-9d82a8c80735
-vector-add elements: 1048576
-verification: PASS
+$ kubectl get node gpu-node-04 -o jsonpath='{.status.capacity.nvidia\.com/gpu}{" capacity / "}{.status.allocatable.nvidia\.com/gpu}{" allocatable\n"}'
+8 capacity / 8 allocatable
 ```
 
-The Node object proves cluster state and platform assertions. The workload proves a fresh container obtained a device and executed a kernel. `validated=true` should be written only by the controlled acceptance process; if it predates the current change generation, it is stale evidence.
+`capacity` and `allocatable` matching (`8 / 8`) is the device plugin confirming what the driver already fixed — if `allocatable` had stayed `0` after the driver started reporting healthy, the fault would have moved one layer up, to device-plugin registration with kubelet rather than the driver itself. That is why item 3 is listed as its own acceptance step instead of being folded into item 1: a healthy driver and a healthy kubelet advertisement are two different claims that happen to usually succeed together.
+
+**Item 5 and 6 in practice — a scheduled workload plus telemetry, correlated.** The approved CUDA validation Pod, then the metric it should produce:
+
+```text
+$ kubectl logs gpu-validate-node04
+GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-3a91...)
+CUDA_VALIDATED
+
+$ curl -s http://dcgm-exporter.gpu-operator:9400/metrics | grep 'DCGM_FI_DEV_GPU_UTIL{.*gpu_node04'
+DCGM_FI_DEV_GPU_UTIL{gpu="0",UUID="GPU-3a91...",node="gpu-node-04"} 97
+```
+
+The `UUID` in the Pod log (`GPU-3a91...`) and the `UUID` label on the DCGM series match — that identity match is the actual proof for item 6 ("DCGM telemetry is scraped with stable device identity"). A dashboard that shows *a* number for the node without matching device UUIDs could be reporting a different, unrelated GPU on the same host under MIG or multi-GPU layouts, which is a real failure mode this acceptance step exists to catch.
 
 ## Operational guardrails
 
@@ -189,99 +140,55 @@ Restrict operator scope to approved GPU nodes. Prefer immutable node-image and r
 
 Define a negative acceptance path too. A node that fails driver validation, loses the device plugin, or stops exporting telemetry must not silently re-enter the general workload pool. Cordon, quarantine, or keep the node out of the eligible selector until the runbook establishes recovery.
 
-### Worked canary capacity calculation
-
-A production pool has 20 eight-GPU nodes. Two nodes form the canary pool:
-
-```text
-physical inventory = 20 × 8 = 160 GPUs
-canary capacity     =  2 × 8 = 16 GPUs
-production capacity during canary = 144 GPUs
-144 / 160 = 90% raw capacity remains
-```
-
-If the workload queue requires ten full-node eight-GPU jobs, 18 remaining nodes still provide 18 full-node slots. If several nodes are already fragmented by one- and two-GPU Pods, the usable full-node count may be lower. Admission planning must use node-level free blocks, not only the 90% figure.
-
 ## Troubleshooting installation without guesswork
 
-| Symptom | First evidence | Decision boundary |
-|---|---|---|
-| Release deployed, no GPU resource | node scope, driver, plugin, kubelet registration | configuration versus host dependency |
-| Driver operand fails | kernel, signing, headers, driver log | node profile compatibility |
-| Pod bound, sandbox fails | RuntimeClass, CDI, Toolkit, CRI event | runtime integration |
-| Workload passes, metrics missing | exporter, target discovery, freshness | telemetry acceptance |
-| Only canary node fails | compare exact node profile and event timeline | localized drift versus release-wide issue |
-
-### Evidence row 1: deployed release targets zero nodes
-
-```bash
-kubectl -n gpu-operator get ds nvidia-driver-daemonset \
-  -o custom-columns='DESIRED:.status.desiredNumberScheduled,CURRENT:.status.currentNumberScheduled,READY:.status.numberReady,NODESELECTOR:.spec.template.spec.nodeSelector'
-```
+**The release installed but no GPU resources appear.** Compare the target node selector with actual nodes, then walk the dependency path: host detection and driver, runtime, device-plugin Pod, kubelet registration, and node allocatable resources. Events and operand logs should reveal the first failed component.
 
 ```text
-DESIRED   CURRENT   READY   NODESELECTOR
-0         0         0       map[gpu.platform.example/driver-owner:operator]
+$ kubectl get node gpu-node-07 --show-labels | tr ',' '\n' | grep nvidia.com
+nvidia.com/gpu.present=true
+nvidia.com/gpu.count=8
+nvidia.com/gpu.deploy.device-plugin=true
+
+$ kubectl get node gpu-node-07 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{"\n"}'
+<no value>
 ```
 
-The DaemonSet is valid but no node matches the selector. Compare canary labels before inspecting kernel logs.
+Labels confirm NFD and the operator agree the node *should* have 8 GPUs, but `allocatable` returns nothing — the node selector and hardware detection layer is fine, so the fault is downstream of it (device plugin or kubelet registration), not in "no GPU resources appear" being a node-selector mismatch as the first guess would suggest.
 
-```bash
-kubectl get nodes -l gpu.platform.example/canary=true \
-  -o custom-columns='NAME:.metadata.name,OWNER:.metadata.labels.gpu\.platform\.example/driver-owner'
-```
+**The driver operand fails.** Collect kernel release, headers or build dependencies where relevant, signing or Secure Boot evidence where applicable, image logs, and host driver state. Do not attempt a workload-level fix before the host layer is sound. (See the `Key was rejected by service` example above — that log line is exactly this row's evidence in practice.)
+
+**The runtime is present but a CUDA Pod cannot start.** Check the selected runtime handler or CDI configuration, runtime logs, device mounts, security context, and the validation image’s library expectations. A Pod start failure and a CUDA initialization failure are distinct failure boundaries.
 
 ```text
-NAME             OWNER
-gpu-canary-01    host
-gpu-canary-02    host
+$ kubectl describe pod gpu-validate-node07 | tail -6
+  Warning  Failed     8s    kubelet  Error: failed to create containerd task: failed to create shim:
+  OCI runtime create failed: unable to retrieve OCI runtime error
+  (open /run/nvidia/driver/dev/nvidia0: no such file or directory): unknown
 ```
 
-The canaries declare host-owned drivers, so an operator-managed driver DaemonSet correctly schedules nowhere. Resolve the ownership design or values; do not add tolerations blindly.
+This is a Pod **start** failure — the container never reached its entrypoint, so no CUDA code ran yet. `/run/nvidia/driver/dev/nvidia0` missing means the toolkit's device injection path did not find a device node to mount, which is a runtime/CDI-layer fault. A CUDA initialization failure instead would show the Pod as `Running` with an in-application error like `CUDA error: no CUDA-capable device is detected` — the same underlying driver problem, but discovered one layer later. Treating these as the same symptom sends the investigation to the wrong log source.
 
-### Evidence row 2: driver image cannot be pulled
-
-```bash
-kubectl -n gpu-operator describe pod nvidia-driver-daemonset-6m29k | sed -n '/Events:/,$p'
-```
+**Metrics are missing after the functional test passes.** The compute path may be correct while the telemetry path is not. Investigate exporter readiness, DCGM access, Prometheus target discovery, scrape health, and network policy as a separate acceptance failure. See [GPU Observability with DCGM](./chapter-09-gpu-observability-with-dcgm).
 
 ```text
-Events:
-  Warning  Failed  34s  kubelet  Failed to pull image "registry.internal.example/gpu/driver@sha256:8d4b...a2f1":
-  failed to authorize: failed to fetch anonymous token: 401 Unauthorized
+$ kubectl get pods -n gpu-operator -l app=nvidia-dcgm-exporter -o wide
+NAME                          READY   STATUS    NODE
+nvidia-dcgm-exporter-9fvqk    1/1     Running   gpu-node-07
+
+$ curl -s gpu-node-07:9400/metrics | grep -c DCGM_FI_DEV_GPU_UTIL
+0
 ```
 
-This is a supply-chain access failure before driver initialization. Verify the pull secret, mirror, and node egress path. Kernel remediation is premature.
-
-### Evidence row 3: compute path works, telemetry acceptance fails
-
-```bash
-kubectl logs cuda-acceptance-gpu-canary-01
-kubectl -n monitoring get servicemonitor dcgm-exporter -o jsonpath='{.spec.selector.matchLabels}{"\n"}'
-kubectl -n monitoring get endpoints -l app=nvidia-dcgm-exporter
-```
-
-```text
-verification: PASS
-map[app:dcgm-exporter]
-No resources found in monitoring namespace.
-```
-
-The workload passes, but the ServiceMonitor selects `app=dcgm-exporter` while no matching endpoint exists in the namespace. Keep the node unaccepted until metrics discovery is repaired; compute success does not satisfy the observability contract.
+The exporter Pod is `Running` — a naive check would call telemetry "up." But the metrics endpoint returns zero `DCGM_FI_DEV_GPU_UTIL` series, which means DCGM itself cannot see a device on that host (commonly because the exporter container lost access to the driver socket after a driver Pod restart). This is why the row exists as its own acceptance check separate from "functional test passes": a workload can successfully run CUDA while the sidecar telemetry path is independently broken.
 
 ## Senior-level design questions
 
 **What is “done” for a GPU Operator deployment?**
-
-> “I call the deployment complete only when the qualified canary nodes have the intended ownership model, the rendered configuration has passed security and scope review, every enabled operand is Ready, a fresh CUDA workload succeeds, the expected resource and service-class labels are present, telemetry is fresh, and the drain/reboot/recovery path has been tested. Helm `deployed` is installation evidence, not service acceptance.”
+**Model answer:** "`helm install` reporting `deployed` is not done — I've seen that status while `clusterpolicy` sat at `notReady` because one driver DaemonSet was crash-looping on a single node with a Secure Boot signing failure. Done means: a qualified node pool with an agreed owner, a pinned and reviewed values file, every intended operand actually Ready — not just the release — a real workload that allocated a device and initialized CUDA, DCGM telemetry showing the same device UUID the workload used, and a tested drain-and-return path. Helm success is one data point out of about seven; treating it as the finish line is exactly how a partially-broken canary gets accepted."
 
 **Why isolate a canary pool?**
-
-> “A representative canary limits blast radius and preserves a known-good comparison group. I calculate both the raw capacity removed and the workload slots lost, because one eight-GPU node is more than 5% of a 20-node pool’s full-node scheduling capacity. I promote only after the canary passes host, runtime, resource, workload, and telemetry gates.”
-
-**Why render manifests before installation?**
-
-> “Rendering exposes the exact RBAC, privileged Pods, host mounts, images, selectors, and tolerations generated by the values file. Valid YAML can still target the wrong nodes or create an unexpected cluster-wide permission. I want that evidence in code review before the controller begins reconciling it.”
+**Model answer:** "Because a GPU platform change touches the kernel, driver, runtime, and operator all at once, and any one of those can be silently incompatible with a specific node image or hardware batch. A canary limits that blast radius to nodes I can afford to lose and gives me a comparison group — if the canary fails and a sibling pool with the old config is still healthy, I know immediately it's the change, not ambient cluster noise. The catch is representativeness: a canary has to run the same node image, driver ownership model, and workload class as the pool it stands in for. An idle spare node with different hardware proves nothing about the fleet I'm actually about to change."
 
 ## Key takeaways
 

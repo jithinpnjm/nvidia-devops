@@ -15,22 +15,21 @@ That chain is the central model of this volume. It gives the platform team a way
 
 ```mermaid
 flowchart TD
-    Start[GPU workload incident or node acceptance] --> Host{Host sees healthy GPU?}
-    Host -->|"no: lspci / nvidia-smi / kernel log"| HostFix[Hardware, firmware, kernel, driver]
-    Host -->|yes| Runtime{Fresh GPU sandbox starts?}
-    Runtime -->|"no: Pod event / CRI / RuntimeClass / CDI"| RuntimeFix[Toolkit and runtime boundary]
-    Runtime -->|yes| Resource{Expected GPU resource and labels present?}
-    Resource -->|"no: node status / plugin / discovery"| ResourceFix[Device plugin, kubelet, NFD/GFD]
-    Resource -->|yes| Placement{Pod placed in intended class and topology?}
-    Placement -->|"no: FailedScheduling or poor locality"| PlacementFix[Capacity, affinity, taints, topology, queue]
-    Placement -->|yes| Workload{CUDA and representative workload pass?}
-    Workload -->|"no: minimal image versus app image"| WorkloadFix[Image, framework, compatibility]
-    Workload -->|yes| Observe{Telemetry fresh and actionable?}
-    Observe -->|"no: exporter, target, identity join"| ObserveFix[Restore observability]
-    Observe -->|yes| Accept[Accept node or close incident with evidence]
+    Hardware[GPU hardware and firmware] -->|"nvidia-smi initializes (Ch1, Lab1)"| Driver[Kernel driver]
+    Driver -->|"crictl inspect shows /dev/nvidiaN injected (Ch3)"| Runtime[Container Toolkit, CDI, or runtime handler]
+    Driver -->|"kubelet Allocatable.nvidia.com/gpu > 0 (Ch4)"| Plugin[Device Plugin and kubelet registration]
+    Hardware -->|"node labels nvidia.com/gpu.product=... (Ch5)"| Discovery[NFD and GPU feature discovery]
+    Runtime -->|"nvidia-smi succeeds inside container"| Workload[GPU workload]
+    Plugin --> Scheduler[Kubernetes resource and scheduler]
+    Discovery --> Scheduler
+    Scheduler -->|"Pod bound + placement contract met (Ch8)"| Workload
+    Hardware -->|"DCGM_FI_DEV_* fields populate (Ch9)"| DCGM[DCGM and exporter]
+    Workload --> Evidence["Workload, node, and device evidence —\nthe basis for every troubleshooting table in this volume"]
+    DCGM --> Evidence
+    Evidence -->|"any single link above unproven"| Gap["Gap = the exact chapter to re-open,\nnot a reason to reinstall everything"]
 ```
 
-**Figure 10.12.1 — The volume’s final diagram is the reusable fault-isolation algorithm.** Every branch attaches a proof to one interface. The sequence prevents a downstream symptom from becoming an excuse to change every layer.
+**Figure 10.12.1 — The GPU platform is a chain of contracts, each proven by a specific piece of evidence from earlier chapters.** A healthy lower layer is necessary but not sufficient for the layer above it — this recap diagram exists specifically to show that the volume's individual per-chapter evidence checks (the edge labels, each traceable back to its source chapter) compose into one end-to-end diagnosis path, not eleven unrelated topics. The `Gap` node is the practical payoff: when something fails, the broken edge in this diagram names the chapter to open, instead of restarting the whole install.
 
 ## What each component is responsible for
 
@@ -47,73 +46,6 @@ flowchart TD
 
 This separation of responsibility is useful in design reviews and incidents. It prevents the imprecise statement “the GPU Operator is broken” from hiding a node-image, runtime, device-plugin, scheduler, or workload problem.
 
-## One complete evidence bundle
-
-The following is **representative output** from a healthy eight-GPU node. No single command is sufficient; the value comes from the sequence.
-
-### Host and driver
-
-```bash
-nvidia-smi --query-gpu=index,name,uuid,driver_version --format=csv,noheader
-```
-
-```text
-0, NVIDIA H100 80GB HBM3, GPU-3c2e38d1-6a2c-4a31-b44b-9d82a8c80735, 550.54.15
-1, NVIDIA H100 80GB HBM3, GPU-722d1344-1b6d-4a95-8cb9-1c572eb5ad94, 550.54.15
-... six additional devices ...
-```
-
-This proves host-driver communication and stable UUID identity. The abbreviated six rows are explicitly omitted for readability; a real acceptance record should preserve all eight.
-
-### Kubernetes resource and service class
-
-```bash
-kubectl get node gpu-node-01 -o json | jq '{gpu:.status.allocatable["nvidia.com/gpu"],class:.metadata.labels["gpu.platform.example/class"],validated:.metadata.labels["gpu.platform.example/validated"]}'
-```
-
-```json
-{
-  "gpu": "8",
-  "class": "training-topology",
-  "validated": "true"
-}
-```
-
-The node advertises eight units and belongs to the platform-owned class. `validated=true` is meaningful only if the controller updated it after the current change generation.
-
-### Fresh runtime and workload execution
-
-```bash
-kubectl get pod cuda-acceptance-gpu-node-01 -o wide
-kubectl logs cuda-acceptance-gpu-node-01
-```
-
-```text
-NAME                                READY   STATUS      NODE
-cuda-acceptance-gpu-node-01         0/1     Completed   gpu-node-01
-
-CUDA devices detected: 8
-selected UUID: GPU-3c2e38d1-6a2c-4a31-b44b-9d82a8c80735
-vector-add verification: PASS
-```
-
-`Completed` plus `PASS` proves a newly created sandbox received the device and executed a functional kernel. It does not certify distributed topology or application performance.
-
-### Telemetry freshness
-
-```bash
-curl -s 'http://prometheus.monitoring.svc:9090/api/v1/query?query=up%7Bjob%3D%22dcgm-exporter%22%2Cinstance%3D~%22.%2A%22%7D' | jq '.data.result[0] | {instance:.metric.instance,value:.value}'
-```
-
-```json
-{
-  "instance": "10.42.3.24:9400",
-  "value": [1786028012.441, "1"]
-}
-```
-
-The target is up at the sample timestamp. Compare the timestamp with current time; stale data can leave a visually populated dashboard after collection fails.
-
 ## The production operating model
 
 Make the following decisions explicit and source controlled:
@@ -126,24 +58,6 @@ Make the following decisions explicit and source controlled:
 - Preserve a representative canary pool, spare capacity, a maintenance process, and a coherent rollback path.
 
 The goal is not to expose the maximum number of knobs. It is to offer a small number of stable platform classes—such as topology-sensitive training, latency-sensitive inference, or flexible batch—whose placement, sharing, and lifecycle rules are understandable to users and operators.
-
-### Worked fleet-capacity summary
-
-A fleet has 12 nodes with eight GPUs each:
-
-```text
-physical inventory = 12 × 8 = 96 GPUs
-```
-
-One node is a canary, one is maintenance headroom, and one has a quarantined GPU but seven healthy units:
-
-```text
-guaranteed production nodes = 12 − 2 = 10 nodes
-full-node capacity = 10 × 8 = 80 GPUs
-quarantined node contributes 0 to guaranteed capacity until acceptance
-```
-
-Although the physical inventory is 96 GPUs and one quarantined node still advertises seven healthy units, the service contract may intentionally guarantee only 80. Capacity reporting should distinguish physical, healthy, admitted, allocated, and free resources.
 
 ## A reusable diagnosis sequence
 
@@ -158,74 +72,23 @@ When a GPU workload is pending, fails, or slows down, establish the scope and ch
 
 This is an evidence order, not a claim that every fault starts in hardware. It is designed to find the first broken interface and avoid changing healthy layers before they have been ruled out.
 
-## Production troubleshooting revision table
-
-| Symptom | Decisive paired evidence | Likely interpretation |
-|---|---|---|
-| Node Ready, GPU absent | node status + `nvidia-smi`/kernel log | general kubelet health with broken driver or plugin path |
-| Pod Pending | scheduler event + node free blocks and policy | shortage, fragmentation, affinity, taint, or quota |
-| Bound Pod cannot start | Pod event + RuntimeClass/CDI/CRI evidence | runtime injection failure |
-| Minimal CUDA passes, app fails | paired workload logs and library path | image or framework boundary |
-| Dashboard empty | exporter readiness + Prometheus target freshness | monitoring failure before hardware conclusion |
-
-### Evidence row 1: Node Ready, driver broken
-
-```text
-$ kubectl get node gpu-node-07
-NAME          STATUS   ROLES    AGE   VERSION
-gpu-node-07   Ready    <none>   21d   v1.30.3
-
-$ nvidia-smi
-NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver.
-```
-
-The first line proves general Kubernetes node health; the second disproves GPU host readiness. This is the shortest demonstration of the volume’s central principle.
-
-### Evidence row 2: scheduler reports fragmentation
-
-```text
-$ kubectl describe pod four-gpu-job | sed -n '/Events:/,$p'
-Warning  FailedScheduling  default-scheduler  0/4 nodes are available: 4 Insufficient nvidia.com/gpu.
-
-node-a: 1 free
-node-b: 1 free
-node-c: 1 free
-node-d: 1 free
-```
-
-The cluster has four free units but no four-unit node-local block. The event is correct; the fix is capacity reshaping or a different workload request.
-
-### Evidence row 3: metrics absent because exporter is unhealthy
-
-```text
-$ kubectl -n gpu-operator get pod nvidia-dcgm-exporter-r8p4s
-NAME                           READY   STATUS
-nvidia-dcgm-exporter-r8p4s     0/1     Running
-
-$ kubectl -n gpu-operator logs nvidia-dcgm-exporter-r8p4s --tail=2
-Error connecting to DCGM hostengine: connection refused
-No metrics collected; retrying in 5s
-```
-
-The container process is Running, but readiness and logs prove the telemetry dependency is broken. Silence from alerts cannot be treated as hardware health.
-
-## Interview preparation
+## Revision prompts
 
 **Why is a `Running` GPU Pod not proof of GPU health?**
 
-> “Pod phase reports the Kubernetes lifecycle, not the accelerator service result. A process can be Running before CUDA initializes, and a workload can continue while telemetry or one peer GPU is unhealthy. I verify the assigned device, run or inspect a functional CUDA result, check UUID-based telemetry and reliability events, and correlate application progress. `Running` is one clue, not the acceptance criterion.”
+**Model answer:** "`Running` is Kubernetes telling me the container process started and hasn't exited — that's a lifecycle fact, not a hardware or CUDA fact. I've walked into incidents where a Pod had been `Running` for hours while its GPU had already fallen off the bus, because nothing about the container lifecycle depends on the application actually calling into CUDA successfully. Proof of GPU health is `nvidia-smi` succeeding inside that specific container, DCGM showing no reliability events for that UUID, and the workload's own throughput metrics — three separate checks, none of which `kubectl get pod` can answer for you."
 
 **Why is resource quantity insufficient for placement?**
 
-> “The GPU extended resource is an integer. It does not encode memory size, architecture, peer links, CPU and NIC locality, sharing mode, or coordinated start. I combine the request with a governed service class and only the topology constraints the workload can justify. Then I measure the utilization and queueing cost of those constraints.”
+**Model answer:** "`nvidia.com/gpu: 4` is an integer — it says nothing about which four GPUs, whether they're NVLink peers or scattered across PCIe roots, whether the CPU cores and NIC assigned sit on the same NUMA node, or whether a sharing mode like MIG changes what 'one unit' even means. Two Pods can both get an allocation that satisfies the same integer request and see completely different real-world performance. That's the whole argument for treating capacity, eligibility, locality, and coordination as four separate questions instead of trusting the count."
 
 **What makes a deployment production-ready?**
 
-> “I require a qualified compatibility set, one owner for each host layer, reviewed privileged manifests and image provenance, reconciled operands, expected labels and allocatable resources, a fresh representative workload, fresh telemetry, a tested drain and reboot path, and a coherent rollback. Helm success alone proves none of those end-to-end contracts.”
+**Model answer:** "Six things have to all be true at once, not just one: a compatibility set that's actually been qualified together — kernel, driver, runtime, operator, firmware; clear ownership and security boundaries so I know who's authoritative for each layer; operands that are reconciled and green; a workload and telemetry acceptance gate that ran on this specific node, not just a chart status; a documented recovery path that covers host state, not only Helm; and enough spare capacity to actually execute a canary or drain without an outage. Any one of those missing is a deployment that looks done and isn't."
 
 **Why is rollback more than Helm rollback?**
 
-> “A release can change the kernel, driver, runtime, node image, firmware, and application interface in addition to chart objects. Reverting the chart while retaining a changed host profile can leave an untested combination. I restore every changed layer to a known-good profile and rerun the complete acceptance suite.”
+**Model answer:** "Because `helm rollback` only touches what the chart controls — Kubernetes objects. If the change that broke things also touched the node — a driver module, a kernel, firmware — reverting the chart doesn't put the host back to a matching state, it just makes the control plane's *description* of the state wrong again in the opposite direction. Real rollback means figuring out which layers actually changed and restoring a tested, coherent combination across all of them — sometimes that's a chart revert, sometimes it's booting a known-good node image, and it's often both."
 
 ## Continue the practice
 

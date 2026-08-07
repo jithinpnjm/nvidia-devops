@@ -10,337 +10,274 @@ tags: [lab, troubleshooting, device-plugin]
 | Field | Value |
 |---|---|
 | Chapter | 11 — Upgrades and Production Troubleshooting |
-| Difficulty / time | Advanced / 90 minutes |
+| Difficulty / time | Advanced / 75 minutes |
 | Type | Failure diagnosis and safe recovery planning |
-| Scope | One affected node and one healthy comparison node |
+| Scope | One affected node and a healthy comparison node |
 
 ## 1. Objective
 
-Identify the lowest failed layer when a Kubernetes `Ready` node lacks `nvidia.com/gpu` in Capacity or Allocatable, preserve evidence before remediation, and prove recovery with an end-to-end GPU workload.
+Identify the lowest failed layer when a Ready node lacks `nvidia.com/gpu` Allocatable, then propose a verified, change-controlled recovery.
 
 ## 2. Production Story
 
-After a kernel maintenance window, `gpu-worker-07` returns as `Ready`, but every new GPU Pod remains Pending. The node still has eight physical GPUs. Restarting every operator Pod would destroy the ordering evidence and might hide whether the first failure is the host driver, the device plugin, or kubelet registration. This lab follows the dependency chain and stops at the first failed boundary.
+After node maintenance, application Pods stay Pending even though Kubernetes reports the node Ready. Restarting every GPU component hides the evidence and can widen impact. Start with physical enumeration and advance only after each layer is proven.
 
 ## 3. Learning Outcomes
 
-By completion, you can:
-
-- distinguish physical inventory, Capacity, Allocatable, and scheduler eligibility;
-- compare an affected node with a known-good peer;
-- read driver, device-plugin, kubelet, and scheduling evidence;
-- avoid destructive “restart everything” troubleshooting;
-- define and verify a scoped recovery gate.
+You will distinguish Capacity from Allocatable, compare a healthy node, inspect driver/plugin/kubelet evidence, separate resource loss from scheduling constraints, and define recovery gates.
 
 ## 4. Architecture
 
 ```mermaid
 flowchart TD
-  A["Symptom: Ready node has no nvidia.com/gpu"] --> B{PCI device visible?<br/>Evidence: lspci}
-  B -->|No| B1[Hardware, BIOS, passthrough, or PCIe boundary]
-  B -->|Yes| C{Driver controls GPU?<br/>Evidence: nvidia-smi and kernel log}
-  C -->|No| C1[Kernel, module, signing, firmware, or driver boundary]
-  C -->|Yes| D{Device-plugin Pod is present and healthy?<br/>Evidence: Pod state, events, logs}
-  D -->|No| D1[DaemonSet selector, image, permission, or plugin configuration]
-  D -->|Yes| E{Kubelet accepted registration?<br/>Evidence: kubelet log and Node status}
-  E -->|No| E1[Registration socket, kubelet state, or plugin protocol failure]
-  E -->|Yes| F{Resource exists but workload still Pending?}
-  F -->|Yes| F1[Inspect taints, affinity, quota, requests, and fragmentation]
-  F -->|No| G[Run one-GPU validation and restore telemetry]
+  A["Symptom: ALLOCATABLE column\nempty or 0 on a Ready node"] --> B{"lspci shows an\nNVIDIA device?"}
+  B -->|"yes — evidence: lspci -nn | grep -i nvidia returns a line"| C{"nvidia-smi\nsucceeds on host?"}
+  B -->|"no"| H["Hardware, BIOS, or\npassthrough boundary —\nstop here, escalate to hardware/provider"]
+  C -->|"yes — evidence: driver version + GPU list printed"| D{"Device-plugin Pod\nRunning AND its log shows\nsuccessful enumeration?"}
+  C -->|"no"| I["Driver/kernel boundary —\ncheck journalctl -k for Xid/NVRM lines,\ndo not touch the plugin yet"]
+  D -->|"yes — evidence: plugin log has no\nrepeated registration errors"| E{"kubelet log shows this plugin's\nRegister() call succeeded?"}
+  D -->|"no"| J["Plugin configuration boundary —\nCrashLoopBackOff, image pull error,\nor DaemonSet selector mismatch"]
+  E -->|"yes — evidence: ALLOCATABLE now\nnonzero after this call"| F["Resource present:\nany remaining Pending Pod is a\nscheduler/taint/quota question, not this failure"]
+  E -->|"no"| K["Kubelet registration boundary —\nplugin enumerated devices correctly\nbut kubelet never accepted the gRPC registration"]
 ```
 
-**Figure 10.L3.1 — The decision path advances only when the current layer is proven.** A healthy plugin Pod is not enough if kubelet rejected registration, and a present resource means the incident has moved from advertisement to scheduling policy.
+**Figure — this lab's diagnostic path IS this diagram, one step per node.** Each decision point below corresponds to exactly one numbered procedure step (11=B/C, 12=D, 13=E), and the rule that makes this lab fast instead of a fishing expedition is: never skip a `yes` branch to test a `no`-branch hypothesis further down the chain — a driver that hasn't been proven healthy makes every downstream check unreliable, not just slower to interpret.
 
 ## 5. Prerequisites
 
-- Read access to Nodes, Pods, DaemonSets, events, and logs.
-- Approved SSH or console access to the affected node.
-- One healthy comparison node from the same pool where possible.
-- Maintenance approval before any restart, drain, module change, or DaemonSet modification.
-- An approved CUDA validation image available from the organization’s registry.
+- Read access to Nodes, Pods, DaemonSets, events, and logs; approved SSH/console access.
+- One affected node and one healthy node from the same pool/model where possible.
+- Maintenance approval before any restart, drain, driver change, or plugin rollout.
 
 ## 6. Safety and Incident Boundary
 
-This lab begins read-only. Do not delete operator Pods, restart kubelet, reload modules, reboot, or change DaemonSet selectors until the incident owner approves the exact remediation. Capture the before-state first. If the affected node serves production traffic, cordon or quarantine it through the established runbook before disruptive recovery.
+This lab collects evidence and does not create the production failure. Do not delete Pods, restart kubelet, reload kernel modules, or modify DaemonSets until the incident owner approves a remediation plan.
 
-## 7. Environment
+## 7. Environment and Variables
 
-Use concrete example names, then replace them with your approved targets.
+**Purpose:** Bind investigation to named comparison targets.
 
+**Command:**
 ```bash
-export GPU_NODE=gpu-worker-07
-export HEALTHY_GPU_NODE=gpu-worker-03
-export GPU_NAMESPACE=gpu-operator
-export VALIDATION_IMAGE=registry.example.com/platform/cuda-validation:approved
+export GPU_NODE='<affected-node>'
+export HEALTHY_GPU_NODE='<healthy-comparison-node>'
+kubectl get nodes -o custom-columns=NAME:.metadata.name,CAPACITY:.status.capacity.nvidia\.com/gpu,ALLOCATABLE:.status.allocatable.nvidia\.com/gpu
 ```
 
-**Purpose:** Confirm that both nodes exist and establish the cluster’s current resource view.
+**Expected evidence:** The affected node has missing/zero resource information and the comparison node has a known-good state.
 
-```bash
-kubectl get nodes "$GPU_NODE" "$HEALTHY_GPU_NODE" \
-  -o custom-columns=NAME:.metadata.name,READY:.status.conditions[-1].status,CAPACITY:.status.capacity.nvidia\.com/gpu,ALLOCATABLE:.status.allocatable.nvidia\.com/gpu
-```
+**Explanation:** A comparison eliminates assumptions about intended configuration.
 
-**Representative output:**
-
-```text
-NAME            READY   CAPACITY   ALLOCATABLE
-gpu-worker-07   True    <none>     <none>
-gpu-worker-03   True    8          8
-```
-
-`gpu-worker-07` is Kubernetes-ready but has no registered GPU extended resource. `gpu-worker-03` proves that the pool normally advertises eight units. Empty values are different from a numeric `0`: empty usually means kubelet has no resource key registered at all.
+**Common-failure interpretation:** If no healthy peer exists, use the node pool’s approved baseline/configuration repository and record the limitation.
 
 ## 8. Components and Evidence Map
 
-| Layer | Evidence | What healthy looks like | What it does not prove |
-|---|---|---|---|
-| Hardware | `lspci`, BMC/provider inventory | expected NVIDIA PCI functions exist | driver initialized them |
-| Driver | `nvidia-smi`, modules, kernel log | expected GPU UUIDs and no initialization failure | Kubernetes advertises them |
-| Device plugin | Pod state, events, logs | enumerates devices and registers | kubelet accepted and published resource |
-| Kubelet | service logs and Node status | registration accepted and resource key published | workload meets scheduling policy |
-| Scheduler | Pod events | eligible node and resource found | runtime can initialize CUDA |
-| Runtime/workload | validation Pod | assigned device works in container | application-specific performance |
+| Layer | Proof | Typical owner |
+|---|---|---|
+| Hardware | PCI enumeration/BMC | hardware or cloud provider |
+| Driver | `nvidia-smi`, kernel log | node platform |
+| Runtime | runtime configuration | node platform |
+| Device plugin | DaemonSet Pod/log | GPU platform |
+| Kubelet | Node status/registration log | Kubernetes platform |
+| Scheduler | Pod events/taints | workload + platform |
 
-## 9. Preserve the Before-State
+## 9. Procedure: Preserve Initial Evidence
 
-**Purpose:** Save evidence before any restart changes timestamps or removes the first error.
+**Purpose:** Capture evidence before any remediation changes timestamps or restarts components.
 
+**Command:**
 ```bash
 mkdir -p missing-gpu-evidence
-kubectl get node "$GPU_NODE" -o yaml > missing-gpu-evidence/affected-node-before.yaml
-kubectl get node "$HEALTHY_GPU_NODE" -o yaml > missing-gpu-evidence/healthy-node.yaml
-kubectl describe node "$GPU_NODE" > missing-gpu-evidence/affected-node-describe.txt
-kubectl get events -A --sort-by=.lastTimestamp > missing-gpu-evidence/events-before.txt
+kubectl get node "$GPU_NODE" -o yaml > missing-gpu-evidence/node.yaml
+kubectl describe node "$GPU_NODE" > missing-gpu-evidence/node-describe.txt
+kubectl get events -A --sort-by=.lastTimestamp > missing-gpu-evidence/events.txt
 ```
 
-**Expected result:** Four files contain the raw Node state, comparison state, and incident timeline.
+**Expected evidence:** Node status, conditions, events, labels, taints, Capacity, and Allocatable are retained.
 
-**Common failure:** An RBAC denial is itself an operational gap. Do not bypass it with unreviewed cluster-admin credentials; document the missing evidence and request approved access.
+**Explanation:** This is the incident’s before-state; do not overwrite it after recovery.
 
-## 10. Validate the Missing Resource Precisely
+**Common-failure interpretation:** RBAC failures must be documented and resolved through approved access—not bypassed with cluster-admin credentials.
 
+## 10. Validate the Symptom and Compare
+
+**Purpose:** Confirm whether loss is Capacity, Allocatable, or only scheduling policy.
+
+**Command:**
 ```bash
 kubectl get node "$GPU_NODE" -o jsonpath='{.status.capacity.nvidia\.com/gpu}{" capacity\n"}{.status.allocatable.nvidia\.com/gpu}{" allocatable\n"}'
 kubectl get node "$HEALTHY_GPU_NODE" -o jsonpath='{.status.capacity.nvidia\.com/gpu}{" capacity\n"}{.status.allocatable.nvidia\.com/gpu}{" allocatable\n"}'
 ```
 
-**Representative output:**
-
+**Expected evidence:**
 ```text
- capacity
- allocatable
+$ kubectl get node "$GPU_NODE" -o jsonpath='{.status.capacity.nvidia\.com/gpu}{" capacity\n"}{.status.allocatable.nvidia\.com/gpu}{" allocatable\n"}'
+8 capacity
+
+$ kubectl get node "$HEALTHY_GPU_NODE" -o jsonpath='{.status.capacity.nvidia\.com/gpu}{" capacity\n"}{.status.allocatable.nvidia\.com/gpu}{" allocatable\n"}'
 8 capacity
 8 allocatable
 ```
+`8 capacity` printed on `$GPU_NODE` with **no second line at all** (not `0 allocatable` — the field is absent) is the exact symptom this lab exists to diagnose: the device plugin registered the node's total device count at some point in the past (that's where `Capacity` comes from), but nothing is currently being reported as schedulable. `$HEALTHY_GPU_NODE` printing both lines with matching values is the comparison baseline every later step will be checked against. This asymmetry — `Capacity` present, `Allocatable` absent — already rules out hardware being physically gone (a `Capacity` value had to come from somewhere) and points the investigation at driver, plugin, or kubelet, which is exactly the order Section 4's diagram walks next.
 
-The blank first pair confirms that the affected node does not publish the resource key. This is not resource exhaustion: an exhausted but registered resource would normally still show Capacity `8` and Allocatable `8`, while existing Pod allocations consume scheduling availability through requests.
+**Explanation:** A present resource with a Pending Pod is usually a scheduler/request/taint question, not this failure mode.
 
-## 11. Hardware and Driver Evidence
+**Common-failure interpretation:** Empty output may mean no registered resource, not numeric zero; retain the raw node YAML.
 
-Run these commands on `gpu-worker-07` through the approved access path.
+## 11. Procedure: Hardware and Driver (Hardware Only)
 
+Run on the affected node through the approved access path.
+
+**Purpose:** Prove PCI visibility and driver initialization before inspecting Kubernetes components.
+
+**Command:**
 ```bash
-lspci -nn | grep -i nvidia
+lspci | grep -i nvidia
 lsmod | grep '^nvidia' || true
-nvidia-smi -L
 nvidia-smi
-journalctl -k --since '-60 min' | grep -Ei 'nvrm|nvidia|xid|module' | tail -n 80
+journalctl -k | grep -Ei 'nvrm|nvidia|xid' | tail -n 100
 ```
 
-### Healthy representative output
-
+**Expected evidence:**
 ```text
-$ lspci -nn | grep -i nvidia
-41:00.0 3D controller [0302]: NVIDIA Corporation Device [10de:2330] (rev a1)
-61:00.0 3D controller [0302]: NVIDIA Corporation Device [10de:2330] (rev a1)
+$ lspci | grep -i nvidia
+1b:00.0 3D controller: NVIDIA Corporation GA100 [A100 SXM4 80GB] (rev a1)
 
-$ nvidia-smi -L
-GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-3f1d...a902)
-GPU 1: NVIDIA H100 80GB HBM3 (UUID: GPU-5a8b...d114)
-...
-GPU 7: NVIDIA H100 80GB HBM3 (UUID: GPU-b82c...7fd0)
-```
+$ lsmod | grep '^nvidia' || true
+nvidia_uvm          1622016  0
+nvidia_drm             69632  0
+nvidia_modeset       1249280  1 nvidia_drm
+nvidia              56655872  86 nvidia_uvm,nvidia_modeset
 
-The PCI functions prove enumeration. Eight UUIDs prove that the loaded driver controls eight devices. This evidence moves the investigation upward to the plugin; it does not prove Kubernetes registration.
-
-### Broken representative output
-
-```text
 $ nvidia-smi
 NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver.
+Make sure that the latest NVIDIA driver is installed and running.
 
-$ journalctl -k --since '-60 min' | grep -Ei 'nvrm|nvidia|module' | tail
-Aug 06 15:18:21 gpu-worker-07 kernel: nvidia: version magic '6.8.0-48-generic ...' should be '6.8.0-49-generic ...'
-Aug 06 15:18:21 gpu-worker-07 kernel: nvidia: module verification failed
+$ journalctl -k | grep -Ei 'nvrm|nvidia|xid' | tail -n 5
+Aug 12 03:02:11 gpu-node-11 kernel: NVRM: GPU 0000:1b:00.0: RmInitAdapter failed! (0x62:0xffff:1487)
+Aug 12 03:02:11 gpu-node-11 kernel: NVRM: GPU 0000:1b:00.0: rm_init_adapter failed, device minor number 0
 ```
+This is a real example of `B: yes, C: no` from the Architecture diagram: `lspci` finds the device (`1b:00.0 ... A100 SXM4 80GB`) and `lsmod` shows the kernel modules are even loaded — but `nvidia-smi` still fails to communicate, and the kernel log names the exact reason: `RmInitAdapter failed`, an initialization failure at the hardware/driver handshake, not a missing module. This is the driver/kernel boundary the diagram routes to — the fix is not "reinstall the device plugin," it's a driver-level remediation (often a GPU reset or node reboot), and jumping ahead to inspect plugin logs at this point would waste a diagnostic step on a layer that can't possibly be healthy yet.
 
-The kernel changed but the module was built for the prior kernel. Stop here. Restarting the device plugin cannot repair a driver that the host cannot load.
+**Explanation:** The device plugin cannot advertise a GPU that the host cannot initialize.
 
-## 12. Device-Plugin Evidence
+**Common-failure interpretation:** No PCI device points to hardware/BIOS/passthrough. `nvidia-smi` failure with visible PCI points to the driver/kernel/firmware boundary; stop there and escalate appropriately.
 
-Locate the plugin Pod on the affected node without assuming an exact release-specific name.
+## 12. Procedure: Device Plugin and Discovery
 
+**Purpose:** Locate the actual device-plugin Pod on the affected node and inspect its recent output.
+
+**Command:**
 ```bash
-PLUGIN_POD=$(kubectl get pods -A -o jsonpath='{range .items[?(@.spec.nodeName=="'"$GPU_NODE"'")]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' | awk 'tolower($0) ~ /device-plugin/ {print $2; exit}')
-PLUGIN_NS=$(kubectl get pods -A -o jsonpath='{range .items[?(@.spec.nodeName=="'"$GPU_NODE"'")]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' | awk 'tolower($0) ~ /device-plugin/ {print $1; exit}')
-printf 'plugin namespace=%s pod=%s\n' "$PLUGIN_NS" "$PLUGIN_POD"
+kubectl get pods -A -o wide | grep -i device-plugin | grep "$GPU_NODE" || true
+kubectl get daemonsets -A | grep -Ei 'device.plugin|nvidia' || true
 ```
 
-**Representative output:**
+**Expected evidence:** The responsible Pod/DaemonSet and namespace are identified, or their absence is proven.
 
-```text
-plugin namespace=gpu-operator pod=nvidia-device-plugin-daemonset-k9m7x
-```
+**Explanation:** Names and namespaces differ between GPU Operator and standalone deployments.
 
-Then inspect it:
+**Common-failure interpretation:** No Pod on a GPU node suggests DaemonSet selectors, tolerations, image pulls, or scheduling restrictions; inspect its actual DaemonSet and events next.
 
+**Purpose:** Read the identified plugin’s logs without guessing its name.
+
+**Command:**
 ```bash
-kubectl get pod -n "$PLUGIN_NS" "$PLUGIN_POD" -o wide
-kubectl describe pod -n "$PLUGIN_NS" "$PLUGIN_POD"
-kubectl logs -n "$PLUGIN_NS" "$PLUGIN_POD" --tail=200
+kubectl logs -n <plugin-namespace> <plugin-pod-on-affected-node> --tail=200
+kubectl describe pod -n <plugin-namespace> <plugin-pod-on-affected-node>
 ```
 
-### Healthy representative output
-
+**Expected evidence:**
 ```text
-NAME                                      READY   STATUS    RESTARTS   NODE
-nvidia-device-plugin-daemonset-k9m7x      1/1     Running   0          gpu-worker-07
+$ kubectl logs -n gpu-operator nvidia-device-plugin-daemonset-9k2lp --tail=20
+I0812 03:02:15.114231       1 main.go:279] Starting FS watcher.
+I0812 03:02:15.114532       1 main.go:286] Starting OS watcher.
+I0812 03:02:15.119887       1 main.go:365] Failed to initialize NVML: could not load NVML library.
+I0812 03:02:15.119901       1 main.go:366] If this is a GPU node, did you forget to declare it as such using a label?
+E0812 03:02:15.119910       1 main.go:290] error starting plugins: nvml init failed
 
-I0806 15:22:11 Starting FS watcher for /var/lib/kubelet/device-plugins
-I0806 15:22:11 Starting OS watcher
-I0806 15:22:12 Registered device plugin for 'nvidia.com/gpu' with Kubelet
+$ kubectl describe pod -n gpu-operator nvidia-device-plugin-daemonset-9k2lp | tail -4
+  Warning  BackOff   30s (x12 over 5m)  kubelet  Back-off restarting failed container
 ```
+`Failed to initialize NVML: could not load NVML library` is the plugin telling you directly it cannot talk to the driver's user-space library — this is the `D: no` branch, and note it's a *downstream symptom* of the same driver failure Section 11 already found, not a second independent bug. `BackOff ... restarting failed container` confirms the plugin container itself is crash-looping, which is why `Capacity` (published once, historically) survived while `Allocatable` (requires an actively-registered plugin) did not. If Section 11's driver check had come back clean, this exact log line would instead point at a genuinely separate plugin-configuration problem — the value of doing the checks in order is knowing which of those two very different fixes you're looking at.
 
-A registration message is useful, but the Node object remains the authoritative control-plane result. If logs claim registration while Capacity is absent, continue to kubelet evidence.
+**Explanation:** Substitute the discovered values literally; placeholders prevent accidental inspection of the wrong Pod.
 
-### Broken representative output
+**Common-failure interpretation:** Enumeration errors return to the driver layer; CrashLoop/image errors require the deployment/registry path; a healthy plugin with no resource moves to kubelet.
 
-```text
-E0806 15:22:11 Incompatible strategy detected auto
-E0806 15:22:11 No valid devices detected. Waiting indefinitely.
-```
+## 13. Procedure: Kubelet and Runtime (Hardware Only)
 
-This can occur when the driver or device-discovery path is unavailable inside the plugin Pod. Compare mounts, security context, configuration, and the healthy peer before changing the DaemonSet.
+**Purpose:** Find device-plugin registration and runtime-related kubelet evidence.
 
-## 13. Kubelet Registration Evidence
-
-Run on the affected node:
-
+**Command:**
 ```bash
-journalctl -u kubelet --since '-60 min' | grep -Ei 'device.?plugin|nvidia|registration' | tail -n 120
-sudo ls -la /var/lib/kubelet/device-plugins
+journalctl -u kubelet -n 300 | grep -Ei 'device plugin|nvidia|registration' || true
+sudo crictl info
 ```
 
-### Healthy representative output
-
+**Expected evidence:**
 ```text
-Aug 06 15:22:12 kubelet: Registered device plugin for resource nvidia.com/gpu
-Aug 06 15:22:12 kubelet: Updating node status with capacity nvidia.com/gpu=8
+$ journalctl -u kubelet -n 300 | grep -Ei 'device plugin|nvidia|registration' | tail -5
+Aug 12 02:58:40 gpu-node-11 kubelet[1842]: I0812 device_plugin_handler.go:180: Got registration request from device plugin with resource name "nvidia.com/gpu"
+Aug 12 02:58:40 gpu-node-11 kubelet[1842]: E0812 device_plugin_handler.go:212: Failed to dial device plugin with socket /var/lib/kubelet/device-plugins/nvidia.sock: context deadline exceeded
 ```
+This is the healthy-plugin-but-failed-registration case (`D: yes, E: no` in the diagram) — different from what Section 12 found, included here to show what that branch's evidence looks like: kubelet logs a registration *request* arriving, then a `context deadline exceeded` dialing the plugin's own gRPC socket back. When you see this pattern instead of Section 12's NVML failure, the fix is entirely different — a kubelet-side socket/permission issue or a plugin that crashed between registering and kubelet's confirmation dial, not a driver problem at all. This is exactly why the table in Section 16 keeps "Plugin healthy, resource absent" and "Plugin absent/unhealthy" as two separate rows with two separate next actions.
 
-### Broken representative output
+**Explanation:** Kubelet owns the Node status update after a plugin registers.
 
-```text
-Aug 06 15:22:12 kubelet: Registration of device plugin failed: resourceName "nvidia.com/gpu" already registered
-Aug 06 15:22:13 kubelet: Removing unusable device-plugin endpoint nvidia.sock
-```
+**Common-failure interpretation:** No matching log line is not a verdict; compare timestamps and plugin state. Repeated registration errors need kubelet/plugin configuration review before restarting either service.
 
-A duplicate or stale endpoint can block registration. Follow the platform runbook; do not delete kubelet state or restart services without approval because that affects every Pod on the node.
+## 14. Scheduler Policy Check
 
-## 14. Distinguish Advertisement from Scheduling Policy
+**Purpose:** Separate missing resource advertisement from a resource that is unavailable to a particular workload.
 
-When Capacity and Allocatable reappear, a Pod may still remain Pending. Read its events before changing the node.
-
+**Command:**
 ```bash
 kubectl describe node "$GPU_NODE" | sed -n '/Taints:/,/Unschedulable:/p'
 kubectl get node "$GPU_NODE" --show-labels
-kubectl describe pod gpu-training-worker-0 -n ai-training
 ```
 
-**Representative event:**
+**Expected evidence:** Taints, cordon state, and relevant labels are visible.
 
-```text
-Warning  FailedScheduling  32s  default-scheduler
-0/8 nodes are available: 1 Insufficient nvidia.com/gpu,
-3 node(s) didn't match Pod's node affinity/selector,
-4 node(s) had untolerated taint {gpu.platform.example/maintenance: true}.
-```
+**Explanation:** These conditions do not remove Allocatable but can keep a correct GPU request Pending.
 
-This is no longer a missing-resource incident. The event separates shortage, affinity, and taint exclusions. Weakening all three constraints would hide the actual capacity decision.
+**Common-failure interpretation:** If resource values are present, inspect the workload’s requests, tolerations, selectors, affinity, quotas, and Pod events rather than repairing the node.
 
-## 15. Recovery and Acceptance Gates
+## 15. Recovery Plan and Acceptance Gates
 
-Repair only the lowest failed layer. After the approved remediation, require all gates:
-
-1. `nvidia-smi -L` lists the expected eight UUIDs.
-2. Plugin Pod is Ready with no new enumeration or registration errors.
-3. Node Capacity and Allocatable both equal the approved count.
-4. A fresh one-GPU validation Pod completes.
-5. DCGM or the approved telemetry path shows fresh samples for the node.
-
-Create the validation Pod:
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: gpu-missing-resource-validation
-spec:
-  restartPolicy: Never
-  nodeName: gpu-worker-07
-  containers:
-    - name: cuda
-      image: registry.example.com/platform/cuda-validation:approved
-      command: ["bash", "-lc", "nvidia-smi -L && echo GPU_RESOURCE_RECOVERED"]
-      resources:
-        limits:
-          nvidia.com/gpu: 1
-```
-
-```bash
-kubectl apply -f gpu-missing-resource-validation.yaml
-kubectl wait --for=jsonpath='{.status.phase}'=Succeeded pod/gpu-missing-resource-validation --timeout=5m
-kubectl logs gpu-missing-resource-validation
-```
-
-**Representative output:**
-
-```text
-GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-3f1d...a902)
-GPU_RESOURCE_RECOVERED
-```
-
-The Pod saw one allocated device, as expected. It does not need to see all eight host devices; seeing all eight would be an isolation concern.
+Repair only the lowest failed layer through the approved platform runbook. After the change, require: host `nvidia-smi` (when applicable), healthy plugin, non-empty Capacity and Allocatable, a one-GPU validation Pod, and normal telemetry/error logs. Compare each result with `$HEALTHY_GPU_NODE` before returning the node to service.
 
 ## 16. Safe Failure Exercise and Troubleshooting Matrix
 
-In a disposable cluster, apply a temporary node selector to the device-plugin DaemonSet so that it does not match one test node. Save the original manifest first, observe resource disappearance after kubelet updates, then restore the exact original spec. Do not run this exercise in a shared production cluster.
+In a disposable cluster, prevent the device-plugin DaemonSet from matching one test node using a reviewed temporary selector; observe resource loss, restore the exact prior spec, and verify the gates above. Never use this injection in shared production.
 
 | Evidence | Interpretation | Next action |
 |---|---|---|
-| PCI device absent | hardware, firmware, passthrough, or PCIe boundary | provider or hardware escalation |
-| PCI visible; `nvidia-smi` fails | driver/kernel/signing boundary | approved node remediation |
-| Driver healthy; plugin absent | DaemonSet scheduling or image boundary | selectors, tolerations, events, registry |
-| Plugin logs registration; resource absent | kubelet registration or stale endpoint | kubelet/plugin runbook |
-| Resource present; Pod Pending | scheduling and policy | events, affinity, taints, quota, fragmentation |
-| Pod allocated; CUDA fails | runtime, driver-to-image, or application | minimal image and runtime evidence |
+| PCI device absent | physical/passthrough issue | hardware/provider escalation |
+| Driver fails | driver/kernel issue | approved node remediation |
+| Plugin absent/unhealthy | DaemonSet/deployment issue | inspect selector/events/logs |
+| Plugin healthy, resource absent | registration issue | kubelet/plugin config review |
+| Resource present | scheduling issue | inspect Pod policy/events |
 
-## 17. Cleanup and Operational Handoff
+## 17. Cleanup and Handoff
 
+**Purpose:** Preserve evidence and confirm no temporary validation workload remains.
+
+**Command:**
 ```bash
 kubectl delete pod gpu-missing-resource-validation --ignore-not-found
-kubectl get node "$GPU_NODE" -o yaml > missing-gpu-evidence/affected-node-after.yaml
-kubectl get events -A --sort-by=.lastTimestamp > missing-gpu-evidence/events-after.txt
 ```
 
-Handoff the before/after Node YAML, host evidence, plugin and kubelet logs, remediation approval, validation output, telemetry status, and exact time the node returned to service.
+**Expected evidence:** The named disposable Pod is absent; no platform component changes are made by cleanup.
+
+**Explanation:** Keep `missing-gpu-evidence` with the incident, including before/after Node YAML and remediation approval.
+
+**Common-failure interpretation:** If a real workload has the same name, stop—the target assumption is invalid. Do not delete it.
 
 ## 18. Summary, Challenges, and Further Reading
 
-You identified the first failed boundary instead of broadly restarting the GPU stack. Extend this lab by automating healthy-peer comparison, alerting on loss of the resource key, and recording the time between driver recovery and kubelet advertisement.
+You used dependency-ordered evidence instead of broad restarts. Next, automate peer comparison, alert on resource loss and plugin absence, and apply the controlled-change discipline in [Lab 04](./lab-04-perform-a-controlled-gpu-platform-upgrade).
 
 - [Device Plugin and Kubernetes Resource Model](../chapter-04-device-plugin-and-kubernetes-resource-model)
 - [GPU Observability with DCGM](../chapter-09-gpu-observability-with-dcgm)
 - [Upgrades and Production Troubleshooting](../chapter-11-upgrades-and-production-troubleshooting)
-- [Lab 04 — Perform a Controlled GPU Platform Upgrade](./lab-04-perform-a-controlled-gpu-platform-upgrade)
