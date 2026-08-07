@@ -320,3 +320,10 @@ cat: +=: No such file or directory
   - Why it matters for JR2018680: K8s GPU device-plugin mechanics (why `nvidia.com/gpu` is integer-only, and what's needed for fractional/time-sliced sharing) is exactly the kind of internals question a K8s-for-GPU interview would probe; presenting fractional requests as directly-schedulable Kubernetes resources would be a factual misstep in an interview.
   - Suggested fix: Add a note that fractional GPU requests require the NVIDIA GPU Operator's time-slicing ConfigMap (or MPS) and aren't native `nvidia.com/gpu` scheduler behavior.
 - Otherwise clean: priority-class design, preemption narrative, and ResourceQuota YAML are technically reasonable.
+
+### chapter-08-security-architecture-audit.md
+- [SEVERITY: low] Vulnerability 1's threat model is technically confused: the PoC kernel runs on "Customer B's... GPU 1" and probes an address on its *own* device, but the threat claims this infers Customer A's data on a *different, hardware-isolated GPU* — cross-GPU (not cross-tenant-on-shared-GPU) timing side-channels don't work this way, since separate physical GPUs don't share caches/memory controllers to probe. This conflates a same-GPU (MIG/time-slice) side-channel with a cross-GPU one.
+  - Evidence: Line ~50-73 (Vulnerability 1).
+  - Why it matters for JR2018680: Security architecture questions in an infra interview would probe exactly this distinction (same-die vs. cross-device isolation boundaries); the muddled threat model here could mislead a candidate about what's actually exploitable.
+  - Suggested fix: Rewrite Vulnerability 1 to describe a same-GPU (MIG partition or time-sliced) scenario, which is where such a timing side-channel would actually be plausible, and keep Vulnerability 2 (shared L2 cache) as the cross-tenant-same-GPU case.
+- Otherwise reasonable: the vulnerability/fix list (privileged containers, namespace isolation, IB traffic sniffing, VRAM encryption) is directionally sound security-engineering content without fabricated GPU specs or magnitude errors.
