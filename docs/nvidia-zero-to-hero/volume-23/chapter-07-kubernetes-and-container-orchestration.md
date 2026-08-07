@@ -447,10 +447,10 @@ Peak hours (9-11 AM): 2 hours × 22 days = 44 hours at 4 nodes
 Off-peak (12 PM - 4:59 PM): 5 hours × 22 days = 110 hours at 1 node
             = 110 × 1 × $500 ÷ 730 = $75/month
 
-Night/weekend: 1 node running (0.5 capacity idle)
-            = 500 × 0.5 = $250/month
+Night/weekend: remaining hours at 1 node = 730 - 44 - 110 = 576 hours
+            = 576 × 1 × $500 ÷ 730 = $394/month
 
-Total: $120 + $75 + $250 = $445/month (vs $2,000 fixed, $250 minimum)
+Total: $120 + $75 + $394 = $589/month (vs $2,000 fixed, $250 minimum)
 ```
 
 **SLA verification:**
