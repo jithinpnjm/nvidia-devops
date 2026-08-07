@@ -102,3 +102,19 @@ This volume is exceptional depth: worked numeric examples (SM counts, register-f
 - No findings. Topology-group design (2x NV4 pairs on separate NUMA nodes with locally-attached NICs) is coherent and cross-validated across `nvidia-smi topo -m`, sysfs `numa_node`, and `lspci`. `nvidia-smi nvlink --status` per-link bandwidth (~26.5 GB/s) is consistent with H100 4th-gen NVLink specs (18 links, ~900GB/s aggregate bidirectional).
 
 **Volume ZTH-02 labs summary:** All 4 labs are technically sound, commands and expected outputs are accurate, and the labs consistently reinforce the "evidence over assumption" methodology from the chapters. No findings requiring fixes.
+
+## Volume ZTH-03 — CUDA Fundamentals
+
+Same exceptional depth and style as ZTH-02: worked evidence chains, real command/error-message transcripts, and first-person interview model answers throughout.
+
+### index.md
+- No findings.
+
+### chapter-01-why-cuda-exists.md
+- No findings. Host/device heterogeneous model, CUDA capability table, and dependency-chain reasoning are accurate.
+
+### chapter-02-cuda-software-stack.md
+- No findings. Runtime API vs Driver API distinction, container/host driver boundary explanation, and the `NVIDIA_VISIBLE_DEVICES=none` / `libcudart.so` troubleshooting scenarios are realistic and technically correct.
+
+### chapter-03-cuda-programming-and-execution-model.md
+- No findings. Asynchronous-launch timing trap (host wall-clock vs `cudaEvent` timing) is a genuine, common CUDA pitfall correctly explained. A10 SM count (72) vs H100 (132) comparison for the "grid too small" example is correct.

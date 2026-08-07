@@ -34,10 +34,10 @@ Status values: pending / in-progress / done
 | ZTH-02 | labs/lab-02-inspect-gpu-engine-and-memory-behavior.md | done | none |
 | ZTH-02 | labs/lab-03-profile-memory-and-warp-efficiency.md | done | none |
 | ZTH-02 | labs/lab-04-build-a-topology-aware-gpu-placement-plan.md | done | none |
-| ZTH-03 | index.md | pending | |
-| ZTH-03 | chapter-01-why-cuda-exists.md | pending | |
-| ZTH-03 | chapter-02-cuda-software-stack.md | pending | |
-| ZTH-03 | chapter-03-cuda-programming-and-execution-model.md | pending | |
+| ZTH-03 | index.md | done | none |
+| ZTH-03 | chapter-01-why-cuda-exists.md | done | none |
+| ZTH-03 | chapter-02-cuda-software-stack.md | done | none |
+| ZTH-03 | chapter-03-cuda-programming-and-execution-model.md | done | none |
 | ZTH-03 | chapter-04-kernel-launch-configuration-and-indexing.md | pending | |
 | ZTH-03 | chapter-05-cuda-memory-management-and-data-movement.md | pending | |
 | ZTH-03 | chapter-06-synchronization-errors-and-correctness.md | pending | |
