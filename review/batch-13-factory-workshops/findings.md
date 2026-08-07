@@ -232,3 +232,12 @@
 
 ### index.md (Volume 22)
 - No findings. Well-structured overview consistent with the 9 chapters and 4 labs actually present; good cross-references to Volumes 4, 11, 16, 21.
+
+## Volume 22 Labs
+
+### labs/lab-01-banking-use-case-workshop.md
+- [SEVERITY: high] RECURRENCE of the fabricated-tool-output pattern: physically impossible GPU memory readings. The lab establishes each L40S GPU has 48,080 MiB (≈47 GiB) total memory (`nvidia-smi --query-gpu=... memory.total` output, Section 5), but later fabricated tool output shows memory usage exceeding that capacity: Section 10's load-test summary states "GPU memory: 68-70 GB used per GPU," and Section 12's diagnosis shows `nvidia-smi` memory.used readings of "68200," "75600," and "76000" MiB (68.2-76 GB) — all impossible on a 48 GB card.
+  - Evidence: Line ~52-55 (memory.total = 48080 MiB) vs line ~256 ("68-70 GB used") and line ~284-288 (memory.used values 68200-76000).
+  - Why it matters for JR2018680: This is the same "fabricated tool output" pattern flagged repeatedly across the review series (wrong DCGM fields, wrong Xid codes) — here it's fabricated `nvidia-smi` memory readings that violate basic GPU hardware limits, which would be an immediate red flag to anyone who has actually run `nvidia-smi` on an L40S.
+  - Suggested fix: Cap the fabricated memory.used values below 48,080 MiB (e.g., 38-44 GB used, consistent with "headroom for batching" framing already in the text).
+- Otherwise the lab's throughput/latency benchmark narrative is internally plausible (batch-size-vs-throughput/latency tradeoff direction is correct) and the SLA validation table correctly compares against Chapter 2's stated targets.

@@ -34,7 +34,7 @@ no content) alongside the real chapter files. These are excluded from review as 
 | ZTH-22 | chapter-07-healthcare-and-medical-imaging.md | done | high:1 (7x inconsistent ROI benefit figure) |
 | ZTH-22 | chapter-08-manufacturing-and-predictive-maintenance.md | done | high:1, medium:1 (SLA falsely marked met; ROI inconsistency) |
 | ZTH-22 | chapter-09-scientific-research-and-simulation.md | done | high:1 (1000x petaflop-sec slip + 865x runtime mismatch) |
-| ZTH-22 | labs/lab-01-banking-use-case-workshop.md | pending | |
+| ZTH-22 | labs/lab-01-banking-use-case-workshop.md | done | high:1 (impossible GPU memory readings, fabricated-output recurrence) |
 | ZTH-22 | labs/lab-02-llm-serving-design.md | pending | |
 | ZTH-22 | labs/lab-03-edge-deployment.md | pending | |
 | ZTH-22 | labs/lab-04-medical-imaging-pipeline.md | pending | |
