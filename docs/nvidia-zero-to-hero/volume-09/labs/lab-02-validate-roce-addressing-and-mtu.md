@@ -99,11 +99,21 @@ ethtool -S ensXfY
 date -u
 ```
 
-**Expected output:** driver-specific counter names and a UTC timestamp. Output is illustrative.
+**Expected output:** driver-specific counter names and a UTC timestamp.
 
-**Explanation:** capture equivalent counter snapshots on both NICs and corresponding switch ports. Never reset counters.
+**Annotated real example:**
 
-**Common failure interpretation:** missing counters are a telemetry gap to document, not a reason to run unobserved.
+```bash
+$ date -u && ethtool -S ens1f0 | grep -E "rx_bytes|tx_bytes|fec_uncorrected"
+2026-08-07T14:32:15Z
+     rx_bytes: 892481382400
+     tx_bytes: 481029120384
+     fec_uncorrected_blocks: 0
+```
+
+**Explanation:** baseline timestamp (2026-08-07T14:32:15Z) plus byte counters let you calculate throughput after the test (delta_bytes / elapsed_time). Capture this on both local and remote NIC, plus the corresponding switch port counters. Never reset counters; just save deltas.
+
+**Common failure interpretation:** missing counters are a telemetry gap to document. Rising FEC errors between baseline and post-test are evidence of a link fault.
 
 ### Step 4 — Run an approved host-memory RoCE smoke test
 
