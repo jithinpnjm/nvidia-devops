@@ -139,6 +139,53 @@ ibv_devices
 rdma link show
 ```
 
+Representative output on `node-a` (one port shown; the reference node has 8 ConnectX-7 ports, `mlx5_0`…`mlx5_7`, one per GPU):
+
+```text
+$ ibstat mlx5_0
+CA 'mlx5_0'
+        CA type: MT4129
+        Number of ports: 1
+        Firmware version: 28.39.2048
+        Hardware version: 0
+        Node GUID: 0x9803c8fffe1a2b30
+        System image GUID: 0x9803c8fffe1a2b30
+        Port 1:
+                State: Active
+                Physical state: LinkUp
+                Rate: 400
+                Base lid: 7
+                LMC: 0
+                SM lid: 1
+                Capability mask: 0x2651e848
+                Port GUID: 0x9803c8fffe1a2b30
+                Link layer: InfiniBand
+
+$ ibv_devices
+    device                 node GUID
+    ------              ----------------
+    mlx5_0              9803c8fffe1a2b30
+    mlx5_1              9803c8fffe1a2b31
+    mlx5_2              9803c8fffe1a2b32
+    mlx5_3              9803c8fffe1a2b33
+    mlx5_4              9803c8fffe1a2b34
+    mlx5_5              9803c8fffe1a2b35
+    mlx5_6              9803c8fffe1a2b36
+    mlx5_7              9803c8fffe1a2b37
+
+$ rdma link show
+link mlx5_0/1 state ACTIVE physical_state LINK_UP netdev enp27s0f0np0
+link mlx5_1/1 state ACTIVE physical_state LINK_UP netdev enp59s0f0np0
+link mlx5_2/1 state ACTIVE physical_state LINK_UP netdev enp91s0f0np0
+link mlx5_3/1 state ACTIVE physical_state LINK_UP netdev enp123s0f0np0
+link mlx5_4/1 state ACTIVE physical_state LINK_UP netdev enp155s0f0np0
+link mlx5_5/1 state ACTIVE physical_state LINK_UP netdev enp187s0f0np0
+link mlx5_6/1 state ACTIVE physical_state LINK_UP netdev enp219s0f0np0
+link mlx5_7/1 state ACTIVE physical_state LINK_UP netdev enp251s0f0np0
+```
+
+**Interpretation:** `ibstat`'s `State: Active` / `Physical state: LinkUp` pair is the two-layer check to internalize — `Physical state` is the electrical/optical link (cable and transceiver good), while `State` is the InfiniBand subnet-manager-negotiated logical state; a port stuck at `Physical state: LinkUp` but `State: Initializing` for more than a few seconds after boot means the subnet manager hasn't completed initialization, not a cable problem. `Rate: 400` confirms the port negotiated the full NDR400 rate (400 Gb/s = 50 GB/s theoretical line rate) rather than falling back to a lower rate on a marginal cable. `rdma link show` reporting `state ACTIVE physical_state LINK_UP` for all 8 ports with the expected `netdev` name for each is the "F: Fabric counters clean?" precondition in Figure 7.L3.1 — this is the evidence you gather before Step 2's counters even matter, since a port that isn't `ACTIVE` will trivially fail every counter check downstream for an unrelated reason.
+
 For RoCE, also validate IP, VLAN, MTU, priority, PFC, and ECN configuration using the environment's approved tools.
 
 ### Step 2 — Snapshot counters
@@ -149,6 +196,25 @@ for dev in /sys/class/infiniband/*/ports/*/counters; do
   grep -H . "$dev"/* 2>/dev/null
 done | tee "$LAB_DIR/counters-before.txt"
 ```
+
+Representative output for `mlx5_0`:
+
+```text
+### /sys/class/infiniband/mlx5_0/ports/1/counters
+/sys/class/infiniband/mlx5_0/ports/1/counters/port_rcv_data:8823914021
+/sys/class/infiniband/mlx5_0/ports/1/counters/port_xmit_data:8801220117
+/sys/class/infiniband/mlx5_0/ports/1/counters/port_rcv_packets:41220981
+/sys/class/infiniband/mlx5_0/ports/1/counters/port_xmit_packets:41198456
+/sys/class/infiniband/mlx5_0/ports/1/counters/port_rcv_errors:0
+/sys/class/infiniband/mlx5_0/ports/1/counters/symbol_error:0
+/sys/class/infiniband/mlx5_0/ports/1/counters/link_error_recovery:0
+/sys/class/infiniband/mlx5_0/ports/1/counters/link_downed:0
+/sys/class/infiniband/mlx5_0/ports/1/counters/local_link_integrity_errors:0
+/sys/class/infiniband/mlx5_0/ports/1/counters/excessive_buffer_overrun_errors:0
+/sys/class/infiniband/mlx5_0/ports/1/counters/VL15_dropped:0
+```
+
+**Interpretation:** Record this snapshot before every benchmark run so the after-snapshot in Section 11 can be diffed rather than read in isolation — `port_rcv_data`/`port_xmit_data` will obviously grow under load, but `symbol_error`, `link_error_recovery`, `port_rcv_errors`, and `VL15_dropped` should stay at `0` (or their pre-test baseline) end to end. This is the `F: Fabric counters clean?` gate in Figure 7.L3.1 — any of these counters climbing during Step 3's bandwidth test, independent of the throughput number itself, is the signal that routes you to the `Degraded` branch (congested or degraded fabric) rather than a GPU-direct software problem.
 
 ### Step 3 — Run host-memory RDMA bandwidth
 

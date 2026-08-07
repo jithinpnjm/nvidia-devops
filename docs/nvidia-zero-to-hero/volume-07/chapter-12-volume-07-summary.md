@@ -22,20 +22,28 @@ The central lesson of this volume is that a GPU cluster is not a collection of i
 flowchart LR
     Data[Dataset or Checkpoint]
     Storage[Storage Path]
+    Gate1{"Storage-to-GPU:<br/>direct or staged?<br/>evidence: gdscheck -p,<br/>/proc/driver/nvidia-fs/stats"}
     CPU[CPU and NUMA Memory]
     PCIe[PCIe Fabric]
     GPU[GPU and HBM]
     ScaleUp[NVLink or NVSwitch]
+    Gate2{"Inter-node:<br/>GPUDirect RDMA or<br/>host-staged fallback?<br/>evidence: NCCL_DEBUG=INFO<br/>GDRDMA suffix present or absent"}
     NIC[RDMA Adapter]
     ScaleOut[InfiniBand or Ethernet]
     Remote[Remote GPU]
 
-    Data --> Storage --> CPU --> PCIe --> GPU
+    Data --> Storage --> Gate1
+    Gate1 -->|"gdscheck Supported,<br/>nvidia-fs readMB climbing"| PCIe
+    Gate1 -->|"gdscheck Unsupported,<br/>or readMB flat while<br/>host bandwidth rises"| CPU --> PCIe
+    PCIe --> GPU
     GPU <--> ScaleUp
-    GPU <--> NIC --> ScaleOut --> Remote
+    GPU --> Gate2
+    Gate2 -->|"topo PIX/PXB,<br/>log shows ...GDRDMA"| NIC
+    Gate2 -->|"topo SYS, or log shows<br/>NET/IB with no GDRDMA suffix"| CPU
+    NIC --> ScaleOut --> Remote
 ```
 
-**Figure 7.12.1 — GPU networking as an end-to-end system.** No single fast component compensates for a weak required segment.
+**Figure 7.12.1 — GPU networking as an end-to-end system, with the two fallback points that actually cause silent degradation.** No single fast component compensates for a weak required segment. The two gates mark the exact places this volume showed a "working" path can quietly become a slower one while the job keeps running: storage falling back to a CPU bounce-buffer copy (Chapter 06), and inter-node transfer falling back to host-staged RDMA (Chapter 05). Both are diagnosed the same way — compare a direct-path counter or log line against a known-good baseline, not by watching for an error.
 
 ## What Each Chapter Established
 
@@ -85,6 +93,50 @@ Inventory
 ```
 
 Skipping layers makes root-cause isolation harder.
+
+**What each layer actually looks like, in commands and output, on a healthy commissioning run:**
+
+```bash
+nvidia-smi topo -m
+```
+
+```text
+        GPU0    GPU1    NIC0    NIC1    CPU Affinity
+GPU0     X      NV18    PIX     SYS     0-31
+GPU1    NV18     X      SYS     PIX     32-63
+```
+
+Inventory and local peer test in one table: `NV18` between GPU0 and GPU1 confirms an NVLink peer path is present and healthy; `PIX` versus `SYS` on the GPU-to-NIC columns identifies which adapter is locally reachable for each GPU. Read this table before running anything else — every later number in the sequence should be interpreted against the placement it shows.
+
+```bash
+ib_write_bw -d mlx5_0 -a <remote_host>
+```
+
+```text
+BW average[MB/sec]: 24798.55
+```
+
+Host RDMA test: this isolates the fabric, cabling, and adapter from anything GPU-specific. It is the baseline that a later GPU-aware number gets compared against — not a vendor spec sheet.
+
+```bash
+ib_write_bw -d mlx5_0 -a --use_cuda=0 <remote_host>
+```
+
+```text
+BW average[MB/sec]: 23488.02
+```
+
+GPU-aware RDMA test: `23488.02` sitting at roughly 95% of the `24798.55` host-memory baseline is the signature of a healthy direct path — GPUDirect RDMA is engaging, not falling back. A result near 40% of baseline (a pattern this volume returns to more than once) means the transfer is staging through host memory regardless of what the test's exit code reports.
+
+```bash
+NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT,NET python train.py
+```
+
+```text
+node0:1234:1234 [0] NCCL INFO Channel 00/04 : 0[0] -> 2[0] via NET/IB/0/GDRDMA
+```
+
+Collective benchmark: the `GDRDMA` suffix on the inter-node channel is the one line that confirms NCCL actually selected the GPUDirect RDMA transport for that link, rather than a plain `NET/IB` line that would mean a silent fallback. This is the layer where topology, drivers, and the collective library's own transport selection all have to agree simultaneously — which is why it comes after, not before, the two layers above.
 
 ## Production Architecture Checklist
 
@@ -154,6 +206,36 @@ flowchart TD
 
 **Figure 7.12.2 — Layered troubleshooting decision tree.** Stop at the first layer that diverges from the healthy baseline.
 
+**Walking the tree on a real incident — "Host RDMA passes, GPU-aware path fails."** The `Inventory` and `Local` gates already passed (devices enumerate, NVLink peer test is healthy), so the tree says to check `Host`, then `GPUPath`:
+
+```bash
+ib_write_bw -d mlx5_0 -a <remote_host>                # Host gate
+```
+
+```text
+BW average[MB/sec]: 24798.55
+```
+
+```bash
+ib_write_bw -d mlx5_0 -a --use_cuda=0 <remote_host>   # GPUPath gate
+```
+
+```text
+BW average[MB/sec]: 9762.44
+```
+
+`Host` passes clean at 24798.55 MB/sec. `GPUPath` comes back at 9762.44 MB/sec — roughly 39% of the host figure, not a modest degradation but the signature of a transfer staging through host memory instead of reading GPU memory directly. Per the tree, this stops the investigation at the `GPUPath` node and routes to "Investigate registration, support, and fallback" — not to the fabric or NIC, which the `Host` gate already cleared.
+
+```bash
+nvidia-smi topo -m | grep -E "GPU0.*NIC"
+```
+
+```text
+GPU0     X      NV18    SYS     PIX
+```
+
+The mechanism: this GPU's traffic is bound to a NIC that shows `SYS` — crossing the CPU-to-CPU interconnect — while a `PIX`-local NIC sits unused one column over. The fix is a rank/adapter binding change, not a driver reinstall or a fabric ticket, and the tree's job was precisely to stop the team from investigating those first.
+
 ## Common Production Symptoms
 
 | Symptom | Likely investigation boundary |
@@ -165,6 +247,21 @@ flowchart TD
 | Scaling collapses after adding nodes | Collective algorithm, oversubscription, straggler, storage interference |
 | Performance changes after reboot | Enumeration, affinity, firmware, link negotiation, route selection |
 | Intermittent hang | Completion ordering, timeout, failed rank, congestion, resource exhaustion |
+
+**Evidence for two rows above, from real command output used elsewhere in this volume:**
+
+*"High CPU during 'direct' transfer"* — the tell is host-memory bandwidth rising during a stage that should not touch host memory at all. For storage, that means `/proc/driver/nvidia-fs/stats` `readMB` staying flat while `iostat` shows the device still delivering throughput — bytes are moving, but not through the GDS counter, meaning they went through a CPU bounce buffer instead. For network, it is `mpstat` `%usr` climbing during a collective phase that `NCCL_DEBUG=INFO` shows landing on a plain `NET/IB` line with no `GDRDMA` suffix. In both cases the job completes and reports no error — CPU utilization is the only signal.
+
+*"Scaling collapses after adding nodes"* — distinguish a gradual tax from a cliff before touching hardware. A commissioning matrix from this volume's Chapter 11 showed:
+
+```text
+nodes   GPUs   busbw(GB/s)   scaling efficiency
+2       16     9.02          100% (baseline)
+4       32     8.71           96.6%
+8       64     8.05           89.2%
+```
+
+89.2% at 64 GPUs is a gradual oversubscription tax — expected and often accepted against a stated floor. A run that instead dropped sharply only at one specific node count — say straight to 60% at 8 nodes with no comparable dip at 4 — points at a rank-mapping or topology problem specific to that scale, not a fabric capacity problem, and calls for the `nvidia-smi topo -m` diff shown above rather than a bandwidth upgrade.
 
 ## Customer Architecture Conversation
 
