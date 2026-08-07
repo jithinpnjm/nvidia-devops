@@ -26,11 +26,11 @@ Volumes: F-03 (`docs/volume-03`), ZTH-10 (`docs/nvidia-zero-to-hero/volume-10`),
 | ZTH-10 | chapter-02-gpu-software-lifecycle-in-kubernetes.md | done | low | |
 | ZTH-10 | chapter-03-container-toolkit-runtimeclass-and-cdi.md | done | low | |
 | ZTH-10 | chapter-04-device-plugin-and-kubernetes-resource-model.md | done | low | |
-| ZTH-10 | chapter-05-node-and-gpu-feature-discovery.md | pending | |
-| ZTH-10 | chapter-06-gpu-operator-architecture.md | pending | |
-| ZTH-10 | chapter-07-driver-containers-and-node-operands.md | pending | |
-| ZTH-10 | chapter-08-gpu-scheduling-and-topology.md | pending | |
-| ZTH-10 | chapter-09-gpu-observability-with-dcgm.md | pending | |
+| ZTH-10 | chapter-05-node-and-gpu-feature-discovery.md | done | low | |
+| ZTH-10 | chapter-06-gpu-operator-architecture.md | done | low | |
+| ZTH-10 | chapter-07-driver-containers-and-node-operands.md | done | low | |
+| ZTH-10 | chapter-08-gpu-scheduling-and-topology.md | done | low | |
+| ZTH-10 | chapter-09-gpu-observability-with-dcgm.md | done | low | |
 | ZTH-10 | chapter-10-production-installation-and-configuration.md | pending | |
 | ZTH-10 | chapter-11-upgrades-and-production-troubleshooting.md | pending | |
 | ZTH-10 | chapter-12-volume-10-summary.md | pending | |

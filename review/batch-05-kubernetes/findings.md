@@ -101,3 +101,18 @@
 
 ### chapter-04-device-plugin-and-kubernetes-resource-model.md
 - [SEVERITY: low] No issues found. ListAndWatch/Register sequence diagram, capacity-vs-allocatable-vs-allocated distinction, and the underspecified-request probability worked example (15/40 = 37.5% chance of landing on a non-NVLink node) are accurate and at gold-standard depth, consistent with F-03 Chapter 2's device-plugin coverage (complementary, not redundant — this volume goes deeper on the ListAndWatch health-reporting mechanics).
+
+### chapter-05-node-and-gpu-feature-discovery.md
+- [SEVERITY: low] No issues found. NFD/GFD facts-vs-assertions-vs-classes taxonomy and the SKU-affinity fragmentation worked example (80-node fleet, hard-coded product label vs. service class on a hardware refresh) are accurate and directly reusable interview material.
+
+### chapter-06-gpu-operator-architecture.md
+- [SEVERITY: low] No issues found. `ClusterPolicy.status.state: ready` vs. per-operand DaemonSet health distinction, and the canary-vs-fleet-wide blast-radius arithmetic (58% vs. 5% of capacity) are accurate and well-quantified.
+
+### chapter-07-driver-containers-and-node-operands.md
+- [SEVERITY: low] No issues found. Five-gate readiness sequence (infrastructure/driver/runtime/Kubernetes/acceptance), the "Driver/library version mismatch" vs. "Unknown Error"-from-inside-container distinction, and the maxUnavailable-vs-GPUs-offline sizing arithmetic are accurate and precisely scoped.
+
+### chapter-08-gpu-scheduling-and-topology.md
+- [SEVERITY: low] No issues found. Four-placement-questions framework (capacity/eligibility/locality/coordination), the `FilterOK` vs. `AllocOK` failure-class distinction (Pending vs. stuck-in-ContainerCreating race), and the PHB-vs-NV4 topology evidence example are accurate and at gold-standard depth for topology-aware GPU scheduling interview questions.
+
+### chapter-09-gpu-observability-with-dcgm.md
+- [SEVERITY: low] No issues found. GPU-UUID-as-durable-join-key (vs. device index renumbering after reboot), the Xid 79 ("GPU has fallen off the bus") worked example, and the `up{job="dcgm-exporter"}`-before-trusting-utilization discipline are accurate and precisely the kind of DCGM diagnostic depth this JD calls for.
