@@ -27,8 +27,8 @@ Volumes: F-07 (`docs/volume-07`), ZTH-16 (`docs/nvidia-zero-to-hero/volume-16`),
 | ZTH-16 | chapter-01-why-gpu-observability-is-fundamentally-different.md | done | high x2 |
 | ZTH-16 | chapter-02-signals-metrics-logs-traces-and-evidence.md | done | high x1, low x1 |
 | ZTH-16 | chapter-03-core-gpu-metrics-and-interpretation.md | done | none |
-| ZTH-16 | chapter-04-dcgm-the-gpu-metrics-foundation.md | pending | |
-| ZTH-16 | chapter-05-prometheus-grafana-and-observability-dashboards.md | pending | |
+| ZTH-16 | chapter-04-dcgm-the-gpu-metrics-foundation.md | done | high x1 |
+| ZTH-16 | chapter-05-prometheus-grafana-and-observability-dashboards.md | done | high x1, medium x1 |
 | ZTH-16 | chapter-06-distributed-observability-multi-gpu-and-multi-node.md | pending | |
 | ZTH-16 | chapter-07-traces-profiling-and-deep-performance-diagnosis.md | pending | |
 | ZTH-16 | chapter-08-common-gpu-failure-modes-and-detection.md | pending | |
