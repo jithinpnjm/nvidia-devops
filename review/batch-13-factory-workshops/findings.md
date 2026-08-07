@@ -136,3 +136,10 @@
   - Evidence: Line ~156 ("Example Solution (Reference)").
   - Why it matters for JR2018680: This is the lab's official model-answer used for grading; a student (or interview candidate rehearsing this material) checking the arithmetic would find it doesn't hold up.
   - Suggested fix: Replace "243 QPS per GPU" with the ~15.2 QPS/GPU figure established in Chapter 8, consistent with the rest of the volume.
+
+### labs/lab-03-storage-pipeline-design.md
+- [SEVERITY: low] `measure_cache_efficiency()`'s "Effective throughput" print statement conflates a hit-rate percentage with a MB/sec bandwidth figure (`nvme_hit_rate * 100` used directly as "MB/sec"), a unit/category mismatch in illustrative simulation code rather than a factual claim.
+  - Evidence: Line ~251.
+  - Why it matters for JR2018680: Minor; a careful reader implementing this exercise would need to fix the throughput formula to use real NVMe/NAS bandwidth numbers (e.g., from Chapter 4) rather than the hit-rate percentage itself.
+  - Suggested fix: Multiply hit rates by actual tier bandwidths (e.g., NVMe ~7 GB/s, NAS ~10 GB/s aggregate) established in Chapter 4, not by 100.
+- Otherwise clean: DataLoader benchmarking, distributed sampler usage, and checkpoint/resume code are technically sound.

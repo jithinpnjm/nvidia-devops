@@ -22,7 +22,7 @@ no content) alongside the real chapter files. These are excluded from review as 
 | ZTH-21 | chapter-14-reference-architecture-multi-region-inference-deployment.md | done | high:1 (cost/1M-tokens slip recurrence, drives closing claim) |
 | ZTH-21 | labs/lab-01-cluster-design-workshop.md | done | medium:1 |
 | ZTH-21 | labs/lab-02-networking-simulation.md | done | high:1 (recurrence of AllReduce bandwidth-math pattern) |
-| ZTH-21 | labs/lab-03-storage-pipeline-design.md | pending | |
+| ZTH-21 | labs/lab-03-storage-pipeline-design.md | done | low:1 |
 | ZTH-21 | labs/lab-04-capacity-planning-exercise.md | pending | |
 | ZTH-22 | index.md | pending | |
 | ZTH-22 | chapter-01-consulting-methodology-for-customer-engagement.md | pending | |
