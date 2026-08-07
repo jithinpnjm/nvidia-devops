@@ -12,13 +12,13 @@ Volumes: F-06 (`docs/volume-06`), ZTH-07 (`docs/nvidia-zero-to-hero/volume-07`),
 | F-06 | 06-chapter-6-storage-for-ai-datasets-checkpoints-and-model-distribution.md | done | none |
 | F-06 | 07-chapter-7-slurm-scheduling-model.md | done | none |
 | F-06 | 08-chapter-8-kubernetes-slurm-or-both.md | done | none |
-| F-06 | 09-senior-deep-dive-1-collective-communication-and-straggler-amplification.md | pending | |
-| F-06 | 10-senior-deep-dive-2-rdma-infiniband-versus-roce.md | pending | |
-| F-06 | 11-senior-deep-dive-3-network-design-for-ai-oversubscription-rails-and-failure-do.md | pending | |
-| F-06 | 12-senior-deep-dive-4-storage-hierarchy-and-data-pipeline-architecture.md | pending | |
-| F-06 | 13-senior-deep-dive-5-slurm-concepts-beyond-sbatch.md | pending | |
-| F-06 | 14-senior-deep-dive-6-kubernetes-slurm-and-hybrid-scheduling.md | pending | |
-| F-06 | 15-senior-deep-dive-7-distributed-system-patterns-from-the-staff-engineer-guide.md | pending | |
+| F-06 | 09-senior-deep-dive-1-collective-communication-and-straggler-amplification.md | done | none |
+| F-06 | 10-senior-deep-dive-2-rdma-infiniband-versus-roce.md | done | none |
+| F-06 | 11-senior-deep-dive-3-network-design-for-ai-oversubscription-rails-and-failure-do.md | done | none |
+| F-06 | 12-senior-deep-dive-4-storage-hierarchy-and-data-pipeline-architecture.md | done | none |
+| F-06 | 13-senior-deep-dive-5-slurm-concepts-beyond-sbatch.md | done | none |
+| F-06 | 14-senior-deep-dive-6-kubernetes-slurm-and-hybrid-scheduling.md | done | none |
+| F-06 | 15-senior-deep-dive-7-distributed-system-patterns-from-the-staff-engineer-guide.md | done | low |
 | ZTH-07 | chapter-01-why-gpu-networking-exists.md | pending | |
 | ZTH-07 | chapter-02-pcie-numa-and-host-data-paths.md | pending | |
 | ZTH-07 | chapter-03-nvlink-and-nvswitch.md | pending | |

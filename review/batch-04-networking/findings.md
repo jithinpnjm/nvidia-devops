@@ -41,3 +41,27 @@
 ### 08-chapter-8-kubernetes-slurm-or-both.md
 - No issues found. Decision tree and 80/20 hybrid-fleet worked scenario are sound and avoid platform-tribalism hand-waving.
 
+### 09-senior-deep-dive-1-collective-communication-and-straggler-amplification.md
+- No issues found. Straggler-amplification arithmetic is correct (job step time = max, not weighted average, of rank times) and the AllReduce/ReduceScatter/AllGather/All-to-All distinctions are accurate, including the correct point that All-to-All is the heaviest fabric load pattern (relevant to MoE routing).
+
+### 10-senior-deep-dive-2-rdma-infiniband-versus-roce.md
+- No issues found. This is the batch's highest-value chapter for interview prep and it delivers: correctly explains InfiniBand's flow control as fabric-native/structural vs RoCE's PFC/ECN as configuration that must be verified end-to-end at every hop, and gives a genuine side-by-side decision table (loss handling, subnet management, operational familiarity, typical fit, failure mode) rather than hand-waving the tradeoff.
+
+### 11-senior-deep-dive-3-network-design-for-ai-oversubscription-rails-and-failure-do.md
+- No issues found. Bisection-bandwidth arithmetic is correct and consistent (4 leaves x 4 uplinks x 200Gb/s = 3.2Tb/s pod-to-pod), and the rail-optimized topology diagram (one dedicated switch plane per GPU rail, no shared capacity) matches real NVIDIA reference architectures. Failure-domain misalignment example (replica + checkpoint under the same leaf) is a genuinely useful interview scenario.
+
+### 12-senior-deep-dive-4-storage-hierarchy-and-data-pipeline-architecture.md
+- No issues found. Short, correctly cross-references Chapter 6 rather than duplicating it; tiering table (local NVMe / parallel FS / object store) is accurate.
+
+### 13-senior-deep-dive-5-slurm-concepts-beyond-sbatch.md
+- No issues found. slurmctld/slurmd control/execution split, GRES-vs-TRES distinction, and prolog-failure-drain mechanism are all accurate and match real Slurm behavior.
+
+### 14-senior-deep-dive-6-kubernetes-slurm-and-hybrid-scheduling.md
+- No issues found. Hybrid-ownership checklist (node lifecycle, driver/firmware, network config, storage mounts, observability) is a genuinely useful, concrete addition over Chapter 8.
+
+### 15-senior-deep-dive-7-distributed-system-patterns-from-the-staff-engineer-guide.md
+- No issues found. Kafka-to-AI-infra mapping (partition/replication/leader-follower/consumer-lag) is a sound reasoning bridge. Dynamo disaggregated-serving tie-in (KV-cache transfer over RDMA between prefill/decode pools) is current and correctly extends the fabric discussion to inference, not just training.
+- [SEVERITY: low] External link check not performed (no network access in this review) for the three targeted-reference URLs (BCM 11 release notes, NVIDIA Dynamo docs, LinkedIn job posting) — flagging as unverified rather than confirmed accurate/broken.
+
+**F-06 (docs/volume-06) volume-level assessment:** This is a strong, senior-level treatment of RDMA/RoCE/InfiniBand and does not hand-wave the tradeoff — Chapter 3 and Deep Dive 2 both give explicit "ask which generation/transport/congestion-control" framing plus a side-by-side decision table. Bandwidth math (bisection bandwidth, NCCL busbw efficiency, ib_write_bw efficiency) is consistently correct. Only issues found across all 15 files are two low-severity technical/command nits (Ch2 MTU arithmetic wording, Ch5 kubectl double `-n` flag) and one cosmetic structural artifact (Ch1 volume title block appearing mid-chapter). No factual errors, no hand-waved tradeoffs, no thin duplication within the volume.
+
