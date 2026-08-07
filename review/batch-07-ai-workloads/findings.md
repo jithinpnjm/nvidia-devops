@@ -78,3 +78,28 @@ Overall: this volume is already at gold-standard depth (matches or exceeds ZTH V
 
 ### chapter-03-triton-inference-server-architecture.md
 - [SEVERITY: low] No issues found. Verified math: 8×9.5GB=76GB instance-group VRAM oversubscription example; 2×9.5GB=19GB corrected config.
+
+### chapter-04-tensorrt-optimization-and-engine-lifecycle.md
+- [SEVERITY: low] No issues found. Verified math: 128×3×4096×4096×4 bytes ≈ 25.7GB workspace example checks out; 8×9.5GB / 2×9.5GB instance-group examples check out.
+
+### chapter-05-tensorrt-llm-and-llm-execution.md
+- [SEVERITY: medium] Internal arithmetic inconsistency in the KV-cache worked example. Text states "2 * 80 * 8 * 128 * 2 bytes = 327,680 bytes/token" (correct) and then "For a 4,096 token sequence length: M_KV_per_seq = 327.68 KB * 4096 = 1.342 GB" is NOT what's printed — the chapter actually prints "consumes 1.31 GB per user session," which is arithmetically wrong. 327,680 bytes × 4096 = 1,342,177,280 bytes ≈ 1.34 GB (decimal) — matching this same volume's Chapter 01 (which computes "1,342,177,280 bytes ≈ 1.34 GB" for the identical scenario) and Chapter 08 (which computes "1,310,720 KiB ≈ 1.25 GiB," correct in binary units). Chapter 05's "1.31 GB" figure matches neither the decimal-GB convention used elsewhere in this same chapter nor the binary-GiB convention used in Chapter 08.
+  - Evidence: "For a 4,096 token sequence length: ... A sequence of 4,096 tokens consumes 1.31 GB per user session." (should be ≈1.34 GB decimal, or ≈1.25 GiB binary — either is internally consistent with sibling chapters; 1.31 GB is neither).
+  - Why it matters for JR2018680: this exact KV-cache sizing calculation is flagged in the task brief as core interview material; an interviewer who has this document open could catch the inconsistency, and a candidate who memorized "1.31 GB" from this page would be corrected by their own Chapter 1/Chapter 8 numbers.
+  - Suggested fix: correct "1.31 GB" to "1.34 GB" (or convert consistently to "1.25 GiB") to match Chapter 01 and Chapter 08 of this same volume.
+- [SEVERITY: low] Positive note: this chapter includes the AllReduce communication-volume formula that F-05 Chapter 2 (docs/volume-05) lacks: "Data Volume = 2 * ((TP - 1) / TP) * B * S * H * BytesPerElement" — this is the standard ring-AllReduce bytes-moved formula and is correct. Worth cross-referencing from F-05 in a future authoring pass.
+
+### chapter-06-vllm-tgi-sglang-and-lmdeploy.md
+- [SEVERITY: medium] The LMDeploy GitHub reference link appears incorrect. The chapter cites "**LMDeploy TurboMind Engine Documentation:** https://github.com/ModelFoundry/lmdeploy" — LMDeploy is developed and hosted by the InternLM/OpenMMLab organization (github.com/InternLM/lmdeploy), not an org called "ModelFoundry." The chapter body text itself correctly attributes LMDeploy to "OpenMMLab."
+  - Evidence: final References section, item 4.
+  - Why it matters for JR2018680: a broken/wrong citation is low-stakes technically but is the kind of detail an NVIDIA interviewer familiar with the OSS serving ecosystem would notice; also a structural-integrity issue (dead/wrong link).
+  - Suggested fix: correct the URL to `https://github.com/InternLM/lmdeploy`.
+
+### chapter-07-continuous-and-dynamic-batching.md
+- [SEVERITY: low] No issues found. Padding-waste and chunked-prefill token-budget formulas are standard and correctly presented; block-count math (24000/16=1500) checks out.
+
+### chapter-08-kv-cache-memory-and-concurrency.md
+- [SEVERITY: low] No issues found — and notably this chapter's KV-cache arithmetic (327,680 bytes/token, 1.25 GiB @ S=4096, 39.06 GiB @ S=128,000) is internally correct and uses binary GiB units consistently, unlike Chapter 05's error (see above). Capacity-matrix concurrency numbers (C_max) are reasonable approximations given the stated formula.
+
+### chapter-09-scaling-multi-gpu-and-multi-node-inference.md
+- [SEVERITY: low] No issues found. "2 AllReduce per layer × 80 layers = 160 AllReduce calls per token" is a correct and interview-relevant derivation; NVLink vs PCIe vs InfiniBand bandwidth/latency table and the TP-must-stay-intra-node guidance are technically sound.

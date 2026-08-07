@@ -25,12 +25,12 @@ Volumes: F-05 (`docs/volume-05`), ZTH-12 (`docs/nvidia-zero-to-hero/volume-12`),
 | ZTH-12 | chapter-01-why-inference-infrastructure-is-different.md | done | low |
 | ZTH-12 | chapter-02-the-end-to-end-inference-request-path.md | done | low |
 | ZTH-12 | chapter-03-triton-inference-server-architecture.md | done | low |
-| ZTH-12 | chapter-04-tensorrt-optimization-and-engine-lifecycle.md | pending | |
-| ZTH-12 | chapter-05-tensorrt-llm-and-llm-execution.md | pending | |
-| ZTH-12 | chapter-06-vllm-tgi-sglang-and-lmdeploy.md | pending | |
-| ZTH-12 | chapter-07-continuous-and-dynamic-batching.md | pending | |
-| ZTH-12 | chapter-08-kv-cache-memory-and-concurrency.md | pending | |
-| ZTH-12 | chapter-09-scaling-multi-gpu-and-multi-node-inference.md | pending | |
+| ZTH-12 | chapter-04-tensorrt-optimization-and-engine-lifecycle.md | done | low |
+| ZTH-12 | chapter-05-tensorrt-llm-and-llm-execution.md | done | medium |
+| ZTH-12 | chapter-06-vllm-tgi-sglang-and-lmdeploy.md | done | medium |
+| ZTH-12 | chapter-07-continuous-and-dynamic-batching.md | done | low |
+| ZTH-12 | chapter-08-kv-cache-memory-and-concurrency.md | done | low |
+| ZTH-12 | chapter-09-scaling-multi-gpu-and-multi-node-inference.md | done | low |
 | ZTH-12 | chapter-10-performance-metrics-and-benchmarking.md | pending | |
 | ZTH-12 | chapter-11-production-reliability-and-troubleshooting.md | pending | |
 | ZTH-12 | chapter-12-volume-12-summary.md | pending | |
