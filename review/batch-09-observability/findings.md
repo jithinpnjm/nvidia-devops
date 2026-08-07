@@ -154,3 +154,18 @@
   - Evidence: lines 100-122 (sample `/metrics` output block).
   - Suggested fix: align to real vLLM metric names (colon-separated namespace, and vLLM's actual TTFT/ITL metric names rather than a generic "latency_seconds" bucket) for consistency with F-07's TTFT/ITL terminology (Deep Dive 5).
 - Otherwise strong chapter: correct training-vs-inference characteristics table, good latency-component breakdown (queue wait vs model load vs GPU execution vs post-process) tied to a concrete P50/P99 worked example, sensible cost-optimization levers (batching, precision, distillation, MIG sharing).
+
+### chapter-12-incident-response-and-postmortems.md
+- No findings. Well-structured runbooks (thermal, OOM, cluster-availability) with time-boxed steps, good blameless postmortem template with a genuinely instructive "absolute temperature is a lagging indicator; alert on rate of change" lesson, sensible alerts/automation/architecture three-tier prevention framework. Reuses the fabricated `DCGM_FI_DEV_THERMAL_SLOWDOWN` field name from earlier chapters (not re-logged separately; part of the volume-wide pattern already flagged).
+
+## docs/nvidia-zero-to-hero/volume-16/labs
+
+### lab-01-setting-up-dcgm-and-prometheus-for-gpu-monitoring.md
+- No findings. Correct, real DCGM field names used throughout (`DCGM_FI_DEV_GPU_TEMP`, `DCGM_FI_DEV_FB_FREE`, `DCGM_FI_DEV_GPU_UTIL`); realistic step-by-step setup with plausible expected output at each stage; good troubleshooting table.
+
+### lab-02-building-and-interpreting-gpu-dashboards.md
+- [SEVERITY: medium] Panel 3's memory-usage query repeats the used/free (not used/total) ratio bug already flagged in ZTH-16 Ch.05: `DCGM_FI_DEV_FB_USED / DCGM_FI_DEV_FB_FREE * 100` (line 98) does not compute "% of total memory used" (see Ch.05 finding for the arithmetic explanation). This lab is a clear self-contained proof the formula is a bug, not intentional: Step 5 of this **same file** defines the alert version correctly as `DCGM_FI_DEV_FB_USED / (DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE) > 0.9` (line 248) — i.e. the lab contains both the wrong and the right formula for the same quantity a few dozen lines apart.
+  - Evidence: line 98 (Panel 3 query, wrong) vs. line 248 (alert rule, correct).
+  - Why it matters for JR2018680: a lab is exactly where a candidate would build muscle memory by typing the query themselves; the wrong version is the one presented as the primary dashboard panel to build.
+  - Suggested fix: change Panel 3's query to `DCGM_FI_DEV_FB_USED / (DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE) * 100`, matching the lab's own later alert rule.
+- Otherwise a well-designed hands-on lab: good load-test scenario matrix (idle/light/heavy/memory-pressure) with plausible expected utilization/temp/clock ranges per scenario, good multi-panel correlation discipline in the "Dashboard Interpretation Scenarios" section.
