@@ -6,17 +6,17 @@ Status values: pending / in-progress / done
 
 | Volume | File | Status | Severity Summary |
 |---|---|---|---|
-| ZTH-01 | chapter-01-what-is-ai-infrastructure.md | pending | |
-| ZTH-01 | chapter-02-why-cpus-became-insufficient.md | pending | |
-| ZTH-01 | chapter-03-cpu-vs-gpu.md | pending | |
-| ZTH-01 | chapter-04-what-happens-when-chatgpt-answers.md | pending | |
-| ZTH-01 | chapter-05-ai-infrastructure-landscape.md | pending | |
-| ZTH-01 | chapter-06-modern-ai-factory.md | pending | |
-| ZTH-01 | chapter-07-nvidia-ecosystem-overview.md | pending | |
-| ZTH-01 | chapter-08-enterprise-ai-platforms.md | pending | |
-| ZTH-01 | chapter-09-volume-01-summary.md | pending | |
-| ZTH-01 | labs/lab-01-inspect-an-ai-infrastructure-host.md | pending | |
-| ZTH-01 | labs/lab-02-trace-an-ai-request-path.md | pending | |
+| ZTH-01 | chapter-01-what-is-ai-infrastructure.md | done | low |
+| ZTH-01 | chapter-02-why-cpus-became-insufficient.md | done | none |
+| ZTH-01 | chapter-03-cpu-vs-gpu.md | done | low |
+| ZTH-01 | chapter-04-what-happens-when-chatgpt-answers.md | done | none |
+| ZTH-01 | chapter-05-ai-infrastructure-landscape.md | done | none |
+| ZTH-01 | chapter-06-modern-ai-factory.md | done | none |
+| ZTH-01 | chapter-07-nvidia-ecosystem-overview.md | done | none |
+| ZTH-01 | chapter-08-enterprise-ai-platforms.md | done | none |
+| ZTH-01 | chapter-09-volume-01-summary.md | done | none |
+| ZTH-01 | labs/lab-01-inspect-an-ai-infrastructure-host.md | done | none |
+| ZTH-01 | labs/lab-02-trace-an-ai-request-path.md | done | none |
 | ZTH-02 | index.md | pending | |
 | ZTH-02 | chapter-01-why-gpu-architecture-evolved.md | pending | |
 | ZTH-02 | chapter-02-inside-a-modern-nvidia-gpu.md | pending | |
