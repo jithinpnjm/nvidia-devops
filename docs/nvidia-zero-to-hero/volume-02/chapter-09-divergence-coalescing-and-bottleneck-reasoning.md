@@ -51,13 +51,13 @@ After completing this chapter, you will be able to:
 ```mermaid
 flowchart TD
     Kernel[Kernel Work]
-    Control{Control Flow Efficient?}
-    Memory{Memory Access Efficient?}
+    Control{"Control Flow Efficient?<br/>evidence: profiler active-lane<br/>efficiency / branch efficiency"}
+    Memory{"Memory Access Efficient?<br/>evidence: profiler sectors-per-request"}
     Warp[High Active-Lane Efficiency]
     Transactions[Efficient Memory Transactions]
     WasteA[Serialized Paths]
     WasteB[Excess Transactions]
-    Result[Delivered Throughput]
+    Result["Delivered Throughput<br/>evidence: tokens/s, samples/s —<br/>not GPU-Util"]
 
     Kernel --> Control
     Control -->|Yes| Warp
@@ -68,9 +68,22 @@ flowchart TD
     Memory -->|No| WasteB
     Transactions --> Result
     WasteB --> Result
+    Result --> Gate{"nvidia-smi shows high util —<br/>does throughput match FLOPs/bandwidth?"}
+    Gate -->|"No — util high,<br/>throughput low"| BothOrEither["One or both gates are leaking:<br/>check active-lane efficiency AND<br/>sectors-per-request separately"]
+    Gate -->|"Yes"| BothPass["Both gates genuinely passing —<br/>this is close to the hardware ceiling"]
 ```
 
-**Figure 2.9.1 — Two major efficiency gates.** A workload must use both warp lanes and memory transactions efficiently to convert hardware capability into delivered throughput.
+**Figure 2.9.1 — Two major efficiency gates.** A workload must use both warp lanes and memory transactions efficiently to convert hardware capability into delivered throughput. Both gates can leak independently and simultaneously — a kernel can waste lanes to divergence *and* waste transactions to poor coalescing at the same time — which is why the closing check compares delivered application throughput (not `nvidia-smi`'s utilization number) against what the hardware's own specs would predict, and only then decides which gate to open next.
+
+**Reading both gates from one profiler pass:**
+
+```text
+$ ncu --metrics smsp__thread_inst_executed_per_inst_executed.ratio,l1tex__average_t_sectors_per_request_pipe_lsu_mem_global_op_ld.ratio ./kernel
+  smsp__thread_inst_executed_per_inst_executed.ratio               19.4
+  l1tex__average_t_sectors_per_request_pipe_lsu_mem_global_op_ld.ratio    3.2
+```
+
+The first metric is active-lane efficiency expressed as threads-executed-per-instruction out of a possible 32 — `19.4` means only about 60% of each warp's lanes are contributing useful work on average, the direct fingerprint of the "Control Flow" gate leaking. The second metric, `3.2` sectors per load request against an ideal near `1`, is the "Memory Access" gate leaking at the same time. Neither number is visible in `nvidia-smi`; both are why the same kernel can report 90%+ `GPU-Util` while delivering a small fraction of the throughput its FLOPs and bandwidth specs would suggest.
 
 ## Warp Divergence
 
@@ -152,6 +165,8 @@ The correct layout follows access behavior, not a universal rule.
 A memory system may transfer more data than the application actually uses. The ratio between requested useful bytes and transferred bytes is a practical measure of access efficiency.
 
 High device-memory bandwidth with poor application throughput can indicate that the memory system is moving many unnecessary bytes or serving too many small transactions.
+
+**A worked useful-bytes calculation.** A warp of 32 threads each reading one 4-byte float, at fully coalesced adjacent addresses, needs 128 useful bytes and (on typical architectures with 32-byte sector granularity) around 4 sectors — close to the minimum possible transaction count for that data. The same 32 threads reading the same 128 bytes but scattered across 32 different cache lines can require up to 32 separate sector transactions — 8x the transaction count for the identical useful-byte count. If each sector fetch moves 32 bytes regardless of how many bytes are actually used, this scattered case transfers `32 sectors x 32 bytes = 1,024 bytes` from HBM to deliver 128 useful bytes — an 8x amplification. This is the arithmetic behind why a memory-bound kernel's *effective* bandwidth (useful bytes ÷ time) can be a small fraction of its *measured* bandwidth (total bytes moved ÷ time): `dmon`'s `mem%` reports the latter, not the former.
 
 ## Occupancy, Utilization, and Efficiency
 
@@ -269,6 +284,17 @@ Check active-lane efficiency, memory transaction efficiency, cache hit behavior,
 - Memory bandwidth saturation
 - Repeated work or poor algorithmic complexity
 
+**Turning this into evidence, both gates at once.** The paired profiler read from the Big Picture section is exactly the confirmation this row needs:
+
+```text
+$ ncu --metrics smsp__thread_inst_executed_per_inst_executed.ratio,l1tex__average_t_sectors_per_request_pipe_lsu_mem_global_op_ld.ratio,dram__throughput.avg.pct_of_peak_sustained_elapsed ./kernel
+  smsp__thread_inst_executed_per_inst_executed.ratio                  14.1
+  l1tex__average_t_sectors_per_request_pipe_lsu_mem_global_op_ld.ratio  5.6
+  dram__throughput.avg.pct_of_peak_sustained_elapsed                  38.2
+```
+
+`14.1 / 32 ≈ 44%` active-lane efficiency (divergence is real and severe), `5.6` sectors/request (uncoalesced access is also real), and only `38.2%` of peak HBM bandwidth actually achieved (so this is not simply bandwidth-saturated — there's real headroom being wasted). Together, this one profiler pass rules out "memory bandwidth saturation" as the root cause (bandwidth achieved is well under the ceiling) and confirms both divergence and uncoalesced access are compounding — the two problems described in this chapter's opening Story, reproduced as measurable numbers instead of narrative.
+
 ### Problem: A data-layout change improves bandwidth but increases latency
 
 The new layout may require preprocessing, transposition, extra copies, or more complicated indexing. Evaluate end-to-end latency, not kernel bandwidth alone.
@@ -288,20 +314,35 @@ The architect separates activity from efficiency. Profiling shows low active-lan
 ### Conceptual Questions
 
 1. Why does a divergent warp not execute both branches fully in parallel?
+**Model answer:** "Because all 32 threads in a warp share one instruction stream — there's one program counter driving the warp, not 32 independent ones. When threads disagree on which branch to take, the hardware has to execute each distinct path as a separate pass, masking off the lanes that don't belong to that path on each pass. It's not that the hardware refuses to parallelize — there's no way to parallelize two different instruction streams through one shared issue slot. I'd back this with the profiler metric: `smsp__thread_inst_executed_per_inst_executed.ratio` directly measures how many of a warp's 32 lanes were actually contributing on average, and a divergent kernel shows that number well below 32."
+
 2. What makes a global-memory access coalesced?
+**Model answer:** "When the addresses a warp's 32 threads touch in one instruction fall into a small number of aligned, contiguous memory segments, so the hardware can combine them into a small number of transactions instead of one per thread. I'd give the concrete case: 32 threads reading 32 adjacent floats is close to the minimum transaction count; the same 32 threads reading 32 floats scattered across different cache lines can multiply that transaction count up to 8x or more for the identical useful-byte count — I've seen `l1tex__average_t_sectors_per_request` values around 5-6 on a kernel like that, versus close to 1 for the coalesced version."
+
 3. Why is high utilization not proof of high efficiency?
+**Model answer:** "Because 'utilization' just means an engine was busy during the sample window — it says nothing about whether the work being done was useful. I've seen a concrete case: a kernel at `smsp__thread_inst_executed_per_inst_executed.ratio` of 14 out of 32 possible — meaning under half of each warp's lanes were doing real work — while `nvidia-smi` would still happily report high GPU-Util for that same kernel, because the SM genuinely was issuing instructions continuously. Utilization measures activity; active-lane efficiency and transaction efficiency measure whether that activity produced useful results."
 
 ### Architecture Questions
 
 1. Compare an Array of Structures with a Structure of Arrays for GPU access.
+**Model answer:** "AoS stores all fields of one object together — good when one thread needs most fields of one object, since that access is naturally local. SoA stores each field across all objects in its own contiguous array — good when neighboring threads read the same field from neighboring objects, since that's exactly what coalescing rewards. I'd give a concrete case: a warp reading the `.x` field of 32 particles is one clean coalesced access under SoA, but under AoS those 32 `.x` values are scattered every `sizeof(struct)` bytes apart, which can force one transaction per thread instead of a handful. The right layout follows the access pattern, not a universal rule — an algorithm that consumes whole objects per thread might actually prefer AoS."
+
 2. Build a decision tree for compute-bound versus memory-bound behavior.
+**Model answer:** "I'd start with `dmon`'s `sm%` and `mem%` together, sampled during the workload. Both high and sustained: check whether it's genuinely compute-limited (arithmetic pipeline activity high, Tensor Core metric matches expectation) or actually memory-limited despite the SM number, since SMs issuing stalled memory requests still show as 'busy.' `mem%` high, `sm%` low: that's the clean memory-bound signature — confirm with an L1/L2 hit-rate check to see if it's inherent low arithmetic intensity or a fixable access-pattern problem. Both low, oscillating over time: that's not a compute-vs-memory question at all, it's a launch/feed problem upstream of the kernel. I'd walk an interviewer through exactly that branching, in that order."
+
 3. Explain how occupancy and divergence can interact.
+**Model answer:** "They're mostly independent axes, and that independence is the trap — you can have high occupancy and severe divergence at the same time, because occupancy only counts resident warp *slots*, not whether the lanes within those warps are doing useful work. A kernel can report 90% occupancy while `smsp__thread_inst_executed_per_inst_executed.ratio` shows only 40% of lanes active on average — plenty of warps resident, but each one wasting more than half its width on masked-off lanes from divergent branches. Fixing occupancy wouldn't touch this problem at all; the two need separate diagnosis and separate fixes."
 
 ### Scenario Questions
 
 1. Memory bandwidth is high but useful throughput is low. What do you investigate?
+**Model answer:** "First whether 'high bandwidth' means high *achieved* bandwidth relative to peak, or just high `mem%` in `dmon` — those aren't the same thing, and I'd pull `dram__throughput.avg.pct_of_peak_sustained_elapsed` to get the real number. Then I'd check sectors-per-request: if it's well above 1, the memory system is moving several times more raw bytes than the useful-byte count requires, which explains low throughput despite high raw bandwidth — the fix is a layout or access-pattern change, not more bandwidth."
+
 2. Performance varies sharply with input data. What architectural behavior may explain it?
+**Model answer:** "Data-dependent branching or data-dependent access patterns — both of this chapter's two efficiency gates can be input-sensitive. Uniformly-distributed rule paths in a fraud-detection kernel, for instance, might have every thread in most warps agree on the same branch for one input distribution but split evenly for another, changing active-lane efficiency dramatically between runs. Same idea for access patterns: sparse or skewed data can turn what looked like a coalesced access on test data into a scattered one on production data. I'd test with multiple representative datasets, not just one, precisely because of this."
+
 3. A branch-removal optimization increases register pressure. How do you evaluate the trade-off?
+**Model answer:** "I'd measure both sides concretely rather than assume either direction wins. Check `nvcc -Xptxas=-v` for the registers/thread delta and whether spills appear — that tells me the occupancy cost. Check active-lane efficiency before and after — that tells me the divergence benefit. If removing the branch (say, via predication or restructuring) meaningfully raises active-lane efficiency and the register increase doesn't push into spilling or an occupancy cliff, it's very likely a net win. If it triggers spills, I'd weigh the new memory traffic against the divergence saved — sometimes explicitly, with a before/after `dmon` `mem%` comparison, since spills are themselves memory traffic."
 
 ## Summary
 

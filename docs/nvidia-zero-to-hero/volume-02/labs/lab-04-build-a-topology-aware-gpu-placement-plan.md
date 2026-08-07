@@ -61,12 +61,12 @@ flowchart TD
     Scheduler[Scheduler or Placement Policy]
     CPU0[NUMA Node 0]
     CPU1[NUMA Node 1]
-    GPU0[GPU 0]
-    GPU1[GPU 1]
-    GPU2[GPU 2]
-    GPU3[GPU 3]
-    NIC0[NIC 0]
-    NIC1[NIC 1]
+    GPU0["GPU 0<br/>evidence: numa_node sysfs"]
+    GPU1["GPU 1<br/>evidence: numa_node sysfs"]
+    GPU2["GPU 2<br/>evidence: numa_node sysfs"]
+    GPU3["GPU 3<br/>evidence: numa_node sysfs"]
+    NIC0["NIC 0<br/>evidence: lspci + numa_node"]
+    NIC1["NIC 1<br/>evidence: lspci + numa_node"]
 
     Scheduler --> CPU0
     Scheduler --> CPU1
@@ -78,9 +78,12 @@ flowchart TD
     CPU1 --> NIC1
     GPU0 <--> GPU1
     GPU2 <--> GPU3
+    Scheduler --> Request{"Job requests 2 GPUs +<br/>1 NIC for distributed training —<br/>which group does it get?"}
+    Request -->|"Naive: first 2 free GPUs<br/>regardless of group"| Bad["Could span GPU1+GPU2 —<br/>crosses NUMA nodes, no direct<br/>peer link, NIC1 not local to GPU1"]
+    Request -->|"Topology-aware: same<br/>peer group + local NIC"| Good["GPU0+GPU1 (NV-linked) +<br/>NIC0 (local to both) — every hop<br/>in the collective path is strong"]
 ```
 
-**Figure 2.L4.1 — Placement policy over physical topology.** The scheduler should select GPU, CPU, memory, and NIC resources as one locality-aware group.
+**Figure 2.L4.1 — Placement policy over physical topology.** The scheduler should select GPU, CPU, memory, and NIC resources as one locality-aware group. The branch names the exact failure this lab's placement policy (Step 8) exists to prevent: a resource-count-only scheduler can satisfy "2 GPUs + 1 NIC" with a combination that crosses every locality boundary on the host, and nothing in a naive request would reveal that until the job's collective performance was already poor.
 
 ## 5. Prerequisites
 
@@ -155,12 +158,15 @@ nvidia-smi --query-gpu=index,name,uuid,pci.bus_id,memory.total --format=csv
 
 ```text
 index, name, uuid, pci.bus_id, memory.total [MiB]
-0, NVIDIA ..., GPU-..., 00000000:31:00.0, ... MiB
+0, NVIDIA H100 80GB HBM3, GPU-3a1f9e02-4c11-4b8a-9e2d-7f6b1c0a55e1, 00000000:1B:00.0, 81559 MiB
+1, NVIDIA H100 80GB HBM3, GPU-7b2e0c14-8a33-4f9c-a1de-2c9d5e7f0b3a, 00000000:3D:00.0, 81559 MiB
+2, NVIDIA H100 80GB HBM3, GPU-91c4d5a8-2f77-4e0b-8c1a-9d3e6f4b2a90, 00000000:9A:00.0, 81559 MiB
+3, NVIDIA H100 80GB HBM3, GPU-c85f3d21-6e94-4a1c-b7d0-1a8e2f5c9b4d, 00000000:C3:00.0, 81559 MiB
 ```
 
 #### Explanation
 
-Use UUIDs for durable identity. Use the PCI bus address to join NVIDIA data with Linux topology data.
+Use UUIDs for durable identity. Use the PCI bus address to join NVIDIA data with Linux topology data. This illustrative four-GPU inventory is what Step 2's topology matrix and Step 3's NUMA mapping will be cross-referenced against — record the exact UUID-to-bus-ID mapping before proceeding, since every later step's conclusions depend on knowing which stable identifier corresponds to which physical device.
 
 ### Step 2 — Record the GPU Topology Matrix
 
@@ -176,18 +182,38 @@ nvidia-smi topo -m
 
 #### Expected Output
 
+```text
+        GPU0    GPU1    GPU2    GPU3    NIC0    NIC1    CPU Affinity    NUMA Affinity
+GPU0     X      NV4     SYS     SYS     PIX     SYS     0-31            0
+GPU1    NV4      X      SYS     SYS     SYS     SYS     0-31            0
+GPU2    SYS     SYS      X      NV4     SYS     PIX     32-63           1
+GPU3    SYS     SYS     NV4      X      SYS     SYS     32-63           1
+NIC0    PIX     SYS     SYS     SYS      X      SYS
+NIC1    SYS     SYS     PIX     SYS     SYS      X
+
+Legend:
+  X    = self
+  NV4  = 4 NVLink connections between GPUs
+  PIX  = connection traversing at most a single PCIe bridge
+  SYS  = connection traversing PCIe as well as a NUMA/socket-level link
+```
+
 A matrix of GPU and NIC relationships, plus CPU and NUMA affinity where supported.
 
 #### Interpretation
 
 Read the legend printed by your installed version. Do not copy path meanings from another system without checking the local output.
 
-Create a table like this:
+Create a table like this, populated from the matrix above:
 
 | Pair | Path label | Same NUMA node? | Direct peer path? | Placement class |
 |---|---|---:|---:|---|
-| GPU 0 ↔ GPU 1 | host-specific | Yes | Yes/No | Preferred |
-| GPU 0 ↔ GPU 2 | host-specific | No | Yes/No | Avoid for communication-heavy jobs |
+| GPU 0 ↔ GPU 1 | NV4 | Yes (node 0) | Yes | Preferred |
+| GPU 2 ↔ GPU 3 | NV4 | Yes (node 1) | Yes | Preferred |
+| GPU 0 ↔ GPU 2 | SYS | No | No | Avoid for communication-heavy jobs |
+| GPU 1 ↔ GPU 3 | SYS | No | No | Avoid for communication-heavy jobs |
+
+This example host has two clean topology groups — `{GPU0, GPU1, NIC0}` on NUMA node 0, and `{GPU2, GPU3, NIC1}` on NUMA node 1 — with no direct interconnect crossing the two groups at all. Any job needing more than 2 GPUs with strong peer communication on this host has to accept a `SYS`-class hop somewhere; the placement policy in Step 8 should make that trade-off explicit rather than silent.
 
 ### Step 3 — Map Every GPU to a NUMA Node
 
@@ -206,7 +232,14 @@ done
 
 #### Expected Output
 
-One NUMA value per GPU. A value of `-1` means Linux does not expose a specific association.
+```text
+0000:1b:00.0 NUMA=0
+0000:3d:00.0 NUMA=0
+0000:9a:00.0 NUMA=1
+0000:c3:00.0 NUMA=1
+```
+
+One NUMA value per GPU. A value of `-1` means Linux does not expose a specific association. This output should agree exactly with the `NUMA Affinity` column from Step 2's topology matrix — `GPU0`/`GPU1` at NUMA 0 and `GPU2`/`GPU3` at NUMA 1 here matches that matrix precisely, which is the cross-check this step exists to perform. A mismatch between the two sources would itself be worth escalating before trusting either one.
 
 #### Common Errors
 
@@ -233,7 +266,18 @@ cat "/sys/bus/pci/devices/$NIC_BDF/numa_node"
 
 #### Expected Output
 
-A NUMA node for each adapter, or `-1` when locality is not exposed.
+```text
+$ lspci -Dnn | grep -iE 'ethernet|infiniband|network'
+0000:18:00.0 Ethernet controller [0200]: Mellanox Technologies MT2892 Family [ConnectX-6 Dx] [15b3:101d]
+0000:9d:00.0 Ethernet controller [0200]: Mellanox Technologies MT2892 Family [ConnectX-6 Dx] [15b3:101d]
+
+$ cat /sys/bus/pci/devices/0000:18:00.0/numa_node
+0
+$ cat /sys/bus/pci/devices/0000:9d:00.0/numa_node
+1
+```
+
+A NUMA node for each adapter, or `-1` when locality is not exposed. `NIC0` at `0000:18:00.0` reporting NUMA node `0` matches `GPU0`/`GPU1`'s node from Step 3, and `NIC1` at `0000:9d:00.0` reporting node `1` matches `GPU2`/`GPU3` — confirming the same two topology groups identified from the `nvidia-smi topo -m` matrix in Step 2, now independently verified through Linux's own sysfs data rather than NVIDIA tooling alone.
 
 ### Step 5 — Inspect CPU and Memory Layout
 
@@ -249,14 +293,28 @@ numactl --hardware
 
 #### Expected Output
 
+```text
+available: 2 nodes (0-1)
+node 0 cpus: 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+node 0 size: 257698 MB
+node 1 cpus: 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31
+node 1 size: 258043 MB
+node distances:
+node   0   1
+  0:  10  21
+  1:  21  10
+```
+
 NUMA nodes, CPU lists, memory capacity, and distance values.
 
 Create a placement record:
 
 | NUMA node | CPUs | GPUs | NICs | Preferred workload |
 |---|---|---|---|---|
-| 0 | host-specific | GPU 0, GPU 1 | NIC 0 | distributed rank group A |
-| 1 | host-specific | GPU 2, GPU 3 | NIC 1 | distributed rank group B |
+| 0 | 0-15 | GPU 0, GPU 1 | NIC 0 | distributed rank group A |
+| 1 | 16-31 | GPU 2, GPU 3 | NIC 1 | distributed rank group B |
+
+Every row here is now backed by three independent, cross-checked sources: `nvidia-smi topo -m` (Step 2), GPU sysfs `numa_node` (Step 3), and NIC sysfs `numa_node` (Step 4) — all agreeing on the same two-group split, which is exactly the kind of multi-source confirmation Section 9's validation checklist requires before trusting a placement policy built on it.
 
 ### Step 6 — Inspect PCIe Link State
 
@@ -444,6 +502,19 @@ Check:
 - NIC selection
 - concurrent traffic
 - application communication pattern
+
+**Turning this into evidence.** A "preferred" `NV4` pair that still performs poorly is worth re-verifying rather than assumed still healthy — links can degrade after the initial topology capture:
+
+```text
+$ nvidia-smi nvlink --status
+GPU 0: NVIDIA H100 80GB HBM3
+	 Link 0: 26.562 GB/s
+	 Link 1: 26.562 GB/s
+	 Link 2: 0.000 GB/s
+	 Link 3: 26.562 GB/s
+```
+
+Three of four expected NVLink connections reporting healthy throughput and one reporting `0.000 GB/s` is a degraded link, not a fully failed one — the pair is still classified `NV4` in a topology matrix captured before this degradation, and would still show as "preferred" in a placement policy that only checked the matrix once at commissioning time rather than periodically. This is the concrete argument for the Observability section's advice to re-verify peer-link health on a schedule, not just once during initial setup — a pair validated as strong months ago is not guaranteed to still be strong today.
 
 ### Problem — Scheduler cannot satisfy strict placement
 

@@ -52,21 +52,26 @@ After completing this chapter, you will be able to:
 ```mermaid
 flowchart TD
     Workload[Workload Demand]
-    Compute[Compute Throughput]
-    Memory[Memory Capacity and Bandwidth]
-    Communication[Peer and Network Communication]
-    Scheduling[Launch, Occupancy, and Synchronization]
-    Host[CPU, Storage, and Input Pipeline]
-    Result[Observed Latency and Throughput]
+    Compute["Compute Throughput<br/>evidence: dmon sm%, Tensor<br/>Core profiler metric"]
+    Memory["Memory Capacity and Bandwidth<br/>evidence: dmon mem%,<br/>dram__throughput vs. peak"]
+    Communication["Peer and Network Communication<br/>evidence: nvidia-smi topo -m,<br/>collective trace time"]
+    Scheduling["Launch, Occupancy, and Synchronization<br/>evidence: profiler achieved<br/>occupancy, kernel gaps"]
+    Host["CPU, Storage, and Input Pipeline<br/>evidence: top/pidstat during<br/>GPU idle windows"]
+    Result["Observed Latency and Throughput<br/>evidence: tokens/s, p50/p99,<br/>NOT GPU-Util"]
 
     Workload --> Compute --> Result
     Workload --> Memory --> Result
     Workload --> Communication --> Result
     Workload --> Scheduling --> Result
     Workload --> Host --> Result
+    Result --> Order{"Start the investigation here:<br/>is the GPU even busy for the<br/>full request duration?"}
+    Order -->|"No — idle gaps"| HostPath["Follow Host/Scheduling branch:<br/>the GPU isn't the bottleneck yet"]
+    Order -->|"Yes — busy throughout"| DevicePath{"sm% high, mem% low,<br/>or the reverse?"}
+    DevicePath -->|"sm% high"| ComputePath["Follow Compute branch"]
+    DevicePath -->|"mem% high"| MemPath["Follow Memory branch"]
 ```
 
-**Figure 2.11.1 — Performance is a system result.** The slowest relevant resource or pipeline stage constrains delivered performance.
+**Figure 2.11.1 — Performance is a system result.** The slowest relevant resource or pipeline stage constrains delivered performance. The decision branch converts the diagram from "five things that could matter" into the actual order of investigation: confirm the GPU is busy for the whole request before reasoning about which GPU-internal resource is the limit, since a GPU that's idle half the time has a scheduling or host problem no amount of kernel tuning fixes.
 
 ## Start with the Workload
 
@@ -113,6 +118,8 @@ flowchart LR
 **Figure 2.11.2 — Arithmetic intensity helps classify limits.** Low reuse tends to expose memory limits; high reuse can expose compute limits.
 
 The exact threshold depends on the GPU's balance of peak compute and memory bandwidth. The concept matters more than one fixed number.
+
+**Resolving the chapter's opening Story with a worked number.** The Story describes a service at 90% GPU utilization missing its latency target, where profiling shows kernels spend most of their time moving weights and cache data. Suppose the model is 13B parameters at FP16 (`≈26GB` of weights) and the GPU is an H100 SXM (`≈3.35 TB/s` peak HBM bandwidth, `≈989 TFLOPS` peak FP16 Tensor Core throughput, dense). The ridge point — the arithmetic intensity where compute and bandwidth limits cross — is roughly `peak FLOPS / peak bandwidth ≈ 989e12 / 3.35e12 ≈ 295 FLOPs/byte`. Ungathered single-request decode, which re-reads most of the weight bytes for a small amount of new compute per token, sits at an arithmetic intensity of roughly single digits to low tens of FLOPs/byte — two orders of magnitude below the ridge point. That gap is the proof, in one calculation, that "add more GPUs" cannot fix this Story's symptom: the workload's arithmetic intensity places it deep in the memory-bound region of the roofline, far from where additional compute throughput would matter at all.
 
 ## Compute-Bound Workloads
 
@@ -311,13 +318,46 @@ Break utilization into execution, memory, communication, and pipeline evidence. 
 - thermal or power limits
 - smaller batch sizes
 
+**Turning this into evidence, ruling causes in and out.** A single `dmon` pass plus a power/clock check can eliminate several of these six causes in one step:
+
+```text
+$ nvidia-smi --query-gpu=utilization.gpu,utilization.memory,power.draw,power.limit,clocks.sm,clocks_throttle_reasons.active --format=csv,noheader
+94 %, 91 %, 305 W, 700 W, 1980 MHz, Active clock throttle reasons: N/A
+```
+
+`power.draw` (305W) well under `power.limit` (700W) and no active throttle reasons rules out thermal/power limits as the cause. `clocks.sm` at its rated boost value rules out a clock-related explanation entirely. That leaves `utilization.memory=91%` alongside `utilization.gpu=94%` pointing squarely at memory-bound kernels as the remaining, evidence-backed explanation — the same reading used throughout this volume, here applied as the first elimination pass across a six-item list instead of a guess at which item applies.
+
 ### Problem: Scaling efficiency falls after adding GPUs
 
 Inspect communication time, rank imbalance, topology, collective configuration, and workload granularity.
 
+**Turning this into evidence.** Compare per-rank step time against the topology matrix — a rank sitting on a weak communication path shows up directly as an outlier:
+
+```text
+$ for r in 0 1 2 3; do echo "rank $r step_time_ms=$(grep step_time rank_${r}.log | tail -1 | awk '{print $NF}')"; done
+rank 0 step_time_ms=48
+rank 1 step_time_ms=51
+rank 2 step_time_ms=142
+rank 3 step_time_ms=139
+```
+
+Ranks 2 and 3 running roughly 3x slower per step than ranks 0 and 1 is the direct signature of a collective boundary — every rank has to wait for the slowest one at each synchronization point, so the whole job's step time regresses to match ranks 2-3 even though ranks 0-1 are individually healthy. Cross-referencing this against `nvidia-smi topo -m` (as in the previous chapter) to check whether ranks 2-3 landed on a weaker path than 0-1 turns "scaling efficiency falls" from a vague symptom into a specific, addressable placement problem.
+
 ### Problem: Latency regresses after a software release
 
 Compare kernel count, launch frequency, register use, local-memory traffic, batching, and CPU preprocessing.
+
+**Turning this into evidence.** A compiler-report diff between releases, the same technique used in earlier chapters, often finds the regression before a profiler run is even needed:
+
+```text
+# Previous release
+ptxas info: Used 52 registers, 0 bytes spill stores, 0 bytes spill loads
+
+# New release
+ptxas info: Used 96 registers, 88 bytes spill stores, 96 bytes spill loads
+```
+
+A jump from 52 to 96 registers/thread, with newly-introduced spills, is a concrete, compile-time-visible regression candidate — a dependency upgrade, a new compiler version, or a code change that increased per-thread live state can all produce exactly this signature. This is worth checking before assuming the regression is architectural (batching, CPU preprocessing) since it's a five-second check against release artifacts that either confirms or rules out a whole category of explanation.
 
 ## Customer Scenario
 
@@ -330,20 +370,35 @@ If the service is memory-bound, a GPU with more relevant memory bandwidth may he
 ### Conceptual Questions
 
 1. Why is GPU utilization insufficient for bottleneck identification?
+**Model answer:** "Because it only tells you an engine was active during the sample window — not which engine, not whether the work was useful, and not whether the result met the workload's actual goal. I'd use the chapter's own story: 90% utilization with a missed latency target, where profiling showed the time was going into moving weights and cache data, not compute. A single percentage genuinely cannot distinguish that from a compute-bound kernel running efficiently at the same 90% — you need the `sm%`/`mem%` pairing at minimum, and ideally arithmetic-intensity reasoning, before the number means anything."
+
 2. What does arithmetic intensity tell an architect?
+**Model answer:** "Where a workload sits relative to a GPU's own compute-to-bandwidth ratio — its ridge point. I'd walk through the calculation: an H100's ridge point is roughly peak FLOPS divided by peak bandwidth, around 295 FLOPs/byte. A workload with intensity far below that, like single-request LLM decode at maybe single-digit FLOPs/byte, is deep in memory-bound territory — more compute literally cannot help it. A workload near or above the ridge point is where additional Tensor Core throughput would actually move the needle. It's the single number that tells you which lever is worth pulling before you pull it."
+
 3. How can a workload be latency-bound without saturating memory bandwidth?
+**Model answer:** "When there isn't enough concurrent, independent work to keep either compute or memory busy — small grids, low request concurrency, serial dependency chains, or frequent synchronization. The kernel might use very little of either the compute or memory ceiling while still being slow, because it's waiting on dependencies rather than being throttled by a saturated resource. I'd check achieved occupancy and resident warp count here rather than bandwidth utilization — low bandwidth doesn't mean memory is irrelevant, it can mean the workload never got enough in-flight requests to stress memory bandwidth in the first place."
 
 ### Architecture Questions
 
 1. Build a performance model for an LLM inference request.
+**Model answer:** "I'd separate prefill and decode, since they have opposite arithmetic-intensity profiles. Prefill processes the whole prompt as one large matmul — high arithmetic intensity, likely compute-bound, and I'd expect `sm%` high with reasonable `mem%`. Decode generates one token at a time, re-reading the KV cache and much of the weights for comparatively little new compute — low arithmetic intensity, memory-bandwidth-bound, `mem%` high and `sm%` comparatively low despite both showing 'high utilization' in `nvidia-smi`. I'd size the model against both phases separately and note that continuous batching specifically targets decode's low arithmetic intensity by amortizing the same memory read across more concurrent sequences."
+
 2. Explain how to distinguish compute-bound and memory-bound behavior.
+**Model answer:** "Start with `dmon`'s paired `sm%`/`mem%` — both sustained high needs a follow-up profiler pass to see which one is genuinely the ceiling, since SMs stalled on memory requests still register as 'busy.' High `sm%` with comparatively low `mem%` and throughput scaling with added compute resources is the compute-bound signature. High `mem%` with low `sm%`, or achieved bandwidth close to the GPU's peak spec, is the memory-bound signature. I'd always cross-check with arithmetic intensity reasoning — knowing the workload's FLOPs-per-byte ratio ahead of time predicts which signature to expect, which is a stronger position than reading counters cold."
+
 3. Design a release performance gate for a GPU platform.
+**Model answer:** "I'd run a fixed reference workload — representative model, batch size, sequence length, concurrency — against every release candidate, with a proper warm-up period before measuring. I'd capture percentile latency, not just the average, since tail latency regressions are what actually hurt users. Alongside application metrics I'd capture `dmon`'s `sm%`/`mem%` and `nvcc -Xptxas=-v` register/spill counts as release artifacts, so a regression can be traced to a specific mechanism instead of just 're-profile from scratch.' I'd set explicit regression thresholds and automatic rollback criteria tied to those percentiles, not to GPU utilization."
 
 ### Scenario Questions
 
 1. Memory throughput is high and compute activity is moderate. What is your hypothesis?
+**Model answer:** "Memory-bound, with the compute pipelines partially fed but not saturated — I'd confirm with `dram__throughput.avg.pct_of_peak_sustained_elapsed` to see how close to the actual bandwidth ceiling this is, not just `dmon`'s relative percentage. If it's close to peak, the fix is reducing bytes moved — reuse, fusion, lower precision — not adding compute. If it's well under peak despite high `mem%`, I'd check sectors-per-request next, since that combination usually means transaction inefficiency rather than genuine bandwidth saturation."
+
 2. A fused kernel lowers memory traffic but becomes slower. Why?
+**Model answer:** "Fusion trades launch and memory overhead for often-higher register pressure and compilation complexity — combining several kernels into one commonly increases live state per thread. I'd check `nvcc -Xptxas=-v` first: if registers/thread jumped enough to reduce occupancy significantly, or worse, introduced spills, the kernel could be paying more in reduced latency-hiding than it saved in memory traffic. This is the same 'fewer instructions doesn't guarantee faster' lesson from earlier in the volume, just at kernel-fusion scale instead of loop-unrolling scale."
+
 3. Single-GPU performance is healthy, but eight-GPU scaling is poor. What evidence do you collect?
+**Model answer:** "Per-rank step time across all eight ranks first — a few slow outliers holding the rest at a collective boundary is the most common cause, and it's visible directly by comparing each rank's logged step time. Then `nvidia-smi topo -m` to check whether those slow ranks landed on weaker communication paths than the fast ones. Then time spent in collectives versus compute, and whether communication overlaps with compute or serializes with it. I would not start by re-profiling the single-GPU kernel — single-GPU health already rules that code path out, and the story here is almost always topology or collective configuration, not per-kernel efficiency."
 
 ## Summary
 

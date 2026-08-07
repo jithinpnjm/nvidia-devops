@@ -48,24 +48,29 @@ Volume 02 provided the vocabulary needed to ask those questions in the correct o
 ```mermaid
 flowchart TD
     App[Application and Framework]
-    Kernel[Kernel Launch]
-    Grid[Grid of Thread Blocks]
-    SM[Streaming Multiprocessors]
-    Warp[Warp Scheduling]
-    Engines[CUDA and Tensor Execution Pipelines]
-    FastMem[Registers and Shared Memory]
-    Cache[L1 and L2 Cache]
-    HBM[HBM or Device Memory]
-    Peer[Peer Interconnect and PCIe]
-    Host[CPU, NUMA, NIC, and Storage]
+    Kernel["Kernel Launch<br/>evidence: nvidia-smi --query-compute-apps"]
+    Grid["Grid of Thread Blocks<br/>evidence: blocks vs. SM count"]
+    SM["Streaming Multiprocessors<br/>evidence: dmon sm%"]
+    Warp["Warp Scheduling<br/>evidence: profiler achieved occupancy"]
+    Engines["CUDA and Tensor Execution Pipelines<br/>evidence: profiler Tensor Core metric"]
+    FastMem["Registers and Shared Memory<br/>evidence: nvcc -Xptxas=-v"]
+    Cache["L1 and L2 Cache<br/>evidence: profiler hit rate"]
+    HBM["HBM or Device Memory<br/>evidence: dmon mem%"]
+    Peer["Peer Interconnect and PCIe<br/>evidence: nvidia-smi topo -m"]
+    Host["CPU, NUMA, NIC, and Storage<br/>evidence: top/pidstat during GPU idle"]
 
     App --> Kernel --> Grid --> SM --> Warp --> Engines
     SM <--> FastMem
     FastMem <--> Cache <--> HBM
     HBM <--> Peer <--> Host
+    App --> Triage{"Symptom: 'GPU looks busy,<br/>throughput is disappointing.'<br/>Where do you look first?"}
+    Triage -->|"GPU idle between<br/>samples (dmon)"| HostLayer["Host/launch layer:<br/>CPU, batching, synchronization"]
+    Triage -->|"GPU busy, sm% high,<br/>mem% low"| ExecLayer["Execution layer:<br/>which pipeline, divergence, occupancy"]
+    Triage -->|"GPU busy, mem% high"| MemLayer["Memory layer:<br/>reuse, coalescing, capacity vs. bandwidth"]
+    Triage -->|"Single-GPU fine,<br/>multi-GPU scaling poor"| TopoLayer["Topology layer:<br/>nvidia-smi topo -m, rank placement"]
 ```
 
-**Figure 2.12.1 — GPU architecture as one execution and data-movement system.** Software hierarchy, execution pipelines, memory hierarchy, and physical topology must cooperate.
+**Figure 2.12.1 — GPU architecture as one execution and data-movement system.** Software hierarchy, execution pipelines, memory hierarchy, and physical topology must cooperate. The triage branch is this volume's twelve chapters compressed into one starting question and four possible next moves — every worked evidence example in every prior chapter is a deeper instance of one of these four branches.
 
 ## Architectural Layers
 
@@ -119,6 +124,36 @@ Topology-aware scheduling is essential for workloads that exchange large amounts
 | One GPU pair slower than another | Does topology differ? |
 
 The map is a starting point, not a diagnosis. Each hypothesis must be tested with evidence.
+
+**Turning the map's first two rows into evidence, side by side, on the same GPU.** The distinction between "low utilization" and "high utilization, low throughput" is not visible from a single number — it requires the paired `dmon` read used throughout this volume:
+
+```text
+# Case A: "Low utilization" row — grid too small / launches fragmented
+$ nvidia-smi dmon -s u -c 3
+    0     4     2
+    0     3     1
+    0     5     2
+
+# Case B: "High utilization, low throughput" row — memory-bound or divergent
+$ nvidia-smi dmon -s u -c 3
+    0    93    91
+    0    95    89
+    0    92    90
+```
+
+Case A's `sm%` near zero confirms the device genuinely has nothing to do — the fix is upstream (batching, launch frequency, grid size). Case B's `sm%` near-saturated but paired with `mem%` equally high is the opposite problem entirely — the device is fully busy and still not delivering throughput, so the fix is inside the kernel (reuse, coalescing, divergence), not in feeding it more work. Both cases can look identical in an alert that only tracks "is GPU utilization above some threshold" — which is exactly why this map insists on architectural questions instead of a single metric.
+
+**Turning "poor multi-GPU scaling" into evidence.** This is the per-rank timing check from Chapter 11, restated here as the map's own row:
+
+```text
+$ for r in 0 1 2 3; do echo "rank $r: $(tail -1 rank_${r}.log)"; done
+rank 0: step_time_ms=49
+rank 1: step_time_ms=52
+rank 2: step_time_ms=138
+rank 3: step_time_ms=141
+```
+
+Two ranks running roughly 3x slower per step, cross-checked against `nvidia-smi topo -m` for whether those specific ranks landed on a weaker path, is the concrete evidence behind this row — and it demonstrates the map's larger point: "poor multi-GPU scaling" is a symptom with a specific mechanism (a slow rank holding every other rank at a collective barrier), not a vague statement about GPU count being insufficient.
 
 ## Architecture Decision Framework
 
@@ -186,6 +221,8 @@ A customer asks, “Which GPU should we buy?” The architect reframes the quest
 
 The answer may be a larger GPU, a different topology, a smaller partition, better batching, a faster input pipeline, or a software optimization. Architecture prevents product selection from replacing problem definition.
 
+**A worked version of this conversation.** Suppose the customer's actual workload is a 13B-parameter model served for internal chat, targeting 50 concurrent users with a per-token latency budget. Weights at FP16 are `13e9 x 2 bytes ≈ 26 GB` — comfortably under an 80GB GPU's capacity, so a single GPU can hold the model. The real question is decode throughput: if unbatched decode re-reads most of the 26GB per token, the bandwidth-bound floor on an H100 (`≈3.35 TB/s`) is roughly `26 GB / 3,350 GB/s ≈ 7.8 ms/token` — and 50 concurrent users each waiting on their own unbatched decode loop would serialize far past any reasonable latency target. Continuous batching changes the arithmetic entirely by amortizing that same 26GB read across all 50 concurrent decode steps at once, which is the concrete reason the recommendation here is "enable continuous batching on one GPU" rather than "buy a bigger GPU" — the bottleneck is arithmetic intensity, not raw capability, and this is answerable before any hardware is purchased.
+
 ## Knowledge Questions
 
 1. Why are blocks, rather than individual threads, assigned to SMs?
@@ -209,11 +246,22 @@ The answer may be a larger GPU, a different topology, a smaller partition, bette
 
 ## Scenario Questions
 
+Each of these is worth being able to answer out loud, as a model answer, not just as a bullet point — an interviewer is listening for the reasoning path as much as the conclusion.
+
 1. A new GPU has twice the compute capability but delivers only ten percent more performance. What do you investigate?
+**Model answer:** "I'd check arithmetic intensity first, before touching a profiler — if this workload's FLOPs-per-byte ratio is well below the new GPU's ridge point, doubling compute capability was never going to help, because the workload was never compute-bound to begin with. I'd confirm with `dmon`'s `sm%`/`mem%` pair on the new GPU: high `mem%` with comparatively low `sm%` would confirm the workload is memory-bandwidth-bound, and unless the new GPU's bandwidth also roughly doubled — which compute-focused generational jumps don't always deliver — a 10% gain is exactly what I'd expect."
+
 2. Limiting registers increases occupancy but slows the kernel. Why?
+**Model answer:** "Almost always spilling — forcing fewer registers than the kernel's actual live-value count doesn't eliminate those values, it pushes them into local memory, which is backed by the same cache/HBM path as any global access. I'd check `nvcc -Xptxas=-v` for spill stores/loads before and after the register limit; going from zero to non-zero spills is the direct proof that the occupancy gain is being paid for with new memory traffic that didn't exist before."
+
 3. Two identical jobs run at different speeds on the same server. What topology evidence do you compare?
+**Model answer:** "`nvidia-smi topo -m` for both jobs' actual GPU assignments, since 'identical jobs' with different GPU pairs is the single most common explanation on a multi-socket host. I'd specifically compare the path label — NVLink versus a `SYS` path crossing sockets can be a 30x difference for the same data volume, which dwarfs anything a code-level difference between 'identical' jobs could produce. I'd check this before assuming there's any real difference between the two jobs at all."
+
 4. GPU utilization is low while CPU usage is high. Where is the likely bottleneck?
+**Model answer:** "Upstream of the GPU — tokenization, preprocessing, or request handling most likely. I'd confirm with `top`/`pidstat` and `nvidia-smi dmon` sampled during the same window: multiple CPU-bound worker processes each near or above 100% CPU, paired with `dmon` showing `sm%` near zero for the same period, is the direct evidence. The fix is CPU capacity, preprocessing efficiency, or moving work off the request path — not a GPU change, since the GPU isn't the constrained resource here at all."
+
 5. Single-GPU throughput is strong, but scaling efficiency collapses at four GPUs. Which layers matter?
+**Model answer:** "Topology and communication, almost exclusively — single-GPU health already rules out kernel-level problems. I'd pull per-rank step times across all four ranks first; a couple of slow outliers holding the rest at a collective barrier is the most common pattern, and it's visible directly from logged step times without a profiler. Then I'd cross-reference `nvidia-smi topo -m` to see whether those specific ranks landed on weaker paths than the others. I would not re-profile the kernel itself here — the single-GPU number already answered that question."
 
 ## Quick Revision Sheet
 

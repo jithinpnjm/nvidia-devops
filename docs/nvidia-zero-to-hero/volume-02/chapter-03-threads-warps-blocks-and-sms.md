@@ -50,13 +50,13 @@ After completing this chapter, you will be able to:
 
 ```mermaid
 flowchart TD
-    Kernel[Kernel Launch]
-    Grid[Grid]
+    Kernel["Kernel Launch<br/>evidence: nvidia-smi --query-compute-apps<br/>shows the process"]
+    Grid["Grid: N blocks<br/>evidence: launch config in app/profiler log"]
     BlockA[Thread Block A]
     BlockB[Thread Block B]
     BlockN[Additional Blocks]
-    SMA[Streaming Multiprocessor 0]
-    SMB[Streaming Multiprocessor 1]
+    SMA["SM 0<br/>evidence: dmon sm%"]
+    SMB["SM 1<br/>evidence: dmon sm%"]
     WarpsA[Resident Warps]
     WarpsB[Resident Warps]
     Threads[Logical Threads]
@@ -70,9 +70,22 @@ flowchart TD
     BlockN --> SMA
     SMA --> WarpsA --> Threads
     SMB --> WarpsB --> Threads
+    Grid --> Check{"blocks in grid vs.<br/>SM count on this GPU?"}
+    Check -->|"blocks << SM count"| Under["Grid underfills the device —<br/>most SMs get zero blocks,<br/>regardless of GPU size"]
+    Check -->|"blocks >> SM count,<br/>but dmon sm% still low"| Diverge["Not a launch-geometry problem —<br/>check divergence/occupancy instead"]
+    Check -->|"blocks >> SM count,<br/>dmon sm% high"| Healthy["Grid geometry is healthy;<br/>look elsewhere for the bottleneck"]
 ```
 
-**Figure 2.3.1 — Execution hierarchy.** A kernel launch creates a grid of blocks. Blocks are assigned to SMs, where their threads are organized into warps for instruction issue.
+**Figure 2.3.1 — Execution hierarchy.** A kernel launch creates a grid of blocks. Blocks are assigned to SMs, where their threads are organized into warps for instruction issue. The right-hand branch turns this from a components diagram into the first check for the chapter's own opening story: a grid with too few blocks starves a large GPU no matter how many SMs it has, and that specific failure mode is verifiable by comparing the launch's block count against `nvidia-smi --query-gpu=name --format=csv` (device identity) and the architecture's known SM count.
+
+**Reading the story's failure directly.** The team in the Story above can confirm "too few blocks" without a profiler, just from the launch configuration and device identity:
+
+```text
+$ nvidia-smi --query-gpu=name --format=csv,noheader
+NVIDIA H100 80GB HBM3
+```
+
+An H100 has 132 SMs. A kernel launched with a grid of, say, 40 blocks — one thread block per output tile in a small matrix — can place at most 40 blocks total across 132 SMs; even with perfect scheduling, roughly 92 SMs receive no work at all for that kernel's entire duration. This is checkable from the launch configuration alone (`<<<blocks, threads>>>` in the source, or the equivalent framework log) cross-referenced against the device's SM count — no profiler required to catch the most common version of this bug.
 
 ## Threads
 
@@ -289,6 +302,35 @@ Possible causes:
 - Excess synchronization
 - Low arithmetic intensity
 
+**Turning "newer GPU provides little speedup" into evidence.** Compare block count against SM count on both devices directly, rather than assuming the newer, larger GPU should automatically scale:
+
+```text
+$ nvidia-smi --query-gpu=name,compute_cap --format=csv,noheader
+NVIDIA A100 80GB PCIe, 8.0
+```
+```text
+$ nvidia-smi --query-gpu=name,compute_cap --format=csv,noheader
+NVIDIA H100 80GB HBM3, 9.0
+```
+
+An A100 has 108 SMs; an H100 has 132. A grid launched with a fixed 100 blocks — a common result of sizing the grid to one older GPU's SM count during initial development — places roughly one block per SM on the A100 (near-full occupancy) but leaves the H100 with 100 of its 132 SMs used and 32 idle. This is the concrete mechanism behind "little speedup": the newer device isn't underperforming, the launch geometry was never updated to use its extra capacity. Fix: size grids from the workload's total independent work, not from an assumption about SM count baked in at development time.
+
+**Turning "utilization oscillates" into evidence.** A `dmon` trace sampled across several request cycles shows the actual shape of the oscillation, which then points at a layer:
+
+```text
+$ nvidia-smi dmon -s u -c 6
+# gpu    sm   mem
+# Idx      %     %
+    0     91    88
+    0      2     1
+    0      2     1
+    0     89    85
+    0      2     1
+    0      2     1
+```
+
+A clean two-idle-samples-per-one-busy-sample pattern, repeating regularly rather than randomly, points at a request/batching cadence problem upstream of the kernel itself (e.g., a batching window releasing work every ~3 seconds) rather than at a within-kernel inefficiency — which is the distinction between "small grids" and "request batching that is too small" in the list above, and it is visible directly in the *shape* of the trace, not just its average.
+
 ## Customer Scenario
 
 A customer sizes a cluster using only GPU count. Their inference service processes one request at a time with small batches. Each request launches kernels that expose little parallel work. Adding GPUs reduces queueing only slightly because individual requests still underfill each device.
@@ -300,20 +342,35 @@ The architectural options include batching, request concurrency, smaller GPU par
 ### Conceptual Questions
 
 1. What is the difference between a thread block and a warp?
+**Model answer:** "A block is a software-defined cooperative group — up to 1,024 threads that the programmer says should be able to share memory and synchronize, and that the hardware guarantees will run on the same SM. A warp is the hardware's own execution granularity underneath that — 32 threads the scheduler actually issues instructions to as a unit. A block of 256 threads is, under the hood, 8 warps; the programmer thinks in blocks, the scheduler operates in warps."
+
 2. Why must all threads in a block execute on the same SM?
+**Model answer:** "Because block-level cooperation — shared memory and `__syncthreads()` barriers — only works if every thread in the block has physical access to the same on-chip shared memory and can actually be resumed and synchronized together. If the runtime could split a block across two SMs, there'd be no fast local memory both halves could reach, which is the entire reason blocks exist as a grouping in the first place."
+
 3. Why is maximum occupancy not always the goal?
+**Model answer:** "Because occupancy only measures how much warp state is resident — it says nothing about whether that state is doing useful, non-redundant work. I'd cite the chapter's own example: a kernel using large shared-memory tiles can have lower occupancy than a naive version but run faster because it reuses data instead of re-fetching it from HBM repeatedly. Occupancy is a means to hide latency, not a score to maximize independently of what's actually limiting the kernel."
 
 ### Architecture Questions
 
 1. Draw the path from kernel launch to warp execution.
+**Model answer:** "Kernel launch creates a grid; the grid is a fixed number of thread blocks. The GPU's work distributor hands blocks to SMs that have enough free registers, shared memory, and warp slots to admit them — that admission check is itself a bottleneck if I've sized the kernel wrong. Once a block is resident, the hardware splits its threads into warps of 32, and each SM's warp scheduler picks eligible warps and issues their next instruction to an execution pipeline. The thing I'd point at while drawing it: the block-to-SM assignment is where 'grid too small for this GPU' actually bites — if blocks < SM count, some SMs never get a block, permanently, for this kernel's whole runtime."
+
 2. Explain which resources limit block residency.
+**Model answer:** "Five things, and the tightest one wins: threads per SM, warps per SM, registers per SM divided by the kernel's registers/thread, shared memory per SM divided by the kernel's shared-memory/block, and the architectural cap on resident block count itself. I'd check `nvcc -Xptxas=-v` for registers/thread and the kernel's shared-memory request, then divide each against the SM's known limits — whichever gives the smallest number of resident blocks is the actual constraint, and tuning any other resource won't move it."
+
 3. Describe how warp scheduling hides latency.
+**Model answer:** "The scheduler keeps multiple warps resident and switches between them on stalls instead of blocking. If Warp A issues a load and has to wait hundreds of cycles for HBM, the scheduler doesn't idle — it looks at other resident warps, finds one that's eligible (operands ready, no dependency stall), and issues its instruction instead. This is cheap because all those warps' register state already lives on the SM — there's no save/restore like an OS context switch. It only works, though, if there's actually another eligible warp to switch to, which is why grid size and occupancy matter."
 
 ### Scenario Questions
 
 1. A grid contains fewer blocks than the GPU has SMs. What happens?
+**Model answer:** "Some SMs get one block, and the rest get zero blocks for that kernel's entire execution — there's no partial-block sharing or automatic re-splitting to spread work more evenly. If I ran `nvidia-smi dmon -s u` during that kernel, I'd expect to see `sm%` well under 100% the whole time, not because any SM is inefficient but because a fraction of them are doing literally nothing. The fix is grid size, not GPU size."
+
 2. A kernel has high register use and low occupancy. Is that necessarily bad?
+**Model answer:** "Not necessarily — I'd want to know why the registers are being used before assuming it's a problem. If those registers are holding genuinely reused values that would otherwise be re-fetched from memory repeatedly, low occupancy with high per-thread efficiency can beat high occupancy with more memory traffic. I'd check `nvcc -Xptxas=-v` for spill loads/stores — if there are none, and runtime is good, I'd leave it alone rather than 'fixing' the occupancy number for its own sake."
+
 3. Threads in a warp follow different long code paths. What performance effect do you expect?
+**Model answer:** "Divergence: the warp executes each path serially, once per distinct branch outcome present among its 32 lanes, with the non-matching lanes masked off and doing no useful work during that pass. If it's a clean two-way split with long, expensive paths, I'd expect roughly double the instruction-issue time for that warp compared to a uniform branch, and I'd check active-lane efficiency in a profiler to confirm rather than guessing from utilization alone, since utilization would still look 'busy' even though a large fraction of lanes are idle on any given pass."
 
 ## Summary
 
