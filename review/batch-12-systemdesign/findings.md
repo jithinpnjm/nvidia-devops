@@ -1,8 +1,24 @@
 # Batch 12 System Design and Interview Prep Review Notes
 
-Volumes reviewed: F-08 (System Design), F-09 (Interview Prep), ZTH-23 (Interview Masterclass: GPU Systems Engineering)
+Volumes reviewed: F-08 (System Design), F-09 (Interview Prep), ZTH-23 (Interview Masterclass: GPU Systems Engineering). All 58 files across the three volumes reviewed (18 F-08 chapters, 22 F-09 chapters, 13 ZTH-23 chapters/index + 4 lab placeholders).
 
-Summary line will be added to the top of this file once the full pass is complete.
+## Summary
+
+**Counts by severity:** 16 high, 9 medium, 11 low (36 findings total).
+
+- F-08 (System Design): 1 low.
+- F-09 (Interview Prep): 1 low, 1 medium.
+- ZTH-23 (Interview Masterclass): 16 high, 8 medium, 9 low. This volume concentrates almost all of the batch's severe findings.
+
+**Top 5 findings for interview prep (most important):**
+
+1. **ZTH-23 chapter 11 (Inference Serving system design) has a ~1000x error in its foundational request-rate calculation** ("50K users × 5 req/hr ÷ 3600 = 70K req/sec" — the correct answer is ≈69 req/sec, not 70,000). This single error inflates every downstream number in the chapter: GPU fleet size (252 L40S), hardware cost ($3M), and the chapter's climactic "-$3.95M/year loss" conclusion. A candidate rehearsing this walkthrough would be presenting a wildly overbuilt, financially-wrong architecture for what is actually a modest workload.
+2. **ZTH-23 chapters 1, 2, and 5 repeat two systemic math errors across the GPU-architecture/CUDA/roofline content**: (a) conflating "N KB of register file" with "N registers" (off by 4x, the bytes-per-register factor) — this flips the conclusion of the chapter 1 and chapter 2 "explain occupancy" model answers, the single most common CUDA interview question; and (b) dropping three orders of magnitude when converting arithmetic-intensity × bandwidth into FLOPS (GFLOPS reported as TFLOPS) — this appears at least 5 times across chapters 1, 2, and 5, including flipping the roofline-model workload classification table in chapter 5.
+3. **ZTH-23 chapter 3 repeats the exact ring-AllReduce bandwidth error class already flagged in a prior batch review of this curriculum** (unchunked ring AllReduce, ~5-9x too slow), appearing independently in two places in the same chapter — confirming this specific bug is a recurring authoring pattern, not a one-off. Chapter 10 has a related but distinct 8x bits/bytes conversion error in its own AllReduce network-bandwidth justification.
+4. **H100 FP32 peak is mislabeled as 989 TFLOPS in at least 4 places across chapters 1, 2, and 5** (real H100 FP32 CUDA-core peak ≈ 67 TFLOPS; 989 TFLOPS is H100's dense FP16/BF16 Tensor Core figure) — this is the same class of hardware-spec error a prior batch flagged as critical for a different volume (H100 FP32 wrong across 7 files), now independently confirmed present in this volume too.
+5. **Power-cost line items are wrong by 10-100x in both ZTH-23 chapter 9 (100x) and chapter 12 (10x)**, using the same flawed formula shape in both places, cascading into wrong total OpEx, cost-per-GPU-hour, and multi-year cost projections presented as the model answers to capacity-planning interview questions.
+
+**Other notable items:** ZTH-23 chapter 6's A100 MIG architecture facts are wrong (SM count, max instance count, profile memory sizes) — directly relevant since the task brief calls out MIG internals as a probable deep-dive interview area. F-08 and F-09 (the foundational-curriculum system-design and interview-prep volumes) were comparatively very clean — only one low-severity arithmetic slip in F-08 and one low/one medium in F-09 — suggesting the quality problem is concentrated in ZTH-23's quantitative "model answers," not in the foundational curriculum's discovery/trade-off/communication frameworks.
 
 ---
 
@@ -353,3 +369,9 @@ Phases 2, 4, and 6 (architecture layering, batching/latency trade-off reasoning,
 Phases 1-5 (workload characterization, weighted fair-share/deficit-tracking scheduler, preemption tiers, tiered checkpointing) are conceptually sound and not tied to the specific cost figures flagged above.
 
 **Volume ZTH-23 review complete.** 13/13 chapters + index reviewed (chapters 1-12 plus index.md); labs reviewed separately below.
+
+### labs/lab-01-placeholder.md, lab-02-placeholder.md, lab-03-placeholder.md, lab-04-placeholder.md
+- [SEVERITY: medium] All four lab files are entirely empty content skeletons — only section headers ("Overview," "Setup," "Exercises," "Verification," "Troubleshooting") with no body text, commands, or exercises under any of them.
+  - Evidence: full file contents are five empty `##` headers each, no prose.
+  - Why it matters for JR2018680: the volume index (`index.md`) and chapter cross-references (e.g., chapter 1's "Related Chapters" section: "Lab (V24): Hands-on occupancy and memory optimization exercises") point to these labs as the hands-on complement to the interview content, but there is nothing here to actually work through — this is a completeness gap, not a technical-accuracy issue.
+  - Suggested fix: author the lab content, or remove/mark these as "not yet available" so a candidate doesn't spend time looking for exercises that don't exist.
