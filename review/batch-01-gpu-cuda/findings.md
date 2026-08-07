@@ -156,3 +156,11 @@ Same exceptional depth and style as ZTH-02: worked evidence chains, real command
 
 ### labs/lab-02-build-and-validate-a-cuda-vector-pipeline.md
 - No findings. Complete, compilable CUDA vector-add program with correct ceiling-division/bounds-check pattern. 1024 max-threads-per-block limit cited for the "invalid configuration argument" failure injection is correct for current NVIDIA architectures. The underlaunch-vs-out-of-bounds failure signatures (zero-valued mismatches vs illegal memory access) are correctly distinguished.
+
+### labs/lab-03-build-an-overlapped-cuda-pipeline.md
+- No findings. Complete, compilable double-buffered pinned-memory pipeline with correct wait-collect-refill ownership ordering. Failure-injection math checks out: index 4,194,304 in Failure B is exactly `chunkElements` (1<<22), correctly identified as the first element of the second chunk.
+
+### labs/lab-04-profile-and-diagnose-a-cuda-application.md
+- No findings. Three regression scenarios (device-wide sync, tiny chunks, pageable buffers) are all realistic and the reasoning behind each measured slowdown is technically sound. Consistent use of the Chapter 12 profiling funnel methodology.
+
+**Volume ZTH-03 labs summary:** All 4 labs are technically sound, self-consistent, and reinforce the volume's evidence-based troubleshooting methodology. No findings requiring fixes.
