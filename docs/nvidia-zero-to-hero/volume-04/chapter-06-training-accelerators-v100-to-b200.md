@@ -40,19 +40,21 @@ Each accelerator generation responded to pressure from larger models, lower-prec
 
 ```mermaid
 flowchart LR
-    V100[Volta Era]
-    A100[Ampere Era]
-    H100[Hopper Era]
-    H200[Higher-Memory Hopper]
-    B200[Blackwell Era]
+    V100["Volta Era<br/>16-32GB HBM2"]
+    A100["Ampere Era<br/>40-80GB HBM2e"]
+    H100["Hopper Era<br/>80GB HBM3"]
+    H200["Higher-Memory Hopper<br/>141GB HBM3e"]
+    B200["Blackwell Era<br/>~192GB HBM3e-class"]
 
-    V100 -->|Tensor acceleration matures| A100
-    A100 -->|Larger models and transformer workloads| H100
-    H100 -->|Memory pressure grows| H200
-    H200 -->|Scale-up and model size continue growing| B200
+    V100 -->|"evidence: FP16 kernels underused Tensor Cores<br/>→ Tensor acceleration matures"| A100
+    A100 -->|"evidence: attention/transformer step time<br/>dominated by memory movement, not FLOPs<br/>→ transformer-tuned compute + more bandwidth"| H100
+    H100 -->|"evidence: nvidia-smi memory.used near<br/>memory.total on large-context LLM serving<br/>→ memory pressure drives H200"| H200
+    H200 -->|"evidence: nccl-tests all-reduce time still<br/>grows with node count at largest scale<br/>→ scale-up fabric + model size continue growing"| B200
 ```
 
-**Figure 4.6.1 — Accelerator evolution follows workload bottlenecks.** New generations change multiple dimensions at once: compute engines, precision support, memory systems, interconnect, partitioning, and system integration.
+**Figure 4.6.1 — Accelerator evolution follows workload bottlenecks, and each arrow names the measurement that justified the next generation's design change.** New generations change multiple dimensions at once — compute engines, precision support, memory systems, interconnect, partitioning, system integration — but the arrow labels above are the specific piece of evidence (a memory ceiling, a step-time profile, a collective-time trend) that an architect would point to when explaining *why* a given generation exists, not just naming it.
+
+**The capacity story behind the H100 → H200 edge, worked out:** a 70B-parameter model at FP16 needs `70,000,000,000 × 2 bytes ≈ 140 GB` for weights. That alone exceeds a single 80GB H100's HBM — it must be sharded across at least 2 GPUs before a single token of KV cache is added. On a single 141GB H200, the same 140GB of weights fits on one GPU with roughly 1GB left for KV cache and activations — not comfortable, but the qualitative difference between "must shard across 2+ GPUs" and "fits on one" is exactly the memory-capacity pressure the arrow label above is pointing at, and it's a difference that shows up directly in `nvidia-smi --query-gpu=memory.used,memory.total` during a sizing pass, before a training run is ever launched.
 
 ## Comparing Generations Correctly
 
@@ -185,6 +187,18 @@ Measure checkpoint duration, restart behavior, node-loss handling, and operation
 
 Compare topology, rank placement, NIC affinity, collective algorithm selection, message sizes, and fabric health. Confirm that traffic uses the intended data path and that parallel groups align with the local GPU topology.
 
+**Evidence walkthrough — the numbers that turn "multi-node efficiency drops" from a complaint into a diagnosis:**
+
+```bash
+$ nccl-tests/build/all_reduce_perf -b 8M -e 8M -f 2 -g 8
+#                                                     out-of-place
+#       size    count    type   redop    time   algbw   busbw
+        8388608  2097152  float     sum   612.3   13.70   25.68  (1 node, 8 GPUs)
+        8388608  2097152  float     sum  2840.1    2.95    5.53  (2 nodes, 16 GPUs)
+```
+
+Doubling GPU count from 8 to 16 (adding a second node) should roughly preserve or modestly reduce `busbw` (bus bandwidth, GB/s) for a healthy fabric — instead it drops from 25.68 to 5.53 GB/s, a 4.6x collapse, while `time` (μs per all-reduce) grows 4.6x. This is the direct evidence behind "collective operations consume a larger fraction of step time": the scale-up fabric (NVLink/NVSwitch, evidenced by the healthy 1-node number) is fine, but the scale-out path added by the second node is the new bottleneck — worth confirming next with `nvidia-smi topo -m` and NIC-to-GPU affinity on the second node specifically, since a single misconfigured or wrong-NUMA-attached NIC can produce exactly this signature.
+
 **Root cause**
 
 The cluster was sized for compute but not for the communication pattern.
@@ -213,17 +227,19 @@ The recommendation may include a phased migration, preserving A100 capacity for 
 
 How do you decide between buying more current-generation GPUs and fewer next-generation GPUs?
 
-Discuss workload fit, memory per GPU, scaling efficiency, failure domains, rack density, power, software readiness, scheduling flexibility, and cost per completed training objective.
+**Model answer:** "I'd want the same baseline-and-reproduce process either way — run the actual training workload, not a synthetic benchmark, and measure step time, memory headroom, and scaling efficiency from 1 GPU to 1 node to multiple nodes. More current-generation GPUs wins when the workload's bottleneck is aggregate throughput and it scales well — I'm just buying more of what already works. Fewer next-generation GPUs wins when the bottleneck is memory capacity or bandwidth per GPU — for example if a model needs sharding today that a larger-HBM part would remove entirely, fewer GPUs with more memory each can mean simpler parallelism and fewer communication hops, which often beats a larger fleet on both cost and reliability. I'd present both options with the same scaling-efficiency numbers side by side rather than defaulting to 'newer is better' — the nccl-tests-style all-reduce bandwidth curve at each node count is usually the deciding evidence."
 
 ### Scenario question
 
 A model is out of memory on H100. Is H200 automatically the correct answer?
 
-No. First determine what consumes memory and whether checkpointing, sharding, precision, sequence length, optimizer choice, or fragmentation can change the envelope. H200 may be appropriate when capacity is genuinely the limiting constraint.
+**Model answer:** "No, and I'd say that directly before recommending anything. First I want to know what's actually consuming the memory — I'd break down weights, optimizer state, activations, and communication buffers separately, because 'out of memory' on H100 is often a sharding, precision, or fragmentation problem, not a genuine capacity ceiling. If the model is running in FP32 when BF16 or FP8 would halve or quarter memory with acceptable accuracy impact, that's a much cheaper fix than new hardware. If checkpointing or activation recomputation can trade compute for memory, that's another lever before a purchase order. H200's larger HBM envelope is the right answer specifically when none of those levers close the gap — for instance a 70B-parameter model at FP16 needs about 140GB for weights alone, which doesn't fit on an 80GB H100 no matter how well-tuned the rest of the pipeline is, and that's the case where H200's ~141GB genuinely removes a sharding boundary rather than just papering over an inefficiency."
 
 ### Whiteboard question
 
 Draw the difference between scale-up and scale-out communication and show where tensor parallelism and data parallelism might be placed.
+
+**Model answer:** "I'd draw two boxes — one node with 8 GPUs connected by NVLink/NVSwitch inside the box, that's scale-up, and then a network fabric connecting multiple such boxes together, that's scale-out. Tensor parallelism splits a single layer's math across GPUs and needs very frequent, low-latency communication — so it belongs inside the scale-up box, on the NVLink domain, never crossing the scale-out network if I can help it, because that communication pattern is too chatty for typical node-to-node latency. Data parallelism replicates the whole model and only synchronizes gradients once per step, which is a much less frequent, more bandwidth-tolerant pattern — that's the one I'd place across the scale-out network, between nodes. If I saw tensor-parallel ranks spanning across nodes in a real cluster, that's usually a configuration mistake worth flagging immediately, because it puts the most latency-sensitive communication pattern on the slowest path available."
 
 ## Key Takeaways
 

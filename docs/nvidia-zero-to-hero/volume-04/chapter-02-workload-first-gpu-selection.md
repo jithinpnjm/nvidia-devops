@@ -35,17 +35,24 @@ GPU selection is a multi-dimensional decision.
 
 ```mermaid
 flowchart LR
-    Goal[Business goal]
-    Workload[Workload profile]
-    Constraints[Constraints]
-    Criteria[Selection criteria]
-    Platform[GPU and platform]
-    Validation[Benchmark and validate]
-
-    Goal --> Workload --> Constraints --> Criteria --> Platform --> Validation
+    Goal[Business goal] --> Workload[Workload profile]
+    Workload --> Constraints{"Constraints — checked with evidence,<br/>not assumed"}
+    Constraints -->|"Weights+KV-cache calc exceeds<br/>candidate memory.total"| MemFail["Memory-fit failure<br/>→ larger-HBM class required"]
+    Constraints -->|"nvidia-smi dmon: sm% high,<br/>pclk at max, no throttle"| ComputeOK["Compute-bound, healthy<br/>→ proceed to precision/format check"]
+    Constraints -->|"p99 latency script shows SLO miss<br/>at target concurrency"| LatencyFail["Latency-fit failure<br/>→ density/latency-tuned class required"]
+    Constraints -->|"nccl-tests bandwidth scales sub-linearly<br/>past 1 node"| CommFail["Communication-fit failure<br/>→ scale-up fabric (SXM/NVLink) required"]
+    MemFail --> Criteria[Selection criteria]
+    ComputeOK --> Criteria
+    LatencyFail --> Criteria
+    CommFail --> Criteria
+    Criteria --> Platform[GPU and platform]
+    Platform --> Validation[Benchmark and validate]
+    Validation -->|"benchmark contradicts the<br/>desk estimate"| Constraints
 ```
 
-**Figure 4.2.1 — Hardware selection is the final stage, not the first.**
+**Figure 4.2.1 — Hardware selection is the final stage, not the first, and each constraint is a checkable claim, not a guess.** The loop-back edge from Validation matters as much as the forward path: a benchmark that contradicts the paper estimate sends the process back to re-examine constraints, not straight to a purchase order.
+
+**Worked capacity check that would drive the "Memory-fit failure" branch above:** a 70B-parameter model at FP16 needs `70,000,000,000 × 2 bytes ≈ 140 GB` for weights alone — already larger than a single 80GB H100's HBM, before activations, optimizer state (if fine-tuning), or KV cache are added. That number alone is why "does the model fit" has to be answered with arithmetic before any benchmark is run, not discovered when a training or inference job OOMs in production.
 
 Starting with a product name reverses this flow. It encourages the design team to justify a purchase rather than determine whether the purchase is appropriate.
 
@@ -220,26 +227,42 @@ Benchmark the existing pipeline first. Otherwise, new hardware may preserve the 
 - adding GPUs does not improve completion time;
 - tail latency grows sharply under moderate concurrency.
 
+**Evidence walkthrough — "memory is full while compute utilization remains low," a fragmentation/oversubscription signature:**
+
+```bash
+$ nvidia-smi --query-gpu=index,memory.used,memory.total,utilization.gpu,utilization.memory --format=csv
+index, memory.used [MiB], memory.total [MiB], utilization.gpu [%], utilization.memory [%]
+0, 78120 MiB, 81920 MiB, 14 %, 9 %
+```
+
+`memory.used` at 95% of capacity while `utilization.gpu` sits at 14% is not a bandwidth story — `utilization.memory` (9%) confirms the memory subsystem isn't even being pushed hard. This combination usually means the memory is *held*, not *used*: multiple processes sharing the GPU without MIG or time-slicing isolation, a framework caching allocator (e.g. PyTorch) that grabbed a large pool early and never released it, or several stale sessions still resident. The fix is process/session cleanup or proper GPU-sharing isolation, not a bigger GPU — a bigger GPU would just let the same leak grow before it's noticed.
+
 ### Diagnostic path
 
 ```mermaid
 flowchart TD
-    S[Performance target missed]
-    U{GPU busy?}
-    Feed[Inspect CPU, storage, request feed]
-    Mem{Memory pressure?}
-    Comm{Multi-GPU workload?}
-    Profile[Profile kernels and runtime]
-    Topo[Inspect topology and collectives]
-
-    S --> U
-    U -- No --> Feed
-    U -- Yes --> Mem
-    Mem -- Yes --> Profile
-    Mem -- No --> Comm
-    Comm -- Yes --> Topo
-    Comm -- No --> Profile
+    S[Performance target missed] --> U{"GPU busy?<br/>nvidia-smi dmon sm%"}
+    U -->|"sm% < 30%,<br/>host CPU near 100%"| Feed["Host-bound<br/>Inspect CPU, storage, request feed"]
+    U -->|"sm% > 80%"| Mem{"Memory pressure?<br/>memory.used / memory.total"}
+    Mem -->|"> 90% of capacity,<br/>or allocator OOM in logs"| MemFix["Memory-bound<br/>Reduce batch/seq length or move to larger-HBM class"]
+    Mem -->|"comfortable headroom"| Comm{"Multi-GPU workload?"}
+    Comm -->|"Yes — check nccl-tests<br/>or nvidia-smi topo -m"| Topo["Communication-bound<br/>Inspect topology and collective time share"]
+    Comm -->|"No"| Profile["Compute-bound<br/>Profile kernels with Nsight; check precision path"]
 ```
+
+**Evidence walkthrough — turning "GPU busy?" into a real answer instead of a guess:**
+
+```bash
+$ nvidia-smi dmon -s pucvmet -c 4
+# gpu   pwr  gtemp  mtemp    sm   mem   enc   dec   jpg   ofa  mclk  pclk
+# Idx     W      C      C     %     %     %     %     %     %   MHz   MHz
+    0   165     44     41    18     6     0     0     0     0  2619  1410
+    0   162     44     41    17     5     0     0     0     0  2619  1410
+    0   168     45     42    19     6     0     0     0     0  2619  1410
+    0   160     44     41    16     5     0     0     0     0  2619  1410
+```
+
+`sm` (compute busy %) averaging ~17% with `pclk` pinned at its max boost clock (1410MHz — no throttling) is the "No" branch of the diagnostic tree: the GPU is idle waiting on work, not struggling to keep up with it. Paired with a `top`/`htop` read showing one CPU core pegged at 100% doing request tokenization or image preprocessing, this combination is the standard signature of a host-feed bottleneck — the fix is on the CPU/data-loading side, and buying a faster GPU here would just idle more expensively.
 
 ### Root causes
 
@@ -263,9 +286,17 @@ That answer changes the engagement from procurement assistance into architecture
 
 ### Knowledge questions
 
-1. Why is GPU memory capacity different from GPU memory bandwidth?
-2. Why can a higher-throughput accelerator produce worse application economics?
-3. What operational factors can invalidate an otherwise suitable GPU choice?
+**1. Why is GPU memory capacity different from GPU memory bandwidth?**
+
+**Model answer:** "Capacity is a yes/no gate — can the weights, activations, optimizer state, and KV cache all fit in device memory at once? I'd check that with `nvidia-smi --query-gpu=memory.used,memory.total` against a weights-plus-overhead calculation. Bandwidth is a rate question — once everything fits, how fast can data move between HBM and the SMs to keep them fed? A GPU can pass the capacity check completely — plenty of headroom in `memory.used` — and still underperform because bandwidth can't keep up with how often the kernel needs to re-read data from HBM. I've seen this exact split on decode-heavy LLM inference: capacity is fine, but every generated token re-reads the KV cache and weights, so bandwidth becomes the ceiling even though there's 20GB of free memory sitting there."
+
+**2. Why can a higher-throughput accelerator produce worse application economics?**
+
+**Model answer:** "Because throughput on a spec sheet is peak, aggregate, and workload-agnostic — it doesn't account for how many of those FLOPs your actual request pattern can use. If my service is dominated by small, latency-sensitive requests that can't batch efficiently, a bigger GPU just processes the same underfilled batches faster per unit — I'm paying for compute I structurally can't use. The number that actually matters is cost per successful request at my SLO, not FLOPs per dollar. I've challenged proposals before by asking for `requests/GPU-hour` at the target latency percentile instead of the vendor's peak-throughput number, and the 'faster' GPU sometimes loses that comparison outright."
+
+**3. What operational factors can invalidate an otherwise suitable GPU choice?**
+
+**Model answer:** "Power and cooling headroom in the destination rack, driver/CUDA/framework compatibility with what the team already runs, support and lifecycle commitments, and whether the operations team can actually service and monitor a new platform generation. I've seen a technically ideal GPU get vetoed at the facility review stage because the rack's PDU couldn't sustain its steady-state draw — the silicon was right and the deployment still failed."
 
 ### Architecture questions
 
@@ -275,9 +306,17 @@ That answer changes the engagement from procurement assistance into architecture
 
 ### Scenario questions
 
-1. A customer requests premium training GPUs for a small inference service. How do you challenge the assumption?
-2. A workload uses only 25 percent GPU utilization. What evidence do you collect before recommending new hardware?
-3. A model fits in memory but misses its latency target. What additional dimensions do you investigate?
+**1. A customer requests premium training GPUs for a small inference service. How do you challenge the assumption?**
+
+**Model answer:** "I wouldn't say no outright — I'd ask what's driving the request. Usually it's 'this is the GPU everyone talks about' rather than a measured requirement. So I'd walk through the same five dimensions I use everywhere: does the model's memory footprint actually need that much HBM, is the workload latency- or throughput-bound, does it need NVLink-class scale-up communication at all for a single-service inference workload, what does it cost to power and cool that class of accelerator versus a density-tuned part, and what does cost-per-request look like on each. In most small-inference cases that comparison alone reframes the conversation — the premium training GPU usually loses on cost-per-request even though it wins on the spec sheet."
+
+**2. A workload uses only 25 percent GPU utilization. What evidence do you collect before recommending new hardware?**
+
+**Model answer:** "25% utilization on its own tells me almost nothing — I need to know what kind of 25% it is. I'd pull `nvidia-smi dmon -s pucvmet` over the real traffic window to see whether `sm%` is low because the GPU is starved (host-bound — check CPU and request feed) or because the workload is naturally bursty and 25% average hides healthy spikes. I'd pair that with `memory.used` to rule out a memory-bound stall, and with the application's own request-latency metrics to see if the service is even missing its SLO — a service comfortably meeting latency at 25% utilization might just have correctly-provisioned headroom, not a problem to fix with new hardware at all."
+
+**3. A model fits in memory but misses its latency target. What additional dimensions do you investigate?**
+
+**Model answer:** "Fitting in memory only answers the capacity question — latency is a completely different axis. I'd look at batching policy first, since the batch size tuned for throughput is often exactly wrong for interactive latency. Then I'd check whether the request path has host-side cost outside the GPU entirely — CPU preprocessing, tokenization, host-to-device transfer — using host-level tooling alongside `nvidia-smi`, because a GPU that's fast in isolation can still miss its SLO if the surrounding pipeline is slow. Finally I'd check for queueing — whether requests are waiting for a GPU slot rather than executing slowly on one — because that shows up identically in an end-to-end latency number but has a completely different fix."
 
 ## Key takeaways
 

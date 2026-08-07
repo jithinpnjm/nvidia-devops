@@ -49,19 +49,35 @@ The architecture process must therefore begin with the request path, not the pro
 
 ```mermaid
 flowchart LR
-    Request[Inference Request]
-    Prep[Preprocessing]
-    Queue[Scheduler and Batcher]
-    Model[Model Execution]
-    Media[Encode or Decode]
-    Response[Response]
-
-    Request --> Prep --> Queue --> Model --> Response
-    Prep <--> Media
-    Model <--> Memory[GPU Memory]
+    Request[Inference Request] --> Prep["Preprocessing<br/>(CPU-bound)"]
+    Prep -->|"healthy: top shows CPU headroom"| Queue["Scheduler and Batcher"]
+    Prep -.->|"unhealthy: top/htop shows CPU pegged<br/>while GPU sm% stays low"| HostBound["Host-bound —<br/>fix here before touching the GPU"]
+    Queue -->|"healthy: batch size near configured max"| Model["Model Execution"]
+    Queue -.->|"unhealthy: batch size stays near 1<br/>despite concurrent requests"| BatchStarved["Batching not engaging —<br/>check scheduler/timeout config"]
+    Model <-->|"nvidia-smi: memory.used stable,<br/>sm% high, mem% high"| Memory["GPU Memory"]
+    Model -.->|"nvidia-smi: memory.used climbing<br/>toward memory.total"| OOMRisk["Approaching OOM —<br/>reduce batch/seq length or add headroom"]
+    Prep <-->|"nvidia-smi dmon: enc/dec% nonzero"| Media["Encode or Decode engines"]
+    Model --> Response[Response]
 ```
 
-**Figure 4.5.1 — Inference is a pipeline.** The accelerator influences model execution, but preprocessing, batching, memory movement, and media stages can determine end-to-end latency.
+**Figure 4.5.1 — Inference is a pipeline, and each hop has a named signal that separates "healthy" from "this is the bottleneck."** The two dotted failure branches are the pipeline's actual fault-isolation tool: a request that misses its latency target is diagnosed by walking left to right through these signals, not by looking at the GPU first.
+
+**Reading the evidence that separates a host-bound pipeline from a genuinely GPU-bound one:**
+
+```bash
+$ nvidia-smi dmon -s pucvmet -c 3
+# gpu   pwr  gtemp  mtemp    sm   mem   enc   dec   jpg   ofa  mclk  pclk
+# Idx     W      C      C     %     %     %     %     %     %   MHz   MHz
+    0    58     39     37     9     3     0     0     0     0  5001   585
+    0    61     39     37    11     4     0     0     0     0  5001   585
+    0    57     38     36     8     3     0     0     0     0  5001   585
+
+$ top -bn1 | head -5
+top - 14:22:07 up 40 days,  3:12,  1 user,  load average: 8.02, 7.91, 7.84
+%Cpu(s): 97.3 us,  1.8 sy,  0.0 ni,  0.6 id,  0.0 wa
+```
+
+`sm` averaging ~9% and `pclk` at only 585MHz (well under the card's boost clock — the GPU has clocked down because it has nothing queued) paired with `top` showing 97.3% CPU user time and a load average above core count is the paired snapshot that proves this is the "Preprocessing" hop failing, not the "Model Execution" hop — the fix is CPU-side (parallelize preprocessing, add worker processes), and swapping to a faster GPU here would leave `sm%` just as low.
 
 ## Why These Products Exist
 
@@ -192,6 +208,8 @@ A useful dashboard aligns all layers on the same timeline. GPU metrics without s
 
 Inspect preprocessing time, tokenizer saturation, request scheduler behavior, CPU affinity, and host-to-device transfer timing. Confirm that the runtime actually forms batches and that requests are not serialized before reaching the GPU.
 
+The paired `nvidia-smi dmon` / `top` snapshot in the Big Picture section above is exactly this evidence: `sm%` near 9% with `pclk` clocked down to 585MHz alongside `top` showing 97.3% CPU user time is the signature of this specific problem, not a coincidence — it is the diagnostic proof that the GPU has nothing to execute because the host can't produce requests fast enough.
+
 **Root cause**
 
 The GPU is starved by the host pipeline.
@@ -217,6 +235,17 @@ Benchmark the complete service path and alert on queue delay separately from GPU
 
 The concurrency model exceeds the memory envelope, often because request-state growth was omitted from sizing.
 
+**Evidence walkthrough — watching `memory.used` climb across a concurrency ramp:**
+
+```bash
+$ for i in 1 2 3; do nvidia-smi --query-gpu=memory.used,memory.total,utilization.gpu --format=csv,noheader; sleep 5; done
+18420 MiB, 24576 MiB, 41 %
+21980 MiB, 24576 MiB, 58 %
+24310 MiB, 24576 MiB, 61 %
+```
+
+On a 24GB L4-class card, `memory.used` climbs from 18.4GB to 24.3GB across three concurrency steps while `memory.total` stays fixed — the last sample is within 300MB of the ceiling. This is the KV-cache-growth pattern the "Root cause" line describes: sizing that only accounted for weights (a fixed cost) missed that KV cache grows with sequence length × concurrent sessions (a variable cost), and at this trajectory the very next concurrency step fails with an allocator OOM rather than degrading gracefully — the runtime's own "allocation failures or cache eviction" log line is the confirming evidence to pull alongside this.
+
 **Resolution**
 
 Introduce admission control, reduce maximum sequence length or batch size, partition model replicas, or select an accelerator with a larger validated memory envelope.
@@ -233,19 +262,19 @@ The customer recommendation should include a benchmark plan, software compatibil
 
 Why might a lower-power inference accelerator deliver better fleet economics than a faster card?
 
-A strong answer discusses server density, power, cooling, workload fit, utilization, licensing, replica count, and cost per request rather than only purchase price.
+**Model answer:** "Because fleet economics is about requests served per rack, not requests served per GPU. A lower-power card like an L4 lets me fit more replicas in the same power and cooling budget than a larger card would, and inference workloads often parallelize better across many small replicas than they benefit from one very fast one — each replica just needs to hold its model and serve its share of traffic. So the actual comparison I'd run is cost per successful request at a fixed rack power budget, not FLOPs per dollar per card. I've seen a 'slower' card win that comparison outright once density is factored in, because the faster card's higher TDP meant fewer of them fit per rack, and the extra headroom on each one went unused by workloads that don't need it."
 
 ### Troubleshooting question
 
 An inference service has 20% GPU utilization and misses latency objectives. What do you inspect first?
 
-Begin with the request timeline: queueing, CPU preprocessing, batching, transfers, GPU execution, and response serialization. Low utilization is a symptom, not a root cause.
+**Model answer:** "I wouldn't start at the GPU — 20% utilization with a missed latency target is almost always a symptom of something upstream, not a GPU capacity problem. I'd walk the request timeline in order: queueing first, because requests waiting for a scheduler slot show up in end-to-end latency but never touch `nvidia-smi`. Then CPU preprocessing — I'd pull a paired `nvidia-smi dmon` and `top` snapshot, and if I see `sm%` low with `pclk` clocked down while CPU is pegged, that's host starvation, not a GPU problem, and it's the most common cause of exactly this pattern. Then batching — is the runtime actually forming batches, or is every request going through one at a time? Only once I've ruled out all of that would I look at whether the GPU execution time itself is the issue."
 
 ### Customer question
 
 When should a customer avoid standardizing all inference workloads on one GPU model?
 
-When workload envelopes differ enough that standardization creates persistent waste, capacity risk, software incompatibility, or unacceptable operational trade-offs.
+**Model answer:** "When the workload envelopes are different enough that one choice creates persistent waste or risk somewhere. If I have both small classification models and a memory-hungry generative assistant, standardizing on the generative-service card means paying for unused memory and power on every classification replica; standardizing on the smaller card means the generative service doesn't fit at all. I'd show that with two side-by-side capacity estimates — weights-plus-overhead for each workload against each candidate's actual memory — rather than arguing the point qualitatively. When the math shows one card structurally can't serve one of the workloads, or serves it at a large efficiency loss, that's the evidence for a second pool, not a compromise on the same card."
 
 ## Key Takeaways
 

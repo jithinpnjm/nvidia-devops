@@ -42,16 +42,18 @@ After completing this lab, you will be able to:
 
 ```mermaid
 flowchart LR
-    Inputs[Requirements and constraints]
-    Criteria[Weighted criteria]
-    Evidence[Verified evidence]
-    Score[Candidate scores]
-    Risks[Risk register]
-    Decision[Recommendation]
-
-    Inputs --> Criteria --> Evidence --> Score --> Decision
-    Evidence --> Risks --> Decision
+    Inputs[Requirements and constraints] --> Gates{"Gate criteria —<br/>pass/fail, evidence-backed"}
+    Gates -->|"fails a mandatory gate<br/>(e.g. memory doesn't fit)"| Disqualify["Candidate disqualified —<br/>removed before scoring, regardless<br/>of how it would score elsewhere"]
+    Gates -->|"passes all gates"| Criteria[Weighted criteria]
+    Criteria --> Evidence["Verified evidence<br/>(High/Medium/Low confidence per score)"]
+    Evidence -->|"confidence = Low"| Risk2["Flag as open risk,<br/>do not treat as a strength"]
+    Evidence -->|"confidence = High/Medium"| Score[Candidate scores]
+    Risk2 --> Risks[Risk register]
+    Score --> Risks
+    Risks --> Decision[Recommendation]
 ```
+
+**Why the gate-fail branch matters, with a real number:** if a candidate's usable memory is 24GB (an L4-class part) and the workload statement in Step 1 calls for a model needing 140GB of weights alone (a 70B-parameter model at FP16, per the calculation `70B × 2 bytes ≈ 140GB`), Gate G2 fails outright — no amount of weighted-criteria strength on power efficiency or cost elsewhere rescues that candidate. This is the discipline the diagram is enforcing: gates are checked and can disqualify *before* any weighted scoring happens, not folded into the weighted average where a strong cost score could mathematically outweigh a hard capacity failure.
 
 ## Prerequisites
 
