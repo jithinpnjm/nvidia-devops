@@ -284,3 +284,10 @@ cat: +=: No such file or directory
   - Evidence: Line ~44.
   - Why it matters for JR2018680: A hands-on capstone whose starter code doesn't match its own stated tensor size would produce benchmark results inconsistent with the "100 MB tensor" framing used throughout the Problem Statement and Success Criteria.
   - Suggested fix: Define `TENSOR_SIZE` as `(100 * 1024 * 1024 / 4)` (elements) to get a true 100 MB float32 tensor, or update the comment/success criteria to reflect ~400 MB.
+
+### chapter-03-distributed-training-fault-tolerance.md
+- [SEVERITY: medium] ResNet-50 model size is overstated by ~12x. "Model weights (e.g., 1.2 GB for ResNet-50)" — ResNet-50 has ≈25.6M parameters; at FP32 (4 bytes/param) that's ≈102 MB, not 1.2 GB (verified: 25.56M × 4 bytes ≈ 0.102 GB).
+  - Evidence: Line ~270 (Solution Walkthrough, Step 1, "Design Checkpoint Structure").
+  - Why it matters for JR2018680: ResNet-50 is one of the most widely-cited reference models in ML systems interviews; getting its well-known parameter count/size wrong by an order of magnitude is a notable, easily-checked factual error.
+  - Suggested fix: Correct to ≈100 MB (FP32) / ≈50 MB (FP16) for ResNet-50 model weights; keep the "optimizer state doubles/quadruples size" framing but rescale from the correct base.
+- Otherwise clean: checkpoint-overhead math (42s/2500s ≈ 1.7%), the failure/recovery mermaid flow, and the fault-tolerance code are technically reasonable and internally consistent.
