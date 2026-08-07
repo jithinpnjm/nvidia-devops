@@ -163,3 +163,9 @@
   - Why it matters for JR2018680: this is presented as the model worked example for MIG capacity planning — exactly the topic a hiring-manager round would probe with a "size this fleet" question — and a candidate who internalized this specific worked layout would propose a physically impossible node configuration live.
   - Suggested fix: rework the arithmetic against the real H100 80GB MIG profile table (7 total compute slices, 80GB total memory) — e.g. 1×(3g.40gb) + 4×(1g.10gb) = 3+4=7 slices and 40+40=80GB fits exactly — and correct the "14 SMs" framing to the standard 7-slice MIG compute-slice model.
 - Otherwise the chapter's structural guidance (placement-vs-scheduling layer separation, fragmentation-as-geometric-not-arithmetic framing, inventory-by-allocatable-profile-not-aggregate-free-memory) is accurate and well-reasoned — the error is isolated to the one worked numeric example.
+
+### chapter-04-time-slicing-and-oversubscription.md
+- [SEVERITY: low] No issues found. Notebook replica-ratio measurement example arithmetic is internally consistent (12GB baseline x N replicas correctly tracked against 80GB capacity, unlike Chapter 3's error). The "logical replica is an admission token, not a capacity reservation" framing and the DCGM-cannot-attribute-metrics-to-containers-under-time-slicing limitation are accurate and important for interview prep.
+
+### chapter-05-vgpu-architecture-and-enterprise-virtualization.md
+- [SEVERITY: low] No issues found. Host/guest/license three-tier diagnostic path, the state-machine lifecycle (Eligible → Attached → Enumerated → DriverReady → Entitled → ApplicationReady), and the MIG-backed-vGPU-vs-time-sliced-vGPU distinction are accurate and well-scoped to what NVIDIA's vGPU documentation actually supports.
