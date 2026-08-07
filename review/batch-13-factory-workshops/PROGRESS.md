@@ -36,7 +36,7 @@ no content) alongside the real chapter files. These are excluded from review as 
 | ZTH-22 | chapter-09-scientific-research-and-simulation.md | done | high:1 (1000x petaflop-sec slip + 865x runtime mismatch) |
 | ZTH-22 | labs/lab-01-banking-use-case-workshop.md | done | high:1 (impossible GPU memory readings, fabricated-output recurrence) |
 | ZTH-22 | labs/lab-02-llm-serving-design.md | done | high:1 (throughput formula 8x off from stated conclusion) |
-| ZTH-22 | labs/lab-03-edge-deployment.md | pending | |
+| ZTH-22 | labs/lab-03-edge-deployment.md | done | medium:1 (TOPS/TFLOPS mix-up) |
 | ZTH-22 | labs/lab-04-medical-imaging-pipeline.md | pending | |
 | ZTH-24 | index.md | pending | |
 | ZTH-24 | chapter-01-cuda-kernel-optimization.md | pending | |

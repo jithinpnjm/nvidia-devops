@@ -248,3 +248,10 @@
   - Why it matters for JR2018680: This is a hands-on lab whose worked-example math a candidate would be expected to reproduce and defend; the formula as literally written doesn't support the "✓" SLA-passing conclusion it's presented alongside.
   - Suggested fix: If requests are processed concurrently (continuous batching, which is the whole point of vLLM), state the actual measured wall-clock time (not a serial sum) in the denominator — the elapsed time would need to be ≈23.8 sec to yield 2,100 tokens/sec, which should be clarified as the real measured value rather than derived from the serial-sum formula shown.
 - Otherwise clean: GPU memory readings in the troubleshooting scenarios stay within the A100 80GB budget (68-77.7GB), unlike the lab-01 L40S example; tensor-parallel and quantization narrative is directionally sound.
+
+### labs/lab-03-edge-deployment.md
+- [SEVERITY: medium] Jetson Orin spec line mixes units and uses a non-standard memory config: "GPU 0: NVIDIA Orin (12 GB, 275 TFLOPS)" — 275 is NVIDIA's published **TOPS** (INT8 sparse) figure for the top-tier Jetson AGX Orin 64GB module, not TFLOPS (a different unit for floating-point ops), and "12 GB" isn't a standard Jetson Orin memory configuration (real options are 8/16/32/64 GB).
+  - Evidence: Line ~50 (`nvidia-smi` fabricated output in Environment Setup).
+  - Why it matters for JR2018680: Jetson/edge hardware specs are a plausible interview topic for an automotive/robotics-adjacent role; conflating TOPS (INT8) with TFLOPS (FP) is a real-world unit confusion worth getting right, and mirrors the review series' broader pattern of imprecise GPU spec figures.
+  - Suggested fix: Use a real Jetson Orin SKU's published spec (e.g., Jetson AGX Orin 64GB: 275 TOPS INT8; Jetson Orin NX 16GB: 100 TOPS INT8) and label it TOPS, not TFLOPS.
+- Otherwise clean: latency/FPS benchmark numbers are internally consistent (24-26ms latency ↔ ~40 FPS), and the SLA validation table correctly flags the fail-safe gap as unresolved (⚠️) rather than falsely marking it passed.
