@@ -34,7 +34,7 @@ A GPU is organized as a collection of **Streaming Multiprocessors (SMs)**. Each 
 │ │ │Warp 0│ │Warp 1│ │Warp 2│ │Warp 3│  (SMs)  │ │
 │ │ └──────┘ └──────┘ └──────┘ └──────┘           │ │
 │ │ ┌──────────────────────────────────────────┐   │ │
-│ │ │ 192 CUDA cores per SM (A100)             │   │ │
+│ │ │ 64 CUDA cores per SM (A100, FP32)         │   │ │
 │ │ │ Each core: 32-bit int/float               │   │ │
 │ │ └──────────────────────────────────────────┘   │ │
 │ │ ┌──────────────────────────────────────────┐   │ │
@@ -52,7 +52,8 @@ A GPU is organized as a collection of **Streaming Multiprocessors (SMs)**. Each 
 │ └─────────────────────────────────────────────────┘ │
 │ ┌─────────────────────────────────────────────────┐ │
 │ │ HBM (High Bandwidth Memory): 40-80 GB           │ │
-│ │ Bandwidth: 1.5-2 TB/s (A100 to H100)            │ │
+│ │ Bandwidth: ~2 TB/s (A100, HBM2e) /              │ │
+│ │            ~3.35 TB/s (H100 SXM, HBM3)          │ │
 │ └─────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────┘
 ```
@@ -187,17 +188,17 @@ __global__ void matmul_tiled(float *A, float *B, float *C, int n) {
 
 ### Question 1: Explain Occupancy and How It Affects Performance
 
-**Scenario:** "You write a kernel that uses 80 registers per thread and 4 KB of shared memory per block. On an A100 (192 KB L1, 96 KB shared per SM, 255KB registers), what's the maximum occupancy? Does higher occupancy always mean better performance?"
+**Scenario:** "You write a kernel that uses 80 registers per thread and 4 KB of shared memory per block. On an A100 (192 KB L1/shared combined, 96 KB shared per SM configurable, 65,536 32-bit registers = 256 KB register file per SM), what's the maximum occupancy? Does higher occupancy always mean better performance?"
 
 **Model Answer (3–4 minutes):**
 
-"Occupancy is the percentage of hardware resources being used. On an A100, each SM has 192 KB of register file. If my kernel uses 80 registers per thread, and there are 32 threads per warp, that's 80 × 32 = 2,560 registers per warp.
+"Occupancy is the percentage of hardware resources being used. On an A100, each SM has 65,536 32-bit registers — that's 256 KB of register file (65,536 × 4 bytes). If my kernel uses 80 registers per thread, and there are 32 threads per warp, that's 80 × 32 = 2,560 registers per warp.
 
-With 192 KB = 196,608 registers total per SM, I can fit 196,608 ÷ 2,560 = 76 warps theoretically from a register perspective. But the SM hardware limits to 64 warps, so registers aren't the constraint here.
+With 65,536 registers total per SM, I can fit 65,536 ÷ 2,560 = 25.6 → **25 warps** from a register perspective (rounding down — you can't launch a fractional warp). The SM hardware cap is 64 warps, so in this case registers ARE the binding constraint, not the warp-count cap.
 
-Shared memory: 4 KB per block. A100 SMs have 96-192 KB of shared memory (configurable). So shared memory isn't the constraint either.
+Shared memory: 4 KB per block. A100 SMs have 96-192 KB of shared memory (configurable). At 25 warps ≈ 3-4 blocks (depending on block size), shared memory usage is nowhere near the 96+ KB budget, so shared memory isn't the constraint here.
 
-The limiter is the 64-warp maximum. So my occupancy is 64 ÷ 64 = **100% occupancy**.
+The limiter is **registers**: 25 warps out of a possible 64. So my occupancy is 25 ÷ 64 ≈ **39% occupancy** — well below the 100% a candidate might assume from the 64-warp headline number.
 
 But higher occupancy doesn't always mean better performance. Here's why:
 
@@ -224,7 +225,7 @@ If my kernel has a good compute-to-memory ratio (e.g., matrix multiplication wit
 
 **Follow-up Trap 2:** "If I have 80 registers per thread and 64 warps × 32 threads, why isn't that overflowing?"
 
-**Corrective answer:** "Let me recalculate: 80 registers/thread × 32 threads/warp × 64 warps = 163,840 registers. A100 has 255 KB = 261,120 registers. So technically it fits, but the SM scheduler might limit to fewer warps to leave headroom. The practical limit is 64 warps, which the hardware enforces."
+**Corrective answer:** "Let me recalculate: 80 registers/thread × 32 threads/warp × 64 warps = 163,840 registers needed to run all 64 warps simultaneously. A100 has only 65,536 registers per SM (256 KB). 163,840 is 2.5× more registers than the SM has — it does NOT fit. That confirms the earlier calculation: registers cap this kernel at 65,536 ÷ 2,560 = 25 warps, not 64. The hardware's 64-warp limit is a ceiling, not a guarantee — whichever resource (registers, shared memory, or the warp-count cap) runs out first is the actual limiter, and here it's registers."
 
 **Verification Point:** Can the candidate calculate occupancy given register count, shared memory, and SM specs? Do they understand the difference between theoretical occupancy (registers) and practical occupancy (block placement, synchronization)?
 
@@ -242,7 +243,7 @@ If my kernel has a good compute-to-memory ratio (e.g., matrix multiplication wit
 
 All 32 threads in the warp are accessing consecutive elements. These fit into a **128-byte cache line** (32 floats × 4 bytes = 128 bytes). So one warp load = one cache line fetch from HBM. That's **perfectly coalesced**.
 
-Bandwidth per warp: 128 bytes / 400 cycles (latency) = 0.32 B/cycle = **102.4 GB/s effective** (on a 2 TB/s GPU, this is about 5% utilization per warp, but across 64 active warps, you can reach close to saturating the 2 TB/s).
+Bandwidth per warp: 128 bytes / 400 cycles (latency) = 0.32 bytes/cycle. Converting to a rate requires the clock: at a ~1.4 GHz clock, 0.32 bytes/cycle × 1.4×10⁹ cycles/sec ≈ **0.45 GB/s** for a single outstanding warp request — that alone is a small fraction of the GPU's 2 TB/s peak. But with many independent warps issuing loads concurrently (enough outstanding requests to keep the memory pipeline full), the aggregate achieved bandwidth across all warps can approach the full 2 TB/s peak, even though any one warp's single load looks slow in isolation.
 
 **Case 2: Stride access (thread 0 → element 0, thread 1 → element 1024, etc.)**
 
@@ -344,18 +345,18 @@ If you have 1024 threads (32 warps) and each warp has 50/50 divergence, you wast
 Compute-to-memory ratio = 1 GFLOP ÷ 12 GB = **0.083 FLOP/byte**
 
 On a 2 TB/s GPU:
-- Peak compute (ignoring memory): H100 = 989 TFLOPS (FP32) = 989 × 10¹² FLOPS
+- Peak compute (ignoring memory): H100 FP32 (CUDA core, non-tensor, dense) ≈ 67 TFLOPS = 67 × 10¹² FLOPS. (Note: 989 TFLOPS is H100's dense FP16/BF16 **Tensor Core** peak — a different precision/execution path, not the FP32 CUDA-core number this roofline calculation should use.)
 - Peak bandwidth: 2 TB/s = 2 × 10¹² bytes/sec
 
-Memory bandwidth ceiling: 2 × 10¹² bytes/sec × 0.083 FLOP/byte = **166 TFLOPS achievable**
+Memory bandwidth ceiling: 2 × 10¹² bytes/sec × 0.083 FLOP/byte = 1.66 × 10¹¹ FLOP/s = **166 GFLOPS achievable** (0.166 TFLOPS) — watch the units here, this is GFLOPS, not TFLOPS.
 
-The kernel is **memory-bound**. Peak compute is 989 TFLOPS, but memory limits us to 166 TFLOPS. The kernel will hit the memory ceiling first.
+The kernel is **memory-bound**, and not by a little. Peak FP32 compute is 67 TFLOPS, but memory limits us to 166 GFLOPS — over 400× below the compute ceiling. The kernel will hit the memory ceiling immediately.
 
 **What does this mean for performance?**
-- Peak memory bandwidth on H100: 2 TB/s
+- Peak memory bandwidth on H100: 2 TB/s (a round number used for this example; real H100 SXM HBM3 peak is ~3.35 TB/s)
 - Actual achieved bandwidth = (1024³ × 12 bytes) / (total execution time)
-- If kernel achieves 80% of peak bandwidth = 1.6 TB/s
-- Execution time = 12 GB ÷ 1.6 GB/s ≈ **7.5 seconds**
+- If kernel achieves 80% of peak bandwidth = 1.6 TB/s = 1,600 GB/s
+- Execution time = 12 GB ÷ 1,600 GB/s ≈ 0.0075 s = **7.5 milliseconds** (watch the units: dividing GB by GB/s gives seconds directly — mixing in TB/s without converting is what produces a bogus "7.5 seconds")
 
 **Optimization strategy:**
 For a memory-bound kernel, don't try to improve compute—you're already bottlenecked on memory. Instead, reduce memory traffic:
@@ -469,14 +470,16 @@ Memory Metrics:
     Achieved bandwidth: 1560 GB/s
     
 Compute Metrics:
-    FP32 compute throughput: 750 TFLOPS
-    Peak theoretical: 989 TFLOPS
+    TF32 Tensor Core throughput (achieved): 117 TFLOPS
+    Peak theoretical (A100, TF32 Tensor Core): 156 TFLOPS
     Compute utilization: 75%
 ```
 
+*(Note: this kernel is assumed to use Tensor Cores via TF32 for the matmul. A100's non-tensor FP32 CUDA-core peak is only ~19.5 TFLOPS — far too low to be relevant here. 989 TFLOPS is H100's FP16/BF16 Tensor Core peak, a different GPU and a different precision; it does not apply to this A100 example.)*
+
 **Analysis:**
 1. **Occupancy is good (87.5%)** but not perfect—some blocks are delayed waiting for resources
-2. **Memory is the bottleneck** (1560 GB/s achieved vs. 750 TFLOPS compute)
+2. **Memory bandwidth is highly utilized (78%, 1560 of 2000 GB/s)** while compute utilization sits at 75% of Tensor Core peak — both are reasonably well saturated, consistent with a well-tiled matmul kernel that isn't leaving much on the table in either dimension
 3. **L1 cache hit rate is high (85%)** → good spatial locality
 4. **L2 hit rate is high (92%)** → working set mostly fits in L2
 
