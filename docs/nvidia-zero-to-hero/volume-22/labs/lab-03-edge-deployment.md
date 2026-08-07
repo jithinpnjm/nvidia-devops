@@ -47,7 +47,7 @@ $ cat /proc/cpuinfo | grep processor | wc -l
 8  # 8-core CPU
 
 $ nvidia-smi
-GPU 0: NVIDIA Orin (12 GB, 275 TFLOPS)
+GPU 0: NVIDIA Jetson AGX Orin 64GB (275 TOPS INT8 sparse)
 
 # Check CUDA
 $ nvcc --version

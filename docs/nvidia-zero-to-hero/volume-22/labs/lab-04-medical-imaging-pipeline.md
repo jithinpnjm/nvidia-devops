@@ -200,7 +200,9 @@ Expected output:
 
 ```
 Risk score: 78.3 (high)
-Inference latency: 8.2 ms ✓ (within SLA)
+Inference latency: 8.2 ms (single forward pass on this toy model — illustrative only;
+  do not confuse with the ~8 sec/study production latency used for capacity planning
+  in Step 6 and Chapter 7, which includes full preprocessing, the real 3D CNN, and I/O)
 ```
 
 ## 10. Step 5: Implement HIPAA Compliance

@@ -217,8 +217,9 @@ Results (500 token generation):
   Per-token latency (avg): 3.8 ms
   Per-token latency (p99): 8.2 ms
   
-Throughput: (100 requests × 500 tokens) ÷ (total time)
-          = 50,000 tokens ÷ (100 × (0.045 + 500 × 0.0038)) seconds
+Throughput: (100 requests × 500 tokens) ÷ (measured wall-clock time)
+          = 50,000 tokens ÷ ~23.8 sec (continuous batching processes requests
+            concurrently, not serially — do not sum per-request times)
           ≈ 2,100 tokens/sec ✓
 
 GPU utilization during generation:

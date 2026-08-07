@@ -25,8 +25,8 @@ GPU-accelerated drug discovery compresses 10-15 year development cycles by 5-10 
 ### Architecture: 8 A100s
 
 **Performance:**
-- CPU baseline: 128 molecules/sec (256-core cluster)
-- GPU (8 A100s): 800 molecules/sec (50× faster)
+- CPU baseline: ~0.5 molecules/sec effective throughput (unaccelerated single-node reference, consistent with the 232-day current time)
+- GPU (8 A100s): 800 molecules/sec (~1,600× faster)
 - Total: 10M molecules in 3.5 hours ✓
 - Cost: $320K hw vs $500K+ for CPU cluster
 
