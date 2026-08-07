@@ -163,6 +163,17 @@ A less expensive oversubscribed fabric may be appropriate when jobs do not occup
 
 The customer should approve scaling efficiency and variance targets based on a representative workload, not only point-to-point bandwidth.
 
+**Evidence from the commissioning run — collective benchmark matrix at 2, 4, and 8 nodes (16, 32, 64 GPUs), `all_reduce_perf` at 8MB:**
+
+```text
+nodes   GPUs   busbw(GB/s)   ideal-linear busbw(GB/s)   scaling efficiency
+2       16     9.02          9.02 (baseline)            100% (baseline)
+4       32     8.71          9.02                        96.6%
+8       64     8.05          9.02                        89.2%
+```
+
+`scaling efficiency` here is `busbw` at N nodes divided by the 2-node baseline `busbw`, since `busbw` is already corrected for GPU count and a perfectly scaling fabric would hold it flat. `89.2%` at 64 GPUs against the fixed adapter-per-GPU-group design in this scenario's Recommended Architecture is a healthy accepted result — the customer's acceptance criteria for this scenario would set a floor, for example "reject below 80% at the target node count," rather than expecting the abstractly perfect `100%` a spec-sheet extrapolation implies. A run that instead showed a sharp drop only at 8 nodes (say, to 60%) — not a gradual decline — would point at the "Pairwise fast, collective slow" pattern from Chapter 10's Bottleneck Classification table: rank map or oversubscription at that specific scale, not a gradual efficiency tax.
+
 ## Scenario 3 — Low-Latency Multi-GPU Inference
 
 ### Customer goal
@@ -281,17 +292,35 @@ Explain that physical compatibility is not performance equivalence. Mixed cluste
 
 ```mermaid
 flowchart TD
-    App[Application and Rank Logs]
-    GPU[GPU Health and XID]
-    Local[PCIe and Peer Paths]
-    NIC[Adapter Counters]
-    Fabric[Switch and Route Telemetry]
-    Storage[Concurrent Storage Traffic]
-
-    App --> GPU --> Local --> NIC --> Fabric --> Storage
+    Sym["Symptom: intermittent collective stall,<br/>no permanent link failure, correlates with large jobs"] --> GPU{"GPU health/XID clean on every<br/>participating rank at the stall timestamp?"}
+    GPU -->|"No — Xid logged"| GPUF["Root cause: GPU fault<br/>Evidence: dmesg Xid code, correlate to NVIDIA Xid reference"]
+    GPU -->|"Yes"| Local{"PCIe/peer paths healthy<br/>on the slow rank's node?"}
+    Local -->|"No"| LocalF["Root cause: local path/topology drift on that node<br/>Evidence: nvidia-smi topo -m diff vs baseline"]
+    Local -->|"Yes"| NIC{"Adapter counters show retries/errors<br/>on the slow rank's NIC during the stall window?"}
+    NIC -->|"Yes"| NICF["Root cause: adapter/cable/local port<br/>Evidence: ethtool -S or mlx5 counters, timestamp-aligned"]
+    NIC -->|"No"| Fabric{"Switch/route telemetry shows congestion<br/>or reroute at the same timestamp?"}
+    Fabric -->|"Yes"| FabricF["Root cause: fabric congestion or route flap<br/>Evidence: switch counters, ECMP path change log"]
+    Fabric -->|"No"| Storage["Root cause: likely concurrent storage/tenant contention<br/>Evidence: shared-storage throughput graph aligned to stall window"]
 ```
 
-Collect synchronized evidence across all layers. Pairwise tests, node isolation, and path comparison reduce the failure domain. Do not begin by increasing timeouts or replacing random components.
+**Figure — incident triage as a decision path, not a checklist.** Collect all five evidence sources on the same timeline before triage, then walk the tree — the goal is to name the first layer whose evidence actually diverges at the stall timestamp, not the first layer tested. Do not begin by increasing timeouts or replacing random components.
+
+**Worked evidence — the failure this scenario describes, timestamp-aligned:**
+
+```text
+$ dmesg -T | grep -i xid
+(no output — GPU health clean, rules out the GPU branch)
+
+$ nvidia-smi topo -m | diff - baseline_topo.txt
+(no output — topology unchanged, rules out the local-path branch)
+
+$ ethtool -S mlx5_2 | grep -E 'rx_discards|tx_pause|rx_pause'
+rx_discards_phy: 184213    ← nonzero and climbing since baseline capture
+tx_pause: 0
+rx_pause: 91044
+```
+
+`rx_discards_phy` climbing on the adapter local to the slow rank, with `rx_pause` frames present, is direct evidence of receive-side congestion on that link — not a cable or firmware fault (which would typically show link-down or CRC-error counters instead). This is what "failures correlate with large jobs" looks like as raw evidence: the discard counter only climbs when a large collective saturates that link, and "rerunning on different nodes succeeds" because the replacement node's adapter isn't the one accumulating discards. The fix is capacity/placement (spread this rank's traffic across more adapters, or address oversubscription on that specific leaf) rather than a hardware swap, which a team that skipped straight to "replace the NIC" would have gotten wrong.
 
 ## Customer Workshop Questions
 

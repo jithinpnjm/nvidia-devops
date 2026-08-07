@@ -79,20 +79,24 @@ flowchart LR
         NVME[NVMe]
     end
 
-    C0 <--> M0
-    C1 <--> M1
-    C0 <--> R0 --> S0
-    C1 <--> R1 --> S1
-    S0 --> G0
-    S0 --> G1
-    S0 --> NICA
+    C0 <-->|"numactl --hardware: node 0 local"| M0
+    C1 <-->|"numactl --hardware: node 1 local"| M1
+    C0 <-->|"lscpu / numactl: node distance 10 (self)"| R0 --> S0
+    C1 <-->|"node distance 10 (self)"| R1 --> S1
+    S0 -->|"lspci -tv: same switch,\ntopo -m: PIX/PXB"| G0
+    S0 -->|"same switch = healthy local pair"| G1
+    S0 -->|"topo -m NIC0 column: PIX to G0/G1"| NICA
     S1 --> G2
     S1 --> G3
     S1 --> NVME
-    C0 <--> C1
+    C0 <-->|"UPI/xGMI link: numactl distance 21,\nevery hop here pays a remote-NUMA tax"| C1
+
+    Proc[Process pinned to Socket 1] -.->|"DECISION: does the process's\nCPU affinity match its GPU's socket?"| Aff{Affinity check:\ntaskset + topo -m}
+    Aff -->|"mismatch, e.g. proc on socket 1,\nGPU on socket 0"| Remote[Remote path: crosses C0<->C1,\nadds latency to every transfer]
+    Aff -->|"match: proc and GPU same socket"| Local[Local path: single switch hop,\nnear device-spec bandwidth]
 ```
 
-**Figure 7.2.1 — Host-side topology of a two-socket GPU server.** A logically valid path may cross a PCIe switch, a root complex, and the CPU interconnect before reaching its destination.
+**Figure 7.2.1 — Host-side topology of a two-socket GPU server, with the evidence for each hop and the affinity decision that separates a healthy path from the Story's slow node.** A logically valid path may cross a PCIe switch, a root complex, and the CPU interconnect before reaching its destination. The right-hand branch is literally the check the platform team ran in the Story above: confirm whether the benchmark process's CPU affinity and memory allocation matched the socket of the GPU and NIC it was actually driving.
 
 ## Why PCIe Exists
 
@@ -235,9 +239,17 @@ No single command provides a complete architectural truth. Use several evidence 
 nvidia-smi topo -m
 ```
 
-**Expected output:** A matrix showing path classes between GPUs and, where supported, network interfaces, plus CPU and NUMA affinity.
+**Representative output** (four-GPU, single NIC-per-pair, two-socket node):
 
-**Interpretation:** Shorter or direct path classes usually indicate stronger locality. Exact labels vary by system and driver generation. Compare against platform documentation rather than assuming every label has the same performance meaning on every server.
+```text
+        GPU0  GPU1  GPU2  GPU3  NIC0  NIC1  CPU Affinity  NUMA Affinity
+GPU0     X    NV12  SYS   SYS   PIX   SYS   0-15,32-47    0
+GPU1    NV12   X    SYS   SYS   PIX   SYS   0-15,32-47    0
+GPU2    SYS   SYS    X    NV12  SYS   PIX   16-31,48-63   1
+GPU3    SYS   SYS   NV12   X    SYS   PIX   16-31,48-63   1
+```
+
+**Interpretation:** Read this left to right, then top to bottom. `NV12` between GPU0/GPU1 and GPU2/GPU3 means those pairs have a direct NVLink connection (12 links) — a healthy scale-up path. `SYS` between GPU0/GPU1 and GPU2/GPU3 means those pairs have no direct link and must traverse PCIe *and* the inter-socket interconnect — the weakest class shown here. The `NIC0`/`NIC1` columns show `PIX` (shares a nearby PCIe bridge — local) for the matching GPU pair and `SYS` for the other pair, which is the GPU-to-NIC affinity map: GPU0/GPU1 should send their network traffic through NIC0, not NIC1. `CPU Affinity` and `NUMA Affinity` give the CPU core ranges and NUMA node each GPU is local to — this is what a launcher should use to pin processes.
 
 **Common problems:**
 
@@ -253,17 +265,34 @@ nvidia-smi topo -m
 lspci -tv
 ```
 
-Use it to identify endpoints sharing switches and root ports.
+**Representative output:**
+
+```text
+-[0000:00]-+-01.0-[01]----00.0  NVIDIA H100 (GPU0)
+           +-02.0-[02]--+-00.0  PLX/Switch upstream
+           |            +-01.0-[03]----00.0  NVIDIA H100 (GPU1)
+           |            \-02.0-[04]----00.0  Mellanox ConnectX-7 (NIC0)
+           \-1e.0-[1e]----00.0  NVMe controller
+```
+
+Read the indentation as the tree, not the bus numbers as meaningful values by themselves: GPU1 and NIC0 both hang off the same switch (`02.0`) as siblings, which is exactly the `PIX` relationship reported by `nvidia-smi topo -m` above — this is the command that lets you *see* why the topology matrix said what it said, rather than taking it on faith. GPU0 sits behind a separate root port (`01.0`) with no shared switch, consistent with a `SYS`-class relationship to devices on the other branch.
 
 ### `lspci -vv`
 
 **Purpose:** Inspect negotiated PCIe link state.
 
 ```bash
-sudo lspci -s <bus-address> -vv | grep -E 'LnkCap|LnkSta'
+sudo lspci -s 03:00.0 -vv | grep -E 'LnkCap|LnkSta'
 ```
 
-Compare capability with actual status. A lower negotiated speed or width may indicate platform configuration, signal-integrity, slot, riser, or hardware problems.
+**Representative output:**
+
+```text
+        LnkCap: Port #0, Speed 32GT/s, Width x16, ASPM not supported
+        LnkSta: Speed 32GT/s (ok), Width x16 (ok)
+```
+
+`LnkCap` is the maximum the slot and device support; `LnkSta` is what actually negotiated. Here they match — `32GT/s x16` (PCIe Gen5) on both lines, both explicitly flagged `(ok)` — this device is running at full capability. If `LnkSta` showed a lower speed (e.g. `8GT/s`) or narrower width (e.g. `x8`) than `LnkCap`, that gap is the signal: a speed-only mismatch usually points to a BIOS/firmware link-training policy or a marginal retimer, while a width mismatch more often points to a physical seating, riser, or bifurcation-configuration problem.
 
 ### `numactl --hardware`
 
@@ -273,15 +302,44 @@ Compare capability with actual status. A lower negotiated speed or width may ind
 numactl --hardware
 ```
 
+**Representative output:**
+
+```text
+available: 2 nodes (0-1)
+node 0 cpus: 0 1 2 3 4 5 6 7 32 33 34 35 36 37 38 39
+node 0 size: 515633 MB
+node 0 free: 481200 MB
+node 1 cpus: 8 9 10 11 12 13 14 15 40 41 42 43 44 45 46 47
+node 1 size: 515897 MB
+node 1 free: 502110 MB
+node distances:
+node   0    1
+  0:  10   21
+  1:  21   10
+```
+
+The `node distances` matrix is the number that matters most operationally: distance `10` is a node accessing its own local memory (the baseline), and `21` is roughly a 2.1x relative cost to reach the other socket's memory. That is not a hard latency figure in nanoseconds — it is a normalized, platform-reported ratio — but it is exactly the number that explains why the Story's slow node recovered after the process and its memory were bound to the correct node: every remote allocation was paying that ~2.1x tax on top of the PCIe hop.
+
 ### Process affinity
 
 ```bash
-ps -eo pid,psr,comm | grep <process-name>
-taskset -cp <pid>
-numactl -p <pid>
+ps -eo pid,psr,comm | grep train
+taskset -cp 48213
 ```
 
-The last command may not be available in every distribution; use `/proc/<pid>/numa_maps` when necessary.
+**Representative output:**
+
+```text
+$ ps -eo pid,psr,comm | grep train
+  48213    9 python
+
+$ taskset -cp 48213
+pid 48213's current affinity list: 8-15,40-47
+```
+
+`psr` in the `ps` output is the CPU the process is *currently* running on (core 9, which is in node 1's range) — a live snapshot, not a pinned guarantee. `taskset -cp` shows the actual allowed CPU set for that PID: `8-15,40-47`, which matches node 1 from the `numactl --hardware` output above. If this process were driving a GPU that `nvidia-smi topo -m` reports as NUMA Affinity `0`, that mismatch — CPU set on node 1, GPU on node 0 — is precisely the remote-NUMA condition from Figure 7.2.1's decision branch, and it is verifiable with these two commands alone, no benchmark required.
+
+`numactl -p <pid>` may not be available in every distribution; use `/proc/<pid>/numa_maps` when necessary to see the actual NUMA node each mapped page currently lives on.
 
 ## Internal Working: A Host-to-GPU Transfer
 
@@ -396,6 +454,19 @@ Bind the rank, memory policy, GPU, and NIC to the same locality group where poss
 **Prevention**
 
 Make affinity part of the launcher or scheduler policy rather than a manual tuning step.
+
+**Worked evidence for this exact scenario — a paired snapshot.** This is the two-command combination that diagnosed the Story's slow node: first confirm which NUMA node the process is actually bound to, then confirm which node the GPU it drives belongs to.
+
+```text
+$ taskset -cp 48213
+pid 48213's current affinity list: 8-15,40-47
+
+$ nvidia-smi topo -m | head -1; nvidia-smi topo -m | grep GPU0
+        GPU0  GPU1  GPU2  GPU3  NIC0  NIC1  CPU Affinity  NUMA Affinity
+GPU0     X    NV12  SYS   SYS   PIX   SYS   0-15,32-47    0
+```
+
+The process's affinity list (`8-15,40-47`) falls in node 1's CPU range, but GPU0's `CPU Affinity` column says it belongs to `0-15,32-47` — node 0. The process is bound to the wrong socket relative to the GPU it is feeding. Every host-to-device copy for this rank now crosses the inter-socket interconnect (distance `21` from the `numactl --hardware` example above) before it even reaches the local PCIe root complex. Rebinding the process with `numactl --cpunodebind=0 --membind=0` (or the launcher's equivalent affinity flag) and re-running the same two commands to confirm the ranges now match is the fix — no hardware change required, which is exactly why the original diagnostics ("GPUs pass, NIC at expected speed, storage latency normal") never caught it.
 
 ### Scenario 2 — A GPU negotiates a reduced link
 

@@ -45,23 +45,19 @@ After completing this lab, you will be able to:
 ## 4. Architecture
 
 ```mermaid
-flowchart LR
-    G0[GPU 0 HBM]
-    P0[Local PCIe Path]
-    N0[RDMA NIC 0]
-    F[InfiniBand or RoCE Fabric]
-    N1[RDMA NIC 1]
-    P1[Remote PCIe Path]
-    G1[GPU 1 HBM]
-    H0[Host Memory 0]
-    H1[Host Memory 1]
-
-    G0 <--> P0 <--> N0 <--> F <--> N1 <--> P1 <--> G1
-    H0 <--> N0
-    H1 <--> N1
+flowchart TD
+    G0["GPU 0 HBM<br/>(node-a)"] -->|"local copy engine<br/>evidence: nvidia-smi topo -m<br/>GPU0-mlx5_0 = PIX"| Q1{"nvidia_peermem or GDS<br/>peer-memory module loaded?<br/>evidence: lsmod grep peermem"}
+    Q1 -->|"yes: GPUDirect RDMA path"| N0["RDMA NIC mlx5_0<br/>local to GPU 0"]
+    Q1 -->|"no: fallback<br/>evidence: NCCL/perftest log shows<br/>a host cudaMemcpy stage before send"| H0["Host memory<br/>bounce buffer"] --> N0
+    N0 -->|"evidence: ibv_devinfo state = PORT_ACTIVE<br/>rdma link show = state ACTIVE"| F{"Fabric counters clean?<br/>evidence: symbol_error, link_error_recovery,<br/>port_rcv_errors all flat across the test"}
+    F -->|yes| N1["RDMA NIC mlx5_0<br/>local to GPU 0 (node-b)"]
+    F -->|"no: rising counters"| Degraded["Congested/degraded fabric:<br/>bandwidth drops, retransmits rise,<br/>latency tail grows"]
+    N1 -->|"evidence: nvidia-smi topo -m<br/>GPU0-mlx5_0 = PIX on node-b"| Q2{"Peer-memory module<br/>loaded on node-b?"}
+    Q2 -->|yes| G1["GPU 0 HBM<br/>(node-b)"]
+    Q2 -->|no| H1["Host memory<br/>bounce buffer"] --> G1
 ```
 
-**Figure 7.L3.1 — Layered RDMA benchmark path.** Host-memory and GPU-memory tests share the network but exercise different registration and local-I/O paths.
+**Figure 7.L3.1 — Layered RDMA benchmark path with the fault-isolation branches this lab actually tests.** Host-memory and GPU-memory tests share the same physical fabric but take different local-I/O paths before the packet ever leaves the node. Each decision diamond names the exact command whose output proves that hop is healthy — Steps 1–7 below produce that evidence in the same order the diagram tests it.
 
 ## 5. Prerequisites
 
@@ -95,6 +91,29 @@ nvidia-smi topo -m | tee "$LAB_DIR/topology.txt"
 ```
 
 Record adapter firmware, MTU, switch port, selected interface, GID or LID, routing domain, and benchmark versions.
+
+**Illustrative reference system used throughout this lab:** two 8x H100 80GB SXM DGX-H100-class nodes (`node-a`, `node-b`), dual-socket, four NVSwitch-connected GPUs per socket, one ConnectX-7 NDR400 InfiniBand adapter local to each GPU (`mlx5_0`…`mlx5_7`, 400 Gb/s per port, theoretical line rate 50 GB/s). All numbers below are illustrative for this class of node — record your own node's actual values, they will differ by adapter generation, cable/switch health, and firmware.
+
+Representative `nvidia-smi topo -m` output on `node-a` (abbreviated to the rows that matter for this lab; the full matrix has one row/column per GPU and NIC):
+
+```text
+$ nvidia-smi topo -m
+        GPU0    GPU1    GPU2    GPU3    GPU4    GPU5    GPU6    GPU7    mlx5_0  mlx5_1  mlx5_3  mlx5_7  CPU Affinity     NUMA Affinity
+GPU0     X      NV18    NV18    NV18    NV18    NV18    NV18    NV18    PIX     SYS     SYS     SYS     0-63,128-191     0
+GPU1    NV18     X      NV18    NV18    NV18    NV18    NV18    NV18    SYS     PIX     SYS     SYS     0-63,128-191     0
+GPU3    NV18    NV18    NV18     X      NV18    NV18    NV18    NV18    SYS     SYS     PIX     SYS     0-63,128-191     0
+GPU7    NV18    NV18    NV18    NV18    NV18    NV18    NV18     X      SYS     SYS     SYS     PIX     64-127,192-255   1
+mlx5_0   PIX     SYS     SYS     SYS     SYS     SYS     SYS     SYS      X      SYS     SYS     SYS
+mlx5_7   SYS     SYS     SYS     SYS     SYS     SYS     SYS     PIX     SYS     SYS     SYS      X
+
+Legend:
+  X    = Self
+  SYS  = Traversing PCIe as well as the SMP interconnect between NUMA nodes (QPI/UPI)
+  PIX  = Traversing at most a single PCIe bridge
+  NV#  = Connection traversing a bonded set of # NVLinks
+```
+
+Read this before running any benchmark: `GPU0`↔`mlx5_0` is `PIX` (one PCIe bridge apart, same NUMA node 0) — this is the GPU/NIC pair to use for a GPU-direct test on GPU 0. `GPU0`↔`mlx5_7` is `SYS`, meaning that pairing would cross the inter-socket link even before the packet reaches the wire; using it would still work, but bandwidth and latency would not represent the node's real capability. Every GPU-to-GPU pair shows `NV18` (18 bonded fourth-generation NVLinks through NVSwitch) — this is expected on an 8-GPU NVSwitch-connected node and is not itself evidence about the RDMA fabric, which is a separate physical path through the NICs.
 
 ## 7. Components
 

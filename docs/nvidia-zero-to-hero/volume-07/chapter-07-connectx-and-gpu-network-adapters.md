@@ -51,22 +51,24 @@ After completing this chapter, you will be able to:
 ## Big Picture
 
 ```mermaid
-flowchart LR
-    App[AI Framework]
-    Collective[Collective or RDMA Library]
-    Queues[Send and Receive Queues]
-    Adapter[ConnectX-Class Adapter]
-    PCIe[PCIe Fabric]
-    GPU[GPU Memory]
-    Fabric[Network Fabric]
-    Remote[Remote Node]
+flowchart TD
+    App[AI Framework] --> Collective[Collective or RDMA Library]
+    Collective -->|"post_send / post_recv<br/>evidence: ibv_devinfo state=PORT_ACTIVE"| Queues[Send and Receive Queues]
+    Queues --> Adapter[ConnectX-Class Adapter]
 
-    App --> Collective --> Queues --> Adapter
-    Adapter <--> PCIe <--> GPU
-    Adapter <--> Fabric <--> Remote
+    Adapter --> Locality{"Is the adapter's PCI root<br/>complex the SAME NUMA node<br/>as the issuing GPU?<br/>evidence: lspci + nvidia-smi topo -m"}
+    Locality -->|"yes: GPU-local<br/>evidence: topo shows NODE or PXB"| DirectPath["Direct DMA path<br/>GPU HBM <-> adapter, short PCIe hop"]
+    Locality -->|"no: cross-socket<br/>evidence: topo shows SYS / NUMA mismatch"| RemotePath["Traffic crosses inter-socket link (UPI/xGMI)<br/>added latency + shared bandwidth with other socket I/O"]
+
+    DirectPath --> PCIe["PCIe Fabric<br/>evidence: LnkSta width/speed = LnkCap"]
+    RemotePath --> PCIe
+    PCIe <--> GPU[GPU Memory]
+
+    Adapter --> Fabric["Network Fabric<br/>evidence: ethtool link detected + 0 RX/TX errors"]
+    Fabric <--> Remote[Remote Node]
 ```
 
-**Figure 7.7.1 — The adapter bridges software queues, the host I/O fabric, and the external network.** Its performance is constrained by both sides of that bridge.
+**Figure 7.7.1 — The adapter bridges software queues, the host I/O fabric, and the external network, and the path forks at GPU locality.** A GPU-local adapter (same PCIe root complex / NUMA node) gives a short direct DMA path. A non-local adapter forces traffic across the inter-socket link before it even reaches PCIe, which is the single most common hidden cause of "line rate is fine but delivered bandwidth is not" in a multi-socket node. Each edge above lists the command output that proves that hop is actually healthy — the diagram is a checklist as much as a picture.
 
 ## Adapter Responsibilities
 
@@ -108,6 +110,36 @@ sequenceDiagram
 ```
 
 Queue depth, message size, completion strategy, and concurrency affect performance. Too little outstanding work underfills the link. Too much can increase contention, memory use, and tail latency.
+
+**Checking that a device actually has active queues and a live port, before trusting anything upstream of it:**
+
+```bash
+$ ibdev2netdev
+mlx5_0 port 1 ==> eth0 (Up)
+mlx5_1 port 1 ==> eth1 (Up)
+```
+
+`ibdev2netdev` maps the RDMA device name (`mlx5_0`) to its Linux network interface name (`eth0`) and reports link state. This is the first command to run before any deeper diagnosis — if the mapping is missing or the state is `Down`, nothing downstream (queues, collectives, telemetry) can be trusted.
+
+```bash
+$ ibv_devinfo -d mlx5_0
+hca_id: mlx5_0
+    transport:          InfiniBand (0)
+    fw_ver:             28.39.2048
+    node_guid:          9803:9b03:00fa:6c20
+    sys_image_guid:     9803:9b03:00fa:6c20
+    vendor_id:          0x02c9
+    phys_port_cnt:      1
+        port:   1
+            state:          PORT_ACTIVE (4)
+            max_mtu:        4096 (5)
+            active_mtu:     4096 (5)
+            sm_lid:         1
+            port_lid:       1
+            link_layer:     Ethernet
+```
+
+`state: PORT_ACTIVE (4)` is the field that proves the queue pair infrastructure can actually pass traffic — `PORT_INIT` or `PORT_DOWN` here means every "queue depth" or "message size" tuning discussion above is moot until link/negotiation is fixed first. `active_mtu` confirms the negotiated MTU matches what the fabric and collective library expect; a mismatch here silently fragments or drops large RDMA messages.
 
 ## Line Rate versus Delivered Bandwidth
 
@@ -170,6 +202,24 @@ For host-driven traffic, CPU and memory locality matter. For GPUDirect traffic, 
 - switch and cable mapping;
 - firmware and driver version.
 
+**Building that inventory row for one adapter, with the fields read out:**
+
+```bash
+$ lspci -vvv -s 17:00.0 | egrep 'LnkCap|LnkSta|NUMA'
+	LnkCap:	Port #0, Speed 32GT/s, Width x16
+	LnkSta:	Speed 32GT/s (ok), Width x16 (ok)
+
+$ cat /sys/class/net/eth0/device/numa_node
+0
+
+$ nvidia-smi topo -m | egrep 'GPU0|mlx5_0'
+        GPU0    mlx5_0  CPU Affinity   NUMA Affinity
+GPU0     X      NODE    0-31,64-95      0
+mlx5_0  NODE     X
+```
+
+`LnkCap` is what the slot supports (32 GT/s, x16 — PCIe Gen5 x16); `LnkSta` is what actually negotiated, and both say `(ok)` meaning the link came up at its full capability. A down-trained link would show `LnkSta: Speed 16GT/s (downgraded)` or a narrower `Width x8 (downgraded)`, which caps the adapter's host-side bandwidth well below its rated line rate regardless of what the switch and cable report. `numa_node: 0` combined with `nvidia-smi topo -m` showing `GPU0`↔`mlx5_0` as `NODE` (same NUMA node, connected through a PCIe host bridge, not crossing sockets) confirms this specific adapter is GPU-local — the "yes" branch in the Big Picture diagram above. If that row instead showed `SYS` (traversing the inter-socket link), it would mean every transfer from GPU0 through this adapter pays a cross-socket penalty before it even reaches the wire.
+
 ## Offloads and Their Trade-offs
 
 Offloads move selected work from the CPU into adapter hardware. They can reduce CPU overhead and improve consistency, but also introduce dependencies and observability challenges.
@@ -201,6 +251,57 @@ A useful operational baseline includes:
 - port utilization distribution.
 
 Absolute counters are less useful than rates and deltas. A counter that has accumulated over years may look alarming while remaining stable. Alert on change during relevant workload windows.
+
+**Reading the baseline set, annotated:**
+
+```bash
+$ ibstat mlx5_0
+CA 'mlx5_0'
+	CA type: MT4129
+	Number of ports: 1
+	Firmware version: 28.39.2048
+	Hardware version: 0
+	Node GUID: 0x98039b0300fa6c20
+	Port 1:
+		State: Active
+		Physical state: LinkUp
+		Rate: 400
+		Base lid: 1
+		LMC: 0
+```
+
+`State: Active` / `Physical state: LinkUp` is the port-level pair to check before anything else — `Active` is the logical/administrative state, `LinkUp` is the physical layer; both must agree. `Rate: 400` (Gb/s) is the negotiated link rate — compare it against the adapter's rated speed and the switch port configuration; a `Rate` lower than expected with `Physical state: LinkUp` still true usually means auto-negotiation settled on a lower speed, often from a marginal cable or an incompatible transceiver.
+
+```bash
+$ ethtool -S eth0 | egrep 'rx_prio0_discards|rx_out_of_buffer|tx_errors|rx_crc_errors|rx_packets|tx_packets'
+     rx_packets: 48213908213
+     tx_packets: 47990112044
+     rx_crc_errors: 0
+     tx_errors: 0
+     rx_out_of_buffer: 118422
+     rx_prio0_discards: 118422
+```
+
+`rx_crc_errors: 0` and `tx_errors: 0` rule out a physical-layer/cable problem — those should stay at zero under normal operation, and any nonzero, growing value points at cabling, transceiver, or signal integrity. `rx_out_of_buffer` and `rx_prio0_discards` both nonzero and equal is the signature of receive-side congestion: the adapter is receiving faster than the host can post receive buffers or drain queues, which shows up as an application-visible retransmit or stall even though the link itself is error-free. The correct read here is "not a cable problem, but a host-side buffering/backpressure problem" — exactly the kind of counter this chapter's Scenario 3 troubleshooting below depends on.
+
+```bash
+$ show_gids
+DEV     PORT    INDEX   GID                                     IPv4            VER     DEV
+---     ----    -----   ---                                     ------------    ---     ---
+mlx5_0  1       0       fe80:0000:0000:0000:9803:9bff:fe03:6c20                 v1      eth0
+mlx5_0  1       1       0000:0000:0000:ffff:0a0a:0164            10.10.1.100     v2      eth0
+```
+
+`show_gids` lists the GID table used for RoCE addressing. GID index `1` (`v2`, RoCE v2, carrying the IPv4-mapped address) is normally the one collective libraries and RDMA-CM select for routable traffic; if a job's RDMA connection setup fails or falls back to a slower transport, checking that the expected GID index actually exists and matches the intended subnet is a fast first check.
+
+```bash
+$ mlxconfig -d mlx5_0 query | egrep 'ADVANCED_PCI_SETTINGS|PCI_WR_ORDERING|NUM_OF_VFS'
+        ADVANCED_PCI_SETTINGS               True(1)
+        PCI_WR_ORDERING                     Performance(0)
+        NUM_OF_VFS                          8
+```
+
+`mlxconfig query` reads the firmware-persisted configuration, not the current runtime link state — this is where PCIe write-ordering, SR-IOV VF counts, and other settings that only take effect after a firmware reset live. A common lifecycle mistake is changing `mlxconfig` settings and expecting them live immediately; they require a device reset (`mlxfwreset`) or reboot, which is why firmware changes belong in the qualified upgrade process described below, not ad hoc tuning.
 
 ## Firmware and Driver Lifecycle
 
@@ -257,17 +358,47 @@ A production node design should define:
 
 Check routing, collective-library interface selection, process placement, GPU affinity, and whether the application opens queues on both ports.
 
+**Evidence**
+
+```bash
+$ ethtool -S eth0 | grep tx_packets; ethtool -S eth1 | grep tx_packets
+     tx_packets: 812004112211
+     tx_packets: 4021880
+
+$ nvidia-smi topo -m | egrep 'GPU2|GPU3|mlx5_0|mlx5_1'
+        GPU2    GPU3    mlx5_0  mlx5_1
+GPU2     X      NV18     SYS    NODE
+GPU3    NV18      X      SYS    NODE
+mlx5_0  SYS     SYS       X     SYS
+mlx5_1  NODE    NODE     SYS     X
+```
+
+`tx_packets` on `eth0` outnumbers `eth1` by roughly five orders of magnitude — this is not a minor imbalance, it is effectively single-port operation. The topology table explains why: GPU2 and GPU3 are `NODE`-local (same PCIe root complex) to `mlx5_1`, not `mlx5_0`, yet almost all traffic went out `eth0` (`mlx5_0`). That confirms the root cause below — the collective library or rank-to-interface mapping never considered `mlx5_1` even though it is the topologically correct adapter for GPU2/GPU3.
+
 **Root cause**
 
 Installed capacity was not exposed to the communication algorithm.
 
 **Resolution**
 
-Correct interface selection and rank mapping, then validate that both paths improve the end-to-end workload rather than merely spreading packets.
+Correct interface selection and rank mapping, then validate that both paths improve the end-to-end workload rather than merely spreading packets. Re-running the same `ethtool -S` delta after the fix should show `tx_packets` on both interfaces growing at comparable rates during a balanced collective, not just packets present on both.
 
 ### Scenario 2 — Link is at full speed but throughput is low
 
 Inspect PCIe width, message size, queue depth, CPU or GPU locality, retries, and remote endpoint behavior. Link state proves connectivity, not payload efficiency.
+
+**Evidence**
+
+```bash
+$ ibstat mlx5_0 | egrep 'State|Rate'
+		State: Active
+		Rate: 400
+
+$ lspci -vvv -s 17:00.0 | grep LnkSta
+	LnkSta:	Speed 16GT/s (downgraded), Width x8 (downgraded)
+```
+
+The RDMA layer reports a healthy, fully negotiated `400` Gb/s port — this is the number a naive check would stop at and declare the adapter fine. But `lspci` shows the PCIe link is running at `16GT/s x8` (Gen4 x8, roughly 16 GB/s each direction) instead of its `32GT/s x16` capability (Gen5 x16, roughly 64 GB/s) — a `(downgraded)` link, most commonly caused by a reseated card not fully retrained, a BIOS/riser negotiation issue, or a slot shared with another downstream device forcing bifurcation. A ~4x narrower host-side path caps delivered bandwidth far below the 400 Gb/s (~50 GB/s) line rate regardless of how healthy the network side looks — this is the mechanism the Big Picture diagram's PCIe edge is checking for.
 
 ### Scenario 3 — Errors increase only during large jobs
 
@@ -283,32 +414,56 @@ A telecom customer asks whether four network ports per GPU server will quadruple
 
 The recommendation is two well-placed adapters with independent fabric paths, plus topology-aware rank placement. The design spends less while delivering more predictable bandwidth.
 
+**Illustrative arithmetic behind that recommendation:** four 400 Gb/s ports naively summed suggest 1,600 Gb/s (~200 GB/s) of node bandwidth. If all four share one Gen5 x16 PCIe uplink (~64 GB/s of realistic host bandwidth per the earlier PCIe evidence), the achievable ceiling is closer to 64 GB/s — roughly a third of the naive sum, regardless of port count. Two adapters, each on its own Gen5 x16 root complex, can each approach their own ~50 GB/s payload ceiling independently, yielding close to 100 GB/s of real usable bandwidth — less installed capacity, more delivered bandwidth, because it isn't bottlenecked behind a shared upstream link. These figures are illustrative or order-of-magnitude, not vendor-specified numbers for a particular SKU.
+
 ## Interview Preparation
 
 ### Knowledge Questions
 
 1. Why is line rate different from application bandwidth?
+   > "Line rate is what the port negotiated — say 400 Gb/s — and it includes protocol overhead the application never sees as payload. Delivered bandwidth is what actually arrives after PCIe width, queue depth, message size, congestion, and even remote-endpoint behavior all take their cut. I've seen a fully negotiated 400 Gb/s port deliver a fraction of that because the PCIe link behind it was running at Gen4 x8 instead of Gen5 x16 — the wire was never the bottleneck."
+
 2. What role do queues and completions play?
+   > "The application doesn't hand the adapter one big blob and wait. The library posts a work request onto a send or receive queue, the adapter DMAs the data and moves packets, and a completion event tells the library the operation finished. If queue depth is too shallow you underfill the link because there's never enough outstanding work; too deep and you add contention and tail latency. `ibv_devinfo` showing `PORT_ACTIVE` is the precondition — no queue tuning matters if the port itself isn't up."
+
 3. Why does PCIe width matter to a network adapter?
+   > "The adapter is just an endpoint on the PCIe fabric — its external line rate is meaningless if the host-side link can't keep up. A 400 Gb/s port is roughly 50 GB/s of payload; that needs close to a full Gen5 x16 link. If `lspci` shows the link downgraded to x8, I've effectively halved the host-side ceiling no matter what the network side reports as healthy."
+
 4. Which counters indicate congestion or physical errors?
+   > "Physical errors show up as `rx_crc_errors` or symbol errors — those should sit at zero and any growth means cabling or transceiver problems. Congestion shows up differently: `rx_out_of_buffer` and `rx_prio0_discards` climbing together mean the host isn't draining receive queues fast enough, which is a backpressure problem, not a wire problem. I always check both counters together because they point at completely different remediations."
 
 ### Architecture Questions
 
 1. Design a dual-adapter, eight-GPU node.
+   > "I'd split the eight GPUs into two groups of four based on the PCIe/NVLink topology, and place one adapter local — same root complex, same NUMA node — to each group, verified with `nvidia-smi topo -m`. Each adapter goes to an independent switch so one fabric failure doesn't take out both paths. Then I make sure the collective library actually knows about both interfaces and maps ranks so GPU group 0 traffic goes out adapter 0 and group 1 out adapter 1 — installing two ports doesn't help if the software still funnels everything through one."
+
 2. Explain adapter failure domains and fabric attachment.
+   > "A failure domain is everything that goes down together. If both ports on a dual-port adapter share one PCIe uplink, a firmware crash or PCIe error takes out both, so from a failure-domain view they're one unit even though they're two ports. I want each adapter attached to an independent switch and, ideally, an independent PCIe device, so a single card or cable failure only removes half the node's fabric capacity, not all of it."
+
 3. Propose a firmware qualification plan.
+   > "Never push firmware straight to production. I'd build a version matrix — firmware, driver, RDMA user-space library, collective library, GPU driver — and validate it on canary nodes first. Before and after, I capture `nvidia-smi topo -m` and adapter counters as a baseline, then run host and GPU-buffer benchmarks plus a sustained collective test, not just a link-up check, because firmware can change congestion response or routing behavior without ever taking the port down. I keep rollback artifacts ready before I touch anything at scale."
 
 ### Scenario Questions
 
 1. One port is idle. How do you determine whether this is expected?
+   > "First I check whether any GPU group is actually supposed to use that port — `nvidia-smi topo -m` tells me which GPUs are local to it. Then I check `ethtool -S` packet counters on both interfaces to see the actual traffic split, and I check whether the collective library or routing config even knows the second interface exists. An idle port that's topologically the right path for half the GPUs is a configuration bug; an idle port with no local GPU traffic to send may just be correctly reserved for something else."
+
 2. A 400 Gb/s link delivers much less. What layers do you measure?
+   > "I work outward from the adapter: `ibstat` for negotiated port rate and state, `lspci -vvv` for PCIe link speed and width — because a downgraded x8 link caps everything above it — then message size and queue depth in the application, then CPU or GPU memory locality, then retries and congestion counters, and finally remote endpoint behavior. Link state proves connectivity; it proves nothing about payload efficiency, so I don't stop at the first green light."
+
 3. Throughput regressed after firmware upgrade. What evidence do you compare?
+   > "I pull the pre-upgrade baseline I should have captured — topology output, counter deltas, and collective benchmark numbers — and diff them against post-upgrade. I'm specifically looking for routing or congestion-response changes, since firmware can alter those without the port ever going down. If I don't have a baseline, the answer is 'we can't isolate this cleanly,' which is exactly why the qualification plan requires capturing one before every change."
 
 ### Customer Questions
 
 1. When do multiple adapters add value?
+   > "When each adapter is genuinely local to a distinct GPU group and attached to an independent fabric path — then you get real additional bandwidth and resilience. If the extra ports share the same upstream PCIe switch or the same leaf switch as the first adapter, you're paying for capacity you can't actually use concurrently."
+
 2. When should ports be dedicated to storage or training?
+   > "When the two traffic classes have very different tolerance for jitter or contention — training collectives are latency-sensitive synchronization points, and a storage burst competing for the same queues can stall an entire training step. If both fit comfortably within the adapter's headroom and QoS is configured properly, sharing is fine and cheaper to operate."
+
 3. How do you balance redundancy and locality?
+   > "Redundancy wants independent failure domains; locality wants the shortest, most local path to the GPU. Those usually agree — two adapters on separate PCIe roots and separate switches give you both. Where they conflict, I favor locality for the primary path and treat the redundant path as a documented, tested fallback rather than trying to load-balance across a remote adapter under normal conditions."
 
 ## Summary
 

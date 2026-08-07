@@ -57,25 +57,24 @@ After completing this chapter, you will be able to:
 ## Big Picture
 
 ```mermaid
-flowchart LR
-    G0[GPU Rank 0]
-    G1[GPU Rank 1]
-    N0[NIC Node 0]
-    Fabric[Scale-Out Fabric]
-    N1[NIC Node 1]
-    G2[GPU Rank 2]
-    G3[GPU Rank 3]
+flowchart TD
+    Init["NCCL init: topology discovery<br/>evidence: NCCL_DEBUG=INFO log"] --> Decide{"Does NCCL find a supported<br/>GPU-Direct RDMA path to the NIC?<br/>evidence: log line 'NET/IB' vs 'NET/Socket'"}
 
-    G0 <--> G1
-    G0 <--> N0
-    G1 <--> N0
-    N0 <--> Fabric <--> N1
-    N1 <--> G2
-    N1 <--> G3
+    Decide -->|"yes: NVLink/IB transport"| Local["G0 <--NVLink--> G1<br/>evidence: topo shows NVx"]
+    Local --> N0["NIC Node 0<br/>evidence: GPU Direct RDMA enabled in log"]
+    N0 -->|"RDMA write, GPUDirect, no host copy"| Fabric["Scale-Out Fabric"]
+
+    Decide -->|"no: falls back to PCIe/socket transport<br/>e.g. container missing GPUDirect,<br/>no IB device, or topology hint disabled"| Fallback["Host-staged copy:<br/>GPU -> pinned host buffer -> socket -> NIC"]
+    Fallback --> N0b["NIC Node 0<br/>same wire, far lower effective bandwidth"]
+    N0b --> Fabric
+
+    Fabric <--> N1["NIC Node 1"]
+    N1 --> G2[GPU Rank 2]
+    N1 --> G3[GPU Rank 3]
     G2 <--> G3
 ```
 
-**Figure 7.9.1 — A multi-node collective uses both local and remote paths.** Performance depends on how the algorithm maps to each segment.
+**Figure 7.9.1 — A multi-node collective uses both local and remote paths, and the critical fork is which transport NCCL actually selected.** The GPUDirect RDMA path moves data NIC-to-GPU with no host copy; the fallback path stages every message through a pinned host buffer, which can cut delivered bandwidth dramatically even though the wire and the collective algorithm are unchanged. `NCCL_DEBUG=INFO` is the evidence that tells you which branch a real run took.
 
 ## Ring Algorithms
 
