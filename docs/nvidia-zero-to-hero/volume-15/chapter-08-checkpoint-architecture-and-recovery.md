@@ -42,8 +42,8 @@ flowchart TD
     Write -->|"All writes complete?"| Publish
     Publish --> Resume
     
-    SyncPoint -.->|"If straggler detected| StraggleRisk["Risk: All ranks wait for slowest rank<br/>Slowest rank is 30s behind, entire cluster pauses 30s"]
-    Write -.->|"If synchronous to shared storage| BlockRisk["Risk: Training blocked for write latency<br/>500 GB checkpoint at 1 GB/s = 500s stall"]
+    SyncPoint -.->|"If straggler detected"| StraggleRisk["Risk: All ranks wait for slowest rank<br/>Slowest rank is 30s behind, entire cluster pauses 30s"]
+    Write -.->|"If synchronous to shared storage"| BlockRisk["Risk: Training blocked for write latency<br/>500 GB checkpoint at 1 GB/s = 500s stall"]
 ```
 
 ## Measurement and Diagnostics
@@ -66,7 +66,7 @@ checkpoint = {
 
 # Phase 1: Serialization (in-process)
 t0 = time.time()
-state_bytes = torch.serialize(checkpoint)
+state_bytes = serialize(checkpoint)  # pseudo-code; in practice, via pickle/torch.save's internal encoder
 serialize_time = time.time() - t0
 print(f"Serialization time: {serialize_time:.2f}s, size: {len(state_bytes)/1e9:.2f} GB")
 

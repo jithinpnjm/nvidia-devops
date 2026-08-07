@@ -163,7 +163,7 @@ flowchart TD
     Platform -->|"✓ Yes"| GPU
     
     GPU{"GPU<br/>responsive<br/>and visible?"}
-    GPU -->|"Check: nvidia-smi, nvidia-dcgm"| GPUNo["GPU layer issue<br/>• Driver failed<br/>• GPU out of memory<br/>• Thermal shutdown<br/>→ NVIDIA support"]
+    GPU -->|"Check: nvidia-smi, dcgmi"| GPUNo["GPU layer issue<br/>• Driver failed<br/>• GPU out of memory<br/>• Thermal shutdown<br/>→ NVIDIA support"]
     GPU -->|"✓ Yes"| ModelReady
     
     ModelReady{"Model<br/>successfully<br/>loaded?"}

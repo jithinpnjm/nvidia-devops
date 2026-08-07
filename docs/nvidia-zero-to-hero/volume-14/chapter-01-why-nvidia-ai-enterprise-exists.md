@@ -140,7 +140,7 @@ deployment_manifest:
       
   incident_evidence_template:
     - pod_events_and_logs: "kubectl describe pod <name> -n default"
-    - gpu_state: "nvidia-smi; nvidia-dcgm dmon"
+    - gpu_state: "nvidia-smi; dcgmi dmon"
     - nim_readiness: "curl http://localhost:8000/v1/health"
     - kubernetes_version: "kubectl version"
     - driver_version: "cat /proc/driver/nvidia/version"

@@ -139,8 +139,8 @@ Low GPU utilization during training means the GPU is sitting idle waiting for so
 ➕ **Diagnostic order (fastest-to-slowest to identify the bottleneck):**
 
 ```bash
-# Step 1: Check GPU utilization with nvidia-dcgm dmon
-nvidia-dcgm dmon -c 10  # Print GPU metrics every second, 10 times
+# Step 1: Check GPU utilization with dcgmi dmon
+dcgmi dmon -c 10  # Print GPU metrics every second, 10 times
 # Output columns: Timestamp, GPU, Power, Temp, Utilization
 # If utilization < 50%, GPU is truly idle (step 2)
 # If utilization > 90%, GPU is saturated (not a GPU problem, check app or data loading)
@@ -164,8 +164,13 @@ for i, batch in enumerate(loader):
 # NIM/NCCL all-reduce benchmark:
 python -m torch.distributed.launch --nproc_per_node=8 \
   -m nccl_tests.all_reduce --bw  # Reports collective comm bandwidth
-# Expected: close to max link speed (e.g., 1.4TB/s for 8x A100 via NVLink)
-# If significantly lower, network or NCCL configuration issue
+# Expected: NCCL reports per-GPU busbw, not an aggregate figure. A100 SXM4's
+# third-gen NVLink gives ~600 GB/s bidirectional per GPU; a healthy all-reduce
+# typically achieves ~80-90% of that (roughly 480-540 GB/s busbw per GPU) due
+# to ring/tree algorithm overhead. (The 8-GPU DGX A100's NVSwitch fabric has an
+# aggregate bisection bandwidth of ~4.8 TB/s, but that's a topology figure, not
+# what a single all-reduce run reports.)
+# If significantly lower than ~480 GB/s, network or NCCL configuration issue
 
 # Step 4: Check computation itself
 # Profile inside PyTorch:
@@ -179,7 +184,7 @@ prof.print_table()
 ➕ **Real output interpretation:**
 
 ```text
-$ nvidia-dcgm dmon -c 10
+$ dcgmi dmon -c 10
 Timestamp, GPU, Power(W), Temp(C), Utilization(%)
 2026-08-07T14:23:00Z, 0, 320, 65, 95  ← GPU is busy
 2026-08-07T14:23:01Z, 0, 295, 64, 15  ← GPU went idle (waiting for data)
