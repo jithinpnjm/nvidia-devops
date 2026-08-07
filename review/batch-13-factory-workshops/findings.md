@@ -1,6 +1,66 @@
 # Batch 13 Findings — AI Factory, Customer Workshops, Capstone (ZTH-21, ZTH-22, ZTH-24)
 
-(Summary to be added at top once review is complete.)
+## Summary
+
+Full review complete: 46 content files across Volume 21 (index + 14 chapters + 4 labs), Volume 22
+(index + 9 chapters + 4 labs), and Volume 24 (index + 12 chapters) — placeholder stub files excluded
+per PROGRESS.md note. **56 findings total: 31 high, 11 medium, 14 low.**
+
+**All 5 known cross-curriculum error patterns from prior batches recurred in this batch, repeatedly:**
+1. **Wrong GPU-spec TFLOPS figures** — H100 FP32 stated as 151 TFLOPS (real ≈67, Ch.2) and again as
+   1456 TFLOPS (real ≈67, a ~22x error — the CUDA kernel optimization capstone, Ch.1 of Vol 24, is
+   *entirely built around* this fabricated number). A100 FP64 stated as 312 TFLOPS (real ≈9.7-19.5,
+   Vol 22 Ch.2).
+2. **Ring-AllReduce bandwidth math wrong by ~5-10x** — Vol 21 Lab 02's own Python code, when actually
+   executed, produces results 6.5-10x different from the "expected output" printed in the lab; Vol 21
+   Ch.3 states IB NDR bandwidth as both 300 GB/s and 50 GB/s in the same chapter (6x contradiction);
+   Vol 24 Ch.2 states InfiniBand as both 1.6 TB/s and ~50 GB/s in the same chapter (32x contradiction).
+3. **GFLOPS/TFLOPS and other 1000x unit-magnitude slips** — found in at least 9 separate locations:
+   Vol 21 Ch.2 (cost/TFLOP off by 1000x), Ch.4 (tokens/sec off by 10^6), Ch.8 and Ch.14 (cost-per-
+   million-tokens off by ~1000x and ~250-90,000x respectively), Ch.12 (PFLOPS off by ~45x), Ch.13
+   ($/TFLOP off by 1000x); Vol 22 Ch.1 (power cost 10x), Ch.3 (cost-per-token claims "1000x cheaper"
+   when the chapter's own numbers show ~1.15x, plus a separate 1000x error in the interview answer),
+   Ch.9 (petaflop-seconds off by 1000x); Vol 24 Ch.4 (data-point/storage count off by 100x, self-
+   contradicted by a correct calc later in the same file), Ch.10 (the flagship training-cluster-design
+   capstone's core FLOPs-per-year calculation is off by exactly 1000x: 10^22 stated vs. 10^25 correct).
+4. **Fabricated tool output** — Vol 21 Ch.10's Prometheus/DCGM alert rules use metric names
+   (`dcgm_gpu_temp`, etc.) that don't match real `DCGM_FI_DEV_*` field names; Vol 22 Lab 01 shows
+   `nvidia-smi` memory readings (68-76 GB) that exceed the L40S GPU's actual 48 GB capacity.
+5. **A100/H100 MIG facts wrong** — Vol 24 Ch.6 (the dedicated MIG capstone) fabricates an entire H100
+   MIG profile table (`7g.40gb`, `7g.20gb`, `7g.10gb`, `1g.5gb` — none of which are real H100 profiles;
+   real ones are `1g.10gb`/`1g.20gb`/`2g.20gb`/`3g.40gb`/`4g.40gb`/`7g.80gb`) and miscounts MIG compute
+   units as fractions of 14 instead of the correct 7.
+
+**Most important findings for interview prep (highest severity / highest damage if memorized):**
+1. **Vol 24 Ch.1 (CUDA Kernel Optimization)** — the entire capstone's premise ("optimize to 80% of
+   H100's 1456 TFLOPS FP32 peak") describes a target that is physically impossible; real FP32 peak is
+   ≈67 TFLOPS, so the whole worked example, roofline analysis, and "spoken interview answers" are
+   built on a fabricated ~22x-inflated number.
+2. **Vol 24 Ch.10 (Training Cluster Design)** — the flagship system-design capstone's core sizing
+   calculation ("100T tokens × 100 GFLOP/token = 10^22 FLOPs") is off by exactly 1000x (correct: 10^25),
+   which would have changed the required GPU count from ~226 to ~226,000 had the error not been masked
+   by a separately-derived (and correct) calculation later in the same chapter.
+3. **Vol 24 Ch.6 (MIG Configuration)** — the entire H100 MIG profile table is fabricated and doesn't
+   match any real NVIDIA MIG configuration; this is the exact "A100 MIG facts wrong" pattern flagged
+   in prior batches, now recurring for H100 in the chapter specifically designed to teach MIG.
+4. **Vol 21 Lab 02 (Networking Simulation)** and **Vol 24 Ch.2 (AllReduce Algorithm Design)** — both
+   labs/capstones repeat the Ring-AllReduce bandwidth-math error pattern from prior volumes, either via
+   code whose own "expected output" doesn't match what the code actually computes, or via self-
+   contradictory InfiniBand bandwidth figures within the same chapter.
+5. **Cost/ROI arithmetic is unreliable throughout Volume 21 and 22** — nearly every chapter with a
+   "$/token," "$/TFLOP," or "ROI" worked example contains a verifiable 10x-1000x arithmetic error,
+   including the volume's own closing claims (Vol 21 Ch.14's "competitive vs AWS Bedrock" pricing claim
+   is off by ~100-400x; Vol 22 Ch.3's "1,000x cheaper than cloud" claim is contradicted by the chapter's
+   own math, which shows only ~1.15x savings).
+
+**Lower-severity/structural notes:** Volume 21's `index.md` is a content-free stub inconsistent with
+the fully-written 14 chapters beneath it (low). Volume 22 Ch.4 (Automotive) contains a copy-paste
+content bug — manufacturing/bearing-failure "Requirements" text pasted into the AV chapter (high,
+structural). Several chapters (Vol 21 Ch.5, Ch.7, Ch.9; Vol 22 Ch.6; Vol 24 Ch.5, Ch.9's diagnostic
+narrative) were verified clean with no significant issues — the review series' quality is uneven
+even within a single volume, not uniformly bad.
+
+---
 
 ## Volume 21 — AI Factory
 
