@@ -30,8 +30,8 @@ Status values: pending / in-progress / done
 | ZTH-02 | chapter-10-gpu-topology-peer-access-and-data-paths.md | done | none |
 | ZTH-02 | chapter-11-building-a-gpu-performance-model.md | done | none |
 | ZTH-02 | chapter-12-volume-02-architecture-summary.md | done | none |
-| ZTH-02 | labs/lab-01-inspect-gpu-architecture-and-topology.md | pending | |
-| ZTH-02 | labs/lab-02-inspect-gpu-engine-and-memory-behavior.md | pending | |
+| ZTH-02 | labs/lab-01-inspect-gpu-architecture-and-topology.md | done | none |
+| ZTH-02 | labs/lab-02-inspect-gpu-engine-and-memory-behavior.md | done | none |
 | ZTH-02 | labs/lab-03-profile-memory-and-warp-efficiency.md | pending | |
 | ZTH-02 | labs/lab-04-build-a-topology-aware-gpu-placement-plan.md | pending | |
 | ZTH-03 | index.md | pending | |

@@ -88,3 +88,9 @@ This volume is exceptional depth: worked numeric examples (SM counts, register-f
 - No findings. Consolidation is consistent with all prior chapters; continuous-batching justification (26GB/token bandwidth floor amortized across 50 concurrent users) is correct.
 
 **Volume ZTH-02 summary (chapters 1-12 + index):** Zero medium/high severity findings. This is the strongest technical volume reviewed in this batch — every hardware figure checked (SM counts, register file sizes, HBM bandwidth, NVLink bandwidth, PCIe bandwidth) is accurate, and the worked-number style (introduced starting chapter 1) is exactly the kind of first-principles, evidence-based reasoning a NVIDIA AI-infra interview would probe. Recommend this volume's style as the template other batches should be measured against, alongside actual Volume 1 gold standard.
+
+### labs/lab-01-inspect-gpu-architecture-and-topology.md
+- No findings. Commands, `nvidia-smi topo -m` legend, PCIe Gen5 x16 (32GT/s) LnkCap/LnkSta interpretation, and NUMA distance reasoning are all technically accurate.
+
+### labs/lab-02-inspect-gpu-engine-and-memory-behavior.md
+- No findings. H100 deviceQuery output is internally consistent: 132 SMs x 128 CUDA cores/SM = 16,896 CUDA cores (correct), 5120-bit memory bus, ~50MB L2 cache (52,428,800 bytes), compute capability 9.0 — all accurate for H100. `docker run --gpus all` vs missing `--gpus` NVML failure distinction is correct and a common real-world container GPU troubleshooting scenario.
