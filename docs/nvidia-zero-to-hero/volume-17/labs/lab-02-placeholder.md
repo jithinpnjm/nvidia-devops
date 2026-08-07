@@ -124,28 +124,35 @@ ncu --set=full -o matmul_profile --launch-count=1 \
 
 For your GPU (look up specs or use `nvidia-smi`):
 
-**H100 specs:**
-- Peak FP32 TFLOPS: 141
-- Peak HBM BW: 2000 GB/s
-- Crossover point: 141 TFLOPS / 2000 GB/s = 0.0705 FLOPS/byte
+**H100 SXM5 specs:**
+- Peak FP32 (CUDA core, dense) TFLOPS: 67
+- Peak HBM3 BW: 3350 GB/s (3.35 TB/s)
+- Crossover point: convert to matching units before dividing — 67 × 10¹² FLOPS/s ÷ (3350 × 10⁹ bytes/s) = **20.0 FLOPS/byte** (a common mistake is dividing TFLOPS by GB/s directly without converting the 10¹² vs 10⁹ scale factors, which silently drops a factor of 1000 — e.g. `141 / 2000 = 0.0705` instead of the correctly-converted `70.5`. Always convert both sides to the same base unit — e.g. FLOPS/s and bytes/s — first.)
 
 **Your measurements** (from Exercise 2):
 
 Matmul kernel:
 ```
-Achieved TFLOPS: 120 (from nsys output)
+Achieved TFLOPS: 57 (from nsys output)
 Compute Intensity: ~500 FLOPS/byte (N=512 matrix multiply, high reuse)
-Roofline prediction: 500 × 2000 GB/s = 1,000,000 TFLOPS (saturated by compute roof of 141)
-Expected: Near-peak performance (120/141 = 85% of peak) ✓
+Roofline prediction: 500 FLOPS/byte × 3350 GB/s = 1,675,000 GFLOPS/s = 1675 TFLOPS if purely
+  memory-bound — but that's far above the compute roof, so the kernel is capped by compute:
+  min(1675, 67) = 67 TFLOPS compute-bound ceiling
+Expected: Near-peak performance (57/67 = 85% of peak) ✓
 ```
 
 Elementwise add:
 ```
-Achieved TFLOPS: 5.2 (from nsys output)
+Achieved TFLOPS: 0.30 (from nsys output)
 Compute Intensity: ~0.25 FLOPS/byte (1 add per read + write)
-Roofline prediction: 0.25 × 2000 GB/s = 500 TFLOPS (but is actually memory bandwidth limited)
-Wait, 500 TFLOPS is way higher than 5.2 TFLOPS achieved. Why?
-Reason: The kernel is small (1M elements = 4MB), so memory latency dominates, not bandwidth.
+Roofline prediction: 0.25 FLOPS/byte × 3350 GB/s = 837.5 GFLOPS/s = 0.84 TFLOPS max
+  (memory-bound ceiling — NOT 500 TFLOPS; dividing/multiplying TFLOPS and GB/s without
+  converting both to the same power-of-ten first is exactly the 1000x unit-conversion
+  mistake to avoid)
+Achieved (0.30 TFLOPS) is well below even this small 0.84 TFLOPS ceiling. Why?
+Reason: The kernel is small (1M elements = 4MB), so memory latency dominates, not bandwidth —
+  the roofline ceiling assumes the memory pipe is fully saturated, which a kernel this small
+  never achieves.
 ```
 
 ### Exercise 4: Plot on Roofline (15 min)
@@ -154,21 +161,21 @@ Reason: The kernel is small (1M elements = 4MB), so memory latency dominates, no
 import matplotlib.pyplot as plt
 import numpy as np
 
-# Hardware params (H100)
-peak_tflops = 141
-peak_bw = 2000  # GB/s
-crossover = peak_tflops / peak_bw  # FLOPS/byte
+# Hardware params (H100 SXM5)
+peak_tflops = 67       # FP32 CUDA-core dense peak
+peak_bw = 3350          # GB/s (3.35 TB/s HBM3)
+crossover = peak_tflops * 1000 / peak_bw  # FLOPS/byte (GB/s -> convert TFLOPS to GFLOPS first)
 
 # Roofline curve
 ci = np.logspace(-2, 4, 100)  # Compute intensity from 0.01 to 10000 FLOPS/byte
-tflops_roofline = np.minimum(peak_tflops, ci * peak_bw / 1000)  # Convert GB/s to TB/s
+tflops_roofline = np.minimum(peak_tflops, ci * peak_bw / 1000)  # ci (FLOPS/byte) * GB/s / 1000 = TFLOPS
 
 # Your kernels (from profiler)
 matmul_ci = 500  # FLOPS/byte
-matmul_tflops = 120
+matmul_tflops = 57
 
 elementwise_ci = 0.25
-elementwise_tflops = 5.2
+elementwise_tflops = 0.30
 
 # Plot
 fig, ax = plt.subplots(figsize=(10, 8))
@@ -200,9 +207,9 @@ print("Roofline plot saved to roofline.png")
 - [ ] You can explain why each kernel plots where it does
 
 **Expected observations:**
-- MatMul: 80-90% of peak TFLOPS (if compute-bound prediction is correct)
-- Elementwise: 5-15 TFLOPS (heavily memory-latency limited, not bandwidth limited)
-- MatMul CI >> crossover → compute-bound
+- MatMul: 80-90% of peak TFLOPS (if compute-bound prediction is correct) — i.e. roughly 54-60 TFLOPS on H100 SXM5's 67 TFLOPS FP32 peak
+- Elementwise: a small fraction of a TFLOP (heavily memory-latency limited, not bandwidth limited — well below even the small ~0.84 TFLOPS memory-bound ceiling this CI implies)
+- MatMul CI >> crossover (20.0 FLOPS/byte) → compute-bound
 - Elementwise CI << crossover → memory-bound
 
 ## Troubleshooting
