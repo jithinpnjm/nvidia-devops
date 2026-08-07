@@ -32,7 +32,7 @@ no content) alongside the real chapter files. These are excluded from review as 
 | ZTH-22 | chapter-05-pharmaceuticals-and-drug-discovery.md | done | high:1 (mutually inconsistent speedup figures) |
 | ZTH-22 | chapter-06-telecommunications.md | done | clean |
 | ZTH-22 | chapter-07-healthcare-and-medical-imaging.md | done | high:1 (7x inconsistent ROI benefit figure) |
-| ZTH-22 | chapter-08-manufacturing-and-predictive-maintenance.md | pending | |
+| ZTH-22 | chapter-08-manufacturing-and-predictive-maintenance.md | done | high:1, medium:1 (SLA falsely marked met; ROI inconsistency) |
 | ZTH-22 | chapter-09-scientific-research-and-simulation.md | pending | |
 | ZTH-22 | labs/lab-01-banking-use-case-workshop.md | pending | |
 | ZTH-22 | labs/lab-02-llm-serving-design.md | pending | |

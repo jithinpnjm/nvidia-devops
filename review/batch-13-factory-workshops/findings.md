@@ -213,3 +213,13 @@
   - Evidence: Line ~20 vs line ~42-43.
   - Why it matters for JR2018680: ROI/payback-period justification is exactly the kind of business case a solutions architect presents to a hospital customer; the two contradictory benefit figures in the same chapter would not survive a customer's own back-of-envelope check.
   - Suggested fix: Reconcile the hourly-rate assumption used to convert 19,167 hours/year into a dollar figure, and make both sections consistent (pick one value, e.g. clarify if $1.9M is gross clinical value and $274K is a discounted/labor-cost-only figure — if so, state that distinction explicitly).
+
+### chapter-08-manufacturing-and-predictive-maintenance.md
+- [SEVERITY: high] Latency SLA is marked as met when the chapter's own math shows it is violated. "Inference: 5ms per bearing × 25 = 125ms total" is immediately followed by "Latency requirement: <100ms ✓" — but 125ms exceeds the stated <100ms requirement (5×25=125, verified). The architecture summary also claims "Latency: <100ms for 25 bearings," which contradicts the computed 125ms.
+  - Evidence: Line ~29, ~32-34.
+  - Why it matters for JR2018680: This is a real requirements/latency-budget check — the exact kind of "does your design actually meet the SLA" verification an infra interview would probe — and the chapter marks a failing design as passing (✓).
+  - Suggested fix: Either batch/parallelize bearing inference to fit under 100ms (e.g., across multiple cores on the Jetson) and show the corrected math, or revise the SLA/architecture claim.
+- [SEVERITY: medium] Per-failure downtime cost is inconsistent between the "current state" and "avoided downtime" halves of the same ROI calculation: "Current state: 10 failures/year × $50K downtime" uses $50K/failure, but "Avoided downtime: 7 × $150K" uses $150K/failure for the identical failure type — a 3x unexplained jump that inflates the "$1.05M/year avoided" and downstream "$960K/year net benefit, payback in 3 weeks" figures.
+  - Evidence: Line ~39 vs ~43.
+  - Why it matters for JR2018680: This is the chapter's central ROI/payback pitch; the inconsistent unit cost undermines the "3 weeks payback" headline number used to justify the investment.
+  - Suggested fix: Use a single, justified downtime-cost-per-failure figure throughout (state if $150K reflects a different/worse failure class than the historical $50K average).
