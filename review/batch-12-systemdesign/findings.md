@@ -337,3 +337,19 @@ Question 2 (CECC incident response, drain/cordon/taint workflow, failure-mode ma
   - Suggested fix: recompute the entire walkthrough from the corrected ≈69-70 req/sec peak (≈20.8K tokens/sec peak, ≈4.2K tokens/sec off-peak) — this will substantially shrink the required GPU fleet, hardware cost, and change the revenue/margin conclusion; re-derive Phases 3, 5, and 7 from the corrected baseline rather than patching individual downstream numbers.
 
 Phases 2, 4, and 6 (architecture layering, batching/latency trade-off reasoning, multi-tenancy/quota design) describe sound qualitative patterns independent of the specific throughput numbers and are not affected by the above error in their conceptual content, only in any specific figures that reference the inflated token-per-second baseline.
+
+### chapter-12-system-design-research-infrastructure.md — SAME POWER-COST ERROR PATTERN AS CHAPTER 9, PLUS AN UNRECONCILED COST-PER-GPU-HOUR FIGURE
+
+- [SEVERITY: high] Phase 6's power cost line repeats the same calculation-scale error found in Chapter 9, this time off by roughly 10x: "Power: 200 GPUs × 400W × 8,760 hrs × $0.15/kWh = **$1.05M**." Correct calculation: 200 × 400W = 80,000W = 80 kW; 80 kW × 8,760 hours = 700,800 kWh/year; × $0.15/kWh = **$105,120/year**, not $1.05M — roughly 10x too high. This inflates the stated "Total OpEx: $1.85M/year" (power $1.05M + cooling $350K + staff $300K + maintenance $150K); correcting power to ≈$105K brings total OpEx to roughly $0.9M/year, about half the stated figure.
+  - Evidence: "Power: 200 GPUs × 400W × 8,760 hrs × $0.15/kWh = $1.05M" and the "Total OpEx: $1.85M/year" it feeds into.
+  - Why it matters for JR2018680: this is the same category of power-cost miscalculation already found in Chapter 9 (there off by 100x) — appearing again here (off by 10x) confirms it's a recurring pattern in this volume's cost-modeling sections rather than an isolated slip, and cost-per-GPU-hour is exactly the kind of number an infrastructure-focused NVIDIA interview would ask a candidate to defend.
+  - Suggested fix: recompute power cost as ≈$105K/year and propagate the corrected OpEx total through the cost-per-GPU-hour and 1000-GPU scaling projections.
+
+- [SEVERITY: medium] The resulting "Cost per GPU-hour: $1.85M ÷ (200 × 8,760 × 0.6 utilization) = **$44/GPU-hour**" does not follow from its own stated inputs. 200 × 8,760 × 0.6 = 1,051,200 utilized GPU-hours/year; $1.85M ÷ 1,051,200 ≈ **$1.76/GPU-hour**, not $44 — a roughly 25x discrepancy that isn't explained by any evident alternate reading of the inputs (e.g., including the $2.7M CapEx alongside OpEx still only yields ≈$4.33/GPU-hour, still far short of $44).
+  - Evidence: "Cost per GPU-hour: $1.85M ÷ (200 × 8,760 × 0.6 utilization) = $44/GPU-hour."
+  - Why it matters for JR2018680: this is the chapter's headline cost-per-GPU-hour figure for a university research cluster, presented as something "research universities often accept" — the number itself doesn't reconcile with the shown formula, which an interviewer verifying the arithmetic would catch immediately.
+  - Suggested fix: recompute directly from corrected OpEx ($0.9M) ÷ 1,051,200 utilized GPU-hours ≈ $0.86/GPU-hour (OpEx-only) or include amortized CapEx if that was the intent, and show the full derivation so the final number is traceable to its inputs.
+
+Phases 1-5 (workload characterization, weighted fair-share/deficit-tracking scheduler, preemption tiers, tiered checkpointing) are conceptually sound and not tied to the specific cost figures flagged above.
+
+**Volume ZTH-23 review complete.** 13/13 chapters + index reviewed (chapters 1-12 plus index.md); labs reviewed separately below.
