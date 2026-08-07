@@ -194,7 +194,6 @@ Workload statement from Step 1: private LLM service, 7B-parameter model at FP16 
 ```
 
 Reading this the way Step 8's verification questions expect: C scores highest on raw total, but its Power/cooling fit score of `1` is exactly the kind of high-impact, unresolved risk the risk register below is built to catch — the workload statement explicitly names tight power headroom as a facility constraint, and an H100-class part at 700W per card directly threatens it regardless of how well it wins on latency and memory. B is the traceable recommendation here: it clears every gate, meets the latency target with margin, and doesn't introduce the facility risk C does. This is also why gates run *before* scoring in the Figure above — if the facility gate (G3) had been written as "confirmed power budget for 700W/card," C would already be disqualified before this table is built, rather than requiring the risk register to catch it after the fact.
-```
 
 ## Step 7 — Build a risk register
 
