@@ -5,7 +5,7 @@ no content) alongside the real chapter files. These are excluded from review as 
 
 | Volume | File | Status | Severity Summary |
 |---|---|---|---|
-| ZTH-21 | index.md | pending | |
+| ZTH-21 | index.md | done | low:1 (stub, "content to be developed") |
 | ZTH-21 | chapter-01-ai-factory-fundamentals-and-design-principles.md | done | high:1, low:1 |
 | ZTH-21 | chapter-02-gpu-compute-cluster-design.md | done | high:2, medium:1 (FP32 pattern + TFLOPS 1000x slip) |
 | ZTH-21 | chapter-03-high-speed-networking-architecture.md | done | high:1, medium:1, low:1 (AllReduce BW 6x recurrence) |
@@ -23,7 +23,7 @@ no content) alongside the real chapter files. These are excluded from review as 
 | ZTH-21 | labs/lab-01-cluster-design-workshop.md | done | medium:1 |
 | ZTH-21 | labs/lab-02-networking-simulation.md | done | high:1 (recurrence of AllReduce bandwidth-math pattern) |
 | ZTH-21 | labs/lab-03-storage-pipeline-design.md | done | low:1 |
-| ZTH-21 | labs/lab-04-capacity-planning-exercise.md | pending | |
+| ZTH-21 | labs/lab-04-capacity-planning-exercise.md | done | low:1 |
 | ZTH-22 | index.md | pending | |
 | ZTH-22 | chapter-01-consulting-methodology-for-customer-engagement.md | pending | |
 | ZTH-22 | chapter-02-banking-and-financial-services.md | pending | |

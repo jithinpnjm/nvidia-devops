@@ -143,3 +143,16 @@
   - Why it matters for JR2018680: Minor; a careful reader implementing this exercise would need to fix the throughput formula to use real NVMe/NAS bandwidth numbers (e.g., from Chapter 4) rather than the hit-rate percentage itself.
   - Suggested fix: Multiply hit rates by actual tier bandwidths (e.g., NVMe ~7 GB/s, NAS ~10 GB/s aggregate) established in Chapter 4, not by 100.
 - Otherwise clean: DataLoader benchmarking, distributed sampler usage, and checkpoint/resume code are technically sound.
+
+### labs/lab-04-capacity-planning-exercise.md
+- [SEVERITY: low] Inconsistent per-GPU power assumption used for the facility power limit: the plot axis label uses "0.33 kW/GPU" (line ~94) while the surrounding text/print statement uses "0.35 kW/GPU" (line ~108, ~241, ~315) — neither cleanly yields the stated "~150 GPU" limit at 50kW (50/0.33≈151.5, 50/0.35≈142.9).
+  - Evidence: Line ~94 vs ~108/241/315.
+  - Why it matters for JR2018680: Minor; doesn't change the qualitative conclusion (facility-limited by year 2-3) but is an easy inline fix for consistency.
+  - Suggested fix: Standardize on 0.35 kW/GPU (H100 TDP figure used elsewhere in the volume) and recompute the ~143 GPU limit.
+- Otherwise clean: exponential forecasting, hardware refresh planning, and TCO/optimization code are logically sound and consistent with the rest of Volume 21's cost model.
+
+### index.md (Volume 21)
+- [SEVERITY: low] Stub content: "Volume structure and content to be developed. See chapter list below for planned scope." — no chapter list actually present, and this is inconsistent with the fact that all 14 chapters + 4 labs are fully written. Contrast with Volume 22's index.md, which is a complete, well-structured overview.
+  - Evidence: Full file content (6 lines).
+  - Why it matters for JR2018680: Cosmetic/structural only — doesn't affect technical content, but is an easy, low-risk fix (structural/build integrity criterion).
+  - Suggested fix: Replace with a proper index summarizing the 14 chapters and 4 labs, matching the Volume 22 index style.
