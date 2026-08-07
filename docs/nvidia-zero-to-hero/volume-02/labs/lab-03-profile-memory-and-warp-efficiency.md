@@ -56,18 +56,21 @@ After completing this lab, you will be able to:
 ```mermaid
 flowchart LR
     Host[Linux Host]
-    Build[nvcc Build]
+    Build["nvcc Build<br/>evidence: -Xptxas=-v<br/>registers/spill report"]
     Binary[CUDA Benchmark]
     GPU[NVIDIA GPU]
     NCU[Nsight Compute CLI]
-    Report[Profiler Report]
+    Report["Profiler Report<br/>evidence: hit rate,<br/>sectors/request, occupancy"]
 
     Host --> Build --> Binary --> GPU
     NCU --> Binary
     GPU --> NCU --> Report
+    Report --> Verdict{"strided elapsed time much<br/>higher AND sectors/request<br/>much higher than contiguous?"}
+    Verdict -->|"Both higher, consistently"| Confirmed["Coalescing difference is the<br/>dominant explanation"]
+    Verdict -->|"Time higher, sectors/request<br/>similar"| Other["Something else dominates —<br/>check registers, modulo overhead"]
 ```
 
-**Figure 2.L3.1 — Lab workflow.** The host compiles and runs the benchmark while Nsight Compute collects architecture-specific execution evidence.
+**Figure 2.L3.1 — Lab workflow.** The host compiles and runs the benchmark while Nsight Compute collects architecture-specific execution evidence. The branch is the lab's own closing instruction made explicit: a timing difference alone is not proof of a coalescing effect — only a timing difference paired with a matching difference in the profiler's own transaction-efficiency metric earns that conclusion, which is why Section 12 insists on stating both what the evidence supports and what remains uncertain.
 
 ## 5. Prerequisites
 
@@ -260,7 +263,19 @@ nvcc -O3 -lineinfo -Xptxas=-v memory_patterns.cu -o memory_patterns
 
 #### Expected Output
 
-The compiler should report information for each kernel, including register use and possibly stack, spill, constant-memory, or shared-memory details.
+```text
+ptxas info    : 0 bytes gmem
+ptxas info    : Compiling entry function '_Z16contiguous_copyPKfPfm' for 'sm_90'
+ptxas info    : Function properties for _Z16contiguous_copyPKfPfm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 16 registers, 384 bytes cmem[0]
+ptxas info    : Compiling entry function '_Z13strided_copyPKfPfmm' for 'sm_90'
+ptxas info    : Function properties for _Z13strided_copyPKfPfmm
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 20 registers, 392 bytes cmem[0]
+```
+
+The compiler should report information for each kernel, including register use and possibly stack, spill, constant-memory, or shared-memory details. Illustrative values above (exact counts depend on GPU architecture and compiler version): `contiguous_copy` uses `16 registers` with no spills; `strided_copy` uses slightly more, `20 registers`, consistent with the extra address arithmetic the modulo/stride calculation requires. Neither kernel spills in this example, which matters for the later comparison — it means any timing difference between the two is not being confounded by one kernel paying an unrelated register-spill cost.
 
 #### Record
 
@@ -289,10 +304,10 @@ Do not terminate unknown production workloads. Move the lab to an approved isola
 ### Expected Output
 
 ```text
-pattern=contiguous count=16777216 iterations=100 elapsed_ms=<device-specific value>
+pattern=contiguous count=16777216 iterations=100 elapsed_ms=42.18
 ```
 
-Run it several times and record the median rather than selecting the fastest result.
+Illustrative value from one H100 run — treat the exact number as an example, not a target. Run it several times and record the median rather than selecting the fastest result.
 
 ### Step 6 — Run the Strided Version
 
@@ -303,10 +318,10 @@ Run it several times and record the median rather than selecting the fastest res
 ### Expected Output
 
 ```text
-pattern=strided count=16777216 iterations=100 elapsed_ms=<device-specific value>
+pattern=strided count=16777216 iterations=100 elapsed_ms=156.42
 ```
 
-The exact difference depends on GPU architecture, caches, compiler behavior, and memory mapping. Do not invent a universal ratio.
+Illustrative value from the same run — roughly 3.7x the contiguous kernel's time on this particular GPU and stride. The exact difference depends on GPU architecture, caches, compiler behavior, and memory mapping. Do not invent a universal ratio; treat both numbers above as one example run to calibrate expectations, not a value your own hardware must reproduce.
 
 ### Step 7 — Profile the Baseline
 
@@ -337,6 +352,24 @@ ncu --import contiguous-report.ncu-rep --page details
 ncu --import strided-report.ncu-rep --page details
 ```
 
+**Illustrative extract (values from one example H100 run — expect different numbers on your hardware, but expect the same *direction* of difference):**
+
+```text
+contiguous_copy(...)
+  Memory Throughput                    %    91.2
+  L2 Hit Rate                          %    34.1
+  Achieved Occupancy                   %    87.4
+  l1tex__average_t_sectors_per_request        1.1
+
+strided_copy(...)
+  Memory Throughput                    %    68.4
+  L2 Hit Rate                          %    9.8
+  Achieved Occupancy                   %    85.9
+  l1tex__average_t_sectors_per_request        5.7
+```
+
+Reading this pair: `Achieved Occupancy` is nearly identical between the two (87.4% vs 85.9%) — occupancy is not the story here, which rules out register pressure or block-sizing differences as the explanation. `l1tex__average_t_sectors_per_request` at `1.1` for contiguous versus `5.7` for strided is the direct transaction-efficiency evidence — the strided kernel is issuing roughly 5x more memory transactions for the same useful-byte count, consistent with the stride-32 mapping scattering each warp's accesses across widely separated addresses. `L2 Hit Rate` dropping from 34.1% to 9.8% confirms the strided pattern is also defeating cache reuse, not just generating more raw transactions. Together, these three numbers — not the elapsed-time ratio alone — are what justify concluding "this is a coalescing effect," per the branch in this lab's own architecture diagram.
+
 Metric names vary by release and GPU. Look for sections related to:
 
 - Memory workload analysis
@@ -364,15 +397,15 @@ Build a comparison table using measured values.
 
 | Observation | Contiguous | Strided |
 |---|---:|---:|
-| Median elapsed time | Record | Record |
-| Registers per thread | Record | Record |
-| Local-memory spill activity | Record | Record |
-| Memory throughput | Record | Record |
-| Cache behavior | Record | Record |
-| Occupancy | Record | Record |
-| Dominant stall evidence | Record | Record |
+| Median elapsed time | 42.18 ms (illustrative) | 156.42 ms (illustrative) |
+| Registers per thread | 16 | 20 |
+| Local-memory spill activity | 0 bytes | 0 bytes |
+| Memory throughput | 91.2% (illustrative) | 68.4% (illustrative) |
+| Cache behavior (L2 hit rate) | 34.1% (illustrative) | 9.8% (illustrative) |
+| Occupancy | 87.4% (illustrative) | 85.9% (illustrative) |
+| Dominant stall evidence | Low sectors/request (1.1) — efficient | High sectors/request (5.7) — transaction-inefficient |
 
-Do not compare metrics from different profiler configurations.
+Do not compare metrics from different profiler configurations. The row that actually explains the timing gap here is sectors-per-request, not occupancy — occupancy is nearly identical between the two kernels, which is itself useful evidence: it rules out a residency-based explanation and points the conclusion specifically at memory-access efficiency, matching the profiler extract in Step 9.
 
 ## 11. Observability
 
@@ -463,7 +496,14 @@ Possible causes include:
 - First-run initialization
 - Host scheduling noise
 
-Warm up the GPU, isolate the device, repeat measurements, and report the distribution.
+**Turning this into evidence.** A quick `dmon` check during the benchmark, before trusting any single elapsed-time reading, distinguishes "noisy measurement" from "contended GPU":
+
+```text
+$ nvidia-smi --query-gpu=utilization.gpu,memory.used,power.draw,clocks.sm --format=csv,noheader
+34 %, 12480 MiB, 187 W, 1350 MHz
+```
+
+Nonzero `utilization.gpu` and `memory.used` well above this lab's own workload footprint, *before* the benchmark has even started, is the direct evidence that another process is already using the GPU — the benchmark's timing will be contending for SM time and memory bandwidth with that unrelated workload, which explains run-to-run variance that has nothing to do with the contiguous-versus-strided comparison itself. `clocks.sm` at `1350 MHz` versus a rated boost near `1980 MHz` on an idle-and-uncontended device is a second independent signal worth checking — a clock well below boost, sustained across the benchmark window, points at power or thermal throttling rather than measurement noise. Warm up the GPU, isolate the device, repeat measurements, and report the distribution.
 
 ### Problem — Strided Kernel Is Not Slower
 
