@@ -57,31 +57,31 @@ After completing this chapter, you will be able to:
 ## Big Picture
 
 ```mermaid
-flowchart LR
-    AppA[Application A]
-    MemA[Registered Memory]
-    HCAA[Host Channel Adapter]
-    LeafA[Leaf Switch]
-    Spine[Spine Switch Layer]
-    LeafB[Leaf Switch]
-    HCAB[Host Channel Adapter]
-    MemB[Registered Memory]
-    AppB[Application B]
-    SM[Subnet Manager]
+flowchart TD
+    AppA[Application A] --> MemA[Registered Memory]
+    MemA <--> HCAA[HCA A]
+    HCAA <-->|"physical: LinkUp + negotiated<br/>rate/width match design"| LeafA[Leaf Switch]
+    LeafA <-->|"link: credits flowing,<br/>no sustained wait"| Spine[Spine Switch Layer]
+    Spine <-->|"link: credits flowing,<br/>no sustained wait"| LeafB[Leaf Switch]
+    LeafB <-->|"physical: LinkUp + negotiated<br/>rate/width match design"| HCAB[HCA B]
+    HCAB <--> MemB[Registered Memory]
+    MemB --> AppB[Application B]
+    SM[Subnet Manager] -. "discover + assign LID" .-> HCAA
+    SM -. "program forwarding" .-> LeafA
+    SM -. "program forwarding" .-> Spine
+    SM -. "program forwarding" .-> LeafB
+    SM -. "discover + assign LID" .-> HCAB
 
-    AppA --> MemA
-    MemA <--> HCAA
-    HCAA <--> LeafA <--> Spine <--> LeafB <--> HCAB
-    HCAB <--> MemB
-    MemB --> AppB
-    SM -. discovers and configures .-> HCAA
-    SM -. programs forwarding .-> LeafA
-    SM -. programs forwarding .-> Spine
-    SM -. programs forwarding .-> LeafB
-    SM -. discovers and configures .-> HCAB
+    Sym["App reports slow/stalled transfer"] --> D1{"ibstat: physical + logical<br/>state Active at design rate/width?"}
+    D1 -->|No| L1["Fault is in the physical or<br/>link layer -- Ch.2 physical section"]
+    D1 -->|Yes| D2{"Per-VL / per-port wait counters<br/>elevated on the path?"}
+    D2 -->|Yes, no errors| L2["Credit backpressure / head-of-line<br/>blocking -- not a link failure"]
+    D2 -->|No| D3{"Does the SM show this port<br/>authoritatively Active with a valid route?"}
+    D3 -->|No| L3["Control-plane fault: stale/competing<br/>SM, unprogrammed route"]
+    D3 -->|Yes| L4["Fault is above this layer:<br/>verbs/transport -- Ch.3"]
 ```
 
-**Figure 8.2.1 — InfiniBand is an end-to-end managed fabric.** The data path crosses memory, HCAs, links, and switches, while the subnet manager establishes the state that makes the path usable.
+**Figure 8.2.1 — InfiniBand is an end-to-end managed fabric, and each hop's edge label is the specific evidence that proves that hop is healthy — not just that it exists.** The decision tree under the data path is the actual triage sequence: an `Active` port with clean physical counters can still stall on backpressure, and backpressure can still exist with a perfectly correct SM-programmed route. Each branch points to a different chapter section because each is a genuinely different fault class with a different fix.
 
 ## Core Components
 
@@ -197,6 +197,31 @@ Therefore, a health check must not record only `Active`. It should record:
 4. negotiated width;
 5. expected design value;
 6. error-counter trend.
+
+### Annotated `ibstat`: the six fields above, field by field
+
+```text
+$ ibstat mlx5_0
+CA 'mlx5_0'
+    CA type: MT4129
+    Number of ports: 1
+    Port 1:
+        State: Active
+        Physical state: LinkUp
+        Rate: 400
+        Base lid: 12
+        LMC: 0
+        SM lid: 1
+        Capability mask: 0x2651e848
+        Port GUID: 0x08c0eb0300f1a2c3
+        Link layer: InfiniBand
+```
+
+- **`Physical state: LinkUp`** — signal and lane negotiation succeeded (item 1). This is what a green cable LED reflects.
+- **`State: Active`** — the port completed subnet-manager admission and is enabled for application traffic (item 2). `Initializing` here with `LinkUp` above is exactly the "green LED, dead port" gap from Chapter 1.
+- **`Rate: 400`** — the negotiated signaling rate in Gb/s (item 3). Compare this to the design value for the adapter generation (item 5) — a 400Gb/s-class HCA reporting `Rate: 100` has negotiated at a quarter of its designed rate, most often from a lane failing to qualify.
+- **`Base lid: 12`, `SM lid: 1`** — proof this port has an assigned identity and knows which SM is authoritative; `Base lid: 0` means no usable LID exists yet regardless of what `State` claims.
+- **What `ibstat` does *not* show:** negotiated *width* (lane count) is not printed by default on every platform/tool version — cross-check with `iblinkinfo` or the vendor equivalent, and track item 6 (error-counter trend) separately with `ibqueryerrors`, since a link can be `Active` at full rate and width while accumulating physical errors that will eventually force a recovery event.
 
 ## Link Layer
 
@@ -444,6 +469,8 @@ Check:
 
 The physical layer is working, but control-plane configuration has not completed.
 
+**Evidence.** `ibstat` shows `Physical state: LinkUp` with `State: Initializing`, `Base lid: 0` — see the annotated example above. Pairing it with the SM's own view (from Chapter 5's tooling) that shows this port absent from the last completed sweep confirms the fault is on the SM side, not the cable: the port is discoverable but not yet admitted.
+
 **Resolution**
 
 Restore authoritative subnet management and correct the rejected policy or discovery condition. Confirm the port progresses to active state.
@@ -482,6 +509,16 @@ Credit backpressure, head-of-line blocking, routing concentration, or a stalled 
 
 Inspect per-port and per-VL behavior, destination hot spots, route distribution, and receiving endpoint health. Do not assume a lossless fabric is uncongested.
 
+**Evidence.** `ibqueryerrors` on the suspect switch, filtered to wait/congestion fields, before and after a load window:
+
+```text
+$ ibqueryerrors -s XmtWait -k <switch-lid>
+GUID 0x506b4b0300a1c210 port 3: [XmtWait == 184320]
+GUID 0x506b4b0300a1c210 port 7: [XmtWait == 41]
+```
+
+`XmtWait` counts cycles the port had data queued to transmit but was blocked on downstream credit — it is a congestion signal, distinct from `SymbolErrorCounter` or `LinkDownedCounter`, which indicate physical faults. Port 3 accumulating 184,320 wait-cycles against port 7's 41 (same switch, same sampling window, both physically clean) pinpoints port 3's downstream path as the actual bottleneck without any packet loss ever occurring — exactly the "no drops, still slow" pattern this scenario describes.
+
 ### Scenario 4 — One traffic class affects another
 
 **Symptoms**
@@ -517,32 +554,58 @@ The recommendation therefore includes an acceptance test and observability plan,
 ### Knowledge Questions
 
 1. What is the difference between physical state and logical port state?
+   **Model answer:** "Physical state is purely electrical — did the two ends negotiate signaling and lane count, shown as `LinkUp` in `ibstat`. Logical state is whether the subnet manager has admitted that port into the operational subnet, shown as the port's `State` field — `Active` versus `Initializing`. A port can sit at `LinkUp`/`Initializing` indefinitely: physically fine, logically invisible to the fabric."
+
 2. Why does InfiniBand use credit-based flow control?
+   **Model answer:** "It's how the fabric stays lossless without dropping packets under normal operation — a receiver advertises exactly how much buffer space it has, and the sender only transmits that much. The trade-off is that it converts what would be packet loss on a lossy network into queueing and backpressure instead, which is why a lossless fabric can still be slow — the cost of avoiding drops is that congestion becomes latency and stalls rather than something you can see as an error counter."
+
 3. What is a virtual lane?
+   **Model answer:** "A separate buffering and flow-control context multiplexed onto one physical link. It doesn't add bandwidth — two VLs on one link still share that link's total capacity — but it does give you separate credit accounting per lane, which is what lets you isolate one traffic class's backpressure from another's on the same wire."
+
 4. How is a service level different from a virtual lane?
+   **Model answer:** "Service level is a classification carried in the packet — think of it as the traffic's declared class. Virtual lane is the actual link-level resource — separate buffers and credits. The fabric configuration maps SL to VL at each hop, and that mapping has to be consistent end-to-end, or you can get inconsistent isolation depending on which switch you're crossing."
+
 5. Why can a lossless fabric still perform poorly?
+   **Model answer:** "Because losslessness only guarantees delivery, not fairness or low latency. If credits stop returning fast enough on one path, that pressure propagates upstream through the switches feeding it — a congestion tree — and can delay flows that have nothing to do with the original bottleneck, all without a single dropped packet or physical error."
 
 ### Architecture Questions
 
 1. Draw the full path from a GPU buffer to a remote GPU buffer.
+   **Model answer:** "GPU HBM to the local HCA via DMA — no CPU copy of the payload — through the HCA's queue pair execution, onto the wire at the negotiated physical rate, through however many leaf and spine hops the SM's programmed route uses, into the remote HCA, and DMA'd directly into the remote GPU's HBM. I'd point out that the CPU is involved at both ends only in setup — posting the work request and consuming the completion — not in the data path itself, which is the entire point of RDMA."
+
 2. Explain which responsibilities belong to the HCA, switch, and subnet manager.
+   **Model answer:** "HCA: owns queue pairs, does the actual DMA, executes work requests, reports completions. Switch: forwards packets according to tables it did not compute — pure data-plane execution. Subnet manager: computes those tables, assigns LIDs, discovers topology, and pushes configuration into both HCAs and switches. If I had to summarize the split: the SM decides, the switch executes, the HCA is where the application's work actually starts and ends."
+
 3. Design observability for a two-tier InfiniBand fabric.
+   **Model answer:** "Three layers: per-port state/rate/width against a documented baseline, per-port error and wait counters with rate-of-change alerting rather than static thresholds, and a topology-aware view that maps every counter back to leaf/spine/rack so a 'port 3 errors' alert doesn't require manual lookup during an incident. I'd specifically alert on negotiated width dropping below design — that's the failure mode that a naive up/down check completely misses."
 
 ### Scenario Questions
 
 1. A port is active but at half the expected width. What do you inspect?
+   **Model answer:** "First confirm it with `ibstat` or `iblinkinfo` against the documented design value — 'half' has to be a comparison to something. Then I'd suspect a lane-level cable or connector fault, since width reduction usually means some lanes failed to qualify while others didn't. I'd substitute the cable first since that's the cheapest, fastest isolation step, and compare error counters before and after."
+
 2. Several unrelated flows slow behind one destination. What mechanism could explain this?
+   **Model answer:** "Head-of-line blocking from a congestion tree — one destination can't drain fast enough, its port's credits run out, that backpressure propagates to the upstream switch, and anything sharing that switch's buffers or virtual lane gets delayed even though it was never headed to the congested destination. I'd confirm with per-port wait counters showing elevated values upstream of the actual bottleneck, not at it."
+
 3. A new rack has physical link but never becomes usable. Which layer do you investigate first?
+   **Model answer:** "Control plane, immediately — `LinkUp` with `State: Initializing` and `Base lid: 0` is the signature. I wouldn't touch cables or firmware first; I'd check whether the SM has actually swept this rack into its topology and whether partition/policy configuration was updated to include the new ports."
 
 ### Customer Questions
 
 1. Does lossless mean congestion-free?
+   **Model answer:** "No, and that's one of the more important things to get right early. Lossless means the fabric won't drop packets from buffer exhaustion — it achieves that with credit-based backpressure, which trades drops for queueing delay. Under real contention you can see zero errors and still see performance collapse."
+
 2. Why do we need a subnet manager if switches already forward packets?
+   **Model answer:** "Switches forward using tables — they don't compute those tables themselves. Without an SM, nothing has discovered the topology, assigned addresses, or decided which egress port serves which destination. The switches are capable hardware sitting idle until something programs them."
+
 3. What evidence proves a fabric is ready for production?
+   **Model answer:** "Not 'every port shows Active' — that's necessary but not sufficient. I want every port at documented rate and width, clean and stable error counters, a completed SM sweep with the expected object count, and pairwise RDMA bandwidth/latency results that match the baseline across representative node pairs, including cross-rack. Reachability is the first checkpoint, not the last."
 
 ### Whiteboard Question
 
 Draw two GPU nodes connected through a leaf-spine InfiniBand fabric. Label the physical, link, transport, control, and memory-access responsibilities.
+
+**What I'd actually say while drawing:** "GPU memory on both ends, connected to their local HCA — that link is memory-access, pure DMA, no protocol overhead I need to draw in detail. HCA to leaf switch, leaf to spine, spine to the far leaf — that whole horizontal chain is physical plus link layer, and I'd label it with 'negotiated rate/width' and 'credits' respectively. Above that chain, off to the side, the subnet manager with dotted lines into every switch and HCA — that's the control plane, and I'd say explicitly: it configures this picture, it doesn't sit in the data path. And inside each HCA I'd draw a small queue-pair box — that's the transport layer, where reliability and ordering live, and it's the layer that actually knows whether an operation succeeded, which none of the layers below it can tell you."
 
 ## Summary
 

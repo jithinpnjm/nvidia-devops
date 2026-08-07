@@ -58,28 +58,28 @@ After completing this chapter, you will be able to:
 ## Big Picture
 
 ```mermaid
-flowchart LR
-    App[Application]
-    PD[Protection Domain]
-    MR[Registered Memory Region]
-    SQ[Send Queue]
-    RQ[Receive Queue]
-    QP[Queue Pair]
-    HCA[Host Channel Adapter]
-    Fabric[InfiniBand Fabric]
-    Remote[Remote Queue Pair and Memory]
-    CQ[Completion Queue]
+flowchart TD
+    App[Application] --> PD[Protection Domain]
+    PD --> MR["Registered Memory Region<br/>(local key + optional remote key)"]
+    PD --> QP[Queue Pair]
+    SQ[Send Queue] --> QP
+    RQ[Receive Queue] --> QP
+    QP -->|"post_send / post_recv"| HCA[Host Channel Adapter]
+    HCA -->|"transport ack proves<br/>remote received/placed data"| Fabric[InfiniBand Fabric]
+    Fabric --> Remote[Remote Queue Pair and Memory]
+    HCA -->|"completion entry: status +<br/>opcode + byte count"| CQ[Completion Queue]
+    CQ --> App
 
-    App --> PD
-    PD --> MR
-    PD --> QP
-    SQ --> QP
-    RQ --> QP
-    QP --> HCA --> Fabric --> Remote
-    HCA --> CQ --> App
+    Fail["App reports timeout / hang"] --> Q1{"Did a CQE ever arrive<br/>for this work request?"}
+    Q1 -->|"No CQE at all"| Q2{"Is the QP state RTS,<br/>or did it silently drop to ERR?"}
+    Q2 -->|"ERR"| A1["Something upstream flushed this<br/>QP -- find the FIRST failing CQE,<br/>not this one"]
+    Q2 -->|"RTS, still nothing"| A2["Receive queue likely starved:<br/>no receive WRs posted by peer"]
+    Q1 -->|"CQE arrived, status != SUCCESS"| Q3{"Local or remote status?<br/>(e.g. LOC_PROT_ERR vs REM_ACCESS_ERR)"}
+    Q3 -->|"Local"| A3["Local memory registration /<br/>key / address range is wrong"]
+    Q3 -->|"Remote"| A4["Remote key, address, or<br/>protection domain mismatch"]
 ```
 
-**Figure 8.3.1 — Verbs exposes explicit resources.** Memory, queues, protection, and completions are separate objects that must be created and coordinated correctly.
+**Figure 8.3.1 — Verbs exposes explicit resources, and a completion queue entry is the actual evidence that separates a healthy operation from a silently stuck one.** The decision tree makes concrete the chapter's opening story: an application that discards CQE status and prints only "timeout" has thrown away exactly the field (`status`) that would have told it whether the fault was local memory, remote memory, or a starved receive queue — three completely different fixes.
 
 ## Why the Queue Model Exists
 
@@ -132,6 +132,35 @@ Important capability questions include:
 - completion and event capabilities.
 
 Production software should query capabilities rather than assuming one adapter profile.
+
+### Annotated `ibv_devinfo -v`: the capability answers that matter before you write a line of verbs code
+
+```text
+$ ibv_devinfo -v -d mlx5_0
+hca_id: mlx5_0
+    transport:                  InfiniBand (0)
+    fw_ver:                     28.39.2048
+    node_guid:                  08c0:eb03:00f1:a2c3
+    sys_image_guid:             08c0:eb03:00f1:a2c3
+    vendor_id:                  0x02c9
+    vendor_part_id:             4129
+    max_mr_size:                0xffffffffffffffff
+    max_qp:                     262144
+    max_qp_wr:                  32768
+    max_sge:                    30
+    max_cq:                     16777216
+    max_cqe:                    4194303
+    max_mr:                     16777216
+    atomic_cap:                 ATOMIC_HCA (1)
+        port:   1
+            state:              PORT_ACTIVE (4)
+            max_mtu:            4096 (5)
+            active_mtu:         4096 (5)
+            phys_state:         LINK_UP (5)
+            link_layer:         InfiniBand
+```
+
+Every one of the seven capability questions listed above maps to a field here: `max_qp_wr` (32768) and `max_cq`/`max_cqe` answer the maximum-queue-depth question directly — a design that assumes 100,000 outstanding work requests per QP will fail resource allocation on this adapter, not fail gracefully. `atomic_cap: ATOMIC_HCA` answers whether atomics are supported at all before an application tries to post one. `max_sge: 30` bounds how many scatter-gather entries one work request can reference (Figure 8.3.3) — exceeding it is a local error, not a fabric problem. `active_mtu: 4096` matters for Scenario 1 below: two endpoints with mismatched active MTU can fail path negotiation even though both individually report `PORT_ACTIVE`.
 
 ### Protection domain
 
@@ -488,6 +517,18 @@ Compare both endpoints:
 
 One endpoint was configured with inconsistent peer or path attributes.
 
+**Evidence.** A minimal `rdma_cm`-based or raw-verbs connection attempt that fails during the RTR transition typically surfaces as an explicit modify-QP error rather than a silent hang:
+
+```text
+$ ./rc_pingpong -d mlx5_0 -g 0 <server-ip>
+  local address:  LID 0x000c, QPN 0x00012a, PSN 0x3a1f2e, GID ::
+  remote address: LID 0x0051, QPN 0x0000e3, PSN 0x0091ab, GID ::
+Couldn't modify QP to RTR
+ibv_modify_qp: Invalid argument (path_mtu mismatch)
+```
+
+`Invalid argument (path_mtu mismatch)` names the exact attribute: one side is configured for a 4096-byte active MTU and the other for 2048, and the RTR transition (which requires agreeing on remote path attributes, per Figure 8.3.4) rejects the mismatch outright rather than silently degrading. This is a direct instance of the `ibv_devinfo -v` capability check above — `active_mtu` differing between two "healthy" ports is invisible until a QP actually tries to connect.
+
 ### Scenario 2 — Receiver-not-ready or missing receives
 
 **Symptoms**
@@ -535,6 +576,18 @@ Check:
 **Resolution**
 
 Find the first failing completion. Treat flushed completions as consequences. Quiesce the queue, rebuild transport state, and verify peer health before resuming.
+
+**Evidence.** A trimmed `ibv_poll_cq` loop's output, decoded, makes the "find the first one" instruction concrete:
+
+```text
+wr_id=1042  status=IBV_WC_SUCCESS          opcode=RDMA_WRITE
+wr_id=1043  status=IBV_WC_RETRY_EXC_ERR    opcode=RDMA_WRITE   vendor_err=0x81
+wr_id=1044  status=IBV_WC_WR_FLUSH_ERR     opcode=RDMA_WRITE
+wr_id=1045  status=IBV_WC_WR_FLUSH_ERR     opcode=SEND
+wr_id=1046  status=IBV_WC_WR_FLUSH_ERR     opcode=SEND
+```
+
+`wr_id=1043` is the first real failure: `IBV_WC_RETRY_EXC_ERR` means the HCA exhausted its retry count without receiving an ACK — typically because the remote peer stopped responding (crashed process, network partition, or a receive queue that ran dry). Everything after it (`1044`-`1046`) is `IBV_WC_WR_FLUSH_ERR` — the QP entered the error state and the provider is draining every subsequent posted work request with a flush status, not reporting new independent failures. A support ticket that lists "hundreds of RDMA errors" and treats each equally will miss that 1043 is the only one worth investigating; 1044-1046 are noise generated by 1043.
 
 ### Scenario 5 — High CPU despite RDMA
 
