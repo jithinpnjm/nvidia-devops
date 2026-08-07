@@ -625,32 +625,58 @@ The design may use shared endpoints, connection management, hierarchical communi
 ### Knowledge Questions
 
 1. What is a protection domain?
+   **Model answer:** "It's the grouping boundary that says which queue pairs are allowed to use which memory regions. A QP in protection domain A can't touch a memory region registered under protection domain B, even on the same host. It's the mechanism that stops one tenant's or one connection's misbehaving pointer arithmetic from reaching another tenant's buffers."
+
 2. Why must memory be registered?
+   **Model answer:** "The HCA does DMA directly against physical or IOMMU-mapped addresses — it can't page-fault the way a CPU access can. Registration pins the pages, sets up the DMA mapping, and issues a key that proves the HCA is authorized to touch that exact address range. Without it, the HCA has no safe way to know a buffer won't move or disappear mid-transfer."
+
 3. What is the difference between a queue pair and a completion queue?
+   **Model answer:** "A queue pair is where work goes in — send and receive queues holding work requests waiting to execute. A completion queue is where results come out — it's a separate object, and multiple queue pairs can actually share one CQ, which matters for scaling: you don't need a dedicated polling thread per QP."
+
 4. Why are receive buffers pre-posted?
+   **Model answer:** "Because for send/receive semantics, the HCA needs somewhere to place incoming data the instant it arrives — it can't ask the application for a buffer mid-packet the way a socket read blocks and waits. If the receive queue is empty when a send arrives, you get a receiver-not-ready condition, which is exactly the failure mode in this chapter's opening story: unreplenished receive queues masquerading as a generic network timeout."
+
 5. What does an RDMA-write completion prove?
+   **Model answer:** "On the initiator's side, a local completion proves the local work request was processed and, depending on signaling, that the operation was placed on the wire — it does not by itself prove the remote application has consumed or even noticed the data, because RDMA write doesn't require the remote CPU to post a matching receive. If the application needs the remote side to know data arrived, it needs its own notification protocol — a follow-up send, an immediate-data value, or a polled flag — RDMA write's completion alone doesn't give you that."
 
 ### Architecture Questions
 
 1. Draw the objects required for one reliable-connected RDMA path.
+   **Model answer:** "Protection domain at the top, with a registered memory region and a queue pair both hanging off it — that pairing is what makes the memory usable by that QP. The QP has its send and receive queues, connects through the HCA, and every operation eventually reports into a completion queue. I'd draw the CQ as a sibling of the QP, not a child of it, to make the point that one CQ can serve several QPs."
+
 2. Explain how a work request becomes a completion entry.
+   **Model answer:** "Application calls `post_send` or `post_recv`, which hands a descriptor to the HCA — that's a work queue element now, not just an application-side request. The HCA executes it asynchronously: DMA's the data, transmits, waits for a transport ack if it's a reliable connection. Once that's done — success or failure — the HCA writes a completion queue entry with status, opcode, and byte count, and the application picks it up by polling or via an armed notification."
+
 3. Design a reusable registered-buffer pool.
+   **Model answer:** "Pre-register a fixed set of fixed-size buffers at startup rather than registering per-message — registration has real setup cost. Track ownership with a simple free-list, and the critical invariant is: a buffer only goes back on the free list after its completion has actually been consumed, not when the application logically 'thinks' it's done with it. I'd size the pool from expected queue depth times message size times a safety margin, and monitor pool exhaustion as a first-class metric, because a starved pool looks identical to a network stall from the outside."
 
 ### Scenario Questions
 
 1. A QP reaches INIT but not RTR. What information is probably missing?
+   **Model answer:** "RTR requires remote path information — the peer's LID or GID, QP number, and packet-sequence starting point, plus path attributes like MTU. If it's stuck at INIT, I'd check whether the application actually completed the out-of-band exchange of that connection information with the peer before attempting the transition — that exchange is the application's job, verbs doesn't do peer discovery for you."
+
 2. Completions show protection errors. What do you inspect?
+   **Model answer:** "Whether the error is local or remote first, since that changes which side I'm debugging. Then memory-region address range and length against what the work request actually referenced, the local or remote key, protection-domain membership, and whether the buffer's lifetime might have ended — deregistered or reused — before the operation completed."
+
 3. One error causes hundreds of flushed completions. Which completion matters most?
+   **Model answer:** "The first one — everything after it is `IBV_WC_WR_FLUSH_ERR`, which just means the QP entered an error state and the provider is draining the rest of the queue with a flush status. I've seen incident reports built around counting flush errors when the actual root cause was one `RETRY_EXC_ERR` at the front of the list."
 
 ### Customer Questions
 
 1. Does RDMA eliminate the operating system?
+   **Model answer:** "No — it removes the OS and CPU from the per-message payload path, not from the system. The CPU still creates resources, registers memory, sets up queues, handles errors, and does security and orchestration work. What changes is that the expensive, per-packet kernel involvement that a socket-based path pays for every message is gone."
+
 2. Should every operation generate a completion?
+   **Model answer:** "Not necessarily — generating a completion for every single work request adds overhead, and high-performance applications often signal only a subset and rely on ordering guarantees to infer that earlier unsignaled work also succeeded. The trade-off is that you need careful queue-depth management, because you lose per-operation visibility for the unsignaled ones."
+
 3. How do queue-pair counts affect architecture at scale?
+   **Model answer:** "Naively, one QP per peer pair multiplies badly — thousands of nodes means potentially millions of QPs, and each one consumes HCA resources: context, memory, queue state. In practice, communication libraries share transports, use connection management, or build hierarchical communication patterns instead of a fully connected mesh of dedicated QPs. I'd ask early in a design conversation what the actual peer-connectivity pattern is before assuming 'one QP per pair' is even the right model."
 
 ### Whiteboard Question
 
 Draw a queue pair with send and receive queues, registered memory, an HCA, a remote queue pair, and a completion queue. Mark ownership changes for a send and an RDMA write.
+
+**What I'd actually say while drawing:** "Local QP with its send and receive queues, memory region hanging off the same protection domain, HCA in between, then the same picture mirrored on the remote side. For a send: I post to my send queue, the remote side must have already posted to its receive queue — ownership of that remote buffer transfers to the HCA the moment it's posted, and back to the application only after the receive completion fires. For an RDMA write: there's no matching post on the remote receive queue at all — I'm writing directly into a remote memory region the peer authorized ahead of time via its remote key, and the remote CPU may not even know the write happened until some separate notification tells it to look."
 
 ## Summary
 
