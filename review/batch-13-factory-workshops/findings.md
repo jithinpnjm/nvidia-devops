@@ -93,3 +93,13 @@
   - Evidence: Line ~77, ~87 (Prometheus relabel_configs regex) and line ~129 (`expr: dcgm_gpu_temp > 75` in the `GPUTemperatureHigh` alert rule).
   - Why it matters for JR2018680: This is the exact "fabricated DCGM field names that don't correspond to real DCGM_FI_DEV_* metrics" pattern flagged repeatedly across the review series. A candidate reciting or copy-pasting this alert rule into a real Prometheus config would get zero matches — the rule silently never fires.
   - Suggested fix: Replace with real `DCGM_FI_DEV_*` metric names as exposed by dcgm-exporter (e.g., `DCGM_FI_DEV_GPU_TEMP`, `DCGM_FI_DEV_GPU_UTIL`, `DCGM_FI_DEV_POWER_USAGE`).
+
+### chapter-11-capacity-planning-and-forecasting.md
+- [SEVERITY: high] Capacity math is internally contradictory in the core worked example. "current_capacity = 400 GPUs = 6080 QPS (at 15.2 QPS/GPU)" then immediately "target_capacity = 1000 QPS = 66 GPUs needed" — but 400 GPUs already deliver 6080 QPS of capacity, which is 6x the 1000 QPS target; no additional GPUs would be needed at all. The example proceeds as if 66 more GPUs must be purchased to reach 1000 QPS, which doesn't follow from the stated current capacity.
+  - Evidence: Line ~117-118 (Part 2.1).
+  - Why it matters for JR2018680: This is the chapter's central "capacity vs. cost trade-off" example — the exact skill (translating QPS targets to GPU counts) an infra interview would probe, and the numbers don't hang together.
+  - Suggested fix: Fix the current-capacity figure (likely meant to be a much smaller existing fleet, e.g. current QPS demand ~400 not GPU count 400) so the "66 GPUs needed" conclusion follows logically.
+- [SEVERITY: medium] `forecast_gpu_demand()` only returns 12 forecast values (indices 0-11, months t=12..23) but the narrative references `forecast[12]`/"Month 12: 902 QPS", which would raise `IndexError` if actually run. Independently, running the function as written gives Month 0 ≈ 286 QPS and Month 6 ≈ 507 QPS, not the "315 QPS" and "533 QPS" quoted in the comments (verified by executing the code).
+  - Evidence: Lines ~44-66 (`forecast_gpu_demand` and the "Month 0/6/12" comments).
+  - Why it matters for JR2018680: A hands-on capstone-adjacent code example whose comments don't match its own output undermines trust in the worked forecasting model.
+  - Suggested fix: Either extend the forecast horizon to include month 12 or drop that reference, and regenerate the "Month 0/6" comments from an actual run of the code.
