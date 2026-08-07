@@ -183,3 +183,18 @@
 - [SEVERITY: low] No issues found. The capacity-layer chain (physical → configured → allocatable → service → sellable) and the reserve-by-failure-domain table (node-failure/maintenance/rollout/demand-variance/fragmentation reserve) are accurate and precisely the kind of quantitative capacity-planning rigor a Solutions Architect interview would probe. The `N = ceil((D + F) / (A × (1 - H)))` formula is presented correctly as a capacity calculation, not a performance claim, avoiding the arithmetic-overreach problem found in Chapter 3.
 
 **ZTH-11 chapters 1-9 + index reviewed — 10/17 files done; chapters 10-12 and labs 1-4 remaining.**
+
+### chapter-10-observability-and-slos-for-shared-gpus.md
+- [SEVERITY: low] No issues found. Three-views framing (platform health / service delivery / capacity-fairness) correctly separates "GPU health score" from tenant-experience SLOs; the error-budget and SLO-establishment sequence (observe → classify failures → propose objective → test routing → publish) is accurate and directly reusable.
+
+### chapter-11-production-troubleshooting.md
+- [SEVERITY: low] Two `ssh` commands used curly/typographic quotes (‘ ’, U+2018/2019) instead of straight ASCII quotes around the remote command string, which breaks the shell if copy-pasted verbatim (bash does not treat curly quotes as quote characters, so the remote command would be split into unquoted tokens).
+  - Evidence: original lines 119 and 124, `ssh $SSH_TARGET ‘nvidia-smi -i 0 --query-gpu=...’` and `ssh $SSH_TARGET ‘nvidia-smi mig -lgi -i 0’`.
+  - Why it matters for JR2018680: same "commands should be copy-paste-safe for live troubleshooting rehearsal" concern raised elsewhere in this batch.
+  - Fix applied inline: replaced curly quotes with straight single quotes in both commands (mechanical MDX/typo fix, no content change).
+- Otherwise excellent: the six-layer triage order (physical → sharing mode → runtime/discovery → scheduling/policy → workload → telemetry) and the MIG-resource-absent diagnostic sequence (host mode → GI/CI existence → Kubernetes allocatable → plugin logs → healthy-peer diff) are accurate and precisely at the depth this batch's brief calls for.
+
+### chapter-12-volume-11-summary.md
+- [SEVERITY: low] No issues found. Clean consolidation; the "common traps" list (treating scheduler placement as service success, treating logical replicas as independent capacity, calling arithmetic free capacity usable MIG capacity) accurately restates the volume's core lessons, including the fragmentation-arithmetic point that Chapter 3's own worked example failed to honor.
+
+**ZTH-11 (Volume 11) chapters 1-12 + index complete — 13/17 files reviewed; labs 1-4 remaining.**
