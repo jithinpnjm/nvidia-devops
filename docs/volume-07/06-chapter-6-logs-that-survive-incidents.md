@@ -37,9 +37,9 @@ A useful operational event contains timestamp, service/component, resource ident
 ➕ **Diagram: correlation context is the join key that stitches one log line back to its metric and trace**
 ```text
 METRIC series                    LOG line                              TRACE span
-http_requests_total{             {'event':'inference_failed',          span_id=7d3e1a
- status='500'} +1           ◀──▶  'request_id':'a91f...',        ◀──▶  trace_id=a91f2c...
-(fleet-wide count,                 'error_class':'CUDAOutOfMemory'}    (this one request's
+http_requests_total{             {"event":"inference_failed",          span_id=7d3e1a
+ status="500"} +1           ◀──▶  "request_id":"a91f...",        ◀──▶  trace_id=a91f2c...
+(fleet-wide count,                 "error_class":"CUDAOutOfMemory"}    (this one request's
  no request identity)              (the ONE event, full detail)        path across services)
                                              ▲
                                    correlation context field
@@ -61,9 +61,9 @@ BAD — the same failure logged 4 times, once per layer, all with stack traces
 GOOD — one structured event at the layer that has operational meaning (model-server,
 where the actual mechanism is known), with attempt/correlation context letting the
 gateway's failure be joined back to it instead of re-describing it
-{'event':'inference_failed','layer':'model-server','error_class':'CUDAOutOfMemory',
-'request_id':'a91f...','attempt':2,'upstream_retry_of':'gw-req-77213'}
-gateway logs a ONE-LINE reference: {'event':'upstream_failed','request_id':'a91f...','forwarded_from':'model-server'}
+{"event":"inference_failed","layer":"model-server","error_class":"CUDAOutOfMemory",
+"request_id":"a91f...","attempt":2,"upstream_retry_of":"gw-req-77213"}
+gateway logs a ONE-LINE reference: {"event":"upstream_failed","request_id":"a91f...","forwarded_from":"model-server"}
 ```
 ➕ **The specific error_class distinction this chapter's own sample JSON invites you to generalize — and the one that most commonly gets alerting wrong (tie-in to Chapter 8/9): `OOMKilled` (cgroup/Kubernetes-level, host memory) vs `CUDAOutOfMemory` (device framebuffer memory) are different failure planes with different fixes** — raising a Kubernetes memory limit does nothing for the second, and adding GPU memory/reducing batch size does nothing for the first. A log's `error_class` field is frequently the *only* place this distinction survives, because `kubectl get pod` will show both as "container exited non-zero" with no further detail.
 

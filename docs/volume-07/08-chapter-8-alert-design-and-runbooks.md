@@ -22,7 +22,7 @@ A good alert tells the responder what is broken, scope, severity and where to be
 ```text
 SLO: 99.9% (0.1% error budget) over 30 days
 Fast-burn window: 1 hour | Slow-burn window: 6 hours
-Fast-burn threshold: burning budget 14.4x normal rate (exhausts a 30-day budget in ~1 day if sustained)
+Fast-burn threshold: burning budget 14.4x normal rate (exhausts a 30-day budget in ~2 days if sustained)
 Slow-burn threshold: burning budget 6x normal rate (exhausts a 30-day budget in ~5 days if sustained)
 fast_burn_rate = error_ratio_1h / 0.001
 slow_burn_rate = error_ratio_6h / 0.001
@@ -78,5 +78,5 @@ The payload fields from the sample above (`scope`, `first_diagnostic_step`, `run
 **Interview-ready line:** "I design alerts around SLO burn rate with paired fast/slow windows for precision plus speed, and every alert payload carries enough scope and first-step guidance that a new on-call engineer doesn't need the runbook open just to start."
 
 ## Practice
-➕ 1. Using the burn-rate arithmetic above, compute the fast-burn threshold multiplier for a 99.95% SLO (instead of 99.9%) with the same 1-day/5-day budget-exhaustion targets, and explain why a tighter SLO needs a *different* multiplier, not the same 14.4x.
+➕ 1. Using the burn-rate arithmetic above, compute the fast-burn threshold multiplier for a 99.95% SLO (instead of 99.9%) with the same 2-day/5-day budget-exhaustion targets, and explain why a tighter SLO needs a *different* multiplier, not the same 14.4x.
 ➕ 2. Redesign the "Pod restarted" alert from the worked scenario into two separate alert definitions (one for `OOMKilled`, one for `CUDAOutOfMemory`), specifying the distinguishing evidence field each one keys off.
