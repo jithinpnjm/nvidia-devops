@@ -74,12 +74,14 @@ Total for one request (1024 prompt + 128 generate):
 
 ### 2. KV Cache Memory Pressure
 
-KV cache grows with sequence length: 2×(batch×seq×heads×head_dim)×2 tokens (key and value).
+KV cache grows with sequence length **and with the number of transformer layers** — every layer keeps its own K and V cache, so the layer count is not optional: `2 (K, V) × num_layers × batch × seq_len × num_heads × head_dim × bytes_per_element`.
 
-For 7B Llama (32 heads, 128 dim), seq 4096, batch 32:
-- KV cache: 2 × 32 × 4096 × 128 × 32 tokens × 4 bytes = 1 GB per batch
+For Llama-2-7B (32 transformer layers, 32 attention heads, head_dim 128), seq 4096, batch 32, FP32 (4 bytes/element):
+- KV cache: 2 × 32 layers × 32 batch × 4096 seq × 32 heads × 128 head_dim × 4 bytes ≈ 137 GB total (≈4.3 GB per single request at this sequence length)
 
-With batch 32, max seq 4096: 32 GB of just KV cache on a single 80 GB H100. Leaves little room for model (7B params = 14 GB in FP8, 28 GB in FP16).
+Omitting the `num_layers` factor (as a naive formula might) would understate this by 32x — reporting ~4.3 GB instead of the real ~137 GB.
+
+With batch 32, max seq 4096, FP32 KV cache doesn't fit on a single 80 GB H100 at all — model weights alone (7B params = 14 GB in FP8, 28 GB in FP16) leave no room for a 137 GB cache. This is exactly why production serving systems don't run batch 32 / context 4096 with a naive FP32 cache: they reduce cache size via FP16/FP8 quantization (2-4x smaller), MQA/GQA (up to Nx smaller, N = number of heads), and/or cap batch size and context length to what actually fits.
 
 **Solutions:**
 - Multi-query attention (MQA): Share KV across heads → 1/N cache size (N=32 heads)
@@ -154,7 +156,7 @@ INT8 model (7 GB):
 
 **Q: Why does decode latency scale poorly despite low GPU utilization?**
 
-> A: Decode is memory-bound with terrible compute intensity (nearly 1 FLOP per byte of KV cache read). On H100 with 2 TB/s bandwidth, reading 1 GB of KV takes ~0.5 ms. With batch 32, that's 32 MB of unique data per decode step, which takes ~0.016 ms of pure bandwidth time, but the actual latency is 8 ms. Why? Memory latency, not bandwidth. Each decode token needs to wait for KV cache hits before proceeding. We can't parallelize the request; it's serial. That's why batch size and KV cache size are critical for decode latency.
+> A: Decode is memory-bound with terrible compute intensity (nearly 1 FLOP per byte of KV cache read). On H100 with 2 TB/s bandwidth, reading a single request's ~4.3 GB accumulated KV cache (32 layers included — see the KV cache formula above) takes ~2.15 ms. With batch 32, that's ~32 MB of *new* unique data written per decode step (one new token's K/V across all layers and the whole batch), which takes only ~0.016 ms of pure bandwidth time to write, but the GPU must also re-read the growing cache for every request in the batch to compute attention — and the actual latency is 8 ms. Why? Memory latency, not raw bandwidth. Each decode token needs to wait for KV cache hits before proceeding, and the request can't parallelize with itself; it's serial. That's why batch size and KV cache size (and hence the layer count in the sizing formula) are critical for decode latency.
 
 ## Key Takeaways
 

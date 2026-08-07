@@ -69,7 +69,7 @@ Throughput during throttle: 1080 TFLOPS (at 1.8 GHz = 10% loss)
 # Disable power management (requires root/sudo)
 nvidia-smi -pm 1  # Enable persistence mode
 nvidia-smi -pl 400  # Set power limit to 400W (max for H100)
-nvidia-smi -lgc 2550  # Lock GPU clock at 2550 MHz (max boost)
+nvidia-smi -lgc 1980  # Lock GPU clock at 1980 MHz (H100 SXM5 max boost)
 
 # Check thermal solution (water cooling vs air)
 nvidia-smi query-gpu=gpu_bus_id,compute_cap,index --format=csv
@@ -87,11 +87,11 @@ GPU affinity: GPU 0 on Socket 0, GPU 1 on Socket 1
 
 Test 1: CPU 0 (socket 0) → GPU 0 (socket 0)
   PCIe latency: 400 ns
-  PCIe throughput: 230 GB/s (peak PCIe 5.0)
+  PCIe throughput: 60 GB/s (near peak PCIe 5.0 x16 per-direction of ~64 GB/s)
   
 Test 2: CPU 64 (socket 1) → GPU 0 (socket 0)
   PCIe latency: 1200 ns (3× worse!)
-  PCIe throughput: 180 GB/s (22% loss)
+  PCIe throughput: 47 GB/s (22% loss)
 ```
 
 **Mitigation:**
@@ -110,7 +110,7 @@ Most GPUs connect via PCIe (not NVLink), which limits bandwidth and increases la
 
 **Bandwidth cascade:**
 ```
-PCIe 5.0 (max): 128 GB/s per direction
+PCIe 5.0 x16 (max): ~64 GB/s per direction (~128 GB/s bidirectional aggregate)
 Typical GPU-to-GPU over PCIe: 14-16 GB/s
 Reason: PCIe tree + switch contention
 
@@ -143,7 +143,7 @@ H100 SXM5 specs:
   Max junction temp: 87°C (thermal shutdown)
   Throttle start: 80°C
   Nominal clocks: 1.98 GHz
-  Max boost clocks: 2.55 GHz (requires headroom)
+  Max boost clocks: ~1.98 GHz (H100 SXM5 does not have a materially higher boost state above nominal)
   
 Real power draw during training:
   FP32: 600-650W
@@ -159,7 +159,7 @@ nvidia-smi -lgc 1500  # Lower clock frequency
 
 # Aggressive (maximum performance)
 nvidia-smi -pl 700  # Max power
-nvidia-smi -lgc 2550  # Max clock frequency
+nvidia-smi -lgc 1980  # Max clock frequency
 # Risk: thermal throttling under sustained load
 ```
 
