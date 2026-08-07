@@ -24,3 +24,23 @@
 ### 03-chapter-3-kubelet-cri-and-pod-lifecycle.md
 - [SEVERITY: low] Same single-quoted-JSON-output style issue as chapter 2 in the `crictl inspectp`/`crictl inspect` annotated output blocks (lines 60-65, 76-79). Cosmetic only.
 - No accuracy issues. CRI pipeline sequencing (RunPodSandbox → CNI → CSI → PullImage → CreateContainer/StartContainer), Pod phase vs. condition distinction (CrashLoopBackOff/NotReady as reasons layered on `Running`), and the device-plugin checkpoint / stale-checkpoint-after-restart GPU tie-in are all technically sound and interview-depth.
+
+### 04-chapter-4-kubernetes-networking-from-service-to-cni.md
+- [SEVERITY: low] `kubectl get netpol -n <src-ns> -n <dst-ns> -o yaml` in the "fastest 4-command triage" shortcut passes two `-n` flags in one invocation; kubectl only honors the last `-n`, so this does not actually query both namespaces as implied.
+  - Evidence: line 168, `kubectl get netpol -n <src-ns> -n <dst-ns> -o yaml   # any policy scoped to one ns?`
+  - Why it matters for JR2018680: a candidate reciting this triage command live would get only the destination namespace's policies and could misdiagnose a source-namespace NetworkPolicy issue as "no policy found."
+  - Suggested fix: split into two separate `kubectl get netpol -n <src-ns>` / `-n <dst-ns>` commands.
+- Otherwise excellent and at gold-standard depth: full north-south/east-west traffic-path diagram, dataplane-implementation-matching table (iptables/IPVS/eBPF), NetworkPolicy default-allow→default-deny silent-drop mechanism, and — notably strong for this role — the NCCL/RDMA-over-Multus worked scenario correctly identifies that GPU multi-node training traffic can bypass the standard Service/CNI/NetworkPolicy stack entirely via SR-IOV/secondary interfaces.
+
+### 05-chapter-5-storage-and-statefulsets.md
+- [SEVERITY: low] No material issues found. Provision/Bind/Attach/Mount phase breakdown, WaitForFirstConsumer rationale, StatefulSet's three stable identities, and the local-NVMe-vs-network-storage checkpoint durability tradeoff for GPU training are all accurate and interview-depth.
+
+### 06-chapter-6-security-authentication-rbac-workload-identity-and-pod-hardening.md
+- [SEVERITY: medium] The Pod Security Admission "audit before enforce" shortcut is technically imprecise: PSA audit/warn modes only evaluate Pods at admission time (create/update), so labeling a namespace with `pod-security.kubernetes.io/audit=restricted` — and especially doing so via `--dry-run=server`, which persists nothing — does not retroactively evaluate already-running Pods in that namespace. The suggested workflow would not actually surface violations from existing workloads the way the text implies.
+  - Evidence: lines 141-145, "`kubectl label ns team-a pod-security.kubernetes.io/audit=restricted --dry-run=server` ... `audit=` (not `enforce=`) lets you see *what would break* under a stricter policy without actually blocking anything."
+  - Why it matters for JR2018680: PSA admission-time-only semantics (vs. continuous/retroactive policy evaluation) is exactly the kind of "sounds right but is subtly wrong" detail a K8s-internals interview would probe; stating it as shown could cost credibility in a live security discussion.
+  - Suggested fix: clarify that the audit label only affects future admissions, and that checking existing Pods against a stricter policy requires either a policy-as-code tool (e.g. `kubectl-validate`/`pss` checkers, Kyverno/OPA dry-run policies) or triggering a rolling restart under audit mode to force re-admission.
+- Otherwise strong: RBAC vs. cloud IAM trust-domain separation, the purely-additive RBAC decision model, and the GPU/HPC `privileged: true` vs. narrow-capability (`IPC_LOCK` for RDMA) alternative are accurate and at the right depth.
+
+### 07-chapter-7-autoscaling-and-capacity.md
+- [SEVERITY: low] No material issues found. HPA/VPA/KEDA/cluster-autoscaler four-loop model, the VPA/HPA CPU-utilization-denominator conflict, HPA desired-replica arithmetic, and the GPU-specific custom-metrics-pipeline (DCGM→Prometheus→adapter) failure surface plus node pre-warming tradeoff are accurate and at gold-standard depth for GPU infra interview questions.
