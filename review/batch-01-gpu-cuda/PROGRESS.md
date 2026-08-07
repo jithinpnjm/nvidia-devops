@@ -25,11 +25,11 @@ Status values: pending / in-progress / done
 | ZTH-02 | chapter-05-gpu-memory-hierarchy.md | done | none |
 | ZTH-02 | chapter-06-scheduling-occupancy-and-instruction-dispatch.md | done | none |
 | ZTH-02 | chapter-07-registers-shared-memory-and-local-memory.md | done | none |
-| ZTH-02 | chapter-08-global-memory-l1-l2-and-hbm.md | pending | |
-| ZTH-02 | chapter-09-divergence-coalescing-and-bottleneck-reasoning.md | pending | |
-| ZTH-02 | chapter-10-gpu-topology-peer-access-and-data-paths.md | pending | |
-| ZTH-02 | chapter-11-building-a-gpu-performance-model.md | pending | |
-| ZTH-02 | chapter-12-volume-02-architecture-summary.md | pending | |
+| ZTH-02 | chapter-08-global-memory-l1-l2-and-hbm.md | done | none |
+| ZTH-02 | chapter-09-divergence-coalescing-and-bottleneck-reasoning.md | done | none |
+| ZTH-02 | chapter-10-gpu-topology-peer-access-and-data-paths.md | done | none |
+| ZTH-02 | chapter-11-building-a-gpu-performance-model.md | done | none |
+| ZTH-02 | chapter-12-volume-02-architecture-summary.md | done | none |
 | ZTH-02 | labs/lab-01-inspect-gpu-architecture-and-topology.md | pending | |
 | ZTH-02 | labs/lab-02-inspect-gpu-engine-and-memory-behavior.md | pending | |
 | ZTH-02 | labs/lab-03-profile-memory-and-warp-efficiency.md | pending | |
