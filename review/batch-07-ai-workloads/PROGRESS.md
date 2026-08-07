@@ -4,23 +4,23 @@ Volumes: F-05 (`docs/volume-05`), ZTH-12 (`docs/nvidia-zero-to-hero/volume-12`),
 
 | Volume | File | Status | Severity Summary |
 |---|---|---|---|
-| F-05 | 01-chapter-1-classify-the-ai-workload-before-designing-infrastructure.md | pending | |
-| F-05 | 02-chapter-2-training-architecture-compute-data-checkpoints-and-collectives.md | pending | |
-| F-05 | 03-chapter-3-llm-inference-prefill-decode-batching-and-kv-cache.md | pending | |
-| F-05 | 04-chapter-4-serving-frameworks-and-the-platform-boundary.md | pending | |
-| F-05 | 05-chapter-5-autoscaling-inference.md | pending | |
-| F-05 | 06-chapter-6-distributed-and-disaggregated-inference.md | pending | |
-| F-05 | 07-chapter-7-state-caches-and-rag-dependencies.md | pending | |
-| F-05 | 08-chapter-8-security-and-tenancy-for-ai-platforms.md | pending | |
-| F-05 | 09-chapter-9-performance-and-cost-engineering.md | pending | |
-| F-05 | 10-senior-deep-dive-1-training-systems-parallelism-collectives-and-checkpoint-eco.md | pending | |
-| F-05 | 11-senior-deep-dive-2-llm-inference-prefill-decode-kv-cache-and-continuous-batchi.md | pending | |
-| F-05 | 12-senior-deep-dive-3-nim-vllm-tensorrt-llm-and-serving-boundaries.md | pending | |
-| F-05 | 13-senior-deep-dive-4-nvidia-dynamo-system-level-inference-optimization.md | pending | |
-| F-05 | 14-senior-deep-dive-5-autoscaling-inference-from-work-not-only-cpu.md | pending | |
-| F-05 | 15-senior-deep-dive-6-rag-vector-search-and-stateful-dependencies.md | pending | |
-| F-05 | 16-senior-deep-dive-7-agentic-and-multimodal-infrastructure.md | pending | |
-| F-05 | 17-senior-deep-dive-8-production-benchmark-design.md | pending | |
+| F-05 | 01-chapter-1-classify-the-ai-workload-before-designing-infrastructure.md | done | low |
+| F-05 | 02-chapter-2-training-architecture-compute-data-checkpoints-and-collectives.md | done | medium |
+| F-05 | 03-chapter-3-llm-inference-prefill-decode-batching-and-kv-cache.md | done | low |
+| F-05 | 04-chapter-4-serving-frameworks-and-the-platform-boundary.md | done | low |
+| F-05 | 05-chapter-5-autoscaling-inference.md | done | low |
+| F-05 | 06-chapter-6-distributed-and-disaggregated-inference.md | done | low |
+| F-05 | 07-chapter-7-state-caches-and-rag-dependencies.md | done | low |
+| F-05 | 08-chapter-8-security-and-tenancy-for-ai-platforms.md | done | low |
+| F-05 | 09-chapter-9-performance-and-cost-engineering.md | done | low |
+| F-05 | 10-senior-deep-dive-1-training-systems-parallelism-collectives-and-checkpoint-eco.md | done | low |
+| F-05 | 11-senior-deep-dive-2-llm-inference-prefill-decode-kv-cache-and-continuous-batchi.md | done | low |
+| F-05 | 12-senior-deep-dive-3-nim-vllm-tensorrt-llm-and-serving-boundaries.md | done | medium |
+| F-05 | 13-senior-deep-dive-4-nvidia-dynamo-system-level-inference-optimization.md | done | low |
+| F-05 | 14-senior-deep-dive-5-autoscaling-inference-from-work-not-only-cpu.md | done | low |
+| F-05 | 15-senior-deep-dive-6-rag-vector-search-and-stateful-dependencies.md | done | low |
+| F-05 | 16-senior-deep-dive-7-agentic-and-multimodal-infrastructure.md | done | low |
+| F-05 | 17-senior-deep-dive-8-production-benchmark-design.md | done | low |
 | ZTH-12 | index.md | pending | |
 | ZTH-12 | chapter-01-why-inference-infrastructure-is-different.md | pending | |
 | ZTH-12 | chapter-02-the-end-to-end-inference-request-path.md | pending | |
