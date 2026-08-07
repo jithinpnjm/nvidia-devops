@@ -1,18 +1,36 @@
-# Chapter 11
+---
+title: "Chapter 11 - Topic"
+slug: "chapter-11-topic"
+sidebar_position: 11
+description: "Chapter 11 - Topic — Production operations deep dive."
+---
 
-## Learning Objectives
+# Chapter 11 — Topic
 
-- Objective 1
-- Objective 2
+**Learning outcome:** Understand and operate [this topic] in production GPU clusters.
 
-## Big Picture
+## Overview
 
-## Deep Explanation
+This chapter covers [topic] at production scale, with real evidence, mechanism diagrams, troubleshooting procedures, and interview-ready explanations.
 
-## Production Troubleshooting
+## Key Sections
 
-## Interview Preparation
+- **Mechanism & Why**: First-principles explanation
+- **Real Evidence**: Annotated command outputs and metrics
+- **Decision Trees**: When and how to intervene
+- **Troubleshooting**: Evidence-based diagnosis
+- **Interview Prep**: Explain operational decisions with confidence
 
-## Key Takeaways
+## Content Under Development
+
+This chapter is being authored to the depth-rework standard established in Chapters 1-3. It will include:
+
+1. Real, annotated command outputs from production systems
+2. Mechanism flowcharts showing decision points and failure scenarios
+3. Troubleshooting tables backed by actual evidence
+4. Interview-ready first-person explanations of operational decisions
 
 ## Cross References
+
+Related chapters and volumes will be linked once authored.
+
