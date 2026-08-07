@@ -37,3 +37,17 @@
   - Evidence: Line ~453 (Part 6 interview answer).
   - Why it matters for JR2018680: This worked "how do you justify premium interconnect cost" answer is presented as something to recite in an interview; the headline ROI number is wrong by 3 orders of magnitude.
   - Suggested fix: Recompute the per-run cost delta (~$22, not $22,400) and cascade the correction through the annual/3-year totals — the qualitative conclusion (choose IB) may still hold but the magnitude claimed is unsupported.
+
+### chapter-03-high-speed-networking-architecture.md
+- [SEVERITY: high] RECURRENCE of the AllReduce bandwidth-math error pattern (~6x), and internally self-contradictory. Section 2.1 states "200 MB / 300 GB/s (IB NDR per direction) = 0.67 ms per step", treating IB NDR as 300 GB/s. But Section 5.1 of the same chapter correctly states "Bandwidth per GPU uplink: 400 Gbps IB NDR = 50 GB/s" (400 Gbps NDR really is 50 GB/s, not 300 GB/s). The wrong 300 GB/s figure (6x too high) is then used to derive per-step ring-AllReduce times (0.67ms/step) throughout Section 4.1's "Single-Rack NVLink Topology Optimization" (e.g., "Single AllReduce on 128 GPU: ~11 ms", "Training iteration overhead: 0.7%"), understating real AllReduce time and overhead by roughly the same 6x.
+  - Evidence: Line ~135 ("300 GB/s (IB NDR per direction)") vs line ~372 ("400 Gbps IB NDR = 50 GB/s") in the same file.
+  - Why it matters for JR2018680: This is the specific "Ring-AllReduce bandwidth math wrong by 5-9x" pattern flagged repeatedly across the review series, appearing again here with the two conflicting bandwidth figures in the same chapter.
+  - Suggested fix: Standardize on 50 GB/s for IB NDR per direction and recompute the Section 2.1/4.1 per-step and total AllReduce times (and downstream overhead percentages) using that figure.
+- [SEVERITY: medium] Gradient quantization math (BF16 → INT8) claims a 4x data reduction ("140GB → 35GB", "2.1875GB → 546.875MB", "4x faster") but BF16 (2 bytes) → INT8 (1 byte) is only a 2x reduction; correct values are 140GB → 70GB and 2.1875GB → ~1.09GB, and the AllReduce time should be ~21.9ms (2x faster), not 10.9ms (4x faster).
+  - Evidence: Line ~375-378 (Section 5.1, "Optimization 1: Gradient Quantization").
+  - Why it matters for JR2018680: A candidate asked to reason about gradient-compression bandwidth savings needs the byte-width arithmetic right; this table overstates the benefit by 2x.
+  - Suggested fix: Correct the reduction factor to 2x and recompute the derived numbers.
+- [SEVERITY: low] Nonsensical/garbled unit calculation: "Throughput: 64 GPU × 350W × 100ms = 2.24 MWh per day" mixes power, GPU count, and a 100ms duration into a result labeled MWh/day; the arithmetic and units don't correspond to any coherent derivation (correct daily energy for 64×350W run continuously would be ~537.6 kWh/day, not 2.24 MWh via this formula).
+  - Evidence: Line ~227 (Section 3.1, NCCL performance box).
+  - Why it matters for JR2018680: Low interview-relevance but signals sloppy copy/paste of numbers that could confuse a reader trying to reproduce power/energy estimates.
+  - Suggested fix: Remove or replace with a correct daily-energy calculation (kW × 24h × kWh cost).
