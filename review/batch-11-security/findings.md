@@ -2,6 +2,24 @@
 
 Volume: ZTH-18 (`docs/nvidia-zero-to-hero/volume-18/`)
 
+## Summary
+
+Reviewed all 12 chapters, index.md, and all 10 labs. Overall this volume is strong — most chapters hit the gold-standard bar (real commands, first-person interview answers, troubleshooting tables) and only one trivial MDX bug was found and fixed inline (mismatched Mermaid bracket in chapter-09). Counts by severity:
+
+- **High: 3**
+- **Medium: 9**
+- **Low: 5**
+
+**Top 5 findings for interview prep, in priority order:**
+
+1. **[High] Chapter 6 (GPU Sharing Security) overclaims MIG's side-channel isolation** — states "no side-channel is possible" with MIG, when NVIDIA's actual position is hardware-level fault/compute/memory isolation without a certified guarantee against every side channel (notably, power/thermal domains remain shared across MIG instances on the same GPU package — the chapter's own section 6.5 monitors this same channel elsewhere without connecting the dots). This is the review's central ask and the most important thing to correct before using this volume for interview prep.
+2. **[High] Chapter 9 conflates `nvidia-smi -c` (legacy compute mode) with H100 Confidential Computing mode** — the shown command/verification sequence for "enabling GPU CCM" doesn't actually enable or verify confidential computing; the example's own output contradicts itself. Get comfortable with the real `nvidia-smi conf-compute` workflow before an interview.
+3. **[High] Chapter 8 misdefines the DOCA acronym** ("Data Center GPU Accelerated" instead of "Data Center-on-a-Chip Architecture") — a basic factual error about NVIDIA's own product naming.
+4. **[Medium] Chapter 10's `NCCL_TLS_LEVEL=encrypt` is not a real NCCL feature** — NCCL does not natively encrypt GPU-to-GPU collective traffic; this is a genuine, unsolved-by-a-flag problem in real GPU clusters and worth understanding accurately (network/fabric-level isolation, not an NCCL env var) given the review's focus on NCCL/RDMA exposure.
+5. **[Medium] Labs 5-10 (MIG isolation, BlueField, GPU Confidential Compute, model signing, audit) are 12-line stubs** with no hands-on steps, unlike the fully worked labs 1-4 — notably this leaves the two most GPU-specific labs (MIG isolation, GPU CC) without practice material, which is a gap directly against this batch's interview focus.
+
+Additional gap worth flagging even though it's not a single-chapter finding: **no chapter substantively covers the NVIDIA device plugin / nvidia-container-toolkit privileged-container trust boundary** for GPU workloads in Kubernetes (see Chapter 5 finding) — this is explicitly called out in the review brief as core GPU/K8s interview territory.
+
 ## index.md
 
 - [SEVERITY: low] Index lists only 4 labs ("Lab 1" through "Lab 4") under **Labs**, but the `labs/` directory actually contains 10 lab files (lab-01 through lab-10).
@@ -131,3 +149,16 @@ Accurate, well-structured multi-layer audit/compliance chapter (Kubernetes, GPU/
 ## chapter-12-placeholder.md — Incident Response and Troubleshooting
 
 Strong closing chapter: concrete incident playbooks (leaked token, GPU side-channel, container escape), a reusable runbook template, and a tabletop-drill format. No accuracy issues found. Good volume-closing summary table.
+
+## Labs
+
+### labs/lab-01-placeholder.md through labs/lab-04-placeholder.md
+
+Consistent, gold-standard-quality hands-on labs: real step-by-step commands, expected outputs, "should fail" negative tests, and a structured deliverable template. No accuracy issues found (lab-03 and lab-04's `kubectl auth can-i --as=` usage is correct, unlike the flawed `--resource-name` examples in the chapters).
+
+### labs/lab-05-placeholder.md through labs/lab-10-placeholder.md
+
+- [SEVERITY: medium] All six labs (05-10) are undeveloped stubs — each is only ~12 lines: title, one-line "Exercise:" description, and "See Chapter N for background." This is a sharp depth-bar drop from labs 1-4 (95-216 lines each, with concrete commands, expected outputs, and deliverable templates) and from the volume's own gold-standard bar. Notably, lab-08 (GPU Confidential Compute Mode + attestation) and lab-05 (MIG isolation validation) cover exactly the two topics this review batch flags as most GPU-specific and highest-value for interview prep, yet have zero hands-on content.
+  - Evidence: `labs/lab-05-placeholder.md` (12 lines) through `labs/lab-10-placeholder.md` (12 lines), vs. `labs/lab-01-placeholder.md` (95 lines) through `labs/lab-04-placeholder.md` (216 lines).
+  - Why it matters for JR2018680: the review brief specifically calls out MIG isolation validation and GPU confidential computing as core interview topics; a candidate working through this volume gets a full guided exercise for RBAC and Pod Security (generic K8s topics covered elsewhere in the curriculum) but no equivalent hands-on practice for the GPU-specific labs that most differentiate NVIDIA infra interviews from generic cloud-security interviews.
+  - Suggested fix: flag for a follow-up authoring pass to bring labs 5-10 up to the same step-by-step depth as labs 1-4, prioritizing lab-05 (MIG) and lab-08 (GPU CC) given the interview focus.

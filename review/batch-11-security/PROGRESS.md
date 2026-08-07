@@ -17,13 +17,13 @@ Volume: ZTH-18 (`docs/nvidia-zero-to-hero/volume-18/`)
 | ZTH-18 | chapter-10-placeholder.md | done | 1 medium, 1 low |
 | ZTH-18 | chapter-11-placeholder.md | done | none |
 | ZTH-18 | chapter-12-placeholder.md | done | none |
-| ZTH-18 | labs/lab-01-placeholder.md | pending | |
-| ZTH-18 | labs/lab-02-placeholder.md | pending | |
-| ZTH-18 | labs/lab-03-placeholder.md | pending | |
-| ZTH-18 | labs/lab-04-placeholder.md | pending | |
-| ZTH-18 | labs/lab-05-placeholder.md | pending | |
-| ZTH-18 | labs/lab-06-placeholder.md | pending | |
-| ZTH-18 | labs/lab-07-placeholder.md | pending | |
-| ZTH-18 | labs/lab-08-placeholder.md | pending | |
-| ZTH-18 | labs/lab-09-placeholder.md | pending | |
-| ZTH-18 | labs/lab-10-placeholder.md | pending | |
+| ZTH-18 | labs/lab-01-placeholder.md | done | none |
+| ZTH-18 | labs/lab-02-placeholder.md | done | none |
+| ZTH-18 | labs/lab-03-placeholder.md | done | none |
+| ZTH-18 | labs/lab-04-placeholder.md | done | none |
+| ZTH-18 | labs/lab-05-placeholder.md | done | 1 medium (shared finding, labs 05-10) |
+| ZTH-18 | labs/lab-06-placeholder.md | done | 1 medium (shared finding, labs 05-10) |
+| ZTH-18 | labs/lab-07-placeholder.md | done | 1 medium (shared finding, labs 05-10) |
+| ZTH-18 | labs/lab-08-placeholder.md | done | 1 medium (shared finding, labs 05-10) |
+| ZTH-18 | labs/lab-09-placeholder.md | done | 1 medium (shared finding, labs 05-10) |
+| ZTH-18 | labs/lab-10-placeholder.md | done | 1 medium (shared finding, labs 05-10) |
