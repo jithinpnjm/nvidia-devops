@@ -97,3 +97,9 @@ _Summary to be filled in when review is complete._
 
 ### chapter-12-cross-layer-diagnosis-when-metrics-lie.md
 - [SEVERITY: none] No hardware-spec or Xid-code accuracy issues found. Methodology-focused chapter (layer-by-layer timing, Heisenbug/profiler-overhead reasoning, cross-metric correlation) with no checkable hardware numbers to get wrong. Strong close to the volume — ties together the diagnostic mindset from earlier chapters. Matches depth-rework standard.
+
+### labs/lab-01-symptom-to-evidence-mapping.md, labs/lab-02-root-cause-analysis.md, labs/lab-03-production-incident-simulation.md, labs/lab-04-postmortem-analysis.md
+- [SEVERITY: none] All four labs are well-constructed (scenario → hypotheses → evidence collection → solution, with rubrics), match the depth-rework standard, and are internally consistent (rate/percentage math checked in several places, e.g. lab-02 Exercise 1's clock/power percentage deltas, lab-03/04's ECC error-rate extrapolation — all correct).
+- [SEVERITY: low] These labs inherit the two recurring hardware-spec issues already flagged at the chapter level rather than introducing new ones: the unrealistic "2.5 GHz / 2500 MHz" datacenter GPU clock baseline (lab-01 Exercise 2, lab-02 Exercise 1, lab-03 Exercise 1) and the "10 GB/sec" NVLink per-link bandwidth figure (lab-02 Exercise 2) — see Chapter 6/10 and Chapter 11 findings above for the correct values. Flagged here only for completeness; not counted as new distinct findings.
+  - Why it matters for JR2018680: reinforces the same wrong numbers through repetition across the volume, which increases the chance a candidate memorizes and repeats them.
+  - Suggested fix: once the chapter-level clock/bandwidth figures are corrected, propagate the same correction to these lab exercises (a global find-and-replace of "2.5 GHz"/"2500 MHz" and the NVLink "10 GB/sec" figures across Volume 20 would catch all occurrences at once).

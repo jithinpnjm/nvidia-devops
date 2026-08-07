@@ -59,11 +59,11 @@ Volumes: `docs/nvidia-zero-to-hero/volume-19` (Production Operations), `docs/nvi
 | chapter-11-placeholder.md (dead duplicate) | pending | |
 | chapter-12-cross-layer-diagnosis-when-metrics-lie.md | done | none |
 | chapter-12-placeholder.md (dead duplicate) | pending | |
-| labs/lab-01-symptom-to-evidence-mapping.md | pending | |
+| labs/lab-01-symptom-to-evidence-mapping.md | done | low |
 | labs/lab-01-placeholder.md (dead duplicate) | pending | |
-| labs/lab-02-root-cause-analysis.md | pending | |
+| labs/lab-02-root-cause-analysis.md | done | low |
 | labs/lab-02-placeholder.md (dead duplicate) | pending | |
-| labs/lab-03-production-incident-simulation.md | pending | |
+| labs/lab-03-production-incident-simulation.md | done | low |
 | labs/lab-03-placeholder.md (dead duplicate) | pending | |
-| labs/lab-04-postmortem-analysis.md | pending | |
+| labs/lab-04-postmortem-analysis.md | done | low |
 | labs/lab-04-placeholder.md (dead duplicate) | pending | |
