@@ -376,23 +376,56 @@ Open questions:
 ### Architecture Questions
 
 1. Design a 256-GPU training fabric and explain oversubscription assumptions.
+
+   > "I'd start from the 64-GPU commissioning numbers in Scenario 2 — 89% scaling efficiency with a fixed adapter-per-GPU-group design — and extrapolate conservatively, not linearly, because oversubscription typically gets worse, not better, as you add spine layers. I'd design the leaf-to-spine ratio so the busiest collective phase never exceeds roughly 2:1 oversubscription at any layer, and I'd explicitly tell the customer which oversubscription ratio I chose and why, rather than presenting the topology diagram as if it were self-justifying."
+
 2. Design low-latency inference for a model spanning four GPUs.
+
+   > "For inference, I'd prioritize the smallest possible hop count between the four GPUs over raw aggregate bandwidth — a direct NVLink group, not a group that requires routing through a switch fabric shared with training traffic. I'd also isolate this group from batch or training workloads entirely, because inference latency targets can't absorb the tail-latency variance that comes from sharing a fabric with bursty collective traffic."
+
 3. Design a shared cluster with strict and best-effort service tiers.
+
+   > "I'd give the strict tier a topology guarantee — a preserved, undivided GPU/NIC group with admission control that refuses to fragment it — and I'd let the best-effort tier use whatever capacity is left, including fragmented groups, with no guarantee. The scheduler has to know the difference; a count-only scheduler can't express this distinction at all, so this is really a scheduler-capability requirement before it's a hardware requirement."
+
 4. Explain how you would phase in a new GPU generation.
+
+   > "I would not mix generations within the same tightly-coupled scale-up group — different NVLink generations or GPU memory bandwidth inside one collective group creates exactly the 'physical compatibility is not performance equivalence' trap this chapter warns about. I'd stand up the new generation as its own node pool, benchmark it independently against its own baseline, and only bridge the two generations at the coarse, inter-node fabric level where the performance mismatch matters far less."
 
 ### Scenario Questions
 
 1. Training scales to two nodes but not eight. Structure the investigation.
+
+   > "I'd run the same collective benchmark at 2, 4, and 8 nodes rather than jumping straight to 8, because that's the only way to tell whether the drop is gradual — an oversubscription tax — or a cliff at one specific node count, which points at a rank-mapping or topology problem at that scale specifically. In the commissioning data I've seen, 96.6% efficiency at 32 GPUs dropping to 89.2% at 64 is a gradual, acceptable tax; a drop straight to 60% only at 8 nodes would send me straight to rank placement, not the fabric."
+
 2. A customer wants twice the ports for twice the performance. How do you respond?
+
+   > "I'd tell them ports don't multiply performance on their own — the constraint is usually the bottleneck layer their actual workload hits, and doubling port count only helps if that bottleneck is port count. I'd ask for their current bottleneck classification first: is it Layer 2 host-network, Layer 3 GPU-memory transport, or Layer 4 collective behavior, using the same pyramid from Chapter 10 — because the fix for each of those is completely different hardware, and 'more ports' only answers one of them."
+
 3. Utilization is low despite healthy GPUs. Which upstream layers matter?
+
+   > "Data loading and CPU preprocessing first — if the GPU is starved for input, it'll show low utilization while being perfectly healthy. Then I'd check whether the workload is communication-bound and synchronization is the actual wait, which also shows as 'low utilization' on a simple dashboard even though the GPU is doing exactly what it's supposed to. 'Healthy' and 'well-utilized' are different claims, and I'd never conflate them in an incident write-up."
+
 4. A topology policy strands capacity. How do you balance the trade-off?
+
+   > "I'd quantify both sides before deciding anything — how many GPU-hours are sitting idle because the scheduler won't fragment a strong group, versus how much training time a fragmented group would actually cost this specific workload. If the workload barely communicates, preserving topology is pure waste; if it's tightly coupled, the stranded capacity is cheap insurance. I wouldn't set that policy as a blanket rule — I'd set it per workload class."
 
 ### Customer Questions
 
 1. Why should the customer buy a high-performance fabric?
+
+   > "Only if their measured workload spends a meaningful fraction of iteration time in communication — I'd show them their own collective benchmark numbers, not a vendor spec sheet, before recommending the upgrade."
+
 2. When is Ethernet sufficient?
+
+   > "When the workload's latency and jitter tolerance is loose enough that RoCE-based Ethernet's typically higher tail latency doesn't change the outcome — often true for inference-heavy or loosely-coupled training workloads. I'd want the actual latency budget in hand before ruling InfiniBand in or out."
+
 3. When is GPUDirect operational complexity justified?
+
+   > "When the measured host-staged path is demonstrably the bottleneck — I want to see a before number, with CPU copy overhead visible in the profile, not just an assumption that direct paths are always better. If the host-staged path already keeps up with compute, the validation burden of GPUDirect buys nothing."
+
 4. How do you prove value before full rollout?
+
+   > "A small, representative pilot using the customer's actual workload and their actual message-size distribution, benchmarked in layers — pairwise, then collective, then application throughput — with numbers they can reproduce themselves. I never lead with a vendor peak number; I lead with a number measured on their hardware, under their conditions."
 
 ## Summary
 
