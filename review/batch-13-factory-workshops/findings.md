@@ -74,3 +74,13 @@
 
 ### chapter-07-multi-node-distributed-training.md
 - No high/medium findings. LR scaling (sqrt rule), throughput, and tensor-parallelism sharding arithmetic check out. Fault-tolerance code is reasonable and consistent with the checkpoint chapter.
+
+### chapter-08-inference-serving-at-scale.md
+- [SEVERITY: high] RECURRENCE of the 1000x unit-magnitude-slip pattern in the headline cost figure. "Cost per 1M tokens served: $46.6M / (2000 QPS × 86400 sec/day × 365 days × 150 tokens/seq) = $0.005 per 1M tokens" — verified: the stated denominator computes to 9.46 trillion tokens/year, giving $46.6M / 9.46M(millions) ≈ **$4.93 per 1M tokens** (not $0.005) using the formula as literally written (1-year token volume against a 3-year cost figure); even generously using 3 years of token volume to match the 3-year cost, the correct answer is **≈$1.64 per 1M tokens** — roughly 1000x and 330x off respectively from the doc's claimed $0.005.
+  - Evidence: Line ~195 (Part 2.2, "Production Inference Cluster: 2000 QPS Peak").
+  - Why it matters for JR2018680: This is the volume's headline economic conclusion for inference serving cost — exactly the kind of number an interviewer would sanity-check, and it's wrong by roughly three orders of magnitude, matching the GFLOPS/TFLOPS-style unit-slip pattern flagged repeatedly across the review series.
+  - Suggested fix: Recompute using consistent time periods (e.g., annual cost / annual tokens, or 3-year cost / 3-year tokens) — correct figure is on the order of $1.50-5.00 per 1M tokens, not $0.005.
+- [SEVERITY: medium] Multi-region capacity sizing is internally inconsistent / over-provisioned by ~2.3x. The chapter computes "132 GPUs minimum" to serve 2000 QPS, then applies "3x redundancy" to get 396 GPUs total across 3 regions — implying each region carries roughly a third of load with failover headroom. But the per-region breakdown then states Region 1 alone (100 model replicas) serves "1520 QPS" — and with 3 symmetric regions that's ~4560 QPS of aggregate capacity for a 2000 QPS target, not the ~2000 QPS (with 1 region as failover) the earlier "132 × 3" redundancy framing implied.
+  - Evidence: Lines ~174-187.
+  - Why it matters for JR2018680: Capacity-planning math for multi-region HA is a common systems-design interview topic; the sizing logic here doesn't hang together and would not survive a "walk me through your math" follow-up question.
+  - Suggested fix: Clarify whether the design target is N+1 regional failover (each region ~2000/2≈1000 QPS capacity, tolerating 1 region down) or full triplication, and make the GPU count and per-region QPS figures consistent with that choice.

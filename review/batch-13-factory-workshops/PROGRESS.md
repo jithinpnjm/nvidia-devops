@@ -13,7 +13,7 @@ no content) alongside the real chapter files. These are excluded from review as 
 | ZTH-21 | chapter-05-power-delivery-and-thermal-management.md | done | clean |
 | ZTH-21 | chapter-06-software-stack-integration.md | done | low:1 |
 | ZTH-21 | chapter-07-multi-node-distributed-training.md | done | clean |
-| ZTH-21 | chapter-08-inference-serving-at-scale.md | pending | |
+| ZTH-21 | chapter-08-inference-serving-at-scale.md | done | high:1, medium:1 (1000x cost slip recurrence) |
 | ZTH-21 | chapter-09-multi-region-deployment.md | pending | |
 | ZTH-21 | chapter-10-monitoring-and-operations.md | pending | |
 | ZTH-21 | chapter-11-capacity-planning-and-forecasting.md | pending | |
