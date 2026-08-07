@@ -76,3 +76,14 @@ _Summary to be filled in when review is complete._
   - Why it matters for JR2018680: PSU capacity-planning questions ("how much power does a node of A100s need") are a plausible NVIDIA ops interview topic, and this specific, repeated number is off from every real A100 SKU's rated TDP.
   - Suggested fix: use 400W (A100 SXM4, the common cluster deployment) or clarify which A100 variant if 300W/250W (PCIe) is intended, and recompute the PSU sizing example accordingly.
 - Otherwise strong: clean diagnosis flow (software-set vs. hardware voltage-sag branches), realistic IPMI/voltage-rail evidence, and well-reasoned interview answers.
+
+### chapter-10-clock-instability-and-frequency-scaling-problems.md
+- [SEVERITY: medium] Same unrealistic "2.5 GHz" / "2500 MHz" datacenter-GPU clock baseline as Chapter 6 (see finding there — real A100/H100 boost clocks top out around 1410/1980 MHz), used throughout this chapter's P-state table, oscillation examples, and both interview answers.
+  - Evidence: "P0: 2500 MHz (max performance)", "Clock should stabilize at 2400-2500 MHz", verification "Expected: Constant 2500 MHz", interview answer "clock should lock at 2500 MHz".
+  - Why it matters for JR2018680: repeats the same checkable-hardware-number error pattern flagged in Batch 09, now appearing in two chapters of this volume.
+  - Suggested fix: same as Chapter 6 — use a real GPU's clock range (e.g., H100 ≈1590/1980 MHz boost).
+- [SEVERITY: low] Two fabricated/non-existent CLI tools and one fabricated flag: `nvidia-query-gpu` (not a real NVIDIA tool — GPU queries are done via `nvidia-smi -q`), `nvidia-fw-tool` (not a real NVIDIA firmware-update tool), and `nvidia-smi -pgc <max_freq>` (not a real nvidia-smi flag; the real clock-lock flags are `-lgc`/`-rgc`, which the chapter also uses correctly elsewhere).
+  - Evidence: "`$ nvidia-query-gpu -i 0 | grep -A 20 \"Performance States\"`"; "`nvidia-fw-tool update --gpu-index 0`"; troubleshooting table row 2 "Try `nvidia-smi -pgc <max_freq>` to unlock".
+  - Why it matters for JR2018680: a candidate quoting these tool names in an interview would be immediately corrected; low severity because they read as clearly illustrative/placeholder rather than confidently-stated facts.
+  - Suggested fix: replace with real commands (`nvidia-smi -q -d PERFORMANCE`, `nvidia-smi -lgc`/`-rgc`, and note that GPU firmware/VBIOS updates go through vendor tools, not a generic driver CLI).
+- Otherwise well-structured: correct P-state concept (P0-P8 is a real NVIDIA GPU power-state range), sound DVFS-vs-thermal-vs-power decision tree, and solid interview answers.
