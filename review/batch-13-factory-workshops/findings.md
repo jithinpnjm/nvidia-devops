@@ -84,3 +84,6 @@
   - Evidence: Lines ~174-187.
   - Why it matters for JR2018680: Capacity-planning math for multi-region HA is a common systems-design interview topic; the sizing logic here doesn't hang together and would not survive a "walk me through your math" follow-up question.
   - Suggested fix: Clarify whether the design target is N+1 regional failover (each region ~2000/2≈1000 QPS capacity, tolerating 1 region down) or full triplication, and make the GPU count and per-region QPS figures consistent with that choice.
+
+### chapter-09-multi-region-deployment.md
+- No high/medium findings. Cost rollups check out (electricity calc off by <2%, immaterial rounding). Failover/health-check code and cross-region training sync narrative are reasonable and clearly caveated (async, eventual consistency).
