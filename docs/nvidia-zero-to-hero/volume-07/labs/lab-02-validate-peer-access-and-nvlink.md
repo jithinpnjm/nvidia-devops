@@ -269,11 +269,56 @@ The purpose is to demonstrate path sensitivity. Do not disable NVLink, change fi
 
 **Root cause:** Unsupported pair, platform limitation, isolation mode, or software mismatch.
 
+**Worked evidence for this exact symptom.** Topology says NVLink is present, but the p2p matrix and CUDA both refuse the pair — a MIG-enabled GPU in the mix:
+
+```text
+$ nvidia-smi topo -m
+        GPU0    GPU1
+GPU0     X      NV18
+GPU1    NV18     X
+
+$ nvidia-smi topo -p2p r
+       GPU0  GPU1
+GPU0    X     CNS
+GPU1    CNS    X
+
+$ nvidia-smi -i 1 --query-gpu=mig.mode.current --format=csv
+mig.mode.current
+Enabled
+
+$ ./simpleP2P
+Checking GPU(s) for support of peer to peer memory access...
+> Peer access from NVIDIA H100 80GB HBM3 (GPU0) -> NVIDIA H100 80GB HBM3 (GPU1) : No
+Two or more GPUs with Peer-to-Peer access capability are required for ./simpleP2P.
+Waiving test.
+```
+
+`topo -m` reports `NV18` (the NVLink hardware exists and is healthy), but `topo -p2p r` reports `CNS` (chipset/platform not supported) for the same pair — this is the `P2PCheck` fork in Figure 7.L2.1 resolving to `P2PNo` despite the `NVPath` branch being taken first. `mig.mode.current = Enabled` on GPU1 is the root cause: MIG partitions a GPU's memory and compute into isolated instances, and peer access across a MIG-enabled GPU is not supported regardless of the underlying NVLink topology. `simpleP2P` waiving the test (rather than crashing or reporting a false bandwidth number) is the correct, safe behavior — the fix here is disabling MIG on GPU1 (`nvidia-smi -i 1 -mig 0`, which requires a GPU reset) if this pair genuinely needs peer access, not investigating the NVLink hardware.
+
 ### One pair is much slower
 
 **Check:** Topology matrix, direct-link state, PCIe negotiation, power state, concurrent workloads, and repeated-run variance.
 
 **Resolution:** Correct placement, remove contention, restore the approved link state, or escalate hardware findings with evidence.
+
+**Worked evidence for this exact symptom.** GPU0-GPU3 tests far below the ~800 GB/s bidirectional baseline established in Step 4/Section 10 for every other pair:
+
+```text
+$ ./p2pBandwidthLatencyTest
+Bidirectional P2P=Enabled Bandwidth Matrix (GB/s)
+   D\D      0      3
+     0   1587.2  312.4
+     3    309.8 1590.6
+
+$ nvidia-smi nvlink --errorcounters -i 3
+GPU 3: NVIDIA H100 80GB HBM3 (UUID: GPU-f19a0d34-2e6f-4a0b-c3d2-4d5e6f708192)
+         Link  4: Replay Errors: 18422
+         Link  4: Recovery Errors: 3
+         Link  4: CRC Errors: 211
+         ... (links 0-3, 5-17: 0 errors)
+```
+
+Bidirectional bandwidth for GPU0-GPU3 (`~311 GB/s`) is barely 39% of the ~800 GB/s every other pair achieves — well outside normal run-to-run variance (Step 5 showed ~0.4% spread on a healthy pair). `nvidia-smi nvlink --errorcounters` isolates it immediately: link 4 on GPU3 alone has accumulated `18,422` replay errors and `211` CRC errors while every other link on every other GPU reads zero. This is the `DegradedPath` branch of Figure 7.L2.1 — the link is still enumerated and still carries traffic (so `topo -m` still shows `NV18` and the pair still "works"), but a failing physical lane is forcing constant retransmission, which caps effective throughput far below the 17-link-healthy figure. The fix is a hardware escalation for that specific NVLink connector/riser, not a software or placement change — this is exactly the kind of fault that a topology-matrix-only check would miss entirely.
 
 ### Data-integrity validation fails
 

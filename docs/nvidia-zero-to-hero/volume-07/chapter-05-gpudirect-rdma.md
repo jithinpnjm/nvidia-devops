@@ -52,26 +52,23 @@ After completing this chapter, you will be able to:
 ## Big Picture
 
 ```mermaid
-flowchart LR
-    App[Distributed Training Process]
-    Runtime[Framework and Collective Library]
-    GPU[GPU Memory]
-    NIC[RDMA-Capable Network Adapter]
-    Fabric[InfiniBand or RoCE Fabric]
-    RemoteNIC[Remote Network Adapter]
-    RemoteGPU[Remote GPU Memory]
-    CPU[Host CPU]
+flowchart TD
+    App[Distributed Training Process] --> Runtime[Framework and Collective Library]
+    Runtime --> GPU[GPU Memory]
+    CPU[Host CPU] -. "registration, QP setup,<br/>completion handling" .-> Runtime
+    CPU -. control .-> NIC[RDMA-Capable Network Adapter]
 
-    App --> Runtime
-    Runtime --> GPU
-    GPU <--> NIC
-    NIC <--> Fabric <--> RemoteNIC
-    RemoteNIC <--> RemoteGPU
-    CPU -. setup, registration, completion .-> Runtime
-    CPU -. control .-> NIC
+    GPU --> T{"Direct transport selected?<br/>evidence: NCCL_DEBUG=INFO<br/>'via NET/IB' + GDR, or<br/>ib_write_bw --use_cuda on this pair"}
+    T -->|"peer-memory OK, PIX/PXB topology,<br/>NCCL log shows GDR enabled"| Direct["NIC reads GPU memory directly<br/>(GPUDirect RDMA path)"]
+    T -->|"peer-memory unavailable, SYS<br/>topology, or NCCL falls back"| Staged["Host-staged path<br/>GPU to pinned buffer to NIC<br/>(same result, CPU pays for every byte)"]
+
+    Direct --> NIC
+    Staged --> Host[Host Memory] --> NIC
+    NIC <--> Fabric[InfiniBand or RoCE Fabric] <--> RemoteNIC[Remote Network Adapter]
+    RemoteNIC <--> RemoteGPU[Remote GPU Memory]
 ```
 
-**Figure 7.5.1 — GPUDirect RDMA shortens the payload path.** The CPU coordinates the operation, while the network adapter directly reads or writes registered GPU memory.
+**Figure 7.5.1 — GPUDirect RDMA shortens the payload path, if the direct branch is actually taken.** The CPU coordinates the operation; the decision point shows the one fact that separates a healthy deployment from a silently-degraded one — whether the NIC reads/writes GPU memory directly, or the transfer quietly falls back to host staging while the job keeps running. The Story below is exactly this fallback happening undetected.
 
 ## Why Host Staging Became a Bottleneck
 
@@ -210,6 +207,15 @@ GPUDirect RDMA can reduce copy overhead and CPU involvement, but it cannot excee
 
 Small messages are often latency-sensitive. Large messages are more bandwidth-sensitive. A benchmark must therefore test multiple message sizes.
 
+**Worked, illustrative example — what the fallback branch actually costs a training step.** Consider an AllReduce over a 700 MB gradient tensor (roughly a 175M-parameter model's gradients at FP32) across two nodes. Using the Step 3 figures above as stand-ins for delivered bandwidth:
+
+```text
+direct path:  700 MB / 23,488 MB/s ≈ 0.030 s  ≈ 30 ms per AllReduce
+staged path:  700 MB / 9,762 MB/s  ≈ 0.072 s  ≈ 72 ms per AllReduce
+```
+
+A 42 ms difference per AllReduce looks small in isolation, but a training loop that performs one AllReduce per step and runs 10,000 steps accumulates `42 ms × 10,000 ≈ 420 seconds` (7 minutes) of pure communication-path overhead from the fallback alone — with no change to the model, data, or GPU compute. This is the arithmetic behind the chapter's opening story: the fix that mattered was not a faster switch, it was making sure every channel actually took the `GDRDMA` branch instead of quietly staging through host memory.
+
 ## Architecture Trade-offs
 
 ### Performance versus operational complexity
@@ -249,17 +255,65 @@ Commissioning should include host-memory RDMA tests, GPU-memory RDMA tests, topo
 
 Confirm GPUs and adapters are visible, healthy, and operating at the expected PCIe link width and speed.
 
+```bash
+nvidia-smi --query-gpu=index,name,pcie.link.gen.current,pcie.link.width.current --format=csv
+```
+
+```text
+index, name, pcie.link.gen.current, pcie.link.width.current
+0, NVIDIA H100 80GB HBM3, 5, 16
+1, NVIDIA H100 80GB HBM3, 5, 16
+```
+
+`pcie.link.gen.current` and `pcie.link.width.current` (5, 16 — Gen5 x16) are the **negotiated, current** values, not the card's rated maximum — a card capable of Gen5 x16 that shows `1, 16` or `5, 8` here has down-trained, and every downstream RDMA or GPUDirect number will be lower than expected until that is fixed. Compare this reading against `nvidia-smi topo -m` (introduced in the previous chapter) for the same node before running any bandwidth test — a down-trained link and a `SYS`-only GPU/NIC pairing produce similar-looking slow results but need different fixes.
+
 ### Step 2 — Prove RDMA independently
 
 Run approved RDMA bandwidth and latency tests using host memory. This isolates the network transport from GPU-memory integration.
+
+```bash
+ib_write_bw -d mlx5_0 -a <remote_host>
+```
+
+```text
+ #bytes     #iterations    BW peak[MB/sec]    BW average[MB/sec]   MsgRate[Mpps]
+ 4194304    1000            24842.10            24798.55            0.005914
+```
+
+`BW average: 24798.55 MB/sec` (~24.8 GB/s, illustrative for an EDR-class link) with host buffers is the node's transport baseline. Every later, GPU-buffer-involving number in this validation sequence should be compared against this figure, not against a vendor spec sheet — the spec sheet doesn't know about this node's actual cabling, firmware, or topology.
 
 ### Step 3 — Prove peer-memory integration
 
 Run a tool or framework test that explicitly uses GPU buffers. Verify that the test reports the expected memory type and transport.
 
+```bash
+ib_write_bw -d mlx5_0 -a --use_cuda=0 <remote_host>
+```
+
+```text
+ #bytes     #iterations    BW peak[MB/sec]    BW average[MB/sec]   MsgRate[Mpps]
+ 4194304    1000            23615.40            23488.02            0.005601
+```
+
+`--use_cuda=0` tells the test to source the payload from GPU 0's memory instead of host memory. `BW average: 23488.02 MB/sec` sitting close to the Step 2 host-memory baseline (24798.55 MB/sec, roughly 95% of it) is the signature of a healthy direct path — GDR is engaging and the GPU-memory transfer is nearly as fast as the host-memory one. If this number instead came back around 9,000-10,000 MB/sec (roughly 40% of baseline, as in the fallback example later in this chapter), that gap is the proof that the transfer is staging through host memory instead of reading GPU memory directly, regardless of what the test's exit code says.
+
 ### Step 4 — Prove collective path selection
 
 Enable library diagnostics in a controlled environment and confirm the selected transport, adapters, and topology channels.
+
+```bash
+NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT,NET python train.py
+```
+
+```text
+node0:1234:1234 [0] NCCL INFO NET/IB : Using [0]mlx5_0:1/IB [RO]; OOB eth0:10.0.0.11
+node0:1234:1235 [1] NCCL INFO NET/IB : Using [1]mlx5_1:1/IB [RO]; OOB eth0:10.0.0.11
+node0:1234:1234 [0] NCCL INFO Channel 00/04 : 0[0] -> 1[1] via P2P/CUMEM
+node0:1234:1234 [0] NCCL INFO Channel 00/04 : 0[0] -> 2[0] via NET/IB/0/GDRDMA
+node0:1234:1234 [0] NCCL INFO Using network IB
+```
+
+The line to search for is `GDRDMA` — its presence on the inter-node channel (`0[0] -> 2[0] via NET/IB/0/GDRDMA`) confirms NCCL selected the GPUDirect RDMA transport for that link. Its *absence*, or a channel instead reading `via NET/IB/0` with no `GDRDMA` suffix, means NCCL fell back to a host-staged network path for that channel even though the job will still run and complete correctly — this is precisely the silent-fallback risk called out throughout this chapter, and `NCCL_DEBUG=INFO` is the one piece of evidence that catches it directly instead of inferring it from a slow step time.
 
 ### Step 5 — Compare against baseline
 
@@ -297,6 +351,25 @@ Measure multiple message sizes and compare with the node-class baseline. A singl
 
 Restore supported versions, align device placement, correct platform configuration, or explicitly disable an unsafe direct path until the node is repaired.
 
+**Evidence in practice:** on the affected node, the host-memory baseline and the GPU-buffer test diverge sharply:
+
+```text
+$ ib_write_bw -d mlx5_0 -a <remote_host>                  # host memory
+ BW average[MB/sec]: 24798.55
+
+$ ib_write_bw -d mlx5_0 -a --use_cuda=0 <remote_host>      # GPU memory
+ BW average[MB/sec]: 9762.44
+```
+
+9762.44 MB/s against a 24798.55 MB/s baseline is roughly 39% — squarely in "staging through host memory" territory rather than "direct path, somewhat degraded." Cross-checking `nvidia-smi topo -m` for this GPU/NIC pair shows the mechanism:
+
+```text
+        GPU0    NIC0    NIC1
+GPU0     X      SYS     PIX
+```
+
+`GPU0`↔`NIC0` reads `SYS` — the pairing being used in this job crosses the CPU-to-CPU interconnect — while `GPU0`↔`NIC1` reads `PIX`. The fix here is a rank-placement change (bind this GPU's traffic to `NIC1`, not `NIC0`), not a driver or firmware change; the topology, not the software stack, explains the entire gap.
+
 ### Scenario 2 — Collective communication regresses after an upgrade
 
 **Symptoms**
@@ -327,6 +400,32 @@ Compare the before-and-after compatibility matrix, transport logs, loaded module
 
 Treat the issue as end-to-end. Inspect fabric congestion, adapter counters, PCIe errors, GPU XID events, collective timeouts, and workload synchronization.
 
+**Evidence in practice:** two paired snapshots, taken during a stalled multi-node job.
+
+```bash
+nvidia-smi -q -d ROWREMAPPER,PAGE_RETIREMENT | grep -A2 Xid
+dmesg -T | grep -i xid
+```
+
+```text
+[Thu Aug  6 03:41:02 2026] NVRM: Xid (PCI:0000:1b:00): 79, GPU has fallen off the bus
+```
+
+An Xid 79 (illustrative — GPU has fallen off the bus) on one node in the job is enough, by itself, to explain a distributed timeout: a collective that includes a rank on that GPU cannot complete because its peer is gone, and every other rank in the collective will eventually show a timeout too, even though their own hardware is healthy. This is why "treat the issue as end-to-end" matters — a fabric-counter investigation on the *other* 63 GPUs would find nothing wrong, because nothing is wrong with them.
+
+```bash
+ibqueryerrors -r
+```
+
+```text
+Errors for 0x9803...1a20 "mlx5_0" port 1
+   PortRcvErrors: 1482
+   SymbolErrorCounter: 0
+   LinkDowned: 2
+```
+
+`PortRcvErrors: 1482` and `LinkDowned: 2` on a specific adapter identify link-level retransmission and at least two link-down events — a candidate root cause for retries and congestion that is independent of the Xid above, and evidence that this incident could have two contributing faults (a dropped GPU on one node, a flaky link on another) rather than one.
+
 **Prevention**
 
 Use sustained qualification tests, not only brief link checks. Alert on counter deltas and path changes.
@@ -344,31 +443,68 @@ This avoids buying bandwidth to compensate for a software and locality problem.
 ### Knowledge Questions
 
 1. What problem does GPUDirect RDMA solve?
+
+   > "Without it, every inter-node tensor makes a detour through host memory on both ends — GPU to pinned host buffer, across the network, host buffer to remote GPU. GPUDirect RDMA lets the NIC read or write GPU memory directly, so that detour disappears from the fast path. It's not 'networking without the CPU' — the CPU still sets everything up — it's removing a specific, expensive staging copy from the steady-state transfer."
+
 2. Why does the CPU still matter in a direct GPU-to-NIC transfer?
+
+   > "The CPU does connection setup, memory registration, work-request submission, and completion and error handling — none of that goes away. What changes is that the CPU stops touching the payload bytes themselves. So CPU utilization during communication should drop, but it never goes to zero, and I wouldn't size CPU capacity for a GPU node assuming it will."
+
 3. What is memory registration?
+
+   > "It's the process that makes GPU memory safe for a NIC to touch directly. The collective library, the CUDA stack, the GPU driver, and the RDMA driver all cooperate to identify the address range, pin it so it can't move mid-transfer, build a device-accessible mapping, and issue a key that authorizes exactly that range. It's not free — which is why production systems reuse registered buffers instead of registering fresh memory on every send."
+
 4. Why can a direct path still be slow?
+
+   > "Because 'direct' only means the NIC skips the host-memory copy — it says nothing about the physical route the payload takes to get to that NIC. If the GPU and the adapter sit under different CPU sockets, `nvidia-smi topo -m` will show `SYS`, and that traffic is crossing a CPU interconnect even though it's technically a 'direct' GPUDirect RDMA transfer. I've seen this exact gap — a functionally-correct direct path delivering less than half of the same node's host-RDMA baseline — and topology was the entire explanation."
 
 ### Architecture Questions
 
 1. Draw the end-to-end path for an inter-node GPU transfer.
+
+   > "I'd draw the training process, then the collective library underneath it, then GPU memory — and from GPU memory I draw one edge straight to the local NIC, skipping host memory, labeled with the registration key. Then NIC to fabric to remote NIC to remote GPU memory, mirrored on the other side. Off to the side I'd draw the CPU with dotted lines into the collective library and the NIC — control only, never touching that main data edge. And I'd add the branch: if peer-memory isn't available or the topology is wrong, that same data edge reroutes through a host-memory box instead, and I'd say out loud that this reroute is silent — the job doesn't fail, it just gets slower."
+
 2. Explain how PCIe and NUMA locality influence adapter selection.
+
+   > "A GPU and a NIC that share a PCIe switch — `nvidia-smi topo -m` reporting `PIX` — give you the shortest, least contended path. Push that same transfer across a `SYS` link, crossing CPU sockets, and you're competing with cross-socket interconnect traffic and adding a hop, even though GPUDirect RDMA is 'working' in both cases. So adapter selection isn't just 'is there an adapter available' — it's 'is there an adapter available *near this GPU*,' and I'd pick the topology-matched one every time, even if a farther adapter is technically idle."
+
 3. Design a validation plan for a new GPU and NIC node class.
+
+   > "I wouldn't trust a single number — I'd go in layers. First, prove hardware visibility: GPUs and NICs enumerate, and PCIe link generation and width match spec. Second, prove RDMA independently with a host-memory bandwidth test — that isolates the fabric from anything GPU-specific. Third, rerun that same test against GPU buffers and compare it to the host-memory number — a healthy direct path should land close to that baseline, not at a fraction of it. Fourth, turn on `NCCL_DEBUG=INFO` and confirm the collective library's log actually shows `GDRDMA` on the inter-node channels. Only after all four layers pass do I trust an application-level benchmark, because a single green number at the top of that stack can hide a failure at any layer underneath it."
 
 ### Scenario Questions
 
 1. Host-memory RDMA is fast but GPU-memory RDMA is slow. What do you inspect?
+
+   > "Since the host test already proved the fabric, cabling, and adapter are healthy, I don't re-investigate the network. I go straight to the GPU-memory-specific layer: is peer-memory registration actually succeeding, what does `nvidia-smi topo -m` say about this exact GPU/NIC pair, and is the test quietly staging through host memory instead of touching GPU memory at all. In one case I've reasoned through, a GPU-buffer test came back at about 39% of the host-memory baseline, and the topology table showed `SYS` for that pair — that gap alone explained the entire regression."
+
 2. A job completes after an upgrade but takes 30 percent longer. How could fallback explain it?
+
+   > "A completing job with no errors is exactly what a silent fallback looks like — correctness is preserved, performance isn't. My first move after an upgrade like this is `NCCL_DEBUG=INFO` on a short run, checking whether the inter-node channels still say `GDRDMA` or whether they've quietly dropped to a plain `NET/IB` line. If the driver, RDMA component, or collective library version changed and broke the peer-memory integration, this is precisely the symptom — no alarms, just a slower number — and the log line is the one piece of evidence that catches it directly."
+
 3. Two identical nodes show different performance. Which topology and version checks matter?
+
+   > "'Identical' on paper doesn't mean identical in practice — I'd pull `nvidia-smi topo -m` on both and diff them; rank-to-adapter placement or even BIOS-level PCIe enumeration can differ between nominally-matched nodes. Then I'd diff driver, firmware, RDMA stack, and collective-library versions — a partial rollout or an unpinned dependency is a very common way for 'identical' hardware to diverge in software. I'd only look at the fabric itself after ruling both of those out."
 
 ### Customer Questions
 
 1. When should a customer pay for GPUDirect-capable infrastructure?
+
+   > "When the workload is genuinely communication-heavy — large models with frequent, large collectives — and I can show, with a topology-aware baseline, that the current path is host-staging. If I can quantify the AllReduce time difference in milliseconds per step and multiply by step count, that's a concrete number to bring to a budget conversation instead of a vague 'it'll be faster.'"
+
 2. When is ordinary host networking sufficient?
+
+   > "When communication is a small fraction of the step time to begin with — small models, infrequent synchronization, or workloads that are compute-bound rather than communication-bound. In those cases, GPUDirect RDMA adds qualification and compatibility overhead for a segment of the pipeline that was never the bottleneck. I'd want to see a profile before recommending the investment either way."
+
 3. How do you explain the security and compatibility risks?
+
+   > "Direct memory access from a NIC into GPU memory raises the stakes on IOMMU policy, device assignment, and container privileges — this isn't a feature you bolt on without touching the security model, because getting isolation wrong here means one tenant's traffic could, in principle, reach another tenant's memory. On compatibility, I'd be upfront that this is a stack of dependencies — firmware, driver, CUDA, RDMA libraries, collective software — that all have to move together, and an unqualified combination doesn't necessarily fail loudly, it can just silently fall back to a slower path."
 
 ### Whiteboard Exercise
 
 Draw an eight-GPU, four-adapter node. Show local and remote GPU-to-NIC paths, then propose a rank-placement strategy for a two-node training job.
+
+> "I'd draw eight GPUs in two groups of four, each group under its own CPU socket and PCIe root complex, and two adapters per socket. For each GPU I draw a short edge to the adapter under the same root complex — that's the `PIX`/`PXB` local path — and I'd draw a longer, dashed edge crossing to the other socket's adapters, labeled `SYS`, to show it's available but not preferred. For rank placement across two nodes, I'd assign each GPU's collective traffic to the adapter physically nearest it, keep that binding explicit in the launch configuration rather than letting the library guess, and verify afterward with `NCCL_DEBUG=INFO` that every inter-node channel actually shows `GDRDMA` on the adapter I intended — because the whole point of drawing this diagram is to make the placement decision explicit instead of accidental."
 
 ## Summary
 

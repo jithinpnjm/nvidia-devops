@@ -52,23 +52,21 @@ After completing this chapter, you will be able to:
 ## Big Picture
 
 ```mermaid
-flowchart LR
-    App[Application]
-    CPU[CPU Control Path]
-    Host[Host Memory]
-    GPU[GPU Memory]
-    NIC[RDMA Adapter]
-    Remote[Remote Registered Memory]
+flowchart TD
+    App[Application] --> CPU[CPU Control Path]
+    CPU -. "registers memory region,<br/>posts work request" .-> GPU[GPU Memory]
+    CPU -. "QP setup,<br/>work-request submission" .-> NIC[RDMA Adapter]
 
-    App --> CPU
-    CPU -. programs .-> GPU
-    CPU -. programs .-> NIC
-    Host <--> GPU
-    GPU <--> NIC
-    NIC <--> Remote
+    GPU --> Q{"GPU-to-NIC peer path healthy?<br/>evidence: nvidia-smi topo -m<br/>PIX/PXB = same switch or root complex<br/>SYS = crosses host bridge / QPI"}
+    Q -->|"PIX or PXB, peer-memory<br/>driver loaded, ACS not<br/>forcing redirect"| Direct["Direct peer-to-peer DMA<br/>GPU memory to NIC, no host copy"]
+    Q -->|"SYS, peer-memory unavailable,<br/>or ACS/IOMMU forcing redirect"| Fallback["Host-staged fallback<br/>GPU to pinned host buffer to NIC"]
+
+    Direct --> NIC
+    Fallback --> Host[Host Memory] --> NIC
+    NIC <--> Remote[Remote Registered Memory]
 ```
 
-**Figure 7.4.1 — Control and payload paths.** The CPU authorizes and submits work; device engines move the payload.
+**Figure 7.4.1 — Control and payload paths, with the fault-isolation branch that actually matters.** The CPU authorizes and submits work; device engines move the payload. The decision point in the middle is the one question every RDMA-on-GPU incident reduces to: did this transfer take the direct peer path, or did it silently fall back to host staging? `nvidia-smi topo -m` is the first piece of evidence for that branch — see the annotated output below.
 
 ## Why Programmed Copies Do Not Scale
 
@@ -109,6 +107,30 @@ Examples include:
 
 Support depends on device capabilities, PCIe topology, firmware, address translation, drivers, virtualization, and security policy. A peer path can be functionally valid yet inefficient when it crosses remote root complexes or contended switches.
 
+**Reading the topology before trusting any peer path:**
+
+```bash
+nvidia-smi topo -m
+```
+
+```text
+        GPU0    GPU1    NIC0    NIC1    CPU Affinity    NUMA Affinity
+GPU0     X      NV18    PIX     SYS     0-31            0
+GPU1    NV18     X      SYS     PIX     32-63           1
+NIC0    PIX     SYS      X      SYS
+NIC1    SYS     PIX     SYS      X
+
+Legend:
+  X    = self
+  NV#  = NVLink, # = link count
+  PIX  = single PCIe switch (fast peer path)
+  PXB  = multiple PCIe switches, same root complex
+  PHB  = shared host bridge
+  SYS  = crosses a CPU-to-CPU interconnect (slowest peer path)
+```
+
+Read `GPU0`/`NIC0` and `GPU1`/`NIC1`: both show `PIX`, meaning the GPU and adapter sit one PCIe switch apart — this is the pairing that should be used for peer-to-peer DMA. `GPU0`/`NIC1` shows `SYS`, meaning that path crosses the CPU-to-CPU interconnect; a peer transfer over that pairing is still functionally valid but will show materially lower bandwidth and higher, more variable latency than the `PIX` pairing. `CPU Affinity` and `NUMA Affinity` matter for exactly the same reason — pinning the process to NUMA node 0 while it drives `NIC1` (which lives under CPU 1) reintroduces a remote-memory hop even on a machine with otherwise-favorable topology. This table is the first evidence to pull for the Big Picture decision branch above: `PIX`/`PXB` supports the direct path; `SYS` is a strong signal the transfer will fall back to (or should deliberately use) host staging.
+
 ## RDMA
 
 RDMA extends direct memory operations across a network. An RDMA-capable adapter transfers data between registered memory regions while limiting CPU involvement in the payload path.
@@ -140,9 +162,56 @@ A simplified registration lifecycle is:
 
 Registration is expensive enough that production software normally reuses registered pools instead of registering every request.
 
+**Confirming the adapter and its registration limits before blaming the application:**
+
+```bash
+ibv_devinfo -v
+```
+
+```text
+hca_id: mlx5_0
+        transport:                      InfiniBand (0)
+        fw_ver:                         28.39.2048
+        node_guid:                      9803:9b03:00fc:1a20
+        max_mr_size:                    0xffffffffffffffff
+        max_qp:                         262144
+        max_qp_wr:                      32768
+        max_cq:                         266752
+        max_cqe:                        4194303
+        max_mr:                         262144
+        max_pd:                         262144
+        max_pkeys:                      128
+        local_ca_ack_delay:             16
+        port:   1
+                state:                  PORT_ACTIVE (4)
+                link_layer:             InfiniBand
+                active_mtu:             4096 (4)
+                active_speed:           25.0 Gbps (EDR encoding, per-lane)
+                phys_state:             LINK_UP (5)
+```
+
+`state: PORT_ACTIVE` and `phys_state: LINK_UP` confirm the physical link is up before anything else is investigated — a down port makes every downstream RDMA symptom moot. `max_mr` (maximum memory regions) and `max_qp` (maximum queue pairs) are hard adapter ceilings; a service that registers a new region per request instead of reusing a pool can hit `max_mr` under load long before it hits any memory-capacity limit, and the failure looks like "registration suddenly starts failing" rather than "out of memory." `active_mtu` and `active_speed` matter for the performance math later in this chapter — a link negotiated at a lower MTU or speed than expected (for example `active_speed` reporting `10.0 Gbps` on hardware rated for 25 Gbps per lane) points at a cabling, negotiation, or firmware problem, not an application bug.
+
 ### Pinned memory
 
 Pinned host memory provides stable backing for DMA, but excessive pinning reduces the memory available for reclamation and can exhaust process, kernel, or adapter limits. It must be monitored and released correctly.
+
+**Checking the pinning ceiling and current usage:**
+
+```bash
+ulimit -l
+cat /proc/meminfo | grep -i mlocked
+```
+
+```text
+$ ulimit -l
+65536          # 64 MiB — the default soft memlock limit on many distributions
+
+$ grep -i mlocked /proc/meminfo
+Mlocked:         589824 kB   # ~576 MiB currently pinned system-wide
+```
+
+A default `ulimit -l` of 64 MiB is far smaller than a single GPU-scale RDMA buffer pool; a container or process that inherits this default will see registration calls fail once it tries to pin more than 64 MiB, even though the host has plenty of free RAM. Production RDMA workloads raise this limit explicitly (via `/etc/security/limits.conf`, a container's `ulimits`, or a Kubernetes `securityContext`) and then track `Mlocked` in `/proc/meminfo` over time — a value that climbs steadily without leveling off is the signature of a registration leak (buffers pinned and never released), not normal steady-state behavior, since a healthy pool reuses a bounded set of pinned regions.
 
 ## Protection Keys
 
@@ -172,6 +241,33 @@ flowchart LR
 Applications post work and later consume completions. A completion has specific semantics. It may prove local adapter completion without proving that every application-level consumer is ready.
 
 Software must understand local completion, remote visibility, ordering, fencing, timeout behavior, and failure states.
+
+**Proving the queue-pair path works at all, before troubleshooting anything GPU-specific:**
+
+```bash
+# server
+ib_write_bw -d mlx5_0 -a
+# client
+ib_write_bw -d mlx5_0 -a <server_ip>
+```
+
+```text
+---------------------------------------------------------------------------------------
+                    RDMA_Write BW Test
+ Dual-port       : OFF          Device         : mlx5_0
+ Number of qps   : 1            Transport type : IB
+ Connection type : RC           Using SRQ      : OFF
+ rdma_cm QPs     : OFF
+ Mtu             : 4096[B]
+ Link type       : IB
+ Max inline data : 0[B]
+---------------------------------------------------------------------------------------
+ #bytes     #iterations    BW peak[MB/sec]    BW average[MB/sec]   MsgRate[Mpps]
+ 65536      1000             24610.32            24601.87            0.393630
+---------------------------------------------------------------------------------------
+```
+
+This is a **host-memory** RDMA test — no GPU buffers are involved yet, and it is deliberately the first test to run because it isolates the network transport from GPU-memory integration entirely. `Connection type: RC` (Reliable Connection) confirms the queue pair is using a reliable transport with in-order, acknowledged delivery. `BW average: 24601.87 MB/sec` (~24 GB/s, illustrative for an EDR-class single-port link) is the baseline: if a later GPU-buffer test (using `ib_write_bw --use_cuda=0` against the same adapter) comes back far below this number, the gap is attributable to the GPU-memory path — registration, peer access, or a topology hop — not the network fabric, because the fabric already proved itself healthy here. Recording this number per node class is what later lets an incident say "GPU-buffer RDMA is running at 40% of this node's proven host-RDMA baseline" instead of guessing.
 
 ## Ordering with CUDA Work
 
@@ -217,6 +313,8 @@ The useful question is:
 
 Separate registration cost from steady-state transfer cost. A benchmark that registers memory for every operation may be measuring setup rather than transport.
 
+**Worked, illustrative math — why re-registering per request is expensive at scale:** if memory registration for a mid-sized buffer costs on the order of 50 microseconds (illustrative — actual cost depends on region size, pinning path, and adapter) and a service issues 20,000 requests per second while registering a fresh region for every one, that is `20,000 × 50µs = 1.0 second` of registration overhead consumed every second — the workload is registration-bound before any payload has moved. A reused, pre-registered pool amortizes that cost to effectively zero on the steady-state path, which is exactly why production RDMA software treats registration as a startup/pool-growth event rather than a per-request step.
+
 ### Scalability
 
 Large deployments consume queue pairs, memory regions, completion resources, adapter contexts, and pinned memory. Capacity planning must include these finite control resources.
@@ -257,11 +355,38 @@ Silent fallback may preserve correctness while destroying performance. Treat fal
 
 **Diagnosis:** Check support matrices, peer-memory integration, PCIe topology, registration errors, container device exposure, IOMMU policy, and communication-library logs.
 
+**Evidence in practice:** the host-memory `ib_write_bw` test from earlier in this chapter reported `BW average: 24601.87 MB/sec`. Running the GPU-buffer variant on the same node shows the gap directly:
+
+```bash
+ib_write_bw -d mlx5_0 -a --use_cuda=0
+```
+
+```text
+ #bytes     #iterations    BW peak[MB/sec]    BW average[MB/sec]   MsgRate[Mpps]
+ 65536      1000              9840.11             9762.44            0.156199
+---------------------------------------------------------------------------------------
+Failed to allocate GPU buffer / peer-memory registration fallback: staging through host buffer
+```
+
+`BW average: 9762.44 MB/sec` is roughly 40% of the 24601.87 MB/sec host-memory baseline, and the explicit `staging through host buffer` line is the smoking gun: the peer-memory registration path is not engaging, so the test — and by extension the real workload — is silently taking the host-staged fallback branch from the Big Picture diagram instead of the direct peer path. Cross-checking `nvidia-smi topo -m` for this GPU/NIC pair against dmesg for peer-memory driver load errors (`dmesg | grep -i nv_peer_mem`) is the next step; a `SYS` topology reading or an absent peer-memory kernel module both explain this exact signature.
+
 **Resolution:** Restore a supported software and topology combination, then verify with a GPU-buffer-specific test.
 
 ### Registration failures increase under load
 
 **Likely causes:** Pinned-memory limits, registration leaks, excessive short-lived regions, or adapter-resource exhaustion.
+
+**Evidence in practice:** watching `Mlocked` in `/proc/meminfo` over a load window shows the leak signature described earlier — a value that climbs and never plateaus:
+
+```text
+$ for i in 1 2 3 4; do grep Mlocked /proc/meminfo; sleep 60; done
+Mlocked:         589824 kB
+Mlocked:         842112 kB
+Mlocked:        1103872 kB
+Mlocked:        1391616 kB
+```
+
+Roughly 260 MB of additional pinned memory accumulates every 60 seconds with no plateau — this is not a workload that pinned a working set once and stabilized; it is a process registering new regions faster than it deregisters old ones. The corresponding `ibv_devinfo -v` reading of `max_mr: 262144` gives the ceiling: at this accumulation rate, the process will either exhaust `ulimit -l` or the adapter's `max_mr` well before it exhausts host RAM, and the failure will present as "registration suddenly fails under load" rather than an obvious out-of-memory condition.
 
 **Resolution:** Reuse registered pools, fix cleanup, and monitor resource consumption before raising limits.
 
@@ -286,22 +411,52 @@ CPU sizing must therefore come from measured workload behavior rather than a “
 ### Knowledge Questions
 
 1. What is the difference between DMA and RDMA?
+
+   > "DMA is local — a device engine reads or writes memory on the same machine after the CPU sets up a mapping. RDMA extends that same idea across a network: an RDMA-capable adapter transfers data between registered memory regions on two different machines while keeping the CPU out of the byte-by-byte path. RDMA is really DMA plus a network transport, plus the queueing and completion machinery needed to make that safe across a fabric instead of a PCIe bus."
+
 2. Why must memory be registered?
+
+   > "A device can't be allowed to touch arbitrary process memory — that would break every memory-protection guarantee the OS provides. Registration pins the backing pages so they can't move or be reclaimed mid-transfer, builds a device-visible mapping, and hands back a key that proves the operation is authorized for that exact address range. Without registration, a NIC or GPU DMA engine writing to memory would be no different from an unchecked pointer write from an untrusted process."
+
 3. Why is pinned memory finite?
+
+   > "Pinned memory can't be swapped or reclaimed by the kernel, so every megabyte pinned is a megabyte the system permanently loses from its reclaim pool. There are also hard ceilings under it — `ulimit -l` per process, and adapter limits like `max_mr` on the NIC itself. I've seen `ulimit -l` default to 64 MiB, which is nothing for a GPU-scale buffer pool, so it has to be raised deliberately and then watched, because a leak here doesn't look like a normal memory leak — it looks like registration calls mysteriously starting to fail."
+
 4. What does a completion prove?
-5. Why is “zero copy” imprecise?
+
+   > "A completion proves the local adapter finished its side of the operation — nothing more. It doesn't prove the remote application consumer is ready to read the data, and depending on the transport it may not even prove remote visibility. I treat a completion as 'the adapter is done,' and I look separately at the ordering and fencing rules to know when it's safe for a downstream kernel or process to actually touch the data."
+
+5. Why is "zero copy" imprecise?
+
+   > "'Zero copy' almost always means one specific CPU-memory copy was removed, not that data stopped moving physically. The bytes still cross DMA engines, PCIe links, switches, and memory interfaces — that traffic doesn't disappear. So instead of taking the term at face value, I ask 'which staging boundary was actually removed, and which ones are still there' — that's the question that tells you what you actually bought."
 
 ### Architecture Questions
 
 1. Draw a GPU-to-NIC peer-DMA path with protection boundaries.
+
+   > "I'd start with the application box, then a CPU control-path box next to it, because the CPU never touches the payload but it does everything else — registers the GPU memory region, gets back a protection key, and posts the work request. Then I draw the actual data edge straight from GPU memory to the NIC, skipping host memory, and I label that edge with the protection key, because that's the boundary that makes it safe — the NIC can only touch the address range that key authorizes. Then I add a branch off to the side: if the GPU and NIC are on the same PCIe switch, that direct edge is real; if `nvidia-smi topo -m` shows `SYS` between them, I redraw the edge going through host memory instead, because that's what actually happens on that topology."
+
 2. Design a reusable registered-buffer pool.
+
+   > "I'd allocate and register a fixed set of buffers once at startup — sized off the working set, not per-request — and hand them out from a free list. Every consumer gets a buffer, does its transfer, and returns it to the pool instead of deregistering it. I'd track in-flight completions per buffer so nothing gets reused before its CUDA event or RDMA completion confirms it's safe, and I'd monitor `Mlocked` and the adapter's `max_mr` counter so pool growth is visible and bounded instead of open-ended."
+
 3. Explain how CUDA events and RDMA completions prevent races.
+
+   > "The producer kernel records a CUDA event when it's done writing the buffer. The NIC is only permitted to start its DMA read after that event fires — that stops the NIC from reading stale or partial data. On the other side, the consumer kernel doesn't launch until the RDMA completion for the receive has posted. So you've got two separate proof points, one per side of the wire, and skipping either one — reading before the event, or launching before the completion — is exactly how you get silent corruption instead of a crash, which is the scary version of this bug."
 
 ### Scenario Questions
 
 1. Host RDMA passes, but GPU RDMA fails. What do you inspect?
+
+   > "First I isolate the two layers — I already know from the host test that the fabric, cabling, and basic queue-pair setup are fine, so I don't touch any of that. I go straight to the GPU-specific pieces: is the peer-memory driver actually loaded, does `nvidia-smi topo -m` show a `PIX`/`PXB` path or a `SYS` path between this GPU and this NIC, and does the GPU-buffer test log show it silently staging through host memory instead of erroring out. In my experience it's almost always one of those three — not the fabric."
+
 2. A service leaks pinned memory. What symptoms appear?
+
+   > "`Mlocked` in `/proc/meminfo` climbs steadily and never plateaus, even though the workload's actual working set should be stable. Eventually registration calls start failing — not with an out-of-memory error, but with something like 'cannot pin memory' — because you hit `ulimit -l` or the adapter's `max_mr` ceiling well before you exhaust host RAM. The fix is almost never 'raise the limit'; it's finding the code path that registers without a matching deregister."
+
 3. Data corruption occurs only under load. How do you test ordering?
+
+   > "Corruption that only shows up under load is a strong signal that ownership is being decided by timing rather than by an explicit signal — it works at low concurrency because there's enough slack for the race to not matter. I'd rebuild the buffer lifecycle with explicit CUDA events and RDMA completions gating every reuse, then stress-test specifically to remove timing slack — smaller buffers, tighter loops, artificial delays in random places — to try to force the race to manifest predictably instead of hoping it reproduces."
 
 ## Summary
 
