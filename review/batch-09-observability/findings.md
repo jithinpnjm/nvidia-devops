@@ -214,3 +214,11 @@ Note: all chapter/lab filenames literally say "placeholder" but every file check
 
 ### chapter-04-placeholder.md (Bottleneck Identification and Diagnosis)
 - No findings. Clean five-class bottleneck decision tree (compute/memory/I/O/network/CPU), realistic multi-bottleneck worked example with plausible percentages, good "busy vs productive" interview answer distinguishing utilization from usefulness.
+
+### chapter-05-placeholder.md (GPU Compute Optimization)
+- [SEVERITY: low] Continues using "141 TFLOPS" and "roofline target: 141" as the H100 compute ceiling throughout its worked before/after optimization example (lines 128-146) — inherits the wrong number from Ch.03's finding rather than introducing a new error. Not re-detailed to avoid duplication.
+- Otherwise a strong, mechanically sound chapter: correct occupancy/register-pressure math (96 registers × 256 threads = 24,576 bytes/block, checked correct), realistic ILP dependency-chain vs unrolled-independent-ops example, sensible before/after optimization walkthrough (register reduction + block size increase + memory reordering).
+
+### chapter-06-placeholder.md (Memory Optimization)
+- [SEVERITY: low] Continues using "2 TB/s" and "141 TFLOPS"-adjacent H100 figures inherited from Ch.03 (e.g. compute roof context in the tiling example). Not re-detailed; part of the same root-cause pattern.
+- Otherwise strong: correct compute-intensity arithmetic in the softmax example (2M reads × 4 bytes = 8MB, 8MB/2ms = 4GB/s, checked correct), good coalesced-vs-strided CUDA code contrast, sound tiling data-reuse example showing a kernel moving from memory-bound to compute-bound.
