@@ -114,8 +114,6 @@ This is the exact evidence chain that separates "the leaf switch is fine" from "
 
 ### Trust and administration
 
-### Trust and administration
-
 In a DPU-controlled model, the platform administrator manages a distinct system with its own firmware, embedded OS, network reachability, credentials, certificates, software inventory, and logs. This can limit a host administrator’s ability to change the data path, which may be intentional. It also means an incident can involve three independently observable layers:
 
 1. host workload and host-facing interface;

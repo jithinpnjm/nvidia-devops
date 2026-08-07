@@ -92,3 +92,27 @@ This volume (12 chapters + index + 4 labs, all reviewed in full) is the single s
 ### chapter-09-fabric-monitoring-and-telemetry.md through chapter-12-volume-08-summary.md, index.md, labs 01-04
 - No issues found. Counter-delta reasoning (cumulative vs. rate), congestion-vs-physical-fault distinction via `XmtWait`/`SymbolErrorCounter`, and the layered troubleshooting decision tree are all accurate and consistently cross-referenced back to earlier chapters' annotated command output.
 
+## ZTH-09 — docs/nvidia-zero-to-hero/volume-09 (Ethernet for AI)
+
+This volume (12 chapters + index + 4 labs, all reviewed in full) is the batch's most direct treatment of the RoCE-vs-InfiniBand-adjacent operational reality: RoCEv2 encapsulation, PFC mechanics and pause-tree propagation, ECN/DCQCN as a closed-loop control system, DCB/QoS classification contracts, Spectrum switch queueing, ConnectX endpoint locality, BlueField DPU trust boundaries, and capacity/validation planning. It explicitly and correctly refuses to treat RoCE as "InfiniBand over Ethernet" (stated verbatim in the Volume Summary's Interview Notes), and consistently distinguishes PFC (hop-local, reactive) from ECN/DCQCN (end-to-end, proactive) — precisely the RoCE vs. InfiniBand congestion-control distinction the batch brief called out as a common hand-wave risk. This volume does not hand-wave it.
+
+Two trivial MDX structural bugs were found and fixed inline per the review protocol (mechanical fixes, no content rewritten):
+
+### chapter-09-bluefield-dpus-and-doca.md
+- [SEVERITY: low, FIXED INLINE] Duplicate consecutive `### Trust and administration` heading (the second was an empty duplicate immediately following the first).
+  - Fix applied: removed the duplicate heading line.
+
+### chapter-10-fabric-validation-and-capacity-planning.md
+- [SEVERITY: low, FIXED INLINE] Duplicate `## Further Reading` section (two separate sections with different link lists, back to back, before `## Cross References`).
+  - Fix applied: merged both link lists into a single `## Further Reading` section.
+
+### chapter-11-production-troubleshooting.md
+- [SEVERITY: low, FIXED INLINE] Same duplicate `## Further Reading` pattern as chapter 10 (two sections, different links, back to back).
+  - Fix applied: merged both link lists into a single `## Further Reading` section.
+
+### chapter-01-why-ethernet-for-ai-is-different.md through chapter-08-connectx-ethernet-adapters.md
+- No content/accuracy issues found (beyond the two structural fixes above). PFC vs. ECN distinction, RoCEv2 UDP/IP encapsulation, GID-table-is-not-a-portable-identity framing, headroom/threshold math, and DCB/QoS trust-boundary reasoning are all technically accurate and consistently reinforced with annotated counter evidence (`ethtool -S`, `mlnx_qos`, `mlx5_cnp_stats`, `show_gids`).
+
+### chapter-09-bluefield-dpus-and-doca.md through chapter-12-volume-09-summary.md, index.md, labs 01-04
+- No further content/accuracy issues found. BlueField DPU-mode vs. SuperNIC-mode default distinction is correctly hedged as SKU/release-dependent rather than stated as a universal fact, and the three-layer (host/DPU-control-plane/uplink) incident-evidence framing is a genuinely useful, non-generic troubleshooting model.
+

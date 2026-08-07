@@ -53,23 +53,23 @@ Volumes: F-06 (`docs/volume-06`), ZTH-07 (`docs/nvidia-zero-to-hero/volume-07`),
 | ZTH-08 | labs/lab-02-benchmark-infiniband-bandwidth-and-latency.md | done | none |
 | ZTH-08 | labs/lab-03-inspect-subnet-routing-and-counters.md | done | none |
 | ZTH-08 | labs/lab-04-troubleshoot-an-infiniband-path.md | done | none |
-| ZTH-09 | chapter-01-why-ethernet-for-ai-is-different.md | pending | |
-| ZTH-09 | chapter-02-ethernet-architecture-for-ai.md | pending | |
-| ZTH-09 | chapter-03-rocev2-and-rdma-over-ethernet.md | pending | |
-| ZTH-09 | chapter-04-priority-flow-control.md | pending | |
-| ZTH-09 | chapter-05-ecn-and-dcqcn.md | pending | |
-| ZTH-09 | chapter-06-data-center-bridging-and-qos.md | pending | |
-| ZTH-09 | chapter-07-spectrum-switches-for-ai.md | pending | |
-| ZTH-09 | chapter-08-connectx-ethernet-adapters.md | pending | |
-| ZTH-09 | chapter-09-bluefield-dpus-and-doca.md | pending | |
-| ZTH-09 | chapter-10-fabric-validation-and-capacity-planning.md | pending | |
-| ZTH-09 | chapter-11-production-troubleshooting.md | pending | |
-| ZTH-09 | chapter-12-volume-09-summary.md | pending | |
-| ZTH-09 | index.md | pending | |
-| ZTH-09 | labs/lab-01-inventory-an-ai-ethernet-path.md | pending | |
-| ZTH-09 | labs/lab-02-validate-roce-addressing-and-mtu.md | pending | |
-| ZTH-09 | labs/lab-03-observe-pfc-and-ecn-under-load.md | pending | |
-| ZTH-09 | labs/lab-04-troubleshoot-a-roce-path.md | pending | |
+| ZTH-09 | chapter-01-why-ethernet-for-ai-is-different.md | done | none |
+| ZTH-09 | chapter-02-ethernet-architecture-for-ai.md | done | none |
+| ZTH-09 | chapter-03-rocev2-and-rdma-over-ethernet.md | done | none |
+| ZTH-09 | chapter-04-priority-flow-control.md | done | none |
+| ZTH-09 | chapter-05-ecn-and-dcqcn.md | done | none |
+| ZTH-09 | chapter-06-data-center-bridging-and-qos.md | done | none |
+| ZTH-09 | chapter-07-spectrum-switches-for-ai.md | done | none |
+| ZTH-09 | chapter-08-connectx-ethernet-adapters.md | done | none |
+| ZTH-09 | chapter-09-bluefield-dpus-and-doca.md | done | low (fixed inline) |
+| ZTH-09 | chapter-10-fabric-validation-and-capacity-planning.md | done | low (fixed inline) |
+| ZTH-09 | chapter-11-production-troubleshooting.md | done | low (fixed inline) |
+| ZTH-09 | chapter-12-volume-09-summary.md | done | none |
+| ZTH-09 | index.md | done | none |
+| ZTH-09 | labs/lab-01-inventory-an-ai-ethernet-path.md | done | none |
+| ZTH-09 | labs/lab-02-validate-roce-addressing-and-mtu.md | done | none |
+| ZTH-09 | labs/lab-03-observe-pfc-and-ecn-under-load.md | done | none |
+| ZTH-09 | labs/lab-04-troubleshoot-a-roce-path.md | done | none |
 
 ## Cross-curriculum check
 - [ ] Compare F-06 ch2/ch3 (Ethernet fundamentals, RDMA/RoCE/IB) against ZTH-08/ZTH-09 for contradictions or thin duplication — pending, do after individual chapter reviews.
