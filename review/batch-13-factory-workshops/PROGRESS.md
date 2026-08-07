@@ -6,7 +6,7 @@ no content) alongside the real chapter files. These are excluded from review as 
 | Volume | File | Status | Severity Summary |
 |---|---|---|---|
 | ZTH-21 | index.md | pending | |
-| ZTH-21 | chapter-01-ai-factory-fundamentals-and-design-principles.md | pending | |
+| ZTH-21 | chapter-01-ai-factory-fundamentals-and-design-principles.md | done | high:1, low:1 |
 | ZTH-21 | chapter-02-gpu-compute-cluster-design.md | pending | |
 | ZTH-21 | chapter-03-high-speed-networking-architecture.md | pending | |
 | ZTH-21 | chapter-04-storage-infrastructure-for-ai-pipelines.md | pending | |
@@ -21,7 +21,7 @@ no content) alongside the real chapter files. These are excluded from review as 
 | ZTH-21 | chapter-13-reference-architecture-100-gpu-training-cluster.md | pending | |
 | ZTH-21 | chapter-14-reference-architecture-multi-region-inference-deployment.md | pending | |
 | ZTH-21 | labs/lab-01-cluster-design-workshop.md | pending | |
-| ZTH-21 | labs/lab-02-networking-simulation.md | pending | |
+| ZTH-21 | labs/lab-02-networking-simulation.md | done | high:1 (recurrence of AllReduce bandwidth-math pattern) |
 | ZTH-21 | labs/lab-03-storage-pipeline-design.md | pending | |
 | ZTH-21 | labs/lab-04-capacity-planning-exercise.md | pending | |
 | ZTH-22 | index.md | pending | |
