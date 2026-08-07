@@ -21,10 +21,10 @@ Volumes: F-05 (`docs/volume-05`), ZTH-12 (`docs/nvidia-zero-to-hero/volume-12`),
 | F-05 | 15-senior-deep-dive-6-rag-vector-search-and-stateful-dependencies.md | done | low |
 | F-05 | 16-senior-deep-dive-7-agentic-and-multimodal-infrastructure.md | done | low |
 | F-05 | 17-senior-deep-dive-8-production-benchmark-design.md | done | low |
-| ZTH-12 | index.md | pending | |
-| ZTH-12 | chapter-01-why-inference-infrastructure-is-different.md | pending | |
-| ZTH-12 | chapter-02-the-end-to-end-inference-request-path.md | pending | |
-| ZTH-12 | chapter-03-triton-inference-server-architecture.md | pending | |
+| ZTH-12 | index.md | done | low |
+| ZTH-12 | chapter-01-why-inference-infrastructure-is-different.md | done | low |
+| ZTH-12 | chapter-02-the-end-to-end-inference-request-path.md | done | low |
+| ZTH-12 | chapter-03-triton-inference-server-architecture.md | done | low |
 | ZTH-12 | chapter-04-tensorrt-optimization-and-engine-lifecycle.md | pending | |
 | ZTH-12 | chapter-05-tensorrt-llm-and-llm-execution.md | pending | |
 | ZTH-12 | chapter-06-vllm-tgi-sglang-and-lmdeploy.md | pending | |

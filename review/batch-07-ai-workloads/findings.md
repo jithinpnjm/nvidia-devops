@@ -62,3 +62,19 @@ Overall: this volume has clearly already been through a depth-rework pass (dense
 
 ### 17-senior-deep-dive-8-production-benchmark-design.md
 - [SEVERITY: low] No issues found.
+
+## ZTH-12 — docs/nvidia-zero-to-hero/volume-12 (AI Inference)
+
+Overall: this volume is already at gold-standard depth (matches or exceeds ZTH Volume 1) — every chapter follows a WHY/WHAT/HOW/TRADEOFFS/PRODUCTION/TROUBLESHOOTING/SENIOR-INTERVIEW-QUESTIONS structure with worked math, annotated CLI/log output, and named production incidents. All arithmetic spot-checked below is correct.
+
+### index.md
+- [SEVERITY: low] No issues found.
+
+### chapter-01-why-inference-infrastructure-is-different.md
+- [SEVERITY: low] No issues found. Verified math: HBM read time 140GB/3350GB/s ≈ 41.7ms/token → ~24 tok/s decode ceiling; KV cache 2×80×8×128×4096×2 = 1,342,177,280 bytes ≈ 1.34GB/sequence; 64 concurrent → 85.76GB; 100 concurrent + weights + overhead = 284.2GB total (interview Q&A section). All internally consistent and consistent with F-05's KV-cache formula and numbers.
+
+### chapter-02-the-end-to-end-inference-request-path.md
+- [SEVERITY: low] No issues found. Strong chapter on non-GPU latency sinks (tokenization GIL contention, pageable vs pinned memory, Nginx SSE buffering) with concrete before/after benchmark numbers.
+
+### chapter-03-triton-inference-server-architecture.md
+- [SEVERITY: low] No issues found. Verified math: 8×9.5GB=76GB instance-group VRAM oversubscription example; 2×9.5GB=19GB corrected config.
