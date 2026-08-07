@@ -42,14 +42,20 @@ flowchart LR
     Client[Application or Client Network]
     Storage[Storage Fabric]
     Compute[AI Compute Fabric]
+    Hang{"Multi-node NCCL job hangs;<br/>single-node NCCL test passed"}
 
-    DGX --> Mgmt
-    DGX --> Client
-    DGX --> Storage
-    DGX --> Compute
+    DGX -->|"proof: ipmitool/BMC reachable<br/>independent of host network state"| Mgmt
+    DGX -->|"proof: application health endpoint<br/>responds within SLA"| Client
+    DGX -->|"proof: fio/filesystem throughput<br/>matches baseline"| Storage
+    DGX -->|"proof: NCCL_DEBUG=INFO shows expected<br/>transport (NET/IB or NET/Socket) selected"| Compute
+
+    Compute -.-> Hang
+    Hang -->|"NCCL log shows wrong/no<br/>RDMA device → NIC/CDI exposure"| Compute
+    Hang -->|"ping/route fails between hosts<br/>→ management or IP path, not fabric"| Mgmt
+    Hang -->|"local test hides remote-only<br/>issue → storage/compute contention"| Storage
 ```
 
-**Figure 5.6.1 — A production DGX system commonly serves multiple traffic classes.** Separation can be physical, logical, or both, but the responsibilities must remain explicit.
+**Figure 5.6.1 — A production DGX system commonly serves multiple traffic classes.** Each edge names the evidence that proves that traffic class is functioning, not just cabled. The decision diamond captures this chapter's most common real incident — a multi-node hang after a clean single-node pass — and routes it to the three places `NCCL_DEBUG` output and basic host-to-host connectivity checks would actually distinguish, instead of guessing at "the network."
 
 | Traffic class | Typical purpose | Primary concern |
 |---|---|---|
@@ -80,6 +86,8 @@ flowchart LR
 ## Why Topology Matters
 
 A NIC may be closer to some GPUs than others through the PCIe and CPU topology. Communication libraries and job launchers can exploit this locality only when the platform exposes it correctly and rank placement is aligned.
+
+➕ **Worked example — what a topology mismatch actually costs:** an 8-way all-reduce on a node where every GPU-to-NIC hop stays within its local PCIe switch (no cross-socket traversal) commonly achieves 80-90% of theoretical NVLink/NIC bus bandwidth in practice. If rank placement ignores topology and half the ranks' collective traffic is forced across the cross-socket UPI/Infinity-Fabric link to reach a NIC attached to the *other* socket, measured bus bandwidth for that collective can drop to roughly 40-60% of the topology-aware case (illustrative range — exact degradation depends on platform and collective size) — not because any single link is degraded, but because the collective is bound by its slowest participating rank, and every rank waits for the slowest one on every synchronization step. A 45% drop in effective collective bandwidth on a training job where communication is 25% of step time is roughly an 11% increase in total step time — silent, reproducible, and invisible to `nvidia-smi`, which is why `nvidia-smi topo -m` cross-referenced against launcher rank-to-GPU mapping is worth checking before any deeper NCCL debugging.
 
 Validate:
 
@@ -161,6 +169,32 @@ Each stage isolates a smaller fault domain. Starting with a full training job ma
 
 Confirm name resolution, routes, interface selection, firewall policy, MTU, RDMA device visibility, fabric membership, and rank-to-node mapping. Compare the environment between hosts and inspect the communication library's debug output.
 
+➕ **Real `NCCL_DEBUG=INFO` output, annotated — the log that actually tells you which layer failed:**
+
+```text
+$ NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT,NET python train.py
+node0:1234:1234 [0] NCCL INFO Bootstrap : Using eth0:10.1.2.10<0>
+node0:1234:1234 [0] NCCL INFO NET/IB : No device found.
+node0:1234:1234 [0] NCCL INFO NET/Socket : Using [0]eth0:10.1.2.10<0>
+node0:1234:1234 [0] NCCL INFO Using network Socket
+...
+node0:1234:1289 [0] NCCL INFO Timeout waiting for recv from rank 8, node1
+```
+Two separate findings in one log, and both matter: `NET/IB : No device found` means NCCL looked for an RDMA-capable InfiniBand/RoCE device, found none visible to the process, and silently fell back to `NET/Socket` (plain TCP over `eth0`) — a job that "works" but runs at a fraction of expected collective bandwidth, which is a distinct failure from the eventual `Timeout waiting for recv from rank 8` that follows. In a container, the first line is the one to chase — it usually means the RDMA device wasn't exposed into the container (a CDI/device-plugin gap), not that the physical NIC is broken; check with `ibv_devices` run inside the same container the job runs in, not just on the bare host, since host and container visibility differ.
+
+```text
+$ ibv_devices    # run inside the container
+    device                 node GUID
+    ------              ----------------
+# (empty — this is the smoking gun for the fallback above)
+
+$ ibv_devices    # run on the bare host
+    device                 node GUID
+    ------              ----------------
+    mlx5_0              98039b03009c1a40
+```
+The device exists on the host and is invisible inside the container — that gap, not a cabling or switch problem, is what produced the `NET/Socket` fallback and the eventual multi-node timeout. This is exactly the "container sees GPUs but not RDMA devices" failure mode this chapter lists, made concrete with the log line that proves it.
+
 **Root cause examples**
 
 - inconsistent interface naming;
@@ -186,21 +220,21 @@ A customer wants to place storage and distributed training traffic on the same h
 
 ### Architecture question
 
-Why can a high-bandwidth network still provide poor distributed training performance?
+**Why can a high-bandwidth network still provide poor distributed training performance?**
 
-Discuss topology, congestion, message size, rank placement, transport selection, NUMA, application synchronization, and storage interference.
+"Because bandwidth is a ceiling, not a guarantee — the collective only goes as fast as its slowest contributing path, and there are a lot of ways to be slow that have nothing to do with the link speed printed on the NIC. Rank placement that ignores GPU-to-NIC topology can force half a job's traffic across a cross-socket hop even on a 400Gb/s fabric. Congestion from storage or another tenant sharing the same switch can add latency that a synchronous collective can't absorb. Small message sizes can leave a fast fabric mostly idle because the job is latency-bound, not bandwidth-bound, at that message size. I've seen a nominally 400Gb/s fabric deliver training performance that looked more like a 100Gb/s one purely because rank placement wasn't topology-aware — the fabric was never the bottleneck, the mapping onto it was."
 
 ### Troubleshooting question
 
-Local NCCL tests pass but multi-node tests fail. What is your sequence?
+**Local NCCL tests pass but multi-node tests fail. What is your sequence?**
 
-Validate physical and IP/RDMA connectivity, interface consistency, container device exposure, topology, point-to-point GPU communication, then collectives.
+"I'd move outward in layers rather than jump straight to NCCL debug logs. First, plain connectivity — can the hosts reach each other at the IP layer, is DNS or hostname resolution consistent, is a firewall rule blocking a control port. Then interface and RDMA device consistency — same NIC naming, same driver version, and critically, is the RDMA device actually visible *inside the container* if this is containerized, because host-level visibility and container-level visibility are different questions. Only after those pass would I run `NCCL_DEBUG=INFO` and read what transport it actually selected — if it silently fell back from `NET/IB` to `NET/Socket`, that's the answer right there, and it would have looked like a generic hang without the debug log to say so."
 
 ### Customer question
 
-Should management and compute traffic share a network?
+**Should management and compute traffic share a network?**
 
-They can share physical infrastructure in some designs, but security, failure isolation, QoS, capacity, and operational risk must be evaluated explicitly.
+"It's possible, but I wouldn't default to it without an explicit conversation about the trade-off. Sharing physical infrastructure can simplify the build and reduce cost, but it means congestion on your compute fabric can degrade your ability to manage the cluster at the exact moment something's already going wrong — and a security boundary between tenant workload traffic and administrative control becomes harder to enforce. My default recommendation is to keep them logically or physically separate unless there's a specific capacity or cost constraint that makes convergence the right call, and even then I'd want QoS guarantees on the management path so it can't be starved out."
 
 ## Key Takeaways
 

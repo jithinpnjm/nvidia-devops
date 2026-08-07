@@ -51,16 +51,22 @@ flowchart TD
     GPU[Driver, CUDA, Fabric Manager]
     Orch[Slurm or Kubernetes]
     Obs[Monitoring and logging]
+    Down{"SSH to node fails.<br/>Is the host down or just unreachable?"}
 
-    Admin --> OOB --> BMC
-    Admin --> Mgmt --> BCM
-    BCM --> OS --> GPU
-    Orch --> OS
-    GPU --> Obs
-    BMC --> Obs
+    Admin -->|"proof: ipmitool -I lanplus ... mc info<br/>returns firmware/health, independent of host OS"| OOB --> BMC
+    Admin -->|"proof: SSH banner + auth succeeds"| Mgmt --> BCM
+    BCM -->|"proof: image checksum matches<br/>approved baseline"| OS -->|"proof: nvidia-smi exits 0,<br/>fabricmanager.service active"| GPU
+    Orch -->|"proof: kubectl get node shows Ready,<br/>not NotReady/Unknown"| OS
+    GPU -->|"proof: DCGM/exporter scrape succeeds"| Obs
+    BMC -->|"proof: sensor/event log reachable<br/>even when host is powered off"| Obs
+
+    Mgmt -.->|"symptom: SSH times out"| Down
+    Down -->|"BMC reachable, host powered off<br/>or hung → boot/kernel problem"| BMC
+    Down -->|"BMC unreachable too<br/>→ OOB network or facility power"| OOB
+    Down -->|"BMC reachable, host up,<br/>console idle → in-band network problem"| Mgmt
 ```
 
-**Figure 5.3.1 — Layered DGX management plane.** Hardware recovery remains available independently of the host operating system.
+**Figure 5.3.1 — Layered DGX management plane.** Every edge names the evidence that proves that control path works right now, not just that it was configured once. The decision diamond is the chapter's central argument made concrete: a failed SSH session is ambiguous by itself, and the BMC's independence from the host OS is exactly what turns that ambiguity into a three-way, evidence-backed branch instead of a guess.
 
 ## 4. Out-of-Band Management
 
@@ -74,6 +80,30 @@ The BMC is used when:
 - hardware sensors or event logs are required;
 - installation media must be attached through a remote console;
 - firmware state must be inspected.
+
+➕ **Real BMC evidence, annotated (IPMI over LAN — the same reasoning applies to a Redfish `GET` against the BMC's REST API):**
+
+```text
+$ ipmitool -I lanplus -H 10.1.1.15 -U admin -P *** chassis power status
+Chassis Power is on
+
+$ ipmitool -I lanplus -H 10.1.1.15 -U admin -P *** sensor list | grep -E "Temp|Power|Fan" | head -6
+Inlet Temp       | 24.000     | degrees C  | ok    | 5.00  | 10.00 | 15.00 | 42.00 | 45.00 | 48.00
+CPU0 Temp        | 52.000     | degrees C  | ok    | 0.00  | 5.00  | 10.00 | 95.00 | 98.00 | 100.00
+GPU0 Temp        | 61.000     | degrees C  | ok    | na    | na    | na    | 83.00 | 88.00 | 90.00
+PSU1 Power In    | 850.000    | Watts      | ok    | na    | na    | na    | na    | na    | na
+PSU2 Power In    | 12.000     | Watts      | ok    | na    | na    | na    | na    | na    | na
+Fan1             | 8400.000   | RPM        | ok    | 1200  | 1500  | 1800  | na    | na    | na
+```
+This is exactly the evidence that answers the chapter's core question without touching the host at all: `Chassis Power is on` proves the node is physically powered, `Inlet Temp 24C` with all sensors reading `ok` rules out a thermal event, and — the interesting line — `PSU1 Power In 850W` against `PSU2 Power In 12W` shows one power supply carrying almost the entire load while its redundant partner is nearly idle. That is not a failure by itself (some platforms run PSUs asymmetrically under partial load), but it is exactly the kind of asymmetry worth screenshotting before power-cycling anything, because if PSU1 later fails, this reading proves the redundant path was never actually validated under real load.
+
+```text
+$ ipmitool -I lanplus -H 10.1.1.15 -U admin -P *** sel list | tail -3
+1a2 | 07/29/2026 | 03:14:02 | Power Supply PSU2 | Predictive failure asserted
+1a3 | 07/29/2026 | 03:14:05 | Power Supply PSU2 | Config Error
+1a4 | 07/29/2026 | 03:22:11 | Power Supply PSU2 | Predictive failure deasserted
+```
+The System Event Log (`sel`) is BMC-persisted, so it survives a host reboot or crash — this is the record that would have explained the PSU2 asymmetry above *before* it became urgent, which is exactly why Step 6 of the diagnosis sequence ("capture evidence before power cycling") matters: a power cycle does not erase the SEL, but a habit of skipping it means this evidence is never looked at until after a second, correlated failure.
 
 :::warning
 The BMC is a privileged infrastructure endpoint. It should never share an unrestricted user or workload network.
@@ -279,19 +309,19 @@ The recommended architecture introduces dedicated OOB and management networks, c
 
 **Why are both BMC and cluster-management software required?**
 
-The BMC provides hardware-level control independent of the host OS. Cluster-management software provisions and manages the operating environment across many nodes. Neither replaces the other.
+"They operate at different layers and neither one can substitute for the other. The BMC gives me hardware-level control that works even when the host operating system is unbootable — power state, sensor data, a remote console — because it runs on its own separate service processor with its own network path. Base Command Manager, by contrast, is entirely dependent on the host OS being up; it provisions images, manages configuration, and coordinates a fleet, but it has zero visibility the moment a node stops booting. If I only had BCM, I'd have no way to recover a node that won't boot. If I only had BMC, I'd be SSH-ing into forty nodes by hand to keep them consistent. I need both because 'can I control the hardware' and 'can I manage the fleet as software' are genuinely separate problems."
 
 ### Scenario question
 
 **A DGX node is unreachable. Would you power-cycle it immediately?**
 
-No. First capture BMC event logs, console state, power state, switch information, and any available host evidence. A power cycle may restore service but destroy evidence needed to identify recurrence.
+"No, and that's a real discipline point, not just caution for its own sake. My first move is to hit the BMC — separately from the host — and pull power state, the event log, and console output, because a power cycle can silently erase exactly the evidence that would tell me why this happened, and if it recurs next week I want to already know the cause instead of restarting the investigation from zero. If the BMC shows a predictive PSU failure or a thermal event in the System Event Log, that changes what I do next entirely — versus a clean power state with no BMC evidence at all, which points me toward an in-band network problem instead of a hardware one. Only after I've captured that evidence would I consider a power cycle, and even then I'd want to know what state I'm restoring to."
 
 ### Customer question
 
 **Why do we need a separate management network?**
 
-Because privileged infrastructure control must remain available during workload-network failures and must be isolated from tenant and application traffic.
+"Because the alternative is that the one moment you most need to reach a node — when it's already having a problem — is exactly when a shared network is most likely to be part of that problem. If BMC access rides the same network as application and tenant traffic, then congestion, a misconfiguration, or a compromised workload can take down your recovery path at the same time it takes down production. A dedicated out-of-band network means hardware control keeps working regardless of what's happening on the workload side — it's the same reasoning as keeping a building's fire alarm system on its own circuit rather than sharing power with the lights."
 
 ## 14. Summary
 

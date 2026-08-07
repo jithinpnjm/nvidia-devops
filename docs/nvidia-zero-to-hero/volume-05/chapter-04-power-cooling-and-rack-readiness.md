@@ -49,12 +49,22 @@ flowchart TD
     Cooling[Air or liquid cooling]
     GPU[GPU clocks and reliability]
     Workload[Application performance]
+    Slow{"Throughput drops after<br/>~20 minutes of sustained load"}
 
-    Utility --> PDU --> Rack --> Node --> GPU --> Workload
-    Cooling --> Node
+    Utility -->|"proof: BMC PSU input reading<br/>stable, no UPS-on-battery event"| PDU
+    PDU -->|"proof: circuit-level ammeter reading<br/>under breaker rating with margin"| Rack
+    Rack -->|"proof: rack PDU load reading<br/>within derated capacity"| Node
+    Node -->|"proof: nvidia-smi power.draw<br/>steady at expected level, not capped"| GPU
+    Cooling -->|"proof: inlet temp steady across<br/>the run, not climbing"| Node
+    GPU -->|"proof: clocks.sm holds near boost,<br/>throttle reasons register clear"| Workload
+
+    Workload -.-> Slow
+    Slow -->|"clocks_throttle_reasons.thermal=1<br/>→ cooling/airflow problem"| Cooling
+    Slow -->|"power.draw pinned at power.limit,<br/>temp flat → policy cap, not thermal"| Node
+    Slow -->|"inlet temp itself climbing<br/>→ rack/row cooling capacity, not the node"| Rack
 ```
 
-**Figure 5.4.1 — Facility constraints propagate to workload performance.** A GPU cannot sustain expected behavior when the rack cannot deliver power or remove heat.
+**Figure 5.4.1 — Facility constraints propagate to workload performance.** Each edge names the telemetry that proves that stage is not the limiter. The branch reflects this chapter's actual diagnostic content: a throughput drop that only appears after sustained load (not at job start) is a facility signature, and `nvidia-smi`'s throttle-reason bitmask plus inlet-temperature trend — not the GPU model number — tells you which of the three facility layers to chase.
 
 ## 4. Power Planning
 
@@ -81,6 +91,8 @@ Power planning should never use only the number printed on a single component da
 - expansion reserve.
 
 A design that consumes all available rack capacity on day one has no safe operating margin.
+
+➕ **Worked example — steady-state versus nameplate, with real numbers:** an 8-GPU DGX-class node with GPUs rated at 700W each has a GPU-only nameplate ceiling of 8 × 700W = 5,600W, and total system nameplate (adding CPUs, memory, NICs, storage, fans) commonly lands in the 10-11kW range for planning purposes (illustrative figure — consult the specific system's datasheet for the exact value). Sustained training draw is typically 65-80% of that nameplate figure, not 100% — so a realistic sustained draw is roughly 6.5-8.8kW per node. The planning mistake this chapter warns about is provisioning a rack's PDU capacity against the *lower*, sustained-looking number instead of the nameplate ceiling: a job that briefly hits near-peak power during an all-reduce burst on a rack provisioned only for the "typical" 7kW figure can trip a breaker that was never actually oversized, taking down every node on that circuit rather than just the one node that spiked.
 
 ## 5. Redundancy Is an Operating Mode
 
@@ -244,6 +256,28 @@ Use BMC telemetry, DCGM, and `nvidia-smi` to correlate:
 | Failed fan or sensor | BMC hardware alert | Repair component and revalidate |
 | Liquid-flow degradation | Flow or coolant alarms | Restore cooling loop and inspect CDU |
 
+➕ **Row 1 and Row 3, told apart with real telemetry — this is the single most common "is it thermal or is it a power policy" confusion in the field, and the two look almost identical from `nvidia-smi` alone unless you read the right field:**
+
+```text
+# Minute 2 of the job (both cases look identical here)
+$ nvidia-smi --query-gpu=clocks.sm,power.draw,power.limit,temperature.gpu --format=csv
+clocks.sm [MHz], power.draw [W], power.limit [W], temperature.gpu [C]
+1980, 690, 700, 54
+
+# Minute 25 — CASE A (hot-air recirculation / Row 1)
+1290, 480, 700, 79   ← temp climbing toward threshold, power fell WITH temp, well under its 700W cap
+
+# Minute 25 — CASE B (power cap / Row 3)
+1450, 700, 700, 61   ← temp barely moved, power PINNED at the 700W limit, clock fell because power hit its ceiling
+```
+The field that disambiguates them is `power.draw` relative to `power.limit`, read alongside temperature trend. Case A shows power *falling* as temperature rises — the GPU is throttling clocks specifically because it's getting hot, a cooling/airflow problem (Row 1). Case B shows power *pinned exactly at the cap* while temperature stays low — the GPU never got hot enough to need thermal protection, it simply hit an administrative or hardware power ceiling (Row 3). Confirm the mechanism directly rather than inferring it:
+```bash
+$ nvidia-smi --query-gpu=clocks_throttle_reasons.active --format=csv
+# Case A shows a thermal bit set (SW_THERMAL_SLOWDOWN / HW_THERMAL_SLOWDOWN)
+# Case B shows a power bit set (SW_POWER_CAP) with thermal bits clear
+```
+Treating Case B as a cooling problem wastes a facilities dispatch; treating Case A as a policy problem leaves a genuinely overheating rack running until something trips a hardware protection limit.
+
 ### Prevention
 
 - run sustained acceptance tests;
@@ -270,19 +304,19 @@ The decision is based on facility constraints, expansion plans, and operational 
 
 **What information do you need before approving a DGX rack?**
 
-System power requirements, redundancy mode, PDU and circuit capacity, cooling method, rack density, weight, service clearance, network port map, cable plan, BMC access, facility margins, and growth requirements.
+"I'd want the full chain from utility to workload, not just what fits in rack units. Concretely: the node's steady-state power draw under sustained load — not the idle number and not just the nameplate number, because those can differ by 20-30% — the redundancy mode and whether the two feeds are actually independent upstream, the PDU and circuit capacity after derating, the cooling method and whether the row has headroom for this density, the weight and service clearance, and the network port map and cable plan. If I only get the nameplate power figure and rack-unit count, I'd push back and ask for the sustained-load number specifically, because that's the number that actually determines whether the breaker trips six months from now."
 
 ### Scenario question
 
 **The system passes diagnostics but slows under sustained load. What do you investigate?**
 
-Correlate clocks, power, temperatures, fan behavior, inlet conditions, and rack-level load. The likely cause may be facility or policy related rather than a defective GPU.
+"The fact that it passes diagnostics but fails only under sustained load is itself the clue — it rules out a hard fault and points at something that accumulates over time, which in practice means thermal or power. I'd pull `nvidia-smi` clocks, power draw versus power limit, and temperature side by side across the run, not just at one point in time. If power draw is falling as temperature climbs, that's thermal throttling — a cooling or airflow problem. If power is pinned exactly at its limit while temperature stays flat, that's a power cap, which is a policy question, not a hardware defect. I would not default to 'replace the GPU' — the pattern of degrading only under sustained load, on a system that just passed diagnostics, points at facility conditions almost every time."
 
 ### Customer question
 
 **Why can we not install all systems in the empty rack?**
 
-Because rack units measure physical space only. Safe deployment also requires sufficient power, cooling, weight capacity, cabling, redundancy, and serviceability.
+"Because 'the rack has empty slots' only answers the space question, and space is usually the easiest constraint to satisfy. What actually gates a high-density GPU deployment is power and cooling capacity, which don't scale the same way rack units do — you can have twelve empty rack units and enough power for four systems. I'd rather tell a customer that up front than let them find out mid-install when a breaker trips or a rack starts thermal throttling under real load. The fix is usually straightforward — reduce density per rack, upgrade the row's power and cooling, or use a purpose-built high-density area — but it has to be a deliberate choice, not something discovered after the hardware is already racked."
 
 ## 14. Summary
 
