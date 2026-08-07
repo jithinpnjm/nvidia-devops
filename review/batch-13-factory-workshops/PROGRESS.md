@@ -39,7 +39,7 @@ no content) alongside the real chapter files. These are excluded from review as 
 | ZTH-22 | labs/lab-03-edge-deployment.md | done | medium:1 (TOPS/TFLOPS mix-up) |
 | ZTH-22 | labs/lab-04-medical-imaging-pipeline.md | done | high:1 (8.2ms vs 8sec self-contradiction, 1000x slip recurrence) |
 | ZTH-24 | index.md | done | clean |
-| ZTH-24 | chapter-01-cuda-kernel-optimization.md | pending | |
+| ZTH-24 | chapter-01-cuda-kernel-optimization.md | done | high:1 (FLAGSHIP: entire project built on H100 FP32=1456 TFLOPS, real is ~67, 22x error) |
 | ZTH-24 | chapter-02-allreduce-algorithm-design.md | pending | |
 | ZTH-24 | chapter-03-distributed-training-fault-tolerance.md | pending | |
 | ZTH-24 | chapter-04-observability-system-design.md | pending | |
