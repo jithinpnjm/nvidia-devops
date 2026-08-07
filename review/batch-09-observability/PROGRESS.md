@@ -33,8 +33,8 @@ Volumes: F-07 (`docs/volume-07`), ZTH-16 (`docs/nvidia-zero-to-hero/volume-16`),
 | ZTH-16 | chapter-07-traces-profiling-and-deep-performance-diagnosis.md | done | high x1 |
 | ZTH-16 | chapter-08-common-gpu-failure-modes-and-detection.md | done | high x1 (repeat), low x1 |
 | ZTH-16 | chapter-09-health-checks-and-slos-for-gpu-clusters.md | done | low x1 (fixed inline) |
-| ZTH-16 | chapter-10-production-troubleshooting-frameworks.md | pending | |
-| ZTH-16 | chapter-11-observability-for-inference-at-scale.md | pending | |
+| ZTH-16 | chapter-10-production-troubleshooting-frameworks.md | done | none |
+| ZTH-16 | chapter-11-observability-for-inference-at-scale.md | done | medium x1, low x1 |
 | ZTH-16 | chapter-12-incident-response-and-postmortems.md | pending | |
 | ZTH-16 | labs/lab-01-setting-up-dcgm-and-prometheus-for-gpu-monitoring.md | pending | |
 | ZTH-16 | labs/lab-02-building-and-interpreting-gpu-dashboards.md | pending | |

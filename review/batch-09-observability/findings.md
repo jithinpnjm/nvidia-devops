@@ -141,3 +141,16 @@
 ### chapter-09-health-checks-and-slos-for-gpu-clusters.md
 - [SEVERITY: low] (fixed inline) Missing space in heading "SLO Violationand Impact" corrected to "SLO Violation and Impact."
 - No other findings. This is the strongest SLO chapter in ZTH-16 and does exactly what the review brief asks for: GPU-fleet-specific SLIs (GPU availability, GPU health-check pass rate, job completion rate, throughput percentiles, all-reduce latency), not generic web-service framing. Error-budget arithmetic checked correct (99% SLO over 730 hours/month = 7.3 hour budget); the "used 6 hours, 1.3 remaining, new deployments frozen" worked tracking example is a good practical illustration consistent with F-07 Ch.2's error-budget discipline.
+
+### chapter-10-production-troubleshooting-frameworks.md
+- No findings. Good decision-tree structure across four failure classes (slow job, temperature, ECC, multi-GPU stall), well-reasoned anti-patterns table (e.g. "don't start with Nsys, it's slow to run" is good triage advice), consistent with earlier chapters' evidence hierarchy.
+
+### chapter-11-observability-for-inference-at-scale.md
+- [SEVERITY: medium] Cost-per-request arithmetic is wrong by a factor of 1000. Stated: "Cost: 730 × $3.06 = $2,234/month... Requests/month: 100 req/sec × 86,400 sec/day × 30 days = 259.2M requests... Cost per request: $2,234 / 259.2M = $0.0086 per request." The actual division is $2,234 / 259,200,000 ≈ $0.0000086 per request — the stated answer is 1000x too large (a misplaced decimal/unit error, likely confusing $/request with $/thousand-requests).
+  - Evidence: lines 179-187, "Cost per request: $2,234 / 259.2M = $0.0086 per request."
+  - Why it matters for JR2018680: inference cost-per-request math is a realistic take-home/interview quantitative question; an 8th-grade-arithmetic-level error undermines the worked example's credibility, and the wrong number would also break the later "FP16 can reduce cost by 30-40%" framing if someone tried to sanity-check it against real cloud GPU pricing.
+  - Suggested fix: correct to "$0.0000086 per request (~$8.60 per million requests)."
+- [SEVERITY: low] vLLM Prometheus metric names use an underscore prefix (`vllm_request_total`, `vllm_gpu_cache_usage_perc`, `vllm_batch_tokens_per_second`) rather than real vLLM's colon-namespaced convention (`vllm:num_requests_running`, `vllm:gpu_cache_usage_perc`, `vllm:generation_tokens_total`, `vllm:time_to_first_token_seconds`, etc.). Close enough to recognize the intent but not copy-paste-accurate for a real vLLM `/metrics` endpoint.
+  - Evidence: lines 100-122 (sample `/metrics` output block).
+  - Suggested fix: align to real vLLM metric names (colon-separated namespace, and vLLM's actual TTFT/ITL metric names rather than a generic "latency_seconds" bucket) for consistency with F-07's TTFT/ITL terminology (Deep Dive 5).
+- Otherwise strong chapter: correct training-vs-inference characteristics table, good latency-component breakdown (queue wait vs model load vs GPU execution vs post-process) tied to a concrete P50/P99 worked example, sensible cost-optimization levers (batching, precision, distillation, MIG sharing).
