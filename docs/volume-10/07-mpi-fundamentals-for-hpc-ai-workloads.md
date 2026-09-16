@@ -80,7 +80,7 @@ flowchart LR
 
 Either way, **PMI (Process Management Interface)** and its successor **PMIx** are the glue: a lightweight protocol for exchanging rank-to-address mappings ("rank 4 is reachable at 10.0.1.12:41003") and coordinating startup barriers, independent of the actual MPI data-transport layer. PMIx is what lets Slurm (the resource manager) hand off cleanly to the MPI library (the communication layer) without either one needing to know the other's internals beyond that protocol. Check which mode a build uses with:
 
-```
+```text
 $ ompi_info | grep -i pmix
                  MCA pmix: pmix3x (MCA v2.1.0, API v2.0.0, Component v4.1.5)
 $ srun --mpi=list
@@ -92,11 +92,11 @@ srun: MPI types are...
 
 ## MPI collectives vs. NCCL collectives
 
-MPI's collectives (`MPI_Allreduce`, `MPI_Bcast`, etc.) and NCCL's collectives (`ncclAllReduce`, `ncclBroadcast`) look similar on paper — same mathematical operations, similar naming — but they solve different problems and usually coexist rather than compete in a GPU training stack. As covered in Volume 6's NCCL and topology chapter, NCCL is purpose-built for GPU-to-GPU collective data movement, choosing ring or tree topologies over NVLink/PCIe/RDMA specifically to move gradients and activations at hundreds of GB/s. MPI, by contrast, is general-purpose message passing that predates GPU compute entirely; its collectives run over regular CPU-side transports (TCP, InfiniBand verbs, shared memory) and are not topology-optimized for NVLink.
+MPI's collectives (`MPI_Allreduce`, `MPI_Bcast`, etc.) and NCCL's collectives (`ncclAllReduce`, `ncclBroadcast`) look similar on paper — same mathematical operations, similar naming — but they solve different problems and usually coexist rather than compete in a GPU training stack. NCCL (NVIDIA Collective Communications Library) is purpose-built for GPU-to-GPU collective data movement: at startup it inspects the physical topology of the machine — which GPUs share an NVLink connection, which share a PCIe root complex, which network interface cards are closest to which GPU — and constructs ring or tree communication patterns over that topology specifically to move gradients and activations at hundreds of GB/s. A ring topology chains every participating GPU into a loop, passing partial results around the ring so each link only ever carries a fraction of the total data; a tree topology instead fans data up and down a hierarchy, which scales better for very large GPU counts. NCCL picks between these (and between NVLink, PCIe, and RDMA-capable NICs as the underlying transport) automatically based on what it detects. MPI, by contrast, is general-purpose message passing that predates GPU compute entirely; its collectives run over regular CPU-side transports (TCP, InfiniBand verbs, shared memory) and are not topology-optimized for NVLink.
 
 The common pattern in large-scale AI training: **MPI is used to bootstrap and coordinate ranks — launch, environment setup, occasionally CPU-side reductions or barrier synchronization — while NCCL is used for the actual gradient/activation collective traffic on the GPU data path.** A PyTorch job launched via `mpirun`/`srun` typically initializes its process group with NCCL as the backend (`torch.distributed.init_process_group(backend="nccl")`) — MPI (or PMIx directly) got the ranks started and told each rank its `RANK`/`WORLD_SIZE`/`MASTER_ADDR` environment variables, but every `all_reduce()` call in the training loop from then on goes through NCCL, not MPI. Some frameworks skip MPI/PMIx-based launch entirely in favor of `torchrun`'s own rendezvous, but on Slurm-native HPC clusters, MPI-style launch is still the common path.
 
-```
+```text
 $ mpirun --report-bindings -np 8 --map-by ppr:4:node:pe=4 --bind-to core \
     -x NCCL_DEBUG=INFO -x NCCL_IB_HCA=mlx5_0,mlx5_1 \
     python train.py --backend=nccl
@@ -111,7 +111,7 @@ gpu-node-01:12345:12345 [0] NCCL INFO NET/IB : Using [0]mlx5_0:1/RoCE [RO]
 Epoch 1: loss=4.213 step_time=0.812s
 ```
 
-Reading this: `--report-bindings` shows MPI's CPU-core pinning decision *per rank*, before any GPU/NCCL activity — rank 0's cores 0-3 on socket 0 should correspond to the NUMA node that owns the GPU that rank drives (cross-check against `nvidia-smi topo -m` from Volume 6). The `NCCL INFO` lines that follow are NCCL's own initialization, entirely separate from and downstream of the MPI rank launch — MPI got the 8 processes running and bound to sane cores; NCCL then does its own topology detection and picks its own transport.
+Reading this: `--report-bindings` shows MPI's CPU-core pinning decision *per rank*, before any GPU/NCCL activity — rank 0's cores 0-3 on socket 0 should correspond to the NUMA node that owns the GPU that rank drives. You confirm that correspondence with `nvidia-smi topo -m`, which prints a matrix of every GPU and NIC on the node against every other one, showing whether each pair is connected by NVLink (`NV#`), shares a PCIe host bridge (`PHB`), or only shares a path through the CPU's NUMA interconnect (`SYS`, the slowest option) — a rank whose CPU cores are on the wrong NUMA node from its GPU pays a real, measurable memory-latency penalty on every host-to-device transfer, which is why matching `--report-bindings` output against `nvidia-smi topo -m` is a standard performance sanity check before blaming the network for a slow job. The `NCCL INFO` lines that follow are NCCL's own initialization, entirely separate from and downstream of the MPI rank launch — MPI got the 8 processes running and bound to sane cores; NCCL then does its own topology detection and picks its own transport.
 
 ## Common failure modes
 
@@ -121,23 +121,23 @@ Reading this: `--report-bindings` shows MPI's CPU-core pinning decision *per ran
 
 ## Debugging tools
 
-```
+```bash
 mpirun --report-bindings ...             # confirms MPI's CPU/core pinning per rank, before GPU work starts
 export PMIX_MCA_ptl_base_verbose=5       # verbose PMIx wire-level bootstrap logging
 export OMPI_MCA_plm_base_verbose=10      # OpenMPI process-launch-module verbose logging
 srun --mpi=pmix -v ...                   # Slurm-side verbose PMIx handoff logging
 ```
 
-These sit strictly *before* the NCCL layer covered in Volume 6: if `--report-bindings` and PMIx verbose logs show all ranks launched, bound, and connected cleanly, and the hang still happens once training starts, the problem has moved into NCCL's domain — reach for `NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT,NET,GRAPH` and the topology/GDRDMA checks from Volume 6 Chapter 4 rather than continuing to suspect MPI.
+These sit strictly *before* the NCCL layer: if `--report-bindings` and PMIx verbose logs show all ranks launched, bound, and connected cleanly, and the hang still happens once training starts, the problem has moved into NCCL's domain. At that point reach for `NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT,NET,GRAPH` (NCCL's own verbose logging, which prints the ring/tree topology it built and the transport it chose per channel), and check GPUDirect RDMA (GDRDMA) status — whether the NIC can DMA directly into GPU memory without an extra CPU-memory copy, visible as `[send] via NET/.../GDRDMA` versus a plain `[send] via NET/...` line in `NCCL_DEBUG=INFO` output — rather than continuing to suspect MPI.
 
 ## Worked scenario
 
 **Situation:** A multi-node MPI+NCCL training job hangs immediately after launch, before any training step completes. Is this an MPI/PMIx bootstrap problem or an NCCL-level network problem?
 
-1. Check whether all expected ranks even started: `squeue`/`scontrol show job` confirms the allocation is `RUNNING`, then check each node for a live process (`srun --overlap --jobid=&lt;id&gt; ps aux | grep python` or similar) — if a rank's process never launched at all (not even hung, just absent), this is an MPI/hostfile/launch problem, not NCCL.
+1. Check whether all expected ranks even started: `squeue`/`scontrol show job` confirms the allocation is `RUNNING`, then check each node for a live process (`srun --overlap --jobid=<id> ps aux | grep python` or similar) — if a rank's process never launched at all (not even hung, just absent), this is an MPI/hostfile/launch problem, not NCCL.
 2. If all N processes exist and are running, check whether they reached `MPI_Init`/rank bootstrap: `mpirun --report-bindings` output (or its absence) tells you whether MPI itself completed rank placement. No bindings output for one node's ranks means PMIx never heard back from that node — check for a firewalled port, a hostname resolution mismatch, or a version-mismatched MPI library on that node specifically.
 3. If MPI bootstrap completed (bindings printed for every rank, training script's own early log lines like "rank 4 initialized" appear for all ranks) and the hang starts only once `init_process_group(backend="nccl")` or the first `all_reduce()` is reached, the problem has moved past MPI. Switch tools: `NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=INIT,NET` and look for the last channel each rank logged before going silent — a rank stuck before printing any `NCCL INFO Channel` line points at NCCL's own network/topology detection stalling (bad NIC, RDMA link down, firewalled port range for out-of-band bootstrap), not MPI.
-4. The fast discriminator: **MPI-level hangs show missing or incomplete `--report-bindings`/rank-bootstrap output; NCCL-level hangs show complete MPI bootstrap for every rank, followed by silence or a partial set of `NCCL INFO` lines.** If you see all N ranks' bindings and startup log lines, stop looking at MPI/PMIx — you're now debugging the NCCL/fabric path from Volume 6.
+4. The fast discriminator: **MPI-level hangs show missing or incomplete `--report-bindings`/rank-bootstrap output; NCCL-level hangs show complete MPI bootstrap for every rank, followed by silence or a partial set of `NCCL INFO` lines.** If you see all N ranks' bindings and startup log lines, stop looking at MPI/PMIx — you're now debugging the NCCL/fabric path (NCCL's own topology detection and network transport, not MPI's rank bootstrap).
 
 **Conclusion:** treat MPI and NCCL as two independent layers with a clean handoff point (`MPI_Init`/rank bootstrap complete, training script logs "rank N initialized") — a hang before that point is MPI's problem, a hang after it is NCCL's/the fabric's problem, and conflating the two wastes the first 20 minutes of any incident.
 

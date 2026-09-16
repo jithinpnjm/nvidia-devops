@@ -34,13 +34,13 @@ When a job is pending, begin with `squeue -j JOBID -o '%.18i %.9T %.30R'`: the r
 
 When a node is `DRAIN`, preserve the recorded reason and inspect the node, daemon, hardware, GPU, network, and recent prolog/health output. Return it to service only after the fault is corrected and a validation job passes. `scontrol update NodeName=... State=RESUME` changes scheduler state; it does not repair hardware.
 
-This chapter builds on the deeper scheduling model in Volume 6, but the mental model above is enough to begin the administrative sections safely.
+The multifactor priority calculation that ranks pending jobs against each other weighs several factors together — age in queue, job size, partition, fairshare, and QoS — but the mental model above (association and QoS as the two policy knobs, fairshare as the fleet-wide weighting between accounts) is enough to begin the administrative sections safely.
 
 ## slurmctld/slurmdbd high availability
 
 `slurmctld` is a single logical decision-maker, but it does not have to be a single point of failure. Slurm supports a backup controller declared in `slurm.conf`:
 
-```
+```ini
 # slurm.conf
 SlurmctldHost=slurmctl-01
 SlurmctldHost=slurmctl-02
@@ -64,7 +64,7 @@ The point worth having precise in an interview: controller failover is about *wh
 
 `sacctmgr` manages the accounting hierarchy — clusters, accounts (organizational units, often mapped to research groups/projects), users, and the **association** between them (which user can charge which account on which partition, with what fairshare weight):
 
-```
+```text
 $ sacctmgr show account format=Account,Description,Organization
    Account            Descr        Org
 ---------- -------------------- ----------
@@ -94,7 +94,7 @@ QoS (`sacctmgr show qos`) layers on top of accounts/associations to express poli
 
 **How it surfaces:** Three weeks in, the `physics` PI escalates because a paper deadline is at risk and their jobs are consistently waiting 10+ hours despite the partition rarely showing as fully allocated. The on-call engineer runs:
 
-```
+```text
 $ sshare -l -A physics,genomics,climate,astro
              Account       User  RawShares  NormShares    RawUsage  EffectvUsage  FairShare
 -------------------- ---------- ---------- ----------- ----------- ------------- ----------
@@ -112,7 +112,7 @@ $ sshare -l -A physics,genomics,climate,astro
 
 ## Node state management
 
-```
+```text
 $ scontrol update nodename=gpu-node-14 state=drain reason="ECC errors - pending diagnostics"
 $ scontrol show node gpu-node-14 | grep -E 'State|Reason'
    State=DRAIN Reason=ECC errors - pending diagnostics [admin@2026-07-30T09:12:00]
@@ -120,9 +120,9 @@ $ scontrol show node gpu-node-14 | grep -E 'State|Reason'
 $ scontrol update nodename=gpu-node-14 state=resume
 ```
 
-`DRAIN` (set deliberately, by an admin or by an auto-drain from a failed prolog per Deep Dive 5) means the node keeps its currently running job(s) to completion but accepts no new work — the humane way to pull a node for scheduled maintenance without killing a researcher's in-flight job. `DOWN` means Slurm considers the node unusable right now, typically because `slurmd` stopped responding (`SlurmdTimeout` exceeded) — existing jobs on it are generally lost, not gracefully drained, because `slurmctld` can no longer confirm what's happening on that node at all. `FAIL` is a specific, escalated variant of drain used to mark a node as failed hardware rather than merely maintenance-pending, distinguishing "we're doing planned work" from "this node is broken and its next allocation should not happen until someone fixes it" for reporting/tracking purposes — some sites treat FAIL and DRAIN identically in scheduling behavior but keep them semantically distinct in the reason field and in dashboards, precisely so an on-call engineer scanning `sinfo` output can tell planned maintenance from an open incident at a glance.
+`DRAIN` (set deliberately by an admin, or automatically when a node's **prolog** — a script `slurmctld`/`slurmd` runs before starting a job on a node, commonly used to check GPU health, filesystem mounts, or network state — exits with a nonzero status and Slurm auto-drains the node rather than starting jobs against a host it just proved is unhealthy) means the node keeps its currently running job(s) to completion but accepts no new work — the humane way to pull a node for scheduled maintenance without killing a researcher's in-flight job. `DOWN` means Slurm considers the node unusable right now, typically because `slurmd` stopped responding (`SlurmdTimeout` exceeded) — existing jobs on it are generally lost, not gracefully drained, because `slurmctld` can no longer confirm what's happening on that node at all. `FAIL` is a specific, escalated variant of drain used to mark a node as failed hardware rather than merely maintenance-pending, distinguishing "we're doing planned work" from "this node is broken and its next allocation should not happen until someone fixes it" for reporting/tracking purposes — some sites treat FAIL and DRAIN identically in scheduling behavior but keep them semantically distinct in the reason field and in dashboards, precisely so an on-call engineer scanning `sinfo` output can tell planned maintenance from an open incident at a glance.
 
-```
+```text
 $ sinfo -R
 REASON               USER      TIMESTAMP           NODELIST
 ECC errors - pendi+  admin     2026-07-30T09:12:00  gpu-node-14
@@ -136,7 +136,7 @@ Not responding       (null)    2026-07-30T11:40:11  gpu-node-22
 
 Slurm's documented upgrade order is strict: **`slurmdbd` first, then `slurmctld`, then `slurmd` on compute nodes**, never the reverse. `slurmdbd` owns and migrates the accounting database schema; a newer `slurmctld` talking to an older `slurmdbd`/schema can encounter accounting calls the older schema doesn't support, but a `slurmdbd` upgraded first (and its schema migration completed) can continue serving an older `slurmctld` without issue, because `slurmdbd`'s RPC compatibility window is generally wider going backward than a not-yet-upgraded piece going forward.
 
-Version skew is bounded, but more generously than a strict "adjacent versions only" rule: Slurm's documented upgrade policy supports `slurmd`/client-side tools lagging the controller by up to **two** major releases (N, N-1, N-2) — for example a 23.02 `slurmctld` can serve 22.05 *and* 21.08 `slurmd` compute nodes without a forced upgrade, and it's only a third major version behind (e.g. 20.11 compute nodes against a 23.02 controller) that moves outside the supported skew window and risks silent misbehavior rather than a clean failure. This wider window is what makes rolling upgrades practical across a large fleet: compute nodes can lag the controller by up to two major versions while jobs continue running on them, which is the mechanism for **not killing running jobs during an upgrade** — you drain and upgrade `slurmd` on a batch of nodes at a time (the same `serial:`-style batching concept as Chapter 4's Ansible rollout, operationally), while the controller itself is upgraded once, during a short maintenance window, without needing every compute node upgraded simultaneously. In practice, most sites still upgrade `slurmd` fleet-wide well before hitting the N-2 boundary — the wider window is a safety margin for a large rolling upgrade taking longer than planned, not a license to defer compute-node upgrades indefinitely.
+Version skew is bounded, but more generously than a strict "adjacent versions only" rule: Slurm's documented upgrade policy supports `slurmd`/client-side tools lagging the controller by up to **two** major releases (N, N-1, N-2) — for example a 23.02 `slurmctld` can serve 22.05 *and* 21.08 `slurmd` compute nodes without a forced upgrade, and it's only a third major version behind (e.g. 20.11 compute nodes against a 23.02 controller) that moves outside the supported skew window and risks silent misbehavior rather than a clean failure. This wider window is what makes rolling upgrades practical across a large fleet: compute nodes can lag the controller by up to two major versions while jobs continue running on them, which is the mechanism for **not killing running jobs during an upgrade** — you drain and upgrade `slurmd` on a batch of nodes at a time (the same small-batch, validate-before-expanding rollout discipline used for any fleet-wide change — upgrade a small group, confirm it is healthy, then expand), while the controller itself is upgraded once, during a short maintenance window, without needing every compute node upgraded simultaneously. In practice, most sites still upgrade `slurmd` fleet-wide well before hitting the N-2 boundary — the wider window is a safety margin for a large rolling upgrade taking longer than planned, not a license to defer compute-node upgrades indefinitely.
 
 ```mermaid
 flowchart TD
@@ -152,13 +152,13 @@ flowchart LR
     D --> E["running jobs on NOT-YET-upgraded nodes are undisturbed throughout"]
 ```
 
-The practical admin move: `scontrol update nodename=&lt;batch&gt; state=drain` on a batch, wait for `sinfo`/`squeue` to confirm no running jobs remain on that batch (or accept that draining lets current jobs finish before removing the node from scheduling), upgrade `slurmd` and restart it on that batch, `resume` it, move to the next batch — a batch of nodes is unavailable for *new* scheduling during its own upgrade window, but the cluster as a whole, and every job that was running before the upgrade started, is never killed by the process.
+The practical admin move: `scontrol update nodename=<batch> state=drain` on a batch, wait for `sinfo`/`squeue` to confirm no running jobs remain on that batch (or accept that draining lets current jobs finish before removing the node from scheduling), upgrade `slurmd` and restart it on that batch, `resume` it, move to the next batch — a batch of nodes is unavailable for *new* scheduling during its own upgrade window, but the cluster as a whole, and every job that was running before the upgrade started, is never killed by the process.
 
 ## cgroup and GRES configuration for GPU binding
 
-`gres.conf` declares what GPU devices a node has and which specific device files map to which GRES index — this is the node-side capability declaration Deep Dive 5 referenced:
+`gres.conf` declares what GPU devices a node has and which specific device files map to which GRES index — this is the node-side capability declaration that the scheduler reads when deciding which physical GPU to hand a job that requested `--gres=gpu:1`:
 
-```
+```ini
 # /etc/slurm/gres.conf  (on gpu-node-14, an 8-GPU node)
 AutoDetect=nvml
 Name=gpu Type=h100 File=/dev/nvidia0 Cores=0-15
@@ -169,7 +169,7 @@ Name=gpu Type=h100 File=/dev/nvidia1 Cores=16-31
 
 `cgroup.conf` controls whether Slurm actually enforces the isolation implied by an allocation, rather than merely bookkeeping it:
 
-```
+```ini
 # /etc/slurm/cgroup.conf
 ConstrainCores=yes
 ConstrainDevices=yes

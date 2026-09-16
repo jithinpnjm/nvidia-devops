@@ -18,8 +18,8 @@ It is useful to keep the boundaries clear in a bare-metal GPU cluster:
 
 | System | Primary responsibility | Example |
 |---|---|---|
-| BMC/Redfish | Hardware power and console | Power-cycle a failed server |
-| BCM | Image, provisioning, category lifecycle | Boot a node into an approved OS image |
+| BMC/Redfish (Baseboard Management Controller — a small independent service processor built into a server that can power-cycle, console into, and inventory the machine even when its OS is unresponsive; Redfish is the standard HTTP/JSON API most modern BMCs expose for that control) | Hardware power and console | Power-cycle a failed server |
+| BCM (Base Command Manager — NVIDIA's cluster-management platform for provisioning, imaging, and monitoring bare-metal GPU fleets) | Image, provisioning, category lifecycle | Boot a node into an approved OS image |
 | Ansible | Repeated host configuration | Install a package and deploy a service configuration |
 | Slurm | Workload scheduling and node admission | Drain a node before disruptive maintenance |
 | Terraform | API-managed infrastructure | Create DNS, IAM, or cloud networking objects |
@@ -55,7 +55,7 @@ flowchart LR
 | Managed node | Machine configured by Ansible | `gpu-node-01` |
 | Inventory | Hosts and groups that Ansible may target | `gpu_nodes`, `login_nodes` |
 | Play | A host target plus execution settings | Apply baseline to `gpu_nodes` |
-| Task | One ordered action | Ensure `chrony` is installed |
+| Task | One ordered action | Ensure `chrony` (a Network Time Protocol daemon that keeps a host's clock synchronized against reference time servers — clock skew across nodes breaks distributed job timing, log correlation, and certain authentication protocols) is installed |
 | Module | Code that performs a task | `ansible.builtin.package` |
 | Role | Reusable unit of tasks, defaults, handlers, and templates | `roles/node_baseline` |
 | Handler | Action triggered by a changed task | Restart `chronyd` after config changes |
@@ -345,7 +345,7 @@ A role packages one responsibility. Good bare-metal role boundaries could be:
 | Role | Owns |
 |---|---|
 | `node_baseline` | time sync, users, SSH policy, standard repositories |
-| `dcgm_exporter` | exporter package, configuration, and service |
+| `dcgm_exporter` | the DCGM (Data Center GPU Manager, NVIDIA's GPU telemetry and health-monitoring daemon) Prometheus exporter package, configuration, and service |
 | `slurm_client` | Slurm client configuration only when Ansible owns it |
 | `nvidia_driver` | driver state only when the image/BCM process does not own it |
 
@@ -403,6 +403,18 @@ The following play demonstrates rollout mechanics. The `node_change_approved` va
 ```
 
 Start with `serial: 1`. After the canary passes the required health and workload tests, change to a small, capacity-aware batch only through the approved change process. `any_errors_fatal` stops additional work after a failure; it does not automatically undo modifications already made. Keep the prior configuration or image available and understand the rollback command before starting.
+
+## Worked scenario — an idempotent-looking task that silently restarted every node's GPU workload
+
+**Situation:** An operator adds a `template` task to `node_baseline` that renders `/etc/security/limits.d/gpu.conf` (raising the file-descriptor and locked-memory limits GPU workloads need for RDMA). The task uses `notify: Restart chronyd` — copy-pasted from a nearby task in the same file — instead of the correct handler, which should have been something like "no restart required, this file is read at process start." Nobody catches it in review because the diff is small and the play passes `--check --diff` cleanly (check mode shows the file content that would change, but has no way to know which handler a `notify` fires, since handler *firing* is a runtime effect, not a static property of the play).
+
+**What happens:** The play runs against the full `gpu_nodes` group with `serial: 5` (five nodes at a time, no canary gate because the operator judged "just a limits file" as low-risk). Every batch's changed `template` task fires `notify: Restart chronyd`, which restarts the `chronyd` time-sync service — harmless on its own — but the deploy pipeline's post-task health check only verifies `systemctl is-active chronyd`, not GPU workload health. What nobody checked: this cluster's driver-adjacent kernel module reload script also watches for `chronyd` restarts as a trigger (an unrelated, undocumented local customization from an earlier incident response) and re-probes the NVIDIA driver whenever it sees `chronyd` bounce, which briefly makes GPUs disappear from `nvidia-smi` on that node. Five nodes' worth of running multi-day training jobs lose their GPUs mid-step and crash.
+
+**Root cause:** Two independent failures stacked. First, `notify:` was wrong (copy-paste error, not caught because check mode cannot simulate which handler actually fires and code review did not trace the handler chain). Second, and more importantly, the rollout skipped the canary/validate/batch discipline this chapter describes — a `serial: 1` canary with a real GPU/workload health check (not just a systemd unit check) would have caught the driver re-probe on the very first node, at the cost of one job instead of the batch's worth.
+
+**Fix:** Correct the handler (or remove `notify` entirely if the limits file needs no runtime action), then re-run through a proper canary: `serial: 1`, drain the canary node in Slurm first, run the corrected play, validate with `nvidia-smi` and a real allocated test job — not just `systemctl is-active` — before expanding to a batch.
+
+**Lesson for the interview:** `--check --diff` proves *what a file's contents would become*; it does not prove *what side effects that change will trigger*, because handlers, external watchers, and downstream automation are invisible to Ansible's own dry-run model. A "GPU-safe" post-task health check has to validate the GPU/workload layer directly, not the systemd-unit layer one level below it — and canary-first, not batch-first, is what limits a wrong `notify:` to one job instead of a batch.
 
 ## Troubleshooting workbook
 
