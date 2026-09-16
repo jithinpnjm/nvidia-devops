@@ -220,13 +220,13 @@ Both are Linux Security Modules (LSM) implementing mandatory access control (MAC
 | Policy granularity | Type Enforcement — very fine-grained, steep learning curve | Path-based profiles — coarser, easier to read/write |
 | Modes | `Enforcing`, `Permissive`, `Disabled` | `enforce`, `complain` (log-only), profile can be `unconfined` |
 | Check status | `sestatus`, `getenforce` | `aa-status` |
-| Set mode | `setenforce 0\|1` (runtime), `/etc/selinux/config` (persistent) | `aa-enforce &lt;profile&gt;`, `aa-complain &lt;profile&gt;` |
-| Denial logs | `/var/log/audit/audit.log`, queried via `ausearch -m avc` | `dmesg`/`journalctl`, `DENIED` lines tagged `apparmor="DENIED"` |
+| Set mode | `setenforce 0\|1` (runtime), `/etc/selinux/config` (persistent) | `aa-enforce <profile>`, `aa-complain <profile>` |
+| Denial logs | `/var/log/audit/audit.log`, queried via `ausearch -m avc` (`-m avc` filters to Access Vector Cache records — the specific audit event type SELinux emits every time it denies an action) | `dmesg`/`journalctl`, `DENIED` lines tagged `apparmor="DENIED"` |
 | Triage tool | `audit2allow` — generates a policy module from denial logs | `aa-genprof`/`aa-logprof` — interactively builds/updates a profile from logs |
 
 Annotated `sestatus` output:
 
-```
+```text
 $ sestatus
 SELinux status:                enabled
 SELinuxfs mount:                /sys/fs/selinux
@@ -250,7 +250,7 @@ flowchart TD
     C --> C2["human-readable explanation of why SELinux blocked it"]
     C2 --> D{"4. Legitimate access the policy should allow, or a real misconfiguration?"}
     D -->|legitimate| E["audit2allow -a -M mymodule; semodule -i mymodule.pp"]
-    D -->|misconfig| F["fix the actual file context/port label instead (restorecon, semanage port -a)"]
+    D -->|misconfig| F["fix the actual file context/port label instead (restorecon: reset a file's SELinux label to what policy says it should be, e.g. after moving/copying a file out of its expected path; semanage port -a: register a non-default port under the correct SELinux type, e.g. running sshd on a nonstandard port)"]
     E --> G["5. Never leave this unresolved by just running setenforce 0 permanently - that's disabling the control, not fixing the finding"]
     F --> G
 ```
@@ -273,12 +273,14 @@ The instinct to `setenforce 0` or set a profile to `complain` "just to get the s
 
 ## CIS-benchmark-style hardening baseline
 
+**CIS** (Center for Internet Security) publishes vendor-neutral, numbered hardening checklists ("CIS Benchmarks") per OS/application — a common reference point auditors and compliance regimes point to instead of each shop inventing its own baseline from scratch. **OpenSCAP** is an open-source scanner/toolkit that can check a system against a machine-readable version of these benchmarks (a SCAP/XCCDF profile) and report pass/fail per rule, rather than a human manually walking a PDF checklist.
+
 A hardening pass (whether run via a CIS benchmark tool, OpenSCAP, or a bespoke Ansible role) typically touches the same recurring surface area regardless of exact benchmark version:
 
 - **SSH config** (`/etc/ssh/sshd_config`) — disable root login (`PermitRootLogin no`), disable password auth in favor of keys (`PasswordAuthentication no`), restrict ciphers/MACs to modern-only, `MaxAuthTries`, `LoginGraceTime`.
 - **Firewall / nftables** — default-deny inbound, explicit allow rules per required service/port, egress control where the threat model calls for it. Modern RHEL/Ubuntu baselines use `nftables` as the backend even where `firewalld`/`ufw` is the admin-facing tool.
 - **Unused service disablement** — anything listening that isn't needed (`systemctl list-unit-files --state=enabled`, then disable what the node's role doesn't require) shrinks attack surface and, on HPC nodes specifically, removes noisy neighbors competing for CPU/memory the job scheduler thinks is free.
-- **Kernel sysctl hardening** — `net.ipv4.conf.all.rp_filter`, disabling IP forwarding on non-router nodes, `kernel.dmesg_restrict`, `kernel.kptr_restrict`, ASLR (`kernel.randomize_va_space=2`), disabling core dumps of setuid programs.
+- **Kernel sysctl hardening** — runtime kernel tunables set via `sysctl` (or persisted in `/etc/sysctl.d/`): `net.ipv4.conf.all.rp_filter` (reverse-path filtering — drops packets whose source address couldn't plausibly have arrived on that interface, a basic anti-spoofing check), disabling IP forwarding on non-router nodes (a compute node has no business routing traffic between networks), `kernel.dmesg_restrict`/`kernel.kptr_restrict` (hide kernel log output and kernel memory addresses from unprivileged users — both are reconnaissance information an attacker uses to build a kernel exploit), ASLR (Address Space Layout Randomization, `kernel.randomize_va_space=2` — randomizes where a process's memory regions land, making memory-corruption exploits much harder to write reliably), disabling core dumps of setuid programs (a core dump of a root-privileged process can leak sensitive memory contents to a world-readable file).
 - **auditd** — rule sets watching identity/privilege files (`/etc/passwd`, `/etc/shadow`, `/etc/sudoers`), privileged command execution, and (per compliance regime) file access to sensitive data paths. `auditctl -l` shows the currently loaded rule set.
 
 Annotated `auditctl -l` fragment:
@@ -303,7 +305,7 @@ flowchart TD
     C -->|"application/framework pinned CUDA version (PyTorch/TF build)"| D[Training/inference workload]
 ```
 
-A routine `dnf update`/`apt upgrade` that pulls a newer kernel is, from this diagram, a gate — not a no-op — because the NVIDIA driver kernel module is typically built via DKMS against the running kernel headers. Bump the kernel without a coordinated driver rebuild/reinstall, and every node that reboots into the new kernel loses `nvidia.ko`, and `nvidia-smi` fails cluster-wide on next reboot, even though nothing about CUDA or the application layer changed.
+A routine `dnf update`/`apt upgrade` that pulls a newer kernel is, from this diagram, a gate — not a no-op — because the NVIDIA driver kernel module is typically built via DKMS (Dynamic Kernel Module Support — a framework that automatically rebuilds an out-of-tree kernel module, like `nvidia.ko`, against whatever kernel headers are currently installed, since the module isn't part of the mainline kernel tree and has to be recompiled for each kernel ABI it runs against) against the running kernel headers. Bump the kernel without a coordinated driver rebuild/reinstall, and every node that reboots into the new kernel loses `nvidia.ko`, and `nvidia-smi` fails cluster-wide on next reboot, even though nothing about CUDA or the application layer changed.
 
 Operational implications:
 
@@ -314,7 +316,7 @@ Operational implications:
 
 ## The hardening-vs-HPC-operations tension
 
-SELinux enforcing mode on a GPU node can generate denials against device-node access patterns (`/dev/nvidia*`, `/dev/nvidia-uvm`, GPUDirect RDMA paths touching NIC device nodes) that the stock "targeted" policy never anticipated, because these device classes didn't exist when the base policy was authored. NVIDIA and some distros ship or recommend supplemental SELinux policy modules for exactly this reason — installing the right policy module (mapping the correct type/context to the GPU device nodes) is the correct fix, not disabling enforcement.
+SELinux enforcing mode on a GPU node can generate denials against device-node access patterns (`/dev/nvidia*`, `/dev/nvidia-uvm`, GPUDirect RDMA paths touching NIC device nodes — GPUDirect RDMA is NVIDIA's mechanism letting a network adapter read/write GPU memory directly over RDMA, bypassing a copy through host CPU memory, which is what makes multi-node NCCL collectives fast) that the stock "targeted" policy never anticipated, because these device classes didn't exist when the base policy was authored. NVIDIA and some distros ship or recommend supplemental SELinux policy modules for exactly this reason — installing the right policy module (mapping the correct type/context to the GPU device nodes) is the correct fix, not disabling enforcement.
 
 In practice this is why some HPC shops run SELinux in `permissive` mode (or AppArmor profiles in `complain` mode) on GPU compute nodes specifically, with compensating controls instead: network segmentation on the cluster's management/boot VLANs, strict SSH/auth hardening, auditd watching privileged actions, and tight physical/BMC access control. This is a real, defensible trade-off in a closed HPC network with no direct internet-facing services on the compute nodes — but it is a trade-off, not a free pass, and should be a documented risk-acceptance decision (with the compensating controls named), not an unexamined default inherited from "enforcing broke a job once so we turned it off."
 
@@ -325,7 +327,7 @@ In practice this is why some HPC shops run SELinux in `permissive` mode (or AppA
 1. **Confirm the actual failure mode**: `dmesg | grep -i nvidia` on an affected node — typically shows the DKMS-built `nvidia.ko` either failed to build against the new kernel headers, or built against the old kernel and is now mismatched against the running (new) kernel, which is exactly what "Failed to initialize NVML: Driver/library version mismatch" means.
 2. **Check DKMS status**: `dkms status` — shows whether the nvidia module built successfully for the new kernel version or is still only registered against the previous one.
 3. **Root cause**: the patch pipeline updated the kernel package but did not trigger (or wait for) a DKMS rebuild against the new kernel headers before the node rebooted — a sequencing gap between "kernel package updated" and "GPU driver kernel module rebuilt for that kernel," not a driver bug.
-4. **Immediate fix**: `dkms autoinstall` (or a targeted `dkms install nvidia/&lt;version&gt; -k &lt;new-kernel&gt;`) rebuilds the module against the currently running kernel; reboot not always required if the module can be loaded live, but a clean reboot-and-verify is the safer confirmation step.
+4. **Immediate fix**: `dkms autoinstall` (or a targeted `dkms install nvidia/<version> -k <new-kernel>`) rebuilds the module against the currently running kernel; reboot not always required if the module can be loaded live, but a clean reboot-and-verify is the safer confirmation step.
 5. **Prevention**: the patch pipeline must treat "kernel package update" and "DKMS rebuild + verify module load" as one atomic maintenance step per node — never reboot a node into a new kernel without a passing DKMS build gate for that exact kernel version, and the staged/canary rollout (patch one node, confirm `nvidia-smi` clean, then batch) would have caught this before it hit the whole fleet.
 
 **Interview-ready line:** "A kernel patch on a GPU node isn't userspace-only risk — the driver's kernel module is typically DKMS-built against the running kernel, so any patch pipeline that bumps the kernel has to treat a successful DKMS rebuild as a hard gate before reboot, or you get a fleet-wide 'no devices found' the next morning."

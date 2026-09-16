@@ -27,6 +27,8 @@ Volume 10 follows a physical GPU server from hardware management through operati
 | Enroot/Pyxis | Unprivileged container user space integrated with Slurm | Host driver/kernel or scheduler policy |
 | CI/CD/change process | Evidence, approval and controlled promotion of changes | Technical validation and rollback design |
 
+**MPI** (Message Passing Interface) is the decades-old standard API for writing a program as many cooperating processes ("ranks") that pass messages to each other — it's the programming model most distributed training/HPC code is written against. **NCCL** (NVIDIA Collective Communications Library) implements the actual fast data-movement primitives (all-reduce, broadcast, all-gather) that a distributed training job's gradient-sync step uses, and is GPU-topology-aware (it knows whether two GPUs share an NVLink, are on the same PCIe switch, or need to cross the network, and picks the fastest path accordingly) in a way generic MPI collectives are not. In practice: MPI/PMIx gets the ranks launched and talking to each other at all; NCCL is what actually moves the tensors fast once they are.
+
 ### Follow one node and one job
 
 A BMC makes a powered chassis manageable. Firmware and BIOS are baselined. Network boot or BCM installs a known OS image. Configuration tools establish users, security, drivers and services. Health checks prove the node is eligible. Slurm admits it to a partition and later allocates it. A launcher starts job ranks; MPI/NCCL and the network move data; storage supplies datasets and checkpoints. Logs/accounting record outcomes. Change management maintains compatibility across every layer.
@@ -51,7 +53,7 @@ The rack must supply validated power, cooling and network cabling. The BMC has a
 
 #### 2. Firmware and boot baseline
 
-Record BMC, BIOS/UEFI, GPU, NVSwitch, NIC/HCA and storage firmware as a tested compatibility set. Configure supported boot, security, virtualization/IOMMU and device settings. Network boot relies on address/boot discovery and artifact delivery before an OS exists.
+Record BMC, BIOS/UEFI, GPU, NVSwitch, NIC/HCA (HCA = Host Channel Adapter, the InfiniBand equivalent of a NIC — it does what an Ethernet NIC does but speaks the InfiniBand fabric protocol) and storage firmware as a tested compatibility set. Configure supported boot, security, virtualization/IOMMU and device settings. Network boot relies on address/boot discovery and artifact delivery before an OS exists.
 
 #### 3. Image and operating system
 
@@ -59,7 +61,7 @@ BCM or another provisioner assigns a known image to node categories/roles. The n
 
 #### 4. Accelerator and fabric stack
 
-Install/validate driver, CUDA user-space expectations, container integration, NIC/RDMA stack and topology. Hardware visibility, driver initialization, framework execution and distributed communication are separate gates.
+Install/validate driver, CUDA user-space expectations, container integration, NIC/RDMA stack (RDMA — Remote Direct Memory Access — lets a NIC write directly into another node's memory over the network without a CPU copy on either side, which is what makes multi-node GPU collectives fast enough to be useful) and topology. Hardware visibility, driver initialization, framework execution and distributed communication are separate gates.
 
 #### 5. Scheduler readiness
 
@@ -228,17 +230,17 @@ Both are out-of-band management protocols talked to the Baseboard Management Con
 
 | | IPMI | Redfish |
 |---|---|---|
-| Transport | Binary protocol over LAN (RMCP+), UDP 623 | HTTPS REST/JSON, standard HTTP verbs |
-| Data model | Opaque byte-packed records (SDR, sensor thresholds by numeric offset) | Self-describing JSON resources with a schema |
+| Transport | Binary protocol over LAN (RMCP+ — Remote Management Control Protocol, the UDP-based envelope IPMI packets travel in), UDP 623 | HTTPS REST/JSON, standard HTTP verbs |
+| Data model | Opaque byte-packed records (SDR = Sensor Data Record, a compact binary table entry — sensor thresholds are looked up by numeric offset into that table, not by name) | Self-describing JSON resources with a schema |
 | Tooling | `ipmitool` | `redfishtool`, `curl`, any HTTP client |
 | Scriptability | Awkward — fixed binary field offsets, vendor OEM extensions common | Native — JSON, discoverable via `$metadata`/schema links |
-| Status | Legacy, DCMI subset still widely deployed | DMTF standard, the direction every major vendor (Dell iDRAC, HPE iLO, Lenovo XCC, Supermicro, NVIDIA/Mellanox BMC) has moved |
+| Status | Legacy, DCMI subset (Data Center Manageability Interface — a slimmed-down, vendor-interoperable subset of full IPMI covering power/thermal basics) still widely deployed | DMTF standard (Distributed Management Task Force — the industry body that owns the Redfish spec), the direction every major vendor (Dell iDRAC, HPE iLO, Lenovo XCC, Supermicro, NVIDIA/Mellanox BMC) has moved |
 
 Redfish did not replace IPMI overnight — most BMCs today run both, and IPMI's `chassis power` and `sol` (serial-over-LAN) commands are still the fastest path for a quick power-cycle or console grab. But firmware inventory, structured event logs, and anything you want to automate at scale should go through Redfish: it returns typed JSON you can parse without knowing vendor-specific IPMI OEM byte layouts.
 
 ## Accessing the BMC
 
-```
+```bash
 # IPMI — direct LAN access, or via ipmitool's "lan" interface
 ipmitool -I lanplus -H <bmc-ip> -U admin -P <pass> chassis status
 ipmitool -I lanplus -H <bmc-ip> -U admin -P <pass> power status
@@ -273,15 +275,15 @@ The Redfish equivalent returns the same class of information as structured JSON 
 
 A GPU node's firmware surface is wider than a general-purpose server's:
 
-- **BIOS/UEFI** — boot mode, PCIe link training parameters, IOMMU/SR-IOV settings, NUMA/memory interleave — all of which affect GPU-to-GPU and GPU-to-NIC bandwidth.
+- **BIOS/UEFI** — boot mode, PCIe link training parameters, IOMMU/SR-IOV settings (IOMMU — I/O Memory Management Unit — mediates device-to-memory access and is required for safely passing a PCIe device like a GPU through to a VM or container; SR-IOV — Single Root I/O Virtualization — lets one physical PCIe device present itself as multiple virtual devices), NUMA/memory interleave (NUMA — Non-Uniform Memory Access — means a CPU socket reaches its "local" memory/PCIe devices faster than a "remote" socket's; getting a GPU and the NIC it talks to on the same NUMA node avoids a slow cross-socket hop) — all of which affect GPU-to-GPU and GPU-to-NIC bandwidth.
 - **BMC firmware** — the management controller's own firmware; a BMC firmware bug can cause false sensor readings or SOL hangs.
-- **NIC firmware** — ConnectX/BlueField firmware revisions gate RoCE/InfiniBand feature support and interact with the driver (MLNX_OFED) version.
-- **GPU VBIOS** — gates ECC modes, power limits, and ties to the driver's supported VBIOS range; a stale VBIOS is a frequent cause of Xid errors that look like driver bugs.
-- **NVSwitch/NVLink firmware** on multi-GPU baseboards — affects fabric topology discovery.
+- **NIC firmware** — ConnectX/BlueField (NVIDIA's NIC/DPU product lines, formerly Mellanox) firmware revisions gate RoCE/InfiniBand feature support — RoCE (RDMA over Converged Ethernet) and InfiniBand are the two competing lossless fabrics that carry RDMA traffic between GPU nodes; RoCE rides on Ethernet, InfiniBand is its own fabric — and interact with the driver (MLNX_OFED, the NIC driver/userspace stack) version.
+- **GPU VBIOS** — the GPU's own firmware, analogous to a motherboard's BIOS: it initializes the GPU at power-on before the OS driver loads. It gates ECC modes (whether GPU memory has error-correcting protection enabled), power limits, and ties to the driver's supported VBIOS range; a stale VBIOS is a frequent cause of Xid errors (NVIDIA's numbered GPU error codes, logged by the driver to the kernel log when the GPU hits a hardware/software fault) that look like driver bugs.
+- **NVSwitch/NVLink firmware** on multi-GPU baseboards — NVLink is NVIDIA's high-bandwidth point-to-point GPU-to-GPU interconnect (much faster than routing GPU traffic over PCIe); NVSwitch is the switch chip that lets many GPUs NVLink to each other in a full mesh instead of a point-to-point chain. Firmware here affects fabric topology discovery.
 
 Workflow, in order, for bringing a node's firmware to baseline:
 
-```
+```text
 1. Inventory   : curl .../UpdateService/FirmwareInventory   (or vendor tool, e.g. dcgm/nvidia-smi -q for GPU VBIOS)
 2. Compare      : diff against the site's firmware baseline manifest (a pinned version per component per HW generation)
 3. Stage image  : push firmware payload to BMC (Redfish SimpleUpdate action, or vendor USC/Lifecycle Controller)
@@ -312,7 +314,7 @@ flowchart TD
     I --> J["OS installer or stateless runtime takes over"]
 ```
 
-Two failure classes dominate PXE troubleshooting: nothing offered (DHCP scope exhausted, PXE options not set on the DHCP server, or a rogue DHCP server on the segment answering first with wrong options), or offered-but-nothing-loads (TFTP blocked by a firewall/ACL, wrong `next-server` IP, boot filename mismatched to the node's firmware mode — legacy BIOS asking for an EFI bootloader or vice versa). `tcpdump -i &lt;iface&gt; port 67 or port 68 or port 69` on the boot network is the fastest way to see exactly where in this chain a specific node stalls.
+Two failure classes dominate PXE troubleshooting: nothing offered (DHCP scope exhausted, PXE options not set on the DHCP server, or a rogue DHCP server on the segment answering first with wrong options), or offered-but-nothing-loads (TFTP blocked by a firewall/ACL, wrong `next-server` IP, boot filename mismatched to the node's firmware mode — legacy BIOS asking for an EFI bootloader or vice versa). `tcpdump -i <iface> port 67 or port 68 or port 69` on the boot network is the fastest way to see exactly where in this chain a specific node stalls.
 
 ## RAID/boot-drive configuration before OS install
 
@@ -335,7 +337,7 @@ Only after all six is a node handed to the next layer up — in this book's cont
 
 **Situation:** Node `gpu-node-14` was just RMA'd (new mainboard) and reinserted into the rack. It never appears in the provisioning system's "installing" state; the console shows it sitting at "PXE-E51: No DHCP or proxyDHCP offers were received."
 
-1. **Confirm the BMC/console is reachable at all.** `ipmitool -I lanplus -H &lt;bmc-ip&gt; ... sol activate` — if this fails, the problem is BMC network config, not PXE; fix that first, it's a prerequisite for diagnosing anything else.
+1. **Confirm the BMC/console is reachable at all.** `ipmitool -I lanplus -H <bmc-ip> ... sol activate` — if this fails, the problem is BMC network config, not PXE; fix that first, it's a prerequisite for diagnosing anything else.
 2. **Check whether the NIC is even asking.** From a span port or another box on the same VLAN: `tcpdump -i eth0 port 67 or port 68`. No DHCPDISCOVER seen at all from that MAC → the problem is upstream of the network: cabling, switch port not on the correct VLAN, or the PXE NIC port itself disabled in BIOS (common after a mainboard swap — BIOS defaults may re-enable a different NIC as primary, or disable PXE ROM on the intended port).
 3. **DHCPDISCOVER seen but no OFFER returned** → check the DHCP server's scope utilization and whether the node's MAC is registered (many provisioning systems require MAC pre-registration before offering a PXE-specific option set) — this is the single most common cause after a mainboard swap, since the RMA changed the MAC address and the old registration no longer matches.
 4. **OFFER received, but TFTP/HTTP fetch fails** (`PXE-E32`, `PXE-E11`, or an HTTPBoot TLS/404 error) → check firewall/ACL on the TFTP/HTTP path from that VLAN, and confirm boot-mode match (UEFI node requesting `grubx64.efi`/HTTPBoot vs. a scope only configured to hand out a legacy `undionly.kpxe` filename).

@@ -10,6 +10,19 @@ source_document: "Authored directly as a companion foundation chapter."
 
 This is a practice lab, not a promise that every command exists on every release. Run read-only commands in an authorized lab first, and verify mutating syntax against the installed Slurm and BCM manuals. The interview skill is to explain the control loop and evidence, not to recite a command from memory.
 
+### Terms used throughout this lab
+
+- **GRES** (Generic RESource) — Slurm's mechanism for tracking and allocating resources beyond plain CPU/memory, most commonly GPUs. A node advertises `Gres=gpu:8` in its config; a job requests `--gres=gpu:2` to get a slice of that.
+- **TRES** (Trackable RESource) — Slurm's generalized accounting unit covering CPU, memory, GPU (`gres/gpu`), licenses, and burst-buffer space in one consistent framework, so limits and usage can be expressed uniformly (`GrpTRES=gres/gpu=64`) instead of one bespoke counter per resource type.
+- **cgroups** (control groups) — a Linux kernel feature that constrains and isolates what a process tree can use: CPU shares, memory ceilings, and — critical here — exactly which device nodes (e.g. `/dev/nvidia0`) a process can even see. This is the actual enforcement mechanism behind Slurm's GPU isolation; GRES tells Slurm what to hand out, cgroups make sure a job can't touch a GPU it wasn't given.
+- **PMIx** (Process Management Interface for Exascale) — the standard bootstrap protocol MPI ranks use to discover each other, exchange connection info, and start up under a scheduler. When you `srun --mpi=pmix`, Slurm and the MPI runtime are talking PMIx to get every rank launched and wired together before the application code runs.
+- **DCGM** (NVIDIA Data Center GPU Manager) — NVIDIA's GPU health/diagnostics/telemetry tool, run via the `dcgmi` CLI. `dcgmi diag` runs a tiered set of GPU self-tests (from quick sanity checks to sustained-load stress tests); it is the standard way to prove a GPU is healthy beyond "nvidia-smi shows it."
+- **QoS** (Quality of Service) — a named Slurm policy object (priority boost, max wall time, max TRES, preemption rules) that a job or association can be assigned, layered on top of partition and account limits — the mechanism behind "this account's jobs always preempt that one's."
+- **Fairshare** — Slurm's scheduling factor that lowers a job's priority the more its account has already consumed relative to its allocated share of the cluster recently, so one heavy user doesn't starve everyone else indefinitely.
+- **`sprio`** — the Slurm command that shows the priority *factors* (age, fairshare, QoS, job size, etc.) contributing to a pending job's scheduling priority, letting you explain *why* one job is ranked ahead of another instead of just seeing the final number.
+- **`slurmd`** — the Slurm daemon that runs on every compute node; it's what actually launches job processes locally and reports the node's state back to the controller (`slurmctld`). If `slurmd` isn't running or registered, the node cannot be scheduled onto no matter how healthy the hardware is.
+- **Prolog / epilog** — scripts the controller runs on a node immediately before (`prolog`) and after (`epilog`) a job step runs there. Prolog is the natural place to gate admission on a quick health check (e.g. verify expected GPU count) before letting a job's processes start; epilog cleans up (kill stray processes, unmount scratch) so the next job gets a clean node. A `Prolog failure` reason means the node failed this gate and never got the job at all — a different failure class than the job starting and then crashing.
+
 ## The one-minute mental model
 
 ```mermaid
