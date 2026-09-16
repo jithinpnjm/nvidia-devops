@@ -6,508 +6,441 @@ description: "Chapter 4 - Ansible for infrastructure automation — Bare-Metal, 
 source_document: "Authored directly for the JR2018680 gap-coverage volume — no DOCX source."
 ---
 
+**Learning outcome:** Build, explain, and safely operate an Ansible project that configures bare-metal GPU nodes. You will be able to reason about inventory, plays, tasks, modules, variables, roles, idempotency, secrets, and staged production rollout.
+
+**Prerequisites:** Linux shell, SSH, YAML, package management, and basic `systemctl` use. **Difficulty:** Intermediate. **Estimated reading time:** 60 minutes.
+
 ## Foundations: start here if Infrastructure as Code is new to you
 
-### Why infrastructure needs code-like discipline
+Infrastructure as Code stores the intended configuration of a fleet in reviewable files instead of relying on manual commands and memory. Ansible is a configuration-management tool: it connects to existing hosts and makes operating-system state conform to a declared intent.
 
-Imagine configuring ten servers manually. Six months later, nobody can prove whether they are identical, why one firewall rule differs, or how to rebuild after failure. Infrastructure as Code (IaC) stores intended infrastructure in version-controlled definitions so changes can be reviewed, repeated, tested and audited.
+It is useful to keep the boundaries clear in a bare-metal GPU cluster:
 
-IaC does not make changes automatically safe. A repeatable destructive definition is still destructive. Safety comes from ownership boundaries, plans/diffs, tests, controlled credentials, small rollout scope, validation and recovery.
-
-### Provisioning and configuration are related but different
-
-| Concern | Example | Common tool in this volume |
+| System | Primary responsibility | Example |
 |---|---|---|
-| Provision infrastructure object | network, VM, IAM role, DNS record | Terraform through a provider API |
-| Configure operating-system state | packages, users, files, services | Ansible over SSH or another connection |
-| Manage bare-metal cluster lifecycle | images, node categories, provisioning | BCM |
-| Schedule workload | allocate nodes/GPUs to jobs | Slurm/Kubernetes |
+| BMC/Redfish | Hardware power and console | Power-cycle a failed server |
+| BCM | Image, provisioning, category lifecycle | Boot a node into an approved OS image |
+| Ansible | Repeated host configuration | Install a package and deploy a service configuration |
+| Slurm | Workload scheduling and node admission | Drain a node before disruptive maintenance |
+| Terraform | API-managed infrastructure | Create DNS, IAM, or cloud networking objects |
 
-A tool can overlap these areas, but declare one authoritative owner for each object or field. Two reconcilers changing the same setting create oscillation and confusion.
+Do not let two tools own the same file, package, service, or image. For example, if BCM rebuilds `/etc/slurm/slurm.conf` from an image, an Ansible task that manages the same file creates an ownership conflict. Decide and document the owner first.
 
-### Terraform: declare API-managed resources
+## The problem Ansible solves
 
-Terraform configuration describes resources. A **provider** translates Terraform operations into an external system's API. A **resource** represents one managed object. A **data source** reads information without managing that remote object's lifecycle.
+Imagine 64 compute nodes. A security update requires a package, a configuration file, and a service reload. Logging into every server produces three problems:
 
-```hcl
-terraform {
-  required_providers {
-    local = {
-      source  = "hashicorp/local"
-      version = "~> 2.0"
-    }
-  }
-}
+1. The commands may differ from node to node.
+2. Nobody has a durable record of what changed.
+3. A partial failure is difficult to identify and safely retry.
 
-resource "local_file" "cluster_note" {
-  filename = "${path.module}/cluster-note.txt"
-  content  = "environment=lab\ngpu_nodes=2\n"
-}
+Ansible lets you state the desired result once and apply it to an explicit target set. It does not make the change safe by itself. Safety comes from correct targeting, a small initial scope, review, validation, and a rollback path.
 
-output "note_path" {
-  value = local_file.cluster_note.filename
-}
-```
+## Ansible structure in one picture
 
-The example uses a local provider so you can learn without cloud credentials. In production, providers may manage cloud, DNS, identity, Kubernetes or other APIs.
-
-### Terraform's three views of reality
-
-```mermaid
-flowchart TB
-  Config[Configuration<br/>what code declares] --> Plan[Terraform plan]
-  State[State<br/>object-address bindings and metadata] --> Plan
-  API[Remote provider API<br/>what exists now] --> Plan
-  Plan --> Review[Proposed create/update/delete/replace]
-  Review --> Apply[Approved apply]
-  Apply --> API
-  Apply --> State
-```
-
-Terraform state primarily binds a resource address in configuration to the identity of a real remote object. For example, `aws_instance.worker[0]` may map to a particular cloud instance ID. Without that mapping, Terraform cannot reliably know which object it owns.
-
-State may contain sensitive values. Team use normally requires a secure remote backend, access control, encryption, recovery/versioning and locking where supported. Do not commit production state to Git or edit its JSON directly.
-
-### The Terraform workflow, with interpretation
-
-```bash
-terraform init
-terraform fmt -check
-terraform validate
-terraform plan -out=tfplan
-terraform show tfplan
-terraform apply tfplan
-```
-
-| Command | What it proves | What it does not prove |
-|---|---|---|
-| `init` | providers/modules/backend initialization completed | configuration is safe |
-| `fmt` | canonical formatting | semantic correctness |
-| `validate` | syntax/internal schema consistency | credentials, real API outcome or policy correctness |
-| `plan` | proposed changes from current config/state/provider observations | future apply cannot fail |
-| `apply` | provider operations were attempted and state updated on success | workload/service outcome is healthy |
-
-Plan symbols deserve deliberate review:
-
-- `+` create;
-- `~` update in place;
-- `-` destroy;
-- `-/+` replace (destroy/create lifecycle, often high risk).
-
-Review identity/IAM, databases, network boundaries, DNS, storage and replacement actions carefully. A saved plan may contain sensitive data; protect it as an artifact.
-
-### Terraform local lab
-
-In an empty lab directory, save the previous HCL as `main.tf` and run:
-
-```bash
-terraform init
-terraform plan -out=tfplan
-terraform apply tfplan
-cat cluster-note.txt
-terraform state list
-```
-
-Then change `gpu_nodes=2` to `gpu_nodes=3`, run a new plan, and predict whether the file is updated or replaced. Finally run `terraform destroy` only in this disposable lab and inspect the proposed deletion before confirming.
-
-The lesson is not local-file management. It is the write → plan → review → apply → verify loop and the role of state.
-
-### Drift and import
-
-**Drift** occurs when real infrastructure changes outside the declared workflow. Terraform refreshes provider observations during normal planning and may propose restoration or another action depending on configuration and provider behavior.
-
-Import brings an existing object under a Terraform resource address. Import does not automatically design correct configuration or ownership. After import, produce a plan and reconcile configuration until the intended no-change baseline is understood.
-
-### Modules: create an interface, not a hiding place
-
-A Terraform module groups resources behind inputs and outputs. Good modules encode a useful architecture boundary with documented assumptions. Bad modules expose dozens of pass-through variables or hide dangerous lifecycle behavior.
-
-Treat module inputs/outputs as an API:
-
-- validate inputs;
-- choose safe defaults;
-- pin/version module sources;
-- document created resources and destructive changes;
-- expose only useful outputs;
-- test upgrade and migration behavior.
-
-### Ansible: converge host configuration
-
-Ansible commonly runs from a control node and connects to managed nodes. An **inventory** organizes hosts/groups. A **play** targets hosts. **Tasks** invoke modules. Modules inspect or change state and return structured results. A **handler** runs when notified by a changed task, often to restart/reload a service.
-
-```ini
-# inventory.ini
-[gpu_nodes]
-gpu-01.example.net
-gpu-02.example.net
-```
-
-```yaml
----
-- name: Configure time synchronization on GPU nodes
-  hosts: gpu_nodes
-  become: true
-  serial: 1
-  tasks:
-    - name: Install chrony
-      ansible.builtin.package:
-        name: chrony
-        state: present
-
-    - name: Deploy chrony configuration
-      ansible.builtin.template:
-        src: chrony.conf.j2
-        dest: /etc/chrony.conf
-        owner: root
-        group: root
-        mode: "0644"
-      notify: Restart chrony
-
-    - name: Ensure chrony is enabled and running
-      ansible.builtin.service:
-        name: chronyd
-        enabled: true
-        state: started
-
-  handlers:
-    - name: Restart chrony
-      ansible.builtin.service:
-        name: chronyd
-        state: restarted
-```
-
-### Idempotency is observed behavior
-
-An operation is idempotent when repeating it with the same desired state does not create unintended additional effects. Many Ansible modules are designed to avoid changes when current state already matches. Shell commands are not automatically idempotent.
-
-Test the claim:
-
-1. run against a disposable target;
-2. inspect `changed` results;
-3. run again unchanged;
-4. expect zero changes for stable state;
-5. inspect service and application outcome;
-6. introduce controlled drift and confirm convergence.
-
-### Check mode, diff mode and their limits
-
-```bash
-ansible-playbook -i inventory.ini site.yml --check --diff --limit gpu-01.example.net
-```
-
-Official Ansible documentation is explicit: check mode is simulation. Modules without support may do nothing/report nothing, and tasks depending on registered results can behave differently. Diff output can expose secrets, so disable it for sensitive tasks and control log access.
-
-Production safety adds:
-
-- syntax/lint/test checks;
-- inventory review;
-- `--limit` or canary group;
-- `serial` rollout and failure threshold;
-- pre/post health checks;
-- scheduler drain before disruptive node work;
-- rollback or previous artifact;
-- clear ownership for secrets and privilege escalation.
-
-### Terraform versus Ansible through one example
-
-Build a cloud GPU worker:
-
-1. Terraform creates network, security identity, instance and DNS through APIs.
-2. Image/bootstrap establishes minimal connectivity and identity.
-3. Ansible configures OS packages, files, users and services—or a golden-image/BCM process owns those instead.
-4. GPU/cluster tooling validates the node and admits it to scheduling.
-
-Terraform should not use endless remote shell provisioners to become an accidental configuration-management system. Ansible should not create every cloud object through ad hoc API shell commands when a provider/state workflow should own them.
-
-### A complete change-review checklist
-
-Before applying:
-
-- Which objects/hosts are targeted exactly?
-- Which system is authoritative for each field?
-- Are create/update/delete/replacement actions expected?
-- Could the plan/diff expose secrets?
-- What dependency and workload impact follows?
-- Is the canary representative?
-- What signals stop rollout?
-- Is rollback tested and does it restore data/state?
-- Who approves and who observes the change?
-
-After applying:
-
-- Did the tool finish successfully?
-- Does actual infrastructure match intended state?
-- Did service/workload SLOs remain healthy?
-- Is there drift or partial success?
-- Are state, inventory and documentation current?
-
-### Official and local references
-
-- [What is Terraform?](https://developer.hashicorp.com/terraform/intro)
-- [Terraform language](https://developer.hashicorp.com/terraform/language)
-- [Terraform workflow](https://developer.hashicorp.com/terraform/cli/run)
-- [Terraform state](https://developer.hashicorp.com/terraform/language/state)
-- [Purpose of Terraform state](https://developer.hashicorp.com/terraform/language/state/purpose)
-- [Terraform plan tutorial](https://developer.hashicorp.com/terraform/tutorials/cli/plan)
-- [Ansible inventory getting started](https://docs.ansible.com/projects/ansible/latest/getting_started/get_started_inventory.html)
-- [Ansible modules](https://docs.ansible.com/projects/ansible/latest/module_plugin_guide/modules_intro.html)
-- [Ansible check and diff mode](https://docs.ansible.com/projects/ansible/latest/playbook_guide/playbooks_checkmode.html)
-- Local Staff guide: `consolidated_guides/infrastructure-as-code_consolidated.md`
-- Local SRE guides: `foundations/15-terraform-infrastructure-as-code.md` and `18-ansible-and-host-automation.md`
-
-### Check your understanding
-
-**Q1: Why should Terraform and Ansible not both own the same setting?**
-A: Two reconcilers can continually overwrite each other, making drift and incident ownership ambiguous. Assign one authoritative owner per object or field.
-
-**Q2: What does a clean Terraform plan prove?**
-A: It shows no proposed difference under the current configuration, state, and provider observations. It does not prove workload health or that unmanaged resources are correct.
-
-**Q3: What evidence supports an Ansible idempotency claim?**
-A: An unchanged second run against a controlled target reports zero changes and the service outcome remains correct; successful exit alone is insufficient.
-
-### Glossary
-
-- **IaC** — version-controlled definitions of intended infrastructure.
-- **Provider** — Terraform integration that translates resource operations to an API.
-- **State** — Terraform's binding between configuration addresses and real objects.
-- **Inventory** — Ansible's target hosts and groups.
-- **Idempotent** — repeated execution converges without unintended repeated effects.
-- **Drift** — observed infrastructure differing from declared intent.
-
-### Ready to continue
-
-- Separate provisioning, host configuration, cluster lifecycle, and workload scheduling.
-- Read a Terraform plan for create, update, destroy, and replacement actions.
-- Explain the limits of Ansible check mode and Terraform plans.
-- Define canary scope, stop signals, rollback, and post-change validation.
-
-**Learning outcome:** Explain how Ansible's push model, inventory, and idempotency guarantees are used to make configuration changes across a GPU fleet safely and predictably — including why "idempotent" is a claim you verify, not one you assume.
-
-## Start here — read an Ansible run as a sentence
-
-Ansible answers: **on these machines, make these facts true**. Its basic nouns fit together like this:
+Read an Ansible run as: **on these hosts, make these facts true, in this order**.
 
 ```mermaid
 flowchart LR
-    A["inventory group (which hosts?)"] --> B["play (scope)"]
-    B --> C["ordered tasks (desired actions)"]
-    C --> D["module (implementation)"]
-    D --> E[changed result]
-    E --> F["optional handler (restart/reload)"]
+    A["inventory: which hosts?"] --> B["play: scope and settings"]
+    B --> C["tasks: desired actions"]
+    C --> D["modules: implementation"]
+    D --> E["result: ok, changed, failed"]
+    E --> F["handler: restart or reload if needed"]
 ```
 
-- An **inventory** names hosts and groups such as `gpu_nodes` or `login_nodes`.
-- A **play** maps a group to tasks and execution settings.
-- A **task** calls a **module** such as `package`, `template`, `service`, or `user`.
-- A **role** packages tasks, templates, defaults, handlers, and tests around one responsibility.
-- A **handler** runs only when notified by a task that actually changed something, commonly to restart a service.
+| Term | Meaning | Bare-metal example |
+|---|---|---|
+| Control node | Machine that runs Ansible | Admin workstation or CI runner |
+| Managed node | Machine configured by Ansible | `gpu-node-01` |
+| Inventory | Hosts and groups that Ansible may target | `gpu_nodes`, `login_nodes` |
+| Play | A host target plus execution settings | Apply baseline to `gpu_nodes` |
+| Task | One ordered action | Ensure `chrony` is installed |
+| Module | Code that performs a task | `ansible.builtin.package` |
+| Role | Reusable unit of tasks, defaults, handlers, and templates | `roles/node_baseline` |
+| Handler | Action triggered by a changed task | Restart `chronyd` after config changes |
 
-Prefer a purpose-built module over `shell` or `command`. A module can inspect current state and report `ok` when no action is needed. A shell command usually cannot know that unless you implement the detection yourself.
+## How Ansible reaches a bare-metal node
 
-```yaml
-- name: Keep chrony installed and running
-  hosts: gpu_nodes
-  become: true
-  tasks:
-    - name: Install the package
-      ansible.builtin.package:
-        name: chrony
-        state: present
+Ansible normally uses SSH. The control node connects, transfers or invokes a module, collects a structured result, and disconnects. There is normally no persistent Ansible agent polling each compute node. Most Unix modules require Python on the managed host; the `raw` module is a bootstrap exception when Python is not available yet.
 
-    - name: Enable and start the service
-      ansible.builtin.service:
-        name: chronyd
-        enabled: true
-        state: started
+This push model means Ansible only converges configuration when an operator or automation runs it. A manual edit at 2 a.m. remains until the next approved run. Schedule configuration runs deliberately and collect their results as change evidence.
+
+## Workbook setup
+
+Use a disposable control node and one or more disposable hosts for this workbook. Do not point these commands at a production cluster until identity, inventory, ownership, change approval, and rollback have been reviewed.
+
+### 1. Create the project layout
+
+Purpose: create a predictable place for inventory, playbooks, roles, and variables.
+
+```text
+ansible-baremetal/
+├── ansible.cfg
+├── inventory/
+│   └── hosts.ini
+├── group_vars/
+│   └── gpu_nodes.yml
+├── playbooks/
+│   ├── ping.yml
+│   └── baseline.yml
+└── roles/
+    └── node_baseline/
+        ├── defaults/main.yml
+        ├── handlers/main.yml
+        ├── tasks/main.yml
+        └── templates/chrony.conf.j2
 ```
 
-Run it twice in a disposable environment. The first run may report changes; the second should report none. That is the simplest idempotency test. `--check --diff` is valuable preview evidence, but modules and external commands do not all simulate perfectly. Production safety also needs syntax/lint tests, a small canary group, `serial`, explicit health checks, and an abort threshold.
+Expected evidence: the files are version-controlled and a reviewer can locate each responsibility without reading one enormous playbook.
 
-## Push model and inventory
+Common failure: putting production passwords, private keys, or vault passwords in this directory as plaintext. Store only encrypted secret material or references to an approved secret-delivery mechanism.
 
-Ansible has no persistent agent on managed hosts. A control node connects over SSH, pushes a Python-based module payload, executes it, and disconnects. There is nothing running on a compute node between runs — no daemon polling a server, no local state cache. This is the operational contrast worth having ready against BCM or Puppet: those run a resident agent that periodically re-converges toward a desired state on its own schedule; Ansible only acts when someone (or something) invokes `ansible-playbook`. That means Ansible cannot self-heal drift between runs — a node that gets manually changed at 2am stays changed until the next scheduled or manual run — but it also means there is no agent process consuming resources on every GPU node, no agent to patch/upgrade fleet-wide, and no agent-based attack surface to reason about.
+### 2. Configure Ansible defaults
 
-Inventory defines what "the fleet" means to a given run:
+Purpose: make project behavior explicit rather than relying on a user's global configuration.
 
+```ini
+# ansible.cfg
+[defaults]
+inventory = inventory/hosts.ini
+interpreter_python = auto_silent
+host_key_checking = True
+retry_files_enabled = False
 ```
-# static inventory: /etc/ansible/hosts.ini
+
+`host_key_checking = True` prevents Ansible from silently accepting an unexpected SSH host key. Keep it enabled in production. Establish trusted host keys through your provisioning and SSH trust process.
+
+### 3. Define a static inventory
+
+Purpose: define exactly which hosts can be targeted.
+
+```ini
+# inventory/hosts.ini
 [gpu_nodes]
-gpu-node-[01:64].cluster.local
-
-[gpu_nodes:vars]
-ansible_user=admin
-nvidia_driver_version=550.90.07
+gpu-node-01.cluster.example
+gpu-node-02.cluster.example
 
 [login_nodes]
-login-[01:02].cluster.local
+login-01.cluster.example
 
-[dgx_a100]
-gpu-node-[01:32].cluster.local
-
-[dgx_h100]
-gpu-node-[33:64].cluster.local
+[gpu_nodes:vars]
+ansible_user=automation
 ```
 
-Static inventory is fine for a fixed bare-metal fleet where node names are stable and known in advance — the common case for an on-prem GPU cluster racked and cabled once. Dynamic inventory replaces the file with a script/plugin that queries a source of truth at run time:
+Expected evidence: `gpu_nodes` contains only the intended compute nodes. A host can belong to more than one group, so review group membership carefully.
 
+Inspect the parsed inventory before a change:
+
+```bash
+ansible-inventory --graph
+ansible-inventory --list
 ```
-ansible-inventory -i inventory/bcm_dynamic.py --list
-ansible-playbook -i inventory/bcm_dynamic.py site.yml --limit dgx_h100
+
+Expected evidence: the graph shows the expected hosts under each group; the JSON output contains the intended connection variables.
+
+Common failure: a hostname resolves to an old address, a group includes an unintended node, or a stale dynamic inventory cache returns obsolete hosts. Stop and correct targeting before running a playbook.
+
+### 4. Test transport before changing anything
+
+Purpose: prove SSH connectivity, remote Python availability, and the automation identity before a mutating run.
+
+```bash
+ansible gpu_nodes -m ansible.builtin.ping --limit gpu-node-01.cluster.example
 ```
 
-A dynamic inventory plugin against BCM's CMDaemon API, a Slurm node-list export, or a cloud provider's API means the inventory is never stale relative to the actual fleet — nodes added/decommissioned/RMA'd show up automatically instead of requiring someone to hand-edit an `.ini` file. For a GPU fleet with regular hardware churn (failed HBM, PSU replacements, RMA cycles), stale static inventory is a real operational risk: a playbook that thinks a decommissioned node is still a target will either fail loudly (host unreachable — the safe failure) or, worse, succeed against a node that was pulled from the rack for a different reason and shouldn't be touched.
+Expected evidence:
 
-## Playbooks, roles, and idempotency
+```text
+gpu-node-01.cluster.example | SUCCESS => {
+    "ping": "pong"
+}
+```
 
-A playbook is a list of plays; each play maps a set of hosts to a list of tasks; tasks invoke modules. Roles package related tasks, handlers, templates, and default variables into a reusable, testable unit — `roles/dcgm_exporter/`, `roles/nvidia_driver/`, `roles/nccl_tuning/` are natural role boundaries on a GPU fleet.
+The `ping` module is not ICMP ping. It confirms that Ansible connected and executed its module.
 
-Idempotency means running the same playbook twice produces the same end state, and the second run reports no changes if nothing needs to change. This is not automatic — it is a property of which modules you use and how you use them. `command: rm -rf /old_config` is not idempotent (it succeeds and reports "changed" every time, whether or not the file existed). `file: path=/old_config state=absent` is idempotent (Ansible checks current state first, reports "changed" only on the run that actually removes something, and reports "ok" thereafter).
+Common failure interpretation:
 
-Why this matters specifically for a GPU fleet: re-running a playbook against a cluster is a routine operational act — you re-run it after adding new nodes, after a partial failure, as a scheduled drift check, or just to confirm compliance before a big training run. If the playbook is not truly idempotent, every re-run either (a) falsely reports "changed" on healthy nodes, burying the one node that actually needs attention in noise, or (b) worse, actively re-executes a disruptive action — restarting a service, regenerating a config that bounces `nvidia-persistenced`, or reloading a kernel module — on a node that was already correctly configured and possibly mid-job. A GPU node running a multi-day training job does not tolerate a "harmless" idempotent-looking re-run that happens to restart the DCGM exporter and drop five seconds of health-metric continuity, let alone one that restarts something GPU-driver-adjacent.
+| Result | Meaning | First action |
+|---|---|---|
+| `UNREACHABLE` | SSH, DNS, route, credential, or host availability failed | Test SSH manually and check the host's management state |
+| Python interpreter error | Python is unavailable or incorrectly selected | Bootstrap the supported Python package through the approved image/provisioning path |
+| `Permission denied` | The automation identity or SSH key is wrong | Correct access; do not fall back to a shared administrator account |
 
-## Handlers and change notification
+## Your first playbook
 
-Handlers run only when a task notifies them, and only once per play even if notified multiple times — this is how you avoid restarting a service once per task that touched its config, and instead restart it exactly once after all relevant tasks in the play have run:
+A playbook is YAML containing one or more plays. This first play is read-only.
 
 ```yaml
-- name: Deploy DCGM exporter config
-  template:
-    src: dcgm-exporter.yaml.j2
-    dest: /etc/dcgm-exporter/dcgm-exporter.yaml
-    owner: root
-    mode: "0644"
-  notify: restart dcgm-exporter
-
-- name: Deploy DCGM exporter metrics allowlist
-  copy:
-    src: files/dcp-metrics.csv
-    dest: /etc/dcgm-exporter/dcp-metrics.csv
-  notify: restart dcgm-exporter
-
-handlers:
-  - name: restart dcgm-exporter
-    systemd:
-      name: dcgm-exporter
-      state: restarted
-```
-
-Both tasks can notify the same handler; it fires once, at the end of the play, only if at least one of the notifying tasks actually reported `changed`. If neither task changed anything, the handler never fires — the restart is a *consequence* of a real change, not an unconditional step in the playbook.
-
-## Ansible Vault for secrets
-
-Vault encrypts variable files (or inline strings) with AES256 so secrets — Slurm accounting DB passwords, DCGM exporter TLS keys, NGC API tokens used by node-level pull credentials — can live in the same git repo as the playbooks without being readable in plaintext:
-
-```
-ansible-vault encrypt group_vars/gpu_nodes/secrets.yml
-ansible-vault view group_vars/gpu_nodes/secrets.yml
-ansible-playbook site.yml --vault-password-file /run/secrets/vault_pass
-```
-
-Vault-encrypted files diff as opaque ciphertext in git, which is the trade-off to know: you get secrets-in-git without secrets-in-plaintext-in-git, but you lose meaningful `git diff` review on the secret content itself — a code reviewer can see *that* a vaulted file changed, not *what* changed inside it, so vault content changes need a different review path (e.g., a controlled `ansible-vault view` walkthrough) than ordinary PR diffing.
-
-## Dry-run and safe verification: `--check` and `--diff`
-
-Before touching a production GPU fleet, run the playbook in check mode:
-
-```
-ansible-playbook site.yml --limit gpu_nodes --check --diff
-```
-
-`--check` runs every task's "would this change anything" logic without actually applying the change (module support varies — most core modules support it fully; some, particularly ones that shell out via `command`/`shell`, cannot meaningfully predict their own effect and will just report skipped or always-changed). `--diff` shows the actual before/after content diff for file and template changes, which is where you catch real problems before they hit hardware — see the worked scenario below. `ansible-lint` catches structural and style problems (deprecated syntax, missing handlers, unpinned versions, tasks without `name:`) before you even get to check mode:
-
-```
-ansible-lint playbooks/deploy_dcgm_exporter.yml
-```
-
-Routine practice on a fleet this size: lint → `--check --diff` on a single canary node → `--check --diff` on the full inventory → real run with `serial:` batching.
-
-## Rolling rollout with `serial:` — limiting blast radius
-
-```yaml
+# playbooks/ping.yml
 ---
-- name: Roll out DCGM exporter config update
+- name: Verify GPU node connectivity
   hosts: gpu_nodes
-  serial: 8
-  max_fail_percentage: 10
+  gather_facts: false
   tasks:
-    - name: Deploy exporter config
-      template:
-        src: dcgm-exporter.yaml.j2
-        dest: /etc/dcgm-exporter/dcgm-exporter.yaml
-      notify: restart dcgm-exporter
-  handlers:
-    - name: restart dcgm-exporter
-      systemd:
-        name: dcgm-exporter
-        state: restarted
+    - name: Confirm Ansible can execute modules
+      ansible.builtin.ping:
 ```
 
-`serial: 8` processes the 64-node `gpu_nodes` group in batches of 8: the entire play (all tasks, all handlers) runs to completion on batch 1 before batch 2 starts. `max_fail_percentage: 10` halts the whole run if more than 10% of hosts in a batch fail — on an 8-node batch that's a single host, so effectively any real failure stops further batches from starting. This is the mechanism that turns "one bad config pushed to 64 nodes" into "one bad config caught on 8 nodes, 56 nodes never touched."
+Run it against one host first:
+
+```bash
+ansible-playbook playbooks/ping.yml --limit gpu-node-01.cluster.example
+```
+
+Purpose: prove the playbook path, inventory, target limit, and remote transport together.
+
+Expected evidence: one host reports `ok=1`, `failed=0`, and `unreachable=0` in the recap.
+
+`--limit` is a safety control, not just a convenience option. Start every new or changed production playbook with a specific canary host or canary group.
+
+## Tasks and modules: declare state, do not replay commands
+
+Prefer modules that describe the state you want. They can inspect current state and report `ok` when no mutation is needed.
+
+```yaml
+- name: Ensure chrony is installed
+  ansible.builtin.package:
+    name: chrony
+    state: present
+
+- name: Ensure chrony is enabled and running
+  ansible.builtin.service:
+    name: chronyd
+    enabled: true
+    state: started
+```
+
+Avoid this when a purpose-built module exists:
+
+```yaml
+- name: Do not use an unconditional command for package state
+  ansible.builtin.command: dnf install -y chrony
+```
+
+`command` can be necessary, but it does not automatically know whether a change is needed. If you must use it, document why a module is insufficient and use `creates`, `removes`, `changed_when`, and `failed_when` only when their behavior is genuinely correct.
+
+## Idempotency: the property you must prove
+
+An idempotent configuration action reaches the desired state once and does not create additional unintended effects on an unchanged second run. It is not a property Ansible grants to every task.
+
+Test it this way:
+
+1. Run the play on one disposable or drained canary node.
+2. Validate the resulting service and, when relevant, the GPU workload outcome.
+3. Run the unchanged play again.
+4. Expect the second run to report no unexpected `changed` results.
+5. Introduce controlled drift on the canary and prove the play restores the intended state.
+
+A successful exit code is not sufficient evidence. A task can succeed while continually rewriting a file, restarting a service, or hiding a failure behind an incorrect `changed_when` expression.
+
+## Variables: make configuration explicit
+
+Variables let one role work for multiple node groups, but uncontrolled overrides make a fleet difficult to reason about.
+
+```yaml
+# group_vars/gpu_nodes.yml
+chrony_service_name: chronyd
+chrony_config_path: /etc/chrony.conf
+chrony_servers:
+  - time-01.cluster.example
+  - time-02.cluster.example
+```
+
+Use role defaults for values that are safe to override and group variables for values shared by a node class. Avoid passing large sets of `--extra-vars` in production: extra variables have very high precedence and can silently override intended policy.
+
+For an interview, explain variable precedence as a risk-management issue: know the approved override point for a setting, keep variables close to their scope, and inspect resolved behavior in a canary rather than relying on memory alone.
+
+## Templates and handlers
+
+Use `template` when a configuration file needs variables. A handler reloads or restarts a service only when the template actually changes.
+
+```yaml
+# roles/node_baseline/tasks/main.yml
+---
+- name: Install time synchronization package
+  ansible.builtin.package:
+    name: chrony
+    state: present
+
+- name: Render chrony configuration
+  ansible.builtin.template:
+    src: chrony.conf.j2
+    dest: "{{ chrony_config_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart chrony
+
+- name: Ensure chrony is enabled and running
+  ansible.builtin.service:
+    name: "{{ chrony_service_name }}"
+    enabled: true
+    state: started
+```
+
+```yaml
+# roles/node_baseline/handlers/main.yml
+---
+- name: Restart chrony
+  ansible.builtin.service:
+    name: "{{ chrony_service_name }}"
+    state: restarted
+```
+
+```jinja2
+# roles/node_baseline/templates/chrony.conf.j2
+{% for server in chrony_servers %}
+server {{ server }} iburst
+{% endfor %}
+```
+
+Handlers run when notified by a changed task and normally run once at handler flush points. If a later task needs the restarted service, use `meta: flush_handlers` deliberately before that validation. Do not restart GPU-driver-adjacent services without draining the node and assessing workload impact.
+
+## Build and run a baseline play
+
+```yaml
+# playbooks/baseline.yml
+---
+- name: Apply the Linux baseline to GPU nodes
+  hosts: gpu_nodes
+  become: true
+  gather_facts: true
+  roles:
+    - role: node_baseline
+```
+
+Purpose: use the `node_baseline` role to manage a reusable configuration responsibility.
+
+Validate syntax first:
+
+```bash
+ansible-playbook playbooks/baseline.yml --syntax-check
+```
+
+Expected evidence: Ansible reports successful syntax validation. This does not connect to hosts or prove that variable values, package repositories, or services are correct.
+
+Preview the canary:
+
+```bash
+ansible-playbook playbooks/baseline.yml --limit gpu-node-01.cluster.example --check --diff
+```
+
+Expected evidence: supported modules show their proposed changes. Review every target and file diff.
+
+Important limit: check mode is a simulation. Modules vary in support, commands may not simulate meaningfully, and a check run cannot prove a service will restart or that a GPU workload will remain healthy.
+
+Apply only after review:
+
+```bash
+ansible-playbook playbooks/baseline.yml --limit gpu-node-01.cluster.example
+```
+
+Expected evidence: the recap identifies whether each task was `ok`, `changed`, `failed`, or `unreachable`. Follow it with a service-level test such as `systemctl is-active chronyd` and, for a GPU-affecting change, the approved GPU and workload validation.
+
+## Roles: scale organization, not complexity
+
+A role packages one responsibility. Good bare-metal role boundaries could be:
+
+| Role | Owns |
+|---|---|
+| `node_baseline` | time sync, users, SSH policy, standard repositories |
+| `dcgm_exporter` | exporter package, configuration, and service |
+| `slurm_client` | Slurm client configuration only when Ansible owns it |
+| `nvidia_driver` | driver state only when the image/BCM process does not own it |
+
+Do not create a role just to hide one task. Do create a role when the responsibility has reusable tasks, variables, templates, handlers, and tests. Pin collection versions and review role dependencies so a routine run cannot silently change behavior after an upstream release.
+
+## Secrets and privilege escalation
+
+`become: true` gives the remote automation identity a privileged path on every selected node. Use a dedicated automation account, least-privilege sudo policy, and approved credential rotation. Do not solve an access problem by using a shared root SSH account.
+
+Ansible Vault encrypts variable files or individual values. It protects the encrypted content, not the vault password, CI log, or decrypted runtime value.
+
+```bash
+ansible-vault encrypt group_vars/gpu_nodes/secrets.yml
+ansible-playbook playbooks/baseline.yml --vault-password-file /run/secrets/ansible_vault_password
+```
+
+Expected evidence: Git contains ciphertext rather than plaintext secrets, and the vault-password file is supplied by a protected runtime mechanism.
+
+For tasks that could print credentials or tokens, use `no_log: true` narrowly. Remember that it reduces diagnostic detail, so validate those tasks with an approved non-secret health signal.
+
+## Safe rollout for bare-metal GPU nodes
+
+Configuration that touches drivers, kernel parameters, networking, Slurm, storage clients, or node services can affect running work. Ansible has no built-in understanding of job safety. Integrate it with the scheduler and change process.
 
 ```mermaid
 flowchart TD
-    A["control node"] -->|"inventory (64 hosts)"| B["gpu_nodes group"]
-    B -->|"serial: 8"| C1["batch 1 (8 nodes) - all tasks + handlers run to completion"]
-    B -->|"serial: 8"| C2["batch 2 (8 nodes) - runs only if batch 1 succeeded"]
-    B -->|"serial: 8"| C3["... batch 8 (8 nodes)"]
-    C1 --> D["node gpu-node-05 FAILS (systemd restart timeout)"]
-    D --> E["max_fail_percentage exceeded - PLAY ABORTED"]
-    E --> F["batches 2-8 NEVER RUN - 56 nodes untouched"]
+    A["review inventory and change"] --> B["drain one representative node in Slurm"]
+    B --> C["Ansible canary with --limit"]
+    C --> D["validate service, GPU, network, and workload"]
+    D -->|"pass and approve"| E["small drained batch using serial"]
+    D -->|"fail"| F["stop, preserve evidence, repair or roll back"]
+    E --> G["resume each node only after health gate"]
 ```
 
-## Annotated real run
+The following play demonstrates rollout mechanics. The `node_change_approved` variable is an approval guard, not proof that Slurm drained the host. Verify drain state through the scheduler's approved workflow before invocation.
 
-```
-$ ansible-playbook site.yml --limit gpu_nodes --check --diff
-
-PLAY [Roll out DCGM exporter config update] **********************************
-
-TASK [Deploy exporter config] *************************************************
---- before: /etc/dcgm-exporter/dcgm-exporter.yaml
-+++ after: /etc/dcgm-exporter/dcgm-exporter.yaml
-@@ -3,7 +3,7 @@
- metrics:
-   - DCGM_FI_DEV_GPU_UTIL
-   - DCGM_FI_DEV_FB_USED
--  - DCGM_FI_DEV_POWER_USAGE
-+  - DCGM_FI_DEV_POWER_USAGE_INSTANT
-   - DCGM_FI_DEV_SM_CLOCK
-changed: [gpu-node-01]
-changed: [gpu-node-02]
-ok: [gpu-node-03]
-ok: [gpu-node-04]
-...
-
-PLAY RECAP *********************************************************************
-gpu-node-01  : ok=1  changed=1  unreachable=0  failed=0
-gpu-node-02  : ok=1  changed=1  unreachable=0  failed=0
-gpu-node-03  : ok=1  changed=0  unreachable=0  failed=0
-gpu-node-04  : ok=1  changed=0  unreachable=0  failed=0
+```yaml
+---
+- name: Roll out a reviewed configuration change
+  hosts: gpu_nodes
+  serial: 1
+  any_errors_fatal: true
+  become: true
+  pre_tasks:
+    - name: Require explicit canary approval
+      ansible.builtin.assert:
+        that: node_change_approved | bool
+        fail_msg: "Drain and approve the canary before this play."
+  roles:
+    - role: dcgm_exporter
+  post_tasks:
+    - name: Verify the exporter service is active
+      ansible.builtin.command: systemctl is-active dcgm-exporter
+      changed_when: false
 ```
 
-Read this before running for real: `gpu-node-01` and `gpu-node-02` still have the old metric name — they haven't been updated since the last config revision. `gpu-node-03`/`04` are already current (`changed=0`), meaning a previous partial run got that far. The `--diff` output tells you exactly what will change, on exactly which hosts, before a single byte is written or a single handler fires — this is the review gate, not a formality.
+Start with `serial: 1`. After the canary passes the required health and workload tests, change to a small, capacity-aware batch only through the approved change process. `any_errors_fatal` stops additional work after a failure; it does not automatically undo modifications already made. Keep the prior configuration or image available and understand the rollback command before starting.
 
-## Worked scenario — a playbook that looked idempotent but wasn't
+## Troubleshooting workbook
 
-**Situation:** A templated Fluent Bit / DCGM exporter sidecar config is deployed via a Jinja2 `template:` task rendering a Python-dict-derived YAML block. Every `--check --diff` run — even against nodes nobody touched since the last run — reports `changed: [gpu-node-NN]` for every single node, every single time, with a diff showing the same keys reordered (`metrics:` block re-emitted in a different order each render).
+| Symptom | Likely boundary | Evidence to collect | Safe next step |
+|---|---|---|---|
+| `UNREACHABLE` | DNS, network, SSH, credentials, or host state | SSH error, DNS answer, BMC/console state | Exclude the node; do not expand rollout scope |
+| Package task fails | Repository, dependency, disk, or OS package state | Package-manager output and free space | Repair on one drained node and retry only that node |
+| Template changes every run | Generated timestamp, unstable input, whitespace, or wrong variable | Two `--check --diff` runs and variable inspection | Make output deterministic and prove a zero-change second run |
+| Handler fails | Invalid configuration or missing dependency | `systemctl status`, journal, application validation | Restore the previous known-good configuration before expansion |
+| Play succeeds but node fails jobs | Host-to-workload validation gap | `nvidia-smi`, DCGM, Slurm job evidence, network/storage checks | Keep node drained and investigate; Ansible success is not admission evidence |
+| Wrong hosts changed | Inventory or `--limit` error | Rendered inventory, command record, recap | Stop, assess affected hosts, correct inventory before retrying |
 
-**Root cause:** The template iterates over a dictionary (`{{ dcgm_metrics_dict }}`) that was populated from a `set_fact` built by unioning two other dicts at play time. Dict key order in the underlying data structure was not guaranteed stable across runs (compounded by a `group_vars` merge across two files whose merge order depended on filesystem directory listing order, which is not guaranteed sorted on all target OS versions). The rendered YAML was semantically identical every time — same keys, same values — but textually different, and `template:`'s idempotency check is a content hash comparison: any byte-level difference, including whitespace/ordering, is "changed."
+## Interview answers to practice
 
-**Consequence:** This false "changed" on every node, every run, trained the on-call rotation to ignore the `changed=` count in `PLAY RECAP` entirely — "it always says changed, that's normal for this playbook." Three weeks later, a real unauthorized change (a manually edited allowlist file on two nodes) landed inside that same noisy "always changed" signal and went unnoticed for eleven days, because nobody was reading the diffs anymore — the alert fatigue from the false positive had trained the team to stop looking at the true positive.
+1. **What is the difference between Ansible and Terraform?** Ansible configures state inside existing hosts through tasks and modules. Terraform manages API-backed infrastructure objects and tracks them in state. Assign a single owner for each object or field.
+2. **What makes a playbook idempotent?** A repeated run against an unchanged host does not produce unintended changes. Prove it with a second run and service-level validation, not merely a successful exit code.
+3. **Why use `serial`?** It limits concurrent hosts and therefore blast radius. Choose it from workload capacity, rollback speed, and validation time, not from a generic percentage.
+4. **Why is `--check` insufficient?** It is a simulation with incomplete support. It cannot prove a restart, hardware state, scheduler behavior, or application workload result.
+5. **How do you safely change a GPU node?** Establish ownership, drain it through Slurm, run a reviewed canary, validate service plus GPU/network/workload behavior, retain rollback, then progress through small drained batches.
+6. **Why should `shell` be rare?** It bypasses module-level state modeling and makes idempotency, quoting, failure handling, and check-mode behavior your responsibility.
 
-**Fix:** Convert the source data to an explicitly sorted, ordered structure before templating (`dict2items | sort(attribute='key')` in the Jinja filter chain, or switch the underlying data to a list of `{key, value}` pairs with a fixed order) so the rendered output is byte-stable across runs when nothing semantically changed. Re-verified with three consecutive `--check --diff` runs against an untouched node showing zero diff — that is the actual definition of "idempotent," not "the playbook completes without error."
+## Further reading
 
-**Interview-ready line:** "Idempotent means a second run with no external change produces zero diff, not that a second run merely succeeds — module exit-status idempotency and content idempotency are different guarantees, and templated configs specifically can satisfy the first while failing the second."
+- [Ansible playbooks](https://docs.ansible.com/projects/ansible/latest/playbook_guide/playbooks_intro.html)
+- [Ansible inventory](https://docs.ansible.com/projects/ansible/latest/inventory_guide/intro_inventory.html)
+- [Ansible variables](https://docs.ansible.com/projects/ansible/latest/playbook_guide/playbooks_variables.html)
+- [Ansible handlers](https://docs.ansible.com/projects/ansible/latest/playbook_guide/playbooks_handlers.html)
+- [Ansible check and diff mode](https://docs.ansible.com/projects/ansible/latest/playbook_guide/playbooks_checkmode.html)
+- [Ansible Vault](https://docs.ansible.com/projects/ansible/latest/vault_guide/index.html)
+- [Chapter 2: NVIDIA Base Command Manager](./chapter-2-nvidia-base-command-manager)
+- [Chapter 3: OS provisioning and Linux security hardening](./chapter-3-os-provisioning-and-linux-security-hardening)
+- [Chapter 6: Slurm administration, HA, accounting, and upgrades](./chapter-6-slurm-administration-ha-accounting-and-upgrades)
 
-## Mnemonic
+## Key takeaways
 
-**P.I.C.H.V.** — **P**ush (no agent) → **I**nventory (static or dynamic) → **C**heck/diff before apply → **H**andlers fire once, on real change → **V**ault for anything secret. Say it in that order and you've covered the safe-change lifecycle end to end.
-
-## Practice
-
-1. Explain why Ansible's push model, with no resident agent, is operationally different from BCM's or Puppet's continuous-reconciliation agent model — and name one advantage and one disadvantage of each for a 500-node GPU fleet.
-2. A colleague says "the playbook is idempotent, it ran successfully both times." What's missing from that claim, and what command output would you ask them to show to actually verify idempotency?
-3. Write the `serial:` and `max_fail_percentage:` values you'd choose for a 200-node fleet rollout of a change that touches the NVIDIA driver stack, and justify the batch size in terms of blast radius versus rollout speed.
-4. A `--check --diff` run shows `changed` on a templated config for every node on every run, even when nobody has touched those nodes. Name two possible root causes and the one command/technique that would distinguish between them.
-5. Why does `ansible-vault`-encrypted content undermine normal `git diff`-based code review, and what alternative review step would you insist on before merging a change to a vaulted secrets file?
+- Inventory and `--limit` are safety boundaries.
+- A module-based task is easier to make idempotent and review than an arbitrary shell command.
+- A role groups one clear configuration responsibility.
+- Check mode is useful evidence, never final proof.
+- A successful Ansible recap does not prove that a GPU node is healthy enough for scheduling.
+- Drain, canary, validate, batch, and retain rollback for disruptive bare-metal changes.
