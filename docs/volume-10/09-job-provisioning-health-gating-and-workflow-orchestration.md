@@ -45,12 +45,12 @@ Retries are for temporary failures, with a limit and backoff. A deterministic GP
 
 ## The full readiness pipeline
 
-A node being physically racked, powered, and network-cabled is nowhere near a node being safe to schedule jobs onto. Every layer this volume has covered up to this point — bare-metal provisioning, BCM/OS imaging, cluster-manager join, Slurm/Kubernetes membership — has to complete *and be verified* before a node should ever appear as schedulable capacity:
+A node being physically racked, powered, and network-cabled is nowhere near a node being safe to schedule jobs onto. Every layer of the stack — bare-metal provisioning and imaging, OS-level configuration management, cluster-manager join, Slurm/Kubernetes membership — has to complete *and be verified* before a node should ever appear as schedulable capacity. ("BCM" below refers to a cluster-management platform, the kind of tool that images bare-metal nodes with an OS and driver stack and keeps an inventory of what's supposed to be running where; the same pipeline applies whether that role is filled by a vendor cluster manager or by a hand-rolled PXE-boot-plus-Ansible workflow.)
 
 ```mermaid
 flowchart TD
     A["Bare metal (racked, powered, cabled)"] -->|"firmware/BIOS validated, RAID/BMC configured"| B["Firmware validated (BIOS, BMC, NIC firmware versions match golden baseline)"]
-    B -->|"BCM/OS provisioning (Chapters 1-3): image applied, kernel/driver versions match"| C["OS provisioned (Ansible/Terraform-managed config converges - Chapters 5-6)"]
+    B -->|"cluster-manager-driven OS/driver provisioning: image applied, kernel/driver versions match"| C["OS provisioned (Ansible/Terraform-managed config converges to declared state)"]
     C -->|"node registers with cluster manager"| D["Cluster-manager joined (Slurm: node appears in sinfo; Kubernetes: node appears in kubectl get nodes)"]
     D -->|"prolog / health-check daemon runs BEFORE node is trusted with real work"| E["Health-checked (NHC-style checks: GPU count, NCCL smoke test, filesystem mounts, NVLink status)"]
     E -->|"only nodes that PASS reach this state"| F["Scheduler-visible, schedulable (Slurm: state=idle, not drain; Kubernetes: Ready, not tainted)"]
@@ -64,7 +64,7 @@ The critical property of this pipeline: **every stage is a gate, not a checkpoin
 It is tempting to treat a marginal node ("it mostly works") as capacity worth keeping in the pool, especially under scheduling pressure. This is a mistake for three concrete reasons:
 
 - **It poisons job results.** A multi-node training job with one degraded node doesn't fail loudly — it often trains *slower* or, worse, converges to a subtly wrong result (e.g., one rank silently dropping/corrupting gradient data due to a flaky NIC) that isn't caught until days later when someone can't reproduce a result.
-- **It wastes GPU-hours at the worst possible time.** The waste isn't just the degraded node's own GPU-hours — in a gang-scheduled, synchronized job (Volume 6 Chapter 7), one straggler node's slowdown is multiplied across every other node waiting at the same collective barrier. An 8-node job with one bad node can waste close to 8 nodes' worth of GPU-hours, not one.
+- **It wastes GPU-hours at the worst possible time.** Distributed training jobs are **gang-scheduled**: all N nodes are allocated together and run in lockstep, because a collective communication step (an all-reduce that averages gradients across every GPU in the job, for example) is a synchronization barrier — every rank blocks until every other rank arrives at that barrier. The waste isn't just the degraded node's own GPU-hours: in a gang-scheduled, synchronized job, one straggler node's slowdown is multiplied across every *other* node waiting at the same collective barrier, because they're all idling on the slow one instead of doing useful work. An 8-node job with one bad node can waste close to 8 nodes' worth of GPU-hours, not one.
 - **It creates confusing failure attribution.** Without a health gate, "the job crashed" or "the job was slow" investigations start from zero every time — was it the code, the data, the network, or node 6's flaky NVLink link again? A health-check system that runs *before* scheduling turns "investigate from scratch" into "check whether node 6 failed its gate," which is the entire point of gating early instead of debugging late.
 
 ## Prolog/epilog health gating in Slurm
@@ -86,7 +86,10 @@ if [ "$actual_gpus" -ne "$expected_gpus" ]; then
     FAIL=1
 fi
 
-# 2. DCGM diagnostic — deeper GPU health than a bare device count
+# 2. DCGM diagnostic — deeper GPU health than a bare device count.
+# DCGM (Data Center GPU Manager) is NVIDIA's GPU management/monitoring daemon; its
+# "diag" subcommand runs a suite of active health tests (memory, PCIe, compute,
+# thermal) at increasing depth levels, unlike nvidia-smi which only reports state.
 if ! dcgmi diag -r 1 >/tmp/dcgm_diag.log 2>&1; then
     logger "HEALTHCHECK: dcgmi diag -r 1 failed, see /tmp/dcgm_diag.log"
     FAIL=1
@@ -116,9 +119,9 @@ exit 0
 
 ## Job-provisioning patterns for AI/HPC
 
-- **Pre-staging datasets/containers before a large job starts.** A multi-node job that begins by having every rank independently pull a multi-GB container image or dataset from a shared filesystem creates a thundering-herd I/O spike exactly at job start — the same moment the job is most sensitive to startup latency. Pre-staging (warming a container image cache via Enroot per Chapter 8, or pre-copying a dataset shard to node-local NVMe scratch) before the job's allocation begins removes this from the job's critical path entirely.
+- **Pre-staging datasets/containers before a large job starts.** A multi-node job that begins by having every rank independently pull a multi-GB container image or dataset from a shared filesystem creates a thundering-herd I/O spike exactly at job start — the same moment the job is most sensitive to startup latency. Pre-staging — warming a container image cache with the cluster's unprivileged, daemonless container runtime (Enroot, which imports and unpacks an OCI image into a per-user squashed filesystem ahead of time so the job doesn't pay that cost at launch), or pre-copying a dataset shard to node-local NVMe scratch — before the job's allocation begins removes this from the job's critical path entirely.
 - **Warm-pool vs. cold-start GPU capacity.** A "warm" node — already health-checked, already carrying the right container image in cache, driver/firmware already validated — can accept a job in seconds. A "cold" node pulled fresh from a maintenance/provisioning cycle has to run the entire readiness pipeline above before it's trustworthy, which for a large training job is a real latency cost worth planning capacity around (keeping a small buffer of pre-validated warm nodes rather than provisioning strictly on demand).
-- **Admission control for expensive multi-node jobs.** Because a gang-scheduled job either gets all N nodes or effectively none of its progress (Volume 6 Chapter 7's `(Resources)` reason), admission control for large jobs should verify not just raw node count but that the *specific* nodes about to be allocated have recently passed health checks — admitting a 64-node job onto a mix of long-validated and just-rejoined-but-not-yet-rechecked nodes reintroduces exactly the risk health gating exists to prevent.
+- **Admission control for expensive multi-node jobs.** Because a gang-scheduled job either gets all N nodes together or effectively none of its progress (a job that can't get all the nodes it asked for at once simply waits, showing a scheduler reason like "resources" in the queue rather than starting partially), admission control for large jobs should verify not just raw node count but that the *specific* nodes about to be allocated have recently passed health checks — admitting a 64-node job onto a mix of long-validated and just-rejoined-but-not-yet-rechecked nodes reintroduces exactly the risk health gating exists to prevent.
 
 ## Worked scenario
 
@@ -140,6 +143,6 @@ exit 0
 
 1. Walk through why a node failing its health check should be drained rather than simply left out of that one job's allocation — what's the risk of "just don't schedule this specific job here" as a response?
 2. In the pseudocode health-check script above, why does it run four independently-failing checks (GPU count, DCGM diagnostic, NVLink status, filesystem mounts) instead of one combined "is the node okay" check?
-3. Explain, using the gang-scheduling concept from Volume 6 Chapter 7, why one degraded node in an 8-node job wastes closer to 8 nodes' worth of GPU-hours than 1.
+3. Explain, using the gang-scheduling concept covered above, why one degraded node in an 8-node job wastes closer to 8 nodes' worth of GPU-hours than 1.
 4. What operational cost does "cold-start" GPU capacity impose on a large training job's launch latency that a warm pool avoids, and what has to be true of a node for it to safely be considered "warm"?
 5. Why did the NVLink-degradation failure in the worked scenario present as intermittent rather than as a consistent, obviously reproducible failure?

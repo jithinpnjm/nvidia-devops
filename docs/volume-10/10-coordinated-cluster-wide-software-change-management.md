@@ -37,17 +37,17 @@ Before touching nodes, write entry conditions and backups, drain behavior, measu
 
 ## The problem: no layer changes alone
 
-A Kubernetes Deployment rollout has one axis of versioning that matters operationally — the container image tag — and the platform (ReplicaSet, PDB, readiness probes) absorbs the rest. A GPU/AI cluster has no such single axis. The stack that has to agree with itself, node by node, looks like this:
+A Kubernetes Deployment rollout has one axis of versioning that matters operationally — the container image tag — and the platform absorbs the rest: a ReplicaSet keeps the desired number of Pod replicas running, a readiness probe stops traffic from reaching a Pod until it reports itself healthy, and a PodDisruptionBudget (PDB — a policy that caps how many replicas of a workload may be voluntarily taken down at once, so a rolling update or node drain can't accidentally take an entire service offline) bounds how aggressively the rollout can proceed. A GPU/AI cluster has no such single axis. The stack that has to agree with itself, node by node, looks like this:
 
 ```mermaid
 flowchart TD
   BMC["BMC / firmware"] --> OS["host OS / kernel"] --> Driver["NVIDIA driver"] --> CUDA["CUDA toolkit"]
   CUDA --> Runtime["container runtime: Enroot / containerd"] --> Scheduler["orchestrator: Slurm or Kubernetes"]
-  Scheduler --> Network["CNI / Network Operator + NIC/switch firmware"]
+  Scheduler --> Network["CNI (Container Network Interface: the plugin standard that wires a Pod's network namespace up) / Network Operator + NIC/switch firmware"]
   Network --> Storage["storage client: Lustre / NFS / GPUDirect"] --> Libraries["MPI / NCCL library"]
 ```
 
-Each arrow is a compatibility contract, not a formality. Bump the kernel and the driver's kernel module may fail to build (`DKMS` failure on boot). Bump the driver and the CUDA toolkit's minimum-driver-version check fails at process launch. Bump NCCL and it may probe NIC firmware capabilities it didn't probe before, silently falling back to a slower transport instead of erroring — the job runs, just 3x slower, which is worse than a hard failure because nobody pages on it. None of these are hypothetical; they are the standard failure modes vendors document in release notes and the ones this chapter assumes you already know how to look up per-layer. Volume 3's Kubernetes upgrade chapter covers the orchestrator-version-skew slice of this problem in isolation; volume 4's driver/CUDA compatibility Deep Dive covers the driver/CUDA slice in isolation. This chapter is what sits above both: the cluster doesn't get to change one layer at a time and assume the others are unaffected, because in practice they're rarely changed in true isolation — a maintenance window that touches the driver very often also touches firmware or the kernel, because that's when you have the node drained anyway.
+Each arrow is a compatibility contract, not a formality. Bump the kernel and the driver's kernel module may fail to build: NVIDIA's driver ships a kernel module that is compiled against a specific kernel's headers via `DKMS` (Dynamic Kernel Module Support, which rebuilds out-of-tree kernel modules automatically whenever the kernel is updated) — if the headers for the new kernel aren't available or the module source doesn't support that kernel version yet, the rebuild fails and the node reboots with **no working GPU driver at all**, often silently from the scheduler's point of view until a job lands there and fails. Bump the driver and the CUDA toolkit's minimum-driver-version check fails at process launch: every CUDA toolkit release has a documented minimum NVIDIA driver version it requires (CUDA's user-space libraries call into the driver's kernel-mode API, and a too-old driver simply doesn't implement the interface the newer CUDA toolkit expects), so a CUDA binary built against a newer toolkit than the installed driver supports fails immediately with a version-mismatch error rather than running degraded. Bump NCCL (NVIDIA's collective-communications library, which implements the all-reduce/broadcast/gather operations distributed training depends on) and it may probe NIC firmware capabilities it didn't probe before, silently falling back to a slower transport instead of erroring — the job runs, just 3x slower, which is worse than a hard failure because nobody pages on it. None of these are hypothetical; they are the standard failure modes vendors document in their own release notes. This chapter is specifically about the layer above any single one of these: the cluster doesn't get to change one layer at a time and assume the others are unaffected, because in practice they're rarely changed in true isolation — a maintenance window that touches the driver very often also touches firmware or the kernel, because that's when you have the node drained anyway.
 
 ## The compatibility matrix as the artifact you protect
 
@@ -93,7 +93,7 @@ General rule: sequence changes from the layer that is hardest to observe and har
 
 A Kubernetes canary is a percentage of Pods behind a Service. A cluster-wide software canary is a cordoned-and-drained *subset of physical nodes* carrying the full proposed stack — firmware, OS, driver, CUDA, NCCL together — while the rest of the fleet stays on the known-good combination:
 
-```
+```bash
 kubectl cordon gpu-node-{041..048}          # or: scontrol update nodename=gpu-node-[041-048] state=drain reason="canary"
 # drain-when-idle, not evict-now — see maintenance-window planning below
 # apply firmware + OS + driver + CUDA + NCCL bump to gpu-node-{041..048} only
@@ -112,7 +112,11 @@ kubectl cordon gpu-node-{041..048}          # or: scontrol update nodename=gpu-n
     multi-node, at least 2 canary nodes) completes within known-good wall-clock envelope
 [ ] representative inference smoke job: P99 latency and throughput within baseline band
 [ ] slurmd / kubelet fully re-registered, no repeated GPU Xid errors in dmesg/journal over a
-    soak window (minimum one full job-length cycle, not just minutes)
+    soak window (minimum one full job-length cycle, not just minutes). "Xid" errors are the
+    NVIDIA driver's own error-reporting channel for GPU-level hardware/driver faults, logged
+    to the kernel ring buffer with a numeric code (e.g. Xid 79 = GPU fell off the bus,
+    Xid 13 = a graphics engine exception) — a clean soak window with zero Xid entries is the
+    strongest signal that a driver/firmware bump didn't destabilize the GPU under real load
 [ ] rollback path for this exact node set has been rehearsed, not just documented
 ```
 
@@ -120,7 +124,7 @@ Every gate item is a pass/fail against a recorded baseline, not a subjective "lo
 
 ## Maintenance-window planning for HPC: you cannot just evict everything
 
-Kubernetes-style "cordon and drain now, PDB permitting" assumes workloads are short-lived and restart cheaply. HPC jobs routinely run for days and are not restart-cheap — evicting a 4-day, 512-GPU MPI job at hour 90 to hit a maintenance window is a resource-cost decision, not a technical inconvenience. The standard pattern is:
+Kubernetes-style "cordon and drain now, PodDisruptionBudget permitting" assumes workloads are short-lived and restart cheaply. HPC jobs routinely run for days and are not restart-cheap — evicting a 4-day, 512-GPU MPI job at hour 90 to hit a maintenance window is a resource-cost decision, not a technical inconvenience. The standard pattern is:
 
 - **Drain-when-idle, not evict-now**: mark target nodes `DRAIN` in Slurm (`scontrol update nodename=... state=drain reason="maint-window-2026-08"`); the scheduler stops placing new jobs there but lets running jobs finish naturally. The node is unavailable for *new* work immediately, and for the maintenance action itself only once its current job completes.
 - **Checkpoint-aware scheduling of maintenance**: for jobs too long-running to simply wait out (multi-day training runs), coordinate with the job owner on a checkpoint boundary — most large training frameworks checkpoint on an interval — and schedule the maintenance action for the window immediately after a checkpoint completes, so a forced requeue loses at most one checkpoint interval of work, not the whole run.
