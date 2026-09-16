@@ -64,7 +64,7 @@ Drift is any gap between state and reality — a console click, a manual `kubect
 
 Local state (`terraform.tfstate` sitting in a laptop's working directory) is a single point of failure and a concurrency hazard: two engineers running `apply` against the same local-state-backed config at the same time can corrupt or silently overwrite each other's state, producing a Terraform that no longer accurately tracks real infrastructure. Remote backends (S3+DynamoDB, Terraform Cloud, GCS, Consul) solve two different problems together:
 
-```
+```hcl
 terraform {
   backend "s3" {
     bucket         = "acme-tfstate"
@@ -82,7 +82,7 @@ The S3 bucket is shared, durable storage for the state file itself — no more "
 
 `terraform plan` output uses three action markers: `+` create, `~` update in place, `-/+` destroy and recreate. The first two are usually safe to reason about in isolation. `-/+` means the provider's resource schema has decided the requested change cannot be applied to the existing object — some attribute is immutable after creation — so Terraform's only path to the declared state is deleting the current resource and creating a new one with a new ID.
 
-```
+```text
 $ terraform plan
 
   # aws_instance.gpu_worker must be replaced
@@ -104,7 +104,7 @@ Read this literally: one new instance created, one destroyed — not "one instan
 
 ## Mandatory plan review before apply
 
-```
+```bash
 terraform plan -out=tfplan
 terraform show -json tfplan | jq '.resource_changes[] | select(.change.actions[0]=="delete" or (.change.actions | length > 1))'
 terraform apply tfplan
@@ -147,20 +147,18 @@ resource "aws_instance" "gpu_worker" {
 }
 ```
 
-`create_before_destroy` matters for anything where losing capacity mid-replacement is expensive — bring up the replacement GPU instance, confirm it's healthy, then tear down the old one, instead of the default destroy-then-create order that briefly has zero capacity. `ignore_changes = [ami]` is a deliberate ownership statement: once the instance exists, Terraform stops trying to reconcile that one attribute even if it drifts, because a downstream tool (Ansible re-imaging with a new driver build) is now the authority on it, not Terraform. `terraform taint`/`terraform apply -replace=&lt;address&gt;` marks a specific resource for forced recreation on the next apply — useful when a specific GPU instance is suspected of bad hardware (Xid errors, ECC failures) and needs to be cycled without touching the other 31.
+`create_before_destroy` matters for anything where losing capacity mid-replacement is expensive — bring up the replacement GPU instance, confirm it's healthy, then tear down the old one, instead of the default destroy-then-create order that briefly has zero capacity. `ignore_changes = [ami]` is a deliberate ownership statement: once the instance exists, Terraform stops trying to reconcile that one attribute even if it drifts, because a downstream tool (Ansible re-imaging with a new driver build) is now the authority on it, not Terraform. `terraform taint`/`terraform apply -replace=<address>` marks a specific resource for forced recreation on the next apply — useful when a specific GPU instance is suspected of bad hardware (Xid errors, ECC failures) and needs to be cycled without touching the other 31.
 
 ## The ownership boundary: what Terraform should and shouldn't own
 
-```
-Terraform owns:                          Ansible / BCM own:
-  - VPCs, subnets, security groups         - OS packages, kernel params
-  - IAM roles/policies                     - NVIDIA driver install/version
-  - Storage buckets, EBS/EFS volumes       - GPU firmware, MIG partitioning
-  - Cloud GPU instance existence/count      - DCGM exporter config
-  - Load balancers, DNS records             - Slurm/BCM node join/config
-  - The cloud-side scaffolding AROUND       - Everything INSIDE the OS once
-    an on-prem/colo GPU cluster               the instance/node exists
-```
+| Terraform owns | Ansible / BCM own |
+|---|---|
+| VPCs, subnets, security groups | OS packages, kernel params |
+| IAM roles/policies | NVIDIA driver install/version |
+| Storage buckets, EBS/EFS volumes | GPU firmware, MIG partitioning |
+| Cloud GPU instance existence/count | DCGM exporter config |
+| Load balancers, DNS records | Slurm/BCM node join/config |
+| The cloud-side scaffolding *around* an on-prem/colo GPU cluster | Everything *inside* the OS once the instance/node exists |
 
 Terraform is good at declaring *that a resource exists* with certain top-level attributes; it is a poor fit for *what happens inside the OS* once that resource is running — package installs, config file content, service state are all naturally idempotent, convergence-oriented operations better modeled by Ansible or a BCM head node than by resource-replacement semantics. The interview-relevant boundary case: an on-prem or colo GPU cluster typically has Terraform managing the cloud-side edges around it — VPN/Direct Connect endpoints, IAM for a hybrid control plane, an object-storage bucket that checkpoints get shipped to, DNS — while BCM or Ansible manages the bare-metal nodes themselves, because Terraform has no meaningful provider model for "rack this physical server and image it." Cross a resource over that boundary in the wrong direction — e.g., trying to manage `/etc/slurm/slurm.conf` content as a Terraform `local-exec` provisioner — and you get a resource that Terraform "owns" without being able to reason about drift on it correctly, which defeats the entire premise of using Terraform there.
 

@@ -63,9 +63,63 @@ BCM's documented HA option is an active/passive head-node pair: two head nodes s
 
 The practical constraint: HA head nodes only protect against head-node failure, not against a bad category push. If an admin pushes a broken image update, both head nodes will serve the same broken image after failover — HA doesn't guard against operator error, only hardware/process failure of the head node itself. That has to be caught by the coordinated-change-management discipline in `docs/volume-10/10-coordinated-cluster-wide-software-change-management.md`, not by head-node redundancy.
 
-## Worked scenario
+## How node provisioning actually writes the category to disk
 
-A 96-node H100 category (`gpu-h100-prod`) has been stable for three months. A user reports one node, `node057`, throwing intermittent CUDA `initialization error` while its 95 category-mates are fine. First check is category drift, not hardware:
+Drift and health checks only make sense once you know what "the category" physically is and how it gets onto a node, because the remediation for Tier 2 findings (`imageupdate`) is a specific mechanism, not a magic re-sync button.
+
+A BCM software image is a full root filesystem tree held on the head node (by default under something like `/cm/images/<image-name>`), not a disk image file — it's just a directory that gets exported (NFS) or copied to each node in the category. When a node boots:
+
+1. **PXE/DHCP stage** — the node's NIC broadcasts a DHCP request; the head node's DHCP server (scoped to known MAC addresses registered in BCM's device list) replies with an IP and a PXE boot filename pointing at BCM's node-installer kernel/initrd.
+2. **Node-installer stage** — the node boots into a minimal Linux environment (the node-installer, not the production OS) that queries the head node's CMDaemon for that node's category and full provisioning parameters — which image, partitioning layout, kernel modules, network config.
+3. **Provisioning stage** — the node-installer synchronizes the category's image onto local disk. This is the step with two distinct modes that matter operationally:
+   - **Full provisioning** (a full reinstall, e.g. triggered by `imageupdate -f` or a normal PXE reprovision) wipes and rewrites the node's local disk from the category image — this is the "destructive, safe" remediation referenced above: destructive to any local state, but guaranteed to converge to category baseline.
+   - **Incremental sync** (`imageupdate` without a full flag, or the periodic `excludelistupdate`-scoped sync some sites schedule) uses an rsync-like delta transfer that only pushes changed files, respecting an **exclude list** (`excludelistupdate`/`excludelistfullinstall`) — a configured set of paths (typically `/var/log`, swap files, node-local scratch, sometimes `/etc/hostname`-equivalent identity files) that are deliberately *not* overwritten by a sync, because they're legitimately node-specific and not part of category identity.
+4. **Finalize stage** — post-sync scripts (`finalize` scripts, category-scoped) run once the filesystem is in place — this is where category-level customizations that can't just be "files in the image" get applied (e.g., registering the node with a license server using its own hostname).
+
+The operational implication: `grabimage -w`'s diff is comparing the node's live disk against this same image tree, path by path (modulo the exclude list, which is why `/var/log` differences never show up as drift — they're supposed to differ). When Tier 2 remediation runs `imageupdate`, it is re-running step 3 against the already-booted node rather than a full PXE cycle, which is faster but still authoritative, because it pulls from the same category image tree the node-installer would have used on a fresh boot. A full reimage (PXE reboot into node-installer, full provisioning) is reserved for drift that an incremental `imageupdate` can't cleanly resolve — for example, a corrupted filesystem, a partition-table mismatch, or drift in something the exclude list was (mis)configured to skip.
+
+This is also why exclude-list configuration is itself a drift-adjacent risk: an overly broad exclude list (e.g., someone added `/etc/modprobe.d/` to stop a legitimate hand-fix from being clobbered) silently converts a category-tracked path into a permanently untracked one — future `imageupdate` runs will never touch it again, and `grabimage` will stop flagging drift there, which is worse than visible drift because the fleet loses the ability to detect the exact class of problem the mechanism exists to catch. Exclude-list changes should go through the same change-review discipline as category image changes, not be treated as a quick unblock.
+
+## Head-node HA failover mechanics, step by step
+
+The single-sentence description ("active/passive pair with a floating IP") hides the parts that actually make failover safe or unsafe in practice. A production HA pair has three cooperating mechanisms, and a gap in any one of them turns "HA configured" into "HA configured but doesn't actually protect you":
+
+- **State replication.** The active head node's CMDaemon database (device inventory, category definitions, health-check state, job/monitoring history) and the image repository (`/cm/images/...`) must be present, current, and consistent on the passive node *before* it needs to take over — not reconstructed at failover time. In practice this is done with synchronous or near-synchronous block-level replication (e.g., DRBD) under the CMDaemon database and image storage, or a shared filesystem both nodes mount (NFS/shared block device with a cluster filesystem), so the passive node isn't relying on a stale periodic copy the way a nightly backup would be.
+- **Heartbeat / failure detection.** The passive node monitors the active node's liveness (network heartbeat, and in well-built deployments a secondary out-of-band channel such as IPMI/BMC access, so a partitioned-but-alive active node can still be power-fenced rather than just presumed dead). The detection window is a real trade-off: too short and a transient network blip triggers an unnecessary failover (and a brief window where both nodes believe they might be active); too long and node reboots/PXE requests during the outage window simply hang until failover completes.
+- **Fencing (STONITH-equivalent).** Before the passive node promotes itself to active and starts answering DHCP/PXE requests and accepting `cmsh`/API writes, the formerly-active node must be guaranteed to stop acting as active — either because it's confirmed powered off/fenced (via IPMI power control) or because a quorum/witness mechanism confirms only one side can win. Skipping this step is the actual split-brain risk: without fencing, a head node that's merely network-partitioned (not actually down) may still be alive, still serving DHCP/PXE, still accepting `cmsh` writes to the *same shared state store* the passive node just took over — two active head nodes racing to write the same database is a more dangerous failure than no HA at all, because it corrupts the very state store both sides depend on for correctness.
+
+```mermaid
+flowchart TD
+  ActiveHN["Head node A: ACTIVE\nserves DHCP/PXE, CMDaemon API, monitoring"] -->|"replicates synchronously"| SharedState["Shared state: CMDaemon DB + image repo\n(DRBD or shared block/filesystem)"]
+  PassiveHN["Head node B: PASSIVE\nmounts/replicates same state, idle services"] -->|"heartbeats A"| ActiveHN
+  ActiveHN -.->|"heartbeat lost beyond threshold"| Decision{"Is A confirmed down?\n(IPMI power state / quorum witness)"}
+  Decision -->|"yes: fence A, VIP moves to B"| PromoteB["B promotes to ACTIVE\nreads SharedState, resumes DHCP/PXE/API on floating IP"]
+  Decision -->|"no / ambiguous: hold"| Hold["B stays passive\nalert-only, no promotion\n(avoids split-brain)"]
+```
+
+**Testing failover for real** means more than confirming the passive node's CMDaemon service starts. A credible test drains no production traffic risk by running against a staging head-node pair or a maintenance window, and validates each of the three mechanisms independently:
+
+```bash
+# On the currently-active head node, simulate a hard failure
+# (power off via IPMI rather than a clean shutdown — a clean
+# shutdown lets services deregister gracefully, which a real
+# hardware failure will not do, so it under-tests the failure path)
+ipmitool -I lanplus -H hn01-bmc -U admin power off
+```
+
+```
+# Expected sequence on the passive node's log, roughly:
+# t+0s    heartbeat loss detected
+# t+8s    heartbeat threshold exceeded, checking fencing status
+# t+9s    IPMI confirms hn01 power state: off
+# t+10s   promoting to ACTIVE, acquiring floating IP 10.10.0.5
+# t+12s   DHCP/PXE service started on floating IP
+# t+13s   CMDaemon API now answering on floating IP
+```
+
+A missing or delayed `t+9s` line (fencing confirmation) is the finding that matters most — if the passive node promotes without ever querying IPMI power state, the deployment has no real fencing and is running on a "probably fine" heartbeat-only failover that will split-brain the first time it's a network partition rather than an actual power loss. After promotion, validate the *provisioning* path end-to-end, not just the API: PXE-boot a spare node against the floating IP and confirm it completes node-installer against the now-active B, proving the image repository replication (not just the database) came over correctly.
+
+## Worked scenario A user reports one node, `node057`, throwing intermittent CUDA `initialization error` while its 95 category-mates are fine. First check is category drift, not hardware:
 
 ```
 cmsh -c "device use node057; grabimage -w"
