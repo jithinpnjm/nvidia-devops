@@ -11262,71 +11262,75 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Interview lab — operate a Slurm and BCM GPU cluster": {
+  "Interview Lab — NVIDIA Senior Solutions Architect: AI Factory from Bare-Metal to Workloads": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "A safe, evidence-driven practice lab for Slurm scheduling, BCM lifecycle management, GPU admission and senior interview answers.",
+    "learningOutcome": "Master interview preparation lab for NVIDIA Senior Solutions Architects: bare-metal DGX systems, Redfish, BCM, Slurm, Kubernetes, Run:ai, Quantum-2 InfiniBand, and NCCL collective triage.",
     "sections": [
-      "Interview lab — operate a Slurm and BCM GPU cluster",
-      "The one-minute mental model",
-      "Lab setup and safety",
-      "Lab 1 — identify the cluster control plane",
-      "Lab 2 — read a pending job like an operator",
-      "Lab 3 — inspect fleet health before touching state",
-      "Lab 4 — connect BCM desired state to live state",
-      "Lab 5 — GPU admission gate",
-      "Lab 5b — write the request-side GPU allocation syntax",
-      "Lab 6 — simulate a multi-node failure without changing the cluster",
-      "Worked interview scenario: “The H100 cluster is underperforming”",
-      "Practice cards",
-      "Card A — scheduler versus communication",
-      "Card B — BCM versus Ansible"
+      "Interview Lab — NVIDIA Senior Solutions Architect: AI Factory from Bare-Metal to Workloads",
+      "1. The Complete AI Factory Architectural Stack",
+      "2. Deep-Dive Domain Mastery: The Architectural Scorecard",
+      "A. Bare-Metal & Out-of-Band (BMC / Redfish)",
+      "B. NVIDIA Base Command Manager (BCM)",
+      "C. Slurm vs. Kubernetes with Run:ai",
+      "D. NVIDIA Networking: InfiniBand vs. Spectrum-X RoCE",
+      "3. High-Pressure Whiteboard Scenarios (Senior SA Interview Questions)",
+      "Scenario 1: The End-to-End AI Factory Sizing & Architecture",
+      "Scenario 2: Debugging a Sudden NCCL Collective Hang at 512-GPU Scale",
+      "Scenario 3: Slurm vs. Kubernetes with Run:ai Trade-Offs",
+      "Key Takeaways for the Senior Solutions Architect Interview"
     ],
     "codeLanguages": [
       "mermaid",
-      "text",
-      "bash"
+      "text"
     ]
   },
   "Chapter 1 - Bare-metal and BMC/Redfish lifecycle": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand what happens to a physical GPU server between \"racked and cabled\" and \"ready for an OS image\" — BMC access, firmware baselining, and network boot — and be able to diagnose why a specific node refuses to PXE boot.",
+    "learningOutcome": "Bare-metal architecture, DGX/HGX chassis anatomy, BMC, Redfish APIs, firmware baselining, BIOS optimization, and PXE bring-up for NVIDIA AI Factories.",
     "sections": [
+      "Chapter 1 — Bare-Metal and BMC/Redfish Lifecycle",
       "Foundations: start here if the bare-metal HPC stack is new to you",
-      "What this volume is trying to teach",
-      "The stack by responsibility",
-      "Follow one node and one job",
-      "Essential distinctions",
-      "Follow a server from delivery to first job",
-      "Control plane versus data plane",
-      "Version and ownership matrix",
-      "Safe first lab without physical mutations",
-      "Worked fault isolation",
-      "How to study this volume",
-      "Readiness check",
-      "Check your understanding",
-      "Glossary"
+      "1. Architectural Blueprint: The AI Factory Physical Hierarchy",
+      "Key Hardware Boundaries",
+      "2. The Out-of-Band Control Plane: IPMI vs. Redfish",
+      "The Architectural Shift: IPMI to Redfish",
+      "Redfish Resource Hierarchy on NVIDIA DGX Systems",
+      "Deep-Dive: Interacting with Redfish via cURL",
+      "Retrieve power state and aggregated health status",
+      "Extract individual SXM GPU thermal sensors",
+      "Graceful shutdown followed by power-on (ForceRestart)",
+      "3. NVIDIA System Management ( nvsm ) and Diagnostic Architecture",
+      "Production nvsm Commands for Hardware Triage",
+      "1. Quick cluster-readiness health check"
     ],
     "codeLanguages": [
-      "bash",
+      "mermaid",
       "text",
-      "mermaid"
+      "bash",
+      "json"
     ]
   },
   "Chapter 2 - NVIDIA Base Command Manager (BCM)": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand where a cluster-management layer like BCM sits relative to bare metal below it and Slurm/Kubernetes/Ansible/Terraform above and beside it, and be able to reason about a category-based rolling image upgrade without inventing exact CLI syntax you haven't verified.",
+    "learningOutcome": "NVIDIA Base Command Manager (BCM) architecture, active/passive head node HA, software images, category-based provisioning, Slurm & Kubernetes integration, and automated health remediation.",
     "sections": [
-      "Start here — BCM is the cluster's lifecycle manager",
-      "What BCM is, honestly",
-      "Architecture",
-      "Representative cmsh interaction",
-      "Upgrade/patch workflow for a BCM-managed cluster",
-      "Where BCM sits relative to Ansible/Terraform",
-      "Worked scenario — rolling a new image to a GPU category without an all-at-once outage",
-      "Practice"
+      "Chapter 2 — NVIDIA Base Command Manager (BCM)",
+      "1. BCM High-Level Architecture and Control Plane Topology",
+      "Core Components and Responsibilities",
+      "2. The BCM Object Model and Declarative State",
+      "Navigating cmsh (Command Management Shell)",
+      "Enter BCM management shell",
+      "Inspect available software images",
+      "Inspect category parameters for production DGX H100s",
+      "3. Image Provisioning Mechanics: Stateless vs. Stateful",
+      "Mitigating Provisioning Storms at Scale (BitTorrent & Multicast)",
+      "4. Workload Manager Integration: Slurm and Kubernetes Coexistence",
+      "1. Slurm Automated Topology and GRES Generation",
+      "2. Kubernetes and Run:ai Deployment via BCM",
+      "3. Dynamic Node Reallocation (Slurm $\\leftrightarrow$ Kubernetes)"
     ],
     "codeLanguages": [
       "mermaid",
@@ -11334,30 +11338,31 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash"
     ]
   },
-  "Chapter 3 - OS provisioning and Linux security hardening (RHEL/Ubuntu)": {
+  "Chapter 3 - OS Provisioning, Kernel Optimization, and Security Hardening": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand automated OS provisioning (kickstart/cloud-init), the SELinux/AppArmor enforcement model and triage flow, a CIS-style hardening baseline, and why patch strategy on a GPU cluster is constrained by driver/kernel coupling in ways a stateless web-tier fleet is not.",
+    "learningOutcome": "Linux OS provisioning, kernel tuning for ultra-low latency AI fabrics, hugepages, NUMA isolation, open vs. proprietary kernel modules, and hardened multi-tenant security.",
     "sections": [
-      "Foundations: start here if Linux/cluster security concepts are new to you",
-      "What this section does and does not do",
-      "A quick recap, one level further: root and least privilege",
-      "What \"attack surface\" means",
-      "What Mandatory Access Control adds on top of normal permissions",
-      "Why patching is a security practice — and why it's harder on a GPU cluster",
-      "A first honest look at an SELinux status check",
-      "Glossary",
-      "Before you go deeper, make sure you can...",
-      "Start here — installation, configuration, and hardening are different stages",
-      "A practical beginner investigation order",
-      "Automated OS provisioning",
-      "SELinux vs AppArmor",
-      "SELinux triage flow (real, not aspirational)"
+      "Chapter 3 — OS Provisioning, Kernel Optimization, and Security Hardening",
+      "1. Automated OS Delivery: Kickstart and cloud-init Architecture",
+      "Partitioning Strategy for Accelerated Compute",
+      "2. Linux Kernel Optimization for Ultra-Scale AI",
+      "1. Boot-Time Kernel Parameters ( /etc/default/grub )",
+      "2. Runtime Kernel Tunables ( /etc/sysctl.d/99-nvidia-ai.conf )",
+      "/etc/sysctl.d/99-nvidia-ai.conf",
+      "Maximum socket receive and send buffer sizes for 400G/800G fabrics (2GB)",
+      "Maximum network device backlog queue",
+      "TCP window size tuning for high BDP (Bandwidth-Delay Product) links",
+      "Prevent kernel memory swapping under heavy tensor caching",
+      "Increase maximum memory map areas (critical for PyTorch & Triton pinned memory)",
+      "Maximum open file descriptors",
+      "3. NVIDIA Driver Packaging: Open Kernel Modules vs. Proprietary vs. kABI"
     ],
     "codeLanguages": [
-      "bash",
+      "mermaid",
       "text",
-      "mermaid"
+      "bash",
+      "ini"
     ]
   },
   "Chapter 4 - Ansible for infrastructure automation": {
@@ -11369,16 +11374,16 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "The problem Ansible solves",
       "Ansible structure in one picture",
       "How Ansible reaches a bare-metal node",
+      "A study path: beginner to AI-factory operator",
       "Workbook setup",
       "1. Create the project layout",
       "2. Configure Ansible defaults",
       "ansible.cfg",
       "3. Define a static inventory",
       "inventory/hosts.ini",
-      "4. Test transport before changing anything",
-      "Your first playbook",
-      "playbooks/ping.yml",
-      "Tasks and modules: declare state, do not replay commands"
+      "3a. Model failure domains, not just host names",
+      "inventory/production.yml -- a small illustrative static export",
+      "3b. Make the control environment reproducible"
     ],
     "codeLanguages": [
       "mermaid",
@@ -11409,66 +11414,56 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "codeLanguages": [
       "mermaid",
       "text",
-      "hcl"
+      "hcl",
+      "bash"
     ]
   },
-  "Chapter 6 - Slurm administration: HA, accounting and upgrades": {
+  "Chapter 6 - Slurm Administration: HA, Topology-Aware Scheduling, Accounting, and Upgrades": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Operate Slurm as a production service — controller/accounting-database high availability, multi-tenant fairshare via associations and QoS, node-state administration, safe version upgrades, and the cgroup/GRES configuration that binds jobs to specific GPUs.",
+    "learningOutcome": "Production Slurm administration for AI supercomputers: controller HA, GRES GPU binding, cgroups, NUMA pinning, multi-tenant fairshare mathematics, and zero-downtime upgrades.",
     "sections": [
-      "Start here — follow one job through Slurm",
-      "slurmctld/slurmdbd high availability",
-      "slurm.conf",
-      "Accounting: associations and QoS for multi-tenant fairshare",
-      "Worked scenario — a fairshare misconfiguration that starved the fleet for weeks",
-      "Node state management",
-      "Version upgrades: why order and skew rules matter",
-      "cgroup and GRES configuration for GPU binding",
-      "/etc/slurm/gres.conf (on gpu-node-14, an 8-GPU node)",
+      "Chapter 6 — Slurm Administration: HA, Topology-Aware Scheduling, Accounting, and Upgrades",
+      "1. Slurm Control Plane Architecture and High Availability",
+      "1. Active/Passive Controller Failover Mechanics",
+      "2. Generic Resources (GRES), cgroups, and Hardware Topology Pinning",
+      "1. Hardware-Aware GRES Configuration ( gres.conf )",
+      "/etc/slurm/gres.conf on DGX H100 (Dual 64-core CPUs, 8x H100 SXM5 GPUs)",
+      "Node has 2 NUMA nodes (Sockets 0 and 1)",
+      "GPUs 0-3 connected to CPU Socket 0 (Cores 0-63)",
+      "GPUs 4-7 connected to CPU Socket 1 (Cores 64-127)",
+      "2. Linux cgroups Enforcement ( cgroup.conf )",
       "/etc/slurm/cgroup.conf",
-      "Mnemonic",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 7 - MPI fundamentals for HPC/AI workloads": {
-    "volume": "Volume 10",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Explain what MPI actually is, how it bootstraps multi-node jobs under Slurm, how it differs from NCCL, and how to tell an MPI-level hang apart from an NCCL-level hang under time pressure.",
-    "sections": [
-      "Start here — one program, many cooperating processes",
-      "hello mpi.py — requires mpi4py and an MPI implementation",
-      "Ranks, communicators, point-to-point vs. collective",
-      "mpirun/mpiexec, PMI/PMIx, and Slurm",
-      "MPI collectives vs. NCCL collectives",
-      "Common failure modes",
-      "Debugging tools",
-      "Worked scenario",
-      "Practice"
+      "3. Multi-Tenant Accounting, Associations, and Fairshare Mathematics",
+      "The Fairshare Mathematical Formula",
+      "Production sacctmgr Account & QoS Setup"
     ],
     "codeLanguages": [
       "mermaid",
       "text",
-      "python"
+      "ini",
+      "bash"
     ]
   },
-  "Chapter 8 - Enroot and Pyxis: unprivileged containers for HPC": {
+  "Chapter 7 - MPI, PMIx, and Distributed Collective Communication": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Explain why HPC clusters run containers differently from Kubernetes, walk the Enroot/Pyxis workflow end to end, and diagnose a container that can't see the GPU.",
+    "learningOutcome": "Process bootstrapping, PMIx wire protocol, Slurm srun vs. torchrun, CPU/GPU NUMA affinity, and the operational divide between MPI and NCCL in AI supercomputers.",
     "sections": [
-      "Start here — separate the image, runtime, and scheduler integration",
-      "A safe progression for your first container job",
-      "Why not just run Docker on the cluster",
-      "What Enroot solves",
-      "Pyxis: the Slurm SPANK plugin",
-      "Common failure modes",
-      "Worked scenario",
-      "Practice"
+      "Chapter 7 — MPI, PMIx, and Distributed Collective Communication",
+      "1. Architectural Taxonomy: Slurm vs. PMIx vs. MPI vs. NCCL",
+      "Responsibility Breakdown",
+      "2. Process Management Interface (PMIx) and Launch Mechanics",
+      "srun vs. torchrun vs. mpirun",
+      "3. CPU Core and GPU NUMA Pinning",
+      "Production Slurm Launch Script with Strict NUMA Binding",
+      "srun pins each task strictly to 16 CPU cores local to its allocated GPU",
+      "4. NCCL Internals: Ring vs. Tree Collective Topologies",
+      "Ring vs. Tree Selection Mechanics",
+      "5. Senior Solutions Architect Interview Scenarios",
+      "Scenario 1: The \"Hanging at Startup\" Multi-Node Incident",
+      "Scenario 2: Severe Bandwidth Regression on GPUDirect RDMA",
+      "Key Takeaways"
     ],
     "codeLanguages": [
       "mermaid",
@@ -11476,55 +11471,78 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash"
     ]
   },
-  "Chapter 9 - Job provisioning, health gating and workflow orchestration": {
+  "Chapter 8 - Enroot and Pyxis: Unprivileged Containers for AI Supercomputing": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Trace the full chain from \"cluster exists\" to \"a job is safely running,\" explain why health gating sits between cluster-join and scheduling eligibility, and design a health-check gate that catches degraded — not just dead — hardware.",
+    "learningOutcome": "Unprivileged container runtimes for AI clusters: Enroot architecture, SquashFS rootfs, Pyxis SPANK Slurm plugin, GPUDirect RDMA device passthrough, and image cache caching.",
     "sections": [
-      "Start here — availability is not readiness",
-      "The full readiness pipeline",
-      "Why an unhealthy node accepting jobs is worse than running short",
-      "Prolog/epilog health gating in Slurm",
-      "Simplified Prolog/NHC-style health-check logic (pseudocode-realistic, not a full script)",
-      "Runs on a timer (HealthCheckInterval) AND/OR as Slurm Prolog before each job.",
-      "1. GPU count sanity — did a GPU silently fall off the PCIe bus?",
-      "2. DCGM diagnostic — deeper GPU health than a bare device count",
-      "3. NVLink status — link training/degradation the driver won't surface as a hard failure",
-      "4. Required filesystem mounts present (dataset/checkpoint paths a job will assume exist)",
-      "Job-provisioning patterns for AI/HPC",
-      "Worked scenario",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "python",
-      "bash"
-    ]
-  },
-  "Chapter 10 - Coordinated cluster-wide software change management": {
-    "volume": "Volume 10",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Given a proposed change at any single layer of a GPU/AI cluster's software stack, build the compatibility matrix that change touches, design a canary that is actually representative of the fleet, and sequence a maintenance window that respects long-running HPC jobs instead of just evicting everything.",
-    "sections": [
-      "Start here — a change is a hypothesis with a blast radius",
-      "The problem: no layer changes alone",
-      "The compatibility matrix as the artifact you protect",
-      "Change sequencing: why order is not arbitrary",
-      "Canary at cluster scale, not Deployment scale",
-      "drain-when-idle, not evict-now — see maintenance-window planning below",
-      "apply firmware + OS + driver + CUDA + NCCL bump to gpu-node-{041..048} only",
-      "run canary-validation gate (below)",
-      "only on full pass: proceed to next wave",
-      "Canary-validation gate — a realistic checklist",
-      "Maintenance-window planning for HPC: you cannot just evict everything",
-      "Rollback planning when the change touches firmware",
-      "Worked scenario: the canary that wasn't representative",
-      "Mnemonic"
+      "Chapter 8 — Enroot and Pyxis: Unprivileged Containers for AI Supercomputing",
+      "1. Architectural Contrast: Docker/Kubernetes vs. Enroot/Pyxis",
+      "Architectural Comparison",
+      "2. Enroot Internal Mechanics: SquashFS and Hardware Injection",
+      "Hardware Device and Driver Passthrough",
+      "3. Large-Scale Image Caching Architecture",
+      "The Solution: Pre-Imported Central SquashFS Caching",
+      "4. Senior Solutions Architect Interview Scenarios",
+      "Scenario 1: Pyxis Fails to Enumerate GPUs Inside the Container",
+      "Scenario 2: Enroot vs. Kubernetes/Containerd for Large Foundation Models",
+      "Key Takeaways"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
+    ]
+  },
+  "Chapter 9 - Job Provisioning, Health Gating, and Workflow Orchestration": {
+    "volume": "Volume 10",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Hardware health gating architectures for AI Factories: eliminating silent stragglers, Slurm Prolog/Epilog automation, DCGM diagnostic tiers, and automated node quarantining.",
+    "sections": [
+      "Chapter 9 — Job Provisioning, Health Gating, and Workflow Orchestration",
+      "1. The Straggler Problem and Multi-Tiered Health Architecture",
+      "2. NVIDIA DCGM Diagnostic Tiers",
+      "Running Level 1 Diagnostic as an Admission Test",
+      "3. Production Slurm Prolog Implementation: The Pre-Job Gate",
+      "/etc/slurm/prolog.d/90-ai-health-gate.sh",
+      "Slurm Job Prolog Health Gate for NVIDIA DGX H100",
+      "Target execution time: < 8 seconds",
+      "1. Verify all 8 physical GPUs are enumerated and responsive to NVML",
+      "2. Check for active uncorrectable ECC memory errors",
+      "3. Check for GPU Thermal or Power Hardware Slowdown",
+      "4. Verify InfiniBand Compute HCAs (8x ConnectX-7 adapters active at 400 Gbps)",
+      "Verify link speed is NDR 400G (Active at 4X Rate 100G)",
+      "5. Clean up any leftover orphan GPU processes from previous jobs"
+    ],
+    "codeLanguages": [
+      "text",
+      "mermaid",
+      "bash"
+    ]
+  },
+  "Chapter 10 - Coordinated Cluster-Wide Software Change Management": {
+    "volume": "Volume 10",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Full-stack change coordination for AI Factories: 9-layer compatibility matrix, progressive canary deployment rings, firmware rollback boundaries, and zero-downtime maintenance.",
+    "sections": [
+      "Chapter 10 — Coordinated Cluster-Wide Software Change Management",
+      "1. The 9-Layer AI Factory Compatibility Hierarchy",
+      "The Invalidation Chain",
+      "2. The Production Compatibility Matrix",
+      "3. Phased Deployment: The 4-Ring Canary Architecture",
+      "Why Ring 1 (Rail Canary) is Crucial",
+      "4. Slurm Reservation and Maintenance Scheduling",
+      "Step-by-Step Maintenance Window Scheduling",
+      "1. Create an Administrative Slurm Reservation for the Maintenance Window",
+      "Prevents new jobs from scheduling into nodes dgx-[01-64] after 02:00 UTC",
+      "2. Monitor Running Jobs to Allow Natural Completion or Checkpointing",
+      "Jobs with walltimes ending before 02:00 UTC will continue running.",
+      "Long-running jobs are notified via SIGUSR1 30 minutes prior to checkpoint.",
+      "3. Drain Specific Canary Wave Nodes"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "bash"
     ]
   },
   "Chapter 11 - CI/CD for infrastructure and cluster configuration": {
@@ -11546,7 +11564,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
+      "text",
+      "bash"
     ]
   },
   "Chapter 12 - Customer runbooks, onboarding and best-practice documentation": {
@@ -11569,74 +11588,106 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Senior Deep Dive 1 — BCM at fleet scale: node categories, image drift and health-check design": {
+  "Senior Deep Dive 1 — BCM at Fleet Scale: Hierarchical Daemons, Category Drift, and Health Architecture": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Senior Deep Dive 1 — BCM at fleet scale: node categories, image drift and health-check design — Bare-Metal, HPC Operations and Infrastructure-as-Code.",
+    "learningOutcome": "Scaling NVIDIA Base Command Manager (BCM) across thousands of GPUs: hierarchical CMDaemon proxies, category drift detection, three-tier automated health remediation, and active/passive head node failover.",
     "sections": [
-      "Before this deep dive — convert the basics into operational questions",
-      "Category inheritance and drift",
-      "Health-check taxonomy: three tiers, three remediation actions",
-      "Single head-node architecture: the SPOF problem",
-      "Worked scenario",
-      "diff shows: /etc/modprobe.d/nvidia.conf modified, /usr/lib/... nvidia-persistenced binary older",
-      "Interview-ready line"
+      "Senior Deep Dive 1 — BCM at Fleet Scale: Hierarchical Daemons, Category Drift, and Health Architecture",
+      "1. Hierarchical CMDaemon Architecture for Fleet Scaling",
+      "Scaling Mechanisms:",
+      "2. Category Inheritance and Drift Detection",
+      "The Phenomenon of Configuration Drift",
+      "Automated Drift Detection Architecture",
+      "Auditing configuration drift from cmsh",
+      "Comparing /cm/images/dgx-prod-v1 against live node dgx-042:",
+      "[CHANGED] /etc/sysctl.d/99-custom.conf (Mismatch: vm.max map count)",
+      "[ADDED] /usr/local/bin/debug nccl.sh",
+      "[WARNING] Package divergence: libibverbs-devel installed out-of-band!",
+      "3. The Three-Tier Health Check and Autonomous Remediation Engine",
+      "4. Head Node High-Availability: Quorum, Fencing, and DRBD",
+      "Failover Sequence:"
     ],
     "codeLanguages": [
-      "text"
+      "mermaid",
+      "text",
+      "bash"
     ]
   },
-  "Senior Deep Dive 2 — Slurm HA and accounting internals": {
+  "Senior Deep Dive 2 — Slurm HA, Database Clustering, and Accounting Internals": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Senior Deep Dive 2 — Slurm HA and accounting internals — Bare-Metal, HPC Operations and Infrastructure-as-Code.",
+    "learningOutcome": "Advanced internal mechanics of Slurm high-availability: POSIX StateSaveLocation serialization, MariaDB Galera database replication, split-brain fencing, and decayed fairshare mathematics.",
     "sections": [
-      "Before this deep dive — separate availability, durability, and correctness",
-      "What must be consistent for failover to be safe",
-      "Fairshare mechanics beyond \"there's a fairshare score\"",
-      "Account User RawShares NormShares RawUsage EffectvUsage FairShare",
-      "team-vision - 0.20 0.20 842391 0.34 0.62",
-      "Multi-cluster federation, briefly",
-      "Worked scenario",
-      "Interview-ready line"
+      "Senior Deep Dive 2 — Slurm HA, Database Clustering, and Accounting Internals",
+      "1. Internal State Serialization and the StateSaveLocation Contract",
+      "The Atomic Serialization Algorithm",
+      "Failure Mode: Why NFS Cache Consistency Can Corrupt Failover",
+      "2. Split-Brain Dynamics and Fencing (STONITH)",
+      "Why Built-in Slurm HA Is Not Enough for AI SuperPODs",
+      "3. Database Clustering: slurmdbd and MariaDB Galera Internals",
+      "Why Standard Active-Active Multi-Writer Galera Fails with Slurm",
+      "4. Fairshare Internal Mathematics and Usage Decay",
+      "The Half-Life Decay Formula",
+      "5. Senior Solutions Architect Interview Scenarios",
+      "Scenario 1: MariaDB Deadlocks Causing Slurmctld Thread Exhaustion",
+      "Key Takeaways"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 3 — MPI and NCCL joint debugging": {
+  "Senior Deep Dive 3 — MPI, NCCL, and Fabric Joint Debugging": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Senior Deep Dive 3 — MPI and NCCL joint debugging — Bare-Metal, HPC Operations and Infrastructure-as-Code.",
+    "learningOutcome": "Mastering multi-node collective triage: 4-layer diagnostic ladder, NCCL graph construction analysis, rail-optimized fabric desynchronization, and SHARP in-network computing.",
     "sections": [
-      "Before this deep dive — establish a known-good ladder",
-      "The layered decision tree",
-      "Environment-variable interactions that cause silent misconfiguration",
-      "Why \"worked with 2 nodes, hangs with 8\"",
-      "Worked scenario",
-      "Interview-ready line"
-    ],
-    "codeLanguages": [
-      "text"
-    ]
-  },
-  "Senior Deep Dive 4 — Coordinated firmware, driver and OS rollout across compute, network and storage": {
-    "volume": "Volume 10",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Senior Deep Dive 4 — Coordinated firmware, driver and OS rollout across compute, network and storage — Bare-Metal, HPC Operations and Infrastructure-as-Code.",
-    "sections": [
-      "Before this deep dive — map failure domains and dependency owners",
-      "Why network and storage firmware need their own validation track",
-      "Change windows sized to the job-length distribution, not the calendar",
-      "... compute p50/p90/p99 elapsed time from this",
-      "Blast-radius containment: sequencing by failure domain, not node list",
-      "Worked scenario",
-      "Interview-ready line"
+      "Senior Deep Dive 3 — MPI, NCCL, and Fabric Joint Debugging",
+      "1. The 4-Layer Diagnostic Ladder",
+      "2. Layer-by-Layer Diagnostic Execution and Terminal Evidence",
+      "Layer 1: Process Launch and System Limits",
+      "Verify process count across all allocated nodes in Job 48210",
+      "Layer 2: PMIx and Out-of-Band Network Rendezvous",
+      "Layer 3: NCCL Graph Construction and Algorithm Selection",
+      "Layer 4: Physical Fabric Health (InfiniBand & RoCE)",
+      "1. Audit all 8 HCA ports for physical link rate and state",
+      "2. Check for physical optical link degradation (Symbol Errors & Retransmits)",
+      "3. The \"2 Nodes Work, 8 Nodes Hang\" Syndrome",
+      "4. Advanced Hardware Acceleration: NVIDIA SHARP (In-Network Computing)",
+      "Enabling and Verifying SHARP in NCCL",
+      "Enable SHARP in NCCL execution environment"
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
+      "text",
+      "bash"
+    ]
+  },
+  "Senior Deep Dive 4 — Coordinated Rollout Across Compute, Network, and Storage": {
+    "volume": "Volume 10",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Cross-domain full-stack upgrades: sequencing firmware, drivers, and operating systems across accelerated compute, Quantum-2 InfiniBand fabrics, and parallel storage systems (Lustre/GPFS/WEKA).",
+    "sections": [
+      "Senior Deep Dive 4 — Coordinated Rollout Across Compute, Network, and Storage",
+      "1. The Cross-Domain AI Factory Triad",
+      "2. The Strict Multi-Domain Upgrade Sequencing Order",
+      "Why Compute is Upgraded Last:",
+      "3. Storage Validation: GPUDirect Storage (GDS) and Checkpoint SLA",
+      "Validating GPUDirect Storage throughput on a canary node using gdsio",
+      "4. Network Fabric Validation: Subnet Manager (OpenSM) Failover",
+      "1. Audit Subnet Manager status before touching switch firmware",
+      "Priority 15 = Highest Master Priority. Ensure a Standby SM is active with Priority 14!",
+      "2. Check standby SM election readiness",
+      "Verifies standby OpenSM instances on backup spine switches are synchronized",
+      "5. Senior Solutions Architect Interview Scenarios",
+      "Scenario 1: Checkpoint Latency Degradation Following a Maintenance Window",
+      "Key Takeaways"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "bash"
     ]
   },
   "Chapter 17 - Git for infrastructure and operations": {

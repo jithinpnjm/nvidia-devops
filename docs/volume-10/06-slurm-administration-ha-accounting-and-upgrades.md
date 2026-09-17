@@ -1,191 +1,264 @@
 ---
-title: "Chapter 6 - Slurm administration: HA, accounting and upgrades"
+title: "Chapter 6 - Slurm Administration: HA, Topology-Aware Scheduling, Accounting, and Upgrades"
 slug: "chapter-6-slurm-administration-ha-accounting-and-upgrades"
 sidebar_position: 6
-description: "Chapter 6 - Slurm administration: HA, accounting and upgrades — Bare-Metal, HPC Operations and Infrastructure-as-Code."
+description: "Production Slurm administration for AI supercomputers: controller HA, GRES GPU binding, cgroups, NUMA pinning, multi-tenant fairshare mathematics, and zero-downtime upgrades."
 source_document: "Authored directly for the JR2018680 gap-coverage volume — no DOCX source."
 ---
-**Learning outcome:** Operate Slurm as a production service — controller/accounting-database high availability, multi-tenant fairshare via associations and QoS, node-state administration, safe version upgrades, and the cgroup/GRES configuration that binds jobs to specific GPUs.
 
-## Start here — follow one job through Slurm
+# Chapter 6 — Slurm Administration: HA, Topology-Aware Scheduling, Accounting, and Upgrades
 
-You do not need to master scheduler mathematics before operating the basics. Follow one submitted script:
+In high-performance accelerated computing, **Slurm Workload Manager** is the premier orchestration engine for large-scale distributed training. Unlike general-purpose cloud orchestrators that bin-pack single containers based on loose CPU and memory estimates, Slurm operates as a **deterministic, gang-scheduled batch fabric**. It allocates thousands of tightly coupled GPUs, guarantees hardware NUMA and PCIe locality, and coordinates synchronized multi-node launches over InfiniBand and RoCE fabrics.
 
-```mermaid
-flowchart LR
-    A[sbatch] --> B["slurmctld validates request"]
-    B --> C["pending queue"]
-    C --> D["scheduler selects nodes"]
-    D --> E["slurmd launches job step"]
-    E --> F["task uses CPU/GPU/memory"]
-    F --> G["accounting records result"]
-```
+As an **NVIDIA Senior Solutions Architect**, you are expected to architect resilient Slurm control planes, configure Generic Resources (GRES) with hardware topology awareness, design multi-tenant fairshare and QoS hierarchies that balance departmental budgets, and perform zero-downtime cluster software upgrades.
 
-- A **job** is the user's resource request and work description.
-- A **partition** is a scheduling pool with rules and eligible nodes; it is not a disk partition.
-- `slurmctld` is the controller that owns scheduling decisions and cluster state.
-- `slurmd` is the daemon on each compute node that launches and supervises work.
-- `slurmdbd` connects Slurm to the accounting database for historical usage and policy.
-- **GRES** describes generic resources such as particular GPUs on a node.
-- **TRES** is Slurm's countable accounting/scheduling model for CPU, memory, node, GPU, and other resources.
-- An **association** connects cluster, account, user, and optionally partition policy. A **QoS** adds limits and priority behavior.
+---
 
-When a job is pending, begin with `squeue -j JOBID -o '%.18i %.9T %.30R'`: the reason field is evidence, not decoration. `Resources` means an eligible allocation is not currently free; `Priority` means other jobs rank higher; an association/QoS reason points toward policy; a node/configuration reason points toward eligibility. Do not "fix" every pending job by raising priority.
+## 1. Slurm Control Plane Architecture and High Availability
 
-When a node is `DRAIN`, preserve the recorded reason and inspect the node, daemon, hardware, GPU, network, and recent prolog/health output. Return it to service only after the fault is corrected and a validation job passes. `scontrol update NodeName=... State=RESUME` changes scheduler state; it does not repair hardware.
-
-The multifactor priority calculation that ranks pending jobs against each other weighs several factors together — age in queue, job size, partition, fairshare, and QoS — but the mental model above (association and QoS as the two policy knobs, fairshare as the fleet-wide weighting between accounts) is enough to begin the administrative sections safely.
-
-## slurmctld/slurmdbd high availability
-
-`slurmctld` is a single logical decision-maker, but it does not have to be a single point of failure. Slurm supports a backup controller declared in `slurm.conf`:
-
-```ini
-# slurm.conf
-SlurmctldHost=slurmctl-01
-SlurmctldHost=slurmctl-02
-```
-
-The first `SlurmctldHost` entry is primary; the second is backup. Compute node `slurmd` processes and client commands (`sbatch`, `squeue`) try the primary first and fail over to the backup if the primary is unreachable. Critically, the backup controller does not maintain its own independent copy of live queue state in memory the way an active-active service would — it becomes authoritative by reading the **state save location** (`StateSaveLocation` in `slurm.conf`, typically on shared/NFS storage reachable by both controllers) when it takes over, which is why that directory must be on shared storage both controllers can reach, not local disk on the primary alone.
-
-`slurmdbd` (the accounting daemon) is a separate process from `slurmctld` and has its own HA story — it is the front end to the accounting database (MySQL/MariaDB), and it can itself run with a backup instance declared via `DbdBackupHost`. The database beneath it should be on its own HA path (replication, managed DB service) independent of Slurm's own failover config; `slurmdbd` losing its database connection does not crash running jobs, but it does mean new job accounting records queue up in `slurmdbd`'s local cache until the database is reachable again, and association/QoS lookups (needed for new job submission decisions) may stall.
+The Slurm control plane separates scheduling logic (`slurmctld`), node supervision (`slurmd`), job execution steps (`slurmstepd`), and accounting telemetry (`slurmdbd`).
 
 ```mermaid
 flowchart TD
-    A["slurmctl-01 (PRIMARY) - active: schedules, holds queue state"] -->|reads/writes| B["StateSaveLocation - shared storage (NFS), queue/job state on disk not just RAM, BOTH controllers can reach"]
-    C["slurmctl-02 (BACKUP) - idle until failover"] -->|"then reads StateSaveLocation to become authoritative"| B
-    B -->|"accounting records (assoc/QoS/usage)"| D["slurmdbd - separate daemon + separate HA path"]
-    D --> E["MySQL/MariaDB - durable accounting store, its own replication, survives controller failover"]
+    subgraph SlurmHA["High-Availability Controller Fabric"]
+        CTL1["Primary Controller (slurmctl-01)
+        - slurmctld (ACTIVE)
+        - In-memory Queue & Partition State
+        - Heartbeat to slurmd nodes"]
+        
+        CTL2["Backup Controller (slurmctl-02)
+        - slurmctld (STANDBY)
+        - Cold State until election"]
+        
+        SHARED_FS[("StateSaveLocation
+        Shared Enterprise NFS / NVMe-oF
+        - job_state, node_state, resv_state")]
+    end
+
+    CTL1 <-->|Active Heartbeat via RPC| CTL2
+    CTL1 -->|Periodic State Snapshot (2-5s)| SHARED_FS
+    CTL2 -.->|Reads state on failover| SHARED_FS
+
+    subgraph Accounting["Accounting Plane"]
+        DBD1["Primary slurmdbd"]
+        DBD2["Backup slurmdbd"]
+        MARIADB[("MariaDB Enterprise Galera Cluster
+        - Associations, TRES, Usage, Fairshare")]
+    end
+
+    CTL1 <-->|RPC Port 6819| DBD1
+    CTL2 -.->|RPC Port 6819| DBD1
+    DBD1 <--> MARIADB
+    DBD2 <--> MARIADB
+
+    subgraph ComputeNodes["Managed Compute Fleet"]
+        N1["dgx-01 (slurmd)"]
+        N2["dgx-02 (slurmd)"]
+        N3["dgx-64 (slurmd)"]
+    end
+
+    CTL1 <-->|RPC Port 6818| ComputeNodes
+    CTL2 -.->|Failover RPC Port 6818| ComputeNodes
 ```
 
-The point worth having precise in an interview: controller failover is about *who makes scheduling decisions right now*; `slurmdbd`/the database is about *durable historical record and policy data* (associations, QoS, fairshare usage) that outlives any individual controller's uptime — a controller failover does not lose accounting history because that was never the controller's data to begin with.
+### 1. Active/Passive Controller Failover Mechanics
 
-## Accounting: associations and QoS for multi-tenant fairshare
+1. **Dual Controller Configuration (`slurm.conf`)**:
+   ```ini
+   SlurmctldHost=slurmctl-01(10.0.1.10)
+   SlurmctldHost=slurmctl-02(10.0.1.11)
+   StateSaveLocation=/var/spool/slurm/state
+   SlurmctldTimeout=120
+   ```
+2. **State Synchronization via `StateSaveLocation`**:
+   - `slurmctld` maintains all active job steps, pending reservations, and node allocations in high-speed host RAM.
+   - Periodically (and upon every transactional change), it serializes state to `StateSaveLocation` on redundant shared storage.
+3. **Failover Execution**:
+   - If `slurmctl-01` fails (hardware crash, network partition), `slurmctl-02` misses heartbeats across `SlurmctldTimeout`.
+   - `slurmctl-02` assumes control, reads the serialized state files from `StateSaveLocation`, verifies running jobs, and begins responding to client RPCs.
+   - **Zero Compute Interruption**: Running jobs on compute nodes do **not** abort. The compute node `slurmd` daemons and local `slurmstepd` processes continue managing running containers and MPI/NCCL ranks independently, reconnecting to the backup controller once it takes over.
 
-`sacctmgr` manages the accounting hierarchy — clusters, accounts (organizational units, often mapped to research groups/projects), users, and the **association** between them (which user can charge which account on which partition, with what fairshare weight):
+---
 
-```text
-$ sacctmgr show account format=Account,Description,Organization
-   Account            Descr        Org
----------- -------------------- ----------
-   physics    Physics Dept HPC    research
-   genomics    Genomics Group      research
-   platform    Platform Team       infra
+## 2. Generic Resources (GRES), cgroups, and Hardware Topology Pinning
 
-$ sacctmgr show assoc format=Account,User,Fairshare,GrpTRES,MaxJobs tree
-   Account       User  Fairshare       GrpTRES  MaxJobs
----------- ---------- ---------- ------------- --------
-  physics                    100  gres/gpu=64
-  physics       jdoe          50
-  physics      asmith          50
-  genomics                    20  gres/gpu=64
-  genomics      bchen        100
-```
+When a distributed training job requests 8 GPUs on an NVIDIA DGX H100 node, improper task binding will destroy performance. If Slurm places rank 0 on CPU socket 1 while allocating GPU 0 (which is physically wired to CPU socket 0), all CUDA commands and RDMA transfers must cross the slow inter-socket processor interconnect (UPI or Infinity Fabric).
 
-Fairshare is a relative weight, not an absolute quota — a `physics` account fairshare of `100` against a `genomics` account fairshare of `20` means Slurm's multifactor priority plugin will favor `physics` jobs over `genomics` jobs, proportionally, when both have pending work and shared partition capacity, adjusted continuously by each account's recent usage (accounts that have been consuming more than their share get a priority penalty; accounts that have been under-consuming get a boost). `GrpTRES=gres/gpu=64` is a hard ceiling — the account cannot have more than 64 GPUs allocated across all its running jobs simultaneously, regardless of fairshare or queue priority.
+### 1. Hardware-Aware GRES Configuration (`gres.conf`)
 
-QoS (`sacctmgr show qos`) layers on top of accounts/associations to express policy independent of the org chart — a `high-priority` QoS with `Priority=1000` and `MaxWall=1-00:00:00` versus a `preemptible` QoS with `Priority=0` and a preempt relationship, applied per-job at submission (`sbatch --qos=high-priority`) rather than fixed to an account. QoS is how you express "this specific job class jumps the queue" or "this job class can be preempted by anything" without restructuring the account tree.
-
-## Worked scenario — a fairshare misconfiguration that starved the fleet for weeks
-
-**Situation:** A new research group (`genomics`) is onboarded and given an association with `Fairshare=100` — copy-pasted from the `platform` team's infrastructure-testing account, which legitimately needs high priority for short validation jobs. Nobody adjusts it down. Three other established research accounts (`physics`, `climate`, `astro`) each sit at `Fairshare=20`, reflecting their actual proportional GPU budget allocation agreed months earlier.
-
-**What happens:** `genomics` submits a steady, moderate stream of jobs — not an unusual volume, nothing that looks like abuse. But Slurm's multifactor priority calculation weighs `genomics` jobs far above the three established accounts on every scheduling pass, because fairshare priority is computed from the *ratio* of allocated share to consumed share, and `genomics`'s allocated share (100 out of a 160 total across four accounts) is wildly out of proportion to what was actually agreed. `physics`, `climate`, and `astro` jobs still run — they are not blocked — but they queue measurably longer every single day, a creeping effect nobody notices because no single day looks anomalous and no job outright fails; `squeue` reason codes show `(Priority)`, which reads as "normal queue contention," not "policy misconfiguration."
-
-**How it surfaces:** Three weeks in, the `physics` PI escalates because a paper deadline is at risk and their jobs are consistently waiting 10+ hours despite the partition rarely showing as fully allocated. The on-call engineer runs:
-
-```text
-$ sshare -l -A physics,genomics,climate,astro
-             Account       User  RawShares  NormShares    RawUsage  EffectvUsage  FairShare
--------------------- ---------- ---------- ----------- ----------- ------------- ----------
-             genomics                  100    0.625000   812345600      0.701234   0.891200
-                physics                20    0.125000   201223400      0.173456   0.216700
-                climate                20    0.125000   198877200      0.171432   0.219900
-                  astro                20    0.125000   198221100      0.170812   0.220400
-```
-
-`FairShare` near 1.0 for `genomics` versus near 0.2 for the others is the diagnostic: `genomics` has been consuming roughly proportional to its allocated (mis-set) share, but that allocated share itself was four to five times larger than intended relative to the other three accounts — the account wasn't gaming the system, the system was configured to favor it.
-
-**Fix:** `sacctmgr modify account genomics set fairshare=20` (matching the other three), followed by watching `sshare` normalize over the following days as decayed usage history catches up to the corrected weight. The lasting fix is process, not a number: any new association's fairshare value gets reviewed against the existing account tree before activation, not copy-pasted from an unrelated account, and `sshare -l` gets checked on a recurring cadence rather than only when someone escalates.
-
-**Interview-ready line:** "A fairshare misconfiguration doesn't look like an outage — no job fails, nothing pages — it looks like a slow, distributed tax on every other account's queue time, which is exactly why it survives for weeks: `squeue`'s `(Priority)` reason code is truthful but uninformative, and only `sshare -l` shows whether that priority gap is fair contention or a policy bug."
-
-## Node state management
-
-```text
-$ scontrol update nodename=gpu-node-14 state=drain reason="ECC errors - pending diagnostics"
-$ scontrol show node gpu-node-14 | grep -E 'State|Reason'
-   State=DRAIN Reason=ECC errors - pending diagnostics [admin@2026-07-30T09:12:00]
-
-$ scontrol update nodename=gpu-node-14 state=resume
-```
-
-`DRAIN` (set deliberately by an admin, or automatically when a node's **prolog** — a script `slurmctld`/`slurmd` runs before starting a job on a node, commonly used to check GPU health, filesystem mounts, or network state — exits with a nonzero status and Slurm auto-drains the node rather than starting jobs against a host it just proved is unhealthy) means the node keeps its currently running job(s) to completion but accepts no new work — the humane way to pull a node for scheduled maintenance without killing a researcher's in-flight job. `DOWN` means Slurm considers the node unusable right now, typically because `slurmd` stopped responding (`SlurmdTimeout` exceeded) — existing jobs on it are generally lost, not gracefully drained, because `slurmctld` can no longer confirm what's happening on that node at all. `FAIL` is a specific, escalated variant of drain used to mark a node as failed hardware rather than merely maintenance-pending, distinguishing "we're doing planned work" from "this node is broken and its next allocation should not happen until someone fixes it" for reporting/tracking purposes — some sites treat FAIL and DRAIN identically in scheduling behavior but keep them semantically distinct in the reason field and in dashboards, precisely so an on-call engineer scanning `sinfo` output can tell planned maintenance from an open incident at a glance.
-
-```text
-$ sinfo -R
-REASON               USER      TIMESTAMP           NODELIST
-ECC errors - pendi+  admin     2026-07-30T09:12:00  gpu-node-14
-Prolog error         slurm     2026-07-28T03:14:02  gpu-node-09
-Not responding       (null)    2026-07-30T11:40:11  gpu-node-22
-```
-
-`sinfo -R` is the fastest single command for "what's wrong across the fleet right now, and since when" — reading the `USER` column tells you whether a state change was deliberate (an admin account) or system-generated (`slurm`, or `(null)` for a node the controller itself marked unresponsive).
-
-## Version upgrades: why order and skew rules matter
-
-Slurm's documented upgrade order is strict: **`slurmdbd` first, then `slurmctld`, then `slurmd` on compute nodes**, never the reverse. `slurmdbd` owns and migrates the accounting database schema; a newer `slurmctld` talking to an older `slurmdbd`/schema can encounter accounting calls the older schema doesn't support, but a `slurmdbd` upgraded first (and its schema migration completed) can continue serving an older `slurmctld` without issue, because `slurmdbd`'s RPC compatibility window is generally wider going backward than a not-yet-upgraded piece going forward.
-
-Version skew is bounded, but more generously than a strict "adjacent versions only" rule: Slurm's documented upgrade policy supports `slurmd`/client-side tools lagging the controller by up to **two** major releases (N, N-1, N-2) — for example a 23.02 `slurmctld` can serve 22.05 *and* 21.08 `slurmd` compute nodes without a forced upgrade, and it's only a third major version behind (e.g. 20.11 compute nodes against a 23.02 controller) that moves outside the supported skew window and risks silent misbehavior rather than a clean failure. This wider window is what makes rolling upgrades practical across a large fleet: compute nodes can lag the controller by up to two major versions while jobs continue running on them, which is the mechanism for **not killing running jobs during an upgrade** — you drain and upgrade `slurmd` on a batch of nodes at a time (the same small-batch, validate-before-expanding rollout discipline used for any fleet-wide change — upgrade a small group, confirm it is healthy, then expand), while the controller itself is upgraded once, during a short maintenance window, without needing every compute node upgraded simultaneously. In practice, most sites still upgrade `slurmd` fleet-wide well before hitting the N-2 boundary — the wider window is a safety margin for a large rolling upgrade taking longer than planned, not a license to defer compute-node upgrades indefinitely.
-
-```mermaid
-flowchart TD
-    A["slurmdbd (schema migrates first)"] --> B["slurmctld (control plane, brief window)"]
-    B --> C["slurmd (compute, rolling, batched) - up to two major versions behind controller (N-2) is supported; three is not"]
-```
-
-```mermaid
-flowchart LR
-    A["drain batch 1 (jobs finish, no new jobs land)"] --> B["upgrade slurmd"]
-    B --> C[resume]
-    C --> D["drain batch 2 ... repeat ..."]
-    D --> E["running jobs on NOT-YET-upgraded nodes are undisturbed throughout"]
-```
-
-The practical admin move: `scontrol update nodename=<batch> state=drain` on a batch, wait for `sinfo`/`squeue` to confirm no running jobs remain on that batch (or accept that draining lets current jobs finish before removing the node from scheduling), upgrade `slurmd` and restart it on that batch, `resume` it, move to the next batch — a batch of nodes is unavailable for *new* scheduling during its own upgrade window, but the cluster as a whole, and every job that was running before the upgrade started, is never killed by the process.
-
-## cgroup and GRES configuration for GPU binding
-
-`gres.conf` declares what GPU devices a node has and which specific device files map to which GRES index — this is the node-side capability declaration that the scheduler reads when deciding which physical GPU to hand a job that requested `--gres=gpu:1`:
+`gres.conf` tells Slurm exactly which GPU devices, PCIe addresses, CPU cores, and NVLink links correspond to each accelerator:
 
 ```ini
-# /etc/slurm/gres.conf  (on gpu-node-14, an 8-GPU node)
-AutoDetect=nvml
-Name=gpu Type=h100 File=/dev/nvidia0 Cores=0-15
-Name=gpu Type=h100 File=/dev/nvidia1 Cores=16-31
+# /etc/slurm/gres.conf on DGX H100 (Dual 64-core CPUs, 8x H100 SXM5 GPUs)
+# Node has 2 NUMA nodes (Sockets 0 and 1)
+
+# GPUs 0-3 connected to CPU Socket 0 (Cores 0-63)
+NodeName=dgx-h100-[01-64] Name=gpu Type=h100 File=/dev/nvidia0 Cores=0-15 Links=-,1,1,1,1,1,1,1
+NodeName=dgx-h100-[01-64] Name=gpu Type=h100 File=/dev/nvidia1 Cores=16-31 Links=1,-,1,1,1,1,1,1
+NodeName=dgx-h100-[01-64] Name=gpu Type=h100 File=/dev/nvidia2 Cores=32-47 Links=1,1,-,1,1,1,1,1
+NodeName=dgx-h100-[01-64] Name=gpu Type=h100 File=/dev/nvidia3 Cores=48-63 Links=1,1,1,-,1,1,1,1
+
+# GPUs 4-7 connected to CPU Socket 1 (Cores 64-127)
+NodeName=dgx-h100-[01-64] Name=gpu Type=h100 File=/dev/nvidia4 Cores=64-79 Links=1,1,1,1,-,1,1,1
+NodeName=dgx-h100-[01-64] Name=gpu Type=h100 File=/dev/nvidia5 Cores=80-95 Links=1,1,1,1,1,-,1,1
+NodeName=dgx-h100-[01-64] Name=gpu Type=h100 File=/dev/nvidia6 Cores=96-111 Links=1,1,1,1,1,1,-,1
+NodeName=dgx-h100-[01-64] Name=gpu Type=h100 File=/dev/nvidia7 Cores=112-127 Links=1,1,1,1,1,1,1,-
 ```
 
-`AutoDetect=nvml` lets Slurm query NVML directly for GPU topology instead of hand-listing every device, which is the standard on modern DGX/H100 nodes; the `Cores=` binding is what ties a specific GPU to specific CPU cores for NUMA-aware placement — a job requesting `--gres=gpu:1` on this node gets steered toward the CPU cores physically closest to the GPU it's allocated, which matters for PCIe/NVLink-adjacent memory traffic on multi-socket nodes.
+### 2. Linux cgroups Enforcement (`cgroup.conf`)
 
-`cgroup.conf` controls whether Slurm actually enforces the isolation implied by an allocation, rather than merely bookkeeping it:
+Without strict cgroup containment, an unauthorized or rogue job process can access `/dev/nvidia*` nodes allocated to other users, corrupting neighboring memory or hijacking GPU cycles.
 
 ```ini
 # /etc/slurm/cgroup.conf
+CgroupPlugin=cgroup/v2
 ConstrainCores=yes
-ConstrainDevices=yes
 ConstrainRAMSpace=yes
+ConstrainDevices=yes
+AllowedDevicesFile=/etc/slurm/cgroup_allowed_devices_file.conf
 ```
 
-`ConstrainDevices=yes` is the line that makes GPU allocation a hard boundary instead of an honor system: without it, a job allocated 1 of 8 GPUs on a node can still see and potentially touch all 8 GPU device files, because nothing at the OS/cgroup layer is stopping it — Slurm's scheduler-side bookkeeping says "you have GPU 0," but the process's actual device visibility is unrestricted. With it, the cgroup device controller physically restricts the job's container/process tree to only the device files GRES assigned it, which is the difference between "trusted convention" and "kernel-enforced isolation" on a shared multi-tenant GPU node — a distinction that matters a great deal on a fleet where mutually distrusting research groups share the same physical hardware.
+- `ConstrainDevices=yes`: Slurm automatically generates an isolated device cgroup whitelist for each job step. If a user requests `--gres=gpu:2`, Slurm only maps the two assigned `/dev/nvidiaX` minor nodes into the container’s cgroup. Any attempt to access other GPUs throws `Operation not permitted` at the kernel level.
+- `ConstrainCores=yes`: Pins tasks strictly to allocated CPU cores, eliminating noisy-neighbor core thrashing.
 
-## Mnemonic
+---
 
-**D.O.G.F.A.C.E.** — **D**bd first (schema migrates), then controller, then compute (upgrade order); **O**nly up to two major versions of skew (N-2), no more; **G**RES declares capability per node; **F**airshare is relative, not absolute — review it, don't copy-paste it; **A**ssociations + QoS express org-chart policy and job-class policy separately; **C**onstrainDevices=yes turns GPU isolation from convention into enforcement; **E**xamine `sinfo -R` / `sshare -l` before escalating, not after.
+## 3. Multi-Tenant Accounting, Associations, and Fairshare Mathematics
 
-## Practice
+In an enterprise AI Factory shared across Foundation Model Research, Product Engineering, and Autonomous Driving teams, allocation cannot be first-come, first-served. Slurm uses **Trackable Resources (TRES)** and the **Multifactor Priority Plugin** to enforce mathematically fair scheduling.
 
-1. Explain why `slurmdbd` must be upgraded before `slurmctld`, and what specifically would go wrong if the order were reversed.
-2. Distinguish `DRAIN`, `DOWN`, and `FAIL` node states in terms of what happens to a job already running on that node when the state is set.
-3. A research account's jobs are consistently deprioritized despite the partition rarely being fully allocated. Name the two `sacctmgr`/`sshare` commands you'd run first, and what specific field distinguishes "genuine capacity contention" from "fairshare misconfiguration."
-4. Why does controller (`slurmctld`) failover not lose accounting history, even though the failover mechanism itself has nothing to do with `slurmdbd`?
-5. A job allocated 1 of 8 GPUs on a node can still see all 8 GPU device files. Which config file and which specific setting is missing, and what is the operational risk of leaving it unset on a shared multi-tenant cluster?
+```mermaid
+flowchart LR
+    subgraph Factors["Job Priority Components"]
+        AGE["Age Factor (Wait Time)"]
+        FS["Fairshare Factor (Normalized Usage)"]
+        JS["Job Size Factor (Scale Preference)"]
+        QOS_F["QoS Factor (Priority Weight)"]
+        TRES_F["TRES Factor (GPU Intensity)"]
+    end
+
+    subgraph Weights["slurm.conf Priority Weights"]
+        W_AGE["PriorityWeightAge = 1000"]
+        W_FS["PriorityWeightFairshare = 100000"]
+        W_JS["PriorityWeightJobSize = 10000"]
+        W_QOS["PriorityWeightQOS = 50000"]
+    end
+
+    AGE --> W_AGE
+    FS --> W_FS
+    JS --> W_JS
+    QOS_F --> W_QOS
+
+    W_AGE --> SUM["Total Priority = SUM(Weight * Factor)"]
+    W_FS --> SUM
+    W_JS --> SUM
+    W_QOS --> SUM
+    SUM --> SCHED["Highest Priority Job Dispatched First"]
+```
+
+### The Fairshare Mathematical Formula
+
+Slurm calculates an account's fairshare factor `F` (between 0.0 and 1.0) using an exponential decayed usage algorithm:
+
+```text
+F = 2 ^ (- U_E / S_N)
+```
+
+Where:
+- `S_N` is the **Normalized Shares** assigned to the account (allocated budget ratio relative to the cluster total).
+- `U_E` is the **Effective Usage** (decayed historical GPU-seconds consumed by the account, decayed via `PriorityDecayHalfLife=7-0`—a 7-day half-life).
+
+**Interpreting the Metric:**
+- If an account has used **less** than its allocated share (`U_E < S_N`), `F > 0.5`, boosting the priority of its pending jobs.
+- If an account has **over-consumed** its budget (`U_E > S_N`), `F -> 0`, reducing queue priority and allowing starved departments to run their workloads.
+
+### Production `sacctmgr` Account & QoS Setup
+
+```bash
+# 1. Define Accounts with Fairshare Weights and Max GPU Allocations
+sacctmgr add account name=llm_research Organization=ai Description="Foundation LLM Team" \
+  Fairshare=100 GrpTRES=gres/gpu=256
+
+sacctmgr add account name=cv_product Organization=ai Description="Computer Vision Team" \
+  Fairshare=50 GrpTRES=gres/gpu=64
+
+# 2. Define High-Priority vs. Preemptible QoS
+sacctmgr add qos name=prod_training Priority=10000 Flags=DenyOnLimit PreemptMode=off
+sacctmgr add qos name=interactive_dev Priority=1000 MaxWall=04:00:00 MaxTRESPerUser=gres/gpu=8
+sacctmgr add qos name=scavenger Priority=0 PreemptMode=requeue
+
+# 3. Associate Users with Accounts and QoS
+sacctmgr add user name=jdoe Account=llm_research DefaultQOS=prod_training QOS=prod_training,scavenger
+```
+
+---
+
+## 4. Zero-Downtime Slurm Version Upgrade Workflow
+
+Upgrading Slurm across an enterprise cluster (e.g., from version 23.02 to 24.05) cannot require terminating multi-day training jobs. Slurm natively supports **rolling version upgrades** because its RPC protocol is backward-compatible across adjacent major versions ($N$ and $N+1$).
+
+### The 4-Stage Production Upgrade Sequence
+
+```text
+[Stage 1: Upgrade Accounting Database (slurmdbd)]
+  - slurmdbd must ALWAYS be upgraded first.
+  - It handles automatic database schema migrations in MariaDB.
+  - Backup MariaDB: mysqldump -u slurm -p slurm_acct_db > /backup/slurm_acct_$(date +%F).sql
+  - Stop slurmdbd -> Update RPM/DEB packages -> Start slurmdbd -> Verify logs.
+
+[Stage 2: Upgrade Backup Controller (slurmctl-02)]
+  - Stop slurmctld on slurmctl-02 -> Update packages -> Restart slurmctld.
+  - Controller remains in standby, validating compatibility with primary.
+
+[Stage 3: Failover and Upgrade Primary Controller (slurmctl-01)]
+  - Stop slurmctld on slurmctl-01.
+  - slurmctl-02 (now running new version) takes over primary scheduling authority.
+  - Update packages on slurmctl-01 -> Start slurmctld (joins as backup).
+  - Optionally fail back authority to slurmctl-01.
+
+[Stage 4: Progressive Rolling Upgrade of Compute Nodes (slurmd)]
+  - Compute nodes can run version N while controller runs version N+1.
+  - On each compute node:
+      1. Upgrade slurmd package.
+      2. systemctl restart slurmd
+  - NOTE: Restarting slurmd does NOT terminate running jobs!
+    Running jobs are monitored by independent slurmstepd child processes.
+    slurmd re-attaches to existing slurmstepd instances upon restart.
+```
+
+---
+
+## 5. Senior Solutions Architect Interview Scenarios
+
+### Scenario 1: GPU-to-CPU NUMA Misalignment Performance Collapse
+**Interviewer:** *"A customer is running 8-GPU PyTorch DDP training on DGX H100 nodes via Slurm. Single-node training runs at 4,200 tokens/sec. When they submit jobs requesting 4 GPUs (`#SBATCH --gres=gpu:4`), throughput drops drastically to 1,800 tokens/sec. How do you diagnose and solve this?"*
+
+**Candidate Answer:**
+> "A 50%+ throughput collapse on partial-node allocations indicates **NUMA crossing and lack of core-to-GPU affinity**:
+> 1. **The Root Cause:** On a dual-socket system, GPUs 0–3 attach to CPU Socket 0, and GPUs 4–7 attach to CPU Socket 1. If Slurm is configured without explicit core bindings in `gres.conf`, it may allocate GPUs 0, 1, 4, 5 (straddling two sockets) while placing all CPU worker threads on Socket 0. Every tensor copy from CPU RAM to GPUs 4 and 5 must traverse the inter-socket UPI bus, saturating socket interconnect bandwidth and destroying training throughput.
+> 2. **Verification:** I inspect `scontrol show job <jobid>` and run `numactl -H` and `nvidia-smi topo -m` on the allocated node.
+> 3. **The Architectural Fix:**
+>    - In `gres.conf`, map each GPU explicitly to its local NUMA socket CPU cores (e.g., `Cores=0-63` for Socket 0 GPUs, `Cores=64-127` for Socket 1 GPUs).
+>    - In `slurm.conf`, enforce `TaskPlugin=task/affinity,task/cgroup` and `TaskPluginParam=cores`.
+>    - Require users to submit jobs with `--cpus-per-gpu=16 --gpu-bind=closest`, ensuring Slurm schedules CPU threads strictly on the NUMA domain directly connected to the allocated accelerators."
+
+---
+
+### Scenario 2: Controller HA Split-Brain and Queue Corruption
+**Interviewer:** *"During a network glitch between the primary and backup Slurm controllers, both `slurmctld` instances believe they are active and attempt to write to `StateSaveLocation`. What safeguards prevent queue state corruption?"*
+
+**Candidate Answer:**
+> "Slurm controllers prevent split-brain through two primary mechanisms:
+> 1. **POSIX File Locking on State Files:** `slurmctld` acquires an exclusive lock (`fcntl`/`flock`) on the state directory files (`job_state`, `node_state`) within `StateSaveLocation`. Even if the backup controller attempts to start scheduling, it cannot acquire write locks on active state files while the primary holds them.
+> 2. **Slurmd Authoritative Verification:** When compute node `slurmd` processes receive scheduling RPCs, they verify the origin against the primary IP. If the backup attempts to issue an allocation command while the primary is still alive, `slurmd` drops the RPC or checks if the primary has definitively timed out.
+> 3. **Architectural Hardening:** To guarantee zero split-brain in mission-critical AI supercomputers, we layer an enterprise cluster resource manager such as **Pacemaker with Redfish STONITH fencing**. Pacemaker manages the virtual IP and actively powers off a rogue controller before promoting the standby node."
+
+---
+
+## Key Takeaways
+
+1. **Deterministic Locality Over Bin-Packing:** High-performance AI scheduling requires strict alignment between GPUs, CPU cores, and NUMA domains via `gres.conf` and `cgroup.conf`.
+2. **Device cgroups Protect Multi-Tenancy:** Always enforce `ConstrainDevices=yes` to ensure containers cannot access unallocated GPU devices.
+3. **Fairshare Governs Multi-Tenant Equity:** Multi-factor priority uses decayed historical usage ($U_E$) and normalized shares ($S_N$) to balance departmental queues without manual ticketing.
+4. **Independent slurmstepd Enables Zero-Downtime Upgrades:** Compute node `slurmd` daemons can be restarted or upgraded without killing running GPU jobs because workloads run under detached `slurmstepd` processes.
+5. **Always Upgrade `slurmdbd` First:** Schema migrations are handled by the database daemon; controllers and nodes must follow in strict sequence.
