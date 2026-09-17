@@ -11,7 +11,7 @@ export default function PythonPlayground({exercise}: {exercise: PythonExercise})
   const [code, setCode] = useState(exercise.starter);
   const [output, setOutput] = useState('Runtime loads on first execution. Python runs in a disposable browser Web Worker.');
   const [running, setRunning] = useState(false);
-  const [showSolution, setShowSolution] = useState(false);
+  
   const workerRef = useRef<Worker>();
   const tutorPrompt = `Act as a senior Python and DevOps mentor. Help me solve this browser lab without skipping the reasoning.
 
@@ -39,7 +39,7 @@ ${exercise.solution}
 Why this matters in production: ${exercise.explanation}
 
 Teach in this order: problem restatement -> inputs/outputs -> algorithm or pseudocode -> data structures -> edge cases -> implementation -> tests -> complexity -> production hardening. Ask me for my approach before writing code. Challenge unsafe assumptions and do not reveal the private reference solution until I attempt it or explicitly ask. When you provide the final solution, give complete runnable code, explain the important lines, show representative output, compare alternatives, and name operational risks.`;
-  useEffect(() => { setCode(exercise.starter); setOutput('Ready.'); setShowSolution(false); }, [exercise]);
+  useEffect(() => { setCode(exercise.starter); setOutput('Ready.'); }, [exercise]);
   useEffect(() => () => workerRef.current?.terminate(), []);
 
   const execute = (withTests: boolean) => {
@@ -80,7 +80,15 @@ Teach in this order: problem restatement -> inputs/outputs -> algorithm or pseud
     <div className="console"><strong>Output</strong><pre>{output}</pre></div>
     <details><summary>Hint</summary><p>{exercise.hint}</p></details>
     <p><strong>Expected:</strong> <code>{exercise.expected}</code></p>
-    <button className="secondary" onClick={() => setShowSolution(!showSolution)}>{showSolution ? 'Hide solution' : 'Reveal solution'}</button>
-    {showSolution && <div className="solution"><pre><code>{exercise.solution}</code></pre><p>{exercise.explanation}</p></div>}
+    <details className="solutionDropdown">
+      <summary>Reveal Reference Solution & Explanation</summary>
+      <div className="solutionContent">
+        <pre><code>{exercise.solution}</code></pre>
+        <div className="learningCallout">
+          <strong>Why this matters in production</strong>
+          <p>{exercise.explanation}</p>
+        </div>
+      </div>
+    </details>
   </section>;
 }

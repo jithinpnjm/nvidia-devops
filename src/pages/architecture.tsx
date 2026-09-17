@@ -118,7 +118,10 @@ Rules: lead with the business outcome this design protects (availability, cost, 
             <section><h4>Constraints</h4><ul>{scenario.constraints.map((item) => <li key={item}>{item}</li>)}</ul></section>
           </div>
 
-          <StaffLearningPanel blueprint={learning} title={scenario.title} solutionSteps={scenario.answerOutline} failures={scenario.failureModes} tradeoffs={scenario.tradeoffs} metrics={scenario.successMetrics} technologyDecisions={technologyDecisions}/>
+          <details className="solutionDropdown">
+            <summary>Reveal Recommended Architecture and Trade-offs</summary>
+            <div className="solutionContent">
+              <StaffLearningPanel blueprint={learning} title={scenario.title} solutionSteps={scenario.answerOutline} failures={scenario.failureModes} tradeoffs={scenario.tradeoffs} metrics={scenario.successMetrics} technologyDecisions={technologyDecisions}/>
 
           <h3>Recommended architecture, explained component by component</h3>
           <Mermaid value={outlineMermaid(scenario.answerOutline.map((s) => s.label))}/>
@@ -145,6 +148,9 @@ Rules: lead with the business outcome this design protects (availability, cost, 
             <p><strong>Self-check:</strong> could you defend every item above out loud, with the reasoning, not just the label? If not, re-read the trade-offs section for that item.</p>
           </details>
 
+          </div>
+          </details>
+          
           <label className="notesLabel" htmlFor="architecture-notes">Your architecture notes <small>Saved locally in this browser</small></label>
           <textarea id="architecture-notes" rows={12} value={notes} onChange={(event) => setNotes(event.target.value)} placeholder={'Assumptions:\n\nSLOs and scale:\n\nWorkload/data path:\n\nControl path:\n\nFailure domains and degraded mode:\n\nKey trade-offs:\n\nOperations and validation:'}/>
           <section className="chatgptCoachPanel"><div><span className="eyebrow">Live panelist</span><h3>Run this exact case interactively in ChatGPT</h3><p>The panelist reveals customer facts gradually, challenges vague choices and scores your committed design.</p></div><details><summary>Preview full prompt</summary><pre className="promptPreview">{panelistPrompt}</pre></details><ChatGPTStudyLink prompt={panelistPrompt} label="Start mock system-design interview ↗"/></section>

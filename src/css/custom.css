@@ -28,3 +28,55 @@ html {scrollbar-gutter:stable} body {font-size:15px}.navbar {border-bottom:1px s
 /* Mermaid diagrams render dark text (theme variables in docusaurus.config.ts); the SVG itself has no background fill, so give it one explicitly or the text vanishes against the dark-mode page background. */
 .docusaurus-mermaid-container {background:#f4f6f3;border:1px solid var(--academy-border);border-radius:6px;padding:1rem;overflow:auto}
 .docusaurus-mermaid-container svg {background:transparent}
+
+
+/* Interactive Solution Dropdowns for /labs, /troubleshooting, /architecture */
+.solutionDropdown {
+  margin-top: 2rem;
+  margin-bottom: 2rem;
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: 8px;
+  background: var(--ifm-color-emphasis-100);
+  overflow: hidden;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.solutionDropdown > summary {
+  padding: 1.2rem;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 1.1rem;
+  background: var(--ifm-color-primary-dark);
+  color: white;
+  list-style: none; /* Hide default triangle */
+  user-select: none;
+  display: flex;
+  align-items: center;
+  transition: background-color 0.2s;
+}
+
+.solutionDropdown > summary::-webkit-details-marker {
+  display: none;
+}
+
+.solutionDropdown > summary::before {
+  content: '▶';
+  display: inline-block;
+  margin-right: 0.8rem;
+  transition: transform 0.2s;
+  font-size: 0.9rem;
+}
+
+.solutionDropdown[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.solutionDropdown[open] > summary {
+  background: var(--ifm-color-primary-darker);
+  border-bottom: 1px solid var(--ifm-color-emphasis-300);
+}
+
+.solutionContent {
+  padding: 2rem;
+  background: var(--ifm-background-surface-color);
+}

@@ -95,7 +95,10 @@ Rules: name the business impact first (what broke for the user/customer, for how
           <span className="eyebrow">{scenario.category}</span><h2>{scenario.title}</h2>
           <div className="incidentScenarioStatement"><strong>The scenario:</strong> {scenario.description}</div>
 
-          <StaffLearningPanel blueprint={learning} title={scenario.title} solutionSteps={solutionSteps} failures={[{failure: scenario.description, response: scenario.expectedRootCause}]} metrics={scenario.evidence.map((item) => `${item.action}: ${item.interpretation}`)} mode="incident"/>
+          <details className="solutionDropdown">
+            <summary>Reveal Diagnosis and Incident Runbook</summary>
+            <div className="solutionContent">
+              <StaffLearningPanel blueprint={learning} title={scenario.title} solutionSteps={solutionSteps} failures={[{failure: scenario.description, response: scenario.expectedRootCause}]} metrics={scenario.evidence.map((item) => `${item.action}: ${item.interpretation}`)} mode="incident"/>
 
           <h3>Walking through the diagnosis</h3>
           <p>Here is the reasoning a senior engineer would actually walk, in order — what to check first and why, what each check would show, and what that finding rules in or out before touching anything.</p>
@@ -123,6 +126,9 @@ Rules: name the business impact first (what broke for the user/customer, for how
             </ol>
           </details>
 
+          </div>
+          </details>
+          
           <label className="hypothesisNote"><strong>Your notes (optional, for the ChatGPT drill below)</strong><textarea value={hypothesis} onChange={(e) => setHypothesis(e.target.value)} placeholder="Jot your own framing before running the drill, if you want the tutor to react to it…"/></label>
 
           <section className="chatgptCoachPanel"><div><span className="eyebrow">Teach and clarify</span><h3>Open the complete case with a Staff SRE tutor</h3><p>Use this when any component, flow, metric or solution step is unclear. The tutor teaches first, then checks understanding.</p></div><details><summary>Preview tutor prompt</summary><pre className="promptPreview">{tutorPrompt}</pre></details><ChatGPTStudyLink prompt={tutorPrompt} label="Study this incident in ChatGPT ↗"/></section>
