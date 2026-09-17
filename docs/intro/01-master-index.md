@@ -44,11 +44,11 @@ Each row below is now ONE chapter, not two — the foundation and the advanced m
 
 | If this feels unfamiliar | Study first |
 |---|---|
-| Processes, memory, files, ports, DNS, systemd, permissions | [Volume 1, Chapter 1](/curriculum/volume-01/chapter-1-processes-threads-cpu-scheduling-and-load) (opens with a Foundations section) |
-| Storage, filesystems, mounts, local vs. shared/network storage | [Volume 1, Chapter 3](/curriculum/volume-01/chapter-3-files-file-descriptors-filesystems-and-block-i-o) (opens with a Foundations section) |
-| Networking: IP, ports, DNS, TCP/UDP, firewalls | [Volume 1, Chapter 4](/curriculum/volume-01/chapter-4-networking-ip-routes-sockets-tcp-dns-nat-and-tls) (opens with a Foundations section) |
-| Python syntax, tracebacks, files, functions, tests | [Volume 2, Chapter 1](/curriculum/volume-02/chapter-1-how-python-actually-executes-your-infrastructure-script) (opens with a Foundations section) |
-| Containers, Kubernetes objects, reconciliation | [Volume 3, Chapter 1](/curriculum/volume-03/chapter-1-api-server-etcd-and-the-object-model) (opens with a Foundations section) |
+| Processes, memory, files, ports, DNS, systemd, permissions | [Volume 1, Chapter 1](/curriculum/volume-01/linux-compute-memory-masterclass) (opens with a Foundations section) |
+| Storage, filesystems, mounts, local vs. shared/network storage | [Volume 1, Chapter 3](/curriculum/volume-01/linux-storage-io-masterclass) (opens with a Foundations section) |
+| Networking: IP, ports, DNS, TCP/UDP, firewalls | [Volume 1, Chapter 4](/curriculum/volume-01/linux-networking-masterclass) (opens with a Foundations section) |
+| Python syntax, tracebacks, files, functions, tests | [Volume 2, Chapter 1](/curriculum/volume-02/python-core-oop-masterclass) (opens with a Foundations section) |
+| Containers, Kubernetes objects, reconciliation | [Volume 3, Chapter 1](/curriculum/volume-03/k8s-control-plane-scheduling-masterclass) (opens with a Foundations section) |
 | GPU hardware, CUDA, driver/toolkit layering | [Volume 4, Chapter 1](/curriculum/volume-04/chapter-1-gpu-execution-and-memory-mental-model) (opens with a Foundations section) |
 | Training vs. inference, tokens, model parameters | [Volume 5, Chapter 1](/curriculum/volume-05/chapter-1-classify-the-ai-workload-before-designing-infrastructure) (opens with a Foundations section) |
 | HPC clusters, job schedulers, MPI, why network speed matters more | [Volume 6, Chapter 1](/curriculum/volume-06/chapter-1-distributed-systems-performance-for-gpu-jobs) (opens with a Foundations section) |

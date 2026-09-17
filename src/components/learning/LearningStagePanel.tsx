@@ -8,11 +8,11 @@ type Stage = {
 };
 
 const FOUNDATIONS_CHAPTERS = [
-  '/volume-01/chapter-1-processes-threads-cpu-scheduling-and-load',
-  '/volume-01/chapter-3-files-file-descriptors-filesystems-and-block-i-o',
-  '/volume-01/chapter-4-networking-ip-routes-sockets-tcp-dns-nat-and-tls',
-  '/volume-02/chapter-1-how-python-actually-executes-your-infrastructure-script',
-  '/volume-03/chapter-1-api-server-etcd-and-the-object-model',
+  '/volume-01/linux-compute-memory-masterclass',
+  '/volume-01/linux-storage-io-masterclass',
+  '/volume-01/linux-networking-masterclass',
+  '/volume-02/python-core-oop-masterclass',
+  '/volume-03/k8s-control-plane-scheduling-masterclass',
   '/volume-04/chapter-1-gpu-execution-and-memory-mental-model',
   '/volume-05/chapter-1-classify-the-ai-workload-before-designing-infrastructure',
   '/volume-06/chapter-1-distributed-systems-performance-for-gpu-jobs',

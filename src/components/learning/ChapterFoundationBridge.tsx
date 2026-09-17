@@ -6,9 +6,9 @@ import {getChapterFoundationBridge} from '@site/src/data/chapterFoundationBridge
 const integratedFoundationHeading = /^foundations(?:\s*:|\b)/i;
 
 const volumeFoundations: Record<string, {to: string; label: string}> = {
-  'volume-01': {to: '/curriculum/volume-01/chapter-1-processes-threads-cpu-scheduling-and-load#foundations-start-here-if-this-is-new-to-you', label: 'Study the integrated Linux foundation'},
-  'volume-02': {to: '/curriculum/volume-02/chapter-1-how-python-actually-executes-your-infrastructure-script#foundations-start-here-if-python-syntax-isnt-yet-comfortable', label: 'Study the integrated Python foundation'},
-  'volume-03': {to: '/curriculum/volume-03/chapter-1-api-server-etcd-and-the-object-model#foundations-start-here-if-kubernetes-concepts-are-new-to-you', label: 'Study the integrated Kubernetes foundation'},
+  'volume-01': {to: '/curriculum/volume-01/linux-compute-memory-masterclass#foundations-start-here-if-this-is-new-to-you', label: 'Study the integrated Linux foundation'},
+  'volume-02': {to: '/curriculum/volume-02/python-core-oop-masterclass#foundations-start-here-if-python-syntax-isnt-yet-comfortable', label: 'Study the integrated Python foundation'},
+  'volume-03': {to: '/curriculum/volume-03/k8s-control-plane-scheduling-masterclass#foundations-start-here-if-kubernetes-concepts-are-new-to-you', label: 'Study the integrated Kubernetes foundation'},
   'volume-04': {to: '/curriculum/volume-04/chapter-1-gpu-execution-and-memory-mental-model#foundations-start-here-if-gpucuda-concepts-are-new-to-you', label: 'Study GPU computing from first principles'},
   'volume-05': {to: '/curriculum/volume-05/chapter-1-classify-the-ai-workload-before-designing-infrastructure#foundations-start-here-if-aiml-concepts-are-new-to-you', label: 'Study AI and LLM workloads from zero'},
   'volume-06': {to: '/curriculum/volume-06/chapter-1-distributed-systems-performance-for-gpu-jobs#foundations-start-here-if-hpc-concepts-are-new-to-you', label: 'Study the integrated HPC foundation'},

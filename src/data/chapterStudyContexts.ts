@@ -8874,69 +8874,54 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash"
     ]
   },
-  "Chapter 1 - Processes, threads, CPU scheduling and load": {
+  "Masterclass: Linux Compute & Memory (CPU, NUMA, OOM)": {
     "volume": "Volume 1",
     "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
-    "learningOutcome": "Explain process/thread state, scheduler queues, CPU time, context switches, load average, throttling and the evidence that distinguishes them.",
+    "learningOutcome": "",
     "sections": [
-      "Foundations: start here if this is new to you",
-      "What a kernel actually does",
-      "Check your understanding",
-      "What a process actually is",
-      "Files, file descriptors, and \"everything is a file\"",
-      "Permissions and ownership, at a basic level",
-      "What a shell actually is",
-      "What a package manager does",
-      "The first mental model",
-      "Follow one request through Linux",
-      "Memory from a process request to OOM",
-      "Files, mounts and I/O",
-      "Network layers with concrete questions",
-      "Identity and security controls"
+      "Masterclass: Linux Compute & Memory Architecture for AI Workloads",
+      "1. Introduction and Learning Objectives",
+      "1.1 Measurable Learning Objectives",
+      "1.2 Prerequisites and Reading Time",
+      "2. The Big Picture: Compute and Memory Topology",
+      "2.1 The Problem of Non-Uniformity",
+      "3. Processes, Threads, and Execution Contexts",
+      "3.1 What is a Process?",
+      "3.2 Threads vs. Processes",
+      "3.3 The Lifecycle of an Execution Context",
+      "4. CPU Scheduling Deep Dive",
+      "4.1 The Run Queue (rq)",
+      "4.2 Completely Fair Scheduler (CFS)",
+      "4.3 The Shift to EEVDF (Earliest Eligible Virtual Deadline First)"
     ],
     "codeLanguages": [
       "mermaid",
       "text",
-      "bash"
-    ]
-  },
-  "Chapter 2 - Virtual memory, page cache, swap and OOM": {
-    "volume": "Volume 1",
-    "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
-    "learningOutcome": "Trace allocation from virtual address space through pages, reclaim and cgroup limits; distinguish node OOM from container OOM.",
-    "sections": [
-      "Chapter 2 — Virtual memory, page cache, swap and OOM",
-      "2.1 Virtual memory",
-      "2.2 Page cache and \"free memory\"",
-      "2.3 OOM at different boundaries",
-      "Worked scenario",
-      "Practice"
-    ],
-    "codeLanguages": [
       "bash",
-      "text",
-      "mermaid"
+      "c",
+      "python",
+      "ini"
     ]
   },
-  "Chapter 3 - Files, file descriptors, filesystems and block I/O": {
+  "Masterclass: Linux Storage I/O — From VFS to NVMe and GPUDirect Storage": {
     "volume": "Volume 1",
     "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
-    "learningOutcome": "Understand how applications reach storage and distinguish capacity, metadata, throughput, IOPS and latency failures.",
+    "learningOutcome": "Masterclass covering Files, File descriptors, VFS, filesystems, Block I/O, NVMe, and checkpoint behavior.",
     "sections": [
-      "Foundations: start here if this is new to you",
-      "The problem storage exists to solve",
-      "What a block device actually is",
-      "What a filesystem actually is",
-      "What a mount actually is",
+      "Masterclass: Linux Storage I/O — From VFS to NVMe and GPUDirect Storage",
+      "Part 1: Foundations of Storage and Filesystems",
+      "The Problem Storage Exists to Solve",
+      "What a Block Device Actually Is",
+      "What a Filesystem Actually Is",
+      "What a Mount Actually Is",
       "Local disk versus shared/network storage: the distinction that matters most",
       "\"The disk is full\" can mean several different things",
-      "Glossary",
-      "Before you go deeper, make sure you can...",
-      "Chapter 3 — Files, file descriptors, filesystems and block I/O",
-      "3.1 File descriptors and VFS",
-      "3.2 Capacity versus latency",
-      "Worked scenario",
-      "Practice"
+      "Part 2: File descriptors and VFS",
+      "The read path, precisely (VFS as a dispatch layer)",
+      "Sample lsof /fd output and what actually leaks in production",
+      "lsof -p , /proc/<PID /limits , and ss -s , annotated",
+      "Part 3: O DIRECT, Alignment, and GPUDirect Storage",
+      "O DIRECT : bypassing the page cache"
     ],
     "codeLanguages": [
       "mermaid",
@@ -8945,867 +8930,225 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "c"
     ]
   },
-  "Chapter 4 - Networking: IP, routes, sockets, TCP, DNS, NAT and TLS": {
+  "Linux Networking Masterclass: TCP/IP, RoCEv2, and Fabric Tuning": {
     "volume": "Volume 1",
     "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
-    "learningOutcome": "Trace a connection from name lookup through application response and identify what each diagnostic proves.",
+    "learningOutcome": "",
     "sections": [
-      "Foundations: start here if this is new to you",
-      "What an IP address actually is",
-      "What a port is",
-      "TCP vs. UDP, in plain language",
-      "What DNS actually does",
-      "What a firewall conceptually does",
-      "What a route is",
-      "NAT, in plain language",
-      "TLS, in plain language",
-      "A brief, honest preview: why HPC/AI networking is a different world",
-      "Glossary",
-      "Before you go deeper, make sure you can...",
-      "Chapter 4 — Networking: IP, routes, sockets, TCP, DNS, NAT and TLS",
-      "4.1 Addressing and routing"
-    ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Chapter 5 - Namespaces, cgroups and container mechanics": {
-    "volume": "Volume 1",
-    "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
-    "learningOutcome": "Explain what a container actually is at the Linux level and how Kubernetes requests/limits map to resource control.",
-    "sections": [
-      "Chapter 5 — Namespaces, cgroups and container mechanics",
-      "5.1 Namespaces",
-      "5.2 cgroups",
-      "5.3 What an image is — and is not",
-      "Worked scenario"
-    ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Chapter 6 - systemd, boot, services, signals and logs": {
-    "volume": "Volume 1",
-    "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
-    "learningOutcome": "Diagnose why a Linux service failed to start, restarted, stopped accepting traffic or was killed.",
-    "sections": [
-      "Chapter 6 — systemd, boot, services, signals and logs",
-      "6.1 Unit state and dependency model",
-      "6.2 Signals and shutdown",
-      "Worked scenario"
-    ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "mermaid",
-      "python"
-    ]
-  },
-  "Senior Deep Dive 1 — Linux execution: syscalls, scheduling, run queues and CPU pressure": {
-    "volume": "Volume 1",
-    "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
-    "learningOutcome": "Senior Deep Dive 1 — Linux execution: syscalls, scheduling, run queues and CPU pressure — Foundations Beneath Kubernetes.",
-    "sections": [
-      "Which threads are runnable or blocked?",
-      "Scheduling and context-switch pressure",
-      "What is the process actually waiting on?",
-      "cgroup v2 CPU control for a container/task",
-      "➕ Senior addendum"
-    ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 2 — Memory: virtual address space, page faults, NUMA and OOM decisions": {
-    "volume": "Volume 1",
-    "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
-    "learningOutcome": "Senior Deep Dive 2 — Memory: virtual address space, page faults, NUMA and OOM decisions — Foundations Beneath Kubernetes.",
-    "sections": [
-      "Memory pressure and reclaim",
-      "Per-process mappings and faults",
-      "NUMA layout and locality",
-      "➕ Senior addendum",
-      "➕ Worked scenario",
-      "➕ Practice"
-    ],
-    "codeLanguages": [
-      "bash",
-      "text"
-    ]
-  },
-  "Senior Deep Dive 3 — Storage I/O: VFS to NVMe, latency queues and checkpoint behavior": {
-    "volume": "Volume 1",
-    "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
-    "learningOutcome": "Senior Deep Dive 3 — Storage I/O: VFS to NVMe, latency queues and checkpoint behavior — Foundations Beneath Kubernetes.",
-    "sections": [
-      "Device and filesystem pressure",
-      "Which processes are issuing I/O?",
-      "Quick latency test - never run destructive tests on production devices",
-      "➕ Senior addendum"
-    ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 4 — Packet-level networking: routing, conntrack, TCP and DNS failure modes": {
-    "volume": "Volume 1",
-    "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
-    "learningOutcome": "Senior Deep Dive 4 — Packet-level networking: routing, conntrack, TCP and DNS failure modes — Foundations Beneath Kubernetes.",
-    "sections": [
-      "Name resolution and route decision",
-      "Socket and TCP state",
-      "Packet evidence",
-      "Conntrack / firewall state (tooling varies by distro)",
-      "➕ Senior addendum"
-    ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 5 — Containers: namespaces, cgroups v2, overlay filesystems and runtime boundaries": {
-    "volume": "Volume 1",
-    "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
-    "learningOutcome": "Senior Deep Dive 5 — Containers: namespaces, cgroups v2, overlay filesystems and runtime boundaries — Foundations Beneath Kubernetes.",
-    "sections": [
-      "See namespace identities for a process",
-      "Enter a container's network namespace from the host",
-      "Inspect cgroup placement and limits",
-      "➕ Senior addendum"
-    ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 6 — Host readiness for NVIDIA GPU nodes": {
-    "volume": "Volume 1",
-    "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
-    "learningOutcome": "Senior Deep Dive 6 — Host readiness for NVIDIA GPU nodes — Foundations Beneath Kubernetes.",
-    "sections": [
-      "PCIe / device discovery",
-      "Driver",
-      "Container runtime",
-      "RDMA",
-      "Kubernetes",
-      "➕ Senior addendum"
-    ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Senior troubleshooting exercise — Slow GPU job with “healthy” Kubernetes": {
-    "volume": "Volume 1",
-    "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
-    "learningOutcome": "Senior troubleshooting exercise — Slow GPU job with “healthy” Kubernetes — Foundations Beneath Kubernetes.",
-    "sections": [
-      "➕ Senior addendum"
+      "Linux Networking Masterclass: TCP/IP, RoCEv2, and Fabric Tuning",
+      "Introduction",
+      "Prerequisites, Difficulty, and Reading Time",
+      "Measurable Learning Objectives",
+      "1. The Network Stack Foundation: From Wire to Application",
+      "1.1 The Packet Journey: Ingress (Rx) Deep Dive",
+      "1.2 Receive-Side Scaling (RSS) and Interrupt Affinity",
+      "View interrupts for a Mellanox NIC (mlx5)",
+      "View which CPU is currently handling an interrupt (e.g., IRQ 123)",
+      "1.3 Tuning the Rx Path: Ring Buffers and Coalescing",
+      "Check current ring buffer sizes",
+      "Output excerpt:",
+      "Ring parameters for eth0:",
+      "Pre-set maximums:"
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
+      "text",
+      "bash",
+      "ini"
     ]
   },
-  "Book map": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Book map — Python for Production Infrastructure.",
+  "Linux, Systemd, and Containers Masterclass": {
+    "volume": "Volume 1",
+    "lens": "Linux processes, memory, storage, networking, containers, systemd, and host-level evidence",
+    "learningOutcome": "Masterclass covering namespaces, cgroups v2, systemd, boot services, logs, and host readiness for NVIDIA GPU nodes.",
     "sections": [
-      "A gentler three-stage route",
-      "Stage 1 — become comfortable writing small programs",
-      "Stage 2 — cross operational boundaries safely",
-      "Stage 3 — make the tool maintainable and production-ready"
+      "Linux, Systemd, and Containers Masterclass",
+      "1. Introduction and The Problem Space",
+      "1.1 Prerequisites",
+      "1.2 The Production Story: The Silent Hang",
+      "2. Systemd and the Boot Chain",
+      "2.1 The Boot Sequence",
+      "2.2 Systemd Unit Files and Dependencies",
+      "/usr/lib/systemd/system/nvidia-fabricmanager.service",
+      "Ensure we only run after network and syslog are available",
+      "Crucial: Ensure the NVIDIA device nodes are created before this starts",
+      "Restart logic for high availability",
+      "Secure the service",
+      "2.3 Investigating Boot Times",
+      "Analyze the overall boot time"
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 1 - How Python actually executes your infrastructure script": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Chapter 1 - How Python actually executes your infrastructure script — Python for Production Infrastructure.",
-    "sections": [
-      "Foundations: start here if Python syntax isn't yet comfortable",
-      "Why start with plain Python",
-      "Variables: a name pointing at a value",
-      "Lists: an ordered collection",
-      "Dicts: a mapping from keys to values",
-      "Making decisions: if / elif / else",
-      "Repeating work: for loops",
-      "Functions: giving a piece of code a name",
-      "Handling failure: try / except",
-      "The bridge: what the labs page actually asks you to do",
-      "The first mental model",
-      "Data structures by operational purpose",
-      "Files and JSON: make the boundary visible",
-      "Tracebacks: read from the bottom"
-    ],
-    "codeLanguages": [
+      "text",
+      "ini",
       "bash",
-      "text",
       "python",
-      "mermaid"
+      "json"
     ]
   },
-  "Chapter 2 - Choosing data structures by the problem, not by habit": {
+  "Python Core & OOP Masterclass": {
     "volume": "Volume 2",
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Chapter 2 - Choosing data structures by the problem, not by habit — Python for Production Infrastructure.",
+    "learningOutcome": "",
     "sections": [
-      "Foundations: start here if this is new to you",
-      "list: ordered, changeable",
-      "tuple: ordered, unchangeable",
-      "coordinate[0] = 40.0 would raise: TypeError: 'tuple' object does not support item assignment",
-      "set: unordered, no duplicates, fast membership",
-      "dict: keyed lookup table",
-      "defaultdict — eliminates the \"if key not in dict: dict[key] = []\" boilerplate",
-      "{'a': ['gpu-1', 'cpu-1'], 'b': ['gpu-2']}",
-      "Counter — frequency counting in one line (e.g. \"which error appears most in this log batch\")",
-      "deque — O(1) append/pop from BOTH ends; a list is O(n) to pop from the front",
-      "Work the scenario step by step",
-      "list-based: ~4.200s set-based: ~0.006s — roughly 700x on this size",
-      "Practice before moving on"
-    ],
-    "codeLanguages": [
-      "python",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Chapter 3 - Functions: turn scripts into testable decisions": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Chapter 3 - Functions: turn scripts into testable decisions — Python for Production Infrastructure.",
-    "sections": [
-      "Foundations: start here if this is new to you",
-      "The decision ladder: what should I write first?",
-      "Direct code versus a function",
-      "Function parameters are an API",
-      "Practice before moving on"
-    ],
-    "codeLanguages": [
-      "python",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Chapter 4 - Files, pathlib, regex, JSON and YAML": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Chapter 4 - Files, pathlib, regex, JSON and YAML — Python for Production Infrastructure.",
-    "sections": [
-      "Foundations: start here if this is new to you",
-      "the file is guaranteed to be closed here, even if f.write() had raised an error",
-      "yaml.load(open(\"config.yaml\")) DANGEROUS without Loader= — can execute arbitrary Python objects",
-      "Work the scenario step by step",
-      "Practice before moving on"
-    ],
-    "codeLanguages": [
-      "python",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Chapter 5 - Exceptions and context managers": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Chapter 5 - Exceptions and context managers — Python for Production Infrastructure.",
-    "sections": [
-      "Foundations: start here if this is new to you",
-      "finally: fine for one-off cleanup, easy to forget, no reuse",
-      "context manager: reusable, composable, can't forget it — prefer this for anything used more than once",
-      "Practice before moving on"
-    ],
-    "codeLanguages": [
-      "python",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Chapter 6 - Logging for operations, not print-debugging": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Chapter 6 - Logging for operations, not print-debugging — Python for Production Infrastructure.",
-    "sections": [
-      "Foundations: start here if this is new to you",
-      "at the entry point of a request:",
-      "Work the scenario step by step",
-      "Practice before moving on"
-    ],
-    "codeLanguages": [
-      "python",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Chapter 7 - System interaction and subprocess": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Chapter 7 - System interaction and subprocess — Python for Production Infrastructure.",
-    "sections": [
-      "Foundations: start here if this is new to you",
-      "DANGEROUS: the shell sees TWO commands separated by \";\" and runs both",
-      "SAFE: \"notes.txt; rm -rf /tmp/important\" is passed as ONE literal argument to cat",
-      "— there is no shell reading it, so the semicolon has no special meaning at all",
-      "Work the scenario step by step",
-      "Practice before moving on"
-    ],
-    "codeLanguages": [
-      "python",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Chapter 8 - HTTP APIs, timeouts, retries and backoff": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Chapter 8 - HTTP APIs, timeouts, retries and backoff — Python for Production Infrastructure.",
-    "sections": [
-      "Foundations: start here if this is new to you",
-      "Buggy: a fresh Session per attempt, never closed on the failure path",
-      "Fixed: one Session reused across attempts, explicit cleanup on every path",
-      "Work the scenario step by step",
-      "Practice before moving on"
-    ],
-    "codeLanguages": [
-      "python",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Chapter 9 - OOP that helps infrastructure code": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Chapter 9 - OOP that helps infrastructure code — Python for Production Infrastructure.",
-    "sections": [
-      "Foundations: start here if this is new to you",
-      "Why a class appears in our scripts",
-      "Dataclass: a record with an explicit shape",
-      "Practice before moving on"
-    ],
-    "codeLanguages": [
-      "python",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Chapter 10 - Generators and decorators without magic": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Chapter 10 - Generators and decorators without magic — Python for Production Infrastructure.",
-    "sections": [
-      "Foundations: start here if this is new to you",
-      "Practice before moving on"
-    ],
-    "codeLanguages": [
-      "python",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Chapter 11 - Concurrency for infrastructure engineers": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Chapter 11 - Concurrency for infrastructure engineers — Python for Production Infrastructure.",
-    "sections": [
-      "Foundations: start here if this is new to you",
-      "Work the scenario step by step",
-      "Practice before moving on"
-    ],
-    "codeLanguages": [
-      "python",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Chapter 12 - Type hints and pytest: make changes safer": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Chapter 12 - Type hints and pytest: make changes safer — Python for Production Infrastructure.",
-    "sections": [
-      "Foundations: start here if this is new to you",
-      "Common annotation shapes and where to use them",
-      "mytool/client.py",
-      "WRONG in the test file:",
-      "RIGHT:",
-      "Practice before moving on"
-    ],
-    "codeLanguages": [
-      "python",
-      "text",
-      "bash",
-      "mermaid"
-    ]
-  },
-  "Chapter 13 - Project structure, CLI and CI/CD": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Chapter 13 - Project structure, CLI and CI/CD — Python for Production Infrastructure.",
-    "sections": [
-      "Foundations: start here if this is new to you",
-      "infra doctor/model.py",
-      "some other file.py, run from the directory containing infra doctor/",
-      "Import choices and import-time behavior",
-      "The modules used repeatedly in this course",
-      "pyproject.toml",
-      ".github/workflows/ci.yml (core idea)",
-      "Practice before moving on"
+      "Python Core & OOP Masterclass for Infrastructure Engineering",
+      "1. Introduction: The Infrastructure Engineer's Python",
+      "1.1 The Shift from Scripting to Software Engineering",
+      "2. How Python Actually Executes Your Infrastructure Script",
+      "2.1 The Python Execution Model",
+      "2.2 Bytecode Inspection in Action",
+      "2.3 Memory Management and the GIL",
+      "3.1 Mutability and Immutability",
+      "BAD PRACTICE",
+      "GOOD PRACTICE",
+      "3.2 Deep vs. Shallow Copies in Configuration Dictionaries",
+      "Shallow copy via dict() or .copy()",
+      "4. Choosing Data Structures by the Problem, Not by Habit",
+      "4.1 Lists vs. Sets for Membership Testing"
     ],
     "codeLanguages": [
       "mermaid",
       "text",
       "python",
+      "bash"
+    ]
+  },
+  "Python Systems & Concurrency Masterclass": {
+    "volume": "Volume 2",
+    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
+    "learningOutcome": "",
+    "sections": [
+      "Python Systems & Concurrency Masterclass for Infrastructure Engineers",
+      "1. Introduction: The Infrastructure Concurrency Crisis",
+      "1.1 The Senior DevOps Context",
+      "2. The Python Concurrency Model: Threads, Asyncio, and Multiprocessing",
+      "2.1 The Global Interpreter Lock (GIL)",
+      "2.2 Concurrency Architecture Diagram",
+      "2.3 When to use what?",
+      "3. Subprocess: It's a Process API, Not a Shell Shortcut",
+      "3.1 The Danger of os.system and shell=True",
+      "DO NOT DO THIS",
+      "3.2 The Modern Approach: subprocess.run",
+      "Example usage",
+      "3.3 Deep Dive: subprocess.Popen and Zombie Deadlocks",
+      "3.4 Subprocess Architecture Flow"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "python",
+      "json"
+    ]
+  },
+  "Python Tooling and Operations Masterclass": {
+    "volume": "Volume 2",
+    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
+    "learningOutcome": "",
+    "sections": [
+      "Python Tooling and Operations Masterclass",
+      "1. Introduction: The Reality of Infrastructure Python",
+      "The Shift in Mindset",
+      "2. Designing Robust CLI Applications",
+      "2.1 The Evolution: From sys.argv to argparse",
+      "argparse example.py",
+      "2.2 Advanced CLI Design with Click",
+      "fleet cli.py",
+      "Setup basic structured logging",
+      "Pass the context to subcommands using pass obj",
+      "3. Testing Infrastructure Code with Pytest",
+      "3.1 Pytest Fundamentals",
+      "test basics.py",
+      "3.2 Advanced Fixtures & Yielding (Teardown)"
+    ],
+    "codeLanguages": [
+      "python",
+      "text",
+      "mermaid",
+      "yaml",
+      "bash"
+    ]
+  },
+  "Masterclass: K8s Control Plane, Scheduling, and DRA": {
+    "volume": "Volume 3",
+    "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
+    "learningOutcome": "",
+    "sections": [
+      "Masterclass: K8s Control Plane, Scheduling, and DRA",
+      "1. Introduction: Kubernetes at AI Factory Scale",
+      "2. Big-Picture Architecture: The Control Plane",
+      "3. Deep Dive: API Machinery and ResourceVersion",
+      "3.1 Understanding ResourceVersion",
+      "Example: Pod object snippet",
+      "3.2 Optimistic Concurrency Control",
+      "3.3 The Watch Mechanism",
+      "4. Deep Dive: etcd and Quorum Mechanics",
+      "4.1 Raft Consensus and Quorum",
+      "4.2 Handling Split-Brain and Network Partitions",
+      "4.3 etcdctl Command Cheatsheet",
+      "Check cluster health",
+      "View member list and leadership"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "yaml",
+      "bash"
+    ]
+  },
+  "K8s Node & Storage Masterclass": {
+    "volume": "Volume 3",
+    "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
+    "learningOutcome": "",
+    "sections": [
+      "Masterclass: Kubernetes Node Operations, CRI, CSI, and Stateful Workloads",
+      "1. Introduction",
+      "2. The Kubelet: The Node's Autonomous Agent",
+      "2.1 The Sync Loop",
+      "2.2 Kubelet Architecture Diagram",
+      "2.3 Deep Dive: Kubelet Configuration",
+      "/var/lib/kubelet/config.yaml",
+      "--- Node Performance & AI Tuning ---",
+      "Max pods reduced due to heavy AI workloads per node",
+      "Frequency of PLEG",
+      "3. Node Pressure and Eviction",
+      "3.1 Eviction Thresholds",
+      "3.2 Quality of Service (QoS) Classes",
+      "4. Container Runtime Interface (CRI) & Pod Sandbox"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "yaml",
       "toml",
-      "yaml"
-    ]
-  },
-  "Chapter 14 - Capstone: design a cluster diagnostics CLI": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Chapter 14 - Capstone: design a cluster diagnostics CLI — Python for Production Infrastructure.",
-    "sections": [
-      "Before you start: what this capstone actually tests",
-      "model.py — Ch2/Ch3/Ch12: typed domain values, pure decisions",
-      "kubernetes.py — Ch7: subprocess boundary, typed failure",
-      "cli.py — Ch6/Ch13: logging, exit codes, entry point",
-      "test policy.py — Ch12: pure logic, zero cluster needed",
-      "Work the scenario step by step",
-      "Field note: practitioner perspective"
-    ],
-    "codeLanguages": [
-      "python",
-      "text",
       "bash",
-      "mermaid"
+      "protobuf"
     ]
   },
-  "Targeted Udemy study map": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Targeted Udemy study map — Python for Production Infrastructure.",
-    "sections": [],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Final Python checklist": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Final Python checklist — Python for Production Infrastructure.",
-    "sections": [],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Senior Deep Dive 1 — The Python object model, mutability and interfaces": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Senior Deep Dive 1 — The Python object model, mutability and interfaces — Python for Production Infrastructure.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "python",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 2 — Configuration is an API: validation, secrets and precedence": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Senior Deep Dive 2 — Configuration is an API: validation, secrets and precedence — Python for Production Infrastructure.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "python",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 3 — Build API clients that fail safely": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Senior Deep Dive 3 — Build API clients that fail safely — Python for Production Infrastructure.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "python",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 4 — Async, threads and processes with backpressure": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Senior Deep Dive 4 — Async, threads and processes with backpressure — Python for Production Infrastructure.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "python",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 5 — Subprocess is a process API, not a shell shortcut": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Senior Deep Dive 5 — Subprocess is a process API, not a shell shortcut — Python for Production Infrastructure.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "python",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 6 — Structured logs, metrics and correlation IDs": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Senior Deep Dive 6 — Structured logs, metrics and correlation IDs — Python for Production Infrastructure.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "python",
-      "text",
-      "json",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 7 — Testing infrastructure code: isolate decisions from effects": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Senior Deep Dive 7 — Testing infrastructure code: isolate decisions from effects — Python for Production Infrastructure.",
-    "sections": [
-      "retry.py",
-      "test retry.py",
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "python",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 8 — Complete project: GPU fleet health CLI": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Senior Deep Dive 8 — Complete project: GPU fleet health CLI — Python for Production Infrastructure.",
-    "sections": [
-      "package layout",
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "text",
-      "python",
-      "mermaid"
-    ]
-  },
-  "Performance and profiling for operational Python": {
-    "volume": "Volume 2",
-    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
-    "learningOutcome": "Performance and profiling for operational Python — Python for Production Infrastructure.",
-    "sections": [
-      "external sampler if available:",
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Chapter 1 - API server, etcd and the object model": {
+  "Masterclass: Kubernetes Networking, Security, and AI Factory Operations": {
     "volume": "Volume 3",
     "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Trace reads/writes, resourceVersion, watches and declarative desired state through the API control plane.",
+    "learningOutcome": "",
     "sections": [
-      "Foundations: start here if Kubernetes concepts are new to you",
-      "What this section is, and what it isn't",
-      "The problem before the tool: \"it works on my machine\"",
-      "Image vs. container: the same relationship as class vs. object",
-      "The next problem: now you have hundreds of containers, on many machines",
-      "The four objects you need before diving deeper",
-      "The core mental model the rest of this chapter builds on: declare what you want, a controller makes it true",
-      "Evidence vs. proof: don't trust one command's output alone",
-      "Trace one Pod end to end",
-      "Specification, status and events",
-      "Scheduling is an eligibility decision",
-      "Networking: four different objects/questions",
-      "Storage: claim, volume and mount",
-      "Security request path"
+      "Masterclass: Kubernetes Networking, Security, and AI Factory Operations",
+      "1. Introduction: The AI Factory Network",
+      "1.1 Prerequisites",
+      "2. Advanced Kubernetes Networking: CNI and Dataplane",
+      "2.1 The Limits of kube-proxy",
+      "2.2 eBPF and Cilium: The Modern Dataplane",
+      "2.3 Multus CNI: Multi-Homed Pods for InfiniBand",
+      "3. Security, Admission Control, and Multi-Tenancy",
+      "3.1 Advanced RBAC: Multi-Tenant Namespaces",
+      "3.2 Admission Policy Guardrails with Kyverno",
+      "4. Autoscaling, Node Pools, and Capacity",
+      "4.1 Karpenter: Just-in-Time Node Provisioning",
+      "5. Platform Engineering, GitOps, and the GPU Operator",
+      "5.1 The GitOps Principle"
     ],
     "codeLanguages": [
       "mermaid",
       "text",
-      "bash",
-      "yaml"
-    ]
-  },
-  "Chapter 2 - Scheduler mechanics, resources and topology": {
-    "volume": "Volume 3",
-    "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Explain filter/score thinking, requests/allocatable, affinity, taints, topology and extended GPU resources.",
-    "sections": [
-      "Chapter 2 — Scheduler mechanics, resources and topology",
-      "2.1 Requests drive placement",
-      "2.2 Constraints: taints, affinity and topology",
-      "2.3 Extended resources and GPUs",
-      "Worked scenario",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Chapter 3 - Kubelet, CRI and Pod lifecycle": {
-    "volume": "Volume 3",
-    "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Understand how an assigned Pod becomes namespaces, cgroups, volumes, network setup and running containers on a node.",
-    "sections": [
-      "Chapter 3 — Kubelet, CRI and Pod lifecycle",
-      "Worked scenario",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "text",
-      "mermaid",
+      "yaml",
       "bash"
-    ]
-  },
-  "Chapter 4 - Kubernetes networking from Service to CNI": {
-    "volume": "Volume 3",
-    "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Trace DNS, Service selection, data plane implementation, CNI routing and NetworkPolicy.",
-    "sections": [
-      "Chapter 4 — Kubernetes networking from Service to CNI",
-      "4.1 Service and EndpointSlice",
-      "4.2 Data plane implementation",
-      "4.3 DNS, CNI and policy",
-      "Practitioner lens",
-      "Worked scenario",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "text",
-      "mermaid",
-      "bash"
-    ]
-  },
-  "Chapter 5 - Storage and StatefulSets": {
-    "volume": "Volume 3",
-    "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Understand CSI provisioning/attach/mount, PVC binding modes, topology and StatefulSet identity.",
-    "sections": [
-      "Chapter 5 — Storage and StatefulSets",
-      "Worked scenario",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "text",
-      "bash",
-      "mermaid"
-    ]
-  },
-  "Chapter 6 - Security: authentication, RBAC, workload identity and Pod hardening": {
-    "volume": "Volume 3",
-    "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Reason about who can call the API, what they can do, how workloads obtain cloud identity and how container privileges change risk.",
-    "sections": [
-      "Chapter 6 — Security: authentication, RBAC, workload identity and Pod hardening",
-      "6.1 RBAC is authorization over API verbs/resources",
-      "then check cloud side (example AWS IRSA / EKS pod identity):",
-      "6.2 Pod security context",
-      "Worked scenario",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "text",
-      "mermaid",
-      "bash"
-    ]
-  },
-  "Chapter 7 - Autoscaling and capacity": {
-    "volume": "Volume 3",
-    "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Understand HPA/VPA/KEDA signals, cluster autoscaler constraints and why application scaling and node scaling are different loops.",
-    "sections": [
-      "Chapter 7 — Autoscaling and capacity",
-      "Worked scenario",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "text",
-      "mermaid",
-      "bash"
-    ]
-  },
-  "Chapter 8 - Operators, GitOps and platform engineering": {
-    "volume": "Volume 3",
-    "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Use reconciliation to package domain operations and expose safe self-service without hiding operational truth.",
-    "sections": [
-      "Chapter 8 — Operators, GitOps and platform engineering",
-      "Useful Flux-style evidence",
-      "Practitioner lens",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "text",
-      "mermaid",
-      "bash"
-    ]
-  },
-  "Chapter 9 - Upgrades, reliability and cluster operations": {
-    "volume": "Volume 3",
-    "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Plan control-plane/node changes around skew, disruption budgets, workload topology and rollback evidence.",
-    "sections": [
-      "Chapter 9 — Upgrades, reliability and cluster operations",
-      "Practice",
-      "➕ Going deeper",
-      "Rollback evidence — what to actually capture before you need it",
-      "Mnemonic for this whole chapter"
-    ],
-    "codeLanguages": [
-      "text",
-      "bash",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 1 — API machinery: resourceVersion, watches, finalizers and ownership": {
-    "volume": "Volume 3",
-    "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Senior Deep Dive 1 — API machinery: resourceVersion, watches, finalizers and ownership — Kubernetes and Platform Engineering.",
-    "sections": [
-      "Senior addendum",
-      "Original section preamble (preserved verbatim)",
-      "Quick cross-reference (use both halves together, not as duplicates)",
-      "Deep Dive 1 — API machinery"
-    ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 2 — etcd quorum, control-plane failure and recovery boundaries": {
-    "volume": "Volume 3",
-    "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Senior Deep Dive 2 — etcd quorum, control-plane failure and recovery boundaries — Kubernetes and Platform Engineering.",
-    "sections": [
-      "Senior addendum",
-      "Deep Dive 2 — etcd quorum and control-plane failure boundaries"
-    ],
-    "codeLanguages": []
-  },
-  "Senior Deep Dive 3 — Scheduling framework, preemption, gang/topology and DRA": {
-    "volume": "Volume 3",
-    "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Senior Deep Dive 3 — Scheduling framework, preemption, gang/topology and DRA — Kubernetes and Platform Engineering.",
-    "sections": [
-      "Scheduling evidence for a Pending Pod",
-      "DRA resources on clusters that support them",
-      "Senior addendum",
-      "Deep Dive 3 — Scheduling framework, preemption, gang/topology and DRA"
-    ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 4 — Kubelet, CRI, pod sandbox and node pressure": {
-    "volume": "Volume 3",
-    "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Senior Deep Dive 4 — Kubelet, CRI, pod sandbox and node pressure — Kubernetes and Platform Engineering.",
-    "sections": [
-      "Senior addendum",
-      "Deep Dive 4 — Kubelet, CRI, pod sandbox and node pressure"
-    ],
-    "codeLanguages": [
-      "bash",
-      "text"
-    ]
-  },
-  "Senior Deep Dive 5 — Networking: Service abstraction, CNI dataplane, DNS and Gateway API": {
-    "volume": "Volume 3",
-    "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Senior Deep Dive 5 — Networking: Service abstraction, CNI dataplane, DNS and Gateway API — Kubernetes and Platform Engineering.",
-    "sections": [
-      "Service - EndpointSlice - Pod",
-      "DNS from inside the workload namespace",
-      "Node dataplane - varies by CNI/proxy implementation",
-      "Senior addendum",
-      "Deep Dive 5 — Networking: Service, CNI dataplane, DNS, Gateway API"
-    ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 6 — Admission, policy and multi-tenant guardrails": {
-    "volume": "Volume 3",
-    "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Senior Deep Dive 6 — Admission, policy and multi-tenant guardrails — Kubernetes and Platform Engineering.",
-    "sections": [
-      "Can this identity perform the action?",
-      "Namespace Pod Security Admission example",
-      "Inspect admission webhooks and policies",
-      "Senior addendum",
-      "Deep Dive 6 — Admission, policy and multi-tenant guardrails"
-    ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 7 — Platform patterns from the Staff Engineer guide": {
-    "volume": "Volume 3",
-    "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Senior Deep Dive 7 — Platform patterns from the Staff Engineer guide — Kubernetes and Platform Engineering.",
-    "sections": [
-      "Senior addendum",
-      "Deep Dive 7 — Platform patterns from the Staff Engineer guide"
-    ],
-    "codeLanguages": []
-  },
-  "Senior Deep Dive 8 — GPU platform operations: node pools, operators and resource isolation": {
-    "volume": "Volume 3",
-    "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
-    "learningOutcome": "Senior Deep Dive 8 — GPU platform operations: node pools, operators and resource isolation — Kubernetes and Platform Engineering.",
-    "sections": [
-      "Senior addendum",
-      "Deep Dive 8 — GPU platform operations",
-      "Self-check: original subtopics accounted for"
-    ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "mermaid"
     ]
   },
   "Chapter 1 - GPU execution and memory mental model": {

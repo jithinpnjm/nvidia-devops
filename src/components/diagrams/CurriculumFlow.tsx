@@ -2,8 +2,8 @@ import React from 'react';
 import Link from '@docusaurus/Link';
 
 const stages = [
-  ['Linux + Python', '/curriculum/volume-01/chapter-1-processes-threads-cpu-scheduling-and-load'],
-  ['Kubernetes / Platform', '/curriculum/volume-03/chapter-1-api-server-etcd-and-the-object-model'],
+  ['Linux + Python', '/curriculum/volume-01/linux-compute-memory-masterclass'],
+  ['Kubernetes / Platform', '/curriculum/volume-03/k8s-control-plane-scheduling-masterclass'],
   ['GPU Infrastructure', '/curriculum/volume-04/chapter-1-gpu-execution-and-memory-mental-model'],
   ['AI Workloads', '/curriculum/volume-05/chapter-1-classify-the-ai-workload-before-designing-infrastructure'],
   ['HPC / Network / Storage', '/curriculum/volume-06/chapter-1-distributed-systems-performance-for-gpu-jobs'],

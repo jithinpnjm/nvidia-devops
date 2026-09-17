@@ -23,7 +23,7 @@ const fundamentals = [
       'File descriptors are finite per-process; exhaustion looks like "cannot open" errors under load, not slowness.',
       'systemd unit ordering (After=/Requires=) matters most for hardware-dependent services (e.g. a GPU-dependent service starting before the driver unit is ready).',
     ],
-    volumeLink: {label: 'Volume 1, Chapter 1', to: '/curriculum/volume-01/chapter-1-processes-threads-cpu-scheduling-and-load'},
+    volumeLink: {label: 'Volume 1, Chapter 1', to: '/curriculum/volume-01/linux-compute-memory-masterclass'},
   },
   {
     topic: 'Networking',
@@ -32,7 +32,7 @@ const fundamentals = [
       'NAT port exhaustion and conntrack table limits both cause intermittent, load-correlated connection failures that look identical to "flaky network" until you check the specific table/limit.',
       'RoCE needs lossless Ethernet (PFC/ECN) end-to-end; one misconfigured hop degrades throughput without dropping the link.',
     ],
-    volumeLink: {label: 'Volume 1, Chapter 4', to: '/curriculum/volume-01/chapter-4-networking-ip-routes-sockets-tcp-dns-nat-and-tls'},
+    volumeLink: {label: 'Volume 1, Chapter 4', to: '/curriculum/volume-01/linux-networking-masterclass'},
   },
   {
     topic: 'GPU / CUDA',
@@ -75,7 +75,7 @@ const fundamentals = [
       'PVC stuck Pending is almost always a StorageClass/provisioner mismatch or a zone-affinity conflict, not a capacity problem.',
       'A node reporting Ready in `kubectl get nodes` only reflects the kubelet-to-API heartbeat — it says nothing about leaked kernel-level cgroups/namespaces still holding resources.',
     ],
-    volumeLink: {label: 'Volume 1, Chapter 5', to: '/curriculum/volume-01/chapter-5-namespaces-cgroups-and-container-mechanics'},
+    volumeLink: {label: 'Volume 1, Chapter 5', to: '/curriculum/volume-01/linux-systemd-containers-masterclass'},
   },
   {
     topic: 'Bare-metal / BCM / provisioning',

@@ -75,4 +75,4 @@ Every chapter follows the same shape, so you always know what to expect:
 - Explain, in your own words, the difference between evidence and proof.
 - Take any single command's output and state out loud what it does prove, what it does not prove, and what you'd check next.
 
-**Continue to:** [Volume 1, Chapter 1 — Processes, threads, CPU scheduling and load](/curriculum/volume-01/chapter-1-processes-threads-cpu-scheduling-and-load)
+**Continue to:** [Volume 1, Chapter 1 — Processes, threads, CPU scheduling and load](/curriculum/volume-01/linux-compute-memory-masterclass)

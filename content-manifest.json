@@ -37,19 +37,10 @@
       "sourceCodeBlocks": 20,
       "sourceImages": 5,
       "sourceHeadings": [
-        "Chapter 1 - Processes, threads, CPU scheduling and load",
-        "Chapter 2 - Virtual memory, page cache, swap and OOM",
-        "Chapter 3 - Files, file descriptors, filesystems and block I/O",
-        "Chapter 4 - Networking: IP, routes, sockets, TCP, DNS, NAT and TLS",
-        "Chapter 5 - Namespaces, cgroups and container mechanics",
-        "Chapter 6 - systemd, boot, services, signals and logs",
-        "Senior Deep Dive 1 — Linux execution: syscalls, scheduling, run queues and CPU pressure",
-        "Senior Deep Dive 2 — Memory: virtual address space, page faults, NUMA and OOM decisions",
-        "Senior Deep Dive 3 — Storage I/O: VFS to NVMe, latency queues and checkpoint behavior",
-        "Senior Deep Dive 4 — Packet-level networking: routing, conntrack, TCP and DNS failure modes",
-        "Senior Deep Dive 5 — Containers: namespaces, cgroups v2, overlay filesystems and runtime boundaries",
-        "Senior Deep Dive 6 — Host readiness for NVIDIA GPU nodes",
-        "Senior troubleshooting exercise — Slow GPU job with “healthy” Kubernetes"
+        "Linux Compute & Memory Masterclass",
+        "Linux Storage & I/O Masterclass",
+        "Linux Networking Masterclass",
+        "Linux Systemd & Containers Masterclass"
       ],
       "conversionMessages": [
         "Unrecognised paragraph style: 'Deep Dive' (Style ID: DeepDive)",
@@ -57,108 +48,36 @@
       ],
       "generatedFiles": [
         {
-          "file": "docs/volume-01/01-chapter-1-processes-threads-cpu-scheduling-and-load.md",
-          "title": "Chapter 1 - Processes, threads, CPU scheduling and load",
-          "words": 599,
-          "tables": 9,
-          "codeBlocks": 3,
-          "images": 1
+          "file": "docs/volume-01/01-linux-compute-memory-masterclass.md",
+          "title": "Linux Compute & Memory Masterclass",
+          "words": 1542,
+          "tables": 16,
+          "codeBlocks": 8,
+          "images": 2
         },
         {
-          "file": "docs/volume-01/02-chapter-2-virtual-memory-page-cache-swap-and-oom.md",
-          "title": "Chapter 2 - Virtual memory, page cache, swap and OOM",
-          "words": 396,
-          "tables": 6,
-          "codeBlocks": 3,
-          "images": 1
-        },
-        {
-          "file": "docs/volume-01/03-chapter-3-files-file-descriptors-filesystems-and-block-i-o.md",
-          "title": "Chapter 3 - Files, file descriptors, filesystems and block I/O",
-          "words": 319,
+          "file": "docs/volume-01/02-linux-storage-io-masterclass.md",
+          "title": "Linux Storage & I/O Masterclass",
+          "words": 497,
           "tables": 5,
-          "codeBlocks": 1,
+          "codeBlocks": 2,
           "images": 0
         },
         {
-          "file": "docs/volume-01/04-chapter-4-networking-ip-routes-sockets-tcp-dns-nat-and-tls.md",
-          "title": "Chapter 4 - Networking: IP, routes, sockets, TCP, DNS, NAT and TLS",
-          "words": 503,
+          "file": "docs/volume-01/03-linux-networking-masterclass.md",
+          "title": "Linux Networking Masterclass",
+          "words": 705,
           "tables": 8,
-          "codeBlocks": 4,
+          "codeBlocks": 5,
+          "images": 2
+        },
+        {
+          "file": "docs/volume-01/04-linux-systemd-containers-masterclass.md",
+          "title": "Linux Systemd & Containers Masterclass",
+          "words": 1142,
+          "tables": 13,
+          "codeBlocks": 5,
           "images": 1
-        },
-        {
-          "file": "docs/volume-01/05-chapter-5-namespaces-cgroups-and-container-mechanics.md",
-          "title": "Chapter 5 - Namespaces, cgroups and container mechanics",
-          "words": 243,
-          "tables": 6,
-          "codeBlocks": 2,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-01/06-chapter-6-systemd-boot-services-signals-and-logs.md",
-          "title": "Chapter 6 - systemd, boot, services, signals and logs",
-          "words": 415,
-          "tables": 6,
-          "codeBlocks": 2,
-          "images": 1
-        },
-        {
-          "file": "docs/volume-01/07-senior-deep-dive-1-linux-execution-syscalls-scheduling-run-queues-and-cpu-pres.md",
-          "title": "Senior Deep Dive 1 — Linux execution: syscalls, scheduling, run queues and CPU pressure",
-          "words": 284,
-          "tables": 1,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-01/08-senior-deep-dive-2-memory-virtual-address-space-page-faults-numa-and-oom-decis.md",
-          "title": "Senior Deep Dive 2 — Memory: virtual address space, page faults, NUMA and OOM decisions",
-          "words": 263,
-          "tables": 0,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-01/09-senior-deep-dive-3-storage-i-o-vfs-to-nvme-latency-queues-and-checkpoint-behav.md",
-          "title": "Senior Deep Dive 3 — Storage I/O: VFS to NVMe, latency queues and checkpoint behavior",
-          "words": 178,
-          "tables": 0,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-01/10-senior-deep-dive-4-packet-level-networking-routing-conntrack-tcp-and-dns-failu.md",
-          "title": "Senior Deep Dive 4 — Packet-level networking: routing, conntrack, TCP and DNS failure modes",
-          "words": 202,
-          "tables": 0,
-          "codeBlocks": 1,
-          "images": 1
-        },
-        {
-          "file": "docs/volume-01/11-senior-deep-dive-5-containers-namespaces-cgroups-v2-overlay-filesystems-and-ru.md",
-          "title": "Senior Deep Dive 5 — Containers: namespaces, cgroups v2, overlay filesystems and runtime boundaries",
-          "words": 125,
-          "tables": 0,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-01/12-senior-deep-dive-6-host-readiness-for-nvidia-gpu-nodes.md",
-          "title": "Senior Deep Dive 6 — Host readiness for NVIDIA GPU nodes",
-          "words": 124,
-          "tables": 1,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-01/13-senior-troubleshooting-exercise-slow-gpu-job-with-healthy-kubernetes.md",
-          "title": "Senior troubleshooting exercise — Slow GPU job with “healthy” Kubernetes",
-          "words": 235,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
         }
       ]
     },
@@ -171,32 +90,9 @@
       "sourceCodeBlocks": 39,
       "sourceImages": 8,
       "sourceHeadings": [
-        "Book map",
-        "Chapter 1 - How Python actually executes your infrastructure script",
-        "Chapter 2 - Choosing data structures by the problem, not by habit",
-        "Chapter 3 - Functions: turn scripts into testable decisions",
-        "Chapter 4 - Files, pathlib, regex, JSON and YAML",
-        "Chapter 5 - Exceptions and context managers",
-        "Chapter 6 - Logging for operations, not print-debugging",
-        "Chapter 7 - System interaction and subprocess",
-        "Chapter 8 - HTTP APIs, timeouts, retries and backoff",
-        "Chapter 9 - OOP that helps infrastructure code",
-        "Chapter 10 - Generators and decorators without magic",
-        "Chapter 11 - Concurrency for infrastructure engineers",
-        "Chapter 12 - Type hints and pytest: make changes safer",
-        "Chapter 13 - Project structure, CLI and CI/CD",
-        "Chapter 14 - Capstone: design a cluster diagnostics CLI",
-        "Targeted Udemy study map",
-        "Final Python checklist",
-        "Senior Deep Dive 1 — The Python object model, mutability and interfaces",
-        "Senior Deep Dive 2 — Configuration is an API: validation, secrets and precedence",
-        "Senior Deep Dive 3 — Build API clients that fail safely",
-        "Senior Deep Dive 4 — Async, threads and processes with backpressure",
-        "Senior Deep Dive 5 — Subprocess is a process API, not a shell shortcut",
-        "Senior Deep Dive 6 — Structured logs, metrics and correlation IDs",
-        "Senior Deep Dive 7 — Testing infrastructure code: isolate decisions from effects",
-        "Senior Deep Dive 8 — Complete project: GPU fleet health CLI",
-        "Performance and profiling for operational Python"
+        "Python Core & OOP Masterclass",
+        "Python Systems & Concurrency Masterclass",
+        "Python Tooling & Operations Masterclass"
       ],
       "conversionMessages": [
         "Unrecognised paragraph style: 'Deep Dive' (Style ID: DeepDive)",
@@ -204,212 +100,28 @@
       ],
       "generatedFiles": [
         {
-          "file": "docs/volume-02/01-book-map.md",
-          "title": "Book map",
-          "words": 152,
-          "tables": 3,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-02/02-chapter-1-how-python-actually-executes-your-infrastructure-script.md",
-          "title": "Chapter 1 - How Python actually executes your infrastructure script",
-          "words": 526,
-          "tables": 6,
-          "codeBlocks": 2,
+          "file": "docs/volume-02/01-python-core-oop-masterclass.md",
+          "title": "Python Core & OOP Masterclass",
+          "words": 2426,
+          "tables": 31,
+          "codeBlocks": 14,
           "images": 1
         },
         {
-          "file": "docs/volume-02/03-chapter-2-choosing-data-structures-by-the-problem-not-by-habit.md",
-          "title": "Chapter 2 - Choosing data structures by the problem, not by habit",
-          "words": 396,
-          "tables": 6,
-          "codeBlocks": 2,
-          "images": 0
+          "file": "docs/volume-02/02-python-systems-concurrency-masterclass.md",
+          "title": "Python Systems & Concurrency Masterclass",
+          "words": 1917,
+          "tables": 21,
+          "codeBlocks": 11,
+          "images": 2
         },
         {
-          "file": "docs/volume-02/04-chapter-3-functions-turn-scripts-into-testable-decisions.md",
-          "title": "Chapter 3 - Functions: turn scripts into testable decisions",
-          "words": 322,
-          "tables": 5,
-          "codeBlocks": 3,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-02/05-chapter-4-files-pathlib-regex-json-and-yaml.md",
-          "title": "Chapter 4 - Files, pathlib, regex, JSON and YAML",
-          "words": 454,
-          "tables": 7,
-          "codeBlocks": 3,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-02/06-chapter-5-exceptions-and-context-managers.md",
-          "title": "Chapter 5 - Exceptions and context managers",
-          "words": 272,
-          "tables": 4,
-          "codeBlocks": 3,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-02/07-chapter-6-logging-for-operations-not-print-debugging.md",
-          "title": "Chapter 6 - Logging for operations, not print-debugging",
-          "words": 319,
-          "tables": 5,
-          "codeBlocks": 2,
-          "images": 1
-        },
-        {
-          "file": "docs/volume-02/08-chapter-7-system-interaction-and-subprocess.md",
-          "title": "Chapter 7 - System interaction and subprocess",
-          "words": 351,
-          "tables": 5,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-02/09-chapter-8-http-apis-timeouts-retries-and-backoff.md",
-          "title": "Chapter 8 - HTTP APIs, timeouts, retries and backoff",
-          "words": 420,
-          "tables": 4,
-          "codeBlocks": 1,
-          "images": 1
-        },
-        {
-          "file": "docs/volume-02/10-chapter-9-oop-that-helps-infrastructure-code.md",
-          "title": "Chapter 9 - OOP that helps infrastructure code",
-          "words": 280,
-          "tables": 4,
-          "codeBlocks": 2,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-02/11-chapter-10-generators-and-decorators-without-magic.md",
-          "title": "Chapter 10 - Generators and decorators without magic",
-          "words": 275,
-          "tables": 3,
-          "codeBlocks": 2,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-02/12-chapter-11-concurrency-for-infrastructure-engineers.md",
-          "title": "Chapter 11 - Concurrency for infrastructure engineers",
-          "words": 328,
-          "tables": 4,
-          "codeBlocks": 1,
-          "images": 1
-        },
-        {
-          "file": "docs/volume-02/13-chapter-12-type-hints-and-pytest-make-changes-safer.md",
-          "title": "Chapter 12 - Type hints and pytest: make changes safer",
-          "words": 289,
-          "tables": 4,
-          "codeBlocks": 3,
-          "images": 1
-        },
-        {
-          "file": "docs/volume-02/14-chapter-13-project-structure-cli-and-ci-cd.md",
-          "title": "Chapter 13 - Project structure, CLI and CI/CD",
-          "words": 235,
-          "tables": 4,
-          "codeBlocks": 3,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-02/15-chapter-14-capstone-design-a-cluster-diagnostics-cli.md",
-          "title": "Chapter 14 - Capstone: design a cluster diagnostics CLI",
-          "words": 324,
-          "tables": 5,
-          "codeBlocks": 1,
-          "images": 1
-        },
-        {
-          "file": "docs/volume-02/16-targeted-udemy-study-map.md",
-          "title": "Targeted Udemy study map",
-          "words": 213,
-          "tables": 1,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-02/17-final-python-checklist.md",
-          "title": "Final Python checklist",
-          "words": 198,
-          "tables": 2,
-          "codeBlocks": 0,
-          "images": 1
-        },
-        {
-          "file": "docs/volume-02/18-senior-deep-dive-1-the-python-object-model-mutability-and-interfaces.md",
-          "title": "Senior Deep Dive 1 — The Python object model, mutability and interfaces",
-          "words": 170,
-          "tables": 0,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-02/19-senior-deep-dive-2-configuration-is-an-api-validation-secrets-and-precedence.md",
-          "title": "Senior Deep Dive 2 — Configuration is an API: validation, secrets and precedence",
-          "words": 126,
-          "tables": 0,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-02/20-senior-deep-dive-3-build-api-clients-that-fail-safely.md",
-          "title": "Senior Deep Dive 3 — Build API clients that fail safely",
-          "words": 271,
-          "tables": 0,
-          "codeBlocks": 1,
-          "images": 1
-        },
-        {
-          "file": "docs/volume-02/21-senior-deep-dive-4-async-threads-and-processes-with-backpressure.md",
-          "title": "Senior Deep Dive 4 — Async, threads and processes with backpressure",
-          "words": 152,
-          "tables": 0,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-02/22-senior-deep-dive-5-subprocess-is-a-process-api-not-a-shell-shortcut.md",
-          "title": "Senior Deep Dive 5 — Subprocess is a process API, not a shell shortcut",
-          "words": 128,
-          "tables": 0,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-02/23-senior-deep-dive-6-structured-logs-metrics-and-correlation-ids.md",
-          "title": "Senior Deep Dive 6 — Structured logs, metrics and correlation IDs",
-          "words": 128,
-          "tables": 0,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-02/24-senior-deep-dive-7-testing-infrastructure-code-isolate-decisions-from-effects.md",
-          "title": "Senior Deep Dive 7 — Testing infrastructure code: isolate decisions from effects",
-          "words": 179,
-          "tables": 0,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-02/25-senior-deep-dive-8-complete-project-gpu-fleet-health-cli.md",
-          "title": "Senior Deep Dive 8 — Complete project: GPU fleet health CLI",
-          "words": 189,
-          "tables": 0,
-          "codeBlocks": 2,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-02/26-performance-and-profiling-for-operational-python.md",
-          "title": "Performance and profiling for operational Python",
-          "words": 178,
-          "tables": 0,
-          "codeBlocks": 1,
-          "images": 0
+          "file": "docs/volume-02/03-python-tooling-operations-masterclass.md",
+          "title": "Python Tooling & Operations Masterclass",
+          "words": 2532,
+          "tables": 20,
+          "codeBlocks": 14,
+          "images": 5
         }
       ]
     },
@@ -422,23 +134,9 @@
       "sourceCodeBlocks": 17,
       "sourceImages": 4,
       "sourceHeadings": [
-        "Chapter 1 - API server, etcd and the object model",
-        "Chapter 2 - Scheduler mechanics, resources and topology",
-        "Chapter 3 - Kubelet, CRI and Pod lifecycle",
-        "Chapter 4 - Kubernetes networking from Service to CNI",
-        "Chapter 5 - Storage and StatefulSets",
-        "Chapter 6 - Security: authentication, RBAC, workload identity and Pod hardening",
-        "Chapter 7 - Autoscaling and capacity",
-        "Chapter 8 - Operators, GitOps and platform engineering",
-        "Chapter 9 - Upgrades, reliability and cluster operations",
-        "Senior Deep Dive 1 — API machinery: resourceVersion, watches, finalizers and ownership",
-        "Senior Deep Dive 2 — etcd quorum, control-plane failure and recovery boundaries",
-        "Senior Deep Dive 3 — Scheduling framework, preemption, gang/topology and DRA",
-        "Senior Deep Dive 4 — Kubelet, CRI, pod sandbox and node pressure",
-        "Senior Deep Dive 5 — Networking: Service abstraction, CNI dataplane, DNS and Gateway API",
-        "Senior Deep Dive 6 — Admission, policy and multi-tenant guardrails",
-        "Senior Deep Dive 7 — Platform patterns from the Staff Engineer guide",
-        "Senior Deep Dive 8 — GPU platform operations: node pools, operators and resource isolation"
+        "K8s Control Plane & Scheduling Masterclass",
+        "K8s Node & Storage Masterclass",
+        "K8s Networking, Security & Ops Masterclass"
       ],
       "conversionMessages": [
         "Unrecognised paragraph style: 'Deep Dive' (Style ID: DeepDive)",
@@ -446,140 +144,28 @@
       ],
       "generatedFiles": [
         {
-          "file": "docs/volume-03/01-chapter-1-api-server-etcd-and-the-object-model.md",
-          "title": "Chapter 1 - API server, etcd and the object model",
-          "words": 296,
-          "tables": 6,
-          "codeBlocks": 1,
-          "images": 1
+          "file": "docs/volume-03/01-k8s-control-plane-scheduling-masterclass.md",
+          "title": "K8s Control Plane & Scheduling Masterclass",
+          "words": 1058,
+          "tables": 12,
+          "codeBlocks": 5,
+          "images": 2
         },
         {
-          "file": "docs/volume-03/02-chapter-2-scheduler-mechanics-resources-and-topology.md",
-          "title": "Chapter 2 - Scheduler mechanics, resources and topology",
-          "words": 298,
-          "tables": 5,
-          "codeBlocks": 2,
+          "file": "docs/volume-03/02-k8s-node-storage-masterclass.md",
+          "title": "K8s Node & Storage Masterclass",
+          "words": 441,
+          "tables": 7,
+          "codeBlocks": 3,
           "images": 0
         },
         {
-          "file": "docs/volume-03/03-chapter-3-kubelet-cri-and-pod-lifecycle.md",
-          "title": "Chapter 3 - Kubelet, CRI and Pod lifecycle",
-          "words": 136,
-          "tables": 3,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-03/04-chapter-4-kubernetes-networking-from-service-to-cni.md",
-          "title": "Chapter 4 - Kubernetes networking from Service to CNI",
-          "words": 356,
-          "tables": 6,
-          "codeBlocks": 2,
-          "images": 1
-        },
-        {
-          "file": "docs/volume-03/05-chapter-5-storage-and-statefulsets.md",
-          "title": "Chapter 5 - Storage and StatefulSets",
-          "words": 147,
-          "tables": 4,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-03/06-chapter-6-security-authentication-rbac-workload-identity-and-pod-hardening.md",
-          "title": "Chapter 6 - Security: authentication, RBAC, workload identity and Pod hardening",
-          "words": 142,
-          "tables": 3,
-          "codeBlocks": 2,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-03/07-chapter-7-autoscaling-and-capacity.md",
-          "title": "Chapter 7 - Autoscaling and capacity",
-          "words": 182,
-          "tables": 4,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-03/08-chapter-8-operators-gitops-and-platform-engineering.md",
-          "title": "Chapter 8 - Operators, GitOps and platform engineering",
-          "words": 168,
-          "tables": 3,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-03/09-chapter-9-upgrades-reliability-and-cluster-operations.md",
-          "title": "Chapter 9 - Upgrades, reliability and cluster operations",
-          "words": 319,
-          "tables": 3,
-          "codeBlocks": 1,
-          "images": 1
-        },
-        {
-          "file": "docs/volume-03/10-senior-deep-dive-1-api-machinery-resourceversion-watches-finalizers-and-owners.md",
-          "title": "Senior Deep Dive 1 — API machinery: resourceVersion, watches, finalizers and ownership",
-          "words": 142,
-          "tables": 0,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-03/11-senior-deep-dive-2-etcd-quorum-control-plane-failure-and-recovery-boundaries.md",
-          "title": "Senior Deep Dive 2 — etcd quorum, control-plane failure and recovery boundaries",
-          "words": 122,
-          "tables": 1,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-03/12-senior-deep-dive-3-scheduling-framework-preemption-gang-topology-and-dra.md",
-          "title": "Senior Deep Dive 3 — Scheduling framework, preemption, gang/topology and DRA",
-          "words": 200,
-          "tables": 0,
-          "codeBlocks": 1,
-          "images": 1
-        },
-        {
-          "file": "docs/volume-03/13-senior-deep-dive-4-kubelet-cri-pod-sandbox-and-node-pressure.md",
-          "title": "Senior Deep Dive 4 — Kubelet, CRI, pod sandbox and node pressure",
-          "words": 158,
-          "tables": 0,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-03/14-senior-deep-dive-5-networking-service-abstraction-cni-dataplane-dns-and-gatewa.md",
-          "title": "Senior Deep Dive 5 — Networking: Service abstraction, CNI dataplane, DNS and Gateway API",
-          "words": 186,
-          "tables": 0,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-03/15-senior-deep-dive-6-admission-policy-and-multi-tenant-guardrails.md",
-          "title": "Senior Deep Dive 6 — Admission, policy and multi-tenant guardrails",
-          "words": 116,
-          "tables": 0,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-03/16-senior-deep-dive-7-platform-patterns-from-the-staff-engineer-guide.md",
-          "title": "Senior Deep Dive 7 — Platform patterns from the Staff Engineer guide",
-          "words": 159,
-          "tables": 1,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-03/17-senior-deep-dive-8-gpu-platform-operations-node-pools-operators-and-resource-i.md",
-          "title": "Senior Deep Dive 8 — GPU platform operations: node pools, operators and resource isolation",
-          "words": 211,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
+          "file": "docs/volume-03/03-k8s-networking-security-ops-masterclass.md",
+          "title": "K8s Networking, Security & Ops Masterclass",
+          "words": 1839,
+          "tables": 20,
+          "codeBlocks": 9,
+          "images": 2
         }
       ]
     },
@@ -599,13 +185,13 @@
         "Chapter 5 - GPU sharing: MIG, time slicing, MPS and vGPU",
         "Chapter 6 - GPU telemetry, DCGM and health",
         "Chapter 7 - Capacity and failure-domain design",
-        "Senior Deep Dive 1 — GPU execution model without CUDA-programming overload",
-        "Senior Deep Dive 2 — Topology: PCIe, NVLink, NVSwitch and NUMA",
-        "Senior Deep Dive 3 — Driver, CUDA compatibility and container integration",
-        "Senior Deep Dive 4 — GPU Operator as a dependency reconciler",
-        "Senior Deep Dive 5 — Sharing: MIG, time-slicing, MPS and vGPU",
-        "Senior Deep Dive 6 — DCGM, Xid, ECC and health semantics",
-        "Senior Deep Dive 7 — Fleet lifecycle: upgrades, draining and known-good validation"
+        "Senior Deep Dive 1 \u2014 GPU execution model without CUDA-programming overload",
+        "Senior Deep Dive 2 \u2014 Topology: PCIe, NVLink, NVSwitch and NUMA",
+        "Senior Deep Dive 3 \u2014 Driver, CUDA compatibility and container integration",
+        "Senior Deep Dive 4 \u2014 GPU Operator as a dependency reconciler",
+        "Senior Deep Dive 5 \u2014 Sharing: MIG, time-slicing, MPS and vGPU",
+        "Senior Deep Dive 6 \u2014 DCGM, Xid, ECC and health semantics",
+        "Senior Deep Dive 7 \u2014 Fleet lifecycle: upgrades, draining and known-good validation"
       ],
       "conversionMessages": [
         "Unrecognised paragraph style: 'Deep Dive' (Style ID: DeepDive)",
@@ -670,7 +256,7 @@
         },
         {
           "file": "docs/volume-04/08-senior-deep-dive-1-gpu-execution-model-without-cuda-programming-overload.md",
-          "title": "Senior Deep Dive 1 — GPU execution model without CUDA-programming overload",
+          "title": "Senior Deep Dive 1 \u2014 GPU execution model without CUDA-programming overload",
           "words": 122,
           "tables": 0,
           "codeBlocks": 0,
@@ -678,7 +264,7 @@
         },
         {
           "file": "docs/volume-04/09-senior-deep-dive-2-topology-pcie-nvlink-nvswitch-and-numa.md",
-          "title": "Senior Deep Dive 2 — Topology: PCIe, NVLink, NVSwitch and NUMA",
+          "title": "Senior Deep Dive 2 \u2014 Topology: PCIe, NVLink, NVSwitch and NUMA",
           "words": 152,
           "tables": 0,
           "codeBlocks": 1,
@@ -686,7 +272,7 @@
         },
         {
           "file": "docs/volume-04/10-senior-deep-dive-3-driver-cuda-compatibility-and-container-integration.md",
-          "title": "Senior Deep Dive 3 — Driver, CUDA compatibility and container integration",
+          "title": "Senior Deep Dive 3 \u2014 Driver, CUDA compatibility and container integration",
           "words": 129,
           "tables": 0,
           "codeBlocks": 1,
@@ -694,7 +280,7 @@
         },
         {
           "file": "docs/volume-04/11-senior-deep-dive-4-gpu-operator-as-a-dependency-reconciler.md",
-          "title": "Senior Deep Dive 4 — GPU Operator as a dependency reconciler",
+          "title": "Senior Deep Dive 4 \u2014 GPU Operator as a dependency reconciler",
           "words": 132,
           "tables": 1,
           "codeBlocks": 0,
@@ -702,7 +288,7 @@
         },
         {
           "file": "docs/volume-04/12-senior-deep-dive-5-sharing-mig-time-slicing-mps-and-vgpu.md",
-          "title": "Senior Deep Dive 5 — Sharing: MIG, time-slicing, MPS and vGPU",
+          "title": "Senior Deep Dive 5 \u2014 Sharing: MIG, time-slicing, MPS and vGPU",
           "words": 122,
           "tables": 0,
           "codeBlocks": 0,
@@ -710,7 +296,7 @@
         },
         {
           "file": "docs/volume-04/13-senior-deep-dive-6-dcgm-xid-ecc-and-health-semantics.md",
-          "title": "Senior Deep Dive 6 — DCGM, Xid, ECC and health semantics",
+          "title": "Senior Deep Dive 6 \u2014 DCGM, Xid, ECC and health semantics",
           "words": 124,
           "tables": 0,
           "codeBlocks": 1,
@@ -718,7 +304,7 @@
         },
         {
           "file": "docs/volume-04/14-senior-deep-dive-7-fleet-lifecycle-upgrades-draining-and-known-good-validation.md",
-          "title": "Senior Deep Dive 7 — Fleet lifecycle: upgrades, draining and known-good validation",
+          "title": "Senior Deep Dive 7 \u2014 Fleet lifecycle: upgrades, draining and known-good validation",
           "words": 179,
           "tables": 0,
           "codeBlocks": 0,
@@ -744,14 +330,14 @@
         "Chapter 7 - State, caches and RAG dependencies",
         "Chapter 8 - Security and tenancy for AI platforms",
         "Chapter 9 - Performance and cost engineering",
-        "Senior Deep Dive 1 — Training systems: parallelism, collectives and checkpoint economics",
-        "Senior Deep Dive 2 — LLM inference: prefill, decode, KV cache and continuous batching",
-        "Senior Deep Dive 3 — NIM, vLLM, TensorRT-LLM and serving boundaries",
-        "Senior Deep Dive 4 — NVIDIA Dynamo: system-level inference optimization",
-        "Senior Deep Dive 5 — Autoscaling inference from work, not only CPU",
-        "Senior Deep Dive 6 — RAG, vector search and stateful dependencies",
-        "Senior Deep Dive 7 — Agentic and multimodal infrastructure",
-        "Senior Deep Dive 8 — Production benchmark design"
+        "Senior Deep Dive 1 \u2014 Training systems: parallelism, collectives and checkpoint economics",
+        "Senior Deep Dive 2 \u2014 LLM inference: prefill, decode, KV cache and continuous batching",
+        "Senior Deep Dive 3 \u2014 NIM, vLLM, TensorRT-LLM and serving boundaries",
+        "Senior Deep Dive 4 \u2014 NVIDIA Dynamo: system-level inference optimization",
+        "Senior Deep Dive 5 \u2014 Autoscaling inference from work, not only CPU",
+        "Senior Deep Dive 6 \u2014 RAG, vector search and stateful dependencies",
+        "Senior Deep Dive 7 \u2014 Agentic and multimodal infrastructure",
+        "Senior Deep Dive 8 \u2014 Production benchmark design"
       ],
       "conversionMessages": [
         "Unrecognised paragraph style: 'Deep Dive' (Style ID: DeepDive)"
@@ -831,7 +417,7 @@
         },
         {
           "file": "docs/volume-05/10-senior-deep-dive-1-training-systems-parallelism-collectives-and-checkpoint-eco.md",
-          "title": "Senior Deep Dive 1 — Training systems: parallelism, collectives and checkpoint economics",
+          "title": "Senior Deep Dive 1 \u2014 Training systems: parallelism, collectives and checkpoint economics",
           "words": 103,
           "tables": 0,
           "codeBlocks": 0,
@@ -839,7 +425,7 @@
         },
         {
           "file": "docs/volume-05/11-senior-deep-dive-2-llm-inference-prefill-decode-kv-cache-and-continuous-batchi.md",
-          "title": "Senior Deep Dive 2 — LLM inference: prefill, decode, KV cache and continuous batching",
+          "title": "Senior Deep Dive 2 \u2014 LLM inference: prefill, decode, KV cache and continuous batching",
           "words": 189,
           "tables": 1,
           "codeBlocks": 0,
@@ -847,7 +433,7 @@
         },
         {
           "file": "docs/volume-05/12-senior-deep-dive-3-nim-vllm-tensorrt-llm-and-serving-boundaries.md",
-          "title": "Senior Deep Dive 3 — NIM, vLLM, TensorRT-LLM and serving boundaries",
+          "title": "Senior Deep Dive 3 \u2014 NIM, vLLM, TensorRT-LLM and serving boundaries",
           "words": 79,
           "tables": 0,
           "codeBlocks": 0,
@@ -855,7 +441,7 @@
         },
         {
           "file": "docs/volume-05/13-senior-deep-dive-4-nvidia-dynamo-system-level-inference-optimization.md",
-          "title": "Senior Deep Dive 4 — NVIDIA Dynamo: system-level inference optimization",
+          "title": "Senior Deep Dive 4 \u2014 NVIDIA Dynamo: system-level inference optimization",
           "words": 176,
           "tables": 0,
           "codeBlocks": 0,
@@ -863,7 +449,7 @@
         },
         {
           "file": "docs/volume-05/14-senior-deep-dive-5-autoscaling-inference-from-work-not-only-cpu.md",
-          "title": "Senior Deep Dive 5 — Autoscaling inference from work, not only CPU",
+          "title": "Senior Deep Dive 5 \u2014 Autoscaling inference from work, not only CPU",
           "words": 115,
           "tables": 0,
           "codeBlocks": 0,
@@ -871,7 +457,7 @@
         },
         {
           "file": "docs/volume-05/15-senior-deep-dive-6-rag-vector-search-and-stateful-dependencies.md",
-          "title": "Senior Deep Dive 6 — RAG, vector search and stateful dependencies",
+          "title": "Senior Deep Dive 6 \u2014 RAG, vector search and stateful dependencies",
           "words": 117,
           "tables": 0,
           "codeBlocks": 0,
@@ -879,7 +465,7 @@
         },
         {
           "file": "docs/volume-05/16-senior-deep-dive-7-agentic-and-multimodal-infrastructure.md",
-          "title": "Senior Deep Dive 7 — Agentic and multimodal infrastructure",
+          "title": "Senior Deep Dive 7 \u2014 Agentic and multimodal infrastructure",
           "words": 74,
           "tables": 0,
           "codeBlocks": 0,
@@ -887,7 +473,7 @@
         },
         {
           "file": "docs/volume-05/17-senior-deep-dive-8-production-benchmark-design.md",
-          "title": "Senior Deep Dive 8 — Production benchmark design",
+          "title": "Senior Deep Dive 8 \u2014 Production benchmark design",
           "words": 144,
           "tables": 0,
           "codeBlocks": 0,
@@ -912,13 +498,13 @@
         "Chapter 6 - Storage for AI: datasets, checkpoints and model distribution",
         "Chapter 7 - Slurm scheduling model",
         "Chapter 8 - Kubernetes, Slurm or both",
-        "Senior Deep Dive 1 — Collective communication and straggler amplification",
-        "Senior Deep Dive 2 — RDMA: InfiniBand versus RoCE",
-        "Senior Deep Dive 3 — Network design for AI: oversubscription, rails and failure domains",
-        "Senior Deep Dive 4 — Storage hierarchy and data pipeline architecture",
-        "Senior Deep Dive 5 — Slurm concepts beyond sbatch",
-        "Senior Deep Dive 6 — Kubernetes, Slurm and hybrid scheduling",
-        "Senior Deep Dive 7 — Distributed-system patterns from the Staff Engineer guide"
+        "Senior Deep Dive 1 \u2014 Collective communication and straggler amplification",
+        "Senior Deep Dive 2 \u2014 RDMA: InfiniBand versus RoCE",
+        "Senior Deep Dive 3 \u2014 Network design for AI: oversubscription, rails and failure domains",
+        "Senior Deep Dive 4 \u2014 Storage hierarchy and data pipeline architecture",
+        "Senior Deep Dive 5 \u2014 Slurm concepts beyond sbatch",
+        "Senior Deep Dive 6 \u2014 Kubernetes, Slurm and hybrid scheduling",
+        "Senior Deep Dive 7 \u2014 Distributed-system patterns from the Staff Engineer guide"
       ],
       "conversionMessages": [
         "Unrecognised paragraph style: 'Deep Dive' (Style ID: DeepDive)",
@@ -991,7 +577,7 @@
         },
         {
           "file": "docs/volume-06/09-senior-deep-dive-1-collective-communication-and-straggler-amplification.md",
-          "title": "Senior Deep Dive 1 — Collective communication and straggler amplification",
+          "title": "Senior Deep Dive 1 \u2014 Collective communication and straggler amplification",
           "words": 152,
           "tables": 0,
           "codeBlocks": 1,
@@ -999,7 +585,7 @@
         },
         {
           "file": "docs/volume-06/10-senior-deep-dive-2-rdma-infiniband-versus-roce.md",
-          "title": "Senior Deep Dive 2 — RDMA: InfiniBand versus RoCE",
+          "title": "Senior Deep Dive 2 \u2014 RDMA: InfiniBand versus RoCE",
           "words": 114,
           "tables": 0,
           "codeBlocks": 0,
@@ -1007,7 +593,7 @@
         },
         {
           "file": "docs/volume-06/11-senior-deep-dive-3-network-design-for-ai-oversubscription-rails-and-failure-do.md",
-          "title": "Senior Deep Dive 3 — Network design for AI: oversubscription, rails and failure domains",
+          "title": "Senior Deep Dive 3 \u2014 Network design for AI: oversubscription, rails and failure domains",
           "words": 125,
           "tables": 1,
           "codeBlocks": 0,
@@ -1015,7 +601,7 @@
         },
         {
           "file": "docs/volume-06/12-senior-deep-dive-4-storage-hierarchy-and-data-pipeline-architecture.md",
-          "title": "Senior Deep Dive 4 — Storage hierarchy and data pipeline architecture",
+          "title": "Senior Deep Dive 4 \u2014 Storage hierarchy and data pipeline architecture",
           "words": 130,
           "tables": 0,
           "codeBlocks": 0,
@@ -1023,7 +609,7 @@
         },
         {
           "file": "docs/volume-06/13-senior-deep-dive-5-slurm-concepts-beyond-sbatch.md",
-          "title": "Senior Deep Dive 5 — Slurm concepts beyond sbatch",
+          "title": "Senior Deep Dive 5 \u2014 Slurm concepts beyond sbatch",
           "words": 149,
           "tables": 0,
           "codeBlocks": 1,
@@ -1031,7 +617,7 @@
         },
         {
           "file": "docs/volume-06/14-senior-deep-dive-6-kubernetes-slurm-and-hybrid-scheduling.md",
-          "title": "Senior Deep Dive 6 — Kubernetes, Slurm and hybrid scheduling",
+          "title": "Senior Deep Dive 6 \u2014 Kubernetes, Slurm and hybrid scheduling",
           "words": 67,
           "tables": 0,
           "codeBlocks": 0,
@@ -1039,7 +625,7 @@
         },
         {
           "file": "docs/volume-06/15-senior-deep-dive-7-distributed-system-patterns-from-the-staff-engineer-guide.md",
-          "title": "Senior Deep Dive 7 — Distributed-system patterns from the Staff Engineer guide",
+          "title": "Senior Deep Dive 7 \u2014 Distributed-system patterns from the Staff Engineer guide",
           "words": 152,
           "tables": 0,
           "codeBlocks": 0,
@@ -1067,14 +653,14 @@
         "Chapter 9 - Incident playbook: Pending Pods, CrashLoops and OOM",
         "Chapter 10 - Incident playbook: GPU workload slow or failing",
         "Chapter 11 - Incident communication and postmortem",
-        "Senior Deep Dive 1 — Start with SLO impact and scope",
-        "Senior Deep Dive 2 — Prometheus internals, cardinality and query cost",
-        "Senior Deep Dive 3 — OpenTelemetry and trace context across AI services",
-        "Senior Deep Dive 4 — GPU observability with DCGM and driver evidence",
-        "Senior Deep Dive 5 — Inference observability: TTFT, ITL/TPOT and saturation",
-        "Senior Deep Dive 6 — Incident workflow: evidence tree and safe mitigation",
-        "Senior Deep Dive 7 — Alert design for expensive GPU systems",
-        "Senior Deep Dive 8 — Reliability testing and game days"
+        "Senior Deep Dive 1 \u2014 Start with SLO impact and scope",
+        "Senior Deep Dive 2 \u2014 Prometheus internals, cardinality and query cost",
+        "Senior Deep Dive 3 \u2014 OpenTelemetry and trace context across AI services",
+        "Senior Deep Dive 4 \u2014 GPU observability with DCGM and driver evidence",
+        "Senior Deep Dive 5 \u2014 Inference observability: TTFT, ITL/TPOT and saturation",
+        "Senior Deep Dive 6 \u2014 Incident workflow: evidence tree and safe mitigation",
+        "Senior Deep Dive 7 \u2014 Alert design for expensive GPU systems",
+        "Senior Deep Dive 8 \u2014 Reliability testing and game days"
       ],
       "conversionMessages": [
         "Unrecognised paragraph style: 'Deep Dive' (Style ID: DeepDive)",
@@ -1171,7 +757,7 @@
         },
         {
           "file": "docs/volume-07/12-senior-deep-dive-1-start-with-slo-impact-and-scope.md",
-          "title": "Senior Deep Dive 1 — Start with SLO impact and scope",
+          "title": "Senior Deep Dive 1 \u2014 Start with SLO impact and scope",
           "words": 106,
           "tables": 0,
           "codeBlocks": 0,
@@ -1179,7 +765,7 @@
         },
         {
           "file": "docs/volume-07/13-senior-deep-dive-2-prometheus-internals-cardinality-and-query-cost.md",
-          "title": "Senior Deep Dive 2 — Prometheus internals, cardinality and query cost",
+          "title": "Senior Deep Dive 2 \u2014 Prometheus internals, cardinality and query cost",
           "words": 169,
           "tables": 0,
           "codeBlocks": 1,
@@ -1187,7 +773,7 @@
         },
         {
           "file": "docs/volume-07/14-senior-deep-dive-3-opentelemetry-and-trace-context-across-ai-services.md",
-          "title": "Senior Deep Dive 3 — OpenTelemetry and trace context across AI services",
+          "title": "Senior Deep Dive 3 \u2014 OpenTelemetry and trace context across AI services",
           "words": 72,
           "tables": 0,
           "codeBlocks": 0,
@@ -1195,7 +781,7 @@
         },
         {
           "file": "docs/volume-07/15-senior-deep-dive-4-gpu-observability-with-dcgm-and-driver-evidence.md",
-          "title": "Senior Deep Dive 4 — GPU observability with DCGM and driver evidence",
+          "title": "Senior Deep Dive 4 \u2014 GPU observability with DCGM and driver evidence",
           "words": 68,
           "tables": 0,
           "codeBlocks": 0,
@@ -1203,7 +789,7 @@
         },
         {
           "file": "docs/volume-07/16-senior-deep-dive-5-inference-observability-ttft-itl-tpot-and-saturation.md",
-          "title": "Senior Deep Dive 5 — Inference observability: TTFT, ITL/TPOT and saturation",
+          "title": "Senior Deep Dive 5 \u2014 Inference observability: TTFT, ITL/TPOT and saturation",
           "words": 127,
           "tables": 1,
           "codeBlocks": 0,
@@ -1211,7 +797,7 @@
         },
         {
           "file": "docs/volume-07/17-senior-deep-dive-6-incident-workflow-evidence-tree-and-safe-mitigation.md",
-          "title": "Senior Deep Dive 6 — Incident workflow: evidence tree and safe mitigation",
+          "title": "Senior Deep Dive 6 \u2014 Incident workflow: evidence tree and safe mitigation",
           "words": 120,
           "tables": 0,
           "codeBlocks": 0,
@@ -1219,7 +805,7 @@
         },
         {
           "file": "docs/volume-07/18-senior-deep-dive-7-alert-design-for-expensive-gpu-systems.md",
-          "title": "Senior Deep Dive 7 — Alert design for expensive GPU systems",
+          "title": "Senior Deep Dive 7 \u2014 Alert design for expensive GPU systems",
           "words": 64,
           "tables": 0,
           "codeBlocks": 0,
@@ -1227,7 +813,7 @@
         },
         {
           "file": "docs/volume-07/19-senior-deep-dive-8-reliability-testing-and-game-days.md",
-          "title": "Senior Deep Dive 8 — Reliability testing and game days",
+          "title": "Senior Deep Dive 8 \u2014 Reliability testing and game days",
           "words": 127,
           "tables": 0,
           "codeBlocks": 0,
@@ -1254,14 +840,14 @@
         "Chapter 8 - Security architecture and governance",
         "Chapter 9 - Migration and adoption strategy",
         "Chapter 10 - Customer communication and executive explanation",
-        "Senior Deep Dive 1 — Workload characterization before architecture",
-        "Senior Deep Dive 2 — AI factory layered architecture",
-        "Senior Deep Dive 3 — Capacity and TCO: convert SLO into resources",
-        "Senior Deep Dive 4 — PoC design: test the uncertainty",
-        "Senior Deep Dive 5 — Security and governance for GPU/AI platforms",
-        "Senior Deep Dive 6 — Decision workshops: Kubernetes, Slurm, Run:ai, NIM and Dynamo",
-        "Senior Deep Dive 7 — Communicate at three levels",
-        "Senior Deep Dive 8 — Practitioner role model: Solutions Architect versus implementation engineer"
+        "Senior Deep Dive 1 \u2014 Workload characterization before architecture",
+        "Senior Deep Dive 2 \u2014 AI factory layered architecture",
+        "Senior Deep Dive 3 \u2014 Capacity and TCO: convert SLO into resources",
+        "Senior Deep Dive 4 \u2014 PoC design: test the uncertainty",
+        "Senior Deep Dive 5 \u2014 Security and governance for GPU/AI platforms",
+        "Senior Deep Dive 6 \u2014 Decision workshops: Kubernetes, Slurm, Run:ai, NIM and Dynamo",
+        "Senior Deep Dive 7 \u2014 Communicate at three levels",
+        "Senior Deep Dive 8 \u2014 Practitioner role model: Solutions Architect versus implementation engineer"
       ],
       "conversionMessages": [
         "Unrecognised paragraph style: 'Deep Dive' (Style ID: DeepDive)"
@@ -1349,7 +935,7 @@
         },
         {
           "file": "docs/volume-08/11-senior-deep-dive-1-workload-characterization-before-architecture.md",
-          "title": "Senior Deep Dive 1 — Workload characterization before architecture",
+          "title": "Senior Deep Dive 1 \u2014 Workload characterization before architecture",
           "words": 118,
           "tables": 1,
           "codeBlocks": 0,
@@ -1357,7 +943,7 @@
         },
         {
           "file": "docs/volume-08/12-senior-deep-dive-2-ai-factory-layered-architecture.md",
-          "title": "Senior Deep Dive 2 — AI factory layered architecture",
+          "title": "Senior Deep Dive 2 \u2014 AI factory layered architecture",
           "words": 67,
           "tables": 0,
           "codeBlocks": 0,
@@ -1365,7 +951,7 @@
         },
         {
           "file": "docs/volume-08/13-senior-deep-dive-3-capacity-and-tco-convert-slo-into-resources.md",
-          "title": "Senior Deep Dive 3 — Capacity and TCO: convert SLO into resources",
+          "title": "Senior Deep Dive 3 \u2014 Capacity and TCO: convert SLO into resources",
           "words": 108,
           "tables": 0,
           "codeBlocks": 0,
@@ -1373,7 +959,7 @@
         },
         {
           "file": "docs/volume-08/14-senior-deep-dive-4-poc-design-test-the-uncertainty.md",
-          "title": "Senior Deep Dive 4 — PoC design: test the uncertainty",
+          "title": "Senior Deep Dive 4 \u2014 PoC design: test the uncertainty",
           "words": 142,
           "tables": 1,
           "codeBlocks": 0,
@@ -1381,7 +967,7 @@
         },
         {
           "file": "docs/volume-08/15-senior-deep-dive-5-security-and-governance-for-gpu-ai-platforms.md",
-          "title": "Senior Deep Dive 5 — Security and governance for GPU/AI platforms",
+          "title": "Senior Deep Dive 5 \u2014 Security and governance for GPU/AI platforms",
           "words": 69,
           "tables": 0,
           "codeBlocks": 0,
@@ -1389,7 +975,7 @@
         },
         {
           "file": "docs/volume-08/16-senior-deep-dive-6-decision-workshops-kubernetes-slurm-run-ai-nim-and-dynamo.md",
-          "title": "Senior Deep Dive 6 — Decision workshops: Kubernetes, Slurm, Run:ai, NIM and Dynamo",
+          "title": "Senior Deep Dive 6 \u2014 Decision workshops: Kubernetes, Slurm, Run:ai, NIM and Dynamo",
           "words": 80,
           "tables": 0,
           "codeBlocks": 0,
@@ -1397,7 +983,7 @@
         },
         {
           "file": "docs/volume-08/17-senior-deep-dive-7-communicate-at-three-levels.md",
-          "title": "Senior Deep Dive 7 — Communicate at three levels",
+          "title": "Senior Deep Dive 7 \u2014 Communicate at three levels",
           "words": 58,
           "tables": 0,
           "codeBlocks": 0,
@@ -1405,7 +991,7 @@
         },
         {
           "file": "docs/volume-08/18-senior-deep-dive-8-practitioner-role-model-solutions-architect-versus-implemen.md",
-          "title": "Senior Deep Dive 8 — Practitioner role model: Solutions Architect versus implementation engineer",
+          "title": "Senior Deep Dive 8 \u2014 Practitioner role model: Solutions Architect versus implementation engineer",
           "words": 135,
           "tables": 0,
           "codeBlocks": 0,
@@ -1434,15 +1020,15 @@
         "Chapter 10 - Behavioral and stakeholder stories",
         "Chapter 11 - Question bank: foundations to SA depth",
         "Chapter 12 - 45-minute mock interview structure",
-        "Senior Interview Method — Clarify, model, hypothesize, test, recommend",
-        "Question set A — Linux and host mechanics",
-        "Question set B — Python coding and production automation",
-        "Question set C — Kubernetes platform depth",
-        "Question set D — GPU and accelerated networking",
-        "Question set E — AI inference architecture",
-        "Question set F — Customer architecture and PoC",
-        "Question set G — Whiteboard: production GenAI platform",
-        "Question set H — Behavioral stories for a senior SA",
+        "Senior Interview Method \u2014 Clarify, model, hypothesize, test, recommend",
+        "Question set A \u2014 Linux and host mechanics",
+        "Question set B \u2014 Python coding and production automation",
+        "Question set C \u2014 Kubernetes platform depth",
+        "Question set D \u2014 GPU and accelerated networking",
+        "Question set E \u2014 AI inference architecture",
+        "Question set F \u2014 Customer architecture and PoC",
+        "Question set G \u2014 Whiteboard: production GenAI platform",
+        "Question set H \u2014 Behavioral stories for a senior SA",
         "Current role-family signals to be able to discuss"
       ],
       "conversionMessages": [
@@ -1548,7 +1134,7 @@
         },
         {
           "file": "docs/volume-09/13-senior-interview-method-clarify-model-hypothesize-test-recommend.md",
-          "title": "Senior Interview Method — Clarify, model, hypothesize, test, recommend",
+          "title": "Senior Interview Method \u2014 Clarify, model, hypothesize, test, recommend",
           "words": 77,
           "tables": 0,
           "codeBlocks": 0,
@@ -1556,7 +1142,7 @@
         },
         {
           "file": "docs/volume-09/14-question-set-a-linux-and-host-mechanics.md",
-          "title": "Question set A — Linux and host mechanics",
+          "title": "Question set A \u2014 Linux and host mechanics",
           "words": 83,
           "tables": 1,
           "codeBlocks": 0,
@@ -1564,7 +1150,7 @@
         },
         {
           "file": "docs/volume-09/15-question-set-b-python-coding-and-production-automation.md",
-          "title": "Question set B — Python coding and production automation",
+          "title": "Question set B \u2014 Python coding and production automation",
           "words": 123,
           "tables": 0,
           "codeBlocks": 1,
@@ -1572,7 +1158,7 @@
         },
         {
           "file": "docs/volume-09/16-question-set-c-kubernetes-platform-depth.md",
-          "title": "Question set C — Kubernetes platform depth",
+          "title": "Question set C \u2014 Kubernetes platform depth",
           "words": 76,
           "tables": 1,
           "codeBlocks": 0,
@@ -1580,7 +1166,7 @@
         },
         {
           "file": "docs/volume-09/17-question-set-d-gpu-and-accelerated-networking.md",
-          "title": "Question set D — GPU and accelerated networking",
+          "title": "Question set D \u2014 GPU and accelerated networking",
           "words": 64,
           "tables": 1,
           "codeBlocks": 0,
@@ -1588,7 +1174,7 @@
         },
         {
           "file": "docs/volume-09/18-question-set-e-ai-inference-architecture.md",
-          "title": "Question set E — AI inference architecture",
+          "title": "Question set E \u2014 AI inference architecture",
           "words": 56,
           "tables": 1,
           "codeBlocks": 0,
@@ -1596,7 +1182,7 @@
         },
         {
           "file": "docs/volume-09/19-question-set-f-customer-architecture-and-poc.md",
-          "title": "Question set F — Customer architecture and PoC",
+          "title": "Question set F \u2014 Customer architecture and PoC",
           "words": 112,
           "tables": 0,
           "codeBlocks": 0,
@@ -1604,7 +1190,7 @@
         },
         {
           "file": "docs/volume-09/20-question-set-g-whiteboard-production-genai-platform.md",
-          "title": "Question set G — Whiteboard: production GenAI platform",
+          "title": "Question set G \u2014 Whiteboard: production GenAI platform",
           "words": 64,
           "tables": 0,
           "codeBlocks": 0,
@@ -1612,7 +1198,7 @@
         },
         {
           "file": "docs/volume-09/21-question-set-h-behavioral-stories-for-a-senior-sa.md",
-          "title": "Question set H — Behavioral stories for a senior SA",
+          "title": "Question set H \u2014 Behavioral stories for a senior SA",
           "words": 77,
           "tables": 0,
           "codeBlocks": 0,
