@@ -65,7 +65,7 @@ flowchart TD
     CTL1 <--> STATE_VOL
     CTL2 -.-> STATE_VOL
 
-    CTL1 <-->|RPC Port 6819| DBD1
+    CTL1 -- "RPC Port 6819" --- DBD1
     CTL2 -.->|RPC Port 6819| DBD1
 
     DBD1 --> PROXY
@@ -313,14 +313,14 @@ flowchart TD
         DB3[("Node 3: Galera Arbiter (garbd)")]
     end
 
-    CTLD <-->|RPC Port 6819| DBD
+    CTLD -- "RPC Port 6819" --- DBD
     DBD -->|SQL TCP 3306| PROXY
     PROXY -->|Single-Writer Flow (Read/Write)| DB1
     PROXY -.->|Standby Flow (Fails over if DB1 dies)| DB2
     
-    DB1 <-->|Synchronous Write-Set Replication| DB2
-    DB1 <-->|Quorum Voting| DB3
-    DB2 <-->|Quorum Voting| DB3
+    DB1 -- "Synchronous Write-Set Replication" --- DB2
+    DB1 -- "Quorum Voting" --- DB3
+    DB2 -- "Quorum Voting" --- DB3
 ```
 
 ### 4.1 Why Standard Active-Active Multi-Writer Galera Fails with Slurm

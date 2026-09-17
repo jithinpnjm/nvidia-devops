@@ -92,8 +92,8 @@ flowchart TD
 
     DeclarativeConfig --> CoreEngine
     StateStorage <--> CoreEngine
-    CoreEngine <-->|gRPC Protocol| ProviderPlugins
-    ProviderPlugins <-->|HTTPS REST / SDK APIs| RealWorldInfra
+    CoreEngine -- "gRPC Protocol" --- ProviderPlugins
+    ProviderPlugins -- "HTTPS REST / SDK APIs" --- RealWorldInfra
 ```
 
 ### 1. Terraform Core

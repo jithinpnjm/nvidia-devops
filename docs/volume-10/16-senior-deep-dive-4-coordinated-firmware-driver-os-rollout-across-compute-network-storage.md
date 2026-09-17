@@ -41,9 +41,9 @@ flowchart TD
         GDS_TARGET["GPUDirect Storage Target Engine"]
     end
 
-    DGX <-->|400 Gbps RDMA (NCCL Collectives)| IB_SW
-    DGX <-->|GDS Direct DMA (Zero-Copy Checkpointing)| GDS_TARGET
-    IB_SW <-->|Lossless Fabric Routing| OPENSM
+    DGX -- "400 Gbps RDMA (NCCL Collectives)" --- IB_SW
+    DGX -- "GDS Direct DMA (Zero-Copy Checkpointing)" --- GDS_TARGET
+    IB_SW -- "Lossless Fabric Routing" --- OPENSM
     GDS_TARGET <--> NVME_ARR
     STORAGE_CTRL <--> NVME_ARR
 ```

@@ -54,7 +54,7 @@ flowchart TD
         - DRBD / Shared Storage Replica
         - Slurmctld (Backup)"]
         
-        HN1 <-->|Heartbeat & State Sync (DRBD / Galera)| HN2
+        HN1 -- "Heartbeat & State Sync (DRBD / Galera)" --- HN2
     end
 
     VIP["Virtual IP (Cluster Management Gateway)"]

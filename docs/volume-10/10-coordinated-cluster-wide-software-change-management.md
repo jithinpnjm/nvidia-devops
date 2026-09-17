@@ -32,16 +32,16 @@ flowchart TD
     L8["8. Workload Orchestrator (Slurmctld/slurmd, Kubernetes, Run:ai)"]
     L9["9. Deep Learning Workloads (Megatron-Core, PyTorch, vLLM, TensorRT-LLM)"]
 
-    L1 <-->|Hardware-Firmware Interface| L2
-    L2 <-->|Kernel Module ABI| L3
-    L2 <-->|Kernel Netlink / Verbs| L4
-    L3 <-->|GPUDirect P2P DMA| L4
-    L3 <-->|User/Kernel Driver API| L5
-    L4 <-->|InfiniBand Verbs / GDR| L6
-    L5 <-->|CUDA Runtime API| L6
-    L6 <-->|Container Device Passthrough| L7
-    L7 <-->|Process Step Execution| L8
-    L8 <-->|Gang Allocation & Scheduling| L9
+    L1 -- "Hardware-Firmware Interface" --- L2
+    L2 -- "Kernel Module ABI" --- L3
+    L2 -- "Kernel Netlink / Verbs" --- L4
+    L3 -- "GPUDirect P2P DMA" --- L4
+    L3 -- "User/Kernel Driver API" --- L5
+    L4 -- "InfiniBand Verbs / GDR" --- L6
+    L5 -- "CUDA Runtime API" --- L6
+    L6 -- "Container Device Passthrough" --- L7
+    L7 -- "Process Step Execution" --- L8
+    L8 -- "Gang Allocation & Scheduling" --- L9
 ```
 
 ### The Invalidation Chain

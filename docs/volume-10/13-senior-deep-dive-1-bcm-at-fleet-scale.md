@@ -53,12 +53,12 @@ flowchart TD
         end
     end
 
-    HN1 <-->|Aggregated RPCs & Batch Metric Streams| P1
-    HN1 <-->|Aggregated RPCs & Batch Metric Streams| P2
-    P1 <-->|Local Telemetry Collection (Port 8081)| N1
-    P1 <-->|Local Telemetry Collection (Port 8081)| N2
-    P2 <-->|Local Telemetry Collection (Port 8081)| N3
-    P2 <-->|Local Telemetry Collection (Port 8081)| N4
+    HN1 -- "Aggregated RPCs & Batch Metric Streams" --- P1
+    HN1 -- "Aggregated RPCs & Batch Metric Streams" --- P2
+    P1 -- "Local Telemetry Collection (Port 8081)" --- N1
+    P1 -- "Local Telemetry Collection (Port 8081)" --- N2
+    P2 -- "Local Telemetry Collection (Port 8081)" --- N3
+    P2 -- "Local Telemetry Collection (Port 8081)" --- N4
 ```
 
 ### Scaling Mechanisms:
@@ -150,7 +150,7 @@ flowchart LR
     HN1_S <--> HEARTBEAT
     HN2_S <--> HEARTBEAT
     HEARTBEAT --> STONITH
-    DRBD1 <-->|Synchronous Block Replication| DRBD2
+    DRBD1 -- "Synchronous Block Replication" --- DRBD2
 ```
 
 ### Failover Sequence:

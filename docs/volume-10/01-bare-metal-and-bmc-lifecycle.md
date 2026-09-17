@@ -57,9 +57,9 @@ flowchart TD
     end
     
     OOB_SW -->|1GbE Dedicated Link| MB_BMC
-    MB_BMC <-->|I2C / PCIe / NC-SI| GPU_BMC
-    MB_BMC <-->|PCIe / SMBus| BF3
-    TOR_IB <-->|Twinax / OSFP Optics| CX7_0
+    MB_BMC -- "I2C / PCIe / NC-SI" --- GPU_BMC
+    MB_BMC -- "PCIe / SMBus" --- BF3
+    TOR_IB -- "Twinax / OSFP Optics" --- CX7_0
     PDU -->|C19/C20 or Busbar| DGX
 ```
 
