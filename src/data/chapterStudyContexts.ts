@@ -9151,76 +9151,25 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash"
     ]
   },
-  "Chapter 1 - GPU execution and memory mental model": {
+  "Masterclass: GPU Architecture, Execution, and Topology": {
     "volume": "Volume 4",
     "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
-    "learningOutcome": "Explain why GPUs favor throughput parallelism and how compute, HBM bandwidth and data movement become separate bottlenecks.",
+    "learningOutcome": "",
     "sections": [
-      "Foundations: start here if GPU/CUDA concepts are new to you",
-      "What this chapter is, and what it isn't",
-      "Why a CPU alone isn't enough for some workloads",
-      "What a GPU actually is: the spreadsheet analogy",
-      "What CUDA actually is (and the three things beginners conflate)",
-      "A first real example: reading nvidia-smi , and why one number isn't proof of anything",
-      "1. Begin with a workload, not a GPU model",
-      "3. Memory: capacity is not bandwidth",
-      "4. The NVIDIA software stack, layer by layer",
-      "5. Why containers still depend on the host",
-      "6. How Kubernetes gets from a physical GPU to a Pod",
-      "7. First lab: build an evidence ladder",
-      "8. Monitoring, health and diagnostics are different",
-      "9. A worked incident without shortcut conclusions"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "python"
-    ]
-  },
-  "Chapter 2 - PCIe, NVLink and topology": {
-    "volume": "Volume 4",
-    "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
-    "learningOutcome": "Understand why \"same number of GPUs\" can produce different performance depending on physical connectivity and NUMA placement.",
-    "sections": [
-      "Worked scenario"
-    ],
-    "codeLanguages": [
-      "text",
-      "mermaid",
-      "bash"
-    ]
-  },
-  "Chapter 3 - Driver, CUDA runtime and container stack": {
-    "volume": "Volume 4",
-    "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
-    "learningOutcome": "Know which layer must be compatible and which parts are host versus container responsibility.",
-    "sections": [],
-    "codeLanguages": [
-      "text",
-      "mermaid",
-      "bash"
-    ]
-  },
-  "Chapter 4 - Kubernetes device plugins and GPU Operator": {
-    "volume": "Volume 4",
-    "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
-    "learningOutcome": "Trace how hardware becomes an allocatable Kubernetes extended resource and how operator lifecycle automation fits around it.",
-    "sections": [
-      "Worked scenario"
-    ],
-    "codeLanguages": [
-      "text",
-      "mermaid",
-      "bash"
-    ]
-  },
-  "Chapter 5 - GPU sharing: MIG, time slicing, MPS and vGPU": {
-    "volume": "Volume 4",
-    "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
-    "learningOutcome": "Choose sharing based on isolation, latency determinism, memory behavior, hardware support and operational model.",
-    "sections": [
-      "Practitioner lens"
+      "Masterclass: GPU Architecture, Execution, and Topology",
+      "1. Introduction",
+      "Learning Objectives",
+      "2. The GPU Execution Mental Model",
+      "2.1 Streaming Multiprocessors (SMs)",
+      "2.2 Threads, Warps, and Execution",
+      "2.3 Contexts and Time-Slicing",
+      "3. The GPU Memory Mental Model",
+      "3.1 The Memory Hierarchy",
+      "3.2 HBM vs. GDDR",
+      "3.3 Page-Locked (Pinned) Memory vs. Pageable Memory",
+      "3.4 BAR1 and Resizable BAR",
+      "How to check BAR1 memory size",
+      "4. System Buses: PCIe Fundamentals"
     ],
     "codeLanguages": [
       "mermaid",
@@ -9228,576 +9177,254 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash"
     ]
   },
-  "Chapter 6 - GPU telemetry, DCGM and health": {
+  "Masterclass: GPU Software Stack & Operator": {
     "volume": "Volume 4",
     "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
-    "learningOutcome": "Interpret hardware telemetry in the context of workload performance and distinguish demand, health and throttling.",
+    "learningOutcome": "",
     "sections": [
-      "Prometheus-style examples vary by exporter version/config",
-      "clocks.sm well below clocks.max.sm + a non-empty clocks event reasons.active = throttled right now, not idle-by-choice"
-    ],
-    "codeLanguages": [
-      "text",
-      "mermaid",
-      "bash"
-    ]
-  },
-  "Chapter 7 - Capacity and failure-domain design": {
-    "volume": "Volume 4",
-    "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
-    "learningOutcome": "Plan GPU pools around workload shape, topology, maintenance, spare capacity and heterogeneous generations.",
-    "sections": [
-      "Worked scenario",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
-  },
-  "Senior Deep Dive 1 — GPU execution model without CUDA-programming overload": {
-    "volume": "Volume 4",
-    "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
-    "learningOutcome": "Senior Deep Dive 1 — GPU execution model without CUDA-programming overload — GPU and Accelerated Computing Foundations.",
-    "sections": [
-      "Senior addendum",
-      "Original Fourth Edition Senior Engineering Expansion framing",
-      "Quick cross-reference (so you use both halves together, not as duplicates)",
-      "Deep Dive 1 — GPU execution model without CUDA-programming overload"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Senior Deep Dive 2 — Topology: PCIe, NVLink, NVSwitch and NUMA": {
-    "volume": "Volume 4",
-    "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
-    "learningOutcome": "Senior Deep Dive 2 — Topology: PCIe, NVLink, NVSwitch and NUMA — GPU and Accelerated Computing Foundations.",
-    "sections": [
-      "Senior addendum"
+      "Masterclass: GPU Software Stack & Operator",
+      "1. Introduction & The Production Story",
+      "2. The Foundation: NVIDIA UNIX Driver and CUDA Stack",
+      "2.1 The Kernel-Mode Driver (KMD)",
+      "2.2 The User-Mode Driver (UMD) and CUDA Runtime",
+      "2.3 Verification at the Base Layer",
+      "1. Verify PCIe detection",
+      "Expected: 3D controller: NVIDIA Corporation H100 PCIe (rev a1)",
+      "2. Verify kernel modules are loaded",
+      "Expected:",
+      "nvidia uvm 1441792 0",
+      "nvidia modeset 1314816 0",
+      "nvidia 56897536 15 nvidia uvm,nvidia modeset",
+      "3. Check character devices (CRITICAL)"
     ],
     "codeLanguages": [
       "bash",
       "text",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 3 — Driver, CUDA compatibility and container integration": {
-    "volume": "Volume 4",
-    "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
-    "learningOutcome": "Senior Deep Dive 3 — Driver, CUDA compatibility and container integration — GPU and Accelerated Computing Foundations.",
-    "sections": [
-      "Host",
-      "Runtime integration (commands depend on installation)",
-      "Container smoke test",
-      "or run a vendor-supported CUDA container through your normal runtime",
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 4 — GPU Operator as a dependency reconciler": {
-    "volume": "Volume 4",
-    "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
-    "learningOutcome": "Senior Deep Dive 4 — GPU Operator as a dependency reconciler — GPU and Accelerated Computing Foundations.",
-    "sections": [
-      "Senior addendum",
-      "Ready ← the whole operand set has converged; if any operand DaemonSet isn't"
-    ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 5 — Sharing: MIG, time-slicing, MPS and vGPU": {
-    "volume": "Volume 4",
-    "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
-    "learningOutcome": "Senior Deep Dive 5 — Sharing: MIG, time-slicing, MPS and vGPU — GPU and Accelerated Computing Foundations.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
       "mermaid",
-      "text",
-      "bash"
-    ]
-  },
-  "Senior Deep Dive 6 — DCGM, Xid, ECC and health semantics": {
-    "volume": "Volume 4",
-    "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
-    "learningOutcome": "Senior Deep Dive 6 — DCGM, Xid, ECC and health semantics — GPU and Accelerated Computing Foundations.",
-    "sections": [
-      "DCGM tooling if deployed",
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 7 — Fleet lifecycle: upgrades, draining and known-good validation": {
-    "volume": "Volume 4",
-    "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
-    "learningOutcome": "Senior Deep Dive 7 — Fleet lifecycle: upgrades, draining and known-good validation — GPU and Accelerated Computing Foundations.",
-    "sections": [
-      "Senior addendum",
-      "1. Driver/CUDA boundary proof (Ch3/Deep Dive 3)",
-      "2. Topology unchanged after firmware/driver update (Ch2/Deep Dive 2)",
-      "3. Hardware health (Ch6/Deep Dive 6)",
-      "4. A representative real workload smoke test — a short training step or inference request,",
-      "not just device enumeration — because Xid 31-class bugs can be application/kernel-path",
-      "specific and won't show up in nvidia-smi or dcgmi diag alone"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
-  },
-  "Chapter 1 - Classify the AI workload before designing infrastructure": {
-    "volume": "Volume 5",
-    "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Distinguish training, fine-tuning, evaluation, batch inference and online inference by compute, communication, storage and SLO behavior.",
-    "sections": [
-      "Foundations: start here if AI/ML concepts are new to you",
-      "What this section is, and what it isn't",
-      "What a machine learning model actually is: honest version, no mysticism",
-      "What \"training\" actually means",
-      "What \"inference\" actually means, and why the training/inference split is the most important idea here",
-      "What a \"token\" is, and why generating one at a time matters",
-      "What \"70 billion parameters\" actually means, and why bigger models need more GPU memory",
-      "2. Essential data structures: scalars, vectors, matrices and tensors",
-      "3. Training: how weights change",
-      "5. What makes a large language model special",
-      "6. Latency and throughput vocabulary",
-      "7. Why batching helps—and what it costs",
-      "8. Multi-GPU and multi-node execution",
-      "9. Serving-system layers"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "python"
-    ]
-  },
-  "Chapter 2 - Training architecture: compute, data, checkpoints and collectives": {
-    "volume": "Volume 5",
-    "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Understand why distributed training depends on GPU topology, fabric, storage and scheduler behavior.",
-    "sections": [
-      "2.1 Parallelism vocabulary for infrastructure",
-      "Worked scenario",
-      "gpu pwr gtemp mtemp sm mem enc dec mclk pclk",
-      "Idx W C C % % % % MHz MHz"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
-  },
-  "Chapter 3 - LLM inference: prefill, decode, batching and KV cache": {
-    "volume": "Volume 5",
-    "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Connect model-serving mechanics to memory, latency, throughput and scaling decisions.",
-    "sections": [
-      "Practitioner lens"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
-  },
-  "Chapter 4 - Serving frameworks and the platform boundary": {
-    "volume": "Volume 5",
-    "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Place Triton, NIM, vLLM and application gateways in an architecture without treating product names as the design.",
-    "sections": [
-      "Example Kubernetes resource boundary (illustrative)"
-    ],
-    "codeLanguages": [
       "yaml",
-      "text",
-      "mermaid",
-      "bash"
+      "toml"
     ]
   },
-  "Chapter 5 - Autoscaling inference": {
-    "volume": "Volume 5",
-    "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Choose signals that represent demand and saturation, then account for model-load time, GPU granularity and cold capacity.",
+  "Masterclass: GPU Sharing, Telemetry, and Lifecycle Operations": {
+    "volume": "Volume 4",
+    "lens": "GPU execution, memory and topology, drivers/CUDA, device plugins, GPU Operator, sharing, telemetry, and fleet health",
+    "learningOutcome": "",
     "sections": [
-      "Practitioner lens",
-      "Worked scenario"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
-  },
-  "Chapter 6 - Distributed and disaggregated inference": {
-    "volume": "Volume 5",
-    "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Understand when multi-GPU/multi-node inference is necessary and what new failure/performance dependencies appear.",
-    "sections": [],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
-  },
-  "Chapter 7 - State, caches and RAG dependencies": {
-    "volume": "Volume 5",
-    "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Classify durable state, request state, model artifacts, vector data and caches so replicas can scale safely.",
-    "sections": [
-      "Practitioner lens"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
-  },
-  "Chapter 8 - Security and tenancy for AI platforms": {
-    "volume": "Volume 5",
-    "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Apply familiar platform security controls to models, prompts, data, artifacts and shared GPUs.",
-    "sections": [],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Chapter 9 - Performance and cost engineering": {
-    "volume": "Volume 5",
-    "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Translate benchmarks into capacity, cost per unit work and headroom under real request distributions.",
-    "sections": [
-      "Worked scenario",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "text",
-      "bash",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 1 — Training systems: parallelism, collectives and checkpoint economics": {
-    "volume": "Volume 5",
-    "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Senior Deep Dive 1 — Training systems: parallelism, collectives and checkpoint economics — AI Workloads and AI Platform Architecture.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Senior Deep Dive 2 — LLM inference: prefill, decode, KV cache and continuous batching": {
-    "volume": "Volume 5",
-    "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Senior Deep Dive 2 — LLM inference: prefill, decode, KV cache and continuous batching — AI Workloads and AI Platform Architecture.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Senior Deep Dive 3 — NIM, vLLM, TensorRT-LLM and serving boundaries": {
-    "volume": "Volume 5",
-    "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Senior Deep Dive 3 — NIM, vLLM, TensorRT-LLM and serving boundaries — AI Workloads and AI Platform Architecture.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Senior Deep Dive 4 — NVIDIA Dynamo: system-level inference optimization": {
-    "volume": "Volume 5",
-    "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Senior Deep Dive 4 — NVIDIA Dynamo: system-level inference optimization — AI Workloads and AI Platform Architecture.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Senior Deep Dive 5 — Autoscaling inference from work, not only CPU": {
-    "volume": "Volume 5",
-    "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Senior Deep Dive 5 — Autoscaling inference from work, not only CPU — AI Workloads and AI Platform Architecture.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "text",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 6 — RAG, vector search and stateful dependencies": {
-    "volume": "Volume 5",
-    "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Senior Deep Dive 6 — RAG, vector search and stateful dependencies — AI Workloads and AI Platform Architecture.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Senior Deep Dive 7 — Agentic and multimodal infrastructure": {
-    "volume": "Volume 5",
-    "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Senior Deep Dive 7 — Agentic and multimodal infrastructure — AI Workloads and AI Platform Architecture.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Senior Deep Dive 8 — Production benchmark design": {
-    "volume": "Volume 5",
-    "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
-    "learningOutcome": "Senior Deep Dive 8 — Production benchmark design — AI Workloads and AI Platform Architecture.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "text",
-      "mermaid"
-    ]
-  },
-  "Chapter 1 - Distributed systems performance for GPU jobs": {
-    "volume": "Volume 6",
-    "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
-    "learningOutcome": "Build a scaling-efficiency model that separates compute, communication, synchronization and I/O.",
-    "sections": [
-      "Foundations: start here if HPC concepts are new to you",
-      "What this section does and does not do",
-      "The core difference: coordinated versus independent work",
-      "What a \"cluster\" means here",
-      "What problem a job scheduler solves",
-      "What MPI is, at the concept level",
-      "Why network speed matters so much more here",
-      "The normal training path",
-      "Ethernet, RDMA and locality",
-      "A real-life example",
-      "Ethernet first: how a packet reaches another host",
-      "RDMA from first principles",
-      "MPI, PMIx and NCCL have different jobs",
-      "Collective communication and stragglers"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
-  },
-  "Chapter 2 - Ethernet fundamentals for AI fabrics": {
-    "volume": "Volume 6",
-    "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
-    "learningOutcome": "Understand link speed, MTU, queues, loss, ECMP and congestion before learning RoCE.",
-    "sections": [
-      "Practice"
-    ],
-    "codeLanguages": [
-      "text",
-      "bash",
-      "mermaid"
-    ]
-  },
-  "Chapter 3 - RDMA, RoCE and InfiniBand": {
-    "volume": "Volume 6",
-    "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
-    "learningOutcome": "Explain remote memory operations, queue pairs and why loss/congestion configuration matters.",
-    "sections": [
-      "Perftest tools such as ib write bw / ib read bw may be used in controlled labs.",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "text",
-      "mermaid",
-      "bash"
-    ]
-  },
-  "Chapter 4 - GPUDirect RDMA, NIC/GPU topology and NCCL": {
-    "volume": "Volume 6",
-    "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
-    "learningOutcome": "Connect GPU collectives to host topology and fabric evidence.",
-    "sections": [
-      "NCCL debug is powerful but verbose; enable deliberately in a test/incident window.",
-      "48 via NET/IB/0/GDRDMA ← healthy — most cross-node channels using GPUDirect RDMA",
-      "2 via NET/IB/0/IB ← these 2 fell back to staged path — investigate these specific channels/nodes",
-      "Worked scenario",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "text",
-      "mermaid",
-      "bash"
-    ]
-  },
-  "Chapter 5 - NVIDIA Network Operator and Kubernetes accelerated networking": {
-    "volume": "Volume 6",
-    "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
-    "learningOutcome": "Understand the software automation layer that prepares nodes for high-performance network devices and secondary networks.",
-    "sections": [
-      "a second -n does not merge namespaces — it just overrides the first, so query each namespace separately",
-      "empty output on both = both operator stacks are fully reconciled on this node; anything listed is your starting point",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
-  },
-  "Chapter 6 - Storage for AI: datasets, checkpoints and model distribution": {
-    "volume": "Volume 6",
-    "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
-    "learningOutcome": "Design storage by access pattern, concurrency, locality and recovery behavior.",
-    "sections": [
-      "Worked scenario",
-      "gpu sm mem enc dec"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
-  },
-  "Chapter 7 - Slurm scheduling model": {
-    "volume": "Volume 6",
-    "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
-    "learningOutcome": "Understand jobs, allocations, partitions, nodes and why HPC schedulers optimize a different operating model from general service orchestration.",
-    "sections": [
-      "Practice"
-    ],
-    "codeLanguages": [
-      "text",
-      "mermaid",
-      "bash"
-    ]
-  },
-  "Chapter 8 - Kubernetes, Slurm or both": {
-    "volume": "Volume 6",
-    "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
-    "learningOutcome": "Choose orchestration by workload and operating model, not by platform loyalty.",
-    "sections": [
-      "Practice"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Senior Deep Dive 1 — Collective communication and straggler amplification": {
-    "volume": "Volume 6",
-    "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
-    "learningOutcome": "Senior Deep Dive 1 — Collective communication and straggler amplification — HPC, Networking and Storage for AI.",
-    "sections": [
-      "Topology and fabric evidence",
-      "NCCL diagnostics - enable only for diagnosis because logs can be large",
-      "Senior addendum"
+      "Masterclass: GPU Sharing, Telemetry, and Lifecycle Operations",
+      "Introduction",
+      "Part 1: GPU Sharing Strategies",
+      "1.1 Time-Slicing",
+      "Standard time-slicing does not require complex configuration,",
+      "but you can configure Kubernetes device plugins to allow multiple",
+      "pods to request the same physical GPU.",
+      "1.2 MPS (Multi-Process Service)",
+      "Script to enable MPS on a specific GPU",
+      "Start the daemon",
+      "Set compute mode to EXCLUSIVE PROCESS to ensure only the MPS server can access the GPU directly",
+      "Provision resources (e.g., limit a client to 20% of threads)",
+      "1.3 MIG (Multi-Instance GPU)",
+      "1. Enable MIG mode (requires root, may require driver reload or node reboot)"
     ],
     "codeLanguages": [
       "bash",
       "text",
-      "mermaid"
+      "mermaid",
+      "csv"
     ]
   },
-  "Senior Deep Dive 2 — RDMA: InfiniBand versus RoCE": {
-    "volume": "Volume 6",
-    "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
-    "learningOutcome": "Senior Deep Dive 2 — RDMA: InfiniBand versus RoCE — HPC, Networking and Storage for AI.",
+  "AI Workloads & Training Architecture Masterclass": {
+    "volume": "Volume 5",
+    "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
+    "learningOutcome": "",
     "sections": [
-      "Senior addendum"
+      "AI Workloads & Training Architecture Masterclass",
+      "Table of Contents",
+      "Introduction to AI Workloads",
+      "The Problem with \"Just Buy GPUs\"",
+      "Workload Classification",
+      "1. Compute Characteristics (FLOPS vs. Memory Bandwidth)",
+      "2. Network Characteristics (The Synchronization Tax)",
+      "3. I/O Characteristics (Data Loading and Checkpointing)",
+      "Training Architecture Fundamentals",
+      "The Forward and Backward Pass",
+      "Deep Dive into Parallelism Strategies",
+      "Memory Anatomy of a Model",
+      "Data Parallelism (DP)",
+      "Tensor Parallelism (TP)"
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
-    ]
-  },
-  "Senior Deep Dive 3 — Network design for AI: oversubscription, rails and failure domains": {
-    "volume": "Volume 6",
-    "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
-    "learningOutcome": "Senior Deep Dive 3 — Network design for AI: oversubscription, rails and failure domains — HPC, Networking and Storage for AI.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
       "text",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 4 — Storage hierarchy and data pipeline architecture": {
-    "volume": "Volume 6",
-    "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
-    "learningOutcome": "Senior Deep Dive 4 — Storage hierarchy and data pipeline architecture — HPC, Networking and Storage for AI.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "text"
-    ]
-  },
-  "Senior Deep Dive 5 — Slurm concepts beyond sbatch": {
-    "volume": "Volume 6",
-    "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
-    "learningOutcome": "Senior Deep Dive 5 — Slurm concepts beyond sbatch — HPC, Networking and Storage for AI.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
+      "json",
       "bash",
-      "text",
-      "mermaid"
+      "python"
     ]
   },
-  "Senior Deep Dive 6 — Kubernetes, Slurm and hybrid scheduling": {
-    "volume": "Volume 6",
-    "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
-    "learningOutcome": "Senior Deep Dive 6 — Kubernetes, Slurm and hybrid scheduling — HPC, Networking and Storage for AI.",
+  "LLM Inference and Serving Masterclass": {
+    "volume": "Volume 5",
+    "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
+    "learningOutcome": "",
     "sections": [
-      "Senior addendum"
+      "LLM Inference and Serving Masterclass: From Fundamentals to NVIDIA AI Factory",
+      "1. Introduction: The Inference Imperative",
+      "1.1 The Production Conundrum",
+      "2. The Mechanics of LLM Inference: Prefill and Decode",
+      "2.1 The Prefill Phase (Prompt Processing)",
+      "2.2 The Decode Phase (Token Generation)",
+      "2.3 The Architectural Trade-off",
+      "3. The KV Cache Bottleneck and PagedAttention",
+      "3.1 What is the KV Cache?",
+      "3.2 The Memory Math of the KV Cache",
+      "3.3 The Problem with Traditional Memory Management",
+      "3.4 PagedAttention: The Solution",
+      "4. Continuous Batching (In-Flight Batching)",
+      "4.1 Static vs. Dynamic vs. Continuous Batching"
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
+      "text",
+      "bash",
+      "protobuf",
+      "python"
     ]
   },
-  "Senior Deep Dive 7 — Distributed-system patterns from the Staff Engineer guide": {
-    "volume": "Volume 6",
-    "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
-    "learningOutcome": "Senior Deep Dive 7 — Distributed-system patterns from the Staff Engineer guide — HPC, Networking and Storage for AI.",
+  "AI Autoscaling, RAG, and Agentic Masterclass": {
+    "volume": "Volume 5",
+    "lens": "training and inference workload mechanics, model serving, KV cache, autoscaling, RAG, security, performance, and benchmarking",
+    "learningOutcome": "Masterclass on Autoscaling (KEDA), Distributed Inference, RAG, State, Tenancy, Cost Engineering, and Agentic architectures for NVIDIA AI Factories.",
     "sections": [
-      "Senior addendum"
+      "Masterclass: AI Autoscaling, RAG, and Agentic Infrastructure",
+      "Part 1: Autoscaling Inference with KEDA and Custom Metrics",
+      "Why KEDA over Standard HPA?",
+      "KEDA ScaledObject Architecture",
+      "Example: KEDA ScaledObject for vLLM",
+      "Handling Scale to Zero and Cold Starts",
+      "Part 2: Distributed & Disaggregated Inference",
+      "Tensor Parallelism vs Pipeline Parallelism",
+      "The Disaggregation Revolution: Prefill vs Decode",
+      "Implementing Disaggregation",
+      "Conceptual Python snippet for a Disaggregated Router",
+      "Part 3: State, Caches, & RAG Dependencies",
+      "The RAG Architecture",
+      "Vector Databases in Production"
     ],
     "codeLanguages": [
+      "mermaid",
       "text",
-      "mermaid"
+      "yaml",
+      "python",
+      "promql",
+      "bash"
+    ]
+  },
+  "AI Networking & RDMA Masterclass: Ethernet, InfiniBand, and RoCEv2": {
+    "volume": "Volume 6",
+    "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
+    "learningOutcome": "",
+    "sections": [
+      "AI Networking & RDMA Masterclass: Ethernet, InfiniBand, and RoCEv2",
+      "Introduction",
+      "1. The Distributed Systems Performance Imperative",
+      "1.1 The Anatomy of an AI Training Job",
+      "1.2 The Straggler Problem",
+      "2. RDMA: Remote Direct Memory Access",
+      "2.1 Why TCP/IP Fails for AI",
+      "2.2 The RDMA Architecture",
+      "2.3 GPUDirect RDMA",
+      "3. The Fabric Wars: InfiniBand vs. Ethernet (RoCEv2)",
+      "3.1 InfiniBand: The Purpose-Built AI Fabric",
+      "3.2 RoCEv2: Ethernet Fights Back",
+      "3.3 Trade-offs Summary",
+      "4. AI Network Topology Design"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "bash"
+    ]
+  },
+  "Masterclass: GPUDirect, NCCL, Fabric, and Network Operator": {
+    "volume": "Volume 6",
+    "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
+    "learningOutcome": "",
+    "sections": [
+      "Masterclass: GPUDirect, NCCL, Fabric, and Network Operator",
+      "1. Introduction: The AI Factory Network Paradigm",
+      "2. GPUDirect RDMA: Bypassing the Bottleneck",
+      "2.1 The Problem with Traditional Networking",
+      "2.2 The GPUDirect RDMA Solution",
+      "2.3 Requirements for GPUDirect RDMA",
+      "Verify it's loaded",
+      "If not, load it",
+      "3. NIC-GPU Topology and \"Rails\"",
+      "3.1 Understanding PCIe ACS and P2P",
+      "3.2 NUMA Alignment",
+      "3.3 The \"Rail\" Architecture (DGX SuperPOD Design)",
+      "4. NCCL: The Nervous System of AI",
+      "4.1 How NCCL Discovers Topology"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "bash",
+      "xml",
+      "yaml"
+    ]
+  },
+  "AI Storage and Data Pipelines Masterclass": {
+    "volume": "Volume 6",
+    "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
+    "learningOutcome": "",
+    "sections": [
+      "Masterclass: AI Storage and Data Pipelines",
+      "1. Introduction",
+      "Learning Objectives",
+      "Target Audience",
+      "2. The AI Storage Problem: Why Standard Storage Fails",
+      "The Dataset Loading Phase",
+      "The Checkpoint Burst Phase",
+      "3. The AI Storage Hierarchy (Detailed Deep Dive)",
+      "Tier 0: HBM (High Bandwidth Memory)",
+      "Tier 1: Host NVMe (Local Cache)",
+      "Tier 2: The Parallel File System (PFS)",
+      "Tier 3: Object Store (Capacity / Data Lake / Cold Storage)",
+      "4. GPUDirect Storage (GDS) and I/O Bypass",
+      "The CPU Bounce-Buffer Bottleneck"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "bash",
+      "json",
+      "yaml"
+    ]
+  },
+  "Masterclass: Distributed Orchestration & Hybrid Scheduling": {
+    "volume": "Volume 6",
+    "lens": "distributed systems, Ethernet/InfiniBand/RoCE, RDMA, NCCL, GPUDirect, storage pipelines, Slurm, and topology-aware scheduling",
+    "learningOutcome": "",
+    "sections": [
+      "Masterclass: Distributed Orchestration & Hybrid Scheduling",
+      "Introduction: The AI Factory Orchestration Challenge",
+      "Part 1: Deep Dive into Slurm Architecture and Concepts",
+      "1.1 The Slurm Control Plane and Data Plane",
+      "1.2 Configuration Deep Dive: slurm.conf for NVIDIA AI Factories",
+      "--- slurm.conf (Advanced AI Factory Snippet) ---",
+      "Advanced Scheduling and Topology",
+      "GRES (Generic Resource) Configuration for GPUs",
+      "Tuning for massive scale and short RPC latency",
+      "Proctrack for reliable job cleanup (cgroups)",
+      "Node Definitions (e.g., DGX H100)",
+      "Sockets=2 CoresPerSocket=56 ThreadsPerCore=2 (112 Physical Cores, 224 Logical)",
+      "1.3 GRES and Topology: gres.conf and topology.conf",
+      "--- gres.conf ---"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "ini",
+      "yaml",
+      "c"
     ]
   },
   "Chapter 1 - Metrics, logs and traces as different evidence": {

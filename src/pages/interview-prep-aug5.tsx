@@ -41,7 +41,7 @@ const fundamentals = [
       'An Xid error is the GPU driver reporting a hardware/driver-level fault via the kernel log — always check `dmesg`/`nvidia-smi -q` for the Xid code before assuming a workload bug.',
       '`nvidia-smi` utilization percentage is evidence, not proof, of good throughput — MIG partitioning, NUMA/topology mismatch, or NCCL communication overhead can all show "GPU busy" while the job is actually stalled.',
     ],
-    volumeLink: {label: 'Volume 4, Chapter 1', to: '/curriculum/volume-04/chapter-1-gpu-execution-and-memory-mental-model'},
+    volumeLink: {label: 'Volume 4, Chapter 1', to: '/curriculum/volume-04/gpu-architecture-topology-masterclass'},
   },
   {
     topic: 'AI / ML workloads',
@@ -49,7 +49,7 @@ const fundamentals = [
       'Training (compute + memory heavy, long-running, checkpoint-recoverable) and inference (latency-sensitive, short bursts, availability-critical) need opposite infrastructure priorities — classify the workload before designing for it.',
       'Data-loader/storage starvation (GPU idle, storage or CPU busy) is a far more common cause of low GPU utilization than an inefficient kernel.',
     ],
-    volumeLink: {label: 'Volume 5, Chapter 1', to: '/curriculum/volume-05/chapter-1-classify-the-ai-workload-before-designing-infrastructure'},
+    volumeLink: {label: 'Volume 5, Chapter 1', to: '/curriculum/volume-05/ai-workloads-training-masterclass'},
   },
   {
     topic: 'HPC / Slurm / MPI',
@@ -57,7 +57,7 @@ const fundamentals = [
       'Slurm fairshare determines queue priority over time, not a hard quota — a starved research group is usually a fairshare-decay misconfiguration, not a bug.',
       'MPI+NCCL startup hangs are almost always a network-reachability or rendezvous problem (wrong interface, firewall, or subnet-manager state), not an application bug — check connectivity before touching the training code.',
     ],
-    volumeLink: {label: 'Volume 6, Chapter 1', to: '/curriculum/volume-06/chapter-1-distributed-systems-performance-for-gpu-jobs'},
+    volumeLink: {label: 'Volume 6, Chapter 1', to: '/curriculum/volume-06/ai-networking-rdma-masterclass'},
   },
   {
     topic: 'Storage for AI',
@@ -66,7 +66,7 @@ const fundamentals = [
       'GPFS depends on cluster quorum; losing quorum during a rolling upgrade can stall the whole filesystem, not just the node under maintenance.',
       'ZFS is copy-on-write, local/NAS storage, not a distributed parallel filesystem — an undersized ARC cache looks exactly like a failing disk unless you check the hit ratio.',
     ],
-    volumeLink: {label: 'Volume 6, Chapter 6', to: '/curriculum/volume-06/chapter-6-storage-for-ai-datasets-checkpoints-and-model-distribution'},
+    volumeLink: {label: 'Volume 6, Chapter 6', to: '/curriculum/volume-06/ai-storage-data-pipelines-masterclass'},
   },
   {
     topic: 'Kubernetes',

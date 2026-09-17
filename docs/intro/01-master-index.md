@@ -49,9 +49,9 @@ Each row below is now ONE chapter, not two — the foundation and the advanced m
 | Networking: IP, ports, DNS, TCP/UDP, firewalls | [Volume 1, Chapter 4](/curriculum/volume-01/linux-networking-masterclass) (opens with a Foundations section) |
 | Python syntax, tracebacks, files, functions, tests | [Volume 2, Chapter 1](/curriculum/volume-02/python-core-oop-masterclass) (opens with a Foundations section) |
 | Containers, Kubernetes objects, reconciliation | [Volume 3, Chapter 1](/curriculum/volume-03/k8s-control-plane-scheduling-masterclass) (opens with a Foundations section) |
-| GPU hardware, CUDA, driver/toolkit layering | [Volume 4, Chapter 1](/curriculum/volume-04/chapter-1-gpu-execution-and-memory-mental-model) (opens with a Foundations section) |
-| Training vs. inference, tokens, model parameters | [Volume 5, Chapter 1](/curriculum/volume-05/chapter-1-classify-the-ai-workload-before-designing-infrastructure) (opens with a Foundations section) |
-| HPC clusters, job schedulers, MPI, why network speed matters more | [Volume 6, Chapter 1](/curriculum/volume-06/chapter-1-distributed-systems-performance-for-gpu-jobs) (opens with a Foundations section) |
+| GPU hardware, CUDA, driver/toolkit layering | [Volume 4, Chapter 1](/curriculum/volume-04/gpu-architecture-topology-masterclass) (opens with a Foundations section) |
+| Training vs. inference, tokens, model parameters | [Volume 5, Chapter 1](/curriculum/volume-05/ai-workloads-training-masterclass) (opens with a Foundations section) |
+| HPC clusters, job schedulers, MPI, why network speed matters more | [Volume 6, Chapter 1](/curriculum/volume-06/ai-networking-rdma-masterclass) (opens with a Foundations section) |
 | Linux/cluster security, SELinux/AppArmor, patch risk | [Volume 10, Chapter 3](/curriculum/volume-10/chapter-3-os-provisioning-and-linux-security-hardening) (opens with a Foundations section) |
 | How to choose an order | [Foundation learning path](./02-foundation-learning-path.md) |
 

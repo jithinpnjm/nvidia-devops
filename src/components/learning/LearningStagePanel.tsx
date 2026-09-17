@@ -13,9 +13,9 @@ const FOUNDATIONS_CHAPTERS = [
   '/volume-01/linux-networking-masterclass',
   '/volume-02/python-core-oop-masterclass',
   '/volume-03/k8s-control-plane-scheduling-masterclass',
-  '/volume-04/chapter-1-gpu-execution-and-memory-mental-model',
-  '/volume-05/chapter-1-classify-the-ai-workload-before-designing-infrastructure',
-  '/volume-06/chapter-1-distributed-systems-performance-for-gpu-jobs',
+  '/volume-04/gpu-architecture-topology-masterclass',
+  '/volume-05/ai-workloads-training-masterclass',
+  '/volume-06/ai-networking-rdma-masterclass',
   '/volume-10/chapter-3-os-provisioning-and-linux-security-hardening',
 ];
 

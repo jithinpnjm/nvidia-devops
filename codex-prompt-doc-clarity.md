@@ -199,35 +199,35 @@ throughout: the goal is a clean, readable terminal transcript, not a mechanical
     - line 27: 15 nodes, 0 edges (DISCONNECTED)
 - docs/volume-03/17-senior-deep-dive-8-gpu-platform-operations-node-pools-operators-and-resource-i.md
     - line 42: 5 nodes, 3 edges (partial — inspect)
-- docs/volume-04/02-chapter-2-pcie-nvlink-and-topology.md
+- docs/volume-04/02-gpu-architecture-topology-masterclass.md
     - line 86: 10 nodes, 0 edges (DISCONNECTED)
-- docs/volume-04/03-chapter-3-driver-cuda-runtime-and-container-stack.md
+- docs/volume-04/03-gpu-software-operator-masterclass.md
     - line 43: 12 nodes, 0 edges (DISCONNECTED)
-- docs/volume-04/04-chapter-4-kubernetes-device-plugins-and-gpu-operator.md
+- docs/volume-04/04-gpu-software-operator-masterclass.md
     - line 48: 15 nodes, 0 edges (DISCONNECTED)
-- docs/volume-04/05-chapter-5-gpu-sharing-mig-time-slicing-mps-and-vgpu.md
+- docs/volume-04/05-gpu-sharing-telemetry-masterclass.md
     - line 80: 19 nodes, 1 edges (partial — inspect)
-- docs/volume-04/07-chapter-7-capacity-and-failure-domain-design.md
+- docs/volume-04/07-gpu-sharing-telemetry-masterclass.md
     - line 67: 9 nodes, 0 edges (DISCONNECTED)
 - docs/volume-04/09-senior-deep-dive-2-topology-pcie-nvlink-nvswitch-and-numa.md
     - line 36: 7 nodes, 0 edges (DISCONNECTED)
-- docs/volume-05/02-chapter-2-training-architecture-compute-data-checkpoints-and-collectives.md
+- docs/volume-05/02-ai-workloads-training-masterclass.md
     - line 87: 8 nodes, 0 edges (DISCONNECTED)
-- docs/volume-05/03-chapter-3-llm-inference-prefill-decode-batching-and-kv-cache.md
+- docs/volume-05/03-llm-inference-serving-masterclass.md
     - line 43: 9 nodes, 3 edges (partial — inspect)
     - line 62: 12 nodes, 1 edges (partial — inspect)
-- docs/volume-05/04-chapter-4-serving-frameworks-and-the-platform-boundary.md
+- docs/volume-05/04-llm-inference-serving-masterclass.md
     - line 36: 13 nodes, 0 edges (DISCONNECTED)
-- docs/volume-05/05-chapter-5-autoscaling-inference.md
+- docs/volume-05/05-ai-autoscaling-rag-masterclass.md
     - line 40: 15 nodes, 1 edges (partial — inspect)
-- docs/volume-05/06-chapter-6-distributed-and-disaggregated-inference.md
+- docs/volume-05/06-ai-autoscaling-rag-masterclass.md
     - line 33: 11 nodes, 0 edges (DISCONNECTED)
-- docs/volume-05/07-chapter-7-state-caches-and-rag-dependencies.md
+- docs/volume-05/07-ai-autoscaling-rag-masterclass.md
     - line 38: 8 nodes, 0 edges (DISCONNECTED)
-- docs/volume-05/08-chapter-8-security-and-tenancy-for-ai-platforms.md
+- docs/volume-05/08-ai-autoscaling-rag-masterclass.md
     - line 15: 13 nodes, 0 edges (DISCONNECTED)
     - line 40: 8 nodes, 0 edges (DISCONNECTED)
-- docs/volume-05/09-chapter-9-performance-and-cost-engineering.md
+- docs/volume-05/09-ai-autoscaling-rag-masterclass.md
     - line 86: 13 nodes, 2 edges (partial — inspect)
 - docs/volume-05/12-senior-deep-dive-3-nim-vllm-tensorrt-llm-and-serving-boundaries.md
     - line 13: 11 nodes, 5 edges (partial — inspect)
@@ -241,22 +241,22 @@ throughout: the goal is a clean, readable terminal transcript, not a mechanical
     - line 34: 7 nodes, 4 edges (partial — inspect)
 - docs/volume-05/17-senior-deep-dive-8-production-benchmark-design.md
     - line 41: 5 nodes, 3 edges (partial — inspect)
-- docs/volume-06/01-chapter-1-distributed-systems-performance-for-gpu-jobs.md
+- docs/volume-06/01-ai-networking-rdma-masterclass.md
     - line 231: 5 nodes, 0 edges (DISCONNECTED)
     - line 406: 5 nodes, 0 edges (DISCONNECTED)
     - line 418: 7 nodes, 0 edges (DISCONNECTED)
-- docs/volume-06/02-chapter-2-ethernet-fundamentals-for-ai-fabrics.md
+- docs/volume-06/02-ai-networking-rdma-masterclass.md
     - line 20: 8 nodes, 0 edges (DISCONNECTED)
     - line 54: 5 nodes, 0 edges (DISCONNECTED)
-- docs/volume-06/03-chapter-3-rdma-roce-and-infiniband.md
+- docs/volume-06/03-ai-networking-rdma-masterclass.md
     - line 67: 13 nodes, 0 edges (DISCONNECTED)
-- docs/volume-06/04-chapter-4-gpudirect-rdma-nic-gpu-topology-and-nccl.md
+- docs/volume-06/04-gpudirect-fabric-operator-masterclass.md
     - line 84: 6 nodes, 0 edges (DISCONNECTED)
-- docs/volume-06/05-chapter-5-nvidia-network-operator-and-kubernetes-accelerated-networking.md
+- docs/volume-06/05-gpudirect-fabric-operator-masterclass.md
     - line 60: 8 nodes, 0 edges (DISCONNECTED)
-- docs/volume-06/06-chapter-6-storage-for-ai-datasets-checkpoints-and-model-distribution.md
+- docs/volume-06/06-ai-storage-data-pipelines-masterclass.md
     - line 68: 10 nodes, 0 edges (DISCONNECTED)
-- docs/volume-06/07-chapter-7-slurm-scheduling-model.md
+- docs/volume-06/07-distributed-orchestration-masterclass.md
     - line 57: 6 nodes, 0 edges (DISCONNECTED)
     - line 70: 5 nodes, 0 edges (DISCONNECTED)
     - line 82: 8 nodes, 0 edges (DISCONNECTED)

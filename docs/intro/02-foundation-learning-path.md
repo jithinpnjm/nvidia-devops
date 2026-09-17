@@ -71,7 +71,7 @@ Read **[How to use this book: evidence, not proof](./00-how-to-use-this-book-evi
 7. Volume 2, Chapters 2–8; build the small exercises before advanced Python — or start at [Senior DevOps labs, Tier 1](/labs) if you'd rather learn by doing.
 8. [Volume 3, Chapter 1](/curriculum/volume-03/k8s-control-plane-scheduling-masterclass) — opens with containers/Kubernetes fundamentals
 9. Volume 3, Chapters 2–6 for the rest of Kubernetes fundamentals.
-10. [Volume 4, Chapter 1](/curriculum/volume-04/chapter-1-gpu-execution-and-memory-mental-model) — opens with GPU/CUDA fundamentals, [Volume 5, Chapter 1](/curriculum/volume-05/chapter-1-classify-the-ai-workload-before-designing-infrastructure) — opens with AI/ML fundamentals, and [Volume 6, Chapter 1](/curriculum/volume-06/chapter-1-distributed-systems-performance-for-gpu-jobs) — opens with HPC fundamentals
+10. [Volume 4, Chapter 1](/curriculum/volume-04/gpu-architecture-topology-masterclass) — opens with GPU/CUDA fundamentals, [Volume 5, Chapter 1](/curriculum/volume-05/ai-workloads-training-masterclass) — opens with AI/ML fundamentals, and [Volume 6, Chapter 1](/curriculum/volume-06/ai-networking-rdma-masterclass) — opens with HPC fundamentals
 11. Volume 4, Chapters 2–6; then Volume 5, Chapters 2–5.
 12. Volume 6, Chapters 2–8; then Volume 7 incident chapters.
 13. [Volume 10, Chapter 3](/curriculum/volume-10/chapter-3-os-provisioning-and-linux-security-hardening) — opens with Linux/cluster security fundamentals.

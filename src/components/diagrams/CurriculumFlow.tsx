@@ -4,9 +4,9 @@ import Link from '@docusaurus/Link';
 const stages = [
   ['Linux + Python', '/curriculum/volume-01/linux-compute-memory-masterclass'],
   ['Kubernetes / Platform', '/curriculum/volume-03/k8s-control-plane-scheduling-masterclass'],
-  ['GPU Infrastructure', '/curriculum/volume-04/chapter-1-gpu-execution-and-memory-mental-model'],
-  ['AI Workloads', '/curriculum/volume-05/chapter-1-classify-the-ai-workload-before-designing-infrastructure'],
-  ['HPC / Network / Storage', '/curriculum/volume-06/chapter-1-distributed-systems-performance-for-gpu-jobs'],
+  ['GPU Infrastructure', '/curriculum/volume-04/gpu-architecture-topology-masterclass'],
+  ['AI Workloads', '/curriculum/volume-05/ai-workloads-training-masterclass'],
+  ['HPC / Network / Storage', '/curriculum/volume-06/ai-networking-rdma-masterclass'],
   ['Observability', '/curriculum/volume-07/chapter-1-metrics-logs-and-traces-as-different-evidence'],
   ['Solutions Architecture', '/curriculum/volume-08/chapter-1-discovery-that-changes-the-architecture'],
   ['Interview Readiness', '/curriculum/volume-09/chapter-1-the-answer-framework-expose-your-reasoning'],

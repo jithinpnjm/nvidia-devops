@@ -178,20 +178,9 @@
       "sourceCodeBlocks": 8,
       "sourceImages": 4,
       "sourceHeadings": [
-        "Chapter 1 - GPU execution and memory mental model",
-        "Chapter 2 - PCIe, NVLink and topology",
-        "Chapter 3 - Driver, CUDA runtime and container stack",
-        "Chapter 4 - Kubernetes device plugins and GPU Operator",
-        "Chapter 5 - GPU sharing: MIG, time slicing, MPS and vGPU",
-        "Chapter 6 - GPU telemetry, DCGM and health",
-        "Chapter 7 - Capacity and failure-domain design",
-        "Senior Deep Dive 1 \u2014 GPU execution model without CUDA-programming overload",
-        "Senior Deep Dive 2 \u2014 Topology: PCIe, NVLink, NVSwitch and NUMA",
-        "Senior Deep Dive 3 \u2014 Driver, CUDA compatibility and container integration",
-        "Senior Deep Dive 4 \u2014 GPU Operator as a dependency reconciler",
-        "Senior Deep Dive 5 \u2014 Sharing: MIG, time-slicing, MPS and vGPU",
-        "Senior Deep Dive 6 \u2014 DCGM, Xid, ECC and health semantics",
-        "Senior Deep Dive 7 \u2014 Fleet lifecycle: upgrades, draining and known-good validation"
+        "GPU Architecture & Topology Masterclass",
+        "GPU Software & Operator Masterclass",
+        "GPU Sharing & Telemetry Masterclass"
       ],
       "conversionMessages": [
         "Unrecognised paragraph style: 'Deep Dive' (Style ID: DeepDive)",
@@ -199,116 +188,28 @@
       ],
       "generatedFiles": [
         {
-          "file": "docs/volume-04/01-chapter-1-gpu-execution-and-memory-mental-model.md",
-          "title": "Chapter 1 - GPU execution and memory mental model",
-          "words": 242,
-          "tables": 4,
-          "codeBlocks": 1,
+          "file": "docs/volume-04/01-gpu-architecture-topology-masterclass.md",
+          "title": "GPU Architecture & Topology Masterclass",
+          "words": 667,
+          "tables": 8,
+          "codeBlocks": 3,
           "images": 0
         },
         {
-          "file": "docs/volume-04/02-chapter-2-pcie-nvlink-and-topology.md",
-          "title": "Chapter 2 - PCIe, NVLink and topology",
-          "words": 151,
-          "tables": 4,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-04/03-chapter-3-driver-cuda-runtime-and-container-stack.md",
-          "title": "Chapter 3 - Driver, CUDA runtime and container stack",
-          "words": 128,
-          "tables": 2,
-          "codeBlocks": 1,
+          "file": "docs/volume-04/02-gpu-software-operator-masterclass.md",
+          "title": "GPU Software & Operator Masterclass",
+          "words": 562,
+          "tables": 7,
+          "codeBlocks": 3,
           "images": 1
         },
         {
-          "file": "docs/volume-04/04-chapter-4-kubernetes-device-plugins-and-gpu-operator.md",
-          "title": "Chapter 4 - Kubernetes device plugins and GPU Operator",
-          "words": 173,
-          "tables": 4,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-04/05-chapter-5-gpu-sharing-mig-time-slicing-mps-and-vgpu.md",
-          "title": "Chapter 5 - GPU sharing: MIG, time slicing, MPS and vGPU",
-          "words": 147,
-          "tables": 3,
-          "codeBlocks": 0,
-          "images": 1
-        },
-        {
-          "file": "docs/volume-04/06-chapter-6-gpu-telemetry-dcgm-and-health.md",
-          "title": "Chapter 6 - GPU telemetry, DCGM and health",
-          "words": 113,
-          "tables": 2,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-04/07-chapter-7-capacity-and-failure-domain-design.md",
-          "title": "Chapter 7 - Capacity and failure-domain design",
-          "words": 388,
-          "tables": 4,
-          "codeBlocks": 0,
-          "images": 1
-        },
-        {
-          "file": "docs/volume-04/08-senior-deep-dive-1-gpu-execution-model-without-cuda-programming-overload.md",
-          "title": "Senior Deep Dive 1 \u2014 GPU execution model without CUDA-programming overload",
-          "words": 122,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-04/09-senior-deep-dive-2-topology-pcie-nvlink-nvswitch-and-numa.md",
-          "title": "Senior Deep Dive 2 \u2014 Topology: PCIe, NVLink, NVSwitch and NUMA",
-          "words": 152,
-          "tables": 0,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-04/10-senior-deep-dive-3-driver-cuda-compatibility-and-container-integration.md",
-          "title": "Senior Deep Dive 3 \u2014 Driver, CUDA compatibility and container integration",
-          "words": 129,
-          "tables": 0,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-04/11-senior-deep-dive-4-gpu-operator-as-a-dependency-reconciler.md",
-          "title": "Senior Deep Dive 4 \u2014 GPU Operator as a dependency reconciler",
-          "words": 132,
-          "tables": 1,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-04/12-senior-deep-dive-5-sharing-mig-time-slicing-mps-and-vgpu.md",
-          "title": "Senior Deep Dive 5 \u2014 Sharing: MIG, time-slicing, MPS and vGPU",
-          "words": 122,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-04/13-senior-deep-dive-6-dcgm-xid-ecc-and-health-semantics.md",
-          "title": "Senior Deep Dive 6 \u2014 DCGM, Xid, ECC and health semantics",
-          "words": 124,
-          "tables": 0,
-          "codeBlocks": 1,
-          "images": 1
-        },
-        {
-          "file": "docs/volume-04/14-senior-deep-dive-7-fleet-lifecycle-upgrades-draining-and-known-good-validation.md",
-          "title": "Senior Deep Dive 7 \u2014 Fleet lifecycle: upgrades, draining and known-good validation",
-          "words": 179,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
+          "file": "docs/volume-04/03-gpu-sharing-telemetry-masterclass.md",
+          "title": "GPU Sharing & Telemetry Masterclass",
+          "words": 1073,
+          "tables": 9,
+          "codeBlocks": 2,
+          "images": 3
         }
       ]
     },
@@ -321,163 +222,37 @@
       "sourceCodeBlocks": 1,
       "sourceImages": 3,
       "sourceHeadings": [
-        "Chapter 1 - Classify the AI workload before designing infrastructure",
-        "Chapter 2 - Training architecture: compute, data, checkpoints and collectives",
-        "Chapter 3 - LLM inference: prefill, decode, batching and KV cache",
-        "Chapter 4 - Serving frameworks and the platform boundary",
-        "Chapter 5 - Autoscaling inference",
-        "Chapter 6 - Distributed and disaggregated inference",
-        "Chapter 7 - State, caches and RAG dependencies",
-        "Chapter 8 - Security and tenancy for AI platforms",
-        "Chapter 9 - Performance and cost engineering",
-        "Senior Deep Dive 1 \u2014 Training systems: parallelism, collectives and checkpoint economics",
-        "Senior Deep Dive 2 \u2014 LLM inference: prefill, decode, KV cache and continuous batching",
-        "Senior Deep Dive 3 \u2014 NIM, vLLM, TensorRT-LLM and serving boundaries",
-        "Senior Deep Dive 4 \u2014 NVIDIA Dynamo: system-level inference optimization",
-        "Senior Deep Dive 5 \u2014 Autoscaling inference from work, not only CPU",
-        "Senior Deep Dive 6 \u2014 RAG, vector search and stateful dependencies",
-        "Senior Deep Dive 7 \u2014 Agentic and multimodal infrastructure",
-        "Senior Deep Dive 8 \u2014 Production benchmark design"
+        "AI Workloads & Distributed Training Masterclass",
+        "LLM Inference & Serving Frameworks Masterclass",
+        "Autoscaling, RAG & Architectures Masterclass"
       ],
       "conversionMessages": [
         "Unrecognised paragraph style: 'Deep Dive' (Style ID: DeepDive)"
       ],
       "generatedFiles": [
         {
-          "file": "docs/volume-05/01-chapter-1-classify-the-ai-workload-before-designing-infrastructure.md",
-          "title": "Chapter 1 - Classify the AI workload before designing infrastructure",
-          "words": 155,
-          "tables": 3,
+          "file": "docs/volume-05/01-ai-workloads-training-masterclass.md",
+          "title": "AI Workloads & Distributed Training Masterclass",
+          "words": 609,
+          "tables": 7,
           "codeBlocks": 0,
           "images": 0
         },
         {
-          "file": "docs/volume-05/02-chapter-2-training-architecture-compute-data-checkpoints-and-collectives.md",
-          "title": "Chapter 2 - Training architecture: compute, data, checkpoints and collectives",
-          "words": 207,
-          "tables": 4,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-05/03-chapter-3-llm-inference-prefill-decode-batching-and-kv-cache.md",
-          "title": "Chapter 3 - LLM inference: prefill, decode, batching and KV cache",
-          "words": 195,
-          "tables": 3,
-          "codeBlocks": 0,
-          "images": 1
-        },
-        {
-          "file": "docs/volume-05/04-chapter-4-serving-frameworks-and-the-platform-boundary.md",
-          "title": "Chapter 4 - Serving frameworks and the platform boundary",
-          "words": 126,
-          "tables": 2,
+          "file": "docs/volume-05/02-llm-inference-serving-masterclass.md",
+          "title": "LLM Inference & Serving Frameworks Masterclass",
+          "words": 765,
+          "tables": 6,
           "codeBlocks": 1,
-          "images": 0
+          "images": 2
         },
         {
-          "file": "docs/volume-05/05-chapter-5-autoscaling-inference.md",
-          "title": "Chapter 5 - Autoscaling inference",
-          "words": 217,
-          "tables": 4,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-05/06-chapter-6-distributed-and-disaggregated-inference.md",
-          "title": "Chapter 6 - Distributed and disaggregated inference",
-          "words": 89,
-          "tables": 1,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-05/07-chapter-7-state-caches-and-rag-dependencies.md",
-          "title": "Chapter 7 - State, caches and RAG dependencies",
-          "words": 148,
-          "tables": 3,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-05/08-chapter-8-security-and-tenancy-for-ai-platforms.md",
-          "title": "Chapter 8 - Security and tenancy for AI platforms",
-          "words": 96,
-          "tables": 1,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-05/09-chapter-9-performance-and-cost-engineering.md",
-          "title": "Chapter 9 - Performance and cost engineering",
-          "words": 387,
-          "tables": 4,
+          "file": "docs/volume-05/03-ai-autoscaling-rag-masterclass.md",
+          "title": "Autoscaling, RAG & Architectures Masterclass",
+          "words": 1243,
+          "tables": 13,
           "codeBlocks": 0,
           "images": 1
-        },
-        {
-          "file": "docs/volume-05/10-senior-deep-dive-1-training-systems-parallelism-collectives-and-checkpoint-eco.md",
-          "title": "Senior Deep Dive 1 \u2014 Training systems: parallelism, collectives and checkpoint economics",
-          "words": 103,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-05/11-senior-deep-dive-2-llm-inference-prefill-decode-kv-cache-and-continuous-batchi.md",
-          "title": "Senior Deep Dive 2 \u2014 LLM inference: prefill, decode, KV cache and continuous batching",
-          "words": 189,
-          "tables": 1,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-05/12-senior-deep-dive-3-nim-vllm-tensorrt-llm-and-serving-boundaries.md",
-          "title": "Senior Deep Dive 3 \u2014 NIM, vLLM, TensorRT-LLM and serving boundaries",
-          "words": 79,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-05/13-senior-deep-dive-4-nvidia-dynamo-system-level-inference-optimization.md",
-          "title": "Senior Deep Dive 4 \u2014 NVIDIA Dynamo: system-level inference optimization",
-          "words": 176,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 1
-        },
-        {
-          "file": "docs/volume-05/14-senior-deep-dive-5-autoscaling-inference-from-work-not-only-cpu.md",
-          "title": "Senior Deep Dive 5 \u2014 Autoscaling inference from work, not only CPU",
-          "words": 115,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-05/15-senior-deep-dive-6-rag-vector-search-and-stateful-dependencies.md",
-          "title": "Senior Deep Dive 6 \u2014 RAG, vector search and stateful dependencies",
-          "words": 117,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-05/16-senior-deep-dive-7-agentic-and-multimodal-infrastructure.md",
-          "title": "Senior Deep Dive 7 \u2014 Agentic and multimodal infrastructure",
-          "words": 74,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-05/17-senior-deep-dive-8-production-benchmark-design.md",
-          "title": "Senior Deep Dive 8 \u2014 Production benchmark design",
-          "words": 144,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
         }
       ]
     },
@@ -490,21 +265,10 @@
       "sourceCodeBlocks": 7,
       "sourceImages": 3,
       "sourceHeadings": [
-        "Chapter 1 - Distributed systems performance for GPU jobs",
-        "Chapter 2 - Ethernet fundamentals for AI fabrics",
-        "Chapter 3 - RDMA, RoCE and InfiniBand",
-        "Chapter 4 - GPUDirect RDMA, NIC/GPU topology and NCCL",
-        "Chapter 5 - NVIDIA Network Operator and Kubernetes accelerated networking",
-        "Chapter 6 - Storage for AI: datasets, checkpoints and model distribution",
-        "Chapter 7 - Slurm scheduling model",
-        "Chapter 8 - Kubernetes, Slurm or both",
-        "Senior Deep Dive 1 \u2014 Collective communication and straggler amplification",
-        "Senior Deep Dive 2 \u2014 RDMA: InfiniBand versus RoCE",
-        "Senior Deep Dive 3 \u2014 Network design for AI: oversubscription, rails and failure domains",
-        "Senior Deep Dive 4 \u2014 Storage hierarchy and data pipeline architecture",
-        "Senior Deep Dive 5 \u2014 Slurm concepts beyond sbatch",
-        "Senior Deep Dive 6 \u2014 Kubernetes, Slurm and hybrid scheduling",
-        "Senior Deep Dive 7 \u2014 Distributed-system patterns from the Staff Engineer guide"
+        "AI Networking & RDMA Masterclass",
+        "GPUDirect, Fabric & Operators Masterclass",
+        "AI Storage & Data Pipelines Masterclass",
+        "Distributed Orchestration (Slurm vs K8s) Masterclass"
       ],
       "conversionMessages": [
         "Unrecognised paragraph style: 'Deep Dive' (Style ID: DeepDive)",
@@ -512,124 +276,36 @@
       ],
       "generatedFiles": [
         {
-          "file": "docs/volume-06/01-chapter-1-distributed-systems-performance-for-gpu-jobs.md",
-          "title": "Chapter 1 - Distributed systems performance for GPU jobs",
-          "words": 153,
-          "tables": 3,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-06/02-chapter-2-ethernet-fundamentals-for-ai-fabrics.md",
-          "title": "Chapter 2 - Ethernet fundamentals for AI fabrics",
-          "words": 98,
-          "tables": 2,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-06/03-chapter-3-rdma-roce-and-infiniband.md",
-          "title": "Chapter 3 - RDMA, RoCE and InfiniBand",
-          "words": 130,
-          "tables": 2,
-          "codeBlocks": 1,
+          "file": "docs/volume-06/01-ai-networking-rdma-masterclass.md",
+          "title": "AI Networking & RDMA Masterclass",
+          "words": 647,
+          "tables": 7,
+          "codeBlocks": 4,
           "images": 1
         },
         {
-          "file": "docs/volume-06/04-chapter-4-gpudirect-rdma-nic-gpu-topology-and-nccl.md",
-          "title": "Chapter 4 - GPUDirect RDMA, NIC/GPU topology and NCCL",
-          "words": 159,
-          "tables": 4,
+          "file": "docs/volume-06/02-gpudirect-fabric-operator-masterclass.md",
+          "title": "GPUDirect, Fabric & Operators Masterclass",
+          "words": 398,
+          "tables": 6,
           "codeBlocks": 1,
           "images": 0
         },
         {
-          "file": "docs/volume-06/05-chapter-5-nvidia-network-operator-and-kubernetes-accelerated-networking.md",
-          "title": "Chapter 5 - NVIDIA Network Operator and Kubernetes accelerated networking",
-          "words": 114,
-          "tables": 1,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-06/06-chapter-6-storage-for-ai-datasets-checkpoints-and-model-distribution.md",
-          "title": "Chapter 6 - Storage for AI: datasets, checkpoints and model distribution",
-          "words": 203,
+          "file": "docs/volume-06/03-ai-storage-data-pipelines-masterclass.md",
+          "title": "AI Storage & Data Pipelines Masterclass",
+          "words": 333,
           "tables": 4,
           "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-06/07-chapter-7-slurm-scheduling-model.md",
-          "title": "Chapter 7 - Slurm scheduling model",
-          "words": 90,
-          "tables": 2,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-06/08-chapter-8-kubernetes-slurm-or-both.md",
-          "title": "Chapter 8 - Kubernetes, Slurm or both",
-          "words": 319,
-          "tables": 3,
-          "codeBlocks": 0,
           "images": 1
         },
         {
-          "file": "docs/volume-06/09-senior-deep-dive-1-collective-communication-and-straggler-amplification.md",
-          "title": "Senior Deep Dive 1 \u2014 Collective communication and straggler amplification",
-          "words": 152,
-          "tables": 0,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-06/10-senior-deep-dive-2-rdma-infiniband-versus-roce.md",
-          "title": "Senior Deep Dive 2 \u2014 RDMA: InfiniBand versus RoCE",
-          "words": 114,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-06/11-senior-deep-dive-3-network-design-for-ai-oversubscription-rails-and-failure-do.md",
-          "title": "Senior Deep Dive 3 \u2014 Network design for AI: oversubscription, rails and failure domains",
-          "words": 125,
-          "tables": 1,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-06/12-senior-deep-dive-4-storage-hierarchy-and-data-pipeline-architecture.md",
-          "title": "Senior Deep Dive 4 \u2014 Storage hierarchy and data pipeline architecture",
-          "words": 130,
-          "tables": 0,
-          "codeBlocks": 0,
+          "file": "docs/volume-06/04-distributed-orchestration-masterclass.md",
+          "title": "Distributed Orchestration (Slurm vs K8s) Masterclass",
+          "words": 777,
+          "tables": 5,
+          "codeBlocks": 2,
           "images": 1
-        },
-        {
-          "file": "docs/volume-06/13-senior-deep-dive-5-slurm-concepts-beyond-sbatch.md",
-          "title": "Senior Deep Dive 5 \u2014 Slurm concepts beyond sbatch",
-          "words": 149,
-          "tables": 0,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-06/14-senior-deep-dive-6-kubernetes-slurm-and-hybrid-scheduling.md",
-          "title": "Senior Deep Dive 6 \u2014 Kubernetes, Slurm and hybrid scheduling",
-          "words": 67,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-06/15-senior-deep-dive-7-distributed-system-patterns-from-the-staff-engineer-guide.md",
-          "title": "Senior Deep Dive 7 \u2014 Distributed-system patterns from the Staff Engineer guide",
-          "words": 152,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
         }
       ]
     },
