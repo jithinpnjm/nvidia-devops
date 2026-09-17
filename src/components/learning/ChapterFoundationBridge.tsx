@@ -12,9 +12,9 @@ const volumeFoundations: Record<string, {to: string; label: string}> = {
   'volume-04': {to: '/curriculum/volume-04/gpu-architecture-topology-masterclass#foundations-start-here-if-gpucuda-concepts-are-new-to-you', label: 'Study GPU computing from first principles'},
   'volume-05': {to: '/curriculum/volume-05/ai-workloads-training-masterclass#foundations-start-here-if-aiml-concepts-are-new-to-you', label: 'Study AI and LLM workloads from zero'},
   'volume-06': {to: '/curriculum/volume-06/ai-networking-rdma-masterclass#foundations-start-here-if-hpc-concepts-are-new-to-you', label: 'Study the integrated HPC foundation'},
-  'volume-07': {to: '/curriculum/volume-07/chapter-1-metrics-logs-and-traces-as-different-evidence#foundations-start-here-if-observability-and-reliability-are-new-to-you', label: 'Study the integrated reliability foundation'},
-  'volume-08': {to: '/curriculum/volume-08/chapter-1-discovery-that-changes-the-architecture#foundations-start-here-if-solutions-architecture-is-new-to-you', label: 'Study the integrated Solutions Architecture foundation'},
-  'volume-09': {to: '/curriculum/volume-09/chapter-1-the-answer-framework-expose-your-reasoning#foundations-start-here-before-using-the-interview-question-bank', label: 'Learn how to use interview practice'},
+  'volume-07': {to: '/curriculum/volume-07/metrics-logs-traces-masterclass#foundations-start-here-if-observability-and-reliability-are-new-to-you', label: 'Study the integrated reliability foundation'},
+  'volume-08': {to: '/curriculum/volume-08/architecture-design-masterclass#foundations-start-here-if-solutions-architecture-is-new-to-you', label: 'Study the integrated Solutions Architecture foundation'},
+  'volume-09': {to: '/curriculum/volume-09/interview-framework-masterclass#foundations-start-here-before-using-the-interview-question-bank', label: 'Learn how to use interview practice'},
   'volume-10': {to: '/curriculum/volume-10/chapter-1-bare-metal-and-bmc-lifecycle#foundations-start-here-if-the-bare-metal-hpc-stack-is-new-to-you', label: 'Study the integrated operations foundation'},
 };
 

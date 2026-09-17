@@ -58,22 +58,63 @@ When an Ethernet frame arrives at the physical port of the Network Interface Car
 
 ```mermaid
 flowchart TD
-    Wire[Ethernet Wire] --> NIC[NIC Hardware MAC/PHY]
-    NIC -- DMA --> RxRing[Rx Ring Buffer (Host RAM)]
-    NIC -- Hard IRQ --> CPU[CPU Interrupt Handler]
-    CPU -- Disable IRQ, Schedule SoftIRQ --> SoftIRQ[NET_RX_SOFTIRQ / NAPI Poll]
-    SoftIRQ -- Batch Read --> Driver[NIC Driver poll()]
-    Driver --> SKB[Allocate sk_buff]
-    SKB --> XDP[eBPF / XDP Hook]
-    XDP --> TC[Traffic Control ingress qdisc]
-    TC --> NetfilterPre[Netfilter PREROUTING]
-    NetfilterPre --> Routing{Routing Decision}
-    Routing -- Local --> NetfilterIn[Netfilter INPUT]
-    NetfilterIn --> TCP[TCP/UDP Protocol Stack]
-    TCP --> SocketBuf[Socket Receive Buffer]
-    SocketBuf -- copy_to_user() --> App[Application User Space]
-    Routing -- Forward --> NetfilterFwd[Netfilter FORWARD]
+    subgraph Hardware["Hardware Layer"]
+        Wire["Ethernet Wire (Fiber)"]
+        NIC["NIC MAC/PHY (e.g., ConnectX-7)"]
+        RxRing["Rx Ring Buffer (Host RAM)"]
+    end
+
+    subgraph IRQ["Interrupt Layer"]
+        HardIRQ["Hardware IRQ (Top Half)"]
+        SoftIRQ["NET_RX_SOFTIRQ / NAPI Poll (Bottom Half)"]
+    end
+
+    subgraph Kernel["Kernel Network Stack"]
+        Driver["NIC Driver poll()"]
+        SKB["Allocate sk_buff"]
+        XDP["eBPF / XDP Hook (Bypass possible)"]
+        TC["Traffic Control (tc ingress)"]
+        NetfilterPre["Netfilter PREROUTING (DNAT)"]
+        Routing{"Routing Decision"}
+        NetfilterIn["Netfilter INPUT"]
+        NetfilterFwd["Netfilter FORWARD"]
+        TCP["TCP/UDP Protocol Stack"]
+        SocketBuf["Socket Receive Buffer"]
+    end
+
+    subgraph User["User Space"]
+        App["Application (e.g., PyTorch)"]
+    end
+
+    Wire --> NIC
+    NIC -- "DMA Transfer" ---> RxRing
+    NIC -- "Assert Interrupt" ---> HardIRQ
+    HardIRQ -- "Disable IRQ & Schedule" ---> SoftIRQ
+    SoftIRQ -- "Batch Read (netdev_budget)" ---> Driver
+    Driver --> SKB
+    SKB --> XDP
+    XDP --> TC
+    TC --> NetfilterPre
+    NetfilterPre --> Routing
+    
+    Routing -- "Destined for Localhost" --> NetfilterIn
+    Routing -- "Destined elsewhere" --> NetfilterFwd
+    
+    NetfilterIn --> TCP
+    TCP --> SocketBuf
+    SocketBuf -- "copy_to_user() context switch" ---> App
+
+    classDef hw fill:#2ca02c,stroke:#fff,stroke-width:2px,color:#fff;
+    classDef soft fill:#1f77b4,stroke:#fff,stroke-width:2px,color:#fff;
+    classDef user fill:#ff7f0e,stroke:#fff,stroke-width:2px,color:#fff;
+    class Wire,NIC,RxRing hw;
+    class Driver,SKB,XDP,TC,NetfilterPre,Routing,NetfilterIn,NetfilterFwd,TCP,SocketBuf soft;
+    class App user;
 ```
+
+:::warning NAPI Polling and SoftIRQs
+When you see a CPU core completely pegged at 100% `si` (software interrupt) in `top`, it means `ksoftirqd` is overwhelmed trying to pull packets out of the `RxRing`. This is the exact point where the ring buffer overflows and the NIC hardware begins incrementing `rx_missed_errors` and dropping packets *before* they ever reach `tcpdump`.
+:::
 
 ### 1.2 Receive-Side Scaling (RSS) and Interrupt Affinity
 
@@ -331,12 +372,29 @@ InfiniBand is the native L2 fabric for RDMA. RoCEv2 brings RDMA to standard Ethe
 
 RoCEv2 encapsulates InfiniBand transport headers inside standard UDP/IP packets.
 
-```text
-+----------------+----------------+---------------------+-------------------+---------+
-| Ethernet (L2)  | IP Header (L3) | UDP Header (L4)     | InfiniBand (BTH)  | Payload |
-| MACs, VLAN     | Src/Dst IP     | Dst Port 4791       | QPN, OpCode, PSN  | Data    |
-+----------------+----------------+---------------------+-------------------+---------+
+```mermaid
+flowchart LR
+    subgraph Packet["RoCEv2 Packet Structure"]
+        direction LR
+        L2["Ethernet Header<br/>(MAC, VLAN, 14+ bytes)"]
+        L3["IPv4/IPv6 Header<br/>(IPs, ECN bits, 20/40 bytes)"]
+        L4["UDP Header<br/>(Dst Port 4791, 8 bytes)"]
+        IB["InfiniBand BTH<br/>(QPN, OpCode, 12 bytes)"]
+        Payload["Payload<br/>(GPU Data, up to MTU)"]
+        ICRC["ICRC / FCS<br/>(Checksums)"]
+        
+        L2 --- L3 --- L4 --- IB --- Payload --- ICRC
+    end
+    
+    classDef header fill:#1f77b4,stroke:#fff,stroke-width:1px,color:#fff;
+    classDef payload fill:#2ca02c,stroke:#fff,stroke-width:1px,color:#fff;
+    class L2,L3,L4,IB,ICRC header;
+    class Payload payload;
 ```
+
+:::info UDP Source Port Entropy
+Notice the UDP Header in RoCEv2. The Destination Port is fixed at 4791, but the Source Port is dynamically generated based on a hash of the internal InfiniBand Queue Pair Number (QPN). This entropy is critical: it allows the data center's ECMP switches to hash different RoCEv2 flows across multiple physical spines, achieving true load balancing.
+:::
 
 Because it uses IP and UDP, RoCEv2 is fully routable across standard spine-leaf topologies using ECMP (Equal-Cost Multi-Path) routing, heavily utilizing UDP source port entropy for load balancing.
 
@@ -367,10 +425,24 @@ RDMA relies on a lossless fabric. If Ethernet drops a packet, RoCEv2 relies on G
 
 **2. Explicit Congestion Notification (ECN) & DCQCN:**
 - End-to-end congestion signaling.
-- When switch queues build up (before overflowing), the switch sets the Congestion Experienced (CE) bit in the IP header.
-- The receiving NIC gets the packet, sees the CE bit, and generates a Congestion Notification Packet (CNP) back to the sender via hardware.
-- The sender's NIC hardware algorithm (DCQCN) slows down transmission.
-- *Advantage:* Soft throttling without hard pauses. Modern NVIDIA AI factories tune ECN thresholds to trigger *before* PFC is ever needed.
+
+```mermaid
+sequenceDiagram
+    participant Sender as Sender NIC
+    participant Switch as Top of Rack Switch
+    participant Receiver as Receiver NIC
+
+    Sender->>Switch: Data Packet (ECT bit set)
+    note over Switch: Switch queue hits WRED threshold
+    Switch->>Receiver: Data Packet (Flips CE bit to 1)
+    note over Receiver: NIC hardware detects CE bit
+    Receiver->>Sender: CNP (Congestion Notification Packet)
+    note over Sender: DCQCN algorithm reduces transmission rate
+```
+
+:::tip Tuning ECN vs PFC
+Soft throttling without hard pauses is the goal. Modern NVIDIA AI factories tune ECN thresholds on their Spectrum switches to trigger *before* PFC is ever needed. If your `ethtool` counters show millions of `rx_pause_ctrl_frames`, your ECN thresholds are misconfigured or too high, forcing the fabric to rely on brutal L2 pauses.
+:::
 
 ### 4.6 Validating RDMA and RoCEv2
 

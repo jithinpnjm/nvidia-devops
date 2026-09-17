@@ -500,11 +500,6 @@ Observe latency, throughput, CPU utilization, and consistency. Do not disable li
 
 **Worked evidence for this exact symptom** — this is precisely the GPU3 case captured in Step 6:
 
-```text
-$ sudo lspci -s 0000:5d:00.0 -vv | grep -E 'LnkCap:|LnkSta:'
-        LnkCap: Port #0, Speed 32GT/s, Width x16, ASPM not supported
-        LnkSta: Speed 32GT/s (ok), Width x4 (downgraded)
-
 $ sudo dmesg -T | grep -i "5d:00.0" | tail -5
 [Wed Aug  6 03:14:22 2026] pcieport 0000:5c:00.0: AER: Corrected error received: 0000:5d:00.0
 [Wed Aug  6 03:14:22 2026] pcieport 0000:5c:00.0: AER: can't find device of ID0500

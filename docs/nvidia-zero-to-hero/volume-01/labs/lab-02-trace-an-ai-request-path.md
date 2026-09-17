@@ -355,11 +355,7 @@ Exact values will vary.
 
 The important measurement is stage contribution, not the absolute benchmark. Calculate the approximate percentage of time spent in each stage:
 
-```bash
-python3 - <<'PY'
-import json
-from pathlib import Path
-
+```python
 records = [
     json.loads(line)
     for line in Path("healthy.log").read_text().splitlines()

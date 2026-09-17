@@ -27,13 +27,12 @@ Before diving into data structures and OOP, we must understand the Python execut
 ### 2.1 The Python Execution Model
 
 ```mermaid
-graph TD
-    A[Source Code: script.py] --> B[Lexer/Parser]
-    B --> C[AST: Abstract Syntax Tree]
-    C --> D[Bytecode Compiler]
-    D --> E[Bytecode: .pyc / __pycache__]
-    E --> F[PVM: Python Virtual Machine]
-    F --> G[Execution / OS Calls]
+flowchart TD
+    subgraph Execution Pipeline
+    A[Source Code: script.py] -- "Lexer/Parser" --- B[AST: Abstract Syntax Tree]
+    B -- "Bytecode Compiler" --- C[Bytecode: .pyc / __pycache__]
+    C -- "PVM: Python Virtual Machine" --- D[Execution / OS Calls]
+    end
 ```
 
 When you execute `python deploy_cluster.py`:
@@ -72,7 +71,9 @@ Notice `LOAD_FAST` for local variables. Python optimizes local variable access. 
 CPython uses **reference counting** mixed with a generational garbage collector to manage memory.
 The **Global Interpreter Lock (GIL)** ensures only one OS thread executes Python bytecode at a time. This simplifies memory management for C extensions but limits CPU-bound concurrency.
 
-**Infrastructure Implication:** For network-bound tasks (API calls to AWS, GCP, NVIDIA APIs), multithreading (`concurrent.futures.ThreadPoolExecutor`) is highly effective because threads release the GIL during I/O operations. For CPU-bound tasks (data processing, serialization of massive JSON payloads), you must use multiprocessing (`ProcessPoolExecutor`) or native extensions.
+:::tip Infrastructure Implication
+For network-bound tasks (API calls to AWS, GCP, NVIDIA APIs), multithreading (`concurrent.futures.ThreadPoolExecutor`) is highly effective because threads release the GIL during I/O operations. For CPU-bound tasks (data processing, serialization of massive JSON payloads), you must use multiprocessing (`ProcessPoolExecutor`) or native extensions.
+:::
 
 ---
 
@@ -87,7 +88,9 @@ In Python, **everything is an object**, and **variables are just labels (referen
 
 #### The "Default Mutable Argument" Bug
 
-This is the most common bug in Python automation.
+:::warning Common Pitfall
+This is the most common bug in Python automation. A mutable default argument is evaluated only once when the function is defined, leading to shared state across all calls.
+:::
 
 ```python
 # BAD PRACTICE
@@ -337,6 +340,18 @@ classDiagram
     Networkable <|-- EC2Instance
 ```
 
+```mermaid
+flowchart TD
+    EC2Instance["class EC2Instance(BaseResource, Taggable)"]
+    BaseResource["class BaseResource(object)"]
+    Taggable["class Taggable(object)"]
+    Object["class object()"]
+
+    EC2Instance -- "1. Search Left Parent" --- BaseResource
+    BaseResource -- "2. Move to Next Parent" --- Taggable
+    Taggable -- "3. Search Base Class" --- Object
+```
+
 ```python
 class BaseResource:
     def describe(self): return "Base Resource"
@@ -418,8 +433,10 @@ except Exception as e:
 
 ### 7.3 Secrets Management
 
+:::warning Security Critical
 **Never hardcode secrets. Never commit `.env` files.**
 Use `SecretStr` in Pydantic. Fetch secrets at runtime from AWS Secrets Manager, HashiCorp Vault, or environment variables mounted from Kubernetes Secrets.
+:::
 
 ---
 
@@ -575,14 +592,14 @@ def process_logs_good(file_path):
 Instead of spaghetti scripts, modern infrastructure tooling often uses the Command Pattern or an Event Bus.
 
 ```mermaid
-graph LR
-    CLI[User CLI Command] --> Parser[Argparse / Click]
-    Parser --> CommandObj[Command Object]
-    CommandObj --> Validator[Pydantic Validation]
-    Validator --> Bus[Command Bus]
-    Bus --> Handler[Command Handler]
-    Handler --> AWS[AWS API]
-    Handler --> DB[State Database]
+flowchart LR
+    CLI[User CLI Command] -- "Executes" --- Parser[Argparse / Click]
+    Parser -- "Generates" --- CommandObj[Command Object]
+    CommandObj -- "Validates" --- Validator[Pydantic Validation]
+    Validator -- "Dispatches" --- Bus[Command Bus]
+    Bus -- "Routes To" --- Handler[Command Handler]
+    Handler -- "Mutates State" --- AWS[AWS API]
+    Handler -- "Persists Data" --- DB[State Database]
 ```
 
 This decoupling allows you to test handlers purely by passing them Command objects, mocking out the CLI and the APIs completely.
@@ -951,73 +968,7 @@ Understanding this pattern is crucial for data engineering, logging, and general
 
 ## Extended Scenario Module 2
 
-### Deep Dive: Memory Profiling Part 2
-Memory issues in Python infrastructure are notoriously hard to debug. In this extended scenario, we look at how to tackle them when parsing extremely large log files or JSON objects. A common mistake is reading the entire file into a dictionary or list, which can lead to Out-Of-Memory (OOM) errors in containerized environments. By adopting streaming approaches or utilizing external libraries like memory_profiler, we can maintain a constant memory footprint.
-
-Here's an illustration of how you might use generators to process streams of data efficiently. This technique ensures that your memory usage remains flat regardless of the input size, allowing infrastructure tooling to scale gracefully.
-
-```python
-# A generator to lazily process items
-def lazy_process_data_stream_part_2(stream):
-    for record in stream:
-        if record.get('status') == 'error':
-            yield record
-
-# Process in chunks to prevent memory blowup
-def consume_data_part_2():
-    data_stream = ({"id": j, "status": "error" if j % 2 == 0 else "ok"} for j in range(10000))
-    for error_record in lazy_process_data_stream_part_2(data_stream):
-        # Do something with the error record
-        pass
-```
-
-Understanding this pattern is crucial for data engineering, logging, and general infrastructure automation. In the context of MLOps or DevOps, data is the foundation, and managing it efficiently is paramount to building reliable systems. The concepts here echo the importance of Python's execution model and memory management, as discussed earlier. Ensure you apply these principles when dealing with APIs that return paginated or massive responses.
-
 ## Extended Scenario Module 3
 
-### Deep Dive: Memory Profiling Part 3
-Memory issues in Python infrastructure are notoriously hard to debug. In this extended scenario, we look at how to tackle them when parsing extremely large log files or JSON objects. A common mistake is reading the entire file into a dictionary or list, which can lead to Out-Of-Memory (OOM) errors in containerized environments. By adopting streaming approaches or utilizing external libraries like memory_profiler, we can maintain a constant memory footprint.
-
-Here's an illustration of how you might use generators to process streams of data efficiently. This technique ensures that your memory usage remains flat regardless of the input size, allowing infrastructure tooling to scale gracefully.
-
-```python
-# A generator to lazily process items
-def lazy_process_data_stream_part_3(stream):
-    for record in stream:
-        if record.get('status') == 'error':
-            yield record
-
-# Process in chunks to prevent memory blowup
-def consume_data_part_3():
-    data_stream = ({"id": j, "status": "error" if j % 2 == 0 else "ok"} for j in range(10000))
-    for error_record in lazy_process_data_stream_part_3(data_stream):
-        # Do something with the error record
-        pass
-```
-
-Understanding this pattern is crucial for data engineering, logging, and general infrastructure automation. In the context of MLOps or DevOps, data is the foundation, and managing it efficiently is paramount to building reliable systems. The concepts here echo the importance of Python's execution model and memory management, as discussed earlier. Ensure you apply these principles when dealing with APIs that return paginated or massive responses.
-
 ## Extended Scenario Module 4
-
-### Deep Dive: Memory Profiling Part 4
-Memory issues in Python infrastructure are notoriously hard to debug. In this extended scenario, we look at how to tackle them when parsing extremely large log files or JSON objects. A common mistake is reading the entire file into a dictionary or list, which can lead to Out-Of-Memory (OOM) errors in containerized environments. By adopting streaming approaches or utilizing external libraries like memory_profiler, we can maintain a constant memory footprint.
-
-Here's an illustration of how you might use generators to process streams of data efficiently. This technique ensures that your memory usage remains flat regardless of the input size, allowing infrastructure tooling to scale gracefully.
-
-```python
-# A generator to lazily process items
-def lazy_process_data_stream_part_4(stream):
-    for record in stream:
-        if record.get('status') == 'error':
-            yield record
-
-# Process in chunks to prevent memory blowup
-def consume_data_part_4():
-    data_stream = ({"id": j, "status": "error" if j % 2 == 0 else "ok"} for j in range(10000))
-    for error_record in lazy_process_data_stream_part_4(data_stream):
-        # Do something with the error record
-        pass
-```
-
-Understanding this pattern is crucial for data engineering, logging, and general infrastructure automation. In the context of MLOps or DevOps, data is the foundation, and managing it efficiently is paramount to building reliable systems. The concepts here echo the importance of Python's execution model and memory management, as discussed earlier. Ensure you apply these principles when dealing with APIs that return paginated or massive responses.
 

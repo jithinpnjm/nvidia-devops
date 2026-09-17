@@ -130,14 +130,6 @@ Time    GPU_Util  Mem_Util
 
 **Scenario 2: Oscillating Utilization**
 
-```
-Time    GPU_Util  Mem_Util
-00:00   90%       85%
-00:01   5%        2%
-00:02   92%       88%
-00:03   4%        1%
-```
-
 **Interpretation:** GPU is being starved for data, executing work, running out, then waiting. This is classic data-pipeline starvation. Data loader is the bottleneck, not the GPU.
 
 ### Alert Thresholds for Utilization

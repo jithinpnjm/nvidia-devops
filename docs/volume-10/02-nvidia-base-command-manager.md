@@ -152,7 +152,9 @@ Full List of Resources:
 
 ### 3.3 STONITH and Split-Brain Prevention
 
+:::danger
 A **split-brain** scenario occurs when the Corosync heartbeat network link between `HN-01` and `HN-02` breaks, but both nodes are still running. If both nodes promote themselves to Active, they will both attempt to mount the DRBD filesystem and write to it, causing immediate and catastrophic filesystem corruption.
+:::
 
 To prevent this, BCM implements **STONITH** (Shoot The Other Node In The Head), also known as Fencing. 
 
@@ -306,11 +308,11 @@ BCM supports three primary provisioning modes for AI Factories:
 
 ### 5.3 Mitigating Provisioning Storms at Scale (BitTorrent)
 
-When reimaging 256 DGX H100 nodes (each requiring a 35 GB golden image), traditional unicast HTTP or rsync generates:
-```text
+:::warning
+When reimaging 256 DGX H100 nodes (each requiring a 35 GB golden image), traditional unicast HTTP or rsync generates massive network storms. Saturating a single 25GbE head node interface would take over 50 minutes, leading to connection timeouts, failed DHCP leases, and kernel panics.
+:::
+
 Total Network Traffic = 256 nodes * 35 GB = 8.96 Terabytes
-```
-Saturating a single 25GbE head node interface would take over 50 minutes, leading to connection timeouts, failed DHCP leases, and kernel panics.
 
 **BCM's Production Solution: BitTorrent / Tree-Based Provisioning**
 
@@ -318,6 +320,32 @@ BCM integrates a built-in BitTorrent tracker in CMDaemon.
 1. The head node seeds the 35GB image to the first 4 nodes.
 2. Those 4 nodes immediately act as peers, seeding the chunks to 16 other nodes.
 3. Distribution cascades across the spine-leaf network. The head node network load remains constant at 35 GB, while the cluster provisions itself utilizing massive bisectional Top-of-Rack switch bandwidth.
+
+```mermaid
+flowchart TD
+    subgraph Seed["Head Node"]
+        HN["BCM Head Node (Seed)"]
+    end
+    
+    subgraph Rack1["First Wave (ToR 1)"]
+        N1["Node 01"]
+        N2["Node 02"]
+    end
+    
+    subgraph Rack2["Second Wave (ToR 2)"]
+        N3["Node 03"]
+        N4["Node 04"]
+        N5["Node 05"]
+        N6["Node 06"]
+    end
+    
+    HN -- "35GB Base Seed" ---> N1
+    HN -- "35GB Base Seed" ---> N2
+    N1 -- "Peer Transfer" ---> N3
+    N1 -- "Peer Transfer" ---> N4
+    N2 -- "Peer Transfer" ---> N5
+    N2 -- "Peer Transfer" ---> N6
+```
 
 To enable BitTorrent for a category:
 ```bash
@@ -422,7 +450,9 @@ NodeName=dgx-01 Name=gpu Type=h100 File=/dev/nvidia3 COREs=16-31,80-95
 
 ### 7.2 Dynamic Node Reallocation (Slurm $\leftrightarrow$ Kubernetes)
 
+:::info
 In an AI Factory, infrastructure flexibility is critical. You may need 100% of nodes running Slurm for a multi-week foundation model pre-training run, followed by shifting 30% of nodes to Kubernetes for interactive fine-tuning (Jupyter) and inference serving (Triton/vLLM).
+:::
 
 **In BCM, this transition is declarative and fully automated:**
 ```bash
@@ -433,6 +463,25 @@ $ cmsh
 [headnode->device[dgx-33..dgx-64]]% set category k8s-gpu-pool
 [headnode->device[dgx-33..dgx-64]]% commit
 ```
+
+```mermaid
+sequenceDiagram
+    participant Admin as Cluster Admin
+    participant BCM as BCM Head Node
+    participant Slurm as Slurm Controller
+    participant Node as Compute Node (dgx-33)
+    participant K8s as Kubernetes API
+
+    Admin->>BCM: set category k8s-gpu-pool
+    BCM->>Slurm: scontrol update State=DRAIN (Graceful drain)
+    Slurm-->>BCM: Jobs completed, Node drained
+    BCM->>Node: Reboot Command (via IPMI/Redfish)
+    Node->>BCM: PXE Boot & Request Golden Image
+    BCM-->>Node: k8s-gpu-pool Image (contains containerd, kubelet)
+    Node->>K8s: kubelet TLS bootstrap & join cluster
+    K8s-->>Node: Node registered as Kubernetes Worker
+```
+
 *What happens next?* 
 1. BCM issues an API call to Slurm to drain nodes 33-64.
 2. Once jobs complete, CMDaemon reboots the nodes.

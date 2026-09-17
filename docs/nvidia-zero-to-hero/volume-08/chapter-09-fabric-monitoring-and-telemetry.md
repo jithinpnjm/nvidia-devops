@@ -111,11 +111,6 @@ GUID 0x506b... port 12: [SymbolErrorCounter == 4] [LinkDownedCounter == 0]
 $ ibqueryerrors -s SymbolErrorCounter,LinkDownedCounter -k <switch-lid> | grep "port 12"
 GUID 0x506b... port 12: [SymbolErrorCounter == 890] [LinkDownedCounter == 3]
 
-# Day 7
-$ ibqueryerrors -s SymbolErrorCounter,LinkDownedCounter -k <switch-lid> | grep "port 12"
-GUID 0x506b... port 12: [SymbolErrorCounter == 41200] [LinkDownedCounter == 19]
-```
-
 None of these three snapshots alone triggers a naive "nonzero error" alert differently from the others — 4, 890, and 41,200 are all "some errors." Reading them as a *rate* changes the picture entirely: the delta from day 1 to day 4 is ~886 over 3 days (~295/day); day 4 to day 7 is ~40,310 over 3 days (~13,400/day) — a roughly 45x acceleration in error rate, with `LinkDownedCounter` (forced link recovery events) climbing in step. This is exactly the "acceleration in error rate" alert condition this section recommends, and it is the specific evidence that would have caught this chapter's opening incident on day 4, days before the cable finally forced a hard recovery and training throughput visibly collapsed.
 
 ## Inventory Is Telemetry Context

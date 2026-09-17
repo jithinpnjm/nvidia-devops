@@ -569,10 +569,6 @@ The container should fail to find the NVIDIA management path or report that no G
 
 Now run the healthy form:
 
-```bash
-docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
-```
-
 **Root cause:**
 
 The first container was not granted GPU devices and runtime integration.

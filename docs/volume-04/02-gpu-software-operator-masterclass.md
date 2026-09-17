@@ -99,14 +99,14 @@ When you submit a pod requesting a GPU, the following flow occurs if using the l
 sequenceDiagram
     participant Kubelet
     participant Containerd
-    participant nvidia-container-runtime
-    participant libnvidia-container
+    participant nvidia-container-runtime as NVIDIA Container Runtime
+    participant libnvidia-container as libnvidia-container
     participant Kernel
     
     Kubelet->>Containerd: Create Container (Env: NVIDIA_VISIBLE_DEVICES=all)
     Containerd->>nvidia-container-runtime: Invoke runc wrapper
     nvidia-container-runtime->>libnvidia-container: Pre-start hook triggered
-    Note over libnvidia-container: 1. Parse Environment Variables<br/>2. Locate Host Libraries<br/>3. Mount /dev/nvidiaX<br/>4. Mount libcuda.so
+    Note over libnvidia-container: 1. Parse Env Vars<br/>2. Locate Host Libs<br/>3. Mount /dev/nvidiaX<br/>4. Mount libcuda.so
     libnvidia-container-->>nvidia-container-runtime: Hook complete
     nvidia-container-runtime->>Kernel: Start Container Process
 ```
@@ -197,10 +197,31 @@ The `nvidia-device-plugin` is a DaemonSet deployed on every GPU node. It acts as
 
 ```mermaid
 flowchart TD
-    A[NVIDIA Device Plugin] -->|gRPC /var/lib/kubelet/device-plugins/nvidia-gpu.sock| B[Kubelet]
-    A -->|NVML calls| C[NVIDIA Driver]
-    B -->|API Status Update| D[Kubernetes API Server]
-    D -->|Allocatable: nvidia.com/gpu: 8| E[Scheduler]
+    subgraph K8s_Control_Plane["Kubernetes API & Control Plane"]
+        APIServer["API Server (Node Object)"]
+        Scheduler["Kube-Scheduler"]
+        APIServer <--> Scheduler
+    end
+
+    subgraph Node["GPU Worker Node"]
+        Kubelet["Kubelet"]
+        DP["NVIDIA Device Plugin (DaemonSet)"]
+        NVML["NVIDIA Management Library (NVML)"]
+        Driver["NVIDIA Kernel Driver"]
+        
+        DP -- "1. ListAndWatch (gRPC)" <--> Kubelet
+        DP -- "2. Hardware Query" ---> NVML
+        NVML -- "3. IOCTL" ---> Driver
+        Kubelet -- "4. Patch Node Status (Capacity: nvidia.com/gpu)" ---> APIServer
+        
+        Scheduler -- "5. Bind Pod to Node" ---> Kubelet
+        Kubelet -- "6. Allocate (Request Device IDs)" ---> DP
+        DP -- "7. Return CDI Device Names" ---> Kubelet
+    end
+    
+    style K8s_Control_Plane fill:#e5e7eb,color:#000
+    style DP fill:#76b900,color:#fff
+    style NVML fill:#4b5563,color:#fff
 ```
 
 1.  **Registration**: The plugin starts and registers itself with the Kubelet over a UNIX domain socket.
@@ -257,7 +278,9 @@ data:
           replicas: 10
 ```
 
+:::warning Isolation Trade-off: Time-Slicing
 With the above config, an 8-GPU node will report `nvidia.com/gpu: 80` to the Kubelet. Ten pods can be scheduled onto a single physical GPU. Note: There is NO memory isolation between these pods; if Pod A allocates all VRAM, Pod B will crash with OOM.
+:::
 
 #### Multi-Instance GPU (MIG) Configuration
 
@@ -296,13 +319,23 @@ The GPU Operator relies on NFD (Node Feature Discovery) to label nodes that phys
 
 ```mermaid
 stateDiagram-v2
-    [*] --> NodeLabeled
-    NodeLabeled --> DriverDeployed: Deploy nvidia-driver DaemonSet
-    DriverDeployed --> ToolkitDeployed: Deploy nvidia-container-toolkit DaemonSet
-    ToolkitDeployed --> DevicePluginDeployed: Deploy nvidia-device-plugin DaemonSet
-    DevicePluginDeployed --> DCGMExporterDeployed: Deploy dcgm-exporter DaemonSet
-    DCGMExporterDeployed --> Ready
+    direction TB
+    [*] --> NodeLabeled : NFD detects PCI Vendor 10de
+    
+    state NodeLabeled {
+        [*] --> DriverDeployed : Deploy nvidia-driver DaemonSet
+        DriverDeployed --> ToolkitDeployed : Deploy nvidia-container-toolkit DaemonSet
+        ToolkitDeployed --> DevicePluginDeployed : Deploy nvidia-device-plugin DaemonSet
+        DevicePluginDeployed --> DCGMExporterDeployed : Deploy dcgm-exporter DaemonSet
+    }
+    
+    NodeLabeled --> Ready : All components Running & Ready
     Ready --> [*]
+    
+    note right of DriverDeployed
+      Critical: Compiles kernel module.
+      Fails if kernel headers mismatch.
+    end note
 ```
 
 **Crucial detail**: Each stage *depends* on the previous stage successfully completing *on that specific node*. The operator uses `initContainers` and node labels to enforce this ordering. If the Driver pod fails to compile the kernel module, the Device Plugin will never be scheduled.
@@ -391,8 +424,10 @@ You apply the GPU Operator. The `nvidia-driver-daemonset-xxx` pods are in `Init:
 2. Common output: `gcc not found` or `kernel headers not found`.
 
 **Root Cause & Resolution:**
+:::danger Kernel Header Mismatch
 The kernel module compilation failed. The host OS kernel was upgraded (e.g., `apt-get upgrade linux-image-generic`), but the new kernel headers were not installed, or the driver container doesn't have the tooling for that specific kernel version. 
 **Fix:** Ensure the OS image provides kernel headers (e.g., `linux-headers-$(uname -r)`), or switch to `usePrecompiled: true` with NVIDIA-provided precompiled driver containers for your specific OS/kernel matrix.
+:::
 
 ### Scenario B: Device Plugin Missing Capacity
 

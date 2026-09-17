@@ -453,20 +453,11 @@ Review the plan output in the Action logs.`
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
 
-      - name: Configure AWS Credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::123456789012:role/GitHubActions-Terraform-Role
-          aws-region: ${{ env.AWS_REGION }}
-
       - name: Download Binary Plan Artifact
         uses: actions/download-artifact@v4
         with:
           name: terraform-plan
           path: ${{ env.TF_WORKING_DIR }}
-
-      - name: Terraform Init
-        run: terraform init
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan.binary

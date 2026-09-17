@@ -76,11 +76,6 @@ Sharded across N GPUs:
   Optimizer states (10B × 8 bytes) = 80 GB total → 80/N GB per GPU
 ```
 
-**Memory per GPU (N=8):**
-```
-40 GB (weights) + (40/8) GB (gradients) + (80/8) GB (optimizer) = 40 + 5 + 10 = 55 GB
-```
-
 Now it fits on an 80 GB GPU with 25 GB headroom for activations!
 
 **Communicat ion cost:** Instead of All-Reduce after backward (which is already necessary), we use Reduce-Scatter to collect gradients back to shards. This is slightly more efficient than All-Reduce, so Stage 2 has minimal communication overhead.

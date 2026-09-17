@@ -42,26 +42,57 @@ This cascading failure was not a hardware issue, nor was it a bug in PyTorch. It
 Understanding how a node goes from BIOS to ready-for-GPUs is crucial. `systemd` uses **targets** (groupings of units) to manage states.
 
 ```mermaid
-graph TD
-    A[Power On / BIOS / UEFI] -->|Bootloader| B(Kernel Initialization)
-    B -->|Starts PID 1| C{systemd}
-    C --> D[sysinit.target]
-    D -->|Mounts local filesystems| E[local-fs.target]
-    E --> F[basic.target]
-    F -->|Starts Networking| G[network-online.target]
-    G --> H[multi-user.target]
+flowchart TD
+    subgraph Hardware["Hardware & Bootloader"]
+        BIOS["BIOS/UEFI Init"]
+        GRUB["GRUB / Bootloader"]
+    end
     
-    H --> I[nvidia-persistenced.service]
-    H --> J[nvidia-fabricmanager.service]
-    J --> K[containerd.service]
-    K --> L[kubelet.service]
+    subgraph Kernel["Kernel Space"]
+        KernelInit["Kernel Initialization & Initramfs"]
+    end
+    
+    subgraph Systemd["Systemd (PID 1) Target Chain"]
+        Sysinit["sysinit.target<br/>(Early boot)"]
+        LocalFS["local-fs.target<br/>(Mounts / and /etc)"]
+        Basic["basic.target<br/>(Basic services)"]
+        Network["network-online.target<br/>(Network Ready)"]
+        MultiUser["multi-user.target<br/>(Runlevel 3)"]
+    end
+    
+    subgraph AI["AI Infrastructure Services"]
+        NV_Persist["nvidia-persistenced.service<br/>(Keeps GPUs alive)"]
+        NV_FM["nvidia-fabricmanager.service<br/>(Initializes NVLink)"]
+        Containerd["containerd.service<br/>(Container Runtime)"]
+        Kubelet["kubelet.service<br/>(Node Agent)"]
+    end
+
+    BIOS --> GRUB
+    GRUB --> KernelInit
+    KernelInit -- "Exec PID 1" ---> Sysinit
+    
+    Sysinit --> LocalFS
+    LocalFS --> Basic
+    Basic --> Network
+    Network --> MultiUser
+    
+    MultiUser -- "Wants/Requires" ---> NV_Persist
+    MultiUser -- "Wants/Requires" ---> NV_FM
+    NV_FM -- "Before" ---> Containerd
+    Containerd -- "Before" ---> Kubelet
     
     classDef target fill:#e1f5fe,stroke:#01579b,stroke-width:2px;
     classDef service fill:#fff3e0,stroke:#e65100,stroke-width:2px;
+    classDef hw fill:#f1f8e9,stroke:#33691e,stroke-width:2px;
     
-    class D,E,F,G,H target;
-    class I,J,K,L service;
+    class Sysinit,LocalFS,Basic,Network,MultiUser target;
+    class NV_Persist,NV_FM,Containerd,Kubelet service;
+    class BIOS,GRUB,KernelInit hw;
 ```
+
+:::warning Service Ordering for AI Nodes
+If `kubelet` or `containerd` starts before `nvidia-fabricmanager` has successfully discovered and initialized the NVLink switches on an HGX node, the container orchestrator might allocate GPUs that cannot communicate with each other over the high-speed fabric. This causes distributed training jobs to silently fall back to PCIe or simply hang.
+:::
 
 ### 2.2 Systemd Unit Files and Dependencies
 
@@ -397,32 +428,38 @@ Namespaces limit what a process can *see*. Cgroups limit what a process can *use
 ### 6.1 The 6 Core Namespaces
 
 ```mermaid
-graph LR
-    subgraph Host Kernel
-        A(Process)
-        B[PID Namespace]
-        C[Mount Namespace]
-        D[Network Namespace]
-        E[UTS Namespace]
-        F[IPC Namespace]
-        G[User Namespace]
-        
-        A --> B
-        A --> C
-        A --> D
-        A --> E
-        A --> F
-        A --> G
+flowchart LR
+    subgraph Host["Host Operating System"]
+        subgraph Kernel["Linux Kernel"]
+            PID["PID Namespace (Isolates Process IDs)"]
+            MNT["Mount Namespace (Isolates Filesystems)"]
+            NET["Network Namespace (Isolates Interfaces & Routing)"]
+            UTS["UTS Namespace (Isolates Hostname)"]
+            IPC["IPC Namespace (Isolates Shared Memory)"]
+            USER["User Namespace (Isolates UID/GID)"]
+            CGROUP["Cgroup Namespace (Isolates Resource Limits view)"]
+        end
     end
     
-    style A fill:#ff9800,stroke:#e65100,stroke-width:2px;
-    style B fill:#b3e5fc,stroke:#0288d1;
-    style C fill:#b3e5fc,stroke:#0288d1;
-    style D fill:#b3e5fc,stroke:#0288d1;
-    style E fill:#b3e5fc,stroke:#0288d1;
-    style F fill:#b3e5fc,stroke:#0288d1;
-    style G fill:#b3e5fc,stroke:#0288d1;
+    Proc["Containerized Process<br/>(e.g., Python AI Worker)"]
+    
+    Proc -. "Belongs to" .-> PID
+    Proc -. "Belongs to" .-> MNT
+    Proc -. "Belongs to" .-> NET
+    Proc -. "Belongs to" .-> UTS
+    Proc -. "Belongs to" .-> IPC
+    Proc -. "Belongs to" .-> USER
+    Proc -. "Belongs to" .-> CGROUP
+    
+    classDef ns fill:#b3e5fc,stroke:#0288d1,stroke-width:2px,color:#000;
+    classDef proc fill:#ff9800,stroke:#e65100,stroke-width:2px,color:#fff;
+    class PID,MNT,NET,UTS,IPC,USER,CGROUP ns;
+    class Proc proc;
 ```
+
+:::info Namespaces vs Virtual Machines
+A container is not a Virtual Machine; it has no guest kernel. It is a completely standard Linux process that has been assigned to a different set of namespaces. Because the host kernel manages it directly, interacting with GPU hardware drivers (which exist in kernel space) is native and incurs zero virtualization overhead.
+:::
 
 1.  **PID (Process ID):** Isolates the process ID number space. PID 1 in the container maps to PID 45982 on the host.
 2.  **Mount (mnt):** Isolates the filesystem mount points. A container can mount `/tmp` without affecting the host's `/tmp`.
@@ -610,24 +647,39 @@ OverlayFS merges multiple directories into a single unified view.
 4.  **Merged Directory (`merged`):** The unified view presented to the container. 
 
 ```mermaid
-graph TD
-    A[Container View / Merged] 
-    B[Upper Dir Read/Write]
-    C[Lower Dir 3 Read Only]
-    D[Lower Dir 2 Read Only]
-    E[Lower Dir 1 Read Only]
+flowchart TD
+    subgraph ContainerView["Merged View (What the container sees)"]
+        Merged["/ (Root Filesystem)"]
+    end
     
-    A --> B
-    A -.-> C
-    A -.-> D
-    A -.-> E
+    subgraph HostMounts["Host OverlayFS Layers"]
+        Upper["UpperDir (Read/Write, Container-specific changes)"]
+        WorkDir["WorkDir (Internal temp space for OverlayFS)"]
+        
+        Lower3["LowerDir 3 (Base Image Layer, Read-Only)"]
+        Lower2["LowerDir 2 (Layer, Read-Only)"]
+        Lower1["LowerDir 1 (Layer, Read-Only)"]
+    end
     
-    style A fill:#c8e6c9,stroke:#388e3c,stroke-width:2px;
-    style B fill:#ffccbc,stroke:#d84315;
-    style C fill:#cfd8dc,stroke:#546e7a;
-    style D fill:#cfd8dc,stroke:#546e7a;
-    style E fill:#cfd8dc,stroke:#546e7a;
+    Merged === "Composite of" ===> Upper
+    Merged -. "Fallback to" .-> Lower3
+    Merged -. "Fallback to" .-> Lower2
+    Merged -. "Fallback to" .-> Lower1
+    
+    Upper -. "Uses" .-> WorkDir
+    
+    classDef merged fill:#c8e6c9,stroke:#388e3c,stroke-width:2px,color:#000;
+    classDef upper fill:#ffccbc,stroke:#d84315,stroke-width:2px,color:#000;
+    classDef lower fill:#cfd8dc,stroke:#546e7a,stroke-width:2px,color:#000;
+    
+    class Merged merged;
+    class Upper,WorkDir upper;
+    class Lower1,Lower2,Lower3 lower;
 ```
+
+:::warning The Copy-Up Penalty
+When a container attempts to modify a file that exists in a read-only `LowerDir`, OverlayFS must first copy the entire file into the `UpperDir` before allowing the write. This is called the "copy-up" operation. If an AI training job modifies a multi-gigabyte dataset file that is baked into the container image, it will trigger a massive copy-up, spiking disk I/O, filling the host's `/var/lib/docker` partition, and potentially triggering a NodeNotReady state. Always mount large, mutable datasets as external volumes!
+:::
 
 ### 8.2 Deep Dive: Mounting OverlayFS and Copy-Up Mechanics (Part 1)
 Let's replicate what Docker/containerd does under the hood with even more complexity.

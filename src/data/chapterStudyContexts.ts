@@ -2635,8 +2635,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Annotated counter deltas: what \"the fabric failed slowly\" looks like in numbers",
       "Day 1",
       "Day 4",
-      "Day 7",
-      "Inventory Is Telemetry Context"
+      "Inventory Is Telemetry Context",
+      "Baseline Design"
     ],
     "codeLanguages": [
       "mermaid",
@@ -8986,6 +8986,32 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "json"
     ]
   },
+  "Python Fundamentals for Infrastructure Masterclass": {
+    "volume": "Volume 2",
+    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
+    "learningOutcome": "",
+    "sections": [
+      "Python Fundamentals for Infrastructure Masterclass",
+      "The Problem Statement",
+      "Mandatory Prerequisites",
+      "Phase 1: Core Fundamentals & The Mutability Trap",
+      "1.1 Variables, Data Types, and Memory",
+      "An integer is immutable.",
+      "When we 'change' x, we actually point the label 'x' to a new integer object.",
+      "BAD PRACTICE: Do not use mutable defaults (lists, dicts, sets).",
+      "Execution 1: Expected behavior",
+      "Output: ['10.0.0.1']",
+      "Execution 2: State Bleeding!",
+      "The default list object is created ONLY ONCE when the function is defined.",
+      "Subsequent calls share the same exact list object in memory.",
+      "Output: ['10.0.0.1', '10.0.0.2'] - We inherited state from a previous run!"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "python"
+    ]
+  },
   "Python Core & OOP Masterclass": {
     "volume": "Volume 2",
     "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
@@ -9427,274 +9453,92 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "c"
     ]
   },
-  "Chapter 1 - Metrics, logs and traces as different evidence": {
+  "Masterclass: Metrics, Logs, Traces, and SLOs in AI Infrastructure": {
     "volume": "Volume 7",
     "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Know what each telemetry type preserves and choose it by question.",
+    "learningOutcome": "A comprehensive deep-dive into observability for NVIDIA AI Factories, covering Prometheus, OpenTelemetry, PromQL, cardinality management, and advanced troubleshooting.",
     "sections": [
-      "Foundations: start here if observability and reliability are new to you",
-      "What this volume is trying to teach",
-      "The first mental model",
-      "Essential language",
-      "Start from impact, not the loudest component",
-      "A real-life example",
-      "Define reliability from a user's journey",
-      "Metrics: understand value types before PromQL",
-      "Logs that can survive an incident",
-      "Traces: one request across boundaries",
-      "GPU and AI observability needs workload outcomes",
-      "Incident evidence tree",
-      "Alert-design questions",
-      "Guided exercise"
+      "Masterclass: Observability for NVIDIA AI Infrastructure",
+      "1. Introduction: The Observability Imperative in AI Factories",
+      "2. The Three Pillars of Observability",
+      "2.1 Metrics: The \"Is there a problem?\" Signal",
+      "2.2 Logs: The \"What exactly happened?\" Signal",
+      "2.3 Traces: The \"Where did the problem happen?\" Signal",
+      "3. Service Level Indicators, Objectives, and Agreements (SLI/SLO/SLA)",
+      "3.1 Service Level Indicator (SLI)",
+      "3.2 Service Level Objective (SLO)",
+      "3.3 Service Level Agreement (SLA)",
+      "3.4 Error Budgets",
+      "4. Prometheus and PromQL Deep Dive",
+      "4.1 The Prometheus Data Model",
+      "4.2 PromQL Reasoning and Vector Math"
     ],
     "codeLanguages": [
+      "mermaid",
       "text",
       "promql",
+      "yaml",
       "json",
-      "mermaid"
-    ]
-  },
-  "Chapter 2 - SLIs, SLOs and error budgets": {
-    "volume": "Volume 7",
-    "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Connect reliability work to measurable user outcomes instead of infrastructure percentages.",
-    "sections": [
-      "99.9% availability - 0.1% error budget over the window",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "text",
-      "mermaid"
-    ]
-  },
-  "Chapter 3 - Prometheus mental model and PromQL reasoning": {
-    "volume": "Volume 7",
-    "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Understand counters, gauges, histograms, rates and label dimensions before copying queries.",
-    "sections": [
-      "Request rate",
-      "5xx ratio",
-      "or, more directly, ask \"does any label on this metric have unbounded distinct values?\"",
-      "unbounded label smell test: user id, request id, session id, pod UID, raw prompt text, IP address",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "promql",
-      "text",
-      "bash",
-      "mermaid"
-    ]
-  },
-  "Chapter 4 - Kubernetes observability: object state plus runtime evidence": {
-    "volume": "Volume 7",
-    "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Combine kube-state-style desired/observed state, kubelet/container metrics and application telemetry.",
-    "sections": [
-      "Practice"
-    ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Chapter 5 - GPU observability with DCGM": {
-    "volume": "Volume 7",
-    "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Separate device health/utilization from workload demand and performance.",
-    "sections": [
-      "Practitioner lens",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Chapter 6 - Logs that survive incidents": {
-    "volume": "Volume 7",
-    "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Design event fields, severity and correlation; prevent secrets and noisy duplication.",
-    "sections": [
-      "{\"event\": \"inference request\", \"model\": \"llama-x\", \"prompt\": \"<redacted \", \"duration ms\": 812}",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "json",
-      "text",
-      "mermaid",
-      "python"
-    ]
-  },
-  "Chapter 7 - Traces and distributed latency": {
-    "volume": "Volume 7",
-    "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Use spans to decompose request latency across gateway, queue, model server and dependencies.",
-    "sections": [
-      "Practice"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "json"
-    ]
-  },
-  "Chapter 8 - Alert design and runbooks": {
-    "volume": "Volume 7",
-    "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Alert on actionable risk to an SLO or critical dependency, then make the first diagnostic steps deterministic.",
-    "sections": [
-      "Practice"
-    ],
-    "codeLanguages": [
-      "text",
-      "json",
-      "mermaid"
-    ]
-  },
-  "Chapter 9 - Incident playbook: Pending Pods, CrashLoops and OOM": {
-    "volume": "Volume 7",
-    "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Use object/event evidence before host-level investigation, then descend the stack.",
-    "sections": [
-      "Worked scenario",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "text",
-      "mermaid",
-      "yaml"
-    ]
-  },
-  "Chapter 10 - Incident playbook: GPU workload slow or failing": {
-    "volume": "Volume 7",
-    "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Walk from workload SLO through GPU, container/runtime, host, network and storage evidence.",
-    "sections": [
-      "Worked scenario",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
       "bash"
     ]
   },
-  "Chapter 11 - Incident communication and postmortem": {
+  "Masterclass: Kubernetes GPU & Inference Observability": {
     "volume": "Volume 7",
     "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Separate mitigation, root cause, contributing factors and prevention; communicate by audience.",
+    "learningOutcome": "",
     "sections": [
-      "Practice"
+      "Masterclass: Kubernetes GPU & Inference Observability",
+      "Introduction: The Observability Gap in AI Infrastructure",
+      "1. The Kubernetes Observability Baseline",
+      "1.1 Kube-State-Metrics (KSM)",
+      "Example: Prometheus ServiceMonitor for kube-state-metrics",
+      "1.2 The Node Exporter and cAdvisor",
+      "2. GPU Observability with DCGM (Data Center GPU Manager)",
+      "2.1 The DCGM Architecture",
+      "2.2 Production dcgm-exporter Deployment",
+      "2.3 The custom-metrics.csv",
+      "2.4 Understanding Key GPU Metrics",
+      "3. GPU Profiling in Kubernetes",
+      "3.1 Nsight Systems (nsys)",
+      "3.2 PyTorch Profiler Integration"
     ],
     "codeLanguages": [
+      "yaml",
       "text",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 1 — Start with SLO impact and scope": {
-    "volume": "Volume 7",
-    "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Senior Deep Dive 1 — Start with SLO impact and scope — Observability, Reliability and Troubleshooting.",
-    "sections": [
-      "Senior addendum",
-      "Quick cross-reference (use both halves together, not as duplicates)",
-      "Senior Deep Dive 1 — Start with SLO impact and scope"
-    ],
-    "codeLanguages": []
-  },
-  "Senior Deep Dive 2 — Prometheus internals, cardinality and query cost": {
-    "volume": "Volume 7",
-    "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Senior Deep Dive 2 — Prometheus internals, cardinality and query cost — Observability, Reliability and Troubleshooting.",
-    "sections": [
-      "Request error ratio",
-      "p95 from histogram buckets",
-      "GPU utilization grouped by node (metric names depend on exporter/version)",
-      "Senior addendum"
-    ],
-    "codeLanguages": [
+      "mermaid",
+      "python",
       "promql",
-      "text"
+      "json"
     ]
   },
-  "Senior Deep Dive 3 — OpenTelemetry and trace context across AI services": {
+  "Incident Response, Alerts & Reliability Masterclass": {
     "volume": "Volume 7",
     "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Senior Deep Dive 3 — OpenTelemetry and trace context across AI services — Observability, Reliability and Troubleshooting.",
+    "learningOutcome": "A comprehensive masterclass on alert design, incident workflows, and game days for NVIDIA AI Factories.",
     "sections": [
-      "Senior addendum"
+      "Incident Response, Alerts & Reliability Masterclass",
+      "1. Introduction: The Cost of Silence",
+      "1.1 The Production Story: The Cascade of Doom",
+      "1.2 Learning Objectives",
+      "2. Alert Design for Expensive GPU Systems",
+      "2.1 The Philosophy of Alerting",
+      "2.2 PromQL Alert Rules: From Beginner to Advanced",
+      "2.3 Alertmanager Configuration & Routing",
+      "alertmanager.yml",
+      "3. Incident Workflows & The Evidence Tree",
+      "3.1 The Decision Tree (Mermaid)",
+      "3.2 Safe Mitigation Principles",
+      "4. Incident Playbooks: GPU Workloads Failing",
+      "4.1 Playbook: Pending Pods (Insufficient GPUs)"
     ],
     "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Senior Deep Dive 4 — GPU observability with DCGM and driver evidence": {
-    "volume": "Volume 7",
-    "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Senior Deep Dive 4 — GPU observability with DCGM and driver evidence — Observability, Reliability and Troubleshooting.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Senior Deep Dive 5 — Inference observability: TTFT, ITL/TPOT and saturation": {
-    "volume": "Volume 7",
-    "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Senior Deep Dive 5 — Inference observability: TTFT, ITL/TPOT and saturation — Observability, Reliability and Troubleshooting.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Senior Deep Dive 6 — Incident workflow: evidence tree and safe mitigation": {
-    "volume": "Volume 7",
-    "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Senior Deep Dive 6 — Incident workflow: evidence tree and safe mitigation — Observability, Reliability and Troubleshooting.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Senior Deep Dive 7 — Alert design for expensive GPU systems": {
-    "volume": "Volume 7",
-    "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Senior Deep Dive 7 — Alert design for expensive GPU systems — Observability, Reliability and Troubleshooting.",
-    "sections": [
-      "Senior addendum",
-      "BAD (single-signal, exactly what this Deep Dive warns against):",
-      "BETTER (multi-signal — sustained SLO violation AND queue saturation together):"
-    ],
-    "codeLanguages": [
-      "promql",
+      "yaml",
       "text",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 8 — Reliability testing and game days": {
-    "volume": "Volume 7",
-    "lens": "metrics/logs/traces, SLOs, Prometheus, GPU and inference observability, incident response, alerting, and reliability testing",
-    "learningOutcome": "Senior Deep Dive 8 — Reliability testing and game days — Observability, Reliability and Troubleshooting.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
       "mermaid",
-      "text"
+      "bash"
     ]
   },
-  "Chapter 1 - Discovery that changes the architecture": {
+  "01 Architecture Design Masterclass": {
     "volume": "Volume 8",
     "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
     "learningOutcome": "Turn \"we need an AI platform\" into workload, SLO, scale, security, operations and cost facts.",
@@ -9719,218 +9563,67 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Chapter 2 - Architecture from data and control paths": {
+  "02 Capacity Tco Masterclass": {
     "volume": "Volume 8",
     "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Chapter 2 - Architecture from data and control paths — Senior Solutions Architecture Practice.",
+    "learningOutcome": "",
     "sections": [
-      "Practice"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 3 - Trade-off matrices with weighted requirements": {
-    "volume": "Volume 8",
-    "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Chapter 3 - Trade-off matrices with weighted requirements — Senior Solutions Architecture Practice.",
-    "sections": [
-      "Practice"
-    ],
-    "codeLanguages": [
-      "text"
-    ]
-  },
-  "Chapter 4 - Kubernetes versus Slurm decision workshop": {
-    "volume": "Volume 8",
-    "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Chapter 4 - Kubernetes versus Slurm decision workshop — Senior Solutions Architecture Practice.",
-    "sections": [
+      "Practice",
       "Worked scenario",
-      "Practice"
+      "Senior addendum",
+      "Extended Masterclass: Capacity and TCO",
+      "OpEx vs CapEx Modeling",
+      "GPU Sharing Strategies",
+      "Utilization Metrics"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Chapter 5 - GPU sharing and capacity recommendation": {
+  "03 Security Governance Masterclass": {
     "volume": "Volume 8",
     "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Chapter 5 - GPU sharing and capacity recommendation — Senior Solutions Architecture Practice.",
+    "learningOutcome": "",
     "sections": [
-      "Practice"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 6 - PoC design: test uncertainty, not product demos": {
-    "volume": "Volume 8",
-    "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Chapter 6 - PoC design: test uncertainty, not product demos — Senior Solutions Architecture Practice.",
-    "sections": [
-      "Worked scenario",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 7 - TCO and capacity conversations": {
-    "volume": "Volume 8",
-    "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Chapter 7 - TCO and capacity conversations — Senior Solutions Architecture Practice.",
-    "sections": [
-      "Practice"
+      "Practice",
+      "Senior addendum",
+      "Extended Masterclass: Security and Governance",
+      "Zero Trust AI Factory",
+      "Role-Based Access Control (RBAC)",
+      "Data Sovereignty and Compliance"
     ],
     "codeLanguages": [
       "text",
       "mermaid"
     ]
   },
-  "Chapter 8 - Security architecture and governance": {
+  "04 Strategy Communication Masterclass": {
     "volume": "Volume 8",
     "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Chapter 8 - Security architecture and governance — Senior Solutions Architecture Practice.",
-    "sections": [
-      "Practice"
-    ],
-    "codeLanguages": [
-      "text",
-      "mermaid"
-    ]
-  },
-  "Chapter 9 - Migration and adoption strategy": {
-    "volume": "Volume 8",
-    "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Chapter 9 - Migration and adoption strategy — Senior Solutions Architecture Practice.",
+    "learningOutcome": "",
     "sections": [
       "Worked scenario",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 10 - Customer communication and executive explanation": {
-    "volume": "Volume 8",
-    "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Chapter 10 - Customer communication and executive explanation — Senior Solutions Architecture Practice.",
-    "sections": [
+      "Practice",
       "Practitioner lens",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "text",
-      "mermaid"
-    ]
-  },
-  "Senior Deep Dive 1 — Workload characterization before architecture": {
-    "volume": "Volume 8",
-    "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Senior Deep Dive 1 — Workload characterization before architecture — Senior Solutions Architecture Practice.",
-    "sections": [
-      "Senior addendum"
+      "Senior addendum",
+      "Extended Masterclass: Strategy and Communication",
+      "Executive ROI Dashboards",
+      "Navigating Organizational Silos",
+      "Adoption Milestones"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Senior Deep Dive 2 — AI factory layered architecture": {
-    "volume": "Volume 8",
-    "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Senior Deep Dive 2 — AI factory layered architecture — Senior Solutions Architecture Practice.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Senior Deep Dive 3 — Capacity and TCO: convert SLO into resources": {
-    "volume": "Volume 8",
-    "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Senior Deep Dive 3 — Capacity and TCO: convert SLO into resources — Senior Solutions Architecture Practice.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Senior Deep Dive 4 — PoC design: test the uncertainty": {
-    "volume": "Volume 8",
-    "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Senior Deep Dive 4 — PoC design: test the uncertainty — Senior Solutions Architecture Practice.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Senior Deep Dive 5 — Security and governance for GPU/AI platforms": {
-    "volume": "Volume 8",
-    "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Senior Deep Dive 5 — Security and governance for GPU/AI platforms — Senior Solutions Architecture Practice.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Senior Deep Dive 6 — Decision workshops: Kubernetes, Slurm, Run:ai, NIM and Dynamo": {
-    "volume": "Volume 8",
-    "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Senior Deep Dive 6 — Decision workshops: Kubernetes, Slurm, Run:ai, NIM and Dynamo — Senior Solutions Architecture Practice.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Senior Deep Dive 7 — Communicate at three levels": {
-    "volume": "Volume 8",
-    "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Senior Deep Dive 7 — Communicate at three levels — Senior Solutions Architecture Practice.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Senior Deep Dive 8 — Practitioner role model: Solutions Architect versus implementation engineer": {
-    "volume": "Volume 8",
-    "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Senior Deep Dive 8 — Practitioner role model: Solutions Architect versus implementation engineer — Senior Solutions Architecture Practice.",
-    "sections": [
-      "Senior addendum"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 1 - The answer framework: expose your reasoning": {
+  "Interview Framework & Whiteboard Masterclass": {
     "volume": "Volume 9",
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Chapter 1 - The answer framework: expose your reasoning — JR2018680 Interview Preparation.",
+    "learningOutcome": "",
     "sections": [
+      "Interview Framework & Whiteboard Masterclass",
+      "Advanced Production Considerations",
       "Foundations: start here before using the interview question bank",
       "What this volume is trying to teach",
       "The first mental model",
@@ -9942,22 +9635,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Coding practice should expose the thought process",
       "Self-scoring rubric",
       "Four-pass mock-interview progression",
-      "Readiness check",
-      "Check your understanding",
-      "Glossary"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 2 - Python coding interview workflow": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Chapter 2 - Python coding interview workflow — JR2018680 Interview Preparation.",
-    "sections": [
-      "➕ Additions",
-      "Practice"
+      "Readiness check"
     ],
     "codeLanguages": [
       "mermaid",
@@ -9965,12 +9643,13 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "python"
     ]
   },
-  "Chapter 3 - Linux and Host Troubleshooting for AI Infrastructure": {
+  "Troubleshooting Scenarios Masterclass": {
     "volume": "Volume 9",
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Linux kernel, CPU, memory, NUMA, I/O, and PCIe troubleshooting for NVIDIA accelerated systems: D-state analysis, PSI metrics, THP compaction, and senior interview answer scripts.",
+    "learningOutcome": "",
     "sections": [
-      "Chapter 3 — Linux and Host Troubleshooting for AI Infrastructure",
+      "Troubleshooting Scenarios Masterclass",
+      "Advanced Production Considerations",
       "1. The Core Mental Model: The 5 Host Subsystems",
       "2. Beginner to Advanced Diagnostics",
       "A. Load Average: Deconstructing the Metric",
@@ -9982,8 +9661,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "D. PCIe Bus Degradation and Advanced Error Reporting (AER)",
       "1. Audit link speed and width for all ConnectX-7 network adapters",
       "2. Check for PCIe AER errors in kernel log",
-      "3. High-Stakes Senior Solutions Architect Interview Scenarios",
-      "Scenario 1: High System Load with Low CPU Utilization"
+      "3. High-Stakes Senior Solutions Architect Interview Scenarios"
     ],
     "codeLanguages": [
       "mermaid",
@@ -9991,63 +9669,13 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash"
     ]
   },
-  "Chapter 4 - Kubernetes, GPU Operator, and Run:ai Platform Troubleshooting": {
+  "AI Architecture & Design Masterclass": {
     "volume": "Volume 9",
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Kubernetes GPU platform triage for NVIDIA Solutions Architects: GPU Operator operands, Device Plugin gRPC, CDI vs. OCI hooks, Run:ai fractional virtualization, and senior interview scenarios.",
+    "learningOutcome": "",
     "sections": [
-      "Chapter 4 — Kubernetes, GPU Operator, and Run:ai Platform Troubleshooting",
-      "1. The Kubernetes GPU Control and Runtime Architecture",
-      "2. The GPU Pod Lifecycle: State-to-Evidence Matrix",
-      "3. Deep-Dive Failure Modes in Production",
-      "Failure 1: The Node Reports allocatable: nvidia.com/gpu: 0",
-      "Notice: \"nvidia.com/gpu\" is completely absent from Allocatable and Capacity!",
-      "Failure 2: CreateContainerError — CDI Specification Desynchronization",
-      "4. Run:ai Architecture and Multi-Tenant Scheduling Triage",
-      "Why Run:ai Over Native Kubernetes Scheduling:",
-      "5. Senior Solutions Architect Interview Scenarios",
-      "Scenario 1: GPU Pod Stuck in Pending Despite Cluster Autoscaler",
-      "Scenario 2: PyTorch Pod Crashes with Exit Code 137 vs. Exit Code 1",
-      "Key Takeaways"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
-  },
-  "Chapter 5 - GPU Silicon, NVLink, NVSwitch, and Hardware Triage": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Mastering accelerated hardware diagnostics for NVIDIA Solutions Architects: XID error taxonomy, HBM3 ECC memory failures, NVLink symbol errors, NVSwitch fabric triage, and DCGM diagnostics.",
-    "sections": [
-      "Chapter 5 — GPU Silicon, NVLink, NVSwitch, and Hardware Triage",
-      "1. The NVIDIA XID Error Architecture and Taxonomy",
-      "The Critical XID Reference Table for Solutions Architects",
-      "2. NVLink and NVSwitch Interconnect Diagnostics",
-      "Diagnosing NVLink Degradation",
-      "1. Audit active link counts across all 8 GPUs (Expected: 18 active links per GPU)",
-      "2. Query cumulative NVLink error counters",
-      "3. Thermal and Power Throttling Analysis",
-      "Detecting Throttling via NVML Telemetry",
-      "4. Hardware Qualification via NVIDIA DCGM",
-      "Execute Level 3 comprehensive stress validation (Run before returning node to service)",
-      "5. Senior Solutions Architect Interview Scenarios",
-      "Scenario 1: Triaging an XID 79 (\"GPU Has Fallen Off the Bus\")",
-      "Scenario 2: Uncorrectable Double-Bit ECC Memory Error (XID 48)"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
-  },
-  "Chapter 6 - AI Inference Architecture, LLM Serving, and System Sizing": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "AI inference architecture for NVIDIA Solutions Architects: Prefill vs. Decode dynamics, KV cache memory mathematics, TensorRT-LLM vs. Triton vs. vLLM, and capacity sizing formulas.",
-    "sections": [
-      "Chapter 6 — AI Inference Architecture, LLM Serving, and System Sizing",
+      "AI Architecture & Design Masterclass",
+      "Advanced Production Considerations",
       "1. First Principles: The Two Phases of LLM Inference",
       "Architectural Contrast",
       "2. KV Cache Sizing Mathematics: The Architecture Behind Memory Sizing",
@@ -10059,263 +9687,13 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "5. Sizing and Capacity Planning Formula for Solutions Architects",
       "The Production Sizing Equation",
       "6. Senior Solutions Architect Interview Scenarios",
-      "Scenario 1: Sizing an LLM Service for a Large Financial Enterprise",
-      "Scenario 2: Autoscaling an LLM Service in Kubernetes"
+      "Scenario 1: Sizing an LLM Service for a Large Financial Enterprise"
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 7 - Accelerated Networking: InfiniBand, Spectrum-X, and Collective Fabrics": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "High-speed AI networking architectures for NVIDIA Solutions Architects: Quantum-2 InfiniBand vs. Spectrum-X Ethernet, GPUDirect RDMA, PFC deadlocks, ECN tuning, and SHARP in-network computing.",
-    "sections": [
-      "Chapter 7 — Accelerated Networking: InfiniBand, Spectrum-X, and Collective Fabrics",
-      "1. Architectural Battleground: Quantum-2 InfiniBand vs. Spectrum-X Ethernet",
-      "Architectural Comparison",
-      "2. Multi-Rail Fat-Tree Fabric Architecture",
-      "Why Multi-Rail Eliminates Collective Contention",
-      "3. GPUDirect RDMA and GPUDirect Storage Mechanics",
-      "The GPUDirect RDMA Direct Path",
-      "4. Lossless Ethernet Engineering: PFC and ECN on Spectrum-X",
-      "The Two Control Loops of Lossless RoCE:",
-      "5. Senior Solutions Architect Interview Scenarios",
-      "Scenario 1: InfiniBand vs. RoCE Architectural Decision for an Enterprise Customer",
-      "Scenario 2: Diagnosing a \"Network Is Slowing Training\" Incident",
-      "Key Takeaways"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 8 - The Solutions Architecture Whiteboard Masterclass": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "The official NVIDIA Solutions Architecture whiteboard framework: 4-phase delivery model, 512-DGX AI Factory blueprint, compute/network/storage sizing, and senior interview scoring rubrics.",
-    "sections": [
-      "Chapter 8 — The Solutions Architecture Whiteboard Masterclass",
-      "1. Phase 1: Requirements Discovery & Boundary Extraction",
-      "The \"Assumed Parameters\" for the Whiteboard:",
-      "2. Phase 2: The Multi-Tier AI Factory Blueprint",
-      "3. Phase 3: Deep Technical Subsystem Defenses",
-      "1. The Dual-Track Orchestrator: Why Slurm AND Kubernetes?",
-      "2. Checkpoint Storage SLA: GPUDirect Storage (GDS)",
-      "3. Compute Interconnect: 8-Rail Quantum-2 InfiniBand",
-      "4. Phase 4: Day-2 Operations and PoC Acceptance Gates",
-      "The Maintenance Policy:",
-      "5. Senior Solutions Architect Interview Scenarios",
-      "Scenario 1: Handling Executive Pushback on Architecture Cost",
-      "Key Takeaways"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 9 - Customer Discovery and Technical Qualification": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Mastering customer discovery for NVIDIA Senior Solutions Architects: the 6-tier discovery funnel, industry playbooks (Sovereign AI, FinTech, BioTech), and reframing premature premises.",
-    "sections": [
-      "Chapter 9 — Customer Discovery and Technical Qualification",
-      "1. The 6-Tier Customer Discovery Funnel",
-      "The \"Premise Challenge\" Framework",
-      "2. Industry-Specific Discovery Playbooks",
-      "1. Sovereign AI & Government Infrastructure",
-      "2. Financial Services (Hedge Funds & Tier-1 Banks)",
-      "3. Healthcare, Life Sciences, and BioTech",
-      "3. Senior Solutions Architect Interview Scenarios",
-      "Scenario 1: Uncovering Hidden Constraints in an Enterprise GenAI PoC",
-      "Key Takeaways"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 10 - Behavioral Leadership and Stakeholder Storytelling": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "High-impact behavioral interview frameworks for NVIDIA Senior Solutions Architects: executive STAR stories, incident leadership, technical disagreements, and failure ownership.",
-    "sections": [
-      "Chapter 10 — Behavioral Leadership and Stakeholder Storytelling",
-      "1. The Executive STAR Delivery Ratio",
-      "The Senior SA Opening Line:",
-      "2. The 4 Master STAR Stories for NVIDIA Senior Solutions Architects",
-      "Story 1: Incident Leadership under High-Stakes Customer Pressure",
-      "Story 2: Navigating Architectural Disagreement with a Customer CTO",
-      "Story 3: Turning Around a Failing Proof of Concept (PoC)",
-      "Story 4: Ownership of an Engineering Failure and Blameless Postmortem",
-      "Key Takeaways"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 11 - Question bank: foundations to SA depth": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Chapter 11 - Question bank: foundations to SA depth — JR2018680 Interview Preparation.",
-    "sections": [
-      "➕ Additions",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 12 - 45-minute mock interview structure": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Chapter 12 - 45-minute mock interview structure — JR2018680 Interview Preparation.",
-    "sections": [
-      "Practice",
-      "➕ Additions",
-      "More practice"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Senior Interview Method — Clarify, model, hypothesize, test, recommend": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Senior Interview Method — Clarify, model, hypothesize, test, recommend — JR2018680 Interview Preparation.",
-    "sections": [
-      "➕ Additions"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Question set A — Linux and host mechanics": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Question set A — Linux and host mechanics — JR2018680 Interview Preparation.",
-    "sections": [
-      "➕ Additions",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Question set B — Python coding and production automation": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Question set B — Python coding and production automation — JR2018680 Interview Preparation.",
-    "sections": [
-      "Interview task skeleton: summarize failures by node and error type",
-      "➕ Additions"
-    ],
-    "codeLanguages": [
+      "text",
       "python",
-      "text",
-      "mermaid"
-    ]
-  },
-  "Question set C — Kubernetes platform depth": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Question set C — Kubernetes platform depth — JR2018680 Interview Preparation.",
-    "sections": [
-      "➕ Additions",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
       "bash"
-    ]
-  },
-  "Question set D — GPU and accelerated networking": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Question set D — GPU and accelerated networking — JR2018680 Interview Preparation.",
-    "sections": [
-      "➕ Additions",
-      "gpu sm mem enc dec mclk pclk",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
-  },
-  "Question set E — AI inference architecture": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Question set E — AI inference architecture — JR2018680 Interview Preparation.",
-    "sections": [
-      "➕ Additions"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
-  },
-  "Question set F — Customer architecture and PoC": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Question set F — Customer architecture and PoC — JR2018680 Interview Preparation.",
-    "sections": [
-      "➕ Additions",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Question set G — Whiteboard: production GenAI platform": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Question set G — Whiteboard: production GenAI platform — JR2018680 Interview Preparation.",
-    "sections": [
-      "➕ Additions"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Question set H — Behavioral stories for a senior SA": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Question set H — Behavioral stories for a senior SA — JR2018680 Interview Preparation.",
-    "sections": [
-      "➕ Additions",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Current Role-Family Signals and AI Factory Competency Map": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Comprehensive competency map for NVIDIA Senior Solutions Architects: end-to-end AI Factory execution from bare-metal DGX, Redfish, and BCM to Slurm, Kubernetes, Run:ai, Quantum-2, and TensorRT-LLM.",
-    "sections": [
-      "Current Role-Family Signals and AI Factory Competency Map",
-      "1. The 8 Core AI Factory Architectural Domains",
-      "2. Comprehensive Competency Matrix: What Interviewers Listen For",
-      "3. High-Value Interview Talking Points & Vocabulary",
-      "Key Takeaways"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
     ]
   },
   "Interview Lab — NVIDIA Senior Solutions Architect: AI Factory from Bare-Metal to Workloads": {

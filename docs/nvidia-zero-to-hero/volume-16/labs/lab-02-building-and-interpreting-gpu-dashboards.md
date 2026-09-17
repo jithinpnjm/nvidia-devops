@@ -98,12 +98,6 @@ max(DCGM_FI_DEV_GPU_TEMP)
 DCGM_FI_DEV_FB_USED / (DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE) * 100
 ```
 
-**Panel Settings:**
-- Visualization: Gauge
-- Min: 0, Max: 100
-- Thresholds: Green (0-75), Yellow (75-90), Red (90-100)
-- Unit: Percent (%)
-
 **Interpretation:**
 - &lt; 75%: Plenty of free memory
 - 75-90%: Running out of headroom

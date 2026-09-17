@@ -290,11 +290,6 @@ Run a tool or framework test that explicitly uses GPU buffers. Verify that the t
 ib_write_bw -d mlx5_0 -a --use_cuda=0 <remote_host>
 ```
 
-```text
- #bytes     #iterations    BW peak[MB/sec]    BW average[MB/sec]   MsgRate[Mpps]
- 4194304    1000            23615.40            23488.02            0.005601
-```
-
 `--use_cuda=0` tells the test to source the payload from GPU 0's memory instead of host memory. `BW average: 23488.02 MB/sec` sitting close to the Step 2 host-memory baseline (24798.55 MB/sec, roughly 95% of it) is the signature of a healthy direct path — GDR is engaging and the GPU-memory transfer is nearly as fast as the host-memory one. If this number instead came back around 9,000-10,000 MB/sec (roughly 40% of baseline, as in the fallback example later in this chapter), that gap is the proof that the transfer is staging through host memory instead of reading GPU memory directly, regardless of what the test's exit code says.
 
 ### Step 4 — Prove collective path selection

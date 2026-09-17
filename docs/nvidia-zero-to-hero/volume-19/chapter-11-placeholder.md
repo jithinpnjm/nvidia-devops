@@ -130,9 +130,7 @@ This is the value the layered methodology provides beyond "found the regression"
 
 ### Initial state: data-loading bound
 
-```bash
-$ python profile_step_breakdown.py --steps 50
-
+```text
 Layer               Avg (ms)   % of step
 data_transfer        312.4       68.1%    <- dominant, fix this first
 forward                89.2       19.4%

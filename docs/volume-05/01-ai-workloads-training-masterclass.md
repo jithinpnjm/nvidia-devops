@@ -39,9 +39,13 @@ An AI workload typically falls into one of three macro-categories:
 
 ### The Problem with "Just Buy GPUs"
 
+:::warning Operational Anti-Pattern
 A common anti-pattern is the assumption that buying the latest NVIDIA H100 or B200 GPUs guarantees high performance. A 1,000-node cluster will sit idle if the storage backend cannot feed data fast enough, or if the network topology induces congestion during gradient synchronization.
+:::
 
+:::info Production Story
 *Production Story:* A large financial institution procured a 128-node DGX H100 cluster for LLM training. They connected the nodes using a standard Spine-Leaf RoCEv2 topology but failed to implement proper Quality of Service (QoS) and Priority Flow Control (PFC). The result was continuous packet drops during All-Reduce operations, dropping training utilization (MFU) from an expected 45% to below 15%. The fix wasn't more GPUs; it was network engineering.
+:::
 
 ---
 
@@ -67,11 +71,19 @@ Training at scale requires distributed nodes to constantly share state (gradient
 *   **Pattern:** Burst traffic. Nodes compute for a period, then simultaneously burst traffic onto the network for synchronization.
 
 ```mermaid
-graph TD
-    A[Compute Phase: High GPU Util, Low Network] -->|Gradients Computed| B[Comm Phase: Low GPU Util, High Network Burst]
-    B --> A
-    style A fill:#d4edda,stroke:#28a745
-    style B fill:#f8d7da,stroke:#dc3545
+flowchart TD
+    subgraph "Training Iteration Loop"
+        direction TB
+        A["Compute Phase: High GPU Util, Low Network"]
+        B["Comm Phase: Low GPU Util, High Network Burst"]
+        A -- "Gradients Computed" --> B
+        B -- "Optimizer Step" --> A
+    end
+    
+    classDef compute fill:#d4edda,stroke:#28a745,stroke-width:2px;
+    classDef comm fill:#f8d7da,stroke:#dc3545,stroke-width:2px;
+    class A compute;
+    class B comm;
 ```
 
 ### 3. I/O Characteristics (Data Loading and Checkpointing)
@@ -124,16 +136,22 @@ In Data Parallelism, every GPU holds a complete replica of the model. The input 
 *   **Cons:** Does not help if the model exceeds GPU memory capacity.
 
 ```mermaid
-graph LR
-    subgraph GPU 1
-        Model_Replica_1[Model Replica]
-        Data_1[Data Split 1] --> Model_Replica_1
+flowchart LR
+    subgraph "Node"
+        direction LR
+        subgraph "GPU 1"
+            Model_Replica_1["Model Replica"]
+            Data_1["Data Split 1"] --> Model_Replica_1
+        end
+        subgraph "GPU 2"
+            Model_Replica_2["Model Replica"]
+            Data_2["Data Split 2"] --> Model_Replica_2
+        end
     end
-    subgraph GPU 2
-        Model_Replica_2[Model Replica]
-        Data_2[Data Split 2] --> Model_Replica_2
-    end
-    Model_Replica_1 <-->|All-Reduce Gradients| Model_Replica_2
+    Model_Replica_1 -- "All-Reduce Gradients" --- Model_Replica_2
+    
+    classDef gpu fill:#e1f5fe,stroke:#03a9f4,stroke-width:2px;
+    class "GPU 1","GPU 2" gpu;
 ```
 
 #### ZeRO (Zero Redundancy Optimizer) / FSDP
@@ -221,34 +239,34 @@ For massive LLMs (100B+ parameters), a combination of strategies is used, known 
 *Total GPUs = TP * PP * DP*
 
 ```mermaid
-graph TD
+flowchart TD
     subgraph "Data Parallel Group 1"
-        subgraph "Pipeline Stage 1"
-            Node1[Node 1: TP=8]
+        direction TB
+        subgraph "Pipeline Stage 1 (Group 1)"
+            Node1["Node 1: TP=8"]
         end
-        subgraph "Pipeline Stage 2"
-            Node2[Node 2: TP=8]
+        subgraph "Pipeline Stage 2 (Group 1)"
+            Node2["Node 2: TP=8"]
         end
-        Node1 -.->|PP Comm P2P| Node2
+        Node1 -. "PP Comm P2P" .-> Node2
     end
     
     subgraph "Data Parallel Group 2"
-        subgraph "Pipeline Stage 1"
-            Node3[Node 3: TP=8]
+        direction TB
+        subgraph "Pipeline Stage 1 (Group 2)"
+            Node3["Node 3: TP=8"]
         end
-        subgraph "Pipeline Stage 2"
-            Node4[Node 4: TP=8]
+        subgraph "Pipeline Stage 2 (Group 2)"
+            Node4["Node 4: TP=8"]
         end
-        Node3 -.->|PP Comm P2P| Node4
+        Node3 -. "PP Comm P2P" .-> Node4
     end
     
-    Node1 ===|DP Comm All-Reduce| Node3
-    Node2 ===|DP Comm All-Reduce| Node4
+    Node1 == "DP Comm All-Reduce" === Node3
+    Node2 == "DP Comm All-Reduce" === Node4
     
-    style Node1 fill:#cce5ff,stroke:#004085
-    style Node2 fill:#cce5ff,stroke:#004085
-    style Node3 fill:#cce5ff,stroke:#004085
-    style Node4 fill:#cce5ff,stroke:#004085
+    classDef node fill:#cce5ff,stroke:#004085,stroke-width:2px;
+    class Node1,Node2,Node3,Node4 node;
 ```
 
 ---
@@ -294,7 +312,9 @@ export NCCL_MIN_NCHANNELS=8            # Increase channels for high bandwidth pa
 export NCCL_CROSS_NIC=1                # Allow routing across different NICs on PCI switch
 ```
 
+:::tip Architect Note
 *Architect Note:* Never blindly copy NCCL variables. `NCCL_NET_GDR_LEVEL` controls GPUDirect RDMA. If set incorrectly on a topology where the NIC and GPU do not share a PCIe switch, it can force traffic through the CPU root complex, destroying bandwidth.
+:::
 
 ---
 

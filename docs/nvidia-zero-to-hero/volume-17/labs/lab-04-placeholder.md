@@ -146,20 +146,6 @@ if rank == 0:
 start = time.time()
 samples = 0
 
-for epoch in range(2):
-    for batch in trainloader:
-        x, y = batch
-        x, y = x.to(device), y.to(device)
-        
-        y_hat = model(x)
-        loss = criterion(y_hat, y)
-        
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        
-        samples += x.size(0)
-
 dist.barrier()  # Synchronize all processes
 elapsed = time.time() - start
 throughput = (samples * world_size) / elapsed  # Total samples across all GPUs

@@ -84,12 +84,18 @@ sequenceDiagram
     participant Infrastructure API
 
     User->>Click Routing: `fleet node drain worker-01 --force`
+    activate Click Routing
     Click Routing->>Click Context: Initialize Config/Auth
     Click Routing->>Command Function: Route to `drain(node_id, force)` + pass ctx
+    activate Command Function
     Command Function->>Click Context: Get Auth Token
     Command Function->>Infrastructure API: POST /api/v1/nodes/worker-01/drain
+    activate Infrastructure API
     Infrastructure API-->>Command Function: 202 Accepted
+    deactivate Infrastructure API
     Command Function-->>User: "Drain initiated for worker-01"
+    deactivate Command Function
+    deactivate Click Routing
 ```
 
 #### Extensive Click Implementation: The Fleet CLI
@@ -309,9 +315,11 @@ def test_get_node_status_http_error():
 
 ### 3.4 Senior Scenario: Leaking Test State
 
+:::warning Test Isolation Failure
 **The Problem:** You have 500 tests. Test #45 passes individually but fails when the whole suite is run. Test #45 asserts that if `AWS_REGION` is missing, an exception is thrown.
 **The Cause:** Test #12 used `os.environ["AWS_REGION"] = "us-west-2"` to test a successful connection but forgot to clean it up. The state leaked.
 **The Fix:** Use Pytest's built-in `monkeypatch` fixture. It automatically reverts environmental changes after the test.
+:::
 
 ```python
 # BAD
@@ -384,9 +392,12 @@ class ResilientAPIClient:
 ```
 
 **Deep Explanation:**
+
+:::info Networking Reality
 * **Timeouts:** A missing timeout in `requests.get()` defaults to infinity. If the router drops the TCP connection silently, your script hangs forever. We enforce `(3.0, 15.0)` - 3 seconds to establish the TCP connection, 15 seconds waiting for the first byte of data.
 * **Exponential Backoff:** `wait_exponential` prevents the "thundering herd" problem. If 1,000 CLI instances retry exactly 1 second after an API goes down, they will DDoS it when it recovers.
 * **Discriminatory Retries:** We do NOT retry on HTTP 401 (Unauthorized) or 404 (Not Found). Retrying a bad password 5 times won't magically make it valid.
+:::
 
 ---
 
@@ -403,14 +414,23 @@ Writing the code is only 50% of the job. Distributing Python tools to operators'
 ### 5.2 CI/CD Pipeline Architecture
 
 ```mermaid
-graph TD
-    A[Developer Pushes Code] --> B[Linting & Formatting]
-    B --> C[Unit Tests via Pytest]
-    C --> D[Security Scanning (Bandit/Safety)]
-    D --> E{Merge to Main?}
-    E -- Yes --> F[Build PyInstaller Binary]
-    F --> G[Publish to GitHub Releases]
-    F --> H[Publish Docker Image to Registry]
+flowchart TD
+    subgraph Trigger
+        A[Developer Pushes Code]
+    end
+    
+    subgraph CI Pipeline
+        A -- "Triggers" --- B[Linting & Formatting]
+        B -- "Success" --- C[Unit Tests via Pytest]
+        C -- "Success" --- D[Security Scanning: Bandit/Safety]
+    end
+    
+    subgraph CD Pipeline
+        D -- "Success" --- E{Merge to Main?}
+        E -- "Yes" --- F[Build PyInstaller Binary]
+        F -- "Upload Artifact" --- G[Publish to GitHub Releases]
+        F -- "Build Image" --- H[Publish Docker Image to Registry]
+    end
 ```
 
 ### 5.3 GitHub Actions YAML Example
@@ -783,11 +803,13 @@ def collect_metrics_background():
 
 ### Scenario 2: The Silent API Pagination Trap
 
+:::warning Critical Operational Bug
 **The Problem:**
 Your CLI tool deletes old GPU instances across the fleet. It fetches a list of instances: `instances = api.get("/instances")`. For months, it works perfectly. One day, the company scales up to 15,000 instances. Suddenly, the script only deletes a fraction of the expected instances, but reports no errors.
 
 **The Diagnosis:**
 The Cloud Provider API silently enforces pagination. The `/instances` endpoint defaults to returning a maximum of `1000` items per request. When the fleet was under 1,000 nodes, the script worked. At 15,000, the API returns the first 1,000 and a `next_page_token`. Because your script didn't check for this token, it silently ignored the remaining 14,000 nodes.
+:::
 
 **The Fix:**
 Build a generator wrapper around the API client that automatically yields paginated results, abstracting the complexity from the business logic.
@@ -1014,122 +1036,10 @@ def get_token():
     return keyring.get_password(SERVICE_NAME, "auth_token")
 ```
 
-### Bonus Deep Dive 2: Managing State securely in CLI tools
-When CLI tools need to cache state (e.g., authentication tokens so the user doesn't log in every time), they must do so securely.
-Writing plaintext tokens to `~/.mycli_cache` is a massive security risk in shared jump-hosts or CI/CD pipelines.
-
-**Best Practices:**
-1. **Use OS Keychains:** On macOS, use the Keychain. On Linux, Secret Service API. Python's `keyring` library abstracts this.
-2. **Environment Variables for CI:** In automation, always prefer environment variables (`MYCLI_TOKEN=xyz`) over cached files. Click's `envvar` parameter handles this seamlessly.
-3. **Short-Lived Tokens:** Use OIDC (OpenID Connect) to exchange a cloud identity for a short-lived (15 minute) API token. If the token leaks, the blast radius is minimal.
-
-```python
-# Example of secure keyring usage
-import keyring
-import click
-import os
+SERVICE_NAME = "fleet-cli"
 
 SERVICE_NAME = "fleet-cli"
 
-def save_token(token):
-    # In CI environments, we might not have a keyring
-    if os.environ.get("CI"):
-        return
-    keyring.set_password(SERVICE_NAME, "auth_token", token)
-
-def get_token():
-    # Env vars take precedence
-    if token := os.environ.get("FLEET_TOKEN"):
-        return token
-    return keyring.get_password(SERVICE_NAME, "auth_token")
-```
-
-### Bonus Deep Dive 3: Managing State securely in CLI tools
-When CLI tools need to cache state (e.g., authentication tokens so the user doesn't log in every time), they must do so securely.
-Writing plaintext tokens to `~/.mycli_cache` is a massive security risk in shared jump-hosts or CI/CD pipelines.
-
-**Best Practices:**
-1. **Use OS Keychains:** On macOS, use the Keychain. On Linux, Secret Service API. Python's `keyring` library abstracts this.
-2. **Environment Variables for CI:** In automation, always prefer environment variables (`MYCLI_TOKEN=xyz`) over cached files. Click's `envvar` parameter handles this seamlessly.
-3. **Short-Lived Tokens:** Use OIDC (OpenID Connect) to exchange a cloud identity for a short-lived (15 minute) API token. If the token leaks, the blast radius is minimal.
-
-```python
-# Example of secure keyring usage
-import keyring
-import click
-import os
-
 SERVICE_NAME = "fleet-cli"
 
-def save_token(token):
-    # In CI environments, we might not have a keyring
-    if os.environ.get("CI"):
-        return
-    keyring.set_password(SERVICE_NAME, "auth_token", token)
-
-def get_token():
-    # Env vars take precedence
-    if token := os.environ.get("FLEET_TOKEN"):
-        return token
-    return keyring.get_password(SERVICE_NAME, "auth_token")
-```
-
-### Bonus Deep Dive 4: Managing State securely in CLI tools
-When CLI tools need to cache state (e.g., authentication tokens so the user doesn't log in every time), they must do so securely.
-Writing plaintext tokens to `~/.mycli_cache` is a massive security risk in shared jump-hosts or CI/CD pipelines.
-
-**Best Practices:**
-1. **Use OS Keychains:** On macOS, use the Keychain. On Linux, Secret Service API. Python's `keyring` library abstracts this.
-2. **Environment Variables for CI:** In automation, always prefer environment variables (`MYCLI_TOKEN=xyz`) over cached files. Click's `envvar` parameter handles this seamlessly.
-3. **Short-Lived Tokens:** Use OIDC (OpenID Connect) to exchange a cloud identity for a short-lived (15 minute) API token. If the token leaks, the blast radius is minimal.
-
-```python
-# Example of secure keyring usage
-import keyring
-import click
-import os
-
 SERVICE_NAME = "fleet-cli"
-
-def save_token(token):
-    # In CI environments, we might not have a keyring
-    if os.environ.get("CI"):
-        return
-    keyring.set_password(SERVICE_NAME, "auth_token", token)
-
-def get_token():
-    # Env vars take precedence
-    if token := os.environ.get("FLEET_TOKEN"):
-        return token
-    return keyring.get_password(SERVICE_NAME, "auth_token")
-```
-
-### Bonus Deep Dive 5: Managing State securely in CLI tools
-When CLI tools need to cache state (e.g., authentication tokens so the user doesn't log in every time), they must do so securely.
-Writing plaintext tokens to `~/.mycli_cache` is a massive security risk in shared jump-hosts or CI/CD pipelines.
-
-**Best Practices:**
-1. **Use OS Keychains:** On macOS, use the Keychain. On Linux, Secret Service API. Python's `keyring` library abstracts this.
-2. **Environment Variables for CI:** In automation, always prefer environment variables (`MYCLI_TOKEN=xyz`) over cached files. Click's `envvar` parameter handles this seamlessly.
-3. **Short-Lived Tokens:** Use OIDC (OpenID Connect) to exchange a cloud identity for a short-lived (15 minute) API token. If the token leaks, the blast radius is minimal.
-
-```python
-# Example of secure keyring usage
-import keyring
-import click
-import os
-
-SERVICE_NAME = "fleet-cli"
-
-def save_token(token):
-    # In CI environments, we might not have a keyring
-    if os.environ.get("CI"):
-        return
-    keyring.set_password(SERVICE_NAME, "auth_token", token)
-
-def get_token():
-    # Env vars take precedence
-    if token := os.environ.get("FLEET_TOKEN"):
-        return token
-    return keyring.get_password(SERVICE_NAME, "auth_token")
-```

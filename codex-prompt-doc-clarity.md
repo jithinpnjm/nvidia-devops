@@ -273,7 +273,7 @@ throughout: the goal is a clean, readable terminal transcript, not a mechanical
 - docs/volume-06/15-senior-deep-dive-7-distributed-system-patterns-from-the-staff-engineer-guide.md
     - line 22: 10 nodes, 4 edges (partial — inspect)
     - line 42: 9 nodes, 1 edges (partial — inspect)
-- docs/volume-07/01-chapter-1-metrics-logs-and-traces-as-different-evidence.md
+- docs/volume-07/01-metrics-logs-traces-masterclass.md
     - line 252: 14 nodes, 4 edges (partial — inspect)
 - docs/volume-07/02-chapter-2-slis-slos-and-error-budgets.md
     - line 35: 13 nodes, 0 edges (DISCONNECTED)

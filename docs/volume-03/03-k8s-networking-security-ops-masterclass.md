@@ -362,6 +362,19 @@ spec:
 
 In a production AI Factory, `kubectl apply` is an anti-pattern. Changes to cluster configuration, node pools, and operator deployments must go through Git.
 
+```mermaid
+flowchart TD
+    Git[Git Repository<br>cluster-gitops.git] --> |Syncs| Argo[ArgoCD]
+    Argo --> |Applies App-of-Apps| Boot[Bootstrap Application]
+    Boot --> CoreDNS[CoreDNS App]
+    Boot --> Cilium[Cilium App]
+    Boot --> Kyverno[Kyverno App]
+    Boot --> GPUOp[GPU Operator App]
+    
+    style Git fill:#f9f,stroke:#333
+    style Argo fill:#bbf,stroke:#333
+```
+
 ArgoCD continuously synchronizes the state in Git with the state in the Kubernetes API. The "App of Apps" pattern manages this efficiently.
 
 #### ArgoCD Application: App-of-Apps
@@ -462,6 +475,7 @@ spec:
 
 ### Scenario 1: CNI IPAM Exhaustion
 
+:::warning Investigation & Resolution
 **Symptom:** Pods remain in `ContainerCreating`. `kubectl describe pod` shows:
 `Failed to create pod sandbox: rpc error: code = Unknown desc = failed to setup network for sandbox... no IP addresses available in range set`
 
@@ -470,9 +484,11 @@ spec:
 **Resolution:**
 1.  **Immediate:** Taint the node or reduce the deployment replica count.
 2.  **Long Term (Architecture):** Migrate to an overlay network with a larger CIDR (e.g., `/16` per cluster, `/24` per node) or use cloud-native routing (like AWS VPC CNI) with custom ENI configurations to attach secondary subnets.
+:::
 
 ### Scenario 2: Mutating Admission Webhook Deadlocks
 
+:::info Investigation & Resolution
 **Symptom:** Core cluster services (like `kube-dns` or `calico-node`) fail to schedule. `kubectl get events` shows webhook timeouts from Kyverno.
 
 **Root Cause:** A poorly scoped Kyverno mutating policy was applied to *all* namespaces. Kyverno pods crashed. When the cluster attempts to restart them, the Kube-apiserver tries to validate the Kyverno pod creation against Kyverno itself, causing a deadlock.
@@ -484,6 +500,7 @@ kubectl delete validatingwebhookconfiguration kyverno-resource-validating-webhoo
 kubectl delete mutatingwebhookconfiguration kyverno-resource-mutating-webhook-cfg
 ```
 **Prevention:** ALWAYS exclude `kube-system` and `kyverno` namespaces from webhook object selectors.
+:::
 
 ```yaml
 # In Webhook Configuration:
@@ -496,18 +513,34 @@ namespaceSelector:
 
 ### Scenario 3: GPU Operator Driver Compilation Loops
 
+:::tip Investigation & Resolution
 **Symptom:** Driver DaemonSet pods crash in a `CrashLoopBackOff`. Logs indicate `gcc` compilation failures for the NVIDIA driver module.
 
 **Root Cause:** The underlying host OS kernel was upgraded automatically via unattended-upgrades (e.g., Ubuntu 22.04 kernel bumped from `5.15.0-88` to `5.15.0-89`), but the driver container lacks the precise kernel headers for the new kernel version.
 
 **Resolution:**
 Disable unattended kernel upgrades on GPU nodes. If using precompiled drivers (NVAIE), ensure the `driver.version` strictly maps to the exact AMI / OS Image kernel version in the cluster.
+:::
 
 ## 7. Operational Upgrades & Reliability
 
 Upgrading a live AI Factory Kubernetes cluster requires immense precision, as terminating an H100 instance interrupts millions of dollars worth of compute time.
 
 ### The Upgrade Order of Operations
+
+```mermaid
+flowchart TD
+    S1[1. GitOps Sync Pause] --> S2[2. Control Plane Upgrade]
+    S2 --> S3[3. Addon Upgrades]
+    S3 --> S4[4. Operator Upgrades]
+    S4 --> S5[5. Node Pool Rolling Restart]
+    
+    style S1 fill:#f9d,stroke:#333
+    style S2 fill:#dfd,stroke:#333
+    style S3 fill:#dfd,stroke:#333
+    style S4 fill:#dfd,stroke:#333
+    style S5 fill:#ddf,stroke:#333
+```
 
 1.  **GitOps Sync Pause:** Disable automatic sync in ArgoCD.
 2.  **Control Plane Upgrade:** EKS/GKE control plane upgrade (invisible to workloads).

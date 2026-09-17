@@ -43,7 +43,9 @@ EOF
 **Pros:** High flexibility, zero hardware configuration, allows oversubscription.
 **Cons:** High context-switching overhead, jitter in latency-sensitive workloads (inference), lack of memory capacity isolation (OOM in one process can impact the entire GPU if not managed via cgroups), zero fault isolation.
 
+:::warning Time-Slicing Danger
 In a production environment, if Process A attempts to allocate more VRAM than is available, the CUDA runtime will throw an OutOfMemory error. If Process A pins memory aggressively, it can starve Process 0. Time-slicing is heavily discouraged for multi-tenant isolation.
+:::
 In a production environment, if Process A attempts to allocate more VRAM than is available, the CUDA runtime will throw an OutOfMemory error. If Process A pins memory aggressively, it can starve Process 1. Time-slicing is heavily discouraged for multi-tenant isolation.
 In a production environment, if Process A attempts to allocate more VRAM than is available, the CUDA runtime will throw an OutOfMemory error. If Process A pins memory aggressively, it can starve Process 2. Time-slicing is heavily discouraged for multi-tenant isolation.
 In a production environment, if Process A attempts to allocate more VRAM than is available, the CUDA runtime will throw an OutOfMemory error. If Process A pins memory aggressively, it can starve Process 3. Time-slicing is heavily discouraged for multi-tenant isolation.
@@ -102,19 +104,35 @@ MIG, introduced in the Ampere architecture (A100) and refined in Hopper (H100), 
 MIG physically divides the GPU's memory controllers, L2 cache, and SMs. Each MIG instance acts as an independent PCIe device to the operating system.
 
 ```mermaid
-graph TD
-    A[Physical GPU H100] --> B[MIG Instance 1: 3g.40gb]
-    A --> C[MIG Instance 2: 2g.20gb]
-    A --> D[MIG Instance 3: 1g.10gb]
-    A --> E[MIG Instance 4: 1g.10gb]
+flowchart TD
+    subgraph PhysicalGPU["Physical GPU (e.g. H100 80GB)"]
+        direction TB
+        subgraph MIG1["MIG Instance 1 (3g.40gb)"]
+            MC1["Memory Controllers (40GB)"]
+            L2_1["L2 Cache Slices"]
+            SM1["Streaming Multiprocessors (3/7)"]
+            MC1 --- L2_1 --- SM1
+        end
+        
+        subgraph MIG2["MIG Instance 2 (2g.20gb)"]
+            MC2["Memory Controllers (20GB)"]
+            L2_2["L2 Cache Slices"]
+            SM2["Streaming Multiprocessors (2/7)"]
+            MC2 --- L2_2 --- SM2
+        end
+        
+        subgraph MIG3["MIG Instance 3 (1g.10gb)"]
+            MC3["Memory Controllers (10GB)"]
+            L2_3["L2 Cache Slices"]
+            SM3["Streaming Multiprocessors (1/7)"]
+            MC3 --- L2_3 --- SM3
+        end
+    end
     
-    B --> B1[Memory Controller 1-3]
-    B --> B2[L2 Cache Slices]
-    B --> B3[SMs (Compute)]
-    
-    C --> C1[Memory Controller 4-5]
-    C --> C2[L2 Cache Slices]
-    C --> C3[SMs (Compute)]
+    style PhysicalGPU fill:#f4f4f4,stroke:#333,stroke-width:2px,color:#000
+    style MIG1 fill:#76b900,color:#fff
+    style MIG2 fill:#76b900,color:#fff
+    style MIG3 fill:#76b900,color:#fff
 ```
 
 #### Configuring MIG via nvidia-smi
@@ -136,7 +154,9 @@ sudo nvidia-smi mig -cgi 3g.40gb -i 0
 sudo nvidia-smi mig -cci -i 0 -gi 1
 ```
 
+:::info NVLink and MIG
 MIG constraint 0: Not all workloads benefit from MIG. Workloads that require massive P2P bandwidth via NVLink cannot span across MIG instances. MIG disables NVLink P2P between instances, forcing traffic over the PCIe bus, which severely degrades multi-GPU training performance if attempted.
+:::
 MIG constraint 1: Not all workloads benefit from MIG. Workloads that require massive P2P bandwidth via NVLink cannot span across MIG instances. MIG disables NVLink P2P between instances, forcing traffic over the PCIe bus, which severely degrades multi-GPU training performance if attempted.
 MIG constraint 2: Not all workloads benefit from MIG. Workloads that require massive P2P bandwidth via NVLink cannot span across MIG instances. MIG disables NVLink P2P between instances, forcing traffic over the PCIe bus, which severely degrades multi-GPU training performance if attempted.
 MIG constraint 3: Not all workloads benefit from MIG. Workloads that require massive P2P bandwidth via NVLink cannot span across MIG instances. MIG disables NVLink P2P between instances, forcing traffic over the PCIe bus, which severely degrades multi-GPU training performance if attempted.
@@ -162,56 +182,8 @@ While MIG partitions hardware for bare-metal or containerized workloads, vGPU op
 
 vGPU is typically used in VDI (Virtual Desktop Infrastructure) or enterprise cloud environments (like vSphere or AHV) where strict VM isolation is mandated. It requires an active NVIDIA license server (DLS/CLS).
 
-Extended vGPU operational note 0: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 1: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 2: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 3: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 4: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 5: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 6: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 7: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 8: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 9: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 10: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 11: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 12: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 13: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 14: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 15: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 16: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 17: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 18: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 19: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 20: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 21: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 22: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 23: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 24: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 25: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 26: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 27: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 28: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 29: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 30: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 31: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 32: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 33: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 34: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 35: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 36: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 37: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 38: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 39: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 40: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 41: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 42: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 43: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 44: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 45: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 46: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 47: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 48: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
-Extended vGPU operational note 49: When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
+**vGPU Operational Note:** When configuring SR-IOV for vGPU on modern architectures, ensure that the BIOS settings have SR-IOV enabled, VT-d/IOMMU enabled, and that the host OS kernel boots with `intel_iommu=on` or `amd_iommu=on`. Without these IOMMU groups properly initialized, the VFIO driver cannot bind the virtual functions to the guests.
+
 
 ## Part 2: Fleet Telemetry & DCGM
 Operating a fleet of thousands of GPUs requires granular, real-time observability. The NVIDIA Data Center GPU Manager (DCGM) is the definitive tool for this task.
@@ -220,13 +192,32 @@ Operating a fleet of thousands of GPUs requires granular, real-time observabilit
 DCGM runs as a daemon (`nv-hostengine`) on the host. It polls the driver and hardware directly, bypassing NVML's higher latency in some fast-path metrics, and exposes APIs for health checking, profiling, and policy management.
 
 ```mermaid
-graph LR
-    A[Hardware/Driver] -->|ioctl/sysfs| B[nv-hostengine (DCGM)]
-    B --> C[DCGM Exporter]
-    B --> D[dcgmi CLI]
-    B --> E[Custom Bindings (Go/C++)]
-    C -->|Prometheus Metrics| F[Prometheus Server]
-    F --> G[Grafana Dashboards]
+flowchart LR
+    subgraph Host["GPU Worker Node"]
+        direction LR
+        HW["GPU Hardware"]
+        Driver["NVIDIA UNIX Driver"]
+        
+        subgraph DCGM_Stack["Data Center GPU Manager"]
+            Daemon["nv-hostengine (Daemon)"]
+            Exporter["dcgm-exporter (Prometheus Format)"]
+            CLI["dcgmi (CLI Tool)"]
+        end
+        
+        HW -- "Hardware telemetry" --- Driver
+        Driver -- "IOCTL/sysfs" --- Daemon
+        Daemon -- "gRPC/C Bindings" --- Exporter
+        Daemon -- "Management API" --- CLI
+    end
+    
+    Prometheus["Prometheus Server"]
+    Grafana["Grafana Dashboards"]
+    
+    Exporter -- "Metrics Scraping" --- Prometheus
+    Prometheus -- "Visualization" --- Grafana
+    
+    style HW fill:#76b900,color:#fff
+    style DCGM_Stack fill:#374151,color:#fff
 ```
 
 ### 2.2 DCGM Exporter Configuration
@@ -262,7 +253,9 @@ GPUs will fail. Understanding the semantics of these failures is the difference 
 - **DBE (Double-Bit Error):** Uncorrectable. Results in application crash (XID 48/62). Requires node isolation and typically GPU replacement if row remapping fails.
 
 **XID 13: Graphics Engine Exception. Often a software bug in the CUDA kernel, out-of-bounds memory access, or an illegal instruction. Rarely a hardware failure.**
+:::tip Automated Remediation for XID 13
 Extended troubleshooting for XID 13: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
+:::
 Extended troubleshooting for XID 13: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
 Extended troubleshooting for XID 13: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
 Extended troubleshooting for XID 13: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.

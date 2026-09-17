@@ -140,7 +140,22 @@ Redfish exposes a predictable, hierarchical URI tree rooted at `/redfish/v1`. It
 
 ### 3.1 Authenticating and Establishing a Session
 
+:::info
 While basic auth (passing `-u user:password` to curl) works, production automation should create a session token. This avoids passing credentials in every HTTP header, prevents logging of plaintext passwords in proxies, and significantly reduces the cryptographic CPU load on the embedded BMC processor.
+:::
+
+```mermaid
+sequenceDiagram
+    participant Admin as Infrastructure Automation
+    participant BMC as Redfish API (BMC)
+    
+    Admin->>BMC: POST /redfish/v1/SessionService/Sessions (Credentials)
+    BMC-->>Admin: 201 Created (X-Auth-Token, Location URL)
+    Admin->>BMC: GET /redfish/v1/Systems/System_0 (Header: X-Auth-Token)
+    BMC-->>Admin: 200 OK (System Inventory JSON)
+    Admin->>BMC: DELETE /redfish/v1/SessionService/Sessions/1
+    BMC-->>Admin: 204 No Content (Session Closed)
+```
 
 ```bash
 # 1. Create a Redfish Session
@@ -278,7 +293,9 @@ $ curl -s -k -H "X-Auth-Token: ${TOKEN}" \
 
 ### 3.4 Out-of-Band Power Control via Actions
 
-When a node's kernel panics and SSH/in-band agents stop responding, you must issue a reset via the BMC out-of-band interface. Redfish handles this via `Actions`. You do not use `PATCH` for state transitions; you use `POST` to an Action URI.
+:::warning
+When a node's kernel panics and SSH/in-band agents stop responding, you must issue a reset via the BMC out-of-band interface. Redfish handles this via `Actions`. **Never** use `PATCH` for state transitions; you must use `POST` to an Action URI. `ForceRestart` should only be used when the OS is completely frozen, as it cuts power instantly and can corrupt file systems.
+:::
 
 ```bash
 # Perform a ForceRestart (equivalent to pulling the power plug and plugging it back in)
@@ -395,6 +412,10 @@ In an AI Factory, firmware is not updated piecemeal. A cluster must run a **vali
 
 ### 4.1 The Danger of Firmware Drift
 
+:::warning
+In a tightly coupled AI factory, firmware drift is catastrophic. A single un-baselined node can drag down the performance of an entire multi-million dollar cluster because distributed training relies on synchronized barrier collectives (like All-Reduce). The cluster moves at the speed of the slowest GPU.
+:::
+
 ```text
 Cluster State: 64x DGX H100 Nodes
 - Node 01-60: GPU VBIOS 96.00.89.00.01 (Baseline)
@@ -460,7 +481,35 @@ $ curl -s -k -H "X-Auth-Token: ${TOKEN}" \
 
 ### 4.3 Orchestrating Updates via Redfish `SimpleUpdate` (Pull Architecture)
 
-To flash firmware out-of-band without logging into the host OS, you instruct the BMC to download a firmware payload from a local HTTP server and apply it. This is a "Pull" architecture.
+:::tip
+To flash firmware out-of-band without logging into the host OS, you instruct the BMC to download a firmware payload from a local HTTP server and apply it. This is a "Pull" architecture. It is highly scalable for large clusters as the BMCs pull the file asynchronously.
+:::
+
+```mermaid
+flowchart TD
+    subgraph Automation["Infrastructure Automation"]
+        Trigger["Trigger SimpleUpdate API"]
+        Poll["Poll TaskService URI"]
+    end
+    
+    subgraph BMC["Baseboard Management Controller"]
+        Redfish["Redfish API"]
+        TaskMgr["Task Manager"]
+        FwEngine["Firmware Update Engine"]
+    end
+    
+    subgraph HTTP["Local HTTP Server"]
+        Image["Firmware Image (e.g., BIOS.bin)"]
+    end
+    
+    Trigger -- "POST /UpdateService/Actions/SimpleUpdate" --- Redfish
+    Redfish -- "Returns 202 Accepted & Task URI" --- Trigger
+    Redfish -- "Schedules Job" --- TaskMgr
+    TaskMgr -- "Initiates Download" --- FwEngine
+    FwEngine -- "HTTP GET Image" --- Image
+    FwEngine -- "Flashes ROM" --- FwEngine
+    Poll -- "GET Task Status" --- TaskMgr
+```
 
 ```bash
 # Instruct the BMC to pull the BIOS update file from your provisioning server

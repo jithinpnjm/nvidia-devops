@@ -41,15 +41,16 @@ When a user submits a prompt, the model cannot instantly generate the first new 
 *   **Output:** The first generated token, and the foundational Key-Value (KV) cache for the prompt.
 
 ```mermaid
-graph TD
-    A[User Prompt: "Translate the following..."] --> B[Tokenizer]
-    B --> C[Token IDs: 345, 982, 12, ...]
-    C --> D[Prefill Phase <br/> Parallel Processing]
-    D --> E[Compute-Bound Matrix Multiplications]
-    E --> F[Generate KV Cache for Prompt]
-    E --> G[Output Token 1]
+flowchart TD
+    A["User Prompt: 'Translate the following...'"] --> B["Tokenizer"]
+    B --> C["Token IDs: [345, 982, 12, ...]"]
+    C --> D["Prefill Phase (Parallel Processing)"]
+    D --> E["Compute-Bound Matrix Multiplications"]
+    E --> F["Generate KV Cache for Prompt"]
+    E --> G["Output Token 1"]
     
-    style D fill:#f9f,stroke:#333,stroke-width:2px
+    classDef prefill fill:#f9f,stroke:#333,stroke-width:2px;
+    class D prefill;
 ```
 
 ### 2.2 The Decode Phase (Token Generation)
@@ -62,17 +63,18 @@ Once the prefill phase is complete and the first token is generated, the model e
 *   **Output:** Subsequent tokens until an End-Of-Sequence (EOS) token is reached or a length limit is hit.
 
 ```mermaid
-graph TD
-    A[Token 1] --> B[Decode Step 1 <br/> Load Model Weights]
-    B --> C[Memory-Bound Operation]
-    C --> D[Attention with KV Cache]
-    D --> E[Output Token 2]
-    E --> F[Append to KV Cache]
+flowchart TD
+    A["Token 1"] --> B["Decode Step 1 (Load Model Weights)"]
+    B --> C["Memory-Bound Operation"]
+    C --> D["Attention with KV Cache"]
+    D --> E["Output Token 2"]
+    E --> F["Append to KV Cache"]
     
-    F --> G[Decode Step 2]
-    G --> H[...]
+    F --> G["Decode Step 2"]
+    G --> H["..."]
     
-    style B fill:#bbf,stroke:#333,stroke-width:2px
+    classDef decode fill:#bbf,stroke:#333,stroke-width:2px;
+    class B decode;
 ```
 
 ### 2.3 The Architectural Trade-off
@@ -113,6 +115,7 @@ This exceeds the capacity of an 8x H100 80GB node (640GB) just for the cache, ig
 
 ### 3.3 The Problem with Traditional Memory Management
 
+:::warning Traditional Memory Fragmentation
 Early serving frameworks (like FasterTransformer or standard HuggingFace `generate`) pre-allocated contiguous memory blocks for the maximum possible sequence length for every request in a batch. 
 
 This leads to catastrophic fragmentation:
@@ -120,6 +123,7 @@ This leads to catastrophic fragmentation:
 2.  **External Fragmentation:** As requests finish and free up contiguous blocks, new requests might not fit perfectly into the gaps, stranding memory.
 
 Because of fragmentation, traditional systems often only utilize 20-40% of the available KV cache memory, severely limiting the maximum concurrent batch size.
+:::
 
 ### 3.4 PagedAttention: The Solution
 

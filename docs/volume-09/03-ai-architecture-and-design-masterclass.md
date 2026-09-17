@@ -11,19 +11,8 @@ This masterclass provides an exhaustive guide to NVIDIA AI Infrastructure operat
 :::
 
 ---
-id: 03-ai-architecture-and-design-masterclass
-title: AI Architecture & Design Masterclass
-sidebar_label: AI Architecture & Design Masterclass
----
-
-
-:::info Overview
-This masterclass provides an exhaustive guide to NVIDIA AI Infrastructure operations, focusing on the underlying architecture, production deployment patterns, troubleshooting, and senior-level interview preparation.
-:::
-
----
 title: "Chapter 6 - AI Inference Architecture, LLM Serving, and System Sizing"
-slug: "chapter-6-ai-inference-architecture-questions"
+slug: "ai-architecture-and-design-masterclass"
 sidebar_position: 6
 description: "AI inference architecture for NVIDIA Solutions Architects: Prefill vs. Decode dynamics, KV cache memory mathematics, TensorRT-LLM vs. Triton vs. vLLM, and capacity sizing formulas."
 source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
@@ -57,23 +46,6 @@ flowchart TD
 :::tip Pro-Tip
 Always visualize the request lifecycle when troubleshooting latency. The gap between `API Gateway` and `Triton Pods` is often where network jitter is introduced.
 :::
-
-
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
-
-```mermaid
-flowchart TD
-    A[Client Request] -- "Submits Request" --- B[API Gateway / Load Balancer]
-    B -- "Routes Traffic" --- C[Kubernetes Ingress]
-    C -- "Distributes Load" --- D[Triton Inference Server Pods]
-    D -- "Loads Model" --- E[NVIDIA GPUs]
-    E -- "Returns Inference" --- D
-    D -- "Sends Response" --- C
-    C -- "Routes Back" --- B
-    B -- "Delivers" --- A
-```
 
 :::tip Pro-Tip
 Always visualize the request lifecycle when troubleshooting latency. The gap between `API Gateway` and `Triton Pods` is often where network jitter is introduced.
@@ -122,9 +94,6 @@ flowchart TD
 
 
 
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
 
 ```mermaid
 sequenceDiagram
@@ -146,28 +115,6 @@ sequenceDiagram
 :::warning Caution
 If the `nvidia-device-plugin` is not running or crashlooping, the Kubelet will fail to allocate the GPU, leaving the Pod in a `Pending` state indefinitely.
 :::
-
-
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Kube API
-    participant Scheduler
-    participant Kubelet
-    participant GPU Plugin
-    
-    User->>Kube API: Create Pod (nvidia.com/gpu: 1)
-    Kube API->>Scheduler: Schedule Pod
-    Scheduler->>Kube API: Assign to Node X
-    Kube API->>Kubelet: Run Pod on Node X
-    Kubelet->>GPU Plugin: Allocate GPU
-    GPU Plugin-->>Kubelet: Return Device ID
-    Kubelet->>Container Runtime: Start Container with Device
-```
 
 :::warning Caution
 If the `nvidia-device-plugin` is not running or crashlooping, the Kubelet will fail to allocate the GPU, leaving the Pod in a `Pending` state indefinitely.
@@ -214,9 +161,6 @@ The model weights of Llama 3 70B in FP16 consume **140 GB**. A batch of 64 reque
 
 
 
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
 
 ```mermaid
 flowchart TD
@@ -241,31 +185,6 @@ flowchart TD
 :::info Architecture Note
 Separating storage traffic (often RoCE) from East-West compute traffic (Infiniband) is critical for isolating congestion events during large checkpointing operations.
 :::
-
-
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
-
-```mermaid
-flowchart TD
-    subgraph Storage Tier
-        A[NFS/Weka/Vast] 
-    end
-    subgraph Compute Tier
-        B[GPU Node 1] 
-        C[GPU Node 2]
-    end
-    subgraph Networking
-        D[RoCE v2 Switch]
-        E[Infiniband Switch]
-    end
-    A -- "Read/Write" --- D
-    B -- "NCCL/MPI" --- E
-    C -- "NCCL/MPI" --- E
-    D -- "Storage Traffic" --- B
-    D -- "Storage Traffic" --- C
-```
 
 :::info Architecture Note
 Separating storage traffic (often RoCE) from East-West compute traffic (Infiniband) is critical for isolating congestion events during large checkpointing operations.
@@ -296,43 +215,6 @@ flowchart TD
 
 
 
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
-
-```mermaid
-flowchart TD
-    A[Client Request] -- "Submits Request" --- B[API Gateway / Load Balancer]
-    B -- "Routes Traffic" --- C[Kubernetes Ingress]
-    C -- "Distributes Load" --- D[Triton Inference Server Pods]
-    D -- "Loads Model" --- E[NVIDIA GPUs]
-    E -- "Returns Inference" --- D
-    D -- "Sends Response" --- C
-    C -- "Routes Back" --- B
-    B -- "Delivers" --- A
-```
-
-:::tip Pro-Tip
-Always visualize the request lifecycle when troubleshooting latency. The gap between `API Gateway` and `Triton Pods` is often where network jitter is introduced.
-:::
-
-
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
-
-```mermaid
-flowchart TD
-    A[Client Request] -- "Submits Request" --- B[API Gateway / Load Balancer]
-    B -- "Routes Traffic" --- C[Kubernetes Ingress]
-    C -- "Distributes Load" --- D[Triton Inference Server Pods]
-    D -- "Loads Model" --- E[NVIDIA GPUs]
-    E -- "Returns Inference" --- D
-    D -- "Sends Response" --- C
-    C -- "Routes Back" --- B
-    B -- "Delivers" --- A
-```
-
 :::tip Pro-Tip
 Always visualize the request lifecycle when troubleshooting latency. The gap between `API Gateway` and `Triton Pods` is often where network jitter is introduced.
 :::
@@ -350,53 +232,6 @@ Enterprise customers often struggle to choose among NVIDIA and open-source servi
 ---
 
 
-
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Kube API
-    participant Scheduler
-    participant Kubelet
-    participant GPU Plugin
-    
-    User->>Kube API: Create Pod (nvidia.com/gpu: 1)
-    Kube API->>Scheduler: Schedule Pod
-    Scheduler->>Kube API: Assign to Node X
-    Kube API->>Kubelet: Run Pod on Node X
-    Kubelet->>GPU Plugin: Allocate GPU
-    GPU Plugin-->>Kubelet: Return Device ID
-    Kubelet->>Container Runtime: Start Container with Device
-```
-
-:::warning Caution
-If the `nvidia-device-plugin` is not running or crashlooping, the Kubelet will fail to allocate the GPU, leaving the Pod in a `Pending` state indefinitely.
-:::
-
-
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
-
-```mermaid
-sequenceDiagram
-    participant User
-    participant Kube API
-    participant Scheduler
-    participant Kubelet
-    participant GPU Plugin
-    
-    User->>Kube API: Create Pod (nvidia.com/gpu: 1)
-    Kube API->>Scheduler: Schedule Pod
-    Scheduler->>Kube API: Assign to Node X
-    Kube API->>Kubelet: Run Pod on Node X
-    Kubelet->>GPU Plugin: Allocate GPU
-    GPU Plugin-->>Kubelet: Return Device ID
-    Kubelet->>Container Runtime: Start Container with Device
-```
 
 :::warning Caution
 If the `nvidia-device-plugin` is not running or crashlooping, the Kubelet will fail to allocate the GPU, leaving the Pod in a `Pending` state indefinitely.
@@ -427,59 +262,6 @@ Fleet_GPUs   = Total_GPUs * (1 + Headroom_Percentage) + N_Plus_Failure_Nodes
 ---
 
 
-
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
-
-```mermaid
-flowchart TD
-    subgraph Storage Tier
-        A[NFS/Weka/Vast] 
-    end
-    subgraph Compute Tier
-        B[GPU Node 1] 
-        C[GPU Node 2]
-    end
-    subgraph Networking
-        D[RoCE v2 Switch]
-        E[Infiniband Switch]
-    end
-    A -- "Read/Write" --- D
-    B -- "NCCL/MPI" --- E
-    C -- "NCCL/MPI" --- E
-    D -- "Storage Traffic" --- B
-    D -- "Storage Traffic" --- C
-```
-
-:::info Architecture Note
-Separating storage traffic (often RoCE) from East-West compute traffic (Infiniband) is critical for isolating congestion events during large checkpointing operations.
-:::
-
-
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
-
-```mermaid
-flowchart TD
-    subgraph Storage Tier
-        A[NFS/Weka/Vast] 
-    end
-    subgraph Compute Tier
-        B[GPU Node 1] 
-        C[GPU Node 2]
-    end
-    subgraph Networking
-        D[RoCE v2 Switch]
-        E[Infiniband Switch]
-    end
-    A -- "Read/Write" --- D
-    B -- "NCCL/MPI" --- E
-    C -- "NCCL/MPI" --- E
-    D -- "Storage Traffic" --- B
-    D -- "Storage Traffic" --- C
-```
 
 :::info Architecture Note
 Separating storage traffic (often RoCE) from East-West compute traffic (Infiniband) is critical for isolating congestion events during large checkpointing operations.
@@ -522,9 +304,6 @@ Separating storage traffic (often RoCE) from East-West compute traffic (Infiniba
 
 
 
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
 
 ### Advanced Production Considerations
 When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
@@ -554,9 +333,6 @@ When interviewing for an **NVIDIA Senior Solutions Architect** role, you must be
 ---
 
 
-
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
 
 
 ### Advanced Production Considerations
@@ -599,9 +375,6 @@ flowchart TD
 
 
 
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
 
 ### Advanced Production Considerations
 When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
@@ -641,9 +414,6 @@ flowchart TD
 
 
 
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
 
 ### Advanced Production Considerations
 When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
@@ -670,9 +440,6 @@ ConnectX-7 HCA  <=== Direct PCIe Gen5 P2P DMA ===>  GPU HBM3 Memory
 ---
 
 
-
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
 
 
 ### Advanced Production Considerations
@@ -718,9 +485,6 @@ flowchart LR
 
 
 
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
 
 ### Advanced Production Considerations
 When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
@@ -760,14 +524,6 @@ When operating at scale, you must heavily monitor metrics like DCGM (Data Center
 
 
 
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
-
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-## Key Takeaways
-
 1. **InfiniBand vs. Spectrum-X:** Quantum-2 InfiniBand provides native credit-based lossless transport and in-network computing (SHARP); Spectrum-X delivers near-InfiniBand efficiency over Ethernet via hardware packet spraying and microsecond DCQCN.
 2. **Multi-Rail Topologies Prevent Contention:** DGX SuperPODs map 8 HCAs 1:1 to 8 independent leaf switch rails, eliminating cross-GPU link contention during distributed collectives.
 3. **GPUDirect RDMA is Essential:** Direct PCIe Gen5 P2P DMA between ConnectX-7 and GPU HBM bypasses CPU DRAM bounce buffers, dropping transfer latency from 15 microseconds to $< 1.5$ microseconds.
@@ -804,9 +560,6 @@ source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 | Customer | Explain GPU sharing to a CTO versus an SRE. |
 
 
-
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
 
 
 ### Advanced Production Considerations
@@ -867,9 +620,6 @@ Run every row in this bank through this loop once before assuming you "know" the
 
 
 
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
 
 ### Advanced Production Considerations
 When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
@@ -910,14 +660,6 @@ def summarize(lines: list[str]) -> dict[str, Counter[str]]:
 
 
 
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
-
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-## ➕ Additions
-
 ➕ **Diagram: the increment ladder this question set expects (say the shape before typing anything):**
 ```mermaid
 flowchart TD
@@ -945,14 +687,6 @@ source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 | Scale on what metric? | queue/tokens/SLO/engine state, warmup/model load, GPU scarcity |
 
 
-
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
-
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-## ➕ Additions
 
 ➕ **Diagram: inference-latency symptom router (which subsystem a complaint actually points at):**
 ```mermaid
@@ -1004,14 +738,6 @@ source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 
 
 
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
-
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-## ➕ Additions
-
 ➕ **Diagram: the GPU-sizing discovery funnel (never size from a GPU count alone):**
 ```mermaid
 flowchart TD
@@ -1048,9 +774,6 @@ flowchart TD
 
 
 
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
 
 ### Advanced Production Considerations
 When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
@@ -1067,14 +790,6 @@ source_document: "Volume_09_JR2018680_Interview_Preparation(2).docx"
 Whiteboard from requirements outward: client/gateway -> auth/rate limits -> model routing -> serving runtime -> GPU scheduling -> compute topology -> network/storage -> observability -> lifecycle/CI/CD -> failure domains. Ask about model count, prompt/output distribution, concurrency, data residency, availability and cost. Then choose components. A diagram that begins with "NIM" or "Kubernetes" before requirements is backwards.
 
 
-
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
-
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-## ➕ Additions
 
 ➕ **Diagram: this question set's build order in box form (draw left to right, live, in this sequence):**
 ```mermaid
@@ -1106,14 +821,6 @@ Prepare evidence-rich stories around: a production incident where you reduced un
 
 
 
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
-
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-## ➕ Additions
-
 ➕ **Diagram: advisory-vs-autonomous, the reusable decision for any "automation that replaced manual toil" story:**
 ```mermaid
 flowchart TD
@@ -1132,22 +839,11 @@ This is the judgment call worth naming explicitly in a behavioral story — choo
 
 
 
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
 
 ### Advanced Production Considerations
 When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
 ## Practice
 ➕ 4. Draft your own "automation that replaced manual toil" story using the sketch above as a template — specifically identify one decision in your story where you chose a *less* automated / *less* aggressive option deliberately, and be ready to explain why.
-
-
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-
-
-### Advanced Production Considerations
-When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
 
 ## Appendix A: Detailed NVIDIA AI Factory Operations Glossary
 
@@ -1206,36 +902,6 @@ In long-running inference servers (e.g., vLLM or Triton), memory fragmentation c
 
 ### Deep Dive: Analyzing GPU Memory Bottlenecks
 
-In many deep learning workloads, memory bandwidth—rather than raw compute (TFLOPS)—becomes the primary bottleneck. This is commonly referred to as being "memory-bound." 
-
-#### Identifying Memory-Bound Workloads
-When profiling with tools like Nsight Systems or Nsight Compute, look for high DRAM utilization coupled with relatively low SM (Streaming Multiprocessor) utilization. If your arithmetic intensity (FLOPs per byte of memory accessed) is low, you will likely hit the memory wall.
-
-#### Strategies for Mitigation
-1. **Kernel Fusion**: Combining multiple small operations into a single custom CUDA kernel to prevent intermediate results from being written back to global memory.
-2. **Mixed Precision**: Utilizing FP16 or FP8 reduces memory footprint by half or more, effectively doubling the apparent bandwidth and cache capacity.
-3. **Activation Checkpointing**: Recomputing forward pass activations during the backward pass instead of storing them, trading compute (which is abundant) for memory (which is scarce).
-4. **Zero Redundancy Optimizer (ZeRO)**: Partitioning optimizer states, gradients, and model parameters across multiple GPUs to fit large models into aggregate VRAM.
-
-:::warning Memory Fragmentation
-In long-running inference servers (e.g., vLLM or Triton), memory fragmentation can lead to Out of Memory (OOM) errors even when total free memory seems sufficient. Using paged attention or careful memory pool management is essential.
-:::
-
 
 ### Deep Dive: Analyzing GPU Memory Bottlenecks
-
-In many deep learning workloads, memory bandwidth—rather than raw compute (TFLOPS)—becomes the primary bottleneck. This is commonly referred to as being "memory-bound." 
-
-#### Identifying Memory-Bound Workloads
-When profiling with tools like Nsight Systems or Nsight Compute, look for high DRAM utilization coupled with relatively low SM (Streaming Multiprocessor) utilization. If your arithmetic intensity (FLOPs per byte of memory accessed) is low, you will likely hit the memory wall.
-
-#### Strategies for Mitigation
-1. **Kernel Fusion**: Combining multiple small operations into a single custom CUDA kernel to prevent intermediate results from being written back to global memory.
-2. **Mixed Precision**: Utilizing FP16 or FP8 reduces memory footprint by half or more, effectively doubling the apparent bandwidth and cache capacity.
-3. **Activation Checkpointing**: Recomputing forward pass activations during the backward pass instead of storing them, trading compute (which is abundant) for memory (which is scarce).
-4. **Zero Redundancy Optimizer (ZeRO)**: Partitioning optimizer states, gradients, and model parameters across multiple GPUs to fit large models into aggregate VRAM.
-
-:::warning Memory Fragmentation
-In long-running inference servers (e.g., vLLM or Triton), memory fragmentation can lead to Out of Memory (OOM) errors even when total free memory seems sufficient. Using paged attention or careful memory pool management is essential.
-:::
 

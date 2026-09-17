@@ -43,19 +43,41 @@ When a workload (a "kernel") is launched onto the GPU, it is divided into thread
 NVIDIA GPUs execute threads in groups of 32, called a **Warp**. 
 This is critical for infrastructure engineers to understand because it dictates performance efficiency. If a workload branches (e.g., `if (x) do_a() else do_b()`), and threads within the same warp take different paths, the execution diverges. The SM must execute both paths sequentially, masking out the threads that don't participate in each path. This is called **Warp Divergence**.
 
+:::warning Operational Impact of Warp Divergence
 From an infrastructure perspective, you cannot fix warp divergence (that is the AI developer's job), but you will see its side effects: low SM utilization (SM active time) despite high power draw.
+:::
 
 ```mermaid
-graph TD
-    A[GPU Device] -->|Contains| B(SM 1)
-    A -->|Contains| C(SM 2)
-    A -->|Contains| D(SM N...)
-    B -->|Contains| E[Warp Scheduler]
-    B -->|Contains| F[Register File]
-    B -->|Contains| G[CUDA Cores/Tensor Cores]
-    C --> H[Registers/Schedulers/Cores]
+flowchart TD
+    subgraph GPU["GPU Device"]
+        subgraph SM1["Streaming Multiprocessor 1"]
+            WS1["Warp Scheduler"]
+            RF1["Register File"]
+            subgraph Cores1["Execution Cores"]
+                CC1["CUDA Cores (FP32/INT8)"]
+                TC1["Tensor Cores (FP16/FP8)"]
+            end
+            WS1 -- "Dispatches 32 threads" --- RF1
+            RF1 -- "Feeds data" --- Cores1
+        end
+        
+        subgraph SM2["Streaming Multiprocessor 2"]
+            WS2["Warp Scheduler"]
+            RF2["Register File"]
+            Cores2["Execution Cores"]
+            WS2 -- "Dispatches" --- RF2
+            RF2 -- "Feeds data" --- Cores2
+        end
+        
+        L2["L2 Cache (Shared)"]
+        SM1 -- "Memory Access" --- L2
+        SM2 -- "Memory Access" --- L2
+    end
     
-    style A fill:#76b900,stroke:#333,stroke-width:2px,color:#fff
+    style GPU fill:#f4f4f4,stroke:#333,stroke-width:2px,color:#000
+    style SM1 fill:#76b900,color:#fff
+    style SM2 fill:#76b900,color:#fff
+    style L2 fill:#4b5563,color:#fff
 ```
 
 ### 2.3 Contexts and Time-Slicing
@@ -92,13 +114,34 @@ Data must traverse a specific path to reach the computational cores:
 
 ```mermaid
 flowchart LR
-    NVMe[(NVMe Storage)] <-->|PCIe Gen4/5| HostRAM[Host CPU RAM]
-    HostRAM <-->|PCIe Gen4/5/CXL| VRAM[GPU HBM3]
-    VRAM <-->|TB/s Bandwidth| L2[GPU L2 Cache]
-    L2 <--> L1[SM L1 / Shared Mem]
-    L1 <--> Regs[Registers]
+    subgraph Host["Host Node (CPU Domain)"]
+        NVMe["NVMe Storage"]
+        HostRAM["Host CPU RAM (DDR5)"]
+        NVMe -- "PCIe Gen4/5" --- HostRAM
+    end
+    
+    subgraph PCIeBus["System Interconnect"]
+        PCIe["PCIe Gen5 x16 (63 GB/s)"]
+    end
+    
+    subgraph GPUMem["GPU Memory Hierarchy"]
+        VRAM["GPU HBM3 (3+ TB/s)"]
+        L2["GPU L2 Cache (Shared)"]
+        L1["SM L1 / Shared Memory"]
+        Regs["Registers (Per Thread)"]
+        
+        VRAM -- "TB/s Bandwidth" --- L2
+        L2 -- "High Bandwidth" --- L1
+        L1 -- "Zero Latency" --- Regs
+    end
+    
+    HostRAM -- "DMA / Page-Locked Transfers" --- PCIe
+    PCIe -- "DMA Transfers" --- VRAM
     
     style VRAM fill:#76b900,color:#fff
+    style HostRAM fill:#4b5563,color:#fff
+    style NVMe fill:#374151,color:#fff
+    style PCIeBus fill:#e5e7eb,color:#000
 ```
 
 ### 3.2 HBM vs. GDDR
@@ -137,7 +180,9 @@ nvidia-smi -q -d MEMORY | grep -A 5 "BAR1"
         Used                              : 2 MiB
         Free                              : 81918 MiB
 ```
-*(If you see 256 MiB here, your BIOS settings are wrong, and performance will tank).*
+:::tip Pre-Flight Check: Resizable BAR
+*(If you see 256 MiB here, your BIOS settings are wrong, and performance will tank. Ensure Large BAR is enabled).*
+:::
 
 ---
 
@@ -213,29 +258,43 @@ Connecting 8 GPUs directly to each other (a fully connected mesh) requires too m
 Instead, NVIDIA introduced the **NVSwitch**. In a DGX/HGX 8-GPU baseboard, every GPU connects to multiple NVSwitches. The NVSwitches route traffic between any two GPUs at full line rate. It acts exactly like an Ethernet leaf switch, but for GPU memory.
 
 ```mermaid
-graph TD
-    subgraph HGX Baseboard
-        GPU0 <--> SW1(NVSwitch 1)
-        GPU0 <--> SW2(NVSwitch 2)
-        GPU0 <--> SW3(NVSwitch 3)
-        GPU0 <--> SW4(NVSwitch 4)
+flowchart TD
+    subgraph HGX["HGX 8-GPU Baseboard"]
+        direction TB
+        subgraph GPUs["GPU Array"]
+            GPU0["GPU 0"]
+            GPU1["GPU 1"]
+            GPUN["..."]
+            GPU7["GPU 7"]
+        end
         
-        GPU1 <--> SW1
-        GPU1 <--> SW2
-        GPU1 <--> SW3
-        GPU1 <--> SW4
+        subgraph NVSwitches["NVSwitch Fabric (Full Mesh)"]
+            SW1["NVSwitch 1"]
+            SW2["NVSwitch 2"]
+            SW3["NVSwitch 3"]
+            SW4["NVSwitch 4"]
+        end
         
-        GPU7 <--> SW1
-        GPU7 <--> SW2
-        GPU7 <--> SW3
-        GPU7 <--> SW4
+        GPU0 -- "NVLink 4 (900 GB/s)" --- SW1
+        GPU0 -- "NVLink 4" --- SW2
+        GPU1 -- "NVLink 4" --- SW1
+        GPU1 -- "NVLink 4" --- SW3
+        GPU7 -- "NVLink 4" --- SW2
+        GPU7 -- "NVLink 4" --- SW4
         
-        SW1 <--> NVL[NVLink Network / external NVSwitch]
+        SW1 -- "Inter-Switch Routing" --- SW2
+        SW3 -- "Inter-Switch Routing" --- SW4
     end
+    
+    External["External NVLink Network (SuperPOD)"]
+    SW1 -- "Scale-Out Fabric" --- External
+    SW2 -- "Scale-Out Fabric" --- External
+    
     style SW1 fill:#333,color:#fff
     style SW2 fill:#333,color:#fff
     style SW3 fill:#333,color:#fff
     style SW4 fill:#333,color:#fff
+    style GPUs fill:#76b900,color:#fff
 ```
 
 ### 5.3 Decoding `nvidia-smi topo -m`
@@ -257,7 +316,9 @@ GPU1    NV18     X      NV18    ...     SYS     NODE    0-15
 *   **NV#:** Connection via NVLink (Fastest). The number (e.g., 18) indicates the number of NVLinks. For Hopper H100, 18 links * 50GB/s = 900GB/s bandwidth.
 *   **CPU Affinity:** Which CPU cores are directly connected to this GPU's root complex.
 
+:::danger Critical Failure Mode
 **Crucial Check:** If you run `topo -m` on an HGX node and see `SYS` or `NODE` instead of `NV#` between GPUs, the NVSwitch fabric has failed, or the NVLink driver (`nvidia-peermem`) is not loaded. Training will fall back to PCIe, and performance will drop by 90%.
+:::
 
 ### 5.4 SHARP (Scalable Hierarchical Aggregation and Reduction Protocol)
 
@@ -516,304 +577,6 @@ If P2P reads are supported but writes are not (or vice versa), you have a firmwa
 ## Appendix D: Comprehensive AI Infrastructure Glossary
 
 **Term 1:** Detailed explanation for technical term 1 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 1 is vital for debugging scale-out fabrics.
-
-**Term 2:** Detailed explanation for technical term 2 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 2 is vital for debugging scale-out fabrics.
-
-**Term 3:** Detailed explanation for technical term 3 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 3 is vital for debugging scale-out fabrics.
-
-**Term 4:** Detailed explanation for technical term 4 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 4 is vital for debugging scale-out fabrics.
-
-**Term 5:** Detailed explanation for technical term 5 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 5 is vital for debugging scale-out fabrics.
-
-**Term 6:** Detailed explanation for technical term 6 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 6 is vital for debugging scale-out fabrics.
-
-**Term 7:** Detailed explanation for technical term 7 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 7 is vital for debugging scale-out fabrics.
-
-**Term 8:** Detailed explanation for technical term 8 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 8 is vital for debugging scale-out fabrics.
-
-**Term 9:** Detailed explanation for technical term 9 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 9 is vital for debugging scale-out fabrics.
-
-**Term 10:** Detailed explanation for technical term 10 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 10 is vital for debugging scale-out fabrics.
-
-**Term 11:** Detailed explanation for technical term 11 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 11 is vital for debugging scale-out fabrics.
-
-**Term 12:** Detailed explanation for technical term 12 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 12 is vital for debugging scale-out fabrics.
-
-**Term 13:** Detailed explanation for technical term 13 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 13 is vital for debugging scale-out fabrics.
-
-**Term 14:** Detailed explanation for technical term 14 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 14 is vital for debugging scale-out fabrics.
-
-**Term 15:** Detailed explanation for technical term 15 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 15 is vital for debugging scale-out fabrics.
-
-**Term 16:** Detailed explanation for technical term 16 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 16 is vital for debugging scale-out fabrics.
-
-**Term 17:** Detailed explanation for technical term 17 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 17 is vital for debugging scale-out fabrics.
-
-**Term 18:** Detailed explanation for technical term 18 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 18 is vital for debugging scale-out fabrics.
-
-**Term 19:** Detailed explanation for technical term 19 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 19 is vital for debugging scale-out fabrics.
-
-**Term 20:** Detailed explanation for technical term 20 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 20 is vital for debugging scale-out fabrics.
-
-**Term 21:** Detailed explanation for technical term 21 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 21 is vital for debugging scale-out fabrics.
-
-**Term 22:** Detailed explanation for technical term 22 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 22 is vital for debugging scale-out fabrics.
-
-**Term 23:** Detailed explanation for technical term 23 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 23 is vital for debugging scale-out fabrics.
-
-**Term 24:** Detailed explanation for technical term 24 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 24 is vital for debugging scale-out fabrics.
-
-**Term 25:** Detailed explanation for technical term 25 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 25 is vital for debugging scale-out fabrics.
-
-**Term 26:** Detailed explanation for technical term 26 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 26 is vital for debugging scale-out fabrics.
-
-**Term 27:** Detailed explanation for technical term 27 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 27 is vital for debugging scale-out fabrics.
-
-**Term 28:** Detailed explanation for technical term 28 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 28 is vital for debugging scale-out fabrics.
-
-**Term 29:** Detailed explanation for technical term 29 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 29 is vital for debugging scale-out fabrics.
-
-**Term 30:** Detailed explanation for technical term 30 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 30 is vital for debugging scale-out fabrics.
-
-**Term 31:** Detailed explanation for technical term 31 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 31 is vital for debugging scale-out fabrics.
-
-**Term 32:** Detailed explanation for technical term 32 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 32 is vital for debugging scale-out fabrics.
-
-**Term 33:** Detailed explanation for technical term 33 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 33 is vital for debugging scale-out fabrics.
-
-**Term 34:** Detailed explanation for technical term 34 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 34 is vital for debugging scale-out fabrics.
-
-**Term 35:** Detailed explanation for technical term 35 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 35 is vital for debugging scale-out fabrics.
-
-**Term 36:** Detailed explanation for technical term 36 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 36 is vital for debugging scale-out fabrics.
-
-**Term 37:** Detailed explanation for technical term 37 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 37 is vital for debugging scale-out fabrics.
-
-**Term 38:** Detailed explanation for technical term 38 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 38 is vital for debugging scale-out fabrics.
-
-**Term 39:** Detailed explanation for technical term 39 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 39 is vital for debugging scale-out fabrics.
-
-**Term 40:** Detailed explanation for technical term 40 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 40 is vital for debugging scale-out fabrics.
-
-**Term 41:** Detailed explanation for technical term 41 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 41 is vital for debugging scale-out fabrics.
-
-**Term 42:** Detailed explanation for technical term 42 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 42 is vital for debugging scale-out fabrics.
-
-**Term 43:** Detailed explanation for technical term 43 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 43 is vital for debugging scale-out fabrics.
-
-**Term 44:** Detailed explanation for technical term 44 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 44 is vital for debugging scale-out fabrics.
-
-**Term 45:** Detailed explanation for technical term 45 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 45 is vital for debugging scale-out fabrics.
-
-**Term 46:** Detailed explanation for technical term 46 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 46 is vital for debugging scale-out fabrics.
-
-**Term 47:** Detailed explanation for technical term 47 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 47 is vital for debugging scale-out fabrics.
-
-**Term 48:** Detailed explanation for technical term 48 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 48 is vital for debugging scale-out fabrics.
-
-**Term 49:** Detailed explanation for technical term 49 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 49 is vital for debugging scale-out fabrics.
-
-**Term 50:** Detailed explanation for technical term 50 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 50 is vital for debugging scale-out fabrics.
-
-**Term 51:** Detailed explanation for technical term 51 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 51 is vital for debugging scale-out fabrics.
-
-**Term 52:** Detailed explanation for technical term 52 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 52 is vital for debugging scale-out fabrics.
-
-**Term 53:** Detailed explanation for technical term 53 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 53 is vital for debugging scale-out fabrics.
-
-**Term 54:** Detailed explanation for technical term 54 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 54 is vital for debugging scale-out fabrics.
-
-**Term 55:** Detailed explanation for technical term 55 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 55 is vital for debugging scale-out fabrics.
-
-**Term 56:** Detailed explanation for technical term 56 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 56 is vital for debugging scale-out fabrics.
-
-**Term 57:** Detailed explanation for technical term 57 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 57 is vital for debugging scale-out fabrics.
-
-**Term 58:** Detailed explanation for technical term 58 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 58 is vital for debugging scale-out fabrics.
-
-**Term 59:** Detailed explanation for technical term 59 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 59 is vital for debugging scale-out fabrics.
-
-**Term 60:** Detailed explanation for technical term 60 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 60 is vital for debugging scale-out fabrics.
-
-**Term 61:** Detailed explanation for technical term 61 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 61 is vital for debugging scale-out fabrics.
-
-**Term 62:** Detailed explanation for technical term 62 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 62 is vital for debugging scale-out fabrics.
-
-**Term 63:** Detailed explanation for technical term 63 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 63 is vital for debugging scale-out fabrics.
-
-**Term 64:** Detailed explanation for technical term 64 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 64 is vital for debugging scale-out fabrics.
-
-**Term 65:** Detailed explanation for technical term 65 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 65 is vital for debugging scale-out fabrics.
-
-**Term 66:** Detailed explanation for technical term 66 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 66 is vital for debugging scale-out fabrics.
-
-**Term 67:** Detailed explanation for technical term 67 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 67 is vital for debugging scale-out fabrics.
-
-**Term 68:** Detailed explanation for technical term 68 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 68 is vital for debugging scale-out fabrics.
-
-**Term 69:** Detailed explanation for technical term 69 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 69 is vital for debugging scale-out fabrics.
-
-**Term 70:** Detailed explanation for technical term 70 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 70 is vital for debugging scale-out fabrics.
-
-**Term 71:** Detailed explanation for technical term 71 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 71 is vital for debugging scale-out fabrics.
-
-**Term 72:** Detailed explanation for technical term 72 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 72 is vital for debugging scale-out fabrics.
-
-**Term 73:** Detailed explanation for technical term 73 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 73 is vital for debugging scale-out fabrics.
-
-**Term 74:** Detailed explanation for technical term 74 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 74 is vital for debugging scale-out fabrics.
-
-**Term 75:** Detailed explanation for technical term 75 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 75 is vital for debugging scale-out fabrics.
-
-**Term 76:** Detailed explanation for technical term 76 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 76 is vital for debugging scale-out fabrics.
-
-**Term 77:** Detailed explanation for technical term 77 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 77 is vital for debugging scale-out fabrics.
-
-**Term 78:** Detailed explanation for technical term 78 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 78 is vital for debugging scale-out fabrics.
-
-**Term 79:** Detailed explanation for technical term 79 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 79 is vital for debugging scale-out fabrics.
-
-**Term 80:** Detailed explanation for technical term 80 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 80 is vital for debugging scale-out fabrics.
-
-**Term 81:** Detailed explanation for technical term 81 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 81 is vital for debugging scale-out fabrics.
-
-**Term 82:** Detailed explanation for technical term 82 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 82 is vital for debugging scale-out fabrics.
-
-**Term 83:** Detailed explanation for technical term 83 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 83 is vital for debugging scale-out fabrics.
-
-**Term 84:** Detailed explanation for technical term 84 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 84 is vital for debugging scale-out fabrics.
-
-**Term 85:** Detailed explanation for technical term 85 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 85 is vital for debugging scale-out fabrics.
-
-**Term 86:** Detailed explanation for technical term 86 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 86 is vital for debugging scale-out fabrics.
-
-**Term 87:** Detailed explanation for technical term 87 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 87 is vital for debugging scale-out fabrics.
-
-**Term 88:** Detailed explanation for technical term 88 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 88 is vital for debugging scale-out fabrics.
-
-**Term 89:** Detailed explanation for technical term 89 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 89 is vital for debugging scale-out fabrics.
-
-**Term 90:** Detailed explanation for technical term 90 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 90 is vital for debugging scale-out fabrics.
-
-**Term 91:** Detailed explanation for technical term 91 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 91 is vital for debugging scale-out fabrics.
-
-**Term 92:** Detailed explanation for technical term 92 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 92 is vital for debugging scale-out fabrics.
-
-**Term 93:** Detailed explanation for technical term 93 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 93 is vital for debugging scale-out fabrics.
-
-**Term 94:** Detailed explanation for technical term 94 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 94 is vital for debugging scale-out fabrics.
-
-**Term 95:** Detailed explanation for technical term 95 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 95 is vital for debugging scale-out fabrics.
-
-**Term 96:** Detailed explanation for technical term 96 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 96 is vital for debugging scale-out fabrics.
-
-**Term 97:** Detailed explanation for technical term 97 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 97 is vital for debugging scale-out fabrics.
-
-**Term 98:** Detailed explanation for technical term 98 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 98 is vital for debugging scale-out fabrics.
-
-**Term 99:** Detailed explanation for technical term 99 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 99 is vital for debugging scale-out fabrics.
-
-**Term 100:** Detailed explanation for technical term 100 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 100 is vital for debugging scale-out fabrics.
-
-**Term 101:** Detailed explanation for technical term 101 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 101 is vital for debugging scale-out fabrics.
-
-**Term 102:** Detailed explanation for technical term 102 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 102 is vital for debugging scale-out fabrics.
-
-**Term 103:** Detailed explanation for technical term 103 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 103 is vital for debugging scale-out fabrics.
-
-**Term 104:** Detailed explanation for technical term 104 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 104 is vital for debugging scale-out fabrics.
-
-**Term 105:** Detailed explanation for technical term 105 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 105 is vital for debugging scale-out fabrics.
-
-**Term 106:** Detailed explanation for technical term 106 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 106 is vital for debugging scale-out fabrics.
-
-**Term 107:** Detailed explanation for technical term 107 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 107 is vital for debugging scale-out fabrics.
-
-**Term 108:** Detailed explanation for technical term 108 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 108 is vital for debugging scale-out fabrics.
-
-**Term 109:** Detailed explanation for technical term 109 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 109 is vital for debugging scale-out fabrics.
-
-**Term 110:** Detailed explanation for technical term 110 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 110 is vital for debugging scale-out fabrics.
-
-**Term 111:** Detailed explanation for technical term 111 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 111 is vital for debugging scale-out fabrics.
-
-**Term 112:** Detailed explanation for technical term 112 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 112 is vital for debugging scale-out fabrics.
-
-**Term 113:** Detailed explanation for technical term 113 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 113 is vital for debugging scale-out fabrics.
-
-**Term 114:** Detailed explanation for technical term 114 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 114 is vital for debugging scale-out fabrics.
-
-**Term 115:** Detailed explanation for technical term 115 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 115 is vital for debugging scale-out fabrics.
-
-**Term 116:** Detailed explanation for technical term 116 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 116 is vital for debugging scale-out fabrics.
-
-**Term 117:** Detailed explanation for technical term 117 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 117 is vital for debugging scale-out fabrics.
-
-**Term 118:** Detailed explanation for technical term 118 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 118 is vital for debugging scale-out fabrics.
-
-**Term 119:** Detailed explanation for technical term 119 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 119 is vital for debugging scale-out fabrics.
-
-**Term 120:** Detailed explanation for technical term 120 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 120 is vital for debugging scale-out fabrics.
-
-**Term 121:** Detailed explanation for technical term 121 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 121 is vital for debugging scale-out fabrics.
-
-**Term 122:** Detailed explanation for technical term 122 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 122 is vital for debugging scale-out fabrics.
-
-**Term 123:** Detailed explanation for technical term 123 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 123 is vital for debugging scale-out fabrics.
-
-**Term 124:** Detailed explanation for technical term 124 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 124 is vital for debugging scale-out fabrics.
-
-**Term 125:** Detailed explanation for technical term 125 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 125 is vital for debugging scale-out fabrics.
-
-**Term 126:** Detailed explanation for technical term 126 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 126 is vital for debugging scale-out fabrics.
-
-**Term 127:** Detailed explanation for technical term 127 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 127 is vital for debugging scale-out fabrics.
-
-**Term 128:** Detailed explanation for technical term 128 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 128 is vital for debugging scale-out fabrics.
-
-**Term 129:** Detailed explanation for technical term 129 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 129 is vital for debugging scale-out fabrics.
-
-**Term 130:** Detailed explanation for technical term 130 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 130 is vital for debugging scale-out fabrics.
-
-**Term 131:** Detailed explanation for technical term 131 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 131 is vital for debugging scale-out fabrics.
-
-**Term 132:** Detailed explanation for technical term 132 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 132 is vital for debugging scale-out fabrics.
-
-**Term 133:** Detailed explanation for technical term 133 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 133 is vital for debugging scale-out fabrics.
-
-**Term 134:** Detailed explanation for technical term 134 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 134 is vital for debugging scale-out fabrics.
-
-**Term 135:** Detailed explanation for technical term 135 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 135 is vital for debugging scale-out fabrics.
-
-**Term 136:** Detailed explanation for technical term 136 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 136 is vital for debugging scale-out fabrics.
-
-**Term 137:** Detailed explanation for technical term 137 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 137 is vital for debugging scale-out fabrics.
-
-**Term 138:** Detailed explanation for technical term 138 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 138 is vital for debugging scale-out fabrics.
-
-**Term 139:** Detailed explanation for technical term 139 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 139 is vital for debugging scale-out fabrics.
-
-**Term 140:** Detailed explanation for technical term 140 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 140 is vital for debugging scale-out fabrics.
-
-**Term 141:** Detailed explanation for technical term 141 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 141 is vital for debugging scale-out fabrics.
-
-**Term 142:** Detailed explanation for technical term 142 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 142 is vital for debugging scale-out fabrics.
-
-**Term 143:** Detailed explanation for technical term 143 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 143 is vital for debugging scale-out fabrics.
-
-**Term 144:** Detailed explanation for technical term 144 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 144 is vital for debugging scale-out fabrics.
-
-**Term 145:** Detailed explanation for technical term 145 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 145 is vital for debugging scale-out fabrics.
-
-**Term 146:** Detailed explanation for technical term 146 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 146 is vital for debugging scale-out fabrics.
-
-**Term 147:** Detailed explanation for technical term 147 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 147 is vital for debugging scale-out fabrics.
-
-**Term 148:** Detailed explanation for technical term 148 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 148 is vital for debugging scale-out fabrics.
-
-**Term 149:** Detailed explanation for technical term 149 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 149 is vital for debugging scale-out fabrics.
-
-**Term 150:** Detailed explanation for technical term 150 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 150 is vital for debugging scale-out fabrics.
 
 
 ## Appendix E: Generational Architecture Deep Dive (Pascal to Blackwell)

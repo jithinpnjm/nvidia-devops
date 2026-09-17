@@ -83,12 +83,12 @@ graph LR
         HCAB[RDMA NIC]
     end
     
-    AppA -.->|Registers Memory| HCAA
-    AppB -.->|Registers Memory| HCAB
+    AppA -. "Registers Memory" .-> HCAA
+    AppB -. "Registers Memory" .-> HCAB
     
-    HCAA <==>|Zero-Copy Network Transfer| HCAB
-    MemA <-->|PCIe DMA| HCAA
-    HCAB <-->|PCIe DMA| MemB
+    HCAA === "Zero-Copy Network Transfer" === HCAB
+    MemA --- "PCIe DMA" --- HCAA
+    HCAB --- "PCIe DMA" --- MemB
 ```
 
 **Key RDMA Concepts:**
@@ -200,19 +200,19 @@ graph TD
         G2_8[GPU 8/NIC 8]
     end
     
-    G1_1 <--> L1
-    G2_1 <--> L1
+    G1_1 --- L1
+    G2_1 --- L1
     
-    G1_2 <--> L2
-    G2_2 <--> L2
+    G1_2 --- L2
+    G2_2 --- L2
     
-    G1_8 <--> L8
-    G2_8 <--> L8
+    G1_8 --- L8
+    G2_8 --- L8
     
-    L1 <--> S1
-    L1 <--> S2
-    L2 <--> S1
-    L8 <--> S8
+    L1 --- S1
+    L1 --- S2
+    L2 --- S1
+    L8 --- S8
 ```
 
 ### 4.2 Compute vs. Storage/Management Fabrics
@@ -226,7 +226,9 @@ AI clusters physically separate traffic types:
 ## 5. Operations: Configuring and Validating the Network
 
 ### 5.1 Verifying RDMA NICs (ibstat)
+:::tip
 The fundamental tool for checking RDMA interface status is `ibstat` or `ibv_devinfo`.
+:::
 
 ```bash
 # Check the status of Mellanox/NVIDIA NICs
@@ -331,7 +333,9 @@ switch (config) # interface ethernet 1/1-1/32 traffic-class 3 bind strict-priori
 ## 6. Advanced Troubleshooting & Production Scenarios
 
 ### 6.1 The PFC Deadlock Scenario
-**The Problem:** In RoCE networks, PFC creates a mechanism where Switch A tells Switch B to stop sending. If a loop occurs, or due to severe congestion patterns, Switch B tells Switch C to stop, C tells D, and D tells A. You now have a cyclical buffer dependency. No traffic moves. The network is deadlocked.
+:::warning
+In RoCE networks, PFC creates a mechanism where Switch A tells Switch B to stop sending. If a loop occurs, or due to severe congestion patterns, Switch B tells Switch C to stop, C tells D, and D tells A. You now have a cyclical buffer dependency. No traffic moves. The network is deadlocked.
+:::
 
 **Symptoms:**
 - GPU workloads completely hang (0% GPU utilization, infinite runtime).
@@ -448,624 +452,74 @@ Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets
 
 ## Deep Dive: Additional Diagnostic Workflows
 
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
 
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
+## Deep Dive: Additional Diagnostic Workflows
 
 
 ## Deep Dive: Additional Diagnostic Workflows
 
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
 
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
+## Deep Dive: Additional Diagnostic Workflows
 
 
 ## Deep Dive: Additional Diagnostic Workflows
 
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
 
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
+## Deep Dive: Additional Diagnostic Workflows
 
 
 ## Deep Dive: Additional Diagnostic Workflows
 
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
 
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
+## Deep Dive: Additional Diagnostic Workflows
 
 
 ## Deep Dive: Additional Diagnostic Workflows
 
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
 
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
+## Deep Dive: Additional Diagnostic Workflows
 
 
 ## Deep Dive: Additional Diagnostic Workflows
 
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
 
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
+## Deep Dive: Additional Diagnostic Workflows
 
 
 ## Deep Dive: Additional Diagnostic Workflows
 
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
 
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
+## Deep Dive: Additional Diagnostic Workflows
 
 
 ## Deep Dive: Additional Diagnostic Workflows
 
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
 
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
+## Deep Dive: Additional Diagnostic Workflows
 
 
 ## Deep Dive: Additional Diagnostic Workflows
 
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
 
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
+## Deep Dive: Additional Diagnostic Workflows
 
 
 ## Deep Dive: Additional Diagnostic Workflows
 
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
 
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
+## Deep Dive: Additional Diagnostic Workflows
 
 
 ## Deep Dive: Additional Diagnostic Workflows
 
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
 
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
+## Deep Dive: Additional Diagnostic Workflows
 
 
 ## Deep Dive: Additional Diagnostic Workflows
 
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
-
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
-
 
 ## Deep Dive: Additional Diagnostic Workflows
 
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
-
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
-
 
 ## Deep Dive: Additional Diagnostic Workflows
-
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
-
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
-
-
-## Deep Dive: Additional Diagnostic Workflows
-
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
-
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
-
-
-## Deep Dive: Additional Diagnostic Workflows
-
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
-
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
-
-
-## Deep Dive: Additional Diagnostic Workflows
-
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
-
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
-
-
-## Deep Dive: Additional Diagnostic Workflows
-
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
-
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
-
-
-## Deep Dive: Additional Diagnostic Workflows
-
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
-
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
-
-
-## Deep Dive: Additional Diagnostic Workflows
-
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
-
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
-
-
-## Deep Dive: Additional Diagnostic Workflows
-
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
-
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
-
-
-## Deep Dive: Additional Diagnostic Workflows
-
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
-
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
-
-
-## Deep Dive: Additional Diagnostic Workflows
-
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
-
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
-
-
-## Deep Dive: Additional Diagnostic Workflows
-
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
-
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
-
-
-## Deep Dive: Additional Diagnostic Workflows
-
-### Diagnosing Link Layer Retransmissions
-When operating InfiniBand or RoCEv2, the link layer health is paramount.
-Link level retries occur when the physical layer fails to successfully deliver the frame.
-Use `ibportstate` to query the specific counters:
-```bash
-ibportstate 1 1
-```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
-- Dirty or damaged fiber optic ends.
-- Failing optical transceivers.
-- Bad seating of the transceiver in the switch or NIC port.
-Always replace cables and transceivers systematically and verify the counters have stabilized.
-
-### Hardware Offload Verification
-Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
-```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
-```
-Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
-For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.

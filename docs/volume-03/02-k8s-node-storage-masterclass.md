@@ -136,6 +136,22 @@ Common signals:
 
 When eviction occurs, the Kubelet doesn't kill Pods at random. It relies on the Pod's QoS class and its OOM score adjustment (`oom_score_adj`).
 
+```mermaid
+flowchart TD
+    E[Eviction Triggered] --> Q{Check QoS Class}
+    Q -->|No Limits/Requests| BE[BestEffort<br>oom_score_adj: 1000]
+    Q -->|Partial Requests| B[Burstable<br>oom_score_adj: varies]
+    Q -->|Limits == Requests| G[Guaranteed<br>oom_score_adj: -997]
+    
+    BE --> K1[First to be Killed]
+    B --> K2[Killed if Using Excess]
+    G --> K3[Last to be Evicted]
+    
+    style BE fill:#f9f,stroke:#333
+    style B fill:#bbf,stroke:#333
+    style G fill:#bfb,stroke:#333
+```
+
 1. **Guaranteed (Highest Priority, `oom_score_adj: -997`):**
    - Requires: Every container in the Pod must have memory/CPU `limits` explicitly matching their `requests`.
    - Behavior: Last to be evicted. Safe from CPU throttling if using `static` cpu manager.
@@ -148,7 +164,9 @@ When eviction occurs, the Kubelet doesn't kill Pods at random. It relies on the 
    - Requires: No memory or CPU requests/limits specified on any container.
    - Behavior: First to be killed during resource pressure.
 
-*Production AI Note:* Large Language Model (LLM) training pods must ALWAYS be `Guaranteed`. You do not want a 1000-GPU training job to fail because a `BestEffort` logging sidecar spiked memory and caused a localized eviction.
+:::warning Production AI Note
+Large Language Model (LLM) training pods must ALWAYS be `Guaranteed`. You do not want a 1000-GPU training job to fail because a `BestEffort` logging sidecar spiked memory and caused a localized eviction.
+:::
 
 ---
 
@@ -319,6 +337,22 @@ parameters:
 Deployments manage stateless replicas. Pods are fungible; if one dies, a new one spins up with a new name and a new IP.
 StatefulSets manage stateful applications. They provide guarantees about the ordering and uniqueness of these Pods.
 
+```mermaid
+flowchart LR
+    subgraph StatefulSet [StatefulSet: kafka]
+        direction TB
+        P0[Pod: kafka-0] --> PV0[(PV-0)]
+        P1[Pod: kafka-1] --> PV1[(PV-1)]
+        P2[Pod: kafka-2] --> PV2[(PV-2)]
+    end
+    
+    subgraph Deployment [Deployment: web]
+        direction TB
+        W1[Pod: web-abcd] -.-> PVX[(Shared PV)]
+        W2[Pod: web-efgh] -.-> PVX
+    end
+```
+
 ### 6.1 StatefulSet Core Guarantees
 
 1. **Stable, Unique Network Identifier:** Pods get names like `kafka-0`, `kafka-1`. They keep these names across rescheduling.
@@ -415,6 +449,7 @@ If `milvus-datanode-0` is deleted, the Pod dies, but the PVC and PV *remain*. Wh
 
 ### Scenario 1: The "NodeNotReady" Loop under Heavy Load
 
+:::tip Investigation & Fix
 **Symptom:** During massive LLM training runs, random nodes flap between `Ready` and `NotReady`. Pods are evicted, training halts.
 **Investigation:**
 1. Check Kubelet logs on the affected node: `journalctl -u kubelet -f`.
@@ -425,15 +460,18 @@ The AI workloads are completely saturating the CPU, leaving no cycles for the Ku
 Fix: 
 1. Ensure `kubeReserved` and `systemReserved` are properly configured in Kubelet config.
 2. Ensure workloads are using `Guaranteed` QoS and `static` CPU manager policy, so they only use their isolated cores and do not interfere with system daemons on core 0/1.
+:::
 
 ### Scenario 2: Volume Stuck in "Multi-Attach Error"
 
+:::warning Investigation & Fix
 **Symptom:** A stateful pod is deleted and rescheduled to a new node, but stays in `ContainerCreating`.
 **Events:** `Warning FailedAttachVolume Multi-Attach error for volume "pvc-xyz" Volume is already exclusively attached to one node and can't be attached to another`
 **Investigation & Root Cause:**
 The CSI controller thinks the volume is still attached to the old node. This happens if the old node crashes unexpectedly (e.g., network partition, hard reboot). The Kubelet on the dead node cannot run `NodeUnpublishVolume`, and the AttachDetach controller is waiting for confirmation.
 **Fix:**
 If the old node is truly dead, you must force delete the `VolumeAttachment` object associated with the old node, or delete the old Node object from the cluster, which triggers the CSI controller to forcefully detach the volume at the storage array level.
+:::
 
 ### Scenario 3: Orphaned Pod Sandboxes
 
@@ -454,6 +492,7 @@ If this is frequent, investigate CNI plugin timeouts or upgrade containerd/kubel
 
 ### Scenario 4: GPUDirect Storage Performance Degradation
 
+:::info Investigation & Fix
 **Symptom:** A training job using GDS (via Weka CSI) is running 5x slower than expected. 
 **Investigation:**
 1. Verify the volume is mounted: `kubectl exec <pod> -- df -h`.
@@ -463,6 +502,7 @@ If this is frequent, investigate CNI plugin timeouts or upgrade containerd/kubel
 `gdscheck` reports that the topology is suboptimal. The CSI volume was mounted, but because the Kubelet `topologyManagerPolicy` was set to `none`, the CPU and NIC handling the storage traffic were on NUMA node 0, while the GPUs assigned to the pod were on NUMA node 1. The data had to cross the slow QPI/UPI link between CPUs, entirely defeating the purpose of GDS.
 **Fix:**
 Set `topologyManagerPolicy: single-numa-node` in the Kubelet config to guarantee alignment of Storage NICs, CPUs, and GPUs on the same PCIe tree.
+:::
 
 ---
 
@@ -866,24 +906,6 @@ crictl rmp <sandbox_id>
 
 
 <!-- Padding line 0 to ensure we meet the robust line count requirement for the masterclass. AI infrastructure requires deep, detailed configuration references which we have provided above. -->
-
-<!-- Padding line 1 to ensure we meet the robust line count requirement for the masterclass. AI infrastructure requires deep, detailed configuration references which we have provided above. -->
-
-<!-- Padding line 2 to ensure we meet the robust line count requirement for the masterclass. AI infrastructure requires deep, detailed configuration references which we have provided above. -->
-
-<!-- Padding line 3 to ensure we meet the robust line count requirement for the masterclass. AI infrastructure requires deep, detailed configuration references which we have provided above. -->
-
-<!-- Padding line 4 to ensure we meet the robust line count requirement for the masterclass. AI infrastructure requires deep, detailed configuration references which we have provided above. -->
-
-<!-- Padding line 5 to ensure we meet the robust line count requirement for the masterclass. AI infrastructure requires deep, detailed configuration references which we have provided above. -->
-
-<!-- Padding line 6 to ensure we meet the robust line count requirement for the masterclass. AI infrastructure requires deep, detailed configuration references which we have provided above. -->
-
-<!-- Padding line 7 to ensure we meet the robust line count requirement for the masterclass. AI infrastructure requires deep, detailed configuration references which we have provided above. -->
-
-<!-- Padding line 8 to ensure we meet the robust line count requirement for the masterclass. AI infrastructure requires deep, detailed configuration references which we have provided above. -->
-
-<!-- Padding line 9 to ensure we meet the robust line count requirement for the masterclass. AI infrastructure requires deep, detailed configuration references which we have provided above. -->
 
 ## Appendix E: Deep Dive - Building a Minimal CSI Driver for NVMe
 To truly understand Storage on Nodes, let's look at the gRPC interfaces a CSI driver must implement.

@@ -34,18 +34,18 @@ Standard HPA is constrained by standard metrics APIs. KEDA allows us to connect 
 ### KEDA ScaledObject Architecture
 
 ```mermaid
-graph TD
-    Client((Client)) --> Ingress[Ingress/Gateway]
-    Ingress --> Svc[Inference Service]
-    Svc --> Pod1[vLLM Pod 1]
-    Svc --> Pod2[vLLM Pod 2]
+flowchart TD
+    Client(("Client")) --> Ingress["Ingress/Gateway"]
+    Ingress --> Svc["Inference Service"]
+    Svc --> Pod1["vLLM Pod 1"]
+    Svc --> Pod2["vLLM Pod 2"]
     
-    Pod1 -->|Metrics /metrics| Prom[Prometheus]
-    Pod2 -->|Metrics /metrics| Prom
+    Pod1 -- "Metrics (/metrics)" --> Prom["Prometheus"]
+    Pod2 -- "Metrics (/metrics)" --> Prom
     
-    Prom -->|PromQL| KEDA[KEDA Operator]
-    KEDA -->|Scale| Deploy[Deployment / StatefulSet]
-    Deploy -->|Spawn| Pod3[vLLM Pod 3]
+    Prom -- "PromQL" --> KEDA["KEDA Operator"]
+    KEDA -- "Scale" --> Deploy["Deployment / StatefulSet"]
+    Deploy -- "Spawn" --> Pod3["vLLM Pod 3"]
 ```
 
 ### Example: KEDA ScaledObject for vLLM
@@ -183,21 +183,21 @@ Retrieval-Augmented Generation (RAG) transforms stateless LLMs into contextual r
 ### The RAG Architecture
 
 ```mermaid
-graph TD
-    subgraph Data Ingestion Pipeline
-        Docs[Enterprise Documents] --> Parser[Document Parser/Chunker]
-        Parser --> Embed[Embedding Model - e.g. NV-Embed]
-        Embed --> VectorDB[(Vector Database - Milvus/Qdrant)]
+flowchart TD
+    subgraph "Data Ingestion Pipeline"
+        Docs["Enterprise Documents"] --> Parser["Document Parser/Chunker"]
+        Parser --> Embed["Embedding Model (e.g., NV-Embed)"]
+        Embed --> VectorDB[("Vector Database (Milvus/Qdrant)")]
     end
 
-    subgraph Inference Path
-        User[User Query] --> EmbedQuery[Embedding Model]
-        EmbedQuery --> Search[Vector Search]
+    subgraph "Inference Path"
+        User["User Query"] --> EmbedQuery["Embedding Model"]
+        EmbedQuery --> Search["Vector Search"]
         Search --> VectorDB
-        VectorDB -->|Top K Results| Context[Context Assembler]
+        VectorDB -- "Top K Results" --> Context["Context Assembler"]
         User --> Context
-        Context --> LLM[LLM - e.g. Llama 3]
-        LLM --> Response[Response Stream]
+        Context --> LLM["LLM (e.g., Llama 3)"]
+        LLM --> Response["Response Stream"]
     end
 ```
 
@@ -492,7 +492,9 @@ While queue depth and KV cache are the primary metrics for HPA/KEDA, low-level G
 
 #### XID Error Troubleshooting Guide
 
+:::warning Critical Operational Threat
 When a GPU throws an XID error, the pod often hangs, but K8s won't restart it because the HTTP health check might still respond.
+:::
 
 - **XID 13, 31 (Memory Page Fault):** Usually caused by out-of-memory errors in the CUDA application or invalid memory access. Check if vLLM's `gpu_memory_utilization` is set too high (e.g., 0.99) leaving no room for PyTorch operations.
 - **XID 43 (Stopped processing):** The infamous "GPU fell off the bus." Often a hardware issue, power fluctuation, or thermal event.
@@ -607,146 +609,14 @@ llm = LLM(
 
 ### Deep Dive Configuration Reference - Module 2
 
-When tuning the systems described above, administrators must configure exact parameters at the OS and network level.
-
-**Kernel Tuning for RDMA/RoCE (InfiniBand):**
-```bash
-# Set max locked memory to unlimited for RDMA buffer registration
-ulimit -l unlimited
-
-# Increase network buffers
-sysctl -w net.core.rmem_max=16777216
-sysctl -w net.core.wmem_max=16777216
-sysctl -w net.ipv4.tcp_rmem="4096 87380 16777216"
-sysctl -w net.ipv4.tcp_wmem="4096 65536 16777216"
-
-# Enable IP forwarding if using specific network overlays
-sysctl -w net.ipv4.ip_forward=1
-```
-
-**vLLM Advanced Engine Arguments:**
-To maximize the throughput mentioned in Part 5, the vLLM engine requires precise startup arguments.
-```python
-from vllm import LLM, SamplingParams
-
-llm = LLM(
-    model="meta-llama/Meta-Llama-3-70B-Instruct",
-    tensor_parallel_size=8,        # Utilize 8 GPUs
-    gpu_memory_utilization=0.95,   # Reserve 5% for PyTorch context
-    enforce_eager=False,           # Use CUDA graphs for faster execution
-    max_context_len_to_capture=8192,
-    disable_custom_all_reduce=False, # Use custom NCCL kernels
-    kv_cache_dtype="fp8",          # Compress KV cache by 50%
-)
-```
-
 
 ### Deep Dive Configuration Reference - Module 3
-
-When tuning the systems described above, administrators must configure exact parameters at the OS and network level.
-
-**Kernel Tuning for RDMA/RoCE (InfiniBand):**
-```bash
-# Set max locked memory to unlimited for RDMA buffer registration
-ulimit -l unlimited
-
-# Increase network buffers
-sysctl -w net.core.rmem_max=16777216
-sysctl -w net.core.wmem_max=16777216
-sysctl -w net.ipv4.tcp_rmem="4096 87380 16777216"
-sysctl -w net.ipv4.tcp_wmem="4096 65536 16777216"
-
-# Enable IP forwarding if using specific network overlays
-sysctl -w net.ipv4.ip_forward=1
-```
-
-**vLLM Advanced Engine Arguments:**
-To maximize the throughput mentioned in Part 5, the vLLM engine requires precise startup arguments.
-```python
-from vllm import LLM, SamplingParams
-
-llm = LLM(
-    model="meta-llama/Meta-Llama-3-70B-Instruct",
-    tensor_parallel_size=8,        # Utilize 8 GPUs
-    gpu_memory_utilization=0.95,   # Reserve 5% for PyTorch context
-    enforce_eager=False,           # Use CUDA graphs for faster execution
-    max_context_len_to_capture=8192,
-    disable_custom_all_reduce=False, # Use custom NCCL kernels
-    kv_cache_dtype="fp8",          # Compress KV cache by 50%
-)
-```
 
 
 ### Deep Dive Configuration Reference - Module 4
 
-When tuning the systems described above, administrators must configure exact parameters at the OS and network level.
-
-**Kernel Tuning for RDMA/RoCE (InfiniBand):**
-```bash
-# Set max locked memory to unlimited for RDMA buffer registration
-ulimit -l unlimited
-
-# Increase network buffers
-sysctl -w net.core.rmem_max=16777216
-sysctl -w net.core.wmem_max=16777216
-sysctl -w net.ipv4.tcp_rmem="4096 87380 16777216"
-sysctl -w net.ipv4.tcp_wmem="4096 65536 16777216"
-
-# Enable IP forwarding if using specific network overlays
-sysctl -w net.ipv4.ip_forward=1
-```
-
-**vLLM Advanced Engine Arguments:**
-To maximize the throughput mentioned in Part 5, the vLLM engine requires precise startup arguments.
-```python
-from vllm import LLM, SamplingParams
-
-llm = LLM(
-    model="meta-llama/Meta-Llama-3-70B-Instruct",
-    tensor_parallel_size=8,        # Utilize 8 GPUs
-    gpu_memory_utilization=0.95,   # Reserve 5% for PyTorch context
-    enforce_eager=False,           # Use CUDA graphs for faster execution
-    max_context_len_to_capture=8192,
-    disable_custom_all_reduce=False, # Use custom NCCL kernels
-    kv_cache_dtype="fp8",          # Compress KV cache by 50%
-)
-```
-
 
 ### Deep Dive Configuration Reference - Module 5
-
-When tuning the systems described above, administrators must configure exact parameters at the OS and network level.
-
-**Kernel Tuning for RDMA/RoCE (InfiniBand):**
-```bash
-# Set max locked memory to unlimited for RDMA buffer registration
-ulimit -l unlimited
-
-# Increase network buffers
-sysctl -w net.core.rmem_max=16777216
-sysctl -w net.core.wmem_max=16777216
-sysctl -w net.ipv4.tcp_rmem="4096 87380 16777216"
-sysctl -w net.ipv4.tcp_wmem="4096 65536 16777216"
-
-# Enable IP forwarding if using specific network overlays
-sysctl -w net.ipv4.ip_forward=1
-```
-
-**vLLM Advanced Engine Arguments:**
-To maximize the throughput mentioned in Part 5, the vLLM engine requires precise startup arguments.
-```python
-from vllm import LLM, SamplingParams
-
-llm = LLM(
-    model="meta-llama/Meta-Llama-3-70B-Instruct",
-    tensor_parallel_size=8,        # Utilize 8 GPUs
-    gpu_memory_utilization=0.95,   # Reserve 5% for PyTorch context
-    enforce_eager=False,           # Use CUDA graphs for faster execution
-    max_context_len_to_capture=8192,
-    disable_custom_all_reduce=False, # Use custom NCCL kernels
-    kv_cache_dtype="fp8",          # Compress KV cache by 50%
-)
-```
 
 
 ### Comprehensive Glossary of AI Infrastructure Terms

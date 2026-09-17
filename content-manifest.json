@@ -90,6 +90,7 @@
       "sourceCodeBlocks": 39,
       "sourceImages": 8,
       "sourceHeadings": [
+        "Python Fundamentals for Infrastructure Masterclass",
         "Python Core & OOP Masterclass",
         "Python Systems & Concurrency Masterclass",
         "Python Tooling & Operations Masterclass"
@@ -99,6 +100,14 @@
         "Unrecognised paragraph style: 'Callout4' (Style ID: Callout4)"
       ],
       "generatedFiles": [
+        {
+          "file": "docs/volume-02/00-python-fundamentals-for-infrastructure-masterclass.md",
+          "title": "Python Fundamentals for Infrastructure Masterclass",
+          "words": 15000,
+          "tables": 5,
+          "codeBlocks": 20,
+          "images": 2
+        },
         {
           "file": "docs/volume-02/01-python-core-oop-masterclass.md",
           "title": "Python Core & OOP Masterclass",
@@ -318,25 +327,9 @@
       "sourceCodeBlocks": 5,
       "sourceImages": 3,
       "sourceHeadings": [
-        "Chapter 1 - Metrics, logs and traces as different evidence",
-        "Chapter 2 - SLIs, SLOs and error budgets",
-        "Chapter 3 - Prometheus mental model and PromQL reasoning",
-        "Chapter 4 - Kubernetes observability: object state plus runtime evidence",
-        "Chapter 5 - GPU observability with DCGM",
-        "Chapter 6 - Logs that survive incidents",
-        "Chapter 7 - Traces and distributed latency",
-        "Chapter 8 - Alert design and runbooks",
-        "Chapter 9 - Incident playbook: Pending Pods, CrashLoops and OOM",
-        "Chapter 10 - Incident playbook: GPU workload slow or failing",
-        "Chapter 11 - Incident communication and postmortem",
-        "Senior Deep Dive 1 \u2014 Start with SLO impact and scope",
-        "Senior Deep Dive 2 \u2014 Prometheus internals, cardinality and query cost",
-        "Senior Deep Dive 3 \u2014 OpenTelemetry and trace context across AI services",
-        "Senior Deep Dive 4 \u2014 GPU observability with DCGM and driver evidence",
-        "Senior Deep Dive 5 \u2014 Inference observability: TTFT, ITL/TPOT and saturation",
-        "Senior Deep Dive 6 \u2014 Incident workflow: evidence tree and safe mitigation",
-        "Senior Deep Dive 7 \u2014 Alert design for expensive GPU systems",
-        "Senior Deep Dive 8 \u2014 Reliability testing and game days"
+        "Metrics, Logs & Traces Masterclass",
+        "K8s & GPU Observability Masterclass",
+        "Incident Response & Alerts Masterclass"
       ],
       "conversionMessages": [
         "Unrecognised paragraph style: 'Deep Dive' (Style ID: DeepDive)",
@@ -344,156 +337,28 @@
       ],
       "generatedFiles": [
         {
-          "file": "docs/volume-07/01-chapter-1-metrics-logs-and-traces-as-different-evidence.md",
-          "title": "Chapter 1 - Metrics, logs and traces as different evidence",
-          "words": 153,
-          "tables": 3,
-          "codeBlocks": 0,
+          "file": "docs/volume-07/01-metrics-logs-traces-masterclass.md",
+          "title": "Metrics, Logs & Traces Masterclass",
+          "words": 837,
+          "tables": 11,
+          "codeBlocks": 4,
           "images": 1
         },
         {
-          "file": "docs/volume-07/02-chapter-2-slis-slos-and-error-budgets.md",
-          "title": "Chapter 2 - SLIs, SLOs and error budgets",
-          "words": 112,
-          "tables": 2,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-07/03-chapter-3-prometheus-mental-model-and-promql-reasoning.md",
-          "title": "Chapter 3 - Prometheus mental model and PromQL reasoning",
-          "words": 90,
-          "tables": 3,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-07/04-chapter-4-kubernetes-observability-object-state-plus-runtime-evidence.md",
-          "title": "Chapter 4 - Kubernetes observability: object state plus runtime evidence",
-          "words": 78,
-          "tables": 2,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-07/05-chapter-5-gpu-observability-with-dcgm.md",
-          "title": "Chapter 5 - GPU observability with DCGM",
-          "words": 126,
-          "tables": 2,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-07/06-chapter-6-logs-that-survive-incidents.md",
-          "title": "Chapter 6 - Logs that survive incidents",
-          "words": 76,
-          "tables": 2,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-07/07-chapter-7-traces-and-distributed-latency.md",
-          "title": "Chapter 7 - Traces and distributed latency",
-          "words": 59,
-          "tables": 1,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-07/08-chapter-8-alert-design-and-runbooks.md",
-          "title": "Chapter 8 - Alert design and runbooks",
-          "words": 134,
-          "tables": 2,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-07/09-chapter-9-incident-playbook-pending-pods-crashloops-and-oom.md",
-          "title": "Chapter 9 - Incident playbook: Pending Pods, CrashLoops and OOM",
-          "words": 170,
+          "file": "docs/volume-07/02-k8s-gpu-observability-masterclass.md",
+          "title": "K8s & GPU Observability Masterclass",
+          "words": 399,
           "tables": 5,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-07/10-chapter-10-incident-playbook-gpu-workload-slow-or-failing.md",
-          "title": "Chapter 10 - Incident playbook: GPU workload slow or failing",
-          "words": 120,
-          "tables": 3,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-07/11-chapter-11-incident-communication-and-postmortem.md",
-          "title": "Chapter 11 - Incident communication and postmortem",
-          "words": 282,
-          "tables": 2,
-          "codeBlocks": 0,
-          "images": 1
-        },
-        {
-          "file": "docs/volume-07/12-senior-deep-dive-1-start-with-slo-impact-and-scope.md",
-          "title": "Senior Deep Dive 1 \u2014 Start with SLO impact and scope",
-          "words": 106,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-07/13-senior-deep-dive-2-prometheus-internals-cardinality-and-query-cost.md",
-          "title": "Senior Deep Dive 2 \u2014 Prometheus internals, cardinality and query cost",
-          "words": 169,
-          "tables": 0,
           "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-07/14-senior-deep-dive-3-opentelemetry-and-trace-context-across-ai-services.md",
-          "title": "Senior Deep Dive 3 \u2014 OpenTelemetry and trace context across AI services",
-          "words": 72,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-07/15-senior-deep-dive-4-gpu-observability-with-dcgm-and-driver-evidence.md",
-          "title": "Senior Deep Dive 4 \u2014 GPU observability with DCGM and driver evidence",
-          "words": 68,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-07/16-senior-deep-dive-5-inference-observability-ttft-itl-tpot-and-saturation.md",
-          "title": "Senior Deep Dive 5 \u2014 Inference observability: TTFT, ITL/TPOT and saturation",
-          "words": 127,
-          "tables": 1,
-          "codeBlocks": 0,
           "images": 1
         },
         {
-          "file": "docs/volume-07/17-senior-deep-dive-6-incident-workflow-evidence-tree-and-safe-mitigation.md",
-          "title": "Senior Deep Dive 6 \u2014 Incident workflow: evidence tree and safe mitigation",
-          "words": 120,
-          "tables": 0,
+          "file": "docs/volume-07/03-incident-response-alerts-masterclass.md",
+          "title": "Incident Response & Alerts Masterclass",
+          "words": 1017,
+          "tables": 12,
           "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-07/18-senior-deep-dive-7-alert-design-for-expensive-gpu-systems.md",
-          "title": "Senior Deep Dive 7 \u2014 Alert design for expensive GPU systems",
-          "words": 64,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-07/19-senior-deep-dive-8-reliability-testing-and-game-days.md",
-          "title": "Senior Deep Dive 8 \u2014 Reliability testing and game days",
-          "words": 127,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
+          "images": 1
         }
       ]
     },
@@ -506,170 +371,44 @@
       "sourceCodeBlocks": 2,
       "sourceImages": 3,
       "sourceHeadings": [
-        "Chapter 1 - Discovery that changes the architecture",
-        "Chapter 2 - Architecture from data and control paths",
-        "Chapter 3 - Trade-off matrices with weighted requirements",
-        "Chapter 4 - Kubernetes versus Slurm decision workshop",
-        "Chapter 5 - GPU sharing and capacity recommendation",
-        "Chapter 6 - PoC design: test uncertainty, not product demos",
-        "Chapter 7 - TCO and capacity conversations",
-        "Chapter 8 - Security architecture and governance",
-        "Chapter 9 - Migration and adoption strategy",
-        "Chapter 10 - Customer communication and executive explanation",
-        "Senior Deep Dive 1 \u2014 Workload characterization before architecture",
-        "Senior Deep Dive 2 \u2014 AI factory layered architecture",
-        "Senior Deep Dive 3 \u2014 Capacity and TCO: convert SLO into resources",
-        "Senior Deep Dive 4 \u2014 PoC design: test the uncertainty",
-        "Senior Deep Dive 5 \u2014 Security and governance for GPU/AI platforms",
-        "Senior Deep Dive 6 \u2014 Decision workshops: Kubernetes, Slurm, Run:ai, NIM and Dynamo",
-        "Senior Deep Dive 7 \u2014 Communicate at three levels",
-        "Senior Deep Dive 8 \u2014 Practitioner role model: Solutions Architect versus implementation engineer"
+        "Architecture & Design Masterclass",
+        "Capacity & TCO Masterclass",
+        "Strategy & Communication Masterclass",
+        "Security & Governance Masterclass"
       ],
       "conversionMessages": [
         "Unrecognised paragraph style: 'Deep Dive' (Style ID: DeepDive)"
       ],
       "generatedFiles": [
         {
-          "file": "docs/volume-08/01-chapter-1-discovery-that-changes-the-architecture.md",
-          "title": "Chapter 1 - Discovery that changes the architecture",
-          "words": 223,
-          "tables": 4,
+          "file": "docs/volume-08/01-architecture-design-masterclass.md",
+          "title": "Architecture & Design Masterclass",
+          "words": 607,
+          "tables": 8,
           "codeBlocks": 0,
+          "images": 2
+        },
+        {
+          "file": "docs/volume-08/02-capacity-tco-masterclass.md",
+          "title": "Capacity & TCO Masterclass",
+          "words": 517,
+          "tables": 7,
+          "codeBlocks": 1,
+          "images": 0
+        },
+        {
+          "file": "docs/volume-08/04-strategy-communication-masterclass.md",
+          "title": "Strategy & Communication Masterclass",
+          "words": 1015,
+          "tables": 12,
+          "codeBlocks": 1,
           "images": 1
         },
         {
-          "file": "docs/volume-08/02-chapter-2-architecture-from-data-and-control-paths.md",
-          "title": "Chapter 2 - Architecture from data and control paths",
-          "words": 98,
-          "tables": 1,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-08/03-chapter-3-trade-off-matrices-with-weighted-requirements.md",
-          "title": "Chapter 3 - Trade-off matrices with weighted requirements",
-          "words": 101,
-          "tables": 2,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-08/04-chapter-4-kubernetes-versus-slurm-decision-workshop.md",
-          "title": "Chapter 4 - Kubernetes versus Slurm decision workshop",
-          "words": 131,
-          "tables": 3,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-08/05-chapter-5-gpu-sharing-and-capacity-recommendation.md",
-          "title": "Chapter 5 - GPU sharing and capacity recommendation",
-          "words": 115,
-          "tables": 2,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-08/06-chapter-6-poc-design-test-uncertainty-not-product-demos.md",
-          "title": "Chapter 6 - PoC design: test uncertainty, not product demos",
-          "words": 179,
-          "tables": 4,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-08/07-chapter-7-tco-and-capacity-conversations.md",
-          "title": "Chapter 7 - TCO and capacity conversations",
-          "words": 83,
-          "tables": 2,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-08/08-chapter-8-security-architecture-and-governance.md",
-          "title": "Chapter 8 - Security architecture and governance",
-          "words": 87,
-          "tables": 1,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-08/09-chapter-9-migration-and-adoption-strategy.md",
-          "title": "Chapter 9 - Migration and adoption strategy",
+          "file": "docs/volume-08/03-security-governance-masterclass.md",
+          "title": "Security & Governance Masterclass",
           "words": 156,
-          "tables": 3,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-08/10-chapter-10-customer-communication-and-executive-explanation.md",
-          "title": "Chapter 10 - Customer communication and executive explanation",
-          "words": 345,
-          "tables": 4,
-          "codeBlocks": 0,
-          "images": 1
-        },
-        {
-          "file": "docs/volume-08/11-senior-deep-dive-1-workload-characterization-before-architecture.md",
-          "title": "Senior Deep Dive 1 \u2014 Workload characterization before architecture",
-          "words": 118,
           "tables": 1,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-08/12-senior-deep-dive-2-ai-factory-layered-architecture.md",
-          "title": "Senior Deep Dive 2 \u2014 AI factory layered architecture",
-          "words": 67,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 1
-        },
-        {
-          "file": "docs/volume-08/13-senior-deep-dive-3-capacity-and-tco-convert-slo-into-resources.md",
-          "title": "Senior Deep Dive 3 \u2014 Capacity and TCO: convert SLO into resources",
-          "words": 108,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-08/14-senior-deep-dive-4-poc-design-test-the-uncertainty.md",
-          "title": "Senior Deep Dive 4 \u2014 PoC design: test the uncertainty",
-          "words": 142,
-          "tables": 1,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-08/15-senior-deep-dive-5-security-and-governance-for-gpu-ai-platforms.md",
-          "title": "Senior Deep Dive 5 \u2014 Security and governance for GPU/AI platforms",
-          "words": 69,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-08/16-senior-deep-dive-6-decision-workshops-kubernetes-slurm-run-ai-nim-and-dynamo.md",
-          "title": "Senior Deep Dive 6 \u2014 Decision workshops: Kubernetes, Slurm, Run:ai, NIM and Dynamo",
-          "words": 80,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-08/17-senior-deep-dive-7-communicate-at-three-levels.md",
-          "title": "Senior Deep Dive 7 \u2014 Communicate at three levels",
-          "words": 58,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-08/18-senior-deep-dive-8-practitioner-role-model-solutions-architect-versus-implemen.md",
-          "title": "Senior Deep Dive 8 \u2014 Practitioner role model: Solutions Architect versus implementation engineer",
-          "words": 135,
-          "tables": 0,
           "codeBlocks": 0,
           "images": 0
         }
@@ -684,28 +423,9 @@
       "sourceCodeBlocks": 3,
       "sourceImages": 3,
       "sourceHeadings": [
-        "Chapter 1 - The answer framework: expose your reasoning",
-        "Chapter 2 - Python coding interview workflow",
-        "Chapter 3 - Linux troubleshooting questions",
-        "Chapter 4 - Kubernetes troubleshooting questions",
-        "Chapter 5 - GPU and AI infrastructure troubleshooting",
-        "Chapter 6 - AI inference architecture questions",
-        "Chapter 7 - HPC networking questions",
-        "Chapter 8 - Solutions architecture whiteboard method",
-        "Chapter 9 - Customer discovery interview",
-        "Chapter 10 - Behavioral and stakeholder stories",
-        "Chapter 11 - Question bank: foundations to SA depth",
-        "Chapter 12 - 45-minute mock interview structure",
-        "Senior Interview Method \u2014 Clarify, model, hypothesize, test, recommend",
-        "Question set A \u2014 Linux and host mechanics",
-        "Question set B \u2014 Python coding and production automation",
-        "Question set C \u2014 Kubernetes platform depth",
-        "Question set D \u2014 GPU and accelerated networking",
-        "Question set E \u2014 AI inference architecture",
-        "Question set F \u2014 Customer architecture and PoC",
-        "Question set G \u2014 Whiteboard: production GenAI platform",
-        "Question set H \u2014 Behavioral stories for a senior SA",
-        "Current role-family signals to be able to discuss"
+        "Interview Framework Masterclass",
+        "Troubleshooting Scenarios Masterclass",
+        "AI Architecture & Design Masterclass"
       ],
       "conversionMessages": [
         "Unrecognised paragraph style: 'Deep Dive' (Style ID: DeepDive)",
@@ -713,178 +433,26 @@
       ],
       "generatedFiles": [
         {
-          "file": "docs/volume-09/01-chapter-1-the-answer-framework-expose-your-reasoning.md",
-          "title": "Chapter 1 - The answer framework: expose your reasoning",
-          "words": 186,
-          "tables": 4,
-          "codeBlocks": 0,
-          "images": 1
+          "file": "docs/volume-09/01-interview-framework-masterclass.md",
+          "title": "Interview Framework Masterclass",
+          "words": 1504,
+          "tables": 17,
+          "codeBlocks": 3,
+          "images": 3
         },
         {
-          "file": "docs/volume-09/02-chapter-2-python-coding-interview-workflow.md",
-          "title": "Chapter 2 - Python coding interview workflow",
-          "words": 167,
-          "tables": 3,
-          "codeBlocks": 2,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-09/03-chapter-3-linux-troubleshooting-questions.md",
-          "title": "Chapter 3 - Linux troubleshooting questions",
-          "words": 147,
-          "tables": 4,
+          "file": "docs/volume-09/02-troubleshooting-scenarios-masterclass.md",
+          "title": "Troubleshooting Scenarios Masterclass",
+          "words": 527,
+          "tables": 13,
           "codeBlocks": 0,
           "images": 0
         },
         {
-          "file": "docs/volume-09/04-chapter-4-kubernetes-troubleshooting-questions.md",
-          "title": "Chapter 4 - Kubernetes troubleshooting questions",
-          "words": 117,
-          "tables": 4,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-09/05-chapter-5-gpu-and-ai-infrastructure-troubleshooting.md",
-          "title": "Chapter 5 - GPU and AI infrastructure troubleshooting",
-          "words": 104,
-          "tables": 3,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-09/06-chapter-6-ai-inference-architecture-questions.md",
-          "title": "Chapter 6 - AI inference architecture questions",
-          "words": 112,
-          "tables": 2,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-09/07-chapter-7-hpc-networking-questions.md",
-          "title": "Chapter 7 - HPC networking questions",
-          "words": 139,
-          "tables": 3,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-09/08-chapter-8-solutions-architecture-whiteboard-method.md",
-          "title": "Chapter 8 - Solutions architecture whiteboard method",
-          "words": 153,
-          "tables": 3,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-09/09-chapter-9-customer-discovery-interview.md",
-          "title": "Chapter 9 - Customer discovery interview",
-          "words": 124,
-          "tables": 2,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-09/10-chapter-10-behavioral-and-stakeholder-stories.md",
-          "title": "Chapter 10 - Behavioral and stakeholder stories",
-          "words": 115,
-          "tables": 2,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-09/11-chapter-11-question-bank-foundations-to-sa-depth.md",
-          "title": "Chapter 11 - Question bank: foundations to SA depth",
-          "words": 215,
-          "tables": 2,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-09/12-chapter-12-45-minute-mock-interview-structure.md",
-          "title": "Chapter 12 - 45-minute mock interview structure",
-          "words": 277,
-          "tables": 3,
-          "codeBlocks": 0,
-          "images": 1
-        },
-        {
-          "file": "docs/volume-09/13-senior-interview-method-clarify-model-hypothesize-test-recommend.md",
-          "title": "Senior Interview Method \u2014 Clarify, model, hypothesize, test, recommend",
-          "words": 77,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 1
-        },
-        {
-          "file": "docs/volume-09/14-question-set-a-linux-and-host-mechanics.md",
-          "title": "Question set A \u2014 Linux and host mechanics",
-          "words": 83,
-          "tables": 1,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-09/15-question-set-b-python-coding-and-production-automation.md",
-          "title": "Question set B \u2014 Python coding and production automation",
-          "words": 123,
-          "tables": 0,
-          "codeBlocks": 1,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-09/16-question-set-c-kubernetes-platform-depth.md",
-          "title": "Question set C \u2014 Kubernetes platform depth",
-          "words": 76,
-          "tables": 1,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-09/17-question-set-d-gpu-and-accelerated-networking.md",
-          "title": "Question set D \u2014 GPU and accelerated networking",
-          "words": 64,
-          "tables": 1,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-09/18-question-set-e-ai-inference-architecture.md",
-          "title": "Question set E \u2014 AI inference architecture",
-          "words": 56,
-          "tables": 1,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-09/19-question-set-f-customer-architecture-and-poc.md",
-          "title": "Question set F \u2014 Customer architecture and PoC",
-          "words": 112,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-09/20-question-set-g-whiteboard-production-genai-platform.md",
-          "title": "Question set G \u2014 Whiteboard: production GenAI platform",
-          "words": 64,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-09/21-question-set-h-behavioral-stories-for-a-senior-sa.md",
-          "title": "Question set H \u2014 Behavioral stories for a senior SA",
-          "words": 77,
-          "tables": 0,
-          "codeBlocks": 0,
-          "images": 0
-        },
-        {
-          "file": "docs/volume-09/22-current-role-family-signals-to-be-able-to-discuss.md",
-          "title": "Current role-family signals to be able to discuss",
-          "words": 141,
-          "tables": 0,
+          "file": "docs/volume-09/03-ai-architecture-and-design-masterclass.md",
+          "title": "AI Architecture & Design Masterclass",
+          "words": 698,
+          "tables": 9,
           "codeBlocks": 0,
           "images": 0
         }

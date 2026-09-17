@@ -201,34 +201,6 @@ name: "dense_net_aggressive"
 platform: "onnxruntime_onnx"
 max_batch_size: 64
 
-input [
-  {
-    name: "data_0"
-    data_type: TYPE_FP32
-    dims: [ 3, 224, 224 ]
-  }
-]
-output [
-  {
-    name: "fc6_1"
-    data_type: TYPE_FP32
-    dims: [ 1000, 1, 1 ]
-  }
-]
-dynamic_batching {
-  preferred_batch_size: [ 16, 32, 64 ]
-  max_queue_delay_microseconds: 50000
-}
-instance_group [
-  {
-    count: 1
-    kind: KIND_GPU
-    gpus: [ 0 ]
-  }
-]
-EOF
-```
-
 ---
 
 ## 7. Estimated Duration
@@ -419,18 +391,6 @@ Request concurrency: 1
     Execution count: 4500
     Successful request count: 4500
     Avg request latency: 1950 usec (overhead 150 usec + queue 200 usec + compute input 1600 usec)
-
-Request concurrency: 16
-  Client:
-    Request count: 28000 secs
-    Throughput: 2800.0 infer/sec
-    Avg latency: 5680 usec (latency p99: 8900 usec)
-  Server:
-    Inference count: 28000
-    Execution count: 2150
-    Successful request count: 28000
-    Avg request latency: 5200 usec (overhead 180 usec + queue 2400 usec + compute input 2620 usec)
-```
 
 ### Comparative Benchmark Summary Table
 

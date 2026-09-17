@@ -230,13 +230,6 @@ $ ib_write_bw -d mlx5_0 -F --report_gbits --use_cuda=0 <server_ip>
 
 **Degraded comparison — GPU on the wrong NUMA node from the NIC (matches the `SYS` cell from the `nvidia-smi topo -m` output above):**
 
-```text
----------------------------------------------------------------------------------------
- #bytes    #iterations    BW peak[Gb/sec]    BW average[Gb/sec]   MsgRate[Mpps]
- 65536     5000             204.11              189.34             0.361
----------------------------------------------------------------------------------------
-```
-
 `189.34 Gb/sec` is roughly half of the local-pairing result (`389.20`), even though Layer 2's host-only test on the same NIC passed clean. This is the textbook Layer 3 divergence pattern from the pyramid diagram: host path proven healthy, GPU path materially worse — the fix is rank-to-NIC affinity (bind this GPU's traffic to its local adapter), not a cable swap. Confirming the path actually used GPUDirect rather than falling back silently can be checked with `dmesg | grep -i nv_peer_mem` or the corresponding `nvidia-peermem` module logs, since a silent fallback to a staged host copy produces a similar-shaped bandwidth drop but has a different fix (driver/registration, not affinity).
 
 ## Layer 4 — Collective Tests

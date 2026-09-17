@@ -940,13 +940,6 @@ data "aws_ami" "nvidia_ubuntu" {
   most_recent = true
   owners      = ["amazon"]
 
-  filter {
-    name   = "name"
-    values = ["Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04) *"]
-  }
-}
-```
-
 ### 7.5 `network.tf`
 
 ```hcl

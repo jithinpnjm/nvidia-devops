@@ -173,7 +173,10 @@ PartitionName=debug Nodes=dgx-h100-[25-32] Default=NO MaxTime=01:00:00 State=UP 
 
 #### Detailed Breakdown of Critical Directives:
 
+:::danger
 *   **`AuthType=auth/munge`**: Slurm absolutely depends on MUNGE (MUNGE Uid 'N' Gid Emporium) for cryptographic authentication. All nodes in the cluster must share the exact same `/etc/munge/munge.key` and have synchronized clocks (NTP/PTP is critical). A clock drift of even a few minutes will cause MUNGE credentials to be rejected, instantly partitioning the cluster. If you see "Invalid credential" errors in the logs, check NTP first.
+:::
+
 *   **`SelectType=select/cons_tres`**: The "Consumable Trackable Resources" selection plugin. This is mandatory for GPU scheduling. It allows Slurm to track CPUs, Memory, and GPUs individually as consumable items, rather than dedicating an entire node to a job that only needs a fraction of it. If this is set to `select/linear`, Slurm will only allocate whole nodes, severely wasting resources for small debugging jobs.
 *   **`TaskPlugin=task/cgroup,task/affinity`**: This pair forces `slurmstepd` to use Linux Control Groups (cgroups) to constrain jobs to their allocated resources, preventing "noisy neighbor" scenarios where Job A bleeds memory or CPU usage into Job B's allocation. `task/affinity` handles the low-level NUMA pinning logic.
 *   **`PriorityType=priority/multifactor`**: This tells the scheduler to calculate queue priority mathematically based on a combination of queue time (Age), job size, Quality of Service (QOS), and Historical Usage (Fairshare). We will dive deep into this later.
@@ -269,33 +272,30 @@ Production environments use an Active/Passive HA model for the controller.
 ```mermaid
 flowchart LR
     subgraph StorageLayer["NFS / Weka / VAST"]
-        StateSaveLocation["/var/spool/slurmctld_state
-        (Shared File System)"]
+        StateSaveLocation["/var/spool/slurmctld_state (Shared File System)"]
     end
     
     subgraph ControllerFabric["Control Plane"]
-        CTL1("Primary slurmctld
-        (10.10.10.11)") 
+        CTL1["Primary slurmctld (10.10.10.11)"] 
         
-        CTL2("Backup slurmctld
-        (10.10.10.12)")
+        CTL2["Backup slurmctld (10.10.10.12)"]
     end
     
     subgraph ComputeNodes["Compute Fabric"]
-        N1("slurmd")
-        N2("slurmd")
+        N1["slurmd"]
+        N2["slurmd"]
     end
     
-    CTL1 -- Read/Write State (ACTIVE) --> StateSaveLocation
-    CTL2 -- Read Only (STANDBY) --> StateSaveLocation
+    CTL1 -- "Read/Write State (ACTIVE)" ---> StateSaveLocation
+    CTL2 -- "Read Only (STANDBY)" ---> StateSaveLocation
     
-    CTL1 -- Heartbeat (ping) --> CTL2
+    CTL1 -- "Heartbeat (ping)" ---> CTL2
     
-    N1 -. Heartbeat .-> CTL1
-    N2 -. Heartbeat .-> CTL1
+    N1 -. "Heartbeat" .-> CTL1
+    N2 -. "Heartbeat" .-> CTL1
     
-    N1 -. Heartbeat Fallback .-> CTL2
-    N2 -. Heartbeat Fallback .-> CTL2
+    N1 -. "Heartbeat Fallback" .-> CTL2
+    N2 -. "Heartbeat Fallback" .-> CTL2
 ```
 
 In `slurm.conf`, HA is defined simply:
@@ -355,13 +355,15 @@ flowchart TD
         Sacct["sacct"]
     end
 
-    Slurmdbd -- SQL / TCP 3306 --> MySQL
-    Slurmctld -- RPC / TCP 6819 --> Slurmdbd
-    Sacctmgr -- RPC / TCP 6819 --> Slurmdbd
-    Sacct -- RPC / TCP 6819 --> Slurmdbd
+    Slurmdbd -- "SQL / TCP 3306" ---> MySQL
+    Slurmctld -- "RPC / TCP 6819" ---> Slurmdbd
+    Sacctmgr -- "RPC / TCP 6819" ---> Slurmdbd
+    Sacct -- "RPC / TCP 6819" ---> Slurmdbd
 ```
 
+:::tip
 `slurmdbd` stands between the controllers and the raw database. *Never* allow `slurmctld` to talk directly to MySQL. The backend database should itself be highly available, typically using a MariaDB Galera cluster with a VIP (Virtual IP) provided by Keepalived or HAProxy.
+:::
 
 ### 5.2 Configuring `slurmdbd.conf`
 
@@ -469,12 +471,30 @@ A 2000-node AI Factory running a 3-month foundation model training job cannot be
 
 ### 6.1 The Upgrade Rule
 
+:::warning
 Slurm daemons are backwards compatible, but **not forwards compatible** in an upgrade scenario. 
+:::
 
 **The immutable order of operations for a Slurm upgrade:**
 1. Upgrade `slurmdbd` (The database daemon must be the newest binary).
 2. Upgrade `slurmctld` (The controller can talk to an older `slurmd`, but `slurmd` cannot be newer than the controller).
 3. Upgrade `slurmd` on the compute nodes (can be done in rolling batches).
+
+```mermaid
+flowchart LR
+    subgraph Phase1["Phase 1 (Database)"]
+        A["Upgrade slurmdbd"]
+    end
+    subgraph Phase2["Phase 2 (Controller)"]
+        B["Upgrade slurmctld"]
+    end
+    subgraph Phase3["Phase 3 (Compute)"]
+        C["Rolling slurmd Upgrade"]
+    end
+    
+    Phase1 -- "Mandatory Order" ---> Phase2
+    Phase2 -- "Mandatory Order" ---> Phase3
+```
 
 ### 6.2 Step-by-Step Live Upgrade Procedure
 
@@ -663,162 +683,6 @@ The transition from a default Slurm installation to a multi-tenant, highly avail
 This section contains an exhaustive list of highly technical interview questions, typical for an L5/L6 Solutions Architect focusing on HPC and AI Infrastructure.
 
 ### Q1: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q2: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q3: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q4: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q5: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q6: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q7: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q8: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q9: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q10: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q11: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q12: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q13: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q14: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q15: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q16: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q17: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q18: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q19: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q20: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q21: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q22: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q23: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q24: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q25: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q26: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q27: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q28: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q29: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q30: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q31: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q32: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q33: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q34: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q35: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q36: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q37: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q38: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q39: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
-
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
-### Q40: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
 
 **Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
 

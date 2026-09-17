@@ -47,10 +47,6 @@ Per-GPU memory requirement: 840 GB / 8 = 105 GB
 Still exceeds 80 GB, but now we can add more GPUs or use activation checkpointing to fit.
 ```
 
-**With FSDP on 16 GPUs:**
-```
-Per-GPU memory requirement: 840 GB / 16 = 52.5 GB
-
 Now it fits on each 80GB H100 with 27.5 GB headroom for activations.
 ```
 

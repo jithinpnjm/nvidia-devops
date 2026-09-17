@@ -30,7 +30,9 @@ graph TD
             ETCD1[etcd-0]
             ETCD2[etcd-1]
             ETCD3[etcd-2]
-            ETCD1 <--> ETCD2 <--> ETCD3 <--> ETCD1
+            ETCD1 --- ETCD2
+            ETCD2 --- ETCD3
+            ETCD3 --- ETCD1
         end
     end
     
@@ -40,14 +42,14 @@ graph TD
         NVIDIA[NVIDIA Device Plugin / DRA]
     end
     
-    API <--> ETCD1
-    API <--> SCHED
-    API <--> CM
-    API <--> KUEUE
+    API --- ETCD1
+    API --- SCHED
+    API --- CM
+    API --- KUEUE
     
-    API <--> K
-    API <--> KP
-    K <--> NVIDIA
+    API --- K
+    API --- KP
+    K --- NVIDIA
     
     classDef cp fill:#f9f,stroke:#333,stroke-width:2px;
     classDef node fill:#bbf,stroke:#333,stroke-width:2px;
@@ -88,6 +90,29 @@ metadata:
 ### 3.2 Optimistic Concurrency Control
 
 Imagine two controllers reading `gpu-worker-0` at `resourceVersion: "154329"`. Both attempt to update it.
+
+```mermaid
+sequenceDiagram
+    participant Controller A
+    participant Controller B
+    participant API Server
+    participant etcd
+    
+    Controller A->>API Server: GET Pod gpu-worker-0
+    API Server-->>Controller A: Pod {RV: "154329"}
+    Controller B->>API Server: GET Pod gpu-worker-0
+    API Server-->>Controller B: Pod {RV: "154329"}
+    
+    Controller A->>API Server: PUT Pod {RV: "154329"}
+    API Server->>etcd: Update Pod
+    etcd-->>API Server: Success, new RV: "154330"
+    API Server-->>Controller A: 200 OK
+    
+    Controller B->>API Server: PUT Pod {RV: "154329"}
+    API Server-->>Controller B: 409 Conflict (Current RV: "154330")
+    Note over Controller B: Must re-read and retry
+```
+
 1. Controller A sends a PUT request with `resourceVersion: "154329"`. The API server accepts it, updates etcd, and the new version becomes `154330`.
 2. Controller B sends a PUT request, also containing `resourceVersion: "154329"`. The API server rejects this with a `409 Conflict` because the current version in etcd is `154330`. Controller B must re-read the object and retry.
 
@@ -107,10 +132,11 @@ sequenceDiagram
     APIServer-->>Client: Streaming JSON: {"type": "MODIFIED", "object": {...}}
 ```
 
-**Troubleshooting Scenario: API Server Latency Spikes**
+:::tip Troubleshooting Scenario: API Server Latency Spikes
 *Symptom:* `kubectl` commands time out. The API server metrics (`apiserver_request_duration_seconds_bucket`) show massive latency on LIST calls.
 *Root Cause:* A poorly written controller is performing unfiltered LIST operations against the entire cluster without using RVs or pagination (`limit` and `continue`), causing the API server to dump gigabytes of JSON from memory, thrashing CPU and memory.
 *Solution:* Ensure controllers use Informers (client-go) which handle LIST/WATCH efficiently. Enforce API Priority and Fairness (APF) to rate-limit rogue service accounts.
+:::
 
 ## 4. Deep Dive: etcd and Quorum Mechanics
 
@@ -126,7 +152,9 @@ To maintain consistency in a distributed system, Raft requires a majority of nod
 - **5 nodes:** Quorum is 3. Can tolerate 2 failures.
 - **7 nodes:** Quorum is 4. Can tolerate 3 failures.
 
+:::warning
 Deploying an even number of etcd nodes (e.g., 4 or 6) is discouraged. A 4-node cluster still has a quorum of 3, meaning it can still only tolerate 1 failure, but you've increased network overhead and latency without improving fault tolerance.
+:::
 
 ### 4.2 Handling Split-Brain and Network Partitions
 
@@ -141,18 +169,20 @@ graph LR
         E3[etcd-2]
     end
     
-    E1 <-->|Network Partition| E3
-    E2 <-->|Network Partition| E3
-    E1 <--> E2
+    E1 -- "Network Partition" --- E3
+    E2 -- "Network Partition" --- E3
+    E1 --- E2
 ```
 
 If the network link between AZ-A and AZ-B fails:
 - AZ-A has 2 nodes. They can form a quorum (2 >= 2). They elect a leader and continue serving requests.
 - AZ-B has 1 node. It cannot form a quorum. It will continually call for elections but fail. API servers connected to E3 will become read-only or fail.
 
-**Senior Solutions Architect Interview Question:**
+:::info Senior Solutions Architect Interview Question
 *Question:* "You manage a 3-node etcd cluster. One node is destroyed permanently. The cluster remains operational. A junior engineer suggests adding a new 4th node immediately to 'restore redundancy' before removing the dead node from the cluster state. What happens?"
+
 *Answer:* If you add a 4th node, the total cluster size becomes 4. The required quorum becomes 3. Because one node is permanently dead, you only have 3 healthy nodes. If you lose *one more* node during this transition, the cluster falls to 2 healthy nodes. Quorum (3) is lost, and the entire control plane crashes. *Never* add a node to replace a dead node without first removing the dead node from the etcd member list.
+:::
 
 ### 4.3 etcdctl Command Cheatsheet
 
@@ -173,6 +203,30 @@ ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 ... snapshot save /var/
 The standard `kube-scheduler` operates via a multi-stage Framework. Understanding these stages is vital for writing custom scheduler plugins or configuring behavior for complex GPU workloads.
 
 ### 5.1 The Scheduling Cycle
+
+```mermaid
+flowchart TD
+    Q[Queueing] --> F[Filter]
+    F --> S[Score]
+    S --> R[Reserve]
+    R --> P[Permit]
+    P --> B[Bind]
+    
+    subgraph Scheduling Cycle
+        Q
+        F
+        S
+        R
+        P
+    end
+    
+    subgraph Binding Cycle
+        B
+    end
+    
+    style Q fill:#f9f,stroke:#333
+    style B fill:#bbf,stroke:#333
+```
 
 1. **Queueing:** Pods wait in the scheduling queue.
 2. **Filter:** Nodes that cannot satisfy the Pod's requirements (e.g., inadequate CPU/RAM/GPUs, mismatched node selectors, missing taints) are eliminated.
@@ -224,6 +278,23 @@ topologyManagerPolicy: single-numa-node
 With `single-numa-node`, the Kubelet will reject a Pod (resulting in a `TopologyAffinityError`) if it cannot allocate all requested resources on a single NUMA node.
 
 ## 7. Gang Scheduling and Advanced Batch (Kueue/Volcano)
+
+```mermaid
+flowchart LR
+    subgraph Standard Scheduling
+        Job1[PyTorch Job: 8 Pods] -->|Submit| API1[API Server]
+        API1 -->|Pod 1-7| Nodes[56 GPUs Available]
+        Nodes -->|Running| Pod1_7[7 Pods Consume GPUs]
+        API1 -->|Pod 8 Pending| Queue[Deadlock: Wait for 8th GPU]
+    end
+
+    subgraph Gang Scheduling
+        Job2[PyTorch Job: 8 Pods] -->|Submit| Kueue[Kueue Controller]
+        Kueue -->|Check Quota| Quota{56 GPUs < 64 Needed?}
+        Quota -->|Yes| Wait[Hold Job in Queue]
+        Wait -->|No Pods Created| FreeNodes[56 GPUs remain free]
+    end
+```
 
 Standard Kubernetes schedules Pods one by one. This is disastrous for Distributed Training (MPI, PyTorch DDP). If a PyTorch job requires 64 GPUs (8 pods of 8 GPUs each), and the cluster only has 56 GPUs available, standard Kubernetes will schedule 7 pods. These 7 pods will spin up, consume the 56 GPUs, and wait infinitely for the 8th pod to start. This is a **deadlock** that wastes cluster resources.
 
@@ -361,915 +432,117 @@ spec:
 
 Often, scheduling issues are masked as network issues. When a pod is scheduled but cannot reach the metadata server, check the CNI plugin and kube-proxy. The interactions between IPVS, iptables, and eBPF data planes are critical to understand.
 
-
-## 11. Advanced Production Scenario 2: Deep Systems Integration
-
-Operating highly available infrastructure requires deep systems integration. In scenario 2, we explore further into edge cases and advanced scaling metrics.
-
 ### 11.1 Component Failure Analysis
-
-When analyzing the API server during peak load, it is crucial to understand the interactions with the container runtime. The Kubelet acts as a bridge between the API Server and the underlying nodes.
-
-```mermaid
-graph LR
-    API[kube-apiserver] --> K[Kubelet]
-    K --> CRI[Containerd / CRI-O]
-    CRI --> RUNC[runc / nvidia-container-runtime]
-    RUNC --> KERNEL[Linux Kernel]
-```
 
 ### 11.2 Deep dive into metrics
 
-Metrics to monitor closely:
-- `apiserver_request_total`: Total number of requests.
-- `apiserver_request_duration_seconds`: Request latency.
-- `etcd_disk_wal_fsync_duration_seconds`: etcd disk sync latency. A slow disk will kill the entire cluster.
-- `scheduler_scheduling_algorithm_duration_seconds`: Time taken by the scheduler to find a node.
-
-In the context of scaling to 5000+ nodes, you must heavily tune APF (API Priority and Fairness) to prevent rogue operators from overwhelming the system.
-
-```yaml
-apiVersion: flowcontrol.apiserver.k8s.io/v1beta3
-kind: PriorityLevelConfiguration
-metadata:
-  name: ai-workload-level
-spec:
-  type: Limited
-  limited:
-    assuredConcurrencyShares: 50
-    limitResponse:
-      type: Queue
-      queuing:
-        queues: 100
-        handSize: 5
-        queueLengthLimit: 200
-```
-
 ### 11.3 Debugging Network Overlays
-
-Often, scheduling issues are masked as network issues. When a pod is scheduled but cannot reach the metadata server, check the CNI plugin and kube-proxy. The interactions between IPVS, iptables, and eBPF data planes are critical to understand.
-
-
-## 12. Advanced Production Scenario 3: Deep Systems Integration
-
-Operating highly available infrastructure requires deep systems integration. In scenario 3, we explore further into edge cases and advanced scaling metrics.
 
 ### 12.1 Component Failure Analysis
 
-When analyzing the API server during peak load, it is crucial to understand the interactions with the container runtime. The Kubelet acts as a bridge between the API Server and the underlying nodes.
-
-```mermaid
-graph LR
-    API[kube-apiserver] --> K[Kubelet]
-    K --> CRI[Containerd / CRI-O]
-    CRI --> RUNC[runc / nvidia-container-runtime]
-    RUNC --> KERNEL[Linux Kernel]
-```
-
 ### 12.2 Deep dive into metrics
-
-Metrics to monitor closely:
-- `apiserver_request_total`: Total number of requests.
-- `apiserver_request_duration_seconds`: Request latency.
-- `etcd_disk_wal_fsync_duration_seconds`: etcd disk sync latency. A slow disk will kill the entire cluster.
-- `scheduler_scheduling_algorithm_duration_seconds`: Time taken by the scheduler to find a node.
-
-In the context of scaling to 5000+ nodes, you must heavily tune APF (API Priority and Fairness) to prevent rogue operators from overwhelming the system.
-
-```yaml
-apiVersion: flowcontrol.apiserver.k8s.io/v1beta3
-kind: PriorityLevelConfiguration
-metadata:
-  name: ai-workload-level
-spec:
-  type: Limited
-  limited:
-    assuredConcurrencyShares: 50
-    limitResponse:
-      type: Queue
-      queuing:
-        queues: 100
-        handSize: 5
-        queueLengthLimit: 200
-```
 
 ### 12.3 Debugging Network Overlays
 
-Often, scheduling issues are masked as network issues. When a pod is scheduled but cannot reach the metadata server, check the CNI plugin and kube-proxy. The interactions between IPVS, iptables, and eBPF data planes are critical to understand.
-
-
-## 13. Advanced Production Scenario 4: Deep Systems Integration
-
-Operating highly available infrastructure requires deep systems integration. In scenario 4, we explore further into edge cases and advanced scaling metrics.
-
 ### 13.1 Component Failure Analysis
-
-When analyzing the API server during peak load, it is crucial to understand the interactions with the container runtime. The Kubelet acts as a bridge between the API Server and the underlying nodes.
-
-```mermaid
-graph LR
-    API[kube-apiserver] --> K[Kubelet]
-    K --> CRI[Containerd / CRI-O]
-    CRI --> RUNC[runc / nvidia-container-runtime]
-    RUNC --> KERNEL[Linux Kernel]
-```
 
 ### 13.2 Deep dive into metrics
 
-Metrics to monitor closely:
-- `apiserver_request_total`: Total number of requests.
-- `apiserver_request_duration_seconds`: Request latency.
-- `etcd_disk_wal_fsync_duration_seconds`: etcd disk sync latency. A slow disk will kill the entire cluster.
-- `scheduler_scheduling_algorithm_duration_seconds`: Time taken by the scheduler to find a node.
-
-In the context of scaling to 5000+ nodes, you must heavily tune APF (API Priority and Fairness) to prevent rogue operators from overwhelming the system.
-
-```yaml
-apiVersion: flowcontrol.apiserver.k8s.io/v1beta3
-kind: PriorityLevelConfiguration
-metadata:
-  name: ai-workload-level
-spec:
-  type: Limited
-  limited:
-    assuredConcurrencyShares: 50
-    limitResponse:
-      type: Queue
-      queuing:
-        queues: 100
-        handSize: 5
-        queueLengthLimit: 200
-```
-
 ### 13.3 Debugging Network Overlays
-
-Often, scheduling issues are masked as network issues. When a pod is scheduled but cannot reach the metadata server, check the CNI plugin and kube-proxy. The interactions between IPVS, iptables, and eBPF data planes are critical to understand.
-
-
-## 14. Advanced Production Scenario 5: Deep Systems Integration
-
-Operating highly available infrastructure requires deep systems integration. In scenario 5, we explore further into edge cases and advanced scaling metrics.
 
 ### 14.1 Component Failure Analysis
 
-When analyzing the API server during peak load, it is crucial to understand the interactions with the container runtime. The Kubelet acts as a bridge between the API Server and the underlying nodes.
-
-```mermaid
-graph LR
-    API[kube-apiserver] --> K[Kubelet]
-    K --> CRI[Containerd / CRI-O]
-    CRI --> RUNC[runc / nvidia-container-runtime]
-    RUNC --> KERNEL[Linux Kernel]
-```
-
 ### 14.2 Deep dive into metrics
-
-Metrics to monitor closely:
-- `apiserver_request_total`: Total number of requests.
-- `apiserver_request_duration_seconds`: Request latency.
-- `etcd_disk_wal_fsync_duration_seconds`: etcd disk sync latency. A slow disk will kill the entire cluster.
-- `scheduler_scheduling_algorithm_duration_seconds`: Time taken by the scheduler to find a node.
-
-In the context of scaling to 5000+ nodes, you must heavily tune APF (API Priority and Fairness) to prevent rogue operators from overwhelming the system.
-
-```yaml
-apiVersion: flowcontrol.apiserver.k8s.io/v1beta3
-kind: PriorityLevelConfiguration
-metadata:
-  name: ai-workload-level
-spec:
-  type: Limited
-  limited:
-    assuredConcurrencyShares: 50
-    limitResponse:
-      type: Queue
-      queuing:
-        queues: 100
-        handSize: 5
-        queueLengthLimit: 200
-```
 
 ### 14.3 Debugging Network Overlays
 
-Often, scheduling issues are masked as network issues. When a pod is scheduled but cannot reach the metadata server, check the CNI plugin and kube-proxy. The interactions between IPVS, iptables, and eBPF data planes are critical to understand.
-
-
-## 15. Advanced Production Scenario 6: Deep Systems Integration
-
-Operating highly available infrastructure requires deep systems integration. In scenario 6, we explore further into edge cases and advanced scaling metrics.
-
 ### 15.1 Component Failure Analysis
-
-When analyzing the API server during peak load, it is crucial to understand the interactions with the container runtime. The Kubelet acts as a bridge between the API Server and the underlying nodes.
-
-```mermaid
-graph LR
-    API[kube-apiserver] --> K[Kubelet]
-    K --> CRI[Containerd / CRI-O]
-    CRI --> RUNC[runc / nvidia-container-runtime]
-    RUNC --> KERNEL[Linux Kernel]
-```
 
 ### 15.2 Deep dive into metrics
 
-Metrics to monitor closely:
-- `apiserver_request_total`: Total number of requests.
-- `apiserver_request_duration_seconds`: Request latency.
-- `etcd_disk_wal_fsync_duration_seconds`: etcd disk sync latency. A slow disk will kill the entire cluster.
-- `scheduler_scheduling_algorithm_duration_seconds`: Time taken by the scheduler to find a node.
-
-In the context of scaling to 5000+ nodes, you must heavily tune APF (API Priority and Fairness) to prevent rogue operators from overwhelming the system.
-
-```yaml
-apiVersion: flowcontrol.apiserver.k8s.io/v1beta3
-kind: PriorityLevelConfiguration
-metadata:
-  name: ai-workload-level
-spec:
-  type: Limited
-  limited:
-    assuredConcurrencyShares: 50
-    limitResponse:
-      type: Queue
-      queuing:
-        queues: 100
-        handSize: 5
-        queueLengthLimit: 200
-```
-
 ### 15.3 Debugging Network Overlays
-
-Often, scheduling issues are masked as network issues. When a pod is scheduled but cannot reach the metadata server, check the CNI plugin and kube-proxy. The interactions between IPVS, iptables, and eBPF data planes are critical to understand.
-
-
-## 16. Advanced Production Scenario 7: Deep Systems Integration
-
-Operating highly available infrastructure requires deep systems integration. In scenario 7, we explore further into edge cases and advanced scaling metrics.
 
 ### 16.1 Component Failure Analysis
 
-When analyzing the API server during peak load, it is crucial to understand the interactions with the container runtime. The Kubelet acts as a bridge between the API Server and the underlying nodes.
-
-```mermaid
-graph LR
-    API[kube-apiserver] --> K[Kubelet]
-    K --> CRI[Containerd / CRI-O]
-    CRI --> RUNC[runc / nvidia-container-runtime]
-    RUNC --> KERNEL[Linux Kernel]
-```
-
 ### 16.2 Deep dive into metrics
-
-Metrics to monitor closely:
-- `apiserver_request_total`: Total number of requests.
-- `apiserver_request_duration_seconds`: Request latency.
-- `etcd_disk_wal_fsync_duration_seconds`: etcd disk sync latency. A slow disk will kill the entire cluster.
-- `scheduler_scheduling_algorithm_duration_seconds`: Time taken by the scheduler to find a node.
-
-In the context of scaling to 5000+ nodes, you must heavily tune APF (API Priority and Fairness) to prevent rogue operators from overwhelming the system.
-
-```yaml
-apiVersion: flowcontrol.apiserver.k8s.io/v1beta3
-kind: PriorityLevelConfiguration
-metadata:
-  name: ai-workload-level
-spec:
-  type: Limited
-  limited:
-    assuredConcurrencyShares: 50
-    limitResponse:
-      type: Queue
-      queuing:
-        queues: 100
-        handSize: 5
-        queueLengthLimit: 200
-```
 
 ### 16.3 Debugging Network Overlays
 
-Often, scheduling issues are masked as network issues. When a pod is scheduled but cannot reach the metadata server, check the CNI plugin and kube-proxy. The interactions between IPVS, iptables, and eBPF data planes are critical to understand.
-
-
-## 17. Advanced Production Scenario 8: Deep Systems Integration
-
-Operating highly available infrastructure requires deep systems integration. In scenario 8, we explore further into edge cases and advanced scaling metrics.
-
 ### 17.1 Component Failure Analysis
-
-When analyzing the API server during peak load, it is crucial to understand the interactions with the container runtime. The Kubelet acts as a bridge between the API Server and the underlying nodes.
-
-```mermaid
-graph LR
-    API[kube-apiserver] --> K[Kubelet]
-    K --> CRI[Containerd / CRI-O]
-    CRI --> RUNC[runc / nvidia-container-runtime]
-    RUNC --> KERNEL[Linux Kernel]
-```
 
 ### 17.2 Deep dive into metrics
 
-Metrics to monitor closely:
-- `apiserver_request_total`: Total number of requests.
-- `apiserver_request_duration_seconds`: Request latency.
-- `etcd_disk_wal_fsync_duration_seconds`: etcd disk sync latency. A slow disk will kill the entire cluster.
-- `scheduler_scheduling_algorithm_duration_seconds`: Time taken by the scheduler to find a node.
-
-In the context of scaling to 5000+ nodes, you must heavily tune APF (API Priority and Fairness) to prevent rogue operators from overwhelming the system.
-
-```yaml
-apiVersion: flowcontrol.apiserver.k8s.io/v1beta3
-kind: PriorityLevelConfiguration
-metadata:
-  name: ai-workload-level
-spec:
-  type: Limited
-  limited:
-    assuredConcurrencyShares: 50
-    limitResponse:
-      type: Queue
-      queuing:
-        queues: 100
-        handSize: 5
-        queueLengthLimit: 200
-```
-
 ### 17.3 Debugging Network Overlays
-
-Often, scheduling issues are masked as network issues. When a pod is scheduled but cannot reach the metadata server, check the CNI plugin and kube-proxy. The interactions between IPVS, iptables, and eBPF data planes are critical to understand.
-
-
-## 18. Advanced Production Scenario 9: Deep Systems Integration
-
-Operating highly available infrastructure requires deep systems integration. In scenario 9, we explore further into edge cases and advanced scaling metrics.
 
 ### 18.1 Component Failure Analysis
 
-When analyzing the API server during peak load, it is crucial to understand the interactions with the container runtime. The Kubelet acts as a bridge between the API Server and the underlying nodes.
-
-```mermaid
-graph LR
-    API[kube-apiserver] --> K[Kubelet]
-    K --> CRI[Containerd / CRI-O]
-    CRI --> RUNC[runc / nvidia-container-runtime]
-    RUNC --> KERNEL[Linux Kernel]
-```
-
 ### 18.2 Deep dive into metrics
-
-Metrics to monitor closely:
-- `apiserver_request_total`: Total number of requests.
-- `apiserver_request_duration_seconds`: Request latency.
-- `etcd_disk_wal_fsync_duration_seconds`: etcd disk sync latency. A slow disk will kill the entire cluster.
-- `scheduler_scheduling_algorithm_duration_seconds`: Time taken by the scheduler to find a node.
-
-In the context of scaling to 5000+ nodes, you must heavily tune APF (API Priority and Fairness) to prevent rogue operators from overwhelming the system.
-
-```yaml
-apiVersion: flowcontrol.apiserver.k8s.io/v1beta3
-kind: PriorityLevelConfiguration
-metadata:
-  name: ai-workload-level
-spec:
-  type: Limited
-  limited:
-    assuredConcurrencyShares: 50
-    limitResponse:
-      type: Queue
-      queuing:
-        queues: 100
-        handSize: 5
-        queueLengthLimit: 200
-```
 
 ### 18.3 Debugging Network Overlays
 
-Often, scheduling issues are masked as network issues. When a pod is scheduled but cannot reach the metadata server, check the CNI plugin and kube-proxy. The interactions between IPVS, iptables, and eBPF data planes are critical to understand.
-
-
-## 19. Advanced Production Scenario 10: Deep Systems Integration
-
-Operating highly available infrastructure requires deep systems integration. In scenario 10, we explore further into edge cases and advanced scaling metrics.
-
 ### 19.1 Component Failure Analysis
-
-When analyzing the API server during peak load, it is crucial to understand the interactions with the container runtime. The Kubelet acts as a bridge between the API Server and the underlying nodes.
-
-```mermaid
-graph LR
-    API[kube-apiserver] --> K[Kubelet]
-    K --> CRI[Containerd / CRI-O]
-    CRI --> RUNC[runc / nvidia-container-runtime]
-    RUNC --> KERNEL[Linux Kernel]
-```
 
 ### 19.2 Deep dive into metrics
 
-Metrics to monitor closely:
-- `apiserver_request_total`: Total number of requests.
-- `apiserver_request_duration_seconds`: Request latency.
-- `etcd_disk_wal_fsync_duration_seconds`: etcd disk sync latency. A slow disk will kill the entire cluster.
-- `scheduler_scheduling_algorithm_duration_seconds`: Time taken by the scheduler to find a node.
-
-In the context of scaling to 5000+ nodes, you must heavily tune APF (API Priority and Fairness) to prevent rogue operators from overwhelming the system.
-
-```yaml
-apiVersion: flowcontrol.apiserver.k8s.io/v1beta3
-kind: PriorityLevelConfiguration
-metadata:
-  name: ai-workload-level
-spec:
-  type: Limited
-  limited:
-    assuredConcurrencyShares: 50
-    limitResponse:
-      type: Queue
-      queuing:
-        queues: 100
-        handSize: 5
-        queueLengthLimit: 200
-```
-
 ### 19.3 Debugging Network Overlays
-
-Often, scheduling issues are masked as network issues. When a pod is scheduled but cannot reach the metadata server, check the CNI plugin and kube-proxy. The interactions between IPVS, iptables, and eBPF data planes are critical to understand.
-
-
-## 20. Advanced Production Scenario 11: Deep Systems Integration
-
-Operating highly available infrastructure requires deep systems integration. In scenario 11, we explore further into edge cases and advanced scaling metrics.
 
 ### 20.1 Component Failure Analysis
 
-When analyzing the API server during peak load, it is crucial to understand the interactions with the container runtime. The Kubelet acts as a bridge between the API Server and the underlying nodes.
-
-```mermaid
-graph LR
-    API[kube-apiserver] --> K[Kubelet]
-    K --> CRI[Containerd / CRI-O]
-    CRI --> RUNC[runc / nvidia-container-runtime]
-    RUNC --> KERNEL[Linux Kernel]
-```
-
 ### 20.2 Deep dive into metrics
-
-Metrics to monitor closely:
-- `apiserver_request_total`: Total number of requests.
-- `apiserver_request_duration_seconds`: Request latency.
-- `etcd_disk_wal_fsync_duration_seconds`: etcd disk sync latency. A slow disk will kill the entire cluster.
-- `scheduler_scheduling_algorithm_duration_seconds`: Time taken by the scheduler to find a node.
-
-In the context of scaling to 5000+ nodes, you must heavily tune APF (API Priority and Fairness) to prevent rogue operators from overwhelming the system.
-
-```yaml
-apiVersion: flowcontrol.apiserver.k8s.io/v1beta3
-kind: PriorityLevelConfiguration
-metadata:
-  name: ai-workload-level
-spec:
-  type: Limited
-  limited:
-    assuredConcurrencyShares: 50
-    limitResponse:
-      type: Queue
-      queuing:
-        queues: 100
-        handSize: 5
-        queueLengthLimit: 200
-```
 
 ### 20.3 Debugging Network Overlays
 
-Often, scheduling issues are masked as network issues. When a pod is scheduled but cannot reach the metadata server, check the CNI plugin and kube-proxy. The interactions between IPVS, iptables, and eBPF data planes are critical to understand.
-
-
-## 21. Advanced Production Scenario 12: Deep Systems Integration
-
-Operating highly available infrastructure requires deep systems integration. In scenario 12, we explore further into edge cases and advanced scaling metrics.
-
 ### 21.1 Component Failure Analysis
-
-When analyzing the API server during peak load, it is crucial to understand the interactions with the container runtime. The Kubelet acts as a bridge between the API Server and the underlying nodes.
-
-```mermaid
-graph LR
-    API[kube-apiserver] --> K[Kubelet]
-    K --> CRI[Containerd / CRI-O]
-    CRI --> RUNC[runc / nvidia-container-runtime]
-    RUNC --> KERNEL[Linux Kernel]
-```
 
 ### 21.2 Deep dive into metrics
 
-Metrics to monitor closely:
-- `apiserver_request_total`: Total number of requests.
-- `apiserver_request_duration_seconds`: Request latency.
-- `etcd_disk_wal_fsync_duration_seconds`: etcd disk sync latency. A slow disk will kill the entire cluster.
-- `scheduler_scheduling_algorithm_duration_seconds`: Time taken by the scheduler to find a node.
-
-In the context of scaling to 5000+ nodes, you must heavily tune APF (API Priority and Fairness) to prevent rogue operators from overwhelming the system.
-
-```yaml
-apiVersion: flowcontrol.apiserver.k8s.io/v1beta3
-kind: PriorityLevelConfiguration
-metadata:
-  name: ai-workload-level
-spec:
-  type: Limited
-  limited:
-    assuredConcurrencyShares: 50
-    limitResponse:
-      type: Queue
-      queuing:
-        queues: 100
-        handSize: 5
-        queueLengthLimit: 200
-```
-
 ### 21.3 Debugging Network Overlays
-
-Often, scheduling issues are masked as network issues. When a pod is scheduled but cannot reach the metadata server, check the CNI plugin and kube-proxy. The interactions between IPVS, iptables, and eBPF data planes are critical to understand.
-
-
-## 22. Advanced Production Scenario 13: Deep Systems Integration
-
-Operating highly available infrastructure requires deep systems integration. In scenario 13, we explore further into edge cases and advanced scaling metrics.
 
 ### 22.1 Component Failure Analysis
 
-When analyzing the API server during peak load, it is crucial to understand the interactions with the container runtime. The Kubelet acts as a bridge between the API Server and the underlying nodes.
-
-```mermaid
-graph LR
-    API[kube-apiserver] --> K[Kubelet]
-    K --> CRI[Containerd / CRI-O]
-    CRI --> RUNC[runc / nvidia-container-runtime]
-    RUNC --> KERNEL[Linux Kernel]
-```
-
 ### 22.2 Deep dive into metrics
-
-Metrics to monitor closely:
-- `apiserver_request_total`: Total number of requests.
-- `apiserver_request_duration_seconds`: Request latency.
-- `etcd_disk_wal_fsync_duration_seconds`: etcd disk sync latency. A slow disk will kill the entire cluster.
-- `scheduler_scheduling_algorithm_duration_seconds`: Time taken by the scheduler to find a node.
-
-In the context of scaling to 5000+ nodes, you must heavily tune APF (API Priority and Fairness) to prevent rogue operators from overwhelming the system.
-
-```yaml
-apiVersion: flowcontrol.apiserver.k8s.io/v1beta3
-kind: PriorityLevelConfiguration
-metadata:
-  name: ai-workload-level
-spec:
-  type: Limited
-  limited:
-    assuredConcurrencyShares: 50
-    limitResponse:
-      type: Queue
-      queuing:
-        queues: 100
-        handSize: 5
-        queueLengthLimit: 200
-```
 
 ### 22.3 Debugging Network Overlays
 
-Often, scheduling issues are masked as network issues. When a pod is scheduled but cannot reach the metadata server, check the CNI plugin and kube-proxy. The interactions between IPVS, iptables, and eBPF data planes are critical to understand.
-
-
-## 23. Advanced Production Scenario 14: Deep Systems Integration
-
-Operating highly available infrastructure requires deep systems integration. In scenario 14, we explore further into edge cases and advanced scaling metrics.
-
 ### 23.1 Component Failure Analysis
-
-When analyzing the API server during peak load, it is crucial to understand the interactions with the container runtime. The Kubelet acts as a bridge between the API Server and the underlying nodes.
-
-```mermaid
-graph LR
-    API[kube-apiserver] --> K[Kubelet]
-    K --> CRI[Containerd / CRI-O]
-    CRI --> RUNC[runc / nvidia-container-runtime]
-    RUNC --> KERNEL[Linux Kernel]
-```
 
 ### 23.2 Deep dive into metrics
 
-Metrics to monitor closely:
-- `apiserver_request_total`: Total number of requests.
-- `apiserver_request_duration_seconds`: Request latency.
-- `etcd_disk_wal_fsync_duration_seconds`: etcd disk sync latency. A slow disk will kill the entire cluster.
-- `scheduler_scheduling_algorithm_duration_seconds`: Time taken by the scheduler to find a node.
-
-In the context of scaling to 5000+ nodes, you must heavily tune APF (API Priority and Fairness) to prevent rogue operators from overwhelming the system.
-
-```yaml
-apiVersion: flowcontrol.apiserver.k8s.io/v1beta3
-kind: PriorityLevelConfiguration
-metadata:
-  name: ai-workload-level
-spec:
-  type: Limited
-  limited:
-    assuredConcurrencyShares: 50
-    limitResponse:
-      type: Queue
-      queuing:
-        queues: 100
-        handSize: 5
-        queueLengthLimit: 200
-```
-
 ### 23.3 Debugging Network Overlays
-
-Often, scheduling issues are masked as network issues. When a pod is scheduled but cannot reach the metadata server, check the CNI plugin and kube-proxy. The interactions between IPVS, iptables, and eBPF data planes are critical to understand.
-
-
-## 24. Advanced Production Scenario 15: Deep Systems Integration
-
-Operating highly available infrastructure requires deep systems integration. In scenario 15, we explore further into edge cases and advanced scaling metrics.
 
 ### 24.1 Component Failure Analysis
 
-When analyzing the API server during peak load, it is crucial to understand the interactions with the container runtime. The Kubelet acts as a bridge between the API Server and the underlying nodes.
-
-```mermaid
-graph LR
-    API[kube-apiserver] --> K[Kubelet]
-    K --> CRI[Containerd / CRI-O]
-    CRI --> RUNC[runc / nvidia-container-runtime]
-    RUNC --> KERNEL[Linux Kernel]
-```
-
 ### 24.2 Deep dive into metrics
-
-Metrics to monitor closely:
-- `apiserver_request_total`: Total number of requests.
-- `apiserver_request_duration_seconds`: Request latency.
-- `etcd_disk_wal_fsync_duration_seconds`: etcd disk sync latency. A slow disk will kill the entire cluster.
-- `scheduler_scheduling_algorithm_duration_seconds`: Time taken by the scheduler to find a node.
-
-In the context of scaling to 5000+ nodes, you must heavily tune APF (API Priority and Fairness) to prevent rogue operators from overwhelming the system.
-
-```yaml
-apiVersion: flowcontrol.apiserver.k8s.io/v1beta3
-kind: PriorityLevelConfiguration
-metadata:
-  name: ai-workload-level
-spec:
-  type: Limited
-  limited:
-    assuredConcurrencyShares: 50
-    limitResponse:
-      type: Queue
-      queuing:
-        queues: 100
-        handSize: 5
-        queueLengthLimit: 200
-```
 
 ### 24.3 Debugging Network Overlays
 
-Often, scheduling issues are masked as network issues. When a pod is scheduled but cannot reach the metadata server, check the CNI plugin and kube-proxy. The interactions between IPVS, iptables, and eBPF data planes are critical to understand.
-
-
-## 25. Advanced Production Scenario 16: Deep Systems Integration
-
-Operating highly available infrastructure requires deep systems integration. In scenario 16, we explore further into edge cases and advanced scaling metrics.
-
 ### 25.1 Component Failure Analysis
-
-When analyzing the API server during peak load, it is crucial to understand the interactions with the container runtime. The Kubelet acts as a bridge between the API Server and the underlying nodes.
-
-```mermaid
-graph LR
-    API[kube-apiserver] --> K[Kubelet]
-    K --> CRI[Containerd / CRI-O]
-    CRI --> RUNC[runc / nvidia-container-runtime]
-    RUNC --> KERNEL[Linux Kernel]
-```
 
 ### 25.2 Deep dive into metrics
 
-Metrics to monitor closely:
-- `apiserver_request_total`: Total number of requests.
-- `apiserver_request_duration_seconds`: Request latency.
-- `etcd_disk_wal_fsync_duration_seconds`: etcd disk sync latency. A slow disk will kill the entire cluster.
-- `scheduler_scheduling_algorithm_duration_seconds`: Time taken by the scheduler to find a node.
-
-In the context of scaling to 5000+ nodes, you must heavily tune APF (API Priority and Fairness) to prevent rogue operators from overwhelming the system.
-
-```yaml
-apiVersion: flowcontrol.apiserver.k8s.io/v1beta3
-kind: PriorityLevelConfiguration
-metadata:
-  name: ai-workload-level
-spec:
-  type: Limited
-  limited:
-    assuredConcurrencyShares: 50
-    limitResponse:
-      type: Queue
-      queuing:
-        queues: 100
-        handSize: 5
-        queueLengthLimit: 200
-```
-
 ### 25.3 Debugging Network Overlays
-
-Often, scheduling issues are masked as network issues. When a pod is scheduled but cannot reach the metadata server, check the CNI plugin and kube-proxy. The interactions between IPVS, iptables, and eBPF data planes are critical to understand.
-
-
-## 26. Advanced Production Scenario 17: Deep Systems Integration
-
-Operating highly available infrastructure requires deep systems integration. In scenario 17, we explore further into edge cases and advanced scaling metrics.
 
 ### 26.1 Component Failure Analysis
 
-When analyzing the API server during peak load, it is crucial to understand the interactions with the container runtime. The Kubelet acts as a bridge between the API Server and the underlying nodes.
-
-```mermaid
-graph LR
-    API[kube-apiserver] --> K[Kubelet]
-    K --> CRI[Containerd / CRI-O]
-    CRI --> RUNC[runc / nvidia-container-runtime]
-    RUNC --> KERNEL[Linux Kernel]
-```
-
 ### 26.2 Deep dive into metrics
-
-Metrics to monitor closely:
-- `apiserver_request_total`: Total number of requests.
-- `apiserver_request_duration_seconds`: Request latency.
-- `etcd_disk_wal_fsync_duration_seconds`: etcd disk sync latency. A slow disk will kill the entire cluster.
-- `scheduler_scheduling_algorithm_duration_seconds`: Time taken by the scheduler to find a node.
-
-In the context of scaling to 5000+ nodes, you must heavily tune APF (API Priority and Fairness) to prevent rogue operators from overwhelming the system.
-
-```yaml
-apiVersion: flowcontrol.apiserver.k8s.io/v1beta3
-kind: PriorityLevelConfiguration
-metadata:
-  name: ai-workload-level
-spec:
-  type: Limited
-  limited:
-    assuredConcurrencyShares: 50
-    limitResponse:
-      type: Queue
-      queuing:
-        queues: 100
-        handSize: 5
-        queueLengthLimit: 200
-```
 
 ### 26.3 Debugging Network Overlays
 
-Often, scheduling issues are masked as network issues. When a pod is scheduled but cannot reach the metadata server, check the CNI plugin and kube-proxy. The interactions between IPVS, iptables, and eBPF data planes are critical to understand.
-
-
-## 27. Advanced Production Scenario 18: Deep Systems Integration
-
-Operating highly available infrastructure requires deep systems integration. In scenario 18, we explore further into edge cases and advanced scaling metrics.
-
 ### 27.1 Component Failure Analysis
-
-When analyzing the API server during peak load, it is crucial to understand the interactions with the container runtime. The Kubelet acts as a bridge between the API Server and the underlying nodes.
-
-```mermaid
-graph LR
-    API[kube-apiserver] --> K[Kubelet]
-    K --> CRI[Containerd / CRI-O]
-    CRI --> RUNC[runc / nvidia-container-runtime]
-    RUNC --> KERNEL[Linux Kernel]
-```
 
 ### 27.2 Deep dive into metrics
 
-Metrics to monitor closely:
-- `apiserver_request_total`: Total number of requests.
-- `apiserver_request_duration_seconds`: Request latency.
-- `etcd_disk_wal_fsync_duration_seconds`: etcd disk sync latency. A slow disk will kill the entire cluster.
-- `scheduler_scheduling_algorithm_duration_seconds`: Time taken by the scheduler to find a node.
-
-In the context of scaling to 5000+ nodes, you must heavily tune APF (API Priority and Fairness) to prevent rogue operators from overwhelming the system.
-
-```yaml
-apiVersion: flowcontrol.apiserver.k8s.io/v1beta3
-kind: PriorityLevelConfiguration
-metadata:
-  name: ai-workload-level
-spec:
-  type: Limited
-  limited:
-    assuredConcurrencyShares: 50
-    limitResponse:
-      type: Queue
-      queuing:
-        queues: 100
-        handSize: 5
-        queueLengthLimit: 200
-```
-
 ### 27.3 Debugging Network Overlays
-
-Often, scheduling issues are masked as network issues. When a pod is scheduled but cannot reach the metadata server, check the CNI plugin and kube-proxy. The interactions between IPVS, iptables, and eBPF data planes are critical to understand.
-
-
-## 28. Advanced Production Scenario 19: Deep Systems Integration
-
-Operating highly available infrastructure requires deep systems integration. In scenario 19, we explore further into edge cases and advanced scaling metrics.
 
 ### 28.1 Component Failure Analysis
 
-When analyzing the API server during peak load, it is crucial to understand the interactions with the container runtime. The Kubelet acts as a bridge between the API Server and the underlying nodes.
-
-```mermaid
-graph LR
-    API[kube-apiserver] --> K[Kubelet]
-    K --> CRI[Containerd / CRI-O]
-    CRI --> RUNC[runc / nvidia-container-runtime]
-    RUNC --> KERNEL[Linux Kernel]
-```
-
 ### 28.2 Deep dive into metrics
-
-Metrics to monitor closely:
-- `apiserver_request_total`: Total number of requests.
-- `apiserver_request_duration_seconds`: Request latency.
-- `etcd_disk_wal_fsync_duration_seconds`: etcd disk sync latency. A slow disk will kill the entire cluster.
-- `scheduler_scheduling_algorithm_duration_seconds`: Time taken by the scheduler to find a node.
-
-In the context of scaling to 5000+ nodes, you must heavily tune APF (API Priority and Fairness) to prevent rogue operators from overwhelming the system.
-
-```yaml
-apiVersion: flowcontrol.apiserver.k8s.io/v1beta3
-kind: PriorityLevelConfiguration
-metadata:
-  name: ai-workload-level
-spec:
-  type: Limited
-  limited:
-    assuredConcurrencyShares: 50
-    limitResponse:
-      type: Queue
-      queuing:
-        queues: 100
-        handSize: 5
-        queueLengthLimit: 200
-```
 
 ### 28.3 Debugging Network Overlays
 
-Often, scheduling issues are masked as network issues. When a pod is scheduled but cannot reach the metadata server, check the CNI plugin and kube-proxy. The interactions between IPVS, iptables, and eBPF data planes are critical to understand.
-
-
-## 29. Advanced Production Scenario 20: Deep Systems Integration
-
-Operating highly available infrastructure requires deep systems integration. In scenario 20, we explore further into edge cases and advanced scaling metrics.
-
 ### 29.1 Component Failure Analysis
-
-When analyzing the API server during peak load, it is crucial to understand the interactions with the container runtime. The Kubelet acts as a bridge between the API Server and the underlying nodes.
-
-```mermaid
-graph LR
-    API[kube-apiserver] --> K[Kubelet]
-    K --> CRI[Containerd / CRI-O]
-    CRI --> RUNC[runc / nvidia-container-runtime]
-    RUNC --> KERNEL[Linux Kernel]
-```
 
 ### 29.2 Deep dive into metrics
 
-Metrics to monitor closely:
-- `apiserver_request_total`: Total number of requests.
-- `apiserver_request_duration_seconds`: Request latency.
-- `etcd_disk_wal_fsync_duration_seconds`: etcd disk sync latency. A slow disk will kill the entire cluster.
-- `scheduler_scheduling_algorithm_duration_seconds`: Time taken by the scheduler to find a node.
-
-In the context of scaling to 5000+ nodes, you must heavily tune APF (API Priority and Fairness) to prevent rogue operators from overwhelming the system.
-
-```yaml
-apiVersion: flowcontrol.apiserver.k8s.io/v1beta3
-kind: PriorityLevelConfiguration
-metadata:
-  name: ai-workload-level
-spec:
-  type: Limited
-  limited:
-    assuredConcurrencyShares: 50
-    limitResponse:
-      type: Queue
-      queuing:
-        queues: 100
-        handSize: 5
-        queueLengthLimit: 200
-```
-
 ### 29.3 Debugging Network Overlays
-
-Often, scheduling issues are masked as network issues. When a pod is scheduled but cannot reach the metadata server, check the CNI plugin and kube-proxy. The interactions between IPVS, iptables, and eBPF data planes are critical to understand.
 

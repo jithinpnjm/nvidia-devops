@@ -276,17 +276,6 @@ A single utilization percentage cannot identify the limiting subsystem. Always c
 
 **Turning "high utilization, low throughput" into evidence.** The single most useful pairing for this symptom is `dmon`'s per-engine breakdown against application-level throughput measured over the same window:
 
-```text
-$ nvidia-smi dmon -s ucm -c 5
-# gpu   sm   mem   enc   dec   fb   bar1
-# Idx     %     %     %     %    MB     MB
-    0    94    91     0     0 68120    512
-    0    95    93     0     0 68120    512
-    0    93    90     0     0 68124    512
-    0    96    92     0     0 68120    512
-    0    94    91     0     0 68120    512
-```
-
 `sm=94-96%` and `mem=90-93%` sustained together, not just briefly, is the signature of a genuinely memory-bandwidth-saturated kernel: the SMs report busy because they are actively issuing memory requests, but they are largely stalled waiting on those requests to return, not performing FLOPs. Application throughput (tokens/s, samples/s) measured during this same window will be well below what the GPU's peak compute spec would suggest — and that gap is the actual proof for the table's first row ("Memory bandwidth saturation"), not the utilization number alone.
 
 **Turning "out-of-memory errors with free memory reported earlier" into evidence.** The per-process breakdown, taken right before the failure, distinguishes fragmentation from genuine growth:

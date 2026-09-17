@@ -39,20 +39,28 @@ In CPython (the standard Python implementation), the GIL is a mutex that protect
 ### 2.2 Concurrency Architecture Diagram
 
 ```mermaid
-graph TD
-    A[Python Application] -->|CPU Bound Task| B(Multiprocessing)
-    A -->|I/O Bound Tasks| C(Threading)
-    A -->|Massive I/O Concurrency| D(Asyncio)
+flowchart TD
+    subgraph Execution Model
+        A[Python Application] -- "CPU Bound Task" --- B[Multiprocessing]
+        A -- "Light I/O Bound" --- C[Threading]
+        A -- "Massive I/O Concurrency" --- D[Asyncio]
+    end
 
-    B --> B1[Process 1 - Own GIL, Own Memory]
-    B --> B2[Process 2 - Own GIL, Own Memory]
+    subgraph Multiprocessing
+        B -- "Spawns" --- B1[Process 1 - Own GIL, Own Memory]
+        B -- "Spawns" --- B2[Process 2 - Own GIL, Own Memory]
+    end
     
-    C --> C1[Thread 1 - Shares GIL, Shares Memory]
-    C --> C2[Thread 2 - Shares GIL, Shares Memory]
+    subgraph Threading
+        C -- "Creates" --- C1[Thread 1 - Shares GIL, Shares Memory]
+        C -- "Creates" --- C2[Thread 2 - Shares GIL, Shares Memory]
+    end
 
-    D --> D1[Event Loop - Single Thread, Single GIL]
-    D1 -.->|Task 1| D2[await network]
-    D1 -.->|Task 2| D3[await network]
+    subgraph Asyncio
+        D -- "Manages" --- D1[Event Loop - Single Thread, Single GIL]
+        D1 -- "Schedules" --- D2[Task 1: await network]
+        D1 -- "Schedules" --- D3[Task 2: await network]
+    end
 ```
 
 ### 2.3 When to use what?
@@ -72,7 +80,9 @@ The `subprocess` module is arguably the most misused module by system administra
 
 ### 3.1 The Danger of `os.system` and `shell=True`
 
-Let's begin with what **NOT** to do. 
+:::warning Security Vulnerability: Shell Injection
+Let's begin with what **NOT** to do. Using `os.system()` or `shell=True` with unvalidated input allows attackers to execute arbitrary commands.
+:::
 
 ```python
 import os
@@ -199,13 +209,17 @@ sequenceDiagram
     participant Sub as Child Process (Popen)
 
     Python->>OS: fork() & exec() child
+    activate OS
     OS-->>Sub: Create Process
+    deactivate OS
+    activate Sub
     Python->>OS: Create Pipes (stdout, stderr)
     Sub->>OS: Write to stdout pipe buffer (64KB)
     Note over Sub, OS: If buffer fills, Child BLOCKS
     Python->>OS: Read from pipes via communicate()
     OS-->>Python: Stream data
     Sub->>OS: Exit(0)
+    deactivate Sub
     OS-->>Python: SIGCHLD
     Python->>Python: wait() reaps zombie
 ```
@@ -436,7 +450,9 @@ def fetch_data():
 
 ### 6.2 The Importance of Jitter
 
-When a massive fleet of agents tries to hit an API server that just rebooted, they might all retry at the exact same intervals (e.g., all wait 2 seconds, all hit the server, all fail, all wait 4 seconds...). This creates a **thundering herd problem** that will repeatedly crash the recovering server.
+:::tip Operations Principle: Jitter
+When a massive fleet of agents tries to hit an API server that just rebooted, they might all retry at the exact same intervals (e.g., all wait 2 seconds, all hit the server, all fail, all wait 4 seconds...). This creates a **thundering herd problem** that will repeatedly crash the recovering server. Adding jitter (randomness) prevents this.
+:::
 
 **Jitter** adds randomness to the backoff interval, spreading out the retries and allowing the server to recover. `urllib3` does not add jitter by default; for advanced use cases, the `tenacity` library is highly recommended.
 
@@ -884,9 +900,6 @@ While we showed `urllib3` retries earlier, the `tenacity` library is the industr
 import random
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, before_sleep_log
 import logging
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # Retry configuration:
 # 1. Stop trying after 5 total attempts.

@@ -330,9 +330,6 @@ import numpy as np
 import tritonclient.grpc as grpcclient
 from concurrent.futures import ProcessPoolExecutor
 
-TRITON_URL = "localhost:8001"
-MODEL_NAME = "text_pipeline"
-
 def cpu_heavy_preprocessing_static(req_id):
     t0 = time.perf_counter()
     x = np.random.randn(500, 500)

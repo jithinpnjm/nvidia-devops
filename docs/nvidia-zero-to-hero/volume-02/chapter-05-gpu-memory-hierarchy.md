@@ -318,15 +318,6 @@ High utilization may indicate that kernels are active, not that execution engine
 
 **Turning "high memory bandwidth, lower compute throughput" into evidence.** This is the same paired `dmon` read used earlier in the chapter, applied here as the troubleshooting-table row it backs:
 
-```text
-$ nvidia-smi dmon -s ucm -c 3
-# gpu   sm   mem
-# Idx     %     %
-    0    22    90
-    0    20    92
-    0    23    89
-```
-
 `mem` sustained at 89-92% while `sm` sits at 20-23% is not a healthy "GPU is working hard" reading — it's the opposite: the SMs are mostly waiting, and the memory subsystem is close to its ceiling. This is the concrete reading that turns the table's first row from a plausible guess into a supported conclusion.
 
 **Turning "repeated host-device copies" into evidence.** A per-request timeline that separates transfer time from compute time is what actually proves a transfer bottleneck, since `dmon` alone cannot distinguish PCIe transfer activity from device-internal memory traffic:

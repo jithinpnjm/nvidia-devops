@@ -325,10 +325,6 @@ GPU0	 X 	NODE1	0-7,16-23	0
 $ numactl --cpunodebind=1 --membind=1 ./transfer_bench --mode=pinned --bytes=268435456
 pinned   H2D: 268435456 bytes in 16.9 ms   (15.9 GB/s)
 
-$ numactl --cpunodebind=0 --membind=0 ./transfer_bench --mode=pinned --bytes=268435456
-pinned   H2D: 268435456 bytes in 29.4 ms   (9.1 GB/s)
-```
-
 `nvidia-smi topo -m` reports GPU0 as local to NUMA node 1. Binding the allocating thread and its memory to node 0 instead forces the transfer across the inter-socket link before it ever reaches the PCIe root complex — a ~1.75x throughput penalty using the *identical* pinned-memory strategy. This is the mechanism behind this chapter's Customer Scenario: correct pinned memory is not sufficient if the pages themselves are remote from the GPU's I/O path.
 
 ### Problem: Host becomes unstable under load

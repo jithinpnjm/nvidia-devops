@@ -41,9 +41,9 @@ After merging into the chapter, delete the standalone file(s) with `rm`. Every r
 
 ### Volumes with no existing Foundations section (relocate the standalone content in fresh, no dedup needed — but still re-nest headings, adjust framing, and follow the pedagogy rules below)
 
-7. **Volume 7** — move `docs/volume-07/00-foundation-what-observability-and-reliability-are.md` into a new `## Foundations: start here if this is new to you` section at the top of `docs/volume-07/01-chapter-1-metrics-logs-and-traces-as-different-evidence.md` (immediately after front matter, before the chapter's existing first line).
-8. **Volume 8** — move `docs/volume-08/00-foundation-what-solutions-architecture-is.md` into a new Foundations section at the top of `docs/volume-08/01-chapter-1-discovery-that-changes-the-architecture.md`.
-9. **Volume 9** — move `docs/volume-09/00-foundation-how-to-use-interview-practice.md` into a new Foundations section at the top of `docs/volume-09/01-chapter-1-the-answer-framework-expose-your-reasoning.md`.
+7. **Volume 7** — move `docs/volume-07/00-foundation-what-observability-and-reliability-are.md` into a new `## Foundations: start here if this is new to you` section at the top of `docs/volume-07/01-metrics-logs-traces-masterclass.md` (immediately after front matter, before the chapter's existing first line).
+8. **Volume 8** — move `docs/volume-08/00-foundation-what-solutions-architecture-is.md` into a new Foundations section at the top of `docs/volume-08/01-architecture-design-masterclass.md`.
+9. **Volume 9** — move `docs/volume-09/00-foundation-how-to-use-interview-practice.md` into a new Foundations section at the top of `docs/volume-09/01-interview-framework-masterclass.md`.
 
 ### Volume 10 — special case, three standalone files with different roles
 
