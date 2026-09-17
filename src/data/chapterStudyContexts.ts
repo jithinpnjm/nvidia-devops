@@ -9600,81 +9600,135 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "mermaid"
     ]
   },
-  "Interview Framework & Whiteboard Masterclass": {
+  "01 - Hardware & Ecosystem Gauntlet": {
     "volume": "Volume 9",
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
     "learningOutcome": "",
     "sections": [
-      "Interview Framework & Whiteboard Masterclass",
-      "Advanced Production Considerations",
-      "Foundations: start here before using the interview question bank { foundations-start-here-before-using-the-interview-question-bank}",
-      "What this volume is trying to teach",
-      "The first mental model",
-      "Different questions test different skills",
-      "What to do when a topic is new",
-      "A practical study loop",
-      "Example: turn a weak troubleshooting answer into reasoning",
-      "Example: architecture answer",
-      "Coding practice should expose the thought process",
-      "Self-scoring rubric",
-      "Four-pass mock-interview progression",
-      "Readiness check"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "python"
-    ]
-  },
-  "Troubleshooting Scenarios Masterclass": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "",
-    "sections": [
-      "Troubleshooting Scenarios Masterclass",
-      "2. Beginner to Advanced Diagnostics",
-      "A. Load Average: Deconstructing the Metric",
-      "1. Inspect run queue (r) vs. blocked queue (b)",
-      "Identify which kernel function is blocking D-state processes",
-      "C. Transparent Huge Pages (THP) and Memory Compaction",
-      "Check memory compaction activity",
-      "3. High-Stakes Senior Solutions Architect Interview Scenarios",
-      "Scenario 1: High System Load with Low CPU Utilization",
-      "Key Takeaways",
-      "Chapter 4 — Kubernetes, GPU Operator, and Run:ai Platform Troubleshooting",
-      "2. The GPU Pod Lifecycle: State-to-Evidence Matrix",
-      "Failure 2: CreateContainerError — CDI Specification Desynchronization",
-      "Advanced Production Considerations"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
-  },
-  "AI Architecture & Design Masterclass": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "",
-    "sections": [
-      "AI Architecture & Design Masterclass",
-      "2. KV Cache Sizing Mathematics: The Architecture Behind Memory Sizing",
-      "The KV Cache Memory Formula",
-      "Worked Architecture Example: Llama 3 70B (GQA)",
-      "4. Serving Runtime Landscape: TensorRT-LLM, Triton, vLLM, and NIM",
-      "6. Senior Solutions Architect Interview Scenarios",
-      "Scenario 1: Sizing an LLM Service for a Large Financial Enterprise",
-      "Advanced Production Considerations",
-      "Key Takeaways",
-      "Chapter 7 — Accelerated Networking: InfiniBand, Spectrum-X, and Collective Fabrics",
-      "2. Multi-Rail Fat-Tree Fabric Architecture",
-      "Why Multi-Rail Eliminates Collective Contention",
-      "4. Lossless Ethernet Engineering: PFC and ECN on Spectrum-X",
-      "The Two Control Loops of Lossless RoCE:"
+      "Masterclass: The Hardware & Ecosystem Gauntlet",
+      "Module 1: The NVIDIA Hardware & Software Stack (Q1)",
+      "1.1 The Hardware Foundation: Beyond the GPU",
+      "1.2 Systems Architecture: DGX, HGX, MGX",
+      "1.3 The Software Stack: Moving Data Efficiently",
+      "Deep Dive Scenario 1: Optimizing the NCCL Topology",
+      "Module 2: The Data Center Networking Trinity (Q12)",
+      "2.1 InfiniBand (Quantum)",
+      "2.2 Ethernet (Spectrum-X)",
+      "2.3 ConnectX vs BlueField",
+      "Engineering Deep Dive 1: Tuning RoCEv2 DCQCN",
+      "Module 3: Generative AI OS - NIMs and NeMo (Q13)",
+      "3.1 NVIDIA Inference Microservices (NIM)",
+      "3.2 NVIDIA NeMo Framework"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
+    ]
+  },
+  "Interview Gauntlet: K8s & Virtualization": {
+    "volume": "Volume 9",
+    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
+    "learningOutcome": "",
+    "sections": [
+      "Interview Gauntlet: Kubernetes & Virtualization Masterclass",
+      "Question 2: SR-IOV and Virtualization Mechanics",
+      "The Anatomy of Virtual I/O",
+      "Whiteboard Strategy: Drawing the Datapath",
+      "Deep Dive: IOMMU and Memory Translation",
+      "Question 4: Kubernetes HA Minimum Nodes (etcd Quorum)",
+      "Split-Brain and Network Partitions",
+      "Exploring Raft Mechanics in Depth",
+      "Question 6: Bare-Metal Kubernetes Provisioning and Scaling",
+      "The Nuances of the GPU Operator",
+      "Question 7: The Trick Question - Sharing GPUs Across Nodes",
+      "Distributed Execution Architectures",
+      "Distributed Frameworks in Depth"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text"
+    ]
+  },
+  "Interview Gauntlet: Training & NCCL": {
+    "volume": "Volume 9",
+    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
+    "learningOutcome": "",
+    "sections": [
+      "Interview Gauntlet: Training, CUDA, and NCCL Masterclass",
+      "Question 8: Distributed Training End-to-End",
+      "1. Storage and Data Loading pipeline",
+      "2. The Forward Pass",
+      "3. The Backward Pass",
+      "4. Gradient Synchronization (All-Reduce)",
+      "5. The Optimizer Step",
+      "End-to-End Diagram",
+      "Latency Points and Bottlenecks",
+      "Question 10: CUDA, Runtime, GPU Workers, Parallelism",
+      "1. Framework to CUDA Interaction",
+      "2. CUDA Streams and Concurrency",
+      "3. GPU Architecture: SMs and Warps",
+      "4. Tokenization"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text"
+    ]
+  },
+  "Masterclass: Inference, MLOps, and L7 Networking": {
+    "volume": "Volume 9",
+    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
+    "learningOutcome": "",
+    "sections": [
+      "Masterclass: Inference, MLOps, and L7 Networking",
+      "Part 1: The Inference Load Balancing Conundrum",
+      "Question 3: Avi LB vs NGINX LB (Why Enterprise L7/L4 Matters for AI)",
+      "Typical NGINX configuration for gRPC - notice the manual tuning required",
+      "Part 2: The Core of the Beast - Serving Engines",
+      "Question 9: Inferencing using Triton, vLLM, TensorRT",
+      "config.pbtxt",
+      "Input for prompt",
+      "Output for generated text",
+      "vLLM Engine Arguments mapped to Triton",
+      "Part 3: Data Preparation Pipelines and MLOps",
+      "The Problem: The Data Bottleneck",
+      "Question: Designing the High-Throughput Data Pipeline",
+      "Conceptual Ray Data Pipeline for massive scale embedding"
+    ],
+    "codeLanguages": [
+      "nginx",
+      "text",
+      "mermaid",
+      "protobuf",
+      "python",
+      "yaml"
+    ]
+  },
+  "05 - Linux, Networking, and IaC Gauntlet": {
+    "volume": "Volume 9",
+    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
+    "learningOutcome": "Masterclass on complex Linux networking, Base Command Manager, Infrastructure as Code paradigms, and scripting exercises for MLOps/SRE roles.",
+    "sections": [
+      "05 - Linux, Networking, and IaC Gauntlet",
+      "1. Q5: Complex Linux/Networking Troubleshooting",
+      "1.1 Linux Network Namespaces (netns)",
+      "1. Create two isolated network namespaces",
+      "2. Verify creation",
+      "Output:",
+      "ns-blue",
+      "ns-red",
+      "3. Create a virtual ethernet pair (veth) to connect them",
+      "A veth pair is a virtual wire. What goes in one end comes out the other.",
+      "4. Assign the interfaces to their respective namespaces",
+      "5. Configure IP addresses inside the namespaces",
+      "6. Bring the links up",
+      "The loopback interfaces also need to be up"
+    ],
+    "codeLanguages": [
+      "bash",
+      "text",
+      "mermaid",
+      "python",
+      "yaml"
     ]
   },
   "Interview Lab — NVIDIA Senior Solutions Architect: AI Factory from Bare-Metal to Workloads": {

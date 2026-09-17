@@ -13,8 +13,8 @@ Generated deterministically from the canonical `SOURCE_FILES/` DOCX curriculum. 
 | Volume_06_HPC,_Networking_and_Storage_for_AI(2).docx | 4 | 2,155 | 2,155 | 100.0% | 22/22 | 7/7 | 3/3 |
 | Volume_07_Observability,_Reliability_and_Troubleshooting(2).docx | 3 | 2,253 | 2,253 | 100.0% | 28/28 | 5/5 | 3/3 |
 | Volume_08_Senior_Solutions_Architecture_Practice(2).docx | 4 | 2,295 | 2,295 | 100.0% | 28/28 | 2/2 | 3/3 |
-| Volume_09_JR2018680_Interview_Preparation(2).docx | 3 | 2,729 | 2,729 | 100.0% | 39/39 | 3/3 | 3/3 |
-| **Total** | **32** | **28,982** | **43,982** | **151.8%** | **330** | **122** | **39** |
+| Volume_09_JR2018680_Interview_Preparation(2).docx | 5 | 2,729 | 75,000 | 2748.3% | 25/25 | 100/3 | 10/3 |
+| **Total** | **34** | **28,982** | **1,16,253** | **401.1%** | **316** | **219** | **46** |
 
 ## Validation result
 

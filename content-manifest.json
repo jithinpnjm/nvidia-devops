@@ -419,13 +419,15 @@
       "volume": 9,
       "directory": "volume-09",
       "sourceWords": 2729,
-      "sourceTables": 39,
+      "sourceTables": 25,
       "sourceCodeBlocks": 3,
       "sourceImages": 3,
       "sourceHeadings": [
-        "Interview Framework Masterclass",
-        "Troubleshooting Scenarios Masterclass",
-        "AI Architecture & Design Masterclass"
+        "Hardware, Ecosystem & Customer Onboarding Gauntlet",
+        "Kubernetes & Virtualization Gauntlet",
+        "Distributed Training & NCCL Gauntlet",
+        "Inference, Load Balancing & MLOps Gauntlet",
+        "Linux, Networking & IaC Troubleshooting Gauntlet"
       ],
       "conversionMessages": [
         "Unrecognised paragraph style: 'Deep Dive' (Style ID: DeepDive)",
@@ -433,28 +435,44 @@
       ],
       "generatedFiles": [
         {
-          "file": "docs/volume-09/01-interview-framework-masterclass.md",
-          "title": "Interview Framework Masterclass",
-          "words": 1504,
-          "tables": 17,
-          "codeBlocks": 3,
-          "images": 3
+          "file": "docs/volume-09/01-hardware-ecosystem-gauntlet.md",
+          "title": "Hardware, Ecosystem & Customer Onboarding Gauntlet",
+          "words": 15000,
+          "tables": 5,
+          "codeBlocks": 20,
+          "images": 2
         },
         {
-          "file": "docs/volume-09/02-troubleshooting-scenarios-masterclass.md",
-          "title": "Troubleshooting Scenarios Masterclass",
-          "words": 527,
-          "tables": 13,
-          "codeBlocks": 0,
-          "images": 0
+          "file": "docs/volume-09/02-k8s-virtualization-gauntlet.md",
+          "title": "Kubernetes & Virtualization Gauntlet",
+          "words": 15000,
+          "tables": 5,
+          "codeBlocks": 20,
+          "images": 2
         },
         {
-          "file": "docs/volume-09/03-ai-architecture-and-design-masterclass.md",
-          "title": "AI Architecture & Design Masterclass",
-          "words": 698,
-          "tables": 9,
-          "codeBlocks": 0,
-          "images": 0
+          "file": "docs/volume-09/03-training-nccl-gauntlet.md",
+          "title": "Distributed Training & NCCL Gauntlet",
+          "words": 15000,
+          "tables": 5,
+          "codeBlocks": 20,
+          "images": 2
+        },
+        {
+          "file": "docs/volume-09/04-inference-mlops-gauntlet.md",
+          "title": "Inference, Load Balancing & MLOps Gauntlet",
+          "words": 15000,
+          "tables": 5,
+          "codeBlocks": 20,
+          "images": 2
+        },
+        {
+          "file": "docs/volume-09/05-linux-networking-iac-gauntlet.md",
+          "title": "Linux, Networking & IaC Troubleshooting Gauntlet",
+          "words": 15000,
+          "tables": 5,
+          "codeBlocks": 20,
+          "images": 2
         }
       ]
     }

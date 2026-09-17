@@ -7,6 +7,8 @@ description: "Masterclass on complex Linux networking, Base Command Manager, Inf
 
 # 05 - Linux, Networking, and IaC Gauntlet
 
+## Foundations: start here before using the interview question bank {#foundations-start-here-before-using-the-interview-question-bank}
+
 Welcome to the final gauntlet in the AI Infrastructure engineering domain. This masterclass dives deep into the plumbing that keeps massive GPU clusters communicating, the provisioning systems that bring them online, the configuration management that keeps them consistent, and the scripting skills required to automate away toil.
 
 This module focuses on:
@@ -130,7 +132,6 @@ The Linux `tc` (Traffic Control) subsystem allows us to shape, delay, and drop t
 1.  **Chaos Engineering:** Proving your application can survive network degradation.
 2.  **Rate Limiting:** Enforcing bandwidth quotas on specific tenants.
 
-#### The Interview Scenario
 
 **Interviewer:** "We are noticing that NCCL `AllReduce` performance falls off a cliff periodically. We suspect a microburst on the network is causing queue build-up and packet loss. How can you reproduce this environment in a controlled test?"
 
@@ -198,7 +199,6 @@ Confusing Ingress and Egress shaping. `tc` is inherently designed for shaping **
 
 When logs are silent and metrics are normal but the application is failing, the packet capture is the ultimate source of truth.
 
-#### The Interview Scenario
 
 **Interviewer:** "An application team complains that their API requests to an internal service are occasionally timing out after 3 seconds. They blame the network. How do you prove whether it's a network drop or an application-layer issue?"
 
@@ -280,7 +280,6 @@ When you rack a new DGX system, how does it become part of the cluster?
 5.  **Image Synchronization:** The node boots into the initrd, contacts the CMD daemon on the head node, and determines its Category. It then synchronizes its assigned Software Image. This is often done via a highly efficient torrent-like protocol or rsync.
 6.  **Finalization:** The node pivots into the newly synced root filesystem, starts systemd, mounts parallel file systems (like WEKA or Lustre), starts the SLURM slurmd daemon or Kubernetes kubelet, and is now ready for jobs.
 
-#### The Interview Scenario
 
 **Interviewer:** "We need to update the OFED (OpenFabrics Enterprise Distribution) InfiniBand drivers on our 100-node DGX cluster managed by BCM. How do you do this with minimal downtime, ensuring roll-back capability?"
 
@@ -785,7 +784,6 @@ def analyze_slurm_ooms(start_time):
 **Implementation (Bash):**
 
 ```bash
-#!/bin/bash
 # mtu_watchdog.sh
 
 INTERFACE="ib0"
@@ -923,7 +921,6 @@ AI training is often bottlenecked by storage (reading millions of images or text
 **Implementation (Bash wrapper for FIO):**
 
 ```bash
-#!/bin/bash
 # run_storage_benchmark.sh
 
 MOUNT_POINT="/weka/data"
@@ -969,377 +966,63 @@ rm $FIO_CONFIG fio_results.json
 
 ---
 
-## Appendix D.1: Kubernetes Networking Troubleshooting
-
-AI workloads are increasingly orchestrated by Kubernetes. Understanding CNI (Container Network Interface) mechanics is vital.
-
-### D.1 CNI_1 BGP Peering Failure
-
-**Scenario:** You have an on-premise Kubernetes cluster using CNI_1 for networking with BGP peering to Top of Rack (ToR) switches to advertise Pod IP routes. A new node is added, but pods on that node cannot reach pods on other nodes.
-
 **Investigation Steps:**
 
-1.  **Check Node Status:** Is the node `Ready` in Kubernetes? Yes.
-2.  **Check CNI_1 Pods:** Are the `calico-node` DaemonSet pods running on the new node? Yes.
-3.  **Inspect BGP Status (calicoctl):**
-    Use `calicoctl` on the affected node to check peering status.
-    ```bash
-    calicoctl node status
-    ```
-    *Output shows the connection to the ToR switch is in `Active` or `Connect` state, not `Established`.*
-
-4.  **Network Layer Debugging:**
-    Why is the BGP session not establishing? BGP uses TCP port 179.
-    *   Can the node ping the ToR switch IP?
-    *   Can you telnet to port 179 on the ToR switch from the node?
-    ```bash
-    nc -zv <ToR_IP> 179
-    ```
-    *Connection refused.*
-
-5.  **Root Cause:**
-    The ToR switch configuration was not updated to accept the BGP peering connection from the new node's IP address. The infrastructure team must add the new neighbor to the switch configuration.
-
-:::info Whiteboard Strategy
-Draw the BGP architecture. Node -> ToR (eBGP or iBGP). Explain that CNI_1 distributes routes via BGP, and if the BGP session fails, the rest of the cluster doesn't know how to route packets to the PodCIDR assigned to the new node, resulting in blackholed traffic.
-:::
-
 ---
-
-## Appendix E.1: Storage Performance Scripting (IOPS & Bandwidth)
-
-AI training is often bottlenecked by storage (reading millions of images or text files).
 
 ### E.1 Storage Bench_1 Script
 
-**Scenario:** You need to benchmark a new parallel file system mount (`/weka/data`) from a compute node to ensure it meets the 50 GB/s requirement for a large language model.
-
-**Implementation (Bash wrapper for FIO):**
-
 ```bash
-#!/bin/bash
-# run_storage_benchmark.sh
-
-MOUNT_POINT="/weka/data"
-FIO_CONFIG="benchmark.fio"
-
-# Create a temporary FIO config file for sequential read bandwidth
-cat << EOF > $FIO_CONFIG
-[global]
-ioengine=libaio
-direct=1
-bs=1M
-size=10G
-numjobs=16
-runtime=60
-group_reporting
-directory=$MOUNT_POINT
 
 [seq-read]
 rw=read
 EOF
 
-echo "Starting FIO benchmark on $MOUNT_POINT..."
-# Run FIO and extract just the read bandwidth (in MB/s or GB/s)
-# Note: FIO output parsing can be complex, using JSON output is safer for scripts
-fio $FIO_CONFIG --output-format=json > fio_results.json
-
-# Parse JSON with jq to get bandwidth in KB/s, convert to GB/s
-BW_KBS=\$(jq '.jobs[0].read.bw' fio_results.json)
-BW_GBS=\$(echo "scale=2; \$BW_KBS / 1024 / 1024" | bc)
-
-echo "Benchmark Complete."
-echo "Sequential Read Bandwidth: \${BW_GBS} GB/s"
-
-if (( \$(echo "\$BW_GBS < 45.0" | bc -l) )); then
-    echo "WARNING: Bandwidth is below the 50 GB/s threshold!"
-else
-    echo "SUCCESS: Bandwidth meets requirements."
-fi
-
-# Cleanup
 rm $FIO_CONFIG fio_results.json
 ```
 
 ---
 
-## Appendix D.2: Kubernetes Networking Troubleshooting
-
-AI workloads are increasingly orchestrated by Kubernetes. Understanding CNI (Container Network Interface) mechanics is vital.
-
-### D.1 CNI_2 BGP Peering Failure
-
-**Scenario:** You have an on-premise Kubernetes cluster using CNI_2 for networking with BGP peering to Top of Rack (ToR) switches to advertise Pod IP routes. A new node is added, but pods on that node cannot reach pods on other nodes.
-
 **Investigation Steps:**
 
-1.  **Check Node Status:** Is the node `Ready` in Kubernetes? Yes.
-2.  **Check CNI_2 Pods:** Are the `calico-node` DaemonSet pods running on the new node? Yes.
-3.  **Inspect BGP Status (calicoctl):**
-    Use `calicoctl` on the affected node to check peering status.
-    ```bash
-    calicoctl node status
-    ```
-    *Output shows the connection to the ToR switch is in `Active` or `Connect` state, not `Established`.*
-
-4.  **Network Layer Debugging:**
-    Why is the BGP session not establishing? BGP uses TCP port 179.
-    *   Can the node ping the ToR switch IP?
-    *   Can you telnet to port 179 on the ToR switch from the node?
-    ```bash
-    nc -zv <ToR_IP> 179
-    ```
-    *Connection refused.*
-
-5.  **Root Cause:**
-    The ToR switch configuration was not updated to accept the BGP peering connection from the new node's IP address. The infrastructure team must add the new neighbor to the switch configuration.
-
-:::info Whiteboard Strategy
-Draw the BGP architecture. Node -> ToR (eBGP or iBGP). Explain that CNI_2 distributes routes via BGP, and if the BGP session fails, the rest of the cluster doesn't know how to route packets to the PodCIDR assigned to the new node, resulting in blackholed traffic.
-:::
-
 ---
-
-## Appendix E.2: Storage Performance Scripting (IOPS & Bandwidth)
-
-AI training is often bottlenecked by storage (reading millions of images or text files).
 
 ### E.1 Storage Bench_2 Script
 
-**Scenario:** You need to benchmark a new parallel file system mount (`/weka/data`) from a compute node to ensure it meets the 50 GB/s requirement for a large language model.
-
-**Implementation (Bash wrapper for FIO):**
-
 ```bash
-#!/bin/bash
-# run_storage_benchmark.sh
-
-MOUNT_POINT="/weka/data"
-FIO_CONFIG="benchmark.fio"
-
-# Create a temporary FIO config file for sequential read bandwidth
-cat << EOF > $FIO_CONFIG
-[global]
-ioengine=libaio
-direct=1
-bs=1M
-size=10G
-numjobs=16
-runtime=60
-group_reporting
-directory=$MOUNT_POINT
 
 [seq-read]
 rw=read
 EOF
 
-echo "Starting FIO benchmark on $MOUNT_POINT..."
-# Run FIO and extract just the read bandwidth (in MB/s or GB/s)
-# Note: FIO output parsing can be complex, using JSON output is safer for scripts
-fio $FIO_CONFIG --output-format=json > fio_results.json
-
-# Parse JSON with jq to get bandwidth in KB/s, convert to GB/s
-BW_KBS=\$(jq '.jobs[0].read.bw' fio_results.json)
-BW_GBS=\$(echo "scale=2; \$BW_KBS / 1024 / 1024" | bc)
-
-echo "Benchmark Complete."
-echo "Sequential Read Bandwidth: \${BW_GBS} GB/s"
-
-if (( \$(echo "\$BW_GBS < 45.0" | bc -l) )); then
-    echo "WARNING: Bandwidth is below the 50 GB/s threshold!"
-else
-    echo "SUCCESS: Bandwidth meets requirements."
-fi
-
-# Cleanup
-rm $FIO_CONFIG fio_results.json
-```
-
 ---
-
-## Appendix D.3: Kubernetes Networking Troubleshooting
-
-AI workloads are increasingly orchestrated by Kubernetes. Understanding CNI (Container Network Interface) mechanics is vital.
-
-### D.1 CNI_3 BGP Peering Failure
-
-**Scenario:** You have an on-premise Kubernetes cluster using CNI_3 for networking with BGP peering to Top of Rack (ToR) switches to advertise Pod IP routes. A new node is added, but pods on that node cannot reach pods on other nodes.
 
 **Investigation Steps:**
 
-1.  **Check Node Status:** Is the node `Ready` in Kubernetes? Yes.
-2.  **Check CNI_3 Pods:** Are the `calico-node` DaemonSet pods running on the new node? Yes.
-3.  **Inspect BGP Status (calicoctl):**
-    Use `calicoctl` on the affected node to check peering status.
-    ```bash
-    calicoctl node status
-    ```
-    *Output shows the connection to the ToR switch is in `Active` or `Connect` state, not `Established`.*
-
-4.  **Network Layer Debugging:**
-    Why is the BGP session not establishing? BGP uses TCP port 179.
-    *   Can the node ping the ToR switch IP?
-    *   Can you telnet to port 179 on the ToR switch from the node?
-    ```bash
-    nc -zv <ToR_IP> 179
-    ```
-    *Connection refused.*
-
-5.  **Root Cause:**
-    The ToR switch configuration was not updated to accept the BGP peering connection from the new node's IP address. The infrastructure team must add the new neighbor to the switch configuration.
-
-:::info Whiteboard Strategy
-Draw the BGP architecture. Node -> ToR (eBGP or iBGP). Explain that CNI_3 distributes routes via BGP, and if the BGP session fails, the rest of the cluster doesn't know how to route packets to the PodCIDR assigned to the new node, resulting in blackholed traffic.
-:::
-
 ---
-
-## Appendix E.3: Storage Performance Scripting (IOPS & Bandwidth)
-
-AI training is often bottlenecked by storage (reading millions of images or text files).
 
 ### E.1 Storage Bench_3 Script
 
-**Scenario:** You need to benchmark a new parallel file system mount (`/weka/data`) from a compute node to ensure it meets the 50 GB/s requirement for a large language model.
-
-**Implementation (Bash wrapper for FIO):**
-
 ```bash
-#!/bin/bash
-# run_storage_benchmark.sh
-
-MOUNT_POINT="/weka/data"
-FIO_CONFIG="benchmark.fio"
-
-# Create a temporary FIO config file for sequential read bandwidth
-cat << EOF > $FIO_CONFIG
-[global]
-ioengine=libaio
-direct=1
-bs=1M
-size=10G
-numjobs=16
-runtime=60
-group_reporting
-directory=$MOUNT_POINT
 
 [seq-read]
 rw=read
 EOF
 
-echo "Starting FIO benchmark on $MOUNT_POINT..."
-# Run FIO and extract just the read bandwidth (in MB/s or GB/s)
-# Note: FIO output parsing can be complex, using JSON output is safer for scripts
-fio $FIO_CONFIG --output-format=json > fio_results.json
-
-# Parse JSON with jq to get bandwidth in KB/s, convert to GB/s
-BW_KBS=\$(jq '.jobs[0].read.bw' fio_results.json)
-BW_GBS=\$(echo "scale=2; \$BW_KBS / 1024 / 1024" | bc)
-
-echo "Benchmark Complete."
-echo "Sequential Read Bandwidth: \${BW_GBS} GB/s"
-
-if (( \$(echo "\$BW_GBS < 45.0" | bc -l) )); then
-    echo "WARNING: Bandwidth is below the 50 GB/s threshold!"
-else
-    echo "SUCCESS: Bandwidth meets requirements."
-fi
-
-# Cleanup
-rm $FIO_CONFIG fio_results.json
-```
-
 ---
-
-## Appendix D.4: Kubernetes Networking Troubleshooting
-
-AI workloads are increasingly orchestrated by Kubernetes. Understanding CNI (Container Network Interface) mechanics is vital.
-
-### D.1 CNI_4 BGP Peering Failure
-
-**Scenario:** You have an on-premise Kubernetes cluster using CNI_4 for networking with BGP peering to Top of Rack (ToR) switches to advertise Pod IP routes. A new node is added, but pods on that node cannot reach pods on other nodes.
 
 **Investigation Steps:**
 
-1.  **Check Node Status:** Is the node `Ready` in Kubernetes? Yes.
-2.  **Check CNI_4 Pods:** Are the `calico-node` DaemonSet pods running on the new node? Yes.
-3.  **Inspect BGP Status (calicoctl):**
-    Use `calicoctl` on the affected node to check peering status.
-    ```bash
-    calicoctl node status
-    ```
-    *Output shows the connection to the ToR switch is in `Active` or `Connect` state, not `Established`.*
-
-4.  **Network Layer Debugging:**
-    Why is the BGP session not establishing? BGP uses TCP port 179.
-    *   Can the node ping the ToR switch IP?
-    *   Can you telnet to port 179 on the ToR switch from the node?
-    ```bash
-    nc -zv <ToR_IP> 179
-    ```
-    *Connection refused.*
-
-5.  **Root Cause:**
-    The ToR switch configuration was not updated to accept the BGP peering connection from the new node's IP address. The infrastructure team must add the new neighbor to the switch configuration.
-
-:::info Whiteboard Strategy
-Draw the BGP architecture. Node -> ToR (eBGP or iBGP). Explain that CNI_4 distributes routes via BGP, and if the BGP session fails, the rest of the cluster doesn't know how to route packets to the PodCIDR assigned to the new node, resulting in blackholed traffic.
-:::
-
 ---
-
-## Appendix E.4: Storage Performance Scripting (IOPS & Bandwidth)
-
-AI training is often bottlenecked by storage (reading millions of images or text files).
 
 ### E.1 Storage Bench_4 Script
 
-**Scenario:** You need to benchmark a new parallel file system mount (`/weka/data`) from a compute node to ensure it meets the 50 GB/s requirement for a large language model.
-
-**Implementation (Bash wrapper for FIO):**
-
 ```bash
-#!/bin/bash
-# run_storage_benchmark.sh
-
-MOUNT_POINT="/weka/data"
-FIO_CONFIG="benchmark.fio"
-
-# Create a temporary FIO config file for sequential read bandwidth
-cat << EOF > $FIO_CONFIG
-[global]
-ioengine=libaio
-direct=1
-bs=1M
-size=10G
-numjobs=16
-runtime=60
-group_reporting
-directory=$MOUNT_POINT
 
 [seq-read]
 rw=read
 EOF
 
-echo "Starting FIO benchmark on $MOUNT_POINT..."
-# Run FIO and extract just the read bandwidth (in MB/s or GB/s)
-# Note: FIO output parsing can be complex, using JSON output is safer for scripts
-fio $FIO_CONFIG --output-format=json > fio_results.json
-
-# Parse JSON with jq to get bandwidth in KB/s, convert to GB/s
-BW_KBS=\$(jq '.jobs[0].read.bw' fio_results.json)
-BW_GBS=\$(echo "scale=2; \$BW_KBS / 1024 / 1024" | bc)
-
-echo "Benchmark Complete."
-echo "Sequential Read Bandwidth: \${BW_GBS} GB/s"
-
-if (( \$(echo "\$BW_GBS < 45.0" | bc -l) )); then
-    echo "WARNING: Bandwidth is below the 50 GB/s threshold!"
-else
-    echo "SUCCESS: Bandwidth meets requirements."
-fi
-
-# Cleanup
 rm $FIO_CONFIG fio_results.json
 ```
 \n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n
