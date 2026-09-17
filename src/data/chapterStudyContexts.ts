@@ -10995,69 +10995,25 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "python"
     ]
   },
-  "Chapter 3 - Linux troubleshooting questions": {
+  "Chapter 3 - Linux and Host Troubleshooting for AI Infrastructure": {
     "volume": "Volume 9",
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Chapter 3 - Linux troubleshooting questions — JR2018680 Interview Preparation.",
+    "learningOutcome": "Linux kernel, CPU, memory, NUMA, I/O, and PCIe troubleshooting for NVIDIA accelerated systems: D-state analysis, PSI metrics, THP compaction, and senior interview answer scripts.",
     "sections": [
-      "Worked scenario",
-      "➕ Additions",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 4 - Kubernetes troubleshooting questions": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Chapter 4 - Kubernetes troubleshooting questions — JR2018680 Interview Preparation.",
-    "sections": [
-      "Worked scenario",
-      "➕ Additions",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 5 - GPU and AI infrastructure troubleshooting": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Chapter 5 - GPU and AI infrastructure troubleshooting — JR2018680 Interview Preparation.",
-    "sections": [
-      "Worked scenario",
-      "➕ Additions"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 6 - AI inference architecture questions": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Chapter 6 - AI inference architecture questions — JR2018680 Interview Preparation.",
-    "sections": [
-      "➕ Additions",
-      "Practice"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 7 - HPC networking questions": {
-    "volume": "Volume 9",
-    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Chapter 7 - HPC networking questions — JR2018680 Interview Preparation.",
-    "sections": [
-      "Worked scenario",
-      "➕ Additions",
-      "size count type redop time algbw busbw",
-      "Practice"
+      "Chapter 3 — Linux and Host Troubleshooting for AI Infrastructure",
+      "1. The Core Mental Model: The 5 Host Subsystems",
+      "2. Beginner to Advanced Diagnostics",
+      "A. Load Average: Deconstructing the Metric",
+      "1. Inspect run queue (r) vs. blocked queue (b)",
+      "Identify which kernel function is blocking D-state processes",
+      "B. Linux Pressure Stall Information (PSI)",
+      "C. Transparent Huge Pages (THP) and Memory Compaction",
+      "Check memory compaction activity",
+      "D. PCIe Bus Degradation and Advanced Error Reporting (AER)",
+      "1. Audit link speed and width for all ConnectX-7 network adapters",
+      "2. Check for PCIe AER errors in kernel log",
+      "3. High-Stakes Senior Solutions Architect Interview Scenarios",
+      "Scenario 1: High System Load with Low CPU Utilization"
     ],
     "codeLanguages": [
       "mermaid",
@@ -11065,39 +11021,165 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash"
     ]
   },
-  "Chapter 8 - Solutions architecture whiteboard method": {
+  "Chapter 4 - Kubernetes, GPU Operator, and Run:ai Platform Troubleshooting": {
     "volume": "Volume 9",
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Chapter 8 - Solutions architecture whiteboard method — JR2018680 Interview Preparation.",
+    "learningOutcome": "Kubernetes GPU platform triage for NVIDIA Solutions Architects: GPU Operator operands, Device Plugin gRPC, CDI vs. OCI hooks, Run:ai fractional virtualization, and senior interview scenarios.",
     "sections": [
-      "Worked scenario",
-      "➕ Additions",
-      "Practice"
+      "Chapter 4 — Kubernetes, GPU Operator, and Run:ai Platform Troubleshooting",
+      "1. The Kubernetes GPU Control and Runtime Architecture",
+      "2. The GPU Pod Lifecycle: State-to-Evidence Matrix",
+      "3. Deep-Dive Failure Modes in Production",
+      "Failure 1: The Node Reports allocatable: nvidia.com/gpu: 0",
+      "Notice: \"nvidia.com/gpu\" is completely absent from Allocatable and Capacity!",
+      "Failure 2: CreateContainerError — CDI Specification Desynchronization",
+      "4. Run:ai Architecture and Multi-Tenant Scheduling Triage",
+      "Why Run:ai Over Native Kubernetes Scheduling:",
+      "5. Senior Solutions Architect Interview Scenarios",
+      "Scenario 1: GPU Pod Stuck in Pending Despite Cluster Autoscaler",
+      "Scenario 2: PyTorch Pod Crashes with Exit Code 137 vs. Exit Code 1",
+      "Key Takeaways"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "bash"
+    ]
+  },
+  "Chapter 5 - GPU Silicon, NVLink, NVSwitch, and Hardware Triage": {
+    "volume": "Volume 9",
+    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
+    "learningOutcome": "Mastering accelerated hardware diagnostics for NVIDIA Solutions Architects: XID error taxonomy, HBM3 ECC memory failures, NVLink symbol errors, NVSwitch fabric triage, and DCGM diagnostics.",
+    "sections": [
+      "Chapter 5 — GPU Silicon, NVLink, NVSwitch, and Hardware Triage",
+      "1. The NVIDIA XID Error Architecture and Taxonomy",
+      "The Critical XID Reference Table for Solutions Architects",
+      "2. NVLink and NVSwitch Interconnect Diagnostics",
+      "Diagnosing NVLink Degradation",
+      "1. Audit active link counts across all 8 GPUs (Expected: 18 active links per GPU)",
+      "2. Query cumulative NVLink error counters",
+      "3. Thermal and Power Throttling Analysis",
+      "Detecting Throttling via NVML Telemetry",
+      "4. Hardware Qualification via NVIDIA DCGM",
+      "Execute Level 3 comprehensive stress validation (Run before returning node to service)",
+      "5. Senior Solutions Architect Interview Scenarios",
+      "Scenario 1: Triaging an XID 79 (\"GPU Has Fallen Off the Bus\")",
+      "Scenario 2: Uncorrectable Double-Bit ECC Memory Error (XID 48)"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text",
+      "bash"
+    ]
+  },
+  "Chapter 6 - AI Inference Architecture, LLM Serving, and System Sizing": {
+    "volume": "Volume 9",
+    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
+    "learningOutcome": "AI inference architecture for NVIDIA Solutions Architects: Prefill vs. Decode dynamics, KV cache memory mathematics, TensorRT-LLM vs. Triton vs. vLLM, and capacity sizing formulas.",
+    "sections": [
+      "Chapter 6 — AI Inference Architecture, LLM Serving, and System Sizing",
+      "1. First Principles: The Two Phases of LLM Inference",
+      "Architectural Contrast",
+      "2. KV Cache Sizing Mathematics: The Architecture Behind Memory Sizing",
+      "The KV Cache Memory Formula",
+      "Worked Architecture Example: Llama 3 70B (GQA)",
+      "3. Dynamic Batching Strategies: Static vs. In-Flight Batching",
+      "Modern Techniques:",
+      "4. Serving Runtime Landscape: TensorRT-LLM, Triton, vLLM, and NIM",
+      "5. Sizing and Capacity Planning Formula for Solutions Architects",
+      "The Production Sizing Equation",
+      "6. Senior Solutions Architect Interview Scenarios",
+      "Scenario 1: Sizing an LLM Service for a Large Financial Enterprise",
+      "Scenario 2: Autoscaling an LLM Service in Kubernetes"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Chapter 9 - Customer discovery interview": {
+  "Chapter 7 - Accelerated Networking: InfiniBand, Spectrum-X, and Collective Fabrics": {
     "volume": "Volume 9",
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Chapter 9 - Customer discovery interview — JR2018680 Interview Preparation.",
+    "learningOutcome": "High-speed AI networking architectures for NVIDIA Solutions Architects: Quantum-2 InfiniBand vs. Spectrum-X Ethernet, GPUDirect RDMA, PFC deadlocks, ECN tuning, and SHARP in-network computing.",
     "sections": [
-      "➕ Additions"
+      "Chapter 7 — Accelerated Networking: InfiniBand, Spectrum-X, and Collective Fabrics",
+      "1. Architectural Battleground: Quantum-2 InfiniBand vs. Spectrum-X Ethernet",
+      "Architectural Comparison",
+      "2. Multi-Rail Fat-Tree Fabric Architecture",
+      "Why Multi-Rail Eliminates Collective Contention",
+      "3. GPUDirect RDMA and GPUDirect Storage Mechanics",
+      "The GPUDirect RDMA Direct Path",
+      "4. Lossless Ethernet Engineering: PFC and ECN on Spectrum-X",
+      "The Two Control Loops of Lossless RoCE:",
+      "5. Senior Solutions Architect Interview Scenarios",
+      "Scenario 1: InfiniBand vs. RoCE Architectural Decision for an Enterprise Customer",
+      "Scenario 2: Diagnosing a \"Network Is Slowing Training\" Incident",
+      "Key Takeaways"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Chapter 10 - Behavioral and stakeholder stories": {
+  "Chapter 8 - The Solutions Architecture Whiteboard Masterclass": {
     "volume": "Volume 9",
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Chapter 10 - Behavioral and stakeholder stories — JR2018680 Interview Preparation.",
+    "learningOutcome": "The official NVIDIA Solutions Architecture whiteboard framework: 4-phase delivery model, 512-DGX AI Factory blueprint, compute/network/storage sizing, and senior interview scoring rubrics.",
     "sections": [
-      "➕ Additions",
-      "Practice"
+      "Chapter 8 — The Solutions Architecture Whiteboard Masterclass",
+      "1. Phase 1: Requirements Discovery & Boundary Extraction",
+      "The \"Assumed Parameters\" for the Whiteboard:",
+      "2. Phase 2: The Multi-Tier AI Factory Blueprint",
+      "3. Phase 3: Deep Technical Subsystem Defenses",
+      "1. The Dual-Track Orchestrator: Why Slurm AND Kubernetes?",
+      "2. Checkpoint Storage SLA: GPUDirect Storage (GDS)",
+      "3. Compute Interconnect: 8-Rail Quantum-2 InfiniBand",
+      "4. Phase 4: Day-2 Operations and PoC Acceptance Gates",
+      "The Maintenance Policy:",
+      "5. Senior Solutions Architect Interview Scenarios",
+      "Scenario 1: Handling Executive Pushback on Architecture Cost",
+      "Key Takeaways"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text"
+    ]
+  },
+  "Chapter 9 - Customer Discovery and Technical Qualification": {
+    "volume": "Volume 9",
+    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
+    "learningOutcome": "Mastering customer discovery for NVIDIA Senior Solutions Architects: the 6-tier discovery funnel, industry playbooks (Sovereign AI, FinTech, BioTech), and reframing premature premises.",
+    "sections": [
+      "Chapter 9 — Customer Discovery and Technical Qualification",
+      "1. The 6-Tier Customer Discovery Funnel",
+      "The \"Premise Challenge\" Framework",
+      "2. Industry-Specific Discovery Playbooks",
+      "1. Sovereign AI & Government Infrastructure",
+      "2. Financial Services (Hedge Funds & Tier-1 Banks)",
+      "3. Healthcare, Life Sciences, and BioTech",
+      "3. Senior Solutions Architect Interview Scenarios",
+      "Scenario 1: Uncovering Hidden Constraints in an Enterprise GenAI PoC",
+      "Key Takeaways"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text"
+    ]
+  },
+  "Chapter 10 - Behavioral Leadership and Stakeholder Storytelling": {
+    "volume": "Volume 9",
+    "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
+    "learningOutcome": "High-impact behavioral interview frameworks for NVIDIA Senior Solutions Architects: executive STAR stories, incident leadership, technical disagreements, and failure ownership.",
+    "sections": [
+      "Chapter 10 — Behavioral Leadership and Stakeholder Storytelling",
+      "1. The Executive STAR Delivery Ratio",
+      "The Senior SA Opening Line:",
+      "2. The 4 Master STAR Stories for NVIDIA Senior Solutions Architects",
+      "Story 1: Incident Leadership under High-Stakes Customer Pressure",
+      "Story 2: Navigating Architectural Disagreement with a Customer CTO",
+      "Story 3: Turning Around a Failing Proof of Concept (PoC)",
+      "Story 4: Ownership of an Engineering Failure and Blameless Postmortem",
+      "Key Takeaways"
     ],
     "codeLanguages": [
       "mermaid",
@@ -11250,12 +11332,16 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Current role-family signals to be able to discuss": {
+  "Current Role-Family Signals and AI Factory Competency Map": {
     "volume": "Volume 9",
     "lens": "senior interview reasoning across Python, Linux, Kubernetes, GPUs, AI inference, networking, architecture, discovery, and stakeholder scenarios",
-    "learningOutcome": "Current role-family signals to be able to discuss — JR2018680 Interview Preparation.",
+    "learningOutcome": "Comprehensive competency map for NVIDIA Senior Solutions Architects: end-to-end AI Factory execution from bare-metal DGX, Redfish, and BCM to Slurm, Kubernetes, Run:ai, Quantum-2, and TensorRT-LLM.",
     "sections": [
-      "➕ Additions"
+      "Current Role-Family Signals and AI Factory Competency Map",
+      "1. The 8 Core AI Factory Architectural Domains",
+      "2. Comprehensive Competency Matrix: What Interviewers Listen For",
+      "3. High-Value Interview Talking Points & Vocabulary",
+      "Key Takeaways"
     ],
     "codeLanguages": [
       "mermaid",
@@ -11394,28 +11480,31 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "jinja2"
     ]
   },
-  "Chapter 5 - Terraform for infrastructure as code": {
+  "Chapter 5 - Terraform for Infrastructure as Code in AI Factories": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Explain what Terraform state actually is, why it is the dangerous part of the tool rather than the syntax, and where the ownership boundary sits between Terraform and node-configuration tools like Ansible/BCM on a GPU-cluster-adjacent stack.",
+    "learningOutcome": "Comprehensive beginner-to-advanced guide to Terraform for AI infrastructure: HCL syntax, init/plan/apply lifecycle, remote state locking, cluster placement groups, and hybrid cloud-burst architecture.",
     "sections": [
-      "Start here — Terraform manages API objects, not arbitrary commands",
-      "Providers, resources, and the state file",
-      "Why state needs locking and a remote backend",
-      "Blast radius of a bad apply, and why -/+ is the line to fear",
-      "Mandatory plan review before apply",
-      "Modules for reusable GPU-cluster building blocks",
-      "Lifecycle and taint handling for a cloud GPU instance fleet",
-      "The ownership boundary: what Terraform should and shouldn't own",
-      "Worked scenario — manual console change, corrected destructively",
-      "Mnemonic",
-      "Practice"
+      "Chapter 5 — Terraform for Infrastructure as Code in AI Factories",
+      "1. Foundations: What is Infrastructure as Code (IaC)?",
+      "Imperative approach: \"Do this, then do that\"",
+      "The Declarative Paradigm of IaC",
+      "2. What is Terraform and Why is it Used in AI Infrastructure?",
+      "The Core Architectural Value for AI Factories",
+      "3. The 4 Core Terraform Commands (The Lifecycle from Zero)",
+      "1. terraform init (Initialization)",
+      "2. terraform validate and terraform fmt",
+      "3. terraform plan (The Proposed Diff)",
+      "Save the execution plan to a binary file for deterministic application",
+      "4. terraform apply (State Mutation)",
+      "Apply the exact reviewed plan artifact",
+      "5. terraform destroy"
     ],
     "codeLanguages": [
-      "mermaid",
+      "bash",
       "text",
-      "hcl",
-      "bash"
+      "mermaid",
+      "hcl"
     ]
   },
   "Chapter 6 - Slurm Administration: HA, Topology-Aware Scheduling, Accounting, and Upgrades": {

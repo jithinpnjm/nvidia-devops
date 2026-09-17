@@ -1,187 +1,454 @@
 ---
-title: "Chapter 5 - Terraform for infrastructure as code"
+title: "Chapter 5 - Terraform for Infrastructure as Code in AI Factories"
 slug: "chapter-5-terraform-for-infrastructure-as-code"
 sidebar_position: 5
-description: "Chapter 5 - Terraform for infrastructure as code — Bare-Metal, HPC Operations and Infrastructure-as-Code."
+description: "Comprehensive beginner-to-advanced guide to Terraform for AI infrastructure: HCL syntax, init/plan/apply lifecycle, remote state locking, cluster placement groups, and hybrid cloud-burst architecture."
 source_document: "Authored directly for the JR2018680 gap-coverage volume — no DOCX source."
 ---
-**Learning outcome:** Explain what Terraform state actually is, why it is the dangerous part of the tool rather than the syntax, and where the ownership boundary sits between Terraform and node-configuration tools like Ansible/BCM on a GPU-cluster-adjacent stack.
 
-## Start here — Terraform manages API objects, not arbitrary commands
+# Chapter 5 — Terraform for Infrastructure as Code in AI Factories
 
-Terraform compares a declaration of what should exist with what it previously managed and what the provider now observes. Four nouns unlock the rest:
+In modern accelerated computing, building an **AI Factory** involves far more than racking bare-metal GPU servers. High-performance distributed training and inference clusters depend on a vast ecosystem of API-driven scaffolding: **cloud-bursted GPU node pools (e.g., AWS P5 / Azure NDv5 / CoreWeave), ultra-low latency VPC networks with MTU 9000, cluster placement groups for 3.2 Tbps GPUDirect RDMA, high-throughput S3/GCS checkpoint buckets, DNS records, IAM roles, and Kubernetes control planes**.
 
-| Noun | Meaning | Example |
-|---|---|---|
-| Provider | Plugin that speaks an external API | AWS, Azure, Kubernetes, Vault |
-| Resource | One object Terraform owns | subnet, VM, IAM role, DNS record |
-| Configuration | Your desired declaration in `.tf` files | "this subnet must exist" |
-| State | Terraform's mapping between declarations and real object IDs | `aws_subnet.train` → `subnet-123` |
+Provisioning this infrastructure manually through cloud web consoles or unversioned shell scripts is an operational disaster. Manual clicking produces configuration drift, lacks an audit trail, cannot be reproduced in disaster recovery, and risks catastrophic accidental deletion of multi-terabyte checkpoint volumes.
 
-The normal learning loop is deliberately small:
+This chapter provides a **ground-up, beginner-to-advanced masterclass** on **Terraform (and OpenTofu)**. You will learn what Infrastructure as Code (IaC) is, master the internal mechanics of `init`, `plan`, `apply`, and `state`, manage remote locking to prevent team corruption, deploy specialized GPU cluster placement groups, and define the clear architectural boundary between Terraform, Ansible, and NVIDIA Base Command Manager (BCM).
 
-```mermaid
-flowchart LR
-    A["terraform init (get providers)"] --> B["terraform validate (syntax/schema)"]
-    B --> C["terraform plan (proposed diff)"]
-    C --> D["review (human)"]
-    D --> E["terraform apply (mutation)"]
+---
+
+## 1. Foundations: What is Infrastructure as Code (IaC)?
+
+Historically, infrastructure was managed **imperatively**: an engineer logged into a web console or ran sequential shell commands:
+```bash
+# Imperative approach: "Do this, then do that"
+aws ec2 create-vpc --cidr-block 10.0.0.0/16
+aws ec2 create-subnet --vpc-id vpc-12345 --cidr-block 10.0.1.0/24
+aws ec2 run-instances --image-id ami-xyz --instance-type p5.48xlarge ...
 ```
+*Why Imperative Scripts Fail at Scale:*
+1. **Not Idempotent:** Running the script twice creates duplicate subnets or crashes because names collide.
+2. **No State Awareness:** If someone manually deletes an instance in the console, the script has no idea that the real world diverged from the intended design.
+3. **No Dependency Graph:** If creating a GPU worker pool requires a VPC, an IAM role, and a security group, shell scripts cannot easily resolve the parallel creation order or handle partial failures.
 
-Suppose configuration says a subnet should use `10.20.0.0/24`. State says Terraform manages API object `subnet-123`. The provider reports that someone changed it outside Terraform. The plan reconciles those three views; it does not merely "run the file." That is why a plan must be read for creates (`+`), in-place changes (`~`), deletes (`-`), and replacements (`-/+`). A replacement is especially important for stateful or scarce GPU infrastructure because it destroys one object and creates another.
+### The Declarative Paradigm of IaC
+**Infrastructure as Code (IaC)** replaces imperative commands with **declarative configuration files**. Instead of telling the machine *how* to build each step, you declare **what the final desired state should look like**:
 
-Terraform state can contain identifiers and sensitive values. Store team state in an access-controlled remote backend with locking and encryption; do not commit it to Git or paste it casually into incident tickets. A saved plan is also sensitive and time-bound: review and apply the same artifact before the surrounding infrastructure changes.
+> *"I declare that a VPC with CIDR `10.0.0.0/16` and 32x `p5.48xlarge` GPU instances in a cluster placement group must exist. Terraform, figure out what API calls are needed to make reality match this file."*
 
-Finally, Terraform needs an API/provider. It cannot magically configure an arbitrary physical server. It can create API-managed networks, IAM, DNS, cloud GPU instances, and perhaps DCIM/BMC objects where suitable providers exist; BCM or Ansible usually owns the OS and node configuration after that boundary.
+---
 
-## Providers, resources, and the state file
+## 2. What is Terraform and Why is it Used in AI Infrastructure?
 
-A provider (`aws`, `google`, `azurerm`, but also non-cloud providers like `vault`, `kubernetes`, or a colo/DCIM provider) is a plugin translating HCL resource blocks into API calls against a specific system. A resource block declares one managed object — a VPC, an IAM role, a storage bucket, a cloud GPU instance:
-
-```hcl
-resource "aws_instance" "gpu_worker" {
-  ami           = "ami-0abc123gpu"
-  instance_type = "p5.48xlarge"
-  subnet_id     = aws_subnet.training_net.id
-  tags = { Role = "gpu-training-worker", Cluster = "vol10-demo" }
-}
-```
-
-Terraform does not talk to real infrastructure to figure out what exists — it talks to the **state file** (`terraform.tfstate`), a JSON record of every resource Terraform believes it created, with the ID and last-known attributes of each. Every `plan`/`apply` is fundamentally a three-way diff: declared config vs. state (what Terraform last knew) vs. real infrastructure (what actually exists right now, refreshed via provider API calls). State is what makes Terraform declarative instead of a shell script that re-runs `aws ec2 run-instances` every time — but it's also the single most dangerous file in the workflow, because Terraform's decisions are only as correct as its belief about reality.
+**Terraform** (created by HashiCorp, with its open-source fork **OpenTofu**) is the industry-standard, cloud-agnostic declarative IaC engine. It uses the **HashiCorp Configuration Language (HCL)**—a human-readable, machine-parsable language.
 
 ```mermaid
 flowchart TD
-    A["declared config (.tf files)"] --> B["STATE FILE (single source of truth Terraform reasons FROM)"]
-    B <-->|"refresh (read actual resource attrs)"| C["real infra (cloud APIs / on-prem infra)"]
-    B -->|"diff: config vs state vs real"| D[terraform plan]
-    D --> E["DRIFT = state says X, real infra is Y (someone changed it outside Terraform)"]
-    E --> F["next apply corrects drift by making real infra match declared config, which can mean DESTROYING the drifted resource, not gently adjusting it"]
+    subgraph Config["1. Declarative Code (.tf files)"]
+        HCL["main.tf, variables.tf, outputs.tf
+        - Declares VPCs, Subnets, S3 Buckets, GPU VMs"]
+    end
+
+    subgraph Engine["2. Terraform Core Engine"]
+        GRAPH["Dependency Graph Generator (DAG)"]
+        DIFF["3-Way Reconciliation Engine (Config vs. State vs. Real World)"]
+    end
+
+    subgraph State["3. State File (terraform.tfstate)"]
+        S3_STATE[("Remote S3 Bucket + DynamoDB Lock
+        - Single Source of Truth mapping HCL to Real IDs")]
+    end
+
+    subgraph Providers["4. Terraform Provider Plugins"]
+        P_AWS["AWS Provider (Speaks AWS API)"]
+        P_K8S["Kubernetes Provider (Speaks K8s API)"]
+        P_VAULT["Vault Provider (Speaks Vault API)"]
+        P_EQUINIX["Equinix Metal Provider (Bare-Metal API)"]
+    end
+
+    subgraph Infrastructure["5. Real-World AI Infrastructure"]
+        GPU_NODES["Cloud GPU Nodes (H100 SXM5 / p5.48xlarge)"]
+        NET["Cluster Placement Group & RoCE VPC"]
+        STORAGE["S3 / GCS Model Checkpoint Buckets"]
+    end
+
+    HCL --> Engine
+    State <--> Engine
+    Engine --> Providers
+    Providers <--> Infrastructure
 ```
 
-Drift is any gap between state and reality — a console click, a manual `kubectl`/`aws cli` change, another automation tool touching the same resource. Terraform has no way to know *why* the drift happened; it only knows state disagrees with either config or reality, and it will reconcile toward the declared config, using whatever operation (update or destroy-and-recreate) the provider's resource schema says is required to get there.
+### The Core Architectural Value for AI Factories
+1. **Hybrid Cloud Bursting:** Terraform provisions on-demand GPU capacity in AWS, Azure, CoreWeave, or Lambda Labs when on-prem DGX SuperPOD capacity is saturated during foundation model training deadlines.
+2. **Network Topology Consistency:** Training 70B+ parameter LLMs requires non-blocking bandwidth. Terraform provisions specialized **Cluster Placement Groups** (ensuring GPU instances are placed in the same physical rack row) and **EFA / RoCE network interfaces** automatically.
+3. **Immutable Ephemeral Teardown:** A 64-node H100 cloud cluster costs upwards of $2,500/hour. With Terraform, you spin up the entire cluster for a 48-hour fine-tuning run via `terraform apply`, and tear it down cleanly to zero via `terraform destroy`, eliminating accidental multi-million dollar cloud idle bills.
 
-## Why state needs locking and a remote backend
+---
 
-Local state (`terraform.tfstate` sitting in a laptop's working directory) is a single point of failure and a concurrency hazard: two engineers running `apply` against the same local-state-backed config at the same time can corrupt or silently overwrite each other's state, producing a Terraform that no longer accurately tracks real infrastructure. Remote backends (S3+DynamoDB, Terraform Cloud, GCS, Consul) solve two different problems together:
+## 3. The 4 Core Terraform Commands (The Lifecycle from Zero)
+
+To operate Terraform safely, you must understand what happens internally during each phase of its execution loop:
+
+```mermaid
+flowchart LR
+    A["1. terraform init"] --> B["2. terraform validate"]
+    B --> C["3. terraform plan"]
+    C --> D["4. Review Proposed Diff"]
+    D --> E["5. terraform apply"]
+    E --> F["6. terraform destroy (Teardown)"]
+```
+
+### 1. `terraform init` (Initialization)
+- **What it does:** Scans your `.tf` files, reads the `required_providers` block, and downloads the required provider binary plugins (e.g., `aws`, `kubernetes`) from the Terraform Registry into a local hidden directory: `.terraform/providers/`.
+- **Backend Setup:** Initializes the remote state backend (e.g., S3 bucket and DynamoDB locking table).
+- **Lock File:** Creates or verifies `.terraform.lock.hcl`, which cryptographically hashes the exact provider plugin versions to guarantee that every team member and CI/CD runner compiles against identical provider binaries.
+
+```bash
+$ terraform init
+Initializing the backend...
+Successfully configured the backend "s3"!
+Initializing provider plugins...
+- Finding hashicorp/aws versions matching "~> 5.50"...
+- Installing hashicorp/aws v5.50.0...
+- Installed hashicorp/aws v5.50.0 (signed by HashiCorp)
+Terraform has been successfully initialized!
+```
+
+---
+
+### 2. `terraform validate` and `terraform fmt`
+- `terraform fmt`: Rewrites `.tf` files to adhere to canonical HCL style, tabs, and indentation standards across the team.
+- `terraform validate`: Verifies syntax, checks variable types, and validates resource attributes against provider schemas without making network calls.
+
+---
+
+### 3. `terraform plan` (The Proposed Diff)
+- **What it does:** Executes a **Three-Way Reconciliation**:
+  1. Reads your declared `.tf` configuration files.
+  2. Reads the current `terraform.tfstate` file.
+  3. Queries the provider APIs (e.g., AWS EC2, S3) to refresh the real-world observed state of all managed resources.
+- **Dependency Graph:** Constructs a Directed Acyclic Graph (DAG) of all resources to determine what can be created in parallel vs. sequentially.
+- **Output:** Produces a detailed execution plan highlighting:
+  - `+` **Create:** Resource does not exist; Terraform will create it.
+  - `~` **Update in-place:** Resource exists; Terraform can modify its attributes without deleting it.
+  - `-` **Destroy:** Resource exists in state but is no longer in configuration; Terraform will delete it.
+  - `-/+` **Destroy and Re-create (Replacement):** An attribute was changed that the cloud provider does not support modifying live (e.g., changing VPC CIDR or instance subnet). **Terraform will destroy the existing resource and create a new one!**
+
+```bash
+# Save the execution plan to a binary file for deterministic application
+$ terraform plan -out=tfplan
+```
+
+---
+
+### 4. `terraform apply` (State Mutation)
+- **What it does:** Executes the actions proposed in the plan.
+- **Locking:** Acquires an exclusive write lock in DynamoDB/remote backend to prevent another engineer from running a concurrent apply.
+- **Execution:** Calls the cloud provider REST APIs over HTTPS, adhering to topological dependency order.
+- **State Update:** As each API call confirms resource creation, Terraform writes the assigned cloud IDs (e.g., `vpc-08219412`, `i-0a1b2c3d`) to `terraform.tfstate` and releases the lock.
+
+```bash
+# Apply the exact reviewed plan artifact
+$ terraform apply tfplan
+```
+
+---
+
+### 5. `terraform destroy`
+- Reads the state file, reverses the dependency graph, and systematically deletes all managed resources in the cloud. Critical for tearing down temporary cloud-bursted GPU clusters once jobs finish.
+
+---
+
+## 4. Anatomy of HCL: Building a GPU Training VPC from Scratch
+
+Let us build a complete, production-grade Terraform configuration for an accelerated AI environment.
+
+### 1. Provider and Backend Configuration (`versions.tf`)
 
 ```hcl
+# versions.tf
 terraform {
+  required_version = ">= 1.7.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.50.0"
+    }
+  }
+
+  # Production remote backend with state locking
   backend "s3" {
-    bucket         = "acme-tfstate"
-    key            = "gpu-cluster-network/terraform.tfstate"
-    region         = "us-west-2"
-    dynamodb_table = "tf-state-locks"
+    bucket         = "enterprise-ai-terraform-state"
+    key            = "ai-factory/us-east-1/training-vpc/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "terraform-state-lock"
     encrypt        = true
   }
 }
-```
 
-The S3 bucket is shared, durable storage for the state file itself — no more "state only exists on one laptop." The DynamoDB table provides **state locking**: `terraform apply` acquires a lock row before it starts, and a second `apply` against the same state blocks (or fails fast) until the first finishes. Without locking, concurrent applies race against the same real infrastructure with two different in-memory pictures of what state should look like afterward — a classic corruption path.
+provider "aws" {
+  region = var.aws_region
 
-## Blast radius of a bad apply, and why `-/+` is the line to fear
-
-`terraform plan` output uses three action markers: `+` create, `~` update in place, `-/+` destroy and recreate. The first two are usually safe to reason about in isolation. `-/+` means the provider's resource schema has decided the requested change cannot be applied to the existing object — some attribute is immutable after creation — so Terraform's only path to the declared state is deleting the current resource and creating a new one with a new ID.
-
-```text
-$ terraform plan
-
-  # aws_instance.gpu_worker must be replaced
--/+ resource "aws_instance" "gpu_worker" {
-      ~ instance_type      = "p5.48xlarge" -> "p5e.48xlarge"  # forces replacement
-      ~ id                 = "i-0a1b2c3d4e5f67890" -> (known after apply)
-      ~ private_ip         = "10.0.4.17" -> (known after apply)
-        tags               = {
-            "Cluster" = "vol10-demo"
-            "Role"    = "gpu-training-worker"
-        }
-        # (12 unchanged attributes hidden)
+  default_tags {
+    tags = {
+      Environment = "Production"
+      Workload    = "LLM-Pretraining"
+      ManagedBy   = "Terraform"
     }
-
-Plan: 1 to add, 0 to change, 1 to destroy.
-```
-
-Read this literally: one new instance created, one destroyed — not "one instance resized." A running multi-day training job's host is about to be deleted and replaced with a new instance ID, new private IP, and (unless carefully staged) no guarantee of scheduling on the same physical rack/placement group. `~` in a plan means "Terraform can mutate this object without destroying it"; `-/+` means "Terraform is about to delete something and hope the replacement is close enough" — that is the line that should stop an apply for manual review every single time it appears on anything stateful (a running instance, a database, a persistent volume), regardless of how routine the rest of the plan looks. `Plan: 1 to add, 0 to change, 1 to destroy` is the summary line worth reading before scrolling — "0 to change" next to "1 to destroy" is the tell that something in this plan is more disruptive than it might look from the diff alone.
-
-## Mandatory plan review before apply
-
-```bash
-terraform plan -out=tfplan
-terraform show -json tfplan | jq '.resource_changes[] | select(.change.actions[0]=="delete" or (.change.actions | length > 1))'
-terraform apply tfplan
-```
-
-Saving the plan to a file (`-out=tfplan`) and applying *that exact file* — rather than re-running `plan` implicitly inside `apply` — guarantees the plan a human reviewed is the plan that executes; nothing about real infrastructure or the config can shift in the gap between review and apply. Piping the JSON plan through `jq` to isolate deletes/replacements is how you make "did anything scary happen in this 400-line plan" a grep-able question instead of a skim.
-
-## Modules for reusable GPU-cluster building blocks
-
-```hcl
-module "gpu_training_vpc" {
-  source          = "./modules/gpu-vpc"
-  cidr_block      = "10.20.0.0/16"
-  az_count        = 3
-  enable_flow_logs = true
-}
-
-module "gpu_worker_pool" {
-  source        = "./modules/gpu-instance-pool"
-  instance_type = "p5.48xlarge"
-  desired_count = 32
-  subnet_ids    = module.gpu_training_vpc.private_subnet_ids
-}
-```
-
-Modules encapsulate a reusable pattern (a VPC with the right subnetting/flow-log/NAT setup for a GPU cluster; an instance pool with the right placement-group, EFA-networking, and taint/lifecycle configuration) behind a small interface, so a new cluster is a module call with different variables, not a re-derivation of 300 lines of networking HCL. This is the same "don't repeat yourself, review the interface not the internals" argument as an Ansible role — the module boundary is where you put review effort, and callers trust it.
-
-## Lifecycle and taint handling for a cloud GPU instance fleet
-
-```hcl
-resource "aws_instance" "gpu_worker" {
-  count         = 32
-  ami           = var.gpu_ami_id
-  instance_type = "p5.48xlarge"
-
-  lifecycle {
-    create_before_destroy = true
-    ignore_changes        = [ami]   # driver/AMI patched out-of-band by Ansible; don't fight it
   }
 }
 ```
 
-`create_before_destroy` matters for anything where losing capacity mid-replacement is expensive — bring up the replacement GPU instance, confirm it's healthy, then tear down the old one, instead of the default destroy-then-create order that briefly has zero capacity. `ignore_changes = [ami]` is a deliberate ownership statement: once the instance exists, Terraform stops trying to reconcile that one attribute even if it drifts, because a downstream tool (Ansible re-imaging with a new driver build) is now the authority on it, not Terraform. `terraform taint`/`terraform apply -replace=<address>` marks a specific resource for forced recreation on the next apply — useful when a specific GPU instance is suspected of bad hardware (Xid errors, ECC failures) and needs to be cycled without touching the other 31.
+---
 
-## The ownership boundary: what Terraform should and shouldn't own
+### 2. Variables and Inputs (`variables.tf`)
 
-| Terraform owns | Ansible / BCM own |
-|---|---|
-| VPCs, subnets, security groups | OS packages, kernel params |
-| IAM roles/policies | NVIDIA driver install/version |
-| Storage buckets, EBS/EFS volumes | GPU firmware, MIG partitioning |
-| Cloud GPU instance existence/count | DCGM exporter config |
-| Load balancers, DNS records | Slurm/BCM node join/config |
-| The cloud-side scaffolding *around* an on-prem/colo GPU cluster | Everything *inside* the OS once the instance/node exists |
+```hcl
+# variables.tf
+variable "aws_region" {
+  type        = string
+  description = "AWS region for GPU cluster deployment"
+  default     = "us-east-1"
+}
 
-Terraform is good at declaring *that a resource exists* with certain top-level attributes; it is a poor fit for *what happens inside the OS* once that resource is running — package installs, config file content, service state are all naturally idempotent, convergence-oriented operations better modeled by Ansible or a BCM head node than by resource-replacement semantics. The interview-relevant boundary case: an on-prem or colo GPU cluster typically has Terraform managing the cloud-side edges around it — VPN/Direct Connect endpoints, IAM for a hybrid control plane, an object-storage bucket that checkpoints get shipped to, DNS — while BCM or Ansible manages the bare-metal nodes themselves, because Terraform has no meaningful provider model for "rack this physical server and image it." Cross a resource over that boundary in the wrong direction — e.g., trying to manage `/etc/slurm/slurm.conf` content as a Terraform `local-exec` provisioner — and you get a resource that Terraform "owns" without being able to reason about drift on it correctly, which defeats the entire premise of using Terraform there.
+variable "vpc_cidr" {
+  type        = string
+  description = "CIDR block for the AI training VPC"
+  default     = "10.100.0.0/16"
+}
 
-## Worked scenario — manual console change, corrected destructively
+variable "gpu_instance_count" {
+  type        = number
+  description = "Number of 8x H100 SXM5 GPU instances to provision"
+  default     = 32
 
-**Situation:** A storage engineer, responding to an urgent capacity alert at 2am, manually resizes an EBS volume attached to a GPU checkpoint-staging instance directly in the AWS console, bypassing Terraform because "there was no time to go through a PR." The resize succeeds; the incident is resolved; nobody updates the `.tf` file or runs `terraform apply` to reconcile.
+  validation {
+    condition     = var.gpu_instance_count >= 1 && var.gpu_instance_count <= 128
+    error_message = "GPU instance count must be between 1 and 128."
+  }
+}
+```
 
-**What happens next:** Two weeks later, an unrelated PR modifies a tag on the same instance and triggers a normal `terraform apply`. `terraform plan` refreshes state against real infrastructure, sees the volume size no longer matches the last-known state (300 GiB in state and config vs. 500 GiB in reality), and — because volume *size* is a mutable attribute on this provider but the plan author doesn't scroll past the summary line — the apply proceeds. But a second attribute, the volume's IOPS-to-size ratio configuration set implicitly by the console resize, hit a threshold that made the *volume type* attribute inconsistent with the new size for that resource schema, which for this provider forces replacement (`-/+`) rather than in-place update. The apply destroys the 500 GiB volume — including the checkpoint data staged on it — and recreates a fresh 300 GiB volume matching the stale `.tf` declaration.
+---
 
-**Root cause:** Terraform did exactly what it is supposed to do — reconcile reality toward declared config — but the *declared config was wrong* because it was never updated after the manual change, and nobody treated the resulting drift as a plan-review red flag before applying.
+### 3. Resource Declarations: Networking, Placement Groups, and Storage (`main.tf`)
 
-**Fix / lesson:** Any manual change to a Terraform-managed resource must be followed immediately by either updating the `.tf` source to match (preferred) or an explicit `terraform state` operation acknowledging the new reality — and `terraform plan` output showing an unexpected `-/+` on a resource nobody intended to touch is itself the signal that drift, not a real config change, is driving the plan. That plan should never reach `apply` without someone asking "why is this resource being replaced, we didn't touch it."
+```hcl
+# main.tf
 
-**Interview-ready line:** "Terraform doesn't create drift, but it also doesn't forgive it — it treats any gap between state and reality as something to correct toward the declared config, and 'correct' can mean 'destroy and recreate' if that's the only path the resource schema allows, which is why an unreviewed manual change is a time bomb, not a shortcut."
+# 1. High-Bandwidth VPC for Distributed Training
+resource "aws_vpc" "ai_vpc" {
+  cidr_block           = var.vpc_cidr
+  enable_dns_hostnames = true
+  enable_dns_support   = true
 
-## Mnemonic
+  tags = {
+    Name = "ai-training-vpc"
+  }
+}
 
-**S.L.O.T.** — **S**tate is the source of truth Terraform reasons from, not reality itself; **L**ock it (remote backend) so concurrent applies can't corrupt it; **O**wn only the edges (networking/IAM/storage/instances), not the OS inside; **T**errify yourself at `-/+` — that's the line that destroys something.
+# 2. Private Subnet with MTU 9000 (Jumbo Frames) Support
+resource "aws_subnet" "ai_subnet_a" {
+  vpc_id            = aws_vpc.ai_vpc.id
+  cidr_block        = "10.100.1.0/24"
+  availability_zone = "${var.aws_region}a"
 
-## Practice
+  tags = {
+    Name = "ai-training-subnet-a"
+  }
+}
 
-1. Explain the difference between what `terraform.tfstate` records and what actually exists in the cloud/on-prem environment, and describe one failure mode that happens when those two diverge without anyone running `plan`.
-2. A `terraform plan` shows `~ instance_type` with no `-/+` marker, and a second plan on a different resource shows `-/+` on the same attribute name. What provider-level fact explains why the same attribute change produces different action types on two different resources?
-3. Why is `terraform apply -out=tfplan` (apply a saved plan file) safer for a reviewed change than running `terraform apply` interactively, even if the reviewer looked at the same `plan` output either way?
-4. Draw the ownership boundary you would defend in an interview between Terraform and Ansible/BCM for a hybrid cluster with on-prem GPU nodes and a cloud-hosted checkpoint bucket and IAM layer. Name one resource type you'd refuse to put in Terraform and why.
-5. A manual console change caused state drift, and the next `terraform apply` destroyed and recreated a resource nobody intended to touch. What are the two separate failures in this incident (one process, one review), and what specific plan-output detail should have stopped the apply?
+# 3. Cluster Placement Group (MANDATORY for Distributed GPU Training)
+# Forces all 32 GPU instances onto the same physical spine switch fabric
+resource "aws_placement_group" "gpu_cluster_pg" {
+  name     = "llm-training-cluster-pg"
+  strategy = "cluster"
+}
+
+# 4. S3 Bucket for Checkpoint Storage with Lifecycle Rules
+resource "aws_s3_bucket" "checkpoint_bucket" {
+  bucket = "enterprise-ai-checkpoints-prod"
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "checkpoint_lifecycle" {
+  bucket = aws_s3_bucket.checkpoint_bucket.id
+
+  rule {
+    id     = "expire-stale-checkpoints"
+    status = "Enabled"
+
+    # Automatically purge non-current model checkpoints older than 14 days
+    noncurrent_version_expiration {
+      noncurrent_days = 14
+    }
+  }
+}
+
+# 5. Cloud GPU Compute Fleet (p5.48xlarge = 8x NVIDIA H100 SXM5 GPUs)
+resource "aws_instance" "gpu_workers" {
+  count                = var.gpu_instance_count
+  ami                  = "ami-0abc1234nvidia_deep_learning" # Pinned base image
+  instance_type        = "p5.48xlarge"
+  subnet_id            = aws_subnet.ai_subnet_a.id
+  placement_group      = aws_placement_group.gpu_cluster_pg.id
+
+  # Protect training nodes from accidental deletion
+  lifecycle {
+    create_before_destroy = true
+    ignore_changes        = [ami] # AMI updates handled via Ansible/BCM
+  }
+
+  tags = {
+    Name = "gpu-training-worker-${count.index}"
+    Role = "Slurm-Compute-Node"
+  }
+}
+```
+
+---
+
+### 4. Outputs (`outputs.tf`)
+
+```hcl
+# outputs.tf
+output "vpc_id" {
+  description = "VPC ID of the AI Training Fabric"
+  value       = aws_vpc.ai_vpc.id
+}
+
+output "checkpoint_bucket_arn" {
+  description = "S3 ARN for saving Megatron/PyTorch checkpoints"
+  value       = aws_s3_bucket.checkpoint_bucket.arn
+}
+
+output "gpu_private_ips" {
+  description = "Private IP addresses of all 32 GPU instances for Ansible inventory"
+  value       = aws_instance.gpu_workers[*].private_ip
+}
+```
+
+---
+
+## 5. The State File: Architecture, Locking, and Disaster Recovery
+
+The **state file (`terraform.tfstate`)** is the single most critical asset in Terraform. It is a structured JSON database that records the exact mapping between your declarative HCL resources and real-world infrastructure.
+
+### Why Local State is an Enterprise Liability
+- If an engineer runs `terraform apply` locally on their laptop, the state file resides in their local directory.
+- Another engineer running `terraform apply` on their own laptop has no record of those resources and will attempt to recreate them, causing API naming collisions, orphaned instances, and silent overwrites.
+
+### Production Solution: Remote State with Distributed Locking
+In AWS, Terraform stores the state file in a private **S3 Bucket** (with SSE-KMS encryption and versioning) paired with a **DynamoDB Table**:
+
+```text
+[Engineer 1 runs: terraform apply]
+  1. Acquires Lock: Writes a LockID item to DynamoDB.
+  2. Pulls State: Downloads latest terraform.tfstate from S3.
+  3. Executes Mutations: Calls AWS EC2/S3 APIs.
+
+[Engineer 2 runs: terraform apply CONCURRENTLY]
+  1. Attempts Lock: Checks DynamoDB -> Sees active LockID held by Engineer 1.
+  2. FAILS FAST: "Error: Error acquiring the state lock: ConditionalCheckFailedException"
+  3. State corruption is 100% prevented!
+
+[Engineer 1 finishes apply]
+  4. Pushes updated state back to S3.
+  5. Releases Lock: Deletes LockID row from DynamoDB.
+```
+
+### Essential State Management CLI Commands
+
+```bash
+# 1. List all resources currently tracked in state
+$ terraform state list
+aws_instance.gpu_workers[0]
+aws_instance.gpu_workers[1]
+aws_placement_group.gpu_cluster_pg
+aws_vpc.ai_vpc
+
+# 2. Inspect the detailed state attributes of a specific GPU instance
+$ terraform state show aws_instance.gpu_workers[0]
+
+# 3. Import existing infrastructure (e.g., a manually created S3 bucket) into Terraform
+$ terraform import aws_s3_bucket.dataset_bucket enterprise-raw-datasets-bucket
+
+# 4. Remove a resource from state without deleting it in the real world
+$ terraform state rm aws_instance.gpu_workers[31]
+```
+
+---
+
+## 6. The AI Infrastructure Boundary: What Terraform Owns vs. What BCM/Ansible Owns
+
+A fatal mistake in AI platform engineering is trying to use Terraform to configure what happens *inside* the Linux operating system (e.g., using `remote-exec` to install NVIDIA drivers or edit Slurm configuration files).
+
+```mermaid
+flowchart LR
+    subgraph TerraformBoundary["Day 0: Terraform / OpenTofu (Cloud & Infrastructure APIs)"]
+        VPC["VPCs, Subnets, Security Groups, MTU 9000"]
+        PG["Cluster Placement Groups (InfiniBand locality)"]
+        BUCKETS["S3 / GCS Checkpoint & Dataset Buckets"]
+        INSTANCES["Cloud GPU Virtual Machines & Bare-Metal Allocations"]
+        DNS["Route53 DNS & Cloud Load Balancer VIPs"]
+    end
+
+    subgraph BCM_Ansible_Boundary["Day 1 / Day 2: BCM & Ansible (OS, Hardware & Workload Stack)"]
+        KERNEL["Linux Kernel Tuning (iommu=pt, numa_balancing=0)"]
+        DRV["NVIDIA Open-Source Drivers & MOFED OFED Install"]
+        DCGM["DCGM Exporter Daemon & Health Frameworks"]
+        CONTAINERS["Enroot / Pyxis / Containerd / GPU Operator"]
+        SCHEDULER["Slurm Node Joining, gres.conf & Partition Management"]
+    end
+
+    TerraformBoundary -->|Provisions API Objects & Handoffs IP Inventory| BCM_Ansible_Boundary
+```
+
+### The Golden Rule:
+- **Terraform owns the Infrastructure Outside the OS:** If it has an API (cloud provider, DNS, storage bucket, network VPC), Terraform owns it.
+- **BCM and Ansible own the Configuration Inside the OS:** If it is a file (`/etc/slurm/slurm.conf`), a kernel parameter (`sysctl`), a driver package, or a systemd service, BCM or Ansible owns it.
+
+---
+
+## 7. Senior Solutions Architect Interview Scenarios
+
+### Scenario 1: The Catastrophic `-/+` (Forces Replacement) Incident
+**Interviewer:** *"An engineer submits a pull request modifying your production Terraform code for an active 64-node DGX H100 cloud cluster. The team reviews the PR, merges it, and runs `terraform apply`. Suddenly, all 64 GPU instances are terminated, destroying an ongoing $500,000 foundation model pre-training run. What happened, and how do you architecturally prevent this?"*
+
+**Candidate Answer:**
+> "This is the classic catastrophe of an unreviewed **`-/+` (Destroy and Recreate / Forces Replacement)** plan:
+> 1. **The Root Cause:** In cloud provider resource schemas (like `aws_instance`), certain attributes are immutable once an instance is launched. For example, if the engineer modified the subnet CIDR, changed the `availability_zone`, or toggled an immutable network interface attribute, the provider API does not support updating the running instance in place. Terraform's only path to satisfy the declared code is to **terminate the existing instance and spin up a new one**.
+> 2. **Why Plan Summaries are Deceptive:** The engineer likely looked only at the final summary line: `Plan: 64 to add, 0 to change, 64 to destroy`, mistaking it for a scaling operation rather than a destructive teardown.
+> 3. **The Architectural Safeguards:**
+>    - **Prevent Destroy via Lifecycle Rules:** On mission-critical compute and stateful storage resources, we enforce:
+>      ```hcl
+>      lifecycle {
+>        prevent_destroy = true
+>      }
+>      ```
+>      If a proposed change would trigger recreation, Terraform immediately throws a hard fatal error and halts before executing any API calls.
+>    - **Automated CI/CD Plan Inspection:** In our CI/CD pipeline (Atlantis / GitHub Actions), we pipe `terraform show -json tfplan` through a script that parses `.resource_changes[]`. If any active GPU instance or storage volume contains a `delete` action, the pipeline automatically blocks the PR and demands Senior Architect sign-off.
+>    - **Apply Saved Plans Only:** We enforce `terraform plan -out=tfplan` and apply only the approved binary artifact, ensuring no drift occurs between review and execution."
+
+---
+
+### Scenario 2: Sizing Cluster Placement Groups for Multi-Node AI Training
+**Interviewer:** *"A customer is deploying 32x 8-GPU instances in AWS or CoreWeave for distributed PyTorch training. Their model scales poorly across nodes, with NCCL All-Reduce latency 3x higher than local benchmarks. Their Terraform code provisions instances into a standard multi-AZ subnet. What is missing in their IaC architecture?"*
+
+**Candidate Answer:**
+> "Their Terraform code failed to define a **Cluster Placement Group**:
+> 1. **The Physical Reality of Cloud Data Centers:** Without an explicit placement group, the cloud hypervisor schedules the 32 GPU instances across arbitrary server racks, rows, or availability zones within the data center. Traffic between ranks must traverse multiple spine switches and oversubscribed aggregation layers.
+> 2. **The Architectural Fix in Terraform:**
+>    - We define an `aws_placement_group` with `strategy = "cluster"` in HCL.
+>    - A Cluster Placement Group instructs the cloud fabric to bin-pack all 32 instances into the same physical rack row or contiguous network spine domain.
+>    - Combined with **Elastic Fabric Adapter (EFA)** or RoCE network interfaces with **Jumbo Frames (MTU 9000)** enabled in the VPC subnet, all GPU-to-GPU network hops are kept to a single leaf switch, eliminating spine hops and restoring full 400G / 3.2 Tbps GPUDirect RDMA line-rate throughput."
+
+---
+
+## Key Takeaways
+
+1. **Declarative Beats Imperative:** Terraform declares desired end-state; its three-way reconciliation engine compares configuration, state file, and real-world APIs to calculate the minimal mutation path.
+2. **Master the Lifecycle:** Understand the internal mechanics of `init` (plugin/backend setup), `plan` (dependency DAG diff), and `apply` (atomic mutation and state update).
+3. **Remote State with Locking is Non-Negotiable:** Always store `terraform.tfstate` in an encrypted remote S3 bucket paired with a DynamoDB table to prevent concurrent execution races.
+4. **Fear the `-/+` Marker:** A plan showing `-/+` means destructive replacement; protect production GPU fleets using `lifecycle { prevent_destroy = true }` and automated CI/CD delete filters.
+5. **Cluster Placement Groups are Mandatory:** When provisioning cloud GPU instances in Terraform, always attach them to a cluster placement group to guarantee the physical switch locality required for low-latency GPUDirect RDMA.
+6. **Respect the IaC Boundary:** Use Terraform for API-managed infrastructure outside the OS (VPCs, S3 buckets, Placement Groups, Instances); use BCM or Ansible for configuration inside the OS (Linux kernel, NVIDIA drivers, CUDA, Slurm).
