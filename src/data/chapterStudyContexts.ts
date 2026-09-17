@@ -11374,54 +11374,58 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 1 - Bare-metal and BMC/Redfish lifecycle": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Bare-metal architecture, DGX/HGX chassis anatomy, BMC, Redfish APIs, firmware baselining, BIOS optimization, and PXE bring-up for NVIDIA AI Factories.",
+    "learningOutcome": "Architect, validate, and troubleshoot the hardware and management infrastructure of an NVIDIA AI Factory from bare-metal delivery to job readiness. You will master the physical topology of accelerated compute systems (DGX H100/H200, HGX, GB200), transition from legacy IPMI to declarative DMTF Redfish APIs, automate firmware baselines at scale via Redfish REST operations, tune BIOS/UEFI parameters programmatically for multi-GPU workloads, and design deterministic HTTPBoot provisioning pipelines.",
     "sections": [
       "Chapter 1 — Bare-Metal and BMC/Redfish Lifecycle",
-      "Foundations: start here if the bare-metal HPC stack is new to you",
-      "1. Architectural Blueprint: The AI Factory Physical Hierarchy",
-      "Key Hardware Boundaries",
+      "1. Architectural Blueprint: The AI Factory Physical Hierarchy { foundations-start-here-if-the-bare-metal-hpc-stack-is-new-to-you}",
+      "1.1 The Hardware Architecture Diagram",
+      "1.2 Key Hardware Boundaries",
       "2. The Out-of-Band Control Plane: IPMI vs. Redfish",
-      "The Architectural Shift: IPMI to Redfish",
-      "Redfish Resource Hierarchy on NVIDIA DGX Systems",
-      "Deep-Dive: Interacting with Redfish via cURL",
-      "Retrieve power state and aggregated health status",
-      "Extract individual SXM GPU thermal sensors",
-      "Graceful shutdown followed by power-on (ForceRestart)",
-      "3. NVIDIA System Management ( nvsm ) and Diagnostic Architecture",
-      "Production nvsm Commands for Hardware Triage",
-      "1. Quick cluster-readiness health check"
+      "2.1 The Architectural Shift: Why IPMI is Dead",
+      "2.2 The Reality of Legacy IPMI",
+      "Legacy IPMI: Sending raw hex to query a proprietary OEM sensor",
+      "Iterating through Sensor Data Records (SDR)",
+      "GPUs were rarely mapped natively without complex OEM extensions",
+      "3. Deep Dive: The DMTF Redfish REST API",
+      "3.1 Authenticating and Establishing a Session",
+      "1. Create a Redfish Session",
+      "3.2 Querying System Inventory and Power State"
     ],
     "codeLanguages": [
       "mermaid",
       "text",
       "bash",
-      "json"
+      "http",
+      "json",
+      "python"
     ]
   },
   "Chapter 2 - NVIDIA Base Command Manager (BCM)": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "NVIDIA Base Command Manager (BCM) architecture, active/passive head node HA, software images, category-based provisioning, Slurm & Kubernetes integration, and automated health remediation.",
+    "learningOutcome": "Architect, deploy, configure, and safely operate an NVIDIA Base Command Manager (BCM) control plane for large-scale AI Factories. You will master the active/passive high-availability head node architecture, declarative category-based object models, software image provisioning mechanics (Stateless, Stateful, Overlay), network integration (InfiniBand, RoCE, Out-of-Band BMCs), workload orchestrator synchronization (Slurm, Kubernetes, Run:ai), and automated hardware health remediation using the cmsh CLI.",
     "sections": [
       "Chapter 2 — NVIDIA Base Command Manager (BCM)",
-      "1. BCM High-Level Architecture and Control Plane Topology",
-      "Core Components and Responsibilities",
-      "2. The BCM Object Model and Declarative State",
-      "Navigating cmsh (Command Management Shell)",
+      "1. Foundations: The Role of an AI Cluster Operating System",
+      "2. BCM High-Level Architecture and Control Plane Topology",
+      "2.1 Core Components and Responsibilities",
+      "3. Deep Dive: Head Node High Availability (HA) Mechanics",
+      "3.1 The HA Software Stack",
+      "3.2 Pacemaker Resource Status (crm mon)",
+      "crm status",
+      "3.3 STONITH and Split-Brain Prevention",
+      "4. The Declarative Object Model: cmsh Masterclass",
+      "4.1 Navigating cmsh and Configuring Categories",
       "Enter BCM management shell",
       "Inspect available software images",
-      "Inspect category parameters for production DGX H100s",
-      "3. Image Provisioning Mechanics: Stateless vs. Stateful",
-      "Mitigating Provisioning Storms at Scale (BitTorrent & Multicast)",
-      "4. Workload Manager Integration: Slurm and Kubernetes Coexistence",
-      "1. Slurm Automated Topology and GRES Generation",
-      "2. Kubernetes and Run:ai Deployment via BCM",
-      "3. Dynamic Node Reallocation (Slurm $\\leftrightarrow$ Kubernetes)"
+      "Move up the tree and enter the category sub-mode"
     ],
     "codeLanguages": [
       "mermaid",
       "text",
-      "bash"
+      "xml",
+      "bash",
+      "python"
     ]
   },
   "Chapter 3 - OS Provisioning, Kernel Optimization, and Security Hardening": {
@@ -11430,54 +11434,55 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Linux OS provisioning, kernel tuning for ultra-low latency AI fabrics, hugepages, NUMA isolation, open vs. proprietary kernel modules, and hardened multi-tenant security.",
     "sections": [
       "Chapter 3 — OS Provisioning, Kernel Optimization, and Security Hardening",
-      "1. Automated OS Delivery: Kickstart and cloud-init Architecture",
-      "Partitioning Strategy for Accelerated Compute",
-      "2. Linux Kernel Optimization for Ultra-Scale AI",
-      "1. Boot-Time Kernel Parameters ( /etc/default/grub )",
-      "2. Runtime Kernel Tunables ( /etc/sysctl.d/99-nvidia-ai.conf )",
-      "/etc/sysctl.d/99-nvidia-ai.conf",
-      "Maximum socket receive and send buffer sizes for 400G/800G fabrics (2GB)",
-      "Maximum network device backlog queue",
-      "TCP window size tuning for high BDP (Bandwidth-Delay Product) links",
-      "Prevent kernel memory swapping under heavy tensor caching",
-      "Increase maximum memory map areas (critical for PyTorch & Triton pinned memory)",
-      "Maximum open file descriptors",
-      "3. NVIDIA Driver Packaging: Open Kernel Modules vs. Proprietary vs. kABI"
+      "1. Introduction and Learning Objectives",
+      "1.1 The Problem Statement",
+      "1.2 Realistic Production Story",
+      "1.3 Measurable Learning Objectives",
+      "1.4 Chapter Metadata",
+      "2. The Fundamentals: Linux Boot Process and Provisioning (Beginner)",
+      "2.1 The Linux Boot Sequence",
+      "2.2 Network Booting: PXE and HTTPBoot",
+      "2.3 Automated Provisioning: Kickstart Architecture",
+      "3. Deep Dive: A Production RHEL/Rocky Kickstart Profile",
+      "/var/www/html/ks.cfg",
+      "---------------------------------------------------------",
+      "NVIDIA AI Factory Production Kickstart - Rocky Linux 9"
     ],
     "codeLanguages": [
       "mermaid",
       "text",
       "bash",
-      "ini"
+      "ini",
+      "yaml"
     ]
   },
-  "Chapter 4 - Ansible for infrastructure automation": {
+  "Chapter 4 - Ansible for Infrastructure Automation in AI Factories": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Build, explain, and safely operate an Ansible project that configures bare-metal GPU nodes. You will be able to reason about inventory, plays, tasks, modules, variables, roles, idempotency, secrets, and staged production rollout.",
+    "learningOutcome": "Architect, write, refactor, and safely operate production-grade Configuration Management using Ansible. You will master core Ansible primitives (Playbooks, Roles, Inventory, Handlers), execute complex control flows ( block/rescue , asynchronous tasks, rolling updates), design dynamic inventories and Jinja2 templates, and deploy Day-1/Day-2 configuration for an NVIDIA AI Factory (MOFED drivers, NVIDIA DCGM telemetry, system-level tuning, and Slurm daemon configurations).",
     "sections": [
-      "Foundations: start here if Infrastructure as Code is new to you",
-      "The problem Ansible solves",
-      "Ansible structure in one picture",
-      "How Ansible reaches a bare-metal node",
-      "A study path: beginner to AI-factory operator",
-      "Workbook setup",
-      "1. Create the project layout",
-      "2. Configure Ansible defaults",
-      "ansible.cfg",
-      "3. Define a static inventory",
-      "inventory/hosts.ini",
-      "3a. Model failure domains, not just host names",
-      "inventory/production.yml -- a small illustrative static export",
-      "3b. Make the control environment reproducible"
+      "Chapter 4 — Ansible for Infrastructure Automation in AI Factories",
+      "1. Foundations: Configuration Management and the Principle of Idempotency { foundations-start-here-if-infrastructure-as-code-is-new-to-you}",
+      "1.1 The Collapse of Imperative Shell Scripting",
+      "1.2 The Ansible Solution: Idempotent Desired State",
+      "2. Ansible Architecture, Execution Model, and the Agentless Advantage",
+      "2.1 The Control Node",
+      "2.2 The Managed Nodes",
+      "2.3 The Execution Flow Deep Dive",
+      "3. Inventory Management: From Static Files to Dynamic Cloud Graphs",
+      "3.1 Static Inventories: INI and YAML Formats",
+      "inventory/production.yml",
+      "3.2 Structuring Variables: group vars and host vars",
+      "Specific variables targeting the H100 architecture",
+      "3.3 Dynamic Inventories: Integrating with Cloud APIs"
     ],
     "codeLanguages": [
       "mermaid",
       "text",
-      "ini",
-      "bash",
       "yaml",
-      "jinja2"
+      "bash",
+      "jinja2",
+      "ini"
     ]
   },
   "Chapter 5 - Terraform for Infrastructure as Code in AI Factories": {
@@ -11514,99 +11519,108 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Production Slurm administration for AI supercomputers: controller HA, GRES GPU binding, cgroups, NUMA pinning, multi-tenant fairshare mathematics, and zero-downtime upgrades.",
     "sections": [
       "Chapter 6 — Slurm Administration: HA, Topology-Aware Scheduling, Accounting, and Upgrades",
-      "1. Slurm Control Plane Architecture and High Availability",
-      "1. Active/Passive Controller Failover Mechanics",
-      "2. Generic Resources (GRES), cgroups, and Hardware Topology Pinning",
-      "1. Hardware-Aware GRES Configuration ( gres.conf )",
-      "/etc/slurm/gres.conf on DGX H100 (Dual 64-core CPUs, 8x H100 SXM5 GPUs)",
-      "Node has 2 NUMA nodes (Sockets 0 and 1)",
-      "GPUs 0-3 connected to CPU Socket 0 (Cores 0-63)",
-      "GPUs 4-7 connected to CPU Socket 1 (Cores 64-127)",
-      "2. Linux cgroups Enforcement ( cgroup.conf )",
-      "/etc/slurm/cgroup.conf",
-      "3. Multi-Tenant Accounting, Associations, and Fairshare Mathematics",
-      "The Fairshare Mathematical Formula",
-      "Production sacctmgr Account & QoS Setup"
+      "1. Foundational Architecture: The Anatomy of Slurm",
+      "1.1 Core Daemons and Responsibilities",
+      "1.2 Jobs, Steps, and Tasks",
+      "2. Advanced Slurm Configuration ( slurm.conf ) Deep Dive",
+      "2.1 The Architecture of slurm.conf",
+      "/etc/slurm/slurm.conf",
+      "=========================================================================",
+      "1. CLUSTER DEFINITION & DAEMON SETTINGS",
+      "The state save location must be on a highly available shared file system",
+      "Logging and Debugging",
+      "2. HIGH AVAILABILITY (ACTIVE/PASSIVE)",
+      "3. ACCOUNTING & DATABASE",
+      "4. SCHEDULING & POLICIES"
     ],
     "codeLanguages": [
       "mermaid",
       "text",
       "ini",
-      "bash"
+      "bash",
+      "yaml"
     ]
   },
   "Chapter 7 - MPI, PMIx, and Distributed Collective Communication": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Process bootstrapping, PMIx wire protocol, Slurm srun vs. torchrun, CPU/GPU NUMA affinity, and the operational divide between MPI and NCCL in AI supercomputers.",
+    "learningOutcome": "Master the complete distributed communication stack of an NVIDIA AI Factory. You will learn to architect and troubleshoot the control plane (Process Management Interface Exascale - PMIx, Slurm) and the data plane (NVIDIA Collective Communications Library - NCCL, GPUDirect RDMA over InfiniBand/RoCEv2). You will configure highly optimized NUMA-aware process bindings, tune OpenMPI MCA parameters, manipulate NCCL topology variables, and debug complex multi-node scaling regressions using strace , fabric counters, and NCCL debug logs.",
     "sections": [
       "Chapter 7 — MPI, PMIx, and Distributed Collective Communication",
-      "1. Architectural Taxonomy: Slurm vs. PMIx vs. MPI vs. NCCL",
-      "Responsibility Breakdown",
-      "2. Process Management Interface (PMIx) and Launch Mechanics",
-      "srun vs. torchrun vs. mpirun",
-      "3. CPU Core and GPU NUMA Pinning",
-      "Production Slurm Launch Script with Strict NUMA Binding",
-      "srun pins each task strictly to 16 CPU cores local to its allocated GPU",
-      "4. NCCL Internals: Ring vs. Tree Collective Topologies",
-      "Ring vs. Tree Selection Mechanics",
-      "5. Senior Solutions Architect Interview Scenarios",
-      "Scenario 1: The \"Hanging at Startup\" Multi-Node Incident",
-      "Scenario 2: Severe Bandwidth Regression on GPUDirect RDMA",
-      "Key Takeaways"
+      "1. Foundations: The Evolution of Distributed Message Passing",
+      "1.1 What is MPI?",
+      "1.2 Core MPI Concepts: Ranks, Size, and Communicators",
+      "1.3 Point-to-Point vs. Collective Communication",
+      "1.4 The CPU-Centric Legacy of MPI",
+      "2. The Fabric Layer: InfiniBand, RoCEv2, and GPUDirect RDMA",
+      "2.1 Remote Direct Memory Access (RDMA)",
+      "2.2 InfiniBand vs. RoCEv2",
+      "2.3 GPUDirect RDMA (GDR)",
+      "3. The Modern AI Execution Stack: Slurm, PMIx, and NCCL",
+      "3.1 Slurm Workload Manager",
+      "3.2 PMIx (Process Management Interface Exascale)",
+      "3.3 NVIDIA NCCL"
     ],
     "codeLanguages": [
       "mermaid",
       "text",
-      "bash"
+      "bash",
+      "python"
     ]
   },
   "Chapter 8 - Enroot and Pyxis: Unprivileged Containers for AI Supercomputing": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Unprivileged container runtimes for AI clusters: Enroot architecture, SquashFS rootfs, Pyxis SPANK Slurm plugin, GPUDirect RDMA device passthrough, and image cache caching.",
+    "learningOutcome": "Architect, configure, and safely operate unprivileged container runtimes in large-scale AI factories using NVIDIA Enroot and the Slurm Pyxis SPANK plugin. You will master Linux user namespaces, transition away from legacy layered filesystems (OverlayFS) to high-performance parallel file system caching (SquashFS), dynamically inject NVIDIA drivers and InfiniBand devices into unprivileged namespaces, execute massive multi-node distributed training jobs using PMIx and NCCL, and debug complex container permission, caching, and hardware isolation failures.",
     "sections": [
       "Chapter 8 — Enroot and Pyxis: Unprivileged Containers for AI Supercomputing",
-      "1. Architectural Contrast: Docker/Kubernetes vs. Enroot/Pyxis",
-      "Architectural Comparison",
-      "2. Enroot Internal Mechanics: SquashFS and Hardware Injection",
-      "Hardware Device and Driver Passthrough",
-      "3. Large-Scale Image Caching Architecture",
-      "The Solution: Pre-Imported Central SquashFS Caching",
-      "4. Senior Solutions Architect Interview Scenarios",
-      "Scenario 1: Pyxis Fails to Enumerate GPUs Inside the Container",
-      "Scenario 2: Enroot vs. Kubernetes/Containerd for Large Foundation Models",
-      "Key Takeaways"
+      "1. Foundations: The Dilemma of Containers in High-Performance Computing (HPC)",
+      "1.1 Why Docker Fails in HPC and AI Factories",
+      "1.2 The Enroot Philosophy: Rootless, Daemonless, and Flattened",
+      "2. Deep Dive: Linux User Namespaces and Rootless Execution",
+      "2.1 The Kernel Namespace API ( CLONE NEWUSER )",
+      "2.2 Sub-UID and Sub-GID Remapping ( /etc/subuid )",
+      "/etc/subuid (Host System)",
+      "Format: <username :<starting uid :<uid count",
+      "User alice is granted 65536 sub-UIDs starting at 100000",
+      "User bob is granted 65536 sub-UIDs starting at 165536",
+      "Example of what Enroot does behind the scenes:",
+      "Map Host UID 1005 to Container UID 0 (length 1)",
+      "Map Host UIDs 100000-165535 to Container UIDs 1-65536 (length 65536)"
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
+      "text",
+      "bash"
     ]
   },
   "Chapter 9 - Job Provisioning, Health Gating, and Workflow Orchestration": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Hardware health gating architectures for AI Factories: eliminating silent stragglers, Slurm Prolog/Epilog automation, DCGM diagnostic tiers, and automated node quarantining.",
+    "learningOutcome": "Architect, write, and safely operate production-grade job provisioning, health gating mechanisms, and workflow orchestrations in an NVIDIA AI Factory. You will master Slurm Prolog/Epilog hooks, DCGM diagnostics, hardware error identification (XID codes), automated node quarantining, Node Health Check (NHC) framework integration, and workflow orchestration concepts using Apache Airflow and Kubeflow. You will also dive deep into PyTorch DDP submission scripts, Kubernetes Volcano schedulers, and Prometheus alerting rules for silent straggler detection.",
     "sections": [
       "Chapter 9 — Job Provisioning, Health Gating, and Workflow Orchestration",
-      "1. The Straggler Problem and Multi-Tiered Health Architecture",
-      "2. NVIDIA DCGM Diagnostic Tiers",
-      "Running Level 1 Diagnostic as an Admission Test",
-      "3. Production Slurm Prolog Implementation: The Pre-Job Gate",
-      "/etc/slurm/prolog.d/90-ai-health-gate.sh",
-      "Slurm Job Prolog Health Gate for NVIDIA DGX H100",
-      "Target execution time: < 8 seconds",
-      "1. Verify all 8 physical GPUs are enumerated and responsive to NVML",
-      "2. Check for active uncorrectable ECC memory errors",
-      "3. Check for GPU Thermal or Power Hardware Slowdown",
-      "4. Verify InfiniBand Compute HCAs (8x ConnectX-7 adapters active at 400 Gbps)",
-      "Verify link speed is NDR 400G (Active at 4X Rate 100G)",
-      "5. Clean up any leftover orphan GPU processes from previous jobs"
+      "1. Foundations: The AI Factory Job Lifecycle and the Threat of Stragglers",
+      "The Basic Job Lifecycle",
+      "Why Health Gating is Critical",
+      "2. Advanced Slurm Configuration for AI Workloads",
+      "Core slurm.conf Parameters for Health and Scheduling",
+      "/etc/slurm/slurm.conf",
+      "------------------------------------------------------------------------------",
+      "Topology and GPU Scheduling",
+      "The topology plugin ensures Slurm understands the spine-leaf network",
+      "architecture to place jobs on nodes connected to the same leaf switch when possible.",
+      "SelectType determines how resources are allocated.",
+      "cons tres (Consumable Trackable Resources) is mandatory for GPU scheduling.",
+      "Enable the GRES (Generic Resource) plugin for GPUs"
     ],
     "codeLanguages": [
       "text",
+      "bash",
       "mermaid",
-      "bash"
+      "python",
+      "json",
+      "yaml"
     ]
   },
   "Chapter 10 - Coordinated Cluster-Wide Software Change Management": {
@@ -11638,24 +11652,30 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 11 - CI/CD for infrastructure and cluster configuration": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design a CI/CD pipeline whose artifact is cluster state (node config, driver/CUDA image, Kubernetes/Slurm manifests) rather than an application binary, with the specific gates that make destructive infrastructure changes safe to automate instead of merely fast.",
+    "learningOutcome": "Architect, implement, and operate enterprise-grade Continuous Integration and Continuous Delivery (CI/CD) pipelines specifically designed for physical and cloud infrastructure. Master the distinction between application delivery and infrastructure state reconciliation, implement push-based (Atlantis, GitHub Actions, GitLab CI) and pull-based (ArgoCD, Flux) GitOps workflows, enforce Policy-as-Code (OPA/Rego) guardrails to control blast radius, and automate the safe rollout of OS images, kernel drivers, and Kubernetes/Slurm configurations across massive-scale NVIDIA GPU clusters.",
     "sections": [
-      "Start here — CI produces evidence; delivery controls mutation",
-      "Broader than application CI/CD",
-      "GitOps for cluster configuration",
-      "Pipeline stages for infrastructure changes",
-      "Annotated example: a merge-blocking plan-review gate",
-      "Golden node images as a CI pipeline output",
-      "Testing infrastructure changes safely: canary as the test environment",
-      "Worked scenario: the override that made the gate meaningless",
-      "Mnemonic",
-      "Interview-ready line",
-      "Practice"
+      "Chapter 11 — CI/CD for Infrastructure and Cluster Configuration",
+      "1. The Paradigm Shift: Application CI/CD vs. Infrastructure CI/CD",
+      "1.1 The Core Differences",
+      "1.2 Push vs. Pull Deployments (The GitOps Divide)",
+      "2. Foundational Principles: CI Produces Evidence; CD Controls Mutation",
+      "The Six Golden Stages of Infrastructure CI/CD",
+      "3. Pull Requests as the Control Plane: Terraform with Atlantis",
+      "3.1 Atlantis Architecture",
+      "3.2 Atlantis Configuration",
+      "server-side repos.yaml - Controls what repositories are allowed to do",
+      "Committed to the root of the infrastructure git repository",
+      "3.3 The Atlantis Experience",
+      "4. Kubernetes GitOps: ArgoCD and Flux",
+      "4.1 The GitOps Reconciliation Loop"
     ],
     "codeLanguages": [
       "mermaid",
       "text",
-      "bash"
+      "yaml",
+      "rego",
+      "go",
+      "hcl"
     ]
   },
   "Chapter 12 - Customer runbooks, onboarding and best-practice documentation": {
@@ -11707,25 +11727,30 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Senior Deep Dive 2 — Slurm HA, Database Clustering, and Accounting Internals": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Advanced internal mechanics of Slurm high-availability: POSIX StateSaveLocation serialization, MariaDB Galera database replication, split-brain fencing, and decayed fairshare mathematics.",
+    "learningOutcome": "Architect, configure, and troubleshoot highly available Slurm control planes and distributed databases. You will understand how the slurmctld daemon serializes memory to disk, configure Corosync and Pacemaker for split-brain STONITH fencing, tune MariaDB Galera and ProxySQL for high-throughput slurmdbd writes, query raw TRES accounting records directly using SQL, and calibrate complex Fairshare decay algorithms to enforce multi-tenant equity across AI SuperPODs.",
     "sections": [
       "Senior Deep Dive 2 — Slurm HA, Database Clustering, and Accounting Internals",
-      "1. Internal State Serialization and the StateSaveLocation Contract",
-      "The Atomic Serialization Algorithm",
-      "Failure Mode: Why NFS Cache Consistency Can Corrupt Failover",
-      "2. Split-Brain Dynamics and Fencing (STONITH)",
-      "Why Built-in Slurm HA Is Not Enough for AI SuperPODs",
-      "3. Database Clustering: slurmdbd and MariaDB Galera Internals",
-      "Why Standard Active-Active Multi-Writer Galera Fails with Slurm",
-      "4. Fairshare Internal Mathematics and Usage Decay",
-      "The Half-Life Decay Formula",
-      "5. Senior Solutions Architect Interview Scenarios",
-      "Scenario 1: MariaDB Deadlocks Causing Slurmctld Thread Exhaustion",
-      "Key Takeaways"
+      "1. Architectural Recap: Slurm in the AI Factory",
+      "The Inherent Tension of State",
+      "2. Internal State Serialization and the StateSaveLocation Contract",
+      "2.1 The Atomic Serialization Algorithm",
+      "2.2 Deep Dive: Stracing the Serialization Process",
+      "Find the PID of the slurmctld daemon",
+      "Attach strace, filtering for file operations targeting the StateSaveLocation",
+      "2.3 Failure Mode: Why NFS Cache Consistency Can Corrupt Failover",
+      "/etc/fstab on both controller nodes",
+      "3. Split-Brain Dynamics and Fencing (STONITH)",
+      "3.1 The Split-Brain Catastrophe",
+      "3.2 The Architectural Fix: Pacemaker and Corosync",
+      "/etc/corosync/corosync.conf"
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
+      "text",
+      "bash",
+      "fstab",
+      "ini",
+      "sql"
     ]
   },
   "Senior Deep Dive 3 — MPI, NCCL, and Fabric Joint Debugging": {
@@ -11783,27 +11808,28 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 17 - Git for infrastructure and operations": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Git fundamentals, review, recovery, secrets and safe change promotion for GPU, Slurm, Kubernetes and infrastructure repositories.",
+    "learningOutcome": "Master Git as the foundational engine for AI infrastructure delivery. You will architect repository structures (monorepos vs. polyrepos), enforce branch protection for Infrastructure as Code (IaC) and configuration management, execute advanced recovery operations ( git rebase --onto , git bisect , git reflog ), and safely manage sensitive credentials. By the end of this chapter, you will understand Git not merely as a version control system, but as the authoritative, cryptographically verifiable ledger of your data center's desired state.",
     "sections": [
-      "Chapter 17 — Git for infrastructure and operations",
-      "Start here — four objects and three boundaries",
-      "The safe first workflow",
-      "Branches, remotes and tracking",
-      "Merge versus rebase",
-      "resolve one conflict at a time",
-      "Review infrastructure changes by blast radius",
-      "Git, GitOps and the live cluster",
-      "Secrets and sensitive history",
-      "Recovery: the commands worth practising",
-      "Undo an unstaged edit",
-      "Unstage without losing edits",
-      "Move a branch pointer back safely",
-      "Find a lost local commit"
+      "Chapter 17 — Git for Infrastructure and Operations",
+      "1. Foundations: The Evidence Trail of Infrastructure",
+      "1.1 The Imperative vs Declarative Source of Truth",
+      "1.2 The Git Directed Acyclic Graph (DAG)",
+      "1.4 The Three Boundaries of Change",
+      "2. The Safe Infrastructure Workflow",
+      "1. Fetch the latest remote history without modifying your working tree.",
+      "This ensures your local Git database is aware of what your colleagues have done.",
+      "2. Isolate your proposed change from the protected mainline branch.",
+      "We branch from origin/main to ensure we are starting from the absolute latest truth.",
+      "... (Open your editor and make your edits to the configuration files) ...",
+      "Example: You edit docs/volume-10/06-slurm-administration-ha-accounting-and-upgrades.md",
+      "You also accidentally run a script that creates a 'crash.log' file.",
+      "3. Inspect the state of your working directory."
     ],
     "codeLanguages": [
-      "mermaid",
+      "bash",
       "text",
-      "bash"
+      "mermaid",
+      "yaml"
     ]
   }
 };
