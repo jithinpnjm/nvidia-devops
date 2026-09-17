@@ -11483,28 +11483,29 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 5 - Terraform for Infrastructure as Code in AI Factories": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Comprehensive beginner-to-advanced guide to Terraform for AI infrastructure: HCL syntax, init/plan/apply lifecycle, remote state locking, cluster placement groups, and hybrid cloud-burst architecture.",
+    "learningOutcome": "Architect, write, refactor, and safely operate production-grade Infrastructure as Code (IaC) using Terraform, OpenTofu, and HCP Terraform (Terraform Cloud). You will master core HCL language constructs (locals, data sources, for each , dynamic blocks, built-in functions), execute complex state and CLI operations ( import , refresh , state mv , state rm , force-unlock , moved blocks), manage multi-environment workspaces, and deploy Day-0 infrastructure scaffolding for an NVIDIA AI Factory (Cluster Placement Groups, 8-rail 400 Gbps RoCE/EFA networks, high-throughput checkpoint storage, and Slurm control planes).",
     "sections": [
       "Chapter 5 — Terraform for Infrastructure as Code in AI Factories",
-      "1. Foundations: What is Infrastructure as Code (IaC)?",
-      "Imperative approach: \"Do this, then do that\"",
-      "The Declarative Paradigm of IaC",
-      "2. What is Terraform and Why is it Used in AI Infrastructure?",
-      "The Core Architectural Value for AI Factories",
-      "3. The 4 Core Terraform Commands (The Lifecycle from Zero)",
-      "1. terraform init (Initialization)",
-      "2. terraform validate and terraform fmt",
-      "3. terraform plan (The Proposed Diff)",
-      "Save the execution plan to a binary file for deterministic application",
-      "4. terraform apply (State Mutation)",
-      "Apply the exact reviewed plan artifact",
-      "5. terraform destroy"
+      "1. Foundations: The Imperative vs. Declarative Paradigm",
+      "Imperative approach: \"Execute these sequential mutation steps\"",
+      "Why Imperative Scripts Fail in AI Infrastructure",
+      "The Declarative Solution: Infrastructure as Code (IaC)",
+      "2. Terraform & OpenTofu Architecture: Core, Providers, and the DAG",
+      "1. Terraform Core",
+      "2. Provider Plugins",
+      "3. Terraform OSS vs. OpenTofu",
+      "3. HCL Language Masterclass: Beginner Primitives to Advanced Constructs",
+      "3.1 Variables and Complex Type Constraints",
+      "variables.tf",
+      "3.2 locals Blocks: Derived Logic and Single Sources of Truth",
+      "locals.tf"
     ],
     "codeLanguages": [
       "bash",
       "text",
       "mermaid",
-      "hcl"
+      "hcl",
+      "rego"
     ]
   },
   "Chapter 6 - Slurm Administration: HA, Topology-Aware Scheduling, Accounting, and Upgrades": {
