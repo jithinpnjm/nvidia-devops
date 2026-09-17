@@ -140,7 +140,6 @@ trainset = CIFAR10(root='./data', train=True, download=False, transform=transfor
 sampler = DistributedSampler(trainset, num_replicas=world_size, rank=rank, shuffle=True)
 trainloader = DataLoader(trainset, batch_size=256, sampler=sampler, num_workers=2)
 
-# Train
 if rank == 0:
     print(f"Multi-GPU training on {world_size} GPUs...")
 start = time.time()
@@ -238,9 +237,6 @@ if rank == 0:
     print(f"Scaling efficiency (1 GPU baseline × N GPUs × overhead): "
           f"{dist.get_world_size()} GPUs × {(1-allreduce_ratio/100):.2f} = "
           f"{dist.get_world_size() * (1-allreduce_ratio/100):.2f}× speedup vs single GPU")
-
-dist.destroy_process_group()
-```
 
 **Run:**
 ```bash

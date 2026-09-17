@@ -274,13 +274,11 @@ Two findings in one pass: `NVIDIA_VISIBLE_DEVICES` is empty (silently filters ev
 
 ## Common Failure: Out of Memory
 
-### Symptoms
 
 - Allocation failure
 - Framework OOM exception
 - Process killed after memory pressure
 
-### Diagnosis
 
 Separate:
 
@@ -321,13 +319,11 @@ The framework's own summary shows 1,240 MiB reserved-but-unallocated, fragmented
 
 ## Common Failure: Illegal Memory Access
 
-### Symptoms
 
 - Error appears at synchronization
 - Later CUDA calls fail
 - Process may require context restart
 
-### Diagnosis
 
 - Reproduce with debug synchronization.
 - Use memory-checking tools appropriate to the build.

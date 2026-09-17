@@ -1189,7 +1189,6 @@ The reviewer skimmed the summary line, assuming Terraform was performing a rolli
 
 ### Scenario 2: Resolving an Orphaned Remote Backend State Lock
 
-#### The Production Incident
 A Jenkins or GitHub Actions CI runner executing `terraform apply` was terminated due to a spot node eviction or runner timeout. Subsequent runs immediately fail:
 ```text
 Error: Error acquiring the state lock: ConditionalCheckFailedException
@@ -1234,7 +1233,6 @@ Plan: 0 to add, 0 to change, 0 to destroy.
 
 ### Scenario 4: Reconciling Manual Out-of-Band Cloud Console Changes
 
-#### The Production Incident
 During an incident, an on-call engineer used the cloud web console to manually increase the IOPS on an EBS volume attached to the Slurm controller node from 3,000 to 12,000 IOPS. Two weeks later, an unrelated Terraform PR is planned. The plan reports:
 ```text
   ~ aws_ebs_volume.slurm_spool {
@@ -1243,7 +1241,6 @@ During an incident, an on-call engineer used the cloud web console to manually i
 ```
 If applied, Terraform would revert the performance optimization, degrading Slurm scheduler throughput.
 
-#### Remediation Procedure
 1. **Reconcile State without Mutating Code:**
    ```bash
    # Refresh state to capture the live 12,000 IOPS attribute

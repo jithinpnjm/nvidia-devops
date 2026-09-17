@@ -142,14 +142,12 @@ flowchart LR
 
 SXM-based systems integrate accelerator modules on a specialized baseboard designed for dense GPU communication. The platform commonly combines multiple accelerators with NVLink and NVSwitch to create a stronger scale-up domain.
 
-### Strengths
 
 - high-bandwidth GPU-to-GPU communication;
 - predictable multi-GPU topology;
 - platform design optimized around dense AI and HPC workloads;
 - fewer application-visible penalties when models communicate heavily inside the node.
 
-### Constraints
 
 - higher rack power and cooling density;
 - more specialized service procedures;

@@ -137,11 +137,9 @@ cd ~/nvidia-zero-to-hero/volume-02-lab-03
 
 ### Step 2 — Create the Benchmark
 
-#### Purpose
 
 Build two kernels that copy the same number of elements using different index mappings.
 
-#### Command
 
 ```bash
 cat > memory_patterns.cu <<'EOF'
@@ -251,11 +249,9 @@ The modulo operation adds arithmetic overhead to the strided version. This is ac
 
 ### Step 3 — Compile the Program
 
-#### Purpose
 
 Generate an optimized executable while displaying compiler resource information.
 
-#### Command
 
 ```bash
 nvcc -O3 -lineinfo -Xptxas=-v memory_patterns.cu -o memory_patterns
@@ -283,11 +279,9 @@ Capture the reported register count and any spill loads or stores for both kerne
 
 ### Step 4 — Check for Background Work
 
-#### Purpose
 
 Avoid comparing results while another process is heavily using the GPU.
 
-#### Command
 
 ```bash
 nvidia-smi --query-compute-apps=pid,process_name,used_memory --format=csv
@@ -301,7 +295,6 @@ Do not terminate unknown production workloads. Move the lab to an approved isola
 ./memory_patterns contiguous
 ```
 
-### Expected Output
 
 ```text
 pattern=contiguous count=16777216 iterations=100 elapsed_ms=42.18
@@ -315,7 +308,6 @@ Illustrative value from one H100 run — treat the exact number as an example, n
 ./memory_patterns strided
 ```
 
-### Expected Output
 
 ```text
 pattern=strided count=16777216 iterations=100 elapsed_ms=156.42
@@ -325,11 +317,9 @@ Illustrative value from the same run — roughly 3.7x the contiguous kernel's ti
 
 ### Step 7 — Profile the Baseline
 
-#### Purpose
 
 Collect a concise architecture-specific summary.
 
-#### Command
 
 ```bash
 ncu --set basic --target-processes all \

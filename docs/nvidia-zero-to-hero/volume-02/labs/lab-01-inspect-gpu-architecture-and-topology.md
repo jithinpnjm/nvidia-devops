@@ -169,11 +169,9 @@ An empty list means the driver sees no GPUs. Do not continue to topology analysi
 
 ### Step 2 — Inspect Runtime State
 
-#### Purpose
 
 Capture utilization, memory, temperature, power, and clocks.
 
-#### Command
 
 ```bash
 nvidia-smi --query-gpu=index,utilization.gpu,utilization.memory,memory.used,temperature.gpu,power.draw,clocks.sm,clocks.mem --format=csv
@@ -195,17 +193,14 @@ An idle host usually shows low utilization and low memory use, with valid temper
 
 ### Step 3 — Inspect PCI Devices
 
-#### Purpose
 
 Verify that Linux enumerates the NVIDIA device and identify its PCI function.
 
-#### Command
 
 ```bash
 lspci -Dnn | grep -i nvidia
 ```
 
-#### Expected Output
 
 ```text
 0000:1b:00.0 3D controller [0302]: NVIDIA Corporation GH100 [H100 80GB HBM3] [10de:2330]
@@ -214,7 +209,6 @@ lspci -Dnn | grep -i nvidia
 
 One or more NVIDIA VGA, 3D controller, audio, bridge, or related functions should appear. Data-center GPUs commonly report as `3D controller` rather than `VGA compatible controller`, since they have no display output.
 
-#### Explanation
 
 The domain-qualified address from `lspci -D` (`0000:1b:00.0`) should correspond to the bus ID reported by `nvidia-smi` in Step 1 (`00000000:1B:00.0`) — same address, different formatting convention (leading zeros, case). This cross-check is what confirms NVIDIA's management stack and the kernel's own PCI enumeration agree on which physical device is which.
 
@@ -222,18 +216,15 @@ The domain-qualified address from `lspci -D` (`0000:1b:00.0`) should correspond 
 
 Replace the address with a GPU bus ID from Step 1.
 
-#### Purpose
 
 Inspect negotiated and supported PCIe link characteristics.
 
-#### Command
 
 ```bash
 GPU_BDF="0000:31:00.0"
 sudo lspci -s "$GPU_BDF" -vv | grep -E "LnkCap:|LnkSta:"
 ```
 
-#### Expected Output
 
 ```text
 LnkCap: Port #0, Speed 32GT/s, Width x16, ASPM not supported
@@ -242,7 +233,6 @@ LnkSta: Speed 32GT/s (ok), Width x16 (ok)
 
 The output typically includes supported and negotiated speed and width.
 
-#### Interpretation
 
 `LnkCap` (link capability — what the slot and device support) reads `Speed 32GT/s, Width x16`: PCIe Gen5 at full x16 width, the expected capability for an H100 in a properly wired Gen5 slot. `LnkSta` (link status — what's actually negotiated right now) matching exactly, `32GT/s (ok)` and `x16 (ok)`, confirms the link trained to its full capability with no downgrade. If `LnkSta` instead showed `Speed 16GT/s (downgraded)` or `Width x8 (downgraded)`, that would mean the link negotiated to half its rated speed or width — worth investigating via BIOS slot configuration, riser/backplane wiring, or a seating issue, since a downgraded link silently caps host-to-device transfer bandwidth without producing any error on its own. A device can support a wider or faster link than it currently negotiates. Reduced link state may be caused by platform design, BIOS settings, slot placement, power management, or hardware problems.
 
@@ -252,18 +242,15 @@ Do not declare a link faulty from one field alone. Compare with the server desig
 
 ### Step 5 — Map GPU to NUMA Node
 
-#### Purpose
 
 Determine which NUMA node Linux associates with the GPU.
 
-#### Command
 
 ```bash
 GPU_BDF="0000:31:00.0"
 cat "/sys/bus/pci/devices/$GPU_BDF/numa_node"
 ```
 
-#### Expected Output
 
 ```text
 0
@@ -273,17 +260,14 @@ The value may be another NUMA node. A value of `-1` means Linux does not expose 
 
 ### Step 6 — Inspect Host NUMA Topology
 
-#### Purpose
 
 Understand CPU and memory placement around the GPU.
 
-#### Command
 
 ```bash
 numactl --hardware
 ```
 
-#### Expected Output
 
 ```text
 available: 2 nodes (0-1)
@@ -301,23 +285,19 @@ node   0   1
 
 The command should list NUMA nodes, CPUs assigned to each node, memory size, free memory, and distance values.
 
-#### Explanation
 
 `node distances` is the field worth reading carefully: `10` is the baseline (a node's distance to itself), and `21` describes the relative cost of crossing to the other node — roughly 2x the local cost on this host, a typical dual-socket value. Cross-reference this against GPU 0's `numa_node` from Step 5: if it reports `0`, then CPUs `0-15` (node 0) are GPU 0's local cores, and any process using CPUs `16-31` (node 1) to prepare data for GPU 0 pays that ~2.1x distance penalty on every host-memory access before the data even reaches the PCIe root complex. Workloads that prepare data on a CPU far from the GPU may cross inter-socket links before reaching the PCIe root complex. This can increase latency and consume additional bandwidth.
 
 ### Step 7 — Inspect GPU Peer Topology
 
-#### Purpose
 
 Map communication relationships between GPUs, CPUs, and NICs.
 
-#### Command
 
 ```bash
 nvidia-smi topo -m
 ```
 
-#### Expected Output
 
 ```text
         GPU0    GPU1    NIC0    CPU Affinity    NUMA Affinity
@@ -335,13 +315,11 @@ A matrix with GPU rows and columns, CPU affinity, NUMA affinity, and path labels
 
 Common path labels vary by platform and driver version. Use the legend printed by the command rather than memorizing one fixed interpretation.
 
-#### Interpretation
 
 This example host has no direct GPU-to-GPU interconnect at all — `GPU0`-`GPU1` shows `SYS`, meaning any peer traffic between them crosses the full PCIe hierarchy and the inter-socket link, the slowest classified path this legend defines. `NIC0` shows `PIX` to `GPU0` (same PCIe bridge — good locality for GPU0-originated network traffic) but `SYS` to `GPU1` — a distributed job assigning GPU1's rank to use this NIC would pay for a cross-socket hop on every network operation. Cross-referencing `CPU Affinity`/`NUMA Affinity` columns against Steps 5-6's findings should agree: GPU0 on NUMA 0 with CPUs 0-15, GPU1 on NUMA 1 with CPUs 16-31, matching the `numactl --hardware` output above exactly — if they didn't agree, that mismatch would itself be worth escalating. Shorter or direct GPU paths are generally preferable for communication-heavy workloads. Paths that traverse host bridges, CPU sockets, or slower interconnects can reduce peer performance.
 
 ### Step 8 — Inspect Link or Peer Status Where Supported
 
-#### Purpose
 
 Gather additional interconnect evidence.
 
@@ -357,7 +335,6 @@ Optional DCGM inventory:
 dcgmi discovery -l
 ```
 
-#### Expected Output
 
 ```text
 $ nvidia-smi nvlink --status
@@ -515,7 +492,6 @@ Follow the evidence. Confirm the supported driver branch, inspect kernel logs, v
 
 ### Problem — PCIe link is narrower than expected
 
-#### Diagnosis
 
 Compare `LnkCap` and `LnkSta`, then confirm server slot wiring and BIOS configuration.
 
@@ -525,7 +501,6 @@ Maintain an approved slot-placement diagram and validate link state during commi
 
 ### Problem — Workload uses CPUs far from the GPU
 
-#### Diagnosis
 
 Compare process CPU affinity with the GPU's NUMA node.
 
@@ -535,7 +510,6 @@ numactl --hardware
 nvidia-smi topo -m
 ```
 
-#### Resolution
 
 Apply CPU and memory binding through the workload manager, container platform, or service configuration.
 

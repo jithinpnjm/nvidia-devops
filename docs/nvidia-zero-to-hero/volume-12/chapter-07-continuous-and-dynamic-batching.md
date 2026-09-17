@@ -296,15 +296,12 @@ if __name__ == "__main__":
 
 ### Scenario 2: PCIe Bus Saturation and System Stalls During KV Cache Swapping
 
-#### Context
 A multi-tenant coding assistant platform deployed on a 8x A100 (40GB) PCIe node experienced sudden cluster-wide freeze events. During peak request bursts, GPU utilization plummeted to zero for 4–8 seconds, while host CPU usage surged to 100%.
 
-#### Root Cause Analysis
 The engine was configured with `swap_space=32` (allocating 32GB of CPU host memory for KV cache swapping) and `preemption_mode="swap"`. When VRAM hit capacity, the scheduler preempted 12 active long-context requests simultaneously, attempting to push over 28 GB of KV cache tensors across the host PCIe Gen4 bus to CPU RAM.
 
 The massive DMA transfer saturated the PCIe interconnect, blocking CUDA driver control commands and kernel launches. The system entered a state of **PCIe Bus Thrashing**.
 
-#### Step-by-Step Resolution & Engine Configuration Fix
 1. Disabled host-device PCIe swapping (`swap_space=0`).
 2. Changed the preemption policy to **Recompute** (`preemption_mode="recompute"`).
 3. Applied strict queue admission control to reject incoming requests when free KV block thresholds drop below 5%.
@@ -326,7 +323,6 @@ def audit_scheduler_settings(config):
 audit_scheduler_settings(scheduler_config)
 ```
 
-#### Verification
 - PCIe bus saturation dropped from 99.4% to &lt; 3%.
 - System freeze events were eliminated completely, and preempted requests recovered within &lt; 150 ms via recomputation.
 

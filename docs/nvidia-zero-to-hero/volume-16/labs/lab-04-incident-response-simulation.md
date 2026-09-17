@@ -200,7 +200,6 @@ Iteration 38: Allocated 38.50GB, Reserved 39.80GB
 **Simulation Code:**
 
 ```python
-#!/usr/bin/env python3
 # simulate_starvation.py
 
 import torch
@@ -296,7 +295,6 @@ Clocks: 300, 300, 1410, 300, 300, 300, 1410, 300, 300, ...
 **Simulation Code:**
 
 ```python
-#!/usr/bin/env python3
 # simulate_imbalance.py
 
 import torch

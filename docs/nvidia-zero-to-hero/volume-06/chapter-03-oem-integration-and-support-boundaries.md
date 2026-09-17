@@ -303,7 +303,6 @@ index, vbios_version
 1, 96.00.74.00.10
 ...
 
-# underperforming node
 index, vbios_version
 0, 96.00.89.00.04
 ...

@@ -258,71 +258,24 @@ Extended troubleshooting for XID 13: When this XID is detected in the syslog, th
 :::
 Extended troubleshooting for XID 13: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
 Extended troubleshooting for XID 13: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 13: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 13: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 13: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 13: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 13: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 13: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 13: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
 
 **XID 31: GPU Memory Page Fault. A process tried to access unallocated memory. Similar to a segfault. Almost always a software issue. Ensure workloads are not leaking memory.**
-Extended troubleshooting for XID 31: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 31: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 31: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 31: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 31: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 31: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 31: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 31: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
 Extended troubleshooting for XID 31: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
 Extended troubleshooting for XID 31: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
 
 **XID 43: Stopped processing. The GPU fell off the bus. PCIe AER (Advanced Error Reporting) triggered. Often a physical seating issue, riser cable fault, or extreme thermal event.**
 Extended troubleshooting for XID 43: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
 Extended troubleshooting for XID 43: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 43: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 43: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 43: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 43: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 43: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 43: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 43: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 43: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
 
 **XID 62: Internal Microcontroller Halt. A fatal hardware error in the GPU's internal RISC-V processors (GSP). Usually requires a reset. If persistent, requires RMA.**
-Extended troubleshooting for XID 62: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 62: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 62: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 62: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 62: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 62: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 62: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 62: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
 Extended troubleshooting for XID 62: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
 Extended troubleshooting for XID 62: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
 
 **XID 74: NVLink Error. CRC errors on the high-speed fabric. Check NVSwitch telemetry, optical transceivers (if NVLink C2C), or physical board seating.**
 Extended troubleshooting for XID 74: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
 Extended troubleshooting for XID 74: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 74: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 74: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 74: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 74: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 74: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 74: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 74: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 74: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
 
 **XID 94: Contained ECC Error. An uncorrectable error occurred, but the GPU contained it to a specific process without crashing the whole chip (supported in later architectures).**
-Extended troubleshooting for XID 94: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 94: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 94: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 94: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 94: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 94: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 94: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
-Extended troubleshooting for XID 94: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
 Extended troubleshooting for XID 94: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
 Extended troubleshooting for XID 94: When this XID is detected in the syslog, the automated remediation pipeline should scrape the DCGM diagnostics. If the diagnostic returns a hardware failure code, the node must be cordoned via the Kubernetes API, and the specific GPU PCIe BDF address logged for field service replacement.
 
@@ -403,7 +356,6 @@ Maintaining driver hygiene and upgrading components without downtime is an art f
 Before patching a driver, you must safely drain the node.
 
 ```bash
-#!/bin/bash
 # Advanced GPU Node Drain Script
 NODE=$1
 
@@ -614,204 +566,6 @@ Mastering GPU fleet operations requires deep understanding across the entire sta
 
 ---
 *(End of Masterclass Volume 04)*
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 ## Appendix A: Deep Dive into NVIDIA Architecture Generations
 Understanding the nuanced differences between the Ampere and Hopper architectures is essential for tuning and sharing.

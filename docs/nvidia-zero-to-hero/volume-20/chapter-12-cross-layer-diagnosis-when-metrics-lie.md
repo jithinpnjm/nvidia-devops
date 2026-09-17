@@ -444,4 +444,3 @@ A: "This is a Heisenbug caused by profiler overhead. Nsight's 50% overhead is so
 **Q: "We have a distributed training job where one node's metric tells us there's a network bottleneck, but the node that's slow reports normal network metrics. How do we resolve the conflict?"**
 
 A: "Classic case of incomplete correlation. Different nodes see different parts of the network path. If Node A says 'Network is slow' but Node B says 'My network is fine,' then probably Node B is the slow one and Node A is waiting for Node B's AllReduce response. I'd run NCCL AllReduce latency tests from every node to every other node and build a latency matrix — that will show if one node is a slow receiver. Then I'd check that node's network card, drivers, and kernel. The key is measuring bidirectionally and from both endpoints, not just believing one node's metrics."
-

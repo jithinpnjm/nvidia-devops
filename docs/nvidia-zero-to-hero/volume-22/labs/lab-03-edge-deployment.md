@@ -132,7 +132,6 @@ from ultralytics import YOLO
 import time
 from collections import deque
 
-# Load model
 model = YOLO('yolov8n_orin.pt')
 
 # Open camera

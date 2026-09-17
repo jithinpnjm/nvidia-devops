@@ -264,4 +264,3 @@ python train.py | grep "throughput:"
 **Exercise 1:** Your answer is "power limiting" (not just thermal), with evidence of voltage sag or power cap active ✓
 **Exercise 2:** Your answer identifies NVLink degradation as likely cause, with plan to check lspci and rescan ✓
 **Exercise 3:** Your answer suspects data loading (CPU), with timing instrumentation to prove it ✓
-

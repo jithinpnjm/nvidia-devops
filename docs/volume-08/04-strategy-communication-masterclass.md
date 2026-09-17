@@ -112,7 +112,6 @@ All three: outcome first, then one altitude-appropriate mechanism layer, then re
 
 Public practitioner material from NVIDIA SAs emphasizes requirements discovery, evaluating trade-offs, PoCs, guiding implementation and stakeholder communication. This is the differentiator from an engineer who only knows product configuration. During an interview, make your reasoning visible: clarify constraints, propose options, state trade-offs, recommend one, and define how you would validate it.
 
-## Senior addendum
 
 ➕ **A scored self-check rubric — the missing artifact for this Deep Dive, usable as literal interview prep:**
 
@@ -155,8 +154,6 @@ The middle can be IDENTICAL in both answers — the differentiator is entirely t
 **Vishakha Sadhwani profile/posts:** [https://www.linkedin.com/in/vsadhwani](https://www.linkedin.com/in/vsadhwani) — SA versus FDE framing and infrastructure-to-AI skill transition.
 
 **NVIDIA DGX Cloud Run:ai:** [https://docs.nvidia.com/dgx-cloud/run-ai/latest/overview.html](https://docs.nvidia.com/dgx-cloud/run-ai/latest/overview.html) — Kubernetes-based AI workload management and GPU allocation context.
-
-
 
 
 ## Extended Masterclass: Strategy and Communication

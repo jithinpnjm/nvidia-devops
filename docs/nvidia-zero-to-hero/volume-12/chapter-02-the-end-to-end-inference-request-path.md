@@ -263,13 +263,10 @@ perf_analyzer -m llama3-70b \
 
 ### Scenario 2: Socket Buffer Bloat and Nginx Buffering Disrupting SSE Real-Time Streaming
 
-#### 1. Production Incident Context
 Users of a generative AI writing assistant complained that text generation felt "laggy and bursty." Instead of streaming smooth word-by-word responses, the UI froze for 1–2 seconds and then suddenly dumped large blocks of 40 tokens at once.
 
-#### 2. Root Cause Analysis
 The streaming architecture placed an Nginx reverse proxy between the client and the inference server. Nginx was configured with default response buffering enabled (`proxy_buffering on`). As the GPU generated individual tokens every 20ms and emitted SSE data chunks, Nginx intercepted the chunks, holding them in an OS socket buffer until the buffer size reached 4 KB before flushing the TCP frame to the client.
 
-#### 3. Log & Telemetry Evidence
 Packet capture analysis on the client network interface using `tcpdump`:
 
 ```text
@@ -282,7 +279,6 @@ Nginx error log (`/var/log/nginx/error.log`):
 2026/08/06 14:35:10 [warn] 2814#2814: *14021 a client request body is being buffered to a temporary file /var/cache/nginx/client_temp/0000000001
 ```
 
-#### 4. Exact Diagnostic Commands
 ```bash
 # 1. Test raw HTTP stream output directly from command line (bypassing browser cache)
 curl -N -v -X POST https://api.example.com/v1/chat/completions \
@@ -296,7 +292,6 @@ sudo tcpdump -i eth0 -nn -tt 'tcp port 443 and host api.example.com' | grep "len
 netstat -tucn | grep 8000
 ```
 
-#### 5. Remediation & Configuration Fix
 To enable true per-token real-time streaming, disable proxy buffering in Nginx, disable response chunking delay, and enable the `TCP_NODELAY` socket option to disable Nagle's algorithm.
 
 Updated Nginx Proxy Configuration (`nginx.conf`):
@@ -350,7 +345,6 @@ async def chat_completions(request: ChatRequest):
     )
 ```
 
-#### 6. Verification Steps
 Execute `curl -N` with millisecond timestamp logging:
 
 ```bash

@@ -348,7 +348,6 @@ Even with a real ecosystem-unification argument for K8s (rating 5 on that one ro
 
 ➕ **Interview-ready line:** "I don't pick a scheduler, I split the workload into classes and let each class's discovery facts — existing system, team skill, and ecosystem needs — pick for it. A multi-platform answer is a sign the split was done correctly, not a hedge."
 
-## Practice
 ➕ 1. Take the startup scenario above and run the notebooks (10%) and online-services (10%) classes through the same split — does anything change from the original research-org scenario's conclusion for those two classes? (Expect: online services still favors K8s regardless of customer profile, because the ecosystem argument for long-running services is closer to workload-agnostic than the training argument.)
 ➕ 2. An interviewer pushes back: "Isn't running two schedulers just operational complexity for its own sake?" Write the rebuttal that names the actual cost (a defined ownership seam, shared identity/storage/observability) versus the cost being reasoned about aloud (forcing one scheduler to do a job it's weaker at for 80% of the fleet).
 
@@ -390,8 +389,6 @@ Do not start a customer conversation with products. Characterize workload: train
 This expansion keeps the Fourth Edition teaching flow and adds the depth expected from a senior infrastructure engineer and customer-facing Solutions Architect. The emphasis is mechanism first: understand what the system is doing, observe it with concrete tools, then reason about failure, scale, reliability, performance and trade-offs.
 
 The practitioner material used to shape the scope is a signal, not an authority. Technical behavior is anchored in official documentation and first-principles systems reasoning. Your Staff Engineer study guide contributes useful patterns around Kubernetes, observability, distributed systems, platform design and failure isolation; the NVIDIA material adds GPU systems, AI workloads, accelerated networking and customer architecture.
-
-![](pathname:///img/generated/volume-08-02.png)
 
 _Figure A. A senior SA turns ambiguity into evidence, then into a decision._
 
@@ -437,14 +434,10 @@ flowchart TD
     C --> E["Hundreds of nodes, dedicated fabric,\ntopology-aware scheduling (large training)"]
 ```
 
-
-![](pathname:///img/generated/volume-08-03.png)
-
 _Figure B. Architecture reviews must connect user workloads to orchestration, accelerated compute, network, storage and operations._
 
 An AI factory is an integrated system, not “GPUs plus Kubernetes”. Compute nodes, high-speed fabric, storage, provisioning/lifecycle, scheduler/orchestrator, model/runtime stack, observability, identity/security and developer workflows must form one operational product. The data path and control path should be explicit in the diagram.
 
-## Senior addendum
 
 ➕ **The layered view, drawn (extends Chapter 2's six-path diagram from a request-flow view to a full-stack view — this is genuinely new, not a re-derivation):**
 ```mermaid
@@ -496,7 +489,6 @@ The six-layer stack answers "what are the pieces"; this overlay answers "which p
 
 The correct answer is often a composition. Kubernetes may host long-running inference, platform APIs and operators. Slurm may run tightly coupled batch training. Run:ai may provide AI-aware scheduling and GPU allocation on Kubernetes. NIM provides packaged model serving; Dynamo coordinates distributed inference when advanced routing, cache management or disaggregated serving is justified. Every layer adds capability and operational responsibility; only add it to solve an explicit requirement.
 
-## Senior addendum
 
 ➕ **The 5-component composition, drawn as a layering diagram (extends Chapter 4's binary K8s-vs-Slurm decision tree to the full 5-way composition space named here):**
 ```mermaid
@@ -518,8 +510,6 @@ flowchart TD
     S --> ADD["ADD the layer (accept its on-call\nsurface, upgrade dep., failure domain)"]
     B --> SKIP["DON'T add it - it's complexity without a\njustification: an unjustified failure\ndomain, nothing else"]
 ```
-
-
 
 
 ## Extended Masterclass: Architecture Deep Dive

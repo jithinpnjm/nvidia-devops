@@ -316,4 +316,3 @@ A: "I classify by tier, not by treating every Xid as equally urgent. Codes like 
 **Q: "A GPU shows Xid 92 a few times over a week — do you take it offline?"**
 
 A: "Not immediately, but I don't ignore it either. Xid 92 is a high single-bit ECC error rate — it's a precursor signal, not a failure by itself, since single-bit ECC events are correctable and the GPU's memory is designed to handle them. What matters is the trend: I'd pull the DCGM ECC history and check whether the rate is flat or accelerating week-over-week. If it's accelerating, I'd schedule preventive maintenance or replacement before it progresses to an uncontained error, rather than waiting for a Tier 3 event to force an unplanned outage. I've seen exactly this pattern — rising Xid 92 for hours, then an Xid 79 bus failure — so treating the early rate increase as a real signal, not noise, is the difference between a scheduled maintenance window and an unplanned incident."
-

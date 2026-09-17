@@ -50,7 +50,6 @@ global_batch_size = batch_size_per_gpu * num_gpus  # 8192 sequences
 # Batch 1: GPU0→1→2→3→4→5→6→7 (160ms forward)
 # Batch 2: (while Batch 1 backward): GPU0→1→2→3→4→5→6→7 (overlap!)
 # Throughput: 4 batches in ~280ms (vs 640ms sequentially) = 2.3x faster!
-#
 # Cost: Inter-GPU communication, activation checkpointing, more complex code
 
 from torch.distributed.pipelining import schedule_1f1b
@@ -69,7 +68,6 @@ model = PipelineParallel(model, devices=[0,1,2,3,4,5,6,7])
 # GPU 1: Weight[17.5B, 70B]
 # GPU 2: Weight[17.5B, 70B]
 # GPU 3: Weight[17.5B, 70B]
-#
 # Forward:
 #   Input [batch, 70B] → split by output features → GPU0 [batch, 17.5B]
 #   GPU 0 computes output fragment [batch, 17.5B]

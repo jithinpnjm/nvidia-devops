@@ -277,13 +277,10 @@ perf_analyzer -m llama3-70b -u localhost:8001 -i gRPC --concurrency-range 128:12
 
 ### Scenario 2: Severe P99 Tail Latency Degradation Caused by Prefill Execution Starving Decode Batches
 
-#### 1. Production Incident Context
 An enterprise knowledge base service reported erratic user experience during peak hours. While average latency appeared acceptable (TTFT ~ 300ms), P99 Inter-Token Latency (ITL) spiked to over 4,500 ms, causing streaming text delivery in the frontend web application to pause for 4–5 seconds at a time.
 
-#### 2. Root Cause Analysis
 The inference cluster served both long document analysis queries (prompts up to 16,000 tokens) and interactive user chat on the same GPU instances. When a 16K token prompt prefill executed, its GEMM compute kernels occupied 100% of the GPU Tensor Cores for 350+ milliseconds. During this time, the iteration scheduler could not execute decode steps for the 32 active streaming chat users, resulting in multi-second inter-token stalls.
 
-#### 3. Log & Telemetry Evidence
 OpenTelemetry waterfall trace analysis for a single streaming session:
 
 ```text
@@ -303,7 +300,6 @@ vllm:inter_token_latency_seconds_bucket{le="1.0"}  85100
 vllm:inter_token_latency_seconds_bucket{le="+Inf"} 92150   <-- Severe tail distribution!
 ```
 
-#### 4. Exact Diagnostic Commands
 ```bash
 # 1. Profile ITL histogram buckets in real time
 curl -s http://localhost:8002/metrics | grep "vllm:inter_token_latency_seconds"
@@ -319,7 +315,6 @@ python3 benchmark_serving.py \
   --output-json results.json
 ```
 
-#### 5. Remediation & Configuration Fix
 To prevent large prompt prefills from hogging the GPU, enable **Chunked Prefill**. Chunked prefill splits large prompts into smaller token chunks (e.g., 512 tokens), interleaving prompt chunk computation with ongoing decode steps within the same batch iteration.
 
 Updated server execution flags:
@@ -334,7 +329,6 @@ python3 -m vllm.entrypoints.openai.api_server \
   --max-num-seqs 128
 ```
 
-#### 6. Verification Steps
 Re-run the benchmark suite with mixed prompt lengths (512 tokens to 16,000 tokens) alongside 50 streaming decode clients:
 
 ```bash

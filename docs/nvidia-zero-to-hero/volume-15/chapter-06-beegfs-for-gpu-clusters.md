@@ -194,7 +194,6 @@ time dd if=/beegfs/training-data/large-file bs=4M count=25000 of=/dev/null iflag
 # Checkpoint directory with maximum striping (all targets)
 beegfs-ctl --setpattern --chunksize=2M --numtargets=-1 /beegfs/checkpoints/
 
-# Rationale:
 # - -1 targets: stripe across ALL available targets
 # - 2 MB chunk size: smaller chunks = finer distribution = better parallelism for write
 

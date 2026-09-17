@@ -24,16 +24,13 @@ tags: [inference, vllm, serving, latency, throughput, batching]
 #   Actually:
 #   Time per forward pass @ batch=256: 256 sequences × 10ms per seq = 2.56 sec
 #   But that's wrong too. Let me think more carefully.
-#   
 #   Per-GPU throughput (decode-bound):
 #     HBM bandwidth: 3.35 TB/s for 1 GPU
 #     Model size: 140 GB
 #     Time to fetch all weights per token: 140 GB / 3.35 TB/s = 41.8 ms
 #     Tokens per second: 1000 ms / 41.8 ms = 23.9 tokens/sec per GPU
-#   
 #   With batch=256, concurrency improves:
 #     Effective throughput: 23.9 tokens/sec × 1.5x batching factor = ~36 tokens/sec
-#   
 #   Latency to generate 128-token response:
 #     Prefill time: 128 tokens / 100 tokens/sec = 1.28 sec (prefill is compute-bound, faster)
 #     Decode time: 128 tokens × 41.8 ms = 5.35 sec (memory-bandwidth bound)
@@ -41,12 +38,10 @@ tags: [inference, vllm, serving, latency, throughput, batching]
 #     Total time for full response: 1.28 + 5.35 = 6.63 sec p99 (acceptable but high)
 
 # Option B: Small batches (B=4)
-#   Latency to generate 128-token response:
 #     Prefill time: 512 tokens / 100 tokens/sec ≈ 5 ms (small batch, fast)
 #     Decode time: 128 tokens × 41.8 ms = 5.35 sec
 #     Total response time: 5 ms + 5.35 sec = 5.355 sec p50
 #     p99: ~6 sec (similar due to decode being dominant bottleneck)
-#   
 #   Throughput: Only 4 concurrent sequences, if avg response = 6 sec
 #     Throughput: 4 / 6 sec = 0.67 sequences/sec = 67 QPS
 
@@ -54,7 +49,6 @@ tags: [inference, vllm, serving, latency, throughput, batching]
 #   Key insight: Decode tokens are independent of batch size (memory bandwidth is shared)
 #   So: 1 sequence takes ~41.8ms per decode token (single sequence)
 #       64 sequences take ~41.8ms per decode token (shared memory I/O!)
-#   
 #   Throughput gain: 64x (for free, via better memory utilization)
 #   Latency impact: Minimal (decode latency same, but prefill overlapped)
 #   p99 TTFT: 50–100 ms (with queue wait)

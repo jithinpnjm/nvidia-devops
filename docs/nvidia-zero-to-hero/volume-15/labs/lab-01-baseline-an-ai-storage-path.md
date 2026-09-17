@@ -111,7 +111,6 @@ Driver Version: 535.29
 ### Step 2: Storage and Filesystem Inventory
 
 ```bash
-#!/bin/bash
 # Collect storage and filesystem baseline
 
 OUTPUT_FILE="baseline-storage-$(hostname)-$(date +%Y%m%d-%H%M%S).txt"
@@ -156,7 +155,6 @@ echo "✓ Storage baseline saved to: $OUTPUT_FILE"
 ### Step 3: Measure Path Latency and Throughput
 
 ```bash
-#!/bin/bash
 # Measure actual I/O performance
 
 OUTPUT_FILE="baseline-perf-$(hostname)-$(date +%Y%m%d-%H%M%S).txt"
@@ -201,7 +199,6 @@ Latency for one operation: 2–5 ms is healthy; >20 ms is slow
 ### Step 4: CPU-NUMA-GPU Affinity Verification
 
 ```bash
-#!/bin/bash
 # Verify that GPUs, NICs, and CPU memory are affine
 
 OUTPUT_FILE="baseline-affinity-$(hostname)-$(date +%Y%m%d-%H%M%S).txt"
@@ -230,7 +227,6 @@ echo "✓ Affinity verification saved to: $OUTPUT_FILE"
 ### Step 5: Memory and Cache Status
 
 ```bash
-#!/bin/bash
 # Capture current memory and cache state
 
 OUTPUT_FILE="baseline-memory-$(hostname)-$(date +%Y%m%d-%H%M%S).txt"

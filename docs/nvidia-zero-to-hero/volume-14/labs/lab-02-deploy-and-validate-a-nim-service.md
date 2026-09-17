@@ -113,7 +113,6 @@ kubectl exec -n nim-staging nim-staging-abc123 -- nvidia-smi
 # Expected output:
 # +-----+------------------+------+
 # | GPU | Name             | Mem  |
-# +-----+------------------+------+
 # |  0  | NVIDIA A100 40GB  | ??? MB / 40960MB
 
 # Check readiness probe passed
@@ -148,7 +147,6 @@ curl http://localhost:8000/v1/completions \
     "max_tokens": 10
   }' | jq .
 
-# Expected output:
 # {
 #   "id": "cmpl-...",
 #   "object": "text_completion",

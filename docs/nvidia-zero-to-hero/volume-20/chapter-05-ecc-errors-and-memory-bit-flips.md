@@ -300,4 +300,3 @@ A: "Xid 94 is a contained ECC error — the GPU handled it internally, no data w
 **Q: "How does the GPU's row-remap mechanism relate to Xid 63 and 64, and why does it matter operationally?"**
 
 A: "Modern NVIDIA GPUs can remap a memory row that's shown a correctable error to a spare row, so future accesses avoid the degraded location entirely — that remapping event is what generates Xid 63, and it's routine, self-healing behavior with no action needed. What I do watch operationally is the remaining headroom for this mechanism — `nvidia-smi -q -d ROW_REMAPPER` shows how many banks still have spare capacity versus how many have already used it. If that headroom gets thin, or if the remapping itself ever fails — which generates Xid 64 — that's a hard escalation, because at that point the GPU's own self-healing capability for memory errors is exhausted or broken, and any subsequent correctable error has nowhere to go but become a real problem."
-

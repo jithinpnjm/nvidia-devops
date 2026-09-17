@@ -366,4 +366,3 @@ Answer:
 - **Chapter 4:** [Observability and Monitoring](./chapter-04-observability-and-monitoring.md) — SLA tracking
 - **Chapter 6:** [GPU Sharing](./chapter-06-gpu-sharing-and-virtualization.md) — time-slicing for inference
 - **Volume 21:** AI Factory (reference architectures)
-

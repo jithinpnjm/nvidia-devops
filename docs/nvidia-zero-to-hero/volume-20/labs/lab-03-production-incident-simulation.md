@@ -235,4 +235,3 @@ $ nvidia-smi -i 2 -q | grep -i "memory"
 **Exercise 1:** You identified GPU 2 as the bottleneck (from NCCL_DEBUG trace), recognized thermal throttling as the root cause, and made the decision to restart without GPU 2 ✓
 **Exercise 2:** You correctly measured temperature rise rate (0.2+°C/sec = fan failure), decided to stop the job (safety > performance), and planned for hardware replacement ✓
 **Exercise 3:** You calculated ECC error rate (50/10min = 5/min unsustainable), decided to stop at 50 errors, and escalated for GPU replacement ✓
-

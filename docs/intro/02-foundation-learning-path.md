@@ -123,4 +123,3 @@ What I still cannot explain:
 ```
 
 This turns a very large curriculum into a collection of stable mental models rather than disconnected commands.
-

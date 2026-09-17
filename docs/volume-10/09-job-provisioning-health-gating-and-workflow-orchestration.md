@@ -63,7 +63,6 @@ To properly provision jobs and integrate health scripts, the Slurm controller (`
 
 # ------------------------------------------------------------------------------
 # Topology and GPU Scheduling
-# ------------------------------------------------------------------------------
 # The topology plugin ensures Slurm understands the spine-leaf network 
 # architecture to place jobs on nodes connected to the same leaf switch when possible.
 TopologyPlugin=topology/tree
@@ -76,9 +75,7 @@ SelectTypeParameters=CR_Core_Memory,CR_CORE_DEFAULT_DIST_BLOCK
 # Enable the GRES (Generic Resource) plugin for GPUs
 GresTypes=gpu,mps
 
-# ------------------------------------------------------------------------------
 # Prolog and Epilog Configuration
-# ------------------------------------------------------------------------------
 # The Prolog runs as root before the job step. If it exits non-zero, the job is 
 # requeued and the node is marked DOWN or DRAINED (depending on PrologFlags).
 Prolog=/etc/slurm/prolog.sh
@@ -90,16 +87,12 @@ Epilog=/etc/slurm/epilog.sh
 # before the user can interactively access the node or run `srun`.
 PrologFlags=Alloc
 
-# ------------------------------------------------------------------------------
 # Background Health Checking (NHC)
-# ------------------------------------------------------------------------------
 HealthCheckProgram=/usr/sbin/nhc
 HealthCheckInterval=300
 HealthCheckNodeState=ANY
 
-# ------------------------------------------------------------------------------
 # Job Limits and Timeouts
-# ------------------------------------------------------------------------------
 # Essential: Prevent the Epilog from taking down the cluster if it hangs.
 EpilogMsgTime=300 # Wait 5 minutes for Epilog to finish before marking node DOWN
 UnkillableStepTimeout=60 # Force kill processes that ignore SIGTERM after 60s
@@ -187,7 +180,6 @@ PyTorch DDP requires specific environment variables to establish the NCCL commun
 #SBATCH --error=/scratch/logs/%x-%j.err
 
 # 1. Environment Setup & NCCL Tuning
-# ------------------------------------------------------------------------------
 # Disable NCCL InfiniBand fallbacks. If IB fails, we want the job to crash immediately,
 # not silently fall back to slow Ethernet (TCP), which causes silent stragglers.
 export NCCL_IB_DISABLE=0
@@ -198,7 +190,6 @@ export NCCL_IB_TIMEOUT=22              # Increase timeout for large clusters
 export NCCL_DEBUG=INFO                 # Crucial for troubleshooting
 
 # 2. PyTorch Distributed Configuration
-# ------------------------------------------------------------------------------
 # Fetch the master node IP address dynamically from Slurm
 MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)
 MASTER_PORT=6000
@@ -207,7 +198,6 @@ WORLD_SIZE=$(( SLURM_NNODES * SLURM_NTASKS_PER_NODE ))
 echo "Training on $WORLD_SIZE GPUs. Master: $MASTER_ADDR:$MASTER_PORT"
 
 # 3. Launch the Workload via srun
-# ------------------------------------------------------------------------------
 # srun propagates the tasks to all allocated nodes.
 # We use Apptainer (Singularity) or Enroot to run the NVIDIA PyTorch container.
 srun \
@@ -238,7 +228,6 @@ Notice the explicit failure boundaries: `NCCL_IB_DISABLE=0` ensures that if the 
 While PyTorch DDP uses its own rendezvous mechanism (TCP/IP), pure MPI-based jobs (like NCCL bandwidth tests) rely entirely on PMIx or OpenMPI for process coordination. The script below tests the InfiniBand fabric by running a synchronized `all_reduce_perf` test across multiple nodes.
 
 ```bash
-#!/bin/bash
 #SBATCH --job-name=nccl_ib_test
 #SBATCH --nodes=4
 #SBATCH --ntasks-per-node=8
@@ -492,7 +481,6 @@ A production Prolog must be incredibly fast (typically < 10 seconds). It cannot 
 # Purpose: Slurm Job Prolog Health Gate for NVIDIA DGX H100
 # Execution: Runs as root immediately prior to job step launch.
 # Target runtime: < 8 seconds.
-# ==============================================================================
 
 set -euo pipefail
 
@@ -515,27 +503,21 @@ drain_node() {
 
 echo "$(date '+%Y-%m-%d %H:%M:%S') [INFO] Starting Prolog for Job ${SLURM_JOB_ID:-UNKNOWN} on ${NODE_NAME}" >> "${LOG_FILE}"
 
-# ------------------------------------------------------------------------------
 # Gate 1: GPU Enumeration and NVML Responsiveness
-# ------------------------------------------------------------------------------
 # A crashed driver or hung PCIe bus will cause nvidia-smi to hang or return fewer GPUs.
 GPU_COUNT=$(timeout 5s nvidia-smi --query-gpu=name --format=csv,noheader | wc -l || echo "0")
 if [ "${GPU_COUNT}" -ne 8 ]; then
     drain_node "Missing GPUs! Expected 8, enumerated ${GPU_COUNT} or NVML hung."
 fi
 
-# ------------------------------------------------------------------------------
 # Gate 2: Uncorrectable ECC Memory Errors (Volatile)
-# ------------------------------------------------------------------------------
 # Double-bit ECC errors will cause application crashes and data corruption.
 UNCORRECTABLE_ECC=$(nvidia-smi --query-gpu=ecc.errors.uncorrected.volatile.total --format=csv,noheader,nounits | awk '{s+=$1} END {print s}')
 if [ "${UNCORRECTABLE_ECC}" -gt 0 ]; then
     drain_node "Uncorrectable ECC memory errors detected (Count: ${UNCORRECTABLE_ECC})"
 fi
 
-# ------------------------------------------------------------------------------
 # Gate 3: Thermal or Power Hardware Slowdown (Throttling)
-# ------------------------------------------------------------------------------
 # If a cooling loop failed, the GPU might still enumerate but run at 300MHz.
 # This creates a silent straggler.
 THROTTLED=$(nvidia-smi --query-gpu=clocks_event_reasons.hw_slowdown,clocks_event_reasons.sw_thermal_slowdown --format=csv,noheader | grep -ic "ACTIVE" || true)
@@ -543,9 +525,7 @@ if [ "${THROTTLED}" -gt 0 ]; then
     drain_node "Active Thermal/Hardware throttling detected on GPUs"
 fi
 
-# ------------------------------------------------------------------------------
 # Gate 4: InfiniBand Fabric Health (Compute HCAs)
-# ------------------------------------------------------------------------------
 # Ensure all 8 ConnectX-7 compute fabric adapters are physically linked and active.
 EXPECTED_HCA_PORTS=8
 # Use a fast rdma-core utility or ibstat
@@ -561,9 +541,7 @@ if [ "${DEGRADED_RATES}" -gt 0 ]; then
     drain_node "InfiniBand link speed trained down below 400G line rate on one or more ports."
 fi
 
-# ------------------------------------------------------------------------------
 # Gate 5: NVLink Fabric Health (NVSwitch)
-# ------------------------------------------------------------------------------
 # Verify no NVLink ports are disabled or degraded between the GPUs and NVSwitches.
 # We parse the output of nvidia-smi nvlink.
 NVLINK_DOWN=$(nvidia-smi nvlink --status | grep -ic "Down" || true)
@@ -571,9 +549,7 @@ if [ "${NVLINK_DOWN}" -gt 0 ]; then
     drain_node "NVLink degradation! One or more NVLink ports are down."
 fi
 
-# ------------------------------------------------------------------------------
 # Gate 6: Process Sanitization
-# ------------------------------------------------------------------------------
 # Clean up any leftover orphan GPU processes from previous jobs or interactive sessions.
 # This prevents OOM errors on job start.
 ORPHAN_PIDS=$(nvidia-smi --query-compute-apps=pid --format=csv,noheader)
@@ -583,9 +559,7 @@ if [ -n "${ORPHAN_PIDS}" ]; then
     sleep 1 # Allow VRAM to be reclaimed
 fi
 
-# ------------------------------------------------------------------------------
 # Gate 7: Fast DCGM Diagnostics (Optional)
-# ------------------------------------------------------------------------------
 # If you have strict SLA requirements, you can run Level 1 DCGM here.
 # Note: Ensure dcgmi diag -r 1 executes in <10s on your environment.
 DCGM_RES=$(dcgmi diag -r 1 -j | grep -c '"overall_result": "Pass"' || true)
@@ -636,12 +610,9 @@ An **XID error** is an event recorded by the NVIDIA kernel driver (`nvidia.ko`) 
 To demonstrate advanced parsing, here is a production Epilog written in Python, utilizing standard libraries for robust log analysis and system manipulation. Python is preferred over Bash for complex array parsing, regex, and structured logging.
 
 ```python
-#!/usr/bin/env python3
-# ==============================================================================
 # Script: /etc/slurm/epilog.d/99-ai-cleanup.py
 # Purpose: Slurm Job Epilog: Process Cleanup, Scratch Purge, and Kernel XID Audit
 # Execution: Runs as root after task completion.
-# ==============================================================================
 
 import os
 import subprocess

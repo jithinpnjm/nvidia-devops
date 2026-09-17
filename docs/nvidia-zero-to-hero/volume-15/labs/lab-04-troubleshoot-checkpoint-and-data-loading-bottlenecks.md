@@ -147,7 +147,6 @@ for epoch in range(num_epochs):
 Run the test job and capture metrics:
 
 ```bash
-#!/bin/bash
 # Collect evidence during training
 
 echo "=== BASELINE TRAINING RUN ===" | tee training-baseline.txt
@@ -179,7 +178,6 @@ echo "Training complete. Analyzing..."
 ### Step 3: Diagnose the Bottleneck
 
 ```bash
-#!/bin/bash
 # Analyze collected metrics
 
 echo "=== BOTTLENECK DIAGNOSIS ===" | tee diagnosis.txt
@@ -222,7 +220,6 @@ cat diagnosis.txt
 Create a hypothesis and test it:
 
 ```bash
-#!/bin/bash
 # Test hypothesis: metadata is the bottleneck
 
 echo "=== HYPOTHESIS TEST: METADATA ===" | tee hypothesis-test.txt
@@ -254,7 +251,6 @@ cat hypothesis-test.txt
 Run the training again with the fix applied:
 
 ```bash
-#!/bin/bash
 # Re-run training with the fix
 
 echo "=== FIXED TRAINING RUN ===" | tee training-fixed.txt

@@ -87,7 +87,6 @@ If any check fails:
 ### Step 2: Benchmark Without GDS (CPU Bounce)
 
 ```bash
-#!/bin/bash
 # Establish baseline: traditional CPU-bounce I/O
 
 echo "=== BASELINE: CPU-BOUNCE I/O (No GDS) ===" | tee cpu-bounce.txt
@@ -160,7 +159,6 @@ Average: 0.251s, Avg throughput: 398 MB/s
 ### Step 3: Benchmark With GDS (If Available)
 
 ```bash
-#!/bin/bash
 # Measure: GDS direct I/O
 
 echo "=== WITH GDS: DIRECT I/O ===" | tee gds-benchmark.txt
@@ -218,7 +216,6 @@ rm -f benchmark-gds.py
 ### Step 4: Compare and Measure CPU Overhead
 
 ```bash
-#!/bin/bash
 # Compare CPU utilization
 
 echo "=== CPU UTILIZATION COMPARISON ===" | tee cpu-overhead.txt
@@ -263,7 +260,6 @@ rm -f monitor-cpu.py benchmark-cpu.py
 ### Step 5: Decision Framework
 
 ```bash
-#!/bin/bash
 # Summarize findings and recommend
 
 echo "=== GDS DECISION FRAMEWORK ===" | tee gds-decision.txt

@@ -516,7 +516,6 @@ lambda = ln(2) / PriorityDecayHalfLife_in_seconds
 ### 7.3 Tuning `PriorityDecayHalfLife` for AI Workloads
 
 ```ini
-# slurm.conf
 PriorityType=priority/multifactor
 PriorityWeightFairshare=100000
 PriorityDecayHalfLife=14-0 # 14 days
@@ -586,7 +585,6 @@ While CPUs and GPUs are tracked natively, an NVIDIA AI Factory often needs to tr
 To track high-performance DDN EXAScaler NVMe storage consumption, we add custom TRES to the DB and `slurm.conf`:
 
 ```ini
-# slurm.conf
 AccountingStorageTRES=gres/gpu,license/ddn_nvme_tb
 ```
 
@@ -617,7 +615,6 @@ The following configuration file is optimized for high-throughput, latency-sensi
 # /etc/slurm/slurm.conf
 # -------------------------------------------------------------------------
 # CONTROL PLANE HA & CORE SETTINGS
-# -------------------------------------------------------------------------
 ClusterName=dgx_superpod
 SlurmctldHost=slurmctl-vip # Managed by Pacemaker
 SlurmctldPort=6817
@@ -638,17 +635,13 @@ MinJobAge=300
 KillWait=30
 Waittime=0
 
-# -------------------------------------------------------------------------
 # SCHEDULING ENGINES & OPTIMIZATIONS
-# -------------------------------------------------------------------------
 SchedulerType=sched/backfill
 SelectType=select/cons_tres
 SelectTypeParameters=CR_Core_Memory,CR_CORE_DEFAULT_DIST_BLOCK
 SchedulerParameters=bf_continue,bf_interval=30,bf_max_job_user=100,bf_resolution=60,bf_window=10080,max_rpc_cnt=150,sched_min_interval=2000000,batch_sched_delay=20
 
-# -------------------------------------------------------------------------
 # ACCOUNTING & MULTI-TENANCY
-# -------------------------------------------------------------------------
 AccountingStorageType=accounting_storage/slurmdbd
 AccountingStorageHost=slurmdbd-vip # Managed by ProxySQL
 AccountingStoragePort=6819
@@ -659,18 +652,14 @@ JobAcctGatherType=jobacct_gather/linux
 JobAcctGatherFrequency=30
 SlurmctldParameters=enable_step_mgr
 
-# -------------------------------------------------------------------------
 # LOGGING
-# -------------------------------------------------------------------------
 SlurmctldDebug=info
 SlurmctldLogFile=/var/log/slurm/slurmctld.log
 SlurmdDebug=info
 SlurmdLogFile=/var/log/slurm/slurmd.log
 JobCompLoc=/var/log/slurm/jobcomp.log
 
-# -------------------------------------------------------------------------
 # PRIORITY & FAIRSHARE
-# -------------------------------------------------------------------------
 PriorityType=priority/multifactor
 PriorityDecayHalfLife=14-0
 PriorityCalcPeriod=5
@@ -682,15 +671,11 @@ PriorityWeightJobSize=1000
 PriorityWeightPartition=1000
 PriorityWeightQOS=10000
 
-# -------------------------------------------------------------------------
 # HARDWARE DEFINITIONS (DGX H100)
-# -------------------------------------------------------------------------
 GresTypes=gpu
 NodeName=dgx-[0001-1024] CPUs=224 Boards=1 SocketsPerBoard=2 CoresPerSocket=56 ThreadsPerCore=2 RealMemory=2048000 MemSpecLimit=10240 Gres=gpu:h100:8 State=UNKNOWN
 
-# -------------------------------------------------------------------------
 # PARTITION MATRIX
-# -------------------------------------------------------------------------
 PartitionName=batch Nodes=dgx-[0001-1000] Default=YES MaxTime=14-0 State=UP
 PartitionName=interactive Nodes=dgx-[1001-1024] Default=NO MaxTime=04:00:00 State=UP
 ```

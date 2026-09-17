@@ -12,15 +12,9 @@ This masterclass provides an exhaustive guide to NVIDIA AI Infrastructure operat
 :::
 
 
-
-
 In enterprise generative AI deployments, inference represents 80% to 90% of total lifecycle computing spend. Unlike traditional stateless REST microservices that scale linearly with CPU and RAM utilization, Large Language Model (LLM) inference introduces complex stateful memory dynamics, non-linear latency trade-offs, and multi-GPU tensor parallelism.
 
 When interviewing for an **NVIDIA Senior Solutions Architect** role, you must be prepared to deconstruct LLM execution into its underlying compute and memory phases, calculate **KV cache memory footprints** from first principles, compare serving runtimes (**TensorRT-LLM, Triton, vLLM, NVIDIA NIM**), and size production GPU clusters against strict Service Level Objectives (SLOs).
-
-
-
-
 
 ```mermaid
 sequenceDiagram
@@ -85,8 +79,6 @@ Total_KV_Cache_Memory = 64 requests * 4,096 tokens * 320 KB/token
 The model weights of Llama 3 70B in FP16 consume **140 GB**. A batch of 64 requests with 4K context requires an additional **80 GB** for KV cache alone (140 + 80 = 220 GB). A single 8-GPU DGX node partitioned with Tensor Parallelism (TP = 4 or TP = 8) is required simply to hold the combined weights and KV cache memory in HBM.
 
 
-
-
 :::tip Pro-Tip
 Always visualize the request lifecycle when troubleshooting latency. The gap between `API Gateway` and `Triton Pods` is often where network jitter is introduced.
 :::
@@ -100,8 +92,6 @@ Enterprise customers often struggle to choose among NVIDIA and open-source servi
 | **Triton Inference Server** | Multi-framework orchestration gateway (C++, Python, ONNX, TensorRT-LLM backend). Dynamic batching, model pipelining (BLS), concurrent models per GPU. | Enterprise Gateway layer with low overhead. | Production model routing, multi-model hosting, and unified enterprise monitoring. |
 | **NVIDIA NIM** | Containerized, production-packaged microservice wrapping TensorRT-LLM and Triton with standard OpenAI-compatible REST APIs. | Peak TensorRT-LLM performance with zero compiler tuning needed. | Turnkey enterprise deployment on Kubernetes and DGX Cloud. |
 | **vLLM** | Open-source Python/CUDA engine; introduced **PagedAttention** to eliminate KV cache fragmentation. | Excellent developer agility; slightly lower performance than custom TensorRT-LLM kernels. | Rapid AI prototyping, research experimentation, and community model integration. |
-
-
 
 
 :::info Architecture Note
@@ -127,10 +117,6 @@ Separating storage traffic (often RoCE) from East-West compute traffic (Infiniba
 >    - 24 GPUs = 3 DGX H100 servers.
 >    - Adding **N+1 high-availability redundancy** for hardware maintenance gives **4x DGX H100 servers (32 GPUs total)**, providing 200 req/sec peak capacity with automatic node failover."
 
-
-
-
-
 ### Advanced Production Considerations
 When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
 ## Key Takeaways
@@ -150,11 +136,6 @@ If the fabric drops a single packet, experiences a hash-collision bottleneck on 
 
 When interviewing for an **NVIDIA Senior Solutions Architect** role, you must be prepared to compare **Quantum-2 InfiniBand** and **Spectrum-X Ethernet**, design multi-rail non-blocking topologies, optimize **GPUDirect RDMA**, configure lossless RoCE v2 flow control (PFC & ECN), and isolate fabric-induced collective stragglers.
 
-
-
-
-
-### Advanced Production Considerations
 When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
 ## 2. Multi-Rail Fat-Tree Fabric Architecture
 
@@ -188,11 +169,6 @@ flowchart TD
 - GPU 1 on all nodes communicates strictly over **Rail 1** (Leaf Switch 1).
 - **Zero Cross-Rail Contention:** During an All-Reduce collective, GPU 0 never competes for switch uplinks with GPU 1. Cross-GPU tensor aggregation within the node happens over ultra-high-speed **NVLink (900 GB/s)**, while inter-node transport scales across 8 parallel 400G network rails.
 
-
-
-
-
-### Advanced Production Considerations
 When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
 ## 4. Lossless Ethernet Engineering: PFC and ECN on Spectrum-X
 
@@ -245,4 +221,3 @@ flowchart LR
 >    - **High `SymbolErrors`:** Indicates a dirty optical transceiver or loose MPO fiber cable.
 >    - **High `PortXmitWait`:** Indicates downstream congestion or a slow rank causing credit starvations.
 > 4. **Isolate and Re-test:** I drain the node displaying symbol errors, replace it with a spare, and re-run the benchmark to confirm full line-rate performance."
-

@@ -170,17 +170,14 @@ Use UUIDs for durable identity. Use the PCI bus address to join NVIDIA data with
 
 ### Step 2 — Record the GPU Topology Matrix
 
-#### Purpose
 
 Identify GPU-to-GPU path classes and CPU affinity.
 
-#### Command
 
 ```bash
 nvidia-smi topo -m
 ```
 
-#### Expected Output
 
 ```text
         GPU0    GPU1    GPU2    GPU3    NIC0    NIC1    CPU Affinity    NUMA Affinity
@@ -217,11 +214,9 @@ This example host has two clean topology groups — `{GPU0, GPU1, NIC0}` on NUMA
 
 ### Step 3 — Map Every GPU to a NUMA Node
 
-#### Purpose
 
 Verify Linux's device locality.
 
-#### Command
 
 ```bash
 for bdf in $(nvidia-smi --query-gpu=pci.bus_id --format=csv,noheader | sed 's/^00000000:/0000:/'); do
@@ -230,7 +225,6 @@ for bdf in $(nvidia-smi --query-gpu=pci.bus_id --format=csv,noheader | sed 's/^0
 done
 ```
 
-#### Expected Output
 
 ```text
 0000:1b:00.0 NUMA=0
@@ -247,7 +241,6 @@ If the sysfs path is missing, compare domain formatting between `nvidia-smi` and
 
 ### Step 4 — Map Network Adapters to NUMA Nodes
 
-#### Purpose
 
 Identify which NIC should serve each GPU group.
 
@@ -264,7 +257,6 @@ NIC_BDF="0000:41:00.0"
 cat "/sys/bus/pci/devices/$NIC_BDF/numa_node"
 ```
 
-#### Expected Output
 
 ```text
 $ lspci -Dnn | grep -iE 'ethernet|infiniband|network'
@@ -281,17 +273,14 @@ A NUMA node for each adapter, or `-1` when locality is not exposed. `NIC0` at `0
 
 ### Step 5 — Inspect CPU and Memory Layout
 
-#### Purpose
 
 Identify CPUs and memory local to each device group.
 
-#### Command
 
 ```bash
 numactl --hardware
 ```
 
-#### Expected Output
 
 ```text
 available: 2 nodes (0-1)
@@ -318,18 +307,15 @@ Every row here is now backed by three independent, cross-checked sources: `nvidi
 
 ### Step 6 — Inspect PCIe Link State
 
-#### Purpose
 
 Confirm that devices negotiate expected link width and speed.
 
-#### Command
 
 ```bash
 GPU_BDF="0000:31:00.0"
 sudo lspci -s "$GPU_BDF" -vv | grep -E 'LnkCap:|LnkSta:'
 ```
 
-#### Interpretation
 
 Compare capability and negotiated state with the approved server design. A lower negotiated state requires context: power management, idle state, platform wiring, firmware, or a fault may explain it.
 

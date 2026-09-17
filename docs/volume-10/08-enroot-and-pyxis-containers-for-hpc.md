@@ -205,7 +205,6 @@ In `/etc/enroot/environ.d/50-nvidia.conf`, Enroot configures how it interacts wi
 ```bash
 # ==============================================================================
 # /etc/enroot/environ.d/50-nvidia.conf
-# ==============================================================================
 # This file tells Enroot to inject GPUs based on the environment variables
 # provided by the Slurm scheduler.
 
@@ -323,18 +322,14 @@ To execute a 1,024 GPU MPI job flawlessly via Enroot/Pyxis, an AI engineer write
 #SBATCH --partition=dgx-h100-cluster
 #SBATCH --exclusive
 
-# ==============================================================================
 # 1. Network & NCCL Tuning
-# ==============================================================================
 export NCCL_DEBUG=INFO
 export NCCL_IB_HCA=mlx5_0,mlx5_1,mlx5_2,mlx5_3,mlx5_4,mlx5_5,mlx5_6,mlx5_7
 export NCCL_IB_TC=106            # Enable RoCE QoS
 export NCCL_NVLS_ENABLE=1        # Enable NVLink Sharp (SHARP)
 export OMPI_MCA_pml=ucx          # Use UCX for MPI point-to-point
 
-# ==============================================================================
 # 2. Execution via Pyxis and PMIx
-# ==============================================================================
 # srun orchestrates the 1,024 tasks.
 # --mpi=pmix tells Slurm to wire up the MPI bootstrapping.
 # Pyxis intercepts and wraps every task in the nemo.sqsh container.
@@ -410,9 +405,7 @@ As a Senior Architect, you must perfectly configure the global parameters of Enr
 The `/etc/enroot/enroot.conf` file controls storage paths, caching behaviors, and security guardrails.
 
 ```bash
-# ==============================================================================
 # /etc/enroot/enroot.conf
-# ==============================================================================
 
 # 1. Global Cache Directory: Where downloaded/flattened .sqsh files are stored globally
 # when users DO use docker:// URLs. 
@@ -446,9 +439,7 @@ ENROOT_MAX_CONNECTIONS     10
 To activate Pyxis, you must declare it in Slurm's SPANK configuration file.
 
 ```text
-# ==============================================================================
 # /etc/slurm/plugstack.conf
-# ==============================================================================
 # Load the Pyxis plugin into srun and slurmd. 
 #
 # Arguments:
@@ -555,18 +546,13 @@ To provide absolute clarity for Senior Architects, below are the complete, produ
 ### A.1 `enroot.conf` (Complete Production Reference)
 
 ```bash
-# ==============================================================================
 # /etc/enroot/enroot.conf - Global Enroot Runtime Configuration
-# ==============================================================================
-# 
 # This file is typically managed by Ansible or Puppet across all compute nodes.
 # It defines the security, storage, and networking behaviors of the Enroot runtime.
-#
 # Reference: https://github.com/NVIDIA/enroot/blob/master/conf/enroot.conf
 
 # ------------------------------------------------------------------------------
 # Storage Paths
-# ------------------------------------------------------------------------------
 # ENROOT_DATA_PATH defines where container workspaces (the unpacked rootfs) are 
 # stored on the host. In an AI factory, this MUST point to local NVMe drives. 
 # Attempting to place this on an NFS or Lustre mount will cause OverlayFS 
@@ -583,9 +569,7 @@ ENROOT_CACHE_PATH          /lustre/shared/enroot/cache/%u
 # is stored. This should always be on a fast, memory-backed filesystem like /run.
 ENROOT_RUNTIME_PATH        /run/enroot/%u
 
-# ------------------------------------------------------------------------------
 # Security and Isolation
-# ------------------------------------------------------------------------------
 # ENROOT_RESTRICT_DEV enforces strict permissions on container directories.
 # If set to 'y', only the user owner can access their container workspaces. 
 # Essential for multi-tenant privacy in an HPC cluster.
@@ -596,9 +580,7 @@ ENROOT_RESTRICT_DEV        y
 # promoting immutable container best practices.
 ENROOT_ROOTFS_WRITABLE     n
 
-# ------------------------------------------------------------------------------
 # Image Processing and Compression
-# ------------------------------------------------------------------------------
 # ENROOT_SQUASH_OPTIONS controls the mksquashfs arguments used during 'enroot import'.
 # -comp zstd: Uses Zstandard compression, offering the best balance of speed and ratio.
 # -b 1M: Sets the block size to 1 Megabyte, optimizing for parallel read throughput 
@@ -613,9 +595,7 @@ ENROOT_SQUASH_OPTIONS      -comp zstd -b 1M -no-xattrs
 # nodev: Prevents the container from creating special device nodes.
 ENROOT_MOUNT_OPTIONS       loop,ro,nosuid,nodev
 
-# ------------------------------------------------------------------------------
 # Network and Transfer Limits
-# ------------------------------------------------------------------------------
 # ENROOT_MAX_CONNECTIONS limits the number of concurrent HTTP connections 
 # used when pulling layers from an OCI registry (like Docker Hub or NGC).
 # Setting this to 10 prevents a single node from saturating network interfaces.
@@ -629,10 +609,7 @@ ENROOT_TRANSFER_RETRIES    5
 ### A.2 `environ.d/50-nvidia.conf` (Hardware Injection Logic)
 
 ```bash
-# ==============================================================================
 # /etc/enroot/environ.d/50-nvidia.conf - NVIDIA Hardware Hook Configuration
-# ==============================================================================
-#
 # This script is sourced by Enroot immediately before creating the container namespace.
 # It parses environment variables (often injected by Slurm) to determine which 
 # GPUs, NVLinks, and driver libraries to bind-mount into the container.
@@ -667,17 +644,12 @@ export NCCL_TOPO_FILE
 ### A.3 `plugstack.conf` and `slurm.conf` (Pyxis Integration)
 
 ```text
-# ==============================================================================
 # /etc/slurm/plugstack.conf - Slurm SPANK Plugin Registry
-# ==============================================================================
-#
 # Slurm reads this file on startup to discover and load external plugins.
 # Pyxis must be registered here to extend srun and sbatch with --container flags.
 
 # Syntax: [required|optional] [path_to_plugin.so] [arguments...]
 # 'optional' means Slurm will still start even if the Pyxis library is missing.
-#
-# Arguments:
 # remap_root=1: Allow users to use the --container-remap-root flag.
 # execute_entrypoint=1: Enroot will execute the container's default Entrypoint.
 # sbatch_support=1: Allow --container-* flags in #SBATCH directives.
@@ -686,10 +658,7 @@ optional /usr/lib64/slurm/spank_pyxis.so remap_root=1 execute_entrypoint=1 sbatc
 ```
 
 ```text
-# ==============================================================================
 # /etc/slurm/slurm.conf (Snippet) - Slurm Controller Configuration
-# ==============================================================================
-#
 # Ensure that Slurm's core configuration is compatible with Enroot's requirements.
 
 # ProctrackType must be cgroup to ensure proper resource accounting and cleanup
@@ -850,14 +819,11 @@ As an AI Infrastructure Engineer, you are responsible for providing researchers 
 PyTorch DDP relies on the `torchrun` elastic launch utility. Because `torchrun` manages its own process spawning (one process per GPU), we configure SLURM to allocate one task per node, and let `torchrun` handle the local GPU binding inside the Enroot container.
 
 ```bash
-#!/bin/bash
 #SBATCH --job-name=pytorch_ddp_resnet
 #SBATCH --nodes=8
 #SBATCH --ntasks-per-node=1          # Critical for torchrun: 1 task per node
-#SBATCH --gpus-per-node=8
 #SBATCH --cpus-per-task=64           # Allocate all CPUs to the single task
 #SBATCH --mem=0                      # Allocate all memory on the node
-#SBATCH --partition=dgx-h100-cluster
 #SBATCH --output=%x-%j.out
 #SBATCH --error=%x-%j.err
 
@@ -891,13 +857,9 @@ srun \
 DeepSpeed is highly dependent on SSH for its native launcher. However, SSH is disabled or blocked inside HPC containers for security reasons. Therefore, DeepSpeed must be launched via SLURM's native MPI/PMIx integration or via the PyTorch distributed launcher. 
 
 ```bash
-#!/bin/bash
 #SBATCH --job-name=deepspeed_llama
 #SBATCH --nodes=16
 #SBATCH --ntasks-per-node=8          # For MPI/PMIx: 1 task per GPU
-#SBATCH --gpus-per-node=8
-#SBATCH --cpus-per-task=14
-#SBATCH --partition=dgx-h100-cluster
 
 # DeepSpeed relies heavily on NCCL. We must ensure Slurm maps the topology correctly.
 export NCCL_DEBUG=WARN
@@ -921,12 +883,8 @@ srun --mpi=pmix \
 JAX handles multi-node execution differently than PyTorch. JAX requires knowing the total number of processes and the rank of the current process before initializing its TPU/GPU mesh.
 
 ```bash
-#!/bin/bash
 #SBATCH --job-name=jax_maxtext
 #SBATCH --nodes=4
-#SBATCH --ntasks-per-node=8
-#SBATCH --gpus-per-node=8
-#SBATCH --partition=dgx-h100-cluster
 
 # JAX distributed initialization variables
 export JAX_COORDINATOR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)
@@ -936,7 +894,6 @@ export JAX_PROCESS_COUNT=$(( SLURM_JOB_NUM_NODES * 8 ))
 # We use a wrapper script inside the container to map Slurm environment 
 # variables to JAX environment variables.
 cat << 'EOF' > /shared/scripts/jax_wrapper.sh
-#!/bin/bash
 export JAX_PROCESS_ID=$SLURM_PROCID
 exec python3 /workspace/MaxText/train.py \
   --run_name="slurm_job_$SLURM_JOB_ID" \
@@ -957,11 +914,8 @@ srun \
 When deploying large language models that exceed the memory of a single node (e.g., GPT-3 175B requiring 16 GPUs), Triton can be deployed across multiple nodes using MPI backend.
 
 ```bash
-#!/bin/bash
 #SBATCH --job-name=triton_inference_gpt3
 #SBATCH --nodes=2
-#SBATCH --ntasks-per-node=8
-#SBATCH --gpus-per-node=8
 #SBATCH --partition=inference-cluster
 
 # Triton uses MPI to coordinate tensor parallel model shards across nodes.

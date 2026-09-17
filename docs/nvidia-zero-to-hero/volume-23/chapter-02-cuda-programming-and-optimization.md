@@ -356,8 +356,6 @@ float val = smem[threadIdx.x];  // Thread i accesses bank i
 
 "Matrix multiplication is an excellent example of how tiling improves data reuse.
 
-**Naive approach (no tiling):**
-
 Each thread computes one element of C. For C[i, j], it loads row i of A (n floats) and column j of B (n floats).
 
 Global memory traffic per thread:
@@ -603,4 +601,3 @@ The interviews test your ability to apply this process and explain the tradeoffs
 - **Chapter 5:** [Performance Analysis and Troubleshooting](./chapter-05-performance-analysis-and-troubleshooting.md) — roofline model
 - **Volume 07:** CUDA programming patterns
 - **Lab (V24):** Hands-on kernel optimization exercises
-

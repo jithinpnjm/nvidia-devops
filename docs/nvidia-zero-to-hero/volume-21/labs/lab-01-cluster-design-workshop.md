@@ -204,4 +204,3 @@ Remaining budget allocation:
 - [ ] AllReduce latency &lt;5ms (if 64+ GPU training)
 - [ ] Cost per output calculated and defended
 - [ ] Design can be presented in 10 minutes with visual aids
-

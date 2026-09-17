@@ -290,5 +290,3 @@ sinfo -N -p gpu-h100 | grep dgx-013
 # Confirm the drain reason before resubmitting
 scontrol show node dgx-013 | grep -i reason
 ```
-
-

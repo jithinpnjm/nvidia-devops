@@ -320,4 +320,3 @@ annotations:
 **Exercise 1:** You identified fan degradation as root cause, recognized 2h 15m detection latency as the problem, and designed proactive fan monitoring to catch degradation 2+ weeks early ✓
 **Exercise 2:** You correctly calculated that stopping should happen at 15:30 (when rate hit 100/hour), and designed automated escalation based on error rate (not just count) ✓
 **Exercise 3:** You identified NVLink degradation as likely cause, realized 10-minute wasted compute before timeout, and designed real-time per-GPU AllReduce latency monitoring to detect at 10:05 instead of 10:15 ✓
-

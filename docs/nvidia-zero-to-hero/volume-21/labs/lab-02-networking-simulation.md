@@ -160,7 +160,6 @@ for topo in topologies:
     lat = simulate_topology_allreduce(topo, 64, 400, 1000)
     print(f"{topo:15s}: {lat:6.2f} ms")
 
-# Expected output (verified by running the code above):
 # single_rack     :  16.54 ms (best)
 # fat_tree        :  91.35 ms (oversubscribed)
 # multi_rack      : 212.80 ms (multi-level, slow inter-rack)
@@ -225,7 +224,6 @@ for topo, allreduce_lat in topologies.items():
     overhead_pct = (allreduce / iter_time) * 100
     print(f"{topo:15s} {iter_time:10.2f}ms {compute:10.2f}ms {allreduce:10.2f}ms {overhead_pct:9.1f}%")
 
-# Expected output (verified by running the code above):
 # Topology        Total     Compute   AllReduce  Overhead
 # single_rack      21.38ms     16.38ms   5.00ms    23.4%
 # fat_tree         26.38ms     16.38ms  10.00ms    37.9%
@@ -256,4 +254,3 @@ for topo, allreduce_lat in topologies.items():
 - [ ] Plot shows tree becoming better than ring at large N
 - [ ] AllReduce overhead quantified for each topology
 - [ ] Topology choice justified by cost-benefit analysis
-

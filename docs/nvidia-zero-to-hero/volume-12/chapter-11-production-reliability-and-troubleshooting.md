@@ -182,12 +182,10 @@ flowchart TD
 - **Symptom:** Users report that model responses suddenly consist of repeated garbage text (e.g., `"NaN NaN NaN"` or infinite loops of exclamation marks), while HTTP response codes remain `200 OK`.
 - **Detection Query:** Rate of responses containing non-printable characters or `NaN` tokens `> 0.01%`.
 
-#### Triage Steps:
 1. Inspect model log outputs for floating-point underflow/overflow warnings.
 2. Check if FP8 / INT4 quantized weight scaling factors (`scale_inv`) are out of valid range for specific activation layers.
 3. Validate GPU driver and CUDA toolkit version compatibility with custom FP8 GEMM kernels.
 
-#### Remediation:
 1. Isolate the impacted model replica from the load balancer target group.
 2. Roll back to BF16/FP16 precision weights or update engine launch arguments to disable specific problematic FP8 kernel optimizations (`--disable-custom-all-reduce`).
 
@@ -266,15 +264,12 @@ vllm-replica-7f9b8-new01        0/1     Running   0          45s (Startup probe 
 
 ### Worked Failure Scenario 2: GPU Silent Corruption (XID 62 Error) and Traffic Blackhole
 
-#### Production Incident Context
 An automated code assistant platform running a TP=8 Llama-3-70B engine across an 8-GPU HGX node began experiencing sporadic request timeouts. Approximately 12.5% of incoming user requests hung indefinitely until client connection timeouts occurred.
 
-#### Symptoms & Initial Metrics
 - Client-reported HTTP timeout rate at exactly 12.5% (1 in 8 requests).
 - Engine container process showed `Running` status with 0 restarts.
 - `nvidia-smi` showed GPU 3 utilization at 100%, while GPUs 0, 1, 2, 4, 5, 6, 7 showed 0% utilization.
 
-#### Evidence Gathering
 The engineer inspected kernel system logs (`dmesg`) and NVIDIA driver logs on the host node:
 
 ```bash
@@ -289,13 +284,11 @@ dmesg -T | grep -i NVRM
 [Thu Aug 6 15:30:12 2026] NVRM: GSP Engine reset failed on GPU 3. CUDA context deadlocked.
 ```
 
-#### Root Cause Analysis
 1. GPU 3 suffered an uncorrectable Double-Bit Memory Error (ECC Error - NVIDIA **XID 62**).
 2. The hardware error deadlocked the CUDA kernel execution context on GPU 3.
 3. Because the engine operated in Tensor Parallelism (TP=8), all 8 GPUs executed synchronous AllReduce operations. When GPU 3 deadlocked, the remaining 7 GPUs entered an infinite wait loop inside the NCCL collective call.
 4. The container HTTP server process remained running, continuing to accept incoming requests from the Kubernetes load balancer and dropping them into a black hole.
 
-#### Resolution & Mitigation
 
 1. Deploy the **NVIDIA Node Problem Detector (NPD)** and **DCGM Exporter** to automatically detect hardware XID errors and cordon affected nodes:
 
@@ -322,10 +315,8 @@ kubectl drain node-hgx-04 --ignore-daemonsets --delete-emptydir-data
 nvidia-smi --gpu-reset -i 3
 ```
 
-#### Verification
 Monitoring `dcgm_xid_error` confirmed that the node was successfully cordoned and drained, and traffic was re-routed to healthy HGX nodes without user impact.
 
-#### Prevention
 - Automate XID error detection via DCGM Exporter and Kubernetes Node Problem Detector to cordon faulted GPU nodes within seconds of hardware errors.
 
 ---

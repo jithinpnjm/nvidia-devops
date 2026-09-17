@@ -52,7 +52,6 @@ flowchart TD
 
 ## Use Case 2: Risk Modeling (Daily VaR, 4 hours)
 
-### Requirements
 
 - Model: MOM6 + CAM (50,000 positions × 10,000 scenarios)
 - Precision: FP64 (double precision for accuracy)
@@ -73,7 +72,6 @@ flowchart TD
 
 ## Use Case 3: Algorithmic Trading Signals
 
-### Requirements
 
 - Input: News articles (20/sec peak)
 - Model: DistilBERT (66M params, FP16)

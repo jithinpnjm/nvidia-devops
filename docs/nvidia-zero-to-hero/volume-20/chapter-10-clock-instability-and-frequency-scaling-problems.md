@@ -388,4 +388,3 @@ A: "That sounds like the GPU is stuck in a lower P-state and can't transition ba
 **Q: "How would you prevent clock instability in a production cluster?"**
 
 A: "First, I'd make sure DVFS is disabled in BIOS on all nodes with production GPUs — set power management to 'Performance' mode consistently. Then I'd monitor: every 30 seconds, sample GPU clock from each GPU and alert if I see > 3 unique clock values in a 5-minute window. If a GPU starts oscillating, I'd drain it from the cluster and investigate. I'd also do monthly BIOS settings audits to make sure some system config change didn't accidentally re-enable DVFS. Finally, I'd stay current on driver updates because clock-related firmware bugs get fixed regularly. The key insight is that oscillation is always a sign of something wrong — either something's protecting the GPU (thermal, power), or something's misconfigured."
-

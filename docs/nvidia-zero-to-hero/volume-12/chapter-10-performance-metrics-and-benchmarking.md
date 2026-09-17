@@ -242,15 +242,12 @@ vllm:time_per_output_token_seconds{quantile="0.95"} 0.0182
 
 ### Worked Failure Scenario 2: Systemic Concurrency Collapse under Open-Loop Request Spikes
 
-#### Production Incident Context
 During a high-concurrency open-loop benchmark designed to locate cluster capacity limits, increasing request arrival rate from 20 req/sec to 30 req/sec caused an immediate collapse in system responsiveness. TTFT degraded exponentially while Output Token Throughput completely stalled.
 
-#### Symptoms & Initial Metrics
 - `vllm:num_requests_waiting` surged from 2 to 340 requests in 15 seconds.
 - TTFT p99 exploded from 180ms to 18,200ms.
 - Prometheus alert firing: `LLMAdmissionQueueBacklogHigh`.
 
-#### Evidence Gathering
 The engineer inspected the breakdown of engine execution time during the load surge:
 
 ```prometheus
@@ -264,10 +261,8 @@ rate(vllm:prompt_tokens_total[1m])
 - `vllm:gpu_cache_usage_perc` reached `0.99`.
 - The engine was constantly preempting active sequences to make room for incoming prompt prefills, creating a classic **preemption loop**.
 
-#### Root Cause Analysis
 The engine was configured with `--max-num-seqs 512` but without a corresponding limit on `--max-num-batched-tokens`. As open-loop arrival rates surged, the scheduler admitted too many concurrent requests into the active execution batch. Once GPU VRAM blocks filled up, the engine was forced to **preempt running decode sequences**, discarding their KV blocks to process incoming prefill requests. When those preempted requests resumed, their prompts had to be recomputed from scratch, causing total system collapse.
 
-#### Resolution & Mitigation
 
 1. Restrict active sequence concurrency and enforce chunked prefill caps:
 
@@ -282,7 +277,6 @@ vllm serve meta-llama/Meta-Llama-3-70B-Instruct \
 
 2. Configure an external queueing and rate-limiting policy at ingress (e.g., NGINX / Envoy) to return HTTP 429 Too Many Requests when admission queues exceed 50 depth.
 
-#### Verification
 Re-testing at 35 req/sec with the tuned configuration showed stable queueing behavior without request preemptions:
 
 ```text
@@ -291,7 +285,6 @@ vllm:num_preempted_requests_total 0
 vllm:time_to_first_token_seconds{quantile="0.99"} 0.340
 ```
 
-#### Prevention
 - Conduct step-stress concurrency sweeps to pinpoint the exact saturation point (`λ_max`) and configure ingress rate limits below that threshold.
 
 ---

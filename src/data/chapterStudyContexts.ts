@@ -9543,7 +9543,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
     "learningOutcome": "Turn \"we need an AI platform\" into workload, SLO, scale, security, operations and cost facts.",
     "sections": [
-      "Foundations: start here if solutions architecture is new to you",
+      "Foundations: start here if solutions architecture is new to you { foundations-start-here-if-solutions-architecture-is-new-to-you}",
       "What this volume is trying to teach",
       "The first mental model",
       "Essential language",
@@ -9568,13 +9568,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
     "learningOutcome": "",
     "sections": [
-      "Practice",
-      "Worked scenario",
-      "Senior addendum",
-      "Extended Masterclass: Capacity and TCO",
-      "OpEx vs CapEx Modeling",
-      "GPU Sharing Strategies",
-      "Utilization Metrics"
+      "Practice"
     ],
     "codeLanguages": [
       "mermaid",
@@ -9585,18 +9579,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "volume": "Volume 8",
     "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
     "learningOutcome": "",
-    "sections": [
-      "Practice",
-      "Senior addendum",
-      "Extended Masterclass: Security and Governance",
-      "Zero Trust AI Factory",
-      "Role-Based Access Control (RBAC)",
-      "Data Sovereignty and Compliance"
-    ],
-    "codeLanguages": [
-      "text",
-      "mermaid"
-    ]
+    "sections": [],
+    "codeLanguages": []
   },
   "04 Strategy Communication Masterclass": {
     "volume": "Volume 8",
@@ -9605,7 +9589,6 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "sections": [
       "Worked scenario",
       "Practice",
-      "Practitioner lens",
       "Senior addendum",
       "Extended Masterclass: Strategy and Communication",
       "Executive ROI Dashboards",
@@ -9613,8 +9596,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Adoption Milestones"
     ],
     "codeLanguages": [
-      "mermaid",
-      "text"
+      "text",
+      "mermaid"
     ]
   },
   "Interview Framework & Whiteboard Masterclass": {
@@ -9624,7 +9607,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "sections": [
       "Interview Framework & Whiteboard Masterclass",
       "Advanced Production Considerations",
-      "Foundations: start here before using the interview question bank",
+      "Foundations: start here before using the interview question bank { foundations-start-here-before-using-the-interview-question-bank}",
       "What this volume is trying to teach",
       "The first mental model",
       "Different questions test different skills",
@@ -9649,19 +9632,19 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "",
     "sections": [
       "Troubleshooting Scenarios Masterclass",
-      "Advanced Production Considerations",
-      "1. The Core Mental Model: The 5 Host Subsystems",
       "2. Beginner to Advanced Diagnostics",
       "A. Load Average: Deconstructing the Metric",
       "1. Inspect run queue (r) vs. blocked queue (b)",
       "Identify which kernel function is blocking D-state processes",
-      "B. Linux Pressure Stall Information (PSI)",
       "C. Transparent Huge Pages (THP) and Memory Compaction",
       "Check memory compaction activity",
-      "D. PCIe Bus Degradation and Advanced Error Reporting (AER)",
-      "1. Audit link speed and width for all ConnectX-7 network adapters",
-      "2. Check for PCIe AER errors in kernel log",
-      "3. High-Stakes Senior Solutions Architect Interview Scenarios"
+      "3. High-Stakes Senior Solutions Architect Interview Scenarios",
+      "Scenario 1: High System Load with Low CPU Utilization",
+      "Key Takeaways",
+      "Chapter 4 — Kubernetes, GPU Operator, and Run:ai Platform Troubleshooting",
+      "2. The GPU Pod Lifecycle: State-to-Evidence Matrix",
+      "Failure 2: CreateContainerError — CDI Specification Desynchronization",
+      "Advanced Production Considerations"
     ],
     "codeLanguages": [
       "mermaid",
@@ -9675,25 +9658,23 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "",
     "sections": [
       "AI Architecture & Design Masterclass",
-      "Advanced Production Considerations",
-      "1. First Principles: The Two Phases of LLM Inference",
-      "Architectural Contrast",
       "2. KV Cache Sizing Mathematics: The Architecture Behind Memory Sizing",
       "The KV Cache Memory Formula",
       "Worked Architecture Example: Llama 3 70B (GQA)",
-      "3. Dynamic Batching Strategies: Static vs. In-Flight Batching",
-      "Modern Techniques:",
       "4. Serving Runtime Landscape: TensorRT-LLM, Triton, vLLM, and NIM",
-      "5. Sizing and Capacity Planning Formula for Solutions Architects",
-      "The Production Sizing Equation",
       "6. Senior Solutions Architect Interview Scenarios",
-      "Scenario 1: Sizing an LLM Service for a Large Financial Enterprise"
+      "Scenario 1: Sizing an LLM Service for a Large Financial Enterprise",
+      "Advanced Production Considerations",
+      "Key Takeaways",
+      "Chapter 7 — Accelerated Networking: InfiniBand, Spectrum-X, and Collective Fabrics",
+      "2. Multi-Rail Fat-Tree Fabric Architecture",
+      "Why Multi-Rail Eliminates Collective Contention",
+      "4. Lossless Ethernet Engineering: PFC and ECN on Spectrum-X",
+      "The Two Control Loops of Lossless RoCE:"
     ],
     "codeLanguages": [
       "mermaid",
-      "text",
-      "python",
-      "bash"
+      "text"
     ]
   },
   "Interview Lab — NVIDIA Senior Solutions Architect: AI Factory from Bare-Metal to Workloads": {

@@ -132,7 +132,6 @@ print(f'Temperature rise rate: {rate:.2f}°C/sec')
 # 0s: 55C
 # 1s: 56C
 # 2s: 57C
-# ...
 # 59s: 70C
 # Temperature rise rate: 0.25°C/sec
 ```
@@ -375,4 +374,3 @@ A: "That sounds like DVFS oscillation — the GPU is probably hitting thermal th
 **Q: "How would you build a predictive system to detect fan degradation before it causes problems?"**
 
 A: "I'd track fan speed trend over weeks. Normal fans maintain consistent RPM at the same temperature. Degrading fans start requiring higher speeds to maintain the same temperature. I'd set a monthly baseline: at 80°C, what's the typical fan speed? If it's usually 60%, and one month it's 70%, the fan is working harder. If it climbs to 80%, 90%, 100% over several months, that's a leading indicator that the fan is failing. I'd also monitor temperature rise rate under fixed GPU load: if it rises slower with time, the fan is degrading. At 2-3 months before fan dies, I'd schedule preemptive replacement before it actually fails in production."
-

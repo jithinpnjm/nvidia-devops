@@ -12,15 +12,9 @@ This masterclass provides an exhaustive guide to NVIDIA AI Infrastructure operat
 :::
 
 
-
-
 In an **NVIDIA AI Factory**, high-end GPUs cannot overcome a misbehaving host operating system. Distributed training frameworks (PyTorch DDP, Megatron-Core) and inference engines (Triton, vLLM) depend on the Linux kernel to schedule worker threads, allocate pinned host staging buffers, manage hugepages, service NVMe I/O, and coordinate GPUDirect DMA over PCIe switches.
 
 When interviewing for an **NVIDIA Senior Solutions Architect** role, generic Linux answers ("I run `top` and restart the service") will result in immediate disqualification. You must demonstrate a **first-principles mental model** of the Linux kernel, diagnose subsystem saturation through precise evidence, and correlate kernel-level stalls with GPU performance degradation.
-
-
-
-
 
 ```mermaid
 sequenceDiagram
@@ -89,10 +83,6 @@ compact_fail  49201    # Times compaction failed entirely
 *Impact on AI Workloads:* Memory compaction acquires global spinlocks across CPU cores, introducing **50ms to 2-second latency spikes** into the training loop. This causes NCCL watchdog timeouts.
 *The Production Fix:* Set `transparent_hugepage=never` at boot time, and pre-allocate static hugepages if required.
 
-
-
-
-
 ```mermaid
 flowchart TD
     subgraph Storage Tier
@@ -134,8 +124,6 @@ Separating storage traffic (often RoCE) from East-West compute traffic (Infiniba
 > 3. **Inspect Storage Queue Depths and Latencies:** I run `iostat -xz 1 3` to evaluate disk utilization (`%util`), average request queue depth (`aqu-sz`), and average service latency (`await`). If an NVMe drive shows an `await` of > 50ms, a drive controller is failing or an NVMe-oF path is experiencing network drops."
 
 
-
-
 :::tip Pro-Tip
 Always visualize the request lifecycle when troubleshooting latency. The gap between `API Gateway` and `Triton Pods` is often where network jitter is introduced.
 :::
@@ -155,8 +143,6 @@ In cloud-native AI platforms, Kubernetes orchestrates both distributed training 
 When a Pod requesting `nvidia.com/gpu` fails to start or crashes, the defect rarely lives in the user's Python script. It usually stems from a broken contract between the Kubelet, the container runtime (`containerd`), the device plugin gRPC socket, or the underlying driver operand.
 
 As an **NVIDIA Senior Solutions Architect**, you must understand the exact lifecycle of a GPU Pod, navigate the GPU Operator operand dependency tree, diagnose missing allocatable resources, and troubleshoot multi-tenant scheduling under Run:ai.
-
-
 
 
 :::info Architecture Note
@@ -196,10 +182,6 @@ cdi: failed to inject devices: device "nvidia.com/gpu=0" not found in CDI regist
    sudo systemctl restart containerd
    ```
 
-
-
-
-
 ### Advanced Production Considerations
 When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
 ## 5. Senior Solutions Architect Interview Scenarios
@@ -219,13 +201,7 @@ When operating at scale, you must heavily monitor metrics like DCGM (Data Center
 >    I inspect `kubectl logs -n kube-system -l app=cluster-autoscaler`:
 >    Look for `Failed to create instance: OperationNotPermitted: QuotaExceeded for GPU_TOTAL`. The cloud provider (AWS/GCP/Azure) or bare-metal pool is rejecting new instances due to account-level capacity limits."
 
-
-
-
-
-### Advanced Production Considerations
 When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
-## Key Takeaways
 
 1. **Two Paths Govern GPU Pods:** Control-plane advertisement (Device Plugin $\to$ Kubelet $\to$ API Server) and runtime injection (CRI $\to$ CDI/Container Toolkit $\to$ Sandbox). A failure can occur in either path.
 2. **Missing Allocatable GPUs Trace to Driver Failures:** If `nvidia.com/gpu` is absent from node status, the Device Plugin DaemonSet is almost certainly crashlooping due to an NVML driver mismatch.
@@ -240,11 +216,6 @@ In large-scale AI supercomputers, GPU hardware does not simply operate in a bina
 
 When interviewing for an **NVIDIA Senior Solutions Architect** role, you must demonstrate mastery of the silicon and interconnect layers. You are expected to interpret NVIDIA driver **XID error codes**, diagnose NVLink mesh degradation, triage NVSwitch fabric failures, and leverage **DCGM** for deterministic hardware health qualification.
 
-
-
-
-
-### Advanced Production Considerations
 When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
 ## 2. NVLink and NVSwitch Interconnect Diagnostics
 
@@ -299,11 +270,6 @@ GPU 0: NVIDIA H100 80GB HBM3
 - **Packet Recovery Errors:** The link suffered a physical loss of symbol lock and renegotiated link training.
 - **Architectural Impact:** High replay counts consume link bandwidth. A single flapping link causes multi-second pauses in PyTorch backward passes.
 
-
-
-
-
-### Advanced Production Considerations
 When operating at scale, you must heavily monitor metrics like DCGM (Data Center GPU Manager) counters, Xid errors, and PCIe bandwidth saturation. In production, these parameters dictate your cluster's overall ROI. Ignoring PCIe topology, for instance, can lead to severe NCCL fallback, completely degrading multi-node training performance.
 ## 4. Hardware Qualification via NVIDIA DCGM
 
@@ -338,4 +304,3 @@ $ sudo dcgmi diag -r 3
 > 3. **Operational Action:**
 >    - Immediately mark the node drained in Slurm: `scontrol update NodeName=<host> State=DRAIN Reason="XID 48: Double-bit ECC on GPU 4"`.
 >    - Inspect Dynamic Page Retirement status via `nvidia-smi -q -d PAGE_RETIREMENT`. If the memory controller cannot isolate the corrupted page, the GPU memory module is physically compromised and requires physical replacement."
-

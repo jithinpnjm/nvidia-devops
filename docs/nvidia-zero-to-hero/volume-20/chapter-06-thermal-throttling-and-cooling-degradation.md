@@ -365,4 +365,3 @@ A: "That timing pattern screams facility issue. The data center probably has pea
 **Q: "How would you build a preventive monitoring system to catch thermal degradation before it affects training?"**
 
 A: "I'd set up continuous metrics collection: every 30 seconds, record GPU temperature, fan speed, and clock speed. Then I'd build a Prometheus alert on two things: (1) if temperature > 80°C for > 5 minutes, page on-call to investigate; (2) if throttle events are detected, alert immediately because throttling means we're already losing performance. I'd also run a weekly synthetic load test — schedule a 10-minute constant-load job on each GPU and verify temperature stays &lt; 75°C and clock stays > 1900 MHz. If it doesn't, that GPU is due for thermal paste replacement. This way we catch degradation before it hits production."
-

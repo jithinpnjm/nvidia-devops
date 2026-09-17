@@ -233,7 +233,6 @@ python evaluate.py \
   --test_set data/domain_corpus_test.jsonl \
   --metrics perplexity,rouge,bleu
 
-# Example output:
 # Perplexity on test set: 15.2
 # ROUGE-1: 0.35
 # BLEU: 0.28
@@ -244,7 +243,6 @@ python evaluate.py \
   --test_set data/domain_corpus_test.jsonl \
   --metrics perplexity,rouge,bleu
 
-# Example output:
 # Perplexity on test set: 18.7  ← worse (higher) than fine-tuned
 # ROUGE-1: 0.31
 # BLEU: 0.24
@@ -322,8 +320,6 @@ cat > model_card.md <<EOF
 All inputs (base model, dataset, configuration) are versioned and can be found in Git commit $CONFIG_COMMIT.
 To reproduce: `nemo-reproduce training_metadata.yaml`
 EOF
-
-cat >> training_metadata.yaml <<EOF
 
 model_packaging:
   nim_format_size: "$NIM_MODEL_SIZE"

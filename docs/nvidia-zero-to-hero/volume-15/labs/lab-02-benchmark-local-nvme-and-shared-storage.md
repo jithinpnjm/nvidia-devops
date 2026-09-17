@@ -80,7 +80,6 @@ Checkpoint Write (sequential):      2.1 GB/s
 ### Step 2: Shared Storage Baseline
 
 ```bash
-#!/bin/bash
 # Benchmark shared storage (Lustre, BeeGFS, NFS)
 
 STORAGE_PATH="/lustre"  # Change to /beegfs or NFS mount as needed
@@ -127,7 +126,6 @@ time for f in $STORAGE_PATH/metadata-test/file-*.txt; do
     stat $f > /dev/null
 done 2>> $OUTPUT_FILE
 
-# Cleanup
 echo "Cleaning up test files..." >> $OUTPUT_FILE
 rm -rf $STORAGE_PATH/{model,concurrent,warmup}*
 rm -rf $STORAGE_PATH/metadata-test
@@ -145,7 +143,6 @@ Metadata Rate (creates/stat):   1K–5K ops/sec (depends on MDS load)
 ### Step 3: Compare and Interpret Results
 
 ```bash
-#!/bin/bash
 # Compare NVMe vs shared storage
 
 echo "=== COMPARISON: NVMe vs Shared Storage ===" | tee comparison.txt
@@ -178,7 +175,6 @@ cat comparison.txt
 ### Step 4: Validate Under Realistic Load
 
 ```bash
-#!/bin/bash
 # Simulate actual training I/O pattern
 
 echo "=== SIMULATED TRAINING WORKLOAD ===" | tee training-sim.txt

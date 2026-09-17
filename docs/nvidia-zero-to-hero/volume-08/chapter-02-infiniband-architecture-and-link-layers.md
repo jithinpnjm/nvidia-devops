@@ -227,8 +227,6 @@ CA 'mlx5_0'
 
 The link layer provides local hop behavior between directly connected ports.
 
-Its responsibilities include:
-
 - packet framing;
 - local link integrity;
 - flow-control credits;

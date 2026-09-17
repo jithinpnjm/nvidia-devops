@@ -280,10 +280,8 @@ if __name__ == "__main__":
 
 ### Scenario 2: RadixAttention Cache Thrashing in SGLang under Non-Overlapping Prompts
 
-#### Context
 A software platform deployed SGLang to serve a coding assistant model. While performance was excellent for multi-turn chat sessions, latency degraded significantly (p90 TTFT increased by 400%) when executing automated unit-test generation tasks where input prompts shared zero common text prefixes.
 
-#### Root Cause Analysis
 SGLang's RadixAttention engine continuously adds new sequence nodes into its global Radix Tree. Under a workload consisting of non-overlapping, distinct prompts, the tree accumulated thousands of unique leaf nodes. 
 
 Because total VRAM was capped (`mem_fraction_static=0.85`), the engine hit memory pressure limits, triggering frequent **LRU Eviction cycles**. The engine spent significant CPU cycles traversing, locking, and tearing down tree nodes only for newly allocated nodes to be evicted seconds later. This state—known as **Cache Thrashing**—negated the benefits of the Radix Tree.
@@ -303,7 +301,6 @@ python3 -m sglang.launch_server \
     --port 30000
 ```
 
-#### Verification
 - Server telemetry (`/get_model_info`) confirmed LRU tree eviction events dropped by 92%.
 - Time-To-First-Token (TTFT) for unique non-overlapping prompts stabilized at 22 ms.
 

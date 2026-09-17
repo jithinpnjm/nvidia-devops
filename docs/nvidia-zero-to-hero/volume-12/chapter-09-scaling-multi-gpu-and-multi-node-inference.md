@@ -248,15 +248,12 @@ After applying the topology fix, the multi-node cluster initialized successfully
 
 ### Worked Failure Scenario 2: Pipeline Parallelism Dynamic Load Imbalance & Cache Starvation
 
-#### Production Incident Context
 A multi-node inference cluster configured with Pipeline Parallelism (TP=4, PP=2) experienced severe degradation during peak hours. Node 1 (handling PP Stage 0) was constantly exhausting its KV cache pool, while Node 2 (handling PP Stage 1) had over 60% of its VRAM idle.
 
-#### Symptoms & Initial Metrics
 - `vllm:gpu_cache_usage_perc` on Node 1 hit **99.2%**, triggering frequent request queueing.
 - `vllm:gpu_cache_usage_perc` on Node 2 remained low at **38.5%**.
 - End-to-end request queue times exceeded 4,500ms.
 
-#### Evidence Gathering
 The engineer inspected metric differentials across pipeline stages:
 
 ```prometheus
@@ -268,10 +265,8 @@ vllm:gpu_cache_usage_perc{job="vllm-pp-cluster"}
 - Stage 0 (Node 1): `0.992`
 - Stage 1 (Node 2): `0.385`
 
-#### Root Cause Analysis
 In pipeline-parallel serving, **Stage 0 receives raw prompt tokens from incoming client requests and computes initial embeddings and prefill attention**. When client requests contain massive prompt contexts with short output generations (e.g., prompt length = 8192 tokens, output length = 64 tokens), Stage 0 allocates hundreds of PagedAttention blocks during prefill, whereas Stage 1 processes far fewer active decode steps per time unit. This produced a severe **KV cache memory imbalance** across pipeline stages.
 
-#### Resolution & Mitigation
 
 1. Enable **Chunked Prefill** (`--enable-chunked-prefill`) to prevent Stage 0 from holding massive un-chunked prefill blocks during single iterations.
 2. Rebalance VRAM allocations by adjusting `--gpu-memory-utilization` dynamically or sharding models using **Data Parallelism Replicas (DP=2, TP=8)** instead of Pipeline Parallelism (PP=2, TP=4), eliminating stage-dependent KV cache imbalances entirely.
@@ -288,7 +283,6 @@ vllm serve meta-llama/Meta-Llama-3-70B-Instruct --tensor-parallel-size 8 --port 
 #### Verification
 With independent DP=8 replicas, KV cache usage balanced perfectly across both nodes (Node 1: 72%, Node 2: 74%), and end-to-end queue delay dropped to zero.
 
-#### Prevention
 - Prioritize Data Parallel (DP) scale-out replicas over Pipeline Parallelism (PP) whenever VRAM capacity allows model weights to fit within intra-node TP boundaries.
 
 ---

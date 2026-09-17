@@ -326,10 +326,8 @@ perf_analyzer -m resnet50 -u localhost:8001 -i gRPC --concurrency-range 16:16 &
 
 ### Scenario 2: CUDA Stream Contention & VRAM Saturation from Oversubscribed Instance Groups
 
-#### 1. Production Incident Context
 An infrastructure engineer attempted to scale serving capacity for an ONNX Transformer model by configuring `instance_group [ { count: 8, kind: KIND_GPU, gpus: [ 0 ] } ]` inside `config.pbtxt`. Following deployment, average request latency quadrupled from 25 ms to 110 ms, and the pod repeatedly encountered Out-Of-Memory host kills.
 
-#### 2. Root Cause Analysis
 The model required 9.5 GB of GPU VRAM per instance. Setting `count: 8` attempted to load 8 separate copies of the model into VRAM on a single 80 GB A100 GPU:
 
 ```text
@@ -338,7 +336,6 @@ M_total = 8 * 9.5 GB = 76 GB VRAM (Only 4 GB left for execution workspace!)
 
 When concurrent requests arrived, the workspace memory allocator failed. Furthermore, having 8 competing instances issuing CUDA kernel launches simultaneously caused severe CUDA driver stream lock contention, quadrupling kernel execution latency.
 
-#### 3. Log & Telemetry Evidence
 Nsight Systems (`nsys`) Profile Trace:
 ```text
 [CUDA Driver API Call: cudaLaunchKernel] -------------> Stalled 84 ms (Waiting on Stream Mutex)
@@ -351,7 +348,6 @@ nv_gpu_memory_used_bytes{gpu="0"} 81180000000
 nv_inference_compute_infer_duration_us{model="transformer_enc"} 110400  <-- Spike from 25ms to 110ms!
 ```
 
-#### 4. Exact Diagnostic Commands
 ```bash
 # 1. Profile instance execution and concurrency response curves using perf_analyzer
 perf_analyzer -m transformer_enc \
@@ -366,7 +362,6 @@ curl -s http://localhost:8002/metrics | grep nv_gpu_memory_used_bytes
 nsys profile --stats=true --duration=10 tritonserver --model-repository=/models
 ```
 
-#### 5. Remediation & Configuration Fix
 Reduce instance count to `count: 2` (occupying only 19 GB of VRAM) and enable **Dynamic Batching** with a small queue delay (`max_queue_delay_microseconds: 5000`). Dynamic batching consolidates individual requests into a single, highly efficient GPU kernel launch instead of creating competing execution instances.
 
 Corrected `config.pbtxt`:
@@ -392,7 +387,6 @@ instance_group [
 ]
 ```
 
-#### 6. Verification Steps
 Re-run `perf_analyzer` across a range of concurrencies (1 to 32):
 
 ```bash

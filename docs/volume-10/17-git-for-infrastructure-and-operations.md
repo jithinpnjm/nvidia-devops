@@ -201,7 +201,6 @@ Here is the production-standard `.gitignore` for an NVIDIA AI Factory IaC reposi
 ```text
 # ==============================================================================
 # Terraform
-# ==============================================================================
 # Local .terraform directories
 **/.terraform/*
 # .tfstate files
@@ -231,9 +230,7 @@ override.tf.json
 .terraformrc
 terraform.rc
 
-# ==============================================================================
 # Ansible
-# ==============================================================================
 *.retry
 /ansible.log
 /.ansible/
@@ -247,9 +244,7 @@ terraform.rc
 group_vars/all/vault.yml
 host_vars/*/vault.yml
 
-# ==============================================================================
 # Python / Automation Scripts
-# ==============================================================================
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -282,9 +277,7 @@ env/
 pip-log.txt
 pip-delete-this-directory.txt
 
-# ==============================================================================
 # OS and IDE Cruft
-# ==============================================================================
 .DS_Store
 .AppleDouble
 .LSOverride
@@ -302,9 +295,7 @@ Icon
 *.swp
 *.swo
 
-# ==============================================================================
 # ML / Data (If managed in the same repo, though Git LFS is preferred)
-# ==============================================================================
 *.pt
 *.pth
 *.onnx

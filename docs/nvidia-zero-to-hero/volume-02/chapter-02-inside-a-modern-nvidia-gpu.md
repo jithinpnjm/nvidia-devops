@@ -252,8 +252,6 @@ Possible causes include:
 
 ### Symptom: Out-of-memory errors with free memory reported earlier
 
-Possible causes include:
-
 - Fragmentation
 - Dynamic cache growth
 - Concurrent model replicas
@@ -261,8 +259,6 @@ Possible causes include:
 - Activation or KV-cache expansion
 
 ### Symptom: Strong single-GPU performance, weak multi-GPU scaling
-
-Possible causes include:
 
 - Peer communication through a slower path
 - Poor GPU-to-NIC locality

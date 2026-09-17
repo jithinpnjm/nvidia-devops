@@ -89,7 +89,6 @@ docker run -d \
   --net=host \
   nvcr.io/nvidia/k8s/dcgm-exporter:3.1.7-3.1.7-ubuntu20.04
 
-# Verify it's running
 docker ps | grep dcgm-exporter
 ```
 
@@ -149,7 +148,6 @@ EOF
 # Start Prometheus
 ./prometheus --config.file=prometheus.yml &
 
-# Verify it's running
 curl -s http://localhost:9090/api/v1/targets | grep dcgm
 ```
 

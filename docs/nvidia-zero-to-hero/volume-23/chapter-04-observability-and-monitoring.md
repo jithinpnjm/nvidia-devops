@@ -377,4 +377,3 @@ MEMORY_PRESSURE_ALERT:
 - **Chapter 8:** [Security and Compliance](./chapter-08-security-and-compliance.md) — audit and compliance monitoring
 - **Chapter 9:** [Cluster Operations](./chapter-09-cluster-operations-and-capacity-planning.md) — capacity and cost
 - **Volume 16:** Observability (deep dive)
-

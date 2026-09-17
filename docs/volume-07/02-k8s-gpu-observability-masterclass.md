@@ -614,31 +614,3 @@ tritonserver \
 ```
 
 By injecting the Trace ID from the K8s Ingress controller all the way down to the Triton C++ backend, you can perfectly measure the total end-to-end latency and immediately see if the bottleneck was the GPU (Triton) or the Network (Vector DB).
-
-### 2. OpenTelemetry for Inference Pipelines
-
-### 2. OpenTelemetry for Inference Pipelines
-
-### 2. OpenTelemetry for Inference Pipelines
-
-### 2. OpenTelemetry for Inference Pipelines
-
-### 2. OpenTelemetry for Inference Pipelines
-
-### 2. OpenTelemetry for Inference Pipelines
-
-### 2. OpenTelemetry for Inference Pipelines
-
-### 2. OpenTelemetry for Inference Pipelines
-
-### 2. OpenTelemetry for Inference Pipelines
-
-### 2. OpenTelemetry for Inference Pipelines
-
-### 2. OpenTelemetry for Inference Pipelines
-
-### 2. OpenTelemetry for Inference Pipelines
-
-### 2. OpenTelemetry for Inference Pipelines
-
-### 2. OpenTelemetry for Inference Pipelines

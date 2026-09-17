@@ -185,8 +185,6 @@ Scale-up communication supports local collectives, tensor exchange, peer memory 
 
 Scale-out connects GPU systems across nodes, racks, or sites.
 
-Typical technologies include:
-
 - InfiniBand
 - Ethernet
 - RDMA

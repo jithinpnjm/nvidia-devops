@@ -170,7 +170,6 @@ print(f"  Accuracy change: {accuracy_bf16 - accuracy_fp32:+.4f} (should be < 0.0
 **Run:**
 ```bash
 python train_bf16.py
-# Expected output:
 # BF16 Training:
 #   Total time: 65.23 seconds (2× faster!)
 #   Throughput: 15860 samples/sec

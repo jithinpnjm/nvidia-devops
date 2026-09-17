@@ -38,7 +38,6 @@ GPU-accelerated drug discovery compresses 10-15 year development cycles by 5-10 
 
 ## Use Case 2: Protein Folding (AlphaFold2)
 
-### Requirements
 - Proteins: 50,000
 - Model: AlphaFold2 (5 min/protein)
 - Goal: Complete in 2-3 weeks (acceptable for research)

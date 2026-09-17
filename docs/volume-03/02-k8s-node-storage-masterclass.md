@@ -543,7 +543,6 @@ When things go wrong at scale, the answers are rarely in the Kubernetes API; the
 ### A.1 Full Example `containerd` config.toml
 
 ```toml
-# /etc/containerd/config.toml
 version = 2
 root = "/var/lib/containerd"
 state = "/run/containerd"

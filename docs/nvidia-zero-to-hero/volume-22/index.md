@@ -64,4 +64,3 @@ Climate modeling, physics simulation, computational chemistry. Compute-intensive
 - **Volume 11** — GPU sharing (multi-tenant infrastructure for banking, telecom)
 - **Volume 16** — Observability (compliance and monitoring for healthcare, finance)
 - **Volume 21** — AI Factory (reference architectures adapted per industry)
-

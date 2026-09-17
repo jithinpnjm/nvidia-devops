@@ -63,7 +63,6 @@ The hypervisor exposes a virtual GPU device to the guest. The guest sees a GPU t
 
 # Verify profiles available on this GPU
 /opt/grid/nvidia-smi -lsp  # List supported profiles
-# Output:
 # | Device 0  NVIDIA A100-20Q (UUID: GPU-12345678...)
 # | [0]  a100-4q  4GB framebuffer
 # | [1]  a100-10q 10GB framebuffer
@@ -72,7 +71,6 @@ The hypervisor exposes a virtual GPU device to the guest. The guest sees a GPU t
 # Check license service connectivity
 # Query the license server—missing connection stops VM boot
 /opt/grid/nvidia-smi -llic
-# Output:
 # | License Status: OK
 # | Expiry: 2026-12-31
 

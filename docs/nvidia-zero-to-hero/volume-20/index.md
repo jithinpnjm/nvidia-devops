@@ -81,4 +81,3 @@ Each lab provides hands-on practice in troubleshooting methodology and tool use.
 - **Volume 07** — CUDA debugging (error handling, device-side diagnostics)
 - **Volume 16** — GPU observability (DCGM, Prometheus, dashboard design)
 - **Volume 17** — Performance engineering (profiling, optimization feedback loops)
-

@@ -432,117 +432,40 @@ spec:
 
 Often, scheduling issues are masked as network issues. When a pod is scheduled but cannot reach the metadata server, check the CNI plugin and kube-proxy. The interactions between IPVS, iptables, and eBPF data planes are critical to understand.
 
-### 11.1 Component Failure Analysis
-
 ### 11.2 Deep dive into metrics
-
-### 11.3 Debugging Network Overlays
-
-### 12.1 Component Failure Analysis
 
 ### 12.2 Deep dive into metrics
 
-### 12.3 Debugging Network Overlays
-
-### 13.1 Component Failure Analysis
-
 ### 13.2 Deep dive into metrics
-
-### 13.3 Debugging Network Overlays
-
-### 14.1 Component Failure Analysis
 
 ### 14.2 Deep dive into metrics
 
-### 14.3 Debugging Network Overlays
-
-### 15.1 Component Failure Analysis
-
 ### 15.2 Deep dive into metrics
-
-### 15.3 Debugging Network Overlays
-
-### 16.1 Component Failure Analysis
 
 ### 16.2 Deep dive into metrics
 
-### 16.3 Debugging Network Overlays
-
-### 17.1 Component Failure Analysis
-
 ### 17.2 Deep dive into metrics
-
-### 17.3 Debugging Network Overlays
-
-### 18.1 Component Failure Analysis
 
 ### 18.2 Deep dive into metrics
 
-### 18.3 Debugging Network Overlays
-
-### 19.1 Component Failure Analysis
-
 ### 19.2 Deep dive into metrics
-
-### 19.3 Debugging Network Overlays
-
-### 20.1 Component Failure Analysis
 
 ### 20.2 Deep dive into metrics
 
-### 20.3 Debugging Network Overlays
-
-### 21.1 Component Failure Analysis
-
 ### 21.2 Deep dive into metrics
-
-### 21.3 Debugging Network Overlays
-
-### 22.1 Component Failure Analysis
 
 ### 22.2 Deep dive into metrics
 
-### 22.3 Debugging Network Overlays
-
-### 23.1 Component Failure Analysis
-
 ### 23.2 Deep dive into metrics
-
-### 23.3 Debugging Network Overlays
-
-### 24.1 Component Failure Analysis
 
 ### 24.2 Deep dive into metrics
 
-### 24.3 Debugging Network Overlays
-
-### 25.1 Component Failure Analysis
-
 ### 25.2 Deep dive into metrics
-
-### 25.3 Debugging Network Overlays
-
-### 26.1 Component Failure Analysis
 
 ### 26.2 Deep dive into metrics
 
-### 26.3 Debugging Network Overlays
-
-### 27.1 Component Failure Analysis
-
 ### 27.2 Deep dive into metrics
-
-### 27.3 Debugging Network Overlays
-
-### 28.1 Component Failure Analysis
 
 ### 28.2 Deep dive into metrics
 
-### 28.3 Debugging Network Overlays
-
-### 29.1 Component Failure Analysis
-
 ### 29.2 Deep dive into metrics
-
-### 29.3 Debugging Network Overlays
-

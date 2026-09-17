@@ -400,4 +400,3 @@ Expected improvement: ~15-20% (takes efficiency from 73% to 88-93%)"
 - **Chapter 4:** [Observability and Monitoring](./chapter-04-observability-and-monitoring.md) — profiling distributed training
 - **Chapter 10:** [System Design: Training Cluster](./chapter-10-system-design-training-cluster.md) — end-to-end architecture
 - **Volume 21:** AI Factory (reference architectures)
-

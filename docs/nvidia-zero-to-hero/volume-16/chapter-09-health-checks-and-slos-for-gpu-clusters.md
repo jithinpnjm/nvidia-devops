@@ -114,16 +114,12 @@ FAIL: GPU 1 temp 85°C (> 82°C threshold)
 Checking GPU 2...
 FAIL: GPU 2 not responding
 
-Checking GPU 3...
-PASS: GPU 3 is healthy
-
 Health Summary: 2/4 GPUs ready (50%)
 ```
 
 ### Check 2: Distributed Health (Multi-Node)
 
 ```bash
-#!/bin/bash
 # Run once per hour across the cluster
 
 # Verify NCCL connectivity

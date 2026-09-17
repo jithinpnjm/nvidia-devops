@@ -96,4 +96,3 @@ Each project is graded on:
 ## Cross-References
 
 Each project links back to relevant Volume 23 interview chapters and underlying Volumes 1–21 theory.
-

@@ -213,8 +213,6 @@ Command:
 free -h
 ```
 
-Expected output includes:
-
 ```text
                total        used        free      shared  buff/cache   available
 Mem:

@@ -137,7 +137,6 @@ done
 # Immediate: if uncorrected errors appear, GPU must be drained and replaced
 # (workloads on this GPU will produce corrupted results)
 
-# Investigation:
 # 1. Check GPU clocks (did someone overclock?)
 nvidia-smi -q | grep "Max Clocks"
 
@@ -185,7 +184,6 @@ lspci -v | grep -E "Link|Status" | head -20
 # LnkSta: Speed 16GT/s, Width x16
 
 # Real output (degraded):
-# LnkCap: Speed 16GT/s, Width x16
 # LnkSta: Speed 5GT/s, Width x1  ← DEGRADED LINK (x1 instead of x16)
 
 # Check for link down events
@@ -200,7 +198,6 @@ dmidecode | grep -i power  # if available on your system
 ```bash
 # Immediate: Remove GPU from service (will not recover without hardware intervention)
 
-# Investigation:
 # 1. Check PCIe slot connections
 # 2. Check power connectors (are 6-pin or 8-pin power connectors seated firmly?)
 # 3. Check for BIOS errors or firmware corruption
@@ -259,7 +256,6 @@ print(f"Fragmentation: {(torch.cuda.memory_reserved() - torch.cuda.memory_alloca
 ```bash
 # Immediate: restart job (memory is freed on restart)
 
-# Investigation:
 # 1. Check application logs for repeated allocation patterns
 # 2. Profile memory usage over time (is it rising steadily?)
 
@@ -296,17 +292,13 @@ Cause investigation:
 # Find straggler in multi-GPU training
 nvidia-smi dmon -s pucvmet -c 60 | awk '{print $1, $3}' | sort | uniq -c
 
-# Real output (healthy):
 # GPU 0: utilization counts: 60 samples at ~85%
 # GPU 1: utilization counts: 60 samples at ~85%
 # GPU 2: utilization counts: 60 samples at ~85%
 # GPU 3: utilization counts: 60 samples at ~85%
 
 # Real output (straggler):
-# GPU 0: utilization counts: 60 samples at ~85%
-# GPU 1: utilization counts: 60 samples at ~85%
 # GPU 2: utilization counts: 42 samples at 50%, 18 samples at 10% (oscillating!)
-# GPU 3: utilization counts: 60 samples at ~85%
 ```
 
 **Remediation:**

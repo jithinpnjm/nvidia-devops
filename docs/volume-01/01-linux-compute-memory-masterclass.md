@@ -545,7 +545,6 @@ kernel.pid_max = 4194304
 To truly harness NUMA, developers use `libnuma`. Here is an example of explicitly allocating memory on Node 1.
 
 ```c
-#include <stdio.h>
 #include <numa.h>
 #include <numaif.h>
 

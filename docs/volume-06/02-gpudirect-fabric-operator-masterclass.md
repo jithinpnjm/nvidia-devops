@@ -447,731 +447,203 @@ slug: /volume-06/gpudirect-fabric-operator-masterclass
 
 ---
 
-## 2. GPUDirect RDMA: Bypassing the Bottleneck
 
-### 2.1 The Problem with Traditional Networking
-
-### 2.2 The GPUDirect RDMA Solution
-
-### 2.3 Requirements for GPUDirect RDMA
-
-#### Loading nvidia-peermem
-
-# If not, load it
 modprobe nvidia-peermem
 ```
 
 ---
 
-## 3. NIC-GPU Topology and "Rails"
-
-### 3.1 Understanding PCIe ACS and P2P
-
-### 3.2 NUMA Alignment
-
-```text
-Host Architecture (Simplified HGX 8-GPU):
+---
 
 ---
 
-## 4. NCCL: The Nervous System of AI
-
-### 4.1 How NCCL Discovers Topology
-
-### 4.2 NCCL Algorithms: Ring vs. Tree
-
-### 4.3 Essential NCCL Environment Variables
-
----
-
-## 5. Kubernetes and the NVIDIA Network Operator
-
-### 5.1 Network Operator Architecture
-
-### 5.2 Deploying via Helm (Production Values)
 
 multus:
   deploy: true
 ```
 
-### 5.3 Pod Configuration for RDMA (Multus)
-
-And request it in your AI Pod:
+---
 
 ---
 
-## 6. Multi-Tenancy and SR-IOV
+---
 
-### 6.1 The Need for SR-IOV
-
-### 6.2 SR-IOV Configuration via Kubernetes
-
-Create the Network referencing the SR-IOV policy:
 
 ---
 
-### Scenario B: SR-IOV VFs are failing to create
-
-### Scenario C: PCIe ACS isolation blocking P2P
+---
 
 ---
 
-## 8. Conclusion
-
 ---
 
-## 2. GPUDirect RDMA: Bypassing the Bottleneck
-
-### 2.1 The Problem with Traditional Networking
-
-### 2.2 The GPUDirect RDMA Solution
-
-### 2.3 Requirements for GPUDirect RDMA
-
-#### Loading nvidia-peermem
-
-# If not, load it
-modprobe nvidia-peermem
-```
-
----
-
-## 3. NIC-GPU Topology and "Rails"
-
-### 3.1 Understanding PCIe ACS and P2P
-
-### 3.2 NUMA Alignment
-
-```text
-Host Architecture (Simplified HGX 8-GPU):
-
----
-
-## 4. NCCL: The Nervous System of AI
-
-### 4.1 How NCCL Discovers Topology
-
-### 4.2 NCCL Algorithms: Ring vs. Tree
-
-### 4.3 Essential NCCL Environment Variables
-
----
-
-## 5. Kubernetes and the NVIDIA Network Operator
-
-### 5.1 Network Operator Architecture
-
-### 5.2 Deploying via Helm (Production Values)
 
 multus:
   deploy: true
 ```
 
-### 5.3 Pod Configuration for RDMA (Multus)
-
-And request it in your AI Pod:
+---
 
 ---
 
-## 6. Multi-Tenancy and SR-IOV
+---
 
-### 6.1 The Need for SR-IOV
-
-### 6.2 SR-IOV Configuration via Kubernetes
-
-Create the Network referencing the SR-IOV policy:
 
 ---
 
-### Scenario B: SR-IOV VFs are failing to create
-
-### Scenario C: PCIe ACS isolation blocking P2P
+---
 
 ---
 
-## 8. Conclusion
-
 ---
 
-## 2. GPUDirect RDMA: Bypassing the Bottleneck
-
-### 2.1 The Problem with Traditional Networking
-
-### 2.2 The GPUDirect RDMA Solution
-
-### 2.3 Requirements for GPUDirect RDMA
-
-#### Loading nvidia-peermem
-
-# If not, load it
-modprobe nvidia-peermem
-```
-
----
-
-## 3. NIC-GPU Topology and "Rails"
-
-### 3.1 Understanding PCIe ACS and P2P
-
-### 3.2 NUMA Alignment
-
-```text
-Host Architecture (Simplified HGX 8-GPU):
-
----
-
-## 4. NCCL: The Nervous System of AI
-
-### 4.1 How NCCL Discovers Topology
-
-### 4.2 NCCL Algorithms: Ring vs. Tree
-
-### 4.3 Essential NCCL Environment Variables
-
----
-
-## 5. Kubernetes and the NVIDIA Network Operator
-
-### 5.1 Network Operator Architecture
-
-### 5.2 Deploying via Helm (Production Values)
 
 multus:
   deploy: true
 ```
 
-### 5.3 Pod Configuration for RDMA (Multus)
-
-And request it in your AI Pod:
+---
 
 ---
 
-## 6. Multi-Tenancy and SR-IOV
+---
 
-### 6.1 The Need for SR-IOV
-
-### 6.2 SR-IOV Configuration via Kubernetes
-
-Create the Network referencing the SR-IOV policy:
 
 ---
 
-### Scenario B: SR-IOV VFs are failing to create
-
-### Scenario C: PCIe ACS isolation blocking P2P
+---
 
 ---
 
-## 8. Conclusion
-
 ---
 
-## 2. GPUDirect RDMA: Bypassing the Bottleneck
-
-### 2.1 The Problem with Traditional Networking
-
-### 2.2 The GPUDirect RDMA Solution
-
-### 2.3 Requirements for GPUDirect RDMA
-
-#### Loading nvidia-peermem
-
-# If not, load it
-modprobe nvidia-peermem
-```
-
----
-
-## 3. NIC-GPU Topology and "Rails"
-
-### 3.1 Understanding PCIe ACS and P2P
-
-### 3.2 NUMA Alignment
-
-```text
-Host Architecture (Simplified HGX 8-GPU):
-
----
-
-## 4. NCCL: The Nervous System of AI
-
-### 4.1 How NCCL Discovers Topology
-
-### 4.2 NCCL Algorithms: Ring vs. Tree
-
-### 4.3 Essential NCCL Environment Variables
-
----
-
-## 5. Kubernetes and the NVIDIA Network Operator
-
-### 5.1 Network Operator Architecture
-
-### 5.2 Deploying via Helm (Production Values)
 
 multus:
   deploy: true
 ```
 
-### 5.3 Pod Configuration for RDMA (Multus)
-
-And request it in your AI Pod:
+---
 
 ---
 
-## 6. Multi-Tenancy and SR-IOV
+---
 
-### 6.1 The Need for SR-IOV
-
-### 6.2 SR-IOV Configuration via Kubernetes
-
-Create the Network referencing the SR-IOV policy:
 
 ---
 
-### Scenario B: SR-IOV VFs are failing to create
-
-### Scenario C: PCIe ACS isolation blocking P2P
+---
 
 ---
 
-## 8. Conclusion
-
 ---
 
-## 2. GPUDirect RDMA: Bypassing the Bottleneck
-
-### 2.1 The Problem with Traditional Networking
-
-### 2.2 The GPUDirect RDMA Solution
-
-### 2.3 Requirements for GPUDirect RDMA
-
-#### Loading nvidia-peermem
-
-# If not, load it
-modprobe nvidia-peermem
-```
-
----
-
-## 3. NIC-GPU Topology and "Rails"
-
-### 3.1 Understanding PCIe ACS and P2P
-
-### 3.2 NUMA Alignment
-
-```text
-Host Architecture (Simplified HGX 8-GPU):
-
----
-
-## 4. NCCL: The Nervous System of AI
-
-### 4.1 How NCCL Discovers Topology
-
-### 4.2 NCCL Algorithms: Ring vs. Tree
-
-### 4.3 Essential NCCL Environment Variables
-
----
-
-## 5. Kubernetes and the NVIDIA Network Operator
-
-### 5.1 Network Operator Architecture
-
-### 5.2 Deploying via Helm (Production Values)
 
 multus:
   deploy: true
 ```
 
-### 5.3 Pod Configuration for RDMA (Multus)
-
-And request it in your AI Pod:
+---
 
 ---
 
-## 6. Multi-Tenancy and SR-IOV
+---
 
-### 6.1 The Need for SR-IOV
-
-### 6.2 SR-IOV Configuration via Kubernetes
-
-Create the Network referencing the SR-IOV policy:
 
 ---
 
-### Scenario B: SR-IOV VFs are failing to create
-
-### Scenario C: PCIe ACS isolation blocking P2P
+---
 
 ---
 
-## 8. Conclusion
-
 ---
 
-## 2. GPUDirect RDMA: Bypassing the Bottleneck
-
-### 2.1 The Problem with Traditional Networking
-
-### 2.2 The GPUDirect RDMA Solution
-
-### 2.3 Requirements for GPUDirect RDMA
-
-#### Loading nvidia-peermem
-
-# If not, load it
-modprobe nvidia-peermem
-```
-
----
-
-## 3. NIC-GPU Topology and "Rails"
-
-### 3.1 Understanding PCIe ACS and P2P
-
-### 3.2 NUMA Alignment
-
-```text
-Host Architecture (Simplified HGX 8-GPU):
-
----
-
-## 4. NCCL: The Nervous System of AI
-
-### 4.1 How NCCL Discovers Topology
-
-### 4.2 NCCL Algorithms: Ring vs. Tree
-
-### 4.3 Essential NCCL Environment Variables
-
----
-
-## 5. Kubernetes and the NVIDIA Network Operator
-
-### 5.1 Network Operator Architecture
-
-### 5.2 Deploying via Helm (Production Values)
 
 multus:
   deploy: true
 ```
 
-### 5.3 Pod Configuration for RDMA (Multus)
-
-And request it in your AI Pod:
+---
 
 ---
 
-## 6. Multi-Tenancy and SR-IOV
+---
 
-### 6.1 The Need for SR-IOV
-
-### 6.2 SR-IOV Configuration via Kubernetes
-
-Create the Network referencing the SR-IOV policy:
 
 ---
 
-### Scenario B: SR-IOV VFs are failing to create
-
-### Scenario C: PCIe ACS isolation blocking P2P
+---
 
 ---
 
-## 8. Conclusion
-
 ---
 
-## 2. GPUDirect RDMA: Bypassing the Bottleneck
-
-### 2.1 The Problem with Traditional Networking
-
-### 2.2 The GPUDirect RDMA Solution
-
-### 2.3 Requirements for GPUDirect RDMA
-
-#### Loading nvidia-peermem
-
-# If not, load it
-modprobe nvidia-peermem
-```
-
----
-
-## 3. NIC-GPU Topology and "Rails"
-
-### 3.1 Understanding PCIe ACS and P2P
-
-### 3.2 NUMA Alignment
-
-```text
-Host Architecture (Simplified HGX 8-GPU):
-
----
-
-## 4. NCCL: The Nervous System of AI
-
-### 4.1 How NCCL Discovers Topology
-
-### 4.2 NCCL Algorithms: Ring vs. Tree
-
-### 4.3 Essential NCCL Environment Variables
-
----
-
-## 5. Kubernetes and the NVIDIA Network Operator
-
-### 5.1 Network Operator Architecture
-
-### 5.2 Deploying via Helm (Production Values)
 
 multus:
   deploy: true
 ```
 
-### 5.3 Pod Configuration for RDMA (Multus)
-
-And request it in your AI Pod:
+---
 
 ---
 
-## 6. Multi-Tenancy and SR-IOV
+---
 
-### 6.1 The Need for SR-IOV
-
-### 6.2 SR-IOV Configuration via Kubernetes
-
-Create the Network referencing the SR-IOV policy:
 
 ---
 
-### Scenario B: SR-IOV VFs are failing to create
-
-### Scenario C: PCIe ACS isolation blocking P2P
+---
 
 ---
 
-## 8. Conclusion
-
 ---
 
-## 2. GPUDirect RDMA: Bypassing the Bottleneck
-
-### 2.1 The Problem with Traditional Networking
-
-### 2.2 The GPUDirect RDMA Solution
-
-### 2.3 Requirements for GPUDirect RDMA
-
-#### Loading nvidia-peermem
-
-# If not, load it
-modprobe nvidia-peermem
-```
-
----
-
-## 3. NIC-GPU Topology and "Rails"
-
-### 3.1 Understanding PCIe ACS and P2P
-
-### 3.2 NUMA Alignment
-
-```text
-Host Architecture (Simplified HGX 8-GPU):
-
----
-
-## 4. NCCL: The Nervous System of AI
-
-### 4.1 How NCCL Discovers Topology
-
-### 4.2 NCCL Algorithms: Ring vs. Tree
-
-### 4.3 Essential NCCL Environment Variables
-
----
-
-## 5. Kubernetes and the NVIDIA Network Operator
-
-### 5.1 Network Operator Architecture
-
-### 5.2 Deploying via Helm (Production Values)
 
 multus:
   deploy: true
 ```
 
-### 5.3 Pod Configuration for RDMA (Multus)
-
-And request it in your AI Pod:
+---
 
 ---
 
-## 6. Multi-Tenancy and SR-IOV
+---
 
-### 6.1 The Need for SR-IOV
-
-### 6.2 SR-IOV Configuration via Kubernetes
-
-Create the Network referencing the SR-IOV policy:
 
 ---
 
-### Scenario B: SR-IOV VFs are failing to create
-
-### Scenario C: PCIe ACS isolation blocking P2P
+---
 
 ---
 
-## 8. Conclusion
-
 ---
 
-## 2. GPUDirect RDMA: Bypassing the Bottleneck
-
-### 2.1 The Problem with Traditional Networking
-
-### 2.2 The GPUDirect RDMA Solution
-
-### 2.3 Requirements for GPUDirect RDMA
-
-#### Loading nvidia-peermem
-
-# If not, load it
-modprobe nvidia-peermem
-```
-
----
-
-## 3. NIC-GPU Topology and "Rails"
-
-### 3.1 Understanding PCIe ACS and P2P
-
-### 3.2 NUMA Alignment
-
-```text
-Host Architecture (Simplified HGX 8-GPU):
-
----
-
-## 4. NCCL: The Nervous System of AI
-
-### 4.1 How NCCL Discovers Topology
-
-### 4.2 NCCL Algorithms: Ring vs. Tree
-
-### 4.3 Essential NCCL Environment Variables
-
----
-
-## 5. Kubernetes and the NVIDIA Network Operator
-
-### 5.1 Network Operator Architecture
-
-### 5.2 Deploying via Helm (Production Values)
 
 multus:
   deploy: true
 ```
 
-### 5.3 Pod Configuration for RDMA (Multus)
-
-And request it in your AI Pod:
+---
 
 ---
 
-## 6. Multi-Tenancy and SR-IOV
+---
 
-### 6.1 The Need for SR-IOV
-
-### 6.2 SR-IOV Configuration via Kubernetes
-
-Create the Network referencing the SR-IOV policy:
 
 ---
 
-### Scenario B: SR-IOV VFs are failing to create
-
-### Scenario C: PCIe ACS isolation blocking P2P
+---
 
 ---
 
-## 8. Conclusion
-
 ---
 
-## 2. GPUDirect RDMA: Bypassing the Bottleneck
-
-### 2.1 The Problem with Traditional Networking
-
-### 2.2 The GPUDirect RDMA Solution
-
-### 2.3 Requirements for GPUDirect RDMA
-
-#### Loading nvidia-peermem
-
-# If not, load it
-modprobe nvidia-peermem
-```
-
----
-
-## 3. NIC-GPU Topology and "Rails"
-
-### 3.1 Understanding PCIe ACS and P2P
-
-### 3.2 NUMA Alignment
-
-```text
-Host Architecture (Simplified HGX 8-GPU):
-
----
-
-## 4. NCCL: The Nervous System of AI
-
-### 4.1 How NCCL Discovers Topology
-
-### 4.2 NCCL Algorithms: Ring vs. Tree
-
-### 4.3 Essential NCCL Environment Variables
-
----
-
-## 5. Kubernetes and the NVIDIA Network Operator
-
-### 5.1 Network Operator Architecture
-
-### 5.2 Deploying via Helm (Production Values)
 
 multus:
   deploy: true
 ```
 
-### 5.3 Pod Configuration for RDMA (Multus)
-
-And request it in your AI Pod:
+---
 
 ---
 
-## 6. Multi-Tenancy and SR-IOV
-
-### 6.1 The Need for SR-IOV
-
-### 6.2 SR-IOV Configuration via Kubernetes
-
-Create the Network referencing the SR-IOV policy:
-
 ---
-
-### Scenario B: SR-IOV VFs are failing to create
-
-### Scenario C: PCIe ACS isolation blocking P2P
-
----
-
-## 8. Conclusion
-

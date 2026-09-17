@@ -81,4 +81,3 @@ GPU cluster for competing academic workloads. Fairness, scheduling, cost allocat
 - **Volume 16** — Observability and monitoring
 - **Volume 21** — AI Factory (reference architectures)
 - **Volume 22** — Customer consulting (requirements to architecture)
-

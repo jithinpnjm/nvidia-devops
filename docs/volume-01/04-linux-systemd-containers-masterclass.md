@@ -149,7 +149,6 @@ systemd-analyze
 # Find the specific services taking the longest
 systemd-analyze blame | head -n 10
 
-# Output example:
 # 15.234s nvidia-fabricmanager.service
 # 10.123s containerd.service
 #  8.456s systemd-networkd-wait-online.service
@@ -350,7 +349,6 @@ If Kubernetes sends `SIGTERM` to this bash script, bash receives it, but `train.
 
 To fix this, we use `exec`:
 ```bash
-#!/bin/bash
 exec python3 train.py
 ```
 This replaces the bash process with the python process. Python becomes PID 1 and can catch `SIGTERM`.
@@ -612,7 +610,6 @@ echo 5566 > /sys/fs/cgroup/my_ai_workload/cgroup.procs
 **Step 4: Exhaust the memory**
 Back in terminal A, run a command that allocates memory rapidly, like `stress` or python:
 ```python
-# In terminal A:
 python3 -c "x = 'a' * (150 * 1024 * 1024)"
 # Output: Killed
 ```
@@ -706,7 +703,6 @@ cat upper/file.txt
 
 # Look at the lower directory (remains untouched)
 cat lower2/file.txt
-# Layer 2 overriding layer 1
 ```
 When a file is modified, OverlayFS performs a **copy-up** operation: it copies the file from `lowerdir` to `upperdir`, and all subsequent writes hit the `upperdir`. Copy-up of a massive file (e.g., a 10GB dataset file inside the container rootfs) is incredibly slow. **Never write large models or datasets to the container root filesystem; always use volume mounts (`bind` mounts).**
 
@@ -954,7 +950,6 @@ Cgroups v2 provides the `io` controller. You can inspect the I/O usage of a spec
 
 ```bash
 cat /sys/fs/cgroup/my_ai_workload/io.stat
-# Output example:
 # 259:0 rbytes=104857600 wbytes=0 rios=25600 wios=0 dbytes=0 dios=0
 ```
 Here, `259:0` is the major/minor number of the block device (e.g., an NVMe drive).

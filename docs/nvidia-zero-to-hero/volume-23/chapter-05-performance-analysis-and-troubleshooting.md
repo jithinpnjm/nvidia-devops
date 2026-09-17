@@ -332,4 +332,3 @@ Kernel is slow?
 - **Chapter 1:** [GPU Architecture Deep Dive](./chapter-01-gpu-architecture-deep-dive.md) — hardware execution model
 - **Chapter 2:** [CUDA Programming](./chapter-02-cuda-programming-and-optimization.md) — kernel optimization
 - **Chapter 3:** [Distributed Systems](./chapter-03-multi-gpu-and-distributed-systems.md) — scaling analysis
-

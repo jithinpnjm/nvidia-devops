@@ -209,38 +209,6 @@ The `libcufile` library dictates GDS behavior. Its configuration is critical and
 *Architectural Note on Poll Mode:* Setting `use_poll_mode: true` is vital for ultra-low latency environments (like NVMe-oF/RDMA). In poll mode, the CPU actively spins waiting for the DMA completion interrupt. This burns CPU cycles to save microseconds of latency. Use it only if extreme latency sensitivity is required and CPU cores are abundant. If CPU cores are heavily utilized by data augmentation workers, set this to `false`.
 
 
-## 4. GPUDirect Storage (GDS) and I/O Bypass
-
-### Verifying and Benchmarking GDS Capabilities
-
-```bash
-/usr/local/cuda/gds/tools/gdscheck -p
-
-
-## 4. GPUDirect Storage (GDS) and I/O Bypass
-
-### Verifying and Benchmarking GDS Capabilities
-
-```bash
-/usr/local/cuda/gds/tools/gdscheck -p
-
-
-## 4. GPUDirect Storage (GDS) and I/O Bypass
-
-### Verifying and Benchmarking GDS Capabilities
-
-```bash
-/usr/local/cuda/gds/tools/gdscheck -p
-
-
-## 4. GPUDirect Storage (GDS) and I/O Bypass
-
-### Verifying and Benchmarking GDS Capabilities
-
-```bash
-/usr/local/cuda/gds/tools/gdscheck -p
-
-
 ## 5. Benchmarking AI Data Pipelines with FIO and IOR
 
 A critical failure pattern among junior infrastructure engineers is using default `fio` parameters which mimic database OLTP workloads (e.g., random 4k reads). AI workloads are massive, streaming, sequential operations. Benchmarking must reflect this reality.
@@ -386,11 +354,6 @@ Despite the elegance of dynamic CSI provisioning, many HPC and ML administrators
       type: Directory
 ```
 
-## 6. Kubernetes Storage Operators and CSI for AI
-
-## 6. Kubernetes Storage Operators and CSI for AI
-
-## 6. Kubernetes Storage Operators and CSI for AI
 
 ## 7. Senior Solutions Architect Scenarios: Storage Troubleshooting
 
@@ -548,4 +511,3 @@ To validate candidates for a Senior Platform Engineer or AI Solutions Architect 
 - Time limit: 60 seconds.
 - Bandwidth = 2 TB / 60 seconds = ~33.3 GB/s. 
 - The candidate should then state this is trivial for a parallel file system, but they must also consider network fan-in. If 256 nodes dump simultaneously, we need to ensure the leaf/spine storage network is non-blocking at 33.3 GB/s (which requires at least one 400Gbps link, but highly distributed across nodes). They should also mention that PyTorch/Megatron can do distributed checkpointing (each rank writes its own shard) to avoid single-file lock contention.
-

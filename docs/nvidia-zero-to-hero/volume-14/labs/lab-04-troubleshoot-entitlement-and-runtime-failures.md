@@ -111,7 +111,6 @@ curl -I -H "Authorization: Bearer $NGC_API_TOKEN" \
 # If: 401 Unauthorized → token wrong (step 2 should have caught this)
 # If: Connection refused → firewall blocking outbound HTTPS
 
-# Record findings
 cat >> troubleshooting-evidence.txt <<EOF
 Step 3: Network and registry
   DNS resolution: OK (nvcr.io resolved)
@@ -148,7 +147,6 @@ kubectl get serviceaccount nim-runner -o yaml | \
 aws iam get-role-policy --role-name <role-name> --policy-name <policy>
 # Should include s3:GetObject or similar for NGC artifacts
 
-# Record findings
 cat >> troubleshooting-evidence.txt <<EOF
 Step 4: Image-pull secret
   Secret exists: YES
@@ -186,7 +184,6 @@ which nvidia-container-runtime
 # Expected: /usr/bin/nvidia-container-runtime
 # If: not found → cannot pass GPU to container
 
-# Record findings
 cat >> troubleshooting-evidence.txt <<EOF
 Step 5: Node and runtime
   Container runtime: containerd (active)
@@ -330,7 +327,6 @@ kubectl logs -l app=nim-deployment --tail=20 | grep -i "model\|readiness\|ready"
 # 7. Test inference
 kubectl port-forward svc/nim-deployment 8000:8000 &
 curl http://localhost:8000/v1/health
-# Expected: 200 OK
 ```
 
 ## Evidence Collection Checklist

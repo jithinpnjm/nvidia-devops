@@ -332,15 +332,12 @@ vllm:num_requests_running{model="meta-llama/Meta-Llama-3-70B-Instruct"} 96
 
 ### Worked Failure Scenario 2: Severe Prefix Cache Eviction Storm and CPU Swapping Thrashing
 
-#### Production Incident Context
 An enterprise multi-tenant customer platform running vLLM enabled CPU host memory swapping (`--swap-space 32`) to prevent OOM errors during peak hours. Shortly after enabling swapping, average Inter-Token Latency (ITL) degraded by 4,000%, increasing from 20ms/token to 850ms/token. Voice translation and interactive chatbots became unusable.
 
-#### Symptoms & Initial Metrics
 - Client-side p99 end-to-end response latency exceeded 45 seconds.
 - GPU Utilization (`dcgm_gpu_utilization`) dropped to 18%, while PCIe bus TX/RX bandwidth (`dcgm_pcie_tx_throughput`) saturated at maximum capacity (64 GB/s on PCIe Gen5).
 - vLLM metric `vllm:num_preempted_requests_total` rapidly incrementing.
 
-#### Evidence Gathering
 The engineer checked Prometheus metrics for vLLM block swapping:
 
 ```prometheus
@@ -354,10 +351,8 @@ rate(vllm:num_preempted_requests_total[5m])
 - `vllm:cpu_cache_usage_perc`: 88.4%
 - `rate(vllm:num_preempted_requests_total[5m])`: 4.2 preemptions/sec.
 
-#### Root Cause Analysis
 When GPU VRAM filled completely, vLLM evicted active request block tables by **swapping physical blocks to host CPU system memory over the PCIe bus**. During subsequent decode steps for preempted requests, the engine had to pause execution, copy blocks back from host RAM to GPU RAM, and evict *other* active blocks to host RAM. This created a classic **thrashing loop**, where the PCIe bus became the main bottleneck while GPUs sat idle waiting for memory transfers.
 
-#### Resolution & Mitigation
 
 1. Disable CPU swapping entirely (`--swap-space 0`). In real-time serving, swapping to host RAM is never acceptable; requests should queue in the admission queue instead.
 2. Enable automatic **Prefix Caching** (`--enable-prefix-caching`) to reuse common system prompts.
@@ -385,7 +380,6 @@ vllm:gpu_cache_usage_perc 0.81
 ```
 ITL latency returned to 18ms per token.
 
-#### Prevention
 - Always configure `--swap-space 0` for latency-critical production inferencing.
 - Rely on queueing and rate-limiting at ingress rather than memory swapping.
 

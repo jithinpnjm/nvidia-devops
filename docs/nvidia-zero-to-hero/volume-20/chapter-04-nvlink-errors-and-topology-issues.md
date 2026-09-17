@@ -261,4 +261,3 @@ A: "I check both GPUs' error counters for the shared link independently. If one 
 **Q: "Your topology looks completely correct but AllReduce is still 2x slower than expected. Is this an NVLink chapter problem?"**
 
 A: "Not necessarily, and I'd be careful not to force it into this chapter's diagnostic path just because NVLink is involved in the collective. If `nvidia-smi topo -m` shows the expected NV# links everywhere and DCGM shows clean error counters, the topology and hardware are healthy — the slowdown is happening somewhere else. I'd go to the NCCL-timeout chapter's methodology instead: check per-rank op-count progression to see if one rank is starved upstream of the collective, or check whether the NCCL algorithm selection is appropriate for the message size. Misattributing a data-pipeline or algorithm-selection problem to NVLink hardware wastes an escalation and delays finding the actual cause."
-

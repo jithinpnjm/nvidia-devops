@@ -265,7 +265,6 @@ pipeline = TieredDataPipeline(
 
 pipeline.measure_cache_efficiency(1000)
 
-# Expected output:
 # NVMe cache hit rate: ~80% (local working set), 10 GB/sec effective throughput
 ```
 
@@ -386,4 +385,3 @@ print(f"Model loss: {model_state['loss']:.2f}")
 - [ ] Distributed loading: Correct data partitioning across 64 GPU
 - [ ] Storage tiering: NVMe cache >80% hit rate
 - [ ] Checkpoint: Save and resume works correctly with integrity checks
-

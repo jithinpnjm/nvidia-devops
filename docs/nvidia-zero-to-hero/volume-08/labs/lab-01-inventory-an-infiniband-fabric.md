@@ -131,8 +131,6 @@ Record:
 
 A healthy production port is normally expected to be logically active at the designed rate. Exact output varies by platform.
 
-**Realistic example output:**
-
 ```text
 $ ibstat
 CA 'mlx5_0'

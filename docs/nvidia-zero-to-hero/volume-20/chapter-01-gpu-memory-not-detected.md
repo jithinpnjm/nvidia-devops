@@ -285,4 +285,3 @@ A: "The key differentiator is whether the GPU is otherwise fully responsive. If 
 **Q: "A containerized job reports CUDA errors that the same code doesn't produce on bare metal. Why might that be memory-related?"**
 
 A: "A common cause is a driver/library version mismatch specific to the container — if the container image bundles its own CUDA/driver userspace libraries rather than using the NVIDIA Container Toolkit runtime to mount the host's matching libraries, the container's userspace can end up talking to a kernel module of a different version than it expects. This often manifests as memory allocation failures or outright `nvidia-smi` initialization failures inside the container, while the host's own `nvidia-smi` works fine. The fix is making sure the container runtime is configured to inject the host driver stack rather than shipping its own, which is what the NVIDIA Container Toolkit is specifically designed to handle."
-

@@ -382,4 +382,3 @@ A: "That 80% drop suggests the link negotiated down from Gen4 x16 to something m
 **Q: "Multiple GPUs in the same node show DMA errors. Is it the GPUs or the platform?"**
 
 A: "That's a big clue that it's not individual GPUs — it's likely a platform issue. Could be: (1) motherboard PCIe root complex is saturated or failing; (2) IOMMU/DMA remapping is misconfigured; (3) power delivery to PCIe slot group is struggling. I'd first check if a firmware update for the system BIOS helps. I'd also check BIOS settings for PCIe power management and IOMMU settings — sometimes enabling IOMMU causes DMA errors if the memory mappings are wrong. If all GPUs in the same slot group fail together, it's probably a motherboard slot group issue and should be escalated to the platform team."
-

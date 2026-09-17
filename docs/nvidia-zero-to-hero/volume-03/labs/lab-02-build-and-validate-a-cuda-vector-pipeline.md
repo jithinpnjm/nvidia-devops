@@ -173,11 +173,9 @@ The path should end with `volume-03/lab-02`.
 
 ### Step 2 — Create the CUDA Program
 
-#### Purpose
 
 Implement the complete lifecycle with explicit error checks and timing.
 
-#### Command
 
 ```bash
 cat > vector_add.cu <<'EOF'
@@ -337,11 +335,9 @@ The CUDA events measure intervals on the GPU timeline. Exact times vary by devic
 
 ### Step 3 — Compile
 
-#### Purpose
 
 Compile host and device code into one executable.
 
-#### Command
 
 ```bash
 nvcc -O2 -std=c++17 vector_add.cu -o vector_add
@@ -351,7 +347,6 @@ nvcc -O2 -std=c++17 vector_add.cu -o vector_add
 
 A successful compilation may produce no terminal output.
 
-#### Verification
 
 ```bash
 ls -lh vector_add
@@ -360,17 +355,14 @@ file vector_add
 
 ### Step 4 — Run the Baseline
 
-#### Purpose
 
 Validate the complete pipeline with a non-divisible input size.
 
-#### Command
 
 ```bash
 ./vector_add
 ```
 
-#### Expected Output
 
 ```text
 elements: 1000003
@@ -386,7 +378,6 @@ These specific numbers are from one reference run on an A100 and will differ on 
 
 ### Step 5 — Test Multiple Shapes
 
-#### Purpose
 
 Prove that the indexing works across boundary conditions.
 
@@ -554,7 +545,6 @@ Run:
 ./vector_add 1000003 100000
 ```
 
-#### Expected Result
 
 ```text
 $ ./vector_add 1000003 100000

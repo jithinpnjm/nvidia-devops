@@ -262,4 +262,3 @@ A: "Because the timeout is a safety net for detecting a genuine hang, and disabl
 **Q: "How do you tell a network problem apart from a code-level deadlock when NCCL hangs?"**
 
 A: "The signature is different in the NCCL trace. A network or starved-rank problem shows most ranks converging on the same op count while one or a few lag behind — they're making progress, just slower or blocked upstream. A code-level deadlock, from something like a conditional that makes different ranks call different collectives, shows ranks stuck at genuinely different op counts with zero forward progress over time — nobody is converging because the ranks are waiting on collective calls that will never be issued by their counterparts. If I see the gap between ranks' op counts stay static rather than slowly closing, I treat it as an application bug and go straight to code review of the collective call sites, rather than chasing a hardware explanation that won't exist."
-

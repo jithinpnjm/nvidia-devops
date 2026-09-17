@@ -145,7 +145,6 @@ Use several controls together. Do not treat P_Keys as performance isolation.
 
 ## Scenario 4: InfiniBand for Compute and Storage
 
-### Customer goal
 
 Use one high-performance fabric for GPU communication and parallel storage.
 
@@ -156,7 +155,6 @@ Use one high-performance fabric for GPU communication and parallel storage.
 - GPUDirect Storage opportunities;
 - simpler rack attachment in some designs.
 
-### Risks
 
 - checkpoint bursts interfere with collectives;
 - storage failure can affect compute traffic;
@@ -261,7 +259,6 @@ Avoid assuming bare-metal operational controls exist in a hosted service.
 
 ## Scenario 9: Security-Sensitive Enterprise
 
-### Requirements
 
 - tenant separation;
 - controlled firmware lifecycle;
@@ -284,11 +281,9 @@ Do not disable IOMMU or other protection mechanisms solely to improve a benchmar
 
 ## Scenario 10: Budget-Constrained AI Factory
 
-### Problem
 
 The customer cannot fund a fully nonblocking fabric for peak all-node communication.
 
-### Architecture response
 
 Use evidence to decide where compromise is acceptable:
 
@@ -312,7 +307,6 @@ A productive workshop should capture:
 - service objectives;
 - budget and procurement constraints.
 
-### Workload
 
 - model size;
 - parallelism strategy;

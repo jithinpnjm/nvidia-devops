@@ -326,13 +326,10 @@ if __name__ == "__main__":
 
 ### Scenario 2: Accuracy Collapse in INT8 Engine due to Non-Representative Calibration Dataset
 
-#### Context
 An automatic speech recognition model quantized to INT8 using standard Post-Training Quantization (PTQ) experienced a catastrophic drop in Word Error Rate (WER) accuracy, jumping from 3.2% WER (FP16 baseline) to 24.8% WER in production, despite displaying acceptable accuracy on artificial benchmark synthetic test vectors.
 
-#### Root Cause Analysis
 The INT8 entropy calibrator (`IInt8EntropyCalibrator2`) was fed a calibration dataset containing short audio segments (averaging 1.2 seconds) recorded in dead silent environments. In production, real-world user queries averaged 8.5 seconds with background noise. The calibration activation histograms failed to capture the high dynamic range and amplitude variances present in production audio streams. Consequently, the calibrator derived overly narrow clipping thresholds `T*`, causing severe activation saturation (clipping) on high-amplitude hidden features.
 
-#### Step-by-Step Resolution & Code Fix
 1. Built a custom Python calibrator class inheriting from `trt.IInt8EntropyCalibrator2`.
 2. Created a calibration dataset sampled directly from production telemetry (1,000 production audio embeddings spanning quiet, noisy, short, and long sequences).
 3. Configured cache file persistence to audit generated per-tensor scale factors.
@@ -402,7 +399,6 @@ def build_int8_calibrated_engine(onnx_path: str, engine_path: str, calib_samples
         f.write(serialized_engine)
 ```
 
-#### Verification
 - Inspection of `speech_int8.cache` confirmed scale factor shifts across residual block layers up to 3.4x.
 - Model WER recovered from 24.8% back to 3.35% (within 0.15% of FP16 reference), while maintaining a 3.1x inference speedup over FP16.
 

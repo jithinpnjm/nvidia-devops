@@ -516,4 +516,3 @@ Before claiming mastery, can you:
 - **Chapter 5:** [Performance Analysis and Troubleshooting](./chapter-05-performance-analysis-and-troubleshooting.md) — roofline model deep dive
 - **Volume 04:** GPU execution and memory patterns
 - **Lab (V24):** Hands-on occupancy and memory optimization exercises
-

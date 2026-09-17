@@ -88,8 +88,6 @@ Determine the evidence priority:
 
 ### Exercise 2 Solution: Distributed Training Stalls
 
-**Expected Answer Structure:**
-
 1. **GPU issue vs communication issue:**
    ```bash
    # Distinguish with NCCL_DEBUG
@@ -220,4 +218,3 @@ NCCL_DEBUG=TRACE timeout 30 python train.py 2>&1 | grep ncclAllReduce
 **Exercise 1:** Your evidence plan includes timing instrumentation AND profiler AND GPU metrics ✓
 **Exercise 2:** Your NCCL_DEBUG analysis correctly identifies GPU 2 stalled; you distinguish hanging (frozen output) vs slow (continues, high latency) ✓
 **Exercise 3:** Your root cause is "thermal → NCCL degradation" and your fix proof shows NCCL improves after cooling ✓
-

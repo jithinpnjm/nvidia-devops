@@ -303,10 +303,8 @@ if __name__ == "__main__":
 
 ### Scenario 2: KV Cache Allocation OOM under High Concurrency due to Block Size and Scale Mismatch
 
-#### Context
 A customer-service AI platform running Llama-3-70B on 4x A100 GPUs (TP=4) experienced sporadic runtime service crashes with `[TRT-LLM][ERROR] Out of memory during KVCache block allocation` when concurrent sessions exceeded 64 active requests.
 
-#### Root Cause Analysis
 The team configured static contiguous KV cache allocations with an overly large block size (`tokens_per_block=128`) and retained default FP16 precision. When requests arrived with variable sequence lengths (e.g., 129 tokens), the allocator was forced to allocate two full 128-token physical blocks (256 tokens total capacity), wasting nearly 50% of allocated KV memory due to internal fragmentation.
 
 Additionally, the total physical KV cache pool was configured to claim 95% of remaining GPU memory (`kv_cache_free_gpu_memory_fraction=0.95`), leaving insufficient scratch workspace for intermediate FlashDecoding activations during long-context prefill steps.
@@ -343,7 +341,6 @@ tllm::ExecutorConfig create_optimized_executor_config() {
 }
 ```
 
-#### Verification
 - Max concurrent active sessions increased from 64 to 210 requests per node without encountering OOM crashes.
 - Effective GPU KV cache utilization increased from 52% to 91%.
 

@@ -90,7 +90,6 @@ A production `slurm.conf` is divided into distinct operational blocks. Let's exa
 # /etc/slurm/slurm.conf
 # =========================================================================
 # 1. CLUSTER DEFINITION & DAEMON SETTINGS
-# =========================================================================
 ClusterName=AIFactory
 SlurmUser=slurm
 SlurmdUser=root
@@ -111,17 +110,13 @@ SlurmdLogFile=/var/log/slurm/slurmd.log
 SlurmSchedLogFile=/var/log/slurm/slurmsched.log
 SlurmSchedLogLevel=1
 
-# =========================================================================
 # 2. HIGH AVAILABILITY (ACTIVE/PASSIVE)
-# =========================================================================
 SlurmctldHost=slurmctl-01(10.10.10.11)
 SlurmctldHost=slurmctl-02(10.10.10.12)
 SlurmctldTimeout=30
 SlurmdTimeout=60
 
-# =========================================================================
 # 3. ACCOUNTING & DATABASE
-# =========================================================================
 JobAcctGatherType=jobacct_gather/cgroup
 JobAcctGatherFrequency=30
 AccountingStorageType=accounting_storage/slurmdbd
@@ -130,9 +125,7 @@ AccountingStorageTRES=gres/gpu,cpu,mem,energy
 AccountingStoreFlags=job_comment
 AcctGatherEnergyType=acct_gather_energy/ipmi
 
-# =========================================================================
 # 4. SCHEDULING & POLICIES
-# =========================================================================
 SchedulerType=sched/backfill
 SchedulerParameters=bf_max_job_user=100,bf_window=10080,bf_resolution=600
 
@@ -148,25 +141,19 @@ PriorityWeightJobSize=1000
 PriorityWeightQOS=1000000
 PriorityFlags=SMALL_RELATIVE_TO_TIME
 
-# =========================================================================
 # 5. RESOURCE ISOLATION & CGROUPS (V2)
-# =========================================================================
 ProctrackType=proctrack/cgroup
 TaskPlugin=task/cgroup,task/affinity
 GresTypes=gpu,nic
 
-# =========================================================================
 # 6. NODE DEFINITIONS (NVIDIA DGX H100)
-# =========================================================================
 # DGX H100 has 2x Intel Xeon Platinum 8480C (56 cores each)
 # Hyperthreading is ON (224 logical CPUs)
 # 2TB RAM
 # 8x H100 GPUs
 NodeName=dgx-h100-[01-32] CPUs=224 Boards=1 SocketsPerBoard=2 CoresPerSocket=56 ThreadsPerCore=2 RealMemory=1920000 Gres=gpu:h100:8 State=UNKNOWN
 
-# =========================================================================
 # 7. PARTITION (QUEUE) DEFINITIONS
-# =========================================================================
 PartitionName=train Nodes=dgx-h100-[01-24] Default=YES MaxTime=7-00:00:00 State=UP OverSubscribe=NO TRESBillingWeights="gres/gpu=100,cpu=1,mem=0.01"
 PartitionName=debug Nodes=dgx-h100-[25-32] Default=NO MaxTime=01:00:00 State=UP OverSubscribe=NO TRESBillingWeights="gres/gpu=100,cpu=1,mem=0.01"
 ```

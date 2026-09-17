@@ -272,7 +272,6 @@ cat /proc/net/dev | grep eth0           → No packet loss
 
 # Check if NCCL is timing out
 export NCCL_DEBUG=INFO
-# Run training and capture NCCL logs
 # See if all-reduce is stalling
 ```
 

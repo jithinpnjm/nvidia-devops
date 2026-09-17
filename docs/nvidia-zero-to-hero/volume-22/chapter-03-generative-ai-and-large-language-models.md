@@ -39,7 +39,6 @@ LLM projects have two distinct cost phases:
 
 ## Use Case 2: LLM Inference Cluster (1,000 concurrent users)
 
-### Requirements
 - Model: Llama-2 13B
 - Throughput: 1,000 concurrent users × 500 tokens/session
 - Latency: TTFT &lt; 2 sec, per-token &lt; 100ms

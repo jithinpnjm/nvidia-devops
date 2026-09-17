@@ -106,7 +106,6 @@ Let's examine a highly optimized Kickstart file for an 8-GPU Hopper system.
 # /var/www/html/ks.cfg
 # ---------------------------------------------------------
 # NVIDIA AI Factory Production Kickstart - Rocky Linux 9
-# ---------------------------------------------------------
 
 # Command Section
 text
@@ -285,9 +284,7 @@ While GRUB dictates boot behavior, `sysctl` modifies runtime kernel memory and n
 
 ```ini
 # /etc/sysctl.d/99-nvidia-ai.conf
-# ---------------------------------------------------------
 # Kernel Runtime Tuning for Distributed AI Workloads
-# ---------------------------------------------------------
 
 # 1. High-Bandwidth Networking
 # Max socket receive and send buffer sizes (Set to ~2GB for 400G fabrics)

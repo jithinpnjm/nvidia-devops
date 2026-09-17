@@ -667,8 +667,6 @@ import concurrent.futures
 import subprocess
 import logging
 
-logger = logging.getLogger(__name__)
-
 def run_remote_smi(node: str) -> tuple[str, str]:
     \"\"\"Runs nvidia-smi via SSH. Returns (node_name, output_or_error).\"\"\"
     command = ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes", node, "nvidia-smi"]
@@ -775,7 +773,6 @@ When using `subprocess.Popen`, if the parent process (your Python agent) does no
 Always use `subprocess.run()` (which implicitly waits) unless you absolutely need non-blocking IO. If you use `Popen`, you must ensure `process.wait()` or `process.communicate()` is called in a `finally` block or context manager.
 
 ```python
-# BAD
 import subprocess
 import time
 
@@ -785,7 +782,6 @@ def collect_metrics_bad():
         subprocess.Popen(["ls", "-l"])
         time.sleep(10)
 
-# GOOD
 def collect_metrics_good():
     while True:
         # .run() blocks and cleans up automatically

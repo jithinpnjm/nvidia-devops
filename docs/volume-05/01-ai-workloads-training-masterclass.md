@@ -472,8 +472,6 @@ Architecting for AI workloads is a continuous balancing act between compute capa
 
 By mastering these concepts, one ensures that multi-million dollar GPU investments translate into actual, efficient model intelligence, rather than idle silicon waiting for data.
 
-
-
 ## Extended Deep Dive Topics
 
 ### Advanced Networking Concept 1: Micro-bursts and PFC

@@ -504,7 +504,6 @@ def setup_json_logger(name: str):
     
     return logger
 
-# Example usage
 prod_logger = setup_json_logger("infrastructure_agent")
 
 def provision_node(node_id: str):
@@ -841,7 +840,6 @@ def run_multiprocessing_pipeline():
     elapsed = time.perf_counter() - start
     print(f"Pipeline finished in {elapsed:.2f} seconds. Result: {total_result}")
 
-# if __name__ == '__main__':
 #    run_multiprocessing_pipeline()
 ```
 
@@ -922,7 +920,6 @@ def unreliable_rpc_call():
     
     return "RPC Success"
 
-# try:
 #     result = unreliable_rpc_call()
 #     print(result)
 # except Exception as e:

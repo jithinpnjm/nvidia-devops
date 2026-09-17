@@ -89,4 +89,3 @@ Hardware/hour price is only one input. Calculate usable throughput at the target
 cost_per_million_tokens = total_hourly_cost / (tokens_per_hour / 1_000_000)
 effective_capacity = nominal_capacity * expected_utilization * availability_factor
 ```
-

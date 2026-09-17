@@ -112,7 +112,6 @@ A dense scale-up system simplifies model placement and can deliver strong local 
 
 ## Scenario 2 — Sixty-Four-GPU Distributed Training
 
-### Customer goal
 
 Scale from eight to sixty-four GPUs without allowing communication to dominate the training iteration.
 
@@ -120,7 +119,6 @@ Scale from eight to sixty-four GPUs without allowing communication to dominate t
 
 Data parallelism is combined with model parallelism. Local traffic should use scale-up links; gradient and shard communication cross nodes.
 
-### Recommended architecture
 
 - consistent eight-GPU node class;
 - multiple adapters per node aligned with GPU groups;
@@ -159,7 +157,6 @@ A less expensive oversubscribed fabric may be appropriate when jobs do not occup
 - collective-library regression;
 - checkpoint-storage saturation.
 
-### Acceptance criteria
 
 The customer should approve scaling efficiency and variance targets based on a representative workload, not only point-to-point bandwidth.
 
@@ -176,15 +173,12 @@ nodes   GPUs   busbw(GB/s)   ideal-linear busbw(GB/s)   scaling efficiency
 
 ## Scenario 3 — Low-Latency Multi-GPU Inference
 
-### Customer goal
 
 Serve a model that spans several GPUs while meeting strict first-token and tail-latency objectives.
 
-### Workload profile
 
 Requests are smaller than training collectives, but synchronization occurs on every generation step. Latency and jitter matter more than peak bulk bandwidth.
 
-### Recommended architecture
 
 - model shards placed on a strong local GPU group;
 - CPU tokenization and networking bound to local NUMA domains;
@@ -194,7 +188,6 @@ Requests are smaller than training collectives, but synchronization occurs on ev
 - continuous telemetry for queueing, GPU utilization, and interconnect behavior;
 - replicas spread across node failure domains.
 
-### Trade-offs
 
 Strict topology placement improves predictability but can strand resources. Multiple smaller replicas may provide better availability than one large replica, but only if the model fits and quality requirements allow it.
 
@@ -204,7 +197,6 @@ Measure end-to-end latency percentiles, not just tokens per second. Include conc
 
 ## Scenario 4 — Shared Research Cluster
 
-### Customer goal
 
 Serve many teams with mixed single-GPU, multi-GPU, training, and inference workloads.
 
@@ -217,7 +209,6 @@ Serve many teams with mixed single-GPU, multi-GPU, training, and inference workl
 - chargeback;
 - competing storage and network traffic.
 
-### Recommended architecture
 
 Create workload classes:
 
@@ -230,13 +221,11 @@ Create workload classes:
 
 Use quotas, topology-aware scheduling, observability by tenant, and documented fallback behavior.
 
-### Trade-offs
 
 Maximum utilization and maximum predictability are competing goals. The platform should expose service tiers rather than pretending every workload receives both.
 
 ## Scenario 5 — Storage-Heavy Scientific Training
 
-### Customer goal
 
 Train against large scientific datasets while minimizing GPU idle time and checkpoint disruption.
 
@@ -256,7 +245,6 @@ Storage, network, CPU processing, and GPU consumption must be designed as one pi
 
 ## Scenario 6 — Phased Cluster Expansion
 
-### Customer goal
 
 Add new GPU generations and faster adapters without replacing the existing cluster immediately.
 
@@ -264,7 +252,6 @@ Add new GPU generations and faster adapters without replacing the existing clust
 
 Mixed generations create different GPU memory, link capabilities, adapter speeds, firmware, and performance profiles. A scheduler may place one distributed job across incompatible node classes.
 
-### Recommended architecture
 
 - separate node pools by qualified hardware class;
 - explicit labels and placement constraints;

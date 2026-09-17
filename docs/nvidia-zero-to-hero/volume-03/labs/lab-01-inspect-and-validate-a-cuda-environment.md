@@ -167,11 +167,9 @@ PCI visibility proves hardware enumeration. It does not prove that the NVIDIA dr
 
 ### Step 2 — Confirm Driver Communication
 
-#### Purpose
 
 Verify that the NVIDIA management utility can communicate with the loaded driver and GPU.
 
-#### Command
 
 ```bash
 nvidia-smi
@@ -189,17 +187,14 @@ The command should display one or more GPUs without a driver communication error
 
 ### Step 3 — Record Driver and Device Identity
 
-#### Purpose
 
 Create script-friendly inventory data.
 
-#### Command
 
 ```bash
 nvidia-smi --query-gpu=index,name,uuid,pci.bus_id,driver_version,memory.total --format=csv
 ```
 
-#### Expected Output
 
 ```text
 index, name, uuid, pci.bus_id, driver_version, memory.total [MiB]
@@ -208,13 +203,11 @@ index, name, uuid, pci.bus_id, driver_version, memory.total [MiB]
 
 Cross-check `pci.bus_id` (`00000000:07:00.0`) against the `lspci` address from Step 1 (`0000:07:00.0`) — the domain padding differs cosmetically but the bus:device.function (`07:00.0`) must match. That match is your proof this is the *same physical device* both tools are describing, not a coincidence of both commands happening to succeed independently.
 
-#### Explanation
 
 Do not rely only on GPU indexes for persistent identification. UUIDs and PCI bus IDs are more stable evidence — an index can be reassigned across reboots or `CUDA_VISIBLE_DEVICES` remapping, but the UUID above (`GPU-3f9a1c7e-...`) identifies this specific physical card regardless of enumeration order.
 
 ### Step 4 — Inspect Kernel Modules and Logs
 
-#### Purpose
 
 Confirm module presence and search for initialization or XID evidence.
 
@@ -225,7 +218,6 @@ lsmod | grep -E '^nvidia'
 journalctl -k | grep -iE 'nvrm|nvidia|xid' | tail -n 50
 ```
 
-#### Expected Output
 
 ```text
 $ lsmod | grep -E '^nvidia'
@@ -247,17 +239,14 @@ An empty filtered log is not automatically a problem. Error messages, repeated r
 
 ### Step 5 — Inspect Device Interfaces
 
-#### Purpose
 
 Verify that expected NVIDIA device nodes exist and inspect permissions.
 
-#### Command
 
 ```bash
 ls -l /dev/nvidia* 2>/dev/null || true
 ```
 
-#### Expected Output
 
 ```text
 crw-rw-rw- 1 root root 195,   0 Mar  3 09:12 /dev/nvidia0
@@ -275,18 +264,15 @@ A container may not receive the same device interfaces visible on the host. Comp
 
 ### Step 6 — Check for the CUDA Toolkit
 
-#### Purpose
 
 Determine whether the CUDA compiler is installed.
 
-#### Commands
 
 ```bash
 command -v nvcc || true
 nvcc --version 2>/dev/null || true
 ```
 
-#### Expected Output
 
 ```text
 /usr/local/cuda-12.4/bin/nvcc
@@ -301,23 +287,19 @@ Compare `release 12.4` here against `nvidia-smi`'s reported `CUDA Version: 12.4`
 
 If `nvcc` is absent, both commands print nothing useful — `command -v nvcc` returns empty and the second line is suppressed by `2>/dev/null`. That is a normal, expected state on a runtime-only host; it is not itself a failure.
 
-#### Explanation
 
 The driver and toolkit are separate. `nvidia-smi` can work on a host that does not have `nvcc` installed.
 
 ### Step 7 — Inspect Runtime Libraries
 
-#### Purpose
 
 Confirm that the dynamic linker can locate CUDA-related libraries.
 
-#### Command
 
 ```bash
 ldconfig -p | grep -E 'libcuda\.so|libcudart\.so' || true
 ```
 
-#### Expected Output
 
 ```text
 	libcudart.so.12 (libc6,x86-64) => /usr/local/cuda-12.4/lib64/libcudart.so.12
@@ -328,7 +310,6 @@ ldconfig -p | grep -E 'libcuda\.so|libcudart\.so' || true
 
 Note the different install roots: `libcudart` (the runtime library, from the toolkit) resolves from `/usr/local/cuda-12.4/...`, while `libcuda` (the driver-facing library) resolves from `/usr/lib/x86_64-linux-gnu/...` — a path typically owned and mounted by the driver package, not the toolkit. This is exactly the split described in Chapter 2: two libraries with similar names, shipped by different components, resolved from different paths.
 
-#### Interpretation
 
 - `libcuda.so` is associated with the installed driver interface.
 - `libcudart.so` is the CUDA runtime library and may be supplied by the toolkit or application environment.
@@ -428,13 +409,11 @@ The program validates more than enumeration. It forces:
 
 ### Step 9 — Compile the Program
 
-#### Command
 
 ```bash
 nvcc -O2 -o cuda-validate cuda-validate.cu
 ```
 
-#### Expected Output
 
 A successful compilation may produce no terminal output and should create an executable named `cuda-validate`.
 
@@ -446,7 +425,6 @@ A successful compilation may produce no terminal output and should create an exe
 
 ### Step 10 — Run the Program
 
-#### Command
 
 ```bash
 ./cuda-validate

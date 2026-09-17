@@ -564,7 +564,6 @@ def process_logs_good(file_path):
         for line in f: # Reads one line at a time
             yield line.strip().upper()
 
-# Usage:
 # for processed_line in process_logs_good('massive.log'):
 #     upload_to_db(processed_line)
 ```
@@ -654,7 +653,6 @@ class GlobalConfig(metaclass=SingletonMeta):
         print("Loading heavy configuration from disk/API...")
         self.settings = {"region": "us-east-1"}
 
-# Usage:
 config1 = GlobalConfig()
 config2 = GlobalConfig()
 print(config1 is config2) # True, only loaded once
@@ -688,7 +686,6 @@ class TemporaryBucket:
         # Return False to propagate exceptions, True to swallow them
         return False
 
-# Usage:
 try:
     with TemporaryBucket("test-bucket-12345") as bucket:
         print("Running tests against bucket...")
@@ -965,10 +962,3 @@ def consume_data_part_1():
 ```
 
 Understanding this pattern is crucial for data engineering, logging, and general infrastructure automation. In the context of MLOps or DevOps, data is the foundation, and managing it efficiently is paramount to building reliable systems. The concepts here echo the importance of Python's execution model and memory management, as discussed earlier. Ensure you apply these principles when dealing with APIs that return paginated or massive responses.
-
-## Extended Scenario Module 2
-
-## Extended Scenario Module 3
-
-## Extended Scenario Module 4
-

@@ -388,4 +388,3 @@ print(f"Savings vs. original plan: ${tco['tco_total'] - (opt_capex + opt_opex*3)
 - [ ] TCO calculation accurate (CAPEX + OPEX for 3 years)
 - [ ] Utilization >70% (avoid over-provisioning)
 - [ ] Optimization identifies >$2M savings
-

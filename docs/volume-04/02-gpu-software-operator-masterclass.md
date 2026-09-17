@@ -69,7 +69,6 @@ lsmod | grep nvidia
 
 # 3. Check character devices (CRITICAL)
 ls -l /dev/nvidia*
-# Expected:
 # crw-rw-rw- 1 root root 195,   0 Sep 17 08:00 /dev/nvidia0
 # crw-rw-rw- 1 root root 195, 255 Sep 17 08:00 /dev/nvidiactl
 # crw-rw-rw- 1 root root 238,   0 Sep 17 08:00 /dev/nvidia-uvm
@@ -530,7 +529,6 @@ To truly master the GPU Operator, one must understand its exhaustive configurati
 ```yaml
 # ==============================================================================
 # FULL PRODUCTION GPU OPERATOR VALUES (SCALED AI FACTORY)
-# ==============================================================================
 
 # Global Settings
 nfd:
@@ -547,7 +545,6 @@ nfd:
 
 # ------------------------------------------------------------------------------
 # NVIDIA Driver (Kernel Module Management)
-# ------------------------------------------------------------------------------
 driver:
   enabled: true
   repository: nvcr.io/nvidia
@@ -578,9 +575,7 @@ driver:
   # driverToolkit:
   #   enabled: true
 
-# ------------------------------------------------------------------------------
 # NVIDIA Container Toolkit (OCI / CDI Injection)
-# ------------------------------------------------------------------------------
 toolkit:
   enabled: true
   repository: nvcr.io/nvidia/k8s
@@ -600,9 +595,7 @@ toolkit:
     - name: CRIO_CONFIG
       value: /etc/crio/crio.conf
 
-# ------------------------------------------------------------------------------
 # NVIDIA Device Plugin (Kubernetes Resource Advertisement)
-# ------------------------------------------------------------------------------
 devicePlugin:
   enabled: true
   repository: nvcr.io/nvidia
@@ -622,9 +615,7 @@ devicePlugin:
     - name: FAIL_ON_INIT_ERROR
       value: "true"
 
-# ------------------------------------------------------------------------------
 # DCGM Exporter (GPU Telemetry & Metrics)
-# ------------------------------------------------------------------------------
 dcgmExporter:
   enabled: true
   repository: nvcr.io/nvidia/k8s
@@ -645,9 +636,7 @@ dcgmExporter:
     additionalLabels:
       release: prometheus-operator
 
-# ------------------------------------------------------------------------------
 # MIG Manager (Multi-Instance GPU Partitioning)
-# ------------------------------------------------------------------------------
 migManager:
   enabled: true
   repository: nvcr.io/nvidia/cloud-native
@@ -664,9 +653,7 @@ migManager:
     name: "mig-parted-config"
     default: "all-disabled"
 
-# ------------------------------------------------------------------------------
 # GPUDirect Storage (GDS)
-# ------------------------------------------------------------------------------
 gds:
   enabled: true
   repository: nvcr.io/nvidia/cloud-native

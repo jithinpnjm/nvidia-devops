@@ -370,17 +370,12 @@ import numpy as np
 from concurrent.futures import ProcessPoolExecutor
 from pipeline_service_fixed import process_request_fixed
 
-NUM_REQUESTS = 200
-CONCURRENCY = 8
-
 print(f"Running FIXED load test with ProcessPoolExecutor (concurrency={CONCURRENCY})...")
 
 t0 = time.perf_counter()
 with ProcessPoolExecutor(max_workers=CONCURRENCY) as executor:
     futures = [executor.submit(process_request_fixed, i) for i in range(NUM_REQUESTS)]
     results = [f.result() for f in futures]
-
-elapsed = time.perf_counter() - t0
 
 prep_times = [r[0] for r in results]
 infer_times = [r[1] for r in results]

@@ -607,18 +607,6 @@ llm = LLM(
 ```
 
 
-### Deep Dive Configuration Reference - Module 2
-
-
-### Deep Dive Configuration Reference - Module 3
-
-
-### Deep Dive Configuration Reference - Module 4
-
-
-### Deep Dive Configuration Reference - Module 5
-
-
 ### Comprehensive Glossary of AI Infrastructure Terms
 
 - **Term 0 (AI Context):** Detailed explanation of the term 0 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
@@ -892,4 +880,3 @@ instance_group [
 ```
 
 This configuration directly influences your KEDA autoscaling thresholds. If your max queue delay is 50ms, your queue should clear extremely rapidly unless the GPU is saturated.
-

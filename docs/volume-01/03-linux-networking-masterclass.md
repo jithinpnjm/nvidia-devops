@@ -452,7 +452,6 @@ SREs use `rdma-core` utilities to validate fabrics.
 # Show RDMA devices and their status
 ibv_devinfo
 
-# Output excerpt:
 # hca_id: mlx5_0
 #         port:   1
 #                 state:                  PORT_ACTIVE (4)
@@ -1121,4 +1120,3 @@ net.ipv4.tcp_mtu_probing = 1
 - **VNI (VXLAN Network Identifier):** The 24-bit ID identifying a specific VXLAN segment, functioning like a VLAN ID but supporting 16 million networks.
 - **VRF (Virtual Routing and Forwarding):** L3 namespace isolation for routing tables.
 - **XDP (eXpress Data Path):** An eBPF hook inside the NIC driver for ultra-high-speed packet processing.
-
