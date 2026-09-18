@@ -345,7 +345,7 @@ You proved peer capability and measured the delivered path instead of relying on
 
 ## 18. Further Reading
 
-- [Volume 07 Introduction](../index)
-- [NVLink and NVSwitch](../chapter-03-nvlink-and-nvswitch)
-- [Topology-Aware Placement](../chapter-08-topology-aware-placement)
-- [Performance Bottlenecks and Benchmarking](../chapter-10-performance-bottlenecks-and-benchmarking)
+- Volume 07 Introduction
+- NVLink and NVSwitch
+- Topology-Aware Placement
+- Performance Bottlenecks and Benchmarking

@@ -541,7 +541,7 @@ The evidence collected here will support later labs on CUDA execution, memory be
 
 ## 18. Further Reading
 
-- [Volume 02 Introduction](../index)
-- [Why GPU Architecture Evolved](../chapter-01-why-gpu-architecture-evolved)
-- [Inside a Modern NVIDIA GPU](../chapter-02-inside-a-modern-nvidia-gpu)
-- [Threads, Warps, Blocks, and Streaming Multiprocessors](../chapter-03-threads-warps-blocks-and-sms)
+- Volume 02 Introduction
+- 
+- 
+- 

@@ -287,7 +287,7 @@ time, memory.used, memory.reserved
 
 ## Related Chapters
 
-- **Previous:** [Chapter 1 — Why Distributed Training Exists](./chapter-01-why-distributed-training-exists.md)
-- **Next:** [Chapter 3 — Data Parallelism and DDP](./chapter-03-data-parallelism-and-ddp.md)
-- **Deeper:** [Chapter 4 — FSDP and Parameter Sharding](./chapter-04-fsdp-and-parameter-sharding.md)
-- **Lab:** [Lab 01 — Run Multi-GPU DDP Training](./labs/lab-01-run-multi-gpu-ddp-training.md)
+- **Previous:** Chapter 1 — Why Distributed Training Exists
+- **Next:** Chapter 3 — Data Parallelism and DDP
+- **Deeper:** Chapter 4 — FSDP and Parameter Sharding
+- **Lab:** Lab 01 — Run Multi-GPU DDP Training

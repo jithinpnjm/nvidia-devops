@@ -559,10 +559,10 @@ Before moving on, confirm that you can:
 
 ## Cross References
 
-- Previous: [PCIe, NUMA, and Host Data Paths](./chapter-02-pcie-numa-and-host-data-paths)
-- Next: [DMA, RDMA, and Peer-to-Peer](./chapter-04-dma-rdma-and-peer-to-peer)
-- Related hardware: [HGX Topology and Data Paths](../volume-06/chapter-04-hgx-topology-and-data-paths)
-- Related lab: [Validate Peer Access and NVLink](./labs/lab-02-validate-peer-access-and-nvlink)
+- Previous: PCIe, NUMA, and Host Data Paths
+- Next: DMA, RDMA, and Peer-to-Peer
+- Related hardware: HGX Topology and Data Paths
+- Related lab: Validate Peer Access and NVLink
 
 ## Further Reading
 

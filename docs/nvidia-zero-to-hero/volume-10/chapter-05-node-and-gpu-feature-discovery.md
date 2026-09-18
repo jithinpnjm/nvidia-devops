@@ -51,7 +51,7 @@ flowchart LR
     Stale -.->|"discovered only via drift audit,<br/>not a Pod failure"| Scheduler
 ```
 
-**Figure 10.5.1 — Discovery produces metadata; it does not allocate a GPU.** The device plugin supplies the allocatable extended resource described in [Chapter 04](./chapter-04-device-plugin-and-kubernetes-resource-model). Labels narrow the eligible nodes before allocation. The `Fresh` decision point is the diagram's most important edge: a label that is present is not the same claim as a label that is *current*. When discovery has not re-run after a state-changing event, the API still holds a valid-looking label — the scheduler has no way to know it is stale, so it makes a confident, wrong placement decision with zero errors logged anywhere. That silent failure mode is exactly what the "Drift is an availability issue" section below is written to prevent.
+**Figure 10.5.1 — Discovery produces metadata; it does not allocate a GPU.** The device plugin supplies the allocatable extended resource described in Chapter 04. Labels narrow the eligible nodes before allocation. The `Fresh` decision point is the diagram's most important edge: a label that is present is not the same claim as a label that is *current*. When discovery has not re-run after a state-changing event, the API still holds a valid-looking label — the scheduler has no way to know it is stale, so it makes a confident, wrong placement decision with zero errors logged anywhere. That silent failure mode is exactly what the "Drift is an availability issue" section below is written to prevent.
 
 NFD normally runs node-local workers and publishes detected host features through Kubernetes resources. GFD is the NVIDIA-specific discovery component commonly deployed with the GPU platform stack. Exact label keys and values are release- and configuration-dependent. Treat them as an implementation detail until they have been reviewed as part of your platform API.
 
@@ -226,8 +226,8 @@ For a shared platform, discovery is where hardware inventory becomes a product b
 
 ## Cross references and further reading
 
-- [Device Plugin and Kubernetes Resource Model](./chapter-04-device-plugin-and-kubernetes-resource-model)
-- [GPU Operator Architecture](./chapter-06-gpu-operator-architecture)
-- [GPU Scheduling and Topology](./chapter-08-gpu-scheduling-and-topology)
+- Device Plugin and Kubernetes Resource Model
+- GPU Operator Architecture
+- GPU Scheduling and Topology
 - [Kubernetes node affinity documentation](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/)
 - [NVIDIA GPU Operator documentation](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/)

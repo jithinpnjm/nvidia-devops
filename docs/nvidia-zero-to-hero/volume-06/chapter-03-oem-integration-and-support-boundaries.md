@@ -355,9 +355,9 @@ The governing principle is:
 
 ## Cross References
 
-- [Chapter 01 — Why HGX Exists](./chapter-01-why-hgx-exists)
-- [Chapter 02 — Inside an HGX Platform](./chapter-02-inside-an-hgx-platform)
-- [Lab 01 — Compare HGX-Based Server Designs](./labs/lab-01-compare-hgx-server-designs)
+- Chapter 01 — Why HGX Exists
+- Chapter 02 — Inside an HGX Platform
+- Lab 01 — Compare HGX-Based Server Designs
 
 ## Further Reading
 

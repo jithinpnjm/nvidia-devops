@@ -138,5 +138,5 @@ No persistent state beyond the MLflow runs themselves, which are worth keeping a
 - What's the practical difference between a model failing Check 2 (cross-fold std) versus failing Check 3 (baseline)?
 
 ## 18. Additional References
-- [Chapter 09 — The Model Promotion Gate](../chapter-09-the-model-promotion-gate-governance-before-the-registry.md)
+- Chapter 09 — The Model Promotion Gate
 - [MLflow Model Registry documentation](https://mlflow.org/docs/latest/model-registry.html)

@@ -89,7 +89,7 @@ Kubernetes extended resources intentionally model a vendor device as a quantity.
 | Scheduling policy | Select an eligible node and enforce workload intent | One GPU is available, but not in the required pool or topology |
 | Workload stack | Initialize CUDA and execute the intended job | Minimal test passes; framework image fails |
 
-This is why a platform normally publishes workload classes in addition to the bare resource name. Labels, taints, affinity, quotas, topology policy, and—where applicable—sharing configuration express the constraints that a device count cannot. [Chapter 8](./chapter-08-gpu-scheduling-and-topology) examines the cost: each constraint improves predictability but can fragment capacity.
+This is why a platform normally publishes workload classes in addition to the bare resource name. Labels, taints, affinity, quotas, topology policy, and—where applicable—sharing configuration express the constraints that a device count cannot. Chapter 8 examines the cost: each constraint improves predictability but can fragment capacity.
 
 **Fragmentation, worked (illustrative numbers).** Consider a 32-GPU pool split by policy into three pools so that workload classes cannot contend with each other: a 16-GPU "training" pool restricted by taint to jobs requesting 8-GPU NVLink-adjacent sets, an 8-GPU "distributed-inference" pool, and an 8-GPU "general" pool with no topology constraint. A single new job requesting `nvidia.com/gpu: 4` with no topology requirement can only land in the 8-GPU general pool, even though 24 other GPUs in the cluster are physically idle — the taint makes them ineligible, not unavailable. If the general pool currently has one 4-GPU job already running, the pool shows `4/8` allocatable, and the new job schedules leaving `0/8` free — while `nvidia-smi`-visible cluster-wide idle capacity is `24/32` (75%). Reporting "cluster GPU utilization: 25%" without naming the pool is exactly the number a customer will misread as spare capacity when none of it is actually reachable by an unconstrained request. Each constraint (the taint, in this case) bought predictable isolation between training and inference at the direct cost of that 24-GPU pool being invisible to the general-pool scheduler.
 
@@ -206,6 +206,6 @@ The strongest design deliverable is therefore a support contract, not a Helm com
 ## Cross References
 
 - [Volume 10 introduction](./index)
-- [GPU Software Lifecycle in Kubernetes](./chapter-02-gpu-software-lifecycle-in-kubernetes)
-- [CUDA Software Stack](../volume-03/chapter-02-cuda-software-stack)
-- [GPU Scheduling and Topology](./chapter-08-gpu-scheduling-and-topology)
+- GPU Software Lifecycle in Kubernetes
+- CUDA Software Stack
+- GPU Scheduling and Topology

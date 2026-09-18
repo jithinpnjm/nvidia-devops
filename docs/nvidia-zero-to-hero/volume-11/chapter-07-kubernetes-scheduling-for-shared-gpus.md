@@ -15,7 +15,7 @@ That distinction is where many shared-GPU platforms fail. A Pod that is Running 
 |---|---|
 | Difficulty | Advanced |
 | Reading time | 35–45 minutes |
-| Prerequisites | [Volume 10, Chapter 04](../volume-10/chapter-04-device-plugin-and-kubernetes-resource-model) and the Volume 11 sharing chapters |
+| Prerequisites | Volume 10, Chapter 04 and the Volume 11 sharing chapters |
 | Production outcome | An explicit, auditable mapping from workload request to GPU service class |
 
 ## Learning objectives
@@ -83,7 +83,7 @@ Use required node affinity only for hard compatibility or SLO constraints. Overl
 
 ResourceQuota can cap aggregate extended-resource consumption in a namespace. It should be paired with a namespace onboarding process: an owner, workload class, quota rationale, and escalation path. A quota that allows one team to consume every advertised time-slice can be technically valid and still violate the platform’s fairness policy.
 
-For important interactive capacity, consider a queue or admission service outside the basic scheduler model. For large coordinated jobs, validate gang or queue behavior separately rather than assuming independent Pod scheduling protects partial starts. See [Volume 10, Chapter 08](../volume-10/chapter-08-gpu-scheduling-and-topology) for the distinction between capacity, eligibility, locality, and coordinated admission.
+For important interactive capacity, consider a queue or admission service outside the basic scheduler model. For large coordinated jobs, validate gang or queue behavior separately rather than assuming independent Pod scheduling protects partial starts. See Volume 10, Chapter 08 for the distinction between capacity, eligibility, locality, and coordinated admission.
 
 ## Change management for scheduling policy
 
@@ -376,7 +376,7 @@ It replaces or augments the default Kubernetes scheduler and sits above the devi
 
 **Go deeper**
 - Search NVIDIA's documentation for "Run:ai platform" and "Run:ai Kubernetes scheduler" for current architecture and integration details
-- [Comparing MIG, Time-Slicing, and vGPU](./chapter-06-comparing-mig-time-slicing-and-vgpu) and [Kubernetes Scheduling for Shared GPUs](./chapter-07-kubernetes-scheduling-for-shared-gpus) (this chapter) for the underlying mechanisms Run:ai schedules across
+- Comparing MIG, Time-Slicing, and vGPU and Kubernetes Scheduling for Shared GPUs (this chapter) for the underlying mechanisms Run:ai schedules across
 
 ## Key takeaways
 
@@ -388,8 +388,8 @@ It replaces or augments the default Kubernetes scheduler and sits above the devi
 
 ## Cross references and further reading
 
-- [Comparing MIG, Time-Slicing, and vGPU](./chapter-06-comparing-mig-time-slicing-and-vgpu)
-- [Tenant Isolation, Security, and Fairness](./chapter-08-tenant-isolation-security-and-fairness)
-- [Capacity Planning and Chargeback](./chapter-09-capacity-planning-and-chargeback)
+- Comparing MIG, Time-Slicing, and vGPU
+- Tenant Isolation, Security, and Fairness
+- Capacity Planning and Chargeback
 - [Kubernetes: Extended Resources](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#extended-resources)
 - [NVIDIA: MIG Support in Kubernetes](https://docs.nvidia.com/datacenter/cloud-native/kubernetes/latest/index.html)

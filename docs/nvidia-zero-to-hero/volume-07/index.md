@@ -147,7 +147,7 @@ The reader is expected to understand Linux, networking, containers, and basic GP
 
 ## Cross References
 
-- [Volume 02 — GPU Topology, Peer Access, and Data Paths](../volume-02/chapter-10-gpu-topology-peer-access-and-data-paths)
-- [Volume 05 — DGX Networking and Fabric Integration](../volume-05/chapter-06-dgx-networking-and-fabric-integration)
-- [Volume 06 — HGX Topology and Data Paths](../volume-06/chapter-04-hgx-topology-and-data-paths)
+- Volume 02 — GPU Topology, Peer Access, and Data Paths
+- Volume 05 — DGX Networking and Fabric Integration
+- Volume 06 — HGX Topology and Data Paths
 - Next volume: Volume 08 — InfiniBand

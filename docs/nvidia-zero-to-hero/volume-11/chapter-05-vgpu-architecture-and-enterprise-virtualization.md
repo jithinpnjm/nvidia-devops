@@ -15,7 +15,7 @@ vGPU is a virtualization platform, not merely another Kubernetes resource name. 
 |---|---|
 | Difficulty | Advanced |
 | Reading time | 35–45 minutes |
-| Prerequisites | [MIG Architecture](./chapter-02-mig-architecture-and-isolation), virtualization operations, and basic GPU telemetry |
+| Prerequisites | MIG Architecture, virtualization operations, and basic GPU telemetry |
 | Production outcome | A versioned, supportable VM GPU service with a tested rollback boundary |
 
 ## Learning objectives
@@ -164,9 +164,9 @@ Also test the operational edges. Can monitoring distinguish a physical GPU fault
 
 Separate interactive graphics, persistent engineering workstations, short-lived batch VMs, and latency-sensitive compute VMs into service classes. The classes may share a fleet only when their maintenance window, profile, security, and SLO requirements genuinely align. A general-purpose virtual desktop pool should not be the capacity reserve for an incident-sensitive inference VM.
 
-For a regulated environment, make the VM template the security and audit boundary: signed image provenance, guest patch posture, role-based console access, tenant network segmentation, centralized logs, and a documented break-glass process. The vGPU device does not replace those controls. See [Chapter 08](./chapter-08-tenant-isolation-security-and-fairness) for the layered tenant model.
+For a regulated environment, make the VM template the security and audit boundary: signed image provenance, guest patch posture, role-based console access, tenant network segmentation, centralized logs, and a documented break-glass process. The vGPU device does not replace those controls. See Chapter 08 for the layered tenant model.
 
-For Kubernetes-native workloads, prefer the native GPU resource model when a VM boundary adds no product or compliance value. See [Chapter 07](./chapter-07-kubernetes-scheduling-for-shared-gpus). vGPU is a deliberate operational choice, not a default response to every multi-tenant requirement.
+For Kubernetes-native workloads, prefer the native GPU resource model when a VM boundary adds no product or compliance value. See Chapter 07. vGPU is a deliberate operational choice, not a default response to every multi-tenant requirement.
 
 ## Troubleshooting scenario 1: VM boots but no usable GPU appears
 
@@ -400,8 +400,8 @@ No. It defines a supported virtual-device allocation and behavior, but applicati
 
 ## Cross references and further reading
 
-- [Comparing MIG, Time-Slicing, and vGPU](./chapter-06-comparing-mig-time-slicing-and-vgpu)
-- [Kubernetes Scheduling for Shared GPUs](./chapter-07-kubernetes-scheduling-for-shared-gpus)
-- [Tenant Isolation, Security, and Fairness](./chapter-08-tenant-isolation-security-and-fairness)
+- Comparing MIG, Time-Slicing, and vGPU
+- Kubernetes Scheduling for Shared GPUs
+- Tenant Isolation, Security, and Fairness
 - [NVIDIA vGPU Software User Guide](https://docs.nvidia.com/vgpu/latest/grid-vgpu-user-guide/index.html)
 - [NVIDIA MIG User Guide: Virtualization](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/latest/virtualization.html)

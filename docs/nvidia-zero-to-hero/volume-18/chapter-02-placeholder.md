@@ -280,6 +280,6 @@ cat /audit/gpu-firmware-inventory.txt | sort | uniq -c | grep -v '^ *1 '
 
 ## Cross References
 
-- Previous: [Chapter 1 — Threat Modeling](./chapter-01-placeholder.md)
-- Next: [Chapter 3 — Containers and Supply Chain Security](./chapter-03-placeholder.md)
-- Lab: [Lab 1 — Validate Secure Boot and Driver State](./labs/lab-01-placeholder.md)
+- Previous: Chapter 1 — Threat Modeling
+- Next: Chapter 3 — Containers and Supply Chain Security
+- Lab: Lab 1 — Validate Secure Boot and Driver State

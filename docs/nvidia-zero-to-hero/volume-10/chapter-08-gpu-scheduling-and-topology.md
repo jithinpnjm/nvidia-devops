@@ -47,7 +47,7 @@ flowchart LR
 
 **Figure 10.8.1 — Node selection precedes device allocation.** A request for `nvidia.com/gpu` constrains quantity. The scheduler does not automatically infer the workload’s preferred NVLink, PCIe, NUMA, or NIC relationship from that quantity alone. The two decision points matter because they are different failure classes with different fixes: `FilterOK=No` is a policy or capacity problem visible entirely from `kubectl describe pod` events before the Pod ever touches a node, while `AllocOK=No` means the scheduler's view of free capacity was already stale by the time kubelet tried to actually reserve the device — a race that shows up as a bound Pod stuck in `ContainerCreating`, not `Pending`.
 
-The device plugin and extended-resource model are described in [Chapter 04](./chapter-04-device-plugin-and-kubernetes-resource-model). Feature discovery supplies the labels that make pool eligibility expressible in [Chapter 05](./chapter-05-node-and-gpu-feature-discovery). Neither component by itself turns a generic scheduler decision into a complete topology policy.
+The device plugin and extended-resource model are described in Chapter 04. Feature discovery supplies the labels that make pool eligibility expressible in Chapter 05. Neither component by itself turns a generic scheduler decision into a complete topology policy.
 
 ## Four placement questions
 
@@ -78,7 +78,7 @@ Use a request and limit consistently for GPU extended resources according to the
 
 Performance-sensitive work moves data across paths: CPU memory through a PCIe root complex, GPU-to-GPU links, GPU-to-NIC paths for distributed communication, and storage or network adapters. A label such as `topology=fast` can describe an approved class, but it cannot reveal whether the resources actually assigned to a particular Pod form the intended path.
 
-Kubernetes CPU Manager and Topology Manager can help coordinate CPU, device, and NUMA allocation when configured policies and hint providers align. They are not universal topology solvers. GPU peer connectivity, multi-node fabric behavior, and network attachment can require platform-specific topology awareness, node-pool design, or scheduler integration. Read [Volume 07, Chapter 08](../volume-07/chapter-08-topology-aware-placement) before designing placement for distributed GPU communication.
+Kubernetes CPU Manager and Topology Manager can help coordinate CPU, device, and NUMA allocation when configured policies and hint providers align. They are not universal topology solvers. GPU peer connectivity, multi-node fabric behavior, and network attachment can require platform-specific topology awareness, node-pool design, or scheduler integration. Read Volume 07, Chapter 08 before designing placement for distributed GPU communication.
 
 For single-node multi-GPU training, a homogeneous pool with documented topology may be simpler and safer than per-Pod topology logic. For multi-node jobs, combine node-class selection with verified fabric configuration and the workload framework’s communication behavior; a perfect local CPU allocation cannot compensate for a congested or misconfigured network path.
 
@@ -170,8 +170,8 @@ One global policy is rarely appropriate for a shared GPU cluster. Offer clear se
 
 ## Cross references and further reading
 
-- [Node and GPU Feature Discovery](./chapter-05-node-and-gpu-feature-discovery)
-- [Device Plugin and Kubernetes Resource Model](./chapter-04-device-plugin-and-kubernetes-resource-model)
-- [GPU Observability with DCGM](./chapter-09-gpu-observability-with-dcgm)
-- [Volume 07 — Topology-Aware Placement](../volume-07/chapter-08-topology-aware-placement)
+- Node and GPU Feature Discovery
+- Device Plugin and Kubernetes Resource Model
+- GPU Observability with DCGM
+- Volume 07 — Topology-Aware Placement
 - [Kubernetes Topology Manager documentation](https://kubernetes.io/docs/tasks/administer-cluster/topology-manager/)

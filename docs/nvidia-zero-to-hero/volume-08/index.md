@@ -190,7 +190,7 @@ You are ready to leave this volume when you can:
 - Previous volume: [Volume 07 — GPU Networking](pathname://../volume-07/index)
 - Related foundation: [DMA, RDMA, and Peer-to-Peer](pathname://../volume-07/chapter-04-dma-rdma-and-peer-to-peer)
 - Related lab: [Benchmark RDMA and GPUDirect Paths](pathname://../volume-07/labs/lab-03-benchmark-rdma-and-gpudirect-paths)
-- First chapter: [Why InfiniBand Exists](./chapter-01-why-infiniband-exists)
+- First chapter: Why InfiniBand Exists
 
 ## Further Reading
 

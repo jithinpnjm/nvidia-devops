@@ -223,6 +223,6 @@ Attestation Checks: 42
 
 ## Cross References
 
-- Previous: [Chapter 7 — DMA, IOMMU, SR-IOV](./chapter-07-placeholder.md)
-- Next: [Chapter 9 — Confidential Computing and Attestation](./chapter-09-placeholder.md)
-- Lab: [Lab 7 — Deploy and Verify BlueField Security Policy](./labs/lab-07-placeholder.md)
+- Previous: Chapter 7 — DMA, IOMMU, SR-IOV
+- Next: Chapter 9 — Confidential Computing and Attestation
+- Lab: Lab 7 — Deploy and Verify BlueField Security Policy

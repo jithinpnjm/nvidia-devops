@@ -157,6 +157,6 @@ ncu --metrics sm__throughput.avg.pct_of_peak_sustained_elapsed python train.py
 
 ## Related Chapters
 
-- **Previous:** [Chapter 10 — Multi-Node Training Architecture](./chapter-10-multi-node-training-architecture.md)
-- **Next:** [Chapter 12 — Volume 13 Summary](./chapter-12-volume-13-summary.md)
-- **Related:** [Chapter 9 — Checkpointing and Recovery](./chapter-09-checkpointing-and-recovery.md) — checkpoint write time as a contributor to aggregate throughput
+- **Previous:** Chapter 10 — Multi-Node Training Architecture
+- **Next:** Chapter 12 — Volume 13 Summary
+- **Related:** Chapter 9 — Checkpointing and Recovery — checkpoint write time as a contributor to aggregate throughput

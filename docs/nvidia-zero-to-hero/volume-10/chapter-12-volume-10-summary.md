@@ -96,11 +96,11 @@ Use the labs to turn the lifecycle into observable evidence: inspect a node, ins
 
 Revisit the key chapters as you operate the platform:
 
-- [NVIDIA Container Toolkit, RuntimeClass, and CDI](./chapter-03-container-toolkit-runtimeclass-and-cdi) for the container boundary.
-- [Device Plugin and Kubernetes Resource Model](./chapter-04-device-plugin-and-kubernetes-resource-model) and [Node and GPU Feature Discovery](./chapter-05-node-and-gpu-feature-discovery) for advertisement and labeling.
-- [GPU Operator Architecture](./chapter-06-gpu-operator-architecture) and [Driver Containers and Node Operands](./chapter-07-driver-containers-and-node-operands) for reconciliation and host ownership.
-- [GPU Scheduling and Topology](./chapter-08-gpu-scheduling-and-topology), [GPU Observability with DCGM](./chapter-09-gpu-observability-with-dcgm), and [Upgrades and Production Troubleshooting](./chapter-11-upgrades-and-production-troubleshooting) for the production feedback loop.
+- NVIDIA Container Toolkit, RuntimeClass, and CDI for the container boundary.
+- Device Plugin and Kubernetes Resource Model and Node and GPU Feature Discovery for advertisement and labeling.
+- GPU Operator Architecture and Driver Containers and Node Operands for reconciliation and host ownership.
+- GPU Scheduling and Topology, GPU Observability with DCGM, and Upgrades and Production Troubleshooting for the production feedback loop.
 
 ## Next volume
 
-[Volume 11 — GPU Sharing](../volume-11/index) extends this platform model to MIG, time slicing, vGPU, isolation, multi-tenancy, scheduling, accounting, and performance trade-offs.
+Volume 11 — GPU Sharing extends this platform model to MIG, time slicing, vGPU, isolation, multi-tenancy, scheduling, accounting, and performance trade-offs.

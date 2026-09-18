@@ -398,6 +398,6 @@ $ kubectl get daemonset nvidia-device-plugin -n gpu-operator -o jsonpath='{.spec
 
 ## Cross References
 
-- Previous: [Chapter 4 — Kubernetes RBAC](./chapter-04-placeholder.md)
-- Next: [Chapter 6 — GPU Sharing Security](./chapter-06-placeholder.md)
-- Lab: [Lab 4 — Deploy Restricted Pod with Network Policy](./labs/lab-04-placeholder.md)
+- Previous: Chapter 4 — Kubernetes RBAC
+- Next: Chapter 6 — GPU Sharing Security
+- Lab: Lab 4 — Deploy Restricted Pod with Network Policy

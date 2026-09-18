@@ -401,9 +401,9 @@ There is no universally best fabric. There is only a design whose assumptions, t
 
 ## Cross References
 
-- Previous: [Production Troubleshooting](./chapter-10-production-troubleshooting)
-- Next: [Volume 08 Summary](./chapter-12-volume-08-summary)
-- Related lab: [Troubleshoot an InfiniBand Path](./labs/lab-04-troubleshoot-an-infiniband-path)
+- Previous: Production Troubleshooting
+- Next: Volume 08 Summary
+- Related lab: Troubleshoot an InfiniBand Path
 
 ## Further Reading
 

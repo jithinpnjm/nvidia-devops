@@ -350,6 +350,6 @@ tail -n 50 train.log | grep "step_time:"
 
 ## Related Chapters
 
-- **Previous:** [Chapter 3 — Data Parallelism and DDP](./chapter-03-data-parallelism-and-ddp.md)
-- **Next:** [Chapter 5 — DeepSpeed and ZeRO](./chapter-05-deepspeed-and-zero.md) — alternative sharding implementation with more aggressive optimizations
-- **Lab:** [Lab 03 — Test Sharded Training with FSDP](./labs/lab-03-test-sharded-training-with-fsdp.md)
+- **Previous:** Chapter 3 — Data Parallelism and DDP
+- **Next:** Chapter 5 — DeepSpeed and ZeRO — alternative sharding implementation with more aggressive optimizations
+- **Lab:** Lab 03 — Test Sharded Training with FSDP

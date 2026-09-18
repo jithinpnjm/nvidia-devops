@@ -17,9 +17,9 @@ Priority Flow Control (PFC) is one containment mechanism for this condition. It 
 |---|---|
 | Difficulty | Advanced |
 | Estimated reading time | 45–55 minutes |
-| Prerequisites | [RoCEv2 and RDMA over Ethernet](./chapter-03-rocev2-and-rdma-over-ethernet) |
+| Prerequisites | RoCEv2 and RDMA over Ethernet |
 | Primary focus | Per-priority pause, headroom, and failure containment |
-| Next | [ECN and DCQCN](./chapter-05-ecn-and-dcqcn) |
+| Next | ECN and DCQCN |
 
 ## Learning Objectives
 
@@ -295,6 +295,6 @@ Use a deliberately small loss-sensitive class, isolate it from infrastructure tr
 
 ## Cross References
 
-- [RoCEv2 and RDMA over Ethernet](./chapter-03-rocev2-and-rdma-over-ethernet)
-- [ECN and DCQCN](./chapter-05-ecn-and-dcqcn)
-- [Data Center Bridging and QoS](./chapter-06-data-center-bridging-and-qos)
+- RoCEv2 and RDMA over Ethernet
+- ECN and DCQCN
+- Data Center Bridging and QoS

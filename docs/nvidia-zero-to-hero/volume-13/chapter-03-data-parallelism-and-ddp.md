@@ -294,6 +294,6 @@ watch -n 5 'tail -n 20 train.log | grep "loss:" | awk "{sum+=$NF; count++} END {
 
 ## Related Chapters
 
-- **Previous:** [Chapter 2 — Training Memory and Compute Anatomy](./chapter-02-training-memory-and-compute-anatomy.md)
-- **Next:** [Chapter 4 — FSDP and Parameter Sharding](./chapter-04-fsdp-and-parameter-sharding.md) — memory-efficient alternative to DDP
-- **Labs:** [Lab 01 — Run Multi-GPU DDP Training](./labs/lab-01-run-multi-gpu-ddp-training.md) and [Lab 02 — Benchmark NCCL Collectives](./labs/lab-02-benchmark-nccl-collectives.md)
+- **Previous:** Chapter 2 — Training Memory and Compute Anatomy
+- **Next:** Chapter 4 — FSDP and Parameter Sharding — memory-efficient alternative to DDP
+- **Labs:** Lab 01 — Run Multi-GPU DDP Training and Lab 02 — Benchmark NCCL Collectives

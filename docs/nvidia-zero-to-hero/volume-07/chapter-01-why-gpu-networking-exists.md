@@ -653,10 +653,10 @@ Before moving to the next chapter, confirm that you can:
 ## Cross References
 
 - [Volume 07 Introduction](./index)
-- Next: [PCIe, NUMA, and Host Data Paths](./chapter-02-pcie-numa-and-host-data-paths)
-- Related: [GPU Topology, Peer Access, and Data Paths](../volume-02/chapter-10-gpu-topology-peer-access-and-data-paths)
-- Related: [HGX Topology and Data Paths](../volume-06/chapter-04-hgx-topology-and-data-paths)
-- Related lab: [Inspect PCIe, NUMA, and GPU Topology](./labs/lab-01-inspect-pcie-numa-and-gpu-topology)
+- Next: PCIe, NUMA, and Host Data Paths
+- Related: GPU Topology, Peer Access, and Data Paths
+- Related: HGX Topology and Data Paths
+- Related lab: Inspect PCIe, NUMA, and GPU Topology
 
 ## Further Reading
 

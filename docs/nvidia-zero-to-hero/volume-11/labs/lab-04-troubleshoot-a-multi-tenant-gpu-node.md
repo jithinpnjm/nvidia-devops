@@ -350,8 +350,8 @@ kubectl get node "$GPU_NODE" -o jsonpath='{.status.allocatable}{"\n"}'
 
 You used a bottom-up incident method, preserved evidence before changing state, and proved a reversible policy failure separately from device health. Next, conduct a tabletop cross-domain incident: a time-sliced node has healthy hardware, a quota denial for one namespace, and an SLO breach for another. Define the parallel evidence owners and escalation package.
 
-- [Kubernetes Scheduling for Shared GPUs](../chapter-07-kubernetes-scheduling-for-shared-gpus)
-- [Tenant Isolation, Security, and Fairness](../chapter-08-tenant-isolation-security-and-fairness)
-- [Observability and SLOs for Shared GPUs](../chapter-10-observability-and-slos-for-shared-gpus)
-- [Production Troubleshooting](../chapter-11-production-troubleshooting)
+- Kubernetes Scheduling for Shared GPUs
+- Tenant Isolation, Security, and Fairness
+- Observability and SLOs for Shared GPUs
+- Production Troubleshooting
 - [Kubernetes: Debugging Pods](https://kubernetes.io/docs/tasks/debug/debug-application/debug-pods/)

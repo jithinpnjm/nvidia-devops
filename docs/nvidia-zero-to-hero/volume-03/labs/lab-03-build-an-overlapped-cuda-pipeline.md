@@ -435,7 +435,7 @@ You built a correct double-buffered pipeline whose slot lifecycle is explicit: c
 
 ## 18. Further Reading
 
-- [Streams, Events, and Asynchronous Execution](../chapter-07-streams-events-and-asynchronous-execution)
-- [Pinned Memory and Transfer Overlap](../chapter-08-pinned-memory-and-transfer-overlap)
-- [Synchronization, Errors, and Correctness](../chapter-06-synchronization-errors-and-correctness)
-- [Profiling and Production Troubleshooting](../chapter-12-profiling-and-production-troubleshooting)
+- 
+- 
+- 
+- 

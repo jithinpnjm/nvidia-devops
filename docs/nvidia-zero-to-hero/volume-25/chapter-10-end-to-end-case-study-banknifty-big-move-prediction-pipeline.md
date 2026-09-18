@@ -145,5 +145,5 @@ Not "here is a good trading model" — it's too early in the process to claim th
 
 ## Related Chapters
 
-- **Previous:** [Chapter 9 — The Model Promotion Gate](./chapter-09-the-model-promotion-gate-governance-before-the-registry.md)
-- **Full circle:** [Chapter 1 — Why MLOps](./chapter-01-why-mlops-the-cost-of-ungoverned-ml.md) — read it again after this chapter; the opening story should now read as a specific, preventable sequence of missing steps
+- **Previous:** Chapter 9 — The Model Promotion Gate
+- **Full circle:** Chapter 1 — Why MLOps — read it again after this chapter; the opening story should now read as a specific, preventable sequence of missing steps

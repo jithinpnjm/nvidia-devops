@@ -198,6 +198,6 @@ ttl                 3600  # Token valid for 1 hour
 
 ## Cross References
 
-- Previous: [Chapter 9 — Confidential Computing](./chapter-09-placeholder.md)
-- Next: [Chapter 11 — Audit, Logging, and Compliance](./chapter-11-placeholder.md)
-- Lab: [Lab 9 — Implement Model Signing and Verify Signatures](./labs/lab-09-placeholder.md)
+- Previous: Chapter 9 — Confidential Computing
+- Next: Chapter 11 — Audit, Logging, and Compliance
+- Lab: Lab 9 — Implement Model Signing and Verify Signatures

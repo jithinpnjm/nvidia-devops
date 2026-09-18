@@ -139,8 +139,8 @@ Explain why a 128-expert mixture-of-experts model's routing performance would di
 
 ## Cross References
 
-- [Chapter 02 — Inside an HGX Platform](./chapter-02-inside-an-hgx-platform)
-- [Chapter 04 — HGX Topology and Data Paths](./chapter-04-hgx-topology-and-data-paths)
-- [Chapter 05 — HGX Power, Cooling, and Rack Integration](./chapter-05-hgx-power-cooling-and-rack-integration)
+- Chapter 02 — Inside an HGX Platform
+- Chapter 04 — HGX Topology and Data Paths
+- Chapter 05 — HGX Power, Cooling, and Rack Integration
 - Volume 04, Chapter 07 — Grace CPU, GH200, and GB200 Superchips
 - Volume 05, Chapter 07 — DGX GH200 and GB200 NVL72 Systems

@@ -156,6 +156,6 @@ mpirun -np 16 -H node1:8,node2:8 ./build/all_reduce_perf -b 8 -e 128M -f 2 -g 1
 
 ## Related Chapters
 
-- **Previous:** [Chapter 6 — Tensor, Pipeline, and Expert Parallelism](./chapter-06-tensor-pipeline-and-expert-parallelism.md)
-- **Next:** [Chapter 8 — NCCL Collectives and Communication Paths](./chapter-08-nccl-collectives-and-communication-paths.md)
-- **Related:** [Chapter 5 — DeepSpeed and ZeRO](./chapter-05-deepspeed-and-zero.md) — contrasting sharding-only vs. 3D-parallel approaches to the same memory problem
+- **Previous:** Chapter 6 — Tensor, Pipeline, and Expert Parallelism
+- **Next:** Chapter 8 — NCCL Collectives and Communication Paths
+- **Related:** Chapter 5 — DeepSpeed and ZeRO — contrasting sharding-only vs. 3D-parallel approaches to the same memory problem

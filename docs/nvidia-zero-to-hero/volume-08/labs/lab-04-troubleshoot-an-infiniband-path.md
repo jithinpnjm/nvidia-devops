@@ -301,9 +301,9 @@ You diagnosed a controlled InfiniBand path degradation by proving each layer, id
 
 ## 18. Further Reading
 
-- [Production Troubleshooting](../chapter-10-production-troubleshooting)
-- [Fabric Monitoring and Telemetry](../chapter-09-fabric-monitoring-and-telemetry)
-- [Volume 08 Summary](../chapter-12-volume-08-summary)
+- Production Troubleshooting
+- Fabric Monitoring and Telemetry
+- Volume 08 Summary
 
 ## Production Relevance
 

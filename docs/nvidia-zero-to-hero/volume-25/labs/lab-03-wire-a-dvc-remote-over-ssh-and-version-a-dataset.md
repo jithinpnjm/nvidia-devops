@@ -131,4 +131,4 @@ git rm data/your_dataset.parquet.dvc
 
 ## 18. Additional References
 - [DVC Data Management documentation](https://dvc.org/doc/user-guide/data-management)
-- [Chapter 03 — Data Versioning with DVC](../chapter-03-data-versioning-with-dvc.md)
+- Chapter 03 — Data Versioning with DVC

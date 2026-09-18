@@ -181,6 +181,6 @@ If GPU 3 showed 45% utilization while others showed 88%, that GPU is a straggler
 
 ## Related Chapters
 
-- **Next:** [Chapter 2 — Training Memory and Compute Anatomy](./chapter-02-training-memory-and-compute-anatomy.md) — the breakdown of where each byte and FLOP goes
-- **Related:** [Chapter 3 — Data Parallelism and DDP](./chapter-03-data-parallelism-and-ddp.md) — the simplest distributed training strategy
-- **Lab:** [Lab 01 — Run Multi-GPU DDP Training](./labs/lab-01-run-multi-gpu-ddp-training.md)
+- **Next:** Chapter 2 — Training Memory and Compute Anatomy — the breakdown of where each byte and FLOP goes
+- **Related:** Chapter 3 — Data Parallelism and DDP — the simplest distributed training strategy
+- **Lab:** Lab 01 — Run Multi-GPU DDP Training

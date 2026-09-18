@@ -202,6 +202,6 @@ r = FileSystemReader('/checkpoints/step_5000'); print(r.read_metadata())"
 
 ## Related Chapters
 
-- **Previous:** [Chapter 8 — NCCL Collectives and Communication Paths](./chapter-08-nccl-collectives-and-communication-paths.md)
-- **Next:** [Chapter 10 — Multi-Node Training Architecture](./chapter-10-multi-node-training-architecture.md) — Slurm-driven job restart onto a fresh allocation after the node failures this chapter plans for
-- **Related:** [Chapter 5 — DeepSpeed and ZeRO](./chapter-05-deepspeed-and-zero.md) — the sharding schemes whose state this chapter's checkpoints must serialize
+- **Previous:** Chapter 8 — NCCL Collectives and Communication Paths
+- **Next:** Chapter 10 — Multi-Node Training Architecture — Slurm-driven job restart onto a fresh allocation after the node failures this chapter plans for
+- **Related:** Chapter 5 — DeepSpeed and ZeRO — the sharding schemes whose state this chapter's checkpoints must serialize

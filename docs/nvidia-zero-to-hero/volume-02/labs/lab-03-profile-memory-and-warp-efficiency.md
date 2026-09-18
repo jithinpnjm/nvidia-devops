@@ -525,7 +525,7 @@ The central lesson is methodological: a performance claim requires a controlled 
 
 ## 18. Further Reading
 
-- [Registers, Shared Memory, and Local Memory](../chapter-07-registers-shared-memory-and-local-memory)
-- [Global Memory, L1, L2, and HBM](../chapter-08-global-memory-l1-l2-and-hbm)
-- [Divergence, Coalescing, and Bottleneck Reasoning](../chapter-09-divergence-coalescing-and-bottleneck-reasoning)
-- [Scheduling, Occupancy, and Instruction Dispatch](../chapter-06-scheduling-occupancy-and-instruction-dispatch)
+- 
+- 
+- 
+- 

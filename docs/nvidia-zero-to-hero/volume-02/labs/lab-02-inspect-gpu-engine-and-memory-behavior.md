@@ -681,7 +681,7 @@ The important skill is interpretation. Metrics are meaningful only when connecte
 
 ## 18. Further Reading
 
-- [CUDA Cores, Tensor Cores, and RT Cores](../chapter-04-cuda-cores-tensor-cores-and-rt-cores)
-- [GPU Memory Hierarchy](../chapter-05-gpu-memory-hierarchy)
-- [Scheduling, Occupancy, and Instruction Dispatch](../chapter-06-scheduling-occupancy-and-instruction-dispatch)
+- 
+- 
+- 
 - [Inspect GPU Architecture and Topology](./lab-01-inspect-gpu-architecture-and-topology)

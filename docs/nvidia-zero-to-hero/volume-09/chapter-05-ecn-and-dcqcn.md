@@ -13,9 +13,9 @@ A GPU fabric can carry every packet and still waste most of its time in queues. 
 |---|---|
 | Difficulty | Expert |
 | Estimated reading time | 50–60 minutes |
-| Prerequisites | [Priority Flow Control](./chapter-04-priority-flow-control) |
+| Prerequisites | Priority Flow Control |
 | Primary focus | ECN marking, congestion notification, and endpoint rate response |
-| Next | [Data Center Bridging and QoS](./chapter-06-data-center-bridging-and-qos) |
+| Next | Data Center Bridging and QoS |
 
 ## Learning Objectives
 
@@ -263,6 +263,6 @@ Mark pressure early enough to obtain a useful endpoint response, verify that res
 
 ## Cross References
 
-- [Priority Flow Control](./chapter-04-priority-flow-control)
-- [Data Center Bridging and QoS](./chapter-06-data-center-bridging-and-qos)
-- [Fabric Validation and Capacity Planning](./chapter-10-fabric-validation-and-capacity-planning)
+- Priority Flow Control
+- Data Center Bridging and QoS
+- Fabric Validation and Capacity Planning

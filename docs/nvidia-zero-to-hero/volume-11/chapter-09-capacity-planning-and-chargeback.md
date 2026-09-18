@@ -53,7 +53,7 @@ Every link can constrain capacity:
 | Service capacity | What can meet the documented performance and availability promise? | Equating scheduler placement with delivered service |
 | Sellable capacity | What remains after reserve, fragmentation, and committed demand? | Selling all theoretical capacity and calling reserve “utilization” |
 
-The [Kubernetes scheduling chapter](./chapter-07-kubernetes-scheduling-for-shared-gpus) explains how resource advertisements influence placement. This chapter adds the operating model: capacity is useful only when the requested shape can be placed *and* the remaining platform can keep its commitment during ordinary failures and maintenance.
+The Kubernetes scheduling chapter explains how resource advertisements influence placement. This chapter adds the operating model: capacity is useful only when the requested shape can be placed *and* the remaining platform can keep its commitment during ordinary failures and maintenance.
 
 ## Start with workload classes, not devices
 
@@ -237,7 +237,7 @@ Capacity plans become real only when policies enforce them. Pair the plan with:
 - periodic reconciliation of physical inventory, advertised resources, and billed allocations; and
 - a decision forum that can change layouts, rates, and service limits based on evidence.
 
-The security and fairness controls in [Chapter 08](./chapter-08-tenant-isolation-security-and-fairness) define the tenant boundary. Capacity policy should reinforce that boundary rather than letting a high-budget tenant bypass safety controls during a shortage.
+The security and fairness controls in Chapter 08 define the tenant boundary. Capacity policy should reinforce that boundary rather than letting a high-budget tenant bypass safety controls during a shortage.
 
 ## Planning a maintenance window as a capacity test
 
@@ -378,7 +378,7 @@ An effective recommendation presents at least two viable paths. For example, a s
 
 ## Cross references
 
-- [Comparing MIG, Time-Slicing, and vGPU](./chapter-06-comparing-mig-time-slicing-and-vgpu)
-- [Kubernetes Scheduling for Shared GPUs](./chapter-07-kubernetes-scheduling-for-shared-gpus)
-- [Tenant Isolation, Security, and Fairness](./chapter-08-tenant-isolation-security-and-fairness)
-- [Observability and SLOs for Shared GPUs](./chapter-10-observability-and-slos-for-shared-gpus)
+- Comparing MIG, Time-Slicing, and vGPU
+- Kubernetes Scheduling for Shared GPUs
+- Tenant Isolation, Security, and Fairness
+- Observability and SLOs for Shared GPUs

@@ -422,10 +422,10 @@ The central principle is:
 
 ## Cross References
 
-- [Chapter 02 — Inside an HGX Platform](./chapter-02-inside-an-hgx-platform)
-- [Chapter 03 — OEM Integration and Support Boundaries](./chapter-03-oem-integration-and-support-boundaries)
-- [Chapter 07 — GB200 NVL72 Rack-Scale Architecture](./chapter-07-gb200-nvl72-rack-scale-architecture)
-- [Volume 02 — GPU Topology, Peer Access, and Data Paths](../volume-02/chapter-10-gpu-topology-peer-access-and-data-paths)
+- Chapter 02 — Inside an HGX Platform
+- Chapter 03 — OEM Integration and Support Boundaries
+- Chapter 07 — GB200 NVL72 Rack-Scale Architecture
+- Volume 02 — GPU Topology, Peer Access, and Data Paths
 
 ## Further Reading
 

@@ -110,7 +110,7 @@ Run the approved minimal validation workload on the same node and allocation cla
 
 ### Metrics disappear or report an implausible fleet state
 
-Validate the monitoring path independently: exporter scheduling and logs, host access, DCGM connectivity, scrape discovery and freshness, network policy, and label mapping. Missing telemetry means hardware health is unknown; it must not be interpreted as healthy hardware. [GPU Observability with DCGM](./chapter-09-gpu-observability-with-dcgm) covers the monitoring contract.
+Validate the monitoring path independently: exporter scheduling and logs, host access, DCGM connectivity, scrape discovery and freshness, network policy, and label mapping. Missing telemetry means hardware health is unknown; it must not be interpreted as healthy hardware. GPU Observability with DCGM covers the monitoring contract.
 
 ### An operator upgrade stalls
 
@@ -149,6 +149,6 @@ An actionable escalation contains the scope and business impact, a timestamped c
 
 ## Cross references
 
-- [Production Installation and Configuration](./chapter-10-production-installation-and-configuration)
-- [GPU Observability with DCGM](./chapter-09-gpu-observability-with-dcgm)
-- [Volume 10 Summary](./chapter-12-volume-10-summary)
+- Production Installation and Configuration
+- GPU Observability with DCGM
+- Volume 10 Summary

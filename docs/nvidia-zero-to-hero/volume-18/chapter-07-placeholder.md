@@ -238,6 +238,6 @@ $ # But IOMMU limits what it can access...
 
 ## Cross References
 
-- Previous: [Chapter 6 — GPU Sharing Security](./chapter-06-placeholder.md)
-- Next: [Chapter 8 — BlueField and DOCA Security](./chapter-08-placeholder.md)
-- Lab: [Lab 6 — Verify IOMMU Configuration and Test DMA Isolation](./labs/lab-06-placeholder.md)
+- Previous: Chapter 6 — GPU Sharing Security
+- Next: Chapter 8 — BlueField and DOCA Security
+- Lab: Lab 6 — Verify IOMMU Configuration and Test DMA Isolation

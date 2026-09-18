@@ -609,7 +609,7 @@ You validated the CUDA path from PCI enumeration to actual kernel execution. The
 
 ## 18. Further Reading
 
-- [Volume 03 Introduction](../index)
-- [Why CUDA Exists](../chapter-01-why-cuda-exists)
-- [The CUDA Software Stack](../chapter-02-cuda-software-stack)
-- [CUDA Programming and Execution Model](../chapter-03-cuda-programming-and-execution-model)
+- Volume 03 Introduction
+- 
+- 
+- 

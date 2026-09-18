@@ -247,10 +247,10 @@ You should be able to:
 ## Cross References
 
 - [Volume 08 Introduction](./index)
-- [Chapter 01 — Why InfiniBand Exists](./chapter-01-why-infiniband-exists)
-- [Chapter 05 — Subnet Management and OpenSM](./chapter-05-subnet-management-and-opensm)
-- [Chapter 10 — Production Troubleshooting](./chapter-10-production-troubleshooting)
-- [Lab 04 — Troubleshoot an InfiniBand Path](./labs/lab-04-troubleshoot-an-infiniband-path)
+- Chapter 01 — Why InfiniBand Exists
+- Chapter 05 — Subnet Management and OpenSM
+- Chapter 10 — Production Troubleshooting
+- Lab 04 — Troubleshoot an InfiniBand Path
 
 ## Further Reading
 

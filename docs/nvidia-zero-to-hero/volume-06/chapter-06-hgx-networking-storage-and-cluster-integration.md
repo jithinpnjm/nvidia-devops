@@ -267,7 +267,7 @@ A customer wants to combine two HGX server models in one training pool because b
 
 ## Cross References
 
-- [OEM Integration and Support Boundaries](./chapter-03-oem-integration-and-support-boundaries)
-- [HGX Topology and Data Paths](./chapter-04-hgx-topology-and-data-paths)
-- [HGX Power, Cooling, and Rack Integration](./chapter-05-hgx-power-cooling-and-rack-integration)
-- [Lab 02 — Review an HGX Rack Design](./labs/lab-02-review-an-hgx-rack-design)
+- OEM Integration and Support Boundaries
+- HGX Topology and Data Paths
+- HGX Power, Cooling, and Rack Integration
+- Lab 02 — Review an HGX Rack Design

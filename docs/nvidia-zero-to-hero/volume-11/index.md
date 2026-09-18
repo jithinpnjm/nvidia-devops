@@ -56,25 +56,25 @@ The phrase **utilization** needs care. A low average utilization chart can indic
 
 ## Reading path
 
-1. [Why GPU Sharing Exists](./chapter-01-why-gpu-sharing-exists) defines the contract and workload taxonomy.
-2. [MIG Architecture and Isolation](./chapter-02-mig-architecture-and-isolation) explains hardware instances and their limits.
-3. [MIG Profiles and Placement](./chapter-03-mig-profiles-and-placement) turns profiles into fleet inventory.
-4. [Time-Slicing and Oversubscription](./chapter-04-time-slicing-and-oversubscription) explains logical replicas and contention.
-5. [vGPU Architecture and Enterprise Virtualization](./chapter-05-vgpu-architecture-and-enterprise-virtualization) covers VM-oriented sharing.
-6. [Comparing MIG, Time-Slicing, and vGPU](./chapter-06-comparing-mig-time-slicing-and-vgpu) supplies a decision framework.
-7. [Kubernetes Scheduling for Shared GPUs](./chapter-07-kubernetes-scheduling-for-shared-gpus) connects inventory to placement.
-8. [Tenant Isolation, Security, and Fairness](./chapter-08-tenant-isolation-security-and-fairness) defines the policy envelope.
-9. [Capacity Planning and Chargeback](./chapter-09-capacity-planning-and-chargeback) sizes and accounts for the service.
-10. [Observability and SLOs for Shared GPUs](./chapter-10-observability-and-slos-for-shared-gpus) makes the guarantees observable.
-11. [Production Troubleshooting](./chapter-11-production-troubleshooting) provides incident patterns.
-12. [Volume 11 Summary](./chapter-12-volume-11-summary) consolidates the design decisions.
+1. Why GPU Sharing Exists defines the contract and workload taxonomy.
+2. MIG Architecture and Isolation explains hardware instances and their limits.
+3. MIG Profiles and Placement turns profiles into fleet inventory.
+4. Time-Slicing and Oversubscription explains logical replicas and contention.
+5. vGPU Architecture and Enterprise Virtualization covers VM-oriented sharing.
+6. Comparing MIG, Time-Slicing, and vGPU supplies a decision framework.
+7. Kubernetes Scheduling for Shared GPUs connects inventory to placement.
+8. Tenant Isolation, Security, and Fairness defines the policy envelope.
+9. Capacity Planning and Chargeback sizes and accounts for the service.
+10. Observability and SLOs for Shared GPUs makes the guarantees observable.
+11. Production Troubleshooting provides incident patterns.
+12. Volume 11 Summary consolidates the design decisions.
 
 ## Labs
 
-- [Configure and Validate MIG](./labs/lab-01-configure-and-validate-mig)
-- [Configure Kubernetes GPU Time-Slicing](./labs/lab-02-configure-kubernetes-gpu-time-slicing)
-- [Compare Sharing Performance and Isolation](./labs/lab-03-compare-sharing-performance-and-isolation)
-- [Troubleshoot a Multi-Tenant GPU Node](./labs/lab-04-troubleshoot-a-multi-tenant-gpu-node)
+- Configure and Validate MIG
+- Configure Kubernetes GPU Time-Slicing
+- Compare Sharing Performance and Isolation
+- Troubleshoot a Multi-Tenant GPU Node
 
 ## Success criteria
 

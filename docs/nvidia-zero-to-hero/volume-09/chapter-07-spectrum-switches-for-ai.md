@@ -305,9 +305,9 @@ Spectrum switches provide the forwarding, queueing, telemetry, and congestion-si
 
 ## Cross References
 
-- Previous: [Data Center Bridging and QoS](./chapter-06-data-center-bridging-and-qos)
-- Next: [ConnectX Ethernet Adapters](./chapter-08-connectx-ethernet-adapters)
-- Related: [Fabric Validation and Capacity Planning](./chapter-10-fabric-validation-and-capacity-planning)
+- Previous: Data Center Bridging and QoS
+- Next: ConnectX Ethernet Adapters
+- Related: Fabric Validation and Capacity Planning
 
 ## Further Reading
 

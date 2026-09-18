@@ -110,7 +110,7 @@ Use a small, approved CUDA validation image and a representative workload test. 
 6. DCGM telemetry is scraped with stable device identity and reaches the intended dashboards.
 7. A controlled drain, reboot, and return-to-service path restores the node without undocumented manual repair.
 
-The topology-sensitive portion of this test belongs to the workload class. A single-device CUDA smoke test proves a different thing from a distributed training validation. Use [GPU Scheduling and Topology](./chapter-08-gpu-scheduling-and-topology) to decide what the representative test must cover.
+The topology-sensitive portion of this test belongs to the workload class. A single-device CUDA smoke test proves a different thing from a distributed training validation. Use GPU Scheduling and Topology to decide what the representative test must cover.
 
 **Item 3 in practice — allocatable is a kubelet claim, not a driver claim.** After the driver issue above is fixed on `gpu-node-04`, allocatable resource is the next thing to check per node, not just cluster-wide:
 
@@ -169,7 +169,7 @@ $ kubectl describe pod gpu-validate-node07 | tail -6
 
 This is a Pod **start** failure — the container never reached its entrypoint, so no CUDA code ran yet. `/run/nvidia/driver/dev/nvidia0` missing means the toolkit's device injection path did not find a device node to mount, which is a runtime/CDI-layer fault. A CUDA initialization failure instead would show the Pod as `Running` with an in-application error like `CUDA error: no CUDA-capable device is detected` — the same underlying driver problem, but discovered one layer later. Treating these as the same symptom sends the investigation to the wrong log source.
 
-**Metrics are missing after the functional test passes.** The compute path may be correct while the telemetry path is not. Investigate exporter readiness, DCGM access, Prometheus target discovery, scrape health, and network policy as a separate acceptance failure. See [GPU Observability with DCGM](./chapter-09-gpu-observability-with-dcgm).
+**Metrics are missing after the functional test passes.** The compute path may be correct while the telemetry path is not. Investigate exporter readiness, DCGM access, Prometheus target discovery, scrape health, and network policy as a separate acceptance failure. See GPU Observability with DCGM.
 
 ```text
 $ kubectl get pods -n gpu-operator -l app=nvidia-dcgm-exporter -o wide
@@ -199,6 +199,6 @@ The exporter Pod is `Running` — a naive check would call telemetry "up." But t
 
 ## Cross references
 
-- [GPU Observability with DCGM](./chapter-09-gpu-observability-with-dcgm)
-- [GPU Scheduling and Topology](./chapter-08-gpu-scheduling-and-topology)
-- [Upgrades and Production Troubleshooting](./chapter-11-upgrades-and-production-troubleshooting)
+- GPU Observability with DCGM
+- GPU Scheduling and Topology
+- Upgrades and Production Troubleshooting

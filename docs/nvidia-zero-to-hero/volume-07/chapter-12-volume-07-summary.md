@@ -395,10 +395,10 @@ The most durable operational habit is to follow the data. Draw the expected path
 ## Cross References
 
 - [Volume 07 Introduction](./index)
-- [Chapter 01 — Why GPU Networking Exists](./chapter-01-why-gpu-networking-exists)
-- [Chapter 10 — Performance Bottlenecks and Benchmarking](./chapter-10-performance-bottlenecks-and-benchmarking)
-- [Chapter 11 — Production Design Scenarios](./chapter-11-production-design-scenarios)
-- [Lab 04 — Troubleshoot a Multi-GPU Data Path](./labs/lab-04-troubleshoot-a-multi-gpu-data-path)
+- Chapter 01 — Why GPU Networking Exists
+- Chapter 10 — Performance Bottlenecks and Benchmarking
+- Chapter 11 — Production Design Scenarios
+- Lab 04 — Troubleshoot a Multi-GPU Data Path
 
 ## Further Reading
 

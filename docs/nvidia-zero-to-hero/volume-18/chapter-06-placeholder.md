@@ -282,7 +282,7 @@ A sudden power spike + memory utilization spike with no corresponding workload c
 
 ## Cross References
 
-- Previous: [Chapter 5 — Pod Security and Network Policies](./chapter-05-placeholder.md)
-- Next: [Chapter 7 — DMA, IOMMU, and SR-IOV Security](./chapter-07-placeholder.md)
-- Related: [Volume 11 — GPU Sharing Architecture](../volume-11/index.md)
-- Lab: [Lab 5 — Validate MIG Isolation and Detect Time-Slicing Contention](./labs/lab-05-placeholder.md)
+- Previous: Chapter 5 — Pod Security and Network Policies
+- Next: Chapter 7 — DMA, IOMMU, and SR-IOV Security
+- Related: Volume 11 — GPU Sharing Architecture
+- Lab: Lab 5 — Validate MIG Isolation and Detect Time-Slicing Contention

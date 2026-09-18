@@ -272,12 +272,12 @@ ConnectX adapters are active RoCE endpoints and local I/O devices, not just high
 
 ## Cross References
 
-- Previous: [Spectrum Switches for AI](./chapter-07-spectrum-switches-for-ai)
-- Next: [BlueField DPUs and DOCA](./chapter-09-bluefield-dpus-and-doca)
-- Related: [Fabric Validation and Capacity Planning](./chapter-10-fabric-validation-and-capacity-planning)
+- Previous: Spectrum Switches for AI
+- Next: BlueField DPUs and DOCA
+- Related: Fabric Validation and Capacity Planning
 
 ## Further Reading
 
 - [NVIDIA RoCE documentation](https://docs.nvidia.com/networking-ethernet-software/cumulus-linux-40/Network-Solutions/RDMA-over-Converged-Ethernet-RoCE/)
 - [NVIDIA networking documentation](https://docs.nvidia.com/networking/)
-- [Volume 07: ConnectX and GPU Network Adapters](../volume-07/chapter-07-connectx-and-gpu-network-adapters)
+- Volume 07: ConnectX and GPU Network Adapters

@@ -314,6 +314,6 @@ You reviewed an HGX rack as an integrated production system. The final recommend
 
 ## 18. Further Reading
 
-- [HGX Power, Cooling, and Rack Integration](../chapter-05-hgx-power-cooling-and-rack-integration)
-- [HGX Networking, Storage, and Cluster Integration](../chapter-06-hgx-networking-storage-and-cluster-integration)
+- HGX Power, Cooling, and Rack Integration
+- HGX Networking, Storage, and Cluster Integration
 - Current OEM site-planning and support documentation for the selected system

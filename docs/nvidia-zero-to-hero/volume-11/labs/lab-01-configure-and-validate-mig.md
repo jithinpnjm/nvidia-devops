@@ -418,8 +418,8 @@ kubectl uncordon "$GPU_NODE"
 
 You changed a device shape as a controlled capacity operation and proved its host-to-Pod path. For a next exercise, compare two *pre-approved* standardized layouts and calculate which workload demand cannot be served because of geometry—not merely total free slices.
 
-- [MIG Architecture and Isolation](../chapter-02-mig-architecture-and-isolation)
-- [MIG Profiles and Placement](../chapter-03-mig-profiles-and-placement)
-- [Kubernetes Scheduling for Shared GPUs](../chapter-07-kubernetes-scheduling-for-shared-gpus)
+- MIG Architecture and Isolation
+- MIG Profiles and Placement
+- Kubernetes Scheduling for Shared GPUs
 - [NVIDIA MIG User Guide](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/)
 - [NVIDIA device plugin: MIG support](https://github.com/NVIDIA/k8s-device-plugin#multi-instance-gpu-mig-support)

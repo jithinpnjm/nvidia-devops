@@ -184,14 +184,14 @@ Avoid describing RoCE as “InfiniBand over Ethernet.” It carries RDMA semanti
 
 ## Further Reading and Cross References
 
-- [Why Ethernet for AI Is Different](./chapter-01-why-ethernet-for-ai-is-different)
-- [RoCEv2 and RDMA over Ethernet](./chapter-03-rocev2-and-rdma-over-ethernet)
-- [Priority Flow Control](./chapter-04-priority-flow-control)
-- [ECN and DCQCN](./chapter-05-ecn-and-dcqcn)
-- [Data Center Bridging and QoS](./chapter-06-data-center-bridging-and-qos)
-- [Fabric Validation and Capacity Planning](./chapter-10-fabric-validation-and-capacity-planning)
-- [Production Ethernet AI Troubleshooting](./chapter-11-production-troubleshooting)
+- Why Ethernet for AI Is Different
+- RoCEv2 and RDMA over Ethernet
+- Priority Flow Control
+- ECN and DCQCN
+- Data Center Bridging and QoS
+- Fabric Validation and Capacity Planning
+- Production Ethernet AI Troubleshooting
 
 ## Next Volume
 
-[Volume 10 — Kubernetes GPU Platform](../volume-10/index) moves from the physical and network foundation into cluster software: drivers, container runtime, device discovery, scheduling, GPU Operator, upgrades, validation, and production operations.
+Volume 10 — Kubernetes GPU Platform moves from the physical and network foundation into cluster software: drivers, container runtime, device discovery, scheduling, GPU Operator, upgrades, validation, and production operations.

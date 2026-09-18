@@ -572,10 +572,10 @@ It does not replace storage capacity, file-system scale, metadata performance, p
 
 ## Cross References
 
-- Previous: [GPUDirect RDMA](./chapter-05-gpudirect-rdma)
-- Next: [ConnectX and GPU Network Adapters](./chapter-07-connectx-and-gpu-network-adapters)
-- Related: [Performance Bottlenecks and Benchmarking](./chapter-10-performance-bottlenecks-and-benchmarking)
-- Lab: [Benchmark RDMA and GPUDirect Paths](./labs/lab-03-benchmark-rdma-and-gpudirect-paths)
+- Previous: GPUDirect RDMA
+- Next: ConnectX and GPU Network Adapters
+- Related: Performance Bottlenecks and Benchmarking
+- Lab: Benchmark RDMA and GPUDirect Paths
 
 ## Further Reading
 

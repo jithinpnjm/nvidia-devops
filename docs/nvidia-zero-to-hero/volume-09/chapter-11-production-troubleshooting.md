@@ -252,10 +252,10 @@ State facts separately from hypotheses. For example: “Ranks 8–15 show increa
 
 
 - [NVIDIA RoCE documentation](https://docs.nvidia.com/networking-ethernet-software/cumulus-linux-44/Layer-1-and-Switch-Ports/Quality-of-Service/RDMA-over-Converged-Ethernet-RoCE/)
-- [Volume 07 collective paths](../volume-07/chapter-09-multi-node-collectives-and-nccl-paths)
+- Volume 07 collective paths
 
 ## Cross References
 
-- [ECN and DCQCN](./chapter-05-ecn-and-dcqcn)
-- [Fabric Validation and Capacity Planning](./chapter-10-fabric-validation-and-capacity-planning)
-- [Volume 09 Summary](./chapter-12-volume-09-summary)
+- ECN and DCQCN
+- Fabric Validation and Capacity Planning
+- Volume 09 Summary

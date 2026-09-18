@@ -245,9 +245,9 @@ You established a layered host-memory RDMA baseline across message sizes, direct
 
 ## 18. Further Reading
 
-- [Verbs, Queue Pairs, and Completion Queues](../chapter-03-verbs-queue-pairs-and-completion-queues)
-- [Routing, Topologies, and Oversubscription](../chapter-06-routing-topologies-and-oversubscription)
-- [HDR, NDR, XDR, and Link Evolution](../chapter-08-hdr-ndr-xdr-and-link-evolution)
+- Verbs, Queue Pairs, and Completion Queues
+- Routing, Topologies, and Oversubscription
+- HDR, NDR, XDR, and Link Evolution
 
 ## Production Relevance
 

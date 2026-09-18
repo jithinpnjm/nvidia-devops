@@ -306,5 +306,5 @@ You created a workload-first evaluation model that separates mandatory requireme
 
 ## Further reading
 
-- [Chapter 02 — Workload-First GPU Selection](../chapter-02-workload-first-gpu-selection)
-- [Volume 04 introduction](../index)
+- 
+- Volume 04 introduction
