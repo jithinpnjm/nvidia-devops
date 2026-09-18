@@ -201,6 +201,6 @@ The explanation should also state the boundaries honestly. DGX does not design t
 
 ## Cross References
 
-- [Volume 05 Introduction](./index)
-- [Volume 04 — NVIDIA Hardware Portfolio](../volume-04/index)
-- [Volume 02 — GPU Topology](../volume-02/chapter-10-gpu-topology-peer-access-and-data-paths)
+- Volume 05 Introduction
+- Volume 04 — NVIDIA Hardware Portfolio
+- Volume 02 — GPU Topology
