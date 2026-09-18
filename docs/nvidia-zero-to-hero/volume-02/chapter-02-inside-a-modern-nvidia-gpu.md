@@ -10,325 +10,155 @@ tags:
 
 # Inside a Modern NVIDIA GPU
 
-## Introduction
-
-A modern NVIDIA GPU is not a flat collection of identical cores. It is a hierarchy of compute units, schedulers, register files, caches, shared memory, memory controllers, copy engines, and interconnect interfaces. Performance depends on how work and data move through that hierarchy.
-
-Infrastructure engineers often encounter GPU specifications as a list of numbers: core count, memory capacity, bandwidth, power, and peak floating-point throughput. Those numbers matter, but they are not enough to explain behavior. Two workloads on the same GPU can produce very different utilization because they stress different internal resources.
-
-This chapter builds the architectural map required to interpret those differences.
-
-| Chapter field | Value |
+| Chapter metadata | Value |
 |---|---|
 | Volume | 02 — GPU Architecture |
-| Difficulty | Foundation |
+| Difficulty | Advanced |
 | Estimated reading time | 40 minutes |
-| Primary focus | GPU components and their responsibilities |
-| Previous | Why GPU Architecture Evolved |
-| Next | Threads, Warps, Blocks, and Streaming Multiprocessors |
+| Primary audience | DevOps, SRE, Platform, Cloud and Infrastructure Engineers |
+| Core question | When you submit a PyTorch script, what exactly happens inside the silicon of an NVIDIA GPU? |
 
-## Story
+## Introduction
 
-A model-serving team sees 95 percent GPU utilization and assumes the device is operating near maximum capability. Yet request throughput remains below target. Power draw is moderate, memory bandwidth is high, and arithmetic activity is lower than expected.
+In the previous chapter, we covered the high-level evolution of GPU architectures. Now, we zoom into the silicon. 
 
-The utilization metric indicates that the device was busy during the sampling window. It does not reveal which internal resource was busy. The workload may be waiting on memory, executing unsupported code paths, moving data, or issuing inefficient kernels.
+A modern NVIDIA GPU (like the H100) is not just a flat array of 14,000 identical cores. It is an incredibly complex, hierarchical distributed system contained within a single piece of silicon. It has its own operating system (the GigaThread Engine), its own intricate memory hierarchy (Registers, L1, L2, HBM), and discrete hardware blocks dedicated to very specific tasks (Tensor Cores, Copy Engines, NVDEC).
 
-A senior engineer explains that the GPU must be treated as a system. Utilization is only the first signal. The investigation must identify which subsystem limits progress.
+Understanding this internal geography is mandatory for a Senior Infrastructure Engineer. When a PyTorch job runs out of memory, or `nvidia-smi` shows 100% PCIe utilization but 0% Compute utilization, you cannot diagnose the root cause without knowing how data physically moves from the host, through the PCIe bus, into the L2 cache, and finally into the registers of a Streaming Multiprocessor.
 
-## Learning Objectives
-
-After completing this chapter, you will be able to:
-
-- Identify the major architectural regions inside a modern NVIDIA GPU.
-- Explain the role of Streaming Multiprocessors, schedulers, execution units, and register files.
-- Describe the relationship between on-chip memory, cache, and device memory.
-- Explain how copy engines and interconnects affect data movement.
-- Interpret common performance symptoms using subsystem-level reasoning.
-
-## Big Picture
-
-The GPU can be divided into a control-and-execution hierarchy and a memory-and-data-movement hierarchy.
-
-```mermaid
-flowchart TD
-    Host[CPU and Host Memory]
-    Interconnect["PCIe or High-Speed Interconnect<br/>evidence: nvidia-smi shows the process,<br/>PCIe LnkSta matches LnkCap"]
-    Frontend["Command Processor and Work Distribution<br/>evidence: kernel appears in nvidia-smi<br/>--query-compute-apps"]
-    SM1["Streaming Multiprocessor(s)<br/>evidence: dmon sm% rises"]
-    L2["L2 Cache<br/>evidence: profiler L2 hit rate"]
-    Controllers[Memory Controllers]
-    HBM["Device Memory or HBM<br/>evidence: dmon mem% and<br/>memory.used rise"]
-    Copy["Copy Engines<br/>evidence: separate copy-engine<br/>row in dmon/DCGM"]
-
-    Host <--> Interconnect
-    Interconnect --> Frontend
-    Frontend --> SM1
-    SM1 <--> L2
-    L2 <--> Controllers <--> HBM
-    Copy <--> Interconnect
-    Copy <--> HBM
-    SM1 --> Diag{"sm% high,<br/>mem% low?"}
-    Diag -->|"Yes"| ComputeBound["Compute-pipeline bound:<br/>profile which pipeline (FP/Tensor/LSU)"]
-    Diag -->|"No — mem% high too,<br/>or sm% low"| Check2{"mem% high,<br/>sm% low?"}
-    Check2 -->|"Yes"| MemBound["Memory-bandwidth bound:<br/>SM is stalled waiting on HBM"]
-    Check2 -->|"No — both low,<br/>spiky over time"| Starved["Launch/feed-starved:<br/>problem is upstream of the GPU"]
-```
-
-**Figure 2.2.1 — Simplified GPU architecture.** Work arrives through the host interface, is distributed across Streaming Multiprocessors, and accesses device memory through shared cache and memory controllers. Each arrow is labeled with the specific tool output that proves that hop is actually active, and the bottom branch turns the diagram into the same three-way split every "GPU is slow" ticket eventually reduces to: compute-bound, memory-bound, or starved before it ever reaches the device.
-
-**The evidence in practice — one `dmon` sample makes the diagnosis:**
-
-```text
-$ nvidia-smi dmon -s ucm -c 1
-# gpu   sm   mem   enc   dec   fb   bar1
-# Idx     %     %     %     %    MB     MB
-    0    97    22     0     0 41200    412
-```
-
-Reading this against the decision diagram above: `sm=97%` (compute pipelines busy) with `mem=22%` (memory subsystem comparatively idle) lands on the **compute-bound** branch — the fix is a faster or more efficient kernel, not more memory bandwidth. If those two numbers were reversed (`sm` low, `mem` high), the same diagram would point at memory-bandwidth-bound instead, and the fix would be data layout or reuse, not raw FLOPs.
-
-## Streaming Multiprocessors
-
-The Streaming Multiprocessor, or SM, is the main programmable execution building block. A GPU contains multiple SMs. Each SM includes the resources required to keep many threads in flight.
-
-Typical SM responsibilities include:
-
-- Holding thread state in registers
-- Scheduling ready warps
-- Issuing instructions to execution pipelines
-- Providing low-latency shared memory
-- Accessing cache and device memory
-- Coordinating synchronization within a thread block
-
-An SM is not equivalent to a CPU core. A CPU core is designed to advance a small number of instruction streams quickly. An SM manages many warps and relies on their concurrency to sustain throughput.
-
-## Execution Resources
-
-Different instructions use different execution pipelines. Depending on GPU generation and product class, the architecture may include general arithmetic units, tensor-oriented units, load/store pipelines, special-function units, and other specialized resources.
-
-| Execution resource | Typical responsibility | Common pressure signal |
-|---|---|---|
-| General arithmetic pipelines | Integer and floating-point operations | Compute pipeline saturation |
-| Tensor-oriented pipelines | Matrix multiply-accumulate operations | High tensor activity |
-| Load/store units | Move data between registers and memory hierarchy | Memory instruction pressure |
-| Special-function units | Transcendental and specialized math | Serialization or pipeline limits |
-| Branch/control units | Manage execution paths and predicates | Divergence and control overhead |
-
-A kernel can saturate one pipeline while leaving others underused. Peak device throughput assumes a workload that maps efficiently to the relevant hardware.
-
-## Warp Schedulers and Instruction Issue
-
-Threads are grouped into warps for execution. A scheduler selects a ready warp and issues its next instruction to an appropriate pipeline. If a warp waits on memory or synchronization, another ready warp can be selected.
-
-```mermaid
-flowchart LR
-    Ready[Ready Warps]
-    Scheduler[Warp Scheduler]
-    Decode[Instruction Decode]
-    PipeA[Arithmetic Pipeline]
-    PipeB[Tensor Pipeline]
-    Load[Load and Store Pipeline]
-    Wait[Waiting Warps]
-
-    Ready --> Scheduler --> Decode
-    Decode --> PipeA
-    Decode --> PipeB
-    Decode --> Load
-    Load --> Wait
-    Wait --> Ready
-```
-
-**Figure 2.2.2 — Warp issue model.** The scheduler chooses from ready warps and directs instructions to different pipelines. Waiting work returns to the ready pool when its dependency clears.
-
-The scheduler does not make a serial workload parallel. Software must provide enough independent work for the scheduler to choose from.
-
-## Register File
-
-Registers are the fastest storage available to executing threads. They hold operands, intermediate values, pointers, and thread-local state.
-
-The register file is large in aggregate but finite per SM. A kernel that requires many registers per thread can reduce the number of threads that fit concurrently. This can lower occupancy and reduce the GPU's ability to hide latency.
-
-This creates a common trade-off:
-
-- More registers can reduce spills and improve per-thread efficiency.
-- Excessive register use can reduce concurrency.
-
-The correct balance depends on the kernel.
-
-**A worked residency calculation.** Take an SM with a 65,536 (64K) 32-bit register file and a maximum of 2,048 resident threads. If a kernel's compiler-reported register use is 32 registers/thread, the register file alone permits `65,536 / 32 = 2,048` resident threads — the full architectural maximum, register-limited exactly at the ceiling. Increase the kernel to 64 registers/thread (a plausible result of loop unrolling or caching more intermediate values) and the same register file now permits only `65,536 / 64 = 1,024` resident threads — occupancy relative to the architectural maximum is cut in half before any other resource is even considered. This is the concrete arithmetic behind the "small changes can cross allocation boundaries" warning above, and it's checkable directly from `nvcc -Xptxas=-v` output, which reports registers/thread per kernel at compile time.
-
-## Shared Memory and L1 Cache
-
-Shared memory is an on-chip memory region visible to threads in the same block. It enables threads to cooperate without repeatedly accessing slower device memory.
-
-Common uses include:
-
-- Reusing tiles of matrix data
-- Exchanging partial results
-- Implementing block-level reductions
-- Reordering data for efficient memory access
-
-Shared memory is fast, but capacity is limited. Large per-block allocations reduce the number of blocks that can reside on an SM.
-
-In many architectures, L1 cache and shared-memory resources are closely related or share configurable capacity. The exact implementation varies by generation, but the architectural lesson is stable: on-chip storage is limited and must be budgeted carefully.
-
-## L2 Cache and Device Memory
-
-L2 cache is shared across SMs and sits between the execution units and device memory. It can reduce repeated accesses to external memory and support data sharing across the device.
-
-Device memory provides much greater capacity than on-chip storage but has higher latency. Accelerator-class GPUs often use High Bandwidth Memory to deliver very high aggregate bandwidth. Bandwidth does not eliminate latency, and workloads must still expose enough concurrency to tolerate memory delays.
-
-```mermaid
-flowchart TD
-    Registers[Registers]
-    Shared[Shared Memory and L1]
-    L2[L2 Cache]
-    HBM[Device Memory]
-    Host[Host Memory]
-
-    Registers <--> Shared <--> L2 <--> HBM <--> Host
-```
-
-**Figure 2.2.3 — Simplified memory hierarchy.** Storage closer to execution is faster and smaller. Storage farther away is larger but more expensive to access.
-
-| Memory level | Scope | Relative latency | Relative capacity |
-|---|---|---|---|
-| Registers | Individual thread | Lowest | Smallest per thread |
-| Shared memory | Thread block | Very low | Limited per SM |
-| L1 cache | Local to SM | Low | Limited |
-| L2 cache | Shared by GPU | Moderate | Larger on-chip |
-| Device memory | Whole device | High | Large |
-| Host memory | CPU-visible system memory | Higher and interconnect-dependent | Very large |
-
-## Copy Engines and Data Movement
-
-GPUs may include dedicated engines for moving data independently of compute execution. When software uses asynchronous transfers and suitable memory, data movement can overlap with computation.
-
-Without overlap, the pipeline becomes serial:
-
-```text
-Copy input → wait → compute → wait → copy output
-```
-
-With overlap, different batches can occupy different stages:
-
-```text
-Copy batch B while computing batch A
-```
-
-Overlap requires software support, sufficient work, and correct stream usage. Hardware capability alone does not guarantee concurrency.
-
-## Interconnect Interfaces
-
-The GPU communicates with CPUs, peer GPUs, NICs, and storage through system interconnects. PCIe is the common host attachment. Some platforms also use higher-bandwidth GPU interconnects or switching fabrics for peer communication.
-
-The interface matters because data movement outside the GPU can dominate end-to-end performance. A kernel may execute quickly while the application remains slow due to host transfer, peer communication, or network synchronization.
-
-## Architecture Trade-offs
-
-Every internal resource is finite. GPU optimization is therefore a resource-allocation problem.
-
-| Resource | Benefit of using more | Cost of using too much |
-|---|---|---|
-| Registers | Fewer spills, fast local state | Lower concurrency |
-| Shared memory | Fast data reuse | Fewer resident blocks |
-| Cache | Reduces external memory traffic | Limited capacity and workload dependent |
-| Warps | Hides latency | Scheduling and resource pressure |
-| Device memory | Holds large models and working sets | Higher access latency |
-| Interconnect bandwidth | Faster external movement | Cost, topology, and platform complexity |
-
-## Production Troubleshooting
-
-### Symptom: High utilization, low throughput
-
-Possible causes include:
-
-- Memory bandwidth saturation
-- Inefficient instruction mix
-- Small kernels launched frequently
-- Synchronization overhead
-- Data movement outside the device
-- Runtime-level batching or scheduling limits
-
-### Symptom: Out-of-memory errors with free memory reported earlier
-
-- Fragmentation
-- Dynamic cache growth
-- Concurrent model replicas
-- Temporary workspace allocations
-- Activation or KV-cache expansion
-
-### Symptom: Strong single-GPU performance, weak multi-GPU scaling
-
-- Peer communication through a slower path
-- Poor GPU-to-NIC locality
-- Synchronization overhead
-- Imbalanced work distribution
-- Network or collective bottlenecks
-
-:::warning
-A single utilization percentage cannot identify the limiting subsystem. Always correlate compute, memory, power, clocks, transfer activity, and application throughput.
+:::info Principal Engineer View
+Stop viewing the GPU as a black box that magically makes math fast. View it as a highly structured factory. Data enters through the loading dock (PCIe/NVLink), is stored in the warehouse (HBM), distributed to the assembly lines (L2 to L1 Cache), and processed by the workers (Streaming Multiprocessors). Bottlenecks occur when one part of the factory outpaces another.
 :::
 
-**Turning "high utilization, low throughput" into evidence.** The single most useful pairing for this symptom is `dmon`'s per-engine breakdown against application-level throughput measured over the same window:
+## The Hardware Map: The H100 Architecture
 
-`sm=94-96%` and `mem=90-93%` sustained together, not just briefly, is the signature of a genuinely memory-bandwidth-saturated kernel: the SMs report busy because they are actively issuing memory requests, but they are largely stalled waiting on those requests to return, not performing FLOPs. Application throughput (tokens/s, samples/s) measured during this same window will be well below what the GPU's peak compute spec would suggest — and that gap is the actual proof for the table's first row ("Memory bandwidth saturation"), not the utilization number alone.
+Let's dissect the NVIDIA Hopper H100 (SXM5) GPU. 
 
-**Turning "out-of-memory errors with free memory reported earlier" into evidence.** The per-process breakdown, taken right before the failure, distinguishes fragmentation from genuine growth:
+If you peel back the heat sink, you will see a massive central die (the GPU processor) surrounded by several smaller silicon chips. Those smaller chips are the High-Bandwidth Memory (HBM3) stacks. They are fused together on a single silicon "interposer" to allow data to travel between them at 3.35 Terabytes per second.
 
-```text
-$ nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader
-78,850 MiB, 81,559 MiB
+Inside that central GPU die, the architecture is strictly hierarchical.
 
-$ nvidia-smi --query-compute-apps=pid,used_memory --format=csv,noheader
-22104, 39,200 MiB
-22188, 39,650 MiB
+### 1. The GigaThread Engine (The Boss)
+When the host CPU sends a CUDA kernel (a program) to the GPU, it arrives at the **GigaThread Engine**. This is the GPU's master hardware scheduler. It receives the massive block of work, breaks it into smaller chunks (Thread Blocks), and assigns those chunks to the individual Streaming Multiprocessors. 
+
+### 2. The L2 Cache (The Central Hub)
+In the dead center of the GPU die sits a massive, unified L2 Cache (50MB in the H100). Every single compute core, memory controller, and PCIe/NVLink interface connects to this L2 Cache. 
+* If a core needs data from HBM, the data is pulled into the L2 cache first.
+* If a GPU receives data from another GPU over NVLink, it writes directly into the L2 cache.
+* Bypassing HBM and hitting the L2 cache saves immense amounts of power and latency.
+
+### 3. The Streaming Multiprocessor (SM) (The Assembly Line)
+The **Streaming Multiprocessor (SM)** is the fundamental unit of compute in an NVIDIA GPU. 
+An H100 contains up to **132 SMs**. 
+When the GigaThread Engine assigns a chunk of work, it assigns it to a specific SM. Once work is on an SM, it cannot move to another SM.
+
+Inside a single Hopper SM, you will find:
+* **128 FP32 CUDA Cores:** For standard scalar math.
+* **4 Tensor Cores:** For massive 4x4 matrix multiplications (utilizing the Transformer Engine for FP8).
+* **4 Texture Units:** (Mostly ignored in AI, used for graphics).
+* **256 KB of L1 Data Cache / Shared Memory:** Ultra-fast memory located mere micrometers from the math cores.
+* **A massive Register File:** (65,536 registers per SM). This is where the actual numbers sit the moment before they are multiplied.
+
+```mermaid
+flowchart TD
+    subgraph "NVIDIA H100 GPU Silicon Hierarchy"
+        Host[Host CPU] -->|PCIe Gen5| GTE(GigaThread Engine)
+        GTE --> L2[(50MB Unified L2 Cache)]
+        
+        subgraph "132x Streaming Multiprocessors (SMs)"
+            direction LR
+            SM1[SM 1]
+            SM2[SM 2]
+            SM_N[SM 132]
+        end
+        
+        L2 <--> SM1
+        L2 <--> SM2
+        L2 <--> SM_N
+        
+        SM1 <--> L1_1(256KB L1 / Shared Mem)
+        SM2 <--> L1_2(256KB L1 / Shared Mem)
+        
+        L2 <-->|3.35 TB/s| HBM[(80GB HBM3 Memory)]
+        L2 <-->|NVLink 900GB/s| Peer[Peer GPU]
+    end
 ```
 
-`78,850 / 81,559 MiB` (~97%) allocated, split almost evenly across two processes, each near 39GB, leaves under 3GiB of headroom — the next allocation (a new request's KV cache, a growing activation buffer) has nowhere to go and fails with an out-of-memory error even though the failure "appeared" only under concurrent load, when both processes' memory grew at the same time. This is the concrete pattern behind "Concurrent model replicas" and "Activation or KV-cache expansion" in the table above.
+## Internal Working: The Memory Hierarchy
 
-## Customer Scenario
+To master GPU performance, you must master the memory hierarchy. The closer memory is to the ALU (the math core), the faster it is, but the smaller its capacity.
 
-A customer compares two GPUs using only peak compute throughput. Their workload is a memory-intensive recommendation model with large embedding tables. The faster arithmetic specification does not produce proportional improvement because the workload spends much of its time moving data.
+1. **Registers (Fastest, Smallest):** Located inside the SM. This is where the variables in a CUDA thread live. Access takes 1 clock cycle.
+2. **L1 Cache / Shared Memory (Very Fast, Very Small):** Also inside the SM (256KB). Shared Memory is explicitly managed by the programmer. If 32 threads in a Warp need to read the exact same array, the programmer loads it into Shared Memory once, preventing 32 slow trips to main memory.
+3. **L2 Cache (Fast, Medium):** Shared across the entire GPU (50MB). 
+4. **HBM3 Global Memory (Slowest, Largest):** The 80GB of memory surrounding the die. Accessing HBM takes hundreds of clock cycles. If an SM constantly has to fetch from HBM, it will stall. This is the **Memory Wall**.
 
-A strong architect evaluates memory capacity, memory bandwidth, cache behavior, batching, data placement, and end-to-end system design. Peak compute remains relevant, but it is not the dominant requirement.
+### The PCIe & Copy Engine Bottleneck
+The GPU cannot read files from the host's NVMe drive (unless using GPUDirect Storage). The host CPU must read the file into System RAM, and then push it over the PCIe bus to the GPU's HBM. 
+The PCIe Gen5 bus maxes out at ~64 GB/s. The H100 HBM3 operates at 3,350 GB/s. 
+*If your Python script constantly moves variables back and forth between the CPU and the GPU (`.to('cuda')` and `.cpu()`), your code will run at the speed of the PCIe bus (64 GB/s), entirely negating the $30,000 GPU.*
+
+GPUs contain specialized **Copy Engines (DMA Controllers)**. These allow the GPU to pull data from the host RAM asynchronously, without interrupting the math cores. Senior engineers structure their code to overlap Compute and Copy: while the SMs are processing Batch 1, the Copy Engines are simultaneously pulling Batch 2 over PCIe.
+
+## Advanced Silicon: Beyond Math
+
+A modern data center GPU contains specialized hardware blocks outside of the SMs that are critical for specific workloads.
+
+1. **NVDEC / NVENC (Video Decoders/Encoders):** If you are running an AI pipeline that analyzes security camera footage, passing raw MP4 files to the CUDA cores to decode is an extreme waste of resources. GPUs possess dedicated hardware chips (NVDEC) that decode H.264/HEVC video streams natively, dumping the raw pixels directly into HBM for the Tensor Cores to analyze. 
+2. **Optical Flow Accelerator (OFA):** Specialized hardware to calculate the movement of pixels between two video frames.
+
+## Production Deployment & Operations
+
+Understanding the SM and Memory hierarchy dictates how you manage clusters.
+
+### 1. MIG (Multi-Instance GPU) Architecture
+When you use MIG to slice an A100 or H100 into 7 instances, you are not using software virtualization. You are configuring the hardware to physically wall off SMs, L2 Cache, and HBM memory controllers. 
+If MIG Instance 1 is assigned 14 SMs and 10GB of HBM, it physically cannot access the L2 cache assigned to MIG Instance 2. This guarantees absolute QoS (Quality of Service) and prevents Cache Eviction attacks, making MIG safe for multi-tenant enterprise environments.
+
+### 2. Monitoring the Hardware
+A standard SRE looks at `nvidia-smi` and sees `GPU-Util: 100%`. A Senior SRE queries DCGM (Data Center GPU Manager) via Prometheus to see *what* is at 100%.
+* `DCGM_FI_PROF_SM_ACTIVE`: Are the SMs actually doing math?
+* `DCGM_FI_PROF_PIPE_TENSOR_ACTIVE`: Are the Tensor Cores being used, or is the workload falling back to legacy FP32 CUDA cores?
+* `DCGM_FI_PROF_DRAM_ACTIVE`: Is the global HBM memory bandwidth pegged at 100%? (The workload is memory-bound).
+* `DCGM_FI_PROF_PCIE_TX_BYTES`: Is the PCIe bus saturated? (The data loader is inefficient).
+
+## Customer Scenario (Senior Level)
+
+**The Situation:**
+A Computer Vision team is training a ResNet-50 image classification model on a new DGX H100. They complain: "The GPU utilization in `nvidia-smi` keeps spiking from 0% to 100% and back to 0% every few seconds. Training is taking twice as long as it should."
+
+**The Senior Architect Response:**
+"Your GPU is experiencing severe Host Starvation. 
+
+You are loading millions of JPEG images from your local NVMe drive. Your PyTorch `DataLoader` is currently using the host CPU to open the JPEGs, decode them into uncompressed pixel tensors, resize them, and then send them over the PCIe bus to the GPU. 
+
+Because CPUs are slow at decoding JPEGs, the GPU's Streaming Multiprocessors (SMs) finish analyzing the images in a fraction of a second (the 100% spike), and then sit idle waiting for the CPU to decode the next batch (the 0% valley).
+
+We need to rewrite your data pipeline using a library like **NVIDIA DALI** (Data Loading Library). This will allow the CPU to simply pass the raw, compressed JPEG bytes over the PCIe bus. We will then utilize the GPU's dedicated **NVDEC hardware decoders** to decompress the images directly inside the GPU's memory, completely bypassing the CPU bottleneck and keeping the Tensor Cores fed continuously."
 
 ## Interview Preparation
 
-### Conceptual Questions
+**Conceptual:** Explain the journey of a matrix from the Host CPU to the Tensor Cores. *(Hint: Host RAM -> PCIe Bus -> GPU Global Memory (HBM) -> L2 Cache -> SM L1 Cache / Registers -> Tensor Core).*
 
-1. What is the role of a Streaming Multiprocessor?
-2. Why can high GPU utilization coexist with poor throughput?
-3. How do registers and shared memory affect concurrency?
+**Architecture:** What is the difference between the GigaThread Engine and a Streaming Multiprocessor (SM)? *(Hint: The GigaThread engine is the global scheduler that distributes thread blocks. The SM is the actual worker that executes the math).*
 
-### Architecture Questions
+**Troubleshooting:** An engineer writes a Python loop that modifies a 10GB tensor on the GPU, but applies a `.cpu().numpy()` conversion inside the loop to print a debug statement. Why does the performance drop by 90%? *(Hint: Converting to CPU forces the GPU to halt, wait for the massive 10GB tensor to traverse the slow 64GB/s PCIe bus to Host RAM, print, and then copy it back. Never move data across PCIe unless absolutely necessary).*
 
-1. Draw the major compute and memory regions inside a GPU.
-2. Explain how work moves from the host to an SM.
-3. Compare registers, shared memory, L2 cache, and device memory.
-
-### Scenario Questions
-
-1. A workload is memory-bound. Which metrics and components matter?
-2. A kernel uses many registers. What performance trade-off may occur?
-3. Multi-GPU performance is poor while single-GPU performance is strong. Where do you look?
+**Hardware Features:** Why is MIG (Multi-Instance GPU) considered safer for multi-tenant Kubernetes clusters than traditional Time-Slicing? *(Hint: Time-slicing shares the same L2 cache and memory bandwidth, allowing a noisy neighbor to evict another pod's data from cache. MIG physically partitions the L2 cache and memory controllers).*
 
 ## Summary
 
-A modern GPU is a hierarchy of execution, scheduling, memory, and data-movement resources. Streaming Multiprocessors execute warps, register files hold thread state, shared memory enables block-level cooperation, caches reduce memory traffic, device memory provides capacity, and interconnects connect the accelerator to the rest of the system.
-
-Performance depends on which resource limits progress. Understanding the internal map allows engineers to move beyond generic utilization metrics and reason about actual bottlenecks.
+To operate AI infrastructure effectively, you must discard the mental model of the GPU as a single processor. It is a massive, factory-like hierarchy. The GigaThread engine distributes workloads to dozens of Streaming Multiprocessors. Those SMs must pull data through a strict memory hierarchy (HBM -> L2 -> L1 -> Registers). By understanding this physical layout, a Senior Architect can look at telemetry metrics and instantly diagnose whether a workload is compute-bound (Tensor Cores saturated), memory-bound (HBM bandwidth saturated), or I/O bound (PCIe/Copy Engines saturated), allowing for precise, code-level optimizations.
 
 ## Key Takeaways
 
-- The GPU is a system, not a flat array of cores.
-- SMs schedule and execute many warps concurrently.
-- On-chip memory is fast but capacity-constrained.
-- Device memory provides bandwidth and capacity but has higher latency.
-- End-to-end performance includes host, peer, storage, and network data movement.
+- **Streaming Multiprocessors (SMs)** are the fundamental compute units. Work assigned to an SM stays on that SM.
+- The **Memory Hierarchy** dictates performance: Registers (Fastest/Smallest) > L1/Shared Memory > L2 Cache > HBM Global Memory (Slowest/Largest).
+- Data movement across the **PCIe bus** is the most common and devastating bottleneck in poorly written AI code.
+- Specialized hardware like **NVDEC** (Video Decoding) and **Copy Engines** (DMA) operate independently of the mathematical SMs and should be utilized to prevent host CPU starvation.
 
-## Cross References
+## Related Chapters
 
-- Previous: [Why GPU Architecture Evolved](./chapter-01-why-gpu-architecture-evolved)
-- Next: [Threads, Warps, Blocks, and Streaming Multiprocessors](./chapter-03-threads-warps-blocks-and-sms)
-- Related lab: [Inspect GPU Architecture and Topology](./labs/lab-01-inspect-gpu-architecture-and-topology)
+- Previous: [Why GPU Architecture Evolved](./chapter-01-why-gpu-architecture-evolved.md)
+- Next: [Threads, Warps, Blocks, and Streaming Multiprocessors](./chapter-03-threads-warps-blocks-and-sms.md)
+- Related lab: [Inspect GPU Engine and Memory Behavior](./labs/lab-02-inspect-gpu-engine-and-memory-behavior.md)
