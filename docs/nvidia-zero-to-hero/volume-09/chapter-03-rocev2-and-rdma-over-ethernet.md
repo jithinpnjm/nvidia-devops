@@ -312,11 +312,11 @@ Before moving on, confirm that you can:
 
 ## Cross References
 
-- Previous: Ethernet Architecture for AI
-- Next: Priority Flow Control
-- Related: DMA, RDMA, and Peer-to-Peer
-- Related: Verbs, Queue Pairs, and Completion Queues
-- Related: LIDs, GIDs, P_Keys, and Addressing
+- Previous: [Ethernet Architecture for AI](./chapter-02-ethernet-architecture-for-ai)
+- Next: [Priority Flow Control](./chapter-04-priority-flow-control)
+- Related: [DMA, RDMA, and Peer-to-Peer](../volume-07/chapter-04-dma-rdma-and-peer-to-peer)
+- Related: [Verbs, Queue Pairs, and Completion Queues](../volume-08/chapter-03-verbs-queue-pairs-and-completion-queues)
+- Related: [LIDs, GIDs, P_Keys, and Addressing](../volume-08/chapter-04-lids-gids-pkeys-and-addressing)
 
 ## Further Reading
 

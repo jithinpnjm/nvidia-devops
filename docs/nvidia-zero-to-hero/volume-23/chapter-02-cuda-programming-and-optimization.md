@@ -597,7 +597,7 @@ The interviews test your ability to apply this process and explain the tradeoffs
 
 ## Related Chapters
 
-- **Chapter 1:** GPU Architecture Deep Dive — execution model foundations
-- **Chapter 5:** Performance Analysis and Troubleshooting — roofline model
+- **Chapter 1:** [GPU Architecture Deep Dive](./chapter-01-gpu-architecture-deep-dive.md) — execution model foundations
+- **Chapter 5:** [Performance Analysis and Troubleshooting](./chapter-05-performance-analysis-and-troubleshooting.md) — roofline model
 - **Volume 07:** CUDA programming patterns
 - **Lab (V24):** Hands-on kernel optimization exercises

@@ -431,10 +431,10 @@ A strong architecture documents assumptions, physical paths, failure domains, op
 
 ## Cross References
 
-- Previous: Performance Bottlenecks and Benchmarking
-- Next: Volume 07 Summary
-- Related: Topology-Aware Placement
-- Lab: Troubleshoot a Multi-GPU Data Path
+- Previous: [Performance Bottlenecks and Benchmarking](./chapter-10-performance-bottlenecks-and-benchmarking)
+- Next: [Volume 07 Summary](./chapter-12-volume-07-summary)
+- Related: [Topology-Aware Placement](./chapter-08-topology-aware-placement)
+- Lab: [Troubleshoot a Multi-GPU Data Path](./labs/lab-04-troubleshoot-a-multi-gpu-data-path)
 
 ## Further Reading
 

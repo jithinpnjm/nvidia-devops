@@ -482,6 +482,6 @@ If SLA is missed, increase maxTotalUnreadyPercentage or pre-provision extra node
 
 ## Related Chapters
 
-- **Chapter 6:** GPU Sharing and Virtualization — time-slicing and MIG
-- **Chapter 9:** Cluster Operations — long-term capacity planning
+- **Chapter 6:** [GPU Sharing and Virtualization](./chapter-06-gpu-sharing-and-virtualization.md) — time-slicing and MIG
+- **Chapter 9:** [Cluster Operations](./chapter-09-cluster-operations-and-capacity-planning.md) — long-term capacity planning
 - **Volume 21:** AI Factory (reference architectures)

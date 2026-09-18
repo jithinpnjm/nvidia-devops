@@ -496,4 +496,4 @@ Explain why a successful driver command is insufficient proof of service readine
 - [NVIDIA MIG concepts](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/concepts.html)
 - [NVIDIA MIG deployment considerations](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/deployment-considerations.html)
 - [NVIDIA Kubernetes MIG support](https://docs.nvidia.com/datacenter/cloud-native/kubernetes/latest/index.html)
-- Next: MIG Profiles and Placement
+- Next: [MIG Profiles and Placement](./chapter-03-mig-profiles-and-placement)

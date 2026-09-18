@@ -1,6 +1,7 @@
 ---
 title: Volume 04 — NVIDIA Hardware Portfolio
 description: Learn how NVIDIA accelerator families evolved, how to classify them by workload, and how to select hardware without relying on product-name memorization.
+slug: /nvidia-zero-to-hero/volume-04/index
 sidebar_position: 1
 tags:
   - nvidia-hardware

@@ -257,7 +257,7 @@ OWNER & DEADLINE:
 
 ## Cross References
 
-- Previous: Chapter 11 — Audit, Logging, and Compliance
+- Previous: [Chapter 11 — Audit, Logging, and Compliance](./chapter-11-placeholder.md)
 - Related labs: All previous labs (practice validates procedures)
 
 ---

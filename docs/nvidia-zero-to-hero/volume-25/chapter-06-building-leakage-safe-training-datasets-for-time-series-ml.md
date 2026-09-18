@@ -184,6 +184,6 @@ In production, the untouched holdout block plays a specific, disciplined role: i
 
 ## Related Chapters
 
-- **Previous:** Chapter 5 — Data Ingestion and Cleaning Pipeline Design
-- **Next:** Chapter 7 — Model Architecture and Training Pipeline Design
-- **Related:** Chapter 9 — The Model Promotion Gate — consumes these exact fold boundaries to decide whether a model is trustworthy
+- **Previous:** [Chapter 5 — Data Ingestion and Cleaning Pipeline Design](./chapter-05-data-ingestion-and-cleaning-pipeline-design.md)
+- **Next:** [Chapter 7 — Model Architecture and Training Pipeline Design](./chapter-07-model-architecture-and-training-pipeline-design.md)
+- **Related:** [Chapter 9 — The Model Promotion Gate](./chapter-09-the-model-promotion-gate-governance-before-the-registry.md) — consumes these exact fold boundaries to decide whether a model is trustworthy

@@ -492,10 +492,10 @@ Production architecture must connect installed ports to real workload paths, mon
 
 ## Cross References
 
-- Previous: GPUDirect Storage
-- Next: Topology-Aware Placement
-- Related: GPUDirect RDMA
-- Lab: Benchmark RDMA and GPUDirect Paths
+- Previous: [GPUDirect Storage](./chapter-06-gpudirect-storage)
+- Next: [Topology-Aware Placement](./chapter-08-topology-aware-placement)
+- Related: [GPUDirect RDMA](./chapter-05-gpudirect-rdma)
+- Lab: [Benchmark RDMA and GPUDirect Paths](./labs/lab-03-benchmark-rdma-and-gpudirect-paths)
 
 ## Further Reading
 

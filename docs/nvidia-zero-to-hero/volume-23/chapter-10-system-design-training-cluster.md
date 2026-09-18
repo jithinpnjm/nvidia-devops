@@ -320,6 +320,6 @@ Answer:
 
 ## Related Chapters
 
-- **Chapter 3:** Multi-GPU and Distributed Systems — AllReduce and scaling
-- **Chapter 4:** Observability and Monitoring — SLO design and metrics
-- **Chapter 9:** Cluster Operations — hardware selection
+- **Chapter 3:** [Multi-GPU and Distributed Systems](./chapter-03-multi-gpu-and-distributed-systems.md) — AllReduce and scaling
+- **Chapter 4:** [Observability and Monitoring](./chapter-04-observability-and-monitoring.md) — SLO design and metrics
+- **Chapter 9:** [Cluster Operations](./chapter-09-cluster-operations-and-capacity-planning.md) — hardware selection

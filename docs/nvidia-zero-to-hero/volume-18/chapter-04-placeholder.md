@@ -402,6 +402,6 @@ Inference-pod has 47 denied attempts — likely a misconfigured RBAC policy or a
 
 ## Cross References
 
-- Previous: Chapter 3 — Containers and Supply Chain
-- Next: Chapter 5 — Pod Security and Network Policies
-- Lab: Lab 3 — Design and Verify Multi-Tenant RBAC
+- Previous: [Chapter 3 — Containers and Supply Chain](./chapter-03-placeholder.md)
+- Next: [Chapter 5 — Pod Security and Network Policies](./chapter-05-placeholder.md)
+- Lab: [Lab 3 — Design and Verify Multi-Tenant RBAC](./labs/lab-03-placeholder.md)

@@ -342,4 +342,4 @@ It should include a change-controlled recovery path.
 
 - [NVIDIA MIG: getting started and profile placement](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/getting-started-with-mig.html)
 - [NVIDIA MIG supported GPUs](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/supported-gpus.html)
-- Next: Time-Slicing and Oversubscription
+- Next: [Time-Slicing and Oversubscription](./chapter-04-time-slicing-and-oversubscription)

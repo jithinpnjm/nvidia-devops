@@ -258,9 +258,9 @@ You connected SM state, topology, forwarding entries, counter deltas, and worklo
 
 ## 18. Further Reading
 
-- Subnet Management and OpenSM
-- Routing, Topologies, and Oversubscription
-- Fabric Monitoring and Telemetry
+- [Subnet Management and OpenSM](../chapter-05-subnet-management-and-opensm)
+- [Routing, Topologies, and Oversubscription](../chapter-06-routing-topologies-and-oversubscription)
+- [Fabric Monitoring and Telemetry](../chapter-09-fabric-monitoring-and-telemetry)
 
 ## Production Relevance
 

@@ -197,6 +197,6 @@ This also resolves the gap flagged in Chapter 2: it's not accurate to say "GPUs 
 
 ## Cross References
 
-- Previous: Chapter 8 — BlueField and DOCA
-- Next: Chapter 10 — Data and Model Protection
-- Lab: Lab 8 — Deploy Model in GPU Confidential Compute Mode and Verify Attestation
+- Previous: [Chapter 8 — BlueField and DOCA](./chapter-08-placeholder.md)
+- Next: [Chapter 10 — Data and Model Protection](./chapter-10-placeholder.md)
+- Lab: [Lab 8 — Deploy Model in GPU Confidential Compute Mode and Verify Attestation](./labs/lab-08-placeholder.md)

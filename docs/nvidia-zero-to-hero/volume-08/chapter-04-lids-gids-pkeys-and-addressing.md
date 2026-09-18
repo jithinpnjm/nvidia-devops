@@ -614,10 +614,10 @@ Before moving on, confirm that you can:
 
 ## Cross References
 
-- Previous: Verbs, Queue Pairs, and Completion Queues
-- Next: Subnet Management and OpenSM
+- Previous: [Verbs, Queue Pairs, and Completion Queues](./chapter-03-verbs-queue-pairs-and-completion-queues)
+- Next: [Subnet Management and OpenSM](./chapter-05-subnet-management-and-opensm)
 - Related chapter: [Topology-Aware Placement](pathname://../volume-07/chapter-08-topology-aware-placement)
-- Related lab: Inspect Subnet Routing and Counters
+- Related lab: [Inspect Subnet Routing and Counters](./labs/lab-03-inspect-subnet-routing-and-counters)
 
 ## Further Reading
 

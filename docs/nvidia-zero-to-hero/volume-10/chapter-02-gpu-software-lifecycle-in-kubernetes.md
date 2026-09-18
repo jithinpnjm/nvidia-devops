@@ -114,7 +114,7 @@ Rollback must restore a coherent profile, not merely one package. Reverting the 
 | Workload | Does an approved image execute its initialization path? | Framework smoke test and logs |
 | Operations | Can the platform observe and support this node? | Telemetry scrape, alerts, and recorded versions |
 
-Automate these gates and keep their output with the change record. An acceptance test should be intentionally smaller than an application benchmark; it exists to prove the platform boundary, not to certify every model or dataset. Chapter 9 covers the telemetry required after promotion.
+Automate these gates and keep their output with the change record. An acceptance test should be intentionally smaller than an application benchmark; it exists to prove the platform boundary, not to certify every model or dataset. [Chapter 9](./chapter-09-gpu-observability-with-dcgm) covers the telemetry required after promotion.
 
 ## Production Story: Green Nodes, Failed GPUs
 
@@ -197,7 +197,7 @@ Offer a lifecycle contract: approved profiles, a release cadence, node-pool scop
 
 ## Cross References
 
-- Why Kubernetes Needs a GPU Platform Layer
-- NVIDIA Container Toolkit, RuntimeClass, and CDI
-- Driver Containers and Node Operands
-- GPU Observability with DCGM
+- [Why Kubernetes Needs a GPU Platform Layer](./chapter-01-why-kubernetes-needs-a-gpu-platform-layer)
+- [NVIDIA Container Toolkit, RuntimeClass, and CDI](./chapter-03-container-toolkit-runtimeclass-and-cdi)
+- [Driver Containers and Node Operands](./chapter-07-driver-containers-and-node-operands)
+- [GPU Observability with DCGM](./chapter-09-gpu-observability-with-dcgm)

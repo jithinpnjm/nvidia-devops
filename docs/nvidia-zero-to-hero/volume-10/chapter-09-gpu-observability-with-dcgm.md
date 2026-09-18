@@ -101,7 +101,7 @@ The same contract applies to multi-tenant clusters. Tenant-facing views should e
 
 Use a stable order. First establish scope: one Pod, one GPU, one node pool, or the fleet. Then determine whether Kubernetes has allocated the device and whether the application can initialize CUDA. Only then interpret utilization, memory, clocks, power, and reliability signals. An error event close to a workload failure is evidence, not automatically root cause; compare it with a healthy node and the change timeline.
 
-For a workload that is slow but healthy, compare allocated GPU model, peer topology, CPU placement, NIC locality, input rate, and batch behavior before declaring a GPU fault. The scheduler can make a valid allocation that is still a poor fit for a topology-sensitive job. GPU Scheduling and Topology develops that placement boundary.
+For a workload that is slow but healthy, compare allocated GPU model, peer topology, CPU placement, NIC locality, input rate, and batch behavior before declaring a GPU fault. The scheduler can make a valid allocation that is still a poor fit for a topology-sensitive job. [GPU Scheduling and Topology](./chapter-08-gpu-scheduling-and-topology) develops that placement boundary.
 
 ## Failure patterns that mislead operators
 
@@ -117,7 +117,7 @@ For a workload that is slow but healthy, compare allocated GPU model, peer topol
 
 The observability stack must cross the same boundaries as the GPU platform: privileged host access for collection, network access for scraping, and permissions to discover Kubernetes context. Review those boundaries along with the operator deployment. Restrict metrics endpoints appropriately, mirror approved images where required, and test the behavior when Prometheus, the exporter, or a node is unavailable.
 
-Acceptance testing should prove more than that an endpoint responds. Schedule a representative GPU Pod, identify its node and UUID, verify recent metrics and workload context, and exercise the alert routing path with a safe test condition. The acceptance gates in Production Installation and Configuration should make this a release requirement.
+Acceptance testing should prove more than that an endpoint responds. Schedule a representative GPU Pod, identify its node and UUID, verify recent metrics and workload context, and exercise the alert routing path with a safe test condition. The acceptance gates in [Production Installation and Configuration](./chapter-10-production-installation-and-configuration) should make this a release requirement.
 
 ## Senior-level design questions
 
@@ -142,6 +142,6 @@ Acceptance testing should prove more than that an endpoint responds. Schedule a 
 
 ## Cross references
 
-- GPU Scheduling and Topology
-- Production Installation and Configuration
-- Upgrades and Production Troubleshooting
+- [GPU Scheduling and Topology](./chapter-08-gpu-scheduling-and-topology)
+- [Production Installation and Configuration](./chapter-10-production-installation-and-configuration)
+- [Upgrades and Production Troubleshooting](./chapter-11-upgrades-and-production-troubleshooting)

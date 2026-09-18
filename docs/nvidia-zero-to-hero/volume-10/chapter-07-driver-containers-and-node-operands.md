@@ -50,7 +50,7 @@ flowchart TD
     Kubelet -->|"evidence: node status patch applied"| Validation
 ```
 
-**Figure 10.7.1 — A node is ready for GPU workloads only when host, runtime, allocation, and validation contracts agree.** The `DriverOK` decision point is the load-bearing fork in this whole chapter: everything downstream — toolkit injection, plugin registration, discovery labels, validator success — is unreachable evidence if the driver interface itself is not healthy, so this is the first thing to check, not the last. The GPU Operator architecture and reconciliation model are covered in Chapter 06.
+**Figure 10.7.1 — A node is ready for GPU workloads only when host, runtime, allocation, and validation contracts agree.** The `DriverOK` decision point is the load-bearing fork in this whole chapter: everything downstream — toolkit injection, plugin registration, discovery labels, validator success — is unreachable evidence if the driver interface itself is not healthy, so this is the first thing to check, not the last. The GPU Operator architecture and reconciliation model are covered in [Chapter 06](./chapter-06-gpu-operator-architecture).
 
 | Operand or layer | Host-facing responsibility | Failure visible to users |
 |---|---|---|
@@ -205,8 +205,8 @@ The operational choice is not "containers versus hosts." It is whether host chan
 
 ## Cross references and further reading
 
-- GPU Operator Architecture
-- Container Toolkit, RuntimeClass, and CDI
-- GPU Observability with DCGM
+- [GPU Operator Architecture](./chapter-06-gpu-operator-architecture)
+- [Container Toolkit, RuntimeClass, and CDI](./chapter-03-container-toolkit-runtimeclass-and-cdi)
+- [GPU Observability with DCGM](./chapter-09-gpu-observability-with-dcgm)
 - [NVIDIA GPU Operator documentation](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/)
 - [Kubernetes DaemonSet documentation](https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/)

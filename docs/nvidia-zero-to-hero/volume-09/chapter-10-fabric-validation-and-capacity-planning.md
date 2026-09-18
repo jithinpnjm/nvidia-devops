@@ -280,10 +280,10 @@ Use a consistent record so that operations can compare a future result with comm
 
 
 - [NVIDIA Cumulus Linux QoS documentation](https://docs.nvidia.com/networking-ethernet-software/cumulus-linux-57/Layer-1-and-Switch-Ports/Quality-of-Service/)
-- Volume 07 performance benchmarking
+- [Volume 07 performance benchmarking](../volume-07/chapter-10-performance-bottlenecks-and-benchmarking)
 
 ## Cross References
 
-- Data Center Bridging and QoS
-- BlueField DPUs and DOCA
-- Production Ethernet AI Troubleshooting
+- [Data Center Bridging and QoS](./chapter-06-data-center-bridging-and-qos)
+- [BlueField DPUs and DOCA](./chapter-09-bluefield-dpus-and-doca)
+- [Production Ethernet AI Troubleshooting](./chapter-11-production-troubleshooting)

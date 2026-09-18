@@ -185,6 +185,6 @@ NCCL_DEBUG=INFO NCCL_ALGO=Tree python train_moe.py 2>&1 | grep -i "alltoall"
 
 ## Related Chapters
 
-- **Previous:** Chapter 7 — Megatron-LM Architecture
-- **Next:** Chapter 9 — Checkpointing and Recovery
-- **Related:** Chapter 3 — Data Parallelism and DDP — the ring All-Reduce cost model this chapter builds on
+- **Previous:** [Chapter 7 — Megatron-LM Architecture](./chapter-07-megatron-lm-architecture.md)
+- **Next:** [Chapter 9 — Checkpointing and Recovery](./chapter-09-checkpointing-and-recovery.md)
+- **Related:** [Chapter 3 — Data Parallelism and DDP](./chapter-03-data-parallelism-and-ddp.md) — the ring All-Reduce cost model this chapter builds on

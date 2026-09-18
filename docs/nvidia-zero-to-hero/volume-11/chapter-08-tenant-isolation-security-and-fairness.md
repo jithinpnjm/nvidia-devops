@@ -15,7 +15,7 @@ This chapter treats sharing policy as an architecture decision: define who can r
 |---|---|
 | Difficulty | Advanced |
 | Reading time | 35–45 minutes |
-| Prerequisites | Kubernetes identity and policy controls, plus Chapter 06 |
+| Prerequisites | Kubernetes identity and policy controls, plus [Chapter 06](./chapter-06-comparing-mig-time-slicing-and-vgpu) |
 | Production outcome | A threat-modelled and measurable multi-tenant GPU service catalog |
 
 ## Learning objectives
@@ -87,7 +87,7 @@ MIG partitions supported GPU hardware into GPU instances with dedicated memory a
 
 Time-slicing multiplexes workloads on a physical GPU. NVIDIA’s device-plugin documentation warns that a time-sliced replica does not receive a proportional share of memory or compute. It should be treated as a capacity-access mechanism for compatible workloads, not as a hard isolation or fairness guarantee. [NVIDIA k8s-device-plugin sharing](https://github.com/NVIDIA/k8s-device-plugin#shared-access-to-gpus)
 
-vGPU provides a virtual device to a guest VM and supports VM-oriented operations. Its boundary is useful when the VM is the tenant contract, but the host manager, hypervisor, guest driver, license service, storage, and network remain part of the security review. See Chapter 05.
+vGPU provides a virtual device to a guest VM and supports VM-oriented operations. Its boundary is useful when the VM is the tenant contract, but the host manager, hypervisor, guest driver, license service, storage, and network remain part of the security review. See [Chapter 05](./chapter-05-vgpu-architecture-and-enterprise-virtualization).
 
 ## Fairness is a policy, not an equal split
 
@@ -362,8 +362,8 @@ The workload class must explicitly permit disruption; state recovery and checkpo
 
 ## Cross references and further reading
 
-- vGPU Architecture and Enterprise Virtualization
-- Kubernetes Scheduling for Shared GPUs
-- Capacity Planning and Chargeback
+- [vGPU Architecture and Enterprise Virtualization](./chapter-05-vgpu-architecture-and-enterprise-virtualization)
+- [Kubernetes Scheduling for Shared GPUs](./chapter-07-kubernetes-scheduling-for-shared-gpus)
+- [Capacity Planning and Chargeback](./chapter-09-capacity-planning-and-chargeback)
 - [Kubernetes RBAC documentation](https://kubernetes.io/docs/reference/access-authn-authz/rbac/)
 - [Kubernetes NetworkPolicy documentation](https://kubernetes.io/docs/concepts/services-networking/network-policies/)

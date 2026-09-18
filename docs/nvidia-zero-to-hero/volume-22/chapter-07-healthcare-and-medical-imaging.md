@@ -44,6 +44,6 @@ GPU-accelerated medical imaging analysis reduces radiologist review time 80% whi
 
 ## Related Chapters
 
-- **Prev:** Chapter 6 — Telecom
-- **Next:** Chapter 8 — Manufacturing
-- **Lab:** Lab 04 — Medical Imaging Pipeline
+- **Prev:** [Chapter 6 — Telecom](./chapter-06-telecommunications.md)
+- **Next:** [Chapter 8 — Manufacturing](./chapter-08-manufacturing-and-predictive-maintenance.md)
+- **Lab:** [Lab 04 — Medical Imaging Pipeline](./labs/lab-04-medical-imaging-pipeline.md)

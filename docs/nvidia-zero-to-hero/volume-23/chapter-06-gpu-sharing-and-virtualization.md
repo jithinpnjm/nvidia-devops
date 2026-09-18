@@ -362,6 +362,6 @@ Before deploying shared GPU systems:
 
 ## Related Chapters
 
-- **Chapter 7:** Kubernetes and Container Orchestration — resource scheduling
-- **Chapter 9:** Cluster Operations — capacity planning with sharing
+- **Chapter 7:** [Kubernetes and Container Orchestration](./chapter-07-kubernetes-and-container-orchestration.md) — resource scheduling
+- **Chapter 9:** [Cluster Operations](./chapter-09-cluster-operations-and-capacity-planning.md) — capacity planning with sharing
 - **Volume 11:** GPU sharing (deep dive)

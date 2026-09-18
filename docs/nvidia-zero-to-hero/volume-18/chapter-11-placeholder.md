@@ -214,6 +214,6 @@ $ grep -i "patient" /var/log/audit/audit.log | \
 
 ## Cross References
 
-- Previous: Chapter 10 — Data and Model Protection
-- Next: Chapter 12 — Incident Response and Troubleshooting
-- Lab: Lab 10 — Query Audit Logs and Generate Incident Report
+- Previous: [Chapter 10 — Data and Model Protection](./chapter-10-placeholder.md)
+- Next: [Chapter 12 — Incident Response and Troubleshooting](./chapter-12-placeholder.md)
+- Lab: [Lab 10 — Query Audit Logs and Generate Incident Report](./labs/lab-10-placeholder.md)

@@ -323,9 +323,9 @@ You converted a vague performance symptom into a proven path-level root cause. T
 
 ## 18. Further Reading
 
-- Volume 07 Introduction
-- Topology-Aware Placement
-- Multi-Node Collectives and NCCL Paths
-- Performance Bottlenecks and Benchmarking
-- Production Design Scenarios
-- Volume 07 Summary
+- [Volume 07 Introduction](../index)
+- [Topology-Aware Placement](../chapter-08-topology-aware-placement)
+- [Multi-Node Collectives and NCCL Paths](../chapter-09-multi-node-collectives-and-nccl-paths)
+- [Performance Bottlenecks and Benchmarking](../chapter-10-performance-bottlenecks-and-benchmarking)
+- [Production Design Scenarios](../chapter-11-production-design-scenarios)
+- [Volume 07 Summary](../chapter-12-volume-07-summary)

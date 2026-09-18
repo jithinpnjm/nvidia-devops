@@ -203,6 +203,6 @@ You diagnosed a RoCE symptom by preserving evidence and changing one process-sco
 
 ## 18. Further Reading
 
-- ConnectX Ethernet Adapters
-- Fabric Validation and Capacity Planning
-- Production Troubleshooting
+- [ConnectX Ethernet Adapters](../chapter-08-connectx-ethernet-adapters)
+- [Fabric Validation and Capacity Planning](../chapter-10-fabric-validation-and-capacity-planning)
+- [Production Troubleshooting](../chapter-11-production-troubleshooting)

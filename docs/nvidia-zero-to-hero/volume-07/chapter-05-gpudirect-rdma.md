@@ -538,10 +538,10 @@ Before completing the related lab, confirm that you can:
 
 ## Cross References
 
-- Previous: DMA, RDMA, and Peer-to-Peer
-- Next: GPUDirect Storage
-- Related: Topology-Aware Placement
-- Lab: Benchmark RDMA and GPUDirect Paths
+- Previous: [DMA, RDMA, and Peer-to-Peer](./chapter-04-dma-rdma-and-peer-to-peer)
+- Next: [GPUDirect Storage](./chapter-06-gpudirect-storage)
+- Related: [Topology-Aware Placement](./chapter-08-topology-aware-placement)
+- Lab: [Benchmark RDMA and GPUDirect Paths](./labs/lab-03-benchmark-rdma-and-gpudirect-paths)
 
 ## Further Reading
 

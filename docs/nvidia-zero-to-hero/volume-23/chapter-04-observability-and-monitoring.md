@@ -373,7 +373,7 @@ MEMORY_PRESSURE_ALERT:
 
 ## Related Chapters
 
-- **Chapter 3:** Multi-GPU and Distributed Systems — communication metrics
-- **Chapter 8:** Security and Compliance — audit and compliance monitoring
-- **Chapter 9:** Cluster Operations — capacity and cost
+- **Chapter 3:** [Multi-GPU and Distributed Systems](./chapter-03-multi-gpu-and-distributed-systems.md) — communication metrics
+- **Chapter 8:** [Security and Compliance](./chapter-08-security-and-compliance.md) — audit and compliance monitoring
+- **Chapter 9:** [Cluster Operations](./chapter-09-cluster-operations-and-capacity-planning.md) — capacity and cost
 - **Volume 16:** Observability (deep dive)

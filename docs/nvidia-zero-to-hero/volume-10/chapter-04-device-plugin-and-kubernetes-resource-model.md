@@ -52,7 +52,7 @@ sequenceDiagram
 
 **Figure 10.4.1 — The kubelet is the bridge between a device plugin and Kubernetes scheduling.** The scheduler reads node resource state from the API; it does not call the plugin. Allocation occurs after a Pod is bound to a node. The `alt` block makes the two operationally distinct outcomes explicit: a plugin that is registered but reporting unhealthy devices (or whose `ListAndWatch` stream has dropped) publishes `allocatable = 0` even while `capacity` can still show the old number — this is exactly the split behind the "Resource absent on node" troubleshooting row below, and it is why `kubectl describe node` capacity alone is not proof the plugin is healthy right now.
 
-The plugin exposes a local gRPC endpoint under the device-plugin framework and registers it with the kubelet. `ListAndWatch` keeps the kubelet informed of the discovered device IDs and health state. When the health set changes, the kubelet updates the node’s resource view. During allocation, the plugin returns the device-specific information required by the node’s configured runtime path. Chapter 3 covers the next handoff to the runtime.
+The plugin exposes a local gRPC endpoint under the device-plugin framework and registers it with the kubelet. `ListAndWatch` keeps the kubelet informed of the discovered device IDs and health state. When the health set changes, the kubelet updates the node’s resource view. During allocation, the plugin returns the device-specific information required by the node’s configured runtime path. [Chapter 3](./chapter-03-container-toolkit-runtimeclass-and-cdi) covers the next handoff to the runtime.
 
 The exact API version and allocation strategy are implementation details that must match the Kubernetes release and NVIDIA device-plugin configuration in use. Treat the plugin’s release notes and supported configuration as the authority, rather than copying old socket paths or annotations from a different cluster.
 
@@ -103,7 +103,7 @@ The last line, `Registered device plugin for 'nvidia.com/gpu' with Kubelet`, is 
 | Allocation | Kubelet/plugin selected devices for the bound Pod | That the application stack can execute |
 | Workload validation | A process used the device successfully | Performance, distributed behavior, or tenant policy |
 
-For extended resources such as a GPU, Kubernetes expects the quantity in `limits`; when a request is specified it must match the limit. GPUs are ordinarily consumed as whole allocatable units. Sharing, MIG, and virtual-GPU policies can expose different resource names or quantities, but they are deliberate platform configurations—not implicit overcommit behavior. See Volume 11 before promising concurrency or isolation semantics to tenants.
+For extended resources such as a GPU, Kubernetes expects the quantity in `limits`; when a request is specified it must match the limit. GPUs are ordinarily consumed as whole allocatable units. Sharing, MIG, and virtual-GPU policies can expose different resource names or quantities, but they are deliberate platform configurations—not implicit overcommit behavior. See [Volume 11](../volume-11/index) before promising concurrency or isolation semantics to tenants.
 
 ## The Resource Model’s Productive Limitation
 
@@ -117,7 +117,7 @@ The default scheduler can filter and score based on resource quantity and Kubern
 | Multi-Pod job start | Queue or gang-aware scheduling integration | More scheduler complexity |
 | Shared GPU experience | Explicit MIG, time-slicing, or vGPU design | Different resource and isolation semantics |
 
-This is not a defect in the device plugin. It is a clean separation of responsibilities. The plugin provides device discovery and allocation. The platform adds policy based on workload intent. Chapter 8 develops the placement consequences.
+This is not a defect in the device plugin. It is a clean separation of responsibilities. The plugin provides device discovery and allocation. The platform adds policy based on workload intent. [Chapter 8](./chapter-08-gpu-scheduling-and-topology) develops the placement consequences.
 
 ## Production Story: Correct Count, Wrong Outcome
 
@@ -133,7 +133,7 @@ The device plugin normally runs node-locally as a managed DaemonSet and requires
 
 Monitor operand availability, restarts, registration errors, node resource deltas, and unexpected changes in healthy-device count. Protect the plugin’s namespace, images, RBAC, and host-path access. A compromised or misconfigured plugin can alter scheduling capacity across the fleet.
 
-If GPU Operator manages the plugin, use its policy and status as the desired-state entry point; Chapter 6 explains that reconciliation model. Do not let a second deployment system overwrite the same DaemonSet or configuration.
+If GPU Operator manages the plugin, use its policy and status as the desired-state entry point; [Chapter 6](./chapter-06-gpu-operator-architecture) explains that reconciliation model. Do not let a second deployment system overwrite the same DaemonSet or configuration.
 
 ## Troubleshooting in Dependency Order
 
@@ -218,7 +218,7 @@ Be explicit about the distinction in tenant documentation. It sets the right exp
 
 ## Cross References
 
-- NVIDIA Container Toolkit, RuntimeClass, and CDI
-- Node and GPU Feature Discovery
-- GPU Operator Architecture
-- GPU Scheduling and Topology
+- [NVIDIA Container Toolkit, RuntimeClass, and CDI](./chapter-03-container-toolkit-runtimeclass-and-cdi)
+- [Node and GPU Feature Discovery](./chapter-05-node-and-gpu-feature-discovery)
+- [GPU Operator Architecture](./chapter-06-gpu-operator-architecture)
+- [GPU Scheduling and Topology](./chapter-08-gpu-scheduling-and-topology)

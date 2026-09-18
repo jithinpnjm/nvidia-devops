@@ -454,8 +454,8 @@ For a shared platform, offer differentiated recovery expectations. Best-effort j
 
 ## Cross references
 
-- MIG Architecture and Isolation
-- Comparing MIG, Time-Slicing, and vGPU
-- Capacity Planning and Chargeback
-- Observability and SLOs for Shared GPUs
-- Volume 11 Summary
+- [MIG Architecture and Isolation](./chapter-02-mig-architecture-and-isolation)
+- [Comparing MIG, Time-Slicing, and vGPU](./chapter-06-comparing-mig-time-slicing-and-vgpu)
+- [Capacity Planning and Chargeback](./chapter-09-capacity-planning-and-chargeback)
+- [Observability and SLOs for Shared GPUs](./chapter-10-observability-and-slos-for-shared-gpus)
+- [Volume 11 Summary](./chapter-12-volume-11-summary)

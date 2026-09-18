@@ -397,8 +397,8 @@ You built an evidence chain from physical RDMA health to host-memory transfer an
 
 ## 18. Further Reading
 
-- Volume 07 Introduction
-- GPUDirect RDMA
-- ConnectX and GPU Network Adapters
-- Multi-Node Collectives and NCCL Paths
-- Performance Bottlenecks and Benchmarking
+- [Volume 07 Introduction](../index)
+- [GPUDirect RDMA](../chapter-05-gpudirect-rdma)
+- [ConnectX and GPU Network Adapters](../chapter-07-connectx-and-gpu-network-adapters)
+- [Multi-Node Collectives and NCCL Paths](../chapter-09-multi-node-collectives-and-nccl-paths)
+- [Performance Bottlenecks and Benchmarking](../chapter-10-performance-bottlenecks-and-benchmarking)

@@ -409,9 +409,9 @@ Answer:
 
 ## Related Chapters
 
-- **Chapter 6:** GPU Sharing — fairness and isolation
-- **Chapter 7:** Kubernetes Scheduling — scheduler design
-- **Chapter 9:** Cluster Operations — hardware and cost planning
+- **Chapter 6:** [GPU Sharing](./chapter-06-gpu-sharing-and-virtualization.md) — fairness and isolation
+- **Chapter 7:** [Kubernetes Scheduling](./chapter-07-kubernetes-and-container-orchestration.md) — scheduler design
+- **Chapter 9:** [Cluster Operations](./chapter-09-cluster-operations-and-capacity-planning.md) — hardware and cost planning
 - **Volume 21:** AI Factory (reference architectures)
 
 ---

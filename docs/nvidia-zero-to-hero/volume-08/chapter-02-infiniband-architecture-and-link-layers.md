@@ -646,10 +646,10 @@ Before moving on, confirm that you can:
 
 ## Cross References
 
-- Previous: Why InfiniBand Exists
-- Next: Verbs, Queue Pairs, and Completion Queues
+- Previous: [Why InfiniBand Exists](./chapter-01-why-infiniband-exists)
+- Next: [Verbs, Queue Pairs, and Completion Queues](./chapter-03-verbs-queue-pairs-and-completion-queues)
 - Related volume: [Volume 07 — GPU Networking](pathname://../volume-07/index)
-- Related lab: Inventory an InfiniBand Fabric
+- Related lab: [Inventory an InfiniBand Fabric](./labs/lab-01-inventory-an-infiniband-fabric)
 
 ## Further Reading
 

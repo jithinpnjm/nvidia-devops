@@ -383,7 +383,7 @@ The trade-off is intentional. More detailed labels improve local diagnosis but c
 
 ## Cross references
 
-- Kubernetes Scheduling for Shared GPUs
-- Tenant Isolation, Security, and Fairness
-- Capacity Planning and Chargeback
-- Production Troubleshooting
+- [Kubernetes Scheduling for Shared GPUs](./chapter-07-kubernetes-scheduling-for-shared-gpus)
+- [Tenant Isolation, Security, and Fairness](./chapter-08-tenant-isolation-security-and-fairness)
+- [Capacity Planning and Chargeback](./chapter-09-capacity-planning-and-chargeback)
+- [Production Troubleshooting](./chapter-11-production-troubleshooting)

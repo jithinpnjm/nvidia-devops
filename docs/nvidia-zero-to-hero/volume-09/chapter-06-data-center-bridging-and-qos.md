@@ -15,9 +15,9 @@ Data Center Bridging (DCB) and QoS provide the language for making that choice e
 |---|---|
 | Difficulty | Advanced |
 | Estimated reading time | 45–55 minutes |
-| Prerequisites | ECN and DCQCN |
+| Prerequisites | [ECN and DCQCN](./chapter-05-ecn-and-dcqcn) |
 | Primary focus | End-to-end classification, queueing, ETS, and policy operations |
-| Next | Spectrum Switches for AI |
+| Next | [Spectrum Switches for AI](./chapter-07-spectrum-switches-for-ai) |
 
 ## Learning Objectives
 
@@ -255,6 +255,6 @@ Classify intentionally, map consistently, isolate the small loss-sensitive class
 
 ## Cross References
 
-- Priority Flow Control
-- ECN and DCQCN
-- Spectrum Switches for AI
+- [Priority Flow Control](./chapter-04-priority-flow-control)
+- [ECN and DCQCN](./chapter-05-ecn-and-dcqcn)
+- [Spectrum Switches for AI](./chapter-07-spectrum-switches-for-ai)

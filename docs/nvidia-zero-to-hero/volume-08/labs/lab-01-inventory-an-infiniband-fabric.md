@@ -270,9 +270,9 @@ You created a reproducible inventory that links host identities, fabric identiti
 
 ## 18. Further Reading
 
-- InfiniBand Architecture and Link Layers
-- LIDs, GIDs, P_Keys, and Addressing
-- Fabric Monitoring and Telemetry
+- [InfiniBand Architecture and Link Layers](../chapter-02-infiniband-architecture-and-link-layers)
+- [LIDs, GIDs, P_Keys, and Addressing](../chapter-04-lids-gids-pkeys-and-addressing)
+- [Fabric Monitoring and Telemetry](../chapter-09-fabric-monitoring-and-telemetry)
 
 ## Production Relevance
 

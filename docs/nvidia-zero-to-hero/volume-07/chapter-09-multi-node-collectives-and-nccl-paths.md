@@ -278,7 +278,7 @@ It sits at the architecture-diagram level, above the individual technologies, as
 
 **Go deeper**
 - Search NVIDIA's documentation for "Magnum IO" for the current umbrella positioning and component list
-- GPUDirect RDMA and GPUDirect Storage for the individual mechanisms it groups together
+- [GPUDirect RDMA](./chapter-05-gpudirect-rdma) and [GPUDirect Storage](./chapter-06-gpudirect-storage) for the individual mechanisms it groups together
 
 ## Summary
 
@@ -297,10 +297,10 @@ NCCL can optimize paths, but it cannot repair a weak or inconsistent architectur
 
 ## Cross References
 
-- Previous: Topology-Aware Placement
-- Next: Performance Bottlenecks and Benchmarking
-- Lab: Benchmark RDMA and GPUDirect Paths
-- Related: GPUDirect RDMA
+- Previous: [Topology-Aware Placement](./chapter-08-topology-aware-placement)
+- Next: [Performance Bottlenecks and Benchmarking](./chapter-10-performance-bottlenecks-and-benchmarking)
+- Lab: [Benchmark RDMA and GPUDirect Paths](./labs/lab-03-benchmark-rdma-and-gpudirect-paths)
+- Related: [GPUDirect RDMA](./chapter-05-gpudirect-rdma)
 
 ## Further Reading
 

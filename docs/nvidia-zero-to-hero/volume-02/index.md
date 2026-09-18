@@ -1,6 +1,7 @@
 ---
 title: Volume 02 — GPU Architecture
 description: Build a systems-level understanding of how modern NVIDIA GPUs execute work, move data, and expose performance limits.
+slug: /nvidia-zero-to-hero/volume-02/index
 sidebar_position: 1
 tags:
   - gpu-architecture
@@ -47,10 +48,10 @@ flowchart TD
 
 ## Chapters in This Batch
 
-1. Why GPU Architecture Evolved
-2. Inside a Modern NVIDIA GPU
-3. Threads, Warps, Blocks, and Streaming Multiprocessors
-4. Lab 01 — Inspect GPU Architecture and Topology
+1. [Why GPU Architecture Evolved](./chapter-01-why-gpu-architecture-evolved)
+2. [Inside a Modern NVIDIA GPU](./chapter-02-inside-a-modern-nvidia-gpu)
+3. [Threads, Warps, Blocks, and Streaming Multiprocessors](./chapter-03-threads-warps-blocks-and-sms)
+4. [Lab 01 — Inspect GPU Architecture and Topology](./labs/lab-01-inspect-gpu-architecture-and-topology)
 
 ## What You Will Learn Across the Volume
 

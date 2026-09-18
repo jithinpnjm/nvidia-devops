@@ -376,10 +376,10 @@ The strongest policy is not always the strictest. Production design must balance
 
 ## Cross References
 
-- Previous: ConnectX and GPU Network Adapters
-- Next: Multi-Node Collectives and NCCL Paths
-- Lab: Inspect PCIe, NUMA, and GPU Topology
-- Lab: Troubleshoot a Multi-GPU Data Path
+- Previous: [ConnectX and GPU Network Adapters](./chapter-07-connectx-and-gpu-network-adapters)
+- Next: [Multi-Node Collectives and NCCL Paths](./chapter-09-multi-node-collectives-and-nccl-paths)
+- Lab: [Inspect PCIe, NUMA, and GPU Topology](./labs/lab-01-inspect-pcie-numa-and-gpu-topology)
+- Lab: [Troubleshoot a Multi-GPU Data Path](./labs/lab-04-troubleshoot-a-multi-gpu-data-path)
 
 ## Further Reading
 

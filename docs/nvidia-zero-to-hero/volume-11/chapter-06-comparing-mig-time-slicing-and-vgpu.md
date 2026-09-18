@@ -15,7 +15,7 @@ Whole-GPU allocation remains a valid fourth choice. It is often the least surpri
 |---|---|
 | Difficulty | Advanced |
 | Reading time | 30–40 minutes |
-| Prerequisites | MIG Profiles and Placement and Time-Slicing |
+| Prerequisites | [MIG Profiles and Placement](./chapter-03-mig-profiles-and-placement) and [Time-Slicing](./chapter-04-time-slicing-and-oversubscription) |
 | Production outcome | A measured pool-selection policy rather than a product-default decision |
 
 ## Learning objectives
@@ -77,7 +77,7 @@ vGPU creates a virtual device for a guest VM under the hypervisor’s Virtual GP
 | Primary observability | device and application | per-instance plus device | physical device and per-process/application | host, guest, profile, and license layers |
 | Suitable default | large or sensitive jobs | measured partitionable workloads | best-effort, bursty use | VM-centric service catalog |
 
-The comparisons should not be reduced to “MIG is secure” or “time-slicing is cheaper.” Security depends on the entire tenant boundary; cost includes stranded capacity, support entitlement, personnel, and the price of missed SLOs. See Chapter 08 and Chapter 09.
+The comparisons should not be reduced to “MIG is secure” or “time-slicing is cheaper.” Security depends on the entire tenant boundary; cost includes stranded capacity, support entitlement, personnel, and the price of missed SLOs. See [Chapter 08](./chapter-08-tenant-isolation-security-and-fairness) and [Chapter 09](./chapter-09-capacity-planning-and-chargeback).
 
 ## Quick diagnostic: which mechanism is active?
 
@@ -380,8 +380,8 @@ When the job needs the complete device, has a stringent or unknown performance e
 
 ## Cross references and further reading
 
-- Time-Slicing and Oversubscription
-- vGPU Architecture and Enterprise Virtualization
-- Kubernetes Scheduling for Shared GPUs
+- [Time-Slicing and Oversubscription](./chapter-04-time-slicing-and-oversubscription)
+- [vGPU Architecture and Enterprise Virtualization](./chapter-05-vgpu-architecture-and-enterprise-virtualization)
+- [Kubernetes Scheduling for Shared GPUs](./chapter-07-kubernetes-scheduling-for-shared-gpus)
 - [NVIDIA MIG User Guide](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/latest/index.html)
 - [NVIDIA k8s-device-plugin sharing documentation](https://github.com/NVIDIA/k8s-device-plugin#shared-access-to-gpus)

@@ -460,6 +460,6 @@ This is not optional—HIPAA violations carry per-violation tiered penalties of 
 
 ## Related Chapters
 
-- **Chapter 7:** Kubernetes and Container Orchestration — RBAC and network policies
-- **Chapter 9:** Cluster Operations — incident response
+- **Chapter 7:** [Kubernetes and Container Orchestration](./chapter-07-kubernetes-and-container-orchestration.md) — RBAC and network policies
+- **Chapter 9:** [Cluster Operations](./chapter-09-cluster-operations-and-capacity-planning.md) — incident response
 - **Volume 16:** Observability (auditing)

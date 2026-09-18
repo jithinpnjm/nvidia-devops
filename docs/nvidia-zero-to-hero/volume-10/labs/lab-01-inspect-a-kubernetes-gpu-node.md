@@ -402,6 +402,6 @@ Handoff: attach the evidence bundle, selected node, driver/runtime versions, res
 
 You validated the end-to-end node path. Next, run the same baseline across a node pool, compare topology and labels, and use [Lab 03](./lab-03-diagnose-a-missing-allocatable-gpu) when Allocatable is absent.
 
-- Volume 10 introduction
-- GPU Software Lifecycle in Kubernetes
-- Device Plugin and Kubernetes Resource Model
+- [Volume 10 introduction](../index)
+- [GPU Software Lifecycle in Kubernetes](../chapter-02-gpu-software-lifecycle-in-kubernetes)
+- [Device Plugin and Kubernetes Resource Model](../chapter-04-device-plugin-and-kubernetes-resource-model)

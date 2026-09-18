@@ -639,10 +639,10 @@ Before moving on, confirm that you can:
 
 ## Cross References
 
-- Previous: Why GPU Networking Exists
-- Next: NVLink and NVSwitch
-- Related foundation: GPU Topology, Peer Access, and Data Paths
-- Related lab: Inspect PCIe, NUMA, and GPU Topology
+- Previous: [Why GPU Networking Exists](./chapter-01-why-gpu-networking-exists)
+- Next: [NVLink and NVSwitch](./chapter-03-nvlink-and-nvswitch)
+- Related foundation: [GPU Topology, Peer Access, and Data Paths](../volume-02/chapter-10-gpu-topology-peer-access-and-data-paths)
+- Related lab: [Inspect PCIe, NUMA, and GPU Topology](./labs/lab-01-inspect-pcie-numa-and-gpu-topology)
 
 ## Further Reading
 

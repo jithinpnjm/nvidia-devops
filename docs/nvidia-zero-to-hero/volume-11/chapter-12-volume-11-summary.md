@@ -128,12 +128,12 @@ The scenario demonstrates the central operational lesson: sharing incidents are 
 
 ## Cross references
 
-- Why GPU Sharing Exists
-- MIG Profiles and Placement
-- Kubernetes Scheduling for Shared GPUs
-- Capacity Planning and Chargeback
-- Production Troubleshooting
+- [Why GPU Sharing Exists](./chapter-01-why-gpu-sharing-exists)
+- [MIG Profiles and Placement](./chapter-03-mig-profiles-and-placement)
+- [Kubernetes Scheduling for Shared GPUs](./chapter-07-kubernetes-scheduling-for-shared-gpus)
+- [Capacity Planning and Chargeback](./chapter-09-capacity-planning-and-chargeback)
+- [Production Troubleshooting](./chapter-11-production-troubleshooting)
 
 ## Next volume
 
-Volume 12 — AI Inference applies these platform choices to serving systems, where request paths, batching, KV-cache pressure, concurrency, and scaling determine the user-visible latency and throughput that the shared infrastructure must protect.
+[Volume 12 — AI Inference](../volume-12/index) applies these platform choices to serving systems, where request paths, batching, KV-cache pressure, concurrency, and scaling determine the user-visible latency and throughput that the shared infrastructure must protect.

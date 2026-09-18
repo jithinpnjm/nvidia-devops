@@ -1,6 +1,7 @@
 ---
 title: Volume 05 — DGX Systems
 description: Understand DGX as an integrated AI system, including compute topology, networking, storage, management, power, cooling, deployment, and lifecycle operations.
+slug: /nvidia-zero-to-hero/volume-05/index
 sidebar_position: 1
 tags:
   - dgx

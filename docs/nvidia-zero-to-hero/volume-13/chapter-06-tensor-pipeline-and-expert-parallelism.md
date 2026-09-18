@@ -264,6 +264,6 @@ Total: 8 × 4 × 32 = 1024 GPUs. Each node gets 64 GPUs arranged as 8 TP-groups 
 
 ## Related Chapters
 
-- **Previous:** Chapter 5 — DeepSpeed and ZeRO
-- **Next:** Chapter 7 — Megatron-LM Architecture
-- **Related:** Chapter 8 — NCCL Collectives — communication primitives underlying TP/PP
+- **Previous:** [Chapter 5 — DeepSpeed and ZeRO](./chapter-05-deepspeed-and-zero.md)
+- **Next:** [Chapter 7 — Megatron-LM Architecture](./chapter-07-megatron-lm-architecture.md)
+- **Related:** [Chapter 8 — NCCL Collectives](./chapter-08-nccl-collectives-and-communication-paths.md) — communication primitives underlying TP/PP

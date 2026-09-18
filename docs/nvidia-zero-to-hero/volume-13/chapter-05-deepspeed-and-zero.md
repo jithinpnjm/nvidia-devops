@@ -309,6 +309,6 @@ tail -n 100 train.log | awk '/step_time/ {print}'
 
 ## Related Chapters
 
-- **Previous:** Chapter 4 — FSDP and Parameter Sharding
-- **Next:** Chapter 6 — Tensor, Pipeline, and Expert Parallelism
-- **FSDP Alternative:** Chapter 4 covers PyTorch native FSDP, which is architecturally similar to ZeRO-3 but integrated natively into PyTorch
+- **Previous:** [Chapter 4 — FSDP and Parameter Sharding](./chapter-04-fsdp-and-parameter-sharding.md)
+- **Next:** [Chapter 6 — Tensor, Pipeline, and Expert Parallelism](./chapter-06-tensor-pipeline-and-expert-parallelism.md)
+- **FSDP Alternative:** [Chapter 4](./chapter-04-fsdp-and-parameter-sharding.md) covers PyTorch native FSDP, which is architecturally similar to ZeRO-3 but integrated natively into PyTorch

@@ -348,5 +348,5 @@ You created a repeatable system baseline that can distinguish hardware inventory
 
 ## Further reading
 
-- 
-- Volume 05 introduction
+- [Chapter 02 — Inside a DGX System](../chapter-02-inside-a-dgx-system)
+- [Volume 05 introduction](../index)

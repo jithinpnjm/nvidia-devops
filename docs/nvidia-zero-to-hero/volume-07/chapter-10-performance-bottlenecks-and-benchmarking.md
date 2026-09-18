@@ -466,10 +466,10 @@ The objective is not to produce the largest number. It is to explain where time 
 
 ## Cross References
 
-- Previous: Multi-Node Collectives and NCCL Paths
-- Next: Production Design Scenarios
-- Lab: Benchmark RDMA and GPUDirect Paths
-- Lab: Troubleshoot a Multi-GPU Data Path
+- Previous: [Multi-Node Collectives and NCCL Paths](./chapter-09-multi-node-collectives-and-nccl-paths)
+- Next: [Production Design Scenarios](./chapter-11-production-design-scenarios)
+- Lab: [Benchmark RDMA and GPUDirect Paths](./labs/lab-03-benchmark-rdma-and-gpudirect-paths)
+- Lab: [Troubleshoot a Multi-GPU Data Path](./labs/lab-04-troubleshoot-a-multi-gpu-data-path)
 
 ## Further Reading
 

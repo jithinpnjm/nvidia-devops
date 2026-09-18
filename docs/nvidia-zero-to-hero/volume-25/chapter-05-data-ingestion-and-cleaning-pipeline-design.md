@@ -153,6 +153,6 @@ cat data/banknifty_spot_1m_no_data_days.json | python3 -c "import json,sys; prin
 
 ## Related Chapters
 
-- **Previous:** Chapter 4 — Experiment Tracking with MLflow
-- **Next:** Chapter 6 — Building Leakage-Safe Training Datasets for Time-Series ML — what happens to this chapter's cleaned data next
-- **Related:** Chapter 3 — Data Versioning with DVC — this chapter's output file is exactly what gets versioned
+- **Previous:** [Chapter 4 — Experiment Tracking with MLflow](./chapter-04-experiment-tracking-with-mlflow.md)
+- **Next:** [Chapter 6 — Building Leakage-Safe Training Datasets for Time-Series ML](./chapter-06-building-leakage-safe-training-datasets-for-time-series-ml.md) — what happens to this chapter's cleaned data next
+- **Related:** [Chapter 3 — Data Versioning with DVC](./chapter-03-data-versioning-with-dvc.md) — this chapter's output file is exactly what gets versioned

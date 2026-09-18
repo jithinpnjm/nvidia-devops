@@ -210,11 +210,11 @@ GPU Operator, as described above, owns one half of the accelerated-networking st
 1. *SR-IOV*, if used, splits one physical NIC into multiple virtual functions, each of which can be passed into a Pod as an isolated, near-native-performance network device rather than sharing one kernel network stack.
 2. *Secondary networking* — commonly via the Multus CNI meta-plugin — gives a Pod a second network interface in addition to its normal pod-network interface, because the default Kubernetes CNI is not designed to hand out RDMA-capable devices. A Pod that needs RDMA typically ends up with its usual `eth0` for cluster/service traffic plus a second interface (an SR-IOV VF or an RDMA-enabled interface) for the high-throughput path. You do not need to know Multus in depth to reason about this — the operational fact worth retaining is that RDMA connectivity for a Pod is a *second* network attachment layered on top of, not a replacement for, its normal pod networking.
 
-**Where GPUDirect RDMA fits.** Volume 07, Chapter 5 covers the mechanism itself — a direct DMA path between GPU memory and a network adapter that avoids a staging copy through host memory. Network Operator does not implement that DMA path; it is what makes GPUDirect RDMA *reachable inside a Kubernetes Pod* by ensuring the MOFED driver is present, the RDMA device is exposed to the Pod, and (with GPUDirect-specific peer-memory kernel modules, which Network Operator can also manage as part of its driver stack) the GPU and NIC can find each other across the PCIe topology described in that chapter. Put simply: Volume 07 explains why the direct path is fast; this section explains what has to be true on a Kubernetes node before a Pod can use it at all.
+**Where GPUDirect RDMA fits.** [Volume 07, Chapter 5](../volume-07/chapter-05-gpudirect-rdma) covers the mechanism itself — a direct DMA path between GPU memory and a network adapter that avoids a staging copy through host memory. Network Operator does not implement that DMA path; it is what makes GPUDirect RDMA *reachable inside a Kubernetes Pod* by ensuring the MOFED driver is present, the RDMA device is exposed to the Pod, and (with GPUDirect-specific peer-memory kernel modules, which Network Operator can also manage as part of its driver stack) the GPU and NIC can find each other across the PCIe topology described in that chapter. Put simply: Volume 07 explains why the direct path is fast; this section explains what has to be true on a Kubernetes node before a Pod can use it at all.
 
 **Boundary for troubleshooting.** When a multi-node training job is slow or fails to initialize NCCL, the first question is which operator's failure domain you are in:
 
-- GPU not allocatable, CUDA init failure, or the DCGM metrics from Chapter 9 showing driver-level anomalies → GPU Operator's domain.
+- GPU not allocatable, CUDA init failure, or the DCGM metrics from [Chapter 9](./chapter-09-gpu-observability-with-dcgm) showing driver-level anomalies → GPU Operator's domain.
 - Pod schedules and gets a GPU, but NCCL initialization fails, falls back to TCP instead of RDMA, or hangs on ring/tree setup across nodes → check Network Operator's domain first: is the RDMA device actually present in the Pod, and is MOFED healthy on the host.
 
 **A basic validation workflow.** Three checks, in order of how directly they answer "did Network Operator actually expose RDMA to this Pod":
@@ -262,10 +262,10 @@ The operator is most valuable when it establishes a repeatable node contract. It
 
 ## Cross references and further reading
 
-- Node and GPU Feature Discovery
-- Driver Containers and Node Operands
-- Upgrades and Production Troubleshooting
-- Volume 07, Chapter 5 — GPUDirect RDMA
+- [Node and GPU Feature Discovery](./chapter-05-node-and-gpu-feature-discovery)
+- [Driver Containers and Node Operands](./chapter-07-driver-containers-and-node-operands)
+- [Upgrades and Production Troubleshooting](./chapter-11-upgrades-and-production-troubleshooting)
+- [Volume 07, Chapter 5 — GPUDirect RDMA](../volume-07/chapter-05-gpudirect-rdma)
 - [NVIDIA GPU Operator documentation](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/)
 - [NVIDIA Network Operator documentation](https://docs.nvidia.com/networking/display/kubernetes)
 - [Kubernetes controller pattern](https://kubernetes.io/docs/concepts/architecture/controller/)

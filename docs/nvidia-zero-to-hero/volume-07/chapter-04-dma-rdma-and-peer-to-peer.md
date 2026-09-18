@@ -486,9 +486,9 @@ These mechanisms depend on registration, protection, queues, topology, ordering,
 
 ## Cross References
 
-- Previous: NVLink and NVSwitch
-- Next: GPUDirect RDMA
-- Related lab: Benchmark RDMA and GPUDirect Paths
+- Previous: [NVLink and NVSwitch](./chapter-03-nvlink-and-nvswitch)
+- Next: [GPUDirect RDMA](./chapter-05-gpudirect-rdma)
+- Related lab: [Benchmark RDMA and GPUDirect Paths](./labs/lab-03-benchmark-rdma-and-gpudirect-paths)
 
 ## Further Reading
 

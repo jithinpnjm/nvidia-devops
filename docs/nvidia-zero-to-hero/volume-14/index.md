@@ -49,22 +49,22 @@ flowchart LR
 
 ## Chapters
 
-1. Why NVIDIA AI Enterprise Exists
-2. Platform Architecture and Support Boundary
-3. NVIDIA NIM Architecture
-4. Deploying and Operating NIM Services
-5. NeMo Framework and Model Customization
-6. NeMo Guardrails and Enterprise Controls
-7. NGC Catalog, Containers, and Artifacts
-8. Licensing and Entitlement Operations
-9. Lifecycle, Compatibility, and Upgrades
-10. Kubernetes and Virtualization Integration
-11. Customer Architecture and Troubleshooting
-12. Volume 14 Summary
+1. [Why NVIDIA AI Enterprise Exists](./chapter-01-why-nvidia-ai-enterprise-exists)
+2. [Platform Architecture and Support Boundary](./chapter-02-platform-architecture-and-support-boundary)
+3. [NVIDIA NIM Architecture](./chapter-03-nvidia-nim-architecture)
+4. [Deploying and Operating NIM Services](./chapter-04-deploying-and-operating-nim-services)
+5. [NeMo Framework and Model Customization](./chapter-05-nemo-framework-and-model-customization)
+6. [NeMo Guardrails and Enterprise Controls](./chapter-06-nemo-guardrails-and-enterprise-controls)
+7. [NGC Catalog, Containers, and Artifacts](./chapter-07-ngc-catalog-containers-and-artifacts)
+8. [Licensing and Entitlement Operations](./chapter-08-licensing-and-entitlement-operations)
+9. [Lifecycle, Compatibility, and Upgrades](./chapter-09-lifecycle-compatibility-and-upgrades)
+10. [Kubernetes and Virtualization Integration](./chapter-10-kubernetes-and-virtualization-integration)
+11. [Customer Architecture and Troubleshooting](./chapter-11-customer-architecture-and-troubleshooting)
+12. [Volume 14 Summary](./chapter-12-volume-14-summary)
 
 ## Labs
 
-- Inspect an NGC and NIM Deployment Plan
-- Deploy and Validate a NIM Service
-- Build a NeMo Customization Workflow
-- Troubleshoot Entitlement and Runtime Failures
+- [Inspect an NGC and NIM Deployment Plan](./labs/lab-01-inspect-an-ngc-and-nim-deployment-plan)
+- [Deploy and Validate a NIM Service](./labs/lab-02-deploy-and-validate-a-nim-service)
+- [Build a NeMo Customization Workflow](./labs/lab-03-build-a-nemo-customization-workflow)
+- [Troubleshoot Entitlement and Runtime Failures](./labs/lab-04-troubleshoot-entitlement-and-runtime-failures)

@@ -570,9 +570,9 @@ Before moving on, confirm that you can:
 
 ## Cross References
 
-- Previous: LIDs, GIDs, P_Keys, and Addressing
-- Next: Routing, Topologies, and Oversubscription
-- Related lab: Inspect Subnet Routing and Counters
+- Previous: [LIDs, GIDs, P_Keys, and Addressing](./chapter-04-lids-gids-pkeys-and-addressing)
+- Next: [Routing, Topologies, and Oversubscription](./chapter-06-routing-topologies-and-oversubscription)
+- Related lab: [Inspect Subnet Routing and Counters](./labs/lab-03-inspect-subnet-routing-and-counters)
 
 ## Further Reading
 

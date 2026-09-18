@@ -447,4 +447,4 @@ That capacity can be the difference between planned recovery and a disruptive la
 
 - [NVIDIA MIG User Guide: introduction](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/introduction.html)
 - [NVIDIA GPU Operator: time-slicing GPUs](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html)
-- Volume 10: Kubernetes GPU Platform
+- [Volume 10: Kubernetes GPU Platform](../volume-10/index)

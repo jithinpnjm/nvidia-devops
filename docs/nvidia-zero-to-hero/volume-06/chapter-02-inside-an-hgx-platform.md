@@ -368,5 +368,5 @@ Without that matrix, bids that look equivalent may represent materially differen
 ## Cross references
 
 - [Volume 06 introduction](./index)
-- Chapter 01 — Why HGX Exists
-- Lab 01 — Compare HGX-Based Server Designs
+- [Chapter 01 — Why HGX Exists](./chapter-01-why-hgx-exists)
+- [Lab 01 — Compare HGX-Based Server Designs](./labs/lab-01-compare-hgx-server-designs)

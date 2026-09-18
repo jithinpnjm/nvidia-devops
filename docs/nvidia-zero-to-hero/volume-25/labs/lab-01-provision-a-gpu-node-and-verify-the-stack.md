@@ -134,4 +134,4 @@ sudo sed -i '/\/data\/mlops/d' /etc/fstab
 
 ## 18. Additional References
 - [NVIDIA Container Toolkit Installation Guide](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)
-- Chapter 02 — GPU Cloud Provisioning for Training Workloads
+- [Chapter 02 — GPU Cloud Provisioning for Training Workloads](../chapter-02-gpu-cloud-provisioning-for-training-workloads.md)

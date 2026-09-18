@@ -110,6 +110,6 @@ A: 8 L40S GPUs (2 clusters of 4) behind load balancers. Each L40S does 750 TPS i
 
 ## Related Chapters
 
-- **Prev:** Chapter 1 — Consulting Methodology
-- **Next:** Chapter 3 — Generative AI and LLMs
-- **Lab:** Lab 01 — Banking Use Case Workshop
+- **Prev:** [Chapter 1 — Consulting Methodology](./chapter-01-consulting-methodology-for-customer-engagement.md)
+- **Next:** [Chapter 3 — Generative AI and LLMs](./chapter-03-generative-ai-and-large-language-models.md)
+- **Lab:** [Lab 01 — Banking Use Case Workshop](./labs/lab-01-banking-use-case-workshop.md)

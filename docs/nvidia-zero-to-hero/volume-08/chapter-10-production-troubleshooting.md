@@ -487,9 +487,9 @@ InfiniBand troubleshooting is fastest when it follows the data path from physica
 
 ## Cross References
 
-- Previous: Fabric Monitoring and Telemetry
-- Next: Production Design Scenarios
-- Related lab: Troubleshoot an InfiniBand Path
+- Previous: [Fabric Monitoring and Telemetry](./chapter-09-fabric-monitoring-and-telemetry)
+- Next: [Production Design Scenarios](./chapter-11-production-design-scenarios)
+- Related lab: [Troubleshoot an InfiniBand Path](./labs/lab-04-troubleshoot-an-infiniband-path)
 
 ## Further Reading
 

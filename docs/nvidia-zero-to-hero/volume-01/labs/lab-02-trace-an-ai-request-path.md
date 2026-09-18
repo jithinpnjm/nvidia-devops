@@ -510,7 +510,7 @@ A production implementation should add distributed tracing, request IDs across s
 
 ## Further Reading
 
-- What Actually Happens When ChatGPT Answers?
-- AI Infrastructure Landscape
+- [What Actually Happens When ChatGPT Answers?](../chapter-04-what-happens-when-chatgpt-answers)
+- [AI Infrastructure Landscape](../chapter-05-ai-infrastructure-landscape)
 
 

@@ -245,7 +245,7 @@ A customer wants eight HGX-based servers in one rack because they physically fit
 
 ## Cross References
 
-- OEM Integration and Support Boundaries
-- HGX Topology and Data Paths
-- HGX Networking, Storage, and Cluster Integration
-- Lab 02 — Review an HGX Rack Design
+- [OEM Integration and Support Boundaries](./chapter-03-oem-integration-and-support-boundaries)
+- [HGX Topology and Data Paths](./chapter-04-hgx-topology-and-data-paths)
+- [HGX Networking, Storage, and Cluster Integration](./chapter-06-hgx-networking-storage-and-cluster-integration)
+- [Lab 02 — Review an HGX Rack Design](./labs/lab-02-review-an-hgx-rack-design)

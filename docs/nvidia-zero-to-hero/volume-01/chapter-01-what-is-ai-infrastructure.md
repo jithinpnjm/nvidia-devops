@@ -146,6 +146,6 @@ AI infrastructure is the engineering discipline of keeping incredibly fast, spec
 
 ## Related Chapters
 
-- Next: Why CPUs Became Insufficient
-- Related: CPU vs GPU
-- Related lab: Inspect an AI Infrastructure Host
+- Next: [Why CPUs Became Insufficient](./chapter-02-why-cpus-became-insufficient.md)
+- Related: [CPU vs GPU](./chapter-03-cpu-vs-gpu.md)
+- Related lab: [Inspect an AI Infrastructure Host](./labs/lab-01-inspect-an-ai-infrastructure-host.md)

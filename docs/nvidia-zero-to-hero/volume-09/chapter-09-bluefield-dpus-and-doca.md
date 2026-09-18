@@ -293,9 +293,9 @@ BlueField can establish a programmable, independently managed infrastructure bou
 
 ## Cross References
 
-- Previous: ConnectX Ethernet Adapters
-- Next: Fabric Validation and Capacity Planning
-- Related: Production Troubleshooting
+- Previous: [ConnectX Ethernet Adapters](./chapter-08-connectx-ethernet-adapters)
+- Next: [Fabric Validation and Capacity Planning](./chapter-10-fabric-validation-and-capacity-planning)
+- Related: [Production Troubleshooting](./chapter-11-production-troubleshooting)
 
 ## Further Reading
 

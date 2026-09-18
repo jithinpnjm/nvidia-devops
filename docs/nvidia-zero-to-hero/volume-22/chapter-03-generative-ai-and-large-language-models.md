@@ -83,6 +83,6 @@ A: Training is one-time ($100K-$1M), amortized over years. Inference is per-user
 
 ## Related Chapters
 
-- **Prev:** Chapter 2 — Banking
-- **Next:** Chapter 4 — Automotive
-- **Lab:** Lab 02 — LLM Serving Design
+- **Prev:** [Chapter 2 — Banking](./chapter-02-banking-and-financial-services.md)
+- **Next:** [Chapter 4 — Automotive](./chapter-04-automotive-and-autonomous-vehicles.md)
+- **Lab:** [Lab 02 — LLM Serving Design](./labs/lab-02-llm-serving-design.md)

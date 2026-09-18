@@ -303,6 +303,6 @@ You created a benchmark that evaluates an accelerator as part of an inference se
 
 ## 18. Further Reading
 
-- 
-- 
+- [Inference Accelerators](../chapter-05-inference-accelerators-t4-l4-and-l40s)
+- [Training Accelerators](../chapter-06-training-accelerators-v100-to-b200)
 - Current NVIDIA data-center GPU and inference-runtime documentation

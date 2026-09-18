@@ -258,7 +258,7 @@ Everything in this chapter — state, counters, baselines, topology-aware dashbo
 
 UFM is not a replacement for the subnet manager, `ibstat`, `iblinkinfo`, or `ibdiagnet` — it is the operational layer built on top of them. Concretely:
 
-- it runs (or manages) the subnet manager function described in Chapter 5, giving it a supported, centralized home instead of a bare `opensm` process;
+- it runs (or manages) the subnet manager function described in [Chapter 5](./chapter-05-subnet-management-and-opensm), giving it a supported, centralized home instead of a bare `opensm` process;
 - it continuously collects the same categories of state and counters this chapter walks through by hand — link state, speed/width, error and congestion counters, SM sweep health — across the entire fabric, and persists them as the kind of topology-aware, baselined telemetry this chapter argues you need;
 - it surfaces that telemetry as fabric-wide dashboards and APIs, rather than requiring an engineer to run `ibqueryerrors` or `iblinkinfo` against one switch at a time; and
 - it can act on what it observes: UFM supports automated responses to detected congestion or link degradation — for example, adjusting routing away from a degrading path or triggering an alert/workflow the moment an error-rate acceleration like the one in this chapter's "Day 1 / Day 4 / Day 7" example is detected — instead of waiting for a human to notice the trend across manually pulled snapshots.
@@ -385,9 +385,9 @@ State proves current configuration. Counter deltas reveal change. Baselines defi
 
 ## Cross References
 
-- Previous: HDR, NDR, XDR, and Link Evolution
-- Next: Production Troubleshooting
-- Related lab: Inspect Subnet Routing and Counters
+- Previous: [HDR, NDR, XDR, and Link Evolution](./chapter-08-hdr-ndr-xdr-and-link-evolution)
+- Next: [Production Troubleshooting](./chapter-10-production-troubleshooting)
+- Related lab: [Inspect Subnet Routing and Counters](./labs/lab-03-inspect-subnet-routing-and-counters)
 
 ## Further Reading
 

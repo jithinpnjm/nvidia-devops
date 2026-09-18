@@ -357,6 +357,6 @@ trivy image --exit-code 1 --severity HIGH,CRITICAL \
 
 ## Cross References
 
-- Previous: Chapter 2 — Hardware and Firmware Trust
-- Next: Chapter 4 — Kubernetes RBAC and Access Control
-- Lab: Lab 2 — Build and Verify a Signed AI Container
+- Previous: [Chapter 2 — Hardware and Firmware Trust](./chapter-02-placeholder.md)
+- Next: [Chapter 4 — Kubernetes RBAC and Access Control](./chapter-04-placeholder.md)
+- Lab: [Lab 2 — Build and Verify a Signed AI Container](./labs/lab-02-placeholder.md)
