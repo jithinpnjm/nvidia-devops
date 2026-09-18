@@ -17,7 +17,7 @@ This masterclass provides a comprehensive, production-grade guide to understandi
    - [Data Parallelism (DP)](#data-parallelism-dp)
    - [Tensor Parallelism (TP)](#tensor-parallelism-tp)
    - [Pipeline Parallelism (PP)](#pipeline-parallelism-pp)
-   - [Expert Parallelism (EP)](#expert-parallelism-ep)
+   - [Expert Parallelism (EP)](#expert-parallelism-ep---moe)
    - [3D and 4D Parallelism](#3d-and-4d-parallelism)
 5. [The Science of Collectives (NCCL)](#the-science-of-collectives-nccl)
 6. [Checkpoint Economics and Storage Architecture](#checkpoint-economics-and-storage-architecture)

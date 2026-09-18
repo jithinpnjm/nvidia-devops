@@ -6,16 +6,16 @@ import {getChapterFoundationBridge} from '@site/src/data/chapterFoundationBridge
 const integratedFoundationHeading = /^foundations(?:\s*:|\b)/i;
 
 const volumeFoundations: Record<string, {to: string; label: string}> = {
-  'volume-01': {to: '/curriculum/volume-01/linux-compute-memory-masterclass#foundations-start-here-if-this-is-new-to-you', label: 'Study the integrated Linux foundation'},
-  'volume-02': {to: '/curriculum/volume-02/python-core-oop-masterclass#foundations-start-here-if-python-syntax-isnt-yet-comfortable', label: 'Study the integrated Python foundation'},
-  'volume-03': {to: '/curriculum/volume-03/k8s-control-plane-scheduling-masterclass#foundations-start-here-if-kubernetes-concepts-are-new-to-you', label: 'Study the integrated Kubernetes foundation'},
-  'volume-04': {to: '/curriculum/volume-04/gpu-architecture-topology-masterclass#foundations-start-here-if-gpucuda-concepts-are-new-to-you', label: 'Study GPU computing from first principles'},
-  'volume-05': {to: '/curriculum/volume-05/ai-workloads-training-masterclass#foundations-start-here-if-aiml-concepts-are-new-to-you', label: 'Study AI and LLM workloads from zero'},
-  'volume-06': {to: '/curriculum/volume-06/ai-networking-rdma-masterclass#foundations-start-here-if-hpc-concepts-are-new-to-you', label: 'Study the integrated HPC foundation'},
-  'volume-07': {to: '/curriculum/volume-07/metrics-logs-traces-masterclass#foundations-start-here-if-observability-and-reliability-are-new-to-you', label: 'Study the integrated reliability foundation'},
-  'volume-08': {to: '/curriculum/volume-08/architecture-design-masterclass#foundations-start-here-if-solutions-architecture-is-new-to-you', label: 'Study the integrated Solutions Architecture foundation'},
-  'volume-09': {to: '/curriculum/volume-09/interview-framework-masterclass#foundations-start-here-before-using-the-interview-question-bank', label: 'Learn how to use interview practice'},
-  'volume-10': {to: '/curriculum/volume-10/chapter-1-bare-metal-and-bmc-lifecycle#foundations-start-here-if-the-bare-metal-hpc-stack-is-new-to-you', label: 'Study the integrated operations foundation'},
+  'volume-01': {to: '/curriculum/volume-01/linux-compute-memory-masterclass', label: 'Study the integrated Linux foundation'},
+  'volume-02': {to: '/curriculum/volume-02/python-core-oop-masterclass', label: 'Study the integrated Python foundation'},
+  'volume-03': {to: '/curriculum/volume-03/k8s-control-plane-scheduling-masterclass', label: 'Study the integrated Kubernetes foundation'},
+  'volume-04': {to: '/curriculum/volume-04/gpu-architecture-topology-masterclass', label: 'Study GPU computing from first principles'},
+  'volume-05': {to: '/curriculum/volume-05/ai-workloads-training-masterclass', label: 'Study AI and LLM workloads from zero'},
+  'volume-06': {to: '/curriculum/volume-06/ai-networking-rdma-masterclass', label: 'Study the integrated HPC foundation'},
+  'volume-07': {to: '/curriculum/volume-07/metrics-logs-traces-masterclass', label: 'Study the integrated reliability foundation'},
+  'volume-08': {to: '/curriculum/volume-08/architecture-design-masterclass', label: 'Study the integrated Solutions Architecture foundation'},
+  'volume-09': {to: '/curriculum/volume-09/01-hardware-ecosystem-gauntlet', label: 'Learn how to use interview practice'},
+  'volume-10': {to: '/curriculum/volume-10/chapter-1-bare-metal-and-bmc-lifecycle', label: 'Study the integrated operations foundation'},
 };
 
 export default function ChapterFoundationBridge({title, route}: {title: string; route: string}) {
@@ -27,7 +27,7 @@ export default function ChapterFoundationBridge({title, route}: {title: string; 
   if (!bridge) return null;
   const volume = route.match(/volume-\d{2}/)?.[0];
   const foundation = volume === 'volume-10' && /ansible|terraform|infrastructure.as.code|ci\/cd/i.test(title)
-    ? {to: '/curriculum/volume-10/chapter-4-ansible-for-infrastructure-automation#foundations-start-here-if-infrastructure-as-code-is-new-to-you', label: 'Study IaC, Terraform and Ansible from zero'}
+    ? {to: '/curriculum/volume-10/chapter-4-ansible-for-infrastructure-automation', label: 'Study IaC, Terraform and Ansible from zero'}
     : volume ? volumeFoundations[volume] : undefined;
 
   return <aside className="chapterFoundationBridge" aria-label="Beginner foundation for this chapter">

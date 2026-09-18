@@ -9,6 +9,6 @@ const stages = [
   ['HPC / Network / Storage', '/curriculum/volume-06/ai-networking-rdma-masterclass'],
   ['Observability', '/curriculum/volume-07/metrics-logs-traces-masterclass'],
   ['Solutions Architecture', '/curriculum/volume-08/architecture-design-masterclass'],
-  ['Interview Readiness', '/curriculum/volume-09/interview-framework-masterclass'],
+  ['Interview Readiness', '/curriculum/volume-09/01-hardware-ecosystem-gauntlet'],
 ];
 export default function CurriculumFlow() { return <div className="curriculumFlow">{stages.map(([label, href], index) => <React.Fragment key={label}><Link to={href}>{label}</Link>{index < stages.length - 1 && <span aria-hidden="true">↓</span>}</React.Fragment>)}</div>; }
