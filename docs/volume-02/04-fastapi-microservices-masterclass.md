@@ -33,7 +33,41 @@ By the end of this masterclass, you will be able to:
 
 ---
 
-## 2. Architecture: WSGI vs. ASGI
+## 2. FastAPI Basics: Routing, Paths, and Queries
+
+Before discussing advanced async patterns, you must understand how FastAPI structures a web application. A FastAPI application maps HTTP requests (GET, POST, PUT, DELETE) to Python functions using **decorators**.
+
+### The Minimal Application
+```python
+from fastapi import FastAPI
+
+app = FastAPI(title="AI Infra API")
+
+# The decorator binds the HTTP GET method at the root path "/" to this function.
+@app.get("/")
+def read_root():
+    return {"status": "api_is_running", "version": "1.0.0"}
+```
+
+### Path Parameters and Query Parameters
+FastAPI automatically parses and validates URL parameters based on standard Python type hints.
+
+```python
+# Path Parameter: Embedded directly in the URL route (e.g., /nodes/gpu-worker-01)
+@app.get("/nodes/{node_id}")
+def get_node(node_id: str):
+    return {"node_id": node_id, "status": "Ready"}
+
+# Query Parameter: Appended to the URL after a question mark (e.g., /jobs?limit=50&status=failed)
+# Because 'limit' and 'status' are not in the @app.get() path string, FastAPI treats them as query parameters.
+@app.get("/jobs")
+def list_jobs(limit: int = 10, status: str = "running"):
+    return {"fetched_limit": limit, "filter_status": status}
+```
+
+---
+
+## 3. Architecture: WSGI vs. ASGI
 
 In traditional Python web servers (WSGI - Web Server Gateway Interface), each request is handled by a dedicated thread or process. 
 - **WSGI (Gunicorn/Flask):** 100 concurrent requests require 100 threads. If thread #1 is waiting for a database query to return, that thread does nothing else. 
@@ -57,7 +91,7 @@ flowchart LR
 
 ---
 
-## 3. Core Components: FastAPI and Pydantic
+## 4. Core Components: FastAPI and Pydantic
 
 FastAPI is not just an async web framework; it is an architectural pattern that forces strict contract definition via type hints.
 
@@ -109,7 +143,7 @@ async def submit_job(request: GPUJobRequest):
 
 ---
 
-## 4. Senior Implementation: Resilience and Background Tasks
+## 5. Senior Implementation: Resilience and Background Tasks
 
 Senior engineers do not trust the network. A robust microservice handles transient failures (retries), isolates long-running tasks, and safely reports state.
 
@@ -152,7 +186,7 @@ async def provision_endpoint(node_name: str, background_tasks: BackgroundTasks):
 
 ---
 
-## 5. Production Hardening and Deployment
+## 6. Production Hardening and Deployment
 
 A FastAPI script running via `python main.py` is not production-ready.
 
@@ -163,7 +197,7 @@ A FastAPI script running via `python main.py` is not production-ready.
 
 ---
 
-## 6. Interview Gauntlet: FastAPI & Async
+## 7. Interview Gauntlet: FastAPI & Async
 
 **Q: I have a FastAPI endpoint defined with `async def`. Inside it, I call `time.sleep(5)` and `requests.get(...)`. What happens to my web server under load?**
 **A:** The entire ASGI event loop will block for 5 seconds. Because it is marked `async def`, FastAPI runs it directly on the main event loop thread. No other requests can be processed during that sleep. I should either use `await asyncio.sleep(5)` and `httpx.AsyncClient().get(...)`, or change the route to a synchronous `def` so FastAPI offloads it to an external thread pool.
@@ -173,5 +207,5 @@ A FastAPI script running via `python main.py` is not production-ready.
 
 ---
 
-## 7. Summary
+## 8. Summary
 FastAPI converts Python from a blocking scripting language into a high-throughput microservice backbone. To use it safely at scale: validate aggressively at the edge with Pydantic, never block the event loop with synchronous I/O, enforce strict timeouts on every outgoing request, and protect downstream dependencies from connection exhaustion.

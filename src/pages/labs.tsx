@@ -987,6 +987,107 @@ def process_logs(lines):
                 yield data
         except json.JSONDecodeError:
             continue`,explanation:'Generators (`yield`) are mandatory for Data/AI Infrastructure. Whether you are streaming a 50GB dataset into a training loop, paginating through 10,000 Kubernetes pods, or exporting billing metrics, returning a massive list will exhaust memory and kill the pod. Generators keep the memory footprint bounded to exactly 1 item at a time.'},
+  {id:'oop-polymorphism',title:'50 · OOP Polymorphism: Cloud Provider Interface',prompt:'Design a base class `CloudProvider` with a `provision_node` method that raises `NotImplementedError`. Then create two subclasses, `AWSProvider` and `GCPProvider`, that override this method to return `"AWS node"` and `"GCP node"` respectively.',starter:`class CloudProvider:
+    def provision_node(self) -> str:
+        # Raise NotImplementedError
+        pass
+
+# Create AWSProvider subclass
+# Create GCPProvider subclass
+
+def scale_out(provider: CloudProvider):
+    # Call provision_node on the provider and return the string
+    return provider.provision_node()`,expected:"'AWS node' and 'GCP node'",tests:`
+aws = AWSProvider()
+gcp = GCPProvider()
+
+assert scale_out(aws) == "AWS node", f"Expected 'AWS node', got {scale_out(aws)}"
+assert scale_out(gcp) == "GCP node", f"Expected 'GCP node', got {scale_out(gcp)}"
+
+base = CloudProvider()
+try:
+    base.provision_node()
+    assert False, "CloudProvider.provision_node() should raise NotImplementedError"
+except NotImplementedError:
+    pass
+
+print('PASS')`,hint:'Inherit using `class AWSProvider(CloudProvider):`. Inside the class, define `def provision_node(self): return "AWS node"`. Do the same for GCP.',solution:`class CloudProvider:
+    def provision_node(self):
+        raise NotImplementedError("Subclasses must implement this!")
+
+class AWSProvider(CloudProvider):
+    def provision_node(self):
+        return "AWS node"
+
+class GCPProvider(CloudProvider):
+    def provision_node(self):
+        return "GCP node"
+
+def scale_out(provider):
+    return provider.provision_node()`,explanation:'Polymorphism means treating different object types through the exact same interface. The `scale_out` orchestration function does not need a mess of `if provider == "AWS": ... elif provider == "GCP":`. It simply calls `.provision_node()` and relies on the specific subclass implementation.'},
+  {id:'decorator-timer',title:'51 · Write an Execution Timer Decorator',prompt:'Write a decorator `@time_execution` that wraps a function, captures `time.time()` before and after the function executes, prints the duration, and returns the original function\'s result.',starter:`import time
+
+def time_execution(func):
+    def wrapper(*args, **kwargs):
+        # 1. Record start time
+        # 2. Execute the wrapped function: result = func(*args, **kwargs)
+        # 3. Record end time and print duration
+        # 4. Return result
+        pass
+    return wrapper
+
+@time_execution
+def simulate_work():
+    time.sleep(0.1)
+    return "done"`,expected:"Prints duration and returns 'done'",tests:`
+import io
+import sys
+
+# Capture stdout
+captured = io.StringIO()
+sys.stdout = captured
+
+res = simulate_work()
+
+sys.stdout = sys.__stdout__
+output = captured.getvalue()
+
+assert res == "done", f"Expected 'done', got {res}"
+assert "0." in output, "Decorator did not print a duration string."
+print('PASS')`,hint:'Inside `wrapper`, do `start = time.time()`. Then call the function and save it: `result = func(*args, **kwargs)`. Then `print(time.time() - start)`. Return `result`.',solution:`import time
+
+def time_execution(func):
+    def wrapper(*args, **kwargs):
+        start = time.time()
+        result = func(*args, **kwargs)
+        duration = time.time() - start
+        print(f"Executed in {duration:.4f} seconds")
+        return result
+    return wrapper`,explanation:'Decorators are heavily used in AI Infrastructure to abstract away repetitive tasks like Prometheus metrics instrumentation, logging, authentication, and connection retries without cluttering the core business logic of the function.'},
+  {id:'dataclasses',title:'52 · Dataclasses and Default Mutability',prompt:'Create a `dataclass` called `JobConfig` with a `job_name` string, an `image` string, and a list of strings called `flags`. You MUST ensure that the `flags` list does not share memory across instances (use `field(default_factory=list)`).',starter:`from dataclasses import dataclass, field
+from typing import List
+
+# Use the @dataclass decorator
+class JobConfig:
+    pass
+
+job1 = JobConfig(job_name="train", image="cuda:12")
+job2 = JobConfig(job_name="infer", image="cuda:12")
+job1.flags.append("--verbose")`,expected:"job2.flags remains empty",tests:`
+job1 = JobConfig(job_name="a", image="b")
+job2 = JobConfig(job_name="c", image="d")
+
+job1.flags.append("test")
+assert "test" not in job2.flags, "CRITICAL: job1 and job2 are sharing the same 'flags' list in memory!"
+assert job1.job_name == "a"
+print('PASS')`,hint:'Use `@dataclass`. Add fields: `job_name: str`, `image: str`, and `flags: List[str] = field(default_factory=list)`.',solution:`from dataclasses import dataclass, field
+from typing import List
+
+@dataclass
+class JobConfig:
+    job_name: str
+    image: str
+    flags: List[str] = field(default_factory=list)`,explanation:'If you set `flags: list = []` as a class variable, Python evaluates `[]` exactly once when the file is loaded. Every instance of `JobConfig` will share the exact same list in RAM, leading to horrific, hard-to-debug cross-contamination bugs in production. `default_factory=list` creates a fresh list every time a class is instantiated.'},
 ];
 
 const labGroups: {name: string; ids: string[]}[] = [
@@ -995,6 +1096,7 @@ const labGroups: {name: string; ids: string[]}[] = [
   {name: 'Tier 3 — Senior GPU, distributed & infrastructure ops', ids: ['capacity', 'xid-correlation', 'nccl-ranks', 'inference-slo', 'bmc-sensors', 'firmware-drift', 'ansible-idempotency', 'terraform-risk', 'slurm-fairshare', 'mpi-ranks', 'enroot-gpu', 'canary-check']},
   {name: 'Tier 4 — General SRE Python & software design', ids: ['access-log-summary', 'latency-percentile', 'alert-dedup', 'slo-burn', 'dependency-order', 'config-precedence', 'circuit-breaker', 'token-bucket', 'retry-budget', 'pod-capacity-fit', 'subnet-overlap', 'certificate-expiry', 'backup-retention', 'quorum-health', 'rollout-gate']},
   {name: 'Tier 5 — Advanced Microservices & Async Ops (Senior)', ids: ['async-retry', 'json-validation', 'async-gather', 'file-batching']},
+  {name: 'Tier 6 — Advanced OOP, Classes & Decorators', ids: ['oop-polymorphism', 'decorator-timer', 'dataclasses']},
 ];
 
 export default function Labs() {
@@ -1004,7 +1106,7 @@ export default function Labs() {
       <header className="pageHeader" style={{borderBottom: '2px solid var(--ifm-color-primary)', paddingBottom: '2rem'}}>
         <span className="eyebrow">Python scripting for operations</span>
         <h1>Python SRE Academy</h1>
-        <p><strong>{labs.length} complete study modules</strong> arranged in five tiers to teach you the fundamentals of Python string/list manipulation, dict parsing, and generic SRE logic. <em>Note: If you are already comfortable with Python and looking for advanced cluster-level AI Infrastructure labs, please proceed to the <Link to="/curriculum/nvidia-zero-to-hero">Zero to Hero Masterclasses</Link>.</em></p>
+        <p><strong>{labs.length} complete study modules</strong> arranged in six tiers to teach you the fundamentals of Python string/list manipulation, dict parsing, and generic SRE logic. <em>Note: If you are already comfortable with Python and looking for advanced cluster-level AI Infrastructure labs, please proceed to the <Link to="/curriculum/nvidia-zero-to-hero">Zero to Hero Masterclasses</Link>.</em></p>
       </header>
       <div className="prompt"><strong>How to practise:</strong> Write the smallest deterministic decision first, run its contract tests, then explain which real command or metric would supply each input.</div>
       <div className="labLayout">
