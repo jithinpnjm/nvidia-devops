@@ -209,6 +209,6 @@ The trade-off is increased integration responsibility compared with a more conso
 
 ## Cross References
 
-- [Volume 06 Introduction](./index)
-- [Volume 05 — DGX Systems](../volume-05/index)
-- [Volume 02 — GPU Topology](../volume-02/chapter-10-gpu-topology-peer-access-and-data-paths)
+- Volume 06 Introduction
+- Volume 05 — DGX Systems
+- Volume 02 — GPU Topology
