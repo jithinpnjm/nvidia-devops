@@ -1,333 +1,100 @@
 ---
-title: Chapter 02 — Workload-First GPU Selection
-description: Learn how to translate training, inference, visualization, and scientific-computing requirements into defensible GPU selection criteria.
-sidebar_position: 3
-tags:
-  - gpu-selection
-  - workload-analysis
-  - architecture
+title: "Chapter 2 — Workload-First GPU Selection"
+sidebar_position: 2
+description: "How to match NVIDIA GPU architectures to specific AI workloads. Compare the requirements of LLM Training, LLM Inference, and Computer Vision."
 ---
 
-# Workload-First GPU Selection
+# Chapter 2 — Workload-First GPU Selection
 
-A customer rarely begins with a complete hardware requirement. They usually begin with a product name.
-
-> “We need H100s.”
-
-That statement sounds specific, but it is not an architecture requirement. It does not reveal whether the customer is training a frontier model, serving a latency-sensitive application, running virtual workstations, processing scientific simulations, or simply following a recommendation copied from another environment.
-
-A defensible GPU design begins by translating the workload into measurable constraints. Product selection comes later.
-
-## Learning objectives
-
-After completing this chapter, you will be able to:
-
-- separate business requirements from assumed hardware choices;
-- classify GPU workloads by execution, memory, latency, and deployment behavior;
-- identify the hardware characteristics that constrain each workload;
-- explain why peak compute alone is an incomplete selection metric;
-- reject technically impressive but operationally unsuitable designs;
-- present a workload-to-platform recommendation to an enterprise customer.
-
-## The selection problem
-
-GPU selection is a multi-dimensional decision.
-
-```mermaid
-flowchart LR
-    Goal[Business goal] --> Workload[Workload profile]
-    Workload --> Constraints{"Constraints — checked with evidence,<br/>not assumed"}
-    Constraints -->|"Weights+KV-cache calc exceeds<br/>candidate memory.total"| MemFail["Memory-fit failure<br/>→ larger-HBM class required"]
-    Constraints -->|"nvidia-smi dmon: sm% high,<br/>pclk at max, no throttle"| ComputeOK["Compute-bound, healthy<br/>→ proceed to precision/format check"]
-    Constraints -->|"p99 latency script shows SLO miss<br/>at target concurrency"| LatencyFail["Latency-fit failure<br/>→ density/latency-tuned class required"]
-    Constraints -->|"nccl-tests bandwidth scales sub-linearly<br/>past 1 node"| CommFail["Communication-fit failure<br/>→ scale-up fabric (SXM/NVLink) required"]
-    MemFail --> Criteria[Selection criteria]
-    ComputeOK --> Criteria
-    LatencyFail --> Criteria
-    CommFail --> Criteria
-    Criteria --> Platform[GPU and platform]
-    Platform --> Validation[Benchmark and validate]
-    Validation -->|"benchmark contradicts the<br/>desk estimate"| Constraints
-```
-
-**Figure 4.2.1 — Hardware selection is the final stage, not the first, and each constraint is a checkable claim, not a guess.** The loop-back edge from Validation matters as much as the forward path: a benchmark that contradicts the paper estimate sends the process back to re-examine constraints, not straight to a purchase order.
-
-**Worked capacity check that would drive the "Memory-fit failure" branch above:** a 70B-parameter model at FP16 needs `70,000,000,000 × 2 bytes ≈ 140 GB` for weights alone — already larger than a single 80GB H100's HBM, before activations, optimizer state (if fine-tuning), or KV cache are added. That number alone is why "does the model fit" has to be answered with arithmetic before any benchmark is run, not discovered when a training or inference job OOMs in production.
-
-Starting with a product name reverses this flow. It encourages the design team to justify a purchase rather than determine whether the purchase is appropriate.
-
-## Step 1: classify the workload
-
-The first useful distinction is not “AI versus non-AI.” It is how the workload consumes compute, memory, communication, and time.
-
-| Workload class | Primary objective | Common pressure points | Typical deployment concern |
-|---|---|---|---|
-| Model training | Maximize useful work completed over time | Memory capacity, memory bandwidth, collective communication | Multi-GPU and multi-node scaling |
-| Real-time inference | Meet latency and availability targets | Model residency, batching delay, token generation rate | Tail latency and replica health |
-| Batch inference | Minimize cost per completed item | Throughput, queue depth, utilization | Scheduling and fleet efficiency |
-| Fine-tuning | Adapt a model within limited time and budget | Model size, optimizer state, checkpoint I/O | Shared-cluster access |
-| Scientific computing | Accelerate numerical kernels | Precision mode, memory movement, interconnect | Application compatibility |
-| Visualization | Deliver interactive graphics or remote desktops | Graphics pipeline, framebuffer, encoder support | User density and isolation |
-| Edge inference | Operate within power and physical constraints | Efficiency, thermals, model footprint | Remote operations and lifecycle |
-
-A single customer platform may host several of these classes. That does not mean one GPU model is automatically optimal for all of them.
-
-## Step 2: convert the workload into measurable questions
-
-The architect should ask questions that expose the true constraints.
-
-### Model and data questions
-
-- What is the model parameter count?
-- Which numerical formats are supported by the application?
-- How much memory is required for weights, activations, optimizer state, and runtime caches?
-- Does the dataset fit near the compute layer, or will storage become the limiting factor?
-- Is the workload sensitive to checkpoint time?
-
-### Service-level questions
-
-- Is the objective throughput, latency, or both?
-- Which percentile defines the latency target?
-- What happens when demand exceeds capacity?
-- Is graceful degradation acceptable?
-- How much maintenance downtime is permitted?
-
-### Scaling questions
-
-- Can the workload use multiple GPUs efficiently?
-- Is communication mostly within a node or across nodes?
-- Does the framework support the intended topology?
-- Will future model growth require more memory per accelerator or more accelerators?
-
-### Operational questions
-
-- Is the platform bare metal, virtualized, Kubernetes-based, or appliance-based?
-- Which driver and CUDA lifecycle must be supported?
-- Is multi-tenancy required?
-- What level of vendor support is expected?
-- Are power, cooling, rack space, or procurement lead time limiting factors?
-
-These questions turn vague preference into architecture evidence.
-
-## The five selection dimensions
-
-A practical GPU selection framework evaluates five dimensions together.
-
-```mermaid
-flowchart TD
-    W[Workload fit]
-    M[Memory fit]
-    C[Communication fit]
-    O[Operational fit]
-    E[Economic fit]
-    D[Defensible platform decision]
-
-    W --> D
-    M --> D
-    C --> D
-    O --> D
-    E --> D
-```
-
-### 1. Workload fit
-
-The accelerator must support the operations and precision modes the application actually uses. Specialized hardware is valuable only when the software stack can exploit it.
-
-### 2. Memory fit
-
-Memory capacity determines whether the workload can run. Memory bandwidth often determines how quickly it runs. Capacity and bandwidth must be evaluated separately.
-
-A model that barely fits leaves little room for runtime buffers, caches, framework overhead, or growth. Production design should include operational headroom rather than target theoretical minimums.
-
-### 3. Communication fit
-
-A workload that spans accelerators depends on the path between them. The relevant question is not simply how many GPUs exist, but how tensors move among those GPUs.
-
-For distributed workloads, selection expands from a GPU decision into a topology decision involving PCIe, high-speed GPU interconnects, network adapters, switches, and collective-communication behavior.
-
-### 4. Operational fit
-
-The platform must be installable, observable, supportable, and upgradeable by the organization that owns it.
-
-A theoretically faster accelerator may be a poor choice when it introduces unsupported operating systems, incompatible virtualization requirements, difficult cooling constraints, or an upgrade process the operations team cannot sustain.
-
-### 5. Economic fit
-
-Purchase price is only one component of cost.
-
-| Cost category | Examples |
+| Chapter metadata | Value |
 |---|---|
-| Acquisition | GPUs, servers, switches, optics, storage |
-| Facilities | Rack space, electrical delivery, cooling |
-| Software | Enterprise subscriptions, orchestration, observability |
-| Operations | Staffing, maintenance, upgrades, incident response |
-| Inefficiency | Idle capacity, poor utilization, stranded memory |
-| Risk | Delayed deployment, unsupported configurations, rework |
+| Volume | 04 — Accelerator Architecture & Form Factors |
+| Difficulty | Advanced |
+| Estimated reading time | 35 minutes |
+| Primary audience | DevOps, SRE, Platform, Cloud and Infrastructure Engineers |
+| Core question | If you have $1 Million to spend, should you buy H100s, L40S's, or L4s? |
 
-The objective is not the cheapest accelerator. It is the lowest-risk platform that satisfies the workload over its expected lifecycle.
+## Introduction
 
-## Why peak performance is insufficient
+"Which GPU should we buy?"
 
-Peak arithmetic throughput describes a hardware capability under ideal conditions. It does not describe application performance by itself.
+This is the most common question asked of an AI Infrastructure Architect. The answer is always: *"It depends entirely on the workload."*
 
-A workload may be limited by:
+Purchasing H100s for every AI project is an egregious waste of capital. Different AI workloads stress different parts of the silicon. Some workloads are bounded by Memory Bandwidth (LLM Inference). Some are bounded by VRAM Capacity (Model Fine-Tuning). Some are bounded by raw TFLOPS and Interconnect speed (Large Scale Pre-training). Some are bounded by Video Decoding hardware (Computer Vision).
 
-- memory bandwidth;
-- memory capacity;
-- CPU preprocessing;
-- storage throughput;
-- network congestion;
-- synchronization frequency;
-- small batches;
-- software compatibility;
-- scheduling delay;
-- power or thermal limits.
+To build a cost-effective AI Factory, you must profile the workload and purchase the specific silicon designed to destroy that exact bottleneck.
 
-This is why architecture reviews should ask, “What is the expected bottleneck?” before asking, “Which GPU has the largest specification?”
+## 1. Workload Profile A: LLM Pre-Training (From Scratch)
 
-## A customer decision example
+Training a 70B+ parameter Large Language Model from scratch is the most brutal workload in computing. It requires pushing petabytes of text through thousands of GPUs continuously for months.
 
-A company wants to deploy an internal language-model service. The first proposal requests the most capable training accelerator available. Further discovery reveals:
+*   **The Bottleneck:** Cross-node synchronization. The model is too big for one GPU. It is split across thousands of GPUs using 3D Parallelism. After every forward/backward pass, the GPUs must share their gradients.
+*   **Must-Have Hardware:** 
+    *   **NVLink & NVSwitch:** Absolute necessity. You need 8 GPUs in a server acting as one. 
+    *   **High-Bandwidth Memory (HBM):** To feed the massive throughput requirement.
+    *   **GPUDirect RDMA (InfiniBand/RoCE):** To synchronize across nodes without CPU bottlenecks.
+*   **The Hardware Choice:** **H100, H200, B200 (SXM Form Factor).** You cannot compromise here. Using PCIe cards or lacking InfiniBand will cause the training job to take 5 years instead of 3 months.
 
-- the model already exists and will not be trained internally;
-- expected demand is moderate but latency-sensitive;
-- the service must run in Kubernetes;
-- multiple departments will share the platform;
-- the data center has limited power headroom;
-- the team prioritizes predictable operations over maximum single-node scale.
+## 2. Workload Profile B: LLM Inference (Serving)
 
-The workload is an inference platform problem, not a large-scale training problem. The selection criteria should therefore emphasize model residency, latency under concurrency, partitioning or sharing options, power efficiency, software support, and replica operations.
+Serving a trained LLM to users (e.g., ChatGPT) is a completely different physical profile. 
 
-The original product request may still prove appropriate, but now it must win against explicit criteria rather than assumption.
+*   **The Bottleneck:** Memory Bandwidth (The Decode Phase). As discussed in Volume 1, generating words requires fetching the entire model weight matrix from memory for *every single token generated*.
+*   **Must-Have Hardware:** 
+    *   **Extreme Memory Bandwidth:** HBM3 or HBM3e is heavily favored to reduce Time-Per-Output-Token (TPOT).
+    *   **Memory Capacity:** You need enough VRAM to hold the model weights *plus* the massive KV Cache for concurrent users. (e.g., An 80GB H100 is great, but a 141GB H200 allows double the concurrent users).
+    *   **NVLink (Conditional):** If the model is 70B parameters, it requires ~140GB of RAM (at 16-bit). It will not fit on one 80GB GPU. You *must* use Tensor Parallelism across 2 or 4 GPUs. This requires NVLink. 
+*   **The Hardware Choice:** 
+    *   For massive models (>70B): **H100, H200 (SXM or NVL)**.
+    *   For smaller models (7B to 30B): **L40S (PCIe)**. The L40S uses GDDR6a memory (cheaper than HBM but still fast) and lacks NVLink, but for a model that fits entirely on a single card, it offers massive FP8 compute at a fraction of the H100's price.
 
-## When not to buy a new GPU
+## 3. Workload Profile C: Computer Vision & Video Processing
 
-A new accelerator is not always the correct response to poor performance.
+Computer vision tasks (e.g., analyzing security camera feeds, rendering 3D, YOLO object detection) rarely struggle with model size. A vision model might only be 200MB. 
 
-Do not begin with hardware replacement when:
+*   **The Bottleneck:** Data ingestion. The GPU cores will sit idle waiting for the CPU to decode the H.264/H.265 video streams into raw pixels.
+*   **Must-Have Hardware:**
+    *   **NVDEC / NVENC Engines:** Dedicated hardware video decoders and encoders on the GPU die.
+    *   **RT Cores (Ray Tracing):** If doing synthetic data generation (Omniverse).
+    *   *Note: HBM and NVLink are largely wasted here. The models are small, and they don't communicate with other GPUs.*
+*   **The Hardware Choice:** **L4 or L40 (PCIe).** The L4 is a 72-Watt, single-slot powerhouse. It can decode dozens of 1080p video streams simultaneously in hardware, run the AI model over the frames, and encode the output without breaking a sweat, at 1/15th the cost of an H100.
 
-- utilization is low because data arrives slowly;
-- the model server is misconfigured;
-- requests are too small to batch efficiently;
-- CPU tokenization is saturated;
-- the application cannot use the accelerator’s supported precision modes;
-- the workload is blocked on storage or network I/O;
-- existing GPUs are fragmented by poor scheduling;
-- an upgrade would create unsupported software dependencies.
-
-Benchmark the existing pipeline first. Otherwise, new hardware may preserve the same bottleneck at greater cost.
-
-## Production troubleshooting: wrong hardware, or wrong pipeline?
-
-### Symptoms
-
-- low throughput despite expensive accelerators;
-- low power draw during peak demand;
-- memory is full while compute utilization remains low;
-- adding GPUs does not improve completion time;
-- tail latency grows sharply under moderate concurrency.
-
-**Evidence walkthrough — "memory is full while compute utilization remains low," a fragmentation/oversubscription signature:**
-
-```bash
-$ nvidia-smi --query-gpu=index,memory.used,memory.total,utilization.gpu,utilization.memory --format=csv
-index, memory.used [MiB], memory.total [MiB], utilization.gpu [%], utilization.memory [%]
-0, 78120 MiB, 81920 MiB, 14 %, 9 %
-```
-
-`memory.used` at 95% of capacity while `utilization.gpu` sits at 14% is not a bandwidth story — `utilization.memory` (9%) confirms the memory subsystem isn't even being pushed hard. This combination usually means the memory is *held*, not *used*: multiple processes sharing the GPU without MIG or time-slicing isolation, a framework caching allocator (e.g. PyTorch) that grabbed a large pool early and never released it, or several stale sessions still resident. The fix is process/session cleanup or proper GPU-sharing isolation, not a bigger GPU — a bigger GPU would just let the same leak grow before it's noticed.
-
-### Diagnostic path
+## Architectural Decision Matrix
 
 ```mermaid
 flowchart TD
-    S[Performance target missed] --> U{"GPU busy?<br/>nvidia-smi dmon sm%"}
-    U -->|"sm% < 30%,<br/>host CPU near 100%"| Feed["Host-bound<br/>Inspect CPU, storage, request feed"]
-    U -->|"sm% > 80%"| Mem{"Memory pressure?<br/>memory.used / memory.total"}
-    Mem -->|"> 90% of capacity,<br/>or allocator OOM in logs"| MemFix["Memory-bound<br/>Reduce batch/seq length or move to larger-HBM class"]
-    Mem -->|"comfortable headroom"| Comm{"Multi-GPU workload?"}
-    Comm -->|"Yes — check nccl-tests<br/>or nvidia-smi topo -m"| Topo["Communication-bound<br/>Inspect topology and collective time share"]
-    Comm -->|"No"| Profile["Compute-bound<br/>Profile kernels with Nsight; check precision path"]
+    Start{"What is the Workload?"}
+    
+    Start -->|LLM Pre-Training| T_Size{"Model Size?"}
+    T_Size -->|> 10B Params| H100["H100 / B200 (SXM)<br>Requires InfiniBand & NVSwitch"]
+    T_Size -->|< 10B Params| L40S_Train["L40S Cluster<br>Cost effective for small models"]
+    
+    Start -->|LLM Inference| I_Size{"Model Fits on 1 GPU?"}
+    I_Size -->|No| H200["H200 / H100 NVL<br>Requires NVLink for Tensor Parallelism"]
+    I_Size -->|Yes| L40S_Inf["L40S (PCIe)<br>Excellent cost/performance ratio"]
+    
+    Start -->|Computer Vision / Video| Video["L4 / L40 (PCIe)<br>Maximize NVDEC engines"]
+    Start -->|Recommendation Systems| RecSys["H100 / A100<br>Requires massive HBM capacity for embedding tables"]
 ```
 
-**Evidence walkthrough — turning "GPU busy?" into a real answer instead of a guess:**
+## Customer Scenario (Senior Level)
 
-```bash
-$ nvidia-smi dmon -s pucvmet -c 4
-# gpu   pwr  gtemp  mtemp    sm   mem   enc   dec   jpg   ofa  mclk  pclk
-# Idx     W      C      C     %     %     %     %     %     %   MHz   MHz
-    0   165     44     41    18     6     0     0     0     0  2619  1410
-    0   162     44     41    17     5     0     0     0     0  2619  1410
-    0   168     45     42    19     6     0     0     0     0  2619  1410
-    0   160     44     41    16     5     0     0     0     0  2619  1410
-```
+**The Situation:**
+A Retail company wants to deploy AI across 5,000 retail stores. They want to analyze security camera footage in real-time to detect shoplifting (using a lightweight YOLO model), and run a local small language model (Llama-3-8B) to answer employee inventory questions. They have secured a massive budget and ask you to design the server for the back room of each store. They suggest buying a 2U server with 4x H100 GPUs per store to ensure they are "future-proofed."
 
-`sm` (compute busy %) averaging ~17% with `pclk` pinned at its max boost clock (1410MHz — no throttling) is the "No" branch of the diagnostic tree: the GPU is idle waiting on work, not struggling to keep up with it. Paired with a `top`/`htop` read showing one CPU core pegged at 100% doing request tokenization or image preprocessing, this combination is the standard signature of a host-feed bottleneck — the fix is on the CPU/data-loading side, and buying a faster GPU here would just idle more expensively.
+**The Senior Architect Response:**
+"Deploying 4x H100s in the back room of a retail store is physically impossible and an extreme misallocation of capital. 
 
-### Root causes
+First, physical constraints: A server with 4x H100s will draw over 3,000 Watts and generate immense heat. Retail store backrooms lack data-center-grade 240V/30A circuits and direct cooling. The servers would trip the breakers or melt.
 
-Common root causes include an undersized memory configuration, a topology mismatch, a host bottleneck, an application that cannot exploit the device, or a service design optimized for throughput when the requirement is latency.
+Second, workload alignment: The H100's primary advantage is its HBM3 memory bandwidth and NVSwitch interconnect, designed to train 100-Billion parameter models. Your workloads are entirely different. 
+1. The 8B LLM requires about 16GB of VRAM and runs entirely on a single card (no NVLink needed). 
+2. The security camera analysis is bottlenecked by video decoding (H.264), not Tensor Core math. 
 
-### Resolution
+The correct architecture for an Edge deployment is an enterprise server equipped with 2x to 4x **NVIDIA L4 GPUs**. The L4 is a 72-Watt, single-slot PCIe card that requires no external power cables. It possesses advanced NVDEC engines to decode dozens of camera streams simultaneously in hardware, and its Ada Lovelace Tensor Cores can easily serve an 8B LLM at high speed. This solution perfectly matches the thermal, power, and computational profile of the Edge."
 
-Resolve the measured bottleneck first. Change hardware only when the evidence shows that the existing accelerator or platform cannot satisfy the requirement within acceptable operational and economic limits.
+## Interview Preparation
 
-## Customer conversation
+**Conceptual:** Why is the L40S an incredible GPU for small LLM Inference, but a terrible GPU for massive LLM Training? *(Hint: It lacks NVLink. Training massive models requires splitting gradients across 8 GPUs simultaneously. The L40S must communicate over the 64GB/s PCIe bus, which bottlenecks collective communications).*
 
-A Solutions Architect should avoid answering “Which GPU should we buy?” with a product list.
-
-A stronger response is:
-
-> “Let us first identify the workload, memory footprint, scaling pattern, latency target, deployment model, and facility constraints. Then we can compare platforms against those requirements and validate the shortlist with representative benchmarks.”
-
-That answer changes the engagement from procurement assistance into architecture discovery.
-
-## Interview preparation
-
-### Knowledge questions
-
-**1. Why is GPU memory capacity different from GPU memory bandwidth?**
-
-**Model answer:** "Capacity is a yes/no gate — can the weights, activations, optimizer state, and KV cache all fit in device memory at once? I'd check that with `nvidia-smi --query-gpu=memory.used,memory.total` against a weights-plus-overhead calculation. Bandwidth is a rate question — once everything fits, how fast can data move between HBM and the SMs to keep them fed? A GPU can pass the capacity check completely — plenty of headroom in `memory.used` — and still underperform because bandwidth can't keep up with how often the kernel needs to re-read data from HBM. I've seen this exact split on decode-heavy LLM inference: capacity is fine, but every generated token re-reads the KV cache and weights, so bandwidth becomes the ceiling even though there's 20GB of free memory sitting there."
-
-**2. Why can a higher-throughput accelerator produce worse application economics?**
-
-**Model answer:** "Because throughput on a spec sheet is peak, aggregate, and workload-agnostic — it doesn't account for how many of those FLOPs your actual request pattern can use. If my service is dominated by small, latency-sensitive requests that can't batch efficiently, a bigger GPU just processes the same underfilled batches faster per unit — I'm paying for compute I structurally can't use. The number that actually matters is cost per successful request at my SLO, not FLOPs per dollar. I've challenged proposals before by asking for `requests/GPU-hour` at the target latency percentile instead of the vendor's peak-throughput number, and the 'faster' GPU sometimes loses that comparison outright."
-
-**3. What operational factors can invalidate an otherwise suitable GPU choice?**
-
-**Model answer:** "Power and cooling headroom in the destination rack, driver/CUDA/framework compatibility with what the team already runs, support and lifecycle commitments, and whether the operations team can actually service and monitor a new platform generation. I've seen a technically ideal GPU get vetoed at the facility review stage because the rack's PDU couldn't sustain its steady-state draw — the silicon was right and the deployment still failed."
-
-### Architecture questions
-
-1. Design a selection process for a shared training and inference platform.
-2. Explain how topology changes the value of adding more accelerators.
-3. Compare the decision criteria for batch inference and real-time inference.
-
-### Scenario questions
-
-**1. A customer requests premium training GPUs for a small inference service. How do you challenge the assumption?**
-
-**Model answer:** "I wouldn't say no outright — I'd ask what's driving the request. Usually it's 'this is the GPU everyone talks about' rather than a measured requirement. So I'd walk through the same five dimensions I use everywhere: does the model's memory footprint actually need that much HBM, is the workload latency- or throughput-bound, does it need NVLink-class scale-up communication at all for a single-service inference workload, what does it cost to power and cool that class of accelerator versus a density-tuned part, and what does cost-per-request look like on each. In most small-inference cases that comparison alone reframes the conversation — the premium training GPU usually loses on cost-per-request even though it wins on the spec sheet."
-
-**2. A workload uses only 25 percent GPU utilization. What evidence do you collect before recommending new hardware?**
-
-**Model answer:** "25% utilization on its own tells me almost nothing — I need to know what kind of 25% it is. I'd pull `nvidia-smi dmon -s pucvmet` over the real traffic window to see whether `sm%` is low because the GPU is starved (host-bound — check CPU and request feed) or because the workload is naturally bursty and 25% average hides healthy spikes. I'd pair that with `memory.used` to rule out a memory-bound stall, and with the application's own request-latency metrics to see if the service is even missing its SLO — a service comfortably meeting latency at 25% utilization might just have correctly-provisioned headroom, not a problem to fix with new hardware at all."
-
-**3. A model fits in memory but misses its latency target. What additional dimensions do you investigate?**
-
-**Model answer:** "Fitting in memory only answers the capacity question — latency is a completely different axis. I'd look at batching policy first, since the batch size tuned for throughput is often exactly wrong for interactive latency. Then I'd check whether the request path has host-side cost outside the GPU entirely — CPU preprocessing, tokenization, host-to-device transfer — using host-level tooling alongside `nvidia-smi`, because a GPU that's fast in isolation can still miss its SLO if the surrounding pipeline is slow. Finally I'd check for queueing — whether requests are waiting for a GPU slot rather than executing slowly on one — because that shows up identically in an end-to-end latency number but has a completely different fix."
-
-## Key takeaways
-
-- Begin with workload and business constraints, not product names.
-- Capacity, bandwidth, communication, operations, and economics must be evaluated together.
-- Peak hardware specifications do not predict end-to-end performance.
-- A platform recommendation is credible only when it is tied to measurable requirements.
-- Benchmarking validates architecture assumptions; it does not replace architecture discovery.
-
-## Cross references
-
-- [Volume 04 introduction](./index)
-- [Chapter 01 — Why NVIDIA Has Multiple GPU Families](./chapter-01-why-nvidia-has-multiple-gpu-families)
-- [Lab 01 — Build a GPU Selection Scorecard](./labs/lab-01-build-a-gpu-selection-scorecard)
+**Architecture:** A client wants to build a recommendation engine that utilizes massive 300GB embedding tables. What hardware feature is their primary bottleneck? *(Hint: VRAM Capacity. They cannot use L4s or L40S's because they lack the memory capacity. They need the H200 (141GB) or massive CPU-to-GPU memory pooling like Grace Hopper).*
