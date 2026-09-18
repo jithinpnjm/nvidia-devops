@@ -62,8 +62,8 @@ flowchart TD
         Spine1["Spine Switch"]
     end
 
-    Power -->|Heavy Gauge Wires| Compute Rack
-    CDU -->|Chilled Water Pipes| Compute Rack
+    Power -->|Heavy Gauge Wires| Node1
+    CDU -->|Chilled Water Pipes| Node1
     Node1 <-->|Heavy Copper/Fiber < 30m| Leaf1
     Leaf1 <-->|Fiber| Spine1
 ```
