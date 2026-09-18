@@ -173,5 +173,5 @@ The evolution of the GPU is the story of identifying mathematical bottlenecks an
 ## Related Chapters
 
 - Previous: [Volume 01 Summary](../volume-01/06-volume-01-summary.md)
-- Next: Inside a Modern NVIDIA GPU
-- Related lab: Inspect GPU Architecture and Topology
+- Next: [Inside a Modern NVIDIA GPU](./chapter-02-inside-a-modern-nvidia-gpu.md)
+- Related lab: [Inspect GPU Architecture and Topology](./labs/lab-01-inspect-gpu-architecture-and-topology.md)

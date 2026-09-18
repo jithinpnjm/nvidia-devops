@@ -159,6 +159,6 @@ To operate AI infrastructure effectively, you must discard the mental model of t
 
 ## Related Chapters
 
-- Previous: Why GPU Architecture Evolved
-- Next: Threads, Warps, Blocks, and Streaming Multiprocessors
-- Related lab: Inspect GPU Engine and Memory Behavior
+- Previous: [Why GPU Architecture Evolved](./chapter-01-why-gpu-architecture-evolved.md)
+- Next: [Threads, Warps, Blocks, and Streaming Multiprocessors](./chapter-03-threads-warps-blocks-and-sms.md)
+- Related lab: [Inspect GPU Engine and Memory Behavior](./labs/lab-02-inspect-gpu-engine-and-memory-behavior.md)

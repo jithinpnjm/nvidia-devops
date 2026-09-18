@@ -533,7 +533,7 @@ The resulting policy becomes an input to future Kubernetes, Slurm, and distribut
 
 ## 18. Further Reading
 
-- 
-- 
-- 
-- Lab 01 — Inspect GPU Architecture and Topology
+- [GPU Topology, Peer Access, and Data Paths](../chapter-10-gpu-topology-peer-access-and-data-paths)
+- [Building a GPU Performance Model](../chapter-11-building-a-gpu-performance-model)
+- [Volume 02 Architecture Summary](../chapter-12-volume-02-architecture-summary)
+- [Lab 01 — Inspect GPU Architecture and Topology](./lab-01-inspect-gpu-architecture-and-topology)
