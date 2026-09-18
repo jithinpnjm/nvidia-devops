@@ -1164,47 +1164,7 @@ if __name__ == '__main__':
     canary = {'requests': 1200, 'error_rate': .006, 'p95_ms': 240, 'burn_rate': 1.2}
     baseline = {'error_rate': .005, 'p95_ms': 220}
     print(rollout_decision(canary, baseline))`,explanation:'A production gate also needs metric freshness, representative traffic, correctness/business KPIs, deployment health and a maximum observation window. Automation should halt safely when evidence is missing.'},
-  {id:'async-retry',title:'46 · Async Exponential Backoff',prompt:'Write an async decorator or function that retries an unstable async network call (mocked here) up to 3 times, waiting 0.1s, 0.2s, then 0.4s. Synchronous `time.sleep()` would block the FastAPI event loop; you must use `asyncio.sleep`.',starter:`from typing import List, Dict, Tuple, Optional, Any, Union
-
-import asyncio
-
-async def fetch_status():
-    # This mock fails twice, then succeeds.
-    fetch_status.calls += 1
-    if fetch_status.calls < 3:
-        raise ConnectionError("Network blip")
-    return "OK"
-fetch_status.calls = 0
-
-async def fetch_with_retry(func):
-    # Implement exponential backoff here using await asyncio.sleep()
-    pass
-
-# Tests will await your function
-`,expected:"'OK' after 2 retries",tests:`import asyncio
-import time
-
-start = time.time()
-result = await fetch_with_retry(fetch_status)
-duration = time.time() - start
-
-assert result == "OK", f"Expected 'OK', got {result}"
-assert fetch_status.calls == 3, f"Expected 3 calls, got {fetch_status.calls}"
-assert duration >= 0.3, f"Backoff too fast, took {duration}s"
-print('PASS')`,hint:'Use a for loop `for attempt in range(max_attempts):`. Try/except the error. On fail, `await asyncio.sleep(delay)`, then double the delay.',solution:`from typing import List, Dict, Tuple, Optional, Any, Union
-
-import asyncio
-
-async def fetch_with_retry(func, max_attempts=3):
-    delay = 0.1
-    for attempt in range(max_attempts):
-        try:
-            return await func()
-        except Exception as e:
-            if attempt == max_attempts - 1:
-                raise
-            await asyncio.sleep(delay)
-            delay *= 2`,explanation:'In a FastAPI or AsyncIO microservice, a synchronous `time.sleep()` or `requests.get()` freezes the entire server, causing hundreds of concurrent requests to queue up and timeout. You must use `await asyncio.sleep()` for backoff to yield control back to the event loop.'},
+  {id:'async-retry',title:'46 · Async Retry with Full Jitter',prompt:'(Interview Scenario) A junior engineer wrote a simple linear retry loop. Upgrade it: Add standard `logging`, catch specific custom exceptions rather than `Exception`, and implement AWS-style "Full Jitter" exponential backoff (`random.uniform(0, base_delay * 2**attempt)`) to prevent thundering herds on recovery.',starter:`import asyncio\nimport logging\nimport random\nfrom typing import Callable, Any, Awaitable\n\nlogging.basicConfig(level=logging.WARNING)\nlogger = logging.getLogger(__name__)\n\nclass UpstreamAPIError(Exception):\n    pass\n\n# TODO: Implement fetch_with_retry using full jitter backoff\n`,expected:"Logs warnings, uses jitter, and raises custom exception",tests:`import time\n\nasync def fail_func():\n    raise UpstreamAPIError("Test")\n\nstart = time.time()\ntry:\n    await fetch_with_retry(fail_func, max_attempts=3, base_delay=0.1)\nexcept UpstreamAPIError:\n    pass\n\nduration = time.time() - start\nassert duration > 0.05, "Backoff was too fast"\nprint('PASS')`,hint:'Full Jitter formula: `sleep_time = random.uniform(0, base_delay * (2 ** (attempt - 1)))`. Catch `UpstreamAPIError`, log it, sleep, and if it is the last attempt, re-raise.',solution:`import asyncio\nimport logging\nimport random\nfrom typing import Callable, Any, Awaitable\n\nlogging.basicConfig(level=logging.WARNING, format="%(asctime)s - %(levelname)s - %(message)s")\nlogger = logging.getLogger(__name__)\n\nclass UpstreamAPIError(Exception):\n    pass\n\nasync def fetch_with_retry(func: Callable[[], Awaitable[Any]], max_attempts: int = 3, base_delay: float = 0.1) -> Any:\n    for attempt in range(1, max_attempts + 1):\n        try:\n            return await func()\n        except UpstreamAPIError as e:\n            if attempt == max_attempts:\n                logger.error(f"Failed after {max_attempts} attempts. Last error: {e}")\n                raise\n            \n            # Full Jitter Exponential Backoff\n            sleep_time = random.uniform(0, base_delay * (2 ** (attempt - 1)))\n            logger.warning(f"Attempt {attempt} failed. Retrying in {sleep_time:.2f}s...")\n            await asyncio.sleep(sleep_time)\n\nif __name__ == '__main__':\n    async def mock_network_call():\n        raise UpstreamAPIError("Connection Reset")\n    \n    asyncio.run(fetch_with_retry(mock_network_call))\n`,explanation:'In distributed systems, if an API goes down and 10,000 clients retry exactly 1 second later, the returning API is instantly DDoSed (Thundering Herd). Senior engineers introduce "Jitter" (randomness) to smooth out the retry spikes. They also catch specific exceptions rather than broad `Exception`, which would wrongly mask `KeyboardInterrupt` or `SyntaxError`.'},
   {id:'json-validation',title:'47 · Strict JSON Validation',prompt:'Write a function that parses a raw JSON payload (a string) representing an infrastructure request. It must enforce that `gpu_count` is an integer between 1 and 8, and `image` is a string. If validation fails or JSON is malformed, raise a ValueError.',starter:`from typing import List, Dict, Tuple, Optional, Any, Union
 
 import json
@@ -1337,91 +1297,8 @@ def process_logs(lines):
                 yield data
         except json.JSONDecodeError:
             continue`,explanation:'Generators (`yield`) are mandatory for Data/AI Infrastructure. Whether you are streaming a 50GB dataset into a training loop, paginating through 10,000 Kubernetes pods, or exporting billing metrics, returning a massive list will exhaust memory and kill the pod. Generators keep the memory footprint bounded to exactly 1 item at a time.'},
-  {id:'oop-polymorphism',title:'50 · OOP Polymorphism: Cloud Provider Interface',prompt:'Design a base class `CloudProvider` with a `provision_node` method that raises `NotImplementedError`. Then create two subclasses, `AWSProvider` and `GCPProvider`, that override this method to return `"AWS node"` and `"GCP node"` respectively.',starter:`from typing import List, Dict, Tuple, Optional, Any, Union
-
-class CloudProvider:
-    def provision_node(self) -> str:
-        # Raise NotImplementedError
-        pass
-
-# Create AWSProvider subclass
-# Create GCPProvider subclass
-
-def scale_out(provider: CloudProvider):
-    # Call provision_node on the provider and return the string
-    return provider.provision_node()`,expected:"'AWS node' and 'GCP node'",tests:`
-aws = AWSProvider()
-gcp = GCPProvider()
-
-assert scale_out(aws) == "AWS node", f"Expected 'AWS node', got {scale_out(aws)}"
-assert scale_out(gcp) == "GCP node", f"Expected 'GCP node', got {scale_out(gcp)}"
-
-base = CloudProvider()
-try:
-    base.provision_node()
-    assert False, "CloudProvider.provision_node() should raise NotImplementedError"
-except NotImplementedError:
-    pass
-
-print('PASS')`,hint:'Inherit using `class AWSProvider(CloudProvider):`. Inside the class, define `def provision_node(self): return "AWS node"`. Do the same for GCP.',solution:`from typing import List, Dict, Tuple, Optional, Any, Union
-
-class CloudProvider:
-    def provision_node(self):
-        raise NotImplementedError("Subclasses must implement this!")
-
-class AWSProvider(CloudProvider):
-    def provision_node(self):
-        return "AWS node"
-
-class GCPProvider(CloudProvider):
-    def provision_node(self):
-        return "GCP node"
-
-def scale_out(provider):
-    return provider.provision_node()`,explanation:'Polymorphism means treating different object types through the exact same interface. The `scale_out` orchestration function does not need a mess of `if provider == "AWS": ... elif provider == "GCP":`. It simply calls `.provision_node()` and relies on the specific subclass implementation.'},
-  {id:'decorator-timer',title:'51 · Write an Execution Timer Decorator',prompt:'Write a decorator `@time_execution` that wraps a function, captures `time.time()` before and after the function executes, prints the duration, and returns the original function\'s result.',starter:`from typing import List, Dict, Tuple, Optional, Any, Union
-
-import time
-
-def time_execution(func):
-    def wrapper(*args, **kwargs):
-        # 1. Record start time
-        # 2. Execute the wrapped function: result = func(*args, **kwargs)
-        # 3. Record end time and print duration
-        # 4. Return result
-        pass
-    return wrapper
-
-@time_execution
-def simulate_work():
-    time.sleep(0.1)
-    return "done"`,expected:"Prints duration and returns 'done'",tests:`
-import io
-import sys
-
-# Capture stdout
-captured = io.StringIO()
-sys.stdout = captured
-
-res = simulate_work()
-
-sys.stdout = sys.__stdout__
-output = captured.getvalue()
-
-assert res == "done", f"Expected 'done', got {res}"
-assert "0." in output, "Decorator did not print a duration string."
-print('PASS')`,hint:'Inside `wrapper`, do `start = time.time()`. Then call the function and save it: `result = func(*args, **kwargs)`. Then `print(time.time() - start)`. Return `result`.',solution:`from typing import List, Dict, Tuple, Optional, Any, Union
-
-import time
-
-def time_execution(func):
-    def wrapper(*args, **kwargs):
-        start = time.time()
-        result = func(*args, **kwargs)
-        duration = time.time() - start
-        print(f"Executed in {duration:.4f} seconds")
-        return result
-    return wrapper`,explanation:'Decorators are heavily used in AI Infrastructure to abstract away repetitive tasks like Prometheus metrics instrumentation, logging, authentication, and connection retries without cluttering the core business logic of the function.'},
+  {id:'oop-polymorphism',title:'50 · OOP Polymorphism: The Senior Cloud Interface',prompt:'(Interview Scenario) You are given a junior script that raises NotImplementedError. As a senior, upgrade this to a production-ready Abstract Base Class. You must use `abc.ABC`, `@abstractmethod`, `logging`, strict type hints, a `dataclass` for configuration, and robust error handling.',starter:`import logging\nfrom abc import ABC, abstractmethod\nfrom dataclasses import dataclass\n\n# TODO: Define a frozen dataclass NodeConfig(instance_type: str, region: str)\n# TODO: Define CloudProvider(ABC) with abstractmethod provision_node(self, config: NodeConfig) -> str\n# TODO: Implement AWSProvider and GCPProvider\n# TODO: Implement orchestration function scale_out(provider, config) with logging\n`,expected:"Proper abstract base classes and logging",tests:`import logging\nimport sys\nfrom abc import ABC\n\nassert issubclass(CloudProvider, ABC), "CloudProvider must inherit from abc.ABC"\nassert "provision_node" in CloudProvider.__abstractmethods__, "provision_node must be an @abstractmethod"\n\nconfig = NodeConfig(instance_type="gpu.large", region="us-east-1")\naws = AWSProvider()\nassert "aws" in aws.provision_node(config).lower()\n\nprint('PASS')`,hint:'Use `from abc import ABC, abstractmethod`. Pass a dataclass into the method instead of raw strings. Use `logging.getLogger(__name__)`.',solution:`import logging\nfrom abc import ABC, abstractmethod\nfrom dataclasses import dataclass\n\nlogging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")\nlogger = logging.getLogger(__name__)\n\n@dataclass(frozen=True)\nclass NodeConfig:\n    instance_type: str\n    region: str\n\nclass CloudProvider(ABC):\n    @abstractmethod\n    def provision_node(self, config: NodeConfig) -> str:\n        \"\"\"Provisions a node and returns the instance ID.\"\"\"\n        pass\n\nclass AWSProvider(CloudProvider):\n    def provision_node(self, config: NodeConfig) -> str:\n        logger.info(f"Provisioning AWS EC2 {config.instance_type} in {config.region}")\n        return f"i-aws-{config.instance_type}"\n\nclass GCPProvider(CloudProvider):\n    def provision_node(self, config: NodeConfig) -> str:\n        logger.info(f"Provisioning GCP Compute {config.instance_type} in {config.region}")\n        return f"gcp-{config.instance_type}"\n\ndef scale_out(provider: CloudProvider, config: NodeConfig) -> str:\n    try:\n        node_id = provider.provision_node(config)\n        logger.info(f"Successfully scaled out: {node_id}")\n        return node_id\n    except Exception as e:\n        logger.error(f"Failed to scale out: {e}")\n        raise\n\nif __name__ == '__main__':\n    config = NodeConfig(instance_type="gpu.large", region="us-east-1")\n    scale_out(AWSProvider(), config)\n`,explanation:'In a senior interview, simply raising NotImplementedError is not enough. You must demonstrate interface enforcement (ABC), immutability (frozen dataclasses), observability (structured logging), and proper type hints. This proves your code can safely scale across a team of developers.'},
+  {id:'decorator-timer',title:'51 · Execution Timer: Production Decorator',prompt:'(Interview Scenario) A junior engineer wrote a timer decorator using `time.time()` and `print()`. Upgrade this to senior level: Use `time.perf_counter()` for high-resolution timing, `logging` for observability, `functools.wraps` to preserve docstrings, and a `try/finally` block so the timer still logs even if the function crashes.',starter:`import logging\nimport time\nfrom functools import wraps\nfrom typing import Callable, Any\n\nlogging.basicConfig(level=logging.INFO)\nlogger = logging.getLogger(__name__)\n\n# TODO: Implement time_execution decorator\n`,expected:"Logs high-res duration regardless of exceptions",tests:`import io\nimport logging\n\nlog_capture = io.StringIO()\nch = logging.StreamHandler(log_capture)\nlogger.addHandler(ch)\n\n@time_execution\ndef fail_task():\n    raise ValueError("Crashing!")\n\ntry:\n    fail_task()\nexcept ValueError:\n    pass\n\noutput = log_capture.getvalue()\nassert "executed in" in output.lower(), "Must log duration even if function raises an exception!"\nprint('PASS')`,hint:'Use `start = time.perf_counter()`. Wrap the function call in `try:` and do the timing/logging in a `finally:` block.',solution:`import logging\nimport time\nfrom functools import wraps\nfrom typing import Callable, Any\n\nlogging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")\nlogger = logging.getLogger(__name__)\n\ndef time_execution(func: Callable) -> Callable:\n    @wraps(func)\n    def wrapper(*args: Any, **kwargs: Any) -> Any:\n        start_time = time.perf_counter()\n        try:\n            return func(*args, **kwargs)\n        finally:\n            duration = time.perf_counter() - start_time\n            logger.info(f"Function '{func.__name__}' executed in {duration:.4f}s")\n    return wrapper\n\nif __name__ == '__main__':\n    @time_execution\n    def heavy_task():\n        time.sleep(0.1)\n        return "Done"\n    \n    heavy_task()\n`,explanation:'Senior engineers know that `time.time()` is subject to NTP clock skew (time can go backward on a server!). They use `time.perf_counter()`. They also use `try/finally` to guarantee metrics are emitted even if the task fails, and use `logging` instead of `print` so the output can be scraped by monitoring agents.'},
   {id:'dataclasses',title:'52 · Dataclasses and Default Mutability',prompt:'Create a `dataclass` called `JobConfig` with a `job_name` string, an `image` string, and a list of strings called `flags`. You MUST ensure that the `flags` list does not share memory across instances (use `field(default_factory=list)`).',starter:`from dataclasses import dataclass, field
 from typing import List
 
