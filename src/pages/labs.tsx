@@ -1,5 +1,6 @@
 import React, {useState} from 'react';
 import Layout from '@theme/Layout';
+import Link from '@docusaurus/Link';
 import PythonPlayground, {type PythonExercise} from '@site/src/components/PythonPlayground';
 
 const labs: PythonExercise[] = [
@@ -844,11 +845,28 @@ const labGroups: {name: string; ids: string[]}[] = [
 
 export default function Labs() {
   const [index, setIndex] = useState(0);
-  return <Layout title="Production Python learning system" description="Learn algorithms and production engineering through executable SRE programs">
-    <main className="pageShell"><header className="pageHeader"><span className="eyebrow">Staff SRE Python academy</span><h1>Production Python learning system</h1><p><strong>{labs.length} complete study modules</strong> arranged in four tiers. Each module teaches the concepts and data-structure choice, draws the algorithm flow, provides pseudocode, explains the full solution line by line, runs contract tests in the browser, compares alternatives and finishes with production hardening. Coding practice comes after the teaching layer.</p></header>
-      <section className="learningRoadmap"><span className="eyebrow">Required learning sequence</span><div className="componentBoundaryDiagram">{['Understand contract', 'Learn Python concepts', 'Design algorithm', 'Study full solution', 'Run and modify code', 'Harden for production'].map((item, step) => <React.Fragment key={item}><article><span>{step + 1}</span><strong>{item}</strong></article>{step < 5 && <b>→</b>}</React.Fragment>)}</div><p>Use Tier 1 only where a foundation is weak. Your highest-value path is Tier 2 and Tier 4: production software boundaries, Linux/networking data, distributed-system control logic and Staff-level operational reasoning.</p></section>
-      <div className="prompt"><strong>How to practise:</strong> write the smallest deterministic decision first, run its contract tests, then explain which real command or metric would supply each input. The reveal contains one reference implementation—not the only valid design.</div>
-      <div className="labLayout"><aside className="scenarioList">{labGroups.map(group => <div key={group.name}><h4>{group.name}</h4>{group.ids.map(id => { const i = labs.findIndex(lab => lab.id === id); return <button className={i === index ? 'active' : ''} onClick={() => setIndex(i)} key={id}>{labs[i].title}</button>; })}</div>)}</aside><PythonPlayground exercise={labs[index]}/></div>
+  return <Layout title="Python SRE Academy" description="Learn Python algorithms and production engineering for SRE">
+    <main className="pageShell">
+      <header className="pageHeader" style={{borderBottom: '2px solid var(--ifm-color-primary)', paddingBottom: '2rem'}}>
+        <span className="eyebrow">Python scripting for operations</span>
+        <h1>Python SRE Academy</h1>
+        <p><strong>{labs.length} complete study modules</strong> arranged in four tiers to teach you the fundamentals of Python string/list manipulation, dict parsing, and generic SRE logic. <em>Note: If you are already comfortable with Python and looking for advanced cluster-level AI Infrastructure labs, please proceed to the <Link to="/curriculum/nvidia-zero-to-hero">Zero to Hero Masterclasses</Link>.</em></p>
+      </header>
+      <div className="prompt"><strong>How to practise:</strong> Write the smallest deterministic decision first, run its contract tests, then explain which real command or metric would supply each input.</div>
+      <div className="labLayout">
+        <aside className="scenarioList">
+          {labGroups.map(group => 
+            <div key={group.name}>
+              <h4>{group.name}</h4>
+              {group.ids.map(id => { 
+                const i = labs.findIndex(lab => lab.id === id); 
+                return <button className={i === index ? 'active' : ''} onClick={() => setIndex(i)} key={id}>{labs[i].title}</button>; 
+              })}
+            </div>
+          )}
+        </aside>
+        <PythonPlayground exercise={labs[index]}/>
+      </div>
     </main>
   </Layout>;
 }
