@@ -1,441 +1,110 @@
 ---
-title: Chapter 11 — Production Design Scenarios
-description: Apply GPU-networking principles to realistic enterprise designs for training, inference, storage, multi-tenancy, and phased cluster growth.
-sidebar_position: 12
-tags:
-  - gpu-networking
-  - architecture
-  - customer-scenarios
-  - production
+title: "Chapter 11 — Production Design Scenarios"
+sidebar_position: 11
+description: "Apply your networking knowledge to high-stakes architectural challenges. Design InfiniBand topologies and debug multi-rail routing."
 ---
 
-# Production Design Scenarios
+# Chapter 11 — Production Design Scenarios
+
+| Chapter metadata | Value |
+|---|---|
+| Volume | 07 — GPU Networking and Data Paths |
+| Difficulty | Expert |
+| Estimated reading time | 30 minutes |
+| Primary audience | DevOps, SRE, Platform, Cloud and Infrastructure Engineers |
+| Core question | If you are given a blank check to build a 1,024-GPU cluster, how do you mathematically design the network? |
 
 ## Introduction
 
-Architecture becomes useful when it guides decisions under constraints. Customers rarely ask for “a topology.” They ask how to train a larger model, reduce inference latency, share expensive GPUs, expand an existing cluster, or recover from recurring communication failures.
+In this volume, we moved from the motherboard PCIe lanes, out through the ConnectX NICs, across the InfiniBand fiber, and into the NCCL libraries. 
 
-This chapter applies the concepts from Volume 07 to production scenarios. The objective is not to declare one universal design. It is to show how workload behavior, locality, scale, reliability, operations, and cost lead to different answers.
+Now, we must synthesize this knowledge. A Senior Infrastructure Architect is expected to design the physical topography of the data center. If you miscalculate the port counts, oversubscribe the spine switches, or improperly route the storage network, you will build a multi-million-dollar bottleneck.
 
-| Chapter field | Value |
-|---|---|
-| Volume | 07 — GPU Networking |
-| Difficulty | Architect |
-| Estimated reading time | 60 minutes |
-| Previous | Performance Bottlenecks and Benchmarking |
-| Next | Volume 07 Summary |
+This chapter presents real-world architectural scenarios that test your ability to apply the rules of GPU networking at scale.
 
-## Learning Objectives
+---
 
-After completing this chapter, you will be able to:
+## Scenario 1: The Non-Blocking Fat-Tree
 
-- translate workload requirements into communication requirements;
-- design scale-up and scale-out paths together;
-- identify assumptions and acceptance criteria;
-- compare alternative GPU, adapter, and fabric placements;
-- include observability, upgrades, and failure recovery in the design;
-- explain trade-offs to technical and business stakeholders;
-- conduct a structured customer architecture workshop.
+**The Challenge:**
+You are designing a cluster of 128 DGX H100 servers (1,024 GPUs total). The standard NVIDIA Quantum-2 NDR (400G) InfiniBand switch has exactly 64 ports. You cannot plug 1,024 GPUs into a 64-port switch. How do you design the network to ensure that GPU 1 can talk to GPU 1,000 at maximum speed without hitting a bottleneck?
 
-## Design Method
+**The Senior Architecture:**
+You must design a **2-Tier Non-Blocking Fat-Tree (Clos Topology)**.
 
-Every scenario follows the same sequence:
+A DGX H100 has 8 Compute NICs. We will use the **Rail-Optimized** design.
+1. We purchase 8 "Leaf" switches. 
+2. NIC 0 from every server plugs into Leaf Switch 0. NIC 1 plugs into Leaf Switch 1, etc.
+3. However, a 64-port Leaf switch can only hold 32 servers (because half the ports must be reserved to connect *up* to the next tier of switches). 
 
-1. business objective;
-2. workload communication profile;
-3. existing constraints;
-4. proposed topology;
-5. alternatives;
-6. failure domains;
-7. operational model;
-8. acceptance tests;
-9. cost and growth path;
-10. unresolved assumptions.
+Because we have 128 servers, we need 4 separate "Leaf Groups" (each holding 32 servers). 
+Now we have multiple islands. To connect them, we add a second tier of switches: the **Spine Switches**.
+* The 32 "up" ports on every Leaf switch are cabled perfectly symmetrically into the Spine switches.
 
-```mermaid
-flowchart LR
-    Goal[Business Goal]
-    Workload[Workload Profile]
-    Constraints[Constraints]
-    Design[Candidate Architecture]
-    Validate[Validation Plan]
-    Operate[Operations and Growth]
-
-    Goal --> Workload --> Constraints --> Design --> Validate --> Operate
-```
-
-## Scenario 1 — Eight-GPU Single-Node Training
-
-### Customer goal
-
-Train models that fit within one eight-GPU system while maximizing iteration throughput and preserving a simple operating model.
-
-### Communication profile
-
-The job uses tensor or model parallelism and exchanges data frequently among all GPUs. Scale-up communication dominates; scale-out networking is secondary.
-
-### Recommended architecture
-
-- one validated eight-GPU topology;
-- NVLink or NVSwitch connectivity where supported;
-- CPU workers bound to local NUMA resources;
-- local high-speed storage or a qualified shared-storage path;
-- one or more network adapters placed for dataset and checkpoint traffic;
-- topology-aware rank ordering;
-- peer and collective baselines captured during commissioning.
+Because there is an equal number of 400G cables going *down* to the servers as there are going *up* to the spines, the network is **Non-Blocking (1:1 Oversubscription ratio)**. There is no physical bottleneck. 
 
 ```mermaid
 flowchart TD
-    CPU[CPU and System Memory]
-    Fabric[NVLink or NVSwitch Domain]
-    GPUs[Eight GPUs]
-    NIC[Network Adapter]
-    Storage[Dataset and Checkpoint Storage]
-
-    CPU --> Fabric --> GPUs
-    NIC <--> CPU
-    Storage <--> NIC
+    subgraph "Spine Tier (Non-Blocking)"
+        Spine1[Spine Switch 1]
+        SpineN[Spine Switch N]
+    end
+    
+    subgraph "Leaf Tier (Rail Optimized)"
+        Leaf0_A[Leaf 0 - Group A]
+        Leaf0_B[Leaf 0 - Group B]
+    end
+    
+    subgraph "Compute Tier"
+        Server1[DGX Server 1]
+        Server33[DGX Server 33]
+    end
+    
+    Server1 ---|NIC 0| Leaf0_A
+    Server33 ---|NIC 0| Leaf0_B
+    
+    Leaf0_A ---|Uplinks| Spine1 & SpineN
+    Leaf0_B ---|Uplinks| Spine1 & SpineN
 ```
 
-### Trade-offs
+---
 
-A dense scale-up system simplifies model placement and can deliver strong local communication. It also creates a large single-node failure domain. Maintenance or hardware failure may interrupt the entire job.
+## Scenario 2: The Multi-Tenant Bandwidth Trap
 
-### Acceptance criteria
+**The Challenge:**
+Your company decides to split the new 1,024-GPU cluster into two logically separated clusters (512 GPUs each) for two different departments. To save money on networking gear, the networking team suggests applying a 2:1 Oversubscription ratio on the Spine switches. "Since there are two different departments running different jobs, they won't use the network at the exact same time."
 
-- expected GPU topology;
-- peer access across approved pairs;
-- collective baseline across all eight GPUs;
-- no PCIe down-training;
-- checkpoint and restore validation;
-- thermal stability under sustained load.
+**The Senior Architecture:**
+You must strictly reject oversubscription in a dedicated AI cluster.
 
-## Scenario 2 — Sixty-Four-GPU Distributed Training
+In traditional web hosting, a 2:1 or even 10:1 oversubscription ratio is perfectly fine because web traffic is bursty and random. AI training traffic is synchronous and massive. 
 
+When a 512-GPU training job reaches the end of a forward pass, all 512 GPUs will execute an `AllReduce` operation at the exact same microsecond. They will instantly flood the network with 400G of traffic each. 
+If the Leaf switch has 32 servers connected to it, but only 16 cables going up to the Spine (a 2:1 oversubscription), the traffic will violently slam into a physical wall at the Leaf switch. The switch will be forced to buffer the data, and ultimately drop packets. 
 
-Scale from eight to sixty-four GPUs without allowing communication to dominate the training iteration.
+You must mandate a 1:1 non-blocking architecture, regardless of multi-tenancy, because a single distributed job can perfectly saturate the network on its own.
 
-### Workload profile
+---
 
-Data parallelism is combined with model parallelism. Local traffic should use scale-up links; gradient and shard communication cross nodes.
+## Scenario 3: The Storage Subnet Collision
 
+**The Challenge:**
+To simplify the cluster, an engineer suggests routing the Parallel File System (Storage) traffic over the exact same InfiniBand switches used for the GPU Compute traffic. "InfiniBand is 400G, there is plenty of bandwidth for both."
 
-- consistent eight-GPU node class;
-- multiple adapters per node aligned with GPU groups;
-- GPUDirect RDMA where qualified;
-- non-blocking or intentionally oversubscribed fabric sized to the workload;
-- stable rank and adapter mapping;
-- collective benchmarks at 2, 4, and 8 nodes;
-- storage traffic separated or accounted for;
-- job diagnostics retained for failed runs.
+**The Senior Architecture:**
+You must enforce a physically separated **Multi-Plane Topology**.
 
-```mermaid
-flowchart LR
-    Node0[8-GPU Node 0]
-    Node1[8-GPU Node 1]
-    Node2[8-GPU Node 2]
-    NodeN[8-GPU Node N]
-    Spine[Scale-Out Fabric]
+While InfiniBand has enough *bandwidth* for both, it does not have the architecture to protect *latency*. 
+During an `AllReduce` gradient synchronization, the GPUs are incredibly sensitive to latency jitter. If GPU 10 is delayed by 5 microseconds, all 1,000 GPUs stall for 5 microseconds. 
 
-    Node0 <--> Spine
-    Node1 <--> Spine
-    Node2 <--> Spine
-    NodeN <--> Spine
-```
+If you route Storage traffic on the Compute network, a massive storage event (like writing a 100GB model checkpoint to disk) will flood the InfiniBand switches. While InfiniBand's flow control prevents packets from dropping, the storage packets will physically fill the buffers inside the switch. When the tiny, highly-sensitive Compute packets arrive at the switch, they are forced to wait in line behind the massive storage packets. This introduces severe microsecond jitter. 
 
-### Alternative designs
+You must mandate a dedicated Storage Fabric (either separate InfiniBand switches or a dedicated 400G RoCEv2 Ethernet network) attached exclusively to the BlueField-3 DPUs, leaving the ConnectX-7 compute NICs completely free of storage noise.
 
-A less expensive oversubscribed fabric may be appropriate when jobs do not occupy the full cluster or communication is a small share of runtime. The decision should follow measured communication volume and concurrency.
-
-### Failure domains
-
-- adapter or cable failure;
-- leaf-switch failure;
-- slow rank;
-- route imbalance;
-- node topology drift;
-- collective-library regression;
-- checkpoint-storage saturation.
-
-
-The customer should approve scaling efficiency and variance targets based on a representative workload, not only point-to-point bandwidth.
-
-**Evidence from the commissioning run — collective benchmark matrix at 2, 4, and 8 nodes (16, 32, 64 GPUs), `all_reduce_perf` at 8MB:**
-
-```text
-nodes   GPUs   busbw(GB/s)   ideal-linear busbw(GB/s)   scaling efficiency
-2       16     9.02          9.02 (baseline)            100% (baseline)
-4       32     8.71          9.02                        96.6%
-8       64     8.05          9.02                        89.2%
-```
-
-`scaling efficiency` here is `busbw` at N nodes divided by the 2-node baseline `busbw`, since `busbw` is already corrected for GPU count and a perfectly scaling fabric would hold it flat. `89.2%` at 64 GPUs against the fixed adapter-per-GPU-group design in this scenario's Recommended Architecture is a healthy accepted result — the customer's acceptance criteria for this scenario would set a floor, for example "reject below 80% at the target node count," rather than expecting the abstractly perfect `100%` a spec-sheet extrapolation implies. A run that instead showed a sharp drop only at 8 nodes (say, to 60%) — not a gradual decline — would point at the "Pairwise fast, collective slow" pattern from Chapter 10's Bottleneck Classification table: rank map or oversubscription at that specific scale, not a gradual efficiency tax.
-
-## Scenario 3 — Low-Latency Multi-GPU Inference
-
-
-Serve a model that spans several GPUs while meeting strict first-token and tail-latency objectives.
-
-
-Requests are smaller than training collectives, but synchronization occurs on every generation step. Latency and jitter matter more than peak bulk bandwidth.
-
-
-- model shards placed on a strong local GPU group;
-- CPU tokenization and networking bound to local NUMA domains;
-- ingress adapter close to the selected GPUs;
-- minimal cross-socket traffic;
-- admission control to protect latency;
-- continuous telemetry for queueing, GPU utilization, and interconnect behavior;
-- replicas spread across node failure domains.
-
-
-Strict topology placement improves predictability but can strand resources. Multiple smaller replicas may provide better availability than one large replica, but only if the model fits and quality requirements allow it.
-
-### Validation
-
-Measure end-to-end latency percentiles, not just tokens per second. Include concurrent clients, realistic sequence lengths, and failure of one replica.
-
-## Scenario 4 — Shared Research Cluster
-
-
-Serve many teams with mixed single-GPU, multi-GPU, training, and inference workloads.
-
-### Challenges
-
-- resource fragmentation;
-- noisy neighbors;
-- inconsistent performance expectations;
-- tenant isolation;
-- chargeback;
-- competing storage and network traffic.
-
-
-Create workload classes:
-
-| Class | Placement | Network policy | Service expectation |
-|---|---|---|---|
-| Critical distributed training | Strict topology groups | Reserved or protected capacity | Predictable scaling |
-| Interactive inference | Local CPU/GPU/NIC affinity | Latency-oriented QoS | Tail-latency objective |
-| Batch single-GPU | Flexible placement | Shared bandwidth | Best effort |
-| Experimental multi-GPU | Preferred topology | Shared with limits | Variable performance |
-
-Use quotas, topology-aware scheduling, observability by tenant, and documented fallback behavior.
-
-
-Maximum utilization and maximum predictability are competing goals. The platform should expose service tiers rather than pretending every workload receives both.
-
-## Scenario 5 — Storage-Heavy Scientific Training
-
-
-Train against large scientific datasets while minimizing GPU idle time and checkpoint disruption.
-
-### Architecture
-
-- shared parallel storage sized for aggregate demand;
-- local NVMe staging for hot datasets;
-- GDS for supported bulk transfers;
-- data format optimized for large parallel reads;
-- metadata and small-file pressure reduced through sharding;
-- storage adapters aligned with GPU topology;
-- checkpoint writes staggered or asynchronous where supported.
-
-### Key principle
-
-Storage, network, CPU processing, and GPU consumption must be designed as one pipeline. A direct path cannot compensate for poor metadata scale or serialized preprocessing.
-
-## Scenario 6 — Phased Cluster Expansion
-
-
-Add new GPU generations and faster adapters without replacing the existing cluster immediately.
-
-### Risks
-
-Mixed generations create different GPU memory, link capabilities, adapter speeds, firmware, and performance profiles. A scheduler may place one distributed job across incompatible node classes.
-
-
-- separate node pools by qualified hardware class;
-- explicit labels and placement constraints;
-- independent baselines;
-- avoid cross-generation distributed jobs unless validated;
-- compatible fabric and routing design;
-- staged migration plan;
-- clear decommission criteria.
-
-### Customer communication
-
-Explain that physical compatibility is not performance equivalence. Mixed clusters can be valuable for different workload tiers, but homogeneous groups simplify distributed execution.
-
-## Scenario 7 — Recurring Communication Failures
-
-### Symptoms
-
-- intermittent collective stalls;
-- no permanent link failure;
-- failures correlate with large jobs;
-- retries increase on selected paths;
-- rerunning on different nodes succeeds.
-
-### Incident architecture
-
-```mermaid
-flowchart TD
-    Sym["Symptom: intermittent collective stall,<br/>no permanent link failure, correlates with large jobs"] --> GPU{"GPU health/XID clean on every<br/>participating rank at the stall timestamp?"}
-    GPU -->|"No — Xid logged"| GPUF["Root cause: GPU fault<br/>Evidence: dmesg Xid code, correlate to NVIDIA Xid reference"]
-    GPU -->|"Yes"| Local{"PCIe/peer paths healthy<br/>on the slow rank's node?"}
-    Local -->|"No"| LocalF["Root cause: local path/topology drift on that node<br/>Evidence: nvidia-smi topo -m diff vs baseline"]
-    Local -->|"Yes"| NIC{"Adapter counters show retries/errors<br/>on the slow rank's NIC during the stall window?"}
-    NIC -->|"Yes"| NICF["Root cause: adapter/cable/local port<br/>Evidence: ethtool -S or mlx5 counters, timestamp-aligned"]
-    NIC -->|"No"| Fabric{"Switch/route telemetry shows congestion<br/>or reroute at the same timestamp?"}
-    Fabric -->|"Yes"| FabricF["Root cause: fabric congestion or route flap<br/>Evidence: switch counters, ECMP path change log"]
-    Fabric -->|"No"| Storage["Root cause: likely concurrent storage/tenant contention<br/>Evidence: shared-storage throughput graph aligned to stall window"]
-```
-
-**Figure — incident triage as a decision path, not a checklist.** Collect all five evidence sources on the same timeline before triage, then walk the tree — the goal is to name the first layer whose evidence actually diverges at the stall timestamp, not the first layer tested. Do not begin by increasing timeouts or replacing random components.
-
-**Worked evidence — the failure this scenario describes, timestamp-aligned:**
-
-```text
-$ dmesg -T | grep -i xid
-(no output — GPU health clean, rules out the GPU branch)
-
-$ nvidia-smi topo -m | diff - baseline_topo.txt
-(no output — topology unchanged, rules out the local-path branch)
-
-$ ethtool -S mlx5_2 | grep -E 'rx_discards|tx_pause|rx_pause'
-rx_discards_phy: 184213    ← nonzero and climbing since baseline capture
-tx_pause: 0
-rx_pause: 91044
-```
-
-`rx_discards_phy` climbing on the adapter local to the slow rank, with `rx_pause` frames present, is direct evidence of receive-side congestion on that link — not a cable or firmware fault (which would typically show link-down or CRC-error counters instead). This is what "failures correlate with large jobs" looks like as raw evidence: the discard counter only climbs when a large collective saturates that link, and "rerunning on different nodes succeeds" because the replacement node's adapter isn't the one accumulating discards. The fix is capacity/placement (spread this rank's traffic across more adapters, or address oversubscription on that specific leaf) rather than a hardware swap, which a team that skipped straight to "replace the NIC" would have gotten wrong.
-
-## Customer Workshop Questions
-
-### Business
-
-- What outcome is blocked today?
-- What is the cost of slow or failed jobs?
-- Which service objectives matter?
-
-### Workload
-
-- How many GPUs participate?
-- Which parallelism strategies are used?
-- What are message sizes and collective frequency?
-- How much input and checkpoint data moves?
-- Is latency or throughput primary?
-
-### Platform
-
-- What node topologies exist?
-- Which adapters and fabrics are deployed?
-- How are jobs scheduled?
-- Which versions are qualified?
-- What telemetry and baselines exist?
-
-### Operations
-
-- How are upgrades canaried?
-- How are failed nodes quarantined?
-- How is capacity reserved?
-- Who owns cross-layer incidents?
-
-## Architecture Decision Record Template
-
-```text
-Decision:
-Business objective:
-Workload assumptions:
-Selected architecture:
-Alternatives considered:
-Performance expectations:
-Failure domains:
-Security implications:
-Operational requirements:
-Cost assumptions:
-Validation plan:
-Rollback plan:
-Open questions:
-```
+---
 
 ## Interview Preparation
 
-### Architecture Questions
+**Architecture:** What does "1:1 Oversubscription" (Non-blocking) mean in a Fat-Tree network topology? *(Hint: It means that for every gigabit of bandwidth connected "down" to the servers, there is exactly one gigabit of bandwidth connected "up" to the spine switches. This guarantees that all servers can talk to all other servers simultaneously without physically bottlenecking the switch).*
 
-1. Design a 256-GPU training fabric and explain oversubscription assumptions.
-
-   > "I'd start from the 64-GPU commissioning numbers in Scenario 2 — 89% scaling efficiency with a fixed adapter-per-GPU-group design — and extrapolate conservatively, not linearly, because oversubscription typically gets worse, not better, as you add spine layers. I'd design the leaf-to-spine ratio so the busiest collective phase never exceeds roughly 2:1 oversubscription at any layer, and I'd explicitly tell the customer which oversubscription ratio I chose and why, rather than presenting the topology diagram as if it were self-justifying."
-
-2. Design low-latency inference for a model spanning four GPUs.
-
-   > "For inference, I'd prioritize the smallest possible hop count between the four GPUs over raw aggregate bandwidth — a direct NVLink group, not a group that requires routing through a switch fabric shared with training traffic. I'd also isolate this group from batch or training workloads entirely, because inference latency targets can't absorb the tail-latency variance that comes from sharing a fabric with bursty collective traffic."
-
-3. Design a shared cluster with strict and best-effort service tiers.
-
-   > "I'd give the strict tier a topology guarantee — a preserved, undivided GPU/NIC group with admission control that refuses to fragment it — and I'd let the best-effort tier use whatever capacity is left, including fragmented groups, with no guarantee. The scheduler has to know the difference; a count-only scheduler can't express this distinction at all, so this is really a scheduler-capability requirement before it's a hardware requirement."
-
-4. Explain how you would phase in a new GPU generation.
-
-   > "I would not mix generations within the same tightly-coupled scale-up group — different NVLink generations or GPU memory bandwidth inside one collective group creates exactly the 'physical compatibility is not performance equivalence' trap this chapter warns about. I'd stand up the new generation as its own node pool, benchmark it independently against its own baseline, and only bridge the two generations at the coarse, inter-node fabric level where the performance mismatch matters far less."
-
-### Scenario Questions
-
-1. Training scales to two nodes but not eight. Structure the investigation.
-
-   > "I'd run the same collective benchmark at 2, 4, and 8 nodes rather than jumping straight to 8, because that's the only way to tell whether the drop is gradual — an oversubscription tax — or a cliff at one specific node count, which points at a rank-mapping or topology problem at that scale specifically. In the commissioning data I've seen, 96.6% efficiency at 32 GPUs dropping to 89.2% at 64 is a gradual, acceptable tax; a drop straight to 60% only at 8 nodes would send me straight to rank placement, not the fabric."
-
-2. A customer wants twice the ports for twice the performance. How do you respond?
-
-   > "I'd tell them ports don't multiply performance on their own — the constraint is usually the bottleneck layer their actual workload hits, and doubling port count only helps if that bottleneck is port count. I'd ask for their current bottleneck classification first: is it Layer 2 host-network, Layer 3 GPU-memory transport, or Layer 4 collective behavior, using the same pyramid from Chapter 10 — because the fix for each of those is completely different hardware, and 'more ports' only answers one of them."
-
-3. Utilization is low despite healthy GPUs. Which upstream layers matter?
-
-   > "Data loading and CPU preprocessing first — if the GPU is starved for input, it'll show low utilization while being perfectly healthy. Then I'd check whether the workload is communication-bound and synchronization is the actual wait, which also shows as 'low utilization' on a simple dashboard even though the GPU is doing exactly what it's supposed to. 'Healthy' and 'well-utilized' are different claims, and I'd never conflate them in an incident write-up."
-
-4. A topology policy strands capacity. How do you balance the trade-off?
-
-   > "I'd quantify both sides before deciding anything — how many GPU-hours are sitting idle because the scheduler won't fragment a strong group, versus how much training time a fragmented group would actually cost this specific workload. If the workload barely communicates, preserving topology is pure waste; if it's tightly coupled, the stranded capacity is cheap insurance. I wouldn't set that policy as a blanket rule — I'd set it per workload class."
-
-### Customer Questions
-
-1. Why should the customer buy a high-performance fabric?
-
-   > "Only if their measured workload spends a meaningful fraction of iteration time in communication — I'd show them their own collective benchmark numbers, not a vendor spec sheet, before recommending the upgrade."
-
-2. When is Ethernet sufficient?
-
-   > "When the workload's latency and jitter tolerance is loose enough that RoCE-based Ethernet's typically higher tail latency doesn't change the outcome — often true for inference-heavy or loosely-coupled training workloads. I'd want the actual latency budget in hand before ruling InfiniBand in or out."
-
-3. When is GPUDirect operational complexity justified?
-
-   > "When the measured host-staged path is demonstrably the bottleneck — I want to see a before number, with CPU copy overhead visible in the profile, not just an assumption that direct paths are always better. If the host-staged path already keeps up with compute, the validation burden of GPUDirect buys nothing."
-
-4. How do you prove value before full rollout?
-
-   > "A small, representative pilot using the customer's actual workload and their actual message-size distribution, benchmarked in layers — pairwise, then collective, then application throughput — with numbers they can reproduce themselves. I never lead with a vendor peak number; I lead with a number measured on their hardware, under their conditions."
-
-## Summary
-
-Production GPU networking begins with workload communication, not product selection. Training, inference, shared clusters, storage-heavy pipelines, and phased expansions create different requirements.
-
-A strong architecture documents assumptions, physical paths, failure domains, operational ownership, and acceptance tests. It also explains why alternatives were not selected.
-
-## Key Takeaways
-
-- Design starts with the workload and business objective.
-- Scale-up and scale-out must be planned together.
-- Topology, storage, and scheduling are part of networking.
-- Service tiers make performance and utilization trade-offs explicit.
-- Acceptance tests must include representative applications.
-- Growth and upgrades belong in the initial architecture.
-
-## Cross References
-
-- Previous: [Performance Bottlenecks and Benchmarking](./chapter-10-performance-bottlenecks-and-benchmarking)
-- Next: [Volume 07 Summary](./chapter-12-volume-07-summary)
-- Related: [Topology-Aware Placement](./chapter-08-topology-aware-placement)
-- Lab: [Troubleshoot a Multi-GPU Data Path](./labs/lab-04-troubleshoot-a-multi-gpu-data-path)
-
-## Further Reading
-
-Use official NVIDIA validated-design material, platform-vendor topology guides, collective and RDMA documentation, storage architecture references, and customer-specific workload traces when producing the final design.
+**Troubleshooting:** Why is it catastrophic to mix Storage traffic and GPU Compute traffic on the same physical InfiniBand switches during large-scale training? *(Hint: Storage traffic causes microbursts that fill the switch buffers. This introduces microsecond latency (jitter) to the Compute traffic. Because training is synchronous, jitter on one node delays the entire cluster).*

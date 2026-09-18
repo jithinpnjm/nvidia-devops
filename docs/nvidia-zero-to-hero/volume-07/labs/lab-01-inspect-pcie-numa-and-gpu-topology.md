@@ -548,7 +548,7 @@ You created a physical topology inventory and translated it into placement guida
 
 ## 18. Further Reading
 
-- [Volume 07 Introduction](../index)
-- [PCIe, NUMA, and Host Data Paths](../chapter-02-pcie-numa-and-host-data-paths)
-- [Topology-Aware Placement](../chapter-08-topology-aware-placement)
-- [Performance Bottlenecks and Benchmarking](../chapter-10-performance-bottlenecks-and-benchmarking)
+- Volume 07 Introduction
+- PCIe, NUMA, and Host Data Paths
+- Topology-Aware Placement
+- Performance Bottlenecks and Benchmarking
