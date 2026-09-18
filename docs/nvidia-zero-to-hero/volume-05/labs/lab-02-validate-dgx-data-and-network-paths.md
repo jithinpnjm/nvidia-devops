@@ -282,5 +282,5 @@ You validated the complete path that feeds and connects GPU workloads. The resul
 
 ## 18. Further Reading
 
-- [DGX Storage and Data Paths](../chapter-05-dgx-storage-and-data-paths)
-- [DGX Networking and Fabric Integration](../chapter-06-dgx-networking-and-fabric-integration)
+- DGX Storage and Data Paths
+- DGX Networking and Fabric Integration

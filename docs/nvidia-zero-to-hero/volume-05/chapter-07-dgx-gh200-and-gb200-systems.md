@@ -1,132 +1,79 @@
 ---
-title: Chapter 07 — DGX GH200 and GB200 NVL72 Systems
-description: Understand how Grace-based superchips become DGX-class systems, and how GB200 NVL72 changes the DGX operating model from a server boundary to a rack-scale NVLink domain.
-sidebar_position: 8
-tags:
-  - dgx
-  - gh200
-  - gb200
-  - nvl72
-  - grace
-  - rack-scale
+title: "Chapter 7 — Rack-Scale Computing: GH200 and GB200 NVL72"
+sidebar_position: 7
+description: "Transition from the 8-GPU chassis to the 72-GPU Rack. Understand Grace-Blackwell, NVLink Switch Trays, and the 130 TB/s NVLink domain."
 ---
 
-# DGX GH200 and GB200 NVL72 Systems
+# Chapter 7 — Rack-Scale Computing: GH200 and GB200 NVL72
 
-Every DGX system this volume has described so far shares one architectural assumption, stated explicitly in Chapter 02: the NVLink/NVSwitch fabric connects the GPUs *inside one chassis*, and anything beyond that chassis is cluster networking — InfiniBand or Ethernet, a slower and categorically different path. That assumption held from the earliest DGX systems through DGX H100. It does not hold for GB200 NVL72.
-
-This chapter covers two things that both fall under "DGX-class Grace-based systems" but change the operating model differently: DGX GH200, which is still a single-chassis system built around Grace Hopper superchips, and GB200 NVL72, which is not a chassis at all — it is a rack, sold and deployed as one unit, with a single NVLink domain spanning every GPU in it. Volume 04, Chapter 07 covered the Grace CPU and the superchip module itself; this chapter covers what NVIDIA builds when those superchips become a DGX-class product.
-
-| Chapter field | Value |
+| Chapter metadata | Value |
 |---|---|
-| Difficulty | Advanced |
-| Estimated reading time | 30–40 minutes |
-| Prerequisites | Chapters 01–06, Volume 04 Chapter 07 |
-| Primary outcome | Explain precisely what changes — and does not change — when the GPU fabric boundary moves from a chassis to a rack |
+| Volume | 05 — DGX Systems & Infrastructure |
+| Difficulty | Expert |
+| Estimated reading time | 30 minutes |
+| Primary audience | DevOps, SRE, Platform, Cloud and Infrastructure Engineers |
+| Core question | When models become so large that 8 GPUs are no longer enough, how do you extend NVLink across an entire data center rack? |
 
-## Learning Objectives
+## Introduction
 
-After completing this chapter, you will be able to:
+Throughout Volume 5, we explored the DGX H100. It is a masterpiece of engineering, packing 8 GPUs into a single chassis with a fully non-blocking NVSwitch mesh. 
 
-- place DGX GH200 correctly in the DGX lineup as a Grace-based, still-single-chassis system;
-- explain why GB200 NVL72 is sold and operated as a rack, not a server;
-- describe what changes when the NVLink domain boundary moves from "8 GPUs in a chassis" to "72 GPUs in a rack";
-- explain why liquid cooling is not optional at NVL72's power density;
-- reason about failure domains and maintenance differently for a rack-scale NVLink unit than for a traditional DGX server;
-- answer the interview-standard "what's architecturally different about NVL72 versus a traditional DGX H100 cluster" question with precision.
+But as models transition into the Trillion-Parameter era (e.g., GPT-4, massive Mixtures of Experts), 8 GPUs are no longer enough to hold the model weights, let alone execute inference at low latency. 
 
-## DGX GH200: Still a Chassis, Different Memory Model
+When a model must span *across multiple servers*, the GPUs are forced to communicate over the InfiniBand network. While InfiniBand is fast, it relies on network protocols and cables, introducing latency. 
 
-DGX GH200 combines multiple GH200 (Grace Hopper) superchips — NVIDIA has described configurations with 256 GH200 modules connected via NVLink into a large shared-memory system, though exact node counts and NVLink generation details vary by announcement and should be verified against current NVIDIA documentation before being quoted precisely.
+The ultimate architectural goal is to expand the NVLink domain. If NVLink is 900 GB/s, how do we get more than 8 GPUs onto NVLink? 
+The answer is **Rack-Scale Computing**: The Grace-Blackwell (GB200) NVL72.
 
-The architectural point that matters more than the exact node count: DGX GH200 keeps the fabric-boundary assumption from Chapter 02 intact even at that scale — the GPUs are connected by NVLink/NVSwitch inside a defined system boundary, and Grace's coherent memory (Volume 04, Chapter 07) extends what's addressable per node. What DGX GH200 changes relative to DGX A100/H100 is the *memory model*, not the fabric topology pattern: with Grace's LPDDR5X coherently attached to each Hopper GPU via NVLink-C2C, the system presents a much larger pool of GPU-addressable memory than HBM alone would provide, which is the specific advantage for workloads whose bottleneck is memory capacity — very large embedding tables, graph workloads, and memory-bound HPC codes — rather than compute.
+## 1. Expanding the Domain: The NVLink Switch Tray
 
-## GB200 NVL72: The Rack Is the Unit
+You cannot fit 72 GPUs onto a single motherboard. The PCB (Printed Circuit Board) would be the size of a dining room table. 
 
-GB200 NVL72 changes something Chapter 02's system-boundary diagram (Figure 5.2.1) treated as a given: that the GPU fabric domain and the "system" are the same size. NVL72 breaks that equivalence.
+To solve this, NVIDIA removed the NVSwitch chips from the motherboard and placed them into standalone server chassis called **NVLink Switch Trays**. 
 
-```mermaid
-flowchart TD
-    subgraph Old["Traditional DGX / HGX 8-GPU generation"]
-        direction TB
-        S1[Server chassis]
-        G1["8 GPUs<br/>NVLink/NVSwitch domain = 1 chassis"]
-        S1 --> G1
-        G1 -.->|"beyond 8 GPUs:<br/>InfiniBand/Ethernet<br/>scale-out network"| Cluster1[Other nodes]
-    end
+1. You slide 18 Compute Nodes (each containing Grace-Blackwell superchips) into a rack.
+2. You slide 9 NVLink Switch Trays into the same rack.
+3. You connect the compute nodes to the switch trays using a massive, custom-built copper backplane. 
 
-    subgraph New["GB200 NVL72"]
-        direction TB
-        R1[Single liquid-cooled rack]
-        G2["72 Blackwell GPUs + 36 Grace CPUs<br/>NVLink 5 domain = 1 rack"]
-        R1 --> G2
-        G2 -.->|"beyond 72 GPUs:<br/>InfiniBand/Ethernet<br/>scale-out network"| Cluster2[Other racks]
-    end
-```
+This backplane physically wires 72 Blackwell GPUs directly into the NVSwitches. 
 
-**Figure 5.7.1 — The unit of coherent GPU memory and fast collective communication moves from a chassis to a rack.** In the traditional generation, "leaving the fast fabric" happens at 8 GPUs. In NVL72, it happens at 72 GPUs and 36 Grace CPUs. Everything this volume has said about scale-up versus scale-out (Chapter 02, and Volume 04 Chapter 06's scale-up/scale-out discussion) still applies — the boundary between the two domains simply moved.
+## 2. The GB200 NVL72 Architecture
 
-**What NVL72 physically is, precisely:**
+The GB200 NVL72 is not a server. **The Rack is the Server.**
 
-- Compute trays, each pairing Grace CPUs with Blackwell GPUs via NVLink-C2C (the tray-level ratio is covered in Volume 04, Chapter 07 — verify the current published configuration before quoting an exact per-tray count).
-- 18 such compute trays populate a single rack, totaling 72 Blackwell GPUs and 36 Grace CPUs — NVIDIA's published NVL72 configuration. Verify this exact figure against current documentation for any specific customer-facing statement, since NVIDIA has described the NVL72 rack at more than one level of granularity (GPU dies vs. packages) in different materials.
-- All 72 GPUs are connected through NVLink Switch trays using NVLink 5 into a **single NVLink domain spanning the entire rack** — not a set of 8-GPU domains that happen to share a rack, one domain.
-- The rack is liquid-cooled. This is not an efficiency option layered on top of an air-cooled design — at this GPU count and power density in one rack, air cooling cannot remove the heat, so liquid cooling (typically direct-to-chip cold plates) is a hard architectural requirement, not a customer preference.
+To the software, Kubernetes, and the PyTorch script, the rack appears as a single, monstrous GPU. 
+*   **Compute:** 72 Blackwell GPUs + 36 Grace ARM CPUs.
+*   **Memory Domain:** Because they are all connected via 5th-Gen NVLink, any of the 72 GPUs can read the memory of any other GPU at 1.8 TB/s. The entire rack shares a unified memory domain. 
+*   **Bandwidth:** The internal copper backplane pushes **130 Terabytes per second** of aggregate bandwidth.
 
-## Why the Rack-Scale NVLink Domain Matters
+### Why Copper?
+Optical fiber transceivers (lasers) generate heat and consume massive amounts of power (up to 20kW per rack just to power the lasers). By confining the 72 GPUs to a single rack, NVIDIA engineered the distances to be short enough to use passive copper wires, eliminating the optical power overhead entirely and saving the electricity for the GPUs.
 
-The practical consequence, in the same terms Volume 04 Chapter 06 used for scale-up versus scale-out communication: **tensor-parallel and expert-parallel communication patterns that used to be forced to fall back to the scale-out network past 8 GPUs can now stay on the fast NVLink domain up to 72 GPUs.**
+## 3. Total Direct Liquid Cooling (DLC)
 
-Recall from Volume 04, Chapter 06's whiteboard answer: tensor parallelism is latency-sensitive and chatty, and it belongs on the scale-up fabric, never crossing to the scale-out network if it can be avoided, because that communication pattern is too chatty for typical node-to-node latency. In the traditional 8-GPU-domain generation, a tensor-parallel or expert-parallel group larger than 8 GPUs had no choice — some fraction of that traffic had to cross InfiniBand or Ethernet. NVL72 removes that forced trade-off up to a much larger group size: a 72-way tensor-parallel or expert-parallel split, or a much larger data-parallel replica group communicating gradients within the domain, stays on NVLink the whole way.
+You cannot air-cool a GB200 NVL72 rack. 
 
-This is the specific reason NVL72 matters for very large models and mixture-of-experts architectures with many experts: the parallelism strategy can be designed around a 72-GPU fast domain instead of an 8-GPU one, without redesigning the model to tolerate slower cross-domain hops at a smaller GPU count.
+*   A single GB200 Superchip consumes thousands of watts. 
+*   The entire NVL72 rack pulls **120 kW of power**.
 
-```text
-Traditional 8-GPU domain:  tensor-parallel group > 8   → some traffic crosses InfiniBand/Ethernet
-GB200 NVL72 (72-GPU domain): tensor-parallel group ≤ 72 → stays on NVLink the entire way
-```
+This mandates 100% Direct Liquid Cooling (DLC). Cold plates are physically bolted onto the 72 GPUs, 36 CPUs, and the NVSwitch chips. Blind-mate liquid connectors snap into manifolds at the back of the rack, pumping chilled fluid through the system. 
 
-## Operational Implications: A Rack Is Now the Failure/Maintenance Unit
+## Customer Scenario (Senior Level)
 
-Chapter 02 established failure domains for a traditional DGX system: individual GPU, GPU fabric, host, network adapter, storage, power, cooling, management — each one scoped to a single chassis, with cluster-level redundancy built by combining many independent chassis. NVL72 changes the scoping of at least the fabric failure domain, and changes how you think about maintenance and redundancy generally.
+**The Situation:**
+A generative AI startup raises $100M to build a cluster to train a 1.5-Trillion parameter Mixture of Experts (MoE) model. They are debating between purchasing 1,000 standard PCIe GPUs connected via 400G Ethernet, or purchasing a smaller fleet of GB200 NVL72 racks. They ask the Senior Architect: "Both options give us exactly 1,000 GPUs. Why should we lock ourselves into the complex liquid-cooling requirements of the NVL72 racks?"
 
-| Consideration | Traditional 8-GPU DGX/HGX server | GB200 NVL72 |
-|---|---|---|
-| Sold/deployed as | Individual server | Single rack-scale unit |
-| NVLink fabric failure domain | One chassis | Potentially the entire rack, depending on the specific link/switch that degrades |
-| Cooling | Air-cooled (most generations) or hybrid | Liquid-cooled — required, not optional |
-| Server-level redundancy model | N+1 servers in a cluster is a straightforward mental model | Redundancy must be reasoned about at the rack level and, within the rack, at the tray/switch level — a degraded rack is a larger unit of lost capacity than a degraded server |
-| Maintenance unit | Swap or service one server without affecting the rest of the cluster in most cases | Servicing a compute tray or NVLink switch tray happens within a live rack-scale fabric; the operational procedures for this are new relative to prior DGX generations and warrant the same rigor Chapter 12's failure-domain framework applies, scaled up |
-| Facility prerequisite | Standard data-center power/cooling in most cases | Facility must support liquid cooling and the rack's power density — this is a facility-readiness gate, not a detail to discover after delivery |
+**The Senior Architect Response:**
+"Because 1,000 isolated GPUs cannot train a 1.5-Trillion parameter MoE model; they will suffocate on network latency. 
 
-The general principle from this volume's Chapter 02 still holds — "GPU health is necessary but not sufficient for system health" — but the boundary of "system" for capacity-planning and failure-domain purposes is now the rack, not the server, for anyone deploying NVL72.
+A Mixture of Experts model routes data dynamically to different "Expert" neural networks on the fly. This requires catastrophic amounts of 'All-to-All' communication between the GPUs. 
+
+If you use standard PCIe GPUs, the GPUs must communicate this massive data volume across the Ethernet network. Standard Ethernet protocols and PCIe bottlenecks will introduce massive latency, completely stalling the training loop. Your $100M cluster will operate at 5% efficiency. 
+
+By purchasing the **GB200 NVL72 racks**, you are expanding the high-speed NVLink domain. In the NVL72, 72 GPUs communicate over a copper backplane at 1.8 TB/s, appearing as a single 130 TB/s memory domain. This allows the MoE model to route data between experts instantly, completely bypassing standard networking protocols. The complex liquid-cooling requirements are not a drawback; they are the physical price you must pay to achieve the rack-scale density necessary to keep a Trillion-parameter model fed."
 
 ## Interview Preparation
 
-### Architecture question
+**Conceptual:** What is the primary architectural difference between an HGX H100 server and a GB200 NVL72 rack? *(Hint: The H100 limits the NVLink domain (where GPUs share memory directly) to 8 GPUs inside a single chassis. The NVL72 extracts the NVSwitches into separate trays and uses a copper backplane to expand the NVLink domain to 72 GPUs across the entire rack, allowing the rack to act as a single GPU).*
 
-What's architecturally different about GB200 NVL72 versus a traditional DGX H100 cluster?
-
-**Model answer:** "The core difference is where the NVLink fabric boundary sits. In a DGX H100 cluster, NVLink/NVSwitch connects 8 GPUs inside one chassis — that's the scale-up domain — and anything beyond that, including communication with GPUs in a different chassis, goes over the scale-out network, InfiniBand or Ethernet, which is slower and adds a real step-time cost for latency-sensitive patterns like tensor parallelism. NVL72 moves that boundary from one chassis to one rack: NVLink 5 connects 72 Blackwell GPUs and 36 Grace CPUs into a single coherent NVLink domain across the whole rack. That means a tensor-parallel or expert-parallel group can scale up to 72 GPUs and never leave the fast fabric, where in the old generation anything past 8 GPUs in that role was forced onto the slower network. The trade-off is that NVL72 is liquid-cooled by hard requirement, not choice, given the power density of 72 GPUs in one rack, and it's sold and operated as a single rack-scale unit — so failure domains, maintenance procedures, and facility readiness all have to be reasoned about at the rack level, not the server level. It's not simply 'more GPUs' — it's a different unit of coherent scale-up communication."
-
-### Scenario question
-
-A customer is planning a very large mixture-of-experts model and asks whether they need GB200 NVL72, or whether a cluster of traditional 8-GPU HGX H100 servers connected by InfiniBand would work.
-
-**Model answer:** "I'd start from the communication pattern, the same way Volume 04's training-accelerator chapter frames any hardware decision — not from 'newer is better.' MoE models are expert-parallel-heavy, and expert-parallel routing traffic is exactly the chatty, latency-sensitive pattern that belongs on the fast fabric, not the scale-out network. On a cluster of 8-GPU HGX servers, any expert-parallel group larger than 8 GPUs is forced to cross InfiniBand for part of that traffic — that's a real step-time cost, and it grows with the number of experts the model needs to route across. NVL72 gives a 72-GPU NVLink domain, so the same expert-parallel group can stay on NVLink up to 72 GPUs before it needs the scale-out network at all. Whether that's worth it depends on the actual model size and expert count — if the working parallelism group comfortably fits in 8 GPUs, the traditional HGX cluster is simpler, air-cooled, and cheaper, and NVL72's rack-scale liquid-cooling requirement and different maintenance model aren't buying anything. I'd want the target expert-parallel or tensor-parallel group size from the model architecture before recommending either platform."
-
-## Key Takeaways
-
-- DGX GH200 keeps the chassis-scoped NVLink fabric assumption from Chapter 02 intact; its change relative to prior DGX generations is Grace's coherent memory extending GPU-addressable capacity, not a change to the fabric topology pattern.
-- GB200 NVL72 breaks that assumption: 72 Blackwell GPUs and 36 Grace CPUs form a single NVLink 5 domain across an entire rack (verify exact figures against current NVIDIA documentation).
-- The practical payoff is that tensor-parallel and expert-parallel communication groups can scale to 72 GPUs while staying on the fast fabric, instead of being forced onto the scale-out network past 8 GPUs.
-- Liquid cooling is a hard requirement at NVL72's power density, not an optional efficiency feature.
-- NVL72 is sold, deployed, and operated as a rack-scale unit — failure domains, maintenance, and facility readiness must be reasoned about at the rack level, not the traditional server level.
-- A traditional 8-GPU HGX/DGX server is still the right choice when the workload's parallelism group fits comfortably within 8 GPUs; rack-scale NVLink matters specifically when it does not.
-
-## Cross References
-
-- [Chapter 02 — Inside a DGX System](./chapter-02-inside-a-dgx-system)
-- [Chapter 06 — DGX Networking and Fabric Integration](./chapter-06-dgx-networking-and-fabric-integration)
-- Volume 04, Chapter 07 — Grace CPU, GH200, and GB200 Superchips
-- Volume 06 — GB200 NVL72 rack-scale architecture (baseboard and rack design detail)
+**Architecture:** Why does the GB200 NVL72 rack use a massive copper backplane instead of fiber optics to connect the 72 GPUs? *(Hint: Fiber optic transceivers consume massive amounts of power. Because the 72 GPUs are contained within the short physical distance of a single rack, NVIDIA can use passive copper, saving 20kW of power and allocating that electricity directly to the compute silicon).*
