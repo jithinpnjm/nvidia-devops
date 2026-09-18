@@ -662,8 +662,8 @@ The important outcome is not vector addition. It is a repeatable engineering pat
 
 ## 18. Further Reading
 
-- Volume 03 Introduction
-- CUDA Programming and Execution Model
-- Kernel Launch Configuration and Indexing
-- CUDA Memory Management and Data Movement
-- Synchronization, Errors, and Correctness
+- [Volume 03 Introduction](../index)
+- [CUDA Programming and Execution Model](../chapter-03-cuda-programming-and-execution-model)
+- [Kernel Launch Configuration and Indexing](../chapter-04-kernel-launch-configuration-and-indexing)
+- [CUDA Memory Management and Data Movement](../chapter-05-cuda-memory-management-and-data-movement)
+- [Synchronization, Errors, and Correctness](../chapter-06-synchronization-errors-and-correctness)

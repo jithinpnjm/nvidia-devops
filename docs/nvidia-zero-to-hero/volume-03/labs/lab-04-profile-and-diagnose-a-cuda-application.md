@@ -419,8 +419,8 @@ You established a reproducible CUDA performance baseline, separated cold-start a
 
 ## 18. Further Reading
 
-- Profiling and Production Troubleshooting
-- Streams, Events, and Asynchronous Execution
-- Pinned Memory and Transfer Overlap
-- Compilation, Binaries, and Compatibility
-- Volume 03 Summary
+- [Profiling and Production Troubleshooting](../chapter-12-profiling-and-production-troubleshooting)
+- [Streams, Events, and Asynchronous Execution](../chapter-07-streams-events-and-asynchronous-execution)
+- [Pinned Memory and Transfer Overlap](../chapter-08-pinned-memory-and-transfer-overlap)
+- [Compilation, Binaries, and Compatibility](../chapter-11-compilation-binaries-and-compatibility)
+- [Volume 03 Summary](../chapter-13-volume-03-summary)

@@ -1,6 +1,7 @@
 ---
 title: Volume 03 — CUDA Fundamentals
 description: Learn how software discovers NVIDIA GPUs, launches kernels, moves data, synchronizes work, packages device code, and exposes failures through the CUDA stack.
+slug: /nvidia-zero-to-hero/volume-03/index
 sidebar_position: 1
 tags:
   - cuda
@@ -59,35 +60,35 @@ flowchart TD
 
 ### Part I — Why CUDA Exists and How the Stack Is Organized
 
-1. Why CUDA Exists
-2. The CUDA Software Stack
-3. The CUDA Programming and Execution Model
+1. [Why CUDA Exists](./chapter-01-why-cuda-exists)
+2. [The CUDA Software Stack](./chapter-02-cuda-software-stack)
+3. [The CUDA Programming and Execution Model](./chapter-03-cuda-programming-and-execution-model)
 
 ### Part II — Launch, Memory, and Correctness
 
-4. Kernel Launch Configuration and Indexing
-5. CUDA Memory Management and Data Movement
-6. Synchronization, Errors, and Correctness
+4. [Kernel Launch Configuration and Indexing](./chapter-04-kernel-launch-configuration-and-indexing)
+5. [CUDA Memory Management and Data Movement](./chapter-05-cuda-memory-management-and-data-movement)
+6. [Synchronization, Errors, and Correctness](./chapter-06-synchronization-errors-and-correctness)
 
 ### Part III — Concurrency and Advanced Memory Behavior
 
-7. Streams, Events, and Asynchronous Execution
-8. Pinned Memory and Transfer Overlap
-9. Unified Memory and Demand Paging
-10. CUDA Graphs and Repeated Execution
+7. [Streams, Events, and Asynchronous Execution](./chapter-07-streams-events-and-asynchronous-execution)
+8. [Pinned Memory and Transfer Overlap](./chapter-08-pinned-memory-and-transfer-overlap)
+9. [Unified Memory and Demand Paging](./chapter-09-unified-memory-and-demand-paging)
+10. [CUDA Graphs and Repeated Execution](./chapter-10-cuda-graphs-and-repeated-execution)
 
 ### Part IV — Deployment, Profiling, and Operations
 
-11. Compilation, Binaries, and Compatibility
-12. Profiling and Production Troubleshooting
-13. Volume 03 Summary
+11. [Compilation, Binaries, and Compatibility](./chapter-11-compilation-binaries-and-compatibility)
+12. [Profiling and Production Troubleshooting](./chapter-12-profiling-and-production-troubleshooting)
+13. [Volume 03 Summary](./chapter-13-volume-03-summary)
 
 ## Labs
 
-1. Lab 01 — Inspect and Validate a CUDA Environment
-2. Lab 02 — Build and Validate a CUDA Vector Pipeline
-3. Lab 03 — Build an Overlapped CUDA Pipeline
-4. Lab 04 — Profile and Diagnose a CUDA Application
+1. [Lab 01 — Inspect and Validate a CUDA Environment](./labs/lab-01-inspect-and-validate-a-cuda-environment)
+2. [Lab 02 — Build and Validate a CUDA Vector Pipeline](./labs/lab-02-build-and-validate-a-cuda-vector-pipeline)
+3. [Lab 03 — Build an Overlapped CUDA Pipeline](./labs/lab-03-build-an-overlapped-cuda-pipeline)
+4. [Lab 04 — Profile and Diagnose a CUDA Application](./labs/lab-04-profile-and-diagnose-a-cuda-application)
 
 ## Learning Progression
 
