@@ -1,68 +1,51 @@
 ---
-title: Volume 06 — HGX Platform
-description: Learn how HGX provides the GPU compute foundation used by OEM systems and how architects evaluate integration, topology, rack design, and operational ownership.
-slug: /nvidia-zero-to-hero/volume-06/index
+title: "Volume 06 — HGX Platforms & OEM Integration"
+slug: "/nvidia-zero-to-hero/volume-06/index"
 sidebar_position: 1
-tags:
-  - hgx
-  - gpu-platform
-  - oem-systems
+description: "Master the integration of NVIDIA HGX baseboards into OEM enterprise servers. Learn PCIe topologies, power/cooling limits, and the NVL72 rack-scale architecture."
 ---
 
-# Volume 06 — HGX Platform
+# Volume 06 — HGX Platforms & OEM Integration
 
-A customer wants the performance characteristics of an NVIDIA scale-up GPU platform but must buy through an established server vendor, integrate with an existing fleet-management standard, and satisfy local requirements for storage, serviceability, power distribution, and support. This is the design space in which HGX matters.
+## Introduction
 
-HGX is not simply a less complete DGX. It is a platform building block that combines a validated GPU complex and high-bandwidth scale-up fabric with an OEM-defined host system. The resulting product inherits important NVIDIA topology characteristics while leaving substantial design and lifecycle responsibility to the system manufacturer, integrator, and customer.
+In the previous volume, we studied the **NVIDIA DGX**: the perfectly integrated, uncompromised reference architecture. 
 
-| Volume field | Value |
-|---|---|
-| Difficulty | Advanced |
-| Estimated reading time | 12–16 hours |
-| Prerequisites | Volumes 01–05 |
-| Primary focus | OEM GPU platform architecture and integration |
-| Outcome | Evaluate and operate HGX-based systems with clear ownership boundaries |
+However, the vast majority of the world's GPUs do not live in DGX appliances. They live in generic servers built by Original Equipment Manufacturers (OEMs) like Dell, HPE, and Supermicro, or in completely custom chassis designed by hyperscalers like AWS and Azure. 
 
-## The Integration Boundary
+These companies do not buy servers from NVIDIA; they buy **HGX Baseboards**. 
 
-```mermaid
-flowchart LR
-    NVIDIA[NVIDIA HGX GPU Complex]
-    OEM[OEM Host Integration]
-    Facility[Customer Facility]
-    Platform[Operational AI Platform]
+In Volume 06, we explore the chaotic reality of the OEM ecosystem. We learn how OEMs build the "top half" of the server around NVIDIA's "bottom half" baseboard, and how poor OEM engineering can inadvertently destroy the performance of a multi-million-dollar AI cluster.
 
-    NVIDIA -->|GPU modules, NVLink, NVSwitch, reference design| OEM
-    OEM -->|CPUs, memory, PCIe, storage, chassis, cooling, firmware| Facility
-    Facility -->|network, power, rack, provisioning, operations| Platform
-```
+## What You Will Learn
 
-**Figure 6.0.1 — HGX divides responsibility across multiple engineering organizations.** Successful deployment requires clarity about which party owns each component, firmware layer, test, and support path.
+1.  **The Merchant Silicon Strategy:** Why cloud providers and enterprise IT departments prefer HGX over DGX (custom management planes, specific power footprints, and vendor lock-in).
+2.  **Inside the HGX Tray:** Dissecting the SXM GPU modules, the soldered NVSwitch chips, and the PCIe retimers that bridge the baseboard to the host CPU.
+3.  **OEM Support Boundaries:** Understanding who owns the firmware. Why blindly flashing NVIDIA VBIOS onto an OEM server can break the chassis thermal management and melt the GPUs.
+4.  **PCIe Topologies:** How to use `nvidia-smi topo -m` to detect if an OEM wired the Network Interface Cards (NICs) behind a CPU bottleneck, breaking GPUDirect RDMA.
+5.  **Power and Cooling Extremes:** The transition to 54-Volt power delivery to prevent melting copper wires, and the physics of "Airflow Shadowing" that forces OEMs to adopt Closed-Loop Liquid Cooling.
+6.  **Storage Integration:** Why the physical placement of E1.S NVMe drives inside the chassis dictates whether GPUDirect Storage (GDS) functions correctly.
+7.  **The Rack-Scale Era (GB200 NVL72):** How the Blackwell generation breaks the 8-GPU chassis limit, utilizing copper backplanes and switch trays to extend the NVLink domain across 72 GPUs in a single liquid-cooled rack.
 
-## Planned Chapter Sequence
+## Why This Matters for Senior Architects
 
-1. Why HGX Exists
-2. HGX versus DGX
-3. Inside the HGX GPU Complex
-4. SXM Modules, Baseboards, NVLink, and NVSwitch
-5. OEM Host Integration
-6. CPU, Memory, PCIe, NIC, and Storage Design
-7. Cooling, Power, Chassis, and Serviceability
-8. Firmware and Software Ownership Boundaries
-9. Comparing OEM Implementations
-10. Rack and Cluster Design
-11. Acceptance Testing and Benchmarking
-12. Lifecycle Operations and Escalation
-13. Customer Architecture Scenarios
-14. Volume 06 Summary
+If you are tasked with approving a $10 Million purchase order for a new AI cluster, your reseller will present you with quotes from Dell, Supermicro, and NVIDIA.
 
-## Labs
+If you only look at the "H100" sticker and the price tag, you will fail. 
 
-- Build an HGX component-responsibility matrix
-- Compare two hypothetical OEM system designs
-- Create an acceptance and escalation plan
-- Design an HGX rack and network placement model
+A Senior Architect knows to interrogate the OEM's specific blueprint: 
+*   "Are the 8 ConnectX-7 NICs located on the exact same PCIe switches as the GPUs?"
+*   "Does the chassis cooling solution guarantee the rear-row GPUs will not thermal throttle under a 100% continuous Tensor Core load?"
+*   "Do we have a unified firmware update mechanism that validates the OEM BIOS against the NVIDIA baseboard controller?"
 
-## Production Perspective
+Volume 06 provides the exact engineering knowledge required to ask these questions and validate the answers.
 
-HGX increases architectural choice, but choice creates integration work. Two systems based on the same HGX generation may differ in CPU topology, NIC placement, local storage, firmware tooling, cooling method, service procedure, and validated software matrix. Architects must therefore evaluate the complete server, not infer identical behavior from the GPU baseboard alone.
+## Chapter Progression
+
+*   **Chapter 1:** Why HGX Exists: The Merchant Silicon Strategy
+*   **Chapter 2:** Inside an HGX Platform
+*   **Chapter 3:** OEM Integration and Support Boundaries
+*   **Chapter 4:** HGX Topology and Data Paths
+*   **Chapter 5:** Power, Cooling, and Rack Integration
+*   **Chapter 6:** HGX Networking, Storage, and Cluster Integration
+*   **Chapter 7:** GB200 NVL72: The Rack-Scale Era

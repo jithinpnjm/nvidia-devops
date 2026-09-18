@@ -306,5 +306,5 @@ You compared HGX-based systems as complete OEM platforms. The exercise exposed t
 
 ## Further reading
 
-- [Chapter 02 — Inside an HGX Platform](../chapter-02-inside-an-hgx-platform)
-- [Volume 06 introduction](../index)
+- Chapter 02 — Inside an HGX Platform
+- Volume 06 introduction
