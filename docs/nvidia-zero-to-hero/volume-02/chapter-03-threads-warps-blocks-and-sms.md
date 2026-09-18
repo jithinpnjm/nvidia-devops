@@ -177,5 +177,5 @@ The immense power of an NVIDIA GPU is not magic; it is the result of strict, mec
 
 ## Related Chapters
 
-- Previous: [Inside a Modern NVIDIA GPU](./chapter-02-inside-a-modern-nvidia-gpu.md)
-- Next: [CUDA Cores and Tensor Cores](./chapter-04-cuda-cores-tensor-cores-and-rt-cores.md)
+- Previous: Inside a Modern NVIDIA GPU
+
