@@ -512,5 +512,5 @@ A production implementation should add distributed tracing, request IDs across s
 
 - [What Actually Happens When ChatGPT Answers?](../chapter-04-what-happens-when-chatgpt-answers)
 - [AI Infrastructure Landscape](../chapter-05-ai-infrastructure-landscape)
-- [NVIDIA Ecosystem Overview](../chapter-07-nvidia-ecosystem-overview)
-- [Enterprise AI Platforms](../chapter-08-enterprise-ai-platforms)
+
+
