@@ -198,27 +198,7 @@ def parse_inventory(text):
 if __name__ == '__main__':
     sample = "GPU-a, NVIDIA H100, 81559\\nGPU-b, NVIDIA H100, 81559"
     print(parse_inventory(sample))`,explanation:'Typed data lets a later scheduler or report work independently of `nvidia-smi` and makes invalid inventory testable.'},
-  {id:'oom',title:'10 · Detect cgroup memory risk',prompt:'Classify containers before an OOMKill. Use the limit—not node free memory—as the container safety boundary.',starter:`from typing import List, Dict, Tuple, Optional, Any, Union
-
-def memory_risk(working_set_mib: int, limit_mib: int) -> str:
-    # Return normal, warning, or critical.
-    return ''
-
-print(memory_risk(14300, 16000))`,expected:'normal < 80%, warning 80–94%, critical ≥ 95%',tests:`assert memory_risk(100, 1000) == 'normal'
-assert memory_risk(800, 1000) == 'warning'
-assert memory_risk(950, 1000) == 'critical'
-print('PASS')`,hint:'Compute the ratio once. Treat a missing/non-positive limit as invalid input.',solution:`from typing import List, Dict, Tuple, Optional, Any, Union
-
-def memory_risk(working_set_mib, limit_mib):
-    if limit_mib <= 0:
-        raise ValueError('a positive cgroup limit is required')
-    ratio = working_set_mib / limit_mib
-    if ratio >= .95: return 'critical'
-    if ratio >= .80: return 'warning'
-    return 'normal'
-
-if __name__ == '__main__':
-    print(memory_risk(14300, 16000))`,explanation:'For inference, correlate this with active sequences, prompt tokens, KV-cache allocation, and restart evidence before raising a limit.'},
+  {id:'oom',title:'13 · Parse Linux Syslog for cgroup OOMs',prompt:'(Interview Scenario) Pods are restarting with Exit Code 137. Container orchestrators mask OOMs. Write a function that parses raw `dmesg` or `/var/log/syslog` lines, identifies "Memory cgroup out of memory" events, and extracts the invoked process name and PID using regex.',starter:`import re\nfrom typing import List, Dict\n\ndef parse_oom_kills(syslog_content: str) -> List[Dict[str, str]]:\n    \"\"\"\n    Look for lines like: \n    "Memory cgroup out of memory: Killed process 12345 (python3) total-vm:..."\n    Return a list of dicts: [{"pid": "12345", "process": "python3"}]\n    \"\"\"\n    kills = []\n    # TODO: Implement regex parsing\n    return kills\n`,expected:"A list of dictionaries with extracted PID and process name",tests:`mock_log = \"\"\"\nSep 10 14:00:01 node-1 kernel: [ 100.0] Memory cgroup out of memory: Killed process 5555 (train.py) total-vm:...\nSep 10 14:05:00 node-1 kernel: [ 200.0] Out of memory: Killed process 9999 (java) total-vm:...\n\"\"\"\nresults = parse_oom_kills(mock_log)\nassert len(results) == 2\nassert results[0]["pid"] == "5555" and results[0]["process"] == "train.py"\nassert results[1]["pid"] == "9999" and results[1]["process"] == "java"\nprint('PASS')`,hint:'Use a regex pattern like `Killed process (\\d+) \\(([^)]+)\\)`. Use `re.finditer` over the log content.',solution:`import re\nfrom typing import List, Dict\n\ndef parse_oom_kills(syslog_content: str) -> List[Dict[str, str]]:\n    kills = []\n    # Regex captures the digits for PID, and anything inside the parentheses for the process name\n    pattern = re.compile(r"out of memory: Killed process (?P<pid>\d+) \\((?P<proc>[^)]+)\\)", re.IGNORECASE)\n    \n    for match in pattern.finditer(syslog_content):\n        kills.append({\n            "pid": match.group("pid"),\n            "process": match.group("proc")\n        })\n        \n    return kills\n\nif __name__ == '__main__':\n    mock_dmesg = \"\"\"\n[32145.67] Memory cgroup out of memory: Killed process 10230 (resnet_train.py) total-vm:64000kB\n[32150.12] Out of memory: Killed process 105 (systemd-journal) total-vm:2000kB\n    \"\"\"\n    oom_events = parse_oom_kills(mock_dmesg)\n    for event in oom_events:\n        print(f"CRITICAL: Process {event['process']} (PID {event['pid']}) was OOM Killed by the Linux kernel.")\n`,explanation:'When Kubernetes reports `OOMKilled` (Exit Code 137), the K8s events log lacks context on *which* subprocess spiked memory. Senior engineers bypass the orchestrator and parse `/var/log/syslog` or `dmesg` to find the exact kernel `cgroup` kill invocation, determining whether the main app or a rogue sidecar consumed the RAM.'},
   {id:'scheduling',title:'11 · Explain an unschedulable GPU Pod',prompt:'Turn scheduler event fragments into a ranked, human-readable diagnosis. Prefer specific constraints over a generic “Pending” message.',starter:`from typing import List, Dict, Tuple, Optional, Any, Union
 
 def scheduling_diagnosis(events: list[str]) -> list[str]:
@@ -240,24 +220,7 @@ def scheduling_diagnosis(events):
 
 if __name__ == '__main__':
     print(scheduling_diagnosis(['Insufficient nvidia.com/gpu', 'node affinity mismatch']))`,explanation:'The production next step is `kubectl describe pod` plus node allocatable resources, taints, affinity, and topology labels—not deleting the Pod.'},
-  {id:'prometheus',title:'12 · Guard a Prometheus query',prompt:'Reject a dangerous unbounded query shape before it becomes a high-cardinality incident.',starter:`from typing import List, Dict, Tuple, Optional, Any, Union
-
-def query_guard(query: str) -> str:
-    # Return safe or review.
-    return ''
-
-print(query_guard('sum(rate(http_requests_total[5m]))'))`,expected:'review for wildcard/regex selectors or a missing range selector',tests:`assert query_guard('sum(rate(http_requests_total[5m]))') == 'safe'
-assert query_guard('rate(http_requests_total{pod=~".*"}[5m])') == 'review'
-assert query_guard('http_requests_total') == 'review'
-print('PASS')`,hint:'This deliberately small guard is a teaching aid, not a PromQL parser.',solution:`from typing import List, Dict, Tuple, Optional, Any, Union
-
-def query_guard(query):
-    if '=~".*"' in query or '[' not in query or ']' not in query:
-        return 'review'
-    return 'safe'
-
-if __name__ == '__main__':
-    print(query_guard('sum(rate(http_requests_total[5m]))'))`,explanation:'Senior observability work treats cardinality and query cost as reliability concerns. Inspect labels, bounded time windows, and recording rules.'},
+  {id:'prometheus',title:'10 · Parse PromQL API JSON for SLO Alerts',prompt:'(Interview Scenario) A junior engineer is using string slicing to read Prometheus alerts. Upgrade this: Parse a raw Prometheus HTTP API JSON response (Vector type), extract the metric labels and values, and return a list of instances exceeding a 95% threshold.',starter:`import json\nfrom typing import List, Dict\n\ndef evaluate_promql_response(raw_json: str, threshold: float = 95.0) -> List[str]:\n    \"\"\"\n    Parse the Prometheus JSON response.\n    Navigate to data -> result.\n    Extract the instance label if the float value exceeds the threshold.\n    \"\"\"\n    failing_instances = []\n    # TODO: Implement JSON parsing\n    return failing_instances\n`,expected:"A list of instance names that breached the threshold",tests:`mock_response = \"\"\"\n{\n  \"status\": \"success\",\n  \"data\": {\n    \"resultType\": \"vector\",\n    \"result\": [\n      {\"metric\": {\"instance\": \"gpu-node-01\"}, \"value\": [1690000000, \"92.5\"]},\n      {\"metric\": {\"instance\": \"gpu-node-02\"}, \"value\": [1690000000, \"98.1\"]},\n      {\"metric\": {\"instance\": \"gpu-node-03\"}, \"value\": [1690000000, \"45.0\"]}\n    ]\n  }\n}\n\"\"\"\nassert evaluate_promql_response(mock_response) == [\"gpu-node-02\"]\nprint('PASS')`,hint:'Use json.loads(). Loop through payload. The value is a string at index 1 of the value list, so use float().',solution:`import json\nfrom typing import List\n\ndef evaluate_promql_response(raw_json: str, threshold: float = 95.0) -> List[str]:\n    try:\n        payload = json.loads(raw_json)\n    except json.JSONDecodeError:\n        raise ValueError("Invalid JSON payload received from Prometheus")\n\n    if payload.get("status") != "success":\n        raise RuntimeError("Prometheus query failed")\n        \n    results = payload.get("data", {}).get("result", [])\n    failing_instances = []\n    \n    for item in results:\n        instance = item.get("metric", {}).get("instance", "unknown")\n        # Prometheus values are always strings like "98.1", so cast to float\n        val_str = item.get("value", [0, "0"])[1]\n        \n        if float(val_str) >= threshold:\n            failing_instances.append(instance)\n            \n    return failing_instances\n\nif __name__ == '__main__':\n    # Mock PromQL HTTP API Response\n    mock_response = \"\"\"\n    {\n      \"status\": \"success\",\n      \"data\": {\n        \"resultType\": \"vector\",\n        \"result\": [\n          {\"metric\": {\"instance\": \"dgx-node-1\"}, \"value\": [1700000000, \"99.9\"]},\n          {\"metric\": {\"instance\": \"dgx-node-2\"}, \"value\": [1700000000, \"81.2\"]}\n        ]\n      }\n    }\n    \"\"\"\n    breaches = evaluate_promql_response(mock_response, threshold=90.0)\n    print(f"Instances breaching threshold: {breaches}")\n`,explanation:'Senior engineers rarely rely on visual dashboards for automation. They programmatically query the Prometheus HTTP API, parse the strongly-typed JSON schemas (vector vs matrix types), cast string float values safely, and trigger remediation workflows (like cordoning a node) automatically based on the payload.'},
   {id:'runbook',title:'13 · Turn evidence into a safe action',prompt:'Choose the least-destructive action from an incident state. Do not restart a node before preserving the evidence needed to prove the cause.',starter:`from typing import List, Dict, Tuple, Optional, Any, Union
 
 def next_action(node_ready: bool, disk_pressure: bool, xid_seen: bool) -> str:
@@ -295,42 +258,7 @@ def required_gpus(peak, reserve, headroom):
 
 if __name__ == '__main__':
     print(required_gpus(64, 8, .15))`,explanation:'This is intentionally a planning baseline. Real capacity work also models GPU SKU, MIG geometry, queueing SLOs, maintenance windows, topology, and demand variance.'},
-  {id:'subprocess',title:'15 · Classify subprocess failures safely',prompt:'Convert return code, stdout, and stderr from an infrastructure command into a typed operational result. Never use shell=True for interpolated input.',starter:`from typing import List, Dict, Tuple, Optional, Any, Union
-
-from dataclasses import dataclass
-
-@dataclass(frozen=True)
-class CommandResult:
-    ok: bool
-    category: str
-    detail: str
-
-def classify_command(returncode: int, stdout: str, stderr: str) -> CommandResult:
-    return CommandResult(False, 'unknown', '')
-
-print(classify_command(1, '', 'connection timed out'))`,expected:'success, transient, permission, not-found, or permanent classification',tests:`assert classify_command(0, 'node/worker ready', '') == CommandResult(True, 'success', 'node/worker ready')
-assert classify_command(1, '', 'connection timed out').category == 'transient'
-assert classify_command(13, '', 'permission denied').category == 'permission'
-assert classify_command(127, '', 'command not found').category == 'not-found'
-print('PASS')`,hint:'Normalize stderr to lowercase. Return useful detail without hiding the original failure.',solution:`from typing import List, Dict, Tuple, Optional, Any, Union
-
-def classify_command(returncode, stdout, stderr):
-    detail = (stderr or stdout).strip()
-    if returncode == 0:
-        return CommandResult(True, 'success', detail)
-    lowered = detail.lower()
-    if 'timed out' in lowered or 'temporarily unavailable' in lowered:
-        category = 'transient'
-    elif returncode == 13 or 'permission denied' in lowered:
-        category = 'permission'
-    elif returncode == 127 or 'not found' in lowered:
-        category = 'not-found'
-    else:
-        category = 'permanent'
-    return CommandResult(False, category, detail)
-
-if __name__ == '__main__':
-    print(classify_command(1, '', 'connection timed out'))`,explanation:'The I/O wrapper should call subprocess.run with an argument list, timeout, text mode, and captured output. This pure classifier makes policy testable without executing a command.'},
+  {id:'subprocess',title:'11 · Safe Subprocess: nvidia-smi Execution',prompt:'(Interview Scenario) `os.system("nvidia-smi")` is unsafe and blocks forever if the driver hangs. Write a senior-level wrapper using `subprocess.run` that executes `nvidia-smi --query-gpu=uuid,utilization.gpu --format=csv,noheader,nounits`, enforces a 2-second timeout, handles errors gracefully, and returns a dict mapping UUID to utilization integers.',starter:`import subprocess\nfrom typing import Dict\n\ndef get_gpu_utilization() -> Dict[str, int]:\n    \"\"\"\n    Execute nvidia-smi with query arguments.\n    Return a dict like {\"GPU-abcd\": 45, \"GPU-efgh\": 99}\n    Must use a 2.0 second timeout.\n    \"\"\"\n    utils = {}\n    # TODO: Implement subprocess.run logic\n    return utils\n`,expected:"A dictionary mapping UUIDs to integers, or raising TimeoutExpired",tests:`import sys\nimport subprocess\nclass MockProc:\n    def __init__(self): self.stdout = "GPU-1111, 45\nGPU-2222, 99\n"\nsubprocess.run = lambda *args, **kwargs: MockProc()\n\nresult = get_gpu_utilization()\nassert result == {"GPU-1111": 45, "GPU-2222": 99}, f"Got {result}"\nprint('PASS')`,hint:'Use `subprocess.run(["nvidia-smi", "--query-gpu=..."], capture_output=True, text=True, timeout=2.0)`. Split `proc.stdout` by newlines and commas.',solution:`import subprocess\nimport logging\nfrom typing import Dict\n\nlogger = logging.getLogger(__name__)\n\ndef get_gpu_utilization() -> Dict[str, int]:\n    cmd = [\n        "nvidia-smi", \n        "--query-gpu=uuid,utilization.gpu", \n        "--format=csv,noheader,nounits"\n    ]\n    try:\n        # check=True raises CalledProcessError on exit code != 0\n        # timeout=2.0 prevents infinite hangs if the driver is locked up\n        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=2.0, check=True)\n    except subprocess.TimeoutExpired:\n        logger.error("nvidia-smi timed out. The NVIDIA driver may be hung (D-state).")\n        raise\n    except subprocess.CalledProcessError as e:\n        logger.error(f"nvidia-smi failed with exit code {e.returncode}: {e.stderr}")\n        raise\n        \n    utils = {}\n    for line in proc.stdout.strip().split('\n'):\n        if not line: continue\n        parts = line.split(',')\n        if len(parts) == 2:\n            uuid = parts[0].strip()\n            util = int(parts[1].strip())\n            utils[uuid] = util\n            \n    return utils\n\nif __name__ == '__main__':\n    # Note: In the browser playground this uses a mock, but on a real Linux box it executes real commands.\n    try:\n        stats = get_gpu_utilization()\n        print(f"Live GPU Utilization: {stats}")\n    except Exception as e:\n        print(f"Error querying GPUs: {e}")\n`,explanation:'Calling shell commands is a major source of production outages. `os.system` or `subprocess.Popen` without timeouts will hang forever if the underlying hardware (like a GPU driver) locks up, exhausting worker threads. Senior engineers always use `subprocess.run` with explicit `timeout=`, `check=True`, and `capture_output=True` to parse exact CLI stdout safely.'},
   {id:'linux-load',title:'16 · Diagnose Linux load without guessing',prompt:'Interpret a vmstat-style snapshot. High load is not automatically high CPU: runnable work and uninterruptible I/O need different actions.',starter:`from typing import List, Dict, Tuple, Optional, Any, Union
 
 def diagnose_load(load1: float, cpus: int, run_queue: int, blocked: int, iowait_pct: float) -> str:
@@ -466,48 +394,7 @@ def incident_timeline(records):
 if __name__ == '__main__':
     ]
     print(incident_timeline(records))`,explanation:'Production timestamps need timezone and preferably UTC/ISO-8601. Preserve raw evidence separately; the human timeline should link observations to queries, deploy IDs, tickets, and decisions.'},
-  {id:'bmc-sensors',title:'23 · Classify BMC sensor health from a Redfish/IPMI sweep',prompt:'Turn a raw `sensor list` sweep into a single health verdict before paging anyone. A discrete PSU sensor reading 0 is not “temperature zero”—misreading it sends someone chasing the wrong fault.',starter:`from typing import List, Dict, Tuple, Optional, Any, Union
-
-def node_health(sensors: list[dict]) -> str:
-    # Each sensor is either {'type':'threshold','reading':..,'unc':..,'ucr':..}
-    # or {'type':'discrete','value':..}. 0x0180 is the only healthy discrete bitmap.
-    return ''
-
-sample = [
-    {'name':'CPU1 Temp','type':'threshold','reading':70,'unc':92,'ucr':95},
-    {'name':'PSU1 Status','type':'discrete','value':0x0180},
-    {'name':'PSU2 Status','type':'discrete','value':0},
-]
-print(node_health(sample))`,expected:"'critical', because PSU2's discrete bitmap 0x0 means no AC input, not a zero reading",tests:`ok = [{'name':'CPU1 Temp','type':'threshold','reading':70,'unc':92,'ucr':95}, {'name':'PSU1 Status','type':'discrete','value':0x0180}, {'name':'PSU2 Status','type':'discrete','value':0x0180}]
-assert node_health(ok) == 'healthy'
-psu_fault = [{'name':'CPU1 Temp','type':'threshold','reading':70,'unc':92,'ucr':95}, {'name':'PSU1 Status','type':'discrete','value':0x0180}, {'name':'PSU2 Status','type':'discrete','value':0}]
-assert node_health(psu_fault) == 'critical'
-warn = [{'name':'CPU2 Temp','type':'threshold','reading':93,'unc':92,'ucr':95}, {'name':'PSU1 Status','type':'discrete','value':0x0180}, {'name':'PSU2 Status','type':'discrete','value':0x0180}]
-assert node_health(warn) == 'warning'
-print('PASS')`,hint:'Decode discrete sensors by exact bitmap match, never by numeric comparison; threshold sensors compare reading against unc/ucr.',solution:`from typing import List, Dict, Tuple, Optional, Any, Union
-
-def node_health(sensors):
-    statuses = []
-    for sensor in sensors:
-        if sensor['type'] == 'discrete':
-            statuses.append('healthy' if sensor['value'] == 0x0180 else 'critical')
-        else:
-            reading, unc, ucr = sensor['reading'], sensor['unc'], sensor['ucr']
-            if reading >= ucr:
-                statuses.append('critical')
-            elif reading >= unc:
-                statuses.append('warning')
-            else:
-                statuses.append('healthy')
-    if 'critical' in statuses:
-        return 'critical'
-    if 'warning' in statuses:
-        return 'warning'
-    return 'healthy'
-
-if __name__ == '__main__':
-    ]
-    print(node_health(sample))`,explanation:'The next real step is `ipmitool sensor list` plus the SDR to confirm the bitmap decode, then check the PDU/breaker feeding that PSU before assuming a server-side fault.'},
+  {id:'bmc-sensors',title:'21 · Redfish API: Parse BMC Thermal Sensors',prompt:'(Interview Scenario) You query a DGX BMC via the Redfish API for thermal data. The response is a massive nested JSON payload. Write a robust parser that iterates through the `Temperatures` list, handles missing `UpperThresholdCritical` keys gracefully using `.get()`, and returns a list of failing sensor names.',starter:`import json\nfrom typing import List\n\ndef find_overheating_sensors(redfish_json: str) -> List[str]:\n    \"\"\"\n    Parse the Redfish JSON.\n    Navigate to 'Temperatures'.\n    For each sensor, if 'ReadingCelsius' >= 'UpperThresholdCritical', record its 'Name'.\n    Ignore sensors missing 'ReadingCelsius' or 'UpperThresholdCritical'.\n    \"\"\"\n    failing = []\n    # TODO: Implement Redfish JSON parsing\n    return failing\n`,expected:"A list of sensor names that are overheating",tests:`mock_redfish = \"\"\"\n{\n  \"Temperatures\": [\n    {\"Name\": \"CPU0\", \"ReadingCelsius\": 85, \"UpperThresholdCritical\": 90},\n    {\"Name\": \"GPU1\", \"ReadingCelsius\": 95, \"UpperThresholdCritical\": 92},\n    {\"Name\": \"DIMM_A\", \"ReadingCelsius\": 40}\n  ]\n}\n\"\"\"\nassert find_overheating_sensors(mock_redfish) == ["GPU1"]\nprint('PASS')`,hint:'Load the JSON. Iterate `payload.get("Temperatures", [])`. Extract reading and threshold. If both are not `None` and reading >= threshold, append the name.',solution:`import json\nfrom typing import List\n\ndef find_overheating_sensors(redfish_json: str) -> List[str]:\n    try:\n        payload = json.loads(redfish_json)\n    except json.JSONDecodeError:\n        raise ValueError("Invalid JSON from BMC Redfish API")\n        \n    failing_sensors = []\n    temperatures = payload.get("Temperatures", [])\n    \n    for sensor in temperatures:\n        name = sensor.get("Name", "Unknown Sensor")\n        reading = sensor.get("ReadingCelsius")\n        critical_limit = sensor.get("UpperThresholdCritical")\n        \n        # Hardware sensors frequently drop readings or lack thresholds.\n        # Explicitly checking for None prevents TypeError exceptions.\n        if reading is not None and critical_limit is not None:\n            if reading >= critical_limit:\n                failing_sensors.append(name)\n                \n    return failing_sensors\n\nif __name__ == '__main__':\n    # Mock output from a curl call to /redfish/v1/Chassis/1/Thermal\n    mock_api_response = \"\"\"\n    {\n      \"Temperatures\": [\n        {\"Name\": \"NVIDIA HGX Baseboard\", \"ReadingCelsius\": 70, \"UpperThresholdCritical\": 85},\n        {\"Name\": \"Infiniband ConnectX-7\", \"ReadingCelsius\": 102, \"UpperThresholdCritical\": 100},\n        {\"Name\": \"Ambient Front\", \"ReadingCelsius\": null, \"UpperThresholdCritical\": 40}\n      ]\n    }\n    \"\"\"\n    alarms = find_overheating_sensors(mock_api_response)\n    for alarm in alarms:\n        print(f"HARDWARE ALERT: {alarm} exceeds critical thermal limits!")\n`,explanation:'BMC (Baseboard Management Controller) Redfish APIs return notorious amounts of inconsistent data. Hardware sensors occasionally return `null` or omit threshold fields entirely. A senior engineer defensively parses nested dictionaries using `.get(key, default)` and `is not None` to prevent a missing sensor reading from crashing the entire fleet-monitoring pipeline.'},
   {id:'firmware-drift',title:'22 · Infrastructure Firmware Drift Detection',prompt:'(Interview Scenario) Managing 1,000 DGX nodes means firmware drifts. Write a senior-level script that parses raw `mlxfwmanager` InfiniBand output strings and compares it against a desired state dataclass to detect missing Mellanox firmware updates.',starter:`from dataclasses import dataclass\nfrom typing import List, Dict\nimport re\n\n@dataclass\nclass FirmwareState:\n    device_id: str\n    current_fw: str\n    \ndef parse_mlxfwmanager_output(raw_output: str) -> List[FirmwareState]:\n    # TODO: Parse lines like "Device: MT4123" and "FW: 20.31.1014"\n    pass\n\ndef check_drift(current_states: List[FirmwareState], desired_fw: str) -> List[FirmwareState]:\n    # TODO: Return devices where current_fw != desired_fw\n    pass\n`,expected:"Proper parsing of raw CLI text and object-based drift detection",tests:`raw_output = "Device: MT4123\nFW: 20.31.1014\nDevice: MT4124\nFW: 20.32.0000\n"\nstates = parse_mlxfwmanager_output(raw_output)\nassert len(states) == 2\nassert states[0].current_fw == "20.31.1014"\n\ndrifted = check_drift(states, "20.32.0000")\nassert len(drifted) == 1\nassert drifted[0].current_fw == "20.31.1014"\nprint('PASS')`,hint:'Use a loop over the lines. If line starts with "Device:", save it. If line starts with "FW:", you have a pair—instantiate `FirmwareState` and append it.',solution:`from dataclasses import dataclass\nfrom typing import List\nimport re\n\n@dataclass\nclass FirmwareState:\n    device_id: str\n    current_fw: str\n\ndef parse_mlxfwmanager_output(raw_output: str) -> List[FirmwareState]:\n    states = []\n    current_device = None\n    \n    for line in raw_output.strip().split('\n'):\n        line = line.strip()\n        if line.startswith("Device:"):\n            current_device = line.split(":", 1)[1].strip()\n        elif line.startswith("FW:") and current_device:\n            fw_version = line.split(":", 1)[1].strip()\n            states.append(FirmwareState(device_id=current_device, current_fw=fw_version))\n            current_device = None\n            \n    return states\n\ndef check_drift(current_states: List[FirmwareState], desired_fw: str) -> List[FirmwareState]:\n    return [state for state in current_states if state.current_fw != desired_fw]\n\nif __name__ == '__main__':\n    mock_cli_output = '''\nDevice: ConnectX-6\nFW: 20.31.1014\nDevice: ConnectX-6\nFW: 20.32.0123\n'''\n    DESIRED_FIRMWARE = "20.32.0123"\n    \n    states = parse_mlxfwmanager_output(mock_cli_output)\n    drifted_cards = check_drift(states, DESIRED_FIRMWARE)\n    \n    for card in drifted_cards:\n        print(f"ALERT: Drift on {card.device_id}. Found {card.current_fw}, expected {DESIRED_FIRMWARE}.")\n`,explanation:'Senior engineers do not manually check firmware. They write Python operators that parse raw OEM tool outputs (`mlxfwmanager`, `nvfwupd`), instantiate strongly typed state objects, diff them against GitOps desired state, and automatically schedule BMC/Redfish firmware updates on mismatched hosts.'},
   {id:'ansible-idempotency',title:'25 · Spot false idempotency in an Ansible --check --diff run',prompt:'Classify repeated `--check --diff` results per module before trusting “changed” as a signal. A module reporting changed=True every run on a semantically identical diff is noise that will bury the one node with a real drift.',starter:`from typing import List, Dict, Tuple, Optional, Any, Union
 
