@@ -61,19 +61,19 @@ The genius of CUDA is how this software hierarchy dynamically maps to whatever p
 ```mermaid
 flowchart TD
     subgraph "Software (The Code)"
-        Grid[Grid: The Entire Kernel Launch]
-        Grid --> Block1[Thread Block 1<br>(e.g., 256 Threads)]
-        Grid --> Block2[Thread Block 2<br>(e.g., 256 Threads)]
-        Grid --> Block3[Thread Block 3]
-        Grid --> BlockN[Thread Block N]
+        Grid["Grid: The Entire Kernel Launch"]
+        Grid --> Block1["Thread Block 1<br>(e.g., 256 Threads)"]
+        Grid --> Block2["Thread Block 2<br>(e.g., 256 Threads)"]
+        Grid --> Block3["Thread Block 3"]
+        Grid --> BlockN["Thread Block N"]
     end
     
     subgraph "Hardware (The Physical GPU)"
-        GTE((GigaThread Engine<br>Scheduler))
+        GTE(("GigaThread Engine<br>Scheduler"))
         
-        SM1[Streaming Multiprocessor 1<br>Executes Block 1 & 3]
-        SM2[Streaming Multiprocessor 2<br>Executes Block 2]
-        SM_N[Streaming Multiprocessor N<br>Executes Block N]
+        SM1["Streaming Multiprocessor 1<br>Executes Block 1 & 3"]
+        SM2["Streaming Multiprocessor 2<br>Executes Block 2"]
+        SM_N["Streaming Multiprocessor N<br>Executes Block N"]
     end
 
     Block1 -.->|Dispatched to| GTE
