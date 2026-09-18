@@ -354,33 +354,7 @@ def diagnose_load(load1, cpus, run_queue, blocked, iowait_pct):
 
 if __name__ == '__main__':
     print(diagnose_load(24, 16, 2, 19, 42.0))`,explanation:'Use this only to rank the next check. Confirm with vmstat, pidstat, pressure stall information, process state/wchan, and storage latency before mitigating.'},
-  {id:'xid-correlation',title:'17 · Correlate GPU Xid events',prompt:'Group kernel Xid events by GPU UUID and identify repeated offenders without pretending every Xid has the same remediation.',starter:`from typing import List, Dict, Tuple, Optional, Any, Union
-
-def repeated_gpu_faults(events: list[dict], threshold: int = 2) -> dict[str, list[int]]:
-    return {}
-
-events = [
-    {'uuid':'GPU-a','xid':79}, {'uuid':'GPU-b','xid':31},
-    {'uuid':'GPU-a','xid':79}, {'uuid':'GPU-a','xid':48},
-]
-print(repeated_gpu_faults(events))`,expected:"{'GPU-a': [48, 79]}",tests:`assert repeated_gpu_faults(events) == {'GPU-a': [48, 79]}
-assert repeated_gpu_faults([], 1) == {}
-print('PASS')`,hint:'Count events per UUID, then return sorted unique Xid codes only for GPUs meeting the threshold.',solution:`from typing import List, Dict, Tuple, Optional, Any, Union
-
-from collections import defaultdict
-
-def repeated_gpu_faults(events, threshold=2):
-    counts = defaultdict(int)
-    codes = defaultdict(set)
-    for event in events:
-        uuid = event['uuid']
-        counts[uuid] += 1
-        codes[uuid].add(int(event['xid']))
-    return {uuid: sorted(codes[uuid]) for uuid in sorted(counts) if counts[uuid] >= threshold}
-
-if __name__ == '__main__':
-    ]
-    print(repeated_gpu_faults(events))`,explanation:'Production correlation must preserve timestamps, PCI bus IDs, node/image/driver versions, job IDs, and Xid class. Repetition supports quarantine; remediation still follows NVIDIA guidance for that Xid.'},
+  {id:'xid-correlation',title:'17 · Parse & Correlate GPU Xid Events',prompt:'(Interview Scenario) `dmesg` contains raw `NVRM: Xid` errors with PCI bus IDs, but SLURM schedules using GPU UUIDs. Write a senior-level script that parses raw `dmesg` output to extract the PCI bus and Xid, correlates the PCI bus to a UUID using mocked `nvidia-smi` JSON topology, and flags hardware for RMA.',starter:`import re\nimport json\nfrom typing import Dict, List\n\ndef correlate_xids_to_uuids(dmesg_log: str, smi_topo_json: str) -> Dict[str, List[int]]:\n    \"\"\"\n    dmesg_log contains: "[123.4] NVRM: Xid (PCI:0000:01:00.0): 79"\n    smi_topo_json contains: {"0000:01:00.0": "GPU-abcd123"}\n    Return a mapping of GPU UUID to a list of its Xid integers.\n    \"\"\"\n    faults = {}\n    # TODO: Implement regex parsing and mapping\n    return faults\n`,expected:"A dictionary mapping exact UUIDs to their raw Xid integers",tests:`dmesg = "[  100.12] NVRM: Xid (PCI:0000:41:00.0): 79, GPU fallen off bus\n[  150.00] NVRM: Xid (PCI:0000:41:00.0): 48, DBE error"\ntopo = '{"0000:41:00.0": "GPU-1234", "0000:81:00.0": "GPU-5678"}'\n\nresult = correlate_xids_to_uuids(dmesg, topo)\nassert result == {"GPU-1234": [79, 48]}, f"Failed, got {result}"\nprint('PASS')`,hint:'Use `re.finditer(r"NVRM: Xid \\(PCI:(.*?)\\): (\\d+)", dmesg_log)` to extract the PCI ID and the Xid number. Load the JSON, then map it.',solution:`import re\nimport json\nfrom collections import defaultdict\nfrom typing import Dict, List\n\ndef correlate_xids_to_uuids(dmesg_log: str, smi_topo_json: str) -> Dict[str, List[int]]:\n    try:\n        topo_map = json.loads(smi_topo_json)\n    except json.JSONDecodeError:\n        raise ValueError("Invalid topology JSON")\n\n    pattern = re.compile(r"NVRM: Xid \\(PCI:(?P<pci>.*?)\\): (?P<xid>\d+)")\n    faults = defaultdict(list)\n    \n    for match in pattern.finditer(dmesg_log):\n        pci_bus = match.group('pci')\n        xid = int(match.group('xid'))\n        \n        uuid = topo_map.get(pci_bus)\n        if uuid:\n            faults[uuid].append(xid)\n            \n    return dict(faults)\n\nif __name__ == '__main__':\n    dmesg_sample = "[12.3] NVRM: Xid (PCI:0000:81:00.0): 79, fallen off bus\n"\n    topo_sample = '{"0000:81:00.0": "GPU-98765432-1111-2222-3333"}'\n    \n    correlated = correlate_xids_to_uuids(dmesg_sample, topo_sample)\n    for uuid, xids in correlated.items():\n        print(f"Hardware Faults for {uuid}: Xid {xids}")\n`,explanation:'A critical infrastructure skill is "evidence fusion". The kernel (`dmesg`) only knows PCIe paths. The cluster orchestrator only knows GPU UUIDs. You must write scripts that dynamically query NVML or `nvidia-smi` to bridge the gap, enabling automated cordoning of the exact failing hardware.'},
   {id:'nccl-ranks',title:'18 · Find a distributed-training straggler',prompt:'Use per-rank step durations to identify a statistically meaningful outlier before blaming NCCL or the network.',starter:`from typing import List, Dict, Tuple, Optional, Any, Union
 
 def straggler_ranks(step_ms: dict[int, float], tolerance: float = 1.20) -> list[int]:
@@ -534,39 +508,7 @@ def node_health(sensors):
 if __name__ == '__main__':
     ]
     print(node_health(sample))`,explanation:'The next real step is `ipmitool sensor list` plus the SDR to confirm the bitmap decode, then check the PDU/breaker feeding that PSU before assuming a server-side fault.'},
-  {id:'firmware-drift',title:'24 · Detect firmware baseline drift across a fleet',prompt:'Compare installed component versions against the qualified baseline manifest before a coordinated change window opens. A node one revision behind is a normal backlog item; three revisions behind on BMC firmware is a blocker.',starter:`from typing import List, Dict, Tuple, Optional, Any, Union
-
-def firmware_drift(installed: dict[str, dict[str, str]], baseline: dict[str, str]) -> list[str]:
-    # installed: {node: {component: version}}. Return "node/component: installed < baseline"
-    # for every component below baseline, sorted by node then component.
-    return []
-
-installed = {'gpu-node-02': {'bios':'1.2.0','bmc':'2.16.0'}, 'gpu-node-01': {'bios':'1.3.0','bmc':'2.14.3'}}
-baseline = {'bios':'1.3.0','bmc':'2.16.0'}
-print(firmware_drift(installed, baseline))`,expected:"['gpu-node-01/bmc: 2.14.3 < 2.16.0', 'gpu-node-02/bios: 1.2.0 < 1.3.0']",tests:`installed = {'gpu-node-02': {'bios':'1.2.0','bmc':'2.16.0'}, 'gpu-node-01': {'bios':'1.3.0','bmc':'2.14.3'}}
-baseline = {'bios':'1.3.0','bmc':'2.16.0'}
-assert firmware_drift(installed, baseline) == ['gpu-node-01/bmc: 2.14.3 < 2.16.0', 'gpu-node-02/bios: 1.2.0 < 1.3.0']
-assert firmware_drift({'gpu-node-03': {'bios':'1.3.0'}}, baseline) == []
-assert firmware_drift({'gpu-node-04': {'nic':'22.35.1012'}}, baseline) == []
-print('PASS')`,hint:'Compare dotted version strings as tuples of ints, not lexicographically, and skip components absent from the baseline.',solution:`from typing import List, Dict, Tuple, Optional, Any, Union
-
-def parse_version(v):
-    return tuple(int(part) for part in v.split('.'))
-
-def firmware_drift(installed, baseline):
-    drift = []
-    for node in sorted(installed):
-        for component in sorted(installed[node]):
-            if component not in baseline:
-                continue
-            if parse_version(installed[node][component]) < parse_version(baseline[component]):
-                drift.append(f"{node}/{component}: {installed[node][component]} < {baseline[component]}")
-    return drift
-
-if __name__ == '__main__':
-    installed = {'gpu-node-02': {'bios':'1.2.0','bmc':'2.16.0'}, 'gpu-node-01': {'bios':'1.3.0','bmc':'2.14.3'}}
-    baseline = {'bios':'1.3.0','bmc':'2.16.0'}
-    print(firmware_drift(installed, baseline))`,explanation:'This is the read-only half of change management; pair it with the compatibility matrix from Volume 10 before deciding which nodes are safe to include in a canary wave.'},
+  {id:'firmware-drift',title:'22 · Infrastructure Firmware Drift Detection',prompt:'(Interview Scenario) Managing 1,000 DGX nodes means firmware drifts. Write a senior-level script that parses raw `mlxfwmanager` InfiniBand output strings and compares it against a desired state dataclass to detect missing Mellanox firmware updates.',starter:`from dataclasses import dataclass\nfrom typing import List, Dict\nimport re\n\n@dataclass\nclass FirmwareState:\n    device_id: str\n    current_fw: str\n    \ndef parse_mlxfwmanager_output(raw_output: str) -> List[FirmwareState]:\n    # TODO: Parse lines like "Device: MT4123" and "FW: 20.31.1014"\n    pass\n\ndef check_drift(current_states: List[FirmwareState], desired_fw: str) -> List[FirmwareState]:\n    # TODO: Return devices where current_fw != desired_fw\n    pass\n`,expected:"Proper parsing of raw CLI text and object-based drift detection",tests:`raw_output = "Device: MT4123\nFW: 20.31.1014\nDevice: MT4124\nFW: 20.32.0000\n"\nstates = parse_mlxfwmanager_output(raw_output)\nassert len(states) == 2\nassert states[0].current_fw == "20.31.1014"\n\ndrifted = check_drift(states, "20.32.0000")\nassert len(drifted) == 1\nassert drifted[0].current_fw == "20.31.1014"\nprint('PASS')`,hint:'Use a loop over the lines. If line starts with "Device:", save it. If line starts with "FW:", you have a pair—instantiate `FirmwareState` and append it.',solution:`from dataclasses import dataclass\nfrom typing import List\nimport re\n\n@dataclass\nclass FirmwareState:\n    device_id: str\n    current_fw: str\n\ndef parse_mlxfwmanager_output(raw_output: str) -> List[FirmwareState]:\n    states = []\n    current_device = None\n    \n    for line in raw_output.strip().split('\n'):\n        line = line.strip()\n        if line.startswith("Device:"):\n            current_device = line.split(":", 1)[1].strip()\n        elif line.startswith("FW:") and current_device:\n            fw_version = line.split(":", 1)[1].strip()\n            states.append(FirmwareState(device_id=current_device, current_fw=fw_version))\n            current_device = None\n            \n    return states\n\ndef check_drift(current_states: List[FirmwareState], desired_fw: str) -> List[FirmwareState]:\n    return [state for state in current_states if state.current_fw != desired_fw]\n\nif __name__ == '__main__':\n    mock_cli_output = '''\nDevice: ConnectX-6\nFW: 20.31.1014\nDevice: ConnectX-6\nFW: 20.32.0123\n'''\n    DESIRED_FIRMWARE = "20.32.0123"\n    \n    states = parse_mlxfwmanager_output(mock_cli_output)\n    drifted_cards = check_drift(states, DESIRED_FIRMWARE)\n    \n    for card in drifted_cards:\n        print(f"ALERT: Drift on {card.device_id}. Found {card.current_fw}, expected {DESIRED_FIRMWARE}.")\n`,explanation:'Senior engineers do not manually check firmware. They write Python operators that parse raw OEM tool outputs (`mlxfwmanager`, `nvfwupd`), instantiate strongly typed state objects, diff them against GitOps desired state, and automatically schedule BMC/Redfish firmware updates on mismatched hosts.'},
   {id:'ansible-idempotency',title:'25 · Spot false idempotency in an Ansible --check --diff run',prompt:'Classify repeated `--check --diff` results per module before trusting “changed” as a signal. A module reporting changed=True every run on a semantically identical diff is noise that will bury the one node with a real drift.',starter:`from typing import List, Dict, Tuple, Optional, Any, Union
 
 def classify_idempotency(runs: dict[str, list[tuple[bool, str]]]) -> dict[str, str]:
@@ -710,30 +652,7 @@ def missing_ranks(expected, observed):
 
 if __name__ == '__main__':
     print(missing_ranks(expected, observed))`,explanation:'Missing ranks concentrated on one node points at that node—PMIx launch failure, SSH/hostfile issue, or a GRES/cgroup binding rejection—rather than a collective-communication bug; correlate with the launcher exit code before touching NCCL.'},
-  {id:'enroot-gpu',title:'29 · Diagnose why GPUs are not visible inside an Enroot/Pyxis container',prompt:'Given the exact launch configuration, name the single specific missing piece—not a generic “check your container setup”—so the fix is one command, not a debugging session.',starter:`from typing import List, Dict, Tuple, Optional, Any, Union
-
-def diagnose_gpu_visibility(config: dict) -> str:
-    # config keys: visible_devices_env (str|None), cdi_spec_present (bool), driver_mount_present (bool)
-    return ''
-
-print(diagnose_gpu_visibility({'visible_devices_env': None, 'cdi_spec_present': True, 'driver_mount_present': True}))`,expected:'A specific cause: missing env var, missing CDI spec, or missing driver mount—checked in that order',tests:`assert diagnose_gpu_visibility({'visible_devices_env': None, 'cdi_spec_present': True, 'driver_mount_present': True}) == 'NVIDIA_VISIBLE_DEVICES not set or empty'
-assert diagnose_gpu_visibility({'visible_devices_env': 'all', 'cdi_spec_present': False, 'driver_mount_present': True}) == 'CDI spec file missing'
-assert diagnose_gpu_visibility({'visible_devices_env': 'all', 'cdi_spec_present': True, 'driver_mount_present': False}) == 'container-mounts missing the NVIDIA driver path'
-assert diagnose_gpu_visibility({'visible_devices_env': 'all', 'cdi_spec_present': True, 'driver_mount_present': True}) == 'configuration looks correct, check nvidia-smi inside the container'
-print('PASS')`,hint:'Check the most fundamental prerequisite first: an unset visibility env var makes CDI and mount configuration irrelevant.',solution:`from typing import List, Dict, Tuple, Optional, Any, Union
-
-def diagnose_gpu_visibility(config):
-    env = config.get('visible_devices_env')
-    if not env or env == 'none':
-        return 'NVIDIA_VISIBLE_DEVICES not set or empty'
-    if not config.get('cdi_spec_present', True):
-        return 'CDI spec file missing'
-    if not config.get('driver_mount_present', True):
-        return 'container-mounts missing the NVIDIA driver path'
-    return 'configuration looks correct, check nvidia-smi inside the container'
-
-if __name__ == '__main__':
-    print(diagnose_gpu_visibility({'visible_devices_env': None, 'cdi_spec_present': True, 'driver_mount_present': True}))`,explanation:'Once the pure diagnosis narrows the cause, confirm live with `enroot start --root ... nvidia-smi` and `nvidia-ctk cdi generate` output rather than trusting the launch flags alone.'},
+  {id:'enroot-gpu',title:'29 · Diagnose Pyxis/Enroot GPU Visibility',prompt:'(Interview Scenario) You are handed a cluster where `srun --container-image=... nvidia-smi` shows no GPUs. As a Senior AI Infra Engineer, write a diagnostic script that parses raw `slurm.conf` and `enroot.conf` files to detect the exact missing misconfigurations (missing GresTypes, missing Enroot NVIDIA hook).',starter:`import re\nfrom typing import List, Dict\n\ndef diagnose_enroot_pyxis(slurm_conf_content: str, enroot_conf_content: str) -> List[str]:\n    \"\"\"\n    Parse raw configuration files.\n    - Check if 'GresTypes=gpu' exists in slurm_conf_content.\n    - Check if enroot configuration contains '40-nvidia.sh'.\n    \"\"\"\n    errors = []\n    # TODO: Implement parsing logic\n    return errors\n`,expected:"Returns exact infrastructure misconfigurations based on raw file parsing",tests:`slurm_bad = "ControlMachine=slurmctld\nSelectType=select/cons_tres"\nenroot_bad = "ENROOT_RUNTIME_PATH=/run/enroot\nENROOT_LIBRARY_PATH=/usr/lib/enroot"\n\nslurm_good = "ControlMachine=slurmctld\nGresTypes=gpu,mic\nSelectType=select/cons_tres"\nenroot_good = "ENROOT_RUNTIME_PATH=/run/enroot\nENROOT_ENVIRON_PATH=/etc/enroot/hooks.d/40-nvidia.sh"\n\nassert len(diagnose_enroot_pyxis(slurm_bad, enroot_bad)) == 2\nassert len(diagnose_enroot_pyxis(slurm_good, enroot_good)) == 0\nassert diagnose_enroot_pyxis(slurm_bad, enroot_good)[0].startswith("SLURM")\nprint('PASS')`,hint:'Use `re.search(r"(?i)GresTypes=.*gpu", slurm_conf_content)` for SLURM. Use string matching for `40-nvidia.sh` in the enroot content.',solution:`import re\nimport sys\nfrom typing import List\n\ndef diagnose_enroot_pyxis(slurm_conf_content: str, enroot_conf_content: str) -> List[str]:\n    errors = []\n    \n    # Check SLURM Configuration for Generic Resource (GRES) GPU tracking\n    if not re.search(r'(?i)^GresTypes=.*gpu', slurm_conf_content, re.MULTILINE):\n        errors.append("SLURM Error: 'GresTypes=gpu' is missing. SLURM will not allocate GPUs to Pyxis.")\n        \n    # Check Enroot Configuration for the NVIDIA Container Toolkit hook\n    if '40-nvidia.sh' not in enroot_conf_content:\n        errors.append("Enroot Error: The NVIDIA container hook (40-nvidia.sh) is missing.")\n        \n    return errors\n\nif __name__ == '__main__':\n    # Mock reading from /etc/slurm/slurm.conf and /etc/enroot/enroot.conf\n    mock_slurm = "ClusterName=ai-cluster\nGresTypes=gpu\n"\n    mock_enroot = "ENROOT_RUNTIME_PATH=/run/enroot\n"\n    \n    issues = diagnose_enroot_pyxis(mock_slurm, mock_enroot)\n    if issues:\n        for issue in issues:\n            print(f"CRITICAL: {issue}")\n    else:\n        print("Cluster container runtime is healthy.")\n`,explanation:'A senior engineer does not just say "check the configuration." They automate config parsing at the fleet level. In Enroot/Pyxis, GPU visibility requires SLURM to be aware of the GPU (GresTypes), SPANK to intercept the job, and Enroot to inject the NVIDIA Container Toolkit hook to mount `/dev/nvidia*` and userland drivers into the unprivileged container namespace.'},
   {id:'canary-check',title:'30 · Check whether a canary wave actually represents the fleet',prompt:'A canary that passes every gate item is only evidence about the hardware/firmware combinations it contains. Find exactly which combinations in the fleet the proposed canary group does not cover before it ships to wave two.',starter:`from typing import List, Dict, Tuple, Optional, Any, Union
 
 def canary_representativeness(fleet_combos: list[tuple], canary_combos: list[tuple]) -> dict:
