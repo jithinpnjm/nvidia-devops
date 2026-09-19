@@ -1,3 +1,8 @@
+---
+title: "Chapter 6: Telecommunications"
+sidebar_position: 6
+---
+
 # Chapter 6: Telecommunications
 
 | Chapter metadata | Value |

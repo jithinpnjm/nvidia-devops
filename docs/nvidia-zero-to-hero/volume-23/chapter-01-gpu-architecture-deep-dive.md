@@ -1,3 +1,8 @@
+---
+title: "Chapter 1: GPU Architecture Deep Dive"
+sidebar_position: 1
+---
+
 # Chapter 1: GPU Architecture Deep Dive
 
 | Chapter metadata | Value |

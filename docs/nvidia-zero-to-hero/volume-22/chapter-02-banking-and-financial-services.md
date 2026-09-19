@@ -1,3 +1,8 @@
+---
+title: "Chapter 2: Banking and Financial Services"
+sidebar_position: 2
+---
+
 # Chapter 2: Banking and Financial Services
 
 | Chapter metadata | Value |

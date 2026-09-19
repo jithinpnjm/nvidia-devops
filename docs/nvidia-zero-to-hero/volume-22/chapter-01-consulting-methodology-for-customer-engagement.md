@@ -1,3 +1,8 @@
+---
+title: "Chapter 1: Consulting Methodology for Customer Engagement"
+sidebar_position: 1
+---
+
 # Chapter 1: Consulting Methodology for Customer Engagement
 
 | Chapter metadata | Value |

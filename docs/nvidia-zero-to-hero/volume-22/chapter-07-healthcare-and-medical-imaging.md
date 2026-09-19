@@ -1,3 +1,8 @@
+---
+title: "Chapter 7: Healthcare and Medical Imaging"
+sidebar_position: 7
+---
+
 # Chapter 7: Healthcare and Medical Imaging
 
 | Chapter metadata | Value |

@@ -1,3 +1,8 @@
+---
+title: "Chapter 8: Security and Compliance"
+sidebar_position: 8
+---
+
 # Chapter 8: Security and Compliance
 
 | Chapter metadata | Value |

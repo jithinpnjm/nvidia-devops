@@ -1,3 +1,8 @@
+---
+title: "Chapter 2: CUDA Programming and Optimization"
+sidebar_position: 2
+---
+
 # Chapter 2: CUDA Programming and Optimization
 
 | Chapter metadata | Value |

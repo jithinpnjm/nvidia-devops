@@ -1,3 +1,8 @@
+---
+title: "Chapter 5: Pharmaceuticals and Drug Discovery"
+sidebar_position: 5
+---
+
 # Chapter 5: Pharmaceuticals and Drug Discovery
 
 | Chapter metadata | Value |

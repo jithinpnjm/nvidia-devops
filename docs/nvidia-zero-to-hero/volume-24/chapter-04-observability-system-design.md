@@ -1,3 +1,8 @@
+---
+title: "Project 4: Observability System Design"
+sidebar_position: 4
+---
+
 # Project 4: Observability System Design
 
 | Project metadata | Value |

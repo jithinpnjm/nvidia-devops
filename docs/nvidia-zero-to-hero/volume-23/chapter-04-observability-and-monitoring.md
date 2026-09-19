@@ -1,3 +1,8 @@
+---
+title: "Chapter 4: Observability and Monitoring"
+sidebar_position: 4
+---
+
 # Chapter 4: Observability and Monitoring
 
 | Chapter metadata | Value |

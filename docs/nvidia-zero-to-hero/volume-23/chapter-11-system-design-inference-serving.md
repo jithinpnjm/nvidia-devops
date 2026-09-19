@@ -1,3 +1,8 @@
+---
+title: "Chapter 11: System Design — Inference Serving"
+sidebar_position: 11
+---
+
 # Chapter 11: System Design — Inference Serving
 
 | Chapter metadata | Value |

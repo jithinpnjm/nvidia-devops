@@ -1,3 +1,8 @@
+---
+title: "Project 1: CUDA Kernel Optimization"
+sidebar_position: 1
+---
+
 # Project 1: CUDA Kernel Optimization
 
 | Project metadata | Value |

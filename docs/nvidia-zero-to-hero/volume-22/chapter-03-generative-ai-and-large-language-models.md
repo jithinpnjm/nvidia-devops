@@ -1,3 +1,8 @@
+---
+title: "Chapter 3: Generative AI and Large Language Models"
+sidebar_position: 3
+---
+
 # Chapter 3: Generative AI and Large Language Models
 
 | Chapter metadata | Value |

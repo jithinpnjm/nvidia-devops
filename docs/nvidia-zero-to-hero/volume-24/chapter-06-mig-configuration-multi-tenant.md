@@ -1,3 +1,8 @@
+---
+title: "Project 6: MIG Configuration for Multi-Tenant Workloads"
+sidebar_position: 6
+---
+
 # Project 6: MIG Configuration for Multi-Tenant Workloads
 
 | Project metadata | Value |

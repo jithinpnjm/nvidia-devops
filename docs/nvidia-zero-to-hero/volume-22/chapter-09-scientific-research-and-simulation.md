@@ -1,3 +1,8 @@
+---
+title: "Chapter 9: Scientific Research and Simulation"
+sidebar_position: 9
+---
+
 # Chapter 9: Scientific Research and Simulation
 
 | Chapter metadata | Value |

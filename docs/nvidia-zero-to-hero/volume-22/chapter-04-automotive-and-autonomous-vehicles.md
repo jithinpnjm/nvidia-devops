@@ -1,3 +1,8 @@
+---
+title: "Chapter 4: Automotive and Autonomous Vehicles"
+sidebar_position: 4
+---
+
 # Chapter 4: Automotive and Autonomous Vehicles
 
 | Chapter metadata | Value |

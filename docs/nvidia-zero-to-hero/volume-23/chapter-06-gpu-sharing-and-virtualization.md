@@ -1,3 +1,8 @@
+---
+title: "Chapter 6: GPU Sharing and Virtualization"
+sidebar_position: 6
+---
+
 # Chapter 6: GPU Sharing and Virtualization
 
 | Chapter metadata | Value |

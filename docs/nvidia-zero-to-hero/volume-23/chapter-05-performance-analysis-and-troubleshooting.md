@@ -1,3 +1,8 @@
+---
+title: "Chapter 5: Performance Analysis and Troubleshooting"
+sidebar_position: 5
+---
+
 # Chapter 5: Performance Analysis and Troubleshooting
 
 | Chapter metadata | Value |

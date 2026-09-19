@@ -1,3 +1,8 @@
+---
+title: "Chapter 12: System Design — Research Infrastructure"
+sidebar_position: 12
+---
+
 # Chapter 12: System Design — Research Infrastructure
 
 | Chapter metadata | Value |

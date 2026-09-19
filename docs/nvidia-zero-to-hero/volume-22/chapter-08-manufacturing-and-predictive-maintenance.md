@@ -1,3 +1,8 @@
+---
+title: "Chapter 8: Manufacturing and Predictive Maintenance"
+sidebar_position: 8
+---
+
 # Chapter 8: Manufacturing and Predictive Maintenance
 
 | Chapter metadata | Value |

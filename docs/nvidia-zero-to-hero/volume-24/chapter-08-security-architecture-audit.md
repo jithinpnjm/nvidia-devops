@@ -1,3 +1,8 @@
+---
+title: "Project 8: Security Architecture Audit"
+sidebar_position: 8
+---
+
 # Project 8: Security Architecture Audit
 
 | Project metadata | Value |

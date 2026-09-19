@@ -1,3 +1,8 @@
+---
+title: "Project 2: AllReduce Algorithm Design"
+sidebar_position: 2
+---
+
 # Project 2: AllReduce Algorithm Design
 
 | Project metadata | Value |

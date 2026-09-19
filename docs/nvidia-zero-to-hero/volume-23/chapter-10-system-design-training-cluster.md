@@ -1,3 +1,8 @@
+---
+title: "Chapter 10: System Design — Training Cluster"
+sidebar_position: 10
+---
+
 # Chapter 10: System Design — Training Cluster
 
 | Chapter metadata | Value |

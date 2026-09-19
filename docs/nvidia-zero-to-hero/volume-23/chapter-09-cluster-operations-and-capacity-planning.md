@@ -1,3 +1,8 @@
+---
+title: "Chapter 9: Cluster Operations and Capacity Planning"
+sidebar_position: 9
+---
+
 # Chapter 9: Cluster Operations and Capacity Planning
 
 | Chapter metadata | Value |

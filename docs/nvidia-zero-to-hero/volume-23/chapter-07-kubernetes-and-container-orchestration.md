@@ -1,3 +1,8 @@
+---
+title: "Chapter 7: Kubernetes and Container Orchestration"
+sidebar_position: 7
+---
+
 # Chapter 7: Kubernetes and Container Orchestration
 
 | Chapter metadata | Value |

@@ -1,3 +1,8 @@
+---
+title: "Project 9: Capacity Planning Forecast"
+sidebar_position: 9
+---
+
 # Project 9: Capacity Planning Forecast
 
 | Project metadata | Value |
