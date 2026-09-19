@@ -1,256 +1,88 @@
 ---
-title: Chapter 10 — Capacity, Performance, and Cost Planning
-description: Size AI storage for usable capacity, bandwidth, metadata, burst, retention, and growth.
-sidebar_position: 11
-tags: [capacity-planning, cost, storage]
+title: "Chapter 10 — Capacity, Performance, and Cost Planning"
+sidebar_position: 10
+description: "Master FinOps for AI Storage. Learn how to architect multi-tiered storage systems that balance extreme performance with long-term data retention budgets."
 ---
 
-# Capacity, Performance, and Cost Planning
-
-Storage planning for AI workloads is fundamentally different from traditional storage. Capacity alone is not enough; throughput, metadata rate, burst handling, and cost per GPU-hour all factor into a decision. This chapter provides a framework and calculator.
+# Chapter 10 — Capacity, Performance, and Cost Planning
 
 | Chapter metadata | Value |
 |---|---|
-| Volume | 15 — AI Storage, Checkpointing, and Data Pipelines |
-| Difficulty | Intermediate |
-| Estimated reading time | 45 minutes |
-| Primary audience | DevOps, SRE, Platform, Cloud and Infrastructure Engineers |
-| Core question | How much storage do I actually need, and what does it cost compared to leaving GPUs idle? |
+| Volume | 15 — AI Storage and Data Paths |
+| Difficulty | Expert |
+| Estimated reading time | 30 minutes |
+| Primary audience | Solutions Architects, FinOps, Storage Leads |
+| Core question | If NVMe storage costs $1000/TB and S3 costs $20/TB, how do you build a 50-Petabyte AI data lake without bankrupting the company? |
 
-## The Cost of Idle GPUs vs Storage Savings
+## Introduction
 
-**Scenario: 128-GPU A100 cluster**
+In AI infrastructure, storage is often the second largest capital expense (CapEx) after the GPUs themselves. 
 
-```
-Cost per hour:
-- 128 GPUs × 4 KW × $0.10/kWh ≈ $51/hour in compute
-- 128 GPUs × $3/hour (lease) ≈ $384/hour in lease cost
-- Total: $435/hour
+If a Senior Architect specifies that all 50 Petabytes of corporate data must live on an ultra-high-performance NVMe Parallel File System, the CFO will reject the design instantly. 
+If the Architect specifies that all 50 Petabytes must live on cheap, slow S3 object storage, the training jobs will stall, and the $50 Million GPU cluster will sit idle, resulting in an even worse Return on Investment (ROI).
 
-Storage cost:
-- 1 PB parallel storage: $50K–$100K one-time + $10K/year maintenance
-- Or: 10 TB NVMe per node × 128 nodes = 1.28 PB, $500K one-time
+You must design a **Tiered Storage Architecture** that satisfies the brutal mathematics of GPU throughput while adhering to strict financial constraints.
 
-Question: If GPUs are idle 10% of the time due to data stalls, what's the impact?
-- 10% idle = 2.4 hours per day idle
-- Cost: 2.4 × $435 = $1,044/day
-- Over 1 year: $380K in wasted compute
+## 1. The Mathematics of Storage Tiering
 
-Storage cost to prevent that idle:
-- An additional $100K in storage is 2.6% of the wasted compute cost
-- Conclusion: **overspend on storage, not compute**
-```
+A production AI storage architecture consists of at least three distinct tiers, managed by automated data lifecycle policies.
 
-## Planning Framework: Six Dimensions
+### Tier 1: The Hot Scratch (The Arena)
+*   **Technology:** Local NVMe arrays (e.g., inside the DGX) or a small, ultra-fast NVMe Parallel File System (Weka, Lustre, VAST).
+*   **Purpose:** To feed active training jobs and absorb massive checkpoint bursts instantly. 
+*   **Capacity Rule:** Should only be large enough to hold the *currently active* datasets and the last 3 checkpoints. (e.g., 500 TB total).
+*   **Cost:** Extremely high.
 
-### 1. Usable Capacity
+### Tier 2: The Warm Lake (The Repository)
+*   **Technology:** High-capacity Enterprise NAS (Isilon, NetApp) or On-Premises High-Performance Object Storage (MinIO on HDDs/SSDs).
+*   **Purpose:** To store curated, formatted datasets (e.g., WebDataset tarballs) ready to be staged into Tier 1 for upcoming experiments.
+*   **Capacity Rule:** Holds the active data science workspace. (e.g., 5 Petabytes).
+*   **Cost:** Moderate.
 
-What must fit on storage?
+### Tier 3: The Cold Archive (The Vault)
+*   **Technology:** Public Cloud S3 (Glacier) or massive on-premises Tape/HDD arrays.
+*   **Purpose:** To store the raw, unformatted petabytes of telemetry data, old experiments, and historical checkpoints required for compliance. 
+*   **Capacity Rule:** Infinite. (e.g., 50 Petabytes).
+*   **Cost:** Very low.
 
-```
-Training datasets:          ___ GB
-Fine-tuning datasets:       ___ GB
-Model checkpoints (rolling): ___ GB (e.g., keep last 10)
-Model checkpoints (archive): ___ GB
-Inference models:           ___ GB
-Logs and metadata:          ___ GB
-Replication factor:         ___ x (if applicable)
-Headroom (30%):             ___ GB
+## 2. Automated Data Movement (Data Staging)
 
-Total usable:               ___ GB
-```
+A tiered architecture is useless if data scientists have to manually copy 10TB files between systems.
 
-**Example for a 1.3B parameter model, 8 nodes, 100-epoch training:**
-```
-Training dataset:           500 GB
-Checkpoint size per epoch:  100 GB (model + optimizer state)
-Keep 20 rolling checkpoints: 100 × 20 = 2,000 GB
-Keep 10 archive checkpoints: 100 × 10 = 1,000 GB
-Model artifacts:            50 GB
-Logs:                       10 GB
-Subtotal:                   3,560 GB
-Headroom (30%):             1,068 GB
-Total:                      4,628 GB ≈ 5 TB minimum
-```
+The Senior Architect must implement a **Data Orchestration Engine**. 
+1.  A data scientist submits a Kubernetes training job.
+2.  The orchestrator reads the job YAML, identifies the dataset required from Tier 2, and automatically copies it into the fast Tier 1 NVMe scratch space.
+3.  The job trains at maximum speed.
+4.  The orchestrator detects the job has finished, automatically copies the final model weights to Tier 2, and deletes the dataset from Tier 1, freeing the expensive NVMe space for the next job.
 
-### 2. Read Bandwidth
+## 3. The IOPS vs. Bandwidth Dilemma
 
-How fast must data arrive at the GPU?
+When purchasing Tier 1 storage, you must explicitly define whether your workload is **IOPS-bound** or **Bandwidth-bound**.
 
-```
-Model file size:                    100 GB
-Load time budget (before training):  30 seconds  ← Typical target
+*   **Bandwidth-Bound:** Large Language Models (LLMs). The data consists of massive sequential text corpuses. You need raw throughput (GB/s). You can often achieve this with fewer, very large NVMe drives.
+*   **IOPS-Bound:** Computer Vision or Audio. The data consists of millions of tiny files. You need massive I/O Operations Per Second (IOPS). You must purchase arrays with highly optimized metadata controllers and *many* smaller NVMe drives to aggregate the queue depths.
 
-Required bandwidth:                  100 GB / 30s = 3.3 GB/s
+## Customer Scenario (Senior Level)
 
-Concurrent training jobs:            3 jobs
-Per-job bandwidth needed:            3.3 GB/s
-Total read bandwidth needed:         9.9 GB/s ≈ 10 GB/s
+**The Situation:**
+A massive enterprise buys 50 Petabytes of high-performance Weka NVMe storage to build their new AI data lake. They ingest all their raw corporate data directly into it. Six months later, the cluster is 99% full. The AI team demands another $10 Million to double the Weka storage. The CFO refuses. The AI team claims they cannot delete any data because they "might need to train on it later."
 
-Storage system options:
-- Lustre: 24 OSTs × 800 MB/s = 19.2 GB/s ✓ (headroom)
-- BeeGFS: 8 storage nodes × 1.5 GB/s = 12 GB/s ✓ (minimal headroom)
-- NFS: single server, 2 GB/s ✗ (not enough; 5x too slow)
-```
+**The Senior Architect Response:**
+"The architecture has failed financially because it lacks a data lifecycle management strategy. You have treated Tier-1 hot scratch space as a permanent data archive.
 
-### 3. Write Bandwidth
+Weka is an elite, high-performance Parallel File System designed to feed hungry GPUs. It is mathematically irresponsible to store 50 Petabytes of raw, inactive corporate data on premium NVMe drives. 
 
-Checkpoint writes consume bandwidth; simultaneous training and checkpointing compete.
+We will not purchase more NVMe storage. We will implement a strict **Tiered Storage Architecture**. 
 
-```
-Checkpoint size:                    100 GB
-Checkpoint write budget:             5 minutes (don't block training too long)
+First, we will procure a massive, cheap Object Storage cluster (like MinIO backed by high-capacity HDDs) to act as Tier 2 and Tier 3. 
+Second, we will implement automated data lifecycle policies. Any raw data that has not been actively read by a PyTorch training job in the last 14 days will be automatically and transparently tiered off the Weka NVMe drives and pushed into the cheap Object Store. 
 
-Required write bandwidth:            100 GB / 300s = 333 MB/s
+When a data scientist needs an older dataset, the data orchestration layer will transparently pull it back from the Object Store into the Weka NVMe tier (Data Staging) before the training job begins. 
 
-Parallel checkpoint (all ranks write simultaneously):
-- 8 ranks × 333 MB/s per rank = 2.7 GB/s network demand
-- Lustre write capacity: 24 OSTs × 400 MB/s = 9.6 GB/s ✓
-- BeeGFS write capacity: 8 nodes × 1.5 GB/s = 12 GB/s ✓
-- Both have headroom; checkpoint won't block training
-```
+This architecture will instantly free up 90% of the expensive Weka NVMe capacity for active training and checkpoint bursts, satisfying the AI team's performance needs while adhering to the CFO's budget constraints."
 
-### 4. Metadata Rate
+## Interview Preparation
 
-Small-file workloads require metadata capacity.
+**Conceptual:** What is the primary financial reason for implementing a Tiered Storage Architecture for AI? *(Hint: High-performance NVMe storage (Tier 1) required to keep GPUs fed is extremely expensive. Storing petabytes of raw, inactive data on Tier 1 destroys the project's ROI. You must push inactive data to cheap, slow Object Storage (Tier 3), and only automatically stage active datasets into Tier 1 right before training begins).*
 
-```
-Dataset file count:        1.2 million small images (100 KB each)
-Metadata operations per epoch:  1.2M opens + 1.2M closes + 2.4M stats
-Total metadata ops:        4.8M per epoch
-
-Training pace (batches per sec):  100
-Each batch may open 10–100 files: 256-image batch = 256 opens
-Metadata op rate:           256 opens × 100 batches/sec = 25.6K opens/sec
-
-Storage system metadata capacity:
-- Lustre single MDS:  50K ops/sec ✓ (enough)
-- Lustre 2 MDTs:      100K ops/sec ✓ (overhead)
-- BeeGFS single MDS:  50K ops/sec ✓ (enough)
-- NFS:                5K ops/sec ✗ (too slow by 5x)
-
-Caveat: These are for directly accessed files. WebDataset or tar packaging reduces ops by 1000x.
-```
-
-### 5. Burst Handling
-
-Training can be bursty (checkpoints, epoch start scans, cleanup).
-
-```
-Baseline data rate:         1 GB/s (sustained)
-Checkpoint burst:           5 GB/s (for 5 minutes)
-Concurrent training:        1 GB/s
-Total during checkpoint:    5 + 1 = 6 GB/s (peaks)
-
-Storage network capacity (aggregate):
-- If designed for 10 GB/s sustained, burst to 6 GB/s is OK (60% utilization)
-- If designed for 5 GB/s sustained, burst to 6 GB/s will stall something
-
-Recommendation: Overbuild bandwidth by 2x sustained for 1x burst headroom
-Sustained: 3 GB/s → Buy: 6 GB/s capacity
-Sustained: 10 GB/s → Buy: 20 GB/s capacity
-```
-
-### 6. Cost Per GPU-Hour
-
-The true metric: what does it cost to keep one GPU productive for one hour?
-
-```
-Option A: Minimal Storage (2 TB NVMe, no Lustre)
-- 128 GPUs × 2 TB NVMe = 256 TB total
-- Cost: $500K one-time, $5K/year
-- Performance: Dataset loading stalls GPUs 5% of time
-- Effective waste: 128 GPUs × 5% × $435/hour = $2,784/hour
-- Annual cost of waste: $2,784 × 8760 = $24.4M
-- Total annual: $5K + $24.4M = $24.4M
-
-Option B: Balanced Storage (Lustre 1 PB + NVMe cache)
-- Lustre: $80K one-time, $10K/year
-- NVMe: $500K one-time, $5K/year
-- Performance: Dataset loading stalls GPUs less than 1% of time
-- Effective waste: 128 GPUs × 1% × $435/hour = $558/hour
-- Annual cost of waste: $558 × 8760 = $4.9M
-- Total annual: $80K + $10K + $500K + $5K + $4.9M = $5.5M
-
-Difference: $24.4M − $5.5M = $18.9M/year saved by investing in better storage!
-```
-
-## Tiering Strategy
-
-Use multiple storage tiers for different workloads:
-
-| Tier | Media | Latency | Throughput | Use case | Cost |
-|---|---|---|---|---|---|
-| **Hot** | NVMe | under 1ms | 3 GB/s per drive | Active dataset cache, checkpoint staging | $5/GB |
-| **Warm** | Parallel FS (Lustre/BeeGFS) | 1–5ms | 1–2 GB/s per server | Training datasets, active checkpoints | $0.50/GB |
-| **Cold** | Object storage (S3/GCS) | 50–100ms | 0.1–1 GB/s (egress limits) | Source data, archive checkpoints | $0.02/GB |
-| **Archive** | Glacier/Tape | hours | — | Long-term retention | $0.001/GB |
-
-**Example tiering for the 1.3B model:**
-```
-Hot (NVMe cache):     100 GB  (current working set)            × $5/GB  = $500
-Warm (Lustre):        2.5 TB  (active datasets + checkpoints) × $0.50 = $1.25K
-Cold (S3):            5 TB    (source data, old checkpoints)   × $0.02 = $100
-Archive (Glacier):    10 TB   (historical checkpoints)         × $0.001= $10
-
-Total: $1,860/year (very reasonable for a $24M/year training budget)
-```
-
-## Capacity Planning Calculator
-
-Before provisioning, fill in this table:
-
-```
-INPUTS:
-Number of GPU nodes:           [__]
-GPUs per node:                 [__]
-Model size (weights + optim):  [__] GB
-Batch size:                    [__]
-Epochs:                        [__]
-Checkpoints per epoch:         [__]
-Keep rolling checkpoints:      [__] (number to retain)
-Keep archive checkpoints:      [__] (number to retain)
-Dataset size:                  [__] GB
-Concurrent training jobs:      [__]
-
-CALCULATIONS:
-Total GPUs:                    [__] = Nodes × GPUs/node
-Checkpoint size:               [__] = Model size × 2 (optimizer state)
-Total checkpoint storage:      [__] = Checkpoint size × (rolling + archive)
-Headroom (30%):                [__]
-Total usable capacity:         [__] = Dataset + checkpoints + headroom
-
-Read bandwidth needed:         [__] GB/s = Dataset / (load_time_budget_sec) × Concurrent_jobs
-Write bandwidth needed:        [__] GB/s = Checkpoint / (checkpoint_time_budget_sec) × Concurrent_jobs
-Metadata ops needed:           [__] ops/sec = (Files × Opens/file) / Epoch_duration_sec
-
-STORAGE SELECTION:
-For capacity [__] GB and [__] GB/s read: _______________
-For write bandwidth [__] GB/s: _______________
-For metadata [__] ops/sec: _______________
-```
-
-## Headroom Budgeting
-
-Always reserve capacity and performance beyond baseline:
-
-- **Capacity headroom:** 30% (filesystem performs worse as fill approaches 90%)
-- **Bandwidth headroom:** 50% (for bursts, maintenance, other jobs)
-- **Metadata headroom:** 40% (metadata ops scale non-linearly)
-- **Rebuild time:** Reserve space so failed disk/node can rebuild within 24 hours
-
-## Interview-Ready Answer
-
-**Q: You need to outfit a 256-GPU cluster for distributed training. Datasets are 5 TB, checkpoints 500 GB, and 100 concurrent training jobs planned. What storage do you buy, and why?**
-
-A: "First, I calculate capacity: 5 TB datasets + (500 GB checkpoints × 20 rolling × 100 jobs) + 30% headroom = 5 TB + 1 TB + 1.8 TB = 7.8 TB minimum. But raw capacity is not enough. Next, bandwidth: 100 jobs × (5 TB / 60 sec load time) = 8.3 GB/s sustained read, plus checkpoint bursts at 5 GB/s write. So I need a filesystem that delivers 10–15 GB/s sustained read and 8–10 GB/s sustained write with headroom. That rules out NFS (2 GB/s) and suggests a parallel filesystem like Lustre (24 OSTs, ~19 GB/s aggregate) or BeeGFS (8 nodes, ~12 GB/s). Third, metadata: 5 TB of data packaged as WebDataset (1000 shards) means 100K opens per epoch (well within 50K MDS capacity with headroom). Storage choice: Lustre 12-node cluster (8 OST nodes + 2 MDS + 1 backup + 1 MGS) with 12 TB SSD per OST = 96 TB raw, 80 TB usable at 2x replication = well above 7.8 TB needed. Cost: ~$100K hardware + $10K/year maintenance. This is less than 5% of the annual wasted compute if I undersized storage."
-
----
-
-## Practice
-
-1. **Calculate your requirements:** Fill in the capacity planning calculator above for your next training run. What are your bottleneck dimensions (capacity, read, write, metadata)?
-
-2. **Cost-compare:** Calculate the cost of idle GPUs if storage causes 5% stall time. Compare to the cost of buying better storage. Make a recommendation.
-
-3. **Design a tiering strategy:** If you have 10 TB of data, how would you split it between NVMe cache, Lustre warm storage, and S3 cold storage? Calculate cost and performance tradeoff.
+**Architecture:** Describe the difference between a Bandwidth-bound storage workload and an IOPS-bound storage workload. *(Hint: Bandwidth-bound workloads (like LLM text training or massive checkpoint writes) require moving massive sequential files at high GB/s. IOPS-bound workloads (like unoptimized computer vision loading millions of tiny JPEGs) require the storage controller to handle massive amounts of rapid, random metadata lookups and small file reads).*
