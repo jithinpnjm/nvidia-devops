@@ -136,4 +136,4 @@ The scenario demonstrates the central operational lesson: sharing incidents are 
 
 ## Next volume
 
-[Volume 12 — AI Inference](../volume-12/index) applies these platform choices to serving systems, where request paths, batching, KV-cache pressure, concurrency, and scaling determine the user-visible latency and throughput that the shared infrastructure must protect.
+[Volume 12 — AI Inference](../volume-12/index.md) applies these platform choices to serving systems, where request paths, batching, KV-cache pressure, concurrency, and scaling determine the user-visible latency and throughput that the shared infrastructure must protect.

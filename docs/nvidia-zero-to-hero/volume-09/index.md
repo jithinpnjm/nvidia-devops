@@ -19,7 +19,7 @@ It does not promise that one feature makes Ethernet "lossless" or that a success
 |---|---|
 | Difficulty | Advanced |
 | Estimated reading time | 16–20 hours, plus labs |
-| Prerequisites | [Volume 07 — GPU Networking](../volume-07/index) and [Volume 08 — InfiniBand](../volume-08/index) |
+| Prerequisites | [Volume 07 — GPU Networking](../volume-07/index.md) and [Volume 08 — InfiniBand](../volume-08/index.md) |
 | Primary focus | RoCE-capable Ethernet for distributed AI workloads |
 | Outcome | Design, qualify, operate, and troubleshoot an evidence-backed AI Ethernet fabric |
 

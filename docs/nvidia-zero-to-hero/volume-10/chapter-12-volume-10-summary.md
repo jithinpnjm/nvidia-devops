@@ -103,4 +103,4 @@ Revisit the key chapters as you operate the platform:
 
 ## Next volume
 
-[Volume 11 — GPU Sharing](../volume-11/index) extends this platform model to MIG, time slicing, vGPU, isolation, multi-tenancy, scheduling, accounting, and performance trade-offs.
+[Volume 11 — GPU Sharing](../volume-11/index.md) extends this platform model to MIG, time slicing, vGPU, isolation, multi-tenancy, scheduling, accounting, and performance trade-offs.

@@ -329,8 +329,8 @@ Before moving on, confirm that you can:
 
 - Previous: [Why Ethernet for AI Is Different](./chapter-01-why-ethernet-for-ai-is-different)
 - Next: [RoCEv2 and RDMA over Ethernet](./chapter-03-rocev2-and-rdma-over-ethernet)
-- Related: [Topology-Aware Placement](../volume-07/chapter-08-topology-aware-placement)
-- Related: [Multi-Node Collectives and NCCL Paths](../volume-07/chapter-09-multi-node-collectives-and-nccl-paths)
+- Related: [Topology-Aware Placement](../volume-07/chapter-08-topology-aware-placement.md)
+- Related: [Multi-Node Collectives and NCCL Paths](../volume-07/chapter-09-multi-node-collectives-and-nccl-paths.md)
 
 ## Further Reading
 

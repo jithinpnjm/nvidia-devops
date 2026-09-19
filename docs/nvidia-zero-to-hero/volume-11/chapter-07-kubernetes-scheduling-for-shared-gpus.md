@@ -15,7 +15,7 @@ That distinction is where many shared-GPU platforms fail. A Pod that is Running 
 |---|---|
 | Difficulty | Advanced |
 | Reading time | 35–45 minutes |
-| Prerequisites | [Volume 10, Chapter 04](../volume-10/chapter-04-device-plugin-and-kubernetes-resource-model) and the Volume 11 sharing chapters |
+| Prerequisites | [Volume 10, Chapter 04](../volume-10/chapter-04-device-plugin-and-kubernetes-resource-model.md) and the Volume 11 sharing chapters |
 | Production outcome | An explicit, auditable mapping from workload request to GPU service class |
 
 ## Learning objectives
@@ -83,7 +83,7 @@ Use required node affinity only for hard compatibility or SLO constraints. Overl
 
 ResourceQuota can cap aggregate extended-resource consumption in a namespace. It should be paired with a namespace onboarding process: an owner, workload class, quota rationale, and escalation path. A quota that allows one team to consume every advertised time-slice can be technically valid and still violate the platform’s fairness policy.
 
-For important interactive capacity, consider a queue or admission service outside the basic scheduler model. For large coordinated jobs, validate gang or queue behavior separately rather than assuming independent Pod scheduling protects partial starts. See [Volume 10, Chapter 08](../volume-10/chapter-08-gpu-scheduling-and-topology) for the distinction between capacity, eligibility, locality, and coordinated admission.
+For important interactive capacity, consider a queue or admission service outside the basic scheduler model. For large coordinated jobs, validate gang or queue behavior separately rather than assuming independent Pod scheduling protects partial starts. See [Volume 10, Chapter 08](../volume-10/chapter-08-gpu-scheduling-and-topology.md) for the distinction between capacity, eligibility, locality, and coordinated admission.
 
 ## Change management for scheduling policy
 

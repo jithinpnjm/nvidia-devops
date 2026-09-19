@@ -207,5 +207,5 @@ The strongest design deliverable is therefore a support contract, not a Helm com
 
 - [Volume 10 introduction](./index)
 - [GPU Software Lifecycle in Kubernetes](./chapter-02-gpu-software-lifecycle-in-kubernetes)
-- [CUDA Software Stack](../volume-03/chapter-02-cuda-software-stack)
+- [CUDA Software Stack](../volume-03/chapter-02-cuda-software-stack.md)
 - [GPU Scheduling and Topology](./chapter-08-gpu-scheduling-and-topology)

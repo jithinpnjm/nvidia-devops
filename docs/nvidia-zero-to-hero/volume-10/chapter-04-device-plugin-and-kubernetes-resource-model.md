@@ -103,7 +103,7 @@ The last line, `Registered device plugin for 'nvidia.com/gpu' with Kubelet`, is 
 | Allocation | Kubelet/plugin selected devices for the bound Pod | That the application stack can execute |
 | Workload validation | A process used the device successfully | Performance, distributed behavior, or tenant policy |
 
-For extended resources such as a GPU, Kubernetes expects the quantity in `limits`; when a request is specified it must match the limit. GPUs are ordinarily consumed as whole allocatable units. Sharing, MIG, and virtual-GPU policies can expose different resource names or quantities, but they are deliberate platform configurations—not implicit overcommit behavior. See [Volume 11](../volume-11/index) before promising concurrency or isolation semantics to tenants.
+For extended resources such as a GPU, Kubernetes expects the quantity in `limits`; when a request is specified it must match the limit. GPUs are ordinarily consumed as whole allocatable units. Sharing, MIG, and virtual-GPU policies can expose different resource names or quantities, but they are deliberate platform configurations—not implicit overcommit behavior. See [Volume 11](../volume-11/index.md) before promising concurrency or isolation semantics to tenants.
 
 ## The Resource Model’s Productive Limitation
 

@@ -314,9 +314,9 @@ Before moving on, confirm that you can:
 
 - Previous: [Ethernet Architecture for AI](./chapter-02-ethernet-architecture-for-ai)
 - Next: [Priority Flow Control](./chapter-04-priority-flow-control)
-- Related: [DMA, RDMA, and Peer-to-Peer](../volume-07/chapter-04-dma-rdma-and-peer-to-peer)
-- Related: [Verbs, Queue Pairs, and Completion Queues](../volume-08/chapter-03-verbs-queue-pairs-and-completion-queues)
-- Related: [LIDs, GIDs, P_Keys, and Addressing](../volume-08/chapter-04-lids-gids-pkeys-and-addressing)
+- Related: [DMA, RDMA, and Peer-to-Peer](../volume-07/chapter-04-dma-rdma-and-peer-to-peer.md)
+- Related: [Verbs, Queue Pairs, and Completion Queues](../volume-08/chapter-03-verbs-queue-pairs-and-completion-queues.md)
+- Related: [LIDs, GIDs, P_Keys, and Addressing](../volume-08/chapter-04-lids-gids-pkeys-and-addressing.md)
 
 ## Further Reading
 

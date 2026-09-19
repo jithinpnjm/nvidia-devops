@@ -102,7 +102,7 @@ The recovery is to stop scheduling onto the affected nodes, restore the known-go
 
 Runtime configuration controls what privileged device interfaces enter a container. Protect its configuration, sockets, and operator operands with image provenance, registry policy, RBAC, and narrow write access. Workload-level access control also matters: a request for a GPU should be governed by namespace policy, quotas, and the appropriate node pool—not by a user’s ability to alter host runtime settings.
 
-Do not conflate device access with tenant isolation. The runtime correctly injecting a GPU answers an execution question. Isolation and sharing semantics depend on the GPU configuration, the resource exposed by the plugin, and the platform policy; [Volume 11](../volume-11/index) covers these models.
+Do not conflate device access with tenant isolation. The runtime correctly injecting a GPU answers an execution question. Isolation and sharing semantics depend on the GPU configuration, the resource exposed by the plugin, and the platform policy; [Volume 11](../volume-11/index.md) covers these models.
 
 ## Troubleshooting the Runtime Boundary
 
@@ -176,4 +176,4 @@ This separation also improves incident communication. “The resource is allocat
 - [GPU Software Lifecycle in Kubernetes](./chapter-02-gpu-software-lifecycle-in-kubernetes)
 - [Device Plugin and Kubernetes Resource Model](./chapter-04-device-plugin-and-kubernetes-resource-model)
 - [Driver Containers and Node Operands](./chapter-07-driver-containers-and-node-operands)
-- [Volume 11 — GPU Sharing and Virtualization](../volume-11/index)
+- [Volume 11 — GPU Sharing and Virtualization](../volume-11/index.md)

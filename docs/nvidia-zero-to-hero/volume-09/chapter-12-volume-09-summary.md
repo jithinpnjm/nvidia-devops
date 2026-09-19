@@ -194,4 +194,4 @@ Avoid describing RoCE as “InfiniBand over Ethernet.” It carries RDMA semanti
 
 ## Next Volume
 
-[Volume 10 — Kubernetes GPU Platform](../volume-10/index) moves from the physical and network foundation into cluster software: drivers, container runtime, device discovery, scheduling, GPU Operator, upgrades, validation, and production operations.
+[Volume 10 — Kubernetes GPU Platform](../volume-10/index.md) moves from the physical and network foundation into cluster software: drivers, container runtime, device discovery, scheduling, GPU Operator, upgrades, validation, and production operations.

@@ -321,6 +321,6 @@ The platform makes GPU computing practical, but it does not make every workload 
 
 ## Cross References
 
-- Previous: [Volume 02 Architecture Summary](../volume-02/chapter-12-volume-02-architecture-summary)
+- Previous: [Volume 02 Architecture Summary](../volume-02/chapter-12-volume-02-architecture-summary.md)
 - Next: [The CUDA Software Stack](./chapter-02-cuda-software-stack)
 - Related lab: [Inspect and Validate a CUDA Environment](./labs/lab-01-inspect-and-validate-a-cuda-environment)

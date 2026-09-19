@@ -43,22 +43,22 @@ flowchart TD
 
 ## Chapters
 
-1. [Performance Engineering Fundamentals](./chapter-01-performance-engineering-fundamentals) — Metrics, evidence ladders, roofline introduction
-2. [Profiling Tools Landscape](./chapter-02-profiling-tools-landscape) — Nsight Compute, Nsight Systems, PyTorch profiler
-3. [Roofline Model and Analytical Performance](./chapter-03-roofline-model-analytical-performance) — Hardware limits, compute intensity, bottleneck classification
-4. [Bottleneck Identification and Diagnosis](./chapter-04-bottleneck-identification-diagnosis) — Decision trees, real examples, systematic isolation
-5. [GPU Compute Optimization](./chapter-05-gpu-compute-optimization) — Occupancy, ILP, instruction throughput, reaching peak TFLOPS
-6. [Memory Optimization](./chapter-06-memory-optimization) — Bandwidth utilization, tiling, coalescing, cache efficiency
-7. [Communication and Collective Optimization](./chapter-07-communication-collective-optimization) — NCCL, allreduce latency, compute-collective overlap
-8. [Inference Optimization](./chapter-08-inference-optimization) — Prefill vs decode, KV cache, batching, quantization
-9. [Training Optimization](./chapter-09-training-optimization) — Gradient checkpointing, mixed precision, pipeline parallelism, scaling
-10. [System-Level Performance Tuning](./chapter-10-system-level-performance-tuning) — Clocks, thermal throttling, NUMA, PCIe, power limits
-11. [Production Performance Monitoring and SLOs](./chapter-11-production-performance-monitoring-slos) — SLO definition, instrumentation, regression detection, alerting
-12. [Volume 17 Summary and Decision Trees](./chapter-12-volume-summary) — Integrated optimization workflow, technique catalog, real scenarios
+1. [Performance Engineering Fundamentals](./chapter-01-performance-engineering-fundamentals.md) — Metrics, evidence ladders, roofline introduction
+2. [Profiling Tools Landscape](./chapter-02-profiling-tools-landscape.md) — Nsight Compute, Nsight Systems, PyTorch profiler
+3. [Roofline Model and Analytical Performance](./chapter-03-roofline-model-and-analytical-performance.md) — Hardware limits, compute intensity, bottleneck classification
+4. [Bottleneck Identification and Diagnosis](./chapter-04-bottleneck-identification-and-diagnosis.md) — Decision trees, real examples, systematic isolation
+5. [GPU Compute Optimization](./chapter-05-gpu-compute-optimization.md) — Occupancy, ILP, instruction throughput, reaching peak TFLOPS
+6. [Memory Optimization](./chapter-06-memory-optimization.md) — Bandwidth utilization, tiling, coalescing, cache efficiency
+7. [Communication and Collective Optimization](./chapter-07-communication-and-collective-optimization.md) — NCCL, allreduce latency, compute-collective overlap
+8. [Inference Optimization](./chapter-08-inference-optimization.md) — Prefill vs decode, KV cache, batching, quantization
+9. [Training Optimization](./chapter-09-training-optimization.md) — Gradient checkpointing, mixed precision, pipeline parallelism, scaling
+10. [System-Level Performance Tuning](./chapter-10-system-level-performance-tuning.md) — Clocks, thermal throttling, NUMA, PCIe, power limits
+11. [Production Performance Monitoring and SLOs](./chapter-11-production-performance-monitoring-and-slos.md) — SLO definition, instrumentation, regression detection, alerting
+12. [Volume 17 Summary and Decision Trees](./chapter-12-volume-17-summary-and-decision-trees.md) — Integrated optimization workflow, technique catalog, real scenarios
 
 ## Labs
 
-- [Lab 01 — Profiling Fundamentals](./labs/lab-01-placeholder) — Profile a PyTorch loop with Nsight Systems and PyTorch profiler
-- [Lab 02 — Roofline Analysis](./labs/lab-02-placeholder) — Measure kernel metrics and plot on roofline model
-- [Lab 03 — Mixed Precision Training](./labs/lab-03-placeholder) — FP32 vs BF16, measure speedup, validate accuracy
-- [Lab 04 — Distributed Training Performance](./labs/lab-04-placeholder) — Multi-GPU throughput, scaling efficiency, collective profiling
+- Lab 01 — Profiling Fundamentals — Profile a PyTorch loop with Nsight Systems and PyTorch profiler
+- Lab 02 — Roofline Analysis — Measure kernel metrics and plot on roofline model
+- Lab 03 — Mixed Precision Training — FP32 vs BF16, measure speedup, validate accuracy
+- Lab 04 — Distributed Training Performance — Multi-GPU throughput, scaling efficiency, collective profiling

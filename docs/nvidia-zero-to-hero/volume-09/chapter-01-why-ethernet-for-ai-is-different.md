@@ -289,8 +289,8 @@ Before moving on, confirm that you can:
 
 ## Cross References
 
-- [Volume 07 — GPU Networking](../volume-07/index)
-- [Volume 08 — InfiniBand](../volume-08/index)
+- [Volume 07 — GPU Networking](../volume-07/index.md)
+- [Volume 08 — InfiniBand](../volume-08/index.md)
 - [Ethernet Architecture for AI](./chapter-02-ethernet-architecture-for-ai)
 - [Priority Flow Control](./chapter-04-priority-flow-control)
 - [ECN and DCQCN](./chapter-05-ecn-and-dcqcn)
