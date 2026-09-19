@@ -1,203 +1,82 @@
 ---
-title: Chapter 02 — GPU Software Lifecycle in Kubernetes
-description: Operate firmware, drivers, runtimes, discovery, and workload compatibility as one controlled GPU-platform lifecycle.
-sidebar_position: 3
-tags: [kubernetes, gpu, lifecycle]
+title: "Chapter 2 — GPU Software Lifecycle in Kubernetes"
+sidebar_position: 2
+description: "Understand the immense operational burden of managing kernel drivers and container runtimes across massive fleets of Kubernetes nodes."
 ---
 
-# GPU Software Lifecycle in Kubernetes
+# Chapter 2 — GPU Software Lifecycle in Kubernetes
 
-The most dangerous GPU-platform change is one that looks local. A kernel patch appears to be an operating-system concern; a container-runtime update appears to be a node-service concern; a framework image refresh appears to be an application concern. In a GPU cluster, any of those can break the same execution path. The platform must therefore manage versions and evidence as a lifecycle, not as independent package upgrades.
+| Chapter metadata | Value |
+|---|---|
+| Volume | 10 — Kubernetes GPU Platform Layer |
+| Difficulty | Intermediate |
+| Estimated reading time | 30 minutes |
+| Primary audience | SREs, Kubernetes Administrators |
+| Core question | If installing a GPU driver takes one command (`apt-get install`), why does managing driver lifecycles consume 40% of an SRE's time? |
 
-The lifecycle starts before Kubernetes: firmware initializes the device, the kernel driver binds it, and the host exposes the driver interface. Kubernetes adds discovery and allocation. The runtime turns allocation into a container sandbox. Finally, CUDA and the framework consume that interface. A green status at one layer is evidence for that layer only.
+## Introduction
 
-## Learning Objectives
+Day 1 of building a GPU cluster is easy. You install the driver, the toolkit, and the plugins. The cluster goes green. 
 
-After this chapter, you can:
+Day 2 is where the architecture fails. 
+In a production environment, nodes are not static. The security team mandates a Linux kernel patch. The data science team demands a newer version of CUDA to support a new PyTorch release. A node dies and is replaced by a slightly different hardware SKU.
 
-- map a GPU change to the layers it can invalidate;
-- distinguish host-driver compatibility from container-image compatibility;
-- define acceptance evidence for a canary GPU node;
-- design a staged rollout, drain, and rollback procedure; and
-- diagnose why Kubernetes node health does not prove GPU workload health.
+If your architecture relies on manual, host-level installations of GPU software, your platform will suffer catastrophic downtime during these routine lifecycle events. This chapter explores the physics of the GPU software lifecycle and why legacy management methods fail in Kubernetes.
 
-## The Lifecycle Is a Dependency Graph
+## 1. The Kernel Dependency Trap
 
-```mermaid
-flowchart BT
-    HW[GPU hardware and platform firmware] -->|"evidence: nvidia-smi -q shows GPU Attached=Yes, no Xid resets"| Driver[Kernel driver]
-    Driver -->|"evidence: lsmod shows nvidia module loaded"| Loaded{"Did the module load after boot?"}
-    Loaded -->|"No"| DriverFail["Node Ready, but GPU platform NOT ready —\ndmesg shows module load failure"]
-    Loaded -->|"Yes"| Runtime[Container runtime and Toolkit]
-    Loaded -->|"Yes"| Plugin[Device plugin]
-    Plugin -->|"evidence: plugin logs 'Registered device plugin' to kubelet"| Resource[Node allocatable GPU resource]
-    Runtime -->|"evidence: minimal CUDA container starts and runs nvidia-smi"| Sandbox[GPU-enabled container sandbox]
-    Resource --> Sandbox
-    Sandbox --> CUDA[CUDA runtime and framework image]
-    CUDA --> Init{"Does CUDA init succeed in the framework image?"}
-    Init -->|"No — minimal image passed, framework failed"| AppFail["Framework/image dependency issue,\nnot a platform issue"]
-    Init -->|"Yes"| Workload[Workload result]
-```
+The most fragile component of the GPU stack is the NVIDIA driver (the kernel modules: `nvidia.ko`, `nvidia-uvm.ko`, etc.).
 
-**Figure 10.2.1 — A workload needs both allocation and execution.** The device plugin makes a resource eligible for scheduling; the runtime makes the allocation real inside a container. Both depend on a functioning host driver. The `Loaded?` branch is the exact failure this chapter's production story below walks through: a node can be `Ready` at the Kubernetes layer while sitting on the `DriverFail` branch here, invisible to kubelet health checks entirely. The `Init?` branch separates a platform fault from an application fault using the same minimal-image discriminator used throughout this volume.
+Kernel modules are tightly coupled to the specific version of the Linux kernel running on the host. If a server is running kernel `5.15.0-82-generic`, the NVIDIA driver must be compiled specifically for `5.15.0-82-generic`.
 
-The graph explains common surprises. A device plugin can advertise a resource while a misconfigured runtime prevents Pod startup. A minimal CUDA container can pass while a framework image fails due to its own dependencies. A node can be `Ready` while the driver failed to load after reboot. Treating the graph as an ordered set of validation gates makes the failure visible at the right boundary.
+**The Legacy Upgrade Nightmare:**
+1.  The security team pushes an automated OS update, upgrading the node to kernel `5.15.0-83-generic`.
+2.  The node reboots.
+3.  The Linux kernel boots up and attempts to load the NVIDIA driver.
+4.  The kernel rejects the driver because it was compiled for `-82`, not `-83`.
+5.  The NVIDIA GPUs disappear from the OS.
+6.  The Kubernetes Device Plugin crashes.
+7.  The node reports 0 GPUs available, and all AI workloads are evicted or remain stuck in `Pending`.
 
-**Reading the `Loaded?` branch as real output.** After a kernel update, the node reports `Ready` normally:
+To fix this, an engineer must SSH into the node, manually trigger a recompilation of the driver using DKMS (Dynamic Kernel Module Support), and restart the services. Across a 1,000-node cluster, this is an unacceptable operational burden.
 
-```text
-$ kubectl get node gpu-node-22
-NAME          STATUS   ROLES    AGE   VERSION
-gpu-node-22   Ready    <none>   14m   v1.29.4
-```
-`Ready` here only reflects kubelet heartbeats, container runtime health, and disk/PID pressure — none of which touch the NVIDIA driver at all. The driver-specific evidence is a separate check:
+## 2. The Golden Image (AMI) Anti-Pattern
 
-```text
-$ ssh gpu-node-22 'lsmod | grep nvidia; nvidia-smi'
-(no output from lsmod)
-NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver.
-Make sure that the latest NVIDIA driver is installed and running.
-```
-Empty `lsmod | grep nvidia` (module not loaded at all) plus the NVML communication failure is definitive: this node is `Ready` and will happily accept CPU Pods, but is on the `DriverFail` branch of Figure 10.2.1 for anything GPU-related. `dmesg` on the same node typically shows the reason:
+To avoid manual Ansible runs, many teams bake the NVIDIA drivers and container toolkit directly into their virtual machine templates or "Golden Images" (e.g., AWS AMIs).
 
-```text
-$ ssh gpu-node-22 'dmesg -T | grep -i nvidia | tail -3'
-[Thu Aug  6 08:02:11 2026] nvidia: module verification failed: signature and/or required key missing - tainting kernel
-[Thu Aug  6 08:02:11 2026] nvidia: probe of 0000:07:00.0 failed with error -1
-```
-`module verification failed` naming secure-boot/signing is the specific dependency this kernel update broke — the module package is present, it simply cannot load under the node's current signing policy.
+**Why this fails at scale:**
+*   **Version Lock:** If the data science team needs CUDA 12.2 (which requires Driver 535), but your Golden Image is baked with Driver 525, you cannot simply update a Kubernetes deployment. You must rebuild the entire machine image, drain the nodes, terminate the underlying VMs, and roll out new VMs. This takes hours or days.
+*   **Hardware Fragmentation:** If you buy H100 GPUs, they might require a different base driver branch than your older A100 GPUs. You now have to maintain multiple diverging Golden Images for different node pools.
 
-## Compatibility Is Policy, Not a Spreadsheet Afterthought
+## 3. The Shift to Containerized Infrastructure
 
-A container image does not carry a kernel driver for its host. Its CUDA user-space stack uses the host driver interface. Therefore the platform must qualify the whole supported combination: GPU and platform firmware, operating-system kernel, driver branch, runtime and toolkit configuration, device-plugin and operator release, Kubernetes release, and workload image family.
+A fundamental principle of Kubernetes is immutable, containerized infrastructure. We run applications in containers so they are decoupled from the host OS.
 
-| Layer changed | What can break | Evidence to retain |
-|---|---|---|
-| Firmware or platform BIOS | Device initialization, reset, topology, enumeration | Platform release record and hardware acceptance result |
-| Kernel | Module build, load, signing, and host reboot behavior | Kernel version, module/load evidence, boot logs |
-| NVIDIA driver | CUDA compatibility, device health, runtime interface | Driver version and minimal workload result |
-| Runtime or Toolkit | Sandbox creation, device injection, CDI or handler behavior | Runtime config revision and container validation |
-| Device plugin or operator | Resource registration, allocation, operand reconciliation | Node allocatable state, operand status, events |
-| Framework image | CUDA initialization and application behavior | Image digest and representative workload result |
+Why should infrastructure software be any different?
 
-Do not convert this into an unbounded test matrix. Define a small number of approved node profiles and workload base-image families, then test the combinations customers are allowed to run. An unsupported combination is not made safe because its individual components each appear recent.
+Instead of installing the NVIDIA driver on the host OS via `apt` or `yum`, modern architectures run the NVIDIA driver *inside a privileged container*. 
+Instead of installing the device plugin via a binary on the host, we run it as a DaemonSet.
 
-**Why "unbounded" is not hyperbole (illustrative numbers).** Take just three of the six layers in the table: 3 supported kernel versions, 2 driver branches, and 4 workload base-image families. Testing every combination independently is `3 x 2 x 4 = 24` qualification runs before adding runtime/toolkit revisions, operator releases, or Kubernetes versions at all — each of which multiplies the count further (adding just 2 Kubernetes versions takes it to 48). This is exactly why the fix is not "test more" but "support fewer": collapsing to a small number of named node profiles (for example, 2 profiles: "current" and "previous known-good") each paired with a fixed, qualified image family turns an exponential matrix into a short, enumerable list — 2 profiles x 4 image families = 8 combinations, all of which can actually be re-tested on every change instead of sampled.
+By containerizing the entire GPU software stack, we move the lifecycle management out of the host OS (Ansible/Packer) and into the Kubernetes control plane (Helm/Operators). This sets the stage for the NVIDIA GPU Operator, which automates this entire lifecycle.
 
-## A Production Change Model
+## Customer Scenario (Senior Level)
 
-Use a release record that names the desired state, its compatibility evidence, and its reversal point. A useful record contains pinned image digests or package versions, operating-system and kernel release, operator values or policy revision, supported GPU pools, validation images, maintenance window, and accountable owners.
+**The Situation:**
+An enterprise runs a massive Kubernetes cluster spanning both on-premises bare-metal servers and AWS EC2 instances. They manage their GPU drivers by baking them into custom machine images (AMIs for AWS, ISOs for on-prem). The AI team urgently requests a driver upgrade to support a critical new AI model. The Platform team states the upgrade will take 3 weeks because they have to rebuild the images, test them across different hardware generations, and execute a slow, rolling node replacement across 500 nodes.
 
-```mermaid
-flowchart LR
-    Qualify[Qualify profile] --> Canary[Drain and update canary]
-    Canary --> Validate[Validate host, runtime, allocation, workload]
-    Validate -->|Pass| Expand[Roll out a bounded pool]
-    Expand --> Observe[Observe under production load]
-    Validate -->|Fail| Rollback[Restore known-good profile]
-    Observe -->|Regression| Rollback
-```
+**The Senior Architect Response:**
+"Your 3-week lead time is a direct symptom of managing Kubernetes infrastructure using legacy, host-level paradigms. You have hardcoded infrastructure dependencies into immutable machine images, coupling the lifecycle of the GPU driver to the lifecycle of the entire operating system.
 
-**Figure 10.2.2 — A GPU rollout expands only after execution evidence.** Kubernetes readiness alone is not a promotion condition.
+When you bake drivers into an AMI, you are fighting Kubernetes, not utilizing it. 
 
-Drain before a change that can reset a GPU, unload a driver, restart the runtime, or invalidate running CUDA contexts. The drain plan must account for checkpointing, PodDisruptionBudgets, daemon workloads, and reserved spare capacity. A team that cannot drain a pool safely has not yet designed a safe platform upgrade.
+We must immediately pivot to a **Containerized Driver Architecture**. We will strip the NVIDIA drivers, the CUDA toolkit, and the Device Plugin out of the Golden Images. The base image should contain nothing but a standard Linux kernel and a container runtime. 
 
-Rollback must restore a coherent profile, not merely one package. Reverting the driver while retaining a changed kernel or runtime configuration can create a new incompatible state. Preserve the last known-good images, configuration, and node-image path before starting rollout.
+We will deploy the **NVIDIA GPU Operator** to the cluster. When a blank, driverless node joins the cluster, the Operator will detect its GPU hardware, dynamically compile the correct driver kernel modules inside a privileged container, and load them into the host kernel on the fly. 
 
-## Node Acceptance Gates
+When the AI team requests a driver upgrade in the future, we simply update the Helm chart value for the driver version. The Operator will perform a rolling, zero-downtime update of the driver containers across the cluster in minutes, completely eliminating the 3-week machine image rebuild process."
 
-| Gate | Question answered | Example evidence |
-|---|---|---|
-| Hardware and driver | Does the host control the expected device? | Device enumeration, loaded-driver state, host diagnostic output |
-| Runtime | Can a newly created sandbox receive an allocated device? | Scoped minimal GPU container result |
-| Kubernetes resource | Can the kubelet advertise the expected healthy capacity? | Node capacity and allocatable resource, plugin health |
-| Workload | Does an approved image execute its initialization path? | Framework smoke test and logs |
-| Operations | Can the platform observe and support this node? | Telemetry scrape, alerts, and recorded versions |
+## Interview Preparation
 
-Automate these gates and keep their output with the change record. An acceptance test should be intentionally smaller than an application benchmark; it exists to prove the platform boundary, not to certify every model or dataset. [Chapter 9](./chapter-09-gpu-observability-with-dcgm) covers the telemetry required after promotion.
+**Conceptual:** Why is updating a Linux kernel dangerous for a GPU-enabled node? *(Hint: GPU drivers are kernel modules. Kernel modules must be compiled against the exact kernel headers of the running OS. If the kernel is updated, the pre-compiled NVIDIA driver will fail to load, blinding the OS to the GPUs).*
 
-## Production Story: Green Nodes, Failed GPUs
-
-An operating-system team rolls a kernel update through half of a GPU pool. Nodes rejoin as `Ready`, and CPU services recover. The driver operand fails on a subset of nodes because the expected module cannot be loaded. On another subset, capacity is advertised but new CUDA Pods fail as the runtime service retained stale configuration.
-
-The immediate mitigation is to cordon the nonconforming nodes, restore the last known-good profile, and capture the first failure from driver and runtime logs. The corrective action is more important: a dedicated GPU canary, explicit promotion gates, and a rule that node `Ready` does not remove the GPU-pool taint. Only acceptance evidence does.
-
-## Troubleshooting by Layer
-
-| Symptom | Start here | Do not conclude yet |
-|---|---|---|
-| GPU disappears after reboot | Kernel, driver load, signing, and device enumeration | A driver package’s presence does not prove a loaded module |
-| GPUs are allocatable but Pods fail at creation | Runtime service, Toolkit config, allocation result | A resource count does not prove sandbox injection |
-| Minimal image works; framework fails | Framework image, CUDA stack, app initialization | The device plugin is unlikely to be the first fault |
-| One node pool fails | Compare profile revisions and acceptance evidence | Labels alone do not reveal runtime drift |
-| Cluster upgrade changed behavior | Node image, CRI, kubelet, admission, and operator compatibility | An unchanged operator release does not isolate the change |
-
-Capture the exact versions before remediation. Recreating Pods or restarting all operands first may remove the evidence that distinguishes a bad node profile from a transient workload failure.
-
-**Evidence for "GPUs are allocatable but Pods fail at creation."** This is the most common gap between what Kubernetes reports and what actually runs, and it produces a specific, checkable mismatch:
-
-```text
-$ kubectl get node gpu-node-30 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}'
-4
-
-$ kubectl get pods -n ml-team -l job=resnet-train
-NAME              READY   STATUS                 RESTARTS   AGE
-resnet-train-0    0/1     CreateContainerError   0          3m
-resnet-train-1    0/1     CreateContainerError   0          3m
-
-$ kubectl get events -n ml-team --field-selector involvedObject.name=resnet-train-0
-LAST SEEN   TYPE      REASON    MESSAGE
-2m          Warning   Failed    Error: failed to create containerd task: OCI runtime create failed:
-                                 nvidia-container-cli: mount error: file creation failed:
-                                 /run/containerd/.../dev/nvidia0: no such device or address
-```
-`Allocatable: 4` is correct and unchanged — the plugin's advertisement is not the problem. The event's `mount error` naming a specific device path (`/dev/nvidia0`) that the container-runtime attempted and failed to bind-mount is proof the fault is in the Toolkit/runtime configuration layer, consistent with the table's "runtime service, Toolkit config, allocation result" guidance — not a plugin registration issue, which would instead show up as an `Allocatable` drop or `Insufficient nvidia.com/gpu` scheduling event.
-
-**Evidence for "Minimal image works; framework fails."** Running the platform's minimal validation image and the production framework image back to back isolates the layer immediately:
-
-```text
-$ kubectl logs minimal-cuda-check
-GPU 0: NVIDIA A100-SXM4-80GB (UUID: GPU-3a1e...)
-CUDA_CHECK_OK
-
-$ kubectl logs resnet-train-0
-Traceback (most recent call last):
-  ...
-RuntimeError: CUDA error: no kernel image is available for execution on the device
-```
-The minimal image printing `CUDA_CHECK_OK` proves the platform boundary — driver, runtime injection, device visibility — is entirely healthy on this node. The framework error (`no kernel image is available`) is a compute-capability/build mismatch inside the framework image itself, e.g. a PyTorch wheel built without this GPU's `sm_` architecture — which the table flags explicitly: "the device plugin is unlikely to be the first fault" once a minimal image has already succeeded on the same node.
-
-## Customer Architecture Discussion
-
-Customers often ask for an “automatic driver upgrade.” The correct answer begins with workload disruption and compatibility. A driver operation can affect kernel modules, containers, active CUDA contexts, scheduling capacity, and support posture. Automation is valuable when it applies a qualified profile consistently and exposes failure; it is unsafe when it bypasses drain, canary, validation, and rollback decisions.
-
-Offer a lifecycle contract: approved profiles, a release cadence, node-pool scope, a validation suite, a rollback target, and a clear owner for each layer. It gives applications a stable platform boundary while allowing the infrastructure team to evolve the fleet deliberately.
-
-## Interview Questions
-
-**Why is a Kubernetes node `Ready` condition insufficient for GPU admission?**
-
-**Model answer:** "`Ready` is a kubelet-heartbeat signal — it means the kubelet is checking in, the container runtime is responsive, and disk/memory/PID pressure are within bounds. None of those checks touch the NVIDIA driver at all. I've seen a node stay `Ready` through an entire kernel update where the driver module failed to load afterward — `lsmod | grep nvidia` came back empty and `nvidia-smi` couldn't talk to NVML, but kubelet never noticed because it was never checking that in the first place. That's exactly why this chapter treats GPU admission as its own gate, separate from `Ready`: driver load, device-plugin advertisement, runtime injection, CUDA init, and telemetry all have to be checked explicitly, because Kubernetes's own health model doesn't check any of them."
-
-**Why should rollback restore a profile rather than a driver package?**
-
-**Model answer:** "Because the driver isn't an independent component — its compatibility is with the specific kernel it's loaded against and the runtime/toolkit configuration that injects it into containers. If I roll back just the driver package but leave the new kernel and an already-updated runtime config in place, I've created a three-way combination that was never actually tested together — it might work, or it might fail in a new way that's harder to diagnose than the original incident. The safer model is to version the whole node profile — kernel, driver, runtime/toolkit config, operator values — as one unit with one known-good tag, and roll the entire tag back together. That's the only way I can be confident I'm restoring a state that was actually qualified, not just reverting the one component that happened to change most recently."
-
-**Walk through how you'd design the node-acceptance gates for a new GPU pool before it takes production traffic.**
-
-**Model answer:** "I'd chain them in the order Figure 10.2.1 implies, because each gate is a prerequisite for the next one meaning anything. First, hardware/driver — does `nvidia-smi` on the host show the expected GPU count and driver version, no Xid errors. Second, runtime — does a minimal, platform-owned CUDA container actually start and run `nvidia-smi` inside it, which proves injection, not just host visibility. Third, the Kubernetes resource — does the node's `Allocatable` for `nvidia.com/gpu` match the physical count. Fourth, workload — does the approved framework image's own initialization path succeed, not just the minimal image. Fifth, operations — is DCGM actually scraping this node and are alerts wired up. I'd automate all five as one canary job and refuse to promote the pool out of its taint until all five pass and their output is attached to the change record — 'the node is Ready' by itself proves none of this."
-
-## Key Takeaways
-
-- GPU software is a dependency graph spanning host, Kubernetes, runtime, and image layers.
-- Compatibility is an approved-profile policy backed by representative evidence.
-- A staged rollout promotes on GPU execution evidence, not node readiness.
-- Drain and rollback are design requirements for disruptive GPU changes.
-- The first failed layer is more useful than the most visible application symptom.
-
-## Cross References
-
-- [Why Kubernetes Needs a GPU Platform Layer](./chapter-01-why-kubernetes-needs-a-gpu-platform-layer)
-- [NVIDIA Container Toolkit, RuntimeClass, and CDI](./chapter-03-container-toolkit-runtimeclass-and-cdi)
-- [Driver Containers and Node Operands](./chapter-07-driver-containers-and-node-operands)
-- [GPU Observability with DCGM](./chapter-09-gpu-observability-with-dcgm)
+**Architecture:** Contrast the "Golden Image" approach with the "Containerized Driver" approach. *(Hint: Golden Image bakes the driver into the OS template, requiring a full VM replacement to update a driver. Containerized drivers run the driver installer inside a privileged Kubernetes DaemonSet, allowing rapid, decoupled updates managed purely through the Kubernetes API).*

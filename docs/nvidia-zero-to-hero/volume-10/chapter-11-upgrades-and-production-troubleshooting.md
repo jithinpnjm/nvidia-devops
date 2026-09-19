@@ -1,154 +1,82 @@
 ---
-title: Chapter 11 — Upgrades and Production Troubleshooting
-description: Operate GPU Kubernetes clusters through driver, runtime, operator, and node failures.
-sidebar_position: 12
-tags: [gpu-operator, upgrades, troubleshooting]
+title: "Chapter 11 — Upgrades and Production Troubleshooting"
+sidebar_position: 11
+description: "Master the Day-2 operations of a GPU cluster. Learn how to perform zero-downtime upgrades and diagnose complete hardware failures."
 ---
 
-# Upgrades and Production Troubleshooting
+# Chapter 11 — Upgrades and Production Troubleshooting
 
-A GPU-platform upgrade is not a chart upgrade with a longer wait time. It changes a compatibility set that can include the Kubernetes distribution, node operating-system image and kernel, NVIDIA driver, container runtime, GPU Operator operands, firmware, and workload libraries. Each layer may appear healthy while its interface to the next layer has failed.
+| Chapter metadata | Value |
+|---|---|
+| Volume | 10 — Kubernetes GPU Platform Layer |
+| Difficulty | Expert |
+| Estimated reading time | 30 minutes |
+| Primary audience | SREs, Kubernetes Administrators |
+| Core question | When you need to upgrade the GPU drivers across 500 nodes, how do you do it without killing 10,000 running AI jobs? |
 
-Production safety comes from constraining that change, proving it on representative nodes, and retaining a rollback that restores a coherent state. The same layered model gives incident response a disciplined order: establish scope, find the first failed boundary, preserve evidence, and apply the smallest safe mitigation.
+## Introduction
 
-## Learning objectives
+Day 1 is installation. Day 2 is survival.
 
-You will be able to plan a canary rollout, define the validation and rollback gates, diagnose common GPU workload failures by layer, and assemble evidence that a platform or hardware support team can act on.
+In a production AI factory, workloads run for weeks. You cannot simply reboot nodes or rip out drivers without catastrophic business impact. A Senior SRE must understand how to execute zero-downtime upgrades of the GPU Platform Layer and how to quickly diagnose issues when the platform suddenly stops reporting GPUs.
 
-## Change the compatibility set, not a component in isolation
+## 1. Zero-Downtime GPU Operator Upgrades
 
-```mermaid
-flowchart TD
-    Inventory[Record known-good compatibility set] -->|"evidence: prior versions, node image,<br/>and known-good baseline archived"| Canary[Change representative canary pool]
-    Canary -->|"evidence: helm history shows new revision,<br/>clusterpolicy reconciling"| Gate[Run workload and telemetry acceptance gates]
-    Gate --> Pass{"Capacity, workload,<br/>and telemetry gates pass?"}
-    Pass -->|"No — allocatable dropped,<br/>new XID/kernel errors, or metric loss"| Recover[Contain and restore coherent state]
-    Pass -->|"Yes: allocatable == baseline,<br/>validation Pod succeeded,<br/>DCGM series present"| Rollout[Roll out small, observable batches]
-    Rollout -->|"evidence: each batch's acceptance<br/>suite rerun independently"| Observe[Observe service and fleet signals]
-    Observe --> Decision{"Safe to continue to<br/>next batch?"}
-    Decision -->|"Yes"| Rollout
-    Decision -->|"No — fleet signal regresses<br/>or comparison pool diverges"| Recover
-```
+Upgrading the GPU Operator (via `helm upgrade`) is a delicate operation. If you restart the `nvidia-driver-daemonset` while a Pod is actively using the GPU, the Pod will crash.
 
-**Figure 10.11.1 — A canary is an evidence gate, not a smaller production outage.** Progression requires explicit acceptance; ambiguity is a reason to stop expansion. Note there are now two decision points, not one: `Pass` gates the canary itself before any wider rollout is even considered, and `Decision` gates every subsequent batch independently — a canary that passed does not pre-approve batch 3 of 6, because a driver or firmware issue can be node-population-dependent (a specific hardware revision, a specific BIOS setting) and only show up once the rollout reaches the nodes that have it.
+To prevent this, the Operator supports **Driver Upgrade Policies**.
+Instead of forcefully deleting all the driver containers, the Operator can be configured to respect standard Kubernetes node lifecycle commands.
 
-The release record should state the prior and proposed values for Kubernetes, node image and kernel, driver, runtime, operator/chart and operand images, relevant firmware, and the GPU workload validation image. It should also name the node pools, maintenance window, workload owners, capacity reservation, and decision authority for pause or rollback.
+**The Safe Upgrade Workflow:**
+1.  **Cordon:** You run `kubectl cordon <node>`. This prevents the Kubernetes scheduler from sending any new AI jobs to the node.
+2.  **Drain:** You run `kubectl drain <node>`. This safely evicts the existing workloads, moving them to other healthy nodes in the cluster.
+3.  **Upgrade:** Once the node is completely empty of user workloads, the GPU Operator detects the drain and safely restarts the driver container, loading the new kernel modules.
+4.  **Uncordon:** You run `kubectl uncordon <node>`, returning the node to the active scheduling pool with the new driver.
 
-| Change surface | Failure boundary to validate | Recovery consideration |
-|---|---|---|
-| Kernel or node image | Driver module load and node boot | Usually requires a known-good node image and reboot path |
-| Driver | Device initialization, CUDA compatibility, reset behavior | Roll back with a compatible kernel and runtime; do not assume chart rollback is sufficient |
-| Container runtime or toolkit | Device injection, CDI or runtime handler, Pod sandbox creation | Validate a fresh GPU Pod, not only an already-running one |
-| Operator or chart | Operand reconciliation and configuration interpretation | Restore pinned chart and values only when host state remains compatible |
-| Kubernetes or kubelet | Device-plugin registration, allocatable resources, scheduling | Compare kubelet behavior and node state with a healthy pool |
-| Firmware | Device availability, fabric behavior, resets | Follow the hardware maintenance and support procedure; recovery may require a power cycle or replacement |
+## 2. Troubleshooting: "Node has 0 GPUs"
 
-## Design the canary as a production experiment
+The most common support ticket is: *"My Pod is stuck Pending, but I know the node has GPUs."*
 
-Use a dedicated canary pool that matches the hardware, node image, runtime, security policy, and workload class of the pool it represents. Drain it deliberately and confirm that long-running work has a healthy checkpoint or rescheduling path before disruption. Retain enough spare capacity to meet service objectives while the canary is unavailable.
+If `kubectl describe node` shows `nvidia.com/gpu: 0` (or the label is missing entirely), you must execute a strict, layer-by-layer diagnostic process. You start at the physical silicon and work your way up to the Kubernetes control plane.
 
-Run the acceptance suite after every meaningful change, including a fresh CUDA workload, expected allocatable resources, required labels, DCGM scrape and identity checks, and a workload-level test appropriate to the class. A distributed training pool needs a topology and communication validation; a single-device smoke test does not prove that boundary. Establish a comparison baseline before the change so that “it looks slow” can become a measurable difference in startup time, failure rate, step time, or serving latency.
+### The Diagnostic Ladder:
+1.  **Layer 1 (The OS/Hardware):** SSH into the node and run `lspci | grep NVIDIA`. If the OS cannot see the PCIe device, the hardware is dead, or the motherboard is misconfigured. Kubernetes cannot fix this.
+2.  **Layer 2 (The Driver):** Run `nvidia-smi`. If it returns `command not found` or `Failed to initialize NVML`, the driver container has crashed or failed to compile. Check the logs of the `nvidia-driver-daemonset` Pod.
+3.  **Layer 3 (The Toolkit):** Is `containerd` configured correctly? If you are not using CDI, check `/etc/containerd/config.toml` to ensure the NVIDIA runtime is present.
+4.  **Layer 4 (The Device Plugin):** Check the logs of the `nvidia-device-plugin-daemonset` Pod. Did it detect the GPUs? Did it successfully register the `nvidia.com/gpu` resource with the local `kubelet` socket?
+5.  **Layer 5 (The Kubelet):** Restart the kubelet service. Sometimes the kubelet loses its connection to the Device Plugin socket.
 
-Expand in small batches only while the canary and the first batch remain stable for the agreed observation period. Preserve one healthy comparison pool until the rollout completes. Automation should stop on failed gates; it should not automatically force every node through a broken state.
+## 3. Troubleshooting: XID Errors and Unhealthy Nodes
 
-**Sizing the canary and the batches — a worked, illustrative example.** For a fleet of 120 GPU nodes across 4 identical hardware batches (30 nodes each, procured at different times and therefore not guaranteed to share a BIOS/firmware revision):
+Sometimes `nvidia.com/gpu` drops from `8` down to `7`. 
 
-- Canary: 2 nodes per hardware batch = 8 nodes total (~7% of the fleet). Fewer than 2 per batch risks mistaking a single bad node for a systemic driver problem; going straight to a fleet-wide canary defeats the point of bounding blast radius.
-- First rollout batch after the canary passes: 10% of the fleet, or 12 nodes — large enough to catch a rollout-order or scheduler-interaction issue the 8-node canary was too small to expose, small enough that losing all 12 still leaves 90% of capacity serving traffic.
-- Subsequent batches: double each time the observation window is clean — 12 → 24 → remaining 76 — rather than a fixed step, so a fault caught late in the rollout has stopped before it reached the majority of the fleet.
-- Blast-radius arithmetic if a bad driver is missed and reaches batch 3 (24 nodes) before detection: at 8 GPUs/node that is `24 x 8 = 192 GPUs` unavailable, against a fleet total of `120 x 8 = 960 GPUs` — 20% of fleet GPU capacity, which is the number that belongs in an incident summary, not "some nodes are affected."
+This is not a software crash; this is the Device Plugin intentionally quarantining a broken piece of hardware.
+As discussed in Chapter 4, if a GPU generates a critical XID error (e.g., XID 48 - Double Bit ECC memory error), the hardware is physically corrupt. 
 
-These figures are illustrative — the right canary and batch sizes depend on fleet size, hardware heterogeneity, and how much spare capacity the environment actually has; the arithmetic pattern (bound the canary, size batches to what a clean observation window can prove, compute blast radius in GPUs not nodes) is the transferable part.
+1.  The Device Plugin detects the XID error via NVML.
+2.  The Device Plugin marks that specific GPU as `Unhealthy`.
+3.  The kubelet removes that 1 GPU from the `Allocatable` pool.
 
-## A layered incident method
+Do not reboot the node to "fix" this. Rebooting the node clears the error state, returning the physically broken GPU to the active pool, where it will instantly crash the next workload assigned to it. You must cordon the node and physically replace the GPU.
 
-Start with blast radius and time. Is this one Pod, all Pods on one node, one node pool, or every GPU node? Did it begin after a deployment, a node reboot, a scheduled maintenance action, or an application release? Compare one affected node or workload with a known-good peer before changing the affected system.
+## Customer Scenario (Senior Level)
 
-Then test in dependency order:
+**The Situation:**
+An SRE receives an automated alert: 50 GPU nodes have suddenly stopped reporting `nvidia.com/gpu` capacity. All active training jobs on those nodes were evicted. The SRE runs `kubectl get pods -n gpu-operator` and sees that all 50 `nvidia-driver-daemonset` Pods are in `CrashLoopBackOff`. The SRE is baffled because no one ran a Helm upgrade, and the cluster was completely stable an hour ago.
 
-1. Hardware inventory, node boot state, kernel, and driver health.
-2. Container runtime device-injection path and Pod creation.
-3. Device-plugin registration, kubelet state, and allocatable GPU resource.
-4. Node labels, taints, quotas, affinity, priority, and scheduler decisions.
-5. Allocated Pod, security context, mounted devices, CUDA initialization, and application libraries.
-6. DCGM, driver, and Kubernetes evidence correlated with the incident time.
+**The Senior Architect Response:**
+"If 50 driver containers spontaneously crash simultaneously without a Helm deployment, the underlying Host OS state has changed out from under them.
 
-This order prevents a scheduler investigation from hiding a driver failure, and it prevents a hardware replacement from becoming the default response to an application image regression.
+The most likely culprit is an automated, unattended security update applied by the Linux operating system. 
+If the OS (e.g., Ubuntu) runs `unattended-upgrades`, it will download and install the latest kernel security patches in the background. Depending on the configuration, it may restart the node or apply the kernel updates via live-patching.
 
-## Failure patterns and first safe checks
+When the kernel updates, the pre-compiled NVIDIA driver module (`nvidia.ko`) is suddenly mismatched against the new running kernel headers. The OS rejects the driver. The driver container detects that its module is no longer loaded, attempts to reload it, fails, and crashes.
 
-### A node does not advertise GPUs
+To fix this immediately, we must force the driver containers to recompile. We can delete the crashed driver pods, forcing the DaemonSet to recreate them, download the new kernel headers, and recompile. 
+To prevent this permanently, we must disable automated kernel updates on our GPU nodes. Infrastructure should be immutable; OS upgrades should be planned, tested, and executed via a controlled node replacement strategy, never via unattended background scripts on production AI hardware."
 
-Confirm the physical inventory and host driver state first. Next inspect the operator policy and the driver, toolkit, and device-plugin operands; then inspect kubelet events and node `capacity` and `allocatable`. Compare labels and operand versions with a healthy node of the same class. A DaemonSet that is Running does not prove the kubelet has accepted its registration.
+## Interview Preparation
 
-**Evidence, post-upgrade.** After a driver-version bump, one canary node stops advertising GPUs while its sibling in the same batch is fine:
+**Conceptual:** If a Kubernetes node has physical GPUs, but `kubectl describe node` shows no `nvidia.com/gpu` capacity, describe the layer-by-layer troubleshooting process. *(Hint: 1. Check OS/Hardware (`lspci`). 2. Check Driver (`nvidia-smi`). 3. Check Device Plugin Pod logs to ensure it registered with the kubelet. 4. Check Kubelet logs for socket errors).*
 
-```text
-$ kubectl get ds -n gpu-operator nvidia-device-plugin-daemonset -o wide
-NAME                              DESIRED   CURRENT   READY   UP-TO-DATE
-nvidia-device-plugin-daemonset    8         8         8       8
-
-$ kubectl get node gpu-node-11 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{"\n"}'
-0
-$ kubectl get node gpu-node-12 -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{"\n"}'
-8
-```
-
-The DaemonSet reports `8/8 Ready` fleet-wide — that is the "Running does not prove registration" trap this row warns about. `gpu-node-11` and `gpu-node-12` came from the same rollout batch, but only `gpu-node-11` shows `allocatable: 0`. That per-node asymmetry, not the DaemonSet's aggregate status, is the actual signal: something node-specific (driver load, a stale toolkit socket) broke registration on one host even though the plugin Pod on that host reports `Ready`.
-
-### A GPU Pod remains Pending
-
-Read scheduler events before changing labels. Check the requested extended resource against allocatable capacity, then taints and tolerations, node affinity, quota, priority, and any queue or gang-scheduling requirement. A multi-Pod job can remain unusable even when one member could be placed; avoid claiming capacity is available until its full placement contract can be met.
-
-### A Pod fails before its application starts
-
-Separate image-pull, admission, sandbox, and container-start errors. For GPU-specific failures, examine the selected runtime handler or CDI path, toolkit configuration, device mounts, security context, and runtime logs. These failures occur before application CUDA code, so an application-level workaround rarely fixes them.
-
-### CUDA initialization fails in a Running Pod
-
-Run the approved minimal validation workload on the same node and allocation class. Compare image libraries and environment with the failing workload, verify the assigned device, then inspect driver state and device events. If the minimal workload also fails, the platform boundary is implicated; if it passes, focus on the application image or workload configuration.
-
-### Metrics disappear or report an implausible fleet state
-
-Validate the monitoring path independently: exporter scheduling and logs, host access, DCGM connectivity, scrape discovery and freshness, network policy, and label mapping. Missing telemetry means hardware health is unknown; it must not be interpreted as healthy hardware. [GPU Observability with DCGM](./chapter-09-gpu-observability-with-dcgm) covers the monitoring contract.
-
-### An operator upgrade stalls
-
-Inspect the policy status, controller logs, events, and operand rollout state to identify the *first* component not becoming Ready. Compare its node selector, tolerations, image access, and version with the prior state. Do not delete every operand or repeatedly reinstall the release: that removes comparison evidence and can broaden an isolated reconciliation issue into a pool outage.
-
-## Containment, rollback, and forward recovery
-
-Containment protects users while diagnosis proceeds: stop rollout, cordon a suspect node or pool, drain only when the workload recovery plan allows it, and redirect new work to known-good capacity. Capture volatile evidence before rebooting or replacing a node—events, relevant logs, device identity, driver state, DCGM observations, and the change timeline.
-
-Rollback has to restore a compatible set. Returning Helm values may reverse a control-plane configuration but cannot necessarily revert a driver module, kernel, runtime configuration, or firmware. When host state changed, use the tested node-image and reboot path. After either rollback or forward recovery, rerun the full acceptance suite; a green operator status is not enough.
-
-## Evidence package for escalation
-
-An actionable escalation contains the scope and business impact, a timestamped change timeline, cluster and operator versions, pinned release configuration, node kernel and runtime details, GPU and firmware inventory, operand state, relevant kubelet and runtime logs, node labels and allocatable resources, an approved minimal reproducer, and DCGM or driver evidence. Redact tenant data and secrets, but do not omit version and time correlation—the support engineer needs both to reproduce the boundary you found.
-
-## Senior-level design questions
-
-**Why can chart rollback be unsafe after a GPU platform change?**
-
-**Model answer:** "`helm rollback` only reverts what's in the chart's control-plane resources — ClusterPolicy, DaemonSet specs, config maps. If the upgrade also pushed a new driver module onto the host, or the node image itself changed, rolling the chart back can leave the operator declaring a driver version that no longer matches what's actually loaded on the kernel. I've seen a chart rollback 'succeed' by every Kubernetes-visible signal while the node stays broken, because the actual fault was in host state the chart doesn't control. My rule is: figure out which layer in the compatibility set actually changed before picking a rollback mechanism, because the answer might be a node reboot to a known-good image, not a Helm command at all."
-
-**What is the most valuable first action after a canary failure?**
-
-**Model answer:** "Stop the rollout — don't let a second batch go out while the first is still unexplained — and protect capacity by making sure I still have a healthy comparison pool to diagnose against. Only after that do I start pulling time-correlated evidence to find the first failed layer. The mistake I'd actively avoid is reaching for a fast, broad rollback before I understand what broke — that can trade one failure state for a different, harder-to-diagnose one, especially if the rollback itself only reverts part of the compatibility set, which is exactly the chart-rollback trap in the previous question."
-
-**A driver upgrade passes the canary but breaks on batch 3 of a 6-batch rollout. What does that pattern tell you, and how do you contain it?**
-
-**Model answer:** "The fact that it passed an 8-node canary and a 12-node first batch but failed at batch 3 tells me this probably isn't a universal driver-compatibility bug — those would have shown up in the canary. It's more likely node-population-dependent: a specific hardware revision, BIOS setting, or firmware version that happens to concentrate in the nodes reached by batch 3. First move is to stop the rollout immediately and diff the failing batch's node inventory — firmware versions, BIOS, exact GPU SKU — against the canary and the batches that passed. Containment is cordon the affected batch, redirect new scheduling to the untouched remainder of the fleet, and only resume once I can either fix the specific hardware-dependent issue or explicitly exclude that hardware class from this rollout."
-
-## Key takeaways
-
-- Treat upgrades as compatibility-set changes with explicit gates and a representative canary.
-- Troubleshoot from host and driver through runtime, discovery, scheduling, and workload execution.
-- Preserve evidence before resets, drains, or replacements erase it.
-- Roll back node state as well as release configuration when the changed boundary requires it.
-
-## Cross references
-
-- [Production Installation and Configuration](./chapter-10-production-installation-and-configuration)
-- [GPU Observability with DCGM](./chapter-09-gpu-observability-with-dcgm)
-- [Volume 10 Summary](./chapter-12-volume-10-summary)
+**Architecture:** Why is it dangerous to simply reboot a node when `nvidia.com/gpu` drops from 8 to 7? *(Hint: A drop in capacity usually means the Device Plugin detected a critical hardware fault (XID error) and intentionally quarantined the GPU. Rebooting clears the software state, putting the physically broken GPU back into the scheduling pool, which will crash the next user's job).*

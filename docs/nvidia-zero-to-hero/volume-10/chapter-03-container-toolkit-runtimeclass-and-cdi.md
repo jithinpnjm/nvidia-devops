@@ -1,179 +1,81 @@
 ---
-title: Chapter 03 — NVIDIA Container Toolkit, RuntimeClass, and CDI
-description: Understand the runtime boundary that turns a Kubernetes GPU allocation into a usable container device interface.
-sidebar_position: 4
-tags: [container-toolkit, runtimeclass, cdi]
+title: "Chapter 3 — Container Toolkit, RuntimeClass, and CDI"
+sidebar_position: 3
+description: "Master the data plane. Learn how the NVIDIA Container Toolkit pierces container isolation to expose physical GPUs safely."
 ---
 
-# NVIDIA Container Toolkit, RuntimeClass, and CDI
+# Chapter 3 — Container Toolkit, RuntimeClass, and CDI
 
-Scheduling a GPU is not the same as giving a process a GPU. The scheduler selects a node using an extended-resource request; the kubelet asks the device plugin to allocate devices; then the CRI runtime creates a sandbox. At that final boundary, device nodes, driver-facing libraries, mounts, environment, and permissions must describe the allocation accurately. NVIDIA Container Toolkit provides the NVIDIA-specific runtime integration needed by supported container runtimes.
+| Chapter metadata | Value |
+|---|---|
+| Volume | 10 — Kubernetes GPU Platform Layer |
+| Difficulty | Advanced |
+| Estimated reading time | 35 minutes |
+| Primary audience | Platform Engineers, DevSecOps |
+| Core question | A container is designed to isolate an application from the host hardware. How do we securely break that isolation to pass a 700W GPU into a pod? |
 
-This boundary deserves separate design and validation. A node may advertise GPUs correctly and still produce Pods that cannot create a CUDA context. That is not a contradiction: allocation is a kubelet/device-plugin concern, while sandbox construction is a runtime concern.
+## Introduction
 
-## Learning Objectives
+Containers (like Docker or containerd) are built on Linux `namespaces` and `cgroups`. Their primary design goal is absolute isolation. A process inside a container should not be able to see the host's filesystem, network, or hardware devices.
 
-After this chapter, you can:
+GPUs are physical hardware devices represented as character files on the host OS (e.g., `/dev/nvidia0`). 
 
-- explain the handoff from device allocation to container creation;
-- distinguish the host driver from CUDA and framework components in an image;
-- distinguish RuntimeClass runtime selection from CDI device description;
-- choose a standardized runtime path for a cluster; and
-- isolate runtime-injection failures from scheduling and application failures.
+If you run a standard container, the isolation mechanisms prevent the container from seeing `/dev/nvidia0`. Furthermore, to execute CUDA code, the container needs the user-space NVIDIA driver libraries (`libcuda.so`), which exist on the host, not inside the container image.
 
-## From Allocation to Process
+We need a mechanism to securely pierce the container boundary, mount the correct device files, and inject the necessary driver libraries. This is the job of the **NVIDIA Container Toolkit**.
 
-```mermaid
-sequenceDiagram
-    participant S as Scheduler
-    participant K as Kubelet
-    participant DP as Device plugin
-    participant CRI as CRI runtime
-    participant NCT as NVIDIA Container Toolkit / CDI
-    participant C as Container process
-    S->>K: Bind Pod to GPU node (evidence: Pod.spec.nodeName set)
-    K->>DP: Allocate requested devices
-    DP-->>K: Allocation response (evidence: device IDs returned, e.g. GPU-3a1e...)
-    K->>CRI: Create Pod sandbox and container
-    CRI->>NCT: Resolve NVIDIA device configuration
-    NCT-->>CRI: Device, mount, and environment edits (evidence: CDI spec names /dev/nvidia0, driver libs)
-    CRI->>C: Start allocated GPU container
-    Note over C: Does the container process see the device?
-    C-->>CRI: nvidia-smi inside container succeeds (evidence: GPU listed, CUDA_VISIBLE_DEVICES set)
+## 1. The NVIDIA Container Toolkit
+
+The NVIDIA Container Toolkit is a set of tools that wraps the standard container runtime (`runc` or `crun`) and intercepts the container creation process.
+
+Before the toolkit, developers had to manually mount devices and libraries:
+`docker run --device /dev/nvidia0 --volume /usr/lib64/libcuda.so:/usr/lib64/libcuda.so my-image`
+This was brittle, insecure, and completely unscalable in Kubernetes.
+
+With the toolkit, you simply specify that you want GPUs, and the toolkit dynamically discovers the correct devices and mounts the necessary libraries into the container at startup.
+
+## 2. Kubernetes RuntimeClass
+
+In a Kubernetes environment, you don't use `docker run`. You submit a Pod YAML. How does the kubelet know to use the NVIDIA-modified runtime instead of the standard runtime?
+
+Historically, platform engineers set the `default-runtime` in the `containerd` configuration to `nvidia`. This meant *every* container on the node used the NVIDIA wrapper, even standard CPU-only pods like CoreDNS. This was an unnecessary overhead.
+
+The modern architectural standard is **RuntimeClass**. 
+You configure `containerd` to have multiple runtimes available. 
+In your Pod YAML, you specify:
+```yaml
+spec:
+  runtimeClassName: nvidia
 ```
+The kubelet reads this and tells `containerd`: "For this specific pod, do not use the standard `runc`. Use the `nvidia-container-runtime` wrapper." This ensures that only GPU workloads invoke the hardware-injection logic.
 
-**Figure 10.3.1 — Runtime injection follows, rather than replaces, Kubernetes allocation.** The components and exact data path vary with the selected runtime and device-plugin configuration, but a scheduled Pod has not succeeded until its sandbox is created with the allocation. The final note-and-return step is the mechanism this chapter keeps returning to: everything up to `CRI->>C: Start allocated GPU container` can succeed while the container still cannot see a working GPU if the CDI/hook edit was wrong — the only proof is running `nvidia-smi` *inside* the container, not trusting that the sequence reached the last arrow.
+## 3. The Future: Container Device Interface (CDI)
 
-The host owns the kernel modules and the low-level driver interface. The workload image owns the application, its framework, and its CUDA user-space dependencies. The toolkit bridges those domains at container start. Putting a kernel driver in every application image would not solve the host-kernel problem; it would obscure it and make version control unmanageable.
+While RuntimeClass and the `nvidia-container-runtime` wrapper work well, they require modifying the host's `containerd` configuration. This violates the philosophy of decoupled infrastructure.
 
-**The sequence as real command output, node side then container side.** On the node, after the CRI runtime creates the sandbox, `crictl` shows what the toolkit actually injected:
+The Cloud Native Computing Foundation (CNCF) introduced the **Container Device Interface (CDI)** as the vendor-agnostic standard for device injection.
 
-```text
-$ sudo crictl inspect $(sudo crictl ps -q --name resnet-train) | grep -A4 '"devices"'
-"devices": [
-  {
-    "containerPath": "/dev/nvidia0",
-    "hostPath": "/dev/nvidia0",
-    "permissions": "rwm"
-  }
-],
-```
-A `devices` array containing `/dev/nvidia0` confirms the NCT/CDI step in Figure 10.3.1 actually wrote a device edit into this specific container's spec — this is the difference between "the node has a GPU" and "this container was given the GPU." An empty `devices` array here, with the Pod otherwise `Running`, is the exact signature of a CDI/hook misconfiguration: the allocation succeeded but the edit never landed.
+With CDI, you do not need a custom runtime wrapper. 
+Instead, a program on the host generates a JSON file (the CDI specification) that describes exactly how to inject the GPU (which `/dev` files to mount, which `.so` libraries to inject). 
 
-Inside the container, the corresponding proof is:
+When Kubernetes requests a GPU, the standard, unmodified `containerd` simply reads the CDI JSON file and follows the instructions to mount the devices. CDI eliminates the need to alter the core container runtime configuration, making GPU clusters vastly more stable and standardized.
 
-```text
-$ kubectl exec resnet-train -- nvidia-smi -L
-GPU 0: NVIDIA A100-SXM4-80GB (UUID: GPU-3a1e9f2b-...)
-```
-Matching this UUID against `kubectl describe node` events or the device plugin's allocation log for the same Pod closes the loop end-to-end: the specific physical GPU the plugin allocated is the specific GPU the container process can see. A container-side `nvidia-smi` failure here despite a populated `devices` array on the node points at a driver-library or CUDA-user-space mismatch inside the image rather than the injection path itself.
+## Customer Scenario (Senior Level)
 
-## Three Mechanisms, Three Different Questions
+**The Situation:**
+A security team mandates an immediate upgrade of the `containerd` package across the entire Kubernetes fleet to patch a critical CVE. The platform team runs an automated Ansible playbook to `apt-get upgrade containerd` and restart the service on all GPU nodes. Ten minutes later, all GPU pods in the cluster crash and enter a `CrashLoopBackOff` state. The pods are failing with errors stating that the NVIDIA driver libraries cannot be found.
 
-| Mechanism | Question it answers | Scope | Common misuse |
-|---|---|---|---|
-| NVIDIA Container Toolkit configuration | How does this node’s runtime support NVIDIA devices? | Node runtime | Treating it as an application dependency |
-| RuntimeClass | Which configured runtime handler should this Pod use? | Pod scheduling/runtime selection | Assuming it itself allocates a GPU |
-| Container Device Interface (CDI) | How is a device described to a CDI-capable runtime? | Device injection | Assuming CDI makes the device schedulable |
+**The Senior Architect Response:**
+"The automated upgrade of the `containerd` package overwrote the custom `/etc/containerd/config.toml` file, erasing the configuration that pointed `containerd` to the `nvidia-container-runtime`. 
 
-RuntimeClass is a Kubernetes API object that refers to a runtime handler configured on each eligible node. It can also carry scheduling information and overhead. It is valuable when a platform intentionally exposes more than one runtime path, but it is not a substitute for consistent runtime configuration across the nodes selected by the Pod.
+When the service restarted, `containerd` reverted to using the default `runc`. Without the NVIDIA runtime wrapper, the container isolation mechanics are operating exactly as designed: they are blocking the pods from accessing the host's `/dev/nvidia*` devices and driver libraries. 
 
-CDI is an open specification for describing container devices and their required edits. A CDI-capable runtime consumes a device reference and applies the specified device nodes, mounts, environment, or hooks. NVIDIA tooling and the device plugin can be configured to use CDI-related strategies in supported environments. The platform must qualify the exact runtime, toolkit, plugin, and Kubernetes combination it deploys; “CDI” is a mechanism, not a universal compatibility claim.
+To restore service immediately, we must restore the modified `config.toml` and restart `containerd`. 
 
-## Design the Runtime Contract
+However, structurally, this incident proves that modifying the core container runtime configuration is brittle and prone to human or automation error. Our long-term architectural fix is to migrate to **CDI (Container Device Interface)**. By moving to CDI, we remove the custom runtime wrapper entirely. Standard `containerd` will use standard `runc`, and the GPU injection will be handled dynamically via CDI JSON specifications, completely isolating our AI capabilities from routine OS-level package upgrades."
 
-Avoid making application teams choose among undocumented handler names or node-local exceptions. Publish a small runtime contract:
+## Interview Preparation
 
-- supported container runtime and its versioned configuration;
-- whether GPU workloads use a RuntimeClass and, if so, its stable name and eligible node pools;
-- the supported toolkit and device-plugin strategy, including CDI where enabled;
-- a minimal approved validation image and the expected evidence;
-- ownership and rollback steps for the runtime configuration.
+**Conceptual:** Why does a container need the NVIDIA Container Toolkit to access a GPU? *(Hint: Standard containers isolate the application from the host hardware (namespaces/cgroups). The toolkit securely pierces this isolation to mount the physical character devices (e.g., `/dev/nvidia0`) and inject the host's user-space driver libraries (like `libcuda.so`) into the container at startup).*
 
-Store node-runtime configuration and GPU Operator values in version control. Manual edits to a live runtime configuration are particularly risky: they can differ across the fleet, be overwritten by a reconciler, or not take effect until the correct service restart. [Chapter 7](./chapter-07-driver-containers-and-node-operands) explains why this is privileged node infrastructure.
-
-## Production Story: Schedulable but Unusable
-
-After a node-image refresh, the device plugin continues to advertise the expected resource. GPU Pods schedule, but newly created containers fail during startup. The team initially chases quotas and scheduler events because the failure begins with a Kubernetes workload. The decisive evidence is different: a bound Pod, successful allocation, and a CRI error that exposes a runtime configuration mismatch on the refreshed pool.
-
-The recovery is to stop scheduling onto the affected nodes, restore the known-good runtime profile, restart only the required node service under the approved procedure, and run the minimal validation container before reopening the pool. The prevention is a runtime gate in the image-refresh pipeline, not another workload retry.
-
-## Security and Isolation
-
-Runtime configuration controls what privileged device interfaces enter a container. Protect its configuration, sockets, and operator operands with image provenance, registry policy, RBAC, and narrow write access. Workload-level access control also matters: a request for a GPU should be governed by namespace policy, quotas, and the appropriate node pool—not by a user’s ability to alter host runtime settings.
-
-Do not conflate device access with tenant isolation. The runtime correctly injecting a GPU answers an execution question. Isolation and sharing semantics depend on the GPU configuration, the resource exposed by the plugin, and the platform policy; [Volume 11](../volume-11/index) covers these models.
-
-## Troubleshooting the Runtime Boundary
-
-| Symptom | Evidence to inspect | Likely boundary |
-|---|---|---|
-| Pod remains Pending | Events, request, allocatable capacity, affinity | Scheduling or policy; runtime has not run yet |
-| Bound Pod fails before application logs | Kubelet and CRI logs, handler configuration | Runtime sandbox creation |
-| Process starts but sees no expected GPU | Allocation result, toolkit/CDI configuration, container device view | Injection path |
-| CUDA initialization fails after injection | Driver version, image stack, framework logs | Driver-to-image compatibility |
-| Same manifest fails on one pool | Compare runtime revision, handler availability, node image | Fleet drift |
-
-Use a minimal approved GPU workload to separate the platform from the application. If that workload fails on the node, do not begin by changing framework flags. If it succeeds and the production image fails, retain the Pod specification and compare image behavior and compatibility evidence.
-
-**Evidence for the "Bound Pod fails before application logs" row.** `kubectl describe pod` on the failed Pod and `crictl` on the node together isolate whether this is a sandbox-creation failure or something later:
-
-```text
-$ kubectl describe pod resnet-train | tail -6
-  Warning  Failed     12s   kubelet  Error: failed to create containerd task: failed to create shim:
-  OCI runtime create failed: runc create failed: unable to start container process:
-  error during container init: error running hook #0: nvidia-container-cli: initialization error:
-  nvidia-container-cli: mount error: file creation failed: /var/lib/kubelet/pods/.../nvidia0: no such device
-```
-This event fires before the container's own entrypoint ever runs — no application log line will ever appear for this failure, which is exactly why the table calls it out as its own row instead of folding it into "CUDA initialization fails." `nvidia-container-cli: mount error` naming a missing device node points squarely at the toolkit/CDI injection step in Figure 10.3.1, not at the application image.
-
-**Evidence for the "Same manifest fails on one pool" row.** Comparing toolkit config version across pools turns a vague "one pool is flaky" report into a specific diff:
-
-```text
-$ for n in gpu-pool-a-3 gpu-pool-b-7; do
-    echo "== $n =="; ssh "$n" 'nvidia-ctk --version; cat /etc/containerd/config.toml | grep -A2 nvidia'
-  done
-== gpu-pool-a-3 ==
-NVIDIA Container Toolkit CLI version 1.15.0
-  runtime_type = "io.containerd.runc.v2"
-  [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia.options]
-== gpu-pool-b-7 ==
-NVIDIA Container Toolkit CLI version 1.13.5
-  runtime_type = "io.containerd.runc.v2"
-```
-`1.15.0` vs `1.13.5` across two pools that should be running the same qualified stack is drift, full stop — this is the single fastest way to confirm "fleet drift" as the boundary before spending time on the application image.
-
-## Customer Architecture Discussion
-
-Application teams should experience a stable request contract—resource name, supported image family, and any documented RuntimeClass—not the internal debate between runtime hooks and CDI. Platform teams should retain the implementation choice because it carries runtime support, security, and upgrade consequences.
-
-This separation also improves incident communication. “The resource is allocated but runtime injection is failing on the new node image” is an actionable platform statement. “GPU Pod broken” is not.
-
-## Interview Questions
-
-**Why does a RuntimeClass not make a GPU workload schedulable by itself?**
-
-**Model answer:** "RuntimeClass only selects which configured runtime handler a Pod uses, and it can add scheduling constraints like tolerations or overhead — but it has no knowledge of GPU inventory at all. A GPU only becomes schedulable once the device plugin has reported an allocatable count to the kubelet and the Pod's `resources.limits` requests it. I've seen teams add a RuntimeClass and assume that alone makes a node GPU-capable — it doesn't; it just says 'use this runtime handler,' and if that handler isn't wired to NVIDIA Container Toolkit on that node, you get a Pod that schedules and then fails at sandbox creation."
-
-**Why keep the NVIDIA driver on the host?**
-
-**Model answer:** "The driver has kernel-mode components that bind directly to the GPU hardware — that has to live at the host kernel version, not inside a container's user space. If I baked the driver into every application image, I'd lose the ability to patch a security or stability issue once across the fleet, and I'd risk a container's driver disagreeing with the host kernel it's actually running on top of. The image should only carry the CUDA user-space libraries and framework that talk to whatever host driver interface is exposed to it — that's exactly the boundary NVIDIA Container Toolkit exists to bridge."
-
-**Why is `crictl inspect` showing a populated `devices` array not the same proof as `nvidia-smi` succeeding inside the container?**
-
-**Model answer:** "`crictl inspect` on the node tells me the toolkit wrote a device edit into that container's spec — that's proof the injection *path* fired. It doesn't tell me the container's CUDA user-space actually matches the host driver, or that the process inside can initialize a context. I only trust `nvidia-smi -L` run with `kubectl exec` inside the container as proof the workload can actually use the GPU — that's the node-side and container-side halves of the same evidence chain, and skipping the second half is how 'looks fine from the node' incidents happen."
-
-## Key Takeaways
-
-- GPU allocation, runtime injection, and CUDA execution are separate gates.
-- NVIDIA Container Toolkit bridges the host driver and container runtime; it is not a driver replacement.
-- RuntimeClass selects a runtime handler; CDI describes a device to CDI-capable runtimes.
-- Standardize and qualify one clear runtime contract per platform release.
-- A minimal GPU container is the fastest safe discriminator between runtime and application faults.
-
-## Cross References
-
-- [GPU Software Lifecycle in Kubernetes](./chapter-02-gpu-software-lifecycle-in-kubernetes)
-- [Device Plugin and Kubernetes Resource Model](./chapter-04-device-plugin-and-kubernetes-resource-model)
-- [Driver Containers and Node Operands](./chapter-07-driver-containers-and-node-operands)
-- [Volume 11 — GPU Sharing and Virtualization](../volume-11/index)
+**Architecture:** Explain the transition from `nvidia-container-runtime` to CDI (Container Device Interface). *(Hint: The older method required modifying the global `containerd` configuration to use a custom NVIDIA wrapper, which was brittle during OS upgrades. CDI is a CNCF standard that allows standard, unmodified `containerd` to inject devices simply by reading a JSON specification file, making the architecture vendor-agnostic and highly resilient).*
