@@ -1,179 +1,75 @@
 ---
-title: Chapter 07 — NGC Catalog, Containers, and Artifacts
-description: Govern NGC images, models, Helm charts, signatures, mirrors, and supply-chain controls.
-sidebar_position: 8
-tags: [ngc, containers, supply-chain]
+title: "Chapter 7 — NGC Catalog, Containers, and Artifacts"
+sidebar_position: 7
+description: "Navigate the NVIDIA GPU Cloud (NGC) ecosystem. Learn how to securely pull and manage NVAIE-certified containers in air-gapped environments."
 ---
 
-# NGC Catalog, Containers, and Artifacts
+# Chapter 7 — NGC Catalog, Containers, and Artifacts
 
-NGC distributes containers, models, charts, and related artifacts. Production use requires artifact governance — because a mutable tag can change, a credential can expire, and supply-chain risk depends on reproducible versioning.
+| Chapter metadata | Value |
+|---|---|
+| Volume | 14 — NVIDIA AI Enterprise & NIM Architecture |
+| Difficulty | Intermediate |
+| Estimated reading time | 25 minutes |
+| Primary audience | DevOps, SREs, Kubernetes Administrators |
+| Core question | If DockerHub limits pulls, and GitHub is blocked by the corporate firewall, how do you securely get NVIDIA software into your data center? |
 
-## Artifact Lifecycle
+## Introduction
 
-```mermaid
-flowchart LR
-    Catalog["NGC Catalog<br/>nvcr.io/nvidia/nim/llama2-7b:latest<br/>mutable tag, always latest"]
-    
-    Approve["Security & License Review<br/>scan for CVE, verify model license<br/>approved by security-team"]
-    
-    Mirror["Enterprise Registry<br/>private ECR or Harbor<br/>controlled egress, cached locally"]
-    
-    Pin["Digest Pinning<br/>nvcr.io/.../llama2-7b@sha256:abc123<br/>immutable, independently verified"]
-    
-    Scan["Re-scan in Staging<br/>same image, staging policy<br/>before production approval"]
-    
-    Deploy["Controlled Deployment<br/>Helm values pin exact digest<br/>Git history proves approval"]
-    
-    Retain["Retain and Rollback<br/>preserve N versions minimum<br/>3-month retention minimum"]
+In an enterprise environment, downloading software directly from the public internet onto a production server is an immediate firing offense. 
 
-    Catalog --> Approve --> Mirror --> Pin --> Scan --> Deploy --> Retain
-```
+Production environments are air-gapped or strictly firewalled. All software must originate from a secure, authenticated, and verifiable source. For NVIDIA AI Enterprise (NVAIE) software, that source is the **NVIDIA GPU Cloud (NGC)**.
 
-## Production Principles — Why Each One Matters
+NGC is not a cloud hosting provider (like AWS or Azure). NGC is a massive software repository (a registry) containing highly optimized Docker containers, Helm charts, Pre-trained Models, and SDKs.
 
-```text
-❌ never rely on a mutable tag alone
-   Why: Container image can be replaced after deployment. If you deploy 
-   "llama2-7b:latest" and later rebuild that tag with different code, 
-   your "latest" now points to an untested version.
+## 1. The Two Halves of NGC
 
-✅ Correct: Always use immutable digest
-   kubectl set image deployment/llm llm=nvcr.io/nvidia/nim/llama2-7b@sha256:abc123
-   Now the digest sha256:abc123 is explicitly pinned and cannot change.
+A Senior Architect must understand that NGC is split into two distinct catalogs, governed by different rules:
 
-❌ never trust a single registry alone
-   Why: NGC's registry can be down, rate-limited, or (in extreme scenarios) 
-   compromised. A deployment that depends only on "nvcr.io" has a single 
-   point of failure.
+1.  **The Public NGC Catalog (`nvcr.io/nvidia`):**
+    *   This is free and open to everyone.
+    *   It contains community-supported containers (e.g., standard PyTorch, standard Triton).
+    *   *Architectural Warning:* These images change rapidly and do not come with enterprise SLAs or guaranteed long-term security patching.
+2.  **The NVAIE Private Registry (`nvcr.io/nvaie`):**
+    *   This is completely locked. You can only access it if you have purchased an NVAIE software license.
+    *   It contains the strictly certified, Long-Term Support (LTS) versions of the software.
+    *   It requires an **NGC API Key** specifically linked to an active NVAIE entitlement.
 
-✅ Correct: Mirror to enterprise registry
-   # On a trusted GKE cluster or private data center:
-   docker pull nvcr.io/nvidia/nim/llama2-7b@sha256:abc123
-   docker tag ... harbor-internal.company.com/llama2-7b:1.0.5
-   docker push harbor-internal.company.com/llama2-7b:1.0.5
-   # Now Kubernetes pulls from internal harbor, not NGC
+## 2. Managing the Air-Gap (Image Mirroring)
 
-❌ never skip license and entitlement verification
-   Why: A model may require a commercial license even though NGC distributes it freely. 
-   Deploying without verifying your license scope exposes the organization to 
-   compliance risk.
+You cannot configure your production Kubernetes cluster to pull `nvcr.io/nvaie/tritonserver` directly from the internet. 
 
-✅ Correct: Document license and entitlement in Git
-   # deployment_metadata.yaml
-   models:
-     llama2-7b:
-       source: "NGC"
-       entitlement_required: "AI Enterprise 24.07+"
-       license: "Community License"
-       approved_use_cases: "internal non-commercial"
-       approval_ticket: "SEC-12345"
-```
+**The Production Workflow:**
+1.  A DevOps engineer authenticates to `nvcr.io` from a secure bastion host using the NVAIE API Key.
+2.  The engineer pulls the certified Docker image, the NIM container, and the required Helm charts.
+3.  The engineer pushes those images into the company's internal, secure image registry (e.g., JFrog Artifactory, Sonatype Nexus, or AWS ECR).
+4.  The internal security scanners (e.g., Trivy or Prisma Cloud) scan the images for CVEs.
+5.  The Kubernetes cluster is configured to pull the images exclusively from the internal registry.
 
-## Governance Workflow
+## 3. Pre-Trained Models on NGC
 
-➕ **Real artifact review checklist (saved in Git):**
+NGC is not just for software containers; it hosts massive pre-trained models (like Llama-3, Nemotron, etc.).
 
-```yaml
-# artifact_review_template.yaml
-artifact_review:
-  image_or_model: "nvcr.io/nvidia/nim/llama2-7b:1.0.5"
-  digest: "sha256:abc123def456..."
-  review_date: "2026-08-07"
-  reviewed_by: "security-team"
-  
-  security_scan:
-    tool: "Trivy"
-    high_cves: 0  # Threshold: 0 critical, 0 high
-    medium_cves: 0
-    low_cves: 2  # Acceptable if documented
-    scan_results_url: "s3://artifact-scans/llama2-7b-1.0.5-trivy.json"
-  
-  license_review:
-    base_model_license: "Community License"
-    framework_licenses: ["Apache 2.0", "MIT"]
-    conflicting_licenses: "none detected"
-    approval: "approved for internal non-commercial use"
-    not_approved_for: "commercial inference, redistribution"
-  
-  entitlement_check:
-    ngc_account_entitled: true
-    model_requires_subscription: "AI Enterprise"
-    our_subscription_status: "active, expires 2027-01-31"
-    approval: "approved to download and deploy"
-  
-  mirror_and_retention:
-    mirrored_to: "harbor-internal.company.com/llama2-7b:1.0.5"
-    mirror_digest: "sha256:abc123def456..." # Must match NGC digest
-    retention_policy: "keep minimum 3 versions"
-    approved_for_production: true
-  
-  deployment_approval:
-    approved_by: "infrastructure-lead"
-    approved_for: "production inference"
-    next_review_date: "2026-11-07"  # Quarterly
-```
+When building a NIM pipeline (as discussed in Chapter 4), you must mirror these model weights internally. 
+NVIDIA provides a dedicated CLI tool (`ngc registry model download-version`) to pull these terabyte-scale models efficiently. You run this CLI tool on a bastion host, download the model, and then push the raw files to your internal parallel file system (e.g., Lustre or a private S3 bucket) so that the NIM containers can mount the cache volume internally without requiring internet access.
 
-## Troubleshooting
+## Customer Scenario (Senior Level)
 
-**Symptom:** `ImagePullBackOff` or model download fails with a cryptic error.
+**The Situation:**
+A government agency purchases an NVAIE license. They deploy the GPU Operator onto their strictly air-gapped Kubernetes cluster. They manually downloaded the GPU Operator Helm chart from NGC and applied it. The Operator pod starts, but all the subsequent DaemonSets (Driver, Toolkit, Device Plugin) fail with `ErrImagePull`. The network team confirms the cluster has absolutely zero internet access.
 
-**Diagnosis order** (by commonality):
+**The Senior Architect Response:**
+"The deployment has failed because the architecture attempted to dynamically pull container images from a public endpoint across an air-gapped boundary.
 
-```bash
-# Step 1: Verify the exact image reference and digest
-kubectl describe pod <pod> | grep Image
-# Output: Image: nvcr.io/nvidia/nim/llama2-7b:1.0.5
-# (Note the tag, not the digest — this is a problem if it's mutable)
+While you successfully downloaded the initial Helm chart manually, you failed to override the default image repository values within the `values.yaml` file. By default, the GPU Operator Helm chart is hardcoded to pull its Operand images (like the driver container) directly from `nvcr.io/nvaie`. Because the cluster is air-gapped, the Kubernetes kubelet cannot reach `nvcr.io`, resulting in the `ErrImagePull` state.
 
-# Step 2: Check if the image pull secret exists and is valid
-kubectl get secret ngc-secret -o yaml
-# Should have .dockerconfigjson with nvcr.io credentials
+To remediate this, we must execute a full image mirroring strategy. 
+We will use a bastion host with internet access to pull the exact versions of the GPU Operator images, the Driver image, the Toolkit image, and the Device Plugin image from the NGC NVAIE registry. We will then `docker save`, transfer the tarballs across the air-gap, and `docker load` them into the agency's internal, secured image registry. 
 
-# Step 3: Manually test the pull (from pod's node)
-# SSH to the node and run:
-docker pull nvcr.io/nvidia/nim/llama2-7b:1.0.5
-# Errors here tell you the exact problem:
+Finally, we will edit the GPU Operator's `values.yaml` to point the `repository` fields to the internal registry URL. The Helm upgrade will force the Operator to pull the images locally, resolving the issue and bringing the GPU hardware online securely."
 
-# "401 Unauthorized" → NGC credentials invalid or expired
-# Solution: kubectl create secret docker-registry ngc-secret \
-#   --docker-server=nvcr.io \
-#   --docker-username=\$oauthtoken \
-#   --docker-password=$NGC_API_TOKEN
+## Interview Preparation
 
-# "429 Too Many Requests" → NGC rate limit hit
-# Solution: 1) wait 1 hour, or 2) pull from enterprise mirror instead
+**Conceptual:** What is the difference between `nvcr.io/nvidia` and `nvcr.io/nvaie`? *(Hint: The former is the public NGC catalog containing free, community-supported images. The latter is the private NVAIE registry containing certified, enterprise-supported, Long-Term Support (LTS) images, requiring a paid license and API key to access).*
 
-# "x509: certificate signed by unknown authority" → Proxy/firewall issue
-# Solution: Configure docker daemon to trust internal CA cert
-
-# Step 4: Verify entitlement if pull succeeds but model download fails
-# Inside container logs:
-kubectl logs <pod> | grep -i "401\|entitlement\|unauthorized"
-# If "401 Unauthorized" during model download:
-kubectl get secret ngc-credentials -o yaml  # Check NGC_API_TOKEN scoping
-# Is the token scoped to the specific model? 
-
-# Step 5: Check DNS from pod
-kubectl exec <pod> -- nslookup api.ngc.nvidia.com
-# Should resolve to NGC's IP. If "connection refused", network policy blocks it
-```
-
-➕ **Real error output and fix:**
-
-```text
-$ kubectl describe pod llm-deployment-abc123
-Events:
-  Type     Reason       Age    From               Message
-  ----     ------       ----   ----               -------
-  Normal   Scheduled    2m     default-scheduler  Successfully assigned to gpu-node-1
-  Warning  Failed       2m     kubelet            Failed to pull image "nvcr.io/nvidia/nim/llama2-7b:1.0.5": rpc error: code = Unknown desc = failed to pull and unpack image "nvcr.io/nvidia/nim/llama2-7b:1.0.5": failed to resolve reference "nvcr.io/nvidia/nim/llama2-7b:1.0.5": pull access denied, repository does not exist or may require authentication: server message: insufficient_scope
-
-Fix: The error "insufficient_scope" means the NGC token doesn't have permission for this model.
-1. kubectl create secret docker-registry ngc-secret \
-     --docker-server=nvcr.io \
-     --docker-username=\$oauthtoken \
-     --docker-password=<full-api-key-not-truncated>
-2. Verify token is not expired: curl -H "Authorization: Bearer $NGC_API_KEY" https://api.ngc.nvidia.com/
-3. Re-deploy the pod (will re-pull with new secret)
-```
+**Architecture:** Explain the architectural workflow for deploying a NIM container into an air-gapped Kubernetes cluster. *(Hint: The cluster cannot reach the internet to pull the container image or the massive model weights. A DevOps engineer must use an NGC API key to pull the NIM Docker image and the raw model weights onto an internet-connected bastion host. The image is pushed to an internal, secure container registry. The model weights are transferred to an internal storage array. The Kubernetes deployment is then configured to pull the image from the internal registry and mount the model weights via a local Persistent Volume).*

@@ -1,234 +1,76 @@
 ---
-title: Chapter 11 — Customer Architecture and Troubleshooting
-description: Translate enterprise requirements into supported designs and resolve cross-layer incidents.
-sidebar_position: 12
-tags: [customer-architecture, troubleshooting, enterprise]
+title: "Chapter 11 — Customer Architecture and Troubleshooting"
+sidebar_position: 11
+description: "Master real-world NVAIE deployments. Learn how to diagnose license server failures, NGC registry blocks, and VMware GPU passthrough errors."
 ---
 
-# Customer Architecture and Troubleshooting
+# Chapter 11 — Customer Architecture and Troubleshooting
 
-Enterprise customer design begins with constraints: data location, identity, platform standard, support model, latency, throughput, tenancy, facility, and change policy. A "proper" architecture for a startup differs from a proper architecture for a regulated financial institution.
+| Chapter metadata | Value |
+|---|---|
+| Volume | 14 — NVIDIA AI Enterprise & NIM Architecture |
+| Difficulty | Expert |
+| Estimated reading time | 30 minutes |
+| Primary audience | Solutions Architects, Technical Account Managers |
+| Core question | When a customer complains their $1M AI deployment is failing to start, how do you mathematically prove whether the fault lies in the hardware, the hypervisor, the network, or the container? |
 
-## Discovery Framework
+## Introduction
 
-A complete discovery interview answers these nine questions, in order:
+As an architect designing NVAIE deployments, you will rarely be building environments from scratch. You will be injecting AI into a customer's existing, highly complex, and often brittle enterprise IT ecosystem.
 
-1. **Business outcome and workload class**
-   - What is the actual business problem? (e.g., "Recommend products in &lt;2s", "Summarize documents overnight", "Auto-generate code snippets")
-   - Is it interactive (user waiting) or batch (offline processing)?
-   - What SLA is required? (e.g., "99.9% availability", "5s latency p99")
+When the deployment fails, the customer will blame NVIDIA software. You must use a structured, layer-by-layer troubleshooting framework to isolate the fault domain. 
 
-2. **Model and data governance**
-   - Which model? (open source, proprietary, custom-fine-tuned)
-   - Does the model require licensing? Is it Llama2 (permissive), or proprietary (restricted)?
-   - Where is training/fine-tuning data? (customer's data center, cloud, third-party)
-   - Can model leave customer's network? (data residency constraint)
+The three most common NVAIE deployment failures involve **Virtualization Abstractions**, **Network Isolation (Air-gapping)**, and **Licensing Misconfigurations**.
 
-3. **Deployment platform**
-   - What's the existing infrastructure? (AWS, GCP, Azure, on-prem, hybrid)
-   - Is Kubernetes already in use? (yes = GPU Operator path, no = consider bare metal or VM)
-   - Can customer manage Kubernetes upgrades? (if not, consider managed K8s like EKS/GKE)
+## 1. Troubleshooting the Virtualization Abstraction
 
-4. **Hardware and capacity**
-   - Throughput requirement: how many inferences/minute?
-   - Latency requirement: p99 latency target?
-   - Model size: how much GPU memory needed? (impacts GPU type selection)
-   - Multi-GPU training or distributed inference? (requires interconnect, topology awareness)
+**Symptom:** A customer uses VMware vSphere with Tanzu. They deploy a NIM container. The Pod stays in `Pending`, or starts and immediately crashes with `CUDA error: no CUDA-capable device is detected`.
 
-5. **Security and network boundaries**
-   - Can pods access external registries? (NGC, Docker Hub, or only internal mirror?)
-   - Is firewall blocking outbound HTTPS? (NGC download, metadata updates)
-   - Does data leave the network? (customer's data in inference logs — compliance issue if yes)
-   - Which identity system? (RBAC, ABAC, SAML, OAuth, service accounts)
+**The Diagnostic Workflow:**
+1.  **Layer 1: The ESXi Host.** SSH into the ESXi host. Run `nvidia-smi`. Does the hypervisor see the GPU? If no, the physical hardware is broken or the host driver (VIB) failed to install.
+2.  **Layer 2: The vCenter Assignment.** Did the VMware administrator successfully assign a vGPU profile to the Kubernetes Worker Node VM? If the VM does not have the virtual hardware attached, Kubernetes cannot see it.
+3.  **Layer 3: The Guest OS.** SSH into the Ubuntu/Linux guest VM. Run `lspci | grep NVIDIA`. Does the Linux kernel see the vGPU device?
+4.  **Layer 4: The GPU Operator.** Did the GPU Operator successfully install the Guest Driver container? Check the `nvidia-driver-daemonset` logs. If it failed to compile the kernel module, the Pods will never see the GPU.
 
-6. **Artifact and entitlement path**
-   - Where are models stored? (NGC, Hugging Face, internal S3, git-lfs)
-   - Who manages model updates? (ML ops team, platform team, data scientists)
-   - Is NGC entitlement token managed centrally? (Secrets Manager, custom system, hardcoded)
-   - What's the disaster recovery plan? (backup models locally? Rollback versions?)
+## 2. Troubleshooting the Air-Gap (Network Isolation)
 
-7. **Availability and disaster recovery**
-   - What's the maximum tolerable downtime? (RTO)
-   - How much data loss is acceptable? (RPO)
-   - Are there multi-region requirements?
-   - Is warm standby needed or cold standby acceptable?
+**Symptom:** The GPU Operator is deployed, but several DaemonSets fail with `ImagePullBackOff`. Or, a NIM container starts but sits idle forever without loading the model.
 
-8. **Observability and support workflow**
-   - Do metrics/logs go to a centralized platform? (Prometheus, Datadog, Splunk)
-   - Who owns on-call? (Platform team? ML ops? Separate?)
-   - SLA for incident response? ("4 hours for P1 GPU failure" ← must be defined)
-   - Where are GPU logs captured? (DCGM, nvidia-smi, NVIDIA-SMI logs)
+**The Diagnostic Workflow:**
+1.  **The Registry Mirror:** If you see `ImagePullBackOff` for NVAIE images (e.g., `nvcr.io/nvaie/...`), the Kubernetes node is trying to reach the internet and failing. You must verify that the DevOps team successfully mirrored the images to the internal registry (e.g., Artifactory), and that the Helm `values.yaml` is pointing to that internal URL.
+2.  **The Pull Secret:** If the URL is correct but the pull still fails, check the `imagePullSecrets`. Does the Kubernetes Secret contain a valid NGC API Key with the required entitlement?
+3.  **The NIM Cache:** If the NIM container starts but hangs, it is trying to download the massive model weights from HuggingFace/NGC. The node has no internet access. You must verify that the model weights were manually downloaded to a local disk, and that the Kubernetes `PersistentVolume` is correctly mounted into the NIM container at the `/opt/nim/.cache` directory.
 
-9. **Upgrade and rollback policy**
-   - How often can production be patched? (weekly, monthly, quarterly)
-   - Can workloads tolerate rolling restarts? (or must they finish mid-request)
-   - How many old versions must be retained? (for rollback)
-   - Who approves upgrades? (security team, platform team, both)
+## 3. Troubleshooting the Licensing Control Plane
 
-## Discovery Output — A Real Architecture
+**Symptom:** A vGPU-enabled Virtual Machine boots up successfully, and `nvidia-smi` sees the GPU. However, when the user runs an AI workload, the performance is terrible (e.g., the GPU clock speed is locked to a fraction of its maximum).
 
-➕ **After discovery, capture decisions as code:**
+**The Diagnostic Workflow:**
+1.  **The Unlicensed State:** This is the definitive symptom of a licensing failure. The NVIDIA driver has detected a vGPU profile but has failed to check out a valid license token from the NVIDIA License System (NLS). It intentionally degraded performance.
+2.  **The Client Config:** Check the client configuration token inside the VM (`/etc/nvidia/ClientConfigToken/`). Does it contain the correct IP address or URL for the DLS/CLS license server?
+3.  **The Network Route:** Can the VM ping the DLS server on port 443/80? Often, enterprise firewalls block communication between the user VLAN (where the VM sits) and the management VLAN (where the DLS server sits).
+4.  **The License Pool:** Log into the DLS server. Are there any licenses actually available? If the customer bought 50 licenses and spun up 51 VMs, the 51st VM will be degraded.
 
-```yaml
-# customer_architecture.yaml
-customer: "FinBank"
-deployment_date: "2026-09-15"
-architecture_owner: "ml-platform-team@finbank.com"
+## Customer Scenario (Senior Level)
 
-workload:
-  type: "document_summarization"
-  sla:
-    availability: "99.9% uptime"
-    p99_latency_ms: 2000
-    throughput_qps: 100
-  use_case: "internal staff tool, non-revenue"
+**The Situation:**
+A hospital IT team is deploying a healthcare AI model using an NVAIE Triton container on a bare-metal NVIDIA-Certified server. The hospital network is strictly air-gapped. The IT team mirrored the Triton container image internally. However, when the Triton pod starts, it immediately crashes with a `Segmentation Fault (core dumped)`. The IT team opens a ticket claiming the NVAIE software is corrupt and violates their enterprise support agreement.
 
-model:
-  name: "llama2-13b"
-  source: "Meta Llama 2"
-  license: "Community License (non-commercial)"
-  size_gb: 26
-  training_data_location: "on-prem, must remain on-prem"
-  fine_tuning: "no custom fine-tuning planned"
+**The Senior Architect Response:**
+"The NVAIE software is not corrupt; the IT team has violated the **Golden Triangle of Compatibility** by modifying the base operating system on an air-gapped node.
 
-platform:
-  infrastructure: "on-premise vSphere"
-  kubernetes: "yes, existing Kubernetes cluster v1.28"
-  managed_k8s: "no, customer operates"
-  upgrade_frequency: "Quarterly, after staging validation"
-  network_constraints: "Air-gap egress: can only pull from internal mirror"
+A segmentation fault in a highly optimized C++ binary like Triton is almost never a random bug; it is a symptom of a deep library mismatch between the container's user-space and the host's kernel-space.
 
-hardware:
-  node_count: 4
-  gpu_per_node: 2
-  gpu_type: "A100 40GB"
-  interconnect: "NVLink (high-speed, multi-GPU support)"
-  total_capacity: "8 A100s = estimated 400 req/sec batch inference"
+Because the environment is air-gapped, the IT team likely provisioned the bare-metal server using a custom, hardened, internal Linux machine image (e.g., a heavily modified RHEL or Ubuntu build) rather than a standard, internet-updated OS. 
 
-security:
-  authentication: "LDAP (customer identity system)"
-  data_residency: "All data must stay on-prem"
-  egress_policy: "No external API calls from pod (must mirror NGC)"
-  compliance: "SOC 2, subject to audit"
+We must immediately check the **NVAIE Support Matrix**. 
+We must cross-reference the exact version of the NVAIE Triton container they deployed against the specific Host OS version, the Host Kernel version (`uname -r`), and the NVIDIA Driver version they installed.
 
-artifacts:
-  model_store: "Internal Harbor registry (mirrored from NGC)"
-  entitlement: "NGC token stored in HashiCorp Vault, rotated quarterly"
-  version_control: "Git for Helm values, pinned digests in values.yaml"
+It is highly probable that their custom air-gapped OS image is running an older kernel or a specific glibc version that is mathematically incompatible with the newer CUDA libraries inside the Triton container. 
+To resolve this and return to a supported state, they must either roll back the Triton container version to one certified for their specific older OS build, or they must update their bare-metal provisioning pipeline to deploy an OS and Kernel version explicitly listed as supported in the NVAIE documentation matrix."
 
-availability:
-  rto_hours: 4  # Restore service within 4 hours
-  rpo_hours: 1  # Up to 1 hour of data loss acceptable
-  multi_region: false
-  standby: "cold standby in second DC, 1-day old model cache acceptable"
+## Interview Preparation
 
-observability:
-  platform: "Prometheus + Grafana (customer-managed)"
-  gpu_monitoring: "DCGM exporter (part of GPU Operator)"
-  centralized_logging: "Splunk (customer-managed)"
-  support_sla: "4-hour response for critical GPU issues"
+**Conceptual:** If a vGPU-enabled virtual machine boots up, but the AI workloads run incredibly slowly and the GPU clock speed is locked at a low frequency, what is the most likely root cause? *(Hint: The VM is in an 'Unlicensed State'. The NVIDIA guest driver cannot communicate with the DLS/CLS license server to verify its entitlement, so it intentionally degrades performance. The architect must check network routing between the VM and the license server, and verify the license pool has available capacity).*
 
-upgrades:
-  cadence: "Quarterly"
-  change_control: "Change Advisory Board approval required"
-  rollback_versions_retained: 3
-  approval_process: "staged → canary → production"
-
-support_boundary:
-  nvidia_responsibility:
-    - "Driver 550.127 and CUDA 12.4 compatibility"
-    - "NIM and NeMo framework bugs"
-    - "NGC model artifact issues"
-  
-  customer_responsibility:
-    - "Kubernetes cluster operations and upgrades"
-    - "Network and storage infrastructure"
-    - "Identity and access management"
-    - "Data governance and compliance"
-    - "On-call runbooks and incident response"
-```
-
-## Troubleshooting Tree — Ordered by Speed to Isolate Root Cause
-
-```mermaid
-flowchart TD
-    Fail["⚠️ SERVICE FAILURE<br/>inference requests failing"]
-    
-    Avail{Artifact pull<br/>and NGC token<br/>working?}
-    Avail -->|"Check: pod events, NGC token scoping"| AvailNo["NGC issue<br/>• Token expired<br/>• Rate limit<br/>• Network to NGC<br/>→ Use local mirror"]
-    Avail -->|"✓ Yes"| Platform
-    
-    Platform{K8s and<br/>cluster<br/>healthy?}
-    Platform -->|"Check: kubectl get nodes, pod logs"| PlatformNo["K8s issue<br/>• Node offline<br/>• Networking broken<br/>• Storage unavailable<br/>→ K8s team"]
-    Platform -->|"✓ Yes"| GPU
-    
-    GPU{"GPU<br/>responsive<br/>and visible?"}
-    GPU -->|"Check: nvidia-smi, dcgmi"| GPUNo["GPU layer issue<br/>• Driver failed<br/>• GPU out of memory<br/>• Thermal shutdown<br/>→ NVIDIA support"]
-    GPU -->|"✓ Yes"| ModelReady
-    
-    ModelReady{"Model<br/>successfully<br/>loaded?"}
-    ModelReady -->|"Check: pod readiness logs, GPU memory"| ModelNo["Model loading issue<br/>• Model too large<br/>• Quantization mismatch<br/>• Model format error<br/>→ NIM/model artifact"]
-    ModelReady -->|"✓ Yes"| AppIntegration
-    
-    AppIntegration{"Inference<br/>returns<br/>valid output?"}
-    AppIntegration -->|"Check: test deterministic request vs baseline"| AppNo["Application issue<br/>• Model precision changed<br/>• Tokenization mismatch<br/>• Bad input preprocessing<br/>→ Customer app team"]
-    AppIntegration -->|"✓ Yes"| Success["✅ System operational<br/>Check SLA metrics<br/>latency, throughput"]
-```
-
-➕ **Real incident walk-through: "Inference latency increased 3x overnight"**
-
-```text
-Discovery questions (in order):
-
-Q1: Did anything change? (deployment, config, traffic, time-of-day)
-   A: Traffic increased 10x (legitimate spike)
-   → Latency spike may be normal due to queueing
-
-Q2: Is the increase uniform or outliers?
-   A: p50 latency 150ms→450ms (uniform), p99 latency 2000ms→6000ms (high variance)
-   → Not just queueing; something in the inference path
-
-Q3: Are GPUs maxed out?
-   A: kubectl exec <pod> nvidia-smi
-      GPU Util: 98% ✓ (GPU saturated, expected under load)
-      GPU Memory: 35/40GB ✓ (model still fits)
-   → GPU is not the constraint
-
-Q4: Is memory thrashing? (high swap use)
-   A: kubectl top pod <pod>: Memory 18GB request, using 17GB ✓
-   → No memory issue
-
-Q5: Is preprocessing slow?
-   A: Add timestamps in application logs:
-      "start_tokenization: 14:23:00.100"
-      "end_tokenization: 14:23:00.150"  (50ms)
-      "end_inference: 14:23:00.600"      (450ms total)
-   → Inference is 450ms, tokenization is only 50ms
-   → GPU inference is the bottleneck (450ms / inference * 100 reqs/sec = GPU saturated)
-
-Q6: Did precision or quantization change?
-   A: Check deployed NIM image digest
-      kubectl get deployment nim -o yaml | grep image
-      Currently: nvcr.io/nvidia/nim/llama2-13b@sha256:abc123
-      No recent change
-   → Config stable
-
-Q7: Is a background process running on the node?
-   A: kubectl top nodes
-      Node CPU: 60% (normal)
-      Node GPU: 98% in-use (expected)
-   → No rogue process
-
-CONCLUSION:
-Workload is simply saturated: 100 concurrent requests * 450ms/request = queue depth growing.
-Solution: scale horizontally (add another NIM replica) or reduce traffic.
-NOT a system failure; system is working as designed under load.
-```
-
-## Customer Advice
-
-**DO:** Promise that NVIDIA AI Enterprise qualifies specific combinations and reduces integration uncertainty — but it does NOT eliminate architecture work.
-
-**DON'T:** Promise that "enterprise support makes the platform just work" or that "you don't need to understand Kubernetes/GPU/networking."
-
-**Better:** "NVIDIA qualifies NIM + CUDA + driver combinations, so if you hit a bug in that layer, we have clear support. But you're responsible for your Kubernetes cluster stability, network throughput to your model cache, and whether your application's data pipeline is fast enough. Those are your architecture decisions, not ours."
+**Architecture:** Describe the three layers of troubleshooting required when a Kubernetes Pod fails to see a vGPU on a VMware Tanzu cluster. *(Hint: You must verify Layer 1: the physical host ESXi hypervisor sees the hardware and has the VIB installed. Layer 2: VMware vCenter successfully attached the vGPU profile to the worker node VM. Layer 3: The Guest OS (Linux) inside the VM sees the PCI device and the GPU Operator successfully compiled and loaded the guest driver).*
