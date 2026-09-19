@@ -1,7 +1,6 @@
 ---
 title: Volume 19 — Production Operations
 description: Day-2 operations, incident response, capacity planning, and troubleshooting for large-scale AI infrastructure.
-slug: /nvidia-zero-to-hero/volume-19/index
 sidebar_position: 19
 ---
 
