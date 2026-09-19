@@ -21,6 +21,19 @@ After this chapter, you should be able to:
 - investigate contention without treating sampled utilization as allocation truth; and
 - use observability data for capacity, fairness, and post-incident improvement.
 
+## Beginner's Primer: Who is eating my GPU?
+
+Observability becomes exponentially harder when you share a GPU. 
+
+If you have a dedicated whole GPU, and DCGM says it is running at 100% power and 100% compute, you know exactly who is using it: the single Pod assigned to it.
+
+If you are using **Time-Slicing**, and DCGM says the GPU is at 100%, how do you know which of the 10 Pods is the culprit? 
+To answer this, DCGM Exporter must be configured to scrape at the *process level*, not just the *device level*. It must look at the specific Linux Process ID (PID) running the CUDA context, map that PID back to the container runtime (containerd), and map the container back to the Kubernetes Pod.
+
+If you are using **MIG**, the problem is slightly easier. Because MIG physically slices the GPU, DCGM can report metrics on a per-MIG-instance basis (`DCGM_FI_DEV_GPU_UTIL` becomes tied to the specific MIG UUID). 
+
+In both cases, tracking down noisy neighbors requires a sophisticated telemetry pipeline that joins hardware metrics (from DCGM) with Kubernetes metadata (from kube-state-metrics). This chapter explains how to build Service Level Objectives (SLOs) on top of that pipeline.
+
 ## The service that was green and still failing
 
 A platform dashboard showed every node Ready, device-plugin Pods healthy, and GPU utilization near the expected range. An inference team still saw long tail latency after a development cohort started using the same time-sliced pool. The platform had instrumented hardware health but not the queue, application latency, or workload class. It could prove that a GPU existed; it could not prove that the service remained appropriate for the new concurrency.
@@ -365,6 +378,39 @@ The trade-off is intentional. More detailed labels improve local diagnosis but c
 **How would you alert on a missing GPU metric?** Treat it as a telemetry-coverage incident. Alert on target discovery or freshness with an owner and restore the observation path before making hardware-health conclusions from the absence of data.
 
 **What is the safest identity model for a shared-GPU incident?** Start with durable node and GPU identity, then join to allocation records from the scheduler or virtualization system. Add Pod or process context only when the collection mechanism can establish it correctly.
+
+## Architecture Summary
+
+Shared GPUs break simple utilization graphs. Because multiple tenants occupy the same silicon, observability must evolve from tracking "Device Health" to tracking "Process Health" and "Queue Time". Service Level Objectives (SLOs) must be built around the tenant experience (e.g., Inference Request Latency) rather than infrastructure metrics (e.g., 90% GPU Utilization), because 90% utilization on a shared GPU often means the tenants are experiencing massive contention.
+
+```mermaid
+flowchart TD
+    subgraph Observability_Stack["Shared GPU Telemetry Pipeline"]
+        direction TB
+        subgraph Data_Sources["Data Sources"]
+            DCGM[DCGM Exporter]
+            KSM[Kube-State-Metrics]
+            App[Application Metrics <br/> e.g. Triton/vLLM]
+        end
+        
+        subgraph Processing["Prometheus Server"]
+            Join[Join Rules <br/> DCGM_UUID + Pod_Name]
+            SLO[SLO Rules <br/> Latency / Wait Time]
+        end
+        
+        subgraph Outcomes["Actionable Outcomes"]
+            AlertManager[AlertManager <br/> Hardware faults / OOMs]
+            Dashboards[Grafana <br/> Capacity Planning]
+        end
+        
+        DCGM --> Join
+        KSM --> Join
+        App --> SLO
+        Join --> AlertManager
+        Join --> Dashboards
+        SLO --> Dashboards
+    end
+```
 
 ## Revision checklist
 

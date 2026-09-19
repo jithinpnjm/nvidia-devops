@@ -21,6 +21,20 @@ After this chapter, you should be able to:
 - assemble an escalation package that preserves time-correlated evidence; and
 - turn recurring incidents into improvements to service classes, runbooks, and capacity policy.
 
+## Beginner's Primer: Troubleshooting Shared GPUs
+
+When a developer submits a Pod requesting 1 GPU and it stays stuck in `Pending`, the troubleshooting tree is short: either you are out of GPUs, or the nodes are broken.
+
+When you introduce GPU sharing, the troubleshooting tree explodes. 
+If a Pod requests `nvidia.com/mig-2g.20gb: 1` and stays stuck in `Pending`, any of the following could be true:
+1. **Physical:** The GPU crashed (Xid error).
+2. **MIG Profile:** The MIG layout on the GPU does not contain a `2g.20gb` slice. It has `3g.40gb` slices instead.
+3. **Fragmentation:** The GPU has enough free compute/memory to create a `2g.20gb` slice, but the *geometry* of the remaining silicon doesn't allow it (Tetris problem).
+4. **DaemonSet:** The Device Plugin crashed and isn't advertising the labels.
+5. **Scheduler:** The namespace is out of K8s Resource Quota for that specific MIG string.
+
+Because there are so many layers of abstraction, you cannot guess. You must systematically follow the control plane down to the hardware, or follow the hardware up to the control plane. This chapter outlines that exact flowchart.
+
 ## The incident model
 
 ```mermaid
@@ -436,6 +450,34 @@ For a shared platform, offer differentiated recovery expectations. Best-effort j
 **How do you distinguish MIG fragmentation from a capacity shortage?** Inspect the requested profile shape and active layouts. Fragmentation means physical capacity may remain but cannot legally host the requested geometry; shortage means compatible inventory is exhausted. Their safe remediations differ.
 
 **Why is rebooting early a poor default response?** It may remove driver, runtime, event, layout, and timing evidence while failing to address a policy or application problem. Preserve evidence and find the first failed boundary unless safety requires immediate isolation.
+
+## Architecture Summary
+
+Troubleshooting shared GPUs requires navigating multiple layers of abstraction. A single symptom (like a slow AI inference response) could be caused by an application bug, time-slicing contention, a missing MIG profile, or a hardware thermal throttle. Platform engineers must methodically trace the fault from the Kubernetes scheduler request down through the Device Plugin, the Container Toolkit, the Host Driver, and finally the GPU firmware.
+
+```mermaid
+flowchart TD
+    subgraph K8s_Layer["1. Kubernetes Layer"]
+        Symptom[Pod Stuck Pending] --> Quota{Quota Reached?}
+        Quota -->|Yes| FixQ[Increase Quota]
+        Quota -->|No| Alloc{Is Node Allocatable?}
+    end
+
+    subgraph Config_Layer["2. Configuration / Abstraction Layer"]
+        Alloc -->|Yes| Labels{Node Labels / Taints match?}
+        Alloc -->|No| Profile{Is MIG Profile / TimeSlice configured?}
+        Labels -->|No| FixL[Fix NodeSelector]
+        Profile -->|No| FixP[Apply MIG Profile / ConfigMap]
+    end
+
+    subgraph Hardware_Layer["3. Hardware / Driver Layer"]
+        Profile -->|Yes| DP{Is Device Plugin crashing?}
+        DP -->|Yes| Logs[Check Device Plugin Logs]
+        DP -->|No| SMI{nvidia-smi works on Host?}
+        SMI -->|Yes| Unknown[Escalate / Check NFD]
+        SMI -->|No| Driver[Check dmesg / Xid errors]
+    end
+```
 
 ## Revision checklist
 

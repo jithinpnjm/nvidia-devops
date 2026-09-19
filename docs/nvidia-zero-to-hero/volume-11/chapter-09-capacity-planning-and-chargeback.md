@@ -21,6 +21,21 @@ After this chapter, you should be able to:
 - construct showback or chargeback units that communicate the guarantee being purchased; and
 - use capacity signals to choose between standardization, new hardware, a different sharing model, or demand controls.
 
+## Beginner's Primer: How do you bill for half a GPU?
+
+In cloud computing, we are used to strict billing metrics: you are charged for the exact number of CPUs and Gigabytes of RAM your VM consumes per hour.
+
+When a platform team introduces GPU sharing, billing (chargeback) suddenly becomes a massive headache. 
+If 5 different data science teams are sharing a single $30,000 GPU via Time-Slicing, who pays for it? 
+- You can't bill them for "1 GPU" because they are sharing it.
+- You can't bill them purely based on GPU Utilization %, because Team A might allocate the memory and hold it hostage, even if their compute utilization is 0%. 
+
+**The Chargeback Solution:**
+To solve this, you must bill based on the **Allocation Contract**, not the hardware utilization. 
+If a user requests a `MIG 3g.40gb` profile, they have explicitly reserved roughly 50% of the GPU's memory and compute. You bill their cost center for 50% of the hardware cost, regardless of whether they run a heavy workload or sit completely idle. 
+
+If users are using Time-Slicing, you bill them for the "Logical Replica" request in Kubernetes (e.g., reserving 1 out of 10 logical slices costs 10% of the hardware rate). This chapter explains how to set up these financial boundaries so that platform teams can actually justify buying more hardware.
+
 ## A planning incident: the cluster that looked half empty
 
 An internal platform team reported 48 percent fleet utilization and deferred a purchase. Two weeks later, a new inference tenant could not obtain its requested MIG profile, while batch teams waited behind a maintenance drain. The dashboard was not wrong; it was incomplete. It averaged device activity across incompatible profile layouts, included temporarily unavailable nodes as if they were usable, and ignored the spare capacity reserved for the team’s latency objective.
@@ -360,6 +375,37 @@ An effective recommendation presents at least two viable paths. For example, a s
 **How would you price a MIG service without inventing a “fraction of a GPU” performance ratio?** Price the named profile and service tier as an allocation with explicit availability and operational properties. Use measured workload evidence for planning, include layout and reserve costs, and explain that performance depends on the workload and platform configuration.
 
 **What is the first design change when fragmentation becomes a recurring incident?** Establish the requested shapes and current layouts from evidence, then reduce uncontrolled layout diversity. Separate standardized pools or improve the catalog before treating active-node reconfiguration as a routine scheduler action.
+
+## Architecture Summary
+
+Capacity planning for shared GPUs must account for physical fragmentation, maintenance reserves, and the difference between "utilization" and "allocation." Chargeback models must map directly to the Kubernetes resource requests (`nvidia.com/mig-X`) rather than fluid SM utilization, ensuring that tenants pay for the capacity they strand.
+
+```mermaid
+flowchart TD
+    subgraph Chargeback_Pipeline["Shared GPU Chargeback Pipeline"]
+        direction TB
+        subgraph Data_Collection["Data Collection"]
+            KubeState[Kube-State-Metrics <br/> Reads Pod Resource Requests]
+            DCGM[DCGM Exporter <br/> Reads Hardware Utilization]
+        end
+        
+        subgraph Aggregation["Aggregation (Prometheus)"]
+            Prom[Prometheus Time-Series]
+            Rules[Recording Rules: <br/> Pod Request * Time * Rate]
+        end
+        
+        subgraph Billing["Billing & Showback"]
+            FinOps[FinOps Dashboard]
+            Invoice[Tenant Invoice]
+        end
+        
+        KubeState -->|Allocation data| Prom
+        DCGM -->|Usage data (optional)| Prom
+        Prom --> Rules
+        Rules --> FinOps
+        FinOps --> Invoice
+    end
+```
 
 ## Revision checklist
 

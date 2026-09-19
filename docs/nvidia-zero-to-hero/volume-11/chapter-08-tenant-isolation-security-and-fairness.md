@@ -27,6 +27,21 @@ After this chapter, you will be able to:
 - design a fair-use policy that is observable and enforceable; and
 - respond to cross-tenant interference without weakening security controls.
 
+## Beginner's Primer: The Blast Radius
+
+In data center design, "Blast Radius" is a term used to describe how much damage is caused if a single component fails or gets compromised. 
+
+When you allow multiple users (tenants) to share a GPU, you intentionally expand the blast radius to save money. 
+- **Physical Boundary:** If Server A catches fire, Server B is fine. (Smallest blast radius, but expensive).
+- **MIG Boundary:** If User 1 crashes their MIG slice, User 2 (on the same GPU) is completely unaffected. 
+- **Time-Slicing Boundary:** If User 1 causes an Out of Memory (OOM) error, User 2 (on the same GPU) immediately crashes. 
+
+But compute isolation is only half the battle. **Fairness** is the other half. 
+If User A and User B are sharing a GPU via time-slicing, what happens if User A launches a massive training loop that demands 100% of the CUDA cores? Does User B get starved? 
+Yes. Time-slicing provides *no* compute fairness guarantees. 
+
+This is why "Multi-Tenancy" is an architectural commitment. You cannot securely rent time-sliced GPUs to rival pharmaceutical companies. You *can* time-slice GPUs for an internal team of friendly data scientists who can Slack each other if someone hogs the resources. Knowing your threat model dictates your sharing technology.
+
 ## A tenant boundary is an end-to-end path
 
 ```mermaid
@@ -351,6 +366,34 @@ It increases concurrent access to a physical GPU but does not create dedicated h
 **What must be true before GPU preemption is safe?**
 
 The workload class must explicitly permit disruption; state recovery and checkpoint paths must be tested; termination behavior, priority, owner notification, and restart responsibility must be documented; and the replacement workload must have a valid service need.
+
+## Architecture Summary
+
+GPU sharing expands the blast radius of a workload failure or security compromise. A true multi-tenant boundary requires combining hardware-level isolation (like MIG or vGPU) with strict Kubernetes admission controls, node selectors, and network policies. Software-based sharing (Time-Slicing or MPS) should never be used across zero-trust tenant boundaries.
+
+```mermaid
+flowchart TD
+    subgraph MultiTenant_Matrix["Multi-Tenant Isolation Boundaries"]
+        direction TB
+        subgraph Hard_Boundary["Hard Isolation (Zero-Trust)"]
+            Phys["Physical Servers"]
+            VM["Virtual Machines (vGPU)"]
+            MIG["Hardware Partitioning (MIG)"]
+        end
+        
+        subgraph Soft_Boundary["Soft Isolation (Trusted Co-workers)"]
+            MPS["Multi-Process Service (MPS)"]
+            TimeSlice["Time-Slicing (CUDA Contexts)"]
+        end
+        
+        Hard_Boundary -.->|Protects against| OOM[Out of Memory Kills]
+        Hard_Boundary -.->|Protects against| Data[Data/VRAM leakage]
+        Hard_Boundary -.->|Protects against| Perf[Performance starvation]
+        
+        Soft_Boundary -.->|Vulnerable to| OOM
+        Soft_Boundary -.->|Vulnerable to| Perf
+    end
+```
 
 ## Key takeaways
 

@@ -27,6 +27,25 @@ After this chapter, you will be able to:
 - explain the limits of the default scheduler and device allocation; and
 - diagnose Pending and misclassified GPU workloads systematically.
 
+## Beginner's Primer: Fractional GPUs in Kubernetes
+
+In traditional Kubernetes, you can easily ask for half of a CPU by requesting `cpu: "0.5"`.
+**You cannot ask for half of a GPU.**
+
+Kubernetes only understands GPUs as whole integers. You cannot write `nvidia.com/gpu: 0.5`. 
+So, if Kubernetes can't understand fractions, how do we schedule 2 Pods onto 1 MIG-sliced GPU?
+
+We do it by **inventing new names**.
+When you slice a GPU using MIG into 10GB chunks, the NVIDIA Device Plugin stops advertising `nvidia.com/gpu: 1`. Instead, it looks at the MIG profiles and advertises a custom string to Kubernetes: `nvidia.com/mig-1g.10gb: 7`.
+
+Now, Kubernetes sees a brand new resource type that it has 7 of. The user writes their Pod manifest like this:
+```yaml
+resources:
+  limits:
+    nvidia.com/mig-1g.10gb: "1"
+```
+Kubernetes happily subtracts "1" from the pool of 7, completely unaware that these are actually slices of a single physical H100. This clever abstraction keeps the Kubernetes scheduler simple, but requires the Platform Engineer to carefully manage the labels and namespaces to ensure users request the correct strings.
+
 ## What Kubernetes decides, and what it delegates
 
 ```mermaid
@@ -377,6 +396,40 @@ It replaces or augments the default Kubernetes scheduler and sits above the devi
 **Go deeper**
 - Search NVIDIA's documentation for "Run:ai platform" and "Run:ai Kubernetes scheduler" for current architecture and integration details
 - [Comparing MIG, Time-Slicing, and vGPU](./chapter-06-comparing-mig-time-slicing-and-vgpu) and [Kubernetes Scheduling for Shared GPUs](./chapter-07-kubernetes-scheduling-for-shared-gpus) (this chapter) for the underlying mechanisms Run:ai schedules across
+
+## Architecture Summary
+
+Because Kubernetes does not natively support fractional GPUs (like `cpu: 0.5`), GPU sharing relies on the Device Plugin advertising distinct resource names (like `nvidia.com/mig-2g.20gb` or an inflated logical replica count for time-slicing). This abstraction shifts the burden of multi-tenancy away from the K8s scheduler and onto the cluster administrator's node labeling and queueing policies.
+
+```mermaid
+flowchart TD
+    subgraph Manifest["User Workload Manifest"]
+        Pod[Pod Definition]
+        Req1[Request: nvidia.com/mig-2g.20gb: 1]
+        Req2[Request: nvidia.com/gpu: 1]
+        Pod --> Req1
+        Pod --> Req2
+    end
+    
+    subgraph Control_Plane["Kubernetes Control Plane"]
+        Scheduler[Kube-Scheduler]
+        API[API Server]
+        Scheduler --> API
+    end
+    
+    subgraph Nodes["Platform Node Pools"]
+        direction TB
+        NodeA["Node A (MIG Configured) <br/> Allocatable: mig-2g.20gb=3"]
+        NodeB["Node B (Time-Slicing) <br/> Allocatable: gpu=10 (Logical)"]
+        NodeC["Node C (Exclusive) <br/> Allocatable: gpu=8 (Physical)"]
+    end
+    
+    Req1 -->|Matches resource| NodeA
+    Req2 -->|Ambiguous! Could land on| NodeB
+    Req2 -->|Ambiguous! Could land on| NodeC
+    
+    style Req2 stroke:#cc0000,stroke-width:2px
+```
 
 ## Key takeaways
 

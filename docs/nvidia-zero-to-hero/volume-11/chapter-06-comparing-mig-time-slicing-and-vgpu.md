@@ -27,6 +27,28 @@ After this chapter, you will be able to:
 - recognize fragmentation and lifecycle costs before deployment; and
 - design a multi-pool service catalog rather than one universal sharing policy.
 
+## Beginner's Primer: The Decision Tree
+
+By now, you understand the three main ways to share a GPU: MIG (Hardware Slicing), Time-Slicing (Software Context Switching), and vGPU (Hypervisor VMs). A fourth option, MPS (Multi-Process Service), allows concurrent execution but is deeply tied to application design.
+
+When building an AI factory, how do you know which one to choose?
+A good Senior Architect uses a simple decision tree based on **Blast Radius** and **Latency Constraints**:
+
+1. **Does the workload demand absolute performance, massive memory, or NVLink?** 
+   - *Example:* Distributed Training.
+   - *Decision:* **Whole GPU.** Do not share.
+2. **Is strict isolation required for security or latency guarantees?**
+   - *Example:* Multi-tenant inference serving (Customer A cannot impact Customer B).
+   - *Decision:* **MIG.** Hardware isolation ensures predictable latency.
+3. **Are you providing virtual desktops or full VMs to end users?**
+   - *Example:* Windows VMs for engineers.
+   - *Decision:* **vGPU.**
+4. **Is the environment highly trusted, bursty, and memory-light?**
+   - *Example:* A team of data scientists sharing a dev node for Jupyter notebooks.
+   - *Decision:* **Time-Slicing.**
+
+Density (packing as many pods as possible onto a GPU) is tempting, but if you pack 10 inference pods onto a GPU using time-slicing, the latency jitter will cause the application to timeout. Choose the mechanism based on the SLA, not the density target.
+
 ## The decision begins with the contract
 
 ```mermaid
@@ -369,6 +391,34 @@ Time-slicing multiplexes access to a physical GPU; MIG partitions supported GPU 
 **When is a whole GPU still the best answer?**
 
 When the job needs the complete device, has a stringent or unknown performance envelope, requires simple incident attribution, or would lose more value to contention and operational complexity than sharing would save.
+
+## Architecture Summary
+
+Every sharing mechanism introduces a trade-off between packing density and isolation. An effective platform offers a deliberate catalog of 2 or 3 of these mechanisms, mapped directly to specific workload SLOs (Service Level Objectives), rather than trying to force every application into a single "one size fits all" configuration.
+
+```mermaid
+mindmap
+  root((GPU Allocation<br/>Strategies))
+    Whole GPU
+      Exclusive access
+      No sharing overhead
+      NVLink multi-GPU support
+      Best for: Distributed Training
+    MIG Hardware
+      Strict Memory/Compute isolation
+      Predictable latency
+      Slight overhead / fragmentation
+      Best for: Multi-tenant Inference
+    Software Time-Slicing
+      High density oversubscription
+      Zero memory isolation
+      Latency jitter
+      Best for: Dev Notebooks
+    vGPU Virtualization
+      Hypervisor VM isolation
+      Enterprise VM lifecycle
+      Best for: VDI / Data Center VMs
+```
 
 ## Key takeaways
 
