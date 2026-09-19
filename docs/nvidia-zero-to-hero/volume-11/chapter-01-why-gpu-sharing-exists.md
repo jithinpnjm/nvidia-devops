@@ -21,6 +21,21 @@ After this chapter, you can:
 - identify cases where whole-GPU allocation remains the correct answer; and
 - write a service contract for a shared-GPU pool.
 
+## Beginner's Primer: The AI Capacity Problem
+
+In a traditional CPU environment, sharing is easy. The Linux kernel seamlessly context-switches processes thousands of times a second across CPU cores. 
+But GPUs are massively parallel math engines built for sustained throughput, not rapid context switching.
+
+When you assign a $30,000 H100 GPU to a Kubernetes Pod (using `nvidia.com/gpu: 1`), it is an **exclusive lock**. Even if the developer inside that Pod is just staring at a Jupyter Notebook writing code, or running a tiny inference model that uses 2GB of memory and 5% of the compute power, no other Pod can use the remaining 95% of that GPU. The capacity is "stranded."
+
+To stop wasting millions of dollars on stranded capacity, NVIDIA provides four distinct ways to share a GPU. Knowing which one to use is the core of AI Infrastructure design:
+1. **Time-Slicing (Software):** The simplest method. Kubernetes lies and says 1 GPU is actually 10 GPUs. 10 Pods get scheduled, but they all fight for the same physical memory and compute. It's cheap, easy, and dangerous.
+2. **MPS (Multi-Process Service):** A software background service that lets multiple CUDA applications run *concurrently* on the same GPU, improving efficiency, but with poor security isolation.
+3. **MIG (Multi-Instance GPU - Hardware):** The gold standard for modern GPUs (Ampere, Hopper). The physical silicon of the GPU is literally sliced into up to 7 fully isolated mini-GPUs with their own dedicated memory and cache. 
+4. **vGPU (Virtualization):** Used heavily in VMware/KVM enterprise environments to slice a GPU across multiple Virtual Machines (VMs) at the hypervisor level.
+
+This volume teaches you how to implement and choose between these four strategies.
+
 | Prerequisites | Difficulty | Reading time |
 |---|---:|---:|
 | Kubernetes GPU resource model, basic CUDA process model | Advanced | 45 minutes |
@@ -433,15 +448,26 @@ It shows whether the platform followed its design.
 
 It also reveals whether the workload changed without being reclassified.
 
-## Senior-level summary
+## Architecture Summary
 
-GPU sharing is a capacity and reliability design.
+GPU sharing is a capacity and reliability design, not a simple configuration toggle. To safely increase density without destroying latency or security, platform engineers must classify workloads and apply the appropriate sharing mechanism based on memory, fault tolerance, and burst behavior.
 
-It is not a multiplier applied to a scheduler resource.
-
-The best design may leave some physical capacity unused.
-
-That capacity can be the difference between planned recovery and a disruptive layout change.
+```mermaid
+flowchart TD
+    subgraph Sharing_Decision_Tree["GPU Sharing Decision Matrix"]
+        direction TB
+        Start[Workload Request] --> Exclusive{Requires absolute max<br/>bandwidth or NVLink?}
+        
+        Exclusive -->|Yes| WG[Whole GPU Allocation<br/>e.g. Distributed Training]
+        Exclusive -->|No| Isolate{Requires strict Hardware<br/>Fault & Memory Isolation?}
+        
+        Isolate -->|Yes| MIG[Hardware Partitioning: MIG<br/>e.g. Multi-tenant Inference]
+        Isolate -->|No| Conc{Are workloads highly bursty<br/>and trusted?}
+        
+        Conc -->|Yes, low memory| TimeSlice[Software: Time-Slicing<br/>e.g. Dev Jupyter Notebooks]
+        Conc -->|Yes, high throughput| MPS[Software: CUDA MPS<br/>e.g. Co-located Microservices]
+    end
+```
 
 ## Further reading
 

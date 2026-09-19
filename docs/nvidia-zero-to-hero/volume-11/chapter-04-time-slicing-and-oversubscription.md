@@ -17,6 +17,22 @@ After reading this chapter, you can explain how device-plugin replicas affect sc
 |---|---:|---:|
 | Chapters 01–03 and Kubernetes resource requests | Advanced | 45 minutes |
 
+## Beginner's Primer: Lying to Kubernetes
+
+In Chapter 2, we looked at MIG, which cuts the physical hardware into safe, isolated slices. 
+**Time-Slicing** is the complete opposite. It is a software trick where we simply lie to the Kubernetes scheduler.
+
+Imagine you have a single T4 GPU. 
+By default, the NVIDIA Device Plugin tells Kubernetes: `nvidia.com/gpu: 1`.
+If you configure the GPU Operator for Time-Slicing with a replica count of 10, the Device Plugin will tell Kubernetes: `nvidia.com/gpu: 10`.
+
+Kubernetes now believes there are 10 GPUs on this node. It will happily schedule 10 Pods onto the node. 
+However, all 10 Pods are actually mounting the exact same physical `/dev/nvidia0` device. 
+- **Compute:** The GPU rapidly context-switches between the 10 workloads. (Like a single CPU core rapidly switching between web browser tabs).
+- **Memory:** All 10 Pods share the same 16GB of VRAM. There is zero protection. If Pod 1 leaks memory and consumes 16GB, Pods 2 through 10 will immediately crash with an Out-of-Memory (OOM) error.
+
+Because there is zero fault isolation, Time-Slicing should only be used for highly trusted, best-effort workloads (like a team of Data Scientists sharing a dev node for Jupyter notebooks), NEVER for multi-tenant production inference.
+
 ## What the Kubernetes configuration changes
 
 ```mermaid
@@ -409,6 +425,33 @@ When should a service leave the shared pool?
 Answer using measured objectives.
 
 Avoid a universal replica ratio.
+
+## Architecture Summary
+
+Time-Slicing allows Kubernetes to oversubscribe a single physical GPU by advertising multiple logical replicas. While it drastically increases cluster density and queue-time efficiency for bursting workloads, it provides zero memory isolation and zero compute fairness. It must be paired with strict admission control and application-level memory discipline.
+
+```mermaid
+flowchart TD
+    subgraph K8s_Scheduler["Kubernetes View (The Lie)"]
+        direction LR
+        Pod1[Pod A] --> |Requests 1 GPU| vGPU1[Logical GPU 1]
+        Pod2[Pod B] --> |Requests 1 GPU| vGPU2[Logical GPU 2]
+        Pod3[Pod C] --> |Requests 1 GPU| vGPU3[Logical GPU 3]
+    end
+
+    subgraph Hardware["Physical Hardware (The Reality)"]
+        direction TB
+        GPU["Single NVIDIA GPU"]
+        Mem["Unified Memory Pool (No Boundaries)"]
+        Compute["Context Switching (Round Robin)"]
+        GPU --- Mem & Compute
+    end
+    
+    vGPU1 & vGPU2 & vGPU3 -.->|All map to| GPU
+    
+    style K8s_Scheduler fill:#e6f3ff,stroke:#0066cc
+    style Hardware fill:#ffeee6,stroke:#cc4400
+```
 
 ## Revision checklist and senior interview questions
 

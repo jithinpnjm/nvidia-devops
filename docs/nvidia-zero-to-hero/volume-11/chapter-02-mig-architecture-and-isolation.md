@@ -17,6 +17,21 @@ After completing this chapter, you can describe the difference between a GPU ins
 |---|---:|---:|
 | Chapter 01 and CUDA device concepts | Advanced | 55 minutes |
 
+## Beginner's Primer: Physical Silicon Partitioning
+
+Before the NVIDIA Ampere architecture (A100), sharing a GPU was always a software trick. You could tell multiple containers to use the same GPU, but they would constantly step on each other's toes, fighting for memory bandwidth and cache. If one container crashed the GPU memory, the other containers died too.
+
+**MIG (Multi-Instance GPU)** changed the game by moving the sharing down to the physical silicon. 
+
+When you enable MIG on an H100 GPU and slice it into 7 instances, you are not just setting software quotas. The GPU hardware physically assigns specific memory controllers, specific L2 cache slices, and specific Streaming Multiprocessors (SMs) to each slice. 
+
+To the host operating system, and to Kubernetes, these 7 MIG slices look exactly like 7 completely independent, physically separate PCIe devices.
+- **Memory Isolation:** If MIG instance A fills up its 10GB of memory, it cannot touch the memory of MIG instance B.
+- **Compute Isolation:** If MIG instance A runs an infinite loop or crashes, MIG instance B continues running at full speed without a stutter.
+- **Bandwidth Isolation:** Each instance gets a dedicated path to the GPU memory (HBM), ensuring predictable latency.
+
+MIG is the only way to achieve true Quality of Service (QoS) and Multi-Tenancy on a single GPU.
+
 ## The hierarchy
 
 ```mermaid
@@ -478,6 +493,42 @@ Name the remaining shared failure domains.
 List the five layers that must validate before admission reopens.
 
 Explain why a successful driver command is insufficient proof of service readiness.
+
+## Architecture Summary
+
+MIG provides hardware-level isolation for compute, memory, and L2 cache, making it the safest multi-tenant sharing mechanism on modern NVIDIA GPUs. However, it does not isolate the host PCIe bus, firmware, or power supply. Changing MIG profiles is a disruptive operation that requires draining workloads and resetting the GPU.
+
+```mermaid
+flowchart TD
+    subgraph Physical_GPU["Physical NVIDIA H100 GPU (MIG Enabled)"]
+        direction TB
+        
+        subgraph GI1["GPU Instance 1 (GI)"]
+            Mem1["Dedicated Memory (10GB)"]
+            Cache1["Dedicated L2 Cache"]
+            CI1["Compute Instance (CI)<br/>1/7th Compute"]
+            Mem1 & Cache1 --- CI1
+        end
+        
+        subgraph GI2["GPU Instance 2 (GI)"]
+            Mem2["Dedicated Memory (20GB)"]
+            Cache2["Dedicated L2 Cache"]
+            CI2["Compute Instance (CI)<br/>2/7th Compute"]
+            Mem2 & Cache2 --- CI2
+        end
+        
+        subgraph GI3["GPU Instance 3 (GI)"]
+            Mem3["Dedicated Memory (40GB)"]
+            Cache3["Dedicated L2 Cache"]
+            CI3["Compute Instance (CI)<br/>4/7th Compute"]
+            Mem3 & Cache3 --- CI3
+        end
+    end
+    
+    Pod1[Tenant A Pod] -->|Sees isolated device| GI1
+    Pod2[Tenant B Pod] -->|Sees isolated device| GI2
+    Pod3[Tenant C Pod] -->|Sees isolated device| GI3
+```
 
 ## Revision checklist and senior interview questions
 

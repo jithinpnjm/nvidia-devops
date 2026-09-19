@@ -17,6 +17,24 @@ You will be able to size a profile from an observed workload envelope, recognize
 |---|---:|---:|
 | Chapters 01–02 | Advanced | 50 minutes |
 
+## Beginner's Primer: Decoding the MIG Profile Names
+
+When you enable MIG, you must tell the GPU how to slice itself up. You do this by selecting a "Profile". 
+NVIDIA MIG profiles use a specific naming convention that trips up beginners: `1g.10gb`, `2g.20gb`, `3g.40gb`, etc.
+
+What do these letters mean?
+- **G (Graphics/Compute Slices):** An H100 GPU has 7 Compute slices available. So `1g` means it takes 1/7th of the compute power. `2g` means 2/7ths of the compute power.
+- **GB (Gigabytes of Memory):** An H100 GPU usually has 80GB of memory. However, about 10GB is reserved for system overhead, leaving 70GB available for MIG. So `1g.10gb` means the slice gets 10GB of dedicated HBM memory.
+
+**The Geometry Puzzle:**
+You cannot just mix and match randomly. You cannot create a `7g.10gb` instance. You can only use supported combinations. 
+If you have a 7-slice GPU, you can create:
+- Seven `1g.10gb` instances.
+- Three `2g.20gb` instances (using 6 slices) + One `1g.10gb` instance.
+- One `4g.40gb` instance + One `2g.20gb` instance + One `1g.10gb` instance.
+
+You are playing Tetris with the silicon. This chapter explains how to play the game without fragmenting your hardware.
+
 ## From model to profile
 
 ```mermaid
@@ -323,6 +341,34 @@ It should include compatible inventory.
 It should include clear admission behavior.
 
 It should include a change-controlled recovery path.
+
+## Architecture Summary
+
+MIG profiles represent rigid geometric slices of a physical GPU, not fluid percentage sliders. Planning MIG capacity is an exercise in silicon tetris. A platform must balance the workload's memory and compute requirements against the danger of physical fragmentation. Standardizing on 2 or 3 fixed node layouts (e.g., all 2g.20gb nodes) is far safer than dynamic reconfiguration.
+
+```mermaid
+flowchart TD
+    subgraph GPU_Tetris["MIG Profile Placement (H100 80GB)"]
+        direction LR
+        subgraph Slice1["1g.10gb"]
+            S1[Slice 1]
+        end
+        subgraph Slice2["2g.20gb"]
+            S2[Slice 2]
+            S3[Slice 3]
+        end
+        subgraph Slice3["4g.40gb"]
+            S4[Slice 4]
+            S5[Slice 5]
+            S6[Slice 6]
+            S7[Slice 7]
+        end
+    end
+    
+    WorkloadA[Web API <br/> 8GB RAM Needed] -->|Fits| Slice1
+    WorkloadB[Batch Inference <br/> 18GB RAM Needed] -->|Fits| Slice2
+    WorkloadC[LLM Serving <br/> 35GB RAM Needed] -->|Fits| Slice3
+```
 
 ## Revision checklist and senior interview questions
 

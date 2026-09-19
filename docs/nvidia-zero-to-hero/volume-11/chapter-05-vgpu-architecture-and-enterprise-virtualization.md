@@ -27,6 +27,23 @@ After this chapter, you will be able to:
 - build a supportable compatibility and licensing operating model; and
 - diagnose failures without treating every missing guest GPU as a guest-driver problem.
 
+## Beginner's Primer: VMs vs. Containers
+
+To this point, we have primarily discussed sharing GPUs inside Linux Containers (Docker/Kubernetes). But many enterprises run their entire infrastructure on Virtual Machines using hypervisors like VMware ESXi, Nutanix AHV, or KVM.
+
+If you have a physical server with 2 GPUs, how do you give GPU access to 8 different Virtual Machines?
+You use **NVIDIA vGPU (Virtual GPU)**.
+
+NVIDIA vGPU intercepts the virtualization stack at the hypervisor level. 
+A special driver (the vGPU Manager) runs inside the Hypervisor (ESXi). It takes the physical GPU and slices it into "vGPU Profiles" (e.g., eight 2GB profiles). 
+When you boot a Windows or Linux VM, the Hypervisor presents one of those vGPU profiles to the VM. The VM believes it has a real, physical NVIDIA GPU plugged into its virtual motherboard. The guest OS then installs a standard NVIDIA Driver, completely unaware that it is sharing the physical silicon with 7 other VMs.
+
+**The Crucial Dependency:**
+Unlike bare-metal, vGPU requires *two* NVIDIA drivers:
+1. The **Host Driver** (vGPU Manager) running on ESXi/KVM.
+2. The **Guest Driver** running inside the VM (Windows/Linux).
+These two drivers must perfectly match the compatibility matrix, and the Guest driver requires a valid license (NVIDIA License System) to operate at full speed.
+
 ## The architecture has two paths
 
 ```mermaid
@@ -389,6 +406,38 @@ The host manager, hypervisor, physical GPU, guest driver, vGPU type, guest OS, a
 **Does a vGPU profile guarantee application performance?**
 
 No. It defines a supported virtual-device allocation and behavior, but application performance depends on the profile, physical GPU, scheduling mode, application concurrency, CPU and I/O paths, and the rest of the VM.
+
+## Architecture Summary
+
+NVIDIA vGPU brings GPU sharing to the hypervisor level, making the Virtual Machine the boundary of isolation rather than the container. It requires strict lifecycle coordination between the Host vGPU Manager, the Guest Driver, and the external NVIDIA License System. It can use Time-Slicing (for generic VDI workloads) or be backed by MIG (for isolated compute workloads).
+
+```mermaid
+flowchart TD
+    subgraph Enterprise_Hypervisor["Hypervisor (e.g. VMware ESXi / KVM)"]
+        direction TB
+        HostOS["Hypervisor OS"]
+        vGPU_Mgr["NVIDIA vGPU Manager (Host Driver)"]
+        PhysGPU["Physical NVIDIA GPU"]
+        
+        HostOS --> vGPU_Mgr
+        vGPU_Mgr -->|Slices and schedules| PhysGPU
+    end
+
+    subgraph VMs["Virtual Machines"]
+        direction LR
+        subgraph VM1["Guest VM 1"]
+            App1[Application] --> GDrv1[Guest NVIDIA Driver]
+            GDrv1 -.->|Thinks it owns a GPU| vGPU_Mgr
+        end
+        subgraph VM2["Guest VM 2"]
+            App2[Application] --> GDrv2[Guest NVIDIA Driver]
+            GDrv2 -.->|Thinks it owns a GPU| vGPU_Mgr
+        end
+    end
+    
+    License["NVIDIA License System (NLS)"] -.->|Provides entitlements| VM1
+    License -.->|Provides entitlements| VM2
+```
 
 ## Key takeaways
 
