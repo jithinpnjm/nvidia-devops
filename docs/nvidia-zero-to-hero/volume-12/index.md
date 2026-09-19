@@ -1,7 +1,6 @@
 ---
 title: Volume 12 — AI Inference
 description: Architect and operate production inference with Triton, TensorRT, TensorRT-LLM, vLLM, dynamic batching, KV cache, and latency engineering.
-slug: /nvidia-zero-to-hero/volume-12/index
 sidebar_position: 1
 tags:
   - inference
@@ -120,10 +119,10 @@ This volume is structured into four sequential modules:
 
 Volume 12 includes four production-grade hands-on laboratories designed to build practical mastery:
 
-1. **[Lab 01 — Deploy and Validate Triton](./labs/lab-01-deploy-and-validate-triton):** Build and deploy a multi-model Triton server instance with custom dynamic batching policies and health check integration.
-2. **[Lab 02 — Benchmark Dynamic Batching](./labs/lab-02-benchmark-dynamic-batching):** Use `perf_analyzer` to sweep queue delay parameters and generate empirical throughput-versus-latency Pareto curves.
-3. **[Lab 03 — Deploy an LLM with vLLM](./labs/lab-03-deploy-an-llm-with-vllm):** Deploy a 70B parameter model across multiple GPUs with PagedAttention, prefix caching, and OpenAI-compatible streaming endpoints.
-4. **[Lab 04 — Troubleshoot a Slow Inference Pipeline](./labs/lab-04-troubleshoot-a-slow-inference-pipeline):** Diagnose and remediate a simulated production incident involving CPU tokenization bottlenecks and streaming TCP buffer bloat.
+1. **Lab 01 — Deploy and Validate Triton:** Build and deploy a multi-model Triton server instance with custom dynamic batching policies and health check integration.
+2. **Lab 02 — Benchmark Dynamic Batching:** Use `perf_analyzer` to sweep queue delay parameters and generate empirical throughput-versus-latency Pareto curves.
+3. **Lab 03 — Deploy an LLM with vLLM:** Deploy a 70B parameter model across multiple GPUs with PagedAttention, prefix caching, and OpenAI-compatible streaming endpoints.
+4. **Lab 04 — Troubleshoot a Slow Inference Pipeline:** Diagnose and remediate a simulated production incident involving CPU tokenization bottlenecks and streaming TCP buffer bloat.
 
 ---
 
