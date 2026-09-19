@@ -1,7 +1,7 @@
 import glob
 import re
 
-for vol in range(17, 20):
+for vol in range(21, 26):
     for fpath in glob.glob(f'docs/nvidia-zero-to-hero/volume-{vol:02d}/*.md'):
         with open(fpath, 'r') as f:
             content = f.read()
@@ -13,6 +13,3 @@ for vol in range(17, 20):
                 f.write(new_content)
             print(f"Removed slug from {fpath}")
 
-# Check volume 20 placeholders just in case
-for p in glob.glob('docs/nvidia-zero-to-hero/volume-20/*placeholder*.md'):
-    os.remove(p)

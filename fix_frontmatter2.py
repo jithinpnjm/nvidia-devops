@@ -1,38 +1,36 @@
-import re
 import glob
+import re
+import os
 
-def remove_inner_frontmatter(filepath):
-    with open(filepath, 'r') as f:
-        lines = f.readlines()
-        
-    in_frontmatter = False
-    frontmatter_count = 0
-    
-    new_lines = []
-    
-    for line in lines:
-        if line.strip() == '---':
-            if not in_frontmatter:
-                # Starting a frontmatter block
-                frontmatter_count += 1
-                if frontmatter_count == 1:
-                    # Keep the first one
-                    in_frontmatter = True
-                    new_lines.append(line)
-                else:
-                    # Inner frontmatter block, skip it
-                    in_frontmatter = True
-            else:
-                # Ending a frontmatter block
-                if frontmatter_count == 1:
-                    new_lines.append(line)
-                in_frontmatter = False
-        else:
-            if not in_frontmatter or frontmatter_count == 1:
-                new_lines.append(line)
+# Function to add missing frontmatter
+def add_frontmatter(folder, vol_num):
+    print(f"Fixing frontmatter in {folder}")
+    for file in glob.glob(f'{folder}/chapter-*.md'):
+        with open(file, 'r') as f:
+            content = f.read()
+            
+        if not content.startswith('---'):
+            # Extract the first heading as the title
+            match = re.search(r'^#\s+(.+)$', content, re.MULTILINE)
+            title = match.group(1) if match else "Untitled Chapter"
+            
+            # Create a simple frontmatter
+            # Extract chapter number from filename e.g. chapter-01-foo.md -> 1
+            ch_match = re.search(r'chapter-(\d+)', os.path.basename(file))
+            position = int(ch_match.group(1)) if ch_match else 1
+            
+            frontmatter = f"""---
+title: "{title}"
+sidebar_position: {position}
+---
 
-    with open(filepath, 'w') as f:
-        f.write("".join(new_lines))
+"""
+            with open(file, 'w') as f:
+                f.write(frontmatter + content)
+            print(f"Added frontmatter to {file}")
 
-for file in glob.glob('docs/volume-08/*.md') + glob.glob('docs/volume-09/*.md'):
-    remove_inner_frontmatter(file)
+# Volume 21, 25 have missing frontmatter
+for vol in [21, 25]:
+    folder = f'docs/nvidia-zero-to-hero/volume-{vol:02d}'
+    add_frontmatter(folder, vol)
+

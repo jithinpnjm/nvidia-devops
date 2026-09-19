@@ -81,225 +81,218 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
+  "Chapter 7 — The NVIDIA Ecosystem: From Silicon to NIMs": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Map the complete NVIDIA ecosystem from raw silicon to high-level microservices. You will learn exact specifications for modern GPU architectures (Hopper, Blackwell), differentiate interconnect fabrics (NVLink vs. PCIe vs. InfiniBand), and understand the purpose of core software layers like NCCL, TensorRT-LLM, and NVIDIA Inference Microservices (NIM).",
+    "sections": [
+      "Chapter 7 — The NVIDIA Ecosystem: From Silicon to NIMs",
+      "1. Introduction (The \"Why\")",
+      "2. The Silicon: Generations and Specifications (The \"What\")",
+      "2.1 Ampere (A100) — The Baseline",
+      "2.2 Hopper (H100 / H200) — The Workhorse",
+      "2.3 Blackwell (B200 / GB200) — The Rack-Scale Era",
+      "3. The Interconnect Ecosystem (The \"Arteries\")",
+      "4. The Software Ecosystem (The \"Brain\")",
+      "4.1 CUDA & cuDNN (The Foundation)",
+      "4.2 NCCL (The Orchestrator of the Network)",
+      "4.3 TensorRT & Triton (The Serving Engines)",
+      "4.4 NIM (NVIDIA Inference Microservices)",
+      "5. Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text"
+    ]
+  },
+  "Chapter 8 — Enterprise AI Platforms & Orchestration": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Architect the deployment platforms required to run an AI Factory. You will learn the difference between bare-metal provisioning (Base Command Manager) and Cloud-Native orchestration (Kubernetes + GPU Operator), understand the role of virtualization (vGPU), and articulate the business value of NVIDIA AI Enterprise (NVAIE).",
+    "sections": [
+      "Chapter 8 — Enterprise AI Platforms & Orchestration",
+      "1. Introduction (The \"Why\")",
+      "2. Bare-Metal Provisioning: Base Command Manager (BCM)",
+      "3. Cloud-Native Orchestration: Kubernetes & The GPU Operator",
+      "4. Virtualization and Sharing: vGPU and MIG",
+      "4.1 Multi-Instance GPU (MIG)",
+      "4.2 NVIDIA vGPU (Virtual GPU)",
+      "5. The Commercial Layer: NVIDIA AI Enterprise (NVAIE)",
+      "6. Serverless AI: DGX Cloud",
+      "7. Customer Scenario (Senior Level)",
+      "Interview Preparation",
+      "Summary"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text"
+    ]
+  },
+  "Chapter 9 — Volume 01 Summary: The Architecture of Accelerated Computing": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Review and consolidate the fundamental concepts of AI infrastructure before advancing to Python programming and systems engineering in Volume 2.",
+    "sections": [
+      "Chapter 9 — Volume 01 Summary: The Architecture of Accelerated Computing",
+      "Introduction",
+      "1. The Core Architectural Tenets",
+      "1.1 The Shift in the Bottleneck",
+      "1.2 The Silicon Reality: CPU vs. GPU",
+      "1.3 The Tensor Core Revolution",
+      "1.4 The Two Phases of LLM Inference",
+      "1.5 The Network is the Computer",
+      "1.6 The Facility Wall",
+      "1.7 Enterprise Orchestration",
+      "2. The Senior Engineer Mindset",
+      "3. What Comes Next: Volume 02"
+    ],
+    "codeLanguages": []
+  },
   "What Is AI Infrastructure?": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
     "learningOutcome": "Understand the production problem AI infrastructure solves before learning NVIDIA technologies.",
     "sections": [
       "What Is AI Infrastructure?",
-      "Introduction",
-      "Story",
-      "Learning Objectives",
-      "Big Picture",
-      "Deep Explanation",
-      "Internal Working",
-      "Architecture",
-      "Production Deployment",
-      "Hands-on Lab",
-      "Production Troubleshooting",
-      "Problem: The service has poor latency after moving to production",
-      "Customer Scenario",
-      "Interview Preparation"
+      "Introduction (The \"Why\")",
+      "The Anatomy of an AI Request (The \"What\")",
+      "1. The Preprocessing Phase (CPU)",
+      "2. The Data Transfer (PCIe)",
+      "3. The Execution Phase (GPU and HBM)",
+      "4. The Autoregressive Loop",
+      "Architectural Diagram",
+      "The Bottlenecks (The \"How\" and \"Trade-offs\")",
+      "Bottleneck 1: Memory Bandwidth (The \"Memory Wall\")",
+      "Bottleneck 2: Interconnects (PCIe and NVLink)",
+      "Bottleneck 3: Host Starvation (CPU and Preprocessing)",
+      "Production Deployment & Operations",
+      "Customer Scenario (Senior Level)"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Why CPUs Became Insufficient": {
+  "Chapter 2 — Why CPUs Became Insufficient": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Learn why modern AI workloads outgrew CPU-centric infrastructure and why parallel accelerators became necessary.",
+    "learningOutcome": "Understand why Moore's Law and Dennard Scaling broke down, and why CPU-centric architecture cannot economically execute dense matrix mathematics at scale.",
     "sections": [
-      "Why CPUs Became Insufficient",
-      "Introduction",
-      "Story",
-      "Learning Objectives",
-      "Big Picture",
-      "Deep Explanation",
-      "Internal Working",
-      "Architecture",
-      "Production Deployment",
-      "Hands-on Lab",
-      "Production Troubleshooting",
-      "Problem: Adding CPU nodes does not reduce AI inference latency enough",
-      "Customer Scenario",
-      "Interview Preparation"
+      "Chapter 2 — Why CPUs Became Insufficient",
+      "Introduction (The \"Why\")",
+      "The Limits of CPU Architecture (The \"What\")",
+      "The Problem with Matrix Math",
+      "Architectural Diagram: The Resource Allocation Mismatch",
+      "Advanced Concepts (The \"How\" & \"Trade-offs\")",
+      "1. Context Switching vs. Warp Scheduling",
+      "2. The Vector Extension Trade-off (AVX-512)",
+      "3. The Memory Bandwidth Wall",
+      "Production Deployment & Operations",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation",
+      "Summary",
+      "Key Takeaways"
+    ],
+    "codeLanguages": [
+      "python",
+      "text",
+      "mermaid"
+    ]
+  },
+  "Chapter 3 — CPU vs. GPU: Silicon, Threads, and Tensor Cores": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "A deep dive into the silicon-level differences between CPUs and GPUs, exploring SIMT architecture, thread management, and the revolutionary role of Tensor Cores.",
+    "sections": [
+      "Chapter 3 — CPU vs. GPU: Silicon, Threads, and Tensor Cores",
+      "Introduction (The \"Why\")",
+      "The Core Difference: Thread Management (The \"What\")",
+      "The CPU Approach: Context Switching",
+      "The GPU Approach: SIMT and Warp Scheduling",
+      "Architectural Diagram: CUDA Cores vs Tensor Cores",
+      "The Evolution: CUDA Cores vs. Tensor Cores (The \"How\")",
+      "The Standard CUDA Core (FP32/FP64)",
+      "The Tensor Core",
+      "The Trade-off: Precision",
+      "Production Deployment & Operations",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation",
+      "Summary"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "CPU vs GPU": {
+  "Chapter 4 — The Anatomy of an LLM Inference Request": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Compare CPU and GPU execution models from an AI infrastructure perspective.",
+    "learningOutcome": "Trace the exact lifecycle of an LLM prompt. Understand TTFT, TPOT, the Prefill vs. Decode phases, and how the KV Cache exhausts GPU memory.",
     "sections": [
-      "CPU vs GPU",
-      "Introduction",
-      "Story",
-      "Learning Objectives",
-      "Big Picture",
-      "Deep Explanation",
-      "Internal Working",
-      "Architecture",
-      "Production Deployment",
-      "Hands-on Lab",
-      "Production Troubleshooting",
-      "Problem: GPU utilization is low even though requests are slow",
-      "Customer Scenario",
-      "Interview Preparation"
+      "Chapter 4 — The Anatomy of an LLM Inference Request",
+      "Introduction (The \"Why\")",
+      "The Two Phases of LLM Inference (The \"What\")",
+      "Phase 1: The Prefill Phase (Reading the Prompt)",
+      "Phase 2: The Decode Phase (Generating the Answer)",
+      "Architectural Diagram: Prefill vs Decode",
+      "The New SLIs: TTFT and TPOT (The \"How\")",
+      "The KV Cache Memory Crisis",
+      "Advanced Optimizations: Continuous Batching & PagedAttention",
+      "Continuous Batching",
+      "PagedAttention",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation",
+      "Summary"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "What Actually Happens When ChatGPT Answers?": {
+  "Chapter 5 — The AI Infrastructure Landscape: Kubernetes vs. Slurm": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Follow a generative AI request through the infrastructure stack from client request to streamed response.",
+    "learningOutcome": "Navigate the software orchestration layer of AI infrastructure. Understand the architectural trade-offs between Kubernetes (Cloud Native) and Slurm (HPC) for AI workloads.",
     "sections": [
-      "What Actually Happens When ChatGPT Answers?",
-      "Introduction",
-      "Story",
-      "Learning Objectives",
-      "Big Picture",
-      "Deep Explanation",
-      "Internal Working",
-      "Architecture",
-      "Production Deployment",
-      "Hands-on Lab",
-      "Production Troubleshooting",
-      "Problem: High time to first token",
-      "Problem: Good single-user performance, poor production performance",
-      "Customer Scenario"
+      "Chapter 5 — The AI Infrastructure Landscape: Kubernetes vs. Slurm",
+      "Introduction (The \"Why\")",
+      "Kubernetes: The Cloud-Native Microservices Approach (The \"What\")",
+      "How Kubernetes Adapts to AI",
+      "The Kubernetes Advantage",
+      "Slurm: The High-Performance Computing Approach",
+      "How Slurm Operates",
+      "The Slurm Advantage",
+      "Architectural Diagram: Slurm vs Kubernetes",
+      "The Architectural Trade-offs",
+      "Advanced: The Convergence (Run:ai, Kueue, Pyxis)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation",
+      "Summary"
     ],
     "codeLanguages": [
-      "mermaid",
-      "text"
+      "yaml",
+      "text",
+      "mermaid"
     ]
   },
-  "AI Infrastructure Landscape": {
+  "Chapter 6 — The Modern AI Factory: Power, Cooling, and Facility Scale": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand the major layers, roles, and technology domains that make up production AI infrastructure.",
+    "learningOutcome": "Understand the physical realities of an AI Factory. Master the constraints of rack density, power limits, air vs. Direct Liquid Cooling (DLC), and DGX SuperPOD architecture.",
     "sections": [
-      "AI Infrastructure Landscape",
-      "Introduction",
-      "Story",
-      "Learning Objectives",
-      "Big Picture",
-      "Deep Explanation",
-      "Internal Working",
-      "Architecture",
-      "Production Deployment",
-      "Hands-on Lab",
-      "Production Troubleshooting",
-      "Problem: The team cannot explain where latency is coming from",
-      "Problem: GPUs are purchased before workload requirements are clear",
-      "Customer Scenario"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Modern AI Factory": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Learn the AI factory model and how enterprise AI platforms convert data, compute, and operations into repeatable AI outcomes.",
-    "sections": [
-      "Modern AI Factory",
-      "Introduction",
-      "Story",
-      "Learning Objectives",
-      "Big Picture",
-      "Deep Explanation",
-      "Internal Working",
-      "Architecture",
-      "Production Deployment",
-      "Hands-on Lab",
-      "Production Troubleshooting",
-      "Problem: The organization has many AI pilots but no production platform",
-      "Problem: The platform is optimized for demos, not operations",
-      "Customer Scenario"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "NVIDIA Ecosystem Overview": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand how NVIDIA hardware, software, networking, platforms, and enterprise services fit together as one AI infrastructure ecosystem.",
-    "sections": [
-      "NVIDIA Ecosystem Overview",
-      "Introduction",
-      "Story",
-      "Learning Objectives",
-      "Big Picture",
-      "Deep Explanation",
-      "Hardware and systems",
-      "Interconnect and networking",
-      "System software",
-      "Platform integration",
-      "Application and model runtimes",
-      "Ecosystem Responsibility Map",
-      "Internal Working",
-      "Architecture"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Enterprise AI Platforms": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Learn how enterprises turn GPU infrastructure into a governed, multi-tenant, observable, and supportable AI platform.",
-    "sections": [
-      "Enterprise AI Platforms",
-      "Introduction",
-      "Story",
-      "Learning Objectives",
-      "Big Picture",
-      "Why Infrastructure Alone Is Insufficient",
-      "Capability Model",
-      "Internal Working",
-      "Workload Zones",
-      "Multi-Tenancy",
-      "Resource isolation",
-      "Platform isolation",
-      "Data isolation",
-      "Operational isolation"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Volume 01 Summary": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Consolidate the core mental models from AI Infrastructure Foundations and prepare for GPU Architecture.",
-    "sections": [
-      "Volume 01 Summary",
-      "Introduction",
-      "The Foundation Story",
-      "Core Mental Model",
-      "What AI Infrastructure Solves",
-      "Why CPUs Became Insufficient",
-      "What Happens During an AI Request",
-      "The AI Infrastructure Landscape",
-      "The AI Factory Model",
-      "The NVIDIA Ecosystem Model",
-      "Enterprise Platform Model",
-      "Architecture Principles Reinforced",
-      "Understand the workload first",
-      "Minimize data movement"
+      "Chapter 6 — The Modern AI Factory: Power, Cooling, and Facility Scale",
+      "Introduction (The \"Why\")",
+      "Facility Constraints: The Three Pillars (The \"What\")",
+      "1. Power Density (Kilowatts per Rack)",
+      "2. Cooling (Air vs. Direct Liquid Cooling)",
+      "3. Cable Lengths (The Speed of Light)",
+      "Architectural Diagram: The AI Factory Layout",
+      "The NVIDIA DGX SuperPOD (The \"How\")",
+      "The Storage Bottleneck",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation",
+      "Summary"
     ],
     "codeLanguages": [
       "mermaid",
@@ -370,21 +363,20 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Introduction",
       "Story",
       "Learning Objectives",
-      "Big Picture",
-      "The Original Constraint: Rendering a Frame",
-      "From Fixed Function to Programmability",
-      "Why AI Fits",
-      "Internal Working: Throughput Instead of Immediate Completion",
-      "Architecture Trade-offs",
-      "Advantages",
-      "Costs",
-      "Production Deployment Perspective",
-      "Production Troubleshooting"
+      "Big Picture: The Timeline of Acceleration",
+      "Deep Explanation: How We Got Here",
+      "1. The Fixed-Function Era (Pre-2006)",
+      "2. Unified Programmable Shaders & CUDA (2006)",
+      "3. The AI Pivot: The Invention of the Tensor Core (Volta - 2017)",
+      "4. Hardware Isolation: MIG (Ampere - 2020)",
+      "5. Optimizing for LLMs: The Transformer Engine (Hopper - 2022)",
+      "6. Rack-Scale Architecture (Blackwell - 2024)",
+      "Internal Working: Precision vs Throughput",
+      "Production Deployment"
     ],
     "codeLanguages": [
       "mermaid",
-      "text",
-      "bash"
+      "text"
     ]
   },
   "Inside a Modern NVIDIA GPU": {
@@ -394,18 +386,18 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "sections": [
       "Inside a Modern NVIDIA GPU",
       "Introduction",
-      "Story",
-      "Learning Objectives",
-      "Big Picture",
-      "gpu sm mem enc dec fb bar1",
-      "Idx % % % % MB MB",
-      "Streaming Multiprocessors",
-      "Execution Resources",
-      "Warp Schedulers and Instruction Issue",
-      "Register File",
-      "Shared Memory and L1 Cache",
-      "L2 Cache and Device Memory",
-      "Copy Engines and Data Movement"
+      "The Hardware Map: The H100 Architecture",
+      "1. The GigaThread Engine (The Boss)",
+      "2. The L2 Cache (The Central Hub)",
+      "3. The Streaming Multiprocessor (SM) (The Assembly Line)",
+      "Internal Working: The Memory Hierarchy",
+      "The PCIe & Copy Engine Bottleneck",
+      "Advanced Silicon: Beyond Math",
+      "Production Deployment & Operations",
+      "1. MIG (Multi-Instance GPU) Architecture",
+      "2. Monitoring the Hardware",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
       "mermaid",
@@ -419,22 +411,23 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "sections": [
       "Threads, Warps, Blocks, and Streaming Multiprocessors",
       "Introduction",
-      "Story",
-      "Learning Objectives",
-      "Big Picture",
-      "Threads",
-      "Thread Blocks",
-      "Grids",
-      "Warps",
-      "Branch Divergence",
-      "Block Residency",
-      "Occupancy",
-      "Scheduling Inside an SM",
-      "Mapping Work to Data"
+      "The Software Hierarchy (The \"What\")",
+      "1. The Thread (The Worker)",
+      "2. The Thread Block (The Team)",
+      "3. The Grid (The Entire Job)",
+      "Mapping Software to Hardware (The \"How\")",
+      "The Abstraction Advantage",
+      "The Secret Hardware Layer: Warps",
+      "SIMT Execution (Single Instruction, Multiple Threads)",
+      "The Danger: Warp Divergence",
+      "Occupancy and Hiding Latency",
+      "What limits Occupancy?",
+      "Customer Scenario (Senior Level)"
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
+      "text",
+      "python"
     ]
   },
   "CUDA Cores, Tensor Cores, and RT Cores": {
@@ -1117,6 +1110,239 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
+  "Chapter 1 — Why CUDA Exists": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Understand the origin of CUDA. How NVIDIA transformed GPUs from graphics-only devices into general-purpose supercomputers by creating a unified parallel computing platform.",
+    "sections": [
+      "Chapter 1 — Why CUDA Exists",
+      "Introduction",
+      "1. The GPGPU Problem",
+      "2. The CUDA Revolution",
+      "3. The Software Moat",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation",
+      "Summary"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text"
+    ]
+  },
+  "Chapter 2 — The CUDA Software Stack": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Map the layers of the NVIDIA software stack. Understand the Driver API, the Runtime API, the NVIDIA Linux Kernel Module, and the Container Toolkit.",
+    "sections": [
+      "Chapter 2 — The CUDA Software Stack",
+      "Introduction",
+      "1. The Stack Hierarchy",
+      "1.1 The CUDA Runtime API ( libcudart.so )",
+      "1.2 The CUDA Driver API ( libcuda.so )",
+      "1.3 The NVIDIA Kernel Module ( nvidia.ko )",
+      "2. Containers and the NVIDIA Container Toolkit",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text"
+    ]
+  },
+  "Chapter 3 — The CUDA Programming and Execution Model": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Understand the CUDA programming model. Learn how Host and Device code interact, and how Kernels are defined and executed.",
+    "sections": [
+      "Chapter 3 — The CUDA Programming and Execution Model",
+      "Introduction",
+      "1. Host vs. Device",
+      "2. The Anatomy of a Kernel Launch",
+      "3. The Infrastructure Impact of Execution Configurations",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": [
+      "cpp",
+      "text"
+    ]
+  },
+  "Chapter 4 — Kernel Launch Configuration and Indexing": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Master the mathematical mapping of CUDA Grids. Understand threadIdx, blockIdx, and blockDim to navigate massive 3D data structures.",
+    "sections": [
+      "Chapter 4 — Kernel Launch Configuration and Indexing",
+      "Introduction",
+      "1. The Built-in Variables",
+      "2. Calculating the Global Index (The Magic Formula)",
+      "3. Dealing with Edge Cases (Boundary Checks)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": [
+      "cpp",
+      "text"
+    ]
+  },
+  "Chapter 5 — Memory Management and Data Movement": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Understand the explicit movement of data over PCIe. Master cudaMalloc, cudaMemcpy, and the devastating performance impact of Host-to-Device transfers.",
+    "sections": [
+      "Chapter 5 — Memory Management and Data Movement",
+      "Introduction",
+      "1. Explicit Memory Allocation ( cudaMalloc )",
+      "2. Moving the Data ( cudaMemcpy )",
+      "The PCIe Bottleneck",
+      "Architectural Diagram: The Memory Transfer Bottleneck",
+      "3. Best Practices for Infrastructure Architects",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": [
+      "cpp",
+      "text",
+      "mermaid"
+    ]
+  },
+  "Chapter 6 — Synchronization, Errors, and Correctness": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Master multi-threading synchronization on GPUs. Understand Race Conditions, Atomic Operations, and why syncthreads() is critical for Shared Memory.",
+    "sections": [
+      "Chapter 6 — Synchronization, Errors, and Correctness",
+      "Introduction",
+      "1. Race Conditions in AI",
+      "2. The Solution: Atomic Operations",
+      "The Performance Cost",
+      "3. Block-Level Synchronization ( syncthreads )",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": [
+      "cpp",
+      "text"
+    ]
+  },
+  "Chapter 7 — Streams, Events, and Asynchronous Execution": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Unlock true GPU utilization. Learn how CUDA Streams enable simultaneous compute and data transfers, destroying the PCIe bottleneck.",
+    "sections": [
+      "Chapter 7 — Streams, Events, and Asynchronous Execution",
+      "Introduction",
+      "1. What is a CUDA Stream?",
+      "The Default Stream (Stream 0)",
+      "2. Custom Streams and Asynchronous Copies",
+      "3. The Holy Grail: Copy-Compute Overlap",
+      "4. CUDA Events (Synchronization)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": [
+      "cpp",
+      "text",
+      "mermaid"
+    ]
+  },
+  "Chapter 8 — Pinned Memory and Demand Paging": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Demystify CUDA memory abstractions. Compare Pageable memory vs Pinned memory, and explore the severe performance implications of Unified Memory (UVM).",
+    "sections": [
+      "Chapter 8 — Pinned Memory and Demand Paging",
+      "Introduction",
+      "1. Pageable vs. Pinned Memory",
+      "Pageable Memory (Standard RAM)",
+      "Pinned Memory (Page-Locked)",
+      "2. Unified Memory (UVM)",
+      "The Illusion of UVM (Demand Paging)",
+      "3. Fixing UVM: Prefetching",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": [
+      "cpp",
+      "text"
+    ]
+  },
+  "Chapter 10 — CUDA Graphs and Repeated Execution": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Eliminate CPU overhead. Learn how CUDA Graphs capture and replay execution topologies instantly, unlocking extreme performance for LLM generation.",
+    "sections": [
+      "Chapter 10 — CUDA Graphs and Repeated Execution",
+      "Introduction",
+      "1. The Overhead Crisis",
+      "2. CUDA Graphs (Capture and Replay)",
+      "The Performance Reality",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": [
+      "mermaid",
+      "text"
+    ]
+  },
+  "Chapter 11 — Compilation, Binaries, and Compatibility": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Understand the nvcc compiler. Master the difference between PTX (Virtual ISA) and SASS (Binary ISA) to prevent production runtime failures.",
+    "sections": [
+      "Chapter 11 — Compilation, Binaries, and Compatibility",
+      "Introduction",
+      "1. The nvcc Compiler",
+      "2. SASS vs. PTX",
+      "SASS (Streaming Assembler) — The Hard Binary",
+      "PTX (Parallel Thread Execution) — The Virtual Assembly",
+      "3. Fatbin (The Best of Both Worlds)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": [
+      "bash",
+      "text"
+    ]
+  },
+  "Chapter 12 — Profiling and Production Troubleshooting": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Master the NVIDIA profiling stack. Use Nsight Systems (nsys) and Nsight Compute (ncu) to hunt down bottlenecks in production AI code.",
+    "sections": [
+      "Chapter 12 — Profiling and Production Troubleshooting",
+      "Introduction",
+      "1. Nsight Systems ( nsys ) — The Macro View",
+      "What Senior Engineers Look For in nsys :",
+      "2. Nsight Compute ( ncu ) — The Micro View",
+      "What Senior Engineers Look For in ncu :",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": [
+      "bash",
+      "text"
+    ]
+  },
+  "Chapter 13 — Volume 03 Summary: The CUDA Execution Stack": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Review the critical concepts of CUDA programming, memory management, and compilation compatibility before moving to Volume 4.",
+    "sections": [
+      "Chapter 13 — Volume 03 Summary: The CUDA Execution Stack",
+      "Introduction",
+      "1. The Core Architectural Tenets",
+      "1.1 The Software Moat",
+      "1.2 The Software Stack Boundaries",
+      "1.3 Execution Configuration",
+      "1.4 The Memory Movement War",
+      "1.5 Synchronization and CPU Overhead",
+      "1.6 Compilation and Binaries",
+      "1.7 Profiling (The SRE Superpower)",
+      "2. What Comes Next: Volume 04"
+    ],
+    "codeLanguages": []
+  },
   "Volume 03 — CUDA Fundamentals": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
@@ -1246,180 +1472,131 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash"
     ]
   },
-  "Chapter 01 — Why NVIDIA Has Multiple GPU Families": {
+  "Chapter 1 — Why NVIDIA Has Multiple GPU Families": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand why accelerator portfolios split by workload, deployment model, memory system, power envelope, and lifecycle requirements.",
+    "learningOutcome": "Understand the segmentation of NVIDIA silicon. Compare GeForce, RTX, and Data Center architectures, and the licensing rules that govern them.",
     "sections": [
-      "Why NVIDIA Has Multiple GPU Families",
-      "Learning Objectives",
-      "The First Principle: Hardware Follows Work",
-      "Why the Portfolio Diverges",
-      "Compute behavior",
-      "Memory capacity and bandwidth",
-      "Scale-up and scale-out communication",
-      "Form factor and facility limits",
-      "Support and lifecycle",
-      "A Practical Classification Model",
-      "When Standardization Helps",
-      "Customer Scenario",
-      "Troubleshooting the Wrong Hardware Decision",
-      "gpu pwr gtemp mtemp sm mem enc dec jpg ofa mclk pclk"
+      "Chapter 1 — Why NVIDIA Has Multiple GPU Families",
+      "Introduction",
+      "1. The Three Tiers of NVIDIA GPUs",
+      "1.1 GeForce (Gaming & Enthusiast)",
+      "1.2 RTX Professional / Quadro (Workstation & Visualization)",
+      "1.3 Data Center (The Heavy Iron)",
+      "2. The Technical Showstoppers for Gaming GPUs",
+      "Reason 1: The Networking Bottleneck (No GPUDirect)",
+      "Reason 2: The Interconnect Bottleneck (No NVLink)",
+      "Reason 3: No Error-Correcting Code (ECC) Memory",
+      "Reason 4: Thermal Design Power (TDP) and Physical Spacing",
+      "3. The Licensing Showstopper (The EULA)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 2 — Workload-First GPU Selection": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "How to match NVIDIA GPU architectures to specific AI workloads. Compare the requirements of LLM Training, LLM Inference, and Computer Vision.",
+    "sections": [
+      "Chapter 2 — Workload-First GPU Selection",
+      "Introduction",
+      "1. Workload Profile A: LLM Pre-Training (From Scratch)",
+      "2. Workload Profile B: LLM Inference (Serving)",
+      "3. Workload Profile C: Computer Vision & Video Processing",
+      "Architectural Decision Matrix",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
       "mermaid",
-      "text",
-      "bash"
+      "text"
     ]
   },
-  "Chapter 02 — Workload-First GPU Selection": {
+  "Chapter 3 — Accelerator Generations and Design Shifts": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Learn how to translate training, inference, visualization, and scientific-computing requirements into defensible GPU selection criteria.",
+    "learningOutcome": "Trace the exact hardware evolution of NVIDIA Data Center GPUs. Learn the precise specifications of V100, A100, H100, and B200 architectures.",
     "sections": [
-      "Workload-First GPU Selection",
-      "Learning objectives",
-      "The selection problem",
-      "Step 1: classify the workload",
-      "Step 2: convert the workload into measurable questions",
-      "Model and data questions",
-      "Service-level questions",
-      "Scaling questions",
-      "Operational questions",
-      "The five selection dimensions",
-      "1. Workload fit",
-      "2. Memory fit",
-      "3. Communication fit",
-      "4. Operational fit"
+      "Chapter 3 — Accelerator Generations and Design Shifts",
+      "Introduction",
+      "1. Volta (V100) — The Dawn of the AI Era (2017)",
+      "2. Ampere (A100) — Enterprise Isolation and Sparsity (2020)",
+      "3. Hopper (H100) — The Era of the LLM (2022)",
+      "4. Blackwell (B200 / GB200) — Rack-Scale Compute (2024)",
+      "Architectural Summary Matrix",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Accelerator Generations and Design Shifts": {
+  "Chapter 4 — Form Factors: PCIe vs. SXM": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Learn how NVIDIA data-center accelerators evolved in response to changing AI workload constraints.",
+    "learningOutcome": "Understand the physical and thermal differences between PCIe add-in cards and SXM HGX baseboards.",
     "sections": [
-      "Accelerator Generations and Design Shifts",
-      "1. The Production Problem",
-      "2. Learning Objectives",
-      "3. The Generational Feedback Loop",
-      "4. Reading a Generation Correctly",
-      "5. Compute Evolution",
-      "6. Memory Evolution",
-      "Capacity",
-      "Bandwidth",
-      "7. Interconnect Evolution",
-      "8. Packaging and Form-Factor Evolution",
-      "9. Why Newer Is Not Always Better",
-      "10. Migration Architecture",
-      "Compatibility domains"
+      "Chapter 4 — Form Factors: PCIe vs. SXM",
+      "Introduction",
+      "1. The PCIe Form Factor (The Standard Upgrade)",
+      "The Advantages",
+      "The Severe Limitations",
+      "2. The SXM Form Factor (The Heavy Iron)",
+      "The HGX Baseboard",
+      "Architectural Comparison Matrix",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "PCIe, SXM, and Platform Integration": {
+  "Chapter 5 — Inference Accelerators: T4, L4, and L40S": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand how accelerator form factor changes server topology, communication, power, cooling, and operations.",
+    "learningOutcome": "Master the Inference tier. Understand why the Ada Lovelace generation (L4, L40S) is the secret weapon for cost-effective AI serving.",
     "sections": [
-      "PCIe, SXM, and Platform Integration",
-      "1. The Production Problem",
-      "2. Learning Objectives",
-      "3. The Integration Stack",
-      "4. PCIe Accelerator Integration",
-      "Strengths",
-      "Constraints",
-      "5. SXM Platform Integration",
-      "6. PCIe Versus SXM",
-      "7. CPU and NUMA Placement",
-      "8. Network Adapter Placement",
-      "9. Power and Cooling",
-      "Power planning must include",
-      "Cooling planning must include"
+      "Chapter 5 — Inference Accelerators: T4, L4, and L40S",
+      "Introduction",
+      "1. The T4 (Turing) — The Legacy Workhorse",
+      "2. The L4 (Ada Lovelace) — The Universal Edge Card",
+      "3. The L40S (Ada Lovelace) — The \"H100 Alternative\"",
+      "The L40S Use Case",
+      "Architectural Decision Matrix: Inference",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Inference Accelerators — T4, L4, and L40S": {
+  "Chapter 6 — Training Accelerators: The Heavy Iron": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Learn how to compare NVIDIA inference-oriented accelerators by workload behavior, memory, media engines, deployment density, and operational constraints.",
+    "learningOutcome": "Dissect the flagship NVIDIA data center GPUs. Understand the thermal, memory, and performance scaling from A100 to H100, H200, and B200.",
     "sections": [
-      "Inference Accelerators — T4, L4, and L40S",
-      "Learning Objectives",
-      "The Production Story",
-      "Big Picture",
-      "gpu pwr gtemp mtemp sm mem enc dec jpg ofa mclk pclk",
-      "Idx W C C % % % % % % MHz MHz",
-      "Why These Products Exist",
-      "Architectural Positioning",
-      "The Five Questions That Matter",
-      "1. Does the model fit?",
-      "2. Is the workload latency-bound or throughput-bound?",
-      "3. Does media processing dominate?",
-      "4. Can the server power and cool the card?",
-      "5. Does the software stack support the chosen architecture?"
+      "Chapter 6 — Training Accelerators: The Heavy Iron",
+      "Introduction",
+      "1. Ampere: A100 (The Workhorse)",
+      "2. Hopper: H100 & H200 (The LLM Standard)",
+      "The H100",
+      "The H200 Update",
+      "3. Blackwell: B200 (The Multi-Die Monster)",
+      "Architectural Comparison Matrix",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Training Accelerators — V100, A100, H100, H200, and B200": {
+  "Chapter 7 — The Grace CPU and Superchips": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand how NVIDIA training accelerators evolved and how to evaluate them through memory, precision, scale-up, scale-out, and data-center constraints.",
+    "learningOutcome": "Understand the NVIDIA Grace CPU. Why did a GPU company build an ARM CPU, and how does the NVLink-C2C interconnect destroy the PCIe bottleneck?",
     "sections": [
-      "Training Accelerators — V100, A100, H100, H200, and B200",
-      "Learning Objectives",
-      "The Evolutionary Story",
-      "Comparing Generations Correctly",
-      "Memory Is a System Constraint",
-      "Capacity versus bandwidth",
-      "Scale-Up and Scale-Out",
-      "Generation-Level Architectural Interpretation",
-      "V100",
-      "A100",
-      "H100",
-      "H200",
-      "B200",
-      "When a Newer GPU Does Not Solve the Problem"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
-  },
-  "Chapter 07 — Grace CPU, GH200, and GB200 Superchips": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand why NVIDIA built a custom Arm CPU, how NVLink-C2C creates coherent CPU-GPU memory, and how the Grace Hopper and Grace Blackwell superchips change system architecture.",
-    "sections": [
-      "Grace CPU, GH200, and GB200 Superchips",
-      "Learning Objectives",
-      "Why Build a Custom CPU At All",
-      "NVLink-C2C: What \"Coherent\" Actually Means",
-      "LPDDR5X: The Honest Trade-off",
-      "The Superchip Pattern",
-      "GH200 — Grace Hopper Superchip",
-      "GB200 — Grace Blackwell Superchip",
-      "Placing Grace Against What This Volume Already Covered",
-      "Interview Preparation",
-      "Architecture question",
-      "Scenario question",
-      "Key Takeaways"
+      "Chapter 7 — The Grace CPU and Superchips",
+      "Introduction",
+      "1. The Grace CPU (ARM Architecture)",
+      "2. The Superchip: NVLink-C2C",
+      "The Bandwidth Revolution",
+      "3. Unified Memory: The Death of cudaMemcpy",
+      "Architectural Diagram: x86 vs. Superchip",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
       "mermaid",
@@ -1495,24 +1672,20 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash"
     ]
   },
-  "Chapter 01 — Why DGX Exists": {
+  "Chapter 1 — Why DGX Exists: The Whitebox Fallacy": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand the integration problem DGX solves and why enterprise AI systems require more than installing GPUs in a server.",
+    "learningOutcome": "Understand why building custom AI servers from commodity parts fails at scale, and the architectural necessity of the DGX reference design.",
     "sections": [
-      "Why DGX Exists",
-      "Learning Objectives",
-      "The Problem Before DGX",
-      "What DGX Integrates",
-      "A validated GPU complex",
-      "A host platform",
-      "A software baseline",
-      "Lifecycle and support boundaries",
-      "What DGX Does Not Solve Automatically",
-      "Integrated System Versus Custom Build",
-      "Production Story",
-      "Troubleshooting the “Installed but Not Ready” State",
-      "Customer Perspective",
+      "Chapter 1 — Why DGX Exists: The Whitebox Fallacy",
+      "Introduction",
+      "1. The Physics of the Problem",
+      "2. The DGX Philosophy: The Reference Architecture",
+      "The NVSwitch Baseboard",
+      "The Network Topography",
+      "Architectural Diagram: The Whitebox vs The DGX",
+      "3. The Software Verification Stack",
+      "Customer Scenario (Senior Level)",
       "Interview Preparation"
     ],
     "codeLanguages": [
@@ -1520,152 +1693,130 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Chapter 02 — Inside a DGX System": {
+  "Chapter 2 — Inside the DGX H100 System": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand DGX as an integrated compute platform spanning accelerators, CPUs, memory, interconnects, networking, storage, management, power, and cooling.",
+    "learningOutcome": "Dissect the physical components of the flagship NVIDIA DGX H100. Master the CPU, NVMe, DPUs, and OSFP networking layout.",
     "sections": [
-      "Inside a DGX System",
-      "Learning objectives",
-      "The system boundary",
-      "Compute domain",
-      "Host processors",
-      "System memory",
-      "Accelerators and HBM",
-      "GPU fabric domain",
-      "Host I/O domain",
-      "Networking domain",
-      "Storage domain",
-      "Management domain",
-      "Firmware and software lifecycle",
-      "Power and cooling domain"
+      "Chapter 2 — Inside the DGX H100 System",
+      "Introduction",
+      "1. The Compute Tray (The Top Half)",
+      "The CPUs and System RAM",
+      "The Storage (NVMe)",
+      "The Data Processing Units (DPUs)",
+      "2. The GPU Tray (The Bottom Half)",
+      "The GPUs",
+      "The NVSwitches",
+      "3. The Networking (The Back Panel)",
+      "The Compute Network (OSFP)",
+      "The Storage/Management Network (QSFP112)",
+      "The In-Band and Out-of-Band (OOB) Management",
+      "Architectural Diagram: Internal Topology"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "DGX Management Plane": {
+  "Chapter 3 — The DGX Management Plane and Redfish APIs": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand the out-of-band, operating-system, cluster-management, and observability layers used to operate DGX systems.",
+    "learningOutcome": "Master the Out-of-Band (OOB) management of AI infrastructure. Learn about BMCs, IPMI, NVsm, and declarative Redfish API automation.",
     "sections": [
-      "DGX Management Plane",
-      "1. The Production Problem",
-      "2. Learning Objectives",
-      "3. Management Plane Architecture",
-      "4. Out-of-Band Management",
-      "BMC network controls",
-      "5. In-Band Host Management",
-      "6. Base Command Manager",
-      "7. Management Network Separation",
-      "8. Provisioning Lifecycle",
-      "9. Observability Across Layers",
-      "10. Secure Administrative Workflow",
-      "11. Production Troubleshooting",
-      "Scenario: node unreachable over SSH"
+      "Chapter 3 — The DGX Management Plane and Redfish APIs",
+      "Introduction",
+      "1. The Baseboard Management Controller (BMC)",
+      "2. From IPMI to the Redfish API",
+      "Automating the AI Factory with Redfish",
+      "3. NVsm: NVIDIA System Management",
+      "Architectural Diagram: OOB vs In-Band Management",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Power, Cooling, and Rack Readiness": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design the facility and rack conditions required to deploy DGX systems safely and predictably.",
-    "sections": [
-      "Power, Cooling, and Rack Readiness",
-      "1. The Production Problem",
-      "2. Learning Objectives",
-      "3. Facility-to-Workload Chain",
-      "4. Power Planning",
-      "Node-level inputs",
-      "Rack-level inputs",
-      "5. Redundancy Is an Operating Mode",
-      "6. Cooling Architecture",
-      "Air-cooled considerations",
-      "Liquid-cooled considerations",
-      "7. Density and Placement",
-      "8. Cabling and Network Readiness",
-      "9. Rack-Readiness Review"
-    ],
-    "codeLanguages": [
-      "mermaid",
+      "bash",
       "text",
-      "bash"
+      "mermaid"
     ]
   },
-  "DGX Storage and Data Paths": {
+  "Chapter 4 — Power, Cooling, and Facility Readiness": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand how operating-system storage, local data drives, network storage, and GPU data paths affect DGX performance and reliability.",
+    "learningOutcome": "Master the extreme physics of the AI Factory. Learn about Direct Liquid Cooling (DLC), Rear Door Heat Exchangers, and High-Voltage 3-Phase Power.",
     "sections": [
-      "DGX Storage and Data Paths",
-      "Learning Objectives",
-      "Storage Has Multiple Roles",
-      "The Data Path",
-      "Local NVMe",
-      "Shared Filesystems",
-      "Object Storage",
-      "Checkpoints Are a Recovery System",
-      "Topology Matters",
-      "Production Design Patterns",
-      "Pattern A — Local staging",
-      "Pattern B — Shared high-performance training filesystem",
-      "Pattern C — Hybrid cache",
-      "Observability"
+      "Chapter 4 — Power, Cooling, and Facility Readiness",
+      "Introduction",
+      "1. The Power Crisis (High Density Compute)",
+      "The End of 120V Wall Power",
+      "2. The Cooling Crisis (The Limits of Air)",
+      "Standard Air Cooling (Failing)",
+      "Rear Door Heat Exchangers (RDHx)",
+      "Direct Liquid Cooling (DLC) - The B200 Era",
+      "Architectural Diagram: The Transition to Liquid",
+      "3. Weight and Structural Integrity",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "DGX Networking and Fabric Integration": {
+  "Chapter 5 — Storage and Data Paths: Bypassing the CPU": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Learn how DGX systems connect to management, storage, application, and scale-out fabrics and how to validate topology-aware communication.",
+    "learningOutcome": "Master AI storage bottlenecks. Learn how GPUDirect Storage (GDS) and Parallel File Systems prevent 14,000 GPU cores from starving for data.",
     "sections": [
-      "DGX Networking and Fabric Integration",
-      "Learning Objectives",
-      "Multiple Networks, Different Jobs",
-      "Scale-Up versus Scale-Out",
-      "Why Topology Matters",
-      "Ethernet and InfiniBand",
-      "Container and Kubernetes Considerations",
-      "Acceptance Testing",
-      "Observability",
-      "Production Troubleshooting",
-      "Problem — Multi-node NCCL test hangs",
-      "(empty — this is the smoking gun for the fallback above)",
-      "Problem — Scaling efficiency declines after adding a rack",
-      "Customer Scenario"
+      "Chapter 5 — Storage and Data Paths: Bypassing the CPU",
+      "Introduction",
+      "1. The Legacy Storage Path (The CPU Bounce Buffer)",
+      "2. GPUDirect Storage (GDS)",
+      "3. Parallel File Systems (The Data Lakehouse)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Chapter 07 — DGX GH200 and GB200 NVL72 Systems": {
+  "Chapter 6 — Networking and Fabric Integration": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand how Grace-based superchips become DGX-class systems, and how GB200 NVL72 changes the DGX operating model from a server boundary to a rack-scale NVLink domain.",
+    "learningOutcome": "Master the multi-plane network architecture of an AI Factory. Map the Compute, Storage, In-Band, and Out-of-Band fabrics.",
     "sections": [
-      "DGX GH200 and GB200 NVL72 Systems",
-      "Learning Objectives",
-      "DGX GH200: Still a Chassis, Different Memory Model",
-      "GB200 NVL72: The Rack Is the Unit",
-      "Why the Rack-Scale NVLink Domain Matters",
-      "Operational Implications: A Rack Is Now the Failure/Maintenance Unit",
-      "Interview Preparation",
-      "Architecture question",
-      "Scenario question",
-      "Key Takeaways"
+      "Chapter 6 — Networking and Fabric Integration",
+      "Introduction",
+      "1. The Four Planes of AI Networking",
+      "1. The Compute Fabric (The Backend)",
+      "2. The Storage Fabric",
+      "3. The In-Band Management Fabric (The Frontend)",
+      "4. The Out-Of-Band Management Fabric (OOB)",
+      "2. Rail-Optimized Topologies",
+      "Architectural Diagram: Rail Optimization",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
+  },
+  "Chapter 7 — Rack-Scale Computing: GH200 and GB200 NVL72": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Transition from the 8-GPU chassis to the 72-GPU Rack. Understand Grace-Blackwell, NVLink Switch Trays, and the 130 TB/s NVLink domain.",
+    "sections": [
+      "Chapter 7 — Rack-Scale Computing: GH200 and GB200 NVL72",
+      "Introduction",
+      "1. Expanding the Domain: The NVLink Switch Tray",
+      "2. The GB200 NVL72 Architecture",
+      "Why Copper?",
+      "3. Total Direct Liquid Cooling (DLC)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
   },
   "Volume 05 — DGX Systems": {
     "volume": "Academy orientation",
@@ -1736,24 +1887,21 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash"
     ]
   },
-  "Chapter 01 — Why HGX Exists": {
+  "Chapter 1 — Why HGX Exists: The Merchant Silicon Strategy": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand the platform and integration problem HGX solves for OEM systems, enterprise standards, and high-density GPU deployments.",
+    "learningOutcome": "Understand the difference between DGX and HGX. Learn why hyperscalers and OEMs require raw baseboards instead of turnkey servers.",
     "sections": [
-      "Why HGX Exists",
-      "Learning Objectives",
-      "The Integration Problem",
-      "What HGX Standardizes",
-      "The scale-up GPU complex",
-      "Electrical, mechanical, and thermal requirements",
-      "A validation boundary",
-      "What the OEM Adds",
-      "HGX, DGX, and PCIe Servers",
-      "Ownership Must Be Explicit",
-      "Production Story",
-      "Troubleshooting Cross-Vendor Ambiguity",
-      "Customer Perspective",
+      "Chapter 1 — Why HGX Exists: The Merchant Silicon Strategy",
+      "Introduction",
+      "1. What is HGX?",
+      "What is Missing?",
+      "2. Why Hyperscalers and OEMs Need HGX",
+      "2.1 The Hyperscaler Reality (AWS, Azure, GCP)",
+      "2.2 The Enterprise OEM Reality (Dell, HPE, Supermicro)",
+      "Architectural Diagram: DGX vs. OEM HGX",
+      "3. The Trade-offs of the HGX Approach",
+      "Customer Scenario (Senior Level)",
       "Interview Preparation"
     ],
     "codeLanguages": [
@@ -1761,170 +1909,143 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Chapter 02 — Inside an HGX Platform": {
+  "Chapter 2 — Inside an HGX Platform": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand HGX as an integrated accelerator baseboard that OEMs combine with host, network, storage, power, cooling, and management designs.",
+    "learningOutcome": "Dissect the physical HGX tray. Understand the SXM sockets, the NVSwitch layout, retimers, and baseboard-to-host connectivity.",
     "sections": [
-      "Inside an HGX Platform",
-      "Learning objectives",
-      "The platform boundary",
-      "Accelerator domain",
-      "Host domain",
-      "I/O domain",
-      "Power and cooling domain",
-      "Firmware and management domain",
-      "HGX versus complete-system thinking",
-      "Comparing HGX-based systems",
-      "Compute and memory",
-      "I/O and networking",
-      "Facilities",
-      "Operations"
+      "Chapter 2 — Inside an HGX Platform",
+      "Introduction",
+      "1. The Anatomy of the HGX Tray",
+      "1.1 The SXM Modules",
+      "1.2 The NVSwitches",
+      "1.3 The PCIe Retimers",
+      "Architectural Diagram: The HGX Tray Topography",
+      "2. Power Delivery: The 54V Shift",
+      "3. Form Factors: 4-GPU vs 8-GPU (Delta vs Redstone)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "OEM Integration and Support Boundaries": {
+  "Chapter 3 — OEM Integration and Support Boundaries": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand how an HGX baseboard becomes a complete OEM server and how responsibility is divided across vendors.",
+    "learningOutcome": "Understand the strict division of responsibility between NVIDIA and OEMs. Navigate NVQual, firmware flashing, and hardware RMA processes.",
     "sections": [
-      "OEM Integration and Support Boundaries",
-      "1. The Production Problem",
-      "2. Learning Objectives",
-      "3. From Baseboard to Server",
-      "4. Host CPU and Memory Integration",
-      "5. PCIe and Adapter Integration",
-      "6. Cooling Integration",
-      "Questions for liquid-cooled systems",
-      "7. Firmware Integration",
-      "Firmware-bundle workflow",
-      "8. Software Qualification",
-      "9. Support Ownership",
-      "10. Spare Parts and Serviceability",
-      "11. Acceptance Testing"
+      "Chapter 3 — OEM Integration and Support Boundaries",
+      "Introduction",
+      "1. The Physical Boundary",
+      "2. The Firmware Boundary (The Danger Zone)",
+      "The \"Frankenstein\" Risk",
+      "3. NVQual and NVIDIA-Certified Systems",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 4 — HGX Topology and Data Paths": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Master the wild west of OEM PCIe layouts. Learn how to map balanced vs. unbalanced trees and diagnose GPUDirect RDMA failures in custom servers.",
+    "sections": [
+      "Chapter 4 — HGX Topology and Data Paths",
+      "Introduction",
+      "1. The Ideal Topology: Symmetrical and Balanced",
+      "2. The Nightmare Topology: Unbalanced and CPU-Bound",
+      "Architectural Diagram: Balanced vs. Unbalanced OEM Layouts",
+      "3. Detecting the Topology ( nvidia-smi topo -m )",
+      "Identifying a Balanced Server (GPUDirect Enabled)",
+      "Identifying an Unbalanced Server (CPU Bottlenecked)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "HGX Topology and Data Paths": {
+  "Chapter 5 — Power, Cooling, and Rack Integration": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Trace how tensors move through an HGX-based server across GPUs, CPUs, PCIe, NVLink, network adapters, and storage.",
+    "learningOutcome": "Navigate the extreme physical limits of OEM HGX servers. Understand OAM, 54V power delivery, airflow shadowing, and closed-loop liquid cooling.",
     "sections": [
-      "HGX Topology and Data Paths",
-      "1. The Production Problem",
-      "2. Learning Objectives",
-      "3. The HGX Communication Domains",
-      "4. GPU-Local Data",
-      "5. Scale-Up Communication",
-      "Why scale-up matters",
-      "6. CPU-to-GPU Paths",
-      "7. Scale-Out Communication",
-      "8. East-West and North-South Traffic",
-      "9. Storage Data Paths",
-      "Conventional path",
-      "Direct path where supported",
-      "10. Topology Inspection"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
-  },
-  "HGX Power, Cooling, and Rack Integration": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Learn how to evaluate HGX-based systems as data-center equipment, including power delivery, thermal design, rack density, service clearances, and facility readiness.",
-    "sections": [
-      "HGX Power, Cooling, and Rack Integration",
-      "Learning Objectives",
-      "The Complete Thermal System",
-      "Power Is More Than GPU TDP",
-      "Nameplate, Design, and Measured Power",
-      "Rack-Level Questions",
-      "Air Cooling versus Liquid Cooling",
-      "Failure Domains",
-      "Production Acceptance",
-      "Observability",
-      "Troubleshooting Scenario",
-      "Problem — Performance drops during long jobs",
-      "minute 2 of the job",
-      "minute 14 of the job"
+      "Chapter 5 — Power, Cooling, and Rack Integration",
+      "Introduction",
+      "1. Power Delivery: The 54-Volt Transition",
+      "The OEM 54V Power Architecture",
+      "2. Air Cooling: The Shadowing Problem",
+      "Airflow Shadowing",
+      "3. Direct Liquid Cooling (DLC) at the Edge",
+      "Closed-Loop Liquid Cooling (CLLC)",
+      "Architectural Diagram: The OEM Cooling Challenge",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "HGX Networking, Storage, and Cluster Integration": {
+  "Chapter 6 — HGX Networking, Storage, and Cluster Integration": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Learn how to integrate HGX-based servers into production compute, storage, management, and orchestration fabrics.",
+    "learningOutcome": "Map the complex network and storage integration of OEM servers. Understand Rail Optimization, ConnectX-7 positioning, and E1.S NVMe placement for GDS.",
     "sections": [
-      "HGX Networking, Storage, and Cluster Integration",
-      "Learning Objectives",
-      "The HGX Node as a Cluster Unit",
-      "Network Roles",
-      "GPU-to-NIC Locality",
-      "Storage Integration",
-      "OEM Variation and Cluster Standardization",
-      "Orchestration and Kubernetes",
-      "Layered Acceptance",
-      "Observability",
-      "Production Troubleshooting",
-      "Problem — One node consistently reduces collective performance",
-      "Support Boundaries",
-      "Customer Scenario"
+      "Chapter 6 — HGX Networking, Storage, and Cluster Integration",
+      "Introduction",
+      "1. The Compute Fabric (The NIC-to-GPU Ratio)",
+      "The 1:1 Rule",
+      "The PCIe Switch Proximity Rule",
+      "2. Rail-Optimized Cabling in OEM Clusters",
+      "3. Storage Integration and GDS (GPUDirect Storage)",
+      "The NVMe Placement",
+      "E1.S and U.2 Form Factors",
+      "Architectural Diagram: The Perfect OEM Integration",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Chapter 07 — GB200 NVL72 Rack-Scale Architecture": {
+  "Chapter 7 — GB200 NVL72: The Rack-Scale Era": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand the GB200 NVL72 rack as a single NVLink domain spanning 72 Blackwell GPUs, why liquid cooling becomes mandatory, and how rack-scale design changes the HGX/DGX integration model this volume has built.",
+    "learningOutcome": "Transition from the HGX Baseboard to the MGX Rack. Understand the Blackwell GB200, Compute Trays, Switch Trays, and the death of the monolithic server.",
     "sections": [
-      "GB200 NVL72 Rack-Scale Architecture",
-      "Learning Objectives",
-      "What NVL72 Physically Is",
-      "Why This Is a Single NVLink Domain, Not 18 Small Ones",
-      "Liquid Cooling Is a Hard Requirement, Not a Feature",
-      "Failure Domains and Maintenance at Rack Scale",
-      "When NVL72 Is the Right Answer — and When It Is Not",
-      "Interview Preparation",
-      "Architecture question",
-      "Scenario question",
-      "Whiteboard question",
-      "Key Takeaways"
+      "Chapter 7 — GB200 NVL72: The Rack-Scale Era",
+      "Introduction",
+      "1. Deconstructing the HGX: Compute Trays and Switch Trays",
+      "1.1 The Compute Tray",
+      "1.2 The Switch Tray",
+      "2. The Copper Backplane (The Magic Link)",
+      "Architectural Diagram: The NVL72 Rack",
+      "3. The End of the Standard OEM Server",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Volume 06 — HGX Platform": {
+  "Volume 06 — HGX Platforms & OEM Integration": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Learn how HGX provides the GPU compute foundation used by OEM systems and how architects evaluate integration, topology, rack design, and operational ownership.",
+    "learningOutcome": "Master the integration of NVIDIA HGX baseboards into OEM enterprise servers. Learn PCIe topologies, power/cooling limits, and the NVL72 rack-scale architecture.",
     "sections": [
-      "Volume 06 — HGX Platform",
-      "The Integration Boundary",
-      "Planned Chapter Sequence",
-      "Labs",
-      "Production Perspective"
+      "Volume 06 — HGX Platforms & OEM Integration",
+      "Introduction",
+      "What You Will Learn",
+      "Why This Matters for Senior Architects",
+      "Chapter Progression"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
+    "codeLanguages": []
   },
   "Lab 01 — Compare HGX-Based Server Designs": {
     "volume": "Academy orientation",
@@ -1978,231 +2099,179 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "yaml"
     ]
   },
-  "Why GPU Networking Exists": {
+  "Chapter 1 — Why GPU Networking Exists": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand why modern AI systems are limited as much by data movement and synchronization as by arithmetic throughput.",
+    "learningOutcome": "Understand the shift from single-node acceleration to distributed supercomputing. Why networking is the ultimate bottleneck in modern AI.",
     "sections": [
-      "Why GPU Networking Exists",
+      "Chapter 1 — Why GPU Networking Exists",
       "Introduction",
-      "Story: Eight GPUs, Two Very Different Results",
-      "Learning Objectives",
-      "Big Picture",
-      "Why Compute Stopped Being the Only Constraint",
-      "The Data-Movement Tax",
-      "Scale-Up and Scale-Out",
-      "Scale-up",
-      "Scale-out",
-      "Why PCIe Alone Was Not Always Sufficient",
-      "Why NVLink and NVSwitch Exist",
-      "Why DMA and RDMA Matter",
-      "Locality Is a First-Class Property"
+      "1. The Distributed Training Paradigm",
+      "2. The Legacy Networking Problem",
+      "The Latency of TCP/IP",
+      "The Jitter of Deep Buffers",
+      "3. The GPU Networking Mandate",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 2 — PCIe, NUMA, and Host Data Paths": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Master the internal motherboard data paths. Understand the critical limits of PCIe Gen5, PCIe Switches, and NUMA boundaries.",
+    "sections": [
+      "Chapter 2 — PCIe, NUMA, and Host Data Paths",
+      "Introduction",
+      "1. The PCIe Gen5 Bottleneck",
+      "2. The CPU Root Complex vs. PCIe Switches",
+      "Bad Design: Direct CPU Attachment",
+      "Good Design: PCIe Switches (PLX/Broadcom chips)",
+      "3. The Deadliest Bottleneck: NUMA Boundaries",
+      "The Cross-NUMA Penalty",
+      "Architectural Diagram: Internal Topology",
+      "4. Verifying Topology ( nvidia-smi topo -m )",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "Chapter 02 — PCIe, NUMA, and Host Data Paths": {
+  "Chapter 3 — NVLink and NVSwitch": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand how CPU sockets, memory controllers, PCIe roots, switches, GPUs, NICs, and storage devices form the host-side data path of an AI server.",
+    "learningOutcome": "Escape the PCIe bottleneck. Master the proprietary NVIDIA interconnects that allow GPUs to share memory directly.",
     "sections": [
-      "PCIe, NUMA, and Host Data Paths",
+      "Chapter 3 — NVLink and NVSwitch",
       "Introduction",
-      "Story: The Healthy Node That Was 30 Percent Slower",
-      "Learning Objectives",
-      "Big Picture",
-      "Why PCIe Exists",
-      "The PCIe Hierarchy",
-      "Generation and width",
-      "Shared upstream bandwidth",
-      "NUMA: Memory Is Not Equally Near",
-      "Tracing Common Data Paths",
-      "CPU memory to GPU",
-      "GPU to NIC",
-      "Storage to GPU"
+      "1. NVLink: The Point-to-Point Wire",
+      "The Generational Leap",
+      "The Physical Implementation (NVLink Bridges)",
+      "2. NVSwitch: The Non-Blocking Fabric",
+      "The HGX Baseboard Architecture",
+      "Architectural Diagram: PCIe vs NVSwitch",
+      "3. NVLink C2C (Chip-to-Chip)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
       "mermaid",
-      "text",
-      "bash"
+      "text"
     ]
   },
-  "Chapter 03 — NVLink and NVSwitch": {
+  "Chapter 4 — DMA, RDMA, and Peer-to-Peer": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand why scale-up GPU fabrics exist, how NVLink and NVSwitch change intra-system communication, and when they are operationally justified.",
+    "learningOutcome": "Escape the CPU completely. Learn the evolution from traditional networking (TCP/IP) to Direct Memory Access (DMA) and RDMA over fabrics.",
     "sections": [
-      "NVLink and NVSwitch",
+      "Chapter 4 — DMA, RDMA, and Peer-to-Peer",
       "Introduction",
-      "Story: Eight GPUs, Two Very Different Systems",
-      "Learning Objectives",
-      "Big Picture",
-      "Why PCIe Alone Can Become Insufficient",
-      "What NVLink Is",
-      "What NVSwitch Adds",
-      "PCIe, Direct NVLink, and NVSwitch",
-      "Software View",
-      "CUDA peer access",
-      "NCCL path selection",
-      "Internal Working: A Collective on a Scale-Up Fabric",
-      "When Scale-Up Fabric Matters"
-    ],
-    "codeLanguages": [
-      "text",
-      "mermaid"
-    ]
-  },
-  "Chapter 04 — DMA, RDMA, and Peer-to-Peer": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand the data-movement primitives behind GPU peer communication, remote transport, memory registration, ordering, and completion.",
-    "sections": [
-      "DMA, RDMA, and Peer-to-Peer",
-      "Introduction",
-      "Story: The “Zero-Copy” Path That Increased CPU Usage",
-      "Learning Objectives",
-      "Big Picture",
-      "Why Programmed Copies Do Not Scale",
-      "DMA Lifecycle",
-      "Peer-to-Peer DMA",
-      "RDMA",
-      "Memory Registration",
-      "Pinned memory",
-      "Protection Keys",
-      "Queues and Completions",
-      "server"
+      "1. The TCP/IP Penalty",
+      "2. Direct Memory Access (DMA)",
+      "3. Remote Direct Memory Access (RDMA)",
+      "The Magic of Kernel Bypass",
+      "RDMA Fabrics",
+      "Architectural Diagram: TCP/IP vs. RDMA",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
       "mermaid",
-      "text",
-      "bash"
+      "text"
     ]
   },
-  "Chapter 05 — GPUDirect RDMA": {
+  "Chapter 5 — GPUDirect RDMA": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand how GPUDirect RDMA creates a direct data path between GPU memory and network adapters, why topology matters, and how to validate the path in production.",
+    "learningOutcome": "Combine RDMA with PCIe Switches. Understand how GPUDirect RDMA eliminates the host memory bounce-buffer for multi-node GPU scaling.",
     "sections": [
-      "GPUDirect RDMA",
+      "Chapter 5 — GPUDirect RDMA",
       "Introduction",
-      "Story",
-      "Learning Objectives",
-      "Big Picture",
-      "Why Host Staging Became a Bottleneck",
-      "Internal Working",
-      "Memory registration",
-      "The send path",
-      "The receive path",
-      "Required Architecture Layers",
-      "Topology and Locality",
-      "GPUDirect RDMA and Collective Communication",
-      "Performance Model"
+      "1. The GPUDirect RDMA Pipeline",
+      "How it Works (BAR1 Memory)",
+      "2. The Physical Motherboard Requirement",
+      "Architectural Diagram: The Host Bounce Buffer vs GPUDirect",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
       "mermaid",
-      "text",
-      "bash"
+      "text"
     ]
   },
-  "Chapter 06 — GPUDirect Storage": {
+  "Chapter 6 — GPUDirect Storage (GDS)": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand how GPUDirect Storage shortens the path between storage and GPU memory, where it helps, and how to validate the complete data pipeline.",
+    "learningOutcome": "Solve the data starvation problem. Learn how GPUs bypass the CPU to pull petabytes of data directly from NVMe arrays over the network.",
     "sections": [
-      "GPUDirect Storage",
+      "Chapter 6 — GPUDirect Storage (GDS)",
       "Introduction",
-      "Story",
-      "Learning Objectives",
-      "Big Picture",
-      "Why Storage Became Part of GPU Architecture",
-      "Traditional Host-Staged Path",
-      "Direct Path",
-      "Internal Architecture",
-      "Workload Fit",
-      "Topology Considerations",
-      "Performance Model",
-      "Architecture Trade-offs",
-      "Direct I/O versus portability"
+      "1. How GDS Works (The cufile API)",
+      "2. GDS Over the Network (NVMe-oF)",
+      "Architectural Diagram: The Evolution of Storage Paths",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
       "mermaid",
-      "text",
-      "bash"
+      "text"
     ]
   },
-  "Chapter 07 — ConnectX and GPU Network Adapters": {
+  "Chapter 7 — ConnectX and GPU Network Adapters": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand the role of ConnectX-class adapters in GPU systems, including queues, offloads, topology, telemetry, and production lifecycle design.",
+    "learningOutcome": "Master the NVIDIA ConnectX architecture. Understand OSFP optics, 400G NDR InfiniBand, and the limits of the PCIe Gen5 bus.",
     "sections": [
-      "ConnectX and GPU Network Adapters",
+      "Chapter 7 — ConnectX and GPU Network Adapters",
       "Introduction",
-      "Story",
-      "Learning Objectives",
-      "Big Picture",
-      "Adapter Responsibilities",
-      "Queue-Based Data Movement",
-      "Line Rate versus Delivered Bandwidth",
-      "Multi-Adapter Node Designs",
-      "PCIe and NUMA Affinity",
-      "Offloads and Their Trade-offs",
-      "Adapter Telemetry",
-      "Firmware and Driver Lifecycle",
-      "Architecture Trade-offs"
+      "1. The ConnectX Generations",
+      "ConnectX-6 (The Ampere A100 Era)",
+      "ConnectX-7 (The Hopper H100 Era)",
+      "ConnectX-8 (The Blackwell B200 Era)",
+      "2. The Physics of the PCIe Bottleneck",
+      "3. Beyond Basic Networking (Hardware Offloads)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 8 — Topology Aware Placement": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Master Kubernetes NUMA alignment. Learn how the Topology Manager aligns CPU cores, GPUs, and Network Cards to prevent catastrophic cross-socket latency.",
+    "sections": [
+      "Chapter 8 — Topology Aware Placement",
+      "Introduction",
+      "1. The Anatomy of Misalignment",
+      "2. The Kubernetes Topology Manager",
+      "Topology Policies",
+      "3. Configuring the Stack (The NVIDIA GPU Operator)",
+      "Architectural Diagram: Topology Manager Alignment",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
       "mermaid",
-      "text",
-      "bash"
+      "text"
     ]
   },
-  "Chapter 08 — Topology-Aware Placement": {
+  "Chapter 9 — Multi-Node Collectives and NCCL": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Learn how to place processes, GPUs, CPUs, network adapters, and storage paths according to the physical topology of a GPU system.",
+    "learningOutcome": "Master the NVIDIA Collective Communications Library (NCCL). Understand AllReduce, Rings vs. Trees, and in-network computing with SHARP.",
     "sections": [
-      "Topology-Aware Placement",
+      "Chapter 9 — Multi-Node Collectives and NCCL",
       "Introduction",
-      "Story",
-      "Learning Objectives",
-      "Big Picture",
-      "The Placement Problem",
-      "Logical versus Physical Topology",
-      "Communication Graph First",
-      "CPU and Memory Binding",
-      "GPU Group Selection",
-      "Adapter Selection",
-      "Scheduler Design",
-      "Locality versus Utilization",
-      "Production Deployment"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
-  },
-  "Chapter 09 — Multi-Node Collectives and NCCL Paths": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand how collective communication maps onto GPU, PCIe, network, and topology paths in distributed training and inference.",
-    "sections": [
-      "Multi-Node Collectives and NCCL Paths",
-      "Introduction",
-      "Story",
-      "Learning Objectives",
-      "Collective Operations",
-      "Big Picture",
-      "Ring Algorithms",
-      "Tree Algorithms",
-      "Hierarchical Collectives",
-      "Topology Discovery",
-      "Channels and Parallel Paths",
-      "Synchronization and Stragglers",
-      "Transport Selection and Fallback",
-      "Performance Measurement"
+      "1. What is a Collective?",
+      "2. NCCL Topologies: Rings and Trees",
+      "The Ring Topology (Ring AllReduce)",
+      "The Tree Topology (Tree AllReduce)",
+      "Architectural Diagram: Ring vs Tree Collectives",
+      "3. SHARP: Math in the Network Switch",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
       "mermaid",
@@ -2212,22 +2281,17 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 10 — Performance Bottlenecks and Benchmarking": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Build a disciplined GPU-networking benchmark methodology that separates link capability, topology, transport, collective, and application bottlenecks.",
+    "learningOutcome": "Stop guessing. Learn to use nccl-tests, ib write bw, and nvbandwidth to isolate exact hardware failures before the workload runs.",
     "sections": [
-      "Performance Bottlenecks and Benchmarking",
+      "Chapter 10 — Performance Bottlenecks and Benchmarking",
       "Introduction",
-      "Story",
-      "Learning Objectives",
-      "Benchmark Pyramid",
-      "Metrics",
-      "Latency",
-      "Bandwidth",
-      "Throughput",
-      "Scaling efficiency",
-      "Tail behavior",
-      "Message-Size Distribution",
-      "Layer 1 — Local Path Tests",
-      "Layer 2 — Host Network Tests"
+      "1. Validating the Motherboard ( nvbandwidth )",
+      "2. Validating the Physical Network ( ib write bw )",
+      "3. Validating the AI Fabric ( nccl-tests )",
+      "Interpreting the NCCL Test",
+      "Architectural Diagram: The Troubleshooting Hierarchy",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
       "mermaid",
@@ -2259,56 +2323,37 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "Chapter 12 — Volume 07 Summary": {
+  "Chapter 12 — Volume 07 Summary: The GPU Network": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Consolidate the architecture, operations, troubleshooting, and customer-design lessons from GPU Networking.",
+    "learningOutcome": "Review and consolidate the critical networking concepts of the AI Factory before advancing to the InfiniBand deep dive in Volume 8.",
     "sections": [
-      "Volume 07 Summary",
+      "Chapter 12 — Volume 07 Summary: The GPU Network",
       "Introduction",
-      "The End-to-End Mental Model",
-      "What Each Chapter Established",
-      "Architecture Principles Reinforced",
-      "Follow the data",
-      "Locality is not optional",
-      "Direct does not mean automatic",
-      "Synchronization exposes the slowest participant",
-      "Benchmark layers in order",
-      "Production Architecture Checklist",
-      "Workload",
-      "Node design",
-      "Scale-out fabric"
+      "1. The Core Architectural Tenets",
+      "1.1 The Motherboard Bottlenecks",
+      "1.2 The Intra-Node Fabric (NVLink)",
+      "1.3 Bypassing the Kernel",
+      "1.4 GPUDirect Technology",
+      "1.5 The Multi-Plane Network",
+      "1.6 NCCL and Collectives",
+      "1.7 Senior Troubleshooting Hierarchy",
+      "2. What Comes Next: Volume 08"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Volume 07 — GPU Networking": {
+  "Volume 07 — GPU Networking and Data Paths": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "After completing this volume, you will be able to:",
+    "learningOutcome": "Master the data paths of the AI Factory. Trace data from the GPU silicon, across the motherboard, and out into the cluster network.",
     "sections": [
-      "Volume 07 — GPU Networking",
-      "The Production Problem",
-      "The Big Picture",
-      "Learning Outcomes",
-      "Chapter Journey",
-      "Hands-on Labs",
-      "Architecture Principles Applied",
-      "Move computation closer to data",
-      "Locality matters",
-      "Minimize synchronization",
-      "Benchmark before optimizing",
-      "Design for operations",
-      "Production Reading Strategy",
-      "What This Volume Does Not Assume"
+      "Volume 07 — GPU Networking and Data Paths",
+      "Introduction",
+      "What You Will Learn",
+      "Why This Matters for Senior Architects",
+      "Chapter Progression"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
+    "codeLanguages": []
   },
   "Lab 01 — Inspect PCIe, NUMA, and GPU Topology": {
     "volume": "Academy orientation",
@@ -2818,305 +2863,193 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash"
     ]
   },
-  "Chapter 01 — Why Ethernet for AI Is Different": {
+  "Chapter 1 — Why Ethernet for AI Is Different": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand why synchronized GPU workloads require different Ethernet design assumptions than ordinary enterprise applications.",
+    "learningOutcome": "Understand why standard enterprise Ethernet fails for AI workloads, and the unique physics of synchronized GPU training.",
     "sections": [
-      "Why Ethernet for AI Is Different",
+      "Chapter 1 — Why Ethernet for AI Is Different",
       "Introduction",
-      "A Production Story: The Fabric That Passed Every Link Test",
-      "Learning Objectives",
-      "Why: Collective Communication Changes the Traffic Shape",
-      "Incast, elephant flows, and imbalance",
-      "Two-node baseline (Job 1 only) — leaf-facing switch port, per-priority counters, 10s window",
-      "Same port, ~90s after Job 2 starts on the same leaf",
-      "What: The End-to-End Control System",
-      "Loss-sensitive does not mean “make everything lossless”",
-      "How: Design from the Workload Backward",
-      "A layered validation model",
-      "Baselines must include contention",
-      "When: Choosing Ethernet for AI"
+      "1. The Workload: Microbursts and Synchronicity",
+      "2. The Cost of a Dropped Packet",
+      "3. The Mandate for Lossless Ethernet",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 02 — Ethernet Architecture for AI": {
+  "Chapter 2 — Ethernet Architecture for AI": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand how AI fabrics combine Ethernet switching, RDMA endpoints, loss controls, routing, and workload placement.",
+    "learningOutcome": "Master the physical topology of AI Ethernet. Learn about Leaf-Spine, Non-Blocking architectures, and Rail-Optimized designs.",
     "sections": [
-      "Ethernet Architecture for AI",
+      "Chapter 2 — Ethernet Architecture for AI",
       "Introduction",
-      "Production Story: One Fabric, Four Very Different Traffic Classes",
-      "Learning Objectives",
-      "Big Picture Architecture",
-      "Data path versus control path",
-      "Network Roles and Isolation",
-      "A practical isolation decision",
-      "Topology, Rails, and Capacity",
-      "Oversubscription is a workload decision",
-      "Endpoint locality belongs in the fabric model",
-      "Production Deployment Pattern",
-      "1. Establish a source of truth",
-      "2. Qualify a configuration set"
+      "1. The Non-Blocking Clos (Leaf-Spine) Topology",
+      "The Rule of Non-Blocking Design",
+      "2. Front-End vs. Back-End Fabrics",
+      "3. Rail-Optimized Design (The Secret to Scale)",
+      "Why is this critical?",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 03 — RoCEv2 and RDMA over Ethernet": {
+  "Chapter 3 — RoCEv2 and RDMA over Ethernet": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Learn how RDMA operations are transported over routed Ethernet and what the fabric must provide.",
+    "learningOutcome": "Understand the core protocol that makes Ethernet viable for AI. Learn how RoCEv2 encapsulates InfiniBand commands inside standard UDP packets.",
     "sections": [
-      "RoCEv2 and RDMA over Ethernet",
+      "Chapter 3 — RoCEv2 and RDMA over Ethernet",
       "Introduction",
-      "Production Story: The Route Was Correct, the RDMA Path Was Not",
-      "Learning Objectives",
-      "What RDMA Changes—and What It Does Not",
-      "How RoCEv2 Fits the Stack",
-      "Reliability, loss, and ordering",
-      "Addressing: GIDs, Network Devices, and Routes",
-      "The right diagnostic questions",
-      "RoCEv2 design consequences",
-      "MTU and QoS Are Path Properties",
-      "Production Deployment Pattern",
-      "Production Troubleshooting",
-      "Scenario 1 — Ping works, but RDMA connection setup fails"
+      "1. The Anatomy of RoCEv2",
+      "The Protocol Stack",
+      "2. The Fatal Flaw of UDP",
+      "3. Forcing Ethernet to be Lossless",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 04 — Priority Flow Control": {
+  "Chapter 4 — Priority Flow Control (PFC)": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand selective pause, lossless traffic classes, pause propagation, and PFC failure modes.",
+    "learningOutcome": "Master the Layer 2 safety net of AI networks. Learn how PFC prevents packet loss by pausing traffic before switch buffers overflow.",
     "sections": [
-      "Priority Flow Control",
+      "Chapter 4 — Priority Flow Control (PFC)",
       "Introduction",
-      "Learning Objectives",
-      "Why Selective Pause Exists",
-      "The Mechanism: A Receiver Protects Its Buffer",
-      "Pause propagation",
-      "Classification Is the Contract",
-      "Headroom and Threshold Design",
-      "PFC Is Not Congestion Control",
-      "Production Deployment Pattern",
-      "Observability and Incident Evidence",
-      "Scenario 1 — One job stalls while errors remain clean",
-      "Downstream (most congested) leaf port",
-      "One hop upstream from swp7"
+      "1. How PFC Works (The Pause Frame)",
+      "2. Why \"Priority\" is Critical (Avoiding Head-of-Line Blocking)",
+      "3. The Dangers of PFC (PFC Storms and Deadlocks)",
+      "PFC Propagation (Congestion Spreading)",
+      "PFC Deadlock",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 05 — ECN and DCQCN": {
+  "Chapter 5 — ECN and DCQCN": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Learn how explicit congestion marking and endpoint rate control protect RoCE fabrics.",
+    "learningOutcome": "Master the softer side of congestion control. Learn how ECN prevents PFC storms by warning senders to slow down before buffers overflow.",
     "sections": [
-      "ECN and DCQCN",
-      "Learning Objectives",
-      "A Production Story: The Fabric Is Fast Until It Is Shared",
-      "From a Mark to a Slower Sender",
-      "Thresholds Are a Control-System Design",
-      "Switch: ECN marking activity on the RoCE queue, two consecutive 5s windows",
-      "Endpoint: rate-control state on the sender reacting to those marks",
-      "ECN, PFC, and Capacity Have Different Jobs",
-      "Qualification Method",
-      "Production Failure Modes",
-      "Scenario 1 — ECN marks rise, but PFC remains high",
-      "Scenario 2 — Throughput pulses in waves",
-      "Scenario 3 — ECN marks are visible, but sender response is absent or asymmetric",
-      "Scenario 4 — A change appears to remove congestion"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 06 — Data Center Bridging and QoS": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design traffic classification, queueing, ETS, and loss controls for mixed AI Ethernet fabrics.",
-    "sections": [
-      "Data Center Bridging and QoS",
-      "Learning Objectives",
-      "Architecture Before Configuration",
-      "What Each Control Does",
-      "Build a Small Class Model",
-      "Why trust boundaries matter",
-      "Consistency and Drift Control",
-      "1. What the source actually puts on the wire",
-      "2. What the access (leaf) switch believes about this priority",
-      "3. What the far-side (destination leaf) switch believes — the actual drift",
-      "Production Validation Plan",
-      "Operational Troubleshooting",
-      "Scenario 1 — RoCE drops despite PFC being enabled",
-      "Scenario 2 — Management becomes slow during a training burst"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 07 — Spectrum Switches for AI": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design and operate NVIDIA Spectrum switching layers for predictable AI Ethernet fabrics.",
-    "sections": [
-      "Spectrum Switches for AI",
+      "Chapter 5 — ECN and DCQCN",
       "Introduction",
-      "Story: The Fast Fabric with a Slow Rack",
-      "Learning Objectives",
-      "Big Picture",
-      "Why Switch Design Changes for AI",
-      "The Forwarding and Queueing Path",
-      "Buffers are transient protection, not capacity",
-      "Topology, Radix, and Failure Domains",
-      "Routing and Load Distribution",
-      "Spectrum Operations and Telemetry",
-      "Illustrative What Just Happened (WJH) drop report — syntax is NOS/release specific",
-      "Production Deployment Pattern",
-      "Acceptance ladder"
+      "1. Explicit Congestion Notification (ECN)",
+      "2. DCQCN: The Brains on the NIC",
+      "The Harmony of ECN and PFC",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 08 — ConnectX Ethernet Adapters": {
+  "Chapter 6 — Data Center Bridging and QoS": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design, validate, and operate ConnectX Ethernet adapters as RoCE endpoints in AI clusters.",
+    "learningOutcome": "Master the configuration of a lossless fabric. Learn how to map DSCP values to traffic classes, configure ETS, and enforce trust boundaries.",
     "sections": [
-      "ConnectX Ethernet Adapters",
+      "Chapter 6 — Data Center Bridging and QoS",
       "Introduction",
-      "Story: Two Ports, One Effective Rail",
-      "Learning Objectives",
-      "Big Picture",
-      "What the Adapter Does",
-      "RoCE Endpoint Responsibilities",
-      "PCIe, NUMA, and GPUDirect Paths",
-      "Multi-Port and Multi-Rail Design",
-      "Offloads, Virtualization, and Boundaries",
-      "Production Lifecycle",
-      "Node acceptance ladder",
-      "Troubleshooting",
-      "Scenario 1 — One rail is nearly idle"
+      "1. Traffic Classification (DSCP / Trust)",
+      "The Trust Boundary",
+      "2. Mapping DSCP to Traffic Classes (Queues)",
+      "3. Enhanced Transmission Selection (ETS)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 09 — BlueField DPUs and DOCA": {
+  "Chapter 7 — Spectrum Switches for AI": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Evaluate BlueField DPU operating modes, infrastructure boundaries, and DOCA software for AI Ethernet platforms.",
+    "learningOutcome": "Explore the NVIDIA Spectrum-X platform. Understand how AI-optimized Ethernet ASICs differ fundamentally from standard enterprise switches.",
     "sections": [
-      "BlueField DPUs and DOCA",
+      "Chapter 7 — Spectrum Switches for AI",
       "Introduction",
-      "Story: The Security Boundary That Became an Outage Boundary",
-      "Learning Objectives",
-      "Big Picture",
-      "Why a DPU Exists",
-      "Operating Modes and Traffic Paths",
-      "Layer 3: is the external uplink healthy from the switch's point of view?",
-      "Layer 2: did the DPU's Arm control plane finish loading policy after boot?",
-      "Layer 1: does the host actually see a usable interface?",
-      "Trust and administration",
-      "DOCA: Framework, Not a Feature Toggle",
-      "Select the smallest sustainable option",
-      "Production Design Pattern"
+      "1. The Shared Buffer Architecture",
+      "2. Adaptive Routing vs. Standard ECMP",
+      "3. Direct Data Placement (DDP) and In-Network Computing",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
+    "codeLanguages": []
+  },
+  "Chapter 8 — ConnectX Ethernet Adapters": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Dive into the endpoint hardware. Learn how ConnectX NICs offload CPU operations, handle RoCEv2, and manage out-of-order packets.",
+    "sections": [
+      "Chapter 8 — ConnectX Ethernet Adapters",
+      "Introduction",
+      "1. Hardware Offloads (Bypassing the OS)",
+      "Core Offloads:",
+      "2. Adaptive Routing and Packet Reordering",
+      "3. Multi-Host and Socket Direct Technologies",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 9 — BlueField DPUs and DOCA": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Understand the transition from SmartNICs to Data Processing Units. Learn how DPUs isolate the infrastructure control plane from the host server.",
+    "sections": [
+      "Chapter 9 — BlueField DPUs and DOCA",
+      "Introduction",
+      "1. What is a DPU?",
+      "The Security Boundary",
+      "2. Infrastructure Offload",
+      "3. Programming the DPU: DOCA",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
   },
   "Chapter 10 — Fabric Validation and Capacity Planning": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Build acceptance tests and capacity models for Ethernet AI fabrics.",
+    "learningOutcome": "Learn how to mathematically validate an AI fabric. Understand why traditional iperf tests fail, and how to use NCCL tests to prove RoCEv2 readiness.",
     "sections": [
-      "Fabric Validation and Capacity Planning",
-      "Learning Objectives",
-      "Story: The Rack That Passed Commissioning",
-      "Validation Is a Ladder",
-      "Model Capacity at the Bottleneck Cut",
-      "Acceptance and Change Control",
-      "Capacity, Reliability, and Cost",
-      "Data Flow and Measurement Design",
-      "Production Trade-offs",
-      "Troubleshooting Scenarios",
-      "Pairwise RoCE is healthy; collectives are not",
-      "A new rack passes idle tests but degrades shared production",
-      "One failure consumes all performance margin",
-      "A release passes microbenchmarks but regresses application tail"
+      "Chapter 10 — Fabric Validation and Capacity Planning",
+      "Introduction",
+      "1. The Fallacy of iperf",
+      "2. Validating with NCCL Tests",
+      "The Validation Sequence",
+      "Reading the Results",
+      "3. Verifying the Control Loops (PFC/ECN Counters)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 11 — Production Ethernet AI Troubleshooting": {
+  "Chapter 11 — Production Troubleshooting": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Diagnose physical, IP, QoS, RoCE, congestion, GPU-direct, and collective failures.",
+    "learningOutcome": "Master the diagnostic workflow for AI data paths. Learn how to isolate bottlenecks using iostat , fio , and Nsight Systems.",
     "sections": [
-      "Production Ethernet AI Troubleshooting",
-      "Learning Objectives",
-      "Incident Method",
-      "First ten minutes",
-      "Evidence Package",
-      "Escalation Data Flow",
-      "Failure Patterns",
-      "Link up, but errors grow",
-      "Ping works, RoCE fails",
-      "PFC is persistent",
-      "ECN marks rise but senders do not slow",
-      "RDMA is good; NCCL/collective performance is poor",
-      "Only one rail is slow after maintenance",
-      "The problem begins immediately after a policy change"
+      "Chapter 11 — Production Troubleshooting",
+      "Introduction",
+      "1. The Diagnostic Workflow (Isolating the Layers)",
+      "Step 1: The Application Layer (PyTorch)",
+      "Step 2: The Host CPU Layer (The Dataloader)",
+      "Step 3: The Network / File System Layer ( fio )",
+      "2. Advanced Telemetry: iostat and Nsight",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
+    "codeLanguages": []
   },
   "Chapter 12 — Volume 09 Summary": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Consolidate RoCE, PFC, ECN, QoS, Spectrum, ConnectX, BlueField, validation, and operations.",
+    "learningOutcome": "A concise review of AI Ethernet, RoCEv2, and Spectrum architecture.",
     "sections": [
-      "Volume 09 Summary",
-      "The System Model",
-      "What You Should Now Be Able to Explain",
-      "Design Principles",
-      "Production Architecture Patterns",
-      "Dedicated training fabric",
-      "Shared platform fabric",
-      "DPU-managed host edge",
-      "Trade-off Guide",
-      "End-to-End Acceptance Checklist",
-      "Before production",
-      "During operations",
-      "Troubleshooting Order",
-      "Architecture Review Questions"
+      "Chapter 12 — Volume 09 Summary",
+      "Core Concepts Reviewed",
+      "The Senior Architect's Mandate"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
+    "codeLanguages": []
   },
   "Volume 09 — Ethernet for AI": {
     "volume": "Academy orientation",
@@ -3242,279 +3175,194 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash"
     ]
   },
-  "Chapter 01 — Why Kubernetes Needs a GPU Platform Layer": {
+  "Chapter 1 — Why Kubernetes Needs a GPU Platform Layer": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand why production GPU scheduling requires coordinated driver, runtime, discovery, allocation, health, and lifecycle management.",
+    "learningOutcome": "Understand why native Kubernetes cannot schedule GPUs, and the mandatory platform extensions required to bridge the gap.",
     "sections": [
-      "Why Kubernetes Needs a GPU Platform Layer",
-      "Learning Objectives",
-      "Two Paths Must Agree",
-      "Why a Count Is Not a GPU Service",
-      "The Operational Failure of Manual Configuration",
-      "What the GPU Operator Changes—and What It Does Not",
-      "Production Checklist: Before a GPU Node Accepts Work",
-      "Troubleshooting Model",
-      "Customer Architecture Discussion",
-      "Interview Questions",
-      "Key Takeaways"
+      "Chapter 1 — Why Kubernetes Needs a GPU Platform Layer",
+      "Introduction",
+      "1. The Broken Contract of Native Kubernetes",
+      "2. The Components of the GPU Platform Layer",
+      "3. The Lifecycle Problem",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 2 — GPU Software Lifecycle in Kubernetes": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Understand the immense operational burden of managing kernel drivers and container runtimes across massive fleets of Kubernetes nodes.",
+    "sections": [
+      "Chapter 2 — GPU Software Lifecycle in Kubernetes",
+      "Introduction",
+      "1. The Kernel Dependency Trap",
+      "2. The Golden Image (AMI) Anti-Pattern",
+      "3. The Shift to Containerized Infrastructure",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 3 — Container Toolkit, RuntimeClass, and CDI": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Master the data plane. Learn how the NVIDIA Container Toolkit pierces container isolation to expose physical GPUs safely.",
+    "sections": [
+      "Chapter 3 — Container Toolkit, RuntimeClass, and CDI",
+      "Introduction",
+      "1. The NVIDIA Container Toolkit",
+      "2. Kubernetes RuntimeClass",
+      "3. The Future: Container Device Interface (CDI)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
-      "mermaid",
+      "yaml",
       "text"
     ]
   },
-  "Chapter 02 — GPU Software Lifecycle in Kubernetes": {
+  "Chapter 4 — Device Plugin and Kubernetes Resource Model": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Operate firmware, drivers, runtimes, discovery, and workload compatibility as one controlled GPU-platform lifecycle.",
+    "learningOutcome": "Understand the control plane. Learn how the NVIDIA Device Plugin translates raw silicon into logical Kubernetes resources.",
     "sections": [
-      "GPU Software Lifecycle in Kubernetes",
-      "Learning Objectives",
-      "The Lifecycle Is a Dependency Graph",
-      "Compatibility Is Policy, Not a Spreadsheet Afterthought",
-      "A Production Change Model",
-      "Node Acceptance Gates",
-      "Production Story: Green Nodes, Failed GPUs",
-      "Troubleshooting by Layer",
-      "Customer Architecture Discussion",
-      "Interview Questions",
-      "Key Takeaways"
+      "Chapter 4 — Device Plugin and Kubernetes Resource Model",
+      "Introduction",
+      "1. The Kubernetes Device Plugin API",
+      "2. Allocation and the Kubelet",
+      "3. Health Checks and XID Errors",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 5 — Node and GPU Feature Discovery": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Master intelligent scheduling. Learn how NFD and GFD label nodes with precise hardware specifications to ensure optimal workload placement.",
+    "sections": [
+      "Chapter 5 — Node and GPU Feature Discovery",
+      "Introduction",
+      "1. Node Feature Discovery (NFD)",
+      "2. GPU Feature Discovery (GFD)",
+      "3. Intelligent Scheduling with nodeSelectors",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
-      "mermaid",
+      "yaml",
       "text"
     ]
   },
-  "Chapter 03 — NVIDIA Container Toolkit, RuntimeClass, and CDI": {
+  "Chapter 6 — GPU Operator Architecture": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand the runtime boundary that turns a Kubernetes GPU allocation into a usable container device interface.",
+    "learningOutcome": "Master the Operator Pattern. Learn how the NVIDIA GPU Operator automates the installation and lifecycle of the entire GPU software stack.",
     "sections": [
-      "NVIDIA Container Toolkit, RuntimeClass, and CDI",
-      "Learning Objectives",
-      "From Allocation to Process",
-      "Three Mechanisms, Three Different Questions",
-      "Design the Runtime Contract",
-      "Production Story: Schedulable but Unusable",
-      "Security and Isolation",
-      "Troubleshooting the Runtime Boundary",
-      "Customer Architecture Discussion",
-      "Interview Questions",
-      "Key Takeaways"
+      "Chapter 6 — GPU Operator Architecture",
+      "Introduction",
+      "1. The Kubernetes Operator Pattern",
+      "2. The GPU Operator State Machine",
+      "3. Containerized Drivers (The Holy Grail)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 04 — Device Plugin and Kubernetes Resource Model": {
+  "Chapter 7 — Driver Containers and Node Operands": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand how healthy NVIDIA devices become Kubernetes extended resources and how kubelet allocation reaches a Pod.",
+    "learningOutcome": "Look inside the Operator's payload. Understand how driver containers dynamically compile kernel modules on the fly.",
     "sections": [
-      "Device Plugin and Kubernetes Resource Model",
-      "Learning Objectives",
-      "The Kubelet Contract",
-      "Read the Resource States Precisely",
-      "The Resource Model’s Productive Limitation",
-      "Production Story: Correct Count, Wrong Outcome",
-      "Operate the Plugin as Infrastructure",
-      "Troubleshooting in Dependency Order",
-      "Customer Architecture Discussion",
-      "Interview Questions",
-      "Key Takeaways"
+      "Chapter 7 — Driver Containers and Node Operands",
+      "Introduction",
+      "1. The Anatomy of the Driver Container",
+      "The Compilation Sequence",
+      "2. Managing Pre-Installed Drivers",
+      "3. The Operands Architecture",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 05 — Node and GPU Feature Discovery": {
+  "Chapter 8 — GPU Scheduling and Topology": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Turn GPU-node facts into governed Kubernetes scheduling signals without coupling workloads to individual hardware SKUs.",
+    "learningOutcome": "Master the intersection of Kubernetes and hardware physics. Learn why NVLink topology matters and how NUMA alignment affects performance.",
     "sections": [
-      "Node and GPU Feature Discovery",
-      "Learning objectives",
-      "The problem: quantity is not a platform contract",
-      "From host evidence to a scheduling decision",
-      "Facts, assertions, and classes",
-      "A practical label contract",
-      "Security and integrity boundary",
-      "Drift is an availability issue",
-      "Scheduling patterns and trade-offs",
-      "Troubleshooting: the selector is correct, yet no Pod schedules",
-      "Production checklist",
-      "Customer architecture discussion",
-      "Interview preparation",
-      "Key takeaways"
+      "Chapter 8 — GPU Scheduling and Topology",
+      "Introduction",
+      "1. The NUMA Penalty",
+      "2. Kubernetes Topology Manager",
+      "3. NVLink and NVML Topology",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 06 — GPU Operator Architecture": {
+  "Chapter 9 — GPU Observability with DCGM": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design the NVIDIA GPU Operator as a reconciled node-platform lifecycle, with explicit ownership, rollout, and failure boundaries.",
+    "learningOutcome": "Master GPU monitoring in Kubernetes. Learn how DCGM Exporter translates deep hardware metrics into Prometheus time-series data.",
     "sections": [
-      "GPU Operator Architecture",
-      "Learning objectives",
-      "Architecture: desired state becomes node-local work",
-      "Responsibilities and boundaries",
-      "Reconciliation is not a serial installer",
-      "Deployment models: choose one owner per layer",
-      "A release is a compatibility decision",
-      "Production story: the policy that spread too far",
-      "Security model",
-      "Troubleshooting: find the first broken contract",
-      "NVIDIA Network Operator and RDMA Enablement",
-      "1. Is the RDMA resource visible to the scheduler at all?",
-      "2. Did this specific Pod actually get one?",
-      "3. From inside the Pod, does the RDMA device actually work?"
+      "Chapter 9 — GPU Observability with DCGM",
+      "Introduction",
+      "1. Data Center GPU Manager (DCGM)",
+      "2. The DCGM Exporter",
+      "3. Kubernetes Context Enrichment (The Critical Feature)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "yaml"
-    ]
-  },
-  "Chapter 07 — Driver Containers and Node Operands": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Operate privileged GPU node components as a host-lifecycle system, with clear readiness, security, and recovery boundaries.",
-    "sections": [
-      "Driver Containers and Node Operands",
-      "Learning objectives",
-      "One node, several host-facing contracts",
-      "Driver containers are a delivery model, not an abstraction escape hatch",
-      "Readiness has gates, not one boolean",
-      "Privilege and supply-chain controls",
-      "Recovery and maintenance behavior",
-      "Troubleshooting sequence",
-      "Customer architecture discussion",
-      "Interview preparation",
-      "Key takeaways"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 08 — GPU Scheduling and Topology": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Place GPU workloads by capacity, service class, locality, and coordinated-start requirements while controlling fragmentation.",
-    "sections": [
-      "GPU Scheduling and Topology",
-      "Learning objectives",
-      "The scheduler sees a staged decision",
-      "Four placement questions",
-      "Core controls and what they do not do",
-      "Topology is a path, not a label",
-      "Coordinated-start workloads",
-      "Fragmentation is the price of specificity",
-      "Production story: a successful placement that missed the objective",
-      "Fairness, preemption, and disruption",
-      "Troubleshooting placement and performance",
-      "Customer architecture discussion",
-      "Interview preparation",
-      "Key takeaways"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 09 — GPU Observability with DCGM": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Build Kubernetes monitoring around DCGM, DCGM Exporter, Prometheus, events, and workload context.",
-    "sections": [
-      "GPU Observability with DCGM",
-      "Learning objectives",
-      "Start with an operational question",
-      "The evidence path",
-      "Metrics with an owner and a response",
-      "Build a monitoring contract",
-      "Correlation during an incident",
-      "Failure patterns that mislead operators",
-      "Production design review",
-      "Senior-level design questions",
-      "Key takeaways"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
+    "codeLanguages": []
   },
   "Chapter 10 — Production Installation and Configuration": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Plan and execute a controlled NVIDIA GPU Operator deployment in Kubernetes.",
+    "learningOutcome": "Master the deployment of the GPU Operator. Learn the critical Helm values for configuring drivers, toolkits, and device plugins securely.",
     "sections": [
-      "Production Installation and Configuration",
-      "Learning objectives",
-      "Define the platform boundary first",
-      "Ownership decisions that determine the design",
-      "Treat Helm values as an interface",
-      "Install in an intentionally small blast radius",
-      "Acceptance is an end-to-end proof",
-      "Operational guardrails",
-      "Troubleshooting installation without guesswork",
-      "Senior-level design questions",
-      "Key takeaways"
+      "Chapter 10 — Production Installation and Configuration",
+      "Introduction",
+      "1. Air-Gapped and Secure Environments",
+      "production-values.yaml",
+      "2. Managing the Driver Container",
+      "3. Toolkit and CDI Configuration",
+      "4. Time-Slicing Configuration (Preview)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
-      "mermaid",
+      "yaml",
       "text"
     ]
   },
   "Chapter 11 — Upgrades and Production Troubleshooting": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Operate GPU Kubernetes clusters through driver, runtime, operator, and node failures.",
+    "learningOutcome": "Master the Day-2 operations of a GPU cluster. Learn how to perform zero-downtime upgrades and diagnose complete hardware failures.",
     "sections": [
-      "Upgrades and Production Troubleshooting",
-      "Learning objectives",
-      "Change the compatibility set, not a component in isolation",
-      "Design the canary as a production experiment",
-      "A layered incident method",
-      "Failure patterns and first safe checks",
-      "A node does not advertise GPUs",
-      "A GPU Pod remains Pending",
-      "A Pod fails before its application starts",
-      "CUDA initialization fails in a Running Pod",
-      "Metrics disappear or report an implausible fleet state",
-      "An operator upgrade stalls",
-      "Containment, rollback, and forward recovery",
-      "Evidence package for escalation"
+      "Chapter 11 — Upgrades and Production Troubleshooting",
+      "Introduction",
+      "1. Zero-Downtime GPU Operator Upgrades",
+      "2. Troubleshooting: \"Node has 0 GPUs\"",
+      "The Diagnostic Ladder:",
+      "3. Troubleshooting: XID Errors and Unhealthy Nodes",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
+    "codeLanguages": []
   },
   "Chapter 12 — Volume 10 Summary": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Consolidate the Kubernetes GPU platform lifecycle from driver and runtime through scheduling, observability, upgrades, and troubleshooting.",
+    "learningOutcome": "A concise review of the Kubernetes GPU Platform Layer, Operators, and lifecycle management.",
     "sections": [
-      "Volume 10 Summary",
-      "The platform lifecycle",
-      "What each component is responsible for",
-      "The production operating model",
-      "A reusable diagnosis sequence",
-      "Revision prompts",
-      "Continue the practice",
-      "Next volume"
+      "Chapter 12 — Volume 10 Summary",
+      "Core Concepts Reviewed",
+      "The Senior Architect's Mandate"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
+    "codeLanguages": []
   },
   "Volume 10 — Kubernetes GPU Platform": {
     "volume": "Academy orientation",
@@ -3638,313 +3486,176 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash"
     ]
   },
-  "Chapter 01 — Why GPU Sharing Exists": {
+  "Chapter 1 — Why GPU Sharing Exists": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Define GPU sharing as a workload contract, not a density setting.",
+    "learningOutcome": "Understand the financial and operational drivers behind GPU sharing. Learn why dedicating full GPUs to every workload is economically impossible.",
     "sections": [
-      "Why GPU Sharing Exists",
-      "Learning objectives",
-      "The problem is stranded capacity, not merely low utilization",
-      "Weekly dashboard shows this GPU with only 15% average utilization",
-      "Check if workload is bursty",
-      "Four things people call “sharing”",
-      "Production story: the “eight GPUs per GPU” incident",
-      "Build a workload contract",
-      "Trade-offs that survive the design review",
-      "A practical intake workshop",
-      "Capacity signals that should not be collapsed",
-      "Troubleshooting scenario 1: utilization says “idle,” users say “slow”",
-      "See which processes hold GPU contexts",
-      "Real-time streaming shows memory-bound behavior: high memory, low SM"
+      "Chapter 1 — Why GPU Sharing Exists",
+      "Introduction",
+      "1. The Physics of Wasted Silicon",
+      "2. The Three Paradigms of GPU Sharing",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "mermaid"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 02 — MIG Architecture and Isolation": {
+  "Chapter 2 — MIG Architecture and Isolation": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand GPU instances, compute instances, and the boundary that MIG does—and does not—create.",
+    "learningOutcome": "Master Multi-Instance GPU (MIG). Understand how hardware-level partitioning guarantees Quality of Service (QoS) and fault isolation for AI workloads.",
     "sections": [
-      "MIG Architecture and Isolation",
-      "Learning objectives",
-      "The hierarchy",
-      "Check which profiles are supported on this GPU",
-      "What MIG isolates—and what it cannot",
-      "Internal working and lifecycle",
-      "Kubernetes consequences",
-      "Validation is a chain, not a command",
-      "Layer 1: Driver support",
-      "Output: NVIDIA H100 80GB HBM3, 575.10",
-      "Layer 2: Enable MIG mode (requires GPU reset on some architectures)",
-      "May show: Warning: GPU 0 will be reset on next load",
-      "After reset, verify MIG mode is on and create instances",
-      "Creates three 1g.10gb instances on GPU 0"
+      "Chapter 2 — MIG Architecture and Isolation",
+      "Introduction",
+      "1. The Physical Reality of MIG",
+      "2. Fault Isolation (The Blast Radius)",
+      "3. Predictable Performance (QoS)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 03 — MIG Profiles and Placement": {
+  "Chapter 3 — MIG Profiles and Placement": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Plan supported profile layouts as fleet inventory, not as arbitrary fractions.",
+    "learningOutcome": "Master the mathematics of MIG partitioning. Learn how to configure Compute Instances and GPU Instances for optimal Kubernetes scheduling.",
     "sections": [
-      "MIG Profiles and Placement",
-      "Learning objectives",
-      "From model to profile",
-      "Read the driver, not a diagram",
-      "Fragmentation is geometric",
-      "Design patterns",
-      "Profile-sizing worksheet",
-      "Inventory reporting pattern",
-      "Placement strategy and scheduler strategy are different",
-      "Capacity planning example without invented numbers",
-      "Day-two operations",
-      "Troubleshooting scenario 3: inventory varies among identical nodes",
-      "Troubleshooting scenario 4: reconfiguration consumes the recovery reserve",
-      "Production story: the impossible “free” capacity"
+      "Chapter 3 — MIG Profiles and Placement",
+      "Introduction",
+      "1. The MIG Naming Convention",
+      "2. GPU Instances (GI) vs. Compute Instances (CI)",
+      "3. Configuring MIG in Kubernetes",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 04 — Time-Slicing and Oversubscription": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Use logical GPU replicas honestly: as shared access, not reserved capacity.",
-    "sections": [
-      "Time-Slicing and Oversubscription",
-      "Learning objectives",
-      "What the Kubernetes configuration changes",
-      "Where time-slicing belongs",
-      "Design the service, not the replica count",
-      "Safe rollout sequence",
-      "Fairness and admission",
-      "Internal working and consequence",
-      "Measuring a replica ratio",
-      "One notebook running; measure for 5 minutes",
-      "Launch second notebook; measure interference",
-      "(same observation commands)",
-      "Production incident flow",
-      "Troubleshooting scenario 3: shared resource scheduled on the wrong workload class"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "yaml"
-    ]
-  },
-  "Chapter 05 — vGPU Architecture and Enterprise Virtualization": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design and operate NVIDIA vGPU platforms by understanding the host, guest, profile, licensing, and lifecycle boundaries.",
-    "sections": [
-      "vGPU Architecture and Enterprise Virtualization",
-      "Learning objectives",
-      "The architecture has two paths",
-      "Verify vGPU host software is healthy",
-      "Output:",
-      "vGPU Manager Version: 535.104.06",
-      "Device UUID: GPU-12345678-abcd-ef00",
-      "VM UUID vGPU ID Device UUID Profile",
-      "550e8400-e29b-41d4-a716-446655440000 0 GPU-12345678.../0 a100-20gb",
-      "Verify profiles available on this GPU",
-      "Device 0 NVIDIA A100-20Q (UUID: GPU-12345678...)",
-      "[0] a100-4q 4GB framebuffer",
-      "[1] a100-10q 10GB framebuffer",
-      "[2] a100-20q 20GB framebuffer (full device)"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
-  },
-  "Chapter 06 — Comparing MIG, Time-Slicing, and vGPU": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Choose whole-GPU allocation, MIG, time-slicing, or vGPU from requirements, measured behavior, and operational constraints.",
-    "sections": [
-      "Comparing MIG, Time-Slicing, and vGPU",
-      "Learning objectives",
-      "The decision begins with the contract",
-      "What is actually isolated?",
-      "Compare the operational cost, not just the hardware behavior",
-      "Quick diagnostic: which mechanism is active?",
-      "A benchmark is the admission test",
-      "Decision record for a sharing class",
-      "Production patterns",
-      "Troubleshooting scenario 1: a supposedly isolated service has erratic latency",
-      "Troubleshooting scenario 2: MIG capacity exists, but requests wait indefinitely",
-      "Model selection by workload behavior",
-      "The hidden costs of each model",
-      "Operational decision workshop"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "Chapter 07 — Kubernetes Scheduling for Shared GPUs": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Express GPU-sharing contracts with resource names, node pools, admission controls, quota, and evidence-driven placement policy.",
-    "sections": [
-      "Kubernetes Scheduling for Shared GPUs",
-      "Learning objectives",
-      "What Kubernetes decides, and what it delegates",
-      "Design the resource catalog before workloads arrive",
-      "MIG strategy changes what the scheduler can see",
-      "Layer scheduling controls deliberately",
-      "Quota and fairness begin with namespace boundaries",
-      "Change management for scheduling policy",
-      "A production Pod contract",
-      "1. Does the cluster advertise this resource?",
-      "Expected: at least one node has 0 allocatable mig-3g.20gb",
-      "2. Does the namespace have quota remaining?",
-      "Expected: USED < HARD",
-      "3. Does this namespace have the tolerations policy?"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
       "yaml",
-      "bash"
+      "text"
     ]
   },
-  "Chapter 08 — Tenant Isolation, Security, and Fairness": {
+  "Chapter 4 — Time-Slicing and Oversubscription": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Build shared-GPU tenant boundaries across identity, Kubernetes policy, host access, data paths, sharing modes, and capacity governance.",
+    "learningOutcome": "Master GPU oversubscription. Learn how to configure Time-Slicing to maximize cluster utilization for non-critical developer workloads.",
     "sections": [
-      "Tenant Isolation, Security, and Fairness",
-      "Learning objectives",
-      "A tenant boundary is an end-to-end path",
-      "Start with a written threat model",
-      "Inside Team A's pod running on MIG instance",
-      "Expected: only Team A's process listed",
-      "Broken: Team B's process visible → MIG isolation is compromised or driver access is wrong",
-      "What sharing mechanisms contribute",
-      "Fairness is a policy, not an equal split",
-      "Production pattern: isolate the control plane from the data plane",
-      "Preemption and maintenance require workload consent",
-      "Evidence and audit design",
-      "Troubleshooting scenario 1: one tenant causes another tenant’s OOM or latency collapse",
-      "Troubleshooting scenario 2: a namespace can consume GPU capacity but cannot reach its model data"
+      "Chapter 4 — Time-Slicing and Oversubscription",
+      "Introduction",
+      "1. How Time-Slicing Works",
+      "The Critical Trade-offs (The Warnings)",
+      "2. Configuring Time-Slicing in Kubernetes",
+      "3. MPS (Multi-Process Service) - The Advanced Alternative",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
+      "yaml",
+      "text"
     ]
   },
-  "Chapter 09 — Capacity Planning and Chargeback": {
+  "Chapter 5 — vGPU Architecture and Enterprise Virtualization": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Translate shared-GPU demand into physical capacity, service classes, accountable consumption, and defensible rates.",
+    "learningOutcome": "Understand NVIDIA vGPU. Learn how hypervisor-level virtualization differs from container-level sharing and when to deploy it in the enterprise.",
     "sections": [
-      "Capacity Planning and Chargeback",
-      "Learning objectives",
-      "A planning incident: the cluster that looked half empty",
-      "Capacity is a chain of constraints",
-      "Start with workload classes, not devices",
-      "A simple, auditable capacity model",
-      "Define reserve by failure domain",
-      "MIG planning: shape matters as much as count",
-      "Standardize layouts before pricing them",
-      "Fragmentation indicators worth reviewing",
-      "Time-slicing: plan for contention, not partitions",
-      "vGPU and VM-centric capacity",
-      "From measurement to forecast",
-      "Showback before chargeback"
+      "Chapter 5 — vGPU Architecture and Enterprise Virtualization",
+      "Introduction",
+      "1. The Physics of vGPU",
+      "2. vGPU vs. PCIe Passthrough (DirectPath I/O)",
+      "3. vGPU Profiles",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 6 — Comparing MIG, Time-Slicing, and vGPU": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "The Architect's decision matrix. Learn how to definitively choose the correct GPU sharing technology based on isolation, scale, and cost requirements.",
+    "sections": [
+      "Chapter 6 — Comparing MIG, Time-Slicing, and vGPU",
+      "Introduction",
+      "1. The Architectural Decision Matrix",
+      "2. The Multi-Tenancy Trust Model",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 7 — Kubernetes Scheduling for Shared GPUs": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Master the intersection of Kubernetes schedulers and fractional GPUs. Learn how to prevent resource fragmentation and manage mixed-node clusters.",
+    "sections": [
+      "Chapter 7 — Kubernetes Scheduling for Shared GPUs",
+      "Introduction",
+      "1. The Fragmentation Problem",
+      "2. Bin-Packing and Custom Schedulers",
+      "Taints, Tolerations, and Node Affinity",
+      "Advanced Schedulers (e.g., Volcano, Run:ai)",
+      "3. Dynamic MIG Reconfiguration",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 8 — Tenant Isolation, Security, and Fairness": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Master multi-tenant GPU security. Learn the mathematical boundaries of memory isolation, side-channel attacks, and execution fairness.",
+    "sections": [
+      "Chapter 8 — Tenant Isolation, Security, and Fairness",
+      "Introduction",
+      "1. Time-Slicing: The Security Nightmare",
+      "2. MIG: Hardware Partitioning and Security",
+      "3. vGPU and PCIe Passthrough: Absolute Isolation",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 9 — Capacity Planning and Chargeback": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Master FinOps for shared GPUs. Learn how to accurately track fractional utilization, implement quotas, and charge departments for exact consumption.",
+    "sections": [
+      "Chapter 9 — Capacity Planning and Chargeback",
+      "Introduction",
+      "1. Defining the Metric of Consumption",
+      "Option A: Billing by Allocation (The Simple Way)",
+      "Option B: Billing by Utilization (The Accurate Way)",
+      "2. Quotas and Admission Control",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
-      "mermaid",
+      "yaml",
       "text"
     ]
   },
   "Chapter 10 — Observability and SLOs for Shared GPUs": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Connect GPU health, allocation state, tenant experience, and service objectives without confusing utilization for service quality.",
+    "learningOutcome": "Master the telemetry of fractional hardware. Learn how to track performance, define SLOs, and identify noisy neighbors on partitioned GPUs.",
     "sections": [
-      "Observability and SLOs for Shared GPUs",
-      "Learning objectives",
-      "The service that was green and still failing",
-      "The shared-GPU evidence path",
-      "Build three views, not one dashboard",
-      "The telemetry contract",
-      "Choose SLIs from the service promise",
-      "Define what success looks like",
-      "Distinguish allocation failure from execution failure",
-      "Queue time instead of latency (it's shared access, not exclusive)",
-      "Visibility into contention",
-      "Memory pressure indicator",
-      "Device availability",
-      "Resource advertisement correctness"
+      "Chapter 10 — Observability and SLOs for Shared GPUs",
+      "Introduction",
+      "1. DCGM for Multi-Instance GPU (MIG)",
+      "2. Defining SLOs on Shared Hardware",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "yaml"
-    ]
-  },
-  "Chapter 11 — Production Troubleshooting": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Diagnose low GPU feed rate, checkpoint stalls, metadata storms, client imbalance, and path failures.",
-    "sections": [
-      "Production Troubleshooting",
-      "The Troubleshooting Decision Tree",
-      "Evidence Gathering: The 5-Minute Baseline",
-      "Run this on a training node; save output to a file for later comparison",
-      "Real Incident: Diagnosis in Practice",
-      "Step 1: Capture Current State",
-      "Run the evidence script",
-      "Compare to previous healthy run",
-      "Step 2: Start with GPU Utilization",
-      "Check: is the batch queue empty?",
-      "(Insert instrumentation into training loop)",
-      "Step 3: Is the Loader CPU-Bound?",
-      "Profile the data loader during training",
-      "Step 4: Check Network and Metadata"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
   "Chapter 12 — Volume 11 Summary": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Consolidate the architectural, operational, and decision-making principles of production GPU sharing.",
+    "learningOutcome": "A concise review of GPU Sharing, MIG, Time-Slicing, and vGPU.",
     "sections": [
-      "Volume 11 Summary",
-      "Learning objectives",
-      "The end-to-end model",
-      "Mechanisms and their boundaries",
-      "Decision sequence",
-      "Production checklist",
-      "Common traps",
-      "Production recovery scenario",
-      "Review questions",
-      "Senior interview questions",
-      "Customer discussion prompts",
-      "Next volume"
+      "Chapter 12 — Volume 11 Summary",
+      "Core Concepts Reviewed",
+      "The Senior Architect's Mandate"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
+    "codeLanguages": []
   },
   "Volume 11 — GPU Sharing": {
     "volume": "Academy orientation",
@@ -4071,333 +3782,180 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "yaml"
     ]
   },
-  "Chapter 01 — Why Inference Infrastructure Is Different": {
+  "Chapter 1 — Why Inference Infrastructure Is Different": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand why model serving optimizes latency, concurrency, availability, and cost differently from offline training.",
+    "learningOutcome": "Understand the fundamental shift from Training to Inference. Learn why High Availability (HA) and Latency SLAs dominate inference architecture.",
     "sections": [
-      "Chapter 01 — Why Inference Infrastructure Is Different",
-      "WHY: The Fundamental Shift from Training to Serving",
-      "WHAT: First-Principles Mechanics of AI Inference",
-      "1. Prefill vs. Decode: Two Radically Different Hardware Execution Phases",
-      "2. Deconstructing the Inference Latency Budget",
-      "3. Mathematics of KV Cache Memory Consumption",
-      "HOW: Inference System Architecture",
-      "Component Responsibilities Matrix",
-      "TRADEOFFS: Architectural Trade-off Analysis",
-      "1. Training Infrastructure vs. Inference Infrastructure",
-      "2. Core Serving Trade-offs",
-      "PRODUCTION: Scalability and Operating Windows",
-      "TROUBLESHOOTING: Worked Failure Scenarios",
-      "Scenario 1: Cascading CUDA Out-of-Memory (OOM) Evictions Under Concurrency Spike"
+      "Chapter 1 — Why Inference Infrastructure Is Different",
+      "Introduction",
+      "1. The Physics of Inference (TTFT vs TPOT)",
+      "2. Infrastructure as a Service (IaaS) vs. Model as a Service (MaaS)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "text",
-      "mermaid",
-      "bash",
-      "yaml",
-      "json"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 02 — The End-to-End Inference Request Path": {
+  "Chapter 2 — The End-to-End Inference Request Path": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Trace an inference request through gateways, queues, tokenization, scheduling, GPU execution, and response streaming.",
+    "learningOutcome": "Trace the exact journey of an API request. From the Ingress Gateway, through the Kubernetes control plane, down to the CUDA kernel execution.",
     "sections": [
-      "Chapter 02 — The End-to-End Inference Request Path",
-      "WHY: Latency Beyond the GPU",
-      "WHAT: The Nine-Stage Inference Request Path",
-      "Deep Dive into the 9 Request Stages",
-      "HOW: Data Path vs. Control Path Separation",
-      "Component Responsibilities & Boundary Protocols Matrix",
-      "TRADEOFFS: Architectural Trade-off Analysis",
-      "1. Tokenization Placement: Gateway Microservice vs. In-Engine C++ Backend",
-      "2. Host RAM Allocation: Standard Pageable Memory vs. Pinned Memory ( cudaHostAlloc )",
-      "TROUBLESHOOTING: Worked Failure Scenarios",
-      "Scenario 1: Host CPU Tokenization Thread Starvation Masking GPU Capacity",
-      "1. Check CPU thread saturation on the API Gateway pod",
-      "2. Trace CPU function calls inside the gateway process using perf",
-      "3. Monitor CUDA engine queue depth vs GPU activity via Prometheus metrics"
+      "Chapter 2 — The End-to-End Inference Request Path",
+      "Introduction",
+      "1. The Network Ingress Path",
+      "2. The Serving Engine Path",
+      "3. The Hardware Data Path",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "yaml",
-      "python",
-      "nginx"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 03 — Triton Inference Server Architecture": {
+  "Chapter 3 — Triton Inference Server Architecture": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Master Triton model repositories, backends, schedulers, dynamic batching, instance groups, and lifecycle management.",
+    "learningOutcome": "Master NVIDIA Triton. Learn how to deploy multiple models, use dynamic batching, and configure model ensembles.",
     "sections": [
-      "Chapter 03 — Triton Inference Server Architecture",
-      "WHY: The Need for an Enterprise Inference Server",
-      "WHAT: Deep Dive into Triton Architecture",
-      "Key Architectural Concepts",
-      "Dynamic Batching Configuration",
-      "GPU Instance Scaling Configuration",
-      "HOW: Health Endpoints and Prometheus Metrics",
-      "Health Endpoint Semantics",
-      "1. Server Liveness Probe (Checks if the Triton process is running)",
-      "Returns HTTP 200 OK if process is healthy",
-      "2. Server Readiness Probe (Checks if ALL configured models are loaded and ready)",
-      "Returns HTTP 200 OK if ready; HTTP 503 if models are still loading into VRAM",
-      "3. Model-Specific Readiness Probe",
-      "Returns HTTP 200 OK if version 1 of resnet50 is ready to accept requests"
+      "Chapter 3 — Triton Inference Server Architecture",
+      "Introduction",
+      "1. Multi-Framework Support (The Backend System)",
+      "2. Dynamic Batching",
+      "3. Model Ensembles (Pipelines)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "protobuf",
-      "bash",
-      "yaml"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 04 — TensorRT Optimization and Engine Lifecycle": {
+  "Chapter 4 — TensorRT Optimization and Engine Lifecycle": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Master TensorRT engine compilation, network parsing, layer fusion, kernel selection, precision calibration (FP16/INT8/FP8), optimization profiles, execution context management, and production lifecycle.",
+    "learningOutcome": "Master model compilation. Learn how TensorRT fuses layers and mathematically quantizes weights to double inference speed.",
     "sections": [
-      "Chapter 04 — TensorRT Optimization and Engine Lifecycle",
-      "Production Scenario: The Latency and Memory Bottleneck",
-      "Learning Objectives",
-      "TensorRT Architecture & Compilation Lifecycle",
-      "HOW: Core TensorRT Optimization Engine",
-      "1. Graph Rewriting and Layer Fusion Mechanics",
-      "2. Tactic Profiling and Auto-Tuning Engine",
-      "3. Precision Calibration & Quantization Mechanics",
-      "4. Dynamic Shapes and Optimization Profiles",
-      "5. Engine Lifecycle and Multi-Threaded Runtime Execution",
-      "Technical Comparison Table: TensorRT Precision Modes",
-      "Worked Failure Scenarios",
-      "Scenario 1: Dynamic Shape Binding OOM and Engine Builder Crash",
-      "Scenario 2: Accuracy Collapse in INT8 Engine due to Non-Representative Calibration Dataset"
+      "Chapter 4 — TensorRT Optimization and Engine Lifecycle",
+      "Introduction",
+      "1. The Magic of TensorRT: Layer Fusion",
+      "2. Precision Calibration (Quantization)",
+      "3. The Hardware Lock (The Engine Lifecycle)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "text",
-      "mermaid",
-      "cpp",
-      "python"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 05 — TensorRT-LLM and LLM Execution": {
+  "Chapter 5 — TensorRT-LLM and LLM Execution": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Explore TensorRT-LLM graph construction, Tensor Parallelism (TP), Pipeline Parallelism (PP), custom CUDA generation kernels, KV Cache management, and the Executor API runtime.",
+    "learningOutcome": "Understand the physics of Large Language Models. Learn how TensorRT-LLM handles KV caching, continuous batching, and extreme optimization.",
     "sections": [
-      "Chapter 05 — TensorRT-LLM and LLM Execution",
-      "Production Scenario: Distributed 70B LLM Scaling Bottleneck",
-      "Learning Objectives",
-      "TensorRT-LLM Architectural Pipeline",
-      "Deep Architectural & Mathematical Analysis",
-      "1. Model Parallelism Execution Graphs",
-      "2. Custom CUDA Kernels for LLM Execution",
-      "3. Dynamic KV Cache Allocation & Memory Management",
-      "4. C++ Runtime Architecture: GptManager and Executor API",
-      "Parallelism Strategy Comparison Table",
-      "Worked Failure Scenarios",
-      "Scenario 1: NVLink NCCL AllReduce Deadlock during Multi-Node Tensor Parallelism",
-      "Scenario 2: KV Cache Allocation OOM under High Concurrency due to Block Size and Scale Mismatch",
-      "Senior Interview Questions & Model Answers"
+      "Chapter 5 — TensorRT-LLM and LLM Execution",
+      "Introduction",
+      "1. The KV Cache Bottleneck",
+      "2. In-Flight (Continuous) Batching",
+      "3. PagedAttention",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "text",
-      "mermaid",
-      "python",
-      "cpp"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 06 — vLLM, TGI, SGLang, and LMDeploy": {
+  "Chapter 6 — vLLM, TGI, SGLang, and LMDeploy": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Architectural deep-dive into open-source LLM serving engines: vLLM PagedAttention virtual memory, TGI Rust router, SGLang RadixAttention prompt caching, and LMDeploy TurboMind C++ core.",
+    "learningOutcome": "Navigate the fragmented LLM serving ecosystem. Learn when to use TensorRT-LLM versus open-source alternatives like vLLM or TGI.",
     "sections": [
-      "Chapter 06 — vLLM, TGI, SGLang, and LMDeploy",
-      "Production Scenario: Multi-Tenant Enterprise LLM Gateway",
-      "Learning Objectives",
-      "Comparative Serving Engine Topology",
-      "HOW: Deep Architectural Comparison of Modern Serving Engines",
-      "1. vLLM and PagedAttention Virtual Memory Architecture",
-      "2. Text Generation Inference (TGI) Architecture",
-      "3. SGLang and RadixAttention Prompt Caching",
-      "4. LMDeploy and TurboMind Engine Core",
-      "Comprehensive Multi-Dimensional Engine Comparison Matrix",
-      "Worked Failure Scenarios",
-      "Scenario 1: vLLM Physical Block Exhaustion Under Heavy RAG Workloads",
-      "Scenario 2: RadixAttention Cache Thrashing in SGLang under Non-Overlapping Prompts",
-      "Launch SGLang server with tuned memory fraction and prefix caching controls"
+      "Chapter 6 — vLLM, TGI, SGLang, and LMDeploy",
+      "Introduction",
+      "1. vLLM (The Open-Source Standard)",
+      "2. Text Generation Inference (TGI)",
+      "3. SGLang and LMDeploy",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "text",
-      "mermaid",
-      "python",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 07 — Continuous and Dynamic Batching": {
+  "Chapter 7 — Continuous and Dynamic Batching": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Master request-level dynamic batching versus iteration-level continuous batching, chunked prefill scheduling, token slotting, preemptive eviction, and latency-throughput mathematical modeling.",
+    "learningOutcome": "A deep dive into request queueing. Understand the mathematical difference between static, dynamic, and continuous batching algorithms.",
     "sections": [
-      "Chapter 07 — Continuous and Dynamic Batching",
-      "Production Scenario: The Tail Latency Spike",
-      "Learning Objectives",
-      "Continuous Batching Scheduler Lifecycle",
-      "HOW: Continuous Batching & Chunked Prefill Architecture",
-      "1. Request-Level Dynamic Batching Limitations",
-      "2. Iteration-Level Continuous Batching Mechanics (Orca Paradigm)",
-      "3. Mathematical Execution Modeling: Prefill vs Decode Phases",
-      "4. Chunked Prefill Scheduling (Sarathi-Lean Model)",
-      "5. Preemption and Eviction Policies: Swap vs Recompute",
-      "Batching Paradigm Comparison Matrix",
-      "Worked Failure Scenarios",
-      "Scenario 1: ITL SLA Breach Caused by Large Prefill Bursts Blocking Decode Iterations",
-      "Scenario 2: PCIe Bus Saturation and System Stalls During KV Cache Swapping"
+      "Chapter 7 — Continuous and Dynamic Batching",
+      "Introduction",
+      "1. Static Batching (The Legacy Approach)",
+      "2. Dynamic Batching (Triton Standard)",
+      "3. Continuous / In-Flight Batching (LLM Specific)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "text",
-      "mermaid",
-      "python"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 08 — KV Cache Memory and Concurrency": {
+  "Chapter 8 — KV Cache, Memory, and Concurrency": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Deep dive into LLM KV cache memory math, PagedAttention block allocation, prefix caching, dynamic context management, and concurrency capacity planning.",
+    "learningOutcome": "Master LLM memory management. Calculate exact VRAM requirements, understand context windows, and optimize concurrent user scaling.",
     "sections": [
-      "KV Cache Memory and Concurrency",
-      "Learning Objectives",
-      "Mathematical Foundations of KV Cache Memory",
-      "Generic KV Cache Equation",
-      "Architectural Variants: MHA vs GQA vs MQA",
-      "Memory Allocation Paradigms: Contiguous vs PagedAttention",
-      "Contiguous Allocation and Memory Waste",
-      "PagedAttention Mechanics",
-      "Prefix Caching and Chunked Prefill",
-      "Radix Tree Prefix Caching",
-      "Chunked Prefill",
-      "Concurrency Capacity Planning Formula",
-      "Step-by-Step VRAM Allocation Budget",
-      "Capacity Matrix across GPU Architectures"
+      "Chapter 8 — KV Cache, Memory, and Concurrency",
+      "Introduction",
+      "1. Calculating Model Weight Memory",
+      "2. The KV Cache: The Silent Killer",
+      "3. Techniques to Survive the KV Cache",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "text",
-      "mermaid",
-      "bash",
-      "yaml",
-      "prometheus"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 09 — Scaling Multi-GPU and Multi-Node Inference": {
+  "Chapter 9 — Scaling Multi-GPU and Multi-Node Inference": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Scale LLM inference with Tensor Parallelism, Pipeline Parallelism, NVLink/InfiniBand topologies, vLLM/Ray distributed clusters, and prefix-aware load balancing.",
+    "learningOutcome": "Master distributed inference. Learn how to deploy models using Tensor Parallelism and Pipeline Parallelism across multiple GPUs and nodes.",
     "sections": [
-      "Scaling Multi-GPU and Multi-Node Inference",
-      "Learning Objectives",
-      "Parallelism Strategies for Inference: TP vs PP vs DP",
-      "Tensor Parallelism (TP) Mechanics",
-      "Pipeline Parallelism (PP) Mechanics",
-      "Data Parallelism (DP) / Scale-Out Replicas",
-      "Architectural Parallelism Matrix",
-      "Hardware Interconnect Topologies",
-      "Interconnect Hierarchy & Bandwidth Comparison",
-      "Distributed Engine Architecture & Cluster Orchestration",
-      "vLLM Distributed Ray Architecture",
-      "Prefix-Aware Load Balancing",
-      "Worked Failure Scenarios",
-      "Worked Failure Scenario 1: Inter-Node NCCL AllReduce Timeout and PCIe Bottleneck"
+      "Chapter 9 — Scaling Multi-GPU and Multi-Node Inference",
+      "Introduction",
+      "1. Tensor Parallelism (Intra-Node)",
+      "2. Pipeline Parallelism (Inter-Node)",
+      "3. Data Parallelism (Replication)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "yaml",
-      "prometheus"
-    ]
+    "codeLanguages": []
   },
   "Chapter 10 — Performance Metrics and Benchmarking": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Benchmark LLM inference with Time to First Token (TTFT), Inter-Token Latency (ITL), Generated Tokens per Second, open-loop Poisson traffic models, and genai-perf tooling.",
+    "learningOutcome": "Master the mathematics of inference benchmarking. Learn how to design load tests that expose tail latency and queueing bottlenecks.",
     "sections": [
-      "Performance Metrics and Benchmarking",
-      "Learning Objectives",
-      "Deconstructing GenAI Performance Metrics",
-      "Core Latency Breakdown",
-      "Token Throughput Metrics",
-      "Benchmarking Methodology: Open-Loop vs Closed-Loop",
-      "Closed-Loop Benchmarks (Anti-Pattern for Capacity Sizing)",
-      "Open-Loop Benchmarks (Production Standard)",
-      "GenAI Benchmarking Tooling Guide",
-      "1. vLLM Benchmark Suite ( benchmark serving.py )",
-      "Execute Open-Loop Poisson Traffic Benchmark on local vLLM endpoint",
-      "2. NVIDIA GenAI-Perf ( genai-perf )",
-      "Execute Concurrency Sweep with GenAI-Perf",
-      "Worked Failure Scenarios"
+      "Chapter 10 — Performance Metrics and Benchmarking",
+      "Introduction",
+      "1. The Core Metrics of Inference",
+      "2. The Danger of Averages",
+      "3. The Benchmarking Pipeline",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "prometheus",
-      "yaml"
-    ]
+    "codeLanguages": []
   },
   "Chapter 11 — Production Reliability and Troubleshooting": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Master LLM production reliability engineering, Kubernetes health probe design, zero-downtime rollouts, fallback execution, and incident playbooks for GPU faults.",
+    "learningOutcome": "Master Day-2 operations for inference servers. Learn how to diagnose OOM crashes, scale dynamically, and build zero-downtime deployment pipelines.",
     "sections": [
-      "Production Reliability and Troubleshooting",
-      "Learning Objectives",
-      "Production Reliability Architecture",
-      "1. Admission Control and Circuit Breaking",
-      "2. Fallback Execution Strategies",
-      "3. Zero-Downtime Rolling Upgrades",
-      "Kubernetes Health Probes Strategy for LLM Containers",
-      "Production Kubernetes Manifest Template",
-      "Troubleshooting Hierarchy & Diagnostic Flowchart",
-      "Comprehensive Incident Playbooks",
-      "Playbook 1: GPU Memory Leak / KV Cache Fragmentation",
-      "Playbook 2: Silent Accuracy Degradation / FP8 NaN Output Spikes",
-      "Worked Failure Scenarios",
-      "Worked Failure Scenario 1: Readiness Probe Cascading Outage during Scaling Event"
+      "Chapter 11 — Production Reliability and Troubleshooting",
+      "Introduction",
+      "1. Autoscaling (The HPA Challenge)",
+      "2. Zero-Downtime Model Updates",
+      "3. Diagnosing the CUDA OOM",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "yaml",
-      "bash"
-    ]
+    "codeLanguages": []
   },
   "Chapter 12 — Volume 12 Summary": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Comprehensive synthesis of AI Inference Infrastructure, master metrics reference, unified architecture blueprint, production readiness checklist, and SA interview cheat sheet.",
+    "learningOutcome": "A concise review of inference architecture, Triton, TensorRT, and performance optimization.",
     "sections": [
-      "Volume 12 Summary — AI Inference Infrastructure",
-      "Executive Synthesis across Volume 12",
-      "Unified Production System Blueprint",
-      "Master Metrics & Engine Parameter Reference",
-      "Multi-GPU Parallelism Strategy Selection Matrix",
-      "Production Readiness Audit Checklist",
-      "1. Hardware & Interconnect Topology",
-      "2. Engine & Memory Optimization",
-      "3. Observability & Reliability",
-      "Senior Solutions Architect Interview Cheat Sheet",
-      "1. Training vs. Inference Trade-offs",
-      "2. KV Cache Memory Math",
-      "3. PagedAttention Mechanics",
-      "4. Prefill vs. Decode Disaggregation"
+      "Chapter 12 — Volume 12 Summary",
+      "Core Concepts Reviewed",
+      "The Senior Architect's Mandate"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
+    "codeLanguages": []
   },
   "Volume 12 — AI Inference": {
     "volume": "Academy orientation",
@@ -4527,238 +4085,182 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash"
     ]
   },
-  "Chapter 04 — FSDP and Parameter Sharding": {
+  "Chapter 1 — Why Distributed Training Exists": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "By the end of this chapter, you will be able to:",
+    "learningOutcome": "Understand the mathematical limits of a single GPU. Learn why training foundational models requires spanning workloads across massive supercomputers.",
     "sections": [
-      "Chapter 04: FSDP and Parameter Sharding",
-      "Learning Outcome",
-      "Why FSDP Exists: The Math Behind Parameter Sharding",
-      "FSDP Sharding Stages: A Hierarchy",
-      "Stage 1: Shard Optimizer States Only (SHARD GRAD OP)",
-      "Stage 2: Shard Gradients and Optimizer States (FULL SHARD)",
-      "Stage 3: Shard Everything (FULL SHARD) — The Standard",
-      "How FSDP Actually Works: The Sequence",
-      "Memory Timeline for FSDP Forward + Backward",
-      "Wrapping Policies: The Critical Configuration",
-      "Result: All 140GB gathered at forward start, fits only on huge GPUs",
-      "Wrap each transformer block individually",
-      "Or use auto wrap",
-      "Real-World FSDP Training Output"
-    ],
-    "codeLanguages": [
-      "text",
-      "mermaid",
-      "python",
-      "bash"
-    ]
-  },
-  "Chapter 05 — DeepSpeed and ZeRO": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "By the end of this chapter, you will be able to:",
-    "sections": [
-      "Chapter 05: DeepSpeed and ZeRO",
-      "Learning Outcome",
-      "Why ZeRO Exists: Elimination of Redundancy",
-      "ZeRO Stage 1: Shard Optimizer States",
-      "ZeRO Stage 2: Shard Gradients + Optimizer States",
-      "ZeRO Stage 3: Shard Everything",
-      "The Memory Reduction Math: Side-by-Side Comparison",
-      "ZeRO-Offload: When GPU Memory Isn't Enough",
-      "70B model, 8 A100 GPUs, ZeRO-3 on GPU only",
-      "Same model, 8 A100 GPUs, ZeRO-3 with CPU offload",
-      "Configuring ZeRO: The Config Dictionary",
-      "Troubleshooting: ZeRO-3 Communication Hangs",
-      "Enable NCCL tracing",
-      "Check if rank 7's GPU or network is the bottleneck"
-    ],
-    "codeLanguages": [
-      "text",
-      "bash",
-      "json"
-    ]
-  },
-  "Chapter 06 — Tensor, Pipeline, and Expert Parallelism": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "By the end of this chapter, you will be able to:",
-    "sections": [
-      "Chapter 06: Tensor, Pipeline, and Expert Parallelism",
-      "Learning Outcome",
-      "Why Model Parallelism Exists: When Single-GPU Memory Isn't the Problem",
-      "The Three Flavors of Model Parallelism",
-      "Tensor Parallelism (TP): Shard Inside Layers",
-      "Pipeline Parallelism (PP): Shard Across Layers",
-      "Expert Parallelism (EP): Shard Across Experts in MoE",
-      "Real-World TP Failure: Inter-Node Misconfiguration",
-      "Topology:",
-      "Node 0: TP group 0 (GPUs 0-7) of pipeline stages 0,1; TP group 1 (GPUs 8-15) of stages 2,3",
-      "Node 1: TP groups 2,3 of stages 0,1; TP groups 4,5 of stages 2,3",
-      "Real-World PP Failure: Bubble Starvation",
-      "Choosing Between TP, PP, DP, and Combinations",
-      "Production Monitoring: Parallelism-Specific Signals"
-    ],
-    "codeLanguages": [
-      "text",
-      "bash",
-      "mermaid"
-    ]
-  },
-  "Chapter 07 — Megatron-LM Architecture": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand Megatron-style model parallelism, rank groups, data flow, and operational complexity.",
-    "sections": [
-      "Chapter 07: Megatron-LM Architecture",
-      "WHY",
-      "WHAT",
-      "HOW",
-      "Worked Example: Sizing a 175B-Parameter Training Run",
-      "WHEN",
-      "TRADEOFFS",
-      "PRODUCTION",
-      "TROUBLESHOOTING",
-      "Scenario 1: The \"Hanging on Initialization\" Issue",
-      "Set explicit debugging and error handling for NCCL",
-      "Run nccl-tests across nodes to identify the hardware fault",
-      "Scenario 2: Pipeline Stage Imbalance (\"The Ghost Straggler\")",
+      "Chapter 1 — Why Distributed Training Exists",
+      "Introduction",
+      "1. The Memory Wall vs. The Compute Wall",
+      "The Memory Wall",
+      "The Compute Wall",
+      "2. The Fallacy of Linear Scaling",
+      "Customer Scenario (Senior Level)",
       "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 08 — NCCL Collectives and Communication Paths": {
+  "Chapter 2 — Training Memory and Compute Anatomy": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand all-reduce, reduce-scatter, all-gather, all-to-all, topology, and NCCL transport behavior.",
+    "learningOutcome": "Master the VRAM budget. Learn exactly where the gigabytes go during training: Model Weights, Gradients, Optimizer States, and Activations.",
     "sections": [
-      "NCCL Collectives and Communication Paths",
-      "WHY",
-      "WHAT",
-      "HOW",
-      "Ring Topology",
-      "Tree Topology",
-      "Worked Example: Comparing Ring vs. Tree Cost at Two Cluster Sizes",
-      "WHEN",
-      "TRADEOFFS",
-      "PRODUCTION",
-      "TROUBLESHOOTING",
-      "Scenario 1: NCCL Timeout (The Slowest Rank Problem)",
-      "On the remote node, check for OOM",
-      "Scenario 2: Unexpected Fallback to PCIe"
+      "Chapter 2 — Training Memory and Compute Anatomy",
+      "Introduction",
+      "1. The Four Pillars of Training VRAM",
+      "2. The Math in Action",
+      "3. Surviving the VRAM Limit",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 09 — Checkpointing and Recovery": {
+  "Chapter 3 — Data Parallelism and DDP": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Explore checkpoint frequency optimization, asynchronous saving, distributed checkpoints, and recovery strategies.",
+    "learningOutcome": "Master the foundation of distributed training. Learn how PyTorch DDP replicates models and synchronizes gradients via AllReduce.",
     "sections": [
-      "Chapter 09: Checkpointing and Recovery",
-      "WHY",
-      "WHAT",
-      "HOW",
-      "Worked Example: Sizing a Checkpoint Write for a 70B Model",
-      "WHEN",
-      "TRADEOFFS",
-      "PRODUCTION",
-      "TROUBLESHOOTING",
-      "Scenario 1: Corrupted Checkpoint on Crash",
-      "Check if the file is incomplete (size mismatch)",
-      "Remove corrupted checkpoint",
-      "Resume training from previous valid step",
-      "Scenario 2: OOM During Asynchronous Checkpoint"
+      "Chapter 3 — Data Parallelism and DDP",
+      "Introduction",
+      "1. The Mechanics of PyTorch DDP",
+      "2. The Network Bottleneck of DDP",
+      "3. Overlapping Communication and Compute",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
+  },
+  "Chapter 4 — FSDP and Parameter Sharding": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Break the Memory Wall. Learn how Fully Sharded Data Parallel (FSDP) scatters the model across multiple GPUs to train massive LLMs.",
+    "sections": [
+      "Chapter 4 — FSDP and Parameter Sharding",
+      "Introduction",
+      "1. The Core Concept of Sharding",
+      "2. The Physics of FSDP Execution",
+      "3. FSDP Wrapping and Tuning",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 5 — DeepSpeed and ZeRO": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Navigate the Microsoft DeepSpeed ecosystem. Understand ZeRO Stage 1, 2, and 3, and when to use CPU Offloading to survive VRAM constraints.",
+    "sections": [
+      "Chapter 5 — DeepSpeed and ZeRO",
+      "Introduction",
+      "1. The Three Stages of ZeRO",
+      "2. The Cheat Code: ZeRO-Offload",
+      "3. The Brutal Trade-off of Offloading",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 6 — Tensor, Pipeline, and Expert Parallelism": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Master 3D Parallelism. Learn how to slice massive models horizontally and vertically to span them across thousands of GPUs.",
+    "sections": [
+      "Chapter 6 — Tensor, Pipeline, and Expert Parallelism",
+      "Introduction",
+      "1. Tensor Parallelism (TP) - The Vertical Slice",
+      "2. Pipeline Parallelism (PP) - The Horizontal Slice",
+      "3. Expert Parallelism (EP) - MoE",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 7 — Megatron-LM Architecture": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Explore the industry standard for 3D Parallelism. Learn how NVIDIA Megatron-LM orchestrates massive, multi-cluster training runs.",
+    "sections": [
+      "Chapter 7 — Megatron-LM Architecture",
+      "Introduction",
+      "1. The Core Design of Megatron-LM",
+      "2. Sequence Parallelism (SP)",
+      "3. Distributed Optimizer and Checkpointing",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 8 — NCCL Collectives and Communication Paths": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Master the NVIDIA Collective Communication Library. Learn the mathematical difference between AllReduce, AllGather, and ReduceScatter.",
+    "sections": [
+      "Chapter 8 — NCCL Collectives and Communication Paths",
+      "Introduction",
+      "1. The Core Collectives",
+      "2. How NCCL Moves Data (Rings and Trees)",
+      "3. NCCL Environment Variables",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 9 — Checkpointing and Recovery": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Master fault tolerance. Learn how to save the state of a 10,000 GPU cluster without taking down the entire storage network.",
+    "sections": [
+      "Chapter 9 — Checkpointing and Recovery",
+      "Introduction",
+      "1. The Physics of Checkpointing",
+      "2. Synchronous vs. Asynchronous Checkpointing",
+      "3. Distributed Checkpointing (Distributed Sharded State)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
   },
   "Chapter 10 — Multi-Node Training Architecture": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand multi-node topology, rail-optimized network designs, InfiniBand/RoCE, node-level architecture, and how Slurm/Enroot/Pyxis actually launch a training job onto that fabric.",
+    "learningOutcome": "Master the orchestration layer. Learn how to launch a single cohesive training job across 1,000 independent Kubernetes nodes.",
     "sections": [
-      "Chapter 10: Multi-Node Training Architecture",
-      "WHY",
-      "WHAT",
-      "HOW",
-      "Worked Example: Cross-Node Bandwidth vs. Intra-Node NVLink",
-      "WHEN",
-      "TRADEOFFS",
-      "PRODUCTION",
-      "Running NVIDIA Training Workloads with Slurm",
-      "Architecture, from a Training Job's Point of View",
-      "The Job-Launch Workflow",
-      "JOBID PARTITION NAME USER ST TIME NODES NODELIST",
-      "481203 gpu-h100 llama-70b-fsdp jdoe R 2:14:07 4 dgx-[012-015]",
-      "NODELIST STATE GRES"
+      "Chapter 10 — Multi-Node Training Architecture",
+      "Introduction",
+      "1. The Slurm Architecture (The HPC Standard)",
+      "2. The Kubernetes Challenge (Gang Scheduling)",
+      "3. The PyTorchJob Operator (Kubeflow)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
   "Chapter 11 — Performance Engineering and Troubleshooting": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Learn how to measure MFU/HFU, profile NCCL, use Nsight Systems, and identify training bottlenecks.",
+    "learningOutcome": "Master the MFU metric. Learn how to diagnose PyTorch Dataloader bottlenecks and interpret Nsight Systems profiling traces.",
     "sections": [
-      "Chapter 11: Performance Engineering and Troubleshooting",
-      "WHY",
-      "WHAT",
-      "Model Flops Utilization (MFU)",
-      "Worked Example: Computing MFU for a 70B Model on 8 H100s",
-      "Hardware Flops Utilization (HFU)",
-      "HOW",
-      "Level 1: System Metrics (Prometheus/Grafana)",
-      "Level 2: Micro-Profiling with Nsight Systems",
-      "WHEN",
-      "TRADEOFFS",
-      "PRODUCTION",
-      "TROUBLESHOOTING",
-      "Scenario 1: The Dataloader Bottleneck"
+      "Chapter 11 — Performance Engineering and Troubleshooting",
+      "Introduction",
+      "1. The Gold Standard: MFU (Model Flops Utilization)",
+      "2. The Dataloader Bottleneck (CPU Starvation)",
+      "3. Profiling with Nsight Systems (nsys)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
   "Chapter 12 — Volume 13 Summary": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "A high-level recap of distributed training operations, networking, checkpointing, and performance.",
+    "learningOutcome": "A concise review of Distributed Training, 3D Parallelism, and the orchestration of massive GPU clusters.",
     "sections": [
-      "Chapter 12: Volume 13 Summary",
-      "The Journey So Far",
+      "Chapter 12 — Volume 13 Summary",
       "Core Concepts Reviewed",
-      "Parallelism Strategies (Chapters 3-7)",
-      "Data Movement and NCCL (Chapter 8)",
-      "Checkpointing and Recovery (Chapter 9)",
-      "Architecture at Scale (Chapter 10)",
-      "Performance Engineering (Chapter 11)",
-      "Quick-Reference: Symptom to First Diagnostic Step",
-      "The Ops Perspective",
-      "TROUBLESHOOTING",
-      "Scenario 1: GPU ECC Memory Errors",
-      "Check the ECC memory error counters",
-      "Drain the node if using Slurm"
+      "The Senior Architect's Mandate"
     ],
-    "codeLanguages": [
-      "bash",
-      "text"
-    ]
+    "codeLanguages": []
   },
   "Lab 01 — Run Multi-GPU DDP Training": {
     "volume": "Academy orientation",
@@ -4864,285 +4366,185 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash"
     ]
   },
-  "Chapter 01 — Why NVIDIA AI Enterprise Exists": {
+  "Chapter 1 — Why NVIDIA AI Enterprise Exists": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand the support, lifecycle, validation, and operational problems addressed by NVIDIA AI Enterprise.",
+    "learningOutcome": "Understand the shift from open-source science projects to enterprise software SLAs. Learn the true cost of unmanaged AI infrastructure dependencies.",
     "sections": [
-      "Why NVIDIA AI Enterprise Exists",
-      "Learning Objectives",
-      "The Problem Before an Enterprise Stack",
-      "What Enterprise Support Changes",
-      "What It Does Not Replace",
-      "Customer Scenario",
-      "Troubleshooting",
-      "Example: maintain this as versioned YAML in Git alongside your Helm values",
+      "Chapter 1 — Why NVIDIA AI Enterprise Exists",
+      "Introduction",
+      "1. The Hidden Cost of Open-Source AI",
+      "2. The NVAIE Value Proposition",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 2 — Platform Architecture and Support Boundary": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Map the exact boundaries of NVAIE. Learn what is supported, what is certified, and where NVIDIA's responsibility ends and the customer's begins.",
+    "sections": [
+      "Chapter 2 — Platform Architecture and Support Boundary",
+      "Introduction",
+      "1. The Layers of NVAIE Architecture",
+      "2. The Support Matrix vs. The Compatibility Matrix",
+      "3. The End of the Support Boundary (Business Logic)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 3 — NVIDIA NIM Architecture": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Demystify NIM (NVIDIA Inference Microservices). Learn how NIM packages models, engines, and APIs into a single, deployable container.",
+    "sections": [
+      "Chapter 3 — NVIDIA NIM Architecture",
+      "Introduction",
+      "1. What is inside a NIM?",
+      "2. The Magic of NIM: Just-In-Time (JIT) Engine Generation",
+      "3. The API Standardization",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 4 — Deploying and Operating NIM Services": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Master the deployment of NIM. Learn how to configure model caching, authentication, and integration with Kubernetes.",
+    "sections": [
+      "Chapter 4 — Deploying and Operating NIM Services",
+      "Introduction",
+      "1. Authentication (NGC API Keys)",
+      "2. The Storage Bottleneck (Model Caching)",
+      "3. Kubernetes Deployment Structure",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 5 — NeMo Framework and Model Customization": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Master the NVIDIA NeMo Framework. Learn how to pre-train, fine-tune, and align massive foundational models for the enterprise.",
+    "sections": [
+      "Chapter 5 — NeMo Framework and Model Customization",
+      "Introduction",
+      "1. The NeMo Architecture",
+      "2. Techniques for Customization",
+      "3. RAG vs. Fine-Tuning (The Architect's Dilemma)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 6 — NeMo Guardrails and Enterprise Controls": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Secure the GenAI perimeter. Learn how to intercept, filter, and block malicious prompts and toxic model outputs before they reach the user.",
+    "sections": [
+      "Chapter 6 — NeMo Guardrails and Enterprise Controls",
+      "Introduction",
+      "1. The Architecture of NeMo Guardrails",
+      "2. Colang: Programming the Guardrails",
+      "3. RAG Fact-Checking (The Hallucination Rail)",
+      "Customer Scenario (Senior Level)",
       "Interview Preparation"
     ],
     "codeLanguages": [
-      "mermaid",
-      "text",
-      "yaml"
-    ]
-  },
-  "Chapter 02 — Platform Architecture and Support Boundary": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Map NVIDIA, platform vendor, integrator, and customer responsibilities across the enterprise AI stack.",
-    "sections": [
-      "Platform Architecture and Support Boundary",
-      "Responsibility Map",
-      "Architecture",
-      "Production Anti-Pattern",
-      "Include this in your deployment runbook",
-      "Customer Perspective",
-      "Worked Scenario"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "yaml"
-    ]
-  },
-  "Chapter 03 — NVIDIA NIM Architecture": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand NIM packaging, runtime selection, model artifacts, APIs, health, and GPU execution.",
-    "sections": [
-      "NVIDIA NIM Architecture",
-      "Architecture",
-      "Why It Exists",
-      "Operational Boundary",
-      "Health Model: A Key NIM Design",
-      "Troubleshooting"
-    ],
-    "codeLanguages": [
-      "mermaid",
+      "colang",
       "text"
     ]
   },
-  "Chapter 04 — Deploying and Operating NIM Services": {
+  "Chapter 7 — NGC Catalog, Containers, and Artifacts": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design NIM deployment, scaling, security, observability, rollout, and rollback in production.",
+    "learningOutcome": "Navigate the NVIDIA GPU Cloud (NGC) ecosystem. Learn how to securely pull and manage NVAIE-certified containers in air-gapped environments.",
     "sections": [
-      "Deploying and Operating NIM Services",
-      "Deployment Checklist",
-      "Example: production-ready NIM deployment",
-      "Scaling",
-      "Troubleshooting",
-      "Example: Prometheus alert + canary gate"
+      "Chapter 7 — NGC Catalog, Containers, and Artifacts",
+      "Introduction",
+      "1. The Two Halves of NGC",
+      "2. Managing the Air-Gap (Image Mirroring)",
+      "3. Pre-Trained Models on NGC",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "yaml",
-      "text",
-      "mermaid"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 05 — NeMo Framework and Model Customization": {
+  "Chapter 8 — Licensing and Entitlement Operations": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand NeMo workflows for training, fine-tuning, evaluation, and model customization.",
+    "learningOutcome": "Master NVAIE licensing mechanisms. Understand node-locked vs. floating licenses and how to deploy the NVIDIA License System (NLS) in the enterprise.",
     "sections": [
-      "NeMo Framework and Model Customization",
-      "Workflow",
-      "Infrastructure and Cost Reality",
-      "Governance and Lineage",
-      "training metadata.yaml — saved alongside checkpoint",
-      "Troubleshooting Low GPU Utilization",
-      "Step 1: Check GPU utilization with dcgmi dmon",
-      "Output columns: Timestamp, GPU, Power, Temp, Utilization",
-      "If utilization < 50%, GPU is truly idle (step 2)",
-      "If utilization 90%, GPU is saturated (not a GPU problem, check app or data loading)",
-      "Step 2: Check if it's data loading (most common culprit)",
-      "Inside training container, profile data loader:",
-      "If throughput < 0.5 batches/sec, data pipeline is slow",
-      "Step 3: Check communication (if multi-GPU/multi-node)"
+      "Chapter 8 — Licensing and Entitlement Operations",
+      "Introduction",
+      "1. The NVIDIA License System (NLS)",
+      "Cloud License Service (CLS)",
+      "Delegated License Service (DLS)",
+      "2. License Tokens and the Client Mechanism",
+      "3. High Availability for DLS",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "yaml",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 06 — NeMo Guardrails and Enterprise Controls": {
+  "Chapter 9 — Lifecycle, Compatibility, and Upgrades": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Place conversational controls, policies, validation, and observability around enterprise AI applications.",
+    "learningOutcome": "Master the NVAIE update rhythm. Learn how to manage Production Branches (LTS), avoid version skew, and execute zero-downtime cluster upgrades.",
     "sections": [
-      "NeMo Guardrails and Enterprise Controls",
-      "Control Architecture",
-      "Engineering Trade-offs",
-      "Policy Governance",
-      "guardrail policy.yaml — version controlled, with approval",
-      "Security Boundary",
-      "Troubleshooting",
-      "1. Check audit logs for the request",
-      "Look for: \"policy version\", \"input check result\", \"reason rejected\"",
-      "2. Verify the policy version actually deployed",
-      "Compare deployed version with your Git repository's latest policy",
-      "3. Simulate the exact request with policy",
-      "Debug endpoint (or in your test environment):",
-      "Output will show exactly which step rejected it and why"
+      "Chapter 9 — Lifecycle, Compatibility, and Upgrades",
+      "Introduction",
+      "1. The NVAIE Branching Strategy",
+      "2. The Golden Triangle of Compatibility",
+      "3. Safe Upgrade Workflows (The Rollout)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "yaml",
-      "bash"
-    ]
-  },
-  "Chapter 07 — NGC Catalog, Containers, and Artifacts": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Govern NGC images, models, Helm charts, signatures, mirrors, and supply-chain controls.",
-    "sections": [
-      "NGC Catalog, Containers, and Artifacts",
-      "Artifact Lifecycle",
-      "Production Principles — Why Each One Matters",
-      "Governance Workflow",
-      "artifact review template.yaml",
-      "Troubleshooting",
-      "Step 1: Verify the exact image reference and digest",
-      "Output: Image: nvcr.io/nvidia/nim/llama2-7b:1.0.5",
-      "(Note the tag, not the digest — this is a problem if it's mutable)",
-      "Step 2: Check if the image pull secret exists and is valid",
-      "Should have .dockerconfigjson with nvcr.io credentials",
-      "Step 3: Manually test the pull (from pod's node)",
-      "SSH to the node and run:",
-      "Errors here tell you the exact problem:"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "yaml",
-      "bash"
-    ]
-  },
-  "Chapter 08 — Licensing and Entitlement Operations": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design entitlement, credential, renewal, audit, and failure handling for enterprise NVIDIA software.",
-    "sections": [
-      "Licensing and Entitlement Operations",
-      "Entitlement Decision Tree",
-      "Operational Design",
-      "entitlement operations.yaml",
-      "Security Best Practices",
-      "Troubleshooting",
-      "Step 1: Verify the NGC token hasn't expired",
-      "Check in NGC web UI → account settings → API keys",
-      "Or if you have token, estimate: NGC tokens are typically valid for 1 year from creation",
-      "Step 2: Test token manually from a test pod",
-      "200 = token works",
-      "401 = token invalid/expired/revoked",
-      "Step 3: Verify the Kubernetes secret is being read correctly",
-      "Should show base64-encoded token"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "yaml",
-      "bash"
-    ]
-  },
-  "Chapter 09 — Lifecycle, Compatibility, and Upgrades": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Coordinate AI Enterprise components, drivers, CUDA, platforms, models, and application releases.",
-    "sections": [
-      "Lifecycle, Compatibility, and Upgrades",
-      "Compatibility Matrix — What to Track",
-      "production baseline.yaml — git history is the changelog",
-      "Upgrade Workflow",
-      "Production Upgrade Procedure",
-      "1. Verify compatibility: Check NVIDIA matrix for CUDA 12.4 + driver 550.135",
-      "(Assume verified; fictional numbers for example)",
-      "2. Test in staging cluster (run same workload)",
-      "Wait for GPU Operator to roll out new driver",
-      "Run test inference",
-      "3. Capture baseline metrics from staging",
-      "Record: latency p95, throughput, GPU memory",
-      "4. Write upgrade ticket with decision",
-      "Title: \"Upgrade driver 550.127 → 550.135\""
-    ],
-    "codeLanguages": [
-      "yaml",
-      "text",
-      "mermaid",
-      "bash"
-    ]
+    "codeLanguages": []
   },
   "Chapter 10 — Kubernetes and Virtualization Integration": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Integrate enterprise AI software with Kubernetes, GPU Operator, vGPU, storage, networking, and identity.",
+    "learningOutcome": "Master the intersection of hypervisors and orchestrators. Learn how NVAIE integrates with VMware Tanzu, Red Hat OpenShift, and standard Kubernetes.",
     "sections": [
-      "Kubernetes and Virtualization Integration",
-      "Integration Layers and Support Boundaries",
-      "Architecture Decision Tree",
-      "Production Guidance by Architecture",
-      "Bare-metal Kubernetes + GPU Operator (RECOMMENDED FOR NEW DEPLOYMENTS)",
-      "GPU visibility check",
-      "GPU Operator status",
-      "Driver verification",
-      "Output should show GPU info",
-      "Pod GPU allocation",
-      "Should show GPU in container",
-      "Kubernetes in VM (vSphere with vGPU)",
-      "Example: vGPU profile assignment",
-      "Inside K8s cluster on vSphere:"
+      "Chapter 10 — Kubernetes and Virtualization Integration",
+      "Introduction",
+      "1. The VMware vSphere with Tanzu Architecture",
+      "2. Red Hat OpenShift Integration",
+      "3. Bare Metal vs. Virtualization (The Performance Tax)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "yaml"
-    ]
+    "codeLanguages": []
   },
   "Chapter 11 — Customer Architecture and Troubleshooting": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Translate enterprise requirements into supported designs and resolve cross-layer incidents.",
+    "learningOutcome": "Master real-world NVAIE deployments. Learn how to diagnose license server failures, NGC registry blocks, and VMware GPU passthrough errors.",
     "sections": [
-      "Customer Architecture and Troubleshooting",
-      "Discovery Framework",
-      "Discovery Output — A Real Architecture",
-      "customer architecture.yaml",
-      "Troubleshooting Tree — Ordered by Speed to Isolate Root Cause",
-      "Customer Advice"
+      "Chapter 11 — Customer Architecture and Troubleshooting",
+      "Introduction",
+      "1. Troubleshooting the Virtualization Abstraction",
+      "2. Troubleshooting the Air-Gap (Network Isolation)",
+      "3. Troubleshooting the Licensing Control Plane",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "yaml",
-      "text",
-      "mermaid"
-    ]
+    "codeLanguages": []
   },
   "Chapter 12 — Volume 14 Summary": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Consolidate NVIDIA AI Enterprise architecture, artifacts, entitlement, lifecycle, and support practices.",
+    "learningOutcome": "A concise review of NVIDIA AI Enterprise, NIM Architecture, and the NeMo Framework.",
     "sections": [
-      "Volume 14 Summary",
-      "The Insight You Must Carry Forward",
-      "Architecture Summary",
-      "NIM (Chapter 03–04) — Packaging model execution with operational defaults",
-      "NeMo (Chapter 05–06) — Framework for training, customization, and policy layers",
-      "NGC Catalog (Chapter 07) — Supply chain and artifact governance",
-      "Entitlement and Licensing (Chapter 08) — Operational availability dependency",
-      "Lifecycle and Upgrades (Chapter 09) — One layer at a time",
-      "Kubernetes and Virtualization (Chapter 10) — Integration layers determine risk",
-      "Customer Architecture (Chapter 11) — Nine discovery questions",
-      "Quick Troubleshooting Reference",
-      "Production Deployment Checklist",
-      "Qualified Compatibility",
-      "Artifacts and Supply Chain"
+      "Chapter 12 — Volume 14 Summary",
+      "Core Concepts Reviewed",
+      "The Senior Architect's Mandate"
     ],
-    "codeLanguages": [
-      "yaml",
-      "text"
-    ]
+    "codeLanguages": []
   },
   "Volume 14 — NVIDIA AI Enterprise": {
     "volume": "Academy orientation",
@@ -5261,292 +4663,170 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash"
     ]
   },
-  "Chapter 01 — Why AI Storage Is Different": {
+  "Chapter 1 — Why AI Storage Is Different": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand why AI workloads combine bandwidth, metadata, checkpoint, cache, and data-governance requirements.",
+    "learningOutcome": "Understand the shift from enterprise NAS to AI storage. Learn why metadata bottlenecks and massive checkpoint bursts destroy standard IT file systems.",
     "sections": [
-      "Why AI Storage Is Different",
-      "Learning Objectives",
-      "The Core Problem: Capacity Is Not Throughput",
-      "Workload Classes",
-      "Architecture and Decision Points",
-      "Command Evidence: Measuring Each Layer",
-      "Metadata Pressure",
-      "On the filesystem client, monitor metadata operations",
-      "or on Lustre specifically:",
-      "or on BeeGFS:",
-      "Storage Bandwidth and Saturation",
-      "Lustre storage health",
-      "Output: Shows how full each OST is and available capacity per target",
-      "All targets should have similar fill levels (±5%)"
+      "Chapter 1 — Why AI Storage Is Different",
+      "Introduction",
+      "1. The Two Extremes of AI Storage",
+      "Extreme 1: The Small File Metadata Blizzard (Data Loading)",
+      "Extreme 2: The Massive Sequential Burst (Checkpointing)",
+      "2. The Shift to Parallel File Systems",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "text",
-      "mermaid",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 02 — The AI Data Path from Storage to GPU": {
+  "Chapter 2 — The AI Data Path from Storage to GPU": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Trace data through media, filesystem, network, client cache, CPU memory, and GPU memory.",
+    "learningOutcome": "Trace the exact journey of a byte of training data. Learn how the Host CPU acts as a massive bottleneck and how PCIe topology dictates throughput.",
     "sections": [
-      "The AI Data Path from Storage to GPU",
-      "The Complete Data Path and Where Latency Hides",
-      "Measuring Each Layer: Tools and Interpretation",
-      "1. Storage Media Health (nvme0n1, sda, etc.)",
-      "Check disk performance and errors",
-      "or for SATA/SAS:",
-      "Real-time I/O trace to the storage device",
-      "2. Storage Server Queue and Controller",
-      "On the storage server, check RPC queue depth",
-      "or directly:",
-      "During I/O, monitor server-side service time",
-      "3. Network Fabric and Link Health",
-      "Check NIC link speed and errors",
-      "Modern NIC stats:"
+      "Chapter 2 — The AI Data Path from Storage to GPU",
+      "Introduction",
+      "1. The Standard Data Path (The CPU Bottleneck)",
+      "2. Bypassing the CPU: GPUDirect RDMA",
+      "3. The Physical PCIe Topology",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 03 — Local NVMe and Data Staging": {
+  "Chapter 3 — Local NVMe and Data Staging": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Use local NVMe for caches, staging, shuffle, temporary data, and checkpoint acceleration.",
+    "learningOutcome": "Master the storage hierarchy. Learn when to use local NVMe caching to bypass network bottlenecks and accelerate dataset loading.",
     "sections": [
-      "Local NVMe and Data Staging",
-      "When to Use Local NVMe (and When Not To)",
-      "Architecture: The Decision Path",
-      "The Real Benefit: Numbers",
-      "Production Design: Avoiding Pitfalls",
-      "Cache Consistency and Eviction",
-      "Monitor local NVMe health and fullness",
-      "Monitor cache hit rate (application-level logging)",
-      "Pseudo-code in your training script:",
-      "Checkpoint Staging",
-      "Cache Key and Checksum Validation",
-      "Troubleshooting: Identifying Real vs False Benefits",
-      "Interview-Ready Answer",
-      "Practice"
+      "Chapter 3 — Local NVMe and Data Staging",
+      "Introduction",
+      "1. The Concept of Data Staging",
+      "2. Distributed Caching Systems",
+      "3. NVMe RAID and Striping",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "python"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 04 — GPUDirect Storage Architecture": {
+  "Chapter 4 — GPUDirect Storage Architecture": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand supported storage-to-GPU paths, compatibility, fallback, topology, and operational validation.",
+    "learningOutcome": "Master NVIDIA Magnum IO. Learn how GPUDirect Storage (GDS) creates a direct pipeline between NVMe drives and GPU VRAM, bypassing the CPU entirely.",
     "sections": [
-      "GPUDirect Storage Architecture",
-      "The CPU Bounce Problem GDS Solves",
-      "Architecture: Direct vs Fallback",
-      "Verification: Proving GDS Is Actually Working",
-      "1. Check Prerequisites",
-      "GPU support",
-      "Verify NVIDIA driver is new enough and GDS-capable",
-      "GDS package installed?",
-      "Expected output: \"NVIDIA gpufs version X.X.X\"",
-      "If missing: GDS is not installed; all I/O uses CPU bounce",
-      "Storage support (NVMe-oF, specific Lustre OST versions)",
-      "For NVMe-oF:",
-      "For Lustre with GDS support:",
-      "2. Check Physical Topology (Critical!)"
+      "Chapter 4 — GPUDirect Storage Architecture",
+      "Introduction",
+      "1. The Physics of GPUDirect Storage (GDS)",
+      "2. GDS over the Network (NVMe-oF)",
+      "3. The Physical Topology Requirement",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "text",
-      "mermaid",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 05 — Lustre for AI and HPC": {
+  "Chapter 5 — Lustre for AI and HPC": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand Lustre metadata, object storage targets, striping, clients, and production tuning.",
+    "learningOutcome": "Explore the king of high-performance computing storage. Learn how Lustre separates metadata from object storage to achieve massive parallel throughput.",
     "sections": [
-      "Lustre for AI and HPC",
-      "Architecture: Where Metadata and Data Split",
-      "Measurement: Identify Which Is Your Bottleneck",
-      "Metadata Pressure",
-      "Real-time metadata operation rate",
-      "Expected healthy: <50K ops/sec aggregate across all clients",
-      "Metadata server-side metrics",
-      "or on the metadata server host:",
-      "Latency of a single metadata operation",
-      "Data Bandwidth and OST Balance",
-      "Check OST utilization and fill level",
-      "Expected: all OSTs within ±5% of each other",
-      "Bandwidth per OST (via oststat or using fio)",
-      "Striping Configuration"
+      "Chapter 5 — Lustre for AI and HPC",
+      "Introduction",
+      "1. The Lustre Architecture (Decoupling)",
+      "2. Striping (The Secret to Throughput)",
+      "3. The Operational Brutality of Lustre",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 06 — BeeGFS for GPU Clusters": {
+  "Chapter 6 — BeeGFS for GPU Clusters": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand BeeGFS management, metadata, storage, client, and target-balancing architecture.",
+    "learningOutcome": "Understand the lightweight alternative to Lustre. Learn how BeeGFS distributes metadata and simplifies deployment in enterprise environments.",
     "sections": [
-      "BeeGFS for GPU Clusters",
-      "Architecture: Decoupled Services",
-      "Measurement Tools and Interpretation",
-      "Metadata Operations",
-      "Check MDS health and load",
-      "Output: shows which nodes run MDS",
-      "Real-time metadata stats (requires beegfs-utils installed)",
-      "Monitor a single metadata operation",
-      "Storage Targets and Fill Balance",
-      "List all storage targets and their fill level",
-      "Real-time storage stats",
-      "Client Configuration and Locality",
-      "Check client version and mount options",
-      "Detailed client config"
+      "Chapter 6 — BeeGFS for GPU Clusters",
+      "Introduction",
+      "1. The Distributed Metadata Advantage",
+      "2. User-Space Daemons and Easy Deployment",
+      "3. BeeOND (BeeGFS on Demand)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 07 — Object Storage and Dataset Pipelines": {
+  "Chapter 7 — Object Storage and Dataset Pipelines": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Integrate object storage with dataset versioning, streaming, caching, and training pipelines.",
+    "learningOutcome": "Master the data lake. Learn how to feed GPUs directly from S3 Object Storage using WebDataset, TFRecord, and fast streaming architectures.",
     "sections": [
-      "Object Storage and Dataset Pipelines",
-      "Why Direct Object Storage Is Slow",
-      "Architecture: A Production Pipeline",
-      "Measurement: Bottleneck in the Pipeline",
-      "Object Download Latency and Throughput",
-      "Test direct S3 access latency and throughput",
-      "Use AWS CLI or boto3:",
-      "Single-object latency",
-      "Record wall-clock time",
-      "Parallel download throughput (8 workers)",
-      "Pseudo-code:",
-      "Cache Hit Rate and Prefetch Effectiveness",
-      "Instrument the training loader to measure cache behavior",
-      "Production Patterns"
+      "Chapter 7 — Object Storage and Dataset Pipelines",
+      "Introduction",
+      "1. The Anti-Pattern: Millions of S3 GET Requests",
+      "2. The Solution: Tarballs and Streaming (WebDataset / TFRecord)",
+      "3. High-Performance Object Storage (MinIO / VAST)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "text",
-      "mermaid",
-      "bash",
-      "python",
-      "json"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 08 — Checkpoint Architecture and Recovery": {
+  "Chapter 8 — Checkpoint Architecture and Recovery": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design checkpoint consistency, sharding, staging, retention, replication, and restart validation.",
+    "learningOutcome": "Master fault tolerance at the storage layer. Learn how to write 5-Terabyte checkpoints simultaneously without crashing the parallel file system.",
     "sections": [
-      "Checkpoint Architecture and Recovery",
-      "The Checkpoint Lifecycle and Bottleneck Points",
-      "Measurement and Diagnostics",
-      "Checkpoint Duration and Components",
-      "Instrument checkpoint code to measure each phase",
-      "Phase 1: Serialization (in-process)",
-      "Phase 2: Synchronization (collective operation)",
-      "Phase 3: Write",
-      "Total checkpoint time",
-      "Finding the Straggler",
-      "In each rank, measure work between checkpoints",
-      "Before checkpoint, report your batch times",
-      "Production Pattern 1: Asynchronous Checkpoint via Staging",
-      "Production Pattern 2: Checkpoint Retention and Cleanup"
+      "Chapter 8 — Checkpoint Architecture and Recovery",
+      "Introduction",
+      "1. The Single File Bottleneck (The Anti-Pattern)",
+      "2. Distributed Sharded Checkpointing (N-to-N)",
+      "3. Storage Tiering for Checkpoints",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "python"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 09 — Metadata, Small Files, and Data Loading": {
+  "Chapter 9 — Metadata, Small Files, and Data Loading": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Diagnose metadata pressure, small-file amplification, preprocessing, and loader starvation.",
+    "learningOutcome": "Solve the metadata blizzard. Learn how millions of small files lock up storage arrays and how to format data to bypass POSIX bottlenecks.",
     "sections": [
-      "Metadata, Small Files, and Data Loading",
-      "The Small-File Problem, Quantified",
-      "Diagnosis: Where Is the Time Actually Going?",
-      "Measure File-Open Rate",
-      "During training, count how many file opens are happening per second",
-      "Using strace (heavy overhead, only for diagnosis):",
-      "Output:",
-      "% time seconds usecs/call calls errors syscall",
-      "45.23 2.140 8 267500 1234 openat",
-      "This means: 267,500 openat calls in 2.14 seconds ≈ 125K opens/sec",
-      "That's your storage MDS capacity (50K–100K ops/sec) — metadata is saturated!",
-      "Instrument your data loader",
-      "Run training with this dataset",
-      "Measure Batch Assembly Time"
+      "Chapter 9 — Metadata, Small Files, and Data Loading",
+      "Introduction",
+      "1. The Physics of a File Open",
+      "2. Directory Sharding (The Basic Fix)",
+      "3. Data Packaging (The Architectural Fix)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "text",
-      "bash",
-      "python"
-    ]
+    "codeLanguages": []
   },
   "Chapter 10 — Capacity, Performance, and Cost Planning": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Size AI storage for usable capacity, bandwidth, metadata, burst, retention, and growth.",
+    "learningOutcome": "Master FinOps for AI Storage. Learn how to architect multi-tiered storage systems that balance extreme performance with long-term data retention budgets.",
     "sections": [
-      "Capacity, Performance, and Cost Planning",
-      "The Cost of Idle GPUs vs Storage Savings",
-      "Planning Framework: Six Dimensions",
-      "1. Usable Capacity",
-      "2. Read Bandwidth",
-      "3. Write Bandwidth",
-      "4. Metadata Rate",
-      "5. Burst Handling",
-      "6. Cost Per GPU-Hour",
-      "Tiering Strategy",
-      "Capacity Planning Calculator",
-      "Headroom Budgeting",
-      "Interview-Ready Answer",
-      "Practice"
+      "Chapter 10 — Capacity, Performance, and Cost Planning",
+      "Introduction",
+      "1. The Mathematics of Storage Tiering",
+      "Tier 1: The Hot Scratch (The Arena)",
+      "Tier 2: The Warm Lake (The Repository)",
+      "Tier 3: The Cold Archive (The Vault)",
+      "2. Automated Data Movement (Data Staging)",
+      "3. The IOPS vs. Bandwidth Dilemma",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "text"
-    ]
+    "codeLanguages": []
   },
   "Chapter 12 — Volume 15 Summary": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Consolidate AI storage data paths, filesystems, checkpointing, capacity, and operations.",
+    "learningOutcome": "A concise review of AI Storage, Data Paths, and Capacity Planning.",
     "sections": [
-      "Volume 15 Summary",
-      "The Insight You Must Carry Forward",
-      "Architecture Summary",
-      "The Data Path (Chapter 02) — Seven layers, each with latency and capacity",
-      "Local NVMe and GPUDirect Storage (Chapters 03–04) — Removing the CPU bounce",
-      "Lustre and BeeGFS (Chapters 05–06) — Distributed metadata is the real differentiator, not \"single vs. multiple MDS\"",
-      "Object Storage and Checkpointing (Chapters 07–08) — Durability vs. the critical path",
-      "Metadata, Small Files, and Capacity Planning (Chapters 09–10) — The 47-minute problem",
-      "Production Troubleshooting (Chapter 11) — Layered, ordered diagnosis",
-      "Quick Revision",
-      "Production Deployment Checklist",
-      "Data Path and Topology",
-      "Filesystem Choice and Metadata",
-      "Checkpointing"
+      "Chapter 12 — Volume 15 Summary",
+      "Core Concepts Reviewed",
+      "The Senior Architect's Mandate"
     ],
-    "codeLanguages": [
-      "yaml",
-      "text"
-    ]
+    "codeLanguages": []
   },
   "Volume 15 — AI Storage": {
     "volume": "Academy orientation",
@@ -5665,320 +4945,194 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "python"
     ]
   },
-  "Chapter 01 — Why GPU Observability Is Fundamentally Different": {
+  "Chapter 1 — Why GPU Observability Is Fundamentally Different": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand why GPU observability requires fundamentally different signals: you cannot run a GPU cluster blind, and you cannot observe it the way you observe CPUs.",
+    "learningOutcome": "Understand the blind spot in standard monitoring. Learn why CPU tools fail to measure AI workloads and why DCGM is mandatory.",
     "sections": [
-      "Chapter 01 — Why GPU Observability Is Fundamentally Different",
-      "Learning Objectives",
-      "The Core Problem: GPU Metrics Are Not CPU Metrics",
-      "The Three Categories of GPU Signals",
-      "Why this three-way view is mandatory",
-      "The Observability Stack for GPUs",
-      "Myth vs. Reality",
-      "Evidence: Reading GPU Health in One Command",
-      "Worked Example: The Diagnosis Hierarchy",
-      "Interview Questions Worth Preparing",
-      "Key Takeaways"
+      "Chapter 1 — Why GPU Observability Is Fundamentally Different",
+      "Introduction",
+      "1. The Linux Kernel Blind Spot",
+      "2. Allocation vs. Utilization (The FinOps Trap)",
+      "3. The Hardware Telemetry Requirement",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 2 — Signals: Metrics, Logs, Traces, and Evidence": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Master the three pillars of observability in an AI context. Learn how to correlate metrics, logs, and traces to solve complex distributed failures.",
+    "sections": [
+      "Chapter 2 — Signals: Metrics, Logs, Traces, and Evidence",
+      "Introduction",
+      "1. Metrics (The 'What')",
+      "2. Logs (The 'Why')",
+      "3. Traces (The 'Where')",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 3 — Core GPU Metrics and Interpretation": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Decode the telemetry. Learn how to interpret GPU utilization, memory bandwidth, SM occupancy, and thermal throttling indicators.",
+    "sections": [
+      "Chapter 3 — Core GPU Metrics and Interpretation",
+      "Introduction",
+      "1. The Fallacy of \"GPU Utilization\"",
+      "2. The Core Diagnostic Metrics (DCGM)",
+      "Compute Metrics",
+      "Memory Metrics",
+      "Environmental Metrics (The Silent Killers)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 4 — DCGM: The GPU Metrics Foundation": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Understand the Data Center GPU Manager. Learn how DCGM operates, how it extracts metrics without impacting performance, and how it handles health checks.",
+    "sections": [
+      "Chapter 4 — DCGM: The GPU Metrics Foundation",
+      "Introduction",
+      "1. DCGM Architecture",
+      "2. Beyond Metrics: Health Checks and Policy",
+      "3. The Exporter Ecosystem",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 5 — Prometheus, Grafana, and Observability Dashboards": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Build the observability pipeline. Learn how to scrape, store, and visualize massive amounts of GPU telemetry without crashing Prometheus.",
+    "sections": [
+      "Chapter 5 — Prometheus, Grafana, and Observability Dashboards",
+      "Introduction",
+      "1. The Prometheus Architecture for AI",
+      "2. Designing the \"Golden Signals\" Dashboard",
+      "3. The Power of PromQL",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 6 — Distributed Observability: Multi-GPU and Multi-Node": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Master network telemetry. Learn how to track NCCL rings and InfiniBand congestion to diagnose massive distributed training failures.",
+    "sections": [
+      "Chapter 6 — Distributed Observability: Multi-GPU and Multi-Node",
+      "Introduction",
+      "1. Observing the Interconnects",
+      "2. Tracking NCCL Health",
+      "3. InfiniBand and RoCE Congestion Metrics",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 7 — Traces, Profiling, and Deep Performance Diagnosis": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Master NVIDIA Nsight Systems. Learn how to read execution timelines to diagnose CPU starvation and CUDA kernel bottlenecks.",
+    "sections": [
+      "Chapter 7 — Traces, Profiling, and Deep Performance Diagnosis",
+      "Introduction",
+      "1. How Nsight Systems ( nsys ) Works",
+      "2. Reading the Nsight Timeline",
+      "3. NVTX (NVIDIA Tools Extension)",
+      "... your dataloader code ...",
+      "... your model execution ...",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
-      "text",
-      "mermaid",
-      "bash"
+      "python",
+      "text"
     ]
   },
-  "Chapter 02 — Signals, Metrics, Logs, Traces, and Evidence": {
+  "Chapter 8 — Common GPU Failure Modes and Detection": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Every observability signal has a purpose and scope. Learn to collect them correctly and combine them into evidence, not just data.",
+    "learningOutcome": "Diagnose hardware degradation. Learn how to interpret XID errors, ECC bit flips, and PCIe bus faults before they crash production.",
     "sections": [
-      "Chapter 02 — Signals, Metrics, Logs, Traces, and Evidence",
-      "Learning Objectives",
-      "Three Signal Types, Three Purposes",
-      "Metrics: \"What is the steady state?\"",
-      "Logs: \"What went wrong?\"",
-      "Traces: \"Why is this kernel slow?\"",
-      "The Observability Stack: How to Collect All Three",
-      "Level 1: Metrics via DCGM + Prometheus",
-      "1. Verify DCGM is installed and the daemon is running",
-      "Output will show all GPUs and basic health status",
-      "2. Export metrics via DCGM exporter",
-      "This exposes http://localhost:9400/metrics in Prometheus format",
-      "3. Verify metrics are flowing",
-      "HELP DCGM FI DEV GPU TEMP GPU temperature (in C)."
+      "Chapter 8 — Common GPU Failure Modes and Detection",
+      "Introduction",
+      "1. The XID Error Framework",
+      "2. ECC Memory: Correctable vs. Uncorrectable",
+      "3. PCIe and NVLink Link Downgrades",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 03 — Core GPU Metrics and Interpretation": {
+  "Chapter 9 — Health Checks and SLOs for GPU Clusters": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Every GPU metric has a hidden layer of interpretation. Utilization is not efficiency. Memory full is not OOM. Learn to read the actual health signal.",
+    "learningOutcome": "Define the reliability contract. Learn how to construct automated health checks and mathematical Service Level Objectives (SLOs) for AI infrastructure.",
     "sections": [
-      "Chapter 03 — Core GPU Metrics and Interpretation",
-      "Learning Objectives",
-      "Metric 1: GPU Utilization",
-      "The Three Utilization Scenarios",
-      "Reading GPU Utilization Correctly",
-      "Get detailed utilization breakdown",
-      "Utilization Over Time: Steady vs. Oscillating",
-      "Collect utilization trend for 10 minutes",
-      "Alert Thresholds for Utilization",
-      "Metric 2: Memory",
-      "Three Memory Numbers You Need",
-      "The Hidden Layer: Fragmentation and Allocation Stalls",
-      "Check allocation patterns over time",
-      "Memory Pressure and the Reclaim Path"
+      "Chapter 9 — Health Checks and SLOs for GPU Clusters",
+      "Introduction",
+      "1. The Automated Burn-In Test",
+      "2. Defining the Inference SLO",
+      "3. The Error Budget",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
-  },
-  "Chapter 04 — DCGM: The GPU Metrics Foundation": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "DCGM is how you read GPU hardware state at scale. Learn to set it up, interpret its metrics, and use it as the foundation for production observability.",
-    "sections": [
-      "Chapter 04 — DCGM: The GPU Metrics Foundation",
-      "Learning Objectives",
-      "What DCGM Does",
-      "The Two Modes of DCGM",
-      "Installing and Starting DCGM",
-      "Step 1: Install DCGM Package",
-      "On Ubuntu/Debian",
-      "On RHEL/CentOS",
-      "Verify installation",
-      "Step 2: Start the DCGM Daemon",
-      "Enable and start the daemon",
-      "Verify it's running",
-      "Step 3: Test DCGM Communication",
-      "Query all GPUs via DCGM"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "yaml"
-    ]
-  },
-  "Chapter 05 — Prometheus, Grafana, and Observability Dashboards": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Turn DCGM metrics into dashboards and alerts. Learn Prometheus scraping, Grafana templating, and SLO-based alerting for GPUs.",
-    "sections": [
-      "Chapter 05 — Prometheus, Grafana, and Observability Dashboards",
-      "Learning Objectives",
-      "The Prometheus + DCGM Pipeline",
-      "Configuring Prometheus for GPU Metrics",
-      "Step 1: Add DCGM Scrape Config",
-      "Step 2: Verify Metrics Are Flowing",
-      "Restart Prometheus",
-      "Query Prometheus (usually http://localhost:9090)",
-      "In the Prometheus UI, search for: DCGM FI DEV GPU UTIL",
-      "Should show time-series data points for each GPU on each node",
-      "Building Effective GPU Dashboards in Grafana",
-      "Dashboard 1: GPU Fleet Health (Cluster-Level)",
-      "Dashboard 2: Individual GPU Deep Dive (Per-GPU)",
-      "Dashboard variables (Grafana template variables)"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "yaml",
-      "bash",
-      "json"
-    ]
-  },
-  "Chapter 06 — Distributed Observability: Multi-GPU and Multi-Node Systems": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "One GPU's metrics are useless without knowing its neighbors' state. Learn to correlate metrics across GPUs, nodes, and clusters.",
-    "sections": [
-      "Chapter 06 — Distributed Observability: Multi-GPU and Multi-Node Systems",
-      "Learning Objectives",
-      "The Observability Layers in Distributed Systems",
-      "Multi-GPU Observability on a Single Node",
-      "Scenario: Two A100s on the Same Node",
-      "Metrics for Detecting Multi-GPU Contention",
-      "Real Example: Diagnosing NVLink Saturation",
-      "Collect metrics from both GPUs simultaneously",
-      "Measure NVLink traffic (requires nvidia-fabric-manager)",
-      "Multi-Node Observability",
-      "Scenario: 8-GPU Cluster (2 nodes, 4 GPUs each)",
-      "Distributed Metrics Collection",
-      "prometheus.yml",
-      "Collective Communication and NCCL"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "yaml",
-      "sql",
-      "promql"
-    ]
-  },
-  "Chapter 07 — Traces, Profiling, and Deep Performance Diagnosis": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Metrics show you the average; traces show you where time actually goes. Learn profiling tools and how to interpret their output.",
-    "sections": [
-      "Chapter 07 — Traces, Profiling, and Deep Performance Diagnosis",
-      "Learning Objectives",
-      "Three Profiling Tools and When to Use Them",
-      "Method 1: nvidia-smi Profiling (Quick Orientation)",
-      "Enable persistence mode (GPUs don't clock down between jobs)",
-      "Run your job with monitoring",
-      "p: Power, u: GPU Util, c: clocks, v: video encode, m: memory util, e: ECC, t: Temp",
-      "Method 2: Nsight Compute (Detailed Kernel Analysis)",
-      "Run a single iteration with Nsight Compute profiling",
-      "or profile an already-compiled CUDA binary",
-      "Real Example: Comparing Two Kernels",
-      "Method 3: Nsys (System-Wide Tracing)",
-      "Trace a full training step",
-      "Generate timeline report"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
-  },
-  "Chapter 08 — Common GPU Failure Modes and Detection": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Every GPU failure has a signature. Learn to read the telemetry and catch failures early.",
-    "sections": [
-      "Chapter 08 — Common GPU Failure Modes and Detection",
-      "Learning Objectives",
-      "Failure Mode 1: GPU Thermal Throttling (Overheating)",
-      "Check fan speed",
-      "Output: 100% is normal; 0% means fan failure",
-      "Check thermal throttle history",
-      "Output: Thermal Slowdown: Active (GPU is throttling RIGHT NOW)",
-      "Check power efficiency (if power supply is bad)",
-      "Output: Oscillating wildly = power supply instability",
-      "Immediate: reduce load to give cooling system time",
-      "(set job to lower batch size, or pause job)",
-      "Investigation:",
-      "1. Check system temperature sensors",
-      "2. Check cooling system"
-    ],
-    "codeLanguages": [
-      "text",
-      "bash",
-      "python"
-    ]
-  },
-  "Chapter 09 — Health Checks and SLOs for GPU Clusters": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "How do you define 'the cluster is healthy'? Learn to set metrics-based SLOs and health checks that matter.",
-    "sections": [
-      "Chapter 09 — Health Checks and SLOs for GPU Clusters",
-      "Learning Objectives",
-      "SLIs: What to Measure",
-      "SLOs: The Commitments",
-      "Cluster-level SLOs",
-      "What these mean in practice:",
-      "- 99% availability = 43 minutes of total downtime per month",
-      "- 98% health = if you have 100 GPUs, up to 2 can be broken at any time",
-      "- 99.5% job completion = 1 in 200 jobs can fail (due to hardware)",
-      "Automated Health Checks",
-      "Check 1: Per-GPU Readiness",
-      "Run on each GPU host daily",
-      "Check 2: Distributed Health (Multi-Node)",
-      "Run once per hour across the cluster"
-    ],
-    "codeLanguages": [
-      "yaml",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
   "Chapter 10 — Production Troubleshooting Frameworks": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "When a job fails, you have minutes to diagnose. Use these frameworks to move from symptom to root cause efficiently.",
+    "learningOutcome": "Master the USE Method for AI infrastructure. Learn how to systematically diagnose any GPU or network bottleneck without guessing.",
     "sections": [
       "Chapter 10 — Production Troubleshooting Frameworks",
-      "Learning Objectives",
-      "Framework 1: GPU Job Slow/Failed",
-      "Real Example: Slow Training Job",
-      "Check data loader performance",
-      "Output: 150 samples/sec (very slow!)",
-      "Framework 2: GPU Temperature Rising",
-      "Framework 3: ECC Errors Appearing",
-      "Framework 4: Multi-GPU Job Stall (One GPU Slow)",
-      "Key Commands in Order of Frequency",
-      "1. What's the job state right now?",
-      "2. Are processes running?",
-      "3. GPU metrics trend (last 5 min)?",
-      "4. Recent errors in kernel?"
+      "Introduction",
+      "1. The USE Method for AI",
+      "2. The AI Diagnostic Tree",
+      "Layer 1: The Application (The Code)",
+      "Layer 2: The Host CPU (The Dataloader)",
+      "Layer 3: The Interconnect (PCIe / NVLink)",
+      "Layer 4: The Silicon (The GPU)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
   "Chapter 11 — Observability for Inference at Scale": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Training and inference are different workloads with different observability needs. Learn to monitor model serving at scale.",
+    "learningOutcome": "Master the telemetry of production serving. Learn how to track Token Generation, KV Cache pressure, and Continuous Batching efficiency.",
     "sections": [
       "Chapter 11 — Observability for Inference at Scale",
-      "Learning Objectives",
-      "Inference Workload Characteristics",
-      "Inference Metrics and SLIs",
-      "Inference Server Observability",
-      "Real Example: Monitoring LLM Inference",
-      "Start inference server with Prometheus endpoint",
-      "Prometheus scrapes metrics at :8000/metrics",
-      "HELP vllm:prompt tokens total Total number of prompt tokens processed.",
-      "TYPE vllm:prompt tokens total counter",
-      "HELP vllm:request success total Number of requests that finished without error.",
-      "TYPE vllm:request success total counter",
-      "HELP vllm:num requests running Number of requests currently running on GPU.",
-      "TYPE vllm:num requests running gauge"
+      "Introduction",
+      "1. The Generative AI Golden Signals",
+      "2. Monitoring the KV Cache",
+      "3. Tracing the Request (OpenTelemetry)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "text",
-      "yaml",
-      "bash"
-    ]
+    "codeLanguages": []
   },
   "Chapter 12 — Incident Response and Postmortems": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "When observability catches a problem, move to resolution efficiently. Learn incident response procedures and how to prevent recurrence.",
+    "learningOutcome": "Master the blameless postmortem. Learn how to structure AI infrastructure incident response to prevent recurring multi-million dollar failures.",
     "sections": [
       "Chapter 12 — Incident Response and Postmortems",
-      "Learning Objectives",
-      "Incident Response Runbooks",
-      "Runbook 1: GPU Thermal Throttle Alert",
-      "Runbook 2: GPU Memory OOM Alert",
-      "Runbook 3: Cluster Availability &lt; SLO",
-      "Postmortem Template",
-      "Postmortem: Training Cluster Thermal Incident",
-      "Timeline",
-      "Root Cause",
-      "Contributing Factors",
-      "What Went Well",
-      "What Could Be Better",
-      "Action Items"
+      "Introduction",
+      "1. The Blameless Culture",
+      "2. The Five Whys (Root Cause Analysis)",
+      "3. MTTR and Automated Remediation",
+      "The Senior Architect's Mandate"
     ],
-    "codeLanguages": [
-      "yaml",
-      "text",
-      "markdown"
-    ]
+    "codeLanguages": []
   },
   "Volume 16 — GPU Observability and Operational Health": {
     "volume": "Academy orientation",
@@ -6108,308 +5262,187 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "python"
     ]
   },
-  "Chapter 01 — Performance Engineering Fundamentals": {
+  "Chapter 1 — Performance Engineering Fundamentals": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Performance Engineering Fundamentals — why measurement comes first, what you're actually optimizing for, and the evidence ladder.",
+    "learningOutcome": "Master the mathematical foundation of AI performance. Learn to distinguish optimization from measurement, and why 'fast' is a useless term.",
     "sections": [
-      "Chapter 01 — Performance Engineering Fundamentals",
-      "Learning Objectives",
-      "Big Picture",
-      "Deep Explanation",
-      "Metrics: What You're Actually Optimizing For",
-      "The Evidence Ladder: Measurement Depth",
-      "Why \"Fast GPU\" Is Not A Performance Claim",
-      "Production Troubleshooting",
-      "Problem: \"Our model is slow but nvidia-smi shows high GPU util\"",
-      "Problem: \"We optimized the kernel and throughput got worse\"",
-      "Interview Preparation",
-      "Key Takeaways"
+      "Chapter 1 — Performance Engineering Fundamentals",
+      "Introduction",
+      "1. Measurement Precedes Optimization",
+      "2. Throughput, Latency, and Utilization (The Iron Triangle)",
+      "3. The Evidence Ladder",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 02 — Profiling Tools Landscape": {
+  "Chapter 2 — Profiling Tools Landscape": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Profiling tools landscape — NVIDIA Nsight, built-in profilers, CPU profilers, and when to use each.",
+    "learningOutcome": "Navigate the NVIDIA profiling ecosystem. Learn exactly when to use DCGM, Nsight Systems, Nsight Compute, and PyTorch Profiler.",
     "sections": [
-      "Chapter 02 — Profiling Tools Landscape",
-      "Learning Objectives",
-      "Big Picture",
-      "Deep Explanation",
-      "1. NVIDIA Profilers: Nsight Compute and Nsight Systems",
-      "Generates trace.nsys-rep, viewable in GUI or CLI",
-      "2. Nvidia-smi: The First Check (and Its Limits)",
-      "3. PyTorch Profiler (built-in, application-level)",
-      "4. CPU Profilers: perf, cProfile, Py-spy",
-      "5. Distributed Training Profilers",
-      "Production Troubleshooting",
-      "Problem: \"Profiler overhead is hiding the real performance\"",
-      "Problem: \"The profiler says time is in kernel X, but optimizing X didn't help\"",
+      "Chapter 2 — Profiling Tools Landscape",
+      "Introduction",
+      "1. Macro-Level Telemetry (The Thermometer)",
+      "2. System-Level Profiling (The X-Ray)",
+      "3. Kernel-Level Profiling (The Electron Microscope)",
+      "4. Application-Level Profiling",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 3 — Roofline Model and Analytical Performance": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Master the fundamental theorem of performance engineering. Learn how to mathematically prove whether a model is bound by compute or memory.",
+    "sections": [
+      "Chapter 3 — Roofline Model and Analytical Performance",
+      "Introduction",
+      "1. Arithmetic Intensity (The X-Axis)",
+      "2. The Roofline Graph",
+      "3. Applying the Roofline Model",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 4 — Bottleneck Identification and Diagnosis": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Master the systematic diagnosis of AI infrastructure. Learn how to definitively prove whether a workload is bound by Compute, Memory, PCIe, or Network.",
+    "sections": [
+      "Chapter 4 — Bottleneck Identification and Diagnosis",
+      "Introduction",
+      "1. The Diagnostic Tree (Top-Down Isolation)",
+      "Step 1: Nsight Systems (The Timeline Check)",
+      "Step 2: Isolating Upstream Starvation (CPU vs PCIe)",
+      "Step 3: Isolating GPU Saturation (Compute vs Memory)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 5 — GPU Compute Optimization": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Master the silicon. Learn how to maximize SM Occupancy, utilize Tensor Cores, and eliminate warp divergence.",
+    "sections": [
+      "Chapter 5 — GPU Compute Optimization",
+      "Introduction",
+      "1. The Anatomy of GPU Compute",
+      "Warps and Scheduling",
+      "2. The Compute Anti-Pattern: Warp Divergence",
+      "3. SM Occupancy and Tile Sizing",
+      "Customer Scenario (Senior Level)",
       "Interview Preparation"
     ],
     "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "python"
-    ]
-  },
-  "Chapter 03 — Roofline Model and Analytical Performance": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Roofline model — the single framework that tells you whether a kernel is compute-bound or memory-bound.",
-    "sections": [
-      "Chapter 03 — Roofline Model and Analytical Performance",
-      "Learning Objectives",
-      "Big Picture",
-      "Deep Explanation",
-      "1. Defining Compute Intensity",
-      "2. Hardware Roofline: H100 and Other Accelerators",
-      "3. Plotting Kernels on Roofline",
-      "4. Validation Against Profiler Data",
-      "Production Troubleshooting",
-      "Problem: \"Our GEMM kernel achieves 45 TFLOPS on H100, but roofline says it should get 67\"",
-      "Problem: \"Roofline says memory-bound, but we can't make it faster with data reuse\"",
-      "Interview Preparation",
-      "Key Takeaways"
-    ],
-    "codeLanguages": [
-      "mermaid",
+      "python",
       "text"
     ]
   },
-  "Chapter 04 — Bottleneck Identification and Diagnosis": {
+  "Chapter 6 — Memory Optimization": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Systematic bottleneck diagnosis — isolating compute, memory, network, I/O, and CPU bottlenecks with evidence.",
+    "learningOutcome": "Master VRAM physics. Learn how to optimize memory bandwidth, understand coalesced access patterns, and utilize FlashAttention.",
     "sections": [
-      "Chapter 04 — Bottleneck Identification and Diagnosis",
-      "Learning Objectives",
-      "Big Picture",
-      "Deep Explanation",
-      "Diagnosis Flow: Real Example",
-      "Output across 8 GPUs during training",
-      "All CPUs at ~20% utilization, well below saturation",
-      "Low utilization, no I/O queue backlog",
-      "Network check (on distributed training node)",
-      "Expected NCCL collective: would be 100+ MiB/s for 8-GPU cluster training",
-      "Result shows: dataloader.next() takes 120ms per iteration",
-      "Model forward: 50ms, backward: 40ms, optimizer: 10ms",
-      "Total: 220ms per iteration → 4.5 samples/sec",
-      "But reported throughput is 150 samples/sec on batch size 32"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "python"
-    ]
-  },
-  "Chapter 05 — GPU Compute Optimization": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Compute optimization — occupancy, instruction-level parallelism, warp scheduling, and reaching peak TFLOPS.",
-    "sections": [
-      "Chapter 05 — GPU Compute Optimization",
-      "Learning Objectives",
-      "Big Picture",
-      "Deep Explanation",
-      "1. Occupancy: The Occupancy Ceiling",
-      "2. Register Pressure and Spilling",
-      "Output shows:",
-      "3. Instruction-Level Parallelism (ILP)",
-      "4. Real Optimization Example",
-      "Production Troubleshooting",
-      "Problem: \"Kernel won't fit in SM registers with larger block size\"",
-      "Problem: \"Occupancy is 100% but TFLOPS is still low\"",
-      "Interview Preparation",
-      "Key Takeaways"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "cuda"
-    ]
-  },
-  "Chapter 06 — Memory Optimization": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Memory optimization — bandwidth, caching, coalescing, and reaching peak memory utilization.",
-    "sections": [
-      "Chapter 06 — Memory Optimization",
-      "Learning Objectives",
-      "Big Picture",
-      "Deep Explanation",
-      "1. Memory Bandwidth and Utilization",
-      "2. Tiling for Data Reuse",
-      "3. Memory Coalescing",
-      "4. Cache Hierarchy Tuning",
-      "Production Troubleshooting",
-      "Problem: \"Memory optimizations didn't improve bandwidth utilization\"",
-      "Problem: \"Tiling made it slower\"",
-      "Interview Preparation",
-      "Key Takeaways"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "cuda",
-      "bash"
-    ]
-  },
-  "Chapter 07 — Communication and Collective Optimization": {
-    "volume": "Academy orientation",
-    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Multi-GPU and multi-node communication — NCCL, overlapping computation, topology awareness.",
-    "sections": [
-      "Chapter 07 — Communication and Collective Optimization",
-      "Learning Objectives",
-      "Big Picture",
-      "Deep Explanation",
-      "1. NCCL Collective Latency",
-      "2. Compute-Collective Overlap",
-      "3. NCCL Algorithm Selection",
-      "Default: automatic selection based on tensor size and GPU count",
-      "4. Real Profiling of Collectives",
-      "Small tensor (synchronization-heavy)",
-      "Large tensor (bandwidth-heavy)",
-      "Production Troubleshooting",
-      "Problem: \"Adding 8th GPU didn't improve throughput\"",
+      "Chapter 6 — Memory Optimization",
+      "Introduction",
+      "1. Coalesced Memory Access",
+      "2. Kernel Fusion (Keeping Data in Cache)",
+      "3. FlashAttention: The Ultimate Memory Hack",
+      "Customer Scenario (Senior Level)",
       "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "python"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 08 — Inference Optimization": {
+  "Chapter 7 — Communication and Collective Optimization": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Inference optimization — latency, batching, KV cache, quantization, and throughput tuning.",
+    "learningOutcome": "Master distributed bottlenecks. Learn how to overlap compute with communication and tune NCCL parameters for maximum cluster efficiency.",
     "sections": [
-      "Chapter 08 — Inference Optimization",
-      "Learning Objectives",
-      "Big Picture",
-      "Deep Explanation",
-      "1. Prefill vs Decode Bottlenecks",
-      "2. KV Cache Memory Pressure",
-      "3. Throughput Optimizations: Batching",
-      "Serve requests in fixed batches of 32",
-      "4. Quantization Impact",
-      "Production Troubleshooting",
-      "Problem: \"P99 latency is 200ms but average is 20ms\"",
-      "Interview Preparation",
-      "Key Takeaways"
+      "Chapter 7 — Communication and Collective Optimization",
+      "Introduction",
+      "1. The Physics of Overlap",
+      "2. Tuning NCCL Buckets and Buffers",
+      "3. Sharp (Scalable Hierarchical Aggregation and Reduction Protocol)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "python"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 09 — Training Optimization": {
+  "Chapter 8 — Inference Optimization": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Training optimization — throughput scaling, gradient checkpointing, mixed precision, pipeline parallelism.",
+    "learningOutcome": "Master the deployment of AI. Learn how to balance Latency and Throughput using dynamic batching, caching, and precision degradation.",
     "sections": [
-      "Chapter 09 — Training Optimization",
-      "Learning Objectives",
-      "Big Picture",
-      "Deep Explanation",
-      "1. Gradient Checkpointing",
-      "2. Mixed Precision Training",
-      "3. Pipeline Parallelism",
-      "4. Measuring Training Performance",
-      "Production Troubleshooting",
-      "Problem: \"Scaling from 8 to 16 GPUs improved throughput by only 1.5×\"",
-      "Interview Preparation",
-      "Key Takeaways"
+      "Chapter 8 — Inference Optimization",
+      "Introduction",
+      "1. The Latency vs. Throughput Curve",
+      "2. Quantization (The Free Lunch and The Heavy Price)",
+      "3. KV Cache Optimization (LLMs)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "python"
-    ]
+    "codeLanguages": []
+  },
+  "Chapter 9 — Training Optimization": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "Master the art of training acceleration. Learn how to tune gradient accumulation, mixed precision, and activation checkpointing.",
+    "sections": [
+      "Chapter 9 — Training Optimization",
+      "Introduction",
+      "1. Mixed Precision Training (AMP)",
+      "2. Escaping the Memory Wall",
+      "3. Dataloader Optimization",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
   },
   "Chapter 10 — System-Level Performance Tuning": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "System tuning — GPU clocks, power limits, thermal throttling, NUMA, PCIe topology, and hardware configuration.",
+    "learningOutcome": "Optimize the host. Learn how CPU governors, PCIe settings, and NUMA pinning impact GPU performance.",
     "sections": [
       "Chapter 10 — System-Level Performance Tuning",
-      "Learning Objectives",
-      "Big Picture",
-      "Deep Explanation",
-      "1. Clock Throttling and Thermal Effects",
-      "Output during training",
-      "Disable power management (requires root/sudo)",
-      "Check thermal solution (water cooling vs air)",
-      "Ensure GPUs have adequate airflow",
-      "2. NUMA and GPU Affinity",
-      "Pin CPU threads to correct socket",
-      "Or auto-detect:",
-      "Bind dataloaders to correct socket:",
-      "3. PCIe Topology and Bandwidth"
+      "Introduction",
+      "1. CPU Governors and C-States",
+      "2. PCIe Gen and ASPM",
+      "3. NUMA Pinning and Topology",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
   "Chapter 11 — Production Performance Monitoring and SLOs": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Production monitoring — SLOs, alerting, performance regression detection, cost per task.",
+    "learningOutcome": "Maintain performance in production. Learn how to track model drift, set automated performance regressions alerts, and enforce Service Level Objectives.",
     "sections": [
       "Chapter 11 — Production Performance Monitoring and SLOs",
-      "Learning Objectives",
-      "Big Picture",
-      "Deep Explanation",
-      "1. SLO Definition for AI Workloads",
-      "Service-level objectives",
-      "2. Instrumentation and Metrics",
-      "Define metrics",
-      "3. Regression Detection",
-      "Compare this hour's p99 latency to last hour's and 7 days ago",
-      "Alert if 20% worse than baseline",
-      "4. Root Cause Correlation",
-      "5. Cost-per-Task Metrics",
-      "Production Troubleshooting"
+      "Introduction",
+      "1. The Threat of Silent Degradation",
+      "2. Setting Mathematical SLOs",
+      "3. Automated Regression Testing (CI/CD)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "yaml",
-      "python"
-    ]
+    "codeLanguages": []
   },
   "Chapter 12 — Volume 17 Summary and Decision Trees": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Volume summary — decision trees for common performance problems and when to apply each technique.",
+    "learningOutcome": "A concise review of AI Performance Engineering, Profiling, and Optimization strategies.",
     "sections": [
       "Chapter 12 — Volume 17 Summary and Decision Trees",
-      "Learning Objectives",
-      "Big Picture: The Unified Decision Tree",
-      "Performance Technique Catalog and Typical Gains",
-      "Real Optimization Journey: 70B Model Training",
-      "Production Checklist",
-      "Key Lessons from This Volume",
-      "Interview Recap: Real Scenarios"
+      "Core Concepts Reviewed",
+      "The Senior Architect's Mandate"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "yaml"
-    ]
+    "codeLanguages": []
   },
   "Volume 17 — Performance Engineering": {
     "volume": "Academy orientation",
@@ -6531,316 +5564,200 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "python"
     ]
   },
-  "Chapter 1 - Threat Modeling for AI Infrastructure": {
+  "Chapter 1 — Threat Modeling for AI Infrastructure": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Identify trust boundaries in an AI system, reason about attack surfaces, and distinguish between data compromise, code injection, resource exhaustion, and availability threats.",
+    "learningOutcome": "Master AI security architecture. Learn how threat vectors evolve when massive GPUs process untrusted code and sensitive data.",
     "sections": [
       "Chapter 1 — Threat Modeling for AI Infrastructure",
-      "1.1 The attack surface is wider than traditional apps",
-      "1.2 Three fundamental trust boundaries",
-      "1.3 Real threat classes in AI infrastructure",
-      "Check for unauthorized GPU access",
-      "Look for unexpected processes holding GPU memory",
-      "Check container image signatures",
-      "Inspect GPU memory permissions",
-      "Verify model artifact signatures",
-      "Compare against signed manifest: model.safetensors.asc",
-      "Verify container image layers",
-      "Validate Pod admission controller",
-      "Watch GPU utilization and memory per container",
-      "Check scheduler queue and Pod eviction events"
+      "Introduction",
+      "1. The Expanded Attack Surface",
+      "1. Model Poisoning and Supply Chain",
+      "2. Multi-Tenant Memory Leaks",
+      "3. Network Evasion (RDMA)",
+      "2. Defining the Trust Boundaries",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 2 - Hardware and Firmware Trust": {
+  "Chapter 2 — Hardware and Firmware Trust": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Establish a root of trust in firmware and hardware, verify Secure Boot and driver signing, and detect unauthorized firmware modifications.",
+    "learningOutcome": "Secure the foundation. Learn how Secure Boot, physical attestation, and firmware verification prevent rootkits in AI servers.",
     "sections": [
       "Chapter 2 — Hardware and Firmware Trust",
-      "2.1 The firmware is the foundation of trust",
-      "2.2 Secure Boot: validating the chain from power-on",
-      "Step 1: Check Secure Boot state",
-      "Step 2: Verify bootloader signature chain",
-      "Step 3: Confirm kernel module signing is enforced",
-      "2.3 Driver module signing: preventing unsigned driver injection",
-      "Check if module signing is enforced",
-      "Simulate: driver signed at build time",
-      "If present, signature was validated on load",
-      "Verify driver signature (if present)",
-      "\"Unsigned\" = built without signing, but kernel is still letting it run",
-      "(because CONFIG MODULE SIG ENFORCE is not set)",
-      "Rebuild driver with kernel signing key"
+      "Introduction",
+      "1. Hardware Root of Trust and Secure Boot",
+      "2. GPU and NIC Firmware Verification",
+      "3. The Baseboard Management Controller (BMC)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 3 - Containers and Supply Chain Security": {
+  "Chapter 3 — Containers and Supply Chain Security": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Verify container signatures, audit image provenance, detect supply-chain compromises, and establish trust in NGC and third-party images.",
+    "learningOutcome": "Lock down the AI supply chain. Learn how to scan, sign, and verify Docker images and HuggingFace models before they execute in production.",
     "sections": [
       "Chapter 3 — Containers and Supply Chain Security",
-      "3.1 The supply chain is a critical attack surface",
-      "3.2 Image signatures: proving the image is what we expect",
-      "Step 1: Sign an image at build time",
-      "Step 2: Verify the signature at runtime (before pulling)",
-      "Step 3: Kubernetes pod admission controller enforces verification",
-      "(Via ClusterPolicy or admission webhook)",
-      "Initial trusted build",
-      "Attacker compromises CI, injects malicious code, rebuilds with same tag",
-      "Kubernetes still sees tag:v1.0 but now pulls malicious image",
-      "Mitigation: use image digest instead of tag",
-      "Now image is immutable; pulling the digest always gets the exact same image",
-      "Verification still works",
-      "3.3 Software Bill of Materials (SBOM): knowing what's in the image"
+      "Introduction",
+      "1. The Container Supply Chain",
+      "2. The Model Supply Chain (Pickles and Safetensors)",
+      "3. The Python Dependency Trap ( pip )",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "json"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 4 - Kubernetes RBAC and Access Control": {
+  "Chapter 4 — Kubernetes RBAC and Access Control": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design Kubernetes RBAC policies for GPU workloads, verify least-privilege enforcement, and detect and respond to authorization breaches.",
+    "learningOutcome": "Master Role-Based Access Control. Learn how to secure the Kubernetes API and lock down the NVIDIA GPU Operator.",
     "sections": [
       "Chapter 4 — Kubernetes RBAC and Access Control",
-      "4.1 RBAC: the guardrails around the cluster",
-      "4.2 Core RBAC objects: Role, ClusterRole, RoleBinding, ClusterRoleBinding",
-      "4.3 Audit: checking if someone can perform an action",
-      "alice does not have permission",
-      "alice can now read secrets in gpu-ns",
-      "Service account trainer does not have delete permission",
-      "Create a Role with delete permission",
-      "Bind it to the service account",
-      "Re-check",
-      "4.4 GPU-specific RBAC: nvidia.com/gpu resource",
-      "4.5 Secrets: who can read your credentials",
-      "Allow trainer to read only training-specific secrets",
-      "Trainer cannot list all secrets"
+      "Introduction",
+      "1. The Anatomy of RBAC",
+      "2. Securing the GPU Platform Layer",
+      "3. OIDC and Enterprise Identity",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "yaml",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 5 - Pod Security and Network Policies": {
+  "Chapter 5 — Pod Security and Network Policies": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design Pod Security Standards, implement network policies, and detect and prevent lateral movement attacks.",
+    "learningOutcome": "Lock down the runtime. Learn how to prevent container escapes, restrict network lateral movement, and enforce Pod Security Standards.",
     "sections": [
       "Chapter 5 — Pod Security and Network Policies",
-      "5.1 Pod Security: containers must run with minimal privileges",
-      "5.2 Pod Security Standards (PSS): admission policies",
-      "5.3 Testing PSS: verify the restrictions work",
-      "5.4 Network Policies: preventing lateral movement",
-      "Connection denied; policy is working",
-      "Connection allowed; traffic flowing",
-      "5.5 Seccomp profiles: restricting system calls",
-      "Default: block most syscalls; allow specific safe ones",
-      "5.5b The GPU device-plugin trust boundary (a different problem than workload pods)",
-      "Verify a GPU workload pod is NOT run privileged just to get GPU access",
-      "GPU access comes from the resource request, not from privilege:",
-      "The device plugin DaemonSet, by contrast, legitimately runs with elevated",
-      "host access — verify it's scoped to its own namespace and audited separately:"
+      "Introduction",
+      "1. Pod Security Admission (PSA)",
+      "2. Linux Capabilities and Root",
+      "3. Network Policies (Micro-Segmentation)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
-      "mermaid",
-      "text",
       "yaml",
-      "bash"
+      "text"
     ]
   },
-  "Chapter 6 - GPU Sharing Security": {
+  "Chapter 6 — GPU Sharing Security": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Evaluate the security trade-offs of GPU sharing mechanisms, detect isolation failures, and implement monitoring for hardware side-channels.",
+    "learningOutcome": "Master multi-tenant GPU isolation. Analyze the exact threat vectors of Time-Slicing versus MIG, and how to mitigate them.",
     "sections": [
       "Chapter 6 — GPU Sharing Security",
-      "6.1 The sharing/security tradeoff",
-      "6.2 MIG isolation: validating hard boundaries",
-      "Check MIG mode is enabled",
-      "Verify instance memory is separate",
-      "Each instance sees only its allocated memory, not the whole GPU",
-      "Launch compute kernel in MIG instance 1 that allocates all its memory",
-      "Simultaneously launch a different kernel in MIG instance 2",
-      "(in another terminal or container)",
-      "Both report independent performance; no interference",
-      "If they were sharing without isolation, one would throttle the other",
-      "Re-run the cross-instance interference test from above under load and watch",
-      "for throughput degradation that correlates with the other instance's activity",
-      "If isolation holds: both report ~independent, steady bandwidth (as above)"
+      "Introduction",
+      "1. Time-Slicing: The Illusion of Isolation",
+      "2. Multi-Instance GPU (MIG): Hardware Isolation",
+      "3. NVIDIA vGPU: The Ultimate Boundary",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "yaml"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 7 - DMA, IOMMU, and SR-IOV Security": {
+  "Chapter 7 — DMA, IOMMU, and SR-IOV Security": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand DMA attacks and IOMMU protection, configure and verify IOMMU enforcement, validate SR-IOV isolation for device assignment.",
+    "learningOutcome": "Secure the PCIe bus. Learn how IOMMU prevents malicious peripheral devices from executing unauthorized memory reads across the motherboard.",
     "sections": [
       "Chapter 7 — DMA, IOMMU, and SR-IOV Security",
-      "7.1 The DMA vulnerability: direct memory access without CPU",
-      "7.2 Verifying IOMMU is enabled and active",
-      "Check BIOS settings (requires reboot to UEFI menu)",
-      "Look for: \"VT-d\" (Intel), \"AMD-Vi\" (AMD), or \"IOMMU\"",
-      "Make sure: Enabled",
-      "After enabling in BIOS and rebooting:",
-      "Check kernel parameter",
-      "Expected values:",
-      "iommu=pt = passthrough mode (IOMMU on, no DMA restrictions by default; allows explicit per-device binding)",
-      "iommu=on = strict mode (IOMMU restricts all DMA by default)",
-      "If missing or iommu=off = IOMMU disabled; high security risk",
-      "If disabled, enable it:",
-      "List IOMMU groups"
+      "Introduction",
+      "1. The IOMMU (Input-Output Memory Management Unit)",
+      "2. SR-IOV (Single Root I/O Virtualization)",
+      "3. The Trade-off: Performance vs. Security",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 8 - BlueField and DOCA Security": {
+  "Chapter 8 — BlueField and DOCA Security": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand BlueField as a security accelerator, configure DOCA security services, and detect DPU compromise.",
+    "learningOutcome": "Master zero-trust infrastructure. Learn how BlueField DPUs offload security policies, enforce micro-segmentation, and protect the hypervisor.",
     "sections": [
       "Chapter 8 — BlueField and DOCA Security",
-      "8.1 BlueField: the security edge device",
-      "8.2 DOCA: the DPU security framework",
-      "Configure firewall on BlueField DPU",
-      "firewall.conf content:",
-      "Allow inbound inference requests on port 8080 from specific subnet",
-      "Block all other inbound traffic",
-      "Verify rules loaded",
-      "Encrypt inference results on DPU before sending over network",
-      "Performance: encryption happens on DPU; host CPU is not slowed down",
-      "DPU reports its firmware PCR (Platform Configuration Register)",
-      "Host verifies:",
-      "8.3 Detecting BlueField compromise",
-      "This means:"
+      "Introduction",
+      "1. The DPU Security Boundary",
+      "2. Micro-Segmentation and Deep Packet Inspection",
+      "3. Storage Encryption Offload",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "yaml"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 9 - Confidential Computing and Attestation": {
+  "Chapter 9 — Confidential Computing and Attestation": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design confidential computing architectures using TEEs, verify attestation proofs, protect model confidentiality from privileged attackers.",
+    "learningOutcome": "Protect data in use. Learn how Hopper architectures use hardware encryption to secure VRAM and how to cryptographically attest server integrity.",
     "sections": [
       "Chapter 9 — Confidential Computing and Attestation",
-      "9.1 The threat: even privileged insiders can see model weights",
-      "9.2 Intel SGX and AMD SEV-SNP: CPU-based TEEs",
-      "Check if SGX is supported",
-      "Enable in BIOS if not enabled",
-      "Reboot and verify",
-      "Generate quote (proof that enclave is running in SGX)",
-      "Verify quote with Intel Attestation Service (IAS)",
-      "9.3 GPU Confidential Computing (NVIDIA H100+)",
-      "Check if the GPU supports confidential compute",
-      "CC mode is a firmware/BIOS-level toggle, not a runtime nvidia-smi flag you",
-      "flip and immediately use. In broad strokes:",
-      "1. Enable CC support in system BIOS/firmware (host platform vendor-specific",
-      "— consult the server/BIOS vendor's documentation for the exact toggle)"
+      "Introduction",
+      "1. Confidential Computing (The Secure Enclave)",
+      "2. The Attestation Process",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 10 - Data and Model Protection": {
+  "Chapter 10 — Data and Model Protection": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design encryption strategies for data lifecycle, prevent unauthorized model access, implement secure model versioning and artifact management.",
+    "learningOutcome": "Protect intellectual property. Learn how to encrypt model weights at rest and implement strict RBAC for model registries.",
     "sections": [
       "Chapter 10 — Data and Model Protection",
-      "10.1 Data in motion: encryption during training and inference",
-      "Verify TLS enforcement in training cluster",
-      "Test connection",
-      "No encryption of NCCL traffic itself; security comes from fabric isolation",
-      "(dedicated IB partition / isolated RoCE VLAN), not from an NCCL setting.",
-      "10.2 Data at rest: encryption in storage",
-      "Verify etcd encryption (Kubernetes secrets at rest)",
-      "This secret is encrypted inside etcd; decrypt key stored separately",
-      "Verify storage class encryption",
-      "Verify S3 bucket encryption",
-      "KMS key ensures only authorized processes can decrypt",
-      "10.3 Model artifact management: versioning, signatures, and access control",
-      "Store model metadata in immutable registry"
+      "Introduction",
+      "1. Securing the Model Registry",
+      "2. Encryption at Rest (KMS Integration)",
+      "3. Watermarking Models",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "yaml"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 11 - Audit, Logging, and Compliance": {
+  "Chapter 11 — Audit, Logging, and Compliance": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design audit logging for security incidents, correlate logs across layers, demonstrate compliance evidence, detect and respond to breaches.",
+    "learningOutcome": "Master AI compliance. Learn how to centralize security logs, enforce data residency, and pass enterprise security audits.",
     "sections": [
       "Chapter 11 — Audit, Logging, and Compliance",
-      "11.1 Audit logging: the \"who did what when\" record",
-      "11.2 Multi-layer audit logging",
-      "Every API call is logged (if audit policy is configured)",
-      "Proves alice read the model registry secret",
-      "DCGM logs GPU allocation and usage",
-      "Or via NVIDIA Container Toolkit logging",
-      "Network policies that block traffic",
-      "Proves network policy enforcement",
-      "Inference server logs model load events",
-      "11.3 Audit log analysis: detecting security incidents",
-      "Query: who read model secrets in the last hour?",
-      "Investigation:",
-      "Action: Block IP 10.0.1.99; revoke credentials; investigate source"
+      "Introduction",
+      "1. Centralized Audit Logging",
+      "2. Data Provenance and Model Lineage",
+      "3. Data Residency and Geospatial Scheduling",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 12 - Incident Response and Troubleshooting": {
+  "Chapter 12 — Incident Response and Troubleshooting": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Execute incident response procedures for common security incidents, practice containment and recovery, design and test security runbooks.",
+    "learningOutcome": "Master security incident response. Learn how to isolate compromised GPU nodes, analyze kernel panics, and preserve forensic evidence.",
     "sections": [
       "Chapter 12 — Incident Response and Troubleshooting",
-      "12.1 Common AI infrastructure security incidents and response playbooks",
-      "12.2 Runbook template: step-by-step incident response",
-      "Security Incident Runbook Template",
-      "12.3 Security testing: red team exercises and tabletop drills",
-      "12.4 Troubleshooting: security issues vs. false positives",
-      "12.5 Lessons learned: improving after incidents",
-      "Key Takeaways",
-      "Volume 18 Summary"
+      "Introduction",
+      "1. The Incident Response Workflow (Containment)",
+      "2. Forensic Artifacts in AI Clusters",
+      "3. Eradication and Recovery",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "text",
-      "yaml"
-    ]
+    "codeLanguages": []
+  },
+  "Chapter 12 — Volume 18 Summary": {
+    "volume": "Academy orientation",
+    "lens": "cross-volume senior DevOps and AI-infrastructure practice",
+    "learningOutcome": "A concise review of AI Security, Confidential Computing, and Zero-Trust infrastructure.",
+    "sections": [
+      "Chapter 12 — Volume 18 Summary",
+      "Core Concepts Reviewed",
+      "The Senior Architect's Mandate"
+    ],
+    "codeLanguages": []
   },
   "Lab 1 - Validate Secure Boot and Driver State": {
     "volume": "Academy orientation",
@@ -7022,330 +5939,185 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": []
   },
-  "Chapter 1 - Cluster Lifecycle and Upgrade Operations": {
+  "Chapter 1 — Cluster Lifecycle and Upgrade Operations": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design and execute safe rolling updates (OS, drivers, CUDA) across GPU clusters; understand the decision tree that separates a \"quick update\" from a risky outage.",
+    "learningOutcome": "Master Day-2 Operations. Learn how to execute zero-downtime upgrades of drivers, firmware, and operating systems across massive GPU clusters.",
     "sections": [
       "Chapter 1 — Cluster Lifecycle and Upgrade Operations",
-      "1.1 The stakes of cluster upgrades",
-      "The upgrade decision tree",
-      "1.2 Real upgrade evidence: driver version 550.127 rolled to a 10-node cluster",
-      "Before upgrade: baseline metrics",
-      "Canary phase: 2 nodes (node-04, node-07 in different racks)",
-      "On node-04: uninstall 545.23, install 550.127",
-      "Verify load completes cleanly",
-      "Canary validation: 48 hours of observational data",
-      "Test a specific model trained on CUDA 12.0 (compiled with toolkit 12.0.1)",
-      "Model file built with: nvcc -arch=sm 80 model.cu -o model",
-      "Promotion decision gate",
-      "Phase upgrade: 6 nodes/day, stagger across racks",
-      "Drain node"
+      "Introduction",
+      "1. The Blast Radius of Upgrades",
+      "2. The Golden Rule of Eviction",
+      "3. The Canary Rollout Strategy",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 2 - Incident Response and Game Day Execution": {
+  "Chapter 2 — Incident Response and Game Day Execution": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design incident response procedures for GPU clusters; execute game days to practice failure scenarios; measure and improve MTTR.",
+    "learningOutcome": "Master Chaos Engineering for AI. Learn how to simulate catastrophic hardware and network failures to validate your cluster's resilience.",
     "sections": [
       "Chapter 2 — Incident Response and Game Day Execution",
-      "2.1 Why GPU incidents are different",
-      "2.2 Real incident: network fabric loss during all-reduce collective operation",
-      "Incident timeline",
-      "Evidence collected during incident",
-      "During the incident (around 14:23:30):",
-      "...flapping pattern continues for ~1.5 minutes",
-      "All still \"Running\" even though the training process has crashed inside the pod",
-      "2.3 Incident response runbook: network degradation",
-      "Decision tree for network incidents",
-      "Concrete runbook steps",
-      "Check NCCL/training pod logs",
-      "Check node network status",
-      "Check switch port state (if you have switch access)"
+      "Introduction",
+      "1. The Anatomy of an AI Game Day",
+      "2. Critical AI Fault Injections",
+      "3. The Incident Command System (ICS)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "text",
-      "bash",
-      "mermaid"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 3 - Capacity Planning and Forecasting": {
+  "Chapter 3 — Capacity Planning and Forecasting": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Forecast GPU cluster utilization 3-6 months ahead; design procurement schedules that avoid over-provisioning and shortages.",
+    "learningOutcome": "Master FinOps and Capacity Management. Learn how to forecast GPU requirements and avoid multi-million dollar over-provisioning.",
     "sections": [
       "Chapter 3 — Capacity Planning and Forecasting",
-      "3.1 The cost of misprediction",
-      "3.2 Real capacity forecast: 10-node GPU cluster, baseline to projection",
-      "Baseline data: historical utilization over 12 weeks",
-      "Query monitoring system for GPU allocation history (12 weeks)",
-      "Forecast model: linear regression on 12-week trend",
-      "Historical data",
-      "Fit linear trend",
-      "Forecast next 26 weeks (through week 39, ~6 months from \"now\" at week 12)",
-      "Results",
-      "Output",
-      "Forecast validation: compare to peak utilization",
-      "Seasonal adjustment: account for model release cycles",
-      "Apply seasonal factor"
+      "Introduction",
+      "1. The Fallacy of Linear Forecasting",
+      "2. The Three-Tier Capacity Model",
+      "3. FinOps: Ruthless De-Allocation",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "python",
-      "mermaid"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 4 - GPU Memory and Utilization Troubleshooting": {
+  "Chapter 4 — GPU Memory and Utilization Troubleshooting": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Diagnose GPU out-of-memory (OOM) failures, memory fragmentation, and silent utilization problems in production training and inference clusters, using evidence rather than guesswork.",
+    "learningOutcome": "Master advanced diagnostics. Learn how to definitively prove whether a performance drop is caused by hardware degradation or software inefficiency.",
     "sections": [
       "Chapter 4 — GPU Memory and Utilization Troubleshooting",
-      "4.1 Two different failure classes that look similar",
-      "4.2 Mechanism: how CUDA memory actually gets allocated",
-      "4.3 Real evidence: diagnosing a recurring OOM in a fine-tuning job",
-      "Symptom",
-      "Reading the error message correctly",
-      "Why does it fail intermittently, not every run?",
-      "Confirm with memory snapshot, not guesswork",
-      "... run the failing batch ...",
-      "Load in the PyTorch memory visualizer (pytorch.org/memory viz) or:",
-      "4.4 Fix decision tree",
-      "Applying the fix: token-based dynamic batching",
-      "Before: fixed example count per batch (16 examples, any length)",
-      "After: fixed token budget per batch (variable example count)"
+      "Introduction",
+      "1. Debunking \"100% Utilization\"",
+      "2. Memory Fragmentation and OOMs",
+      "3. Hardware Degradation (The Silent Throttler)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "python",
-      "yaml"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 5 - Network Reliability and Fabric Validation": {
+  "Chapter 5 — Network Reliability and Fabric Validation": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Validate GPU-to-GPU fabric health (InfiniBand/RoCE), diagnose collective-communication slowdowns, and build the health checks that catch fabric degradation before it becomes a training incident.",
+    "learningOutcome": "Master InfiniBand and RoCE troubleshooting. Learn how to diagnose silent packet drops, routing loops, and degraded optical transceivers.",
     "sections": [
       "Chapter 5 — Network Reliability and Fabric Validation",
-      "5.1 Why fabric issues are different from node issues",
-      "5.2 Mechanism: how a topology-aware collective actually routes",
-      "5.3 Real evidence: diagnosing a fleet-wide 22% throughput regression",
-      "Symptom",
-      "Step 1 — confirm it's network, not compute",
-      "Step 2 — isolate which node/link",
-      "rank bandwidth (GB/s)",
-      "Step 3 — confirm at the hardware layer",
-      "Step 4 — remediate and verify",
-      "Confirm no config-level cap; issue is physical layer, not software",
-      "Physically replace cable with correct NDR-rated cable",
-      "Confirmed: correct rate now negotiated",
-      "Back to expected baseline (~190 GB/s)"
+      "Introduction",
+      "1. Layer 1: The Optical Degradation",
+      "2. Layer 2: The Congestion Nightmare (PFC Storms)",
+      "3. Layer 3: Routing and Subnet Management",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "yaml"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 6 - Cost Optimization and Resource Efficiency": {
+  "Chapter 6 — Cost Optimization and Resource Efficiency": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Identify GPU spend waste with evidence (not opinion), apply the right optimization lever for each waste pattern, and quantify savings before and after a change.",
+    "learningOutcome": "Master AI FinOps. Learn how to track granular GPU utilization, eliminate zombie workloads, and optimize cloud spend.",
     "sections": [
       "Chapter 6 — Cost Optimization and Resource Efficiency",
-      "6.1 The cost model operators actually need",
-      "6.2 Real evidence: finding $180K/quarter of unconverted spend",
-      "Step 1 — establish the baseline: allocated vs. utilized",
-      "Step 2 — break the gap down by cause",
-      "Step 3 — quantify each category with evidence",
-      "Aggregate across cluster: 38 GPUs \"free\" cluster-wide",
-      "But: spread as 1-2 free GPUs per node across 24 different nodes",
-      "A pending 8-GPU gang-scheduled job cannot use any of them",
-      "6.3 Decision tree: which lever for which waste",
-      "6.4 Applying the fixes",
-      "Fix 1: idle-timeout eviction for interactive sessions",
-      "Kubernetes CronJob: evict notebook pods idle 2h",
-      "Fix 2: bin-packing scheduler policy for fragmentation"
+      "Introduction",
+      "1. The Allocation vs. Utilization Crisis",
+      "2. Implementing Utilization-Based Chargeback",
+      "3. The Spot Market and Preemptible Instances",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "mermaid",
-      "yaml"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 7 - Multi-Tenancy and Workload Isolation": {
+  "Chapter 7 — Multi-Tenancy and Workload Isolation": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design a multi-tenant GPU cluster with real isolation guarantees — quota, scheduling fairness, and blast-radius containment — and understand where NVIDIA's cluster management stack (Base Command Manager, Mission Control, Slurm) and orchestration/sharing layers (Kubernetes + Run:ai) each do their job.",
+    "learningOutcome": "Secure the shared cluster. Learn how to enforce strict hardware, network, and data boundaries between competing AI teams.",
     "sections": [
       "Chapter 7 — Multi-Tenancy and Workload Isolation",
-      "7.1 Two layers of the problem",
-      "7.2 Cluster management layer: BCM and Mission Control",
-      "NVIDIA Base Command Manager (BCM)",
-      "BCM device list — heterogeneous roles in one pane",
-      "Roll a driver version to a category, not node-by-node",
-      "All nodes in category gpu-a100 re-provision to the new image on next reboot cycle",
-      "NVIDIA Mission Control",
-      "Mission Control: automatic checkpoint-and-resume on node failure",
-      "(conceptual API — actual CLI/config varies by deployment)",
-      "7.3 Scheduling-layer isolation: Slurm",
-      "Partitions and QoS as the isolation boundary",
-      "QoS gives you soft, adjustable limits within a partition",
-      "A user hits their QoS limit — evidence of isolation working correctly"
+      "Introduction",
+      "1. Compute Isolation (MIG and Taints)",
+      "2. Network Isolation (Micro-Segmentation)",
+      "3. Storage Isolation (QoS and Namespaces)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "yaml",
-      "mermaid"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 8 - Security Operations and Compliance": {
+  "Chapter 8 — Security Operations and Compliance": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Identify the GPU-cluster-specific attack surface beyond standard infrastructure security, apply the right isolation and attestation controls, and produce audit-ready evidence.",
+    "learningOutcome": "Master DevSecOps for AI. Learn how to patch GPU nodes, secure container registries, and survive enterprise compliance audits.",
     "sections": [
       "Chapter 8 — Security Operations and Compliance",
-      "8.1 Why GPU clusters need more than standard infra security",
-      "8.2 Mechanism: the GPU-cluster trust boundary",
-      "8.3 Real evidence: closing a GPU-memory residual-data gap",
-      "Symptom found in a security review",
-      "Security review question: \"After tenant A's job finishes and tenant B's",
-      "job starts on the same physical GPU (time-sliced), can tenant B recover",
-      "any of tenant A's data from GPU memory?\"",
-      "(no pods running — tenant A's job completed and pod was deleted 3 minutes ago)",
-      "Verifying the actual risk",
-      "Test: allocate GPU memory, write a known pattern, free it,",
-      "then immediately allocate again from a different process and read",
-      "Simulate tenant B's process on the same GPU",
-      "This test is now part of the post-upgrade verification checklist (Ch01 §1.3)"
+      "Introduction",
+      "1. Continuous Vulnerability Scanning",
+      "2. The Zero-Downtime Patching Pipeline",
+      "3. Auditing and Log Retention (Compliance)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 9 - Monitoring and Observability at Scale": {
+  "Chapter 9 — Monitoring and Observability at Scale": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design a metrics and alerting system that stays useful — not just alive — when a fleet grows from tens to thousands of GPUs, and avoid the specific failure modes that make monitoring systems fail exactly when you need them most.",
+    "learningOutcome": "Build the ultimate telemetry pipeline. Learn how to aggregate millions of metrics using Thanos, Cortex, and Prometheus Recording Rules.",
     "sections": [
       "Chapter 9 — Monitoring and Observability at Scale",
-      "9.1 The failure mode that's specific to scale",
-      "9.2 Cardinality: the silent scaling killer",
-      "Diagnosing a cardinality problem",
-      "Confirm: how many distinct PID labels has this metric seen in 24h?",
-      "Fix: label design that doesn't grow with process churn",
-      "Before: unbounded cardinality from process id label",
-      "nvidia smi process memory used{gpu=\"0\", process id=\"482913\", pod=\"train-xyz\"}",
-      "After: aggregate at scrape time to job/pod granularity, drop process id",
-      "in the exporter relabel config — process-level detail still available",
-      "via on-demand nvidia-smi query during incident response, just not",
-      "permanently retained as a time series",
-      "After fix, 30 days later",
-      "312 active pods vs. 41,200 PIDs — cardinality reduced ~130x, same operational visibility"
+      "Introduction",
+      "1. The Cardinality Explosion",
+      "2. The Scalable Architecture (Thanos / Cortex)",
+      "3. Recording Rules (Pre-computation)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "bash",
-      "text",
-      "yaml",
-      "promql",
-      "mermaid"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 10 - Disaster Recovery and Data Resilience": {
+  "Chapter 10 — Disaster Recovery and Data Resilience": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design checkpoint and backup strategy for GPU training/inference workloads with explicit RPO/RTO targets, and prove recovery procedures actually work through practiced drills rather than untested documentation.",
+    "learningOutcome": "Master AI backup strategies. Learn how to protect petabytes of training data and massive LLM checkpoints from ransomware and catastrophic failure.",
     "sections": [
       "Chapter 10 — Disaster Recovery and Data Resilience",
-      "10.1 RPO/RTO for GPU workloads — different math than stateless services",
-      "10.2 Mechanism: checkpoint strategy as an RPO dial",
-      "10.3 Real evidence: deriving and testing a checkpoint interval",
-      "Step 1 — get real failure-rate data, not an assumption",
-      "Step 2 — compute expected weekly cost at candidate intervals",
-      "Step 3 — verify checkpoint integrity, not just checkpoint existence",
-      "Post-write integrity check, run automatically after every checkpoint",
-      "Weekly full-restore drill: not just \"does the file exist,\"",
-      "but \"does training actually resume correctly from it\"",
-      "10.4 Real evidence: a zone failure and inference RTO",
-      "Incident: one availability zone loses power, taking 1/3 of inference capacity offline",
-      "The evidence that made the \"activate burst capacity\" decision fast",
-      "instead of a judgment call under pressure: a pre-computed threshold"
+      "Introduction",
+      "1. The RPO and RTO of AI",
+      "2. Immutable Storage and Ransomware",
+      "3. Storage Snapshots vs. Replication",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "python",
-      "yaml"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 11 - Performance Debugging and Bottleneck Identification": {
+  "Chapter 11 — Performance Debugging and Bottleneck Identification": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Apply a systematic, layer-by-layer methodology to find the real bottleneck in a slow training or inference job, instead of guessing based on the most recent change or the most familiar subsystem.",
+    "learningOutcome": "The ultimate diagnostic cheat sheet. Learn how to correlate metrics from CPU, Memory, GPU, and Network to solve any AI performance issue.",
     "sections": [
       "Chapter 11 — Performance Debugging and Bottleneck Identification",
-      "11.1 Why \"it's probably the GPU\" is usually the wrong starting hypothesis",
-      "11.2 The layered timing methodology",
-      "11.3 Real evidence: a 3x throughput regression with no obvious cause",
-      "Layer 1: wall-clock breakdown",
-      "Layer 2: what changed in the optimizer path",
-      "Layer 3: is this expected cost, or is the all-gather itself degraded?",
-      "Compare measured all-gather bandwidth to fleet baseline (same method as Ch05)",
-      "Fleet baseline for this fabric generation: ~185 GB/s — within normal range",
-      "The actual decision this evidence enables",
-      "11.4 A second case: the bottleneck that moves when you fix the first one",
-      "Initial state: data-loading bound",
-      "Total step time improvement from just the data pipeline fix:",
-      "Before: 458.8ms/step, After: 158.1ms/step (2.9x faster)"
+      "Introduction",
+      "1. The Universal Diagnostic Matrix",
+      "Symptom: GPUs are sitting idle (Low Compute Utilization)",
+      "Symptom: GPUs are at 100% Utilization, but the job is slow",
+      "Symptom: Random Crashes (OOM or NCCL Timeouts)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "python",
-      "bash",
-      "yaml"
-    ]
+    "codeLanguages": []
   },
-  "Chapter 12 - On-Call Handoff and Operational Runbooks": {
+  "Chapter 12 — On-Call Handoff and Operational Runbooks": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Design an on-call rotation and handoff process that doesn't lose context between shifts, write runbooks that get used under pressure instead of ignored, and integrate this volume's chapters into one operating model.",
+    "learningOutcome": "Standardize AI operations. Learn how to write actionable runbooks for Tier-1 responders to mitigate GPU failures at 3:00 AM.",
     "sections": [
       "Chapter 12 — On-Call Handoff and Operational Runbooks",
-      "12.1 Why GPU on-call handoff is harder than typical infrastructure on-call",
-      "12.2 The handoff mechanism",
-      "12.3 Real evidence: a handoff doc that worked, and one that didn't",
-      "A handoff that failed silently",
-      "Handoff notes, 2026-07-14, shift ending 20:00 UTC",
-      "What the incoming on-call had to reconstruct from scratch",
-      "The same situation, handled with a structured handoff",
-      "Handoff — 2026-07-14, shift ending 20:00 UTC",
-      "Open Incidents",
-      "Watch Items (not incidents, but relevant context)",
-      "In-Progress Procedures",
-      "Capacity Status",
-      "Second occurrence — matches the \"if it recurs\" criterion from the handoff."
+      "Introduction",
+      "1. The Anatomy of an AI Runbook",
+      "2. Automated Remediation (Zero-Touch Ops)",
+      "3. The On-Call Handoff",
+      "The Senior Architect's Mandate"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "markdown"
-    ]
+    "codeLanguages": []
   },
   "Volume 19 — Production Operations": {
     "volume": "Academy orientation",
@@ -7460,325 +6232,188 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "text"
     ]
   },
-  "GPU Memory Not Detected": {
+  "Chapter 1 — GPU Memory Not Detected": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Diagnose and resolve scenarios where GPU memory is unavailable, undetected, or unavailable to CUDA applications.",
+    "learningOutcome": "Diagnose blind nodes. Learn how to troubleshoot when Kubernetes reports zero GPUs but the physical hardware is bolted to the motherboard.",
     "sections": [
-      "Symptoms",
-      "Evidence",
-      "Key Metrics to Collect",
-      "Diagnosis",
-      "Diagnosis flowchart",
-      "First diagnostic step: confirm what the driver actually sees",
-      "Check for MIG misconfiguration first — the most common cause of this exact symptom",
-      "Confirm: check if the application is even MIG-aware",
-      "App is targeting the whole device index, but MIG mode means it",
-      "needs a MIG instance UUID (MIG-GPU-xxxx/N/N), not a device index",
-      "If MIG is not the cause: check for a driver/kernel module mismatch",
-      "If neither: check for ECC page retirement eating into usable capacity",
-      "Resolution",
-      "Fix 1: MIG mode enabled with no instances configured"
+      "Chapter 1 — GPU Memory Not Detected",
+      "Introduction",
+      "1. The Enumeration Ladder (lspci)",
+      "2. The Driver Disconnect ( dmesg )",
+      "3. Secure Boot Conflicts",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "yaml"
-    ]
+    "codeLanguages": []
   },
-  "GPU Driver Crash and Xid Errors": {
+  "Chapter 2 — GPU Driver Crash and XID Errors": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Understand and recover from GPU driver crashes, Xid error codes, and unrecoverable GPU errors — the authoritative Xid reference table for this curriculum.",
+    "learningOutcome": "Decode the silicon's distress signals. Master the NVIDIA XID Error matrix to prove exactly why a GPU crashed.",
     "sections": [
-      "Symptoms",
-      "Evidence",
-      "Key Metrics to Collect",
-      "Diagnosis",
-      "The Xid reference table",
-      "Diagnosis flowchart",
-      "First diagnostic step: capture the full context, not just the code",
-      "Confirm current GPU state matches the Xid 79 diagnosis",
-      "(no output — GPU 0a:00.0 missing entirely, confirms Xid 79)",
-      "Second diagnostic step: check ECC/retirement history for context",
-      "(if GPU is off the bus, query the last-known-good DCGM snapshot instead of live)",
-      "Resolution",
-      "Step 1: Confirm tier and stop new scheduling immediately for Tier 3",
-      "Kubernetes: cordon and drain before touching anything else"
+      "Chapter 2 — GPU Driver Crash and XID Errors",
+      "Introduction",
+      "1. The XID Error Pipeline",
+      "2. The Critical XID Matrix",
+      "Software Faults (User Error)",
+      "Hardware Faults (Silicon Degradation)",
+      "System Faults (Motherboard / Environmental)",
+      "3. Automated Remediation",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "yaml"
-    ]
+    "codeLanguages": []
   },
-  "NCCL Timeout and Collective Communication Failures": {
+  "Chapter 3 — NCCL Timeout and Collective Communication Failures": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Diagnose and resolve NCCL hangs, timeouts, and communication failures in distributed training.",
+    "learningOutcome": "Debug the distributed ring. Learn why NCCL timeouts occur, how to isolate InfiniBand faults, and how to verify Peer-to-Peer topology.",
     "sections": [
-      "Symptoms",
-      "Evidence",
-      "Key Metrics to Collect",
-      "Diagnosis",
-      "Diagnosis flowchart",
-      "First diagnostic step: enable NCCL debug tracing to find the stalled rank",
-      "Let it hang for ~2 minutes, then interrupt and inspect",
-      "rank3 never logs opCount 4821 — it's still stuck on the previous op",
-      "Second step: is rank 3's process alive, and is its GPU healthy?",
-      "(no output — no Xid errors on this GPU)",
-      "Third step: confirm the data-pipeline hypothesis",
-      "Root-cause the slow data fetch itself",
-      "Storage volume for rank 3 specifically is near capacity, causing I/O contention",
-      "Resolution"
+      "Chapter 3 — NCCL Timeout and Collective Communication Failures",
+      "Introduction",
+      "1. Isolating the Domain: Hardware vs. Network",
+      "2. The Multi-Homed Network Trap",
+      "3. Asymmetric Topology",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "python",
-      "yaml"
-    ]
+    "codeLanguages": []
   },
-  "NVLink Errors and Topology Issues": {
+  "Chapter 4 — NVLink Errors and Topology Issues": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Diagnose and resolve NVLink communication failures, degraded links, and topology misconfigurations.",
+    "learningOutcome": "Diagnose the internal fabric. Learn how to verify NVLink health, interpret NVSwitch logs, and solve PCIe P2P routing failures.",
     "sections": [
-      "Symptoms",
-      "Evidence",
-      "Key Metrics to Collect",
-      "Diagnosis",
-      "Diagnosis flowchart",
-      "First diagnostic step: confirm actual vs. expected topology",
-      "Legend: NV = NVLink with links; PIX = PCIe through a PCIe bridge",
-      "(no NVLink); PHB = PCIe through the host bridge; SYS = PCIe across",
-      "NUMA nodes (worst case)",
-      "Second step: check DCGM's NVLink error counters, not just link presence",
-      "Third step: confirm with dmesg for the corresponding Xid",
-      "Fourth step: rule out MIG or configuration causes before assuming hardware fault",
-      "NVLink P2P is intentionally disabled between separate MIG instances,",
-      "even on the same physical GPU — this is a security/isolation boundary"
+      "Chapter 4 — NVLink Errors and Topology Issues",
+      "Introduction",
+      "1. Verifying the Topology ( nvidia-smi topo -m )",
+      "2. Diagnosing NVLink Degradation",
+      "3. NVSwitch Telemetry (nvsm)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "yaml"
-    ]
+    "codeLanguages": []
   },
-  "ECC Errors and Memory Bit Flips": {
+  "Chapter 5 — ECC Errors and Memory Bit Flips": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Detect, diagnose, and respond to ECC errors, correctable/uncorrectable bit flips, and memory reliability issues.",
+    "learningOutcome": "Master silicon degradation. Learn how to distinguish between correctable and uncorrectable memory faults, and when to RMA a GPU.",
     "sections": [
-      "Symptoms",
-      "Evidence",
-      "Key Metrics to Collect",
-      "Diagnosis",
-      "Cross-reference to Chapter 02's Xid tiers first",
-      "Diagnosis flowchart",
-      "First diagnostic step: classify correctable vs. uncorrectable, and get the full counter picture",
-      "Second step: pull the rate trend, not just the current count",
-      "Third step: correlate against thermal and power history",
-      "Fourth step: identify which specific memory partition is affected, if the tooling supports it",
-      "For row-remap-specific detail (post-Ampere GPUs)",
-      "Resolution",
-      "Path A: uncorrectable error (Xid 48/95) — Tier 3, immediate action",
-      "Critical: any job that was actively using this GPU's memory at the"
+      "Chapter 5 — ECC Errors and Memory Bit Flips",
+      "Introduction",
+      "1. Single-Bit Errors (SBE) - The Warning Sign",
+      "2. Double-Bit Errors (DBE) - The Fatal Fault",
+      "3. The SRE Remediation Protocol",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "yaml"
-    ]
+    "codeLanguages": []
   },
-  "Thermal Throttling and Cooling Degradation": {
+  "Chapter 6 — Thermal Throttling and Cooling Degradation": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Diagnose thermal throttling events, monitor cooling system health, and resolve temperature-related performance loss.",
+    "learningOutcome": "Master thermal physics. Learn how GPUs protect themselves from melting and how to diagnose silent performance drops caused by HVAC failures.",
     "sections": [
-      "Symptoms",
-      "Evidence",
-      "Key Metrics to Collect",
-      "Diagnosis",
-      "Diagnosis Flowchart",
-      "First Diagnostic Step: Temperature and Clock Correlation",
-      "GPU Pwr Temp Sm Mem Enc Dec Jpg Ofa Mclk Pclk",
-      "Check Clock Speed Changes",
-      "Output stable at ~1833 MHz",
-      "Check Thermal Events in DCGM",
-      "GPU Event:Thermal",
-      "Measure Cooling System Health",
-      "Resolution",
-      "Step 1: Verify Thermal Paste Condition"
+      "Chapter 6 — Thermal Throttling and Cooling Degradation",
+      "Introduction",
+      "1. The Stages of Thermal Protection",
+      "2. Diagnosing Thermal Throttling",
+      "3. Data Center Environmental Factors",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "DMA Engine Failures and PCIe Issues": {
+  "Chapter 7 — DMA Engine Failures and PCIe Issues": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Detect and diagnose GPU DMA engine failures, PCIe link errors, and GPU-to-host communication problems.",
+    "learningOutcome": "Debug the motherboard. Learn how to identify PCIe AER errors, DMA timeouts, and degraded slot performance.",
     "sections": [
-      "Symptoms",
-      "Evidence",
-      "Key Metrics to Collect",
-      "Diagnosis",
-      "Diagnosis Flowchart",
-      "First Diagnostic Step: Check dmesg for PCIe Errors",
-      "Check DCGM DMA Error Counters",
-      "GPU DMA Errors",
-      "Measure PCIe Bandwidth",
-      "Use nvidia-smi or bandwidthTest to measure GPU ↔ Host transfers",
-      "Check PCIe Link Status",
-      "Expected: LnkSta should now show x16 or higher speed",
-      "Check GPU Power Delivery",
-      "Resolution"
+      "Chapter 7 — DMA Engine Failures and PCIe Issues",
+      "Introduction",
+      "1. Advanced Error Reporting (AER)",
+      "2. PCIe Link Downgrades",
+      "3. DMA Engine Timeouts (XID 16/32)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Fan Failure and Cooling System Degradation": {
+  "Chapter 8 — Fan Failure and Cooling System Degradation": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Diagnose fan failures, predict cooling system degradation, and respond to thermal emergencies.",
+    "learningOutcome": "Manage thermal physics. Learn how multi-fan zones operate and how liquid cooling leaks manifest in server telemetry.",
     "sections": [
-      "Symptoms",
-      "Evidence",
-      "Key Metrics to Collect",
-      "Diagnosis",
-      "Diagnosis Flowchart",
-      "First Diagnostic Step: Check Fan Status",
-      "Expected output:",
-      "Iter 0: Temp=55C, Fan=0%",
-      "Iter 1: Temp=56C, Fan=0%",
-      "Iter 2: Temp=57C, Fan=5%",
-      "Iter 3: Temp=60C, Fan=20%",
-      "...",
-      "Iter 59: Temp=82C, Fan=100%",
-      "Check DCGM Fan Anomalies"
+      "Chapter 8 — Fan Failure and Cooling System Degradation",
+      "Introduction",
+      "1. Fan Zones and PWM",
+      "2. Liquid Cooling (D2C) Leaks and Pump Failures",
+      "3. Detecting Cooling Failures",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Power Supply Issues and Brownout Scenarios": {
+  "Chapter 9 — Power Supply Issues and Brownout Scenarios": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Diagnose power delivery failures, voltage instability, and GPU behavior during power anomalies.",
+    "learningOutcome": "Diagnose electrical instability. Learn how HW POWER BRAKE engages during PSU failures and how to read IPMI power telemetry.",
     "sections": [
-      "Symptoms",
-      "Evidence",
-      "Key Metrics to Collect",
-      "Diagnosis",
-      "Diagnosis Flowchart",
-      "First Diagnostic Step: Check Power State",
-      "Check if limit was set via nvidia-smi",
-      "Or check BIOS for power management settings",
-      "System Management Interrupt (SMI) logs",
-      "Monitor Power Stability",
-      "GPU Pwr Temp SM Mem Enc Dec XSM Mxm Fbg Xid Pid Name",
-      "Check DCGM Power Throttling Events",
-      "GPU Pwr Exc Temp Mxm Fbg Xid Pid Name",
-      "Measure Voltage Ripple"
+      "Chapter 9 — Power Supply Issues and Brownout Scenarios",
+      "Introduction",
+      "1. N+N Power Redundancy",
+      "2. HW POWER BRAKE (The Safety Net)",
+      "3. Power Capping ( nvidia-smi -pl )",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Clock Instability and Frequency Scaling Problems": {
+  "Chapter 10 — Clock Instability and Frequency Scaling Problems": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Diagnose GPU clock instability, frequency scaling failures, and performance variability from clocking issues.",
+    "learningOutcome": "Master GPU boost clocks. Learn why inconsistent clock speeds destroy synchronous training rings and how to lock application clocks.",
     "sections": [
-      "Symptoms",
-      "Evidence",
-      "Key Metrics to Collect",
-      "Diagnosis",
-      "Diagnosis Flowchart",
-      "First Diagnostic Step: Monitor Clock Frequency Over Time",
-      "Example output showing oscillation:",
-      "2024-01-15 10:30:00.123, 1980",
-      "2024-01-15 10:30:00.623, 1980",
-      "2024-01-15 10:30:01.123, 1200",
-      "2024-01-15 10:30:01.623, 0800",
-      "2024-01-15 10:30:02.123, 1980",
-      "2024-01-15 10:30:02.623, 1980",
-      "Check Power State (P-States)"
+      "Chapter 10 — Clock Instability and Frequency Scaling Problems",
+      "Introduction",
+      "1. Dynamic Boost Clocks",
+      "2. Application Clocks (Locking the Frequency)",
+      "3. Clock Throttling (Idle and Sync)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Multi-GPU Imbalance and Straggler Detection": {
+  "Chapter 11 — Multi-GPU Imbalance and Straggler Detection": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Detect and diagnose performance imbalance across multiple GPUs, identify stragglers, and resolve load distribution issues.",
+    "learningOutcome": "Find the needle in the haystack. Learn how to identify the single slow GPU that is crippling your 1,000-node training cluster.",
     "sections": [
-      "Symptoms",
-      "Evidence",
-      "Key Metrics to Collect",
-      "Diagnosis",
-      "Diagnosis Flowchart",
-      "First Diagnostic Step: Per-GPU Iteration Timing",
-      "In training loop",
-      "Record start",
-      "Forward pass",
-      "Backward",
-      "Synchronization (AllReduce)",
-      "Collect across all GPUs",
-      "Check GPU Utilization and Power",
-      "Monitor during training"
+      "Chapter 11 — Multi-GPU Imbalance and Straggler Detection",
+      "Introduction",
+      "1. The Symptoms of a Straggler",
+      "2. Automated Straggler Detection (PromQL)",
+      "3. Remediating the Straggler",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "python",
-      "bash"
-    ]
+    "codeLanguages": []
   },
-  "Cross-Layer Diagnosis: When Metrics Lie": {
+  "Chapter 12 — Cross-Layer Diagnosis: When Metrics Lie": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Master advanced troubleshooting techniques when individual metrics are misleading, and coordinate evidence across layers.",
+    "learningOutcome": "The Final Masterclass. Learn how to diagnose complex, cascading failures where application logs, OS logs, and hardware telemetry contradict each other.",
     "sections": [
-      "Symptoms",
-      "Evidence",
-      "Key Metrics to Collect",
-      "Diagnosis",
-      "Diagnosis Flowchart",
-      "First Diagnostic Step: Layer-by-Layer Timeline",
-      "Time each phase",
-      "1. Data loading (CPU)",
-      "2. Data transfer (PCIe)",
-      "3. Model forward (GPU)",
-      "4. Loss computation (GPU)",
-      "5. Backward pass (GPU)",
-      "6. AllReduce / Communication (Network)",
-      "7. Optimizer step (GPU)"
+      "Chapter 12 — Cross-Layer Diagnosis: When Metrics Lie",
+      "Introduction",
+      "1. The Lie of the \"Network Timeout\"",
+      "2. The Lie of \"100% Utilization\"",
+      "3. The Unified Diagnostic Workflow",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
-    "codeLanguages": [
-      "mermaid",
-      "text",
-      "python",
-      "bash"
-    ]
+    "codeLanguages": []
   },
   "Volume 20 — Troubleshooting Encyclopedia": {
     "volume": "Academy orientation",
@@ -9094,6 +7729,57 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash"
     ]
   },
+  "FastAPI & Microservices Masterclass": {
+    "volume": "Volume 2",
+    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
+    "learningOutcome": "Build, validate, and deploy production-grade async Python microservices with FastAPI, Pydantic, and Uvicorn.",
+    "sections": [
+      "FastAPI & Microservices Masterclass",
+      "The Problem: Blocking AI Infrastructure APIs",
+      "1. Measurable Learning Objectives",
+      "2. FastAPI Basics: Routing, Paths, and Queries",
+      "The Minimal Application",
+      "The decorator binds the HTTP GET method at the root path \"/\" to this function.",
+      "Path Parameters and Query Parameters",
+      "Path Parameter: Embedded directly in the URL route (e.g., /nodes/gpu-worker-01)",
+      "Query Parameter: Appended to the URL after a question mark (e.g., /jobs?limit=50&status=failed)",
+      "Because 'limit' and 'status' are not in the @app.get() path string, FastAPI treats them as query parameters.",
+      "2.5. Building Your First Complete FastAPI Application",
+      "The Complete Code ( main.py )",
+      "1. Initialize the application",
+      "2. Define your Data Template (Pydantic)"
+    ],
+    "codeLanguages": [
+      "python",
+      "text",
+      "mermaid"
+    ]
+  },
+  "Advanced OOP & Python Design Patterns": {
+    "volume": "Volume 2",
+    "lens": "production Python design, testing, APIs, concurrency, subprocess safety, observability, and automation",
+    "learningOutcome": "Master Python OOP: Polymorphism, Abstract Base Classes, class variables, decorators, and generators for scalable infrastructure tooling.",
+    "sections": [
+      "Advanced OOP & Python Design Patterns",
+      "The Problem: Script Spaghetti in Infrastructure",
+      "1. Class Templates: Abstract Base Classes (ABC)",
+      "1. The Template (Abstract Base Class)",
+      "2. The Implementations (Subclasses)",
+      "Polymorphism in Action",
+      "Swap implementations effortlessly:",
+      "2. Class Variables, Instance Variables, and Methods",
+      "Class Variables (Constants) vs. Instance Variables",
+      "3. Data Blocks: Dataclasses",
+      "Automatically gives you a clean constructor and printable representation:",
+      "Output: ClusterConfig(cluster name='ai-prod', region='us-east-1', max nodes=100, tags=[])",
+      "4. Function Decorators",
+      "The Decorator Definition"
+    ],
+    "codeLanguages": [
+      "python",
+      "text"
+    ]
+  },
   "Masterclass: K8s Control Plane, Scheduling, and DRA": {
     "volume": "Volume 3",
     "lens": "Kubernetes control-plane mechanics, scheduling, kubelet/CRI, networking, storage, security, autoscaling, operators, and upgrades",
@@ -9538,67 +8224,83 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash"
     ]
   },
-  "01 Architecture Design Masterclass": {
+  "Chapter 1 — Architecture Design Masterclass": {
     "volume": "Volume 8",
     "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "Turn \"we need an AI platform\" into workload, SLO, scale, security, operations and cost facts.",
+    "learningOutcome": "Master the Solutions Architect's methodology. Learn to translate ambiguous requirements into defensible, testable GPU infrastructure designs.",
     "sections": [
-      "Foundations: start here if solutions architecture is new to you { foundations-start-here-if-solutions-architecture-is-new-to-you}",
-      "What this volume is trying to teach",
-      "The first mental model",
-      "Essential language",
-      "Discovery before products",
-      "A real-life example",
-      "A complete discovery example",
-      "Architecture is paths and state",
-      "Turn requirements into a trade-off matrix",
-      "PoC as an uncertainty-reduction experiment",
-      "Capacity estimate with uncertainty",
-      "Communicate at three levels",
-      "Design-review checklist",
-      "Local reinforcement"
+      "Chapter 1 — Architecture Design Masterclass",
+      "Introduction",
+      "1. The Architecture Methodology Framework",
+      "Essential Language",
+      "2. Discovery: Never Trust the Initial Request",
+      "A. Outcome and Workload",
+      "B. Current State and Constraints",
+      "C. Unknowns Requiring Validation",
+      "3. Modeling: Architecture is Paths and State",
+      "High-Level AI Serving Architecture",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
       "mermaid",
       "text"
     ]
   },
-  "02 Capacity Tco Masterclass": {
+  "Chapter 2 — Capacity & TCO Masterclass": {
     "volume": "Volume 8",
     "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "",
+    "learningOutcome": "Translate AI workloads into infrastructure math. Learn to calculate Total Cost of Ownership (TCO), resource sharing strategies, and Proof of Concept design.",
     "sections": [
-      "Practice"
-    ],
-    "codeLanguages": [
-      "mermaid",
-      "text"
-    ]
-  },
-  "03 Security Governance Masterclass": {
-    "volume": "Volume 8",
-    "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "",
-    "sections": [],
-    "codeLanguages": []
-  },
-  "04 Strategy Communication Masterclass": {
-    "volume": "Volume 8",
-    "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
-    "learningOutcome": "",
-    "sections": [
-      "Worked scenario",
-      "Practice",
-      "Senior addendum",
-      "Extended Masterclass: Strategy and Communication",
-      "Executive ROI Dashboards",
-      "Navigating Organizational Silos",
-      "Adoption Milestones"
+      "Chapter 2 — Capacity & TCO Masterclass",
+      "Introduction",
+      "1. Translating Workloads to Hardware Models",
+      "2. The Mathematics of TCO and Useful Work",
+      "3. The Proof of Concept (PoC) Pipeline",
+      "The Failure Modes of a PoC Pipeline",
+      "Creating Strict Pass/Fail Criteria",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
     ],
     "codeLanguages": [
       "text",
       "mermaid"
     ]
+  },
+  "Chapter 3 — Security & Governance Masterclass": {
+    "volume": "Volume 8",
+    "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
+    "learningOutcome": "Design secure AI infrastructure. Map identity trust boundaries, data provenance, model security, and multi-tenant isolation.",
+    "sections": [
+      "Chapter 3 — Security & Governance Masterclass",
+      "Introduction",
+      "1. Mapping Trust Boundaries and Identities",
+      "Separation of Planes",
+      "2. Multi-Tenancy and GPU Isolation",
+      "3. The Observability Privacy Trap",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
+  },
+  "Chapter 4 — Strategy & Communication Masterclass": {
+    "volume": "Volume 8",
+    "lens": "customer discovery, architecture trade-offs, Kubernetes versus Slurm, capacity/TCO, PoCs, security, migration, and executive communication",
+    "learningOutcome": "Master executive communication. Learn to translate deep technical incidents into business impact using the four-audience ladder, and design phased platform migrations.",
+    "sections": [
+      "Chapter 4 — Strategy & Communication Masterclass",
+      "Introduction",
+      "1. The Migration Strategy: Avoiding the \"Big Bang\"",
+      "2. The Four-Audience Incident Ladder",
+      "The Underlying Fact:",
+      "Altitude 1: The Operator (Action & Evidence)",
+      "Altitude 2: The Platform Lead (Blast Radius & Architecture)",
+      "Altitude 3: The Engineering Director (SLAs & Roadmaps)",
+      "Altitude 4: The VP / CTO (Investment & Strategy)",
+      "Customer Scenario (Senior Level)",
+      "Interview Preparation"
+    ],
+    "codeLanguages": []
   },
   "01 - Hardware & Ecosystem Gauntlet": {
     "volume": "Volume 9",
@@ -9606,6 +8308,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "",
     "sections": [
       "Masterclass: The Hardware & Ecosystem Gauntlet",
+      "Foundations: start here before using the interview question bank { foundations-start-here-before-using-the-interview-question-bank}",
       "Module 1: The NVIDIA Hardware & Software Stack (Q1)",
       "1.1 The Hardware Foundation: Beyond the GPU",
       "1.2 Systems Architecture: DGX, HGX, MGX",
@@ -9617,8 +8320,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "2.3 ConnectX vs BlueField",
       "Engineering Deep Dive 1: Tuning RoCEv2 DCQCN",
       "Module 3: Generative AI OS - NIMs and NeMo (Q13)",
-      "3.1 NVIDIA Inference Microservices (NIM)",
-      "3.2 NVIDIA NeMo Framework"
+      "3.1 NVIDIA Inference Microservices (NIM)"
     ],
     "codeLanguages": [
       "mermaid",
@@ -9631,6 +8333,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "",
     "sections": [
       "Interview Gauntlet: Kubernetes & Virtualization Masterclass",
+      "Foundations: start here before using the interview question bank { foundations-start-here-before-using-the-interview-question-bank}",
       "Question 2: SR-IOV and Virtualization Mechanics",
       "The Anatomy of Virtual I/O",
       "Whiteboard Strategy: Drawing the Datapath",
@@ -9655,6 +8358,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "",
     "sections": [
       "Interview Gauntlet: Training, CUDA, and NCCL Masterclass",
+      "Foundations: start here before using the interview question bank { foundations-start-here-before-using-the-interview-question-bank}",
       "Question 8: Distributed Training End-to-End",
       "1. Storage and Data Loading pipeline",
       "2. The Forward Pass",
@@ -9666,8 +8370,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Question 10: CUDA, Runtime, GPU Workers, Parallelism",
       "1. Framework to CUDA Interaction",
       "2. CUDA Streams and Concurrency",
-      "3. GPU Architecture: SMs and Warps",
-      "4. Tokenization"
+      "3. GPU Architecture: SMs and Warps"
     ],
     "codeLanguages": [
       "mermaid",
@@ -9680,6 +8383,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "",
     "sections": [
       "Masterclass: Inference, MLOps, and L7 Networking",
+      "Foundations: start here before using the interview question bank { foundations-start-here-before-using-the-interview-question-bank}",
       "Part 1: The Inference Load Balancing Conundrum",
       "Question 3: Avi LB vs NGINX LB (Why Enterprise L7/L4 Matters for AI)",
       "Typical NGINX configuration for gRPC - notice the manual tuning required",
@@ -9691,8 +8395,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "vLLM Engine Arguments mapped to Triton",
       "Part 3: Data Preparation Pipelines and MLOps",
       "The Problem: The Data Bottleneck",
-      "Question: Designing the High-Throughput Data Pipeline",
-      "Conceptual Ray Data Pipeline for massive scale embedding"
+      "Question: Designing the High-Throughput Data Pipeline"
     ],
     "codeLanguages": [
       "nginx",
@@ -9709,6 +8412,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Masterclass on complex Linux networking, Base Command Manager, Infrastructure as Code paradigms, and scripting exercises for MLOps/SRE roles.",
     "sections": [
       "05 - Linux, Networking, and IaC Gauntlet",
+      "Foundations: start here before using the interview question bank { foundations-start-here-before-using-the-interview-question-bank}",
       "1. Q5: Complex Linux/Networking Troubleshooting",
       "1.1 Linux Network Namespaces (netns)",
       "1. Create two isolated network namespaces",
@@ -9720,8 +8424,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "A veth pair is a virtual wire. What goes in one end comes out the other.",
       "4. Assign the interfaces to their respective namespaces",
       "5. Configure IP addresses inside the namespaces",
-      "6. Bring the links up",
-      "The loopback interfaces also need to be up"
+      "6. Bring the links up"
     ],
     "codeLanguages": [
       "bash",

@@ -1,33 +1,21 @@
 import os
 import re
 
+directory = "docs/nvidia-zero-to-hero/volume-01/"
+files = [
+    "chapter-01-what-is-ai-infrastructure.md",
+    "chapter-07-nvidia-ecosystem-overview.md",
+    "labs/lab-02-trace-an-ai-request-path.md"
+]
+
 replacements = {
-    "chapter-1-processes-threads-cpu-scheduling-and-load": "linux-compute-memory-masterclass",
-    "chapter-4-networking-ip-routes-sockets-tcp-dns-nat-and-tls": "linux-networking-masterclass",
-    "chapter-5-namespaces-cgroups-and-container-mechanics": "linux-systemd-containers-masterclass",
-    "chapter-3-files-file-descriptors-filesystems-and-block-i-o": "linux-storage-io-masterclass",
-    "chapter-1-how-python-actually-executes-your-infrastructure-script": "python-core-oop-masterclass",
-    "chapter-1-api-server-etcd-and-the-object-model": "k8s-control-plane-scheduling-masterclass"
+    "chapter-02-why-cpus-became-insufficient.md": "chapter-02-why-cpus-became-insufficient",
+    "chapter-03-cpu-vs-gpu.md": "chapter-03-cpu-vs-gpu",
+    "./chapter-06-modern-ai-factory": "./chapter-06-modern-ai-factory",
+    "../chapter-04-what-happens-when-chatgpt-answers": "../chapter-04-what-happens-when-chatgpt-answers",
+    "../chapter-05-ai-infrastructure-landscape": "../chapter-05-ai-infrastructure-landscape"
 }
 
-def replace_in_file(filepath):
-    with open(filepath, 'r') as f:
-        content = f.read()
-    
-    modified = False
-    for old, new in replacements.items():
-        if old in content:
-            content = content.replace(old, new)
-            modified = True
-            
-    if modified:
-        with open(filepath, 'w') as f:
-            f.write(content)
-
-for root, _, files in os.walk('.'):
-    if 'node_modules' in root or '.git' in root or 'build' in root:
-        continue
-    for file in files:
-        if file.endswith('.md') or file.endswith('.tsx') or file.endswith('.ts'):
-            replace_in_file(os.path.join(root, file))
-
+# The files were generated with proper names but the Docusaurus build says broken links. 
+# Oh wait, the problem is Docusaurus checks if the .md file exists.
+# The files ARE still named chapter-02-why-cpus-became-insufficient.md
