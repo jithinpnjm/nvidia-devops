@@ -1,5 +1,6 @@
 ---
 title: "Lab 2 - Incident Simulation: Network Failure Detection and Recovery"
+slug: "lab-2-incident-simulation-network-failure"
 sidebar_position: 2
 description: "Lab 2 - Diagnose and recover from a simulated fabric degradation incident during a live training run."
 ---

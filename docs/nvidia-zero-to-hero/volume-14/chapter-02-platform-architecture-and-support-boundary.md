@@ -1,74 +1,164 @@
 ---
-title: "Chapter 2 — Platform Architecture and Support Boundary"
-sidebar_position: 2
-description: "Map the exact boundaries of NVAIE. Learn what is supported, what is certified, and where NVIDIA's responsibility ends and the customer's begins."
+title: Chapter 02 — Platform Architecture and Support Boundary
+description: Map NVIDIA, platform vendor, integrator, and customer responsibilities across the enterprise AI stack.
+sidebar_position: 3
+tags: [support-boundary, architecture, operations]
 ---
 
-# Chapter 2 — Platform Architecture and Support Boundary
+# Platform Architecture and Support Boundary
 
-| Chapter metadata | Value |
-|---|---|
-| Volume | 14 — NVIDIA AI Enterprise & NIM Architecture |
-| Difficulty | Advanced |
-| Estimated reading time | 30 minutes |
-| Primary audience | Solutions Architects, IT Operations |
-| Core question | If an NVAIE-certified PyTorch container crashes, but it's running on an uncertified generic server motherboard, will NVIDIA fix the bug? |
+Supportability depends on knowing where responsibility changes. A broken deployment requires diagnosis across multiple layers, and a clear support boundary prevents hours of "which team should own this?" conversations.
 
-## Introduction
+## Responsibility Map
 
-Enterprise software contracts are ruthlessly specific. 
-If a customer buys an NVAIE license, they believe everything related to AI is now "supported by NVIDIA." This is a dangerous misconception.
+| Layer | Typical primary owner | NVIDIA responsibility boundary |
+|---|---|---|
+| Business application | Customer or application team | None — outside support scope |
+| Model and data | Customer, model provider, or integrator | NGC artifact distribution only |
+| NIM or NeMo configuration | Platform and ML teams | Configuration guidance; customer owns validation |
+| NVIDIA AI Enterprise components | NVIDIA support boundary, subject to qualification | Driver, cuDNN, container runtime, CUDA libraries, NIM, NeMo |
+| Kubernetes or hypervisor | Customer and platform vendor | Integration guidance; customer owns upgrades |
+| OS, firmware, hardware | Customer, OEM, and NVIDIA by component | GPU firmware and driver; OEM owns system firmware and OS |
+| Network and storage | Customer and respective vendors | None — beyond support scope |
 
-NVAIE defines a strict **Support Boundary**. If an architect designs a cluster that violates this boundary, the customer will be denied support when the cluster breaks, rendering the expensive NVAIE license useless.
+➕ **Decision tree for support routing during an incident:**
 
-A Senior Architect must memorize the layers of the NVAIE architecture and ensure the physical and logical deployment remains within the bounds of certification.
+```mermaid
+flowchart TD
+    Symptom["Symptom: AI workload degradation or failure"]
+    
+    GPU{Is the GPU visible and responsive?<br/>nvidia-smi runs?}
+    GPU -->|No| HW["Hardware/driver boundary<br/>→ OEM or NVIDIA GPU support"]
+    GPU -->|Yes| NIM{Is NIM Pod Ready<br/>and model accessible?}
+    
+    NIM -->|No| Ent["Check entitlement, artifact pull, GPU memory<br/>→ Check NGC entitlement, verify container digest<br/>→ NVIDIA AI Enterprise support if qualified matrix"]
+    NIM -->|Yes| App{Does deterministic inference<br/>test pass?<br/>curl service/health}
+    
+    App -->|No| Nim2["Model readiness, GPU memory, framework logs<br/>→ Check model logs and GPU utilization<br/>→ NIM support if matrix-qualified"]
+    App -->|Yes| Perf["Latency or throughput degradation<br/>→ Inspect batching, data pipeline, network<br/>→ Customer architecture review; NVIDIA can advise<br/>on GPU utilization, not guarantee throughput"]
+```
 
-## 1. The Layers of NVAIE Architecture
+## Architecture
 
-NVAIE is not a monolithic application. It is a certified stack of discrete layers. You must build your cluster using these specific certified blocks:
+```mermaid
+flowchart TB
+    subgraph Customer ["CUSTOMER OPERATIONS"]
+        CO["Workload logic, data pipeline, business SLAs"]
+    end
+    subgraph Integration ["INTEGRATION & DIAGNOSTICS"]
+        Diag["Shared evidence: logs, metrics, GPU state, versions"]
+    end
+    subgraph Integrator ["INTEGRATOR OR PARTNER"]
+        Int["Stack assembly, tuning, testing"]
+    end
+    subgraph NVIDIA ["NVIDIA SUPPORT BOUNDARY"]
+        NV["Driver, CUDA, cuDNN, NIM, NeMo<br/>when qualified matrix is met"]
+    end
+    subgraph OEM ["OEM / PLATFORM VENDOR"]
+        OEM["Hardware, firmware, Kubernetes or hypervisor<br/>when matrix is met"]
+    end
+    
+    Customer --> Diag
+    Integrator --> Diag
+    NVIDIA --> Diag
+    OEM --> Diag
+    Integration -.->|Evidence collected here| NVIDIA
+    Integration -.->|Escalation path| OEM
+    
+    style Diag fill:#ffffcc
+```
 
-1.  **Certified Hardware:** NVIDIA tests servers from OEMs (Dell, HPE, Supermicro). A server must be an **NVIDIA-Certified System**. Building a custom server from spare parts is not supported.
-2.  **Certified Virtualization (Optional):** If you use a hypervisor, it must be certified (e.g., VMware vSphere with Tanzu, Red Hat OpenShift, Nutanix AHV). 
-3.  **Certified OS / Platform:** The host operating system (e.g., Ubuntu, RHEL) and the Kubernetes distribution (e.g., vanilla K8s, Rancher, OpenShift).
-4.  **The GPU Operator:** Must be the NVAIE-specific branch of the operator, not the public open-source version.
-5.  **The Application Frameworks:** The specific NVAIE branches of PyTorch, Triton, Rapids, or NIM containers.
+The best support process begins before an incident. Define first contact, evidence bundle, escalation criteria, maintenance authority, and rollback ownership.
 
-## 2. The Support Matrix vs. The Compatibility Matrix
+## Production Anti-Pattern
 
-*   **Compatibility:** Does the software technically run on this hardware? (Often yes, even on uncertified hardware).
-*   **Support:** If it breaks, will NVIDIA engineering investigate the root cause and write a patch? (Only if the entire stack, from hardware to container, is officially Certified).
+❌ **Common mistake:** A team assumes the subscription makes every surrounding component NVIDIA’s responsibility. During an outage, network, storage, and platform evidence is missing, delaying isolation.
 
-If a customer runs an NVAIE Triton container on a certified Dell server, but the host operating system is a highly customized, uncertified version of Arch Linux, the stack is "Broken." NVIDIA support will demand the customer reproduce the bug on a certified OS (like Ubuntu 22.04 LTS) before they will escalate the ticket to engineering.
+✅ **Better practice:** Before deployment, document the exact support boundary for this specific deployment:
 
-## 3. The End of the Support Boundary (Business Logic)
+```yaml
+# Include this in your deployment runbook
+support_matrix_and_contacts:
+  deployment_name: "llm-inference-prod"
+  qualified_nvidia_matrix: "AI Enterprise 24.07"
+  components_owned_by_nvidia:
+    - nvidia_driver_version: "550.127"
+      contact: "NVIDIA support portal"
+      response_sla: "4 hours for P1 GPU-level failures"
+    - cuda_version: "12.4"
+      contact: "NVIDIA support"
+    - nim_container_version: "1.0.5"
+      contact: "NVIDIA support"
+  
+  components_owned_by_platform_team:
+    - kubernetes_version: "1.28.5"
+      contact: "internal K8s team"
+      escalation: "after 30 min if K8s team unavailable"
+    - ingress_and_networking: "all custom Network Policies"
+      contact: "network ops"
+    - persistent_storage: "NFS/object-store for model cache"
+      contact: "storage team"
+  
+  components_requiring_joint_diagnosis:
+    - "model_not_loading": "check NGC entitlement (NVIDIA), check node storage (platform team), check network egress (network ops)"
+    - "latency_degradation": "check GPU utilization (NVIDIA can advise), check data pipeline (customer), check network (network ops)"
+    - "pod_eviction": "check cgroup limits (K8s), check GPU memory (NVIDIA), check workload (customer)"
+  
+  first_contact_decision:
+    if: "GPU-related (nvidia-smi, cuda error, memory allocation)"
+    then: "open NVIDIA ticket with qualified matrix reference above"
+    if: "Pod-related (ImagePullBackoff, CrashLoopBackOff)"
+    then: "check K8s events and logs; open K8s ticket if infrastructure"
+    if: "Performance (latency/throughput down)"
+    then: "start with GPU profiling; escalate to NVIDIA only after ruling out data pipeline"
+```
 
-It is critical to define what NVAIE does *not* support.
+## Customer Perspective
 
-NVIDIA supports the **Platform and the Engine**. They do not support the **Data or the Business Logic**.
+A principal architect should state support boundaries honestly. Consolidated support reduces ambiguity but does not remove the need for customer operations and multi-vendor coordination.
 
-*   *Supported:* The Triton Inference Server crashes with a C++ segmentation fault when loading a generic ONNX model.
-*   *Unsupported:* The customer's custom Python script inside the Triton container has a `KeyError` because their JSON payload is malformed.
-*   *Supported:* The NVAIE PyTorch container fails to detect the GPUs on an NVIDIA-Certified VMware host.
-*   *Unsupported:* The data scientist's PyTorch neural network is mathematically flawed and fails to converge to an accurate prediction.
+➕ **Realistic language for customer communications:**
 
-## Customer Scenario (Senior Level)
+```text
+"NVIDIA AI Enterprise qualifies specific combinations of driver, CUDA, NIM, and NeMo. 
+For those exact combinations, NVIDIA support will diagnose issues with GPU execution, 
+model loading, and framework behavior.
 
-**The Situation:**
-A retail company purchases NVAIE licenses. They deploy an NVAIE Triton container onto a cluster of old, uncertified, generic white-box servers containing consumer-grade RTX 4090 GPUs. The deployment team opens a Severity 1 support ticket with NVIDIA because Triton is occasionally hanging and the GPUs are dropping off the PCIe bus. The customer is furious, stating they paid for Enterprise Support and demand an immediate fix.
+However, the infrastructure surrounding that qualified stack remains your responsibility:
+- If the model won’t download, we check whether NGC entitlement is met (NVIDIA side) 
+  and whether your network policy allows egress (customer side).
+- If latency is poor, we can profile GPU kernels and verify the container is using 
+  intended precision and batching — but we cannot fix your data pipeline. 
+- If the Pod won’t start, we check driver and container runtime compatibility; 
+  you verify Kubernetes scheduling and storage access.
 
-**The Senior Architect Response:**
-"The customer has fundamentally misunderstood the legal and technical boundaries of the NVIDIA AI Enterprise support contract.
+Most production incidents require two teams’ evidence. We design support so that 
+evidence collection is fast and the boundary is clear."
+```
 
-NVAIE is a full-stack certification. It guarantees the software behaves predictably *only* when running on enterprise-grade, NVIDIA-Certified Systems utilizing datacenter-class GPUs (like A100, L40S, or H100). 
+## Worked Scenario
 
-Consumer-grade RTX GPUs lack the hardware enterprise features (like robust PCIe error correction, ECC memory, and continuous duty-cycle cooling) required for stable 24/7 server operation. Furthermore, the generic white-box server motherboard has not been validated for PCIe signal integrity under heavy AI loads. 
+**Situation:** A customer reports that NIM Pod deployment fails to become Ready, with no errors in logs.
 
-The GPUs dropping off the PCIe bus is almost certainly a physical hardware failure caused by running consumer hardware in a server environment. 
+**Diagnosis approach:**
 
-We must inform the customer that their hardware architecture is strictly outside the NVAIE Support Boundary. NVIDIA engineering cannot patch a software bug because the root cause is physical hardware instability. To utilize their NVAIE support contract, they must migrate the workloads to certified enterprise servers (e.g., an HGX baseboard or an NVIDIA-Certified OEM server)."
-
-## Interview Preparation
-
-**Conceptual:** If a customer builds a custom server using consumer gaming GPUs (e.g., RTX 4090) and installs NVAIE software, will NVIDIA provide enterprise support if the software crashes? *(Hint: No. NVAIE support requires the entire stack to be certified, starting from the physical hardware. Consumer GPUs are strictly prohibited in data centers per the EULA, and custom uncertified motherboards are outside the support boundary).*
-
-**Architecture:** Explain the difference between NVIDIA supporting the "Engine" versus supporting the "Business Logic." *(Hint: NVIDIA will support the underlying framework (e.g., ensuring PyTorch interfaces correctly with CUDA and the hardware without crashing). NVIDIA will NOT support the customer's specific Python code, model architecture, or mathematical logic if their AI model fails to learn or produces incorrect answers).*
+1. **First question:** Is the exact matrix version documented? (If not, ask for it before escalation.)
+2. **Customer checks GPU layer:**
+   ```bash
+   # On the target node
+   nvidia-smi  # Does driver detect GPU?
+   nvidia-smi --query-gpu=memory.total --format=csv  # How much GPU memory?
+   ```
+3. **Integrator checks container runtime:**
+   ```bash
+   # On the target node
+   kubectl describe node <node>  # GPU allocatable resource?
+   crictl images | grep nvcr.io/nvidia/nim  # Is image cached?
+   ```
+4. **NVIDIA support checks entitlement:**
+   - Verify NGC token is scoped to the model being deployed.
+   - Confirm model license matches customer entitlement.
+5. **Joint diagnosis:**
+   - If GPU memory &lt; model size: platform team must allocate larger GPU or reduce batch size.
+   - If image pull fails with 401: customer’s NGC credentials need renewal.
+   - If readiness probe fails: may be model download timeout; NVIDIA advises on GPU/network, customer fixes network path.

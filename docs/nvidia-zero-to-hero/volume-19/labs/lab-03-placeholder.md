@@ -1,5 +1,6 @@
 ---
 title: "Lab 3 - Capacity Forecasting: Growth Projection from Historical Metrics"
+slug: "lab-3-capacity-forecasting-growth-projection"
 sidebar_position: 3
 description: "Lab 3 - Build and defend a capacity forecast from raw utilization data, including a deliberately unreconciled example to debug."
 ---

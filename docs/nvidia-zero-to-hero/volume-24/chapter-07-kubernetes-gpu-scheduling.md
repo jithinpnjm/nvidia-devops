@@ -1,8 +1,3 @@
----
-title: "Project 7: Kubernetes GPU Scheduling"
-sidebar_position: 7
----
-
 # Project 7: Kubernetes GPU Scheduling
 
 | Project metadata | Value |

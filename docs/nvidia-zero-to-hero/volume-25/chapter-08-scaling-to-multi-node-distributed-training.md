@@ -126,6 +126,6 @@ wait
 
 ## Related Chapters
 
-- **Previous:** Chapter 7 — Model Architecture and Training Pipeline Design
-- **Next:** Chapter 9 — The Model Promotion Gate
-- **Deep dive:** Volume 13 — Distributed Training Foundations — the full mechanics of DDP, FSDP, and NCCL this chapter deliberately doesn't re-derive
+- **Previous:** [Chapter 7 — Model Architecture and Training Pipeline Design](./chapter-07-model-architecture-and-training-pipeline-design.md)
+- **Next:** [Chapter 9 — The Model Promotion Gate](./chapter-09-the-model-promotion-gate-governance-before-the-registry.md)
+- **Deep dive:** [Volume 13 — Distributed Training Foundations](../volume-13/index.md) — the full mechanics of DDP, FSDP, and NCCL this chapter deliberately doesn't re-derive

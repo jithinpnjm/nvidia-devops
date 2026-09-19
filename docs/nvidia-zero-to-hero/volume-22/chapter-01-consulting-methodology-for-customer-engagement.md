@@ -1,8 +1,3 @@
----
-title: "Chapter 1: Consulting Methodology for Customer Engagement"
-sidebar_position: 1
----
-
 # Chapter 1: Consulting Methodology for Customer Engagement
 
 | Chapter metadata | Value |
@@ -168,5 +163,5 @@ Once you know the architecture, build a cost model.
 
 ## Related Chapters
 
-- **Next:** Chapter 2 — Banking and Financial Services
-- **Lab:** Lab 01 — Banking Use Case Workshop
+- **Next:** [Chapter 2 — Banking and Financial Services](./chapter-02-banking-and-financial-services.md)
+- **Lab:** [Lab 01 — Banking Use Case Workshop](./labs/lab-01-banking-use-case-workshop.md)

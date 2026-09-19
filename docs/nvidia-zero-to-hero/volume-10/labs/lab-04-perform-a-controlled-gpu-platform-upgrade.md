@@ -41,7 +41,7 @@ flowchart LR
   Recheck -->|"No — Allocatable still wrong"| Escalate["This is now an incident, not a\nfailed canary — keep node cordoned,\nescalate per Chapter 11"]
 ```
 
-**Figure — the gate is binary and the rollback path has its own gate.** The most common mistake this lab guards against is treating `helm rollback`'s exit code as proof of recovery — the `Recheck` decision exists because a chart-level rollback can succeed by every Kubernetes-visible signal while host state (driver, kernel) is still in the post-upgrade condition, which is precisely the "chart rollback is unsafe" lesson from Chapter 11.
+**Figure — the gate is binary and the rollback path has its own gate.** The most common mistake this lab guards against is treating `helm rollback`'s exit code as proof of recovery — the `Recheck` decision exists because a chart-level rollback can succeed by every Kubernetes-visible signal while host state (driver, kernel) is still in the post-upgrade condition, which is precisely the "chart rollback is unsafe" lesson from [Chapter 11](../chapter-11-upgrades-and-production-troubleshooting).
 
 ## 5. Prerequisites
 
@@ -187,7 +187,7 @@ $ kubectl get node "$CANARY_NODE" -o jsonpath='{.status.capacity.nvidia\.com/gpu
 
 **Explanation:** This tests the infrastructure path before exposing application traffic.
 
-**Common-failure interpretation:** Missing resource returns to Lab 03; a failed driver operand is a rollback gate.
+**Common-failure interpretation:** Missing resource returns to [Lab 03](./lab-03-diagnose-a-missing-allocatable-gpu); a failed driver operand is a rollback gate.
 
 ## 14. Workload and Observability Validation
 
@@ -251,7 +251,7 @@ Rollback was a success! Happy Helming!
 $ kubectl get node "$CANARY_NODE" -o jsonpath='{.status.allocatable.nvidia\.com/gpu}{"\n"}'
 0
 ```
-Read this exact sequence carefully — it is the scenario Chapter 11's "chart rollback can be unsafe" argument is built on: Helm itself reports success (`Rollback was a success!`), the release history shows revision 1 restored, and yet `ALLOCATABLE` still reads `0`. That combination means the *chart* rolled back cleanly but *host* state — most likely the driver module loaded by the 24.9.1 upgrade — did not revert with it. This is precisely the `Recheck: No` branch in this lab's Architecture diagram: a Helm-successful rollback is not, by itself, proof of recovery, and the correct next step is the node-image/driver rollback procedure and an incident escalation, not a second `helm rollback` attempt.
+Read this exact sequence carefully — it is the scenario [Chapter 11](../chapter-11-upgrades-and-production-troubleshooting)'s "chart rollback can be unsafe" argument is built on: Helm itself reports success (`Rollback was a success!`), the release history shows revision 1 restored, and yet `ALLOCATABLE` still reads `0`. That combination means the *chart* rolled back cleanly but *host* state — most likely the driver module loaded by the 24.9.1 upgrade — did not revert with it. This is precisely the `Recheck: No` branch in this lab's Architecture diagram: a Helm-successful rollback is not, by itself, proof of recovery, and the correct next step is the node-image/driver rollback procedure and an incident escalation, not a second `helm rollback` attempt.
 
 **Explanation:** Helm rollback may not reverse every node-level state for every driver strategy; follow the reviewed driver/node-image rollback procedure too.
 
@@ -277,6 +277,6 @@ kubectl uncordon "$CANARY_NODE"
 
 You treated a GPU platform update as a controlled systems change. Next, design model-specific canaries, automate preflight/rollback checks, and add a GitOps approval gate for values changes.
 
-- Production Installation and Configuration
-- Upgrades and Production Troubleshooting
-- Lab 02 — Install and Validate GPU Operator
+- [Production Installation and Configuration](../chapter-10-production-installation-and-configuration)
+- [Upgrades and Production Troubleshooting](../chapter-11-upgrades-and-production-troubleshooting)
+- [Lab 02 — Install and Validate GPU Operator](./lab-02-install-and-validate-gpu-operator)

@@ -1,8 +1,3 @@
----
-title: "Chapter 5: Pharmaceuticals and Drug Discovery"
-sidebar_position: 5
----
-
 # Chapter 5: Pharmaceuticals and Drug Discovery
 
 | Chapter metadata | Value |
@@ -67,5 +62,5 @@ Every simulation logged with:
 
 ## Related Chapters
 
-- **Prev:** Chapter 4 — Automotive
-- **Next:** Chapter 6 — Telecommunications
+- **Prev:** [Chapter 4 — Automotive](./chapter-04-automotive-and-autonomous-vehicles.md)
+- **Next:** [Chapter 6 — Telecommunications](./chapter-06-telecommunications.md)

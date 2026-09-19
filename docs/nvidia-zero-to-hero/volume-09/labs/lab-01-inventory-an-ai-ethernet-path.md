@@ -217,6 +217,6 @@ You created the path context required to interpret later RoCE, congestion, and w
 
 ## 18. Further Reading
 
-- Ethernet Architecture for AI
-- ConnectX Ethernet Adapters
-- Fabric Validation and Capacity Planning
+- [Ethernet Architecture for AI](../chapter-02-ethernet-architecture-for-ai)
+- [ConnectX Ethernet Adapters](../chapter-08-connectx-ethernet-adapters)
+- [Fabric Validation and Capacity Planning](../chapter-10-fabric-validation-and-capacity-planning)

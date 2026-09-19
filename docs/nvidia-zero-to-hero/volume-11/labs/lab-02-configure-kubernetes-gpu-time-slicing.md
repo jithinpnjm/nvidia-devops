@@ -444,8 +444,8 @@ kubectl uncordon "$GPU_NODE"
 
 You configured logical access, validated placement, and separated scheduler success from tenant experience. Next, define three workload classes—best-effort development, batch, and latency-sensitive serving—and write an admission rule that prevents the latter from selecting this node pool.
 
-- Time-Slicing and Oversubscription
-- Kubernetes Scheduling for Shared GPUs
-- Tenant Isolation, Security, and Fairness
+- [Time-Slicing and Oversubscription](../chapter-04-time-slicing-and-oversubscription)
+- [Kubernetes Scheduling for Shared GPUs](../chapter-07-kubernetes-scheduling-for-shared-gpus)
+- [Tenant Isolation, Security, and Fairness](../chapter-08-tenant-isolation-security-and-fairness)
 - [NVIDIA GPU Operator GPU sharing](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/gpu-sharing.html)
 - [NVIDIA k8s-device-plugin configuration](https://github.com/NVIDIA/k8s-device-plugin#configuring-the-nvidia-device-plugin-binary)

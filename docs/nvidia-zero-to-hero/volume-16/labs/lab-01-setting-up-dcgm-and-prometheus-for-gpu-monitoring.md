@@ -1,5 +1,6 @@
 ---
 title: "Lab 01 — Setting Up DCGM and Prometheus for GPU Monitoring"
+slug: lab-01-setting-up-dcgm-and-prometheus
 sidebar_position: 1
 description: "Hands-on: Install DCGM, export metrics to Prometheus, verify your first dashboard works."
 tags: [gpu, observability, dcgm, prometheus, lab, hands-on]

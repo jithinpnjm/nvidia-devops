@@ -1,8 +1,3 @@
----
-title: "Project 10: Training Cluster Design"
-sidebar_position: 10
----
-
 # Project 10: Training Cluster Design
 
 | Project metadata | Value |

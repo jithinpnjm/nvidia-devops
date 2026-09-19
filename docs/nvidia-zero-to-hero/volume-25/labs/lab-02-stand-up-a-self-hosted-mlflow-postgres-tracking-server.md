@@ -179,4 +179,4 @@ sudo rm -rf /data/mlops/postgres/* /data/mlops/mlflow-artifacts/*
 
 ## 18. Additional References
 - [MLflow Tracking Server documentation](https://mlflow.org/docs/latest/tracking.html)
-- Chapter 04 — Experiment Tracking with MLflow
+- [Chapter 04 — Experiment Tracking with MLflow](../chapter-04-experiment-tracking-with-mlflow.md)

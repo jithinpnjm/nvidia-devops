@@ -1,8 +1,3 @@
----
-title: "Chapter 4: Automotive and Autonomous Vehicles"
-sidebar_position: 4
----
-
 # Chapter 4: Automotive and Autonomous Vehicles
 
 | Chapter metadata | Value |
@@ -61,6 +56,6 @@ Real-time autonomous driving requires parallel inference:
 
 ## Related Chapters
 
-- **Prev:** Chapter 3 — LLMs
-- **Next:** Chapter 5 — Pharmaceuticals
-- **Lab:** Lab 03 — Edge Deployment
+- **Prev:** [Chapter 3 — LLMs](./chapter-03-generative-ai-and-large-language-models.md)
+- **Next:** [Chapter 5 — Pharmaceuticals](./chapter-05-pharmaceuticals-and-drug-discovery.md)
+- **Lab:** [Lab 03 — Edge Deployment](./labs/lab-03-edge-deployment.md)

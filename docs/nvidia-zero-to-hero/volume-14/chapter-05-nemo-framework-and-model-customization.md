@@ -1,77 +1,195 @@
 ---
-title: "Chapter 5 — NeMo Framework and Model Customization"
-sidebar_position: 5
-description: "Master the NVIDIA NeMo Framework. Learn how to pre-train, fine-tune, and align massive foundational models for the enterprise."
+title: Chapter 05 — NeMo Framework and Model Customization
+description: Understand NeMo workflows for training, fine-tuning, evaluation, and model customization.
+sidebar_position: 6
+tags: [nemo, customization, training]
 ---
 
-# Chapter 5 — NeMo Framework and Model Customization
+# NeMo Framework and Model Customization
 
-| Chapter metadata | Value |
-|---|---|
-| Volume | 14 — NVIDIA AI Enterprise & NIM Architecture |
-| Difficulty | Advanced |
-| Estimated reading time | 30 minutes |
-| Primary audience | AI Infrastructure Engineers, Core ML Researchers |
-| Core question | If you download an open-source model like Llama-3, how do you mathematically force it to understand your company's proprietary jargon without breaking the model? |
+Model customization connects data governance, distributed training, evaluation, checkpointing, and deployment. A production customization workflow requires tracking lineage so that a deployed model can be reproduced or rolled back.
 
-## Introduction
+## Workflow
 
-NIM is how you *serve* models. But where do the models come from?
+```mermaid
+flowchart LR
+    Base["Base Model<br/>llama2-7b-v1.0<br/>sha256:abc123"]
+    Data["Curated Dataset<br/>domain-specific.jsonl<br/>lineage: version, source"]
+    Train["NeMo Training<br/>distributed, multi-GPU<br/>framework config pinned"]
+    Checkpoint["Checkpoint<br/>step=5000<br/>loss=2.1<br/>saved to persistent storage"]
+    Evaluate["Evaluation<br/>baseline: 92% accuracy<br/>new model: 94%"]
+    Decision{"Meets<br/>deployment<br/>criteria?"}
+    Package["Package for Serving<br/>convert to NIM format<br/>quantize if needed"]
+    Serve["Deploy to NIM<br/>versioned, documented"]
+    
+    Base --> Train
+    Data --> Train
+    Train --> Checkpoint
+    Checkpoint --> Evaluate
+    Evaluate --> Decision
+    Decision -->|no| Train
+    Decision -->|yes| Package
+    Package --> Serve
+```
 
-Most enterprises do not train foundation models (like GPT-4) from scratch; it costs tens of millions of dollars. Instead, they download an open-source foundation model and **Fine-Tune** it on their proprietary corporate data (e.g., HR policies, financial records, custom coding languages).
+## Infrastructure and Cost Reality
 
-You cannot use basic PyTorch scripts to fine-tune a 70-billion parameter model. It requires the massive 3D parallelism strategies discussed in Volume 13 (Megatron-LM). 
+Fine-tuning is smaller than pretraining only in relative terms; it is still a distributed production workload. A realistic fine-tuning job may use 8 GPUs for 1 week to adapt a 7B model to a specific domain.
 
-To abstract this complexity, NVIDIA provides the **NeMo Framework**. NeMo is the end-to-end enterprise platform for building, training, and customizing generative AI models.
+➕ **Real resource estimate for a domain-specific fine-tune of Llama2-7B:**
 
-## 1. The NeMo Architecture
+```yaml
+Job Configuration:
+  model: "llama2-7b-hf"
+  dataset_size: "500K examples (10GB compressed)"
+  training_hours: "168 (1 week continuous)"
+  hardware:
+    gpus: 8  # Must be connected via high-speed interconnect (NVLink or fast InfiniBand)
+    gpu_type: "A100 80GB" # Minimum for distributed training stability
+    memory_per_gpu: "80GB"
+    total_compute: "640 GPU-hours" # Cost multiplier for infrastructure
+  
+  distributed_training_config:
+    batch_size_per_gpu: 8
+    gradient_accumulation_steps: 4
+    learning_rate: "1e-5"
+    precision: "bfloat16"  # Reduces memory, maintains quality
+    distributed_strategy: "FSDP"  # Fully Sharded Data Parallel for 8 GPUs
+    
+  storage_requirements:
+    model_weights: "14 GB"
+    activations_in_memory: "~40 GB per GPU (internal, not persistent)"
+    checkpoints_saved: "50 GB (one every 1000 steps)"
+    training_logs_and_data: "5 GB"
+    total_persistent_storage_needed: "100 GB minimum"
 
-NeMo is not just a training script. It is a massive, modular ecosystem.
+  network_requirements:
+    gpus_connected_by: "NVLink (A100 to A100) or IB EDR (200 Gbps)"
+    collective_communication: "NCCL required"
+    expected_all_reduce_time: "< 1 second for 8 GPU average"
+    if_network_slow: "training bottlenecks immediately (wait for all-reduce exceeds compute time)"
+```
 
-*   **NeMo Megatron:** The core training engine. It wraps the brutally complex Megatron-LM codebase (Chapter 7, Vol 13) into simple, YAML-driven configuration files. You don't write PyTorch C++ code; you edit a YAML file to define the Tensor and Pipeline parallelism strategy.
-*   **Data Curation:** Tools to ingest, clean, and format petabytes of text data before training.
-*   **Model Alignment:** Tools for RLHF (Reinforcement Learning from Human Feedback) and SFT (Supervised Fine-Tuning) to make the model polite and accurate.
-*   **Export to NIM:** NeMo natively exports the finished, fine-tuned model into the `.nemo` format, which can be immediately compiled by TensorRT-LLM and served via a NIM container.
+## Governance and Lineage
 
-## 2. Techniques for Customization
+A production deployment must record immutable evidence so the job is reproducible.
 
-A Senior Architect must guide the data science team to the correct customization strategy based on budget and data scale.
+➕ **Concrete metadata to preserve after training:**
 
-1.  **Continuous Pre-Training (CPT):** 
-    You have terabytes of raw, unstructured corporate data. You feed it to the model. This is the most expensive method. It alters the fundamental weights of the entire network. Requires massive GPU clusters (Megatron 3D Parallelism).
-2.  **Supervised Fine-Tuning (SFT):** 
-    You have thousands of high-quality "Question / Answer" pairs. You train the model specifically on how to answer questions correctly. Cheaper than CPT.
-3.  **Parameter-Efficient Fine-Tuning (PEFT / LoRA):** 
-    The cheapest and most common enterprise method. Instead of changing all 70 billion parameters (which requires massive VRAM), you freeze the model. You attach a tiny, secondary neural network (the LoRA adapter) to the side. You only train the tiny adapter. This can often be done on a single GPU. 
+```yaml
+# training_metadata.yaml — saved alongside checkpoint
+training_run:
+  id: "fine-tune-llama2-domain-20260807"
+  timestamp: "2026-08-07T14:00:00Z"
+  status: "completed"  # or: in_progress, failed
+  
+  # Immutable inputs
+  base_model:
+    name: "llama2-7b-hf"
+    source: "huggingface"
+    revision: "main"  # WARNING: not immutable if HF model updated
+    digest: "sha256:1f2e3d4c5b6a"  # Better: pin exact commit/version
+  
+  dataset:
+    path: "s3://our-bucket/datasets/domain-corpus-v2.tar.gz"
+    sha256: "9a8b7c6d5e4f3a2b1c0d"  # Cryptographic proof of exact data
+    size_compressed: "10 GB"
+    size_uncompressed: "150 GB"
+    preprocessing: "tokenize with llama2 vocab, max_length=2048"
+    splits: "train=450K, val=50K"
+  
+  # Code and configuration (must be version-controlled)
+  nemo_framework:
+    container_image: "nvcr.io/nvidia/nemo:24.07"
+    digest: "sha256:xyz..."
+    config_file: "git://our-repo/training_config.yaml#commit=abc123"
+  
+  # Hardware and environment
+  hardware:
+    node_count: 1
+    gpus_per_node: 8
+    gpu_type: "A100 80GB"
+    interconnect: "NVLink"
+  
+  # Results and decision
+  training_results:
+    loss_training_final: 2.1
+    loss_validation_final: 2.15
+    baseline_model_accuracy: "92%"
+    new_model_accuracy: "94.5%"
+    improvement: "2.5 percentage points"
+  
+  # Manual approval (required for production)
+  approval:
+    approved_by: "ml-ops-team"
+    approved_at: "2026-08-08T09:00:00Z"
+    approval_criteria: ["accuracy improves", "no performance regression", "no safety issues"]
+    deployment_decision: "approved for staging"
+  
+  # For troubleshooting or rollback
+  checkpoint_path: "s3://our-bucket/checkpoints/fine-tune-llama2-domain-20260807/checkpoint-step-5000.tar.gz"
+  checkpoint_size: "15 GB"
+  checkpoint_recovery_time: "~5 minutes to load and resume"
+```
 
-## 3. RAG vs. Fine-Tuning (The Architect's Dilemma)
+## Troubleshooting Low GPU Utilization
 
-The most common question an architect receives is: *"Should we Fine-Tune the model on our data, or use RAG (Retrieval-Augmented Generation)?"*
+Low GPU utilization during training means the GPU is sitting idle waiting for something else. The culprit is rarely the GPU itself.
 
-*   **RAG:** You store your documents in a Vector Database. When a user asks a question, the system searches the database, finds the relevant paragraph, pastes it into the prompt, and says, "Read this paragraph and answer the question."
-*   **Fine-Tuning:** You bake the knowledge directly into the model's brain. 
+➕ **Diagnostic order (fastest-to-slowest to identify the bottleneck):**
 
-**The Architectural Rule:**
-*   Use **RAG** for *Facts and Data*. (e.g., "What is the new return policy?") RAG is cheap, instant to update, and prevents hallucinations because you provide the exact source document.
-*   Use **Fine-Tuning** for *Tone, Format, and Jargon*. (e.g., "Write this summary in the specific style of our CEO"). Fine-tuning teaches the model *how* to speak, not *what* to say. 
+```bash
+# Step 1: Check GPU utilization with dcgmi dmon
+dcgmi dmon -c 10  # Print GPU metrics every second, 10 times
+# Output columns: Timestamp, GPU, Power, Temp, Utilization
+# If utilization < 50%, GPU is truly idle (step 2)
+# If utilization > 90%, GPU is saturated (not a GPU problem, check app or data loading)
 
-## Customer Scenario (Senior Level)
+# Step 2: Check if it's data loading (most common culprit)
+# Inside training container, profile data loader:
+python -c "
+import time
+from nemo.collections import nlp
+loader = nlp.data.text_dataset.TextDataset(...)
+start = time.time()
+for i, batch in enumerate(loader):
+    if i >= 10: break
+    elapsed = time.time() - start
+    throughput = (i+1) / elapsed
+    print(f'Batch {i}: {elapsed:.2f}s total, throughput: {throughput:.1f} batches/sec')
+"
+# If throughput < 0.5 batches/sec, data pipeline is slow
 
-**The Situation:**
-A law firm wants an AI to draft legal contracts in their specific, highly proprietary corporate tone. The data science team requests a $500,000 budget to rent a massive GPU cluster for 2 months. They plan to use NeMo Megatron to execute Continuous Pre-Training (CPT) on the firm's entire 10-year history of legal documents. 
+# Step 3: Check communication (if multi-GPU/multi-node)
+# NIM/NCCL all-reduce benchmark:
+python -m torch.distributed.launch --nproc_per_node=8 \
+  -m nccl_tests.all_reduce --bw  # Reports collective comm bandwidth
+# Expected: NCCL reports per-GPU busbw, not an aggregate figure. A100 SXM4's
+# third-gen NVLink gives ~600 GB/s bidirectional per GPU; a healthy all-reduce
+# typically achieves ~80-90% of that (roughly 480-540 GB/s busbw per GPU) due
+# to ring/tree algorithm overhead. (The 8-GPU DGX A100's NVSwitch fabric has an
+# aggregate bisection bandwidth of ~4.8 TB/s, but that's a topology figure, not
+# what a single all-reduce run reports.)
+# If significantly lower than ~480 GB/s, network or NCCL configuration issue
 
-**The Senior Architect Response:**
-"The proposed training strategy is financially irresponsible because it fundamentally misunderstands the difference between Knowledge Acquisition and Format Alignment.
+# Step 4: Check computation itself
+# Profile inside PyTorch:
+with torch.profiler.profile() as prof:
+    output = model(batch)
+    loss.backward()
+prof.print_table()
+# Look for: which ops consume most time? Are kernels running?
+```
 
-Executing Continuous Pre-Training (CPT) on an LLM alters the foundational weights of the model. It is designed to teach a model an entirely new language or domain of physics. It requires massive multi-node 3D parallelism and immense compute budgets. 
+➕ **Real output interpretation:**
 
-The law firm does not need the model to learn a new language. The model already knows English and general law. The firm simply needs the model to adopt a specific *format and tone*. 
+```text
+$ dcgmi dmon -c 10
+Timestamp, GPU, Power(W), Temp(C), Utilization(%)
+2026-08-07T14:23:00Z, 0, 320, 65, 95  ← GPU is busy
+2026-08-07T14:23:01Z, 0, 295, 64, 15  ← GPU went idle (waiting for data)
+2026-08-07T14:23:02Z, 0, 280, 63, 8   ← Still idle
+2026-08-07T14:23:03Z, 0, 310, 65, 88  ← Data arrived, GPU busy again
+```
 
-We will deny the $500,000 budget. Instead, we will mandate a **Parameter-Efficient Fine-Tuning (PEFT / LoRA)** approach using the NeMo Framework. 
-The data science team will curate 1,000 perfect examples of the firm's contracts. We will freeze the base LLM weights and use NeMo to train a tiny LoRA adapter on these 1,000 examples. This teaches the model the formatting rules perfectly. This process requires a single 8-GPU node and will cost less than $2,000 in compute time, achieving the exact same business outcome."
-
-## Interview Preparation
-
-**Conceptual:** What is the difference between RAG (Retrieval-Augmented Generation) and Fine-Tuning? *(Hint: RAG searches an external database for facts and inserts them into the prompt; it is used for dynamic knowledge retrieval. Fine-tuning alters the internal weights of the model itself; it is used to teach the model a specific format, tone, or highly specialized jargon).*
-
-**Architecture:** Why is Parameter-Efficient Fine-Tuning (PEFT/LoRA) drastically cheaper than Full Fine-Tuning or Continuous Pre-Training? *(Hint: Full fine-tuning requires calculating gradients and updating every single parameter in a massive 70B model, requiring massive VRAM and cluster sizes. PEFT freezes the massive base model and only calculates gradients for a tiny 'adapter' network (often under 1 percent the size of the base model). This drastically reduces VRAM requirements, often allowing fine-tuning on a single GPU).*
+**Diagnosis:** GPU utilization oscillates between 95% (busy) and 8% (idle), indicating data pipeline cannot keep up with compute throughput. Recommendation: parallelize data loading (more workers), prefetch batches to GPU, or increase batch size to reduce overhead.

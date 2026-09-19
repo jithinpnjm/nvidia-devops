@@ -1,8 +1,3 @@
----
-title: "Chapter 5: Performance Analysis and Troubleshooting"
-sidebar_position: 5
----
-
 # Chapter 5: Performance Analysis and Troubleshooting
 
 | Chapter metadata | Value |
@@ -334,6 +329,6 @@ Kernel is slow?
 
 ## Related Chapters
 
-- **Chapter 1:** GPU Architecture Deep Dive — hardware execution model
-- **Chapter 2:** CUDA Programming — kernel optimization
-- **Chapter 3:** Distributed Systems — scaling analysis
+- **Chapter 1:** [GPU Architecture Deep Dive](./chapter-01-gpu-architecture-deep-dive.md) — hardware execution model
+- **Chapter 2:** [CUDA Programming](./chapter-02-cuda-programming-and-optimization.md) — kernel optimization
+- **Chapter 3:** [Distributed Systems](./chapter-03-multi-gpu-and-distributed-systems.md) — scaling analysis

@@ -1,5 +1,6 @@
 ---
 title: "Lab 4 - Deploy Restricted Pod with Network Policy"
+slug: "lab-04-deploy-restricted-pod"
 sidebar_position: 4
 description: "Deploy a Pod with Pod Security Standards enforcement; create Network Policies; test that restrictions are enforced."
 ---

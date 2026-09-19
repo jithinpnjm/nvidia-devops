@@ -1,5 +1,6 @@
 ---
 title: "Lab 02 — Building and Interpreting GPU Dashboards"
+slug: lab-02-building-gpu-dashboards
 sidebar_position: 2
 description: "Hands-on: Create Grafana dashboards that turn raw metrics into decisions."
 tags: [gpu, observability, grafana, dashboards, lab, hands-on]

@@ -1,8 +1,3 @@
----
-title: "Chapter 6: Telecommunications"
-sidebar_position: 6
----
-
 # Chapter 6: Telecommunications
 
 | Chapter metadata | Value |
@@ -55,5 +50,5 @@ Telecom networks manage 10,000-100,000 network elements. ML operates at:
 
 ## Related Chapters
 
-- **Prev:** Chapter 5 — Pharmaceuticals
-- **Next:** Chapter 7 — Healthcare
+- **Prev:** [Chapter 5 — Pharmaceuticals](./chapter-05-pharmaceuticals-and-drug-discovery.md)
+- **Next:** [Chapter 7 — Healthcare](./chapter-07-healthcare-and-medical-imaging.md)

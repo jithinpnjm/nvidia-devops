@@ -1,78 +1,256 @@
 ---
-title: "Chapter 11 — Production Troubleshooting"
-sidebar_position: 11
-description: "Master the diagnostic workflow for AI data paths. Learn how to isolate bottlenecks using `iostat`, `fio`, and Nsight Systems."
+title: Chapter 11 — Production Troubleshooting
+description: Diagnose low GPU feed rate, checkpoint stalls, metadata storms, client imbalance, and path failures.
+sidebar_position: 12
+tags: [troubleshooting, ai-storage, observability]
 ---
 
-# Chapter 11 — Production Troubleshooting
+# Production Troubleshooting
+
+When training stalls, the root cause is in one of eight layers. This chapter teaches you to isolate it systematically, using evidence instead of guessing. The order matters: start with the application and work backward to storage.
 
 | Chapter metadata | Value |
 |---|---|
-| Volume | 15 — AI Storage and Data Paths |
-| Difficulty | Expert |
-| Estimated reading time | 30 minutes |
-| Primary audience | SREs, Storage Admins, Network Engineers |
-| Core question | When the GPU utilization drops to 10% during training, how do you mathematically prove exactly where the data is getting stuck? |
+| Volume | 15 — AI Storage, Checkpointing, and Data Pipelines |
+| Difficulty | Advanced |
+| Estimated reading time | 50 minutes |
+| Primary audience | DevOps, SRE, Platform, Cloud and Infrastructure Engineers |
+| Core question | When training stalls unexpectedly, how do you isolate the cause in under 30 minutes instead of hours? |
 
-## Introduction
+## The Troubleshooting Decision Tree
 
-"The storage is slow." 
+```mermaid
+flowchart TD
+    Start["Training suddenly slow<br/>Job took 45 min, now takes 2 hours"]
+    
+    Q1{Check: Is GPU<br/>utilization <70%?}
+    
+    Q1 -->|No, GPU busy| Compute["GPU is compute-bound<br/>This is NOT a storage issue<br/>Profile the model, not the storage"]
+    
+    Q1 -->|Yes, GPU idle| Q2{Check: Is batch queue<br/>empty most of the time?<br/>Instrument: <br/>prefetch.queue.qsize()}
+    
+    Q2 -->|No, queue full| CPU["CPU preprocessing is slow<br/>Check: perf record, profile decode/augmentation<br/>Layer: Data Loader CPU"]
+    
+    Q2 -->|Yes, queue empty| Q3{Check: Is client<br/>I/O throughput <br/>50% of peak link speed?<br/>Baseline: iperf3 to storage}
+    
+    Q3 -->|No, throughput OK| Meta["Metadata rate is high<br/>Likely: millions of small opens<br/>Check: lctl get_param llite.*.stats<br/>Layer: Filesystem Metadata"]
+    
+    Q3 -->|Yes, throughput low| Q4{Check: Network<br/>retransmits <br/>and drops?<br/>ip -s link}
+    
+    Q4 -->|Yes| Network["Network congestion or errors<br/>Check: switch logs, NIC firmware<br/>Layer: Network Fabric"]
+    
+    Q4 -->|No| Q5{Check: Storage<br/>target fill level<br/>and health?<br/>lfs df -h, smartctl}
+    
+    Q5 -->|Imbalanced| StorageBalance["Target imbalance<br/>Some targets full, others empty<br/>Layer: Storage Targets"]
+    
+    Q5 -->|Healthy| Q6{Check: Local NVMe<br/>cache is full?<br/>df /local-nvme}
+    
+    Q6 -->|Yes| LocalFull["Local cache eviction<br/>Performance dropping as cache fills<br/>Layer: Local Cache"]
+    
+    Q6 -->|No| PCIe["PCIe or CPU memory bottleneck<br/>Check: GPU memory bandwidth<br/>Layer: PCIe/Memory"]
+```
 
-This is the most common, and most useless, complaint an SRE will receive from an AI team. 
-The data path from the storage array to the GPU VRAM is long and complex. The data could be bottlenecked by the physical hard drives, the storage controller CPU, the network switch, the host server NIC, the host CPU (Bounce Buffer), the PyTorch Dataloader code, or the PCIe bus. 
+## Evidence Gathering: The 5-Minute Baseline
 
-A Senior SRE must execute a rigorous, layer-by-layer diagnostic workflow to mathematically isolate the exact component causing the starvation.
+When a job starts, immediately capture baseline measurements:
 
-## 1. The Diagnostic Workflow (Isolating the Layers)
+```bash
+#!/bin/bash
+# Run this on a training node; save output to a file for later comparison
 
-When MFU (Model Flops Utilization) drops, you must isolate the storage stack.
+echo "=== BASELINE CAPTURE ===" > baseline.txt
+date >> baseline.txt
 
-### Step 1: The Application Layer (PyTorch)
-Is the problem the storage array, or is it terrible Python code?
-*   **The Test:** Modify the PyTorch script to generate "fake" random data tensors in memory instead of reading from disk. 
-*   **The Result:** If the GPU utilization instantly shoots to 100%, the PyTorch math is fine. The bottleneck is definitely the data loading pipeline.
+echo "=== GPU Utilization ===" >> baseline.txt
+nvidia-smi dmon -s puctem -c 5 >> baseline.txt  # 5 iterations
 
-### Step 2: The Host CPU Layer (The Dataloader)
-Is the storage array delivering data fast enough, but the Host CPU is too slow to decompress it?
-*   **The Test:** Look at `htop` or `top` on the GPU node. Check the CPU utilization. 
-*   **The Result:** If 100% of the CPU cores are pinned at maximum utilization (often waiting on `iowait`), the CPU is the bottleneck. The Python Dataloader is executing heavy data augmentations or unzipping files sequentially. The storage array is innocent. 
+echo "=== Storage Network ===" >> baseline.txt
+ethtool -S eth0 >> baseline.txt  # NIC stats before training
+ethtool -c eth0 >> baseline.txt  # Ring buffer / queue settings
 
-### Step 3: The Network / File System Layer (`fio`)
-If the CPU is relatively idle, is the storage array actually delivering the required bandwidth to the node?
-*   **The Test:** Completely bypass Python and PyTorch. Run a raw synthetic benchmark using `fio` (Flexible I/O Tester) directly against the mounted file system.
-*   **The Result:** Configure `fio` to mimic the AI workload (e.g., random 4KB reads for images, or sequential 1MB writes for checkpoints). If `fio` reports 500 MB/s, but you know your network is 100Gbps (12.5 GB/s), you have proven the bottleneck is the storage array, the file system configuration, or the network switch.
+echo "=== Filesystem Health ===" >> baseline.txt
+lfs df -h >> baseline.txt  # Lustre fill level
+df -h | grep lustre >> baseline.txt  # Local view of mount
 
-## 2. Advanced Telemetry: iostat and Nsight
+echo "=== Metadata Baseline ===" >> baseline.txt
+lctl get_param llite.*.stats | grep -E 'open|close|getattr' >> baseline.txt
 
-**Using `iostat`:**
-Run `iostat -xz 1` on the host. Look at the `%util` (Utilization) and `await` (Average Wait Time) columns for the specific NVMe drives or network mounts. 
-If `%util` is 100%, the physical drive is saturated. If `await` is high (e.g., > 10ms for an NVMe drive), the drive controller is overwhelmed by the IOPS load.
+echo "=== Network Throughput ===" >> baseline.txt
+iperf3 -c storage-server -t 10 >> baseline.txt  # Direct link speed
 
-**Using Nsight Systems (`nsys`):**
-As discussed in Volume 13, wrap the training script in `nsys`. 
-If you look at the timeline and see massive blocks of OS thread activity (file `open()` and `read()` calls) followed by long periods of GPU idle time, you have absolute mathematical proof that the storage pipeline is starving the compute.
+echo "=== CPU Cache ===" >> baseline.txt
+cat /proc/meminfo | grep -E 'Cached|Buffers' >> baseline.txt
 
-## Customer Scenario (Senior Level)
+echo "Baseline captured at $(date)"
+```
 
-**The Situation:**
-An SRE receives an escalation. An AI team is training on a 4-node cluster connected to a premium Weka NVMe storage array via 200G InfiniBand. The GPUs are sitting at 15% utilization. The AI team claims the Weka array is broken. The storage team runs an `fio` test on the nodes, generating 20 GB/s of sequential read throughput, and claims the storage is perfect. The teams are deadlocked.
+Run this every training run, before loading data. This becomes your "healthy" reference.
 
-**The Senior Architect Response:**
-"Both teams are looking at the correct metrics but drawing the wrong conclusions because they are not testing the actual workload I/O pattern.
+## Real Incident: Diagnosis in Practice
 
-The storage team's `fio` test generated *sequential* reads (simulating a checkpoint or a massive tarball stream). Under sequential load, the Weka array performs perfectly. 
-However, if we look at the AI team's actual dataset, they are training a medical imaging model on 10 million individual 20KB DICOM files stored in a massive flat directory. 
+**Incident: Job that normally takes 2 hours now takes 8 hours**
 
-This is a massive **IOPS and Metadata Bottleneck**, not a sequential throughput bottleneck. 
+### Step 1: Capture Current State
 
-To prove this, we will run `iostat` and `nsys` during the actual PyTorch training run. `iostat` will show incredibly low actual bandwidth (MB/s) but sky-high IOPS and wait times. The `nsys` trace will show the Python threads blocked on `os.stat` and `open()` calls. 
+```bash
+# Run the evidence script
+./capture_baseline.sh > current.txt
 
-The Weka array is perfectly healthy, but no file system in the world can serve 10 million random, tiny file opens per second across a network without latency. 
+# Compare to previous healthy run
+diff healthy.txt current.txt | head -50
+```
 
-The immediate fix is to force the AI team to repackage their dataset. They must run a preprocessing script to pack the 10 million tiny DICOM files into large 1GB **WebDataset** or **TFRecord** files. Once packaged, the PyTorch Dataloader will shift from random metadata lookups to massive sequential streams, aligning the software perfectly with the storage array's strength, and returning GPU utilization to 95%."
+**Output:**
+```
+< GPU0    dmon -s puctem shows: sm=92%, mem=40%
+> GPU0    dmon -s puctem shows: sm=15%, mem=5%     ← GPU idle!
 
-## Interview Preparation
+< LFS df shows: OST 0–7 at 50% full
+> LFS df shows: OST 5–7 at 98% full, OST 0–4 at 30%  ← Imbalanced!
 
-**Conceptual:** If PyTorch training is slow, how do you mathematically isolate whether the problem is the PyTorch code or the storage array? *(Hint: You use a synthetic data loader. You modify the PyTorch script to stop reading from disk and instead generate random tensors directly in memory. If the GPU utilization instantly jumps to 100%, the PyTorch math is fine, and you have proven the storage/dataloader pipeline is the bottleneck).*
+< ethtool -S eth0: rx_errors=0, rx_dropped=0
+> ethtool -S eth0: rx_errors=1240, rx_dropped=856  ← Network errors!
+```
 
-**Architecture:** Why is running a generic `fio` sequential read test useless for diagnosing a computer vision training bottleneck? *(Hint: Computer vision workloads typically involve reading millions of tiny, independent image files (random IOPS and heavy metadata lookups). A generic `fio` test usually measures large sequential throughput. You must configure `fio` to exactly mimic the block size, read pattern (random vs sequential), and file counts of the actual AI workload to get a valid diagnostic result).*
+### Step 2: Start with GPU Utilization
+
+GPU is at 15%, should be 92%. This is the starting point.
+
+```bash
+# Check: is the batch queue empty?
+# (Insert instrumentation into training loop)
+while training:
+    queue_depth = prefetch_queue.qsize()
+    print(f"Queue depth: {queue_depth}")
+    if queue_depth == 0:
+        print("LOADER STALLING GPU")
+    
+    # ... train batch ...
+```
+
+**Finding:** Queue is empty 80% of the time. GPU is waiting for data.
+
+### Step 3: Is the Loader CPU-Bound?
+
+```bash
+# Profile the data loader during training
+python -m cProfile -s cumtime train.py 2>&1 | head -30
+```
+
+**Output:**
+```
+   ncalls  tottime  cumtime  filename:lineno(function)
+   120000   0.5     45.2    Image.open  ← Image decode
+   120000   0.2     12.1    augmentation.apply
+```
+
+**Finding:** Decode + augmentation takes 57 seconds per 1000 images. That's slow.
+
+But wait: decoder can't be the issue because GPU is completely idle (15% utilization), not just under-saturated. If decode was slow, queue would have some backlog; it doesn't. This means **the batch is not even being fetched yet**.
+
+### Step 4: Check Network and Metadata
+
+```bash
+# Monitor opens per second during training start
+lctl get_param llite.*.stats 2>/dev/null | grep "open:" &
+# [ Sample from the lctl output: 950,000 opens, 45ms avg latency ]
+
+# Check network errors
+watch -n 1 'ethtool -S eth0 | grep -E "rx_errors|rx_dropped"'
+```
+
+**Finding:**
+- Metadata: 950,000 opens in 1 minute = 15.8K opens/sec (over capacity of 50K, but not saturating)
+- Network: 1240 retransmits and 856 dropped packets in 10 seconds
+
+**Conclusion:** Network is dropping packets, causing RTO (retransmit timeouts) and metadata operations to stall.
+
+### Step 5: Investigate the Network
+
+```bash
+# Check NIC ring buffer settings
+ethtool -g eth0
+# Output: RX ring size: 256
+
+# Ring buffer is too small; packets are being dropped on burst
+# Increase ring buffer
+ethtool -G eth0 rx 4096 tx 4096
+
+# Check switch counters
+# (Connect to the switch, run: show counters)
+# → Find the port connected to this node, check for oversubscription or errors
+
+# Check for congestion
+iperf3 -c storage -R -t 10  # Reverse: storage to client
+# → If throughput drops, network or switch is congested
+```
+
+**Finding:** Ring buffer was 256; typical is 4096. Increasing it reduced drops from 856 to less than 5 per second. But network retransmits persist at 300/sec.
+
+This suggests switch-level congestion or oversubscription.
+
+### Step 6: Rebalance or Update Configuration
+
+```bash
+# Temporarily reduce the number of concurrent training jobs
+# from 5 to 3 to reduce network load
+
+# Re-run benchmark with 3 jobs instead of 5
+# → Network retransmits drop to 0, metadata latency drops from 45ms to 2ms
+# → GPU utilization jumps from 15% to 88%
+```
+
+**Root cause:** Switch was oversubscribed. With 5 training jobs × 128 GPUs each, the network congestion was severe. Reducing to 3 concurrent jobs resolved the issue.
+
+## Troubleshooting Tables: Symptoms to Diagnosis
+
+### Table 1: GPU Idle (Waiting for Data)
+
+| Symptom | Check | Evidence | Diagnosis | Action |
+|---|---|---|---|---|
+| GPU util &lt; 30%, queue depth always 0 | Baseline loader throughput | `iperf3`: should be 80%+ of link speed. If 10%, network or storage is slow. | Network or storage bottleneck | Capture network stats. Check target fill, metadata rate, network errors. Isolate which layer. |
+| GPU util &lt; 30%, queue depth 1–2 (not zero) | Batch assembly latency | `time dd if=/storage/file of=/dev/null` should complete in under 100ms. If 500ms, I/O is slow. | Storage or I/O bottleneck | Run fio benchmark. Compare to baseline. Identify which layer (metadata, network, storage). |
+| Intermittent stalls (GPU idle for 5–10s, then busy for 20s) | Batch latency variance | `print(time.time() - batch_start)` for each batch. If p99 >> p50, I/O is inconsistent. | Bursty workload or straggler | Synchronize GPU and I/O clocks. Check for scheduler interference or other jobs. |
+
+### Table 2: Slow Metadata
+
+| Symptom | Check | Evidence | Diagnosis | Action |
+|---|---|---|---|---|
+| Epoch start takes 2 min, epoch 2 takes 30 sec | Measure metadata ops | `lctl get_param llite.*.stats \| grep open`: should be under 50K ops/sec. If >100K, MDS is saturated. | Metadata server overloaded | Repackage dataset into larger files (tar, HDF5, WebDataset). Reduce opens 100x. |
+| Open latency is 50ms (baseline was 2ms) | Check MDS CPU and thread count | `top -H` on MDS: if all threads at 100%, MDS needs more threads. | MDS thread starvation | Increase MDS thread count: `lctl set_param -P mdt.*.service_watchdog=0` and `mdt.*.num_service_threads=...`. |
+| Files are split across many targets (stripe_count too high) | `lfs getstripe &lt;file&gt;`: check stripe_count | If stripe_count=32 for small files, metadata overhead is high. | Excessive striping | Reduce stripe_count for small files. Use default (1–4). High stripe only for large checkpoints. |
+
+### Table 3: Slow Storage
+
+| Symptom | Check | Evidence | Diagnosis | Action |
+|---|---|---|---|---|
+| All targets busy, throughput still low | Check target fill level | `lfs df -h`: OST 0 at 95%, others at 40%. Files landing on full OST are slow. | Target imbalance | Rebalance: migrate files from full OST to empty ones. Or use new files on empty OSTs going forward. |
+| Network link shows high util (90%+) but throughput is only 50% of link speed | Check NIC ring buffer | `ethtool -g eth0`: RX ring 256, TX ring 256. Typical is 4096. | Ring buffer too small, packets dropped | Increase: `ethtool -G eth0 rx 4096 tx 4096`. Check network switch for oversubscription. |
+| One client is slow (500 MB/s), others fast (1.5 GB/s) | Compare network paths | Run `iperf3` from slow client to storage. If 500 MB/s, client's network is slow. | Client network issue | Check: is client on different subnet? Is NIC configured for jumbo frames (MTU 9000)? Verify switch port speed. |
+
+### Table 4: High CPU Load During I/O
+
+| Symptom | Check | Evidence | Diagnosis | Action |
+|---|---|---|---|---|
+| CPU 100%, GPU 30%, decoder/augmentation in perf stack | Measure CPU samples in augmentation | `perf record -g python train.py 2>&1 \| perf report`: if augmentation >30%, CPU decode is bottleneck. | Image decode or augmentation is slow | Move decode offline: convert images to better format (e.g., JPEG → PNG → H5). Or use fast codecs (libjpeg-turbo). Or reduce augmentation intensity. |
+| memcpy in CPU stack (high CPU, low GPU util) | Run `perf record`, look for `__memcpy_avx2` | If memcpy is >20% of samples, CPU is copying data to GPU. | CPU-to-GPU copy overhead (no GDS, or fallback active) | Check: is GDS working? If not, reduce batch size or use pinned memory. Instrument `torch.cuda.Event()` to measure copy time. |
+
+## Interview-Ready Answers
+
+**Q: Your training suddenly slows from 2 hours to 8 hours. You have 5 minutes to diagnose. What do you check first?**
+
+A: "First: GPU utilization. `nvidia-smi dmon`. If GPU is under 70% busy, it's I/O-bound; if >90% busy, it's compute-bound. For I/O-bound, I check batch queue depth: is the prefetch queue empty? If yes, the loader can't keep up. If no, but GPU is idle, the batch is not reaching the GPU fast enough (maybe GPU memory pressure or PCIe saturation). Next, I check network health: `ethtool -S eth0 | grep errors`. If error rate is non-zero, the network is dropping packets. That's my root cause. Fix: increase NIC ring buffer or reduce concurrent jobs to unload the network. Takes 2 minutes to diagnose, fixes the issue."
+
+**Q: Metadata latency jumped from 2ms to 45ms between runs. Everything else looks the same. What changed?**
+
+A: "Two likely causes: (1) the dataset changed (more or different files), or (2) the MDS is busier (more concurrent jobs). I'd run: `lctl get_param llite.*.stats | grep open` on both runs and compare open/sec. If open rate is the same but latency is higher, the MDS is busier with other work. If open rate is higher, the dataset changed — more files, more opens per batch. If open rate is much higher (100K+ ops/sec), I'd recommend repackaging into larger files (tar, WebDataset) to reduce metadata pressure. The fix: instrument your training loop to log opens per second and per epoch, then set up alerts if it exceeds baseline."
+
+---
+
+## Practice
+
+1. **Create a healthy baseline:** Run your training job when you know it's performing well. Capture the evidence script output. Store it as your reference.
+
+2. **Simulate a failure:** Intentionally fill one storage target to 95%. Re-run training. Measure the slowdown. Compare to baseline. This trains you to recognize fill-level issues.
+
+3. **Diagnose a real incident:** Pick a slow training run from your logs. Walk through the decision tree (GPU util → queue depth → metadata → network → storage) and identify the root cause. Document it.

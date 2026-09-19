@@ -1,5 +1,6 @@
 ---
 title: "Volume 24 — Capstone Projects: Building Real GPU Systems"
+slug: "volume-24"
 sidebar_position: 24
 description: "12 hands-on capstone projects matching Volume 23 interview topics. Each project validates mastery of GPU systems engineering through realistic scenarios and constraints."
 ---

@@ -197,6 +197,6 @@ You observed congestion as classification, queue pressure, switch marks/pauses, 
 
 ## 18. Further Reading
 
-- Priority Flow Control
-- ECN and DCQCN
-- Data Center Bridging and QoS
+- [Priority Flow Control](../chapter-04-priority-flow-control)
+- [ECN and DCQCN](../chapter-05-ecn-and-dcqcn)
+- [Data Center Bridging and QoS](../chapter-06-data-center-bridging-and-qos)

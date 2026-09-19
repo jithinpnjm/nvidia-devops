@@ -190,6 +190,6 @@ git add -u   # stages the deletion
 
 ## Related Chapters
 
-- **Previous:** Chapter 2 — GPU Cloud Provisioning — the persistent volume this chapter's remote lives on
-- **Next:** Chapter 4 — Experiment Tracking with MLflow — logs the DVC hash from this chapter as a run parameter, tying a model to its exact data version
-- **Related:** Chapter 6 — Building Leakage-Safe Training Datasets — what actually gets versioned by this chapter's pipeline
+- **Previous:** [Chapter 2 — GPU Cloud Provisioning](./chapter-02-gpu-cloud-provisioning-for-training-workloads.md) — the persistent volume this chapter's remote lives on
+- **Next:** [Chapter 4 — Experiment Tracking with MLflow](./chapter-04-experiment-tracking-with-mlflow.md) — logs the DVC hash from this chapter as a run parameter, tying a model to its exact data version
+- **Related:** [Chapter 6 — Building Leakage-Safe Training Datasets](./chapter-06-building-leakage-safe-training-datasets-for-time-series-ml.md) — what actually gets versioned by this chapter's pipeline

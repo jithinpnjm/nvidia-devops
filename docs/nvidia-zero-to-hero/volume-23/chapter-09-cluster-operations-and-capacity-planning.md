@@ -1,8 +1,3 @@
----
-title: "Chapter 9: Cluster Operations and Capacity Planning"
-sidebar_position: 9
----
-
 # Chapter 9: Cluster Operations and Capacity Planning
 
 | Chapter metadata | Value |
@@ -418,6 +413,6 @@ Improve utilization to 50-55% through process changes (no CapEx), then re-assess
 
 ## Related Chapters
 
-- **Chapter 4:** Observability and Monitoring — cost tracking and SLO
-- **Chapter 7:** Kubernetes and Container Orchestration — resource scheduling
+- **Chapter 4:** [Observability and Monitoring](./chapter-04-observability-and-monitoring.md) — cost tracking and SLO
+- **Chapter 7:** [Kubernetes and Container Orchestration](./chapter-07-kubernetes-and-container-orchestration.md) — resource scheduling
 - **Volume 21:** AI Factory (reference architectures)

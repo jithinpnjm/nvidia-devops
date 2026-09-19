@@ -1,8 +1,3 @@
----
-title: "Project 11: Inference Serving Design"
-sidebar_position: 11
----
-
 # Project 11: Inference Serving Design
 
 | Project metadata | Value |

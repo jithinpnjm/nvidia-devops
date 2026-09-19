@@ -1,80 +1,200 @@
 ---
-title: "Chapter 9 — Health Checks and SLOs for GPU Clusters"
+title: "Chapter 09 — Health Checks and SLOs for GPU Clusters"
+slug: chapter-09-health-checks-and-slos-for-gpu-clusters
 sidebar_position: 9
-description: "Define the reliability contract. Learn how to construct automated health checks and mathematical Service Level Objectives (SLOs) for AI infrastructure."
+description: "How do you define 'the cluster is healthy'? Learn to set metrics-based SLOs and health checks that matter."
+tags: [gpu, observability, slo, health-checks, operations]
 ---
 
-# Chapter 9 — Health Checks and SLOs for GPU Clusters
+# Chapter 09 — Health Checks and SLOs for GPU Clusters
+
+Observability without targets is just noise. This chapter teaches how to define what "healthy" means for GPU clusters, set SLOs (Service Level Objectives) that matter, and build automated health checks that wake you up when reality diverges from targets.
 
 | Chapter metadata | Value |
 |---|---|
-| Volume | 16 — GPU Observability, Profiling, and Diagnosis |
-| Difficulty | Advanced |
-| Estimated reading time | 25 minutes |
-| Primary audience | SREs, Platform Owners |
-| Core question | If a node is technically 'online', how do you mathematically prove it is actually capable of serving production inference traffic? |
+| Volume | 16 — GPU Observability and Operational Health |
+| Difficulty | Intermediate |
+| Estimated reading time | 40 minutes |
+| Primary audience | Platform engineers, DevOps, SRE |
+| Core question | How do you know if the cluster is meeting its commitments? |
 
-## Introduction
+## Learning Objectives
 
-In standard Kubernetes, a node is considered `Ready` if the `kubelet` is responding to the API server. 
-In AI infrastructure, a node being `Ready` is meaningless. 
+You will be able to:
+- Define SLIs (Service Level Indicators) for GPUs
+- Set SLOs (Service Level Objectives) that align with business commitments
+- Build automated health checks that validate GPU readiness
+- Create error budgets and use them to balance reliability with feature velocity
+- Set alerts that distinguish "problem solved" from "problem masked"
 
-A node can be `Ready` while its NVIDIA driver is completely corrupted, its PCIe links are downgraded to 1x speed, and its GPUs are thermal throttling. If the Kubernetes scheduler sends a production workload to this node, the workload will fail, breaching the company's Service Level Objectives (SLOs).
+## SLIs: What to Measure
 
-A Senior Architect must design an automated **Health Checking Pipeline** that actively validates the physical silicon before allowing a node to enter the production scheduling pool.
+| SLI | Definition | Measurement | Why It Matters |
+|---|---|---|---|
+| **GPU Availability** | % of time GPU is available (not in maintenance, not failed) | count(DCGM_FI_DEV_GPU_UTIL >= 0) / total GPUs | Job scheduling depends on GPU availability |
+| **GPU Health** | % of GPUs passing health checks (temp &lt; 82°C, no throttle, no ECC errors) | count(GPUs passing all checks) / total | Predicts job success rate |
+| **Job Completion Rate** | % of submitted jobs that complete without error | count(completed jobs) / total submitted | Business SLO: did we do the work customers paid for? |
+| **Training Throughput** | Samples/sec sustained over 1 hour (p50, p99) | benchmark job throughput percentile | Capacity planning and performance regression detection |
+| **All-Reduce Latency** | Time to complete distributed gradient sync | measure NCCL all-reduce time | Multi-GPU training efficiency |
 
-## 1. The Automated Burn-In Test
+## SLOs: The Commitments
 
-When you add a new GPU server to a cluster, you never just turn it on and route traffic to it. You must run a "Burn-In."
+**Example SLOs for a typical enterprise cluster:**
 
-A burn-in is an automated script (often an Ansible playbook or a Kubernetes Job) that pushes the hardware to its absolute physical limits for a sustained period (e.g., 24 hours). 
+```yaml
+# Cluster-level SLOs
+GPU Cluster SLO:
+  availability: 99.0%        # 7 hours of downtime/month acceptable
+  all_gpus_healthy: 98%      # Up to 2% of GPUs can be failing
+  job_completion_rate: 99.5% # 99.5% of submitted jobs complete
+  p50_throughput: 2000 samples/sec  # Baseline performance
+  p99_throughput: 1900 samples/sec  # Even in worst case, > 1900
 
-**The Burn-In Checklist:**
-1.  **Driver Check:** `nvidia-smi` successfully reports the GPU model and topology.
-2.  **PCIe Bandwidth Test:** Run a CUDA bandwidth test. Does it achieve the theoretical maximum of the PCIe Gen4/Gen5 slot?
-3.  **The DCGM Diagnostic:** Execute `dcgmi diag -r 3`. This runs a comprehensive hardware stress test, checking for hidden ECC memory errors and ensuring the cooling system can handle sustained 100% Thermal Design Power (TDP) without downclocking. 
-4.  **Network Burn:** Run `nccl-tests` (as discussed in Vol 9). Prove the InfiniBand/RoCE network is lossless under extreme Incast microbursts.
+# What these mean in practice:
+# - 99% availability = 43 minutes of total downtime per month
+# - 98% health = if you have 100 GPUs, up to 2 can be broken at any time
+# - 99.5% job completion = 1 in 200 jobs can fail (due to hardware)
+```
 
-If any test fails, the node is automatically marked `NotReady` and cordoned.
+## Automated Health Checks
 
-## 2. Defining the Inference SLO
+### Check 1: Per-GPU Readiness
 
-Once the hardware is validated, you must define the software contract. You cannot manage what you do not measure.
+```bash
+#!/bin/bash
+# Run on each GPU host daily
 
-An SLO is a strict mathematical target. 
-*   *Bad SLO:* "The API should be fast."
-*   *Good SLO:* "99% of successful `chat/completions` requests will have a Time-To-First-Token (TTFT) of < 200ms, measured over a trailing 7-day window."
+for gpu_id in $(nvidia-smi --list-gpus | awk '{print $2}' | tr -d '()'); do
+  echo "Checking GPU $gpu_id..."
+  
+  # Check 1: Can we communicate?
+  nvidia-smi -i $gpu_id -q > /dev/null 2>&1
+  if [ $? -ne 0 ]; then
+    echo "FAIL: GPU $gpu_id not responding"
+    continue
+  fi
+  
+  # Check 2: Temperature OK?
+  temp=$(nvidia-smi -i $gpu_id -q --format=csv,noheader --query-gpu=temperature.gpu)
+  if [ $temp -gt 82 ]; then
+    echo "FAIL: GPU $gpu_id temp $temp°C (> 82°C threshold)"
+  fi
+  
+  # Check 3: Power stable?
+  power=$(nvidia-smi -i $gpu_id -q --format=csv,noheader --query-gpu=power.draw | cut -d' ' -f1)
+  if [ ${power%.*} -lt 50 ]; then
+    echo "FAIL: GPU $gpu_id power $power W (expected > 50W under load)"
+  fi
+  
+  # Check 4: ECC healthy?
+  ecc=$(nvidia-smi -i $gpu_id -q -d ECC | grep "Uncorrected" | tail -1 | awk '{print $NF}')
+  if [ "$ecc" != "0" ]; then
+    echo "FAIL: GPU $gpu_id has $ecc uncorrected ECC errors"
+  fi
+  
+  # Check 5: DCGM can see it?
+  dcgmi diag -r 1 2>&1 | grep -q "GPU $gpu_id.*PASS"
+  if [ $? -ne 0 ]; then
+    echo "FAIL: DCGM cannot reach GPU $gpu_id"
+  fi
+  
+  echo "PASS: GPU $gpu_id is healthy"
+done
+```
 
-**The SLI (Service Level Indicator):**
-To measure the SLO, you need an SLI. This is the actual metric pulled from Prometheus. 
-For the SLO above, the SLI is a PromQL query calculating the P99 TTFT directly from the Triton or vLLM metrics endpoint. 
+**Real output (mixed):**
 
-## 3. The Error Budget
+```
+Checking GPU 0...
+PASS: GPU 0 is healthy
 
-If your SLO is 99% success, you have a 1% **Error Budget**. 
+Checking GPU 1...
+FAIL: GPU 1 temp 85°C (> 82°C threshold)
 
-If the cluster suffers a massive crash and consumes the entire 1% error budget for the month, the Senior Architect invokes a freeze. No new features, no model updates, and no infrastructure upgrades are allowed until the next month. 100% of engineering effort is redirected toward fixing reliability. This mathematically aligns the data science team and the infrastructure team.
+Checking GPU 2...
+FAIL: GPU 2 not responding
 
-## Customer Scenario (Senior Level)
+Health Summary: 2/4 GPUs ready (50%)
+```
 
-**The Situation:**
-A bank deploys a fraud detection model to production. The business defines a strict SLO: P99 latency must be under 50ms, as the API is called during credit card swipe authorizations. The deployment team monitors the API gateway logs. The gateway reports an average latency of 30ms, and zero HTTP 500 errors. The deployment team reports the SLO is met. However, the fraud detection rate plummets, and the bank loses money. 
+### Check 2: Distributed Health (Multi-Node)
 
-**The Senior Architect Response:**
-"The deployment team is reporting a green dashboard based on flawed Service Level Indicators (SLIs). They are measuring the network wrapper, but ignoring the AI engine.
+```bash
+# Run once per hour across the cluster
 
-The API gateway reports 30ms latency and HTTP 200 OK because the inference server (Triton) is successfully receiving the request and returning an answer quickly. 
+# Verify NCCL connectivity
+export NCCL_DEBUG=INFO
+mpirun -np 8 python -c "
+import torch
+import torch.distributed as dist
+dist.init_process_group('nccl')
+# Test collective communication
+data = torch.ones(1024, device='cuda')
+dist.all_reduce(data)  # This will timeout if network is broken
+print('PASS: All-reduce works')
+" 2>&1 | grep -E "PASS|timeout"
+```
 
-However, because they are not monitoring the deep application metrics, they missed a critical failure mode: **Graceful Degradation / Fallback**. 
+## Error Budgets: Balancing Reliability and Velocity
 
-During high traffic bursts, the GPUs became saturated. The inference server was configured with a strict 50ms timeout. Because the GPUs could not process the deep neural network math within 50ms, the server aborted the GPU execution. Instead of crashing (which would generate an HTTP 500), the server intentionally returned a pre-calculated, generic 'safe' response (e.g., 'Approve Transaction') to meet the latency deadline. 
+**If your SLO is 99% availability (7 hours downtime/month), your error budget is:**
 
-The API gateway saw a fast, successful HTTP 200 response, but the business received a fundamentally incorrect, un-scored fraud prediction. 
+```
+Error budget = (1 - SLO%) × hours per month
+             = (1 - 0.99) × 730
+             = 7.3 hours per month
 
-We must immediately update our SLI definitions. We will not just measure API Gateway latency. We must query Prometheus for the specific inference engine metrics (e.g., `nv_inference_exec_count` vs `nv_inference_request_failure`). An SLO is only valid if it measures both the speed of the response *and the mathematical accuracy of the execution*."
+Interpretation:
+- You can afford 7.3 hours of downtime
+- Once you hit 7.3 hours, all remaining changes must be rolled back or paused
+- Use error budget to decide: can we upgrade software? Can we reboot? Can we replace hardware?
+```
 
-## Interview Preparation
+**Real error budget tracking:**
 
-**Conceptual:** Why is a standard Kubernetes `Ready` state insufficient for determining if a GPU node should receive production workloads? *(Hint: Kubernetes only checks if the basic node agent (`kubelet`) is responding. It does not run deep hardware diagnostics. The node could have a thermally throttled GPU, a downgraded PCIe bus, or corrupted CUDA drivers, which would instantly fail any AI workloads assigned to it. SREs must implement dedicated GPU burn-in and health-check pipelines).*
+```
+Month: August 2026
+Target SLO: 99% (7.3 hour budget)
 
-**Architecture:** What is the difference between an SLO (Service Level Objective) and an SLI (Service Level Indicator)? *(Hint: An SLO is the business goal or target (e.g., '99% of requests must complete in under 100ms'). An SLI is the actual technical metric or query used to measure performance against that goal (e.g., the specific Prometheus PromQL query calculating the P99 latency from the inference server's `/metrics` endpoint)).*
+Downtime events:
+  - Aug 2: Firmware upgrade (planned) — 1.5 hours
+  - Aug 8: GPU failure on node-03 (unplanned) — 2 hours
+  - Aug 15: Network maintenance (planned) — 2 hours
+  - Aug 22: Thermal incident (unplanned) — 0.5 hours
+
+Used: 6 hours
+Remaining budget: 1.3 hours
+
+Status: Approaching error budget limit. New deployments frozen until Sept 1.
+```
+
+## SLO Violation and Impact
+
+**Alert Levels:**
+
+```yaml
+# Level 1: Advisory (watch closely)
+- Alert: GPU temperature trending toward 80°C
+  Action: Monitor, no immediate action
+  Impact: Minor; GPU still healthy
+
+# Level 2: Warning (prepare for action)
+- Alert: 1 GPU offline for > 1 hour
+  Action: Schedule replacement or investigation
+  Impact: Moderate; reduces available capacity, but other GPUs take load
+
+# Level 3: Critical (SLO at risk)
+- Alert: > 5 GPUs offline, cluster availability < 98%
+  Action: Page on-call engineer, activate runbook
+  Impact: Severe; cluster cannot meet SLO, customers affected
+
+# Level 4: Catastrophic (SLO already violated)
+- Alert: Cluster availability < 95%
+  Action: Incident escalation, all hands on deck
+  Impact: Critical; service degraded
+```
+
+## Cross-References
+
+- Chapter 08: Common failure modes and detection
+- **Next:** Chapter 10 covers production troubleshooting

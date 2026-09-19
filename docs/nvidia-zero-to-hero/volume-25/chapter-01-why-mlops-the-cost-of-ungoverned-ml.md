@@ -127,6 +127,6 @@ mlflow runs list --experiment-id <exp_id>
 
 ## Related Chapters
 
-- **Next:** Chapter 2 — GPU Cloud Provisioning for Training Workloads — the infrastructure this governance layer runs on
-- **Related:** Chapter 9 — The Model Promotion Gate — the concrete mechanism this chapter argues for
-- **Related:** Chapter 10 — End-to-End Case Study — the full story this chapter's opening anecdote is drawn from
+- **Next:** [Chapter 2 — GPU Cloud Provisioning for Training Workloads](./chapter-02-gpu-cloud-provisioning-for-training-workloads.md) — the infrastructure this governance layer runs on
+- **Related:** [Chapter 9 — The Model Promotion Gate](./chapter-09-the-model-promotion-gate-governance-before-the-registry.md) — the concrete mechanism this chapter argues for
+- **Related:** [Chapter 10 — End-to-End Case Study](./chapter-10-end-to-end-case-study-banknifty-big-move-prediction-pipeline.md) — the full story this chapter's opening anecdote is drawn from

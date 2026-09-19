@@ -1,8 +1,3 @@
----
-title: "Project 3: Distributed Training with Fault Tolerance"
-sidebar_position: 3
----
-
 # Project 3: Distributed Training with Fault Tolerance
 
 | Project metadata | Value |

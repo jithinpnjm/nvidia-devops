@@ -1,5 +1,6 @@
 ---
 title: "Volume 16 — GPU Observability and Operational Health"
+slug: "volume-16-gpu-observability"
 description: "Master GPU observability from first principles. Learn to collect, interpret, and act on GPU metrics in production. From metrics to dashboards to incident response."
 sidebar_position: 16
 ---

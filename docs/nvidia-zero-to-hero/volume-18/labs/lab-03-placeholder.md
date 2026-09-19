@@ -1,5 +1,6 @@
 ---
 title: "Lab 3 - Design and Verify Multi-Tenant RBAC"
+slug: "lab-03-design-verify-rbac"
 sidebar_position: 3
 description: "Create RBAC policies for two teams sharing a cluster; verify least-privilege isolation; detect unauthorized access."
 ---

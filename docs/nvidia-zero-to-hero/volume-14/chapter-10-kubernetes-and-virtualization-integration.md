@@ -1,79 +1,167 @@
 ---
-title: "Chapter 10 — Kubernetes and Virtualization Integration"
-sidebar_position: 10
-description: "Master the intersection of hypervisors and orchestrators. Learn how NVAIE integrates with VMware Tanzu, Red Hat OpenShift, and standard Kubernetes."
+title: Chapter 10 — Kubernetes and Virtualization Integration
+description: Integrate enterprise AI software with Kubernetes, GPU Operator, vGPU, storage, networking, and identity.
+sidebar_position: 11
+tags: [kubernetes, virtualization, integration]
 ---
 
-# Chapter 10 — Kubernetes and Virtualization Integration
+# Kubernetes and Virtualization Integration
 
-| Chapter metadata | Value |
-|---|---|
-| Volume | 14 — NVIDIA AI Enterprise & NIM Architecture |
-| Difficulty | Advanced |
-| Estimated reading time | 30 minutes |
-| Primary audience | Virtualization Architects, Platform Engineers |
-| Core question | If Kubernetes can run directly on bare metal, why do companies add the overhead of VMware ESXi or Nutanix before running Kubernetes? |
+NVIDIA AI Enterprise can participate in bare-metal Kubernetes, virtualized Kubernetes (running inside VMs), and VM-based application architectures. The correct model depends on isolation, operations, performance, and support requirements. Each architecture has a different failure boundary.
 
-## Introduction
+## Integration Layers and Support Boundaries
 
-In pure AI research labs, engineers run Kubernetes directly on bare-metal servers. It provides the absolute highest performance because there is no middleman.
+| Layer | Bare-metal Kubernetes | Kubernetes on vSphere | VM-only (no K8s) |
+|---|---|---|---|
+| **GPU access** | GPU Operator + device plugin + driver on host | GPU Operator in Linux VM + vGPU host driver + vSphere Config | VM hypervisor + vGPU profile |
+| **Ownership** | NVIDIA driver and K8s jointly | vSphere + NVIDIA (coordinated) | vSphere only |
+| **Performance** | Direct attach, ~2% overhead | VM overhead + vGPU time-slicing, ~10-15% | Depends on vGPU profile |
+| **Isolation** | Pod network policies | VM network + Kubernetes network policies | VM firewall |
+| **Storage** | PVC with host path or network storage | PVC via vSphere storage class | VM virtual disk or NFS |
+| **Update cadence** | Coordinated with K8s upgrades | Requires vSphere and K8s sync | vSphere-driven |
 
-In the Fortune 500, bare-metal Kubernetes is extremely rare. 
-Enterprise IT departments have spent two decades building massive, highly secure, deeply integrated Virtual Machine (VM) infrastructures using VMware vSphere, Red Hat Virtualization, or Nutanix. They have complex backup systems, disaster recovery pipelines, and networking rules tied strictly to VMs.
+## Architecture Decision Tree
 
-They will not throw away their $50 million VMware investment just to run an AI model. They demand that AI infrastructure integrates *into* their existing hypervisors. 
-NVIDIA AI Enterprise (NVAIE) is certified to bridge this exact gap.
+```mermaid
+flowchart TD
+    Requirement["Enterprise AI workload requirement"]
+    
+    Multi{Multiple workloads<br/>from different teams<br/>same infrastructure?}
+    Multi -->|"Yes, strong isolation needed"| K8s["Use Kubernetes<br/>namespace/RBAC isolation"]
+    Multi -->|"No, single or coordinated team"| VM["Consider VM or bare-metal"]
+    
+    K8s --> Hardware{Run on existing<br/>virtualization<br/>infrastructure?}
+    Hardware -->|"No, new infrastructure"| BareMetal["Bare-metal Kubernetes<br/>+ GPU Operator<br/>Lower overhead, faster"]
+    Hardware -->|"Yes, vSphere cluster"| vSphereK8s["Kubernetes inside VMs<br/>+ vGPU<br/>Higher isolation, more overhead"]
+    
+    VM --> vGPU{Share GPUs<br/>across VMs?}
+    vGPU -->|"Yes"| VGPU_YN["vGPU time-sharing<br/>lower cost, more overhead"]
+    vGPU -->|"No"| VGPU_N["VM direct GPU attach<br/>higher performance"]
+```
 
-## 1. The VMware vSphere with Tanzu Architecture
+## Production Guidance by Architecture
 
-VMware is the dominant enterprise hypervisor. Tanzu is VMware's integrated Kubernetes distribution. NVAIE is heavily engineered to run perfectly in this stack.
+### Bare-metal Kubernetes + GPU Operator (RECOMMENDED FOR NEW DEPLOYMENTS)
 
-**The Stack Layers:**
-1.  **Hardware:** An NVIDIA-Certified Dell/HPE server with A100 or H100 GPUs.
-2.  **Hypervisor:** VMware ESXi.
-3.  **The GPU Manager:** The NVIDIA vGPU host driver (VIB) is installed directly into ESXi.
-4.  **The Virtual Machines:** ESXi spins up Ubuntu VMs to act as Kubernetes nodes.
-5.  **GPU Passthrough/vGPU:** ESXi passes fractional vGPUs (or full PCIe passthrough GPUs) into the Ubuntu VMs.
-6.  **Kubernetes (Tanzu):** Tanzu manages the Ubuntu VMs as a Kubernetes cluster.
-7.  **The GPU Operator:** Runs inside Tanzu, loads the guest drivers into the Ubuntu VMs, and exposes the GPUs to the Pods.
+```bash
+# GPU visibility check
+$ kubectl describe node | grep nvidia.com/gpu
+  nvidia.com/gpu: 2  # GPU Operator advertised available GPUs
 
-This is complex, but it allows the IT team to use standard VMware vMotion, snapshots, and security policies on the AI nodes.
+# GPU Operator status
+$ kubectl get pods -n gpu-operator
+NAME                                                 READY   STATUS    RESTARTS   AGE
+gpu-operator-7f4d8l9m2n                            1/1     Running   0          2d
+nvidia-driver-daemonset-abcd1                      1/1     Running   0          2d
+nvidia-container-toolkit-daemon-set-xyz9           1/1     Running   0          2d
+nvidia-device-plugin-daemonset-12345               1/1     Running   0          2d
+dcgm-exporter-daemon-set-qwer5                     1/1     Running   0          2d
 
-## 2. Red Hat OpenShift Integration
+# Driver verification
+$ kubectl debug node/gpu-node-0 -it --image=ubuntu:22.04 -- \
+  bash -c "apt-get update && apt-get install -y nvidia-utils && nvidia-smi"
+# Output should show GPU info
 
-Red Hat OpenShift is the dominant enterprise Kubernetes distribution (often running on bare metal or VMs).
+# Pod GPU allocation
+$ kubectl run gpu-test -it --image=nvidia/cuda:12.4.1-runtime-ubuntu22.04 \
+  --limits="nvidia.com/gpu=1" -- nvidia-smi
+# Should show GPU in container
+```
 
-OpenShift uses its own strict security models (Security Context Constraints - SCCs) and operator lifecycle managers. A standard GPU Operator Helm install often fails on OpenShift because OpenShift blocks the privileged driver containers by default.
+### Kubernetes in VM (vSphere with vGPU)
 
-**The NVAIE OpenShift Solution:**
-NVAIE provides an explicitly certified, OpenShift-compatible version of the GPU Operator, available directly through the OpenShift OperatorHub. It automatically negotiates the complex SCC permissions required to compile the kernel modules on Red Hat Enterprise Linux CoreOS (RHCOS), abstracting the security headaches away from the architect.
+```yaml
+# Example: vGPU profile assignment
+vmware_vgpu_config:
+  vm_name: "k8s-node-gpu-1"
+  vgpu_profile: "A100D-40C"  # NVIDIA vGPU compute profile, 1/4 of an A100-40GB per VM
+  # vGPU (hypervisor-level time/space-sliced profiles like A100D-40C) and MIG
+  # (hardware spatial partitioning) are different, combinable mechanisms —
+  # vGPU can itself be backed by MIG instances on MIG-capable GPUs, but the
+  # profile name/mechanism should not be conflated with a MIG partition name.
+  
+# Inside K8s cluster on vSphere:
+# GPU Operator sees vGPU device, not bare GPU
+$ nvidia-smi
+Fri Aug  7 14:23:00 2026
++-----+------------------+------+
+| GPU | Name             | Mem  |
++-----+------------------+------+
+|  0  | NVIDIA A100 40GB  | 10GB |  # MIG-partitioned, not full 40GB
++-----+------------------+------+
 
-## 3. Bare Metal vs. Virtualization (The Performance Tax)
+# K8s device plugin advertises based on vGPU profile
+$ kubectl describe node
+nvidia.com/gpu: 1  # 1 MIG partition, not full GPU
+```
 
-A Senior Architect must articulate the trade-offs of virtualization.
+**Trade-off:** vGPU reduces GPU cost/VM but adds latency (time-slicing overhead) and reduces peak throughput.
 
-*   **Bare Metal:** 100% performance. Required for massive Distributed Training (Chapter 6, Vol 13) where you need 1,000 GPUs talking over InfiniBand with absolute zero microsecond jitter. 
-*   **Virtualization (vSphere/Nutanix):** Introduces a ~2% to 5% performance overhead (the Hypervisor tax). However, it provides massive operational benefits: live migration, snapshotting, and strict compliance integration. Perfect for Inference and single-node fine-tuning.
+### Troubleshooting GPU Access Failures
 
-*Architectural Rule:* Never run a 500-GPU distributed training job inside Virtual Machines. The hypervisor network translation overhead will destroy the `AllReduce` synchronization rings. Use bare metal for massive training; use virtualization for everything else.
+➕ **Diagnostic order for "GPU not visible in container":**
 
-## Customer Scenario (Senior Level)
+```bash
+# Layer 1: Physical GPU exists and is in hypervisor
+lspci | grep -i nvidia
+# Expected: 17:00.0 3D controller: NVIDIA Corporation ...
+# If not found: hardware/firmware issue
 
-**The Situation:**
-A bank's IT department is tasked with building an internal AI platform. They decide to deploy Kubernetes on top of their existing VMware vSphere cluster. They provision 10 massive VMs and assign a full physical A100 GPU to each VM using VMware PCIe DirectPath I/O (Passthrough). Everything works perfectly. 
-Three months later, a critical security vulnerability is found in the ESXi hypervisor. The IT team initiates an automated rolling upgrade across the physical servers. The cluster crashes completely. The AI team loses 3 days of work because the VMs refused to migrate to healthy servers during the patching process. 
+# Layer 2: Host driver can access GPU
+nvidia-smi  # On hypervisor or node OS
+# Expected: lists GPU(s)
+# If "command not found": driver not installed
+# If "no devices": driver installed but GPU not recognized
 
-**The Senior Architect Response:**
-"The architecture failed because the engineering team chose a hardware assignment method that fundamentally broke the hypervisor's high-availability control plane.
+# Layer 3: GPU is accessible to guest VM (if vSphere)
+# Inside VM, check vGPU device:
+lspci | grep -i nvidia
+# If vGPU: should see "Processing accelerators: NVIDIA Corporation ..."
+# If bare GPU: should see "3D controller: NVIDIA Corporation ..."
 
-By using **PCIe DirectPath I/O (Passthrough)**, you physically locked the state of the Virtual Machine to the physical silicon of that specific server motherboard. When the IT team attempted to patch the ESXi host, VMware vMotion attempted to live-migrate the VM to a healthy server. vMotion failed because it cannot migrate a VM that is hard-pinned to a physical PCIe device. The host was forced to hard-shutdown the VMs to patch itself, causing the catastrophic AI cluster outage.
+# Layer 4: Container runtime can see host GPU
+# On node:
+nvidia-smi  # ✓ Works
+grep -i nvidia /proc/modules  # nvidia.ko should be loaded
+ls -la /dev/nvidia*  # /dev/nvidia0, /dev/nvidiactl should exist
 
-To integrate AI securely into an enterprise VMware environment without destroying high availability, we must migrate off Passthrough and purchase **NVIDIA AI Enterprise (NVAIE) vGPU licenses**. 
+# Layer 5: GPU Operator is running
+kubectl get pods -n gpu-operator | grep -i device-plugin
+# Expected: Running
 
-We will install the NVIDIA vGPU Manager at the ESXi level. Instead of passing through the raw PCIe device, we will assign a **vGPU Profile** (even a full-card profile) to the VMs. Because vGPU abstracts the hardware, it fully supports VMware vMotion. The next time the IT team patches the hypervisor, vSphere will seamlessly live-migrate the running AI workloads to another server with zero downtime, preserving the data scientists' work and satisfying IT security compliance."
+# Layer 6: Kubernetes device plugin advertised GPU
+kubectl describe node <node> | grep nvidia.com/gpu
+# Expected: nvidia.com/gpu: 1 (or however many)
 
-## Interview Preparation
+# Layer 7: Pod can request GPU
+kubectl run test --image=nvidia/cuda:12.4.1-runtime-ubuntu22.04 \
+  --limits="nvidia.com/gpu=1" -- nvidia-smi
+# Pod should enter Running state and show GPU
 
-**Conceptual:** What is the primary operational benefit of running an AI Kubernetes cluster on top of VMware vSphere instead of bare metal? *(Hint: Virtualization provides enterprise-grade infrastructure management features that bare metal lacks, such as VM snapshotting, centralized backups, and the ability to live-migrate running workloads (vMotion) between physical servers to perform zero-downtime hardware maintenance).*
+# If stuck at any layer, check logs:
+kubectl logs -n gpu-operator -l app=nvidia-device-plugin --tail=50
+# Look for "advertised devices", "failed to load", etc.
+```
 
-**Architecture:** Why does deploying the NVIDIA GPU Operator on Red Hat OpenShift require specialized configurations compared to standard vanilla Kubernetes? *(Hint: OpenShift enforces incredibly strict, default-deny security policies (Security Context Constraints or SCCs). The GPU Operator requires highly privileged containers to compile and load kernel drivers. An architect must use the certified OpenShift-specific operator from OperatorHub to automatically negotiate and grant these complex security permissions without breaking the cluster's compliance posture).*
+## Network and Storage in Multi-Architecture Setups
+
+| Component | Bare-metal K8s | K8s on vSphere | VM-only |
+|---|---|---|---|
+| Model cache | Host path (fast) or NFS | vSphere NFS/block storage (shared) | VM virtual disk or NFS |
+| Model download speed | Direct to NGC (fast) | Through vSphere network (slower) | Through vSphere network |
+| Pod-to-pod communication | Direct (fast) | VM → hypervisor (slight overhead) | N/A |
+| Backup/rollback | Via K8s snapshots | Via vSphere VM snapshots | Via vSphere VM snapshots |
+
+## Production Checklist
+
+✅ **Before deploying NVIDIA AI Enterprise:**
+
+- [ ] GPU type and quantity is the same on all nodes (no heterogeneity)
+- [ ] Driver version is the same across all nodes (coordinated updates, not per-VM)
+- [ ] If using vGPU, all VMs have same vGPU profile
+- [ ] Model cache storage is persistent and fast (not ephemeral local storage)
+- [ ] Network policy allows pod → NGC API communication
+- [ ] Identity (service accounts or VM identity) is configured for entitlement token access
+- [ ] Kubernetes version is compatible with GPU Operator version (check matrix)
+- [ ] Test GPU allocation: `kubectl run test --image=nvidia/cuda:12.4.1-runtime --limits="nvidia.com/gpu=1"`
+- [ ] Upgrade path is documented (GPU Operator updates, K8s version sync)

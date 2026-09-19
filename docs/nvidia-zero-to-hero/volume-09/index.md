@@ -1,6 +1,7 @@
 ---
 title: Volume 09 — Ethernet for AI
 description: Design, validate, and operate Ethernet fabrics for loss-sensitive RDMA and distributed GPU workloads.
+slug: /nvidia-zero-to-hero/volume-09/index
 sidebar_position: 1
 tags:
   - ethernet
@@ -18,7 +19,7 @@ It does not promise that one feature makes Ethernet "lossless" or that a success
 |---|---|
 | Difficulty | Advanced |
 | Estimated reading time | 16–20 hours, plus labs |
-| Prerequisites | Volume 07 — GPU Networking and Volume 08 — InfiniBand |
+| Prerequisites | [Volume 07 — GPU Networking](../volume-07/index) and [Volume 08 — InfiniBand](../volume-08/index) |
 | Primary focus | RoCE-capable Ethernet for distributed AI workloads |
 | Outcome | Design, qualify, operate, and troubleshoot an evidence-backed AI Ethernet fabric |
 
@@ -75,27 +76,27 @@ The labs are designed as controlled observation and validation exercises. They i
 
 | Chapter | Question it answers | Primary boundary |
 |---|---|---|
-| 01 — Why Ethernet for AI Is Different | Why can a healthy Ethernet fabric still impede distributed AI? | Workload and congestion behavior |
-| 02 — Ethernet Architecture for AI | What is the end-to-end system to design? | Fabric, control, and management planes |
-| 03 — RoCEv2 and RDMA over Ethernet | How does a remote-memory operation travel over Ethernet? | Endpoint and transport path |
-| 04 — Priority Flow Control | What does PFC protect, and how can it hurt? | Hop-local queue protection |
-| 05 — ECN and DCQCN | How does congestion feedback reduce offered load? | Marking and sender response |
-| 06 — Data Center Bridging and QoS | How is traffic classification kept coherent end to end? | Policy and queue mapping |
-| 07 — Spectrum Switches for AI | What must the switching layer prove operationally? | Switching, telemetry, lifecycle |
-| 08 — ConnectX Ethernet Adapters | What endpoint conditions determine usable RoCE behavior? | NIC, host, and locality |
-| 09 — BlueField DPUs and DOCA | When does infrastructure offload add value? | DPU ownership and services |
-| 10 — Fabric Validation and Capacity Planning | How is readiness measured under load and failure? | Qualification and capacity |
-| 11 — Production Troubleshooting | How is a stall investigated without team ping-pong? | Evidence and recovery |
-| 12 — Volume 09 Summary | How do the decisions form one operating model? | Synthesis and revision |
+| [01 — Why Ethernet for AI Is Different](./chapter-01-why-ethernet-for-ai-is-different) | Why can a healthy Ethernet fabric still impede distributed AI? | Workload and congestion behavior |
+| [02 — Ethernet Architecture for AI](./chapter-02-ethernet-architecture-for-ai) | What is the end-to-end system to design? | Fabric, control, and management planes |
+| [03 — RoCEv2 and RDMA over Ethernet](./chapter-03-rocev2-and-rdma-over-ethernet) | How does a remote-memory operation travel over Ethernet? | Endpoint and transport path |
+| [04 — Priority Flow Control](./chapter-04-priority-flow-control) | What does PFC protect, and how can it hurt? | Hop-local queue protection |
+| [05 — ECN and DCQCN](./chapter-05-ecn-and-dcqcn) | How does congestion feedback reduce offered load? | Marking and sender response |
+| [06 — Data Center Bridging and QoS](./chapter-06-data-center-bridging-and-qos) | How is traffic classification kept coherent end to end? | Policy and queue mapping |
+| [07 — Spectrum Switches for AI](./chapter-07-spectrum-switches-for-ai) | What must the switching layer prove operationally? | Switching, telemetry, lifecycle |
+| [08 — ConnectX Ethernet Adapters](./chapter-08-connectx-ethernet-adapters) | What endpoint conditions determine usable RoCE behavior? | NIC, host, and locality |
+| [09 — BlueField DPUs and DOCA](./chapter-09-bluefield-dpus-and-doca) | When does infrastructure offload add value? | DPU ownership and services |
+| [10 — Fabric Validation and Capacity Planning](./chapter-10-fabric-validation-and-capacity-planning) | How is readiness measured under load and failure? | Qualification and capacity |
+| [11 — Production Troubleshooting](./chapter-11-production-troubleshooting) | How is a stall investigated without team ping-pong? | Evidence and recovery |
+| [12 — Volume 09 Summary](./chapter-12-volume-09-summary) | How do the decisions form one operating model? | Synthesis and revision |
 
 ## Lab Map
 
 | Lab | Outcome |
 |---|---|
-| 01 — Inventory an AI Ethernet Path | Produce a scoped endpoint-to-fabric evidence record. |
-| 02 — Validate RoCE Addressing and MTU | Verify path assumptions without changing network policy. |
-| 03 — Observe PFC and ECN Under Load | Observe bounded, approved congestion behavior on an isolated path. |
-| 04 — Troubleshoot a RoCE Path | Apply a reversible, layer-by-layer diagnostic method. |
+| [01 — Inventory an AI Ethernet Path](./labs/lab-01-inventory-an-ai-ethernet-path) | Produce a scoped endpoint-to-fabric evidence record. |
+| [02 — Validate RoCE Addressing and MTU](./labs/lab-02-validate-roce-addressing-and-mtu) | Verify path assumptions without changing network policy. |
+| [03 — Observe PFC and ECN Under Load](./labs/lab-03-observe-pfc-and-ecn-under-load) | Observe bounded, approved congestion behavior on an isolated path. |
+| [04 — Troubleshoot a RoCE Path](./labs/lab-04-troubleshoot-a-roce-path) | Apply a reversible, layer-by-layer diagnostic method. |
 
 ## Production Principles
 
@@ -123,4 +124,4 @@ Before accepting a new rack or rail, confirm that the team can show:
 - [RFC 3168 — The Addition of ECN to IP](https://www.rfc-editor.org/rfc/rfc3168.html)
 - [IEEE 802.1Qbb overview](https://1.ieee802.org/dcb/802-1qbb/)
 
-Proceed to Chapter 01 — Why Ethernet for AI Is Different.
+Proceed to [Chapter 01 — Why Ethernet for AI Is Different](./chapter-01-why-ethernet-for-ai-is-different).

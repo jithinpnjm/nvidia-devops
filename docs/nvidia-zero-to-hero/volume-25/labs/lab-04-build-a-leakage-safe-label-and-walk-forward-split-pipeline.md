@@ -146,4 +146,4 @@ No persistent state created by this lab beyond local test files — no cleanup r
 - Why must label computation happen per session/day rather than over the whole continuous series?
 
 ## 18. Additional References
-- Chapter 06 — Building Leakage-Safe Training Datasets for Time-Series ML
+- [Chapter 06 — Building Leakage-Safe Training Datasets for Time-Series ML](../chapter-06-building-leakage-safe-training-datasets-for-time-series-ml.md)

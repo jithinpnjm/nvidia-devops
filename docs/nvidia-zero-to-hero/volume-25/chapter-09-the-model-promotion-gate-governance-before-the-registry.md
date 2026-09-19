@@ -166,6 +166,6 @@ In production, only a configuration that has passed every check gets `mlflow.reg
 
 ## Related Chapters
 
-- **Previous:** Chapter 8 — Scaling to Multi-Node Distributed Training
-- **Next:** Chapter 10 — End-to-End Case Study
-- **Related:** Chapter 1 — Why MLOps — the failure mode this chapter's gate directly prevents
+- **Previous:** [Chapter 8 — Scaling to Multi-Node Distributed Training](./chapter-08-scaling-to-multi-node-distributed-training.md)
+- **Next:** [Chapter 10 — End-to-End Case Study](./chapter-10-end-to-end-case-study-banknifty-big-move-prediction-pipeline.md)
+- **Related:** [Chapter 1 — Why MLOps](./chapter-01-why-mlops-the-cost-of-ungoverned-ml.md) — the failure mode this chapter's gate directly prevents

@@ -1,5 +1,6 @@
 ---
 title: "Lab 4 - Troubleshooting Challenge: Multi-Fault Scenario Diagnosis"
+slug: "lab-4-troubleshooting-challenge-multi-fault"
 sidebar_position: 4
 description: "Lab 4 - Diagnose a production incident with two simultaneous, unrelated faults layered together — the capstone challenge for this volume."
 ---

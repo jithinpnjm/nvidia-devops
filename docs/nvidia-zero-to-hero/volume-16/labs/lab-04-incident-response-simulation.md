@@ -1,5 +1,6 @@
 ---
 title: "Lab 04 — Incident Response Simulation"
+slug: lab-04-incident-response-simulation
 sidebar_position: 4
 description: "Hands-on: Simulate GPU failures and diagnose them using observability tools and runbooks."
 tags: [gpu, observability, incident-response, troubleshooting, lab, hands-on]

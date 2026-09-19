@@ -1,94 +1,345 @@
 ---
-title: "Chapter 3 — MIG Profiles and Placement"
-sidebar_position: 3
-description: "Master the mathematics of MIG partitioning. Learn how to configure Compute Instances and GPU Instances for optimal Kubernetes scheduling."
+title: Chapter 03 — MIG Profiles and Placement
+description: Plan supported profile layouts as fleet inventory, not as arbitrary fractions.
+sidebar_position: 4
+tags: [mig, capacity-planning, scheduling]
 ---
 
-# Chapter 3 — MIG Profiles and Placement
+# MIG Profiles and Placement
 
-| Chapter metadata | Value |
-|---|---|
-| Volume | 11 — GPU Sharing, MIG, and Virtualization |
-| Difficulty | Expert |
-| Estimated reading time | 35 minutes |
-| Primary audience | Kubernetes Administrators, Infrastructure Planners |
-| Core question | How do you actually slice an 80GB GPU into 7 pieces, and how do you teach Kubernetes to understand the difference between the slices? |
+A MIG profile is a capacity promise with a physical geometry. It is not a percentage slider. The profile encodes a GPU-specific allocation of compute and memory resources; the available combinations and placements come from the driver for the actual device. A platform that ignores placement can report plenty of free capacity and still be unable to create the requested shape.
 
-## Introduction
+## Learning objectives
 
-In Chapter 2, we learned *why* MIG exists. In this chapter, we learn exactly *how* to configure it. 
+You will be able to size a profile from an observed workload envelope, recognize fragmentation, choose between standardized and dynamic layouts, and troubleshoot a profile request that cannot be placed.
 
-You cannot arbitrarily slice a GPU into any size you want (e.g., you cannot ask for a 13GB slice). The silicon is divided into rigid mathematical fractions. A Senior Architect must understand the naming conventions, the difference between a GPU Instance (GI) and a Compute Instance (CI), and how the GPU Operator exposes these slices to Kubernetes.
+| Prerequisites | Difficulty | Reading time |
+|---|---:|---:|
+| Chapters 01–02 | Advanced | 50 minutes |
 
-## 1. The MIG Naming Convention
+## From model to profile
 
-MIG slices are defined by profiles. 
-The naming convention is strictly: `<Compute_Instances>g.<Memory_in_GB>gb`.
-
-For an 80GB H100, the available profiles include:
-*   `1g.10gb`: 1/7th of the compute, 10GB of VRAM (Maximum 7 per GPU).
-*   `2g.20gb`: 2/7ths of the compute, 20GB of VRAM (Maximum 3 per GPU).
-*   `3g.40gb`: 3/7ths of the compute, 40GB of VRAM (Maximum 2 per GPU).
-*   `7g.80gb`: The full GPU (Effectively disabling MIG partitioning).
-
-*Note:* You can mix and match profiles on a single GPU, as long as they fit within the physical limits of the silicon (e.g., you can have one `3g.40gb`, one `2g.20gb`, and two `1g.10gb` slices on a single 80GB card).
-
-## 2. GPU Instances (GI) vs. Compute Instances (CI)
-
-This is a critical distinction that trips up junior engineers.
-
-1.  **GPU Instance (GI):** This is the physical partition of the Memory, L2 Cache, and Memory Bandwidth. 
-2.  **Compute Instance (CI):** This is a subdivision of the GI's Streaming Multiprocessors (SMs).
-
-By default, an instance like `2g.20gb` means 1 GI (20GB memory) and 1 CI (2 compute blocks). 
-However, you can take a large memory slice (like a `4g.40gb` GI) and subdivide its compute cores into multiple CIs (e.g., four `1c` Compute Instances). This is highly advanced and rarely used unless a specific workload requires massive memory but very little compute. In 99% of Kubernetes deployments, GI and CI map 1:1.
-
-## 3. Configuring MIG in Kubernetes
-
-How do we tell Kubernetes to slice the GPU? We use the **NVIDIA GPU Operator**. 
-
-You do not SSH into the node and run `nvidia-smi mig` manually. You define a ConfigMap in Kubernetes that lists your desired profiles, and you label the node.
-
-**Step 1: The ConfigMap**
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: default-mig-parted-config
-data:
-  config.yaml: |
-    version: v1
-    mig-configs:
-      all-1g.10gb: # Profile name
-        - devices: all
-          mig-enabled: true
-          mig-devices:
-            "1g.10gb": 7 # Slice the GPU into seven 10GB pieces
+```mermaid
+flowchart LR
+    W[Workload measurement] --> A[Weights, runtime, activation/KV/cache headroom]
+    A --> S[Latency and concurrency target]
+    S --> P[Supported profile candidates]
+    P --> G[Placement-valid node layout]
+    G --> I[Advertised inventory and quota]
+    I --> V[Validation load test]
 ```
 
-**Step 2: The Node Label**
-You label the node: `kubectl label node my-node nvidia.com/mig.config=all-1g.10gb`.
-The GPU Operator's `mig-manager` daemonset sees this label, safely drains the node, physically reconfigures the silicon via NVML, restarts the Device Plugin, and uncordons the node.
+**Figure 11.3.1 — Size from evidence, then test on an available geometry.** Model weights alone are not a production memory budget. Include framework allocation, temporary buffers, request-dependent state, and operational headroom.
 
-**Step 3: The Result**
-Instead of the node advertising `nvidia.com/gpu: 1`, it now advertises `nvidia.com/mig-1g.10gb: 7`.
+## Read the driver, not a diagram
 
-## Customer Scenario (Senior Level)
+Use the installed driver to list GPU-instance profiles and placements. Names such as `1g` and `3g` are device-generation-specific labels, not portable service tiers. NVIDIA’s MIG guide explicitly documents that profiles and placements are returned by the driver and that the order of certain profile combinations can matter.
 
-**The Situation:**
-A team deploys an LLM inference service using vLLM. The model requires 35GB of VRAM. The platform team partitioned their A100-80GB nodes into seven `1g.10gb` MIG slices to maximize the number of available pods. The data scientists submit their Pod YAML requesting `nvidia.com/mig-1g.10gb: 4` (hoping to combine four 10GB slices to get 40GB total). The Pod schedules, but crashes immediately with an Out of Memory (OOM) error.
+The safe workflow is:
 
-**The Senior Architect Response:**
-"You have fundamentally misunderstood the hardware isolation properties of MIG. 
+1. record the GPU SKU, driver, and current layout;
+2. list supported profiles and the placement information on a representative node;
+3. select a short, approved set of layouts per node pool;
+4. test model load, representative concurrency, and failure recovery; and
+5. advertise only inventory the scheduler can actually satisfy.
 
-MIG instances are physically isolated PCIe devices at the hardware level. MIG Instance 0 cannot read the memory of MIG Instance 1. Furthermore, MIG physically disables the NVLink and P2P (Peer-to-Peer) PCIe bridges between the slices. 
+## Fragmentation is geometric
 
-When you assign four `1g.10gb` slices to a single container, you are not giving the container a single 40GB pool of memory. You are giving it four tiny, isolated 10GB islands. An LLM inference engine cannot automatically span its model weights across four disconnected islands without explicit, complex multi-GPU tensor-parallel coding (which vLLM will refuse to do over PCIe without NVLink). 
+| Situation | Arithmetic view | Physical result | Operational response |
+|---|---|---|---|
+| several small instances exist | “enough free fractions” | requested larger profile cannot fit | route to compatible pool or reconfigure during a drain |
+| mixed node layouts | same total slice count | inconsistent resource inventory | standardize layouts or label pools precisely |
+| profile just fits model | zero apparent spare memory | runtime bursts cause failures | add measured headroom or select a larger class |
+| dynamic reshaping | maximum theoretical packing | availability interrupted by lifecycle work | use only with an approved drain/rollback path |
 
-To fix this, we must resize the MIG partitions at the hardware layer. We must apply a new MIG ConfigMap to the node, destroying the seven `1g.10gb` slices and replacing them with a `3g.40gb` slice (which provides a single, contiguous 40GB block of VRAM) and maybe a few smaller slices. The data science pod must then be updated to request `nvidia.com/mig-3g.40gb: 1`."
+Think of a parking garage, not a bucket of water: available spaces need the right size and position. This is why standardized layouts often outperform a constantly optimized fleet in real operations.
 
-## Interview Preparation
+## Design patterns
 
-**Conceptual:** What does the MIG profile `3g.40gb` signify on an H100 GPU? *(Hint: It signifies a hardware partition containing roughly 3/7ths of the compute capacity (Streaming Multiprocessors) and 40 Gigabytes of dedicated, physically isolated VRAM and L2 Cache).*
+**Static profile pools.** Assign a small profile family to dedicated node pools: for example, a tested small-serving shape, a medium-serving shape, and whole-GPU nodes. This makes quota, capacity reporting, and incident triage legible.
 
-**Architecture:** Why can't a single application simply request multiple small MIG slices to satisfy a large memory requirement? *(Hint: MIG enforces strict hardware isolation. The slices cannot share memory, and Peer-to-Peer (P2P) communication (like NVLink) is disabled between slices. A model that requires 30GB of VRAM must be assigned a single MIG slice that is 30GB or larger; it cannot span across three 10GB slices).*
+**Reserved large-profile pool.** Keep a limited number of nodes in a layout that can accept an important large workload. The apparent unused capacity is an availability decision, not waste.
+
+**Canary reconfiguration pool.** If business demand requires layout changes, test the exact sequence and restore path on a dedicated canary before moving a production node. Never let an arbitrary user request trigger a node-level reconfiguration.
+
+## Profile-sizing worksheet
+
+Use a worksheet that preserves measurement context. Avoid turning it into a universal profile table because available shapes vary by GPU model.
+
+| Input | Capture | Decision use |
+|---|---|---|
+| GPU SKU and driver | exact installed identity | select the valid profile catalog |
+| Model/runtime version | immutable artifact reference | reproduce memory behavior |
+| Peak input and batch shape | production-like request envelope | bound dynamic allocations |
+| Warm and cold memory high-water mark | measured values, not estimates | determine headroom |
+| Concurrency target | active rather than requested clients | test stability |
+| p95/p99 objective | agreed service target | reject profiles that only load |
+| Failure behavior | OOM, restart, queue, fallback | define operational response |
+
+If inputs are unknown, assign the workload to a discovery or dedicated pool until measurement is complete. A profile that “barely fits” creates a fragile service because ordinary cache growth, batching, and framework upgrades turn the margins into incidents.
+
+## Inventory reporting pattern
+
+Report capacity in two views. The tenant view states allocatable resource counts by profile and region/pool. The operator view also shows physical GPUs, active layouts, fragmentation, reserved headroom, nodes draining, and nodes excluded by health. Both views are needed: the first supports requests; the second predicts whether a request can be fulfilled without a disruptive reconfiguration.
+
+When a pool is intentionally reserved for a larger profile, label it as reserved capacity. Hiding it as “idle” encourages emergency repacking and makes availability look like inefficiency.
+
+## Placement strategy and scheduler strategy are different
+
+Placement is a hardware/driver property: it determines which GI shapes can coexist on a particular GPU. Scheduling is a control-plane property: it chooses a node from the resources advertised to Kubernetes. A scheduler cannot create a missing placement. Conversely, a valid physical layout may be invisible if the device plugin, resource strategy, labels, or node readiness are wrong.
+
+| Layer | Question | Failure evidence |
+|---|---|---|
+| Hardware layout | can this profile coexist with active instances? | GI placement listing rejects or lacks the shape |
+| Node configuration | is the desired layout applied consistently? | peers advertise different inventory |
+| Device plugin | is the inventory discovered and exposed? | no allocatable extended resource |
+| Kubernetes scheduling | can an eligible pod select the node? | Pending event cites resources/taints/affinity |
+| Service admission | should this workload consume the profile? | quota/policy or SLO policy blocks it |
+
+This separation makes incidents faster to diagnose: first ask which layer cannot satisfy the request, then collect evidence for that layer.
+
+## Capacity planning example without invented numbers
+
+Do not use a universal “models per GPU” conversion. Instead, model each service class as a demand vector: required profile type, replicas per service instance, expected concurrent-active percentage, planned headroom, and recovery reserve. Sum demand by profile, then compare it with allocatable profile inventory by node pool. Keep an explicit reserve for failed nodes, maintenance, and large-profile requests.
+
+For a new workload, run three tests: cold start, steady state, and concurrent peak. Record memory high-water marks and service objectives for all three. A profile that passes only cold start is not capacity; it is a deployment experiment.
+
+**Concrete sizing example:**
+
+A customer runs three model-serving workloads on H100s. Measure each:
+
+1. **Embedding model (inference only, bursty):** Cold-start memory 2GB, steady 3GB, peak (100 concurrent requests) 4.2GB. Latency p99 must stay under 50ms. Fits in a 1g.10gb profile with 5.8GB headroom.
+
+2. **Small LLM (chat, streaming tokens):** Weights 7GB + KV cache (varies with sequence length). Cold start 8GB, steady 8.5GB, peak (50 concurrent sequences, 2k context) 10.2GB. P99 latency 200ms. Does NOT fit in 1g.10gb (would need 3g.40gb with 29.8GB headroom for safety).
+
+3. **Batch inference job (offline, throughput-oriented):** Batch size 32, memory 18GB steady. Can tolerate queueing. Needs whole GPU or large profile.
+
+Now assign profiles and calculate reserve:
+
+```text
+Service            | Profile         | Instances per node | Headroom      | Failure blast radius
+Embedding          | 1g.10gb         | 4 on node           | 5.8GB/inst.   | one embedding pod
+Chat LLM           | 3g.40gb         | 1 on node           | 29.8GB        | one LLM pod (HA via replicas on separate nodes)
+Batch              | 7g.80gb (whole) | 1 per node          | N/A           | one batch job
+
+H100 capacity: 80GB memory, 7 MIG compute slices (the physical partition tree, not "14 SMs")
+
+Rejected layout: 7×(1g.10gb) + 2×(3g.40gb)
+  compute slices: 7×1 + 2×3 = 13 (> 7 available) ❌
+  memory:         7×10GB + 2×40GB = 150GB (> 80GB physical) ❌
+  → oversubscribed on both dimensions, physically impossible
+
+Accepted layout: 4×(1g.10gb) + 1×(3g.40gb)
+  compute slices: 4×1 + 1×3 = 7 (of 7 available) ✓
+  memory:         4×10GB + 1×40GB = 80GB (of 80GB physical) ✓
+  → matches NVIDIA's published simultaneous-placement table for H100 80GB
+    (one 3g.40gb instance shares the partition tree cleanly with four 1g.10gb
+    instances; there is no spare compute slice or memory slot left over)
+
+But: reserve nodes for batch jobs and maintenance
+
+Decision:
+- 20 H100 nodes in time-sharing pool (4×embedding + 1×chat LLM each, 80GB packed;
+  chat LLM HA comes from running replicas on multiple nodes, not multiple
+  instances on one node — a single H100 has no room for a second 3g.40gb once
+  four 1g.10gb instances are placed)
+- 4 H100 nodes reserved (whole-GPU batch, maintenance rotation, spare for cluster health)
+- 24 total H100s for this service
+```
+
+This is not a “3 models per GPU” formula. It's evidence-based: measured memory at the workload's actual concurrency, chosen profiles with headroom, and a deliberate reserve calculation.
+
+## Day-two operations
+
+Profile pools need lifecycle ownership. Inventory drift, driver changes, node replacement, and a new model version can invalidate an earlier profile decision. Review the following at a regular cadence:
+
+- profile demand versus allocatable inventory;
+- pending time by requested profile and node pool;
+- fragmentation and reserve consumption;
+- model/runtime version changes that affect memory;
+- drain duration and success rate for planned layout changes; and
+- discrepancies between billing allocation, scheduler allocation, and actual service demand.
+
+The goal is not to maximize instantaneous packing. It is to avoid surprise reconfiguration during a customer incident.
+
+## Troubleshooting scenario 3: inventory varies among identical nodes
+
+**Symptoms:** identical-looking nodes advertise different profile resources; a deployment succeeds on only some nodes.
+
+**Evidence:** compare GPU SKU, driver version, MIG layout, node image, device-plugin configuration, labels, taints, and recent change history.
+
+**Diagnosis:** the fleet is not actually homogeneous, or configuration drift produced different geometry.
+
+**Resolution:** remove inconsistent nodes from the eligible pool until they are converged through the managed lifecycle. Do not broaden a pod selector to hide the drift.
+
+**Prevention:** validate inventory as part of node provisioning and expose drift in fleet dashboards.
+
+## Troubleshooting scenario 4: reconfiguration consumes the recovery reserve
+
+**Symptoms:** a planned profile change completes, but a subsequent node failure leaves no capacity for protected workloads.
+
+**Diagnosis:** the plan optimized packing without reserving enough compatible profile inventory for maintenance and failure.
+
+**Resolution:** stop noncritical admissions, restore or add compatible reserve capacity, and communicate the reduced service tier. Capture the planner assumptions for review.
+
+**Prevention:** calculate reserve by profile and failure domain, not by total free GPU memory.
+
+## Production story: the impossible “free” capacity
+
+A platform sold a medium profile as available because the sum of unallocated memory across a node exceeded the profile’s memory. The request stayed pending. The node had been filled with small instances in a placement that could not form the requested GI. Operators tried rescheduling repeatedly and made the capacity report worse.
+
+They fixed it by reporting capacity by **allocatable profile and node pool**, not by aggregate free memory. A reserve pool supplied the urgent workload; later, a planned drain returned a node to the desired standard layout.
+
+## Troubleshooting scenario 1: profile policy exists, pod remains Pending
+
+**Symptoms:** a deployment requests a documented MIG resource and has no eligible node.
+
+**Evidence:** inspect the pod event, exact extended resource name, node allocatable resources, labels/taints, namespace quota, current GI/CI layout, and the platform’s intended pool layout.
+
+**Diagnosis:** common causes are a resource-name mismatch, a node that has a different layout than policy assumes, exhausted quota, or physical fragmentation.
+
+**Resolution:** correct the request or route it to a compatible pool. Reconfigure only through the approved maintenance workflow; do not delete production instances opportunistically.
+
+## Troubleshooting scenario 2: model loads in test but fails under production traffic
+
+**Symptoms:** initialization succeeds, then requests fail with memory errors or severe latency instability.
+
+**Diagnosis:** profile sizing used static model weights but omitted runtime allocations, activations, cache growth, batching effects, or concurrent request state.
+
+**Resolution:** reproduce with recorded traffic shape, cap concurrency, reserve headroom, and move to a validated larger profile if needed.
+
+**Prevention:** publish the load-test envelope and maximum supported concurrency with every service tier.
+
+## Customer architecture discussion
+
+Customers often ask for arbitrary fractions because their cost model starts at the accelerator price. The more useful offer is a small menu of measured service classes with stated memory envelopes, latency expectations, and lead time for reconfiguration. It is easier to buy, operate, and defend than a promise that every profile can appear instantly on every node.
+
+## Planning example: profile demand as a queueing problem
+
+Imagine three application classes, without assigning universal GPU sizes: an interactive class with short bursts, a sustained inference class with a measured profile, and an exceptional class that needs the largest available shape. The planner should not combine their memory estimates and call the result free capacity. It should maintain independent demand and reserve views for each compatible profile.
+
+| Class | Demand behavior | Inventory policy | Failure behavior |
+|---|---|---|---|
+| Interactive | bursty, delay-tolerant | bounded small-profile pool | queue or defer |
+| Sustained service | stable, SLO-bound | dedicated standard layout plus reserve | fail over or protect admission |
+| Exceptional request | infrequent, large | whole/large-profile reserve | scheduled lead time or approved change |
+
+This model forces an honest choice: either reserve compatible capacity, accept queueing, or automate a lifecycle change with a stated availability cost.
+
+## Release and upgrade effects
+
+A profile decision is invalidated by more than hardware changes. A new driver, CUDA runtime, serving engine, model quantization setting, batching policy, or observability agent can alter memory and throughput behavior. Treat these as a reason to repeat the workload envelope, especially before increasing density. A configuration that still lists the same profile may nevertheless no longer deliver the same service.
+
+| Change | Revalidate |
+|---|---|
+| driver or Operator update | discovery, scheduling, device visibility, node drift |
+| model/runtime update | cold/steady/peak memory and latency |
+| concurrency policy change | headroom and p95/p99 behavior |
+| node replacement | GPU SKU, driver, intended layout, labels |
+| capacity ratio change | compatible reserve and recovery time |
+
+## Customer decision narrative: reserve is a feature
+
+When finance sees an unused large-profile node, it may appear inefficient. Explain that it is the same kind of reserve as a spare database node or network path: it converts a high-impact reconfiguration into a placement decision. The decision record should quantify the protected service and state when the reserve can be borrowed. That makes capacity governance explicit rather than informal.
+
+## Revision aid
+
+- Profiles are GPU-specific hardware shapes, not portable fractions.
+- Placement determines which shapes can coexist.
+- Inventory must be reported by allocatable compatible profile.
+- Standardized layouts simplify scheduling, support, and recovery.
+- Headroom is measured under representative peak behavior.
+
+## Profile governance record
+
+Store each approved service profile with its evidence.
+
+| Record field | Reason |
+|---|---|
+| workload artifact/version | makes tests repeatable |
+| compatible GPU and driver | prevents false portability |
+| intended GI/CI profile | ties service to real inventory |
+| test input/concurrency | explains memory and latency result |
+| accepted SLO | distinguishes startup from service success |
+| reserve requirement | preserves recovery capacity |
+| change owner | makes reconfiguration accountable |
+
+## Decision questions
+
+1. Can the profile be placed with the active standard layout?
+2. Does the workload fit during cold start, steady state, and burst?
+3. Is compatible capacity available after one expected failure?
+4. Is the next larger service tier defined?
+5. Does the customer accept queueing instead of dynamic reconfiguration?
+
+## Placement review workflow
+
+Start by listing the actual profiles and placements on the target GPU.
+
+Do not begin from a profile name copied from another fleet.
+
+Compare the desired service shape with the current node layout.
+
+Check whether a compatible profile is allocatable now.
+
+Check whether the requested node is eligible by labels, taints, and quota.
+
+Check the compatible reserve after planned maintenance or one expected failure.
+
+Only then decide whether to schedule, queue, or reconfigure.
+
+If reconfiguration is selected, route through the change workflow in Chapter 02.
+
+## Operational anti-patterns
+
+Do not calculate capacity from total unused memory.
+
+Do not promise a profile that no node advertises.
+
+Do not treat a layout change as a pod-level adjustment.
+
+Do not size only from model artifact size.
+
+Do not borrow emergency reserve without recording the service impact.
+
+Do not mix layouts without exposing the difference to scheduling and support.
+
+## Interview exercise
+
+An application fits in a profile during startup but fails under peak traffic.
+
+Explain which measurements were missing.
+
+Explain how you would choose the next candidate profile.
+
+Explain why free aggregate memory does not resolve the request.
+
+Explain how the platform prevents a repeated incident.
+
+The answer should include measurement.
+
+It should include compatible inventory.
+
+It should include clear admission behavior.
+
+It should include a change-controlled recovery path.
+
+## Revision checklist and senior interview questions
+
+- Is the profile valid for the exact GPU and driver in the pool?
+- Was memory measured under representative concurrency and input shape?
+- Does inventory report allocatable compatible profiles rather than aggregate free memory?
+- Is compatible maintenance and failure reserve available?
+
+- Can the request be fulfilled without a disruptive layout change?
+
+1. Why is aggregate free memory not a MIG capacity metric?
+2. What evidence belongs in a profile-sizing decision?
+3. When does dynamic reconfiguration justify its operational cost?
+4. How do standardized layouts improve incident response?
+
+## Further reading
+
+- [NVIDIA MIG: getting started and profile placement](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/getting-started-with-mig.html)
+- [NVIDIA MIG supported GPUs](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/supported-gpus.html)
+- Next: [Time-Slicing and Oversubscription](./chapter-04-time-slicing-and-oversubscription)

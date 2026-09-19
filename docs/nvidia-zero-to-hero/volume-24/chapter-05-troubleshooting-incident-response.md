@@ -1,8 +1,3 @@
----
-title: "Project 5: Troubleshooting Incident Response"
-sidebar_position: 5
----
-
 # Project 5: Troubleshooting Incident Response
 
 | Project metadata | Value |

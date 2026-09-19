@@ -1,8 +1,3 @@
----
-title: "Project 12: Research Infrastructure Design"
-sidebar_position: 12
----
-
 # Project 12: Research Infrastructure Design
 
 | Project metadata | Value |

@@ -1,82 +1,344 @@
 ---
-title: "Chapter 8 — Common GPU Failure Modes and Detection"
+title: "Chapter 08 — Common GPU Failure Modes and Detection"
+slug: chapter-08-common-gpu-failure-modes-and-detection
 sidebar_position: 8
-description: "Diagnose hardware degradation. Learn how to interpret XID errors, ECC bit flips, and PCIe bus faults before they crash production."
+description: "Every GPU failure has a signature. Learn to read the telemetry and catch failures early."
+tags: [gpu, observability, troubleshooting, operations, failure-modes]
 ---
 
-# Chapter 8 — Common GPU Failure Modes and Detection
+# Chapter 08 — Common GPU Failure Modes and Detection
+
+GPU failures are not random. Each failure mode has a distinctive signature in metrics, logs, and traces. The key to operational confidence is recognizing those signatures early, before user-facing impact.
 
 | Chapter metadata | Value |
 |---|---|
-| Volume | 16 — GPU Observability, Profiling, and Diagnosis |
+| Volume | 16 — GPU Observability and Operational Health |
 | Difficulty | Advanced |
-| Estimated reading time | 30 minutes |
-| Primary audience | SREs, Data Center Operations |
-| Core question | When a neural network suddenly starts generating total garbage (NaNs), how do you prove it's a degraded memory chip and not a bad hyperparameter? |
+| Estimated reading time | 45 minutes |
+| Primary audience | Operations, SRE, cluster operators |
+| Core question | What does a failing GPU actually look like in the metrics? |
 
-## Introduction
+## Learning Objectives
 
-Hardware breaks. 
-At massive scale, GPUs run at maximum thermal capacity (TDP) for months on end. This sustained electrical and thermal stress inevitably degrades the silicon. 
+You will be able to:
+- Identify the metric signature of each common GPU failure
+- Detect failures before they crash the job (leading indicators)
+- Distinguish hardware failure from software bugs from misuse
+- Set alerts that catch failures while still giving time to intervene
+- Recover from transient failures without user impact
 
-A Senior SRE must distinguish between a software crash (bad code) and a hardware fault (dying silicon). 
-If you fail to diagnose a dying GPU, the Kubernetes scheduler will keep sending workloads to it. The workloads will silently fail, generating corrupted data (NaNs) or crashing the entire distributed training ring.
+## Failure Mode 1: GPU Thermal Throttling (Overheating)
 
-To manage this, you must master the **NVIDIA XID Error** framework and ECC memory metrics.
+**Signature:** Temperature rises above thermal limit (85°C for most NVIDIA data-center GPUs); clock rate drops; throughput falls.
 
-## 1. The XID Error Framework
+**Metrics Evidence:**
 
-When the NVIDIA driver detects a hardware or software fault, it generates an **XID Error**. 
-These errors are logged directly to the host operating system's kernel ring buffer. You must monitor `/var/log/syslog` or use `dmesg` to find them. 
+```text
+Alert trigger:
+  DCGM_FI_DEV_GPU_TEMP > 82°C for 5 min
+  AND
+  increase(DCGM_FI_DEV_THERMAL_VIOLATION[1h]) > 0
 
-*Architectural Mandate:* Your centralized logging system (Elasticsearch/Splunk) must have an alert configured for the regex `NVRM: Xid`. 
+Real output (failing):
+  Temperature: 85°C (at limit)
+  Clock rate: 1200 MHz (reduced from 1410 MHz nominal)
+  Utilization: Still 85% (GPU is working, but throttled)
+  Throughput: 70% of baseline (clock reduction scales throughput)
+```
 
-**Critical XID Codes to Memorize:**
-*   **XID 13 (Graphics Engine Exception):** Usually a software bug. A CUDA kernel did something illegal (like an out-of-bounds memory read). The application crashes, but the hardware is fine. 
-*   **XID 31 (Memory Page Fault):** The application tried to access VRAM it didn't allocate. Often caused by bad pointers in C++ code.
-*   **XID 48 (Double-Bit ECC Error):** **Hardware Failure.** The VRAM is physically degraded. The data is corrupted. The GPU must be taken out of production immediately.
-*   **XID 62/63 (Page Retirement):** The driver detected degraded memory pages and permanently disabled them. A warning sign of impending hardware failure.
-*   **XID 79 (Fallen off the bus):** **Hardware Failure.** The GPU completely stopped communicating over the PCIe bus. Usually caused by physical motherboard issues, bad power delivery, or extreme overheating. 
+**Root Causes:**
+1. Cooling system failed (fans not spinning, airflow blocked)
+2. Ambient temperature too high
+3. Power supply delivering unstable voltage (affects voltage regulator efficiency)
+4. GPU sitting in wrong slot (bad airflow)
 
-## 2. ECC Memory: Correctable vs. Uncorrectable
+**Detection Commands:**
 
-GPUs use Error Correcting Code (ECC) memory. Cosmic rays or silicon degradation can flip a 0 to a 1 in VRAM.
+```bash
+# Check fan speed
+nvidia-smi -q | grep "Fan Speed"
+# Output: 100% is normal; 0% means fan failure
 
-*   **Single-Bit Errors (SBE):** The ECC algorithm detects the flipped bit and fixes it on the fly. The application continues running flawlessly.
-    *   *SRE Action:* Monitor `DCGM_FI_DEV_ECC_SBE_VOL_TOTAL`. A few SBEs are normal. If a specific GPU sees thousands of SBEs a day, it is heavily degraded and should be scheduled for replacement.
-*   **Double-Bit Errors (DBE):** Two bits flipped simultaneously. The ECC algorithm can detect this, but it *cannot fix it*. The data is corrupt. 
-    *   *SRE Action:* The NVIDIA driver immediately throws an XID 48, hard-crashes the application using that memory, and poisons the VRAM page. The GPU must be replaced.
+# Check thermal throttle history
+nvidia-smi -q | grep -A2 "Thermal Slowdown"
+# Output: Thermal Slowdown: Active (GPU is throttling RIGHT NOW)
 
-## 3. PCIe and NVLink Link Downgrades
+# Check power efficiency (if power supply is bad)
+nvidia-smi -q | grep -A2 "Power Draw"
+# Output: Oscillating wildly = power supply instability
+```
 
-Sometimes a component doesn't die completely; it just degrades. 
+**Remediation:**
 
-If a PCIe slot is dusty, or an NVLink cable is bent, the hardware error correction will detect massive signal noise. To stabilize the connection, the hardware will automatically **downgrade the link speed**. 
-A PCIe Gen4 x16 link (64 GB/s) might silently negotiate down to a PCIe Gen3 x8 link (8 GB/s). 
+```bash
+# Immediate: reduce load to give cooling system time
+# (set job to lower batch size, or pause job)
 
-The cluster stays online. There are no crash logs. But the training job takes 8x longer. You must actively monitor `DCGM_FI_DEV_PCIE_LINK_WIDTH` and `GEN` to catch silent downgrades.
+# Investigation: 
+# 1. Check system temperature sensors
+cat /sys/class/thermal/*/temp
 
-## Customer Scenario (Senior Level)
+# 2. Check cooling system
+# SSH into node and physically inspect
+# - Fans spinning?
+# - Heatsink fins clean?
+# - Thermal paste intact?
 
-**The Situation:**
-A massive LLM training job crashes randomly on a 100-node cluster. The PyTorch logs simply say `CUDA error: uncorrectable NVLink error detected`. The data science team restarts the job, but it fails again 4 hours later. The SRE team checks the Grafana dashboards, but sees no massive heat spikes or power drops. They reboot the entire cluster. The job crashes again.
+# Long-term: Replace cooling, upgrade power supply, or move GPU
+```
 
-**The Senior Architect Response:**
-"Rebooting the cluster is 'hope-driven operations'. It resets the software state but does absolutely nothing to fix a physical hardware degradation.
+## Failure Mode 2: ECC Error Spike
 
-The PyTorch log indicates an uncorrectable NVLink error. This means data was physically corrupted while traveling between GPUs across the NVSwitch fabric. 
+**Signature:** Corrected ECC errors increasing over time (worn-out memory); or uncorrected ECC errors (data corruption risk).
 
-We must move past the application logs and interrogate the hardware layer. 
-We will query our centralized logging system (Elasticsearch) and filter the `dmesg` kernel logs across all 100 nodes for the string `NVRM: Xid`. 
+**Metrics Evidence:**
 
-We find that Node 42 recorded an **XID 74 (NVLink Error)** exactly 2 seconds before the PyTorch job crashed. 
+```text
+Alert trigger:
+  increase(DCGM_FI_DEV_ECC_SBE_VOL_TOTAL[1h]) > 100
+  OR
+  increase(DCGM_FI_DEV_ECC_DBE_VOL_TOTAL[1h]) > 0
 
-This proves that the physical NVLink connection on Node 42 is degraded—perhaps a damaged NVSwitch component on the HGX baseboard. 
+Real output (failing):
+  Corrected ECC errors: 245 in last hour (normal: 0-5)
+  Uncorrected ECC errors: 0 (still within tolerance, but trending up)
+  Prediction: At this rate, uncorrected errors coming in 1-2 weeks
+```
 
-Because we are running a tightly coupled distributed training job, a hardware failure on one specific link will poison the math and crash the entire 100-node collective. We will immediately cordon Node 42 in Kubernetes to remove it from the scheduling pool, allowing the training job to resume safely on the remaining 99 nodes while we initiate an RMA for the degraded hardware."
+**Root Causes:**
+1. GPU memory cells wearing out (radiation damage, voltage instability)
+2. Overclocking (GPU clocks or memory clocks pushed above safe limits)
+3. Temperature cycling (thermal stress on memory)
 
-## Interview Preparation
+**Detection Commands:**
 
-**Conceptual:** What is the difference between a Single-Bit ECC Error (SBE) and a Double-Bit ECC Error (DBE)? *(Hint: An SBE is a minor data corruption that the GPU hardware instantly detects and corrects on the fly without impacting the application. A DBE is a severe corruption that the hardware detects but cannot fix. It results in corrupted data, triggering an XID 48 error, and requires the OS to crash the application to prevent the spread of bad math).*
+```bash
+# Query ECC counters
+nvidia-smi -q -d ECC | grep -E "Corrected|Uncorrected"
 
-**Architecture:** Why must an SRE configure alerts for silent PCIe link downgrades? *(Hint: If a motherboard slot or GPU connector is physically degraded, the hardware will automatically downgrade the PCIe link speed (e.g., from Gen4 x16 to Gen3 x8) to maintain stability. The system will not crash, and no error logs will be generated, but the GPU's data bandwidth will be slashed by 75%, silently crippling the performance of the AI cluster).*
+# Real output:
+# ECC Errors (Corrected, per epoch)
+#   Volatile (this session): 0
+#   Aggregate (since boot): 145
+# ECC Errors (Uncorrected)
+#   Volatile: 0
+#   Aggregate: 0
+
+# Monitor ECC error rate over time
+for i in {1..60}; do
+  nvidia-smi -q -d ECC | grep -i "Uncorrected" | grep -v "0"
+  sleep 60
+done
+```
+
+**Remediation:**
+
+```bash
+# Immediate: if uncorrected errors appear, GPU must be drained and replaced
+# (workloads on this GPU will produce corrupted results)
+
+# 1. Check GPU clocks (did someone overclock?)
+nvidia-smi -q | grep "Max Clocks"
+
+# 2. Check temperature history
+# (was GPU unusually hot before errors appeared?)
+
+# Long-term: Replace GPU if ECC errors don't stop
+```
+
+## Failure Mode 3: GPU Fell Off the Bus (Hardware Disconnection)
+
+**Signature:** GPU disappears from `nvidia-smi` output or Xid error in kernel logs.
+
+**Metrics Evidence:**
+
+```text
+Alert trigger:
+  count(DCGM_FI_DEV_GPU_UTIL) drops below expected number
+  OR
+  dmesg shows: "Xid (PCI:xxxx:xx:xx.x): [error code]"
+
+Real output (failing):
+  $ nvidia-smi
+  ERROR: Failed to initialize NVML: Driver/library version mismatch
+
+  $ dmesg | tail -5
+  NVRM: Xid (PCI:0000:17:00.0): 79, GPU has fallen off the bus.
+  NVRM: GPU at PCI:0000:17:00.0 has fallen off the bus.
+  NVRM: The GPU encountered an unrecoverable error. Please reboot.
+```
+
+**Root Causes:**
+1. PCIe link error (electrical noise, bad cable, PCIe slot loose)
+2. Power delivery failure (GPU isn't getting power)
+3. GPU firmware crash
+
+**Detection Commands:**
+
+```bash
+# Check PCIe link status
+lspci -v | grep -E "Link|Status" | head -20
+
+# Real output (healthy):
+# LnkCap: Speed 16GT/s, Width x16
+# LnkSta: Speed 16GT/s, Width x16
+
+# Real output (degraded):
+# LnkSta: Speed 5GT/s, Width x1  ← DEGRADED LINK (x1 instead of x16)
+
+# Check for link down events
+journalctl -k | grep -i "link down\|pcie"
+
+# Check GPU power rails
+dmidecode | grep -i power  # if available on your system
+```
+
+**Remediation:**
+
+```bash
+# Immediate: Remove GPU from service (will not recover without hardware intervention)
+
+# 1. Check PCIe slot connections
+# 2. Check power connectors (are 6-pin or 8-pin power connectors seated firmly?)
+# 3. Check for BIOS errors or firmware corruption
+
+# Recovery:
+# 1. Reseat GPU in slot
+# 2. Reseat power connectors
+# 3. Flash latest GPU firmware
+# 4. If none of above work, GPU must be replaced
+```
+
+## Failure Mode 4: Memory Allocation Stall (Fragmentation or OOM)
+
+**Signature:** Job request memory, allocation takes seconds or minutes; job appears hung.
+
+**Metrics Evidence:**
+
+```text
+Alert trigger:
+  DCGM_FI_DEV_FB_USED > 95% for sustained period
+  AND
+  allocation latency > 100ms (visible in application logs)
+
+Real output (failing):
+  $ python train.py
+  ... training runs fine ...
+  Step 1000: allocation_time=120ms (normal: 1ms)
+  Step 1001: allocation_time=800ms
+  Step 1002: allocation_time=2300ms (2.3 seconds!)
+  Step 1003: [CUDA OUT OF MEMORY ERROR]
+```
+
+**Root Causes:**
+1. Memory fragmentation (allocated but not freed chunks scattered across HBM)
+2. Memory leak (application allocates and never frees)
+3. Batch size too large for GPU capacity
+
+**Detection Commands:**
+
+```python
+# In PyTorch, check fragmentation
+import torch
+print(f"GPU memory allocated: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
+print(f"GPU memory reserved: {torch.cuda.memory_reserved() / 1e9:.2f} GB")
+print(f"Fragmentation: {(torch.cuda.memory_reserved() - torch.cuda.memory_allocated()) / 1e9:.2f} GB")
+
+# Output (healthy):
+# allocated: 28.4 GB, reserved: 30.2 GB, fragmentation: 1.8 GB
+
+# Output (failing):
+# allocated: 28.4 GB, reserved: 39.8 GB, fragmentation: 11.4 GB (GPU memory is fragmented!)
+```
+
+**Remediation:**
+
+```bash
+# Immediate: restart job (memory is freed on restart)
+
+# 1. Check application logs for repeated allocation patterns
+# 2. Profile memory usage over time (is it rising steadily?)
+
+# Long-term:
+# 1. Clear caches between steps
+# 2. Use gradient checkpointing to reduce intermediate tensor size
+# 3. Reduce batch size if GPU cannot accommodate it
+```
+
+## Failure Mode 5: Straggler GPU (One GPU Much Slower Than Others)
+
+**Signature:** One GPU consistently shows lower utilization or throughput than peer GPUs on the same node.
+
+**Metrics Evidence:**
+
+```text
+Alert trigger:
+  max(DCGM_FI_DEV_GPU_UTIL by gpu) - min(...) > 30%  # More than 30% variation between GPUs
+
+Real output (failing):
+  GPU 0: 85% utilization, 1410 MHz
+  GPU 1: 85% utilization, 1410 MHz
+  GPU 2: 48% utilization, 900 MHz  ← STRAGGLER (half utilization)
+  GPU 3: 84% utilization, 1410 MHz
+
+Cause investigation:
+  - GPU 2 clocks are low: power throttling or thermal throttling?
+  - Is GPU 2's load lower by design, or is it starved?
+```
+
+**Detection Commands:**
+
+```bash
+# Find straggler in multi-GPU training
+nvidia-smi dmon -s pucvmet -c 60 | awk '{print $1, $3}' | sort | uniq -c
+
+# GPU 0: utilization counts: 60 samples at ~85%
+# GPU 1: utilization counts: 60 samples at ~85%
+# GPU 2: utilization counts: 60 samples at ~85%
+# GPU 3: utilization counts: 60 samples at ~85%
+
+# Real output (straggler):
+# GPU 2: utilization counts: 42 samples at 50%, 18 samples at 10% (oscillating!)
+```
+
+**Remediation:**
+
+```bash
+# Immediate: investigate GPU 2
+# 1. Check temperature: is it hotter than others?
+nvidia-smi -q | grep -A1 "Temperature"
+
+# 2. Check clocks: is it throttled?
+nvidia-smi -q | grep "Clock"
+
+# 3. Check power: is it drawing less power?
+nvidia-smi -q | grep "Power Draw"
+
+# 4. If still unknown, move workload to different GPU and see if problem moves with it
+# (problem is GPU-specific) or stays (problem is in the application/driver)
+```
+
+## Summary: Failure Signatures
+
+| Failure | Primary Signal | Secondary Signal | TTL (time to lose data) |
+|---|---|---|---|
+| Thermal throttle | Temp > 82°C, clocks down | Power stable, memory OK | Days (performance degraded, not fatal) |
+| ECC errors spike | Corrected ECC > 100/hr | Temp OK, power OK | Weeks (uncorrected errors coming) |
+| GPU fell off bus | Xid error in logs | nvidia-smi fails | Immediate (GPU offline) |
+| Memory fragmentation | Allocation latency spike | Memory used > 95% | Hours (OOM crash coming) |
+| Straggler GPU | One GPU 30%+ slower than others | Clocks lower on straggler | Minutes (job starves, throughput drops) |
+
+## Key Takeaways
+
+1. **Every failure has a leading indicator** — don't wait for the crash; alert on the indicator (rising temp, increasing ECC, allocation latency spike).
+2. **Distinguish hardware failure (Xid, fell off bus) from resource exhaustion (OOM, thermal throttle)** — hardware fails need node isolation; resource exhaustion needs job tuning.
+3. **Monitor the monitors** — if DCGM daemon crashes, all GPU visibility is lost; alert on DCGM health too.
+4. **One GPU slow affects the whole distributed job** — straggler detection is critical for cluster-wide observability.
+5. **Temperature and power are coupled** — rising temp usually means problem in power delivery or cooling, not in the GPU itself.
+
+## Cross-References
+
+- Chapter 02: Signals, metrics, logs, traces
+- Chapter 03: Core GPU metrics
+- Chapter 04: DCGM and metrics collection
+- **Next:** Chapter 09 covers health checks and SLOs

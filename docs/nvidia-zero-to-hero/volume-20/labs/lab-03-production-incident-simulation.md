@@ -1,5 +1,6 @@
 ---
 title: "Lab 03 — Production Incident Simulation"
+slug: "lab-03-incident-simulation"
 sidebar_position: 3
 description: "Reproduce common failure scenarios and execute resolution procedures."
 ---

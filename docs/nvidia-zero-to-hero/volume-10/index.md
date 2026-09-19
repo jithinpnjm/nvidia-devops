@@ -1,6 +1,7 @@
 ---
 title: Volume 10 — Kubernetes GPU Platform
 description: Design and operate the lifecycle that turns NVIDIA GPUs into reliable, schedulable Kubernetes infrastructure.
+slug: /nvidia-zero-to-hero/volume-10/index
 sidebar_position: 1
 tags:
   - kubernetes
@@ -59,15 +60,15 @@ Chapters 5 through 9 add the controls needed to operate that chain: capability l
 
 ## Chapter Sequence
 
-1. Why Kubernetes Needs a GPU Platform Layer
-2. GPU Software Lifecycle in Kubernetes
-3. NVIDIA Container Toolkit, RuntimeClass, and CDI
-4. Device Plugin and Kubernetes Resource Model
-5. Node and GPU Feature Discovery
-6. GPU Operator Architecture
-7. Driver Containers and Node Operands
-8. GPU Scheduling and Topology
-9. GPU Observability with DCGM
+1. [Why Kubernetes Needs a GPU Platform Layer](./chapter-01-why-kubernetes-needs-a-gpu-platform-layer)
+2. [GPU Software Lifecycle in Kubernetes](./chapter-02-gpu-software-lifecycle-in-kubernetes)
+3. [NVIDIA Container Toolkit, RuntimeClass, and CDI](./chapter-03-container-toolkit-runtimeclass-and-cdi)
+4. [Device Plugin and Kubernetes Resource Model](./chapter-04-device-plugin-and-kubernetes-resource-model)
+5. [Node and GPU Feature Discovery](./chapter-05-node-and-gpu-feature-discovery)
+6. [GPU Operator Architecture](./chapter-06-gpu-operator-architecture)
+7. [Driver Containers and Node Operands](./chapter-07-driver-containers-and-node-operands)
+8. [GPU Scheduling and Topology](./chapter-08-gpu-scheduling-and-topology)
+9. [GPU Observability with DCGM](./chapter-09-gpu-observability-with-dcgm)
 10. Production Installation and Configuration
 11. Upgrades and Production Troubleshooting
 12. Volume 10 Summary
