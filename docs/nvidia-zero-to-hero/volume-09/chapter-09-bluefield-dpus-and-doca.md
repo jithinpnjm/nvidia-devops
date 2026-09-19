@@ -26,6 +26,19 @@ A platform adopts DPUs to centralize host-edge policy and telemetry. During a ma
 
 The actual failure is the control and data-path dependency introduced by the DPU. The corrected design adds a staged image rollout, DPU-specific health checks, out-of-band recovery, and a test that proves host connectivity only after policy is loaded. Infrastructure isolation is valuable, but it must be operated as a first-class platform.
 
+## Beginner's Primer: What is a DPU?
+
+If a ConnectX adapter (Chapter 8) is a highly intelligent network card, a **BlueField DPU (Data Processing Unit)** is literally a complete, independent server hiding inside a network card.
+
+Imagine you are renting a bare-metal server to a customer in a multi-tenant cloud. You want to enforce strict firewalls, network routing, and storage encryption. If you run those security agents on the server's main CPU (the Host OS), a malicious or careless customer could disable them or view the encryption keys. Additionally, running infrastructure agents steals CPU cycles away from the customer's workloads.
+
+The BlueField DPU solves this by putting a separate computer *in front* of the host.
+- It contains a ConnectX network engine, but it adds an array of **ARM CPU cores** and its own dedicated RAM.
+- It runs its own isolated Operating System (usually a specialized Linux).
+- The Data Center Administrator logs into the DPU to manage firewalls, routing, and storage. The customer logs into the main Host CPU. The customer cannot see or touch the DPU's operating system. 
+
+**DOCA (Data Center Infrastructure-on-a-Chip Architecture)** is the software framework for BlueField. Just like CUDA is the software platform that lets developers program GPUs, DOCA is the software platform that lets developers write security and networking apps for the DPU.
+
 ## Learning Objectives
 
 After this chapter, you can:
@@ -268,6 +281,34 @@ Frame the decision in service outcomes: isolation boundary, host CPU budget, fai
 ## Architecture Summary
 
 BlueField can establish a programmable, independently managed infrastructure boundary at the server edge. DOCA supplies the software framework and deployment building blocks for supported services and applications. The benefit is conditional: the DPU, host, and fabric must be designed, monitored, secured, upgraded, and troubleshot as separate but connected layers.
+
+```mermaid
+flowchart TD
+    subgraph DPU_Environment["BlueField DPU Architecture (Isolated Trust Zone)"]
+        direction LR
+        subgraph ARM_Subsystem["ARM CPU Cores (DOCA OS)"]
+            Sec[Security Agents / Firewalls]
+            Net[Virtual Routing / OVS]
+            Storage[Storage Encryption]
+        end
+        
+        ConnectX["ConnectX Network ASIC"]
+        
+        ARM_Subsystem -->|Configures & Offloads to| ConnectX
+    end
+    
+    subgraph Host_Environment["Host Server (Untrusted Zone)"]
+        OS[Customer OS / Hypervisor]
+        Apps[Customer Applications]
+        OS --> Apps
+    end
+    
+    Switch["Data Center Fabric"] <==> ConnectX
+    ConnectX <==>|PCIe Connection| OS
+    
+    style DPU_Environment fill:#e6f3ff,stroke:#0066cc
+    style Host_Environment fill:#ffeee6,stroke:#cc4400
+```
 
 ## Key Takeaways
 

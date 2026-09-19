@@ -26,6 +26,21 @@ A team adds a dual-port adapter to every GPU server and expects twice the networ
 
 The adapters were not defective. The design had not proved that application, GPU, NIC, PCIe, and fabric paths aligned. Installed port capacity is an input; usable multi-rail capacity is an end-to-end result.
 
+## Beginner's Primer: The NIC is a Computer
+
+In a traditional desktop or web server, a Network Interface Card (NIC) is a simple component. Its only job is to take data from the CPU and push it onto the network cable. 
+
+In an AI system, an NVIDIA ConnectX adapter is highly intelligent. It is practically a computer in its own right, designed with a specific goal: **Keep the CPU out of the way.**
+
+When an AI model is training, the GPUs are crunching numbers at blinding speeds. If the GPU had to ask the CPU to format every network packet, the CPU would become a massive bottleneck, and the GPUs would sit idle waiting for data.
+
+The ConnectX adapter solves this by handling the entire network stack directly in its own silicon:
+1. **GPUDirect RDMA:** The ConnectX talks directly to the GPU's memory via the PCIe bus (or NVLink via NVSwitch, depending on architecture).
+2. **Hardware Offload:** It packages the GPU data into RoCEv2 packets, encrypts it (if IPsec is enabled), and handles congestion control (DCQCN) entirely in hardware. 
+3. **Multi-Rail Intelligence:** In advanced systems, multiple ConnectX adapters work together (rails) to spray data across multiple network paths simultaneously, bypassing the host CPU entirely.
+
+If the ConnectX is plugged into the wrong PCIe slot (e.g., logically far from the GPU on the motherboard topology), it is forced to route traffic through the host CPU, destroying performance. Understanding PCIe locality is just as critical as understanding Ethernet.
+
 ## Learning Objectives
 
 After this chapter, you can:
@@ -247,6 +262,30 @@ Offer customers performance expectations as measured acceptance ranges for a def
 ## Architecture Summary
 
 ConnectX adapters are active RoCE endpoints and local I/O devices, not just high-speed Ethernet ports. Their delivered performance depends on queueing, PCIe and GPU locality, rail-aware software, fabric behavior, and a qualified lifecycle. Observe and accept the complete path from application to remote memory.
+
+```mermaid
+flowchart LR
+    subgraph Server["AI Node (e.g., DGX)"]
+        direction TB
+        GPU["GPU Memory"]
+        CPU["Host CPU"]
+        PCIe["PCIe Switch / Bus"]
+        
+        subgraph ConnectX["ConnectX SmartNIC"]
+            RDMA["RDMA Hardware Engine<br/>(Bypasses CPU OS)"]
+            RoCE["RoCEv2 Encapsulation"]
+            DCQCN["Congestion Control Logic"]
+        end
+        
+        GPU <==>|GPUDirect RDMA| PCIe
+        PCIe <==> ConnectX
+        CPU -.->|Control Plane Only| ConnectX
+    end
+    
+    ConnectX ===>|400G / 800G| Switch["Spectrum Switch Fabric"]
+    
+    style CPU stroke-dasharray: 5 5
+```
 
 ## Key Takeaways
 

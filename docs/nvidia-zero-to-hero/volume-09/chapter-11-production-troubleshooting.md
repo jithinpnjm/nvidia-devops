@@ -16,6 +16,21 @@ A failed collective has many plausible owners. The network team may see active l
 | Primary focus | Layered isolation, evidence, and recovery verification |
 | Prerequisites | Chapters 03–10 |
 
+## Beginner's Primer: The Troubleshooting Mindset
+
+When an AI training job halts, the pressure is immense. Millions of dollars of compute are sitting idle. The application team usually points to the network, and the network team usually points to the application. 
+
+As a Senior AI Platform Engineer, your job is not to point fingers; your job is to **Follow the Packets**.
+
+The biggest mistake beginners make in troubleshooting AI fabrics is jumping straight to the hardest part (looking at complex application logs or changing switch buffer sizes). Instead, you must narrow the fault domain systematically:
+1. **Is it the physical layer?** (Are the lights on? Are there link errors or CRC faults?)
+2. **Is it the IP layer?** (Did a route change? Did the MTU size get mismatched across a hop?)
+3. **Is it the QoS layer?** (Is traffic actually landing in Priority 3, or did a firmware bug dump it into Priority 0?)
+4. **Is it the Congestion layer?** (Are ECN marks firing? Are PFC pause frames pinning a queue to 100%?)
+5. **Is it the Host layer?** (Did a GPU crash? Is the PCIe bus throwing errors? Is the CPU pinning a process?)
+
+Because RoCEv2 operates in hardware, standard Linux tools (`tcpdump`, `ping`, `traceroute`) are often useless. You must rely on hardware counters (`ethtool`, `mlnx_qos`, `nvidia-smi`, switch telemetry) to see what the ASICs are doing.
+
 ## Learning Objectives
 
 You will be able to scope a failure, collect a support-ready evidence package, distinguish physical from congestion symptoms, and progress from link to application without treating ping or link-up as proof of RoCE health.
@@ -195,6 +210,26 @@ The operating model has a cost: topology inventory, telemetry retention, test ca
 **4. Which evidence would you attach to a vendor support case?**
 
 "Anything that lets someone who didn't experience the incident reproduce the issue or at least understand the failure boundary: exact topology (who, which port, which queue), counter deltas (not lifetime totals), the working software/firmware/configuration state from before the change, the broken state after, and the exact commands and output that showed the problem. And timestamps — a support engineer reading 'FEC errors grew and queue occupancy climbed at the same time' is near-worthless without knowing when both happened. A time-correlated bundle saying 'at 14:32:15 UTC, FEC errors went from 0 to 3, and at 14:32:16 queue occupancy hit 98%' is actionable."
+
+## Architecture Summary
+
+Troubleshooting an AI Ethernet fabric requires mapping symptoms to specific control loops and isolating domains systematically. Congestion is often a symptom of topology imbalance or misconfiguration rather than a hardware defect. Never adjust congestion thresholds or buffer sizes without capturing time-aligned evidence first.
+
+```mermaid
+flowchart TD
+    subgraph Fault_Isolation["Symptom to Root Cause Isolation"]
+        Symptom["Symptom: NCCL Timeout / Slow Training"] --> Check1{Are there packet drops <br/> or CRC errors?}
+        
+        Check1 -->|Yes| Layer1["Physical / L2 Issue<br/>(Bad optic, dirty fiber, MTU mismatch)"]
+        Check1 -->|No| Check2{Are PFC Pause frames <br/> constantly firing?}
+        
+        Check2 -->|Yes| Layer3["Congestion / QoS Issue<br/>(Buffer exhaustion, PFC Storm, <br/> ECN thresholds misconfigured)"]
+        Check2 -->|No| Check3{Are ECN marks rising <br/> but senders not slowing?}
+        
+        Check3 -->|Yes| Layer4["Endpoint Tuning Issue<br/>(DCQCN misconfigured on NIC, <br/> CNPs not reaching sender)"]
+        Check3 -->|No| Layer5["Application / Host Issue<br/>(GPU failure, PCIe bottleneck, <br/> NCCL topology misconfiguration)"]
+    end
+```
 
 ## Key Takeaways
 

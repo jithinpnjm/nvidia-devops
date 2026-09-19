@@ -19,6 +19,20 @@ Data Center Bridging (DCB) and QoS provide the language for making that choice e
 | Primary focus | End-to-end classification, queueing, ETS, and policy operations |
 | Next | [Spectrum Switches for AI](./chapter-07-spectrum-switches-for-ai) |
 
+## Beginner's Primer: The Highway Lanes Analogy
+
+Data Center Bridging (DCB) and QoS (Quality of Service) can sound like dry networking concepts, but in an AI fabric, they are the rules of the road. 
+
+Imagine a massive multi-lane highway.
+- **Priority 0 (Best Effort):** This is the general public lane. It's crowded with web traffic, SSH sessions, and monitoring tools. If traffic stops, cars just sit there.
+- **Priority 4 (Storage):** This is the commercial trucking lane. It carries massive payloads (checkpoints and datasets). It needs high bandwidth, but if a truck has to brake, it's not the end of the world.
+- **Priority 3 (RoCE / AI Compute):** This is the emergency vehicle express lane. It must never stop, and it must never drop a packet. 
+
+**QoS** is the system that paints the lines on the road and assigns traffic to the correct lane using **DSCP** (Differentiated Services Code Point) tags in the IP header. 
+**DCBX** (Data Center Bridging Exchange) is the automated negotiation protocol that ensures every switch and NIC in the network agrees on the rules for these lanes (e.g., ensuring everyone agrees that Priority 3 is the lossless lane).
+
+If a storage packet accidentally gets tagged as Priority 3, it's like a massive semi-truck wandering into the emergency lane—it will trigger PFC pause frames and bring the AI convoy to a grinding halt. Proper QoS mapping is mandatory.
+
 ## Learning Objectives
 
 After completing this chapter, you will be able to:
@@ -228,6 +242,26 @@ Ask the customer to name the traffic that must remain operational during a worst
 ## Architecture Summary
 
 Classify intentionally, map consistently, isolate the small loss-sensitive class, and observe every queue that matters. Use scheduling to express service objectives, ECN/DCQCN to control offered rate, PFC only for the qualified class, and topology/capacity planning to solve the demand that policy alone cannot absorb.
+
+```mermaid
+flowchart TD
+    subgraph Host["GPU Host (ConnectX NIC)"]
+        A[NCCL App generates traffic] --> B{DSCP Marking}
+        B -->|DSCP 26| C[Priority 3: Lossless RoCE]
+        B -->|DSCP 0| D[Priority 0: Best Effort]
+    end
+    
+    subgraph Switch["Spectrum Ethernet Switch"]
+        C --> E[Switch Ingress Port]
+        D --> E
+        E --> F{QoS Classifier}
+        F -->|Priority 3| G[Lossless Queue + ECN/PFC]
+        F -->|Priority 0| H[Lossy Queue / Drop Eligible]
+    end
+    
+    G --> I[High Priority Egress]
+    H --> J[Best Effort Egress]
+```
 
 ## Quick Revision Sheet
 
