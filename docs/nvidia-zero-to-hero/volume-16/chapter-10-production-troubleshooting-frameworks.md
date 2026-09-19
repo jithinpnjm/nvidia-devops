@@ -1,214 +1,84 @@
 ---
 title: "Chapter 10 — Production Troubleshooting Frameworks"
-slug: chapter-10-production-troubleshooting-frameworks
 sidebar_position: 10
-description: "When a job fails, you have minutes to diagnose. Use these frameworks to move from symptom to root cause efficiently."
-tags: [gpu, observability, troubleshooting, operations, incident-response]
+description: "Master the USE Method for AI infrastructure. Learn how to systematically diagnose any GPU or network bottleneck without guessing."
 ---
 
 # Chapter 10 — Production Troubleshooting Frameworks
 
-Production failures demand speed. This chapter distills troubleshooting into decision trees: given a symptom, follow the tree to root cause without wasting time on false hypotheses.
-
 | Chapter metadata | Value |
 |---|---|
-| Volume | 16 — GPU Observability and Operational Health |
-| Difficulty | Advanced |
-| Estimated reading time | 45 minutes |
-| Primary audience | On-call engineers, SRE, incident responders |
-| Core question | Given "the training job is slow," what's the fastest path to root cause? |
+| Volume | 16 — GPU Observability, Profiling, and Diagnosis |
+| Difficulty | Expert |
+| Estimated reading time | 30 minutes |
+| Primary audience | SREs, Tier 3 Support, Platform Architects |
+| Core question | When the CEO escalates a P1 incident because the AI cluster is "slow," what are the exact first three commands you run to find the root cause? |
 
-## Learning Objectives
+## Introduction
 
-You will be able to:
-- Apply decision trees to GPU problems
-- Distinguish GPU problems from data pipeline, network, or application problems
-- Perform root cause analysis under time pressure
-- Know which commands to run first (highest signal)
-- Recognize anti-patterns that waste time
+In a crisis, junior engineers guess. They reboot nodes, restart pods, and blindly alter configurations, destroying forensic evidence. 
 
-## Framework 1: GPU Job Slow/Failed
+Senior SREs execute a rigid, mathematical framework. They do not guess; they isolate fault domains. 
 
-```mermaid
-flowchart TD
-    Start["Job is slow or failed"]
-    
-    Q1{Job producing output?}
-    Q1 -->|No output| Hang["Job is hung or crashed"]
-    Q1 -->|Yes, slow output| Slow["Job is slow"]
-    
-    Hang --> H1{GPU processes running?}
-    H1 -->|No| NoGPU["Application never reached GPU<br/>Check: app logs, CPU load, Python errors"]
-    H1 -->|Yes| Stuck["GPU processes running but hung<br/>Check: nvidia-smi for hung kernels, dmesg for Xid"]
-    
-    Slow --> S1{GPU utilization?}
-    S1 -->|< 20% per GPU| Starvation["GPU is starved for data<br/>Check: data loader speed, CPU utilization"]
-    S1 -->|80%+ per GPU| HighUtil["GPU is busy"]
-    
-    HighUtil --> S2{Training throughput?}
-    S2 -->|Meets expectations| Normal["GPU is working as expected<br/>Problem is application/model, not GPU"]
-    S2 -->|Below expectations| MemBound["GPU may be memory-bound or compute-bound<br/>Run profiler: nsight compute"]
-    
-    Starvation --> S3{CPU load on data node?}
-    S3 -->|< 50%| DataPipe["Data pipeline is slow<br/>Check: disk I/O, network to GPU node"]
-    S3 -->|> 80%| CPUBound["CPU preprocessing is bottleneck<br/>Reduce decode complexity or add workers"]
-```
+The industry standard framework for infrastructure diagnosis is the **USE Method** (Utilization, Saturation, and Errors), adapted specifically for the unique physics of GPU and NVLink topologies.
 
-**How to use this tree:**
+## 1. The USE Method for AI
 
-1. **Start at the root** with your observation: "job is slow"
-2. **Answer each question** with a command
-3. **Follow the branch** to root cause
-4. **Stop at the leaf** and apply the fix
+For every hardware resource (CPU, Memory, GPU, PCIe, NVLink, Network), you check three metrics:
 
-### Real Example: Slow Training Job
+1.  **Utilization:** What percentage of time was the resource busy? (e.g., `DCGM_FI_PROF_SM_ACTIVE`).
+2.  **Saturation:** Is there a queue building up because the resource cannot keep up? (e.g., Triton Queue Time, or CPU `iowait`).
+3.  **Errors:** Are there hardware or software faults occurring? (e.g., XID errors, NCCL Timeouts).
 
-**Observation:** Training throughput dropped from 2500 samples/sec to 600 samples/sec overnight.
+If you apply this matrix systematically, you will find the bottleneck 100% of the time.
 
-**Step 1: Is job producing output?**
-```bash
-$ tail -f training.log
-[Step 1000] loss=2.34, throughput=600 samples/sec
-[Step 1001] loss=2.35, throughput=598 samples/sec
-```
-→ Yes, producing output (but slow) — go to "Slow" branch
+## 2. The AI Diagnostic Tree
 
-**Step 2: GPU utilization?**
-```bash
-$ nvidia-smi -l 1 | grep -E "GPU|Util" | head -10
-GPU 0: Utilization: 42%
-GPU 1: Utilization: 38%
-GPU 2: Utilization: 40%
-GPU 3: Utilization: 39%
-```
-→ All GPUs &lt; 50% utilization — go to "Starvation" branch
+When an incident occurs, you start at the top of the stack and work down to the silicon.
 
-**Step 3: CPU load on data node?**
-```bash
-$ top -n 1 | grep -E "us|sy|id" | head -1
-%Cpu(s):  5.2 us, 2.1 sy, 92.7 id
-```
-→ CPU is idle (id = 92.7%) — data pipeline is not CPU-bound; go to "Data Pipeline" branch
+### Layer 1: The Application (The Code)
+*   **Check:** Is the batch size too large? Is the model running out of memory? 
+*   **Signal:** PyTorch logs (`CUDA OOM`).
+*   **Resolution:** Implement Gradient Accumulation or FSDP (Volume 13).
 
-**Step 4: Diagnose data pipeline**
-```bash
-# Check data loader performance
-python -c "
-from data_loader import DataLoader
-dl = DataLoader(batch_size=256)
-import time
-start = time.time()
-for batch in dl:
-    elapsed = time.time() - start
-    throughput = len(batch) / elapsed
-    print(f'Batch throughput: {throughput} samples/sec')
-    break
-"
-# Output: 150 samples/sec (very slow!)
-```
+### Layer 2: The Host CPU (The Dataloader)
+*   **Check:** Are the GPUs starving because the CPU cannot feed them data fast enough?
+*   **Signal:** `nsys` profile shows massive white space on the GPU timeline. CPU `iowait` is high. 
+*   **Resolution:** Increase `num_workers`, use WebDataset, or implement GPUDirect Storage (Volume 15).
 
-**Root cause found:** Data loader is only achieving 150 samples/sec, but job needs 2500/4 = 625 samples/sec per GPU. Data pipeline is the bottleneck.
+### Layer 3: The Interconnect (PCIe / NVLink)
+*   **Check:** Are the GPUs spending all their time syncing instead of doing math?
+*   **Signal:** NVLink bandwidth is low, PCIe bandwidth is pegged at 100%. 
+*   **Resolution:** The software topology is misaligned. NCCL is falling back to the slow PCIe bus. Fix the MPI ranks or enable NVLink. 
 
-**Solution:** Investigate data source (disk I/O to storage, network to remote cache, etc.)
+### Layer 4: The Silicon (The GPU)
+*   **Check:** Is the GPU physically failing or throttling?
+*   **Signal:** `dmesg` shows XID errors. DCGM shows thermal throttling (`CLOCK_THROTTLE_REASONS`).
+*   **Resolution:** Cordon the node, run `dcgmi diag`, and execute an RMA.
 
-## Framework 2: GPU Temperature Rising
+## Customer Scenario (Senior Level)
 
-```mermaid
-flowchart TD
-    Start["GPU temperature rising"]
-    T1{Temp > 82°C?}
-    T1 -->|No| Monitor["Monitor temp and power<br/>If continues rising, investigate root cause"]
-    T1 -->|Yes| Throttle{Thermal throttling active?}
-    
-    Throttle -->|No| Headroom["At thermal limit but not throttled yet<br/>Reduce load or improve cooling now"]
-    Throttle -->|Yes| Capped["Performance is capped by thermal limit<br/>Clocks reduced, throughput falling"]
-    
-    Capped --> TC1{Check cooling}
-    TC1 -->|Fans not at 100%| AmbTemp["Ambient temp too high or<br/>cooling system partially blocked<br/>Action: Check heatsink, increase fan speed"]
-    TC1 -->|Fans at 100%, still hot| Hardware["Heatsink not making good contact or<br/>thermal paste dried<br/>Action: Reseat GPU, replace thermal paste"]
-```
+**The Situation:**
+A massive LLM deployment on Kubernetes begins throwing random HTTP 504 (Gateway Timeout) errors. The platform team looks at the CPU and RAM metrics for the Triton pods, and everything is at 20%. They look at `nvidia-smi` and the GPUs are at 40% utilization. They reboot the API gateway, but the 504 errors continue. They escalate to the Senior SRE, claiming the network is dropping packets.
 
-## Framework 3: ECC Errors Appearing
+**The Senior Architect Response:**
+"The network is not dropping packets. We are flying blind because we are not using the USE Method against the correct AI abstraction layers.
 
-```mermaid
-flowchart TD
-    Start["ECC errors detected"]
-    E1{Uncorrected errors?}
-    E1 -->|No, only corrected| Monitor["Corrected errors are normal (0-5/hr)<br/>If rate is rising, GPU is aging<br/>Plan for replacement in weeks/months"]
-    E1 -->|Yes| Critical["CRITICAL: Data corruption risk<br/>Action: Drain GPU immediately, isolate, replace"]
-    
-    Monitor --> Rate{Error rate?}
-    Rate -->|< 5/hr| OK["Acceptable level<br/>Continue monitoring"]
-    Rate -->|5-50/hr| Warning["Elevated; GPU showing stress<br/>Reduce temperature, check power stability"]
-    Rate -->|> 50/hr| Failing["GPU is failing<br/>Schedule replacement this week"]
-```
+Let us execute the diagnostic tree. 
+First, we check **Errors**. The API Gateway is throwing 504s. This means the Gateway is giving up because Triton is taking too long to respond. 
 
-## Framework 4: Multi-GPU Job Stall (One GPU Slow)
+Second, we check **Utilization**. The GPUs are at 40%. The CPUs are at 20%. The hardware is absolutely not the bottleneck. 
 
-```mermaid
-flowchart TD
-    Start["Multi-GPU job slow<br/>One GPU slower than others"]
-    MG1{Which GPUs slow?}
-    
-    MG1 -->|All on same node| NodeLocal["Problem is intra-node:<br/>NVLink saturation, shared memory controller,<br/>or one GPU failing<br/>Check: NVLink bandwidth, per-GPU clocks"]
-    MG1 -->|On different nodes| Network["Problem is inter-node:<br/>Network link degradation or<br/>collective comm bottleneck<br/>Check: NCCL timing, network stats"]
-    
-    NodeLocal --> NL1{NVLink bandwidth?}
-    NL1 -->|< 50 GB/s| NLOk["NVLink is not saturated<br/>Problem is GPU-specific<br/>Check: GPU clocks, temperature, power"]
-    NL1 -->|> 100 GB/s| NLSat["NVLink is saturated<br/>Reduce model parallelism or<br/>increase batch size to reduce communication frequency"]
-    
-    Network --> NET1{NCCL all-reduce time?}
-    NET1 -->|< 50 ms| NetOk["Network is OK<br/>Problem is application-level"]
-    NET1 -->|> 200 ms| NetSat["Network is slow<br/>Check link status, packet loss"]
-```
+Third, we check **Saturation**. Because the hardware is idle, the saturation must exist within the software queues. We must immediately query Prometheus for the internal Triton metrics, specifically `nv_inference_queue_duration_us` and `nv_inference_exec_count`. 
 
-## Key Commands in Order of Frequency
+The query reveals the root cause: The Triton queue duration has spiked to 60,000 milliseconds (60 seconds). 
 
-Run these in order; stop when you find the problem:
+The hardware is mostly idle because Triton is configured with a severe bottleneck in its concurrent execution limits (e.g., `max_queue_size` or Instance Group count). A massive burst of user traffic hit the server. Because the execution threads were full, Triton placed the requests into an internal software queue. The requests sat in this queue for 60 seconds waiting for a turn on the idle GPU. The API Gateway, configured with a 30-second timeout, gave up and threw the 504 error before Triton even attempted to process the math. 
 
-```bash
-# 1. What's the job state right now?
-nvidia-smi -l 1
+We will instantly resolve this by reconfiguring Triton's `config.pbtxt` to increase the Instance Group count, allowing more concurrent threads to access the idle GPU, draining the queue and eliminating the timeouts."
 
-# 2. Are processes running?
-ps aux | grep python | grep -v grep
+## Interview Preparation
 
-# 3. GPU metrics trend (last 5 min)?
-dcgmi dmon -s pucvmet -c 300  # 300 samples at 1Hz = 5 minutes
+**Conceptual:** Explain the USE method. *(Hint: Utilization, Saturation, and Errors. It is a systematic framework for troubleshooting. For every component in a system (GPU, Network, Storage), you check how busy it is (Utilization), if it has a backlog of work waiting (Saturation), and if it is generating physical or logical faults (Errors). This prevents engineers from randomly guessing at root causes).*
 
-# 4. Recent errors in kernel?
-dmesg -T | tail -20
-
-# 5. DCGM daemon alive?
-systemctl status nv-hostengine
-
-# 6. Specific job diagnostics?
-strace -p <pid>  # See what process is blocked on
-perf record -F 99 -p <pid> -g -- sleep 30  # CPU profile if available
-```
-
-## Anti-Patterns (Slow Paths)
-
-Don't do these; they waste time:
-
-| Anti-Pattern | Why It's Wrong | Right Approach |
-|---|---|---|
-| Start with Nsys/Nsight | Takes 1-10 minutes to run; slow when you need answer now | Start with `nvidia-smi dmon` and framework above |
-| Check logs before metrics | Logs are event-based; you might miss transient issues | Check metrics first (continuous), then logs for context |
-| Assume single root cause | Failures cascade; fixing one symptom might reveal another | Fix most urgent symptom first, then re-diagnose |
-| Rely on `nvidia-smi` snapshot | One reading is noise; need trend | Run `nvidia-smi dmon` for sustained observation |
-| Ignore application logs | GPU metrics alone can't tell you if the job is correct | Always check app logs in parallel with GPU metrics |
-
-## Key Takeaways
-
-1. **Use the decision trees** — they encode expert patterns; following them beats free-form guessing.
-2. **Answer each question with a command** — don't assume; verify with evidence.
-3. **Stop at the first leaf** — don't keep digging after you've found root cause.
-4. **Time matters in production** — fast partial diagnosis beats slow perfect diagnosis.
-5. **Correlate GPU metrics with application logs** — GPU is just one part of the system.
-
-## Cross-References
-
-- Chapter 08: Common GPU failure modes
-- Chapter 09: Health checks and SLOs
-- **Next:** Chapter 11 covers observability for inference workloads
+**Architecture:** If a GPU is at 100% utilization, but the application is still missing its latency SLA, where do you look next in the USE framework? *(Hint: If Utilization is 100%, you must look at Saturation. The GPU is completely maxed out, which means incoming requests have nowhere to go but a queue. You must check the application's queue length (e.g., Triton queue metrics). If the queue is growing, the system is saturated, and the only architectural fixes are to optimize the code to run faster or scale out by adding more GPUs to the cluster).*
