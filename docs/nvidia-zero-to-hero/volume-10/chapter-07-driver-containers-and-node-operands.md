@@ -20,6 +20,21 @@ After this chapter, you will be able to:
 - define GPU readiness beyond Kubernetes `NodeReady`; and
 - diagnose recovery failures without masking the original host-level evidence.
 
+## Beginner's Primer: The Driver Container Magic
+
+In Chapter 2, we learned that the NVIDIA Kernel Driver must run on the Host Linux Kernel, not inside an isolated application container. So, how does the GPU Operator install the driver without you having to SSH into the host and run `apt-get install nvidia-driver`?
+
+It uses a mind-bending trick called a **Driver Container**.
+
+A Driver Container is a highly privileged Kubernetes Pod that the GPU Operator schedules onto your node. Inside this Pod is the NVIDIA driver source code and compiler tools (like `gcc`). 
+When the Pod starts, it does not run an app. Instead, it:
+1. Reaches *out* of its container sandbox into the Host OS.
+2. Looks at the exact Linux kernel version running on the host.
+3. Compiles the NVIDIA `.ko` (kernel module) specifically for that kernel.
+4. Loads the compiled module directly into the Host's kernel memory (using `insmod` or `modprobe`).
+
+To the Host OS, it looks exactly like the driver was installed normally. To you, it looks like a standard Kubernetes Pod. This is how the GPU Operator manages to install and upgrade low-level OS drivers entirely through Kubernetes YAML, achieving an infrastructure-as-code pattern for bare-metal hardware.
+
 ## One node, several host-facing contracts
 
 ```mermaid
@@ -194,6 +209,37 @@ The operational choice is not "containers versus hosts." It is whether host chan
 **Why should driver containers be upgraded with a node lifecycle plan?**
 
 **Model answer:** "Because a driver container upgrade isn't a stateless image swap — it reloads a kernel module underneath every GPU workload currently running on that node, which means every one of those workloads loses its device mid-execution. I'd want a plan that covers: compatibility review against the kernel ABI and CUDA versions workloads depend on, a drain sequence with enough spare capacity that draining doesn't starve the inference SLO, acceptance tests that walk all five readiness gates before the node rejoins the pool, and a rollback path that keeps the last known-good driver image and node config reachable. I'd size the blast radius in GPUs-offline-at-once, not just nodes-at-once — `maxUnavailable: 4` on an 8-GPU node means 32 GPUs disappear from the pool simultaneously, and that number is what capacity planning actually needs, not the node count."
+
+## Architecture Summary
+
+Driver Containers flip the traditional paradigm of OS management: instead of configuring the Host OS to run containers, we use a privileged Container to configure the Host OS. Because these containers manipulate kernel memory and hardware devices directly, their security posture, privilege scopes, and failure modes must be treated with bare-metal seriousness rather than standard Kubernetes `Deployment` assumptions.
+
+```mermaid
+flowchart TD
+    subgraph K8s["Kubernetes Control Plane"]
+        DaemonSet["Driver DaemonSet"]
+    end
+
+    subgraph Node["GPU Worker Node"]
+        direction TB
+        subgraph Pod["Driver Container (Privileged)"]
+            Compiler["GCC / Make"]
+            Source["NVIDIA Driver Source"]
+            Compiler -->|Compiles against Kernel Headers| Source
+            Source -->|Yields| KernelMod["nvidia.ko (Kernel Module)"]
+        end
+
+        subgraph OS["Host Linux OS"]
+            Kernel["Host Kernel"]
+            Devices["/dev/nvidia* Device Files"]
+        end
+
+        KernelMod -->|insmod/modprobe| Kernel
+        Kernel -->|Exposes hardware as| Devices
+    end
+
+    DaemonSet -->|Schedules| Pod
+```
 
 ## Key takeaways
 

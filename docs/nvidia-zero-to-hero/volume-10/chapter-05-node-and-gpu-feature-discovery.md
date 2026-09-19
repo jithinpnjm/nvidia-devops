@@ -21,6 +21,21 @@ After this chapter, you will be able to:
 - protect capability labels as infrastructure-controlled data; and
 - diagnose a pending Pod caused by discovery drift rather than capacity loss.
 
+## Beginner's Primer: Labels, NFD, and GFD
+
+As we learned in Chapter 4, the Device Plugin is "dumb"—it only tells Kubernetes how many GPUs exist on a node, not what kind they are.
+
+If your cluster has 10 older T4 GPUs (for lightweight inference) and 10 massive H100 GPUs (for training), and a user submits a Pod requesting `nvidia.com/gpu: 1`, Kubernetes might schedule the Pod on the H100 node when it only needed a T4. This wastes millions of dollars of compute. 
+
+To fix this, we use Kubernetes **Node Labels**. If a node is labeled `nvidia.com/gpu.product=H100`, the user can add a `nodeSelector` to their Pod to guarantee it lands on the right hardware.
+
+But labeling 1,000 nodes manually is impossible. 
+This is where two automated tools step in:
+1. **NFD (Node Feature Discovery):** A generic Kubernetes tool that scans the server's CPU, kernel, and PCIe bus and automatically labels the node (e.g., "This node has an Intel CPU and a PCIe device from vendor 10de (NVIDIA)").
+2. **GFD (GPU Feature Discovery):** An NVIDIA-specific tool that asks the NVIDIA driver for deep details (like exact GPU model, driver version, memory size, and MIG configuration) and adds those as labels to the Kubernetes Node object.
+
+Together, NFD and GFD automate the labeling of the entire cluster, allowing the scheduler to make intelligent, topology-aware placement decisions.
+
 ## The problem: quantity is not a platform contract
 
 Consider an inference team that needs a validated pool with a particular accelerator class and a training team that needs nodes configured for a different sharing model. Both teams may request `nvidia.com/gpu: 1`. The device plugin can satisfy that request on either node. If the platform has not published a deliberate distinction, Kubernetes has no basis for applying it.
@@ -215,6 +230,35 @@ For a shared platform, discovery is where hardware inventory becomes a product b
 **When does node affinity harm a GPU platform?**
 
 **Model answer:** "When it encodes SKU-level constraints that don't actually matter to the workload. If I hard-affinity a manifest to `gpu.product=NVIDIA-A100-80GB` because that's what was available when someone wrote the YAML, I've silently made every other equivalent GPU in the fleet ineligible — including newer, faster ones. Multiply that across dozens of teams and a routine hardware refresh turns into a coordinated manifest migration instead of a platform config change. I only reach for required affinity when there's a real compatibility or contractual boundary — a specific compute capability the code depends on, or a topology guarantee that's part of an SLA. Everything else should resolve through a platform service class, so the fleet can change underneath the workload without anyone noticing."
+
+## Architecture Summary
+
+NFD and GFD bridge the visibility gap between raw hardware and the Kubernetes scheduler. By querying PCI data and the NVIDIA driver, they automatically generate detailed node labels. However, platform engineers must curate these raw labels into abstracted, governed "Service Classes" to prevent workloads from becoming hard-coupled to specific hardware SKUs.
+
+```mermaid
+flowchart TD
+    subgraph Node["GPU Worker Node"]
+        direction TB
+        PCI[PCIe Bus]
+        Driver[NVIDIA GPU Driver]
+        NFD_W[NFD Worker <br/> Queries Hardware]
+        GFD[GPU Feature Discovery <br/> Queries NVML]
+        
+        PCI --> NFD_W
+        Driver --> GFD
+    end
+
+    subgraph ControlPlane["Kubernetes Control Plane"]
+        API[API Server]
+        NFD_M[NFD Master]
+        NodeObj["Node Object Labels <br/> (e.g. nvidia.com/gpu.memory=81920)"]
+    end
+    
+    NFD_W --> NFD_M
+    NFD_M --> API
+    GFD --> API
+    API --> NodeObj
+```
 
 ## Key takeaways
 

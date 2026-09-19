@@ -21,6 +21,19 @@ After this chapter, you can:
 - choose a host-managed, operator-managed, or hybrid ownership model; and
 - explain why a GPU Operator is lifecycle infrastructure rather than an installation shortcut.
 
+## Beginner's Primer: CPU vs. GPU in Kubernetes
+
+To understand why NVIDIA's GPU Operator exists, you have to understand how Kubernetes was originally built. 
+
+Kubernetes natively understands CPUs and memory. When you start a node, the `kubelet` process simply looks at the Linux kernel (via `cgroups`) and says, "Ah, I see 32 CPU cores and 128GB of RAM." It reports this back to the cluster, and Pods are scheduled natively. 
+
+**Kubernetes does not natively understand GPUs.** 
+If you plug an NVIDIA H100 GPU into a server and join it to a Kubernetes cluster, the cluster sees exactly nothing. To Kubernetes, a GPU is just a mysterious, unrecognized piece of PCIe hardware. 
+
+To bridge this gap, Kubernetes relies on the **Device Plugin framework**. This allows vendors (like NVIDIA) to write a plugin that says, "Hey Kubernetes, I have 8 resources of type `nvidia.com/gpu` available here." 
+
+But the Device Plugin is just the tip of the iceberg. For that plugin to work, the host needs NVIDIA drivers. To expose the device into a container securely, the container runtime (containerd) needs the NVIDIA Container Toolkit. And if you are monitoring it, you need DCGM (Data Center GPU Manager). Managing all these separate software pieces on a 1,000-node cluster manually is an operational nightmare. **This is why the GPU Platform Layer (the NVIDIA GPU Operator) is required:** it automates the deployment and lifecycle of all these low-level components so Kubernetes can treat GPUs as first-class citizens.
+
 ## Two Paths Must Agree
 
 ```mermaid
@@ -194,6 +207,36 @@ The strongest design deliverable is therefore a support contract, not a Helm com
 **How would you decide between host-managed and operator-managed GPU stacks for a new fleet?**
 
 **Model answer:** "I'd start from who already owns the node lifecycle, not from a technology preference. If there's a base-image/OS team with strong immutable-image and secure-boot discipline, forcing GPU Operator to also manage the driver on top of that creates two reconcilers fighting over the same layer — that's the failure mode the ownership table in this chapter warns about. If Kubernetes is genuinely the primary control plane and the team is willing to qualify kernel, driver, and operator versions together as one unit, operator-managed is less operational toil day to day. What I wouldn't accept is an unwritten hybrid — some nodes host-managed, some operator-managed, with no documented boundary — because that's exactly the setup where a routine change silently reconciles the same setting from two directions and nobody notices until a canary fails."
+
+## Architecture Summary
+
+A GPU Platform Layer solves the gap between what the Linux kernel exposes and what Kubernetes can natively schedule. Without it, a node can report as `Ready` while its AI hardware sits useless. Whether deployed manually or via the GPU Operator, this stack must maintain harmony between the host driver, the container runtime toolkit, the resource plugin, and the telemetry agents.
+
+```mermaid
+flowchart TD
+    subgraph K8s_Control_Plane["Kubernetes Control Plane"]
+        Scheduler[Kube-Scheduler]
+        API[API Server]
+        Scheduler -- Reads resource requests --> API
+    end
+    
+    subgraph GPU_Platform_Layer["NVIDIA GPU Platform Layer (Node)"]
+        direction TB
+        DP[NVIDIA Device Plugin <br/> Advertises 'nvidia.com/gpu']
+        CTK[Container Toolkit <br/> Injects GPU into Sandbox]
+        Driver[NVIDIA GPU Driver <br/> Kernel Module]
+        NFD[Node Feature Discovery <br/> Labels Node Topology]
+        DCGM[Data Center GPU Manager <br/> Exposes Metrics]
+    end
+    
+    API <..>|Registers resources| DP
+    API <..>|Labels node| NFD
+    
+    DP --> CTK
+    CTK --> Driver
+    DCGM --> Driver
+    Driver --> Hardware[Physical NVIDIA GPU]
+```
 
 ## Key Takeaways
 

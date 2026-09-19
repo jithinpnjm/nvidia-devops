@@ -20,6 +20,20 @@ After this chapter, you will be able to:
 - recognize when distributed jobs need coordinated scheduling; and
 - balance performance predictability against fragmentation and operational complexity.
 
+## Beginner's Primer: The NUMA / PCIe Locality Problem
+
+Why does the scheduler need to care about "Topology"? 
+If you rent an 8-GPU server in the cloud, you might assume all 8 GPUs are exactly the same and can talk to each other equally fast. In reality, a physical server is divided into territories called **NUMA nodes**.
+
+Imagine a server with two CPUs: CPU-0 and CPU-1. 
+- GPUs 0 through 3 are physically wired (via PCIe) to CPU-0.
+- GPUs 4 through 7 are wired to CPU-1.
+- Network Interface Card (NIC) A is wired to CPU-0.
+
+If a Pod requests 2 GPUs and 1 NIC, and Kubernetes blindly gives it **GPU-0** and **GPU-4** and **NIC A**, the workload is crossing the "border" between CPUs. Data has to travel from GPU-4, through CPU-1, over a slow bridge called the UPI link, into CPU-0, and out through NIC A. This creates massive latency and ruins AI performance.
+
+This is the **Topology Problem**. To solve it, Kubernetes must align its placement so that if a Pod asks for GPUs and a NIC, they all share the exact same physical territory (e.g., GPU-0, GPU-1, and NIC A all on CPU-0). This chapter covers the tools (Topology Manager, Taints/Tolerations, Node Affinity) that enforce this alignment.
+
 ## The scheduler sees a staged decision
 
 ```mermaid
@@ -159,6 +173,35 @@ One global policy is rarely appropriate for a shared GPU cluster. Offer clear se
 **Walk through how you'd design the service-class catalog for a shared GPU cluster with training, batch inference, and online inference workloads.**
 
 **Model answer:** "I'd start with the fewest classes I can justify, not the most granular ones. Online inference gets a protected pool with node affinity and maybe anti-affinity for replica spread — latency and availability matter more than packing density there. Batch inference goes in the flexible pool with queue-aware admission since nobody's watching it in real time and it can tolerate wait. Distributed training gets its own topology-validated class with coordinated admission — gang scheduling — because a partial start burns GPU-hours with zero training progress. Then I'd track queue time and stranded capacity per class after rollout, because a class that never queues and never strands anything is a class I probably didn't need to create in the first place."
+
+## Architecture Summary
+
+Scheduling in Kubernetes is a pipeline of filters and scores. For AI workloads, simply counting GPUs (`nvidia.com/gpu: N`) is insufficient. A production AI platform must combine Kubernetes primitives (Taints/Tolerations and Node Affinity) to filter eligible nodes, and Kubelet Topology Manager policies to ensure that the CPU, memory, NIC, and GPU assigned to a pod all share the same physical PCIe hierarchy.
+
+```mermaid
+flowchart TD
+    subgraph K8s_Scheduler["Kubernetes Scheduler"]
+        direction TB
+        Req[Pod Request: nvidia.com/gpu: 2]
+        Taint[Taint Filter: Reject untolerated nodes]
+        Aff[Node Affinity: Match NFD/GFD Labels]
+        
+        Req --> Taint --> Aff
+    end
+
+    subgraph Node_Kubelet["Kubelet (Topology Manager)"]
+        direction LR
+        CPU_Alloc[CPU Manager]
+        Dev_Alloc[Device Plugin]
+        Pol{Topology Policy}
+        
+        CPU_Alloc --> Pol
+        Dev_Alloc --> Pol
+    end
+    
+    Aff -->|Assigns Pod to Node| Node_Kubelet
+    Pol -->|Best-effort / Restricted / Single-NUMA| Result[Pod admitted or rejected based on alignment]
+```
 
 ## Key takeaways
 

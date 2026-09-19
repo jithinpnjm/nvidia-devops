@@ -21,6 +21,21 @@ After this chapter, you can:
 - design a staged rollout, drain, and rollback procedure; and
 - diagnose why Kubernetes node health does not prove GPU workload health.
 
+## Beginner's Primer: Drivers in Containers?
+
+A fundamental concept that confuses beginners is how NVIDIA drivers work in a containerized world. 
+
+If you install a web server inside a Docker container, the entire web server (binaries and libraries) lives inside the container. 
+But if you run an AI training job inside a container, you *cannot* put the NVIDIA Kernel Driver inside the container. 
+
+The **Linux Kernel** belongs to the Host machine. Therefore, the **NVIDIA GPU Driver** (the `.ko` kernel module) must run on the Host. 
+
+So how does the AI container talk to the GPU? 
+1. The **NVIDIA Container Toolkit** acts as a bridge. 
+2. When the container starts, the toolkit dynamically "injects" the necessary user-space libraries (like CUDA and `libnvidia-ml.so`) and the physical device files (like `/dev/nvidia0`) from the Host directly into the container's isolated environment.
+
+This creates a tight dependency: The **CUDA Toolkit** version inside the container must be compatible with the **NVIDIA Driver** version installed on the Host. If you upgrade the Host driver, but the container uses an outdated or mismatched CUDA version, the AI job will crash with a cryptic `CUDA_ERROR_NO_DEVICE` message, even though the Kubernetes node says it is `Ready`. This chapter explains how to manage that fragile dependency graph.
+
 ## The Lifecycle Is a Dependency Graph
 
 ```mermaid
@@ -186,6 +201,27 @@ Offer a lifecycle contract: approved profiles, a release cadence, node-pool scop
 **Walk through how you'd design the node-acceptance gates for a new GPU pool before it takes production traffic.**
 
 **Model answer:** "I'd chain them in the order Figure 10.2.1 implies, because each gate is a prerequisite for the next one meaning anything. First, hardware/driver — does `nvidia-smi` on the host show the expected GPU count and driver version, no Xid errors. Second, runtime — does a minimal, platform-owned CUDA container actually start and run `nvidia-smi` inside it, which proves injection, not just host visibility. Third, the Kubernetes resource — does the node's `Allocatable` for `nvidia.com/gpu` match the physical count. Fourth, workload — does the approved framework image's own initialization path succeed, not just the minimal image. Fifth, operations — is DCGM actually scraping this node and are alerts wired up. I'd automate all five as one canary job and refuse to promote the pool out of its taint until all five pass and their output is attached to the change record — 'the node is Ready' by itself proves none of this."
+
+## Architecture Summary
+
+A GPU Platform Lifecycle is not a single software installation; it is a stack of interdependent hardware, firmware, driver, container runtime, orchestration, and workload components. A failure at any lower layer propagates up to the workload, yet the workload orchestrator (Kubernetes) is largely blind to these failures without explicit health checks and validation gates.
+
+```mermaid
+sequenceDiagram
+    participant Firmware as GPU Firmware (VBIOS)
+    participant Host as Linux Kernel (OS)
+    participant Driver as NVIDIA Driver
+    participant Toolkit as NVIDIA Container Toolkit
+    participant Container as K8s Pod (CUDA App)
+
+    Firmware->>Host: PCIe Enum (Device Found)
+    Host->>Driver: Load Kernel Module (nvidia.ko)
+    Note over Driver: /dev/nvidia0 created
+    Driver-->>Toolkit: Expose NVML API
+    Toolkit->>Container: Mount device files & Libs (CDI)
+    Container->>Driver: CUDA API Call
+    Driver->>Firmware: Hardware execution
+```
 
 ## Key Takeaways
 

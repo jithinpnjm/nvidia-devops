@@ -15,6 +15,16 @@ NVIDIA Data Center GPU Manager (DCGM) supplies the device-side evidence Kubernet
 
 After this chapter, you should be able to design a telemetry path that preserves device identity, correlate a GPU with its allocated workload, choose alert conditions that lead to an action, and recognize when the monitoring system itself is the failed component.
 
+## Beginner's Primer: From `nvidia-smi` to DCGM
+
+When an engineer first logs into a GPU server, their instinct is to type `nvidia-smi`. This is great for a human checking one server for 5 seconds. But `nvidia-smi` is terrible for continuous monitoring: it is slow, it consumes CPU/GPU resources just to run, and it outputs text meant for human eyes, not time-series databases.
+
+In a Kubernetes cluster with thousands of GPUs, you need a highly efficient, programmatic way to scrape data continuously. 
+This is what **DCGM (Data Center GPU Manager)** does. It is a lightweight C-based agent that runs in the background and talks directly to the driver via NVML. 
+
+To get that data into standard Kubernetes monitoring tools (like Prometheus), NVIDIA provides the **DCGM Exporter**.
+The Exporter runs as a DaemonSet on every node. It asks DCGM for metrics (like Power usage, SM utilization, Memory, and PCIe bandwidth) and translates them into the standard HTTP `/metrics` format that Prometheus expects. Crucially, the Exporter also talks to the `kubelet` so it can attach Kubernetes metadata to the hardware metrics. This is how you know that *GPU 4 (UUID xyz)* is currently being used by *Pod 'training-job-0' in Namespace 'ai-research'*.
+
 ## Start with an operational question
 
 Consider a training team reporting that step time doubled overnight. A dashboard showing 40 percent GPU utilization is not an explanation. The operator needs a time-aligned view of the job, GPU UUID, node, allocated CPU and NUMA locality, input-pipeline behavior, recent node changes, and hardware events. That evidence can separate a data-loader stall from a power limit, a topology regression, a driver event, or ordinary variation in the workload.
@@ -132,6 +142,33 @@ Acceptance testing should prove more than that an endpoint responds. Schedule a 
 **Walk through how you'd distinguish 'the GPU is genuinely idle' from 'the exporter died' during an incident.**
 
 **Model answer:** "First move, before I look at the utilization number at all, is `up{job=\"dcgm-exporter\"}` for that instance in Prometheus. If that's `0`, I already have my answer — the exporter or the scrape path is down, and every panel for that node is stale, full stop, don't reason about GPU state from it. If `up` is `1`, I'd check `scrape_samples_scraped` and the sample timestamp to confirm the data is actually recent and not just a target that responds but stopped updating internally. Only once both of those check out do I trust the utilization number itself, and even then a real zero needs a second question behind it — does this service have traffic right now, and is anything actually queued waiting for it."
+
+## Architecture Summary
+
+Effective GPU telemetry requires correlating low-level hardware metrics with high-level Kubernetes metadata without overwhelming the Prometheus server. DCGM provides the metrics, DCGM Exporter translates and enriches them, and Prometheus scrapes them. Operators must validate the health of this scrape pipeline before trusting any dashboard.
+
+```mermaid
+flowchart TD
+    subgraph K8s_Control_Plane["Kubernetes Monitoring Stack"]
+        Prometheus[Prometheus Server]
+        Grafana[Grafana Dashboards]
+        Prometheus --> Grafana
+    end
+
+    subgraph GPU_Node["GPU Worker Node"]
+        direction TB
+        Kubelet[Kubelet API <br/> Provides Pod metadata]
+        DCGM_Exp[DCGM Exporter <br/> Merges metrics + K8s labels]
+        DCGM[DCGM Agent <br/> Lightweight C-daemon]
+        Driver[NVIDIA GPU Driver]
+        
+        Driver -->|Hardware Stats| DCGM
+        DCGM -->|gRPC/API| DCGM_Exp
+        Kubelet -->|Pod Info| DCGM_Exp
+    end
+    
+    DCGM_Exp -->|HTTP /metrics scrape| Prometheus
+```
 
 ## Key takeaways
 

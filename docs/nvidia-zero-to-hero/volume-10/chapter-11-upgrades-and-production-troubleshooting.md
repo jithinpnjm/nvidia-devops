@@ -15,6 +15,21 @@ Production safety comes from constraining that change, proving it on representat
 
 You will be able to plan a canary rollout, define the validation and rollback gates, diagnose common GPU workload failures by layer, and assemble evidence that a platform or hardware support team can act on.
 
+## Beginner's Primer: The Dangers of In-Place GPU Upgrades
+
+In standard Kubernetes, if you want to upgrade an Nginx web server, you just update the image tag. Kubernetes gracefully terminates the old pod and starts the new one. 
+
+Upgrading an AI Platform (like the NVIDIA Driver) is not so simple.
+The NVIDIA driver is a **Linux Kernel Module**. To upgrade it, the system must:
+1. Stop all workloads using the GPU.
+2. Unload the old driver from memory (`rmmod`).
+3. Load the new driver (`insmod`).
+4. Restart the container toolkit and device plugin.
+
+If even a single rogue process is holding onto the GPU (maybe a zombie monitoring script or an orphaned CUDA context), the Linux kernel will refuse to unload the driver (the infamous `Module is in use` error). 
+
+This is why upgrading the GPU Operator across a production fleet is perilous. You cannot just run `helm upgrade` and walk away. You must systematically **cordon and drain** nodes to gracefully evict AI workloads, upgrade the software stack, run a test validation pod to ensure the new kernel module loaded properly, and then uncordon the node. This chapter teaches you how to design this rigorous "Canary Rollout" process.
+
 ## Change the compatibility set, not a component in isolation
 
 ```mermaid
@@ -139,6 +154,34 @@ An actionable escalation contains the scope and business impact, a timestamped c
 **A driver upgrade passes the canary but breaks on batch 3 of a 6-batch rollout. What does that pattern tell you, and how do you contain it?**
 
 **Model answer:** "The fact that it passed an 8-node canary and a 12-node first batch but failed at batch 3 tells me this probably isn't a universal driver-compatibility bug — those would have shown up in the canary. It's more likely node-population-dependent: a specific hardware revision, BIOS setting, or firmware version that happens to concentrate in the nodes reached by batch 3. First move is to stop the rollout immediately and diff the failing batch's node inventory — firmware versions, BIOS, exact GPU SKU — against the canary and the batches that passed. Containment is cordon the affected batch, redirect new scheduling to the untouched remainder of the fleet, and only resume once I can either fix the specific hardware-dependent issue or explicitly exclude that hardware class from this rollout."
+
+## Architecture Summary
+
+Upgrading a GPU fleet is not just updating a Helm chart. It is updating a tightly coupled stack of Host OS, Kernel Driver, Runtime Toolkits, and Kubernetes DaemonSets. A failure at any layer can break workloads, meaning troubleshooting must systematically progress upward from the physical hardware (Xid errors) through the OS (`dmesg`) to the container runtime (CDI) and finally to Kubernetes (`Pending` vs `CrashLoopBackOff`).
+
+```mermaid
+flowchart TD
+    subgraph Incident_Response["Troubleshooting the GPU Stack"]
+        direction TB
+        Incident["Symptom: Pod stuck in Pending/CrashLoop"]
+        
+        Incident --> K8s{Is the Node <br/> Allocatable count correct?}
+        K8s -->|Yes| CTK{Does a test pod <br/> run nvidia-smi successfully?}
+        K8s -->|No| Plugin{Is the Device Plugin <br/> pod Running?}
+        
+        Plugin -->|Yes| Host{Does the host <br/> nvidia-smi work?}
+        Plugin -->|No| FixPlugin["Restart/Check Device Plugin Logs"]
+        
+        Host -->|Yes| FixNFD["Check NFD/GFD Labels"]
+        Host -->|No| Dmesg{Are there Xid errors <br/> in dmesg?}
+        
+        CTK -->|Yes| App["Check User Application Code/CUDA Version"]
+        CTK -->|No| FixCTK["Check Container Toolkit/CDI config"]
+        
+        Dmesg -->|Yes| Hardware["Hardware/Thermal fault -> RMA GPU"]
+        Dmesg -->|No| Driver["Driver unloaded -> Modprobe or reboot"]
+    end
+```
 
 ## Key takeaways
 

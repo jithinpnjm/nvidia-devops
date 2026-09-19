@@ -21,6 +21,29 @@ After this chapter, you can:
 - identify the policy needed for GPU classes, topology, and sharing; and
 - troubleshoot a missing or unusable GPU without confusing resource advertisement with workload success.
 
+## Beginner's Primer: Extended Resources
+
+When you write a Kubernetes Pod YAML file, you specify how much CPU and Memory you need:
+```yaml
+resources:
+  requests:
+    cpu: "2"
+    memory: "4Gi"
+```
+Kubernetes understands these out of the box. But how do you ask for a GPU? 
+
+You have to use an **Extended Resource**. Kubernetes allows vendors to create custom strings (like `nvidia.com/gpu`) and register them.
+```yaml
+resources:
+  limits:
+    nvidia.com/gpu: "1"
+```
+
+The component responsible for inventing and managing that `nvidia.com/gpu` string is the **NVIDIA Device Plugin**. 
+It runs as a DaemonSet (one pod per GPU node). Its only job is to look at the physical server, count the GPUs, and send a gRPC message back to the Kubernetes `kubelet` saying: *"I am managing a custom resource called `nvidia.com/gpu`, and this node currently has 4 of them available."*
+
+**The Catch:** Kubernetes treats extended resources as simple integers (counts). It does not know that GPU #1 is connected to GPU #2 via a fast NVLink, but GPU #4 is on a slow PCIe switch. The scheduler just subtracts "1" from the total count and assigns the Pod. To get topology-aware scheduling, you need advanced plugins, which we will cover next.
+
 ## The Kubelet Contract
 
 ```mermaid
@@ -207,6 +230,31 @@ Be explicit about the distinction in tenant documentation. It sets the right exp
 **Why does the scheduler not choose the best NVLink topology from a GPU count alone?**
 
 **Model answer:** "Because an extended resource in Kubernetes is just a quantity — `nvidia.com/gpu: 4` tells the scheduler 'reserve four units of this name,' full stop. It carries no notion of which four, whether they're on the same NVLink island, or whether they're even on adjacent PCIe slots. If a training job needs four mutually-close GPUs, that has to be expressed through something else — topology-aware scheduling policy, a service class label, or a placement webhook — because the base resource model was deliberately kept that simple so it could work the same way for every vendor's device plugin. I'd tell a customer: don't expect quantity to imply placement quality, ever, unless you've built the policy layer that adds it."
+
+## Architecture Summary
+
+The NVIDIA Device Plugin bridges the gap between hardware and the Kubernetes scheduler using the generic `Extended Resource` framework. It enumerates GPUs, monitors their health, and replies to the kubelet's allocation requests. However, it only provides a simple integer count to the scheduler. It is intentionally ignorant of GPU topology, which necessitates further labeling (NFD/GFD) for high-performance scheduling.
+
+```mermaid
+flowchart TD
+    subgraph Host["GPU Host (Linux)"]
+        Hardware[Physical NVIDIA GPUs] --> Driver[Host GPU Driver]
+        Driver --> NVML[NVML / sysfs]
+    end
+
+    subgraph Node_Components["Node Kubernetes Daemons"]
+        DP[NVIDIA Device Plugin]
+        Kubelet[Kubelet]
+    end
+
+    subgraph Master["Kubernetes Control Plane"]
+        API[API Server]
+    end
+
+    NVML -->|Reads Device Count & Health| DP
+    DP -->|gRPC: Registers 'nvidia.com/gpu: N'| Kubelet
+    Kubelet -->|Updates Node Status (Allocatable)| API
+```
 
 ## Key Takeaways
 

@@ -15,6 +15,18 @@ The NVIDIA GPU Operator can reconcile a set of GPU software operands, but it doe
 
 By the end of this chapter, you should be able to qualify a node pool, select component ownership, organize an environment-specific configuration, validate the full workload path, and reject an installation that is syntactically successful but operationally incomplete.
 
+## Beginner's Primer: Installing the GPU Operator
+
+When starting out, most engineers deploy the GPU Operator by blindly copying the `helm install` command from the NVIDIA documentation. It usually works on a single test node.
+
+In production, `helm install` is just the beginning. 
+The GPU Operator Helm chart is massive because it allows you to configure exactly which pieces of the platform it owns. 
+- Are you running on a hardened OS image where the security team manages the Kernel driver? You must tell the GPU Operator `driver.enabled=false`.
+- Are you using a specific container runtime (like CRI-O) instead of containerd? You must configure `toolkit.env`.
+- Do you need to run in an air-gapped environment? You must override all image registries and pull secrets.
+
+If you let the GPU Operator install its default configuration across a production fleet, it will happily override host configurations and potentially clash with your OS management tools. This chapter explains how to turn a generic Helm install command into a strict, GitOps-managed installation boundary.
+
 ## Define the platform boundary first
 
 ```mermaid
@@ -189,6 +201,37 @@ The exporter Pod is `Running` — a naive check would call telemetry "up." But t
 
 **Why isolate a canary pool?**
 **Model answer:** "Because a GPU platform change touches the kernel, driver, runtime, and operator all at once, and any one of those can be silently incompatible with a specific node image or hardware batch. A canary limits that blast radius to nodes I can afford to lose and gives me a comparison group — if the canary fails and a sibling pool with the old config is still healthy, I know immediately it's the change, not ambient cluster noise. The catch is representativeness: a canary has to run the same node image, driver ownership model, and workload class as the pool it stands in for. An idle spare node with different hardware proves nothing about the fleet I'm actually about to change."
+
+## Architecture Summary
+
+Deploying the GPU Operator is not a one-click script; it is the establishment of a state machine that governs your entire AI fleet. You must deliberately choose the boundary between what the OS team owns (e.g., Secure Boot, kernel updates) and what the Kubernetes team owns (e.g., drivers, container runtimes). The Helm chart is simply the tool to inject that boundary policy.
+
+```mermaid
+flowchart TD
+    subgraph GitOps_Pipeline["Infrastructure as Code (GitOps)"]
+        direction TB
+        Git[Git Repository: Helm Values]
+        Argo[ArgoCD / Flux]
+        HelmTemplate[Rendered YAML Manifests]
+        
+        Git -->|Reviewed PR| Argo
+        Argo --> HelmTemplate
+    end
+
+    subgraph Cluster["Kubernetes Cluster"]
+        direction TB
+        Operator[GPU Operator Controller]
+        CRD[ClusterPolicy]
+        HelmTemplate -->|Applies| CRD
+        CRD --> Operator
+    end
+    
+    subgraph Nodes["Canary GPU Node Pool"]
+        Operator -.->|1. Deploys Driver| Driver[Driver DaemonSet]
+        Operator -.->|2. Deploys Toolkit| CTK[Container Toolkit]
+        Operator -.->|3. Deploys Plugins| Plugins[Device Plugin / DCGM]
+    end
+```
 
 ## Key takeaways
 
