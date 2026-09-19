@@ -1,6 +1,5 @@
 ---
 title: "Lab 02 — Root Cause Analysis"
-slug: "lab-02-root-cause-analysis"
 sidebar_position: 2
 description: "Given raw metric data, trace the chain from symptom to root cause."
 ---

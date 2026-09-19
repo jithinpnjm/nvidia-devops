@@ -1,6 +1,5 @@
 ---
 title: "Lab 01 — Symptom to Evidence Mapping"
-slug: "lab-01-symptom-evidence-mapping"
 sidebar_position: 1
 description: "Given a symptom, construct the diagnostic queries and evidence collection workflow."
 ---

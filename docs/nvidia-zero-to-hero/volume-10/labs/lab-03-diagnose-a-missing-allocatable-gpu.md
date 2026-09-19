@@ -276,8 +276,8 @@ kubectl delete pod gpu-missing-resource-validation --ignore-not-found
 
 ## 18. Summary, Challenges, and Further Reading
 
-You used dependency-ordered evidence instead of broad restarts. Next, automate peer comparison, alert on resource loss and plugin absence, and apply the controlled-change discipline in [Lab 04](./lab-04-perform-a-controlled-gpu-platform-upgrade).
+You used dependency-ordered evidence instead of broad restarts. Next, automate peer comparison, alert on resource loss and plugin absence, and apply the controlled-change discipline in Lab 04.
 
-- [Device Plugin and Kubernetes Resource Model](../chapter-04-device-plugin-and-kubernetes-resource-model)
-- [GPU Observability with DCGM](../chapter-09-gpu-observability-with-dcgm)
-- [Upgrades and Production Troubleshooting](../chapter-11-upgrades-and-production-troubleshooting)
+- Device Plugin and Kubernetes Resource Model
+- GPU Observability with DCGM
+- Upgrades and Production Troubleshooting

@@ -1,6 +1,5 @@
 ---
 title: "Lab 03 — Profiling GPU Performance and Optimization"
-slug: lab-03-profiling-gpu-performance
 sidebar_position: 3
 description: "Hands-on: Use profiling tools to find GPU bottlenecks and verify optimizations work."
 tags: [gpu, observability, profiling, optimization, lab, hands-on]

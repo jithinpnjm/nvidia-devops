@@ -1,6 +1,5 @@
 ---
 title: "Lab 1 - Upgrade Simulation: Rolling Update with Canary Promotion"
-slug: "lab-1-upgrade-simulation-canary-promotion"
 sidebar_position: 1
 description: "Lab 1 - Design and execute a canary-gated driver upgrade across a simulated multi-node cluster, including a deliberate failure scenario."
 ---

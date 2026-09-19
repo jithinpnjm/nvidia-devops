@@ -1,6 +1,5 @@
 ---
 title: "Lab 8 - Deploy Model in Confidential Compute Mode"
-slug: "lab-08-deploy-ccm-attestation"
 sidebar_position: 8
 description: "Enable GPU Confidential Compute mode the correct way (not via legacy compute-mode flags), deploy a model, and verify attestation."
 ---

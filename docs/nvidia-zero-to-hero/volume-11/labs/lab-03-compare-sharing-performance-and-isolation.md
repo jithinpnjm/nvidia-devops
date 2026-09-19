@@ -284,8 +284,8 @@ kubectl get pods -A --field-selector spec.nodeName="$GPU_NODE" -o wide
 
 You made a workload-specific recommendation from comparable evidence rather than a universal sharing claim. Next, add a cost/queue-time view and decide whether a workload should receive whole-GPU, MIG, time-sliced, or no shared capacity.
 
-- [MIG Profiles and Placement](../chapter-03-mig-profiles-and-placement)
-- [Comparing MIG, Time-Slicing, and vGPU](../chapter-06-comparing-mig-time-slicing-and-vgpu)
-- [Observability and SLOs for Shared GPUs](../chapter-10-observability-and-slos-for-shared-gpus)
+- MIG Profiles and Placement
+- Comparing MIG, Time-Slicing, and vGPU
+- Observability and SLOs for Shared GPUs
 - [NVIDIA DCGM documentation](https://docs.nvidia.com/datacenter/dcgm/latest/)
 - [NVIDIA MIG User Guide](https://docs.nvidia.com/datacenter/tesla/mig-user-guide/)

@@ -101,7 +101,7 @@ gpu-node-11   8          0
 
 $ export GPU_NODE='gpu-node-07'
 ```
-`CAPACITY 8 / ALLOCATABLE 8` on `gpu-node-07` is the number to select for a clean baseline run. `gpu-node-11` showing `CAPACITY 8 / ALLOCATABLE 0` is a real example of the exact failure this lab exists to catch: the kubelet reported the node's total device count (`Capacity`, from the device plugin's last successful registration) but nothing is currently schedulable (`Allocatable`) — a driver reload, plugin crash, or reset in progress. Do not select that node for the baseline run; it belongs in [Lab 03](./lab-03-diagnose-a-missing-allocatable-gpu) instead.
+`CAPACITY 8 / ALLOCATABLE 8` on `gpu-node-07` is the number to select for a clean baseline run. `gpu-node-11` showing `CAPACITY 8 / ALLOCATABLE 0` is a real example of the exact failure this lab exists to catch: the kubelet reported the node's total device count (`Capacity`, from the device plugin's last successful registration) but nothing is currently schedulable (`Allocatable`) — a driver reload, plugin crash, or reset in progress. Do not select that node for the baseline run; it belongs in Lab 03 instead.
 
 **Explanation:** Capacity is what kubelet reports; Allocatable is what scheduling may consume after reservations.
 
@@ -400,8 +400,8 @@ Handoff: attach the evidence bundle, selected node, driver/runtime versions, res
 
 ## 18. Summary, Challenges, and Further Reading
 
-You validated the end-to-end node path. Next, run the same baseline across a node pool, compare topology and labels, and use [Lab 03](./lab-03-diagnose-a-missing-allocatable-gpu) when Allocatable is absent.
+You validated the end-to-end node path. Next, run the same baseline across a node pool, compare topology and labels, and use Lab 03 when Allocatable is absent.
 
-- [Volume 10 introduction](../index)
-- [GPU Software Lifecycle in Kubernetes](../chapter-02-gpu-software-lifecycle-in-kubernetes)
-- [Device Plugin and Kubernetes Resource Model](../chapter-04-device-plugin-and-kubernetes-resource-model)
+- [Volume 10 introduction](../index.md)
+- GPU Software Lifecycle in Kubernetes
+- Device Plugin and Kubernetes Resource Model

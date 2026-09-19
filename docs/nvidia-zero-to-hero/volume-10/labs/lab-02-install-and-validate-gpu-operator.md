@@ -215,7 +215,7 @@ gpu-node-01   Ready   <none>   6m   nvidia.com/gpu.count=4,nvidia.com/gpu.produc
 
 **Explanation:** This checks discovery and device-plugin registration but not container CUDA access.
 
-**Common-failure interpretation:** Empty allocatable values require the dependency-ordered workflow in [Lab 03](./lab-03-diagnose-a-missing-allocatable-gpu).
+**Common-failure interpretation:** Empty allocatable values require the dependency-ordered workflow in Lab 03.
 
 ## 14. Validation: Workload Execution
 
@@ -318,8 +318,8 @@ Handoff includes chart revision, values digest/location, driver ownership, opera
 
 ## 18. Summary, Challenges, and Further Reading
 
-You installed a versioned platform and validated it as an end-to-end service. Next, test a private mirror, record values in Git, and rehearse the canary upgrade in [Lab 04](./lab-04-perform-a-controlled-gpu-platform-upgrade).
+You installed a versioned platform and validated it as an end-to-end service. Next, test a private mirror, record values in Git, and rehearse the canary upgrade in Lab 04.
 
-- [GPU Operator Architecture](../chapter-06-gpu-operator-architecture)
-- [Driver Containers and Node Operands](../chapter-07-driver-containers-and-node-operands)
-- [Production Installation and Configuration](../chapter-10-production-installation-and-configuration)
+- GPU Operator Architecture
+- Driver Containers and Node Operands
+- Production Installation and Configuration

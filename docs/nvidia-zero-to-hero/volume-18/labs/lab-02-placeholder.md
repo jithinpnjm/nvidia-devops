@@ -1,6 +1,5 @@
 ---
 title: "Lab 2 - Build and Verify a Signed Container"
-slug: "lab-02-build-verify-signed-container"
 sidebar_position: 2
 description: "Build an AI inference container, sign it with Cosign, and verify the signature before deployment."
 ---

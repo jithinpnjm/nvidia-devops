@@ -177,6 +177,6 @@ You validated the selected Ethernet and RoCE identity path, not merely a ping re
 
 ## 18. Further Reading
 
-- [RoCEv2 and RDMA over Ethernet](../chapter-03-rocev2-and-rdma-over-ethernet)
-- [ConnectX Ethernet Adapters](../chapter-08-connectx-ethernet-adapters)
-- [Production Troubleshooting](../chapter-11-production-troubleshooting)
+- RoCEv2 and RDMA over Ethernet
+- ConnectX Ethernet Adapters
+- Production Troubleshooting

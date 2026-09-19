@@ -104,5 +104,5 @@ pkill -f run_experiment.py
 - When would this pattern stop being sufficient, and what would you reach for instead (per Chapter 8)?
 
 ## 18. Additional References
-- [Chapter 08 — Scaling to Multi-Node Distributed Training](../chapter-08-scaling-to-multi-node-distributed-training.md)
-- [Volume 13 — Distributed Training Foundations](../../volume-13/index.md) — for when a single run genuinely needs multiple GPUs
+- Chapter 08 — Scaling to Multi-Node Distributed Training
+- Volume 13 — Distributed Training Foundations — for when a single run genuinely needs multiple GPUs

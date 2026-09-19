@@ -1,6 +1,5 @@
 ---
 title: "Lab 04 — Postmortem Analysis"
-slug: "lab-04-postmortem-analysis"
 sidebar_position: 4
 description: "Analyze a real incident timeline and construct prevention strategies."
 ---

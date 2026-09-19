@@ -1,6 +1,5 @@
 ---
 title: "Lab 1 - Validate Secure Boot and Driver State"
-slug: "lab-01-validate-secure-boot-driver-state"
 sidebar_position: 1
 description: "Practical exercise: verify Secure Boot is enabled, validate driver module signing, check GPU firmware version."
 ---
