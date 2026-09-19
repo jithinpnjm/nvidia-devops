@@ -1,6 +1,5 @@
 ---
 title: "Volume 20 — Troubleshooting Encyclopedia"
-slug: "volume-20"
 sidebar_position: 20
 description: "The complete reference for diagnosing and resolving GPU failures, system anomalies, and performance issues. Every common problem with symptoms, evidence, diagnosis, resolution, verification, prevention, and escalation paths."
 ---
