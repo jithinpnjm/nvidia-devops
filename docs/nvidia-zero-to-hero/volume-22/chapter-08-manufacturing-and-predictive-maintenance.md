@@ -55,5 +55,5 @@ Predictive maintenance reduces equipment downtime 30-50%, saving $100Ks-$1Ms per
 
 ## Related Chapters
 
-- **Prev:** [Chapter 7 — Healthcare](./chapter-07-healthcare-and-medical-imaging.md)
-- **Next:** [Chapter 9 — Scientific Research](./chapter-09-scientific-research-and-simulation.md)
+- **Prev:** Chapter 7 — Healthcare
+- **Next:** Chapter 9 — Scientific Research

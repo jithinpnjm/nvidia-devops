@@ -512,7 +512,7 @@ Before claiming mastery, can you:
 
 ## Related Chapters
 
-- **Chapter 2:** [CUDA Programming and Optimization](./chapter-02-cuda-programming-and-optimization.md) — kernel design patterns
-- **Chapter 5:** [Performance Analysis and Troubleshooting](./chapter-05-performance-analysis-and-troubleshooting.md) — roofline model deep dive
+- **Chapter 2:** CUDA Programming and Optimization — kernel design patterns
+- **Chapter 5:** Performance Analysis and Troubleshooting — roofline model deep dive
 - **Volume 04:** GPU execution and memory patterns
 - **Lab (V24):** Hands-on occupancy and memory optimization exercises

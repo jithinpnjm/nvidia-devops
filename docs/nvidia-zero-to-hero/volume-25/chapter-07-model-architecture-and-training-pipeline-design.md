@@ -177,6 +177,6 @@ x = torch.randn(batch, lookback, N_FEATURES)   # not a hardcoded 4
 
 ## Related Chapters
 
-- **Previous:** [Chapter 6 — Building Leakage-Safe Training Datasets](./chapter-06-building-leakage-safe-training-datasets-for-time-series-ml.md)
-- **Next:** [Chapter 8 — Scaling to Multi-Node Distributed Training](./chapter-08-scaling-to-multi-node-distributed-training.md)
-- **Related:** [Chapter 4 — Experiment Tracking with MLflow](./chapter-04-experiment-tracking-with-mlflow.md) — the nested-run logging this chapter's training loop wires into
+- **Previous:** Chapter 6 — Building Leakage-Safe Training Datasets
+- **Next:** Chapter 8 — Scaling to Multi-Node Distributed Training
+- **Related:** Chapter 4 — Experiment Tracking with MLflow — the nested-run logging this chapter's training loop wires into

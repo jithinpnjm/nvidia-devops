@@ -1,6 +1,5 @@
 ---
 title: "Volume 23 — Interview Masterclass: GPU Systems Engineering"
-slug: "volume-23"
 sidebar_position: 23
 description: "12 interview chapters covering technical depth, infrastructure operations, and system design. 50+ interview questions with model answers, follow-up traps, and verification points."
 ---

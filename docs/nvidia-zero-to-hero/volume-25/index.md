@@ -1,6 +1,5 @@
 ---
 title: "Volume 25 — MLOps Engineering: Experiment Tracking, Data Versioning, and Training Pipelines"
-slug: "volume-25"
 sidebar_position: 25
 description: "A from-scratch, real-project MLOps build: GPU node provisioning, MLflow, DVC, leakage-safe dataset engineering, multi-branch model architectures, and a promotion gate — documented from an actual production ML project, not a toy example."
 ---

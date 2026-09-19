@@ -171,6 +171,6 @@ sudo docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
 
 ## Related Chapters
 
-- **Previous:** [Chapter 1 — Why MLOps](./chapter-01-why-mlops-the-cost-of-ungoverned-ml.md)
-- **Next:** [Chapter 3 — Data Versioning with DVC](./chapter-03-data-versioning-with-dvc.md) — the persistent storage this chapter provisions becomes DVC's remote
-- **Related:** [Chapter 4 — Experiment Tracking with MLflow](./chapter-04-experiment-tracking-with-mlflow.md) — the same persistent volume hosts MLflow's backend and artifact stores
+- **Previous:** Chapter 1 — Why MLOps
+- **Next:** Chapter 3 — Data Versioning with DVC — the persistent storage this chapter provisions becomes DVC's remote
+- **Related:** Chapter 4 — Experiment Tracking with MLflow — the same persistent volume hosts MLflow's backend and artifact stores

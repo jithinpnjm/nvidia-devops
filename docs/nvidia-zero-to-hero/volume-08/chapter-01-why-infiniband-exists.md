@@ -591,11 +591,11 @@ Before moving on, confirm that you can:
 
 ## Cross References
 
-- [Volume 08 Introduction](./index)
-- Next: [InfiniBand Architecture and Link Layers](./chapter-02-infiniband-architecture-and-link-layers)
-- Previous volume: [Volume 07 — GPU Networking](pathname://../volume-07/index)
-- Related foundation: [DMA, RDMA, and Peer-to-Peer](pathname://../volume-07/chapter-04-dma-rdma-and-peer-to-peer)
-- Related lab: [Inventory an InfiniBand Fabric](./labs/lab-01-inventory-an-infiniband-fabric)
+- Volume 08 Introduction
+- Next: InfiniBand Architecture and Link Layers
+- Previous volume: Volume 07 — GPU Networking
+- Related foundation: DMA, RDMA, and Peer-to-Peer
+- Related lab: Inventory an InfiniBand Fabric
 
 ## Further Reading
 

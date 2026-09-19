@@ -1,6 +1,5 @@
 ---
 title: "Chapter 8 — Enterprise AI Platforms & Orchestration"
-slug: "/nvidia-zero-to-hero/volume-01/enterprise-ai-platforms"
 sidebar_position: 8
 description: "Understand how enterprises deploy AI at scale. Master NVIDIA AI Enterprise (NVAIE), Base Command Manager (BCM), the GPU Operator, vGPU, and DGX Cloud."
 ---

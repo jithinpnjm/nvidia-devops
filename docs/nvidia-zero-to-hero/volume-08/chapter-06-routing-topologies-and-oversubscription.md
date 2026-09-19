@@ -472,9 +472,9 @@ Oversubscription is not automatically wrong, but it must be explicit, measured, 
 
 ## Cross References
 
-- Previous: [Subnet Management and OpenSM](./chapter-05-subnet-management-and-opensm)
-- Next: [Adaptive Routing and Congestion Control](./chapter-07-adaptive-routing-and-congestion-control)
-- Related lab: [Inspect Subnet Routing and Counters](./labs/lab-03-inspect-subnet-routing-and-counters)
+- Previous: Subnet Management and OpenSM
+- Next: Adaptive Routing and Congestion Control
+- Related lab: Inspect Subnet Routing and Counters
 
 ## Further Reading
 

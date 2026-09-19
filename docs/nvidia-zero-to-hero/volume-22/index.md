@@ -1,6 +1,5 @@
 ---
 title: "Volume 22 — Customer Workshops: Industry-Specific AI Solutions"
-slug: "volume-22"
 sidebar_position: 22
 description: "Real-world AI solutions tailored to 8 major industries. Each chapter covers the unique ML requirements, infrastructure constraints, and operational considerations for that sector."
 ---

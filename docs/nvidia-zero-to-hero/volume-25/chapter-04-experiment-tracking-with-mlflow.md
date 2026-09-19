@@ -212,6 +212,6 @@ export MLFLOW_TRACKING_URI=http://localhost:5000
 
 ## Related Chapters
 
-- **Previous:** [Chapter 3 — Data Versioning with DVC](./chapter-03-data-versioning-with-dvc.md)
-- **Next:** [Chapter 5 — Data Ingestion and Cleaning Pipeline Design](./chapter-05-data-ingestion-and-cleaning-pipeline-design.md)
-- **Related:** [Chapter 9 — The Model Promotion Gate](./chapter-09-the-model-promotion-gate-governance-before-the-registry.md) — queries exactly the nested-run structure this chapter builds
+- **Previous:** Chapter 3 — Data Versioning with DVC
+- **Next:** Chapter 5 — Data Ingestion and Cleaning Pipeline Design
+- **Related:** Chapter 9 — The Model Promotion Gate — queries exactly the nested-run structure this chapter builds

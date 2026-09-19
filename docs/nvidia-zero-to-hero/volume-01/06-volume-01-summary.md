@@ -1,6 +1,5 @@
 ---
 title: "Chapter 9 — Volume 01 Summary: The Architecture of Accelerated Computing"
-slug: "/nvidia-zero-to-hero/volume-01/volume-01-summary"
 sidebar_position: 9
 description: "Review and consolidate the fundamental concepts of AI infrastructure before advancing to Python programming and systems engineering in Volume 2."
 ---

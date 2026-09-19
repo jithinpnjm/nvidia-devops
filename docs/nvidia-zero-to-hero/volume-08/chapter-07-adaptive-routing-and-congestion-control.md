@@ -404,9 +404,9 @@ The correct production approach is to distinguish physical faults from congestio
 
 ## Cross References
 
-- Previous: [Routing, Topologies, and Oversubscription](./chapter-06-routing-topologies-and-oversubscription)
-- Next: [HDR, NDR, XDR, and Link Evolution](./chapter-08-hdr-ndr-xdr-and-link-evolution)
-- Related lab: [Inspect Subnet Routing and Counters](./labs/lab-03-inspect-subnet-routing-and-counters)
+- Previous: Routing, Topologies, and Oversubscription
+- Next: HDR, NDR, XDR, and Link Evolution
+- Related lab: Inspect Subnet Routing and Counters
 
 ## Further Reading
 

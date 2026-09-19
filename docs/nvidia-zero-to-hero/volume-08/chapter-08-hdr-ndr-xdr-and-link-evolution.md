@@ -319,9 +319,9 @@ Treat generation upgrades as end-to-end architecture changes. Baseline, pilot, v
 
 ## Cross References
 
-- Previous: [Adaptive Routing and Congestion Control](./chapter-07-adaptive-routing-and-congestion-control)
-- Next: [Fabric Monitoring and Telemetry](./chapter-09-fabric-monitoring-and-telemetry)
-- Related lab: [Benchmark InfiniBand Bandwidth and Latency](./labs/lab-02-benchmark-infiniband-bandwidth-and-latency)
+- Previous: Adaptive Routing and Congestion Control
+- Next: Fabric Monitoring and Telemetry
+- Related lab: Benchmark InfiniBand Bandwidth and Latency
 
 ## Further Reading
 

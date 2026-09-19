@@ -1,7 +1,6 @@
 ---
 title: Volume 08 — InfiniBand
 description: Learn how InfiniBand delivers low-latency, high-throughput communication for distributed AI and HPC clusters.
-slug: /nvidia-zero-to-hero/volume-08/index
 sidebar_position: 1
 tags:
   - infiniband
@@ -187,10 +186,10 @@ You are ready to leave this volume when you can:
 
 ## Cross References
 
-- Previous volume: [Volume 07 — GPU Networking](pathname://../volume-07/index)
-- Related foundation: [DMA, RDMA, and Peer-to-Peer](pathname://../volume-07/chapter-04-dma-rdma-and-peer-to-peer)
-- Related lab: [Benchmark RDMA and GPUDirect Paths](pathname://../volume-07/labs/lab-03-benchmark-rdma-and-gpudirect-paths)
-- First chapter: [Why InfiniBand Exists](./chapter-01-why-infiniband-exists)
+- Previous volume: Volume 07 — GPU Networking
+- Related foundation: DMA, RDMA, and Peer-to-Peer
+- Related lab: Benchmark RDMA and GPUDirect Paths
+- First chapter: Why InfiniBand Exists
 
 ## Further Reading
 

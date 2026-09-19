@@ -1,6 +1,5 @@
 ---
 title: "Chapter 7 — The NVIDIA Ecosystem: From Silicon to NIMs"
-slug: "/nvidia-zero-to-hero/volume-01/nvidia-ecosystem-overview"
 sidebar_position: 7
 description: "Master the full NVIDIA AI ecosystem. Map exact hardware specifications (Hopper vs. Blackwell), interconnects (NVLink/InfiniBand), and the software stack (CUDA, NCCL, Triton, NIM)."
 ---

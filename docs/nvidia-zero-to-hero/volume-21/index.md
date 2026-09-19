@@ -1,6 +1,5 @@
 ---
 title: "Volume 21 — AI Factory: Building Large-Scale Production Systems"
-slug: "volume-21"
 sidebar_position: 21
 description: "End-to-end AI factory design: GPU cluster architecture, networking, storage, power, software stack, distributed training, inference serving, multi-region deployment, monitoring, capacity planning, and cost optimization — through two full reference architectures."
 ---
