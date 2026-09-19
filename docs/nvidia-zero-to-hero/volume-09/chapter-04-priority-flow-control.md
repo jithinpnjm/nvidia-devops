@@ -21,6 +21,38 @@ Priority Flow Control (PFC) is one containment mechanism for this condition. It 
 | Primary focus | Per-priority pause, headroom, and failure containment |
 | Next | [ECN and DCQCN](./chapter-05-ecn-and-dcqcn) |
 
+## Beginner's Primer: What is PFC?
+
+If you pour water into a funnel too fast, it overflows. 
+In networking, if a switch receives data faster than it can send it out, its memory buffer (the funnel) overflows and the packets of data are dropped. 
+
+In standard Ethernet, dropping a packet is considered normal behavior. The sender will eventually realize the packet was lost and resend it. But as we learned in Chapter 1, RoCEv2 (RDMA) expects a lossless environment. If a packet drops, the AI convoy stops. 
+
+To prevent packets from dropping when the funnel gets full, Ethernet introduced **Pause Frames**. 
+Originally, there was "Global Pause" (IEEE 802.3x), which was like a red traffic light: it stopped *all* traffic on the link until the funnel drained. But stopping all traffic in a data center just because one AI job is busy is unacceptable.
+
+**Priority Flow Control (PFC - IEEE 802.1Qbb)** was created as a scalpel rather than a sledgehammer. Instead of stopping all traffic, it divides the Ethernet link into 8 separate "lanes" (Priorities 0 through 7). 
+If the RoCE traffic is assigned to Priority 3, and the buffer for Priority 3 gets dangerously full, the switch sends a PFC frame that says: *"Stop sending Priority 3 traffic for exactly X microseconds. But keep sending management, storage, and web traffic on Priorities 0, 1, 2, 4, 5, 6, and 7."*
+
+```mermaid
+flowchart LR
+    subgraph Switch A ["Sender (e.g. Leaf Switch)"]
+        Tx[Transmitting Port]
+    end
+
+    subgraph Switch B ["Receiver (e.g. Spine Switch)"]
+        Rx[Receiving Port Buffer]
+        Threshold[Buffer Threshold Hit!]
+    end
+
+    Tx ===>|Normal Data (Priority 3)| Rx
+    Threshold -.->|Sends PFC Pause Frame (Priority 3 only)| Tx
+    
+    note over Tx,Rx: Storage (Priority 4) and Mgmt (Priority 0) keep flowing!
+```
+
+**The Catch:** PFC only talks to the device directly connected to it (hop-by-hop). If the traffic jam is bad enough, Switch B pauses Switch A, which fills up Switch A's buffer, causing Switch A to pause the server. This cascading traffic jam is called a **PFC Storm** or **Head-of-Line Blocking**.
+
 ## Learning Objectives
 
 After completing this chapter, you will be able to:
@@ -268,6 +300,18 @@ The honest design review question is not â€œcan this network be made lossless?â€
 ## Architecture Summary
 
 Use a deliberately small loss-sensitive class, isolate it from infrastructure traffic, retain enough validated headroom, and observe it as part of an end-to-end feedback system. When pause occurs, trace downstream to the congested egress and resolve the cause rather than normalizing the symptom.
+
+```mermaid
+flowchart TD
+    subgraph PFC_Architecture["PFC Architecture & Configuration Rules"]
+        A[Map RoCE traffic to one specific DSCP/Priority <br/>e.g., DSCP 26 -> Priority 3] 
+        B[Configure PFC on Priority 3 ONLY on all switch ports]
+        C[Configure Buffer Headroom to absorb in-flight packets]
+        D[Map other traffic Mgmt/Storage to non-PFC priorities]
+        E[Enable Watchdog/Drop timers to break infinite PFC loops]
+        A --> B --> C --> D --> E
+    end
+```
 
 ## Quick Revision Sheet
 

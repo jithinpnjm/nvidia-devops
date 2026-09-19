@@ -17,6 +17,41 @@ A GPU fabric can carry every packet and still waste most of its time in queues. 
 | Primary focus | ECN marking, congestion notification, and endpoint rate response |
 | Next | [Data Center Bridging and QoS](./chapter-06-data-center-bridging-and-qos) |
 
+## Beginner's Primer: ECN and DCQCN Simply Explained
+
+If PFC (from Chapter 4) is slamming on the brakes right before you crash into the car in front of you, **ECN** (Explicit Congestion Notification) is the brake light of the car way ahead of you, warning you to gently slow down before a crash even becomes a risk.
+
+In an ideal AI Ethernet network, PFC is a safety net that should almost never trigger. Instead, we want the network to gracefully manage its own speed limit.
+
+**How ECN Works (The Warning):**
+When a switch buffer starts getting slightly full (long before it hits the dangerous PFC threshold), the switch looks at the IP header of the packet passing through. It flips a tiny 1-bit switch called the **CE (Congestion Encountered)** bit. The switch does *not* stop or drop the packet; it just flags it.
+
+**How CNP Works (The Message Back):**
+When the receiver (the target GPU/NIC) gets the packet and sees the CE bit is flipped to "1", it immediately turns around and fires a tiny, high-priority message back to the sender called a **CNP (Congestion Notification Packet)**. 
+
+**How DCQCN Works (The Reaction):**
+When the sender's NIC receives the CNP, it uses an algorithm called **DCQCN** (Data Center Quantized Congestion Notification). This algorithm immediately tells the NIC's hardware rate-limiter to slow down the transmission rate for that specific flow. As the network clears up, DCQCN slowly allows the NIC to accelerate back to maximum speed.
+
+This 3-step loop (Mark -> Notify -> Slow Down) ensures the network never backs up enough to require PFC, keeping the AI convoy running smoothly.
+
+```mermaid
+sequenceDiagram
+    participant Sender as Sender NIC (DCQCN)
+    participant Switch as Ethernet Switch
+    participant Receiver as Receiver NIC
+
+    Note over Sender,Switch: Sender transmitting at 400Gbps
+    Sender->>Switch: Data Packet (ECN Capable)
+    Note over Switch: Buffer hitting 50% threshold!
+    Switch->>Switch: Mark packet with CE=1
+    Switch->>Receiver: Forward Marked Packet
+    Note over Receiver: Receiver sees CE=1
+    Receiver-->>Sender: Send CNP (Congestion Notification)
+    Note over Sender: DCQCN Hardware Logic:
+    Sender->>Sender: Throttle transmission down to 200Gbps
+    Note over Sender,Switch: Congestion clears, sender slowly accelerates back to 400Gbps
+```
+
 ## Learning Objectives
 
 After completing this chapter, you will be able to:
@@ -236,6 +271,26 @@ For a small dedicated cluster, a carefully qualified profile may be straightforw
 ## Architecture Summary
 
 Mark pressure early enough to obtain a useful endpoint response, verify that response reaches the original sender, and size the fabric so sources have a feasible rate to converge toward. Use PFC to protect a transient edge case, while ECN/DCQCN, placement, and capacity keep it from becoming the dominant behavior.
+
+```mermaid
+flowchart TD
+    subgraph ECN_DCQCN_Tuning["Tuning the ECN and PFC Thresholds"]
+        direction TB
+        Buffer["Switch Port Buffer (Queue 3)"]
+        
+        Empty[0%] -->|Normal Traffic Flow| GreenZone[Green Zone: Free flow, max speed]
+        GreenZone -->|Buffer starts filling| KMin[ECN K-Min Threshold]
+        KMin -->|Packets probabilistically marked| YellowZone[Yellow Zone: CE Bits flipped, DCQCN slows senders]
+        YellowZone -->|Buffer still filling| KMax[ECN K-Max Threshold]
+        KMax -->|100% of packets marked| RedZone[Red Zone: Max DCQCN throttling applied]
+        RedZone -->|Traffic jam continues| XOFF[PFC XOFF Threshold]
+        XOFF -->|Safety net triggers| Halt[PFC Pause frames generated, traffic HALTS]
+        
+        style KMin stroke:#ff9900,stroke-width:2px
+        style KMax stroke:#ff4400,stroke-width:2px
+        style XOFF stroke:#ff0000,stroke-width:4px
+    end
+```
 
 ## Quick Revision Sheet
 

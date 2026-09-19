@@ -21,6 +21,36 @@ RoCEv2 carries RoCE traffic in UDP/IP over Ethernet, allowing routed Layer 3 des
 | Focus | RDMA endpoint model, RoCEv2 encapsulation, addressing, and troubleshooting |
 | Next | Priority Flow Control |
 
+## Beginner's Primer: Translating InfiniBand to Ethernet
+
+To understand RoCEv2 (RDMA over Converged Ethernet version 2), it is helpful to look at its history. RDMA was originally born in the world of InfiniBand. InfiniBand is a specialized, lossless network technology that was built from the ground up for high-performance computing (HPC). 
+
+As AI grew, organizations wanted the performance of InfiniBand but preferred using the standard, ubiquitous Ethernet switches they already understood (like Cisco, Arista, or NVIDIA Spectrum). 
+
+**The Challenge:** How do we take InfiniBand's ultra-fast RDMA technology and make it run on standard Ethernet?
+**The Solution:** We wrap it. 
+
+RoCEv2 literally takes a standard InfiniBand payload and wraps it in standard Ethernet, IP, and UDP headers. 
+
+```mermaid
+flowchart LR
+    subgraph Original["Pure InfiniBand Packet"]
+        IBHeader[IB Transport Header] --- Payload[GPU Data]
+    end
+
+    subgraph RoCE["RoCEv2 Packet (Wrapped for Ethernet)"]
+        ETH[Ethernet Header<br/>MAC Address] --- IP[IP Header<br/>IP Address] --- UDP[UDP Header<br/>Port 4791] --- BTH[InfiniBand Base<br/>Transport Header] --- Data[GPU Data]
+    end
+    
+    Original -.->|Encapsulated into| RoCE
+```
+
+Because of this wrapping:
+1. **The Switches** just see a standard UDP packet. They can route it using normal IP routing (BGP, OSPF) across standard leaf and spine tiers.
+2. **The NICs** (Network Interface Cards) look inside the UDP packet, see the InfiniBand payload, and inject the data straight into GPU memory using RDMA.
+
+However, because standard Ethernet is inherently *lossy* (it drops packets when busy), but RDMA expects a *lossless* environment, we have to artificially make Ethernet behave like InfiniBand using QoS features (PFC and ECN).
+
 ## Production Story: The Route Was Correct, the RDMA Path Was Not
 
 After a network change, a host can reach its peers with ICMP and ordinary TCP. A distributed job still fails to establish one of its RDMA paths. The incident team focuses on the routing table because that is what ping exercised. The eventual fault is an inconsistent GID selection: one host selects an address context associated with the wrong interface.
@@ -281,6 +311,27 @@ This is also a security discussion. Limit which workloads can access RDMA device
 ## Architecture Summary
 
 RoCEv2 joins an RDMA endpoint model to routed UDP/IP Ethernet. Its operational correctness depends on the selected endpoint context and the effective end-to-end path. Addressing, MTU, QoS, congestion policy, and qualified software are all part of that path.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant App as Application (MPI/NCCL)
+    participant NIC1 as Sender ConnectX NIC
+    participant Switch as Spectrum Leaf Switch
+    participant NIC2 as Receiver ConnectX NIC
+    participant GPU as Receiver GPU Memory
+
+    App->>NIC1: Post Send Request (WQE)
+    Note over NIC1: Bypasses host CPU/OS
+    NIC1->>NIC1: Encapsulate data (RoCEv2: Eth+IP+UDP+IB)
+    NIC1->>Switch: Send UDP Packet (Port 4791)
+    Switch->>Switch: Route via IP, Apply QoS/ECN
+    Switch->>NIC2: Forward UDP Packet
+    NIC2->>NIC2: Strip Eth+IP+UDP headers
+    NIC2->>GPU: Direct Memory Write (RDMA)
+    Note over GPU: Zero CPU involvement
+    NIC2-->>NIC1: Acknowledge receipt (ACK)
+```
 
 ## Key Takeaways
 

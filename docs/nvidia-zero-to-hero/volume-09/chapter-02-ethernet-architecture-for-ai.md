@@ -21,6 +21,19 @@ This chapter turns the workload problem from Chapter 01 into an architectural mo
 | Focus | Fabric roles, traffic separation, topology, and validation layers |
 | Next | RoCEv2 and RDMA over Ethernet |
 
+## Beginner's Primer: Deconstructing the "AI Fabric"
+
+When network engineers first hear "AI Ethernet Fabric," they often assume it simply means buying faster 400G or 800G switches. But an AI fabric is more than port speed; it is an integrated pipeline designed to completely bypass the CPU and traditional networking stack. 
+
+Here is how a beginner should map the mental model:
+1. **The Application (GPU):** The GPU creates a massive mathematical matrix that needs to go to another GPU. It does not want to wait for the host CPU to process TCP/IP headers.
+2. **The PCIe / NVLink Bus:** The data travels from the GPU memory straight down the motherboard's PCIe lanes (or a PCIe switch) directly to the network card.
+3. **The NIC (ConnectX / BlueField):** The NVIDIA ConnectX adapter packages this raw memory payload into a RoCE (RDMA over Converged Ethernet) packet. 
+4. **The Switches (Spectrum):** The leaf and spine switches transport this packet. Because it's RoCE, the switches must treat it with intense priority (Quality of Service) and instantly warn the NICs if buffers are getting full (ECN).
+5. **The Destination:** The packet arrives at the destination NIC and is unpacked directly into the target GPU's memory. The receiving CPU never even knew the packet arrived.
+
+This entire sequence is called **GPUDirect RDMA**. If any single link in this chain is misconfigured—even if it's just a misaligned PCIe slot on the motherboard—the entire "fast Ethernet fabric" drops to legacy CPU speeds, crippling the AI workload.
+
 ## Production Story: One Fabric, Four Very Different Traffic Classes
 
 A cluster uses the same physical switches for management, service APIs, storage, and GPU communication. The design is economical and initially simple. During checkpoint activity, storage traffic shares constrained uplinks with a training job. The training team sees collective stalls, while the network dashboard reports that no individual port is saturated over a five-minute average.
@@ -71,6 +84,33 @@ The data path transports application traffic. The adapter performs RDMA work and
 | Management | Inventory, credentials, software lifecycle, telemetry | Slow diagnosis, configuration drift, unsafe changes |
 
 ## Network Roles and Isolation
+
+```mermaid
+flowchart TD
+    subgraph DataCenter["AI Data Center Architecture"]
+        direction TB
+        
+        subgraph ComputeFabric["Compute / Backend Fabric (RDMA/RoCE)"]
+            SpineC[Spine Switches] --- LeafC1[Leaf 1]
+            SpineC --- LeafC2[Leaf 2]
+        end
+        
+        subgraph StorageFabric["Storage Fabric (Optional/Shared)"]
+            SpineS[Spine Switches] --- LeafS[Storage Leaf]
+        end
+
+        subgraph MgmtFabric["Management / Frontend Fabric (TCP/IP)"]
+            Core[Core Switch] --- LeafM[Mgmt Leaf]
+        end
+        
+        Server["AI Server (e.g. DGX)"]
+        
+        LeafC1 ===|High-speed RDMA| Server
+        LeafC2 ===|High-speed RDMA| Server
+        LeafS -.-|Storage Traffic| Server
+        LeafM ---|BMC / SSH| Server
+    end
+```
 
 | Network role | Typical traffic | Primary design concern |
 |---|---|---|
