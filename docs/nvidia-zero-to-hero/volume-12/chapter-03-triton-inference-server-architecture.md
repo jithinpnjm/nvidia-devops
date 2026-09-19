@@ -16,6 +16,24 @@ In early AI deployment stages, engineering teams often wrap trained models in cu
 
 **NVIDIA Triton Inference Server** solves these challenges by providing an open-source, high-performance C++ serving engine. Triton decouples client-facing network protocols from model execution runtimes, allowing organizations to serve any model framework (TensorRT, ONNX, PyTorch, OpenVINO, Python, vLLM) on any compute target (NVIDIA GPUs, x86 CPUs, ARM CPUs) under unified governance.
 
+## Beginner's Primer: Why not just use Python Flask?
+
+When developers first build an AI model, they almost always wrap it in a lightweight Python web framework like FastAPI or Flask:
+```python
+@app.route('/predict')
+def predict(image):
+    return my_model.run(image)
+```
+This is fine on a laptop. It is catastrophic in a data center.
+
+Python has a limitation called the **GIL (Global Interpreter Lock)**. It means Python can only truly do one thing at a time. If 100 users hit that Flask server simultaneously, Python processes them one by one. Furthermore, if you want to host a TensorFlow model, a PyTorch model, and an ONNX model, you would have to write, containerize, and deploy three completely different Python web servers. 
+
+**Triton is the ultimate AI Web Server.**
+Written in extremely fast C++, Triton acts as a universal translator. 
+You simply drop your trained model files into a folder (the Model Repository). Triton reads the folder, automatically detects whether it's PyTorch or ONNX, automatically spins up the correct backend engine, automatically groups incoming requests together for efficiency (Dynamic Batching), and exposes a blazingly fast HTTP/gRPC API.
+
+It transforms AI from "a bunch of custom Python scripts" into standardized, enterprise-grade software.
+
 ---
 
 ## WHAT: Deep Dive into Triton Architecture
@@ -475,6 +493,33 @@ readinessProbe:
 ---
 
 ## Summary & Authoritative References
+
+```mermaid
+flowchart LR
+    subgraph Clients["End Users"]
+        HTTP[HTTP Client]
+        gRPC[gRPC Client]
+    end
+
+    subgraph Triton_Inference_Server["Triton C++ Server"]
+        direction TB
+        Ingress[Network Ingress]
+        Scheduler[Dynamic Batching Queue]
+        
+        subgraph Backends["Execution Backends"]
+            TRT[TensorRT Engine]
+            PT[PyTorch Backend]
+            ONNX[ONNX Backend]
+        end
+        
+        Ingress --> Scheduler
+        Scheduler --> TRT
+        Scheduler --> PT
+        Scheduler --> ONNX
+    end
+
+    Clients -->|KServe API| Ingress
+```
 
 ### Key Takeaways
 1. **Standardized Production Foundation:** NVIDIA Triton provides a high-performance C++ core that decouples network ingress protocols (KServe v2) from model execution backends.

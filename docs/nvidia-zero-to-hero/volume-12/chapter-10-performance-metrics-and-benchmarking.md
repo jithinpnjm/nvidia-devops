@@ -24,6 +24,21 @@ By completing this chapter, you will be able to:
 - Contrast Open-Loop Poisson arrival rate benchmarking with Closed-Loop benchmarking to expose production admission queue collapse.
 - Diagnose synthetic benchmark artifacts and optimize engine configurations (`--max-num-batched-tokens`, `--max-num-seqs`, block size).
 
+## Beginner's Primer: TTFT and ITL
+
+If you test a normal web API, you send a request and wait for the JSON response. You measure "Response Time."
+If you test an AI Inference Server, "Response Time" is a useless metric. 
+
+If an AI takes 5 seconds to write a 1,000-word essay, is that fast or slow? 
+- If the AI waits 4.9 seconds in silence, and then dumps all 1,000 words on the screen at once, the user will think the system is broken and close the app.
+- If the AI starts typing the first word after 0.2 seconds, and types the rest of the essay smoothly over the next 4.8 seconds, the user will think the AI is brilliant and incredibly fast. 
+
+To the server, both requests took 5 seconds. But the user experience is drastically different. This is why we must break AI latency into two specific metrics:
+1. **TTFT (Time To First Token):** How long does the user wait before the AI starts typing? (This measures the *Prefill Phase*—reading the prompt). Target: < 200ms.
+2. **ITL (Inter-Token Latency):** Once it starts typing, how much time passes between each word? (This measures the *Decode Phase*—generating the output). Target: < 30ms (faster than human reading speed).
+
+If you are benchmarking an AI server, you must measure TTFT and ITL. If you just measure "Requests Per Second," you are measuring the wrong thing.
+
 ---
 
 ## Deconstructing GenAI Performance Metrics
@@ -385,6 +400,20 @@ If users report poor experience despite high throughput, the evaluation is likel
 ---
 
 ## Summary & Authoritative References
+
+```mermaid
+flowchart LR
+    subgraph Anatomy_of_a_Request["Anatomy of an AI Request"]
+        direction LR
+        Req[User Hits Send] -->|Wait...| FirstToken[First Token Appears]
+        FirstToken -->|Stream...| Token2[Token 2]
+        Token2 -->|Stream...| Token3[Token 3]
+        
+        Req -.->|TTFT: Time to First Token| FirstToken
+        FirstToken -.->|ITL: Inter-Token Latency| Token2
+        Token2 -.->|ITL| Token3
+    end
+```
 
 ### Chapter Summary
 - Deconstructing LLM latency into TTFT (compute-bound) and ITL (memory-bandwidth-bound) is mandatory for effective performance engineering.

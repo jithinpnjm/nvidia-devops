@@ -15,6 +15,17 @@ An inference request traverses multiple network hops, operating system kernel bo
 
 To build predictable high-throughput serving platforms, engineers must trace the complete end-to-end data and control path, accounting for latency at every boundary.
 
+## Beginner's Primer: The AI Drive-Thru
+
+Imagine an AI inference server like a fast-food drive-thru. 
+
+1. **The Order (Tokenization):** A customer drives up and places an order (the Prompt). The cashier (the CPU Tokenizer) must translate English words into numbers (Tokens) that the kitchen understands. If the cashier types slowly, the kitchen sits empty.
+2. **The Kitchen (The GPU):** The kitchen (the GPU) cooks the food insanely fast using massive fryers (Tensor Cores). 
+3. **The Conveyor Belt (PCIe Bus):** To get the food from the kitchen to the window, it rides on a conveyor belt (the PCIe bus). If you use a cheap, slow conveyor belt, the food gets cold, no matter how fast the kitchen cooked it.
+4. **The Delivery (Streaming):** As each item (Token) finishes, you hand it out the window immediately (Streaming) so the customer can start eating their fries while the burger finishes. If you wait for the entire meal to be bagged before handing it out, the customer feels like they waited forever.
+
+When an AI API feels "slow" to a user, developers almost always blame the GPU (the kitchen). But in reality, the delay is usually caused by slow cashiers (Python CPU bottlenecks), slow conveyor belts (unpinned host memory transfers), or terrible bagging strategies (waiting for full sentence generation instead of token streaming). This chapter breaks down every stop along that drive-thru path.
+
 ---
 
 ## WHAT: The Nine-Stage Inference Request Path
@@ -426,6 +437,27 @@ In dynamic batching pipelines, input tensors from 64 separate client requests mu
 ---
 
 ## Summary & Authoritative References
+
+```mermaid
+flowchart TD
+    subgraph Client_Experience["Client View"]
+        Req[Send Request] --> TTFT[Wait for Time To First Token]
+        TTFT --> ITL[Read Inter-Token Latency Stream]
+    end
+
+    subgraph Server_Execution["Server Execution Path"]
+        direction TB
+        Ingress[API Gateway / Auth] --> Token[CPU: Python Tokenizer]
+        Token --> Batch[Scheduler: Batching]
+        Batch --> Host[Host Memory / PCIe Transfer]
+        Host --> GPU[GPU: Tensor Core Math]
+        GPU --> Detoken[CPU: Detokenization]
+        Detoken --> Stream[Network Stream to Client]
+    end
+    
+    Req -.-> Ingress
+    Stream -.-> ITL
+```
 
 ### Key Takeaways
 1. **Optimize Beyond the GPU:** Non-GPU pipeline stages (tokenization, memory allocation, network proxy buffering) frequently account for &gt; 50% of end-to-end request latency.

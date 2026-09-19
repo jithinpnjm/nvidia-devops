@@ -12,6 +12,23 @@ Running LLM inference using standard PyTorch pipelines suffers from severe opera
 
 **NVIDIA TensorRT-LLM** addresses these challenges by combining TensorRT's low-level graph compilation with custom high-performance CUDA kernels (e.g., FlashAttention, FlashDecoding, SmoothQuant, FP8 GEMM), distributed execution primitives (Tensor Parallelism and Pipeline Parallelism), dynamic KV cache management, and a low-latency C++ `Executor` runtime interface.
 
+## Beginner's Primer: What is TensorRT-LLM?
+
+In Chapter 4, we learned that standard TensorRT compiles neural networks into ultra-fast binary engines. 
+However, **Large Language Models (LLMs) broke standard TensorRT.**
+
+Why? Because LLMs are fundamentally different from traditional AI models:
+1. **The KV Cache Problem:** Standard models have fixed memory sizes. LLMs remember the conversation by storing past tokens in memory (the KV Cache). This cache grows dynamically with every single word generated. Standard TensorRT required fixed memory allocations, which caused LLMs to crash instantly when the conversation got too long.
+2. **The Size Problem:** Standard models fit on a single GPU. A 70-Billion parameter LLM is too physically large to fit on a single 80GB H100 GPU. It must be sliced into pieces and spread across multiple GPUs (Tensor Parallelism). Standard TensorRT did not natively orchestrate multi-GPU communication.
+3. **The Attention Problem:** Modern LLMs use an architectural mechanism called "Attention" (figuring out which words in a sentence matter most to other words). This math is incredibly slow.
+
+**TensorRT-LLM** is an entirely separate library built specifically to solve these three problems. It extends TensorRT by adding:
+1. **Paged KV Cache:** Manages memory dynamically like a modern operating system so the cache can grow without crashing.
+2. **Distributed Runtime:** Automatically slices the LLM math across 2, 4, or 8 GPUs and uses NVLink/NCCL to coordinate them at microsecond speeds.
+3. **Custom Kernels:** Injects highly optimized algorithms like "FlashAttention" to speed up the math drastically.
+
+If you are serving an LLM on NVIDIA hardware, you should be using TensorRT-LLM.
+
 ---
 
 ## Production Scenario: Distributed 70B LLM Scaling Bottleneck
@@ -424,6 +441,33 @@ This converts a sequential reduction into a parallel grid execution, restoring f
 ## Summary & Authoritative References
 
 TensorRT-LLM provides an end-to-end ecosystem for compiling and serving Large Language Models on NVIDIA GPUs. By combining high-level Python graph definitions, Megatron-style distributed Tensor and Pipeline Parallelism, specialized custom CUDA kernels (FlashDecoding, SmoothQuant, FP8), paged KV cache memory management, and an iteration-level C++ `GptManager` execution runtime, TensorRT-LLM achieves state-of-the-art inference efficiency for enterprise production workloads.
+
+```mermaid
+flowchart TD
+    subgraph Client["Client Application"]
+        Req[Streaming Chat Request]
+    end
+
+    subgraph TRTLLM_Server["TensorRT-LLM Execution Stack"]
+        direction TB
+        Ingress[C++ Executor Runtime]
+        Schedule[Inflight Batcher]
+        Mem[Paged KV Cache Manager]
+        
+        subgraph Multi_GPU_Execution["Multi-GPU Distributed Execution"]
+            direction LR
+            GPU0[GPU 0: Tensor Parallel Rank 0]
+            GPU1[GPU 1: Tensor Parallel Rank 1]
+            GPU0 <==>|NVLink / NCCL AllReduce| GPU1
+        end
+        
+        Ingress --> Schedule
+        Schedule --> Mem
+        Schedule --> Multi_GPU_Execution
+    end
+    
+    Req -.-> Ingress
+```
 
 ### References & Documentation
 1. **TensorRT-LLM GitHub Repository:** [https://github.com/NVIDIA/TensorRT-LLM](https://github.com/NVIDIA/TensorRT-LLM)

@@ -10,6 +10,21 @@ Selecting the right Large Language Model (LLM) serving engine is a foundational 
 
 Choosing among these engines requires evaluating fundamental design trade-offs: virtual memory KV cache management (PagedAttention), prompt prefix sharing data structures (RadixAttention), high-concurrency frontend routing (Rust vs Python async engines), and raw C++ execution efficiency (TurboMind). This chapter provides an architectural deep-dive into the internals, algorithms, memory models, and trade-offs of these four major serving frameworks.
 
+## Beginner's Primer: The "Inference Engine" Wars
+
+In traditional software, if you write code in Python, you just run it with `python`.
+In Generative AI, if you train a massive model like LLaMA-3, you cannot just run it. You need a specialized piece of software called an **Inference Engine** to host the model, manage the GPU memory, queue up incoming requests, and stream the generated text back to users.
+
+NVIDIA's **TensorRT-LLM** (covered in Chapter 5) is one of the most powerful engines, but it requires compiling the model into an NVIDIA-specific binary format first. What if you just downloaded a model from Hugging Face and want to run it *right now* with state-of-the-art speed?
+
+An explosion of open-source "Inference Engines" have emerged to solve this:
+- **vLLM (UC Berkeley):** The most famous engine. It invented "PagedAttention," which manages GPU memory like a computer operating system (breaking memory into small pages) to stop LLMs from crashing on long documents.
+- **TGI (Hugging Face):** Text Generation Inference. The enterprise standard used by Hugging Face to power their API. Written in Rust for safety and speed.
+- **SGLang (Stanford/UC Berkeley):** Built specifically for complex, multi-step LLM workflows (like Agent chains) where you need extreme speed through a feature called "RadixAttention" (caching prompts so you don't re-compute them).
+- **LMDeploy (InternLM):** An aggressively optimized C++ engine known for raw throughput.
+
+Choosing an engine dictates your server architecture, API design, and memory efficiency. This chapter breaks down how they compare at a deep architectural level.
+
 ---
 
 ## Production Scenario: Multi-Tenant Enterprise LLM Gateway
@@ -376,6 +391,37 @@ Both systems aim to reuse KV cache blocks across requests, but they use differen
 ## Summary & Authoritative References
 
 Modern LLM serving engines optimize distinct layers of the inference pipeline: vLLM revolutionizes GPU memory efficiency via PagedAttention virtual memory management; TGI provides robust enterprise serving through a Rust router and `safetensors` integration; SGLang accelerates prompt-heavy and structured generation workloads via RadixAttention; and LMDeploy maximizes raw execution speed through a C++ TurboMind core.
+
+```mermaid
+flowchart TD
+    subgraph The_Inference_Engine_Landscape["Open Source LLM Inference Engines"]
+        direction TB
+        
+        subgraph Memory_Innovator["vLLM"]
+            PA[PagedAttention]
+            VM[Virtual Memory Paging]
+            PA --> VM
+        end
+        
+        subgraph Enterprise_Rust["TGI (Hugging Face)"]
+            Rust[Rust gRPC Router]
+            Scale[Safetensors / FlashInfer]
+            Rust --> Scale
+        end
+        
+        subgraph Prompt_Cache_Specialist["SGLang"]
+            Radix[RadixAttention]
+            Trees[Prefix Tree / Trie Caching]
+            Radix --> Trees
+        end
+        
+        subgraph Raw_Throughput["LMDeploy"]
+            TM[TurboMind C++ Engine]
+            AWQ[Native W4A16 Quantization]
+            TM --> AWQ
+        end
+    end
+```
 
 ### References & Documentation
 1. **vLLM: Efficient Memory Management for Large Language Model Serving with PagedAttention (SOSP 2023):** [https://arxiv.org/abs/2309.06180](https://arxiv.org/abs/2309.06180)

@@ -24,6 +24,18 @@ By completing this chapter, you will be able to:
 - Implement prefix-aware load balancing and prompt routing to maximize KV cache hit rates across distributed worker nodes.
 - Diagnose and resolve NCCL ring initialization timeouts, inter-node AllReduce latency bottlenecks, and pipeline bubble starvation incidents.
 
+## Beginner's Primer: Slicing the Brain
+
+What happens when an AI model is physically too big to fit inside a GPU?
+An H100 GPU has 80GB of memory. A 70-Billion parameter LLM requires about 140GB of memory just to hold the model weights (the "brain"), plus another 20GB to hold the KV Cache. It simply will not fit on one chip. You must split the brain across multiple GPUs. 
+
+There are three ways to do this:
+1. **Data Parallelism (DP):** The easiest. You copy the entire model onto GPU 1, and copy the entire model onto GPU 2. GPU 1 takes User A's question; GPU 2 takes User B's question. *(Only works if the model is small enough to fit on one GPU).*
+2. **Pipeline Parallelism (PP):** You slice the model horizontally. GPU 1 gets Layers 1-40. GPU 2 gets Layers 41-80. GPU 1 does the first half of the math, then hands the baton to GPU 2 to finish the math. *(Great for crossing slow network boundaries between separate servers).*
+3. **Tensor Parallelism (TP):** You slice the model vertically. GPU 1 gets the left half of the matrix; GPU 2 gets the right half. Both GPUs do the math at the exact same time, and then synchronize their answers. *(Requires blazing fast interconnects like NVLink; if you try to do TP across a standard network cable, the latency will destroy performance).*
+
+In enterprise inference, if you deploy Llama-70B, you are almost always using **TP=2** or **TP=4** (Tensor Parallelism across 2 or 4 GPUs inside the same physical server). This chapter explains how to configure that communication.
+
 ---
 
 ## Parallelism Strategies for Inference: TP vs PP vs DP
@@ -383,6 +395,32 @@ In a scale-out cluster running independent Data Parallel (DP) replicas, standard
 ---
 
 ## Summary & Authoritative References
+
+```mermaid
+flowchart TD
+    subgraph Multi_GPU_Scaling["How to Split an LLM"]
+        direction TB
+        
+        subgraph DP["Data Parallel (DP)"]
+            M1[Model Copy 1]
+            M2[Model Copy 2]
+            User1 --> M1
+            User2 --> M2
+        end
+        
+        subgraph PP["Pipeline Parallel (PP)"]
+            L1[Layers 1-40]
+            L2[Layers 41-80]
+            L1 -->|Hands off data| L2
+        end
+        
+        subgraph TP["Tensor Parallel (TP)"]
+            T1[Left Matrix Math]
+            T2[Right Matrix Math]
+            T1 <==>|NVLink AllReduce| T2
+        end
+    end
+```
 
 ### Chapter Summary
 - Tensor Parallelism (TP) requires microsecond-level latency and must be strictly bounded to intra-node NVLink interconnects.

@@ -14,6 +14,21 @@ Applying request-level dynamic batching to LLM generation causes severe operatio
 
 To solve this, modern serving engines implement **Continuous Batching** (also known as *iteration-level batching* or *in-flight batching*), supported by advanced techniques like **Chunked Prefill**. This chapter examines the mathematical models, scheduling algorithms, state transitions, and trade-offs of LLM batching architectures.
 
+## Beginner's Primer: The Elevator Analogy
+
+To understand batching, imagine an elevator in a busy skyscraper.
+
+**No Batching (Batch Size 1):** 
+A person gets in. The elevator goes up, drops them off, and comes all the way back down for the next person. This is terrible for throughput (overall capacity) but gives that one person the absolute lowest latency.
+
+**Dynamic Batching (Traditional AI):** 
+The elevator waits 5 seconds for people to gather in the lobby. 10 people get in. But here is the catch: *The elevator refuses to let anyone out until the person going to the highest floor reaches their destination.* If Person A is going to Floor 2, and Person B is going to Floor 100, Person A is trapped in the elevator until Floor 100 is reached. 
+In AI, this happens because traditional GPUs process matrices in uniform blocks. If one user asks the LLM for a 2-word answer, and another asks for a 2,000-word essay, the 2-word user is trapped waiting for the essay to finish. The GPU wastes power adding fake "padding" words to the short request just to make the math line up.
+
+**Continuous Batching (Modern LLM Servers like vLLM / Triton):** 
+The elevator acts like a real elevator. It stops at Floor 2, lets Person A out, and immediately lets Person C (who was waiting on Floor 2) into the elevator, all while continuing to carry Person B to Floor 100. 
+In AI, this means the GPU evaluates the batch *after every single word generated*. As soon as a user's sentence is finished, they are evicted from the GPU, and a new user's request is instantly slotted into that empty space. This is the secret to massive AI throughput.
+
 ---
 
 ## Production Scenario: The Tail Latency Spike
@@ -419,6 +434,30 @@ t_recompute = (2 * L * S^2 * H + 12 * L * S * H^2) / T_GPU
 ## Summary & Authoritative References
 
 Continuous batching and chunked prefill represent a fundamental evolution in LLM serving infrastructure. By replacing static, request-level dynamic batching with token-level iteration scheduling, slicing long prompts into compute-bounded prefill chunks, and applying intelligent preemption policies, production inference systems achieve optimal GPU compute occupancy while satisfying strict real-time latency SLAs.
+
+```mermaid
+flowchart TD
+    subgraph Traditional["Dynamic Batching (Traditional)"]
+        direction LR
+        Req1["Req 1: 'Hello' (5 tokens)"] --> Trap["Trapped in Batch until Req 2 finishes!"]
+        Req2["Req 2: 'Write essay' (500 tokens)"] --> Math["GPU computes 500 padding tokens for Req 1"]
+        Trap --> Math
+    end
+
+    subgraph Modern["Continuous Batching (In-Flight Iteration)"]
+        direction TB
+        subgraph Step1["Iteration N"]
+            R1["Req 1: 'Hello'"]
+            R2["Req 2: 'Write essay...'"]
+        end
+        subgraph Step2["Iteration N+1"]
+            R1Out["Req 1 FINISHED -> Ejected"]
+            R3["Req 3 (New): slotted in dynamically"]
+            R2_Cont["Req 2: '...essay continues'"]
+        end
+        Step1 -->|After 1 token generated| Step2
+    end
+```
 
 ### References & Documentation
 1. **Orca: A Distributed Serving System for Transformer-Based Generative Models (OSDI 2022):** [https://www.usenix.org/conference/osdi22/presentation/yu](https://www.usenix.org/conference/osdi22/presentation/yu)

@@ -19,6 +19,18 @@ When the team deploys that exact same model behind a customer-facing interactive
 
 Treating an inference deployment as simply "running the forward pass of a trained model" leads directly to production outages, severe tail latency degradation, and astronomical cloud costs. Inference is an online, interactive systems problem where latency, throughput, memory bounds, and cost exist in perpetual tension.
 
+## Beginner's Primer: Training vs. Inference
+
+The easiest way to understand AI infrastructure is to compare it to a human brain. 
+- **Training** is like spending 4 years in college studying for a medical degree. You sit in a library, reading textbooks (datasets) for hours. You are offline, completely focused, and trying to absorb as much information as possible. The goal is *knowledge acquisition*. 
+- **Inference** is what happens when that graduated doctor starts working in the Emergency Room. Patients arrive randomly, asking different questions. The doctor must recall their training instantly and provide a correct answer in real-time. The goal is *speed and accuracy under pressure*.
+
+In infrastructure terms:
+- **Training Clusters** are massive, tightly coupled supercomputers. If one GPU fails, the entire cluster halts. The goal is raw throughput (processing the whole dataset as fast as possible).
+- **Inference Clusters** are decoupled, highly available, autoscaling web servers. If one GPU fails, a load balancer just routes the user's question to a different server. The goal is low latency (answering the user instantly) and concurrency (answering 1,000 users at the same time).
+
+This volume focuses entirely on building the Emergency Room: deploying models into production to serve millions of live requests.
+
 ---
 
 ## WHAT: First-Principles Mechanics of AI Inference
@@ -445,6 +457,28 @@ M_total = 140 GB (Weights) + 134.2 GB (KV Cache) + 10 GB (Workspace) = 284.2 GB 
 ---
 
 ## Summary & Authoritative References
+
+```mermaid
+flowchart TD
+    subgraph The_Inference_Lifecycle["The Generative AI Inference Challenge"]
+        direction TB
+        
+        subgraph Phase1["Phase 1: Prefill (Reading the Prompt)"]
+            P_Prompt[User: 'Write a poem about a robot...']
+            P_Compute[GPU computes all tokens in parallel]
+            P_Bound[Compute-Bound Operation]
+        end
+        
+        subgraph Phase2["Phase 2: Decode (Writing the Output)"]
+            D_KV[KV Cache Memory Access]
+            D_Gen[GPU generates 1 token at a time]
+            D_Bound[Memory-Bandwidth Bound Operation]
+        end
+        
+        Phase1 --> Phase2
+        D_Gen -->|Loops until| EOS[End of Sentence]
+    end
+```
 
 ### Key Takeaways
 1. **Inference is fundamentally different from training:** Training optimizes long-running compute throughput; inference optimizes real-time user-visible latency percentiles (TTFT, ITL) under strict memory bounds.
