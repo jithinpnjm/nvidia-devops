@@ -17,6 +17,22 @@ By the end of this chapter, you will be able to:
 - Build a justifiable cost model for the customer's use case
 - Define success metrics and validation gates
 
+## Beginner's Primer: Speaking "Business"
+
+If you are interviewing for a Senior Solutions Architect role at NVIDIA, the technical questions (like NVLink routing and GPU Memory Fragmentation) are only half the battle. The other half is **Consulting**.
+
+When you walk into a Fortune 500 company, the CEO does not care about `NCCL_DEBUG=TRACE`. The CEO cares about one thing: **Return on Investment (ROI)**. 
+
+A junior engineer hears: *"We want to build an AI chatbot."*
+The junior engineer replies: *"Great! You need 8x H100 GPUs and InfiniBand!"* 
+
+A Senior Solutions Architect hears the same sentence, but replies: 
+- *"What is the business value of this chatbot?"* (If it only saves $10,000 a year, do not sell them a $300,000 server).
+- *"What is your data gravity?"* (If their data is highly classified on-premise, do not suggest the public cloud).
+- *"What is your team's skillset?"* (If they only have Windows SysAdmins, do not sell them Bare-Metal Kubernetes).
+
+Volume 22 teaches you how to translate deep technical infrastructure (Volumes 1-21) into executive-level business proposals, tailored to specific industries.
+
 ## The Consulting Challenge
 
 Customers rarely speak in infrastructure terms. They say things like:
@@ -160,6 +176,31 @@ Once you know the architecture, build a cost model.
 **Conceptual:** "Walk me through how you'd approach a new customer who says 'we want to use AI but we're not sure where to start.'"
 
 **Model Answer:** "I'd follow the four constraints framework. First, I'd ask: what's the business outcome and what's the current bottleneck? Second, I'd get the technical details. Third, I'd ask about deployment. Fourth, I'd establish success metrics. Only then would I propose an architecture."
+
+## Architecture Summary
+
+A Solutions Architect acts as the bridge between business intent and silicon execution. Before recommending any hardware, the SA must extract the customer's constraints across four dimensions: Business Objective, Technical Data shape, Deployment Environment, and Success Metrics. Only when the TCO (Total Cost of Ownership) is mathematically proven to be lower than the projected business value should an architecture be proposed.
+
+```mermaid
+flowchart TD
+    subgraph The_SA_Consulting_Framework["Solutions Architecture Discovery Process"]
+        direction TB
+        
+        Customer["Customer: 'We want to buy AI'"] --> Q1{"1. Business Objective?"}
+        
+        Q1 -->|Reduce Costs| Q2{"2. Technical Details?"}
+        Q1 -->|Increase Revenue| Q2
+        
+        Q2 -->|Latency / Throughput Limits?| Q3{"3. Deployment Environment?"}
+        
+        Q3 -->|On-Prem vs Cloud?| Q4{"4. Success Metrics?"}
+        Q3 -->|Team Skillset?| Q4
+        
+        Q4 -->|Define SLA & ROI| Design[Propose Architecture]
+        
+        Design --> TCO[Calculate Total Cost of Ownership <br/> CapEx + OpEx]
+    end
+```
 
 ## Related Chapters
 

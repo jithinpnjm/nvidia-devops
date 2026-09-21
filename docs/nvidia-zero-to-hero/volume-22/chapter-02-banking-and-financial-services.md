@@ -16,6 +16,16 @@ This chapter covers three critical use cases in financial services:
 2. **Overnight risk modeling** (VaR calculations on $500B portfolios) using FP64 A100s
 3. **Algorithmic trading signals** from LLMs with &lt; 50ms end-to-end latency
 
+## Beginner's Primer: AI in Banking
+
+When selling or designing AI for a bank, you must understand their two biggest fears: **Latency** and **Compliance**.
+
+1. **Fraud Detection:** When you swipe your credit card at a grocery store, the transaction is sent to the bank. The bank has exactly 100 milliseconds to run an AI model to decide if the transaction is fraudulent before approving or declining it. If the AI takes 500ms, the card reader times out, the customer is embarrassed, and the bank loses the transaction fee. This requires extremely high-throughput, low-latency inference (Triton Inference Server).
+2. **Risk Modeling:** At the end of every day, banks are legally required to calculate their "Value at Risk" (VaR)—essentially simulating millions of economic disasters to prove they won't go bankrupt tomorrow. This is pure math crunching. They do not care about latency; they care about finishing the job before the market opens the next morning. This requires massive FP64 (Double Precision) compute power.
+3. **Compliance:** Banks cannot put customer financial data into the public cloud ChatGPT. They must run models on-premise, inside an air-gapped network, using strict encryption (Confidential Computing) and immutable audit logs. 
+
+This chapter breaks down the exact hardware architectures needed to satisfy these paranoid, high-stakes requirements.
+
 ## Use Case 1: Fraud Detection (5,000 TPS)
 
 ### Requirements
@@ -107,6 +117,35 @@ A: Fraud detection is latency + throughput sensitive (5,000 TPS, &lt;100ms). Ris
 **Q: Design a fraud detection system for 5,000 TPS with &lt;100ms latency.**
 
 A: 8 L40S GPUs (2 clusters of 4) behind load balancers. Each L40S does 750 TPS independently. Total = 6,000 TPS available (headroom above the 5,000 TPS target). Batch size 256, inference time ~8ms, end-to-end with network ~40ms p99. Cost: $161K hardware + $80K/year ops.
+
+## Architecture Summary
+
+Financial Services AI architectures are defined by extreme latency constraints (Fraud Detection) and massive overnight math simulations (Risk Modeling). Because of strict data privacy and SEC compliance laws, these workloads heavily utilize On-Premise deployments, NVIDIA AI Enterprise (for SLA support), and Confidential Computing to ensure customer financial data is never exposed.
+
+```mermaid
+flowchart TD
+    subgraph FSI_Architecture["Banking AI Use Cases"]
+        direction LR
+        
+        subgraph UseCase1["Fraud Detection (Real-Time)"]
+            CC[Credit Card Swipe] -->|Must reply < 100ms| Triton[Triton Server <br/> L40S GPUs]
+            Triton -->|Approved/Declined| CC
+        end
+        
+        subgraph UseCase2["Risk Modeling (Overnight Batch)"]
+            DB[(Financial Data)] -->|End of day| Sim[Monte Carlo Simulation <br/> A100 FP64 Compute]
+            Sim -->|Report generated < 4 hours| Reg[Regulators]
+        end
+        
+        subgraph Compliance["FSI Security Layer"]
+            KMS[Key Management / Confidential Computing]
+            Audit[Immutable Audit Logging]
+        end
+        
+        UseCase1 -.-> Compliance
+        UseCase2 -.-> Compliance
+    end
+```
 
 ## Related Chapters
 
