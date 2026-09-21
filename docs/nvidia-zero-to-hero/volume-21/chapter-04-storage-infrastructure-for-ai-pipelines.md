@@ -19,6 +19,19 @@ tags: [storage, data-pipeline, checkpoint, s3, nfs, performance]
 
 ---
 
+## Beginner's Primer: Feeding the Beast
+
+If the GPUs are the engine of your AI Factory, the Data is the fuel.
+
+The fastest engine in the world is useless if the fuel pump is broken. In AI, a single H100 GPU can chew through hundreds of Megabytes of data every single second. If you have 512 GPUs, your storage system must instantly deliver massive streams of data, perfectly synchronized, 24 hours a day.
+
+There are three major fuel pumps you have to manage:
+1. **The Dataloader (Reading):** Pumping millions of images or text documents into the GPUs for training. If you store these as millions of tiny files, the storage system will spend all its time reading the "table of contents" (metadata) instead of sending the data. You must package data into large shards.
+2. **The Checkpoint (Writing):** Every few hours, all 512 GPUs will suddenly pause and dump their entire memory (Terabytes of data) to disk to save their progress. This is an explosive burst of write traffic that will crash standard enterprise NAS devices.
+3. **The Caching Tier:** To protect your network, you don't stream data from AWS S3 directly into the GPUs. You stream it into local NVMe drives on the server (the staging area), and the GPU reads it from there.
+
+This chapter synthesizes the storage patterns from Volume 15 into high-level architectural requirements for building the AI Factory.
+
 ## PART 1: STORAGE BOTTLENECK ANALYSIS
 
 ### 1.1 Data Throughput Demands
@@ -387,6 +400,28 @@ class CheckpointManager:
 | **Checkpoint corruption (size mismatch)** | `EOFError: file read fewer bytes than requested` | Incomplete write during network fault or power loss | Use checksums (MD5), validate before load, restore from S3 backup |
 | **Slow S3 uploads (>10 min to backup 420GB)** | Async upload thread reports `PutObject timeout` | S3 API rate limiting or network saturation | Use multipart upload (1GB chunks in parallel), exponential backoff on 5xx errors |
 | **Data cache miss (NVMe evicted, revert to S3)** | Training stalls for 100–500ms per batch | Local NVMe capacity exceeded, working dataset larger than cache | Increase prefetch window, implement LRU eviction policy, or expand NVMe to 8 TB per node |
+
+## Architecture Summary
+
+An AI Factory's storage architecture must be tiered to protect the expensive GPU compute cycles from slow I/O. Cloud Object Storage (S3) acts as the durable cold tier, Parallel File Systems (Lustre/BeeGFS) act as the warm active tier, and Local NVMe drives act as the ultra-hot staging cache.
+
+```mermaid
+flowchart TD
+    subgraph The_Tiered_Storage_Architecture["AI Factory Tiered Storage"]
+        direction TB
+        
+        S3[(Cold Tier: S3 Object Storage <br/> Massive Datasets & Checkpoint Backups)]
+        NAS[(Warm Tier: Lustre / BeeGFS <br/> High-Bandwidth Parallel Storage)]
+        NVMe[(Hot Tier: Local NVMe Drives <br/> In-Node Caching & Staging)]
+        GPU[GPU VRAM <br/> Tensor Cores]
+        
+        S3 -.->|Pre-loads data| NAS
+        NAS -->|Streams to Cache| NVMe
+        NVMe ===>|Direct Memory Access| GPU
+        GPU ===>|Asynchronous Checkpoint Write| NVMe
+        NVMe -.->|Background Flush| NAS
+    end
+```
 
 ---
 

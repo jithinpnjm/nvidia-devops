@@ -19,6 +19,20 @@ tags: [gpu-cluster, topology, nvlink, infiniband, performance, cost-analysis]
 
 ---
 
+## Beginner's Primer: Building the Mega-Node
+
+When you build a gaming PC, you plug a single GPU into a PCIe slot.
+When you build an AI Factory, you are buying pre-built "Mega-Nodes" (like an NVIDIA DGX server) that contain 8 GPUs squeezed into a single chassis. 
+
+Why 8? 
+Because 8 is the physical limit of how many GPUs NVIDIA can wire together using their ultra-fast **NVLink** and **NVSwitch** technology inside a single box. NVLink allows those 8 GPUs to talk to each other at 900 GB/s. If you used standard PCIe cables, they would talk at 64 GB/s. 
+
+This creates a massive architectural boundary:
+- **Intra-Node (Inside the box):** Communication is incredibly fast (900 GB/s via NVLink).
+- **Inter-Node (Outside the box):** If GPU 1 in Box A wants to talk to GPU 1 in Box B, the data has to leave the box via a Network Card (ConnectX) and travel over InfiniBand or Ethernet. This is much slower (400 Gbps, which is 50 GB/s).
+
+As an AI Architect, you must perfectly balance the power of the GPU (e.g., A100 vs H100), the form factor (PCIe vs SXM), and the network between the boxes. If you buy 64 H100s but connect the boxes with cheap 10G Ethernet, you have built a Ferrari and parked it in a traffic jam.
+
 ## PART 1: GPU SELECTION MECHANICS
 
 ### 1.1 Current GPU Landscape (August 2026)
@@ -467,6 +481,27 @@ flowchart TD
 
 5. **Recommendation**
    - "At 64 GPUs, the pure compute-overhead math doesn't justify IB's premium — that argument is weak and I won't overstate it. The real case for IB is architectural: fabric quality and predictable scaling as we grow past 128-256 GPUs, where Ethernet's congestion behavior and the cost of a mid-life fabric swap outweigh the $448K upfront delta. If we're confident we'll stay at 64 GPUs long-term, Ethernet is defensible; if we're building toward 256+ GPUs, buy IB now."
+
+## Architecture Summary
+
+GPU Compute Cluster design is a three-tiered architectural decision. First, select the correct GPU silicon (H100 vs A100) based on the workload's math requirements. Second, select the node form-factor (SXM with NVLink for training, PCIe for standard inference). Third, select the interconnect (InfiniBand vs RoCE Ethernet) based on the cluster's scale and synchronization demands.
+
+```mermaid
+flowchart TD
+    subgraph Cluster_Design_Decisions["GPU Cluster Architectural Decisions"]
+        direction TB
+        
+        Q1{"What is the Primary Workload?"}
+        
+        Q1 -->|Distributed Training| T1[GPU: H100 SXM5 <br/> Max FLOPS / Highest Cost]
+        T1 --> T2[Node: 8-GPU with NVSwitch <br/> Max intra-node bandwidth]
+        T2 --> T3[Network: InfiniBand NDR <br/> Lossless, low-latency scaling]
+        
+        Q1 -->|Inference Serving| I1[GPU: H100 PCIe or L40S <br/> Cheaper, lower power]
+        I1 --> I2[Node: 4 or 8-GPU PCIe <br/> NVLink Bridges optional]
+        I2 --> I3[Network: 400G Ethernet <br/> High throughput, standard IT]
+    end
+```
 
 ---
 
