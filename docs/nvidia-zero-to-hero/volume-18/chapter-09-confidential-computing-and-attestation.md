@@ -26,6 +26,19 @@ When a GPU executes matrix math on proprietary model weights, or processes a use
 If a rogue system administrator with physical access to the server dumps the RAM, or uses a PCIe bus analyzer, they can steal the unencrypted weights and data. 
 To protect against this ultimate threat, NVIDIA and CPU manufacturers introduced **Confidential Computing**.
 
+## Beginner's Primer: The Trust Problem
+
+If your company buys a server, puts it in a locked room, and gives only you the key, you trust the server. 
+But what if you rent a server from a public cloud (AWS, Azure)?
+
+Even if you install your own OS, set your own passwords, and encrypt the hard drives, you are running inside a Virtual Machine. The cloud provider owns the Hypervisor beneath the VM. A rogue cloud administrator (or a hacker who breaches the cloud provider) can simply use hypervisor tools to read the raw RAM and VRAM of your VM. They don't need your passwords; they just read the memory chips while the AI model is running, stealing the model weights and the customer prompts in plain text.
+
+**Confidential Computing** solves this. 
+Modern CPUs (AMD SEV-SNP) and modern GPUs (NVIDIA Hopper) have built-in hardware encryption engines. They encrypt the RAM and VRAM *at the silicon level*. 
+Even the cloud provider's Hypervisor cannot read the memory; it looks like garbage. 
+
+But how do you know the cloud provider actually turned this feature on? You use **Attestation**. Before you send your AI model to the cloud, you ask the physical silicon chip to send you a cryptographic math puzzle proving it is secure. You verify the math, and only then do you unlock the model. This allows banks and militaries to safely run classified AI models in public clouds.
+
 ## 1. Confidential Computing (The Secure Enclave)
 
 Confidential Computing uses hardware-level encryption to create a "Secure Enclave" (or Trusted Execution Environment - TEE). 
@@ -71,3 +84,38 @@ Before we transmit the decryption keys to the cloud, our on-premises Key Managem
 **Conceptual:** What is the difference between Data at Rest, Data in Transit, and Data in Use encryption? *(Hint: At Rest protects data sitting on hard drives (e.g., AES-256). In Transit protects data moving over a network (e.g., TLS). In Use (Confidential Computing) protects data while it is actively being processed in RAM or VRAM, using hardware-level memory encryption to prevent unauthorized memory dumps or hypervisor snooping).*
 
 **Architecture:** Explain the purpose of "Remote Attestation" in a Confidential Computing environment. *(Hint: Remote Attestation is the cryptographic process of verifying the integrity of a remote server. Before sending sensitive data or encryption keys to a cloud server, the client demands a cryptographic signature from the server's hardware (e.g., the GPU's Root of Trust). This signature mathematically proves that the server is running authorized firmware and that the hardware memory encryption (Secure Enclave) is actively engaged).*
+
+## Architecture Summary
+
+Confidential Computing is the ultimate defense against compromised hypervisors, rogue cloud administrators, and physical RAM snooping. By utilizing hardware encryption at the CPU (AMD SEV-SNP) and GPU (NVIDIA Hopper) silicon layers, memory is mathematically scrambled before it ever touches the physical RAM chips. Trust is established not by trusting the cloud provider, but by executing cryptographic Remote Attestation protocols to verify the hardware's integrity before releasing decryption keys.
+
+```mermaid
+flowchart TD
+    subgraph Confidential_Computing_Architecture["Confidential AI Execution"]
+        direction TB
+        
+        subgraph Enterprise["Enterprise Data Center"]
+            KMS[Key Management Server]
+            Model[Encrypted Model Weights]
+        end
+        
+        subgraph PublicCloud["Untrusted Public Cloud"]
+            direction LR
+            Hypervisor[Cloud Hypervisor <br/> Untrusted]
+            
+            subgraph SecureEnclave["Secure VM / Enclave"]
+                RAM[Encrypted System RAM]
+                VRAM[Encrypted GPU VRAM]
+            end
+            
+            Hypervisor -.x|Reads Garbage| SecureEnclave
+        end
+        
+        KMS <==>|1. Remote Attestation Protocol| SecureEnclave
+        KMS -->|2. Keys released if Attestation Passes| SecureEnclave
+        Model -->|3. Weights Decrypted inside Enclave| VRAM
+    end
+    
+    style Hypervisor fill:#ffcccc,stroke:#cc0000
+    style SecureEnclave fill:#e6ffe6,stroke:#006600,stroke-width:2px
+```

@@ -22,3 +22,35 @@ This volume established that AI infrastructure expands the enterprise attack sur
 
 A Senior Solutions Architect understands that security is a math problem. 
 They do not trust humans to follow policies; they enforce policies in the silicon and the orchestration layer. They mandate IOMMU to secure the PCIe bus, they require Admission Controllers to block unsigned containers, and they deploy DPUs to physically isolate the security perimeter. By designing a system that assumes the host OS will eventually be compromised, the Architect ensures that a breach is contained, preventing a localized container escape from becoming a multi-million dollar corporate data disaster.
+
+## Beginner's Primer: Putting it all together
+
+Volume 18 covered the entire security lifecycle of an AI Factory. To visualize how these concepts fit together, think of your data center like a medieval castle:
+
+- **The Supply Chain (The Drawbridge):** You check everyone who tries to enter the castle. You scan their bags (Trivy CVE Scanning) and check their ID (Cosign Image Signing) to ensure no Trojan Horses get inside.
+- **RBAC & Network Policy (The Internal Doors):** Once inside the castle, the chef can only enter the kitchen. The guard can only enter the barracks. If a guest goes rogue, they are locked in their room.
+- **DPUs & IOMMU (The Bulletproof Glass):** The security guards (Firewalls) and the vault managers are placed behind unbreakable glass, completely physically separated from the guests. 
+- **Confidential Computing (The Vault):** Even if someone breaks into the vault room, the gold bars are individually encrypted with biometric locks, rendering them useless to the thief.
+
+## Architecture Summary
+
+```mermaid
+flowchart TD
+    subgraph Zero_Trust_AI_Architecture["Zero-Trust AI Defense in Depth"]
+        direction TB
+        
+        Supply["1. Supply Chain Defense <br/> Signatures / Safetensors"]
+        K8s["2. Kubernetes Defense <br/> RBAC / Pod Security Admission"]
+        Network["3. Network Defense <br/> NetworkPolicies / DPU Firewalls"]
+        Hardware["4. Hardware Defense <br/> Secure Boot / IOMMU"]
+        Data["5. Data Defense <br/> Confidential Computing (Enclaves)"]
+        
+        Supply -->|If attacker sneaks a poisoned model| K8s
+        K8s -->|If attacker gains a reverse shell| Network
+        Network -->|If attacker scans the local network| Hardware
+        Hardware -->|If attacker tries to DMA the RAM| Data
+        Data -->|If attacker dumps the VRAM| Stop[Attacker reads Ciphertext. <br/> Breach Contained.]
+        
+        style Stop fill:#ccffcc,stroke:#006600
+    end
+```

@@ -22,6 +22,22 @@ If you spend $10 million in GPU compute time to train a model, and that model fi
 
 A Senior Architect must design a system that treats Model Weights with the same extreme paranoia as cryptographic private keys, implementing strict access controls, encryption at rest, and auditable deployment pipelines.
 
+## Beginner's Primer: The Value is in the Weights
+
+In traditional software engineering, if you want to steal a company's product, you steal their source code (e.g., the Java or Python files). 
+
+In Generative AI, the source code is largely irrelevant. The code to run LLaMA-3 is freely available on GitHub and is only a few hundred lines long. 
+What makes LLaMA-3 valuable is the **Model Weights**. 
+The Weights are a massive file (often 140GB+) containing billions of decimal numbers. These numbers represent the "learned knowledge" that cost Meta millions of dollars in electricity to compute.
+
+If you leave the Model Weights file sitting on a shared network drive (NFS), an intern can copy the file to a USB drive, walk out the door, and sell your company's entire intellectual property. 
+
+To protect Model Weights, Platform Engineers treat them like highly classified documents:
+1. **Model Registries:** You never store models on shared drives. You use a specialized vault (like MLflow or Harbor) that records exactly who downloaded the model and when.
+2. **Encryption:** You encrypt the model file so that even if the intern copies it to a USB drive, the file is scrambled garbage. The file can only be decrypted at the exact millisecond it is loaded into the GPU. 
+
+This chapter explains how to build the vault.
+
 ## 1. Securing the Model Registry
 
 Data scientists often leave model files scattered across Jupyter notebooks, local NVMe drives, and shared network folders. This is unacceptable.
@@ -79,3 +95,43 @@ Under this new architecture, even if an insider manages to download the file, th
 **Conceptual:** Why is storing model weights on a generic shared network drive (like NFS/SMB) a major security risk? *(Hint: Model weights are the core intellectual property of an AI company. Generic network drives often lack granular RBAC, immutable versioning, and detailed audit logging. Models must be stored in a dedicated Model Registry with strict access controls, encryption, and logs that track exactly who downloaded the file).*
 
 **Architecture:** Explain how KMS (Key Management Service) encryption protects model weights from insider threat. *(Hint: If model weights are encrypted at rest with KMS, simply stealing the file from S3 is useless. The attacker must also possess the specific identity (e.g., the Kubernetes Service Account token) required to ask the KMS for the decryption key. By separating the storage of the data from the storage of the keys, you force attackers to compromise multiple independent security systems).*
+
+## Architecture Summary
+
+Model weights are the crown jewels of an AI enterprise. To prevent intellectual property theft, Platform teams must encrypt model files at rest and strictly control access using Key Management Services (KMS). By linking KMS decryption rights exclusively to specific Kubernetes Service Accounts (IRSA), architects ensure that even if an insider manages to copy the massive `.safetensors` files out of the S3 bucket, they only exfiltrate useless, encrypted ciphertext.
+
+```mermaid
+flowchart TD
+    subgraph Zero_Trust_Storage["Model Weight Encryption & Retrieval"]
+        direction TB
+        
+        subgraph Vault["Enterprise Storage (S3 / Lustre)"]
+            Encrypted[Encrypted Model Weights <br/> AES-256 Ciphertext]
+        end
+        
+        subgraph Key_Server["AWS KMS / HashiCorp Vault"]
+            Key[Master Decryption Key]
+        end
+        
+        subgraph Inference_Node["Production K8s Worker Node"]
+            direction TB
+            Pod[Triton Inference Pod]
+            SA[Service Account: triton-prod]
+            Pod --- SA
+        end
+        
+        subgraph Rogue_Insider["Malicious Employee"]
+            Laptop[Personal Laptop]
+        end
+        
+        Pod -->|1. Downloads Ciphertext| Encrypted
+        SA -->|2. Authenticates to KMS| Key
+        Key -.->|3. Unlocks Model in RAM| Pod
+        
+        Laptop -.->|Downloads Ciphertext| Encrypted
+        Laptop -.x|Denied: No Service Account| Key
+    end
+    
+    style Rogue_Insider fill:#ffcccc,stroke:#cc0000
+    style Encrypted fill:#fff3e6,stroke:#cc6600
+```

@@ -22,6 +22,18 @@ In Security Incident Response (IR), when a server is breached, **rebooting it de
 If an attacker has compromised a GPU node, their malware, active network connections, and stolen credentials exist entirely in the volatile system RAM and GPU VRAM. 
 A Senior Architect designs incident response workflows that prioritize **Containment and Forensic Preservation** over immediate uptime.
 
+## Beginner's Primer: Do Not Touch the Crime Scene
+
+In traditional DevOps (Volume 16), the goal is MTTR (Mean Time To Recovery). If a Pod dies, you restart it. If a Node hangs, you reboot it. You want the service back online in 5 minutes.
+
+In DevSecOps, the rules change entirely. 
+If an alert fires saying *"Unauthorized Crypto-Miner detected on GPU 4"*, you do not have an IT problem. You have a crime scene.
+
+If your first instinct is to type `kubectl delete pod`, you have just grabbed a broom and swept away all the fingerprints. You destroyed the attacker's code, their IP address, and their memory footprint. You don't know how they got in, which means they will just get back in tomorrow. 
+
+**The Golden Rule of Security IR:** Isolate, don't terminate. 
+Instead of deleting the Pod, you apply a Kubernetes Network Policy that cuts the Pod's internet connection. The hacker is trapped inside the running container, but they can't send data out. You then use forensic tools to freeze the container, copy the GPU's memory, and figure out exactly what vulnerability they exploited. *Then*, you wipe the server. 
+
 ## 1. The Incident Response Workflow (Containment)
 
 **Symptom:** Your IDS (Intrusion Detection System) alerts that a specific GPU worker node (`gpu-node-42`) is making outbound connections to a known cryptocurrency mining pool.
@@ -74,3 +86,30 @@ Next, the security team will execute `kubectl debug` or use forensic tools to at
 **Conceptual:** If you suspect a GPU server has been compromised by an attacker, why should you avoid rebooting it immediately? *(Hint: Rebooting the server clears the volatile System RAM and GPU VRAM. This destroys the most critical forensic evidence, such as the attacker's active network connections, injected malware payloads, and decrypted passwords. You should isolate the server from the network (quarantine) and take a memory snapshot before powering it down).*
 
 **Architecture:** Explain the difference between 'cleaning' a compromised node and 'destroying' it. *(Hint: 'Cleaning' involves trying to find and delete the malware using antivirus tools. This is a massive security risk, as sophisticated attackers install hidden rootkits deep in the OS or firmware. In modern cloud-native architecture, you 'destroy' the node by completely wiping the hard drives, reflashing the hardware firmware, and re-imaging the OS from a known-good immutable image, guaranteeing the threat is eradicated).*
+
+## Architecture Summary
+
+Security Incident Response requires fighting the SRE instinct to "just reboot it." When an AI Pod or Node is compromised, platform engineers must execute a forensic containment strategy: applying NetworkPolicies to instantly air-gap the workload without killing the process, capturing volatile memory state (VRAM/RAM) for analysis, and finally executing a scorched-earth hardware wipe (re-imaging OS and re-flashing GPU firmware) to eradicate persistent rootkits.
+
+```mermaid
+flowchart TD
+    subgraph The_Forensic_Containment_Protocol["Security Incident Response Flow"]
+        direction TB
+        
+        Alert[IDS Alert: Malicious Crypto-Miner Detected in Pod]
+        
+        Alert --> Bad_SRE{Junior SRE Reaction}
+        Bad_SRE -->|kubectl delete pod| Delete[Evidence Destroyed! <br/> Hacker will return tomorrow.]
+        
+        Alert --> Good_SRE{Senior SRE Reaction}
+        Good_SRE -->|Apply 'Deny-All' NetworkPolicy| Trap[Container Air-Gapped. <br/> Hacker trapped.]
+        Trap --> Dump[Dump Volatile Memory <br/> Copy logs for Forensics]
+        Dump --> Find[Identify Root Vulnerability <br/> e.g., Unpatched PyTorch CVE]
+        Find --> Patch[Patch Vulnerability Globally]
+        Patch --> Burn[Terminate Pod <br/> Nuke & Re-image the Node]
+    end
+    
+    style Delete fill:#ffcccc,stroke:#cc0000
+    style Trap fill:#ccffcc,stroke:#006600
+    style Burn fill:#ccffcc,stroke:#006600
+```
