@@ -23,6 +23,20 @@ By the end of this chapter, you will be able to:
 - Diagnose and fix TP/PP-specific failures (inter-node TP, bubble starvation, load imbalance)
 - Design a hybrid parallelism strategy for a specific model and cluster topology
 
+## Beginner's Primer: Model Parallelism vs. Data Parallelism
+
+In Chapter 3, we discussed **Data Parallelism** (everyone has the whole book, but reads different chapters). 
+In Chapters 4 and 5, we discussed **Data Parallelism with Sharding** (FSDP/ZeRO), where we rip the book into pages to save memory, but we still mathematically process things as if everyone had the whole book.
+
+**Model Parallelism** is completely different. 
+If an AI model is a car assembly line, Model Parallelism is assigning different workers to build different parts of the car. 
+
+1. **Tensor Parallelism (TP):** You split the math *vertically*. Worker 1 builds the left side of the engine; Worker 2 builds the right side of the engine. They have to pass wrenches back and forth constantly. Because they communicate so heavily, TP can *never* cross a network cable; it must stay inside a single physical server using ultra-fast NVLink.
+2. **Pipeline Parallelism (PP):** You split the math *horizontally*. Worker 1 builds the engine and hands the whole engine to Worker 2, who installs the transmission. Because they only hand things off once per step, PP is perfect for communicating across slow network cables between different physical servers.
+3. **Expert Parallelism (MoE):** The model has 8 different "specialists" (e.g., one for Math, one for French, one for Coding). When a question comes in, a router decides which expert gets the question. Only 1 or 2 experts are active at a time, saving massive amounts of compute power.
+
+When you train a massive model like GPT-4 or Llama-3 405B, you use all three of these plus Data Parallelism at the same time. This is called **3D Parallelism**.
+
 ## Why Model Parallelism Exists: When Single-GPU Memory Isn't the Problem
 
 Data Parallelism (FSDP, ZeRO-3) works well when **the model can fit on a single GPU** and we just want to speed up training by processing multiple batches in parallel. But for extremely large models, even FSDP sharding across 16-32 GPUs isn't enough.
@@ -261,6 +275,33 @@ Total: 8 × 4 × 32 = 1024 GPUs. Each node gets 64 GPUs arranged as 8 TP-groups 
 **Deep dive:** "Calculate the pipeline bubble for a 120-layer Transformer with PP=8, global batch size 2048, micro-batch size 4. Is it acceptable?"
 
 **Model Answer:** "Number of micro-batches = 2048 / 4 = 512. Bubble % = (8-1) / (512+8-1) = 7/519 ≈ 1.35%. This is excellent—only ~1.35% idle time. Very acceptable. With 120 layers and ~50ms per layer, a full step is ~6 seconds. The bubble costs ~80ms, which is tiny. This configuration would yield near-optimal utilization."
+
+## Architecture Summary
+
+When an AI model is too large for Data Parallelism, we must resort to Model Parallelism. By combining Tensor Parallelism (intra-node, heavy communication) and Pipeline Parallelism (inter-node, light communication), platform engineers can train trillion-parameter models across thousands of GPUs, an architecture known as 3D Parallelism.
+
+```mermaid
+flowchart TD
+    subgraph Three_D_Parallelism["3D Parallelism Overview"]
+        direction LR
+        
+        subgraph Node1["Server 1 (TP=2)"]
+            T1[Left Math] <==>|NVLink| T2[Right Math]
+        end
+        
+        subgraph Node2["Server 2 (TP=2)"]
+            T3[Left Math] <==>|NVLink| T4[Right Math]
+        end
+        
+        subgraph DP["Data Parallelism"]
+            M1[Data Batch A]
+            M2[Data Batch B]
+        end
+        
+        M1 --> Node1
+        Node1 ===>|InfiniBand: Pipeline Parallel (Layers 1-40 to 41-80)| Node2
+    end
+```
 
 ## Related Chapters
 

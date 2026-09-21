@@ -15,6 +15,24 @@ tags: [multi-node, architecture, infiniband, roce, topology, slurm, enroot, pyxi
 | Primary audience | Infrastructure Architects, Network Engineers, Platform Teams, Training Engineers |
 | Core question | How do we design networks for thousands-of-GPU training clusters, and how does a training job actually get placed onto them? |
 
+## Beginner's Primer: The 8-Lane Highway
+
+Imagine a data center is a city, and servers are houses. 
+In a traditional IT network, every house has a single driveway that connects to a single main road. If all the houses try to leave for work at the same time, the main road jams, and everyone waits. 
+
+In AI training, 8 GPUs inside a single server produce so much data that a single network cable would melt. 
+To solve this, NVIDIA designed the **Rail-Optimized Network**. 
+
+Instead of the server having one driveway, it has 8 completely independent driveways. 
+- GPU 1 uses Driveway 1 to get on Highway 1.
+- GPU 2 uses Driveway 2 to get on Highway 2.
+- GPU 8 uses Driveway 8 to get on Highway 8.
+
+These 8 highways NEVER intersect. 
+This means GPU 1 on Server A can talk to GPU 1 on Server Z at maximum speed, completely ignoring whatever GPU 2 is doing. 
+
+This chapter explains how to build this exact network (using InfiniBand or RoCE), and how a cluster manager like **Slurm** knows how to schedule jobs across this massive 8-lane highway without causing a traffic jam.
+
 ## WHY
 
 A single HGX node (like an NVIDIA DGX) has 8 GPUs tightly coupled with NVLink, providing massive bandwidth. However, training a foundation model requires hundreds or thousands of GPUs. The problem this solves is how to connect these independent 8-GPU islands into a single, cohesive supercomputer without the network becoming a crippling bottleneck.
@@ -289,4 +307,37 @@ sinfo -N -p gpu-h100 | grep dgx-013
 ```bash
 # Confirm the drain reason before resubmitting
 scontrol show node dgx-013 | grep -i reason
+```
+
+## Architecture Summary
+
+Scaling AI training beyond a single server requires a "Rail-Optimized" network topology, where 8 GPUs inside a node connect to 8 independent, parallel network planes. This prevents traffic jams and maximizes InfiniBand/RoCE bandwidth. To orchestrate workloads across this massive hardware grid, HPC environments rely on Slurm for scheduling, and Enroot/Pyxis for securely spinning up containerized AI jobs without requiring root access.
+
+```mermaid
+flowchart TD
+    subgraph Rail_Optimized_Topology["Rail-Optimized Network Topology"]
+        direction TB
+        
+        subgraph NodeA["Server A (8 GPUs)"]
+            GA1[GPU 1]
+            GA2[GPU 2]
+            GA8[GPU 8]
+        end
+        
+        subgraph Switches["Independent Leaf Switches"]
+            Leaf1[Leaf Switch 1]
+            Leaf2[Leaf Switch 2]
+            Leaf8[Leaf Switch 8]
+        end
+        
+        subgraph NodeB["Server Z (8 GPUs)"]
+            GB1[GPU 1]
+            GB2[GPU 2]
+            GB8[GPU 8]
+        end
+        
+        GA1 <==>|Rail 1| Leaf1 <==>|Rail 1| GB1
+        GA2 <==>|Rail 2| Leaf2 <==>|Rail 2| GB2
+        GA8 <==>|Rail 8| Leaf8 <==>|Rail 8| GB8
+    end
 ```

@@ -15,6 +15,20 @@ tags: [checkpointing, failure-recovery, distributed-systems]
 | Primary audience | MLOps, Infrastructure Engineers, SREs |
 | Core question | How do we save and resume training across thousands of GPUs with minimal time loss? |
 
+## Beginner's Primer: Saving the Game
+
+If you are playing a video game for 100 hours, you occasionally "Save" your progress so if the power goes out, you don't have to start from the beginning. 
+
+In AI training, "Saving the Game" is called **Checkpointing**.
+When training a model on 10,000 GPUs for 3 months, hardware *will* fail. A GPU will overheat, or a network cable will break. If you haven't saved your progress, you lose millions of dollars of compute time.
+
+But saving the game in AI is incredibly difficult:
+1. **The Size:** A 70B parameter model checkpoint can easily be 1.2 Terabytes. Writing 1.2 TB to a hard drive takes a long time. 
+2. **The Pause:** While the GPUs are writing the checkpoint to the hard drive, they are not doing math. This is called the "Checkpoint Pause." If you pause for 5 minutes every hour to save, you are wasting 8% of your expensive GPU cluster time.
+3. **The Assembly:** Remember FSDP and Megatron? The model isn't whole anymore; it's shattered into thousands of pieces across the cluster. Saving a checkpoint means every single GPU must write its specific puzzle piece to a shared filesystem simultaneously.
+
+This chapter explains how modern AI systems use asynchronous saving and distributed filesystems (like Lustre) to save massive checkpoints without bringing the training job to a grinding halt.
+
 ## WHY
 
 In large-scale distributed training, hardware failures are not a possibility—they are a mathematical certainty. If you are training a model on 1,024 GPUs for 30 days, the probability of at least one component (GPU, NIC, power supply, memory) failing approaches 100%. If you haven't saved your progress, a single crash could wipe out millions of dollars of compute time. The problem this solves is finding the optimal balance between saving state frequently enough to minimize lost work, and infrequently enough that saving doesn't consume all your expensive GPU time.
@@ -199,6 +213,37 @@ r = FileSystemReader('/checkpoints/step_5000'); print(r.read_metadata())"
 **Troubleshooting:** "A checkpoint write that used to take 90 seconds is now taking 12 minutes, with no change to model size or GPU count. What do you check first?"
 
 **Model Answer:** "A 90-second to 12-minute jump — roughly 8x — with no configuration change points at the storage layer rather than the training code, since nothing about the checkpoint payload size changed. First, I'd check whether the parallel filesystem is now shared with more concurrent tenants than before; this chapter's worked example showed that once aggregate writer demand exceeds the filesystem's bandwidth ceiling, per-writer throughput drops proportionally, and that's a very common silent cause on shared HPC storage. Second, I'd check for a degraded storage node or OST/OSS in the parallel filesystem — a single slow storage target can bottleneck writes from any GPU shard that happens to land on it, similar in spirit to the straggler-node problem from earlier chapters but on the storage side instead of the compute side. Third, I'd rule out a checkpoint format regression — if someone recently changed from a sharded write to an inadvertent gather-based one, that alone reproduces almost exactly this kind of order-of-magnitude slowdown."
+
+## Architecture Summary
+
+In distributed training, saving a checkpoint is not writing a single file to a single hard drive. It is a massive, highly coordinated I/O operation where thousands of GPUs simultaneously flush their specific parameter shards to a distributed high-performance filesystem. The goal is to minimize the "Checkpoint Pause" by offloading the slow disk-write operation to background CPU threads, allowing the GPUs to immediately return to doing math.
+
+```mermaid
+flowchart TD
+    subgraph Async_Checkpoint["Asynchronous Checkpointing Architecture"]
+        direction TB
+        
+        subgraph GPU_Tier["GPU VRAM (Fast Math)"]
+            GPU1[GPU 1: Shard 1]
+            GPU2[GPU 2: Shard 2]
+        end
+        
+        subgraph CPU_Tier["Host CPU RAM (Staging)"]
+            RAM1[Host 1: DtoH Copy]
+            RAM2[Host 2: DtoH Copy]
+        end
+        
+        subgraph Storage_Tier["Distributed Parallel Filesystem (Lustre)"]
+            Disk1[Disk Array]
+        end
+        
+        GPU1 == "Fast Pause (< 1s)" ==> RAM1
+        GPU2 == "Fast Pause (< 1s)" ==> RAM2
+        
+        RAM1 -. "Slow Background Write" .-> Disk1
+        RAM2 -. "Slow Background Write" .-> Disk1
+    end
+```
 
 ## Related Chapters
 
