@@ -28,6 +28,17 @@ You will be able to:
 - Correlate temperature and clocks with utilization to diagnose root causes
 - Set alert thresholds that won't fire false positives or miss real problems
 
+## Beginner's Primer: Deceptive Metrics
+
+In IT, we are conditioned to trust the dashboard. If memory is at 99%, we panic. If CPU is at 100%, we autoscale.
+
+In AI, the dashboard will lie to you.
+1. **The Utilization Lie:** As we learned in Volume 13, `nvidia-smi` might show 100% GPU utilization. But that simply means the GPU was "awake" during the polling interval. The Tensor Cores could be doing almost zero actual math, waiting on the network. 
+2. **The Memory Lie:** You look at the dashboard and see GPU VRAM is 95% full. You panic and think an Out Of Memory (OOM) crash is imminent. But PyTorch has a built-in memory allocator. When a training job starts, PyTorch intentionally grabs 95% of the memory and holds onto it (even if it's empty) just so it doesn't have to ask the OS for memory later. 95% full is perfectly healthy.
+3. **The Clock Speed Lie:** You see the GPU is running at 100% utilization, but the training job is crawling. Why? Because the GPU got too hot (or drew too much power), and automatically throttled its internal clock speed down by 50%. The GPU is 100% busy, but it's moving at half speed.
+
+This chapter teaches you how to look past the superficial metrics and combine them to find the ground truth of your hardware.
+
 ## Metric 1: GPU Utilization
 
 **Definition:** The percentage of time that at least one SM (Streaming Multiprocessor) is executing a warp (group of 32 threads).
@@ -464,6 +475,31 @@ Metrics snapshot:
    - Question: Is the cluster overloaded? Check other nodes' resource usage
 
 **Conclusion:** GPU hardware is fine. Problem is upstream (data, CPU preprocessing, application state).
+
+## Architecture Summary
+
+A single GPU metric viewed in isolation is useless. Platform Engineers must correlate Utilization, Clock Speed, and Temperature simultaneously to deduce what the silicon is actually experiencing. For example, high utilization + low clock speed + high temperature = Thermal Throttling. 
+
+```mermaid
+flowchart TD
+    subgraph Correlating_Metrics["How to Interpret GPU Metrics"]
+        direction TB
+        
+        Util[GPU Utilization]
+        Clocks[SM Clock Speed]
+        Temp[Temperature]
+        Mem[Memory (VRAM)]
+        
+        Util -.->|100%| Case1{Check Clocks & Temp}
+        Util -.->|0%| Case2{Check Host CPU / Network}
+        
+        Case1 -->|Clocks High, Temp Low| Health[Healthy Compute Bound]
+        Case1 -->|Clocks Low, Temp High| Throttled[Thermal Throttled! <br/> Check Fans / Datacenter cooling]
+        Case2 -->|CPU 100%| CPU[Dataloader Bottleneck]
+        
+        Mem -.->|95% Full| Context[If PyTorch, ignore it. <br/> Check PyTorch allocator stats instead.]
+    end
+```
 
 ## Key Takeaways
 

@@ -27,6 +27,16 @@ You will be able to:
 - Correlate metrics on dashboards to diagnose failures
 - Set up SLO-based alerting for GPU clusters
 
+## Beginner's Primer: Exporters, Prometheus, and Grafana
+
+If you have never built a cloud-native monitoring stack, the number of tools can be overwhelming. Here is how they fit together:
+
+1. **The Data Generator (DCGM-Exporter):** As we learned in Chapter 4, DCGM reads the GPU hardware. However, DCGM doesn't know how to talk to the internet. We install a tiny web server called `dcgm-exporter`. Its only job is to ask DCGM for the numbers, and print them out as plain text on a webpage (usually `http://node-ip:9400/metrics`).
+2. **The Database (Prometheus):** Prometheus is a Time-Series Database. It is configured with a list of all the IP addresses in your cluster. Every 15 seconds, it visits the `dcgm-exporter` webpage on every node, downloads the text numbers, and saves them to its database with a timestamp. This is called "Scraping".
+3. **The Dashboard (Grafana):** Prometheus is just a database; it has no pretty charts. Grafana is a web application that connects to Prometheus. You write queries in Grafana (like: `Show me the GPU temperature over the last hour`), Grafana pulls the math from Prometheus, and draws a beautiful line chart.
+
+This chapter walks through how to wire these three components together specifically for NVIDIA hardware, and what specific queries you should write to build a Senior-level AI Dashboard.
+
 ## The Prometheus + DCGM Pipeline
 
 ```mermaid
@@ -325,6 +335,42 @@ Dashboard: GPU Fleet Health
 
 Conclusion: GPU is starved for data
 Next: Check data loader, prefetch threads, dataset locality
+```
+
+## Architecture Summary
+
+A production GPU observability stack relies on the "Pull" model. DCGM-Exporter exposes the raw hardware metrics on a local port, Prometheus periodically scrapes and stores those metrics, and Grafana visualizes them. AlertManager sits beside Prometheus to actively page on-call engineers when critical thresholds (like Xid errors or Thermal Throttling) are breached.
+
+```mermaid
+flowchart TD
+    subgraph The_Cloud_Native_Monitoring_Stack["Production Metrics Pipeline"]
+        direction LR
+        
+        subgraph Node1["GPU Worker Node"]
+            DCGM1[DCGM-Exporter]
+            Kubelet[Kubelet cAdvisor]
+        end
+        
+        subgraph Prometheus["Prometheus Server"]
+            Scraper[HTTP Pull Scraper]
+            TSDB[(Time-Series DB)]
+            Rules[Alerting Rules Engine]
+            
+            Scraper -->|Saves data| TSDB
+            TSDB -->|Evaluates| Rules
+        end
+        
+        subgraph Display["SRE Operations"]
+            Grafana[Grafana Dashboards]
+            Alerts[AlertManager <br/> PagerDuty/Slack]
+        end
+        
+        DCGM1 -.->|Every 15s| Scraper
+        Kubelet -.->|Every 15s| Scraper
+        
+        TSDB <==>|PromQL Queries| Grafana
+        Rules -->|Trigger| Alerts
+    end
 ```
 
 ## Key Takeaways

@@ -28,6 +28,22 @@ You will be able to:
 - Set up DCGM monitoring in production with persistence and reliability
 - Diagnose DCGM failures and recover GPUs that DCGM can't see
 
+## Beginner's Primer: What is DCGM?
+
+In Chapter 1, we learned that standard Linux tools cannot see inside a GPU. If you log into a server, you can type `nvidia-smi` to see the GPU state. 
+
+But what if you have a cluster of 1,000 servers? You cannot SSH into 1,000 servers every 10 seconds and type `nvidia-smi`. 
+
+You need a programmatic tool that runs quietly in the background on every single server, continuously gathering data from the GPU hardware, and organizing it so it can be shipped off to a central dashboard.
+**That tool is DCGM (Data Center GPU Manager).**
+
+DCGM is the unsung hero of the NVIDIA software stack. It is a lightweight C-based agent that talks directly to the NVIDIA Kernel driver (NVML). It does three major things:
+1. **Telemetry:** It constantly reads the temperature, power, clock speeds, and memory usage.
+2. **Health Checks:** It constantly watches for hardware failures, ECC memory errors, and PCIe link issues.
+3. **Diagnostics:** You can ask DCGM to run a "stress test" on the GPU to verify the silicon is healthy before handing it to a customer.
+
+Every major enterprise monitoring tool (Prometheus, DataDog, New Relic) gets its GPU data by asking DCGM for it.
+
 ## What DCGM Does
 
 DCGM is a daemon that runs on the host and exposes GPU state through multiple interfaces:
@@ -342,6 +358,39 @@ systemctl restart nv-hostengine
 # Verify
 dcgmi diag -r 1
 # All GPUs should now be visible
+```
+
+## Architecture Summary
+
+DCGM is the foundational telemetry layer for NVIDIA GPUs. It sits between the low-level hardware driver (NVML) and the high-level cluster monitoring tools (Prometheus). By abstracting the complex hardware interactions into standard metrics streams, it allows Platform Engineers to build reliable dashboards and alerts across thousands of nodes.
+
+```mermaid
+flowchart TD
+    subgraph The_DCGM_Bridge["DCGM Telemetry Architecture"]
+        direction TB
+        
+        subgraph Hardware["Bare Metal"]
+            GPU[Physical NVIDIA GPU]
+            Driver[NVIDIA Linux Kernel Driver]
+            GPU <==> Driver
+        end
+        
+        subgraph User_Space["Host OS (User Space)"]
+            NVML[NVML C-API]
+            DCGM[nv-hostengine <br/> DCGM Background Daemon]
+            
+            Driver <==> NVML
+            NVML <==> DCGM
+        end
+        
+        subgraph Monitoring["Cluster Observability"]
+            CLI[dcgmi CLI]
+            Exporter[DCGM-Exporter / Prometheus]
+            
+            DCGM -.->|Text output| CLI
+            DCGM -.->|gRPC / HTTP| Exporter
+        end
+    end
 ```
 
 ## Key Takeaways

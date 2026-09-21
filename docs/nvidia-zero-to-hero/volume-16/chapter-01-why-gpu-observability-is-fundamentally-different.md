@@ -28,6 +28,21 @@ You will be able to:
 - Use evidence to diagnose whether your bottleneck is the GPU, the CPU, the network, or the application logic
 - Recognize the interview questions that separate GPU-aware engineers from CPU-only operators
 
+## Beginner's Primer: Why standard monitoring tools fail for AI
+
+Every DevOps engineer knows how to use tools like `top`, `htop`, DataDog, or Prometheus to monitor a server. If the CPU is at 100%, the server is overloaded. If RAM is at 100%, the server crashes.
+
+If you apply this logic to an AI server (like an NVIDIA DGX), you will be completely blind. 
+To the Host CPU and standard Linux monitoring tools, a GPU is just a silent PCIe device. Linux does not know what is happening inside the GPU's silicone. 
+
+When a user complains that an AI training job is slow, checking `htop` will show the CPU is at 5% utilization. The network might look idle. The disks might look idle. Traditional monitoring says the server is perfectly healthy.
+Meanwhile, inside the GPU:
+- The GPU might be hitting a thermal throttle at 90°C and slowing its clock speed to prevent melting.
+- The GPU might be suffering from a hardware ECC memory error (an Xid fault).
+- The Tensor Cores might be sitting completely idle while the GPU memory bandwidth is 100% saturated because the code is poorly written.
+
+None of this is visible to standard Linux tools. GPU Observability requires a completely different toolset—starting with `nvidia-smi` for humans, and **DCGM (Data Center GPU Manager)** for programmatic metric scraping. This volume teaches you how to build that specialized AI monitoring stack.
+
 ## The Core Problem: GPU Metrics Are Not CPU Metrics
 
 A CPU is designed to do one thing very fast: execute sequential instructions, make quick decisions, and switch between tasks. CPU observability tracks how many instructions you executed, how long you spent in system calls, and whether you swapped to disk. These are the right questions *for CPUs*.
@@ -201,6 +216,38 @@ Only after I've ruled out 'GPU is stalled waiting for data' and 'application is 
 **Q: "What does it mean when `nvidia-smi` reports 85% utilization but profiling shows the kernel is memory-bound?"**
 
 A (spoken): "That's completely normal, and it's the exact situation I'd expect for many real workloads. The GPU is running a kernel that's fundamentally limited by memory throughput, not by compute capacity. The execution units are executing *something* every cycle, which is why utilization is high, but that something is 'wait for the next cache miss to resolve' a lot of the time. It means the job would get faster if you either increased memory bandwidth, reduced precision to lower bandwidth demand, or fused operations to reuse data. But the GPU isn't broken — it's saturated at a different constraint than compute."
+
+## Architecture Summary
+
+GPU monitoring cannot rely on host OS metrics. To understand if an AI workload is healthy, engineers must bypass the CPU and query the GPU driver directly. This means separating the concept of "doing work" (Compute Utilization) from "using memory" (VRAM) and "staying alive" (Thermals/Power).
+
+```mermaid
+flowchart TD
+    subgraph The_GPU_Visibility_Gap["Why traditional monitoring fails"]
+        direction LR
+        
+        subgraph Host_OS["Host Linux OS (What CPU sees)"]
+            top[top / htop]
+            CPU[CPU: 5%]
+            RAM[System RAM: 10%]
+            top -.-> CPU & RAM
+        end
+        
+        subgraph GPU["Physical GPU (The Black Box)"]
+            direction TB
+            VRAM[GPU VRAM: 100% Full]
+            Temp[Thermal: 95C Throttling]
+            Tensor[Tensor Cores: 0% Idle]
+        end
+        
+        top -.x|Cannot see inside| GPU
+        
+        SMI[nvidia-smi / DCGM] ===>|Queries NVML| GPU
+    end
+    
+    style Host_OS fill:#ffcccc,stroke:#cc0000
+    style SMI fill:#ccffcc,stroke:#006600
+```
 
 ## Key Takeaways
 
