@@ -7,6 +7,16 @@ tags: [reference-architecture, training-cluster, topology, deployment]
 
 # Chapter 13 — Reference Architecture: 100-GPU Training Cluster
 
+## Beginner's Primer: Putting It All Together
+
+Throughout Volume 21, we have discussed the individual pieces of an AI Factory: Compute, Storage, Network, Power, and Operations. 
+
+This chapter is the **Blueprints**. 
+If your CEO hands you $8 Million and says, *"Build me a data center to train our own proprietary LLaMA model from scratch,"* this is exactly what you buy, how you plug it in, and how you test it.
+
+We are designing a **128-GPU Training Cluster**. 
+Why 128? Because 128 GPUs fit perfectly into a single InfiniBand switch, creating a "Non-Blocking" network where every GPU can talk to every other GPU at maximum speed without passing through complex spine switches. This is the sweet spot for enterprise AI training.
+
 ## COMPLETE DESIGN: LLAMA-100B TRAINING
 
 ### Cluster Specification
@@ -398,6 +408,36 @@ MTTR Targets:
   Network link flap: 5 min to detect + reroute + retry AllReduce
   Checkpoint failure: 10 min to retry/failover to S3
   Power loss: <1 min (UPS covers brief outage)
+```
+
+## Architecture Summary
+
+Building a 128-GPU AI Training cluster requires meticulously balancing a $6 Million CapEx budget across H100 GPUs, high-speed NVMe storage, and a non-blocking InfiniBand NDR network. Success is determined during the 8-week deployment phase, where engineers must execute aggressive burn-in tests (HPL/NCCL) to identify "infant mortality" hardware failures before allowing data scientists to launch multi-month training jobs.
+
+```mermaid
+flowchart TD
+    subgraph Reference_Architecture["128-GPU Training Cluster Reference Architecture"]
+        direction TB
+        
+        subgraph Storage_Tier["Parallel Storage"]
+            Lustre[(Lustre / BeeGFS <br/> High-Bandwidth Checkpoints)]
+        end
+        
+        subgraph Network_Tier["Non-Blocking InfiniBand Fabric"]
+            Switch[Single 64-Port NDR Switch <br/> No Spine/Leaf Oversubscription]
+        end
+        
+        subgraph Compute_Tier["16x HGX Server Nodes"]
+            direction LR
+            Node1[Node 1: 8x H100]
+            Node16[Node 16: 8x H100]
+            Node1 -.->|NVLink| Node1
+            Node16 -.->|NVLink| Node16
+        end
+        
+        Compute_Tier ===|400 Gbps ConnectX-7| Network_Tier
+        Network_Tier ===|Fast Read/Write| Storage_Tier
+    end
 ```
 
 ---

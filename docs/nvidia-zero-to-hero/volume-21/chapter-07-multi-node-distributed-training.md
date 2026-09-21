@@ -7,6 +7,18 @@ tags: [distributed-training, allreduce, parallelism, fault-tolerance, checkpoint
 
 # Chapter 07 — Multi-Node Distributed Training
 
+## Beginner's Primer: Beyond a Single Server
+
+In Volume 13, we covered the deep mathematical mechanics of Distributed Training (FSDP, ZeRO, Megatron). In this chapter, we apply those concepts to the physical architecture of the AI Factory.
+
+When you train a massive AI model (like a 70B LLM), it is impossible to fit it on one physical server. You must distribute the job across multiple physical servers (Multi-Node).
+
+This introduces massive physical risks:
+1. **The Network Bottleneck:** Inside a single server, GPUs talk over NVLink at 900 GB/s. Between servers, they talk over InfiniBand at 50 GB/s. If you split your math wrong (e.g., trying to do Tensor Parallelism across two separate servers), the training job will crawl to a halt.
+2. **The Hardware Failure Guarantee:** If you run 512 GPUs for 3 months, it is a statistical certainty that a GPU will melt, a network cable will fail, or a power supply will surge. If you do not have an automated Checkpointing and Fault Tolerance strategy, a single hardware failure will destroy 3 months of progress and millions of dollars.
+
+Platform Architects must build training clusters assuming that hardware will constantly fail, and networks will constantly congest.
+
 ## PART 1: SCALING STRATEGIES
 
 ### 1.1 Data Parallelism (Batch Size Scaling)
@@ -229,6 +241,37 @@ def train_with_fault_recovery():
 | **Stragglers (1 GPU much slower than others)** | One rank consistently slow in AllReduce, training hangs | NCCL_DEBUG shows one rank taking 10ms AllReduce vs 2ms others | Replace slow GPU, check thermal throttling (nvidia-smi dmon), verify network link |
 | **Deadlock in AllReduce (hangs indefinitely)** | Training freezes during backward pass, no output for 30+ seconds | NCCL_DEBUG shows AllReduce step taking >1 minute, IB port errors | Increase NCCL timeout to 300s, check IB link status (ibstat), restart NCCL |
 | **Model divergence (loss NaN)** | Loss becomes NaN after 1000 steps (was stable initially) | Check gradient magnitudes (print param.grad.abs().max()), learning rate | Reduce LR by 2x, enable gradient clipping (clip_grad_norm=1.0), check data pipeline |
+
+## Architecture Summary
+
+Designing a multi-node training cluster requires strict adherence to physical boundaries. Tensor Parallelism must be restricted to the boundaries of a single node (NVLink), while Data and Pipeline Parallelism can span across nodes (InfiniBand). Furthermore, because multi-node training is highly susceptible to hardware failures, operators must implement rapid, asynchronous checkpointing to distributed parallel file systems to minimize the blast radius of a node crash.
+
+```mermaid
+flowchart TD
+    subgraph Multi_Node_Training["Multi-Node Architecture & Resilience"]
+        direction TB
+        
+        subgraph NodeA["Compute Node 1"]
+            TP1[Tensor Parallel Group <br/> High-Speed NVLink]
+        end
+        
+        subgraph NodeB["Compute Node N"]
+            TP2[Tensor Parallel Group <br/> High-Speed NVLink]
+        end
+        
+        subgraph Storage["Distributed Filesystem"]
+            Lustre[(Lustre / S3 <br/> Checkpoint Repo)]
+        end
+        
+        NodeA <==>|Pipeline / Data Parallel <br/> InfiniBand| NodeB
+        
+        NodeA -.->|Async Checkpoint| Storage
+        NodeB -.->|Async Checkpoint| Storage
+        
+        Fail{Node B Crashes!} -->|Job Halts| Restart[Job Restarts]
+        Restart -->|Pulls last state| Storage
+    end
+```
 
 ---
 

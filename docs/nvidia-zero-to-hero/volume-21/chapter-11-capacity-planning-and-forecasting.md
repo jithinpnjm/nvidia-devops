@@ -7,6 +7,19 @@ tags: [capacity-planning, forecasting, growth, tco]
 
 # Chapter 11 — Capacity Planning and Forecasting
 
+## Beginner's Primer: The Supply Chain Reality
+
+If you need a new web server, you click a button in AWS, and it spins up in 30 seconds. 
+
+If you need 1,000 NVIDIA H100 GPUs, you cannot just click a button. You issue a massive Purchase Order, and you wait. Sometimes you wait 3 months. Sometimes you wait 9 months. 
+
+This introduces a terrifying variable into AI Factory architecture: **Lead Times.**
+If your user traffic is growing at 20% month-over-month, you cannot wait until your cluster is 90% full to order more GPUs. By the time the new GPUs arrive 6 months later, your cluster will have been at 100% capacity for months, users will be experiencing catastrophic latency, and your business will fail.
+
+Conversely, if you panic and over-order 5,000 GPUs today, you will burn tens of millions of dollars in CapEx (Capital Expenditure), only to watch those GPUs sit idle. 
+
+**Capacity Planning** is the mathematical discipline of predicting the future. SREs and FinOps teams must model their current utilization, project their growth curve, factor in hardware lead times, and make multi-million dollar purchasing decisions months in advance. 
+
 ## PART 1: DEMAND FORECASTING
 
 ### 1.1 Forecasting Model
@@ -138,11 +151,32 @@ Option B: Buy incrementally (match demand)
   Pros: Lower idle cost (90% utilization vs 40%)
   Cons: $120K extra due to incremental hardware costs, operational overhead of multiple upgrades
 
-Hybrid approach (recommended):
+  Hybrid approach (recommended):
   Add 40 GPUs immediately (year 1, month 1): $1.2M → capacity 640 QPS
   Forecast: Monthly QPS growth 10% for first 6 months, then 5%
   Utilization: 40–90% throughout year 1 (acceptable balance)
   Plan upgrade for Q3 if growth accelerates
+```
+
+## Architecture Summary
+
+AI Factory Capacity Planning must account for macro-economic supply chain delays. Architects cannot rely on "just-in-time" cloud scaling; they must utilize predictive mathematical forecasting (incorporating growth rates, seasonality, and model complexity) to procure hardware months before the actual demand materializes, balancing the risk of user starvation against the financial penalty of idle silicon.
+
+```mermaid
+flowchart TD
+    subgraph The_Capacity_Forecasting_Cycle["Capacity Procurement Cycle"]
+        direction TB
+        
+        Current[Measure Current Demand <br/> QPS / MFU / Queue Depth] --> Trend[Forecast Growth Trajectory <br/> Accounting for seasonality]
+        
+        Trend --> Hardware[Identify Hardware Refresh Cycle <br/> e.g., Transition from H100 to B200]
+        
+        Hardware --> LeadTime{Calculate Procurement Lead Time}
+        
+        LeadTime -->|6+ Months| CapEx[Submit CapEx Budget Request]
+        
+        CapEx --> Buffer[Deploy Hardware Buffer <br/> Target 70% Max Utilization]
+    end
 ```
 
 ---

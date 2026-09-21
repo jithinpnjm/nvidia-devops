@@ -7,6 +7,19 @@ tags: [monitoring, observability, slo, alerting, prometheus]
 
 # Chapter 10 — Monitoring and Operations
 
+## Beginner's Primer: The AI Command Center
+
+Building the AI Factory is only half the battle. Operating it day-to-day is where most companies fail.
+
+If you have a 1,000-GPU cluster, something is broken right now. A fan is dying. A cable is loose. A PyTorch script is leaking memory. 
+If you rely on your Data Scientists to tell you when the cluster is slow, you have already failed your Service Level Agreements (SLAs). 
+
+An AI Operations team must build an **Observability Stack**—a centralized command center that continuously polls every single silicon chip in the fleet.
+By deploying agents like DCGM (Data Center GPU Manager) and Prometheus, the operations team can visualize the exact health of the cluster.
+
+But visualization is not enough. You must build **Alerting Rules**. 
+If a GPU hits 85°C and begins thermal throttling, an automated alert must instantly page the on-call engineer and point them to a specific Runbook (a step-by-step guide to fixing the issue). This chapter aggregates the SRE concepts from Volumes 16 and 19 into a concrete factory operations manual.
+
 ## PART 1: OBSERVABILITY STACK
 
 ### 1.1 Key Metrics for Production Clusters
@@ -189,6 +202,37 @@ Recovery (30–60 min):
 SLA Impact:
   - Training job: Restarted, loss ≈ 1–2 hours work
   - Inference job: Failover to replica (no user impact if >N+1 redundancy)
+```
+
+## Architecture Summary
+
+Operating an AI Factory requires a multi-layered observability stack that correlates physical hardware telemetry (DCGM) with application-level performance metrics (Tokens/sec). Alerting must be ruthless and tied directly to actionable runbooks, ensuring that SREs are paged for actionable hardware degradation (e.g., Thermal Throttling) before it impacts the business SLOs.
+
+```mermaid
+flowchart TD
+    subgraph Operations_Command_Center["AI Factory Observability Architecture"]
+        direction TB
+        
+        subgraph Data_Collection["Telemetry Agents"]
+            DCGM[DCGM Exporter <br/> Hardware State]
+            KSM[Kube-State-Metrics <br/> K8s Allocation State]
+            App[Triton/vLLM Metrics <br/> App Performance]
+        end
+        
+        subgraph Aggregation["Prometheus Server"]
+            Rules[Alerting Rules]
+        end
+        
+        subgraph Visualization_And_Response["Action"]
+            Grafana[Grafana Dashboards]
+            Pager[PagerDuty / Incident Command]
+        end
+        
+        DCGM & KSM & App --> Aggregation
+        Aggregation <==> Grafana
+        Aggregation -->|Rule Breached| Pager
+        Pager -->|Triggers| Runbook[Execute Diagnostic Runbook]
+    end
 ```
 
 ---

@@ -7,6 +7,18 @@ tags: [inference, vllm, serving, latency, throughput, batching]
 
 # Chapter 08 — Inference Serving at Scale
 
+## Beginner's Primer: The Inference Economics
+
+In Volume 12, we covered the deep technical execution of AI Inference (Prefill vs. Decode, KV Cache, PagedAttention). In this chapter, we apply those concepts to the design of the AI Factory.
+
+Building an Inference cluster is an exercise in **Economics**. 
+In Training, you just want to finish the job as fast as possible. 
+In Inference, your goal is to process the maximum number of user requests per dollar of hardware (Throughput) *without* breaching the user's patience threshold (Latency SLA).
+
+If you misconfigure your AI Factory's inference layer, you might achieve an incredible 10,000 requests per second, but every user has to wait 5 seconds for a response. The business will fail. 
+
+Architects use Continuous Batching engines (like vLLM or Triton) to perfectly balance this. They dynamically pack user requests together to maximize GPU utilization, while ejecting finished requests instantly to minimize latency. This chapter teaches you how to scale these engines across massive hardware clusters to support thousands of Queries Per Second (QPS).
+
 ## PART 1: INFERENCE ARCHITECTURE FUNDAMENTALS
 
 ### 1.1 Throughput vs. Latency Trade-off
@@ -210,6 +222,35 @@ Infrastructure cost:
 | **KV cache fragmentation (memory wasted by incomplete sequences)** | Max concurrent sequences drops 50% over time | Use paged KV cache (like virtual memory); reuse blocks across requests; periodic defragmentation |
 | **Unbalanced multi-GPU load (one GPU at 100%, others at 40%)** | Worst GPU is bottleneck; others idle | Use load-aware request routing; distribute based on estimated tokens per response |
 | **Quantization quality degradation (model perplexity +5%)** | User-facing output quality worse | Use mixed-precision: INT8 weights, FP8 activation, keep attention in FP16 |
+
+## Architecture Summary
+
+Designing an Inference AI Factory is fundamentally different from a Training Factory. The primary constraint is no longer compute (FLOPS), but Memory Bandwidth (reading weights) and VRAM capacity (holding KV Cache). Engineers must utilize specialized serving engines (like vLLM) that implement Continuous Batching and PagedAttention to maximize throughput without breaching strict Time-To-First-Token (TTFT) latency SLAs.
+
+```mermaid
+flowchart TD
+    subgraph The_Inference_Serving_Architecture["Inference Factory Architecture"]
+        direction TB
+        
+        Gateway[API Gateway / Load Balancer <br/> Handles Rate Limiting]
+        
+        subgraph Engine["Inference Engine (e.g., vLLM / Triton)"]
+            Queue[Request Queue <br/> Rejects traffic if queue is full]
+            Batch[Continuous Batcher <br/> Groups requests for efficiency]
+            Mem[Paged KV Cache <br/> Virtual Memory for AI]
+            
+            Queue --> Batch
+            Batch --> Mem
+        end
+        
+        subgraph Hardware["Compute Node"]
+            GPU1[GPU 0: Tensor Parallel] <==>|NVLink| GPU2[GPU 1: Tensor Parallel]
+        end
+        
+        Gateway --> Engine
+        Mem --> Hardware
+    end
+```
 
 ---
 
