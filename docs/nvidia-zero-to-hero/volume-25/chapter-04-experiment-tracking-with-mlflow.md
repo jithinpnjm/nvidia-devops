@@ -19,6 +19,19 @@ tags: [mlflow, experiment-tracking, docker-compose, postgres, mlops]
 
 Chapter 1 named the failure mode directly: a small number of training runs produced contradictory answers, and without a record of exactly what each run's configuration and results were, there was no way to tell noise from signal after the fact. Experiment tracking is the practice of making that record automatic and structural — every run logs itself, without relying on a human to remember to write it down.
 
+## Beginner's Primer: The Death of the Spreadsheet
+
+Before MLOps existed, if a Data Scientist wanted to improve an AI model, they would change a variable (e.g., Learning Rate = 0.01), run the script, wait 4 hours, and get a result (Accuracy = 85%). They would open an Excel spreadsheet, type `Learning Rate: 0.01 | Accuracy: 85%` and then try again. 
+
+This manual process is a disaster. 
+Data Scientists forget to update the spreadsheet. They overwrite the old model file. When the team manager asks, *"Hey, what hyperparameters did we use for that really good model from last Tuesday?"*, the Data Scientist has no idea.
+
+**MLflow** kills the spreadsheet.
+It is an automated "Flight Data Recorder" for AI training.
+You add 3 lines of code to your PyTorch script. From that moment on, MLflow automatically intercepts every single parameter (Batch Size, Learning Rate), every metric (Loss, Accuracy per epoch), and every artifact (the final Model Weights). It pushes all this data to a central database. 
+
+Months later, you can open the MLflow web dashboard, search for *"Show me the training run from last Tuesday,"* and instantly download the exact model weights and see the exact parameters used to generate them.
+
 ## WHAT
 
 MLflow's tracking system has three logically separate pieces, and understanding why they're separate is the key to configuring it correctly:
@@ -209,6 +222,40 @@ export MLFLOW_TRACKING_URI=http://localhost:5000
 **Troubleshooting:** "Nested runs for a 7-fold cross-validation are logging correctly, but querying 'all fold children of run X' via the API returns zero results. What do you check?"
 
 **Model Answer:** "First, whether the child runs were actually started with `nested=True` inside the parent's `with mlflow.start_run()` context — omitting that flag, or starting the child run outside the parent's context manager entirely, means MLflow never sets the `mlflow.parentRunId` tag that the query filter depends on. Second, I'd check the exact filter string syntax — `tags.mlflow.parentRunId = '<id>'` requires the parent run's ID as a literal string match, so a subtly wrong ID (e.g., confusing a fold child's own run ID with the parent's) would silently return nothing rather than erroring. Third, I'd query without any filter first, list all runs in the experiment, and manually inspect one child's tags to confirm the parent-child relationship is actually being recorded as expected before assuming the query logic itself is broken."
+
+## Architecture Summary
+
+Experiment Tracking (MLflow) replaces the error-prone manual spreadsheets of Data Scientists with a programmatic, centralized Flight Data Recorder. To scale across a team, Platform Engineers must decouple the architecture: the MLflow Tracking Server processes the incoming HTTP traffic, PostgreSQL (Backend Store) handles concurrent writes for thousands of training parameters/metrics, and AWS S3 (Artifact Store) securely stores the massive multi-gigabyte `.safetensors` model weights.
+
+```mermaid
+flowchart TD
+    subgraph Experiment_Tracking_Architecture["MLflow Tracking Pipeline"]
+        direction TB
+        
+        subgraph Compute_Node["GPU Training Worker"]
+            Script[PyTorch Training Script <br/> mlflow.log_params()]
+            Weights[(Model Weights)]
+        end
+        
+        subgraph MLflow_Server["MLflow Tracking Server"]
+            API[MLflow REST API]
+            UI[Web Dashboard]
+        end
+        
+        subgraph Backend["PostgreSQL Database (Backend Store)"]
+            Params[Structured Data: <br/> Hyperparams, Git Hash, Metrics]
+        end
+        
+        subgraph S3["AWS S3 Bucket (Artifact Store)"]
+            Blobs[Unstructured Blobs: <br/> .safetensors, TensorBoard logs]
+        end
+        
+        Script -->|Logs HTTP API| API
+        API -->|Writes| Params
+        Script -->|Uploads directly| Blobs
+        UI <==> API
+    end
+```
 
 ## Related Chapters
 

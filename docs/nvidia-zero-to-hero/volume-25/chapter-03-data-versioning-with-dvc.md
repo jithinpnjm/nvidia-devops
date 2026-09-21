@@ -21,6 +21,22 @@ Git is excellent at versioning text — it diffs, merges, and stores small chang
 
 Without a solution to this, teams fall back to informal conventions — "the training data is in this shared folder, don't touch it" — which is exactly the kind of ungoverned state Chapter 1 warns about: nothing ties a specific model back to the specific bytes of data that produced it.
 
+## Beginner's Primer: Git for Big Files
+
+Every software engineer uses Git. When you change a line of code, Git saves the "diff" (the difference). It is incredibly efficient.
+
+If you try to commit a 50GB CSV file (a dataset) into Git, your laptop will catch on fire. Git cannot diff 50GB files efficiently. It tries to save a full copy of the file every time you change a single comma. Your Git repository will quickly become Terabytes in size, and no one will be able to clone it.
+
+Because of this, Data Scientists often email datasets to each other, or put them on shared network drives with names like `data_final_V2_final.csv`. This destroys the MLOps pipeline. If a model breaks in production, you have no mathematical proof of which exact CSV file was used to train it.
+
+**DVC (Data Version Control)** solves this. 
+DVC replaces the 50GB CSV file with a tiny, 2-kilobyte text file (a pointer). 
+1. DVC calculates the hash (fingerprint) of the 50GB CSV file. 
+2. DVC uploads the massive CSV file to a cheap, external storage bucket (like AWS S3).
+3. DVC leaves a tiny `.dvc` text file in your Git repository that says: *"The data for this commit is located in S3 under hash 12345ABC."*
+
+Now, you can commit the tiny `.dvc` file into Git. Git is happy, your laptop is happy, and you have mathematically tied your code to your massive datasets.
+
 ## WHAT
 
 DVC (Data Version Control) solves this by **not** putting the actual data in Git at all. Instead:
@@ -187,6 +203,28 @@ git add -u   # stages the deletion
 **Troubleshooting:** "`dvc pull` fails with a permission error on a teammate's machine but works on yours. What do you check?"
 
 **Model Answer:** "First, whether the remote's authentication is per-user (their own SSH key, their own AWS credentials) rather than something hard-coded to my machine — this project's `.dvc/config` literally stores a keyfile path (`/Users/jithinpjoseph/.ssh/nvidia-lab`), which is my local path and wouldn't resolve the same way on a teammate's machine at all; a shared-team setup needs each person's local DVC config to point at their own key via `dvc remote modify --local`, not the committed shared config. Second, whether the remote-side access control (SSH `authorized_keys`, or S3 IAM policy) actually grants that teammate's identity access, separate from whether their local DVC config is even pointed at the right credentials."
+
+## Architecture Summary
+
+Data Version Control (DVC) separates the massive storage requirements of AI datasets from the Git repository, while maintaining mathematical linkages between the code and the data. By generating small `.dvc` pointer files containing cryptographic hashes of the datasets, DVC allows engineers to commit these pointers to Git, while pushing the actual heavy payload to an external S3 bucket or SSH server, solving the "Git Large File" dilemma.
+
+```mermaid
+flowchart TD
+    subgraph DVC_Architecture["Data Version Control (DVC) Workflow"]
+        direction TB
+        
+        Data[Massive Dataset: 50GB CSV] --> DVC_Add[Command: dvc add data.csv]
+        
+        DVC_Add --> Cache[Saves 50GB file to local .dvc/cache]
+        DVC_Add --> Pointer[Generates tiny data.csv.dvc pointer file]
+        
+        Pointer --> Git[Command: git commit -m 'Added data']
+        Git --> GitHub[Pushes 2KB text file to GitHub]
+        
+        Cache --> Push[Command: dvc push]
+        Push --> S3[(Pushes 50GB file to AWS S3 / Remote NAS)]
+    end
+```
 
 ## Related Chapters
 

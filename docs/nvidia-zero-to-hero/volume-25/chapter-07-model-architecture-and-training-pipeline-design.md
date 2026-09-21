@@ -19,6 +19,19 @@ tags: [pytorch, model-architecture, training-pipeline, multi-timeframe, mlops]
 
 A promotion gate (Chapter 9) and a walk-forward evaluation (Chapter 6) are only useful if trying *several* candidate architectures is cheap. If every new architecture idea requires touching the training loop, the data loading, and the metrics code, the practical effect is that far fewer architectures actually get tried — and the whole point of this volume's governance layer is to make trustworthy comparison the *default*, not a heroic effort.
 
+## Beginner's Primer: Modular Neural Networks
+
+When Junior Data Scientists write PyTorch code, they often build "Spaghetti Models." 
+They write one massive Python class where the data loading, the neural network layers, the loss calculations, and the final predictions are all tangled together. 
+
+If their boss says: *"Hey, we want to try a Transformer architecture instead of an LSTM architecture,"* the Junior Data Scientist has to delete half their code, rewrite it, and hope it doesn't break the data loader. It takes two weeks.
+
+Senior ML Engineers build **Modular Pipelines**. 
+They treat Neural Networks like Lego blocks. 
+Instead of one massive function, they build a universal `encode()` function (which turns data into a math vector) and a universal `forward()` function (which makes the final prediction). 
+
+Because the pipeline is modular, swapping from an LSTM to a Transformer takes exactly one line of code: you just swap out the `encode()` Lego block. The data loader and the loss calculations don't care, because they are decoupled. This chapter teaches you how to structure PyTorch code so that experimenting with new architectures takes 5 minutes instead of 2 weeks.
+
 ## WHAT
 
 This project's model code has one deliberate structural decision that everything else follows from: **every architecture exposes both an `encode()` method (raw input → pooled feature vector) and a `forward()` method (`encode()` + a classification head).** This single pattern is what makes multi-timeframe fusion (combining a 1-minute view and a 5-minute view of the same underlying data) a composition of existing pieces instead of a new architecture.
@@ -174,6 +187,39 @@ x = torch.randn(batch, lookback, N_FEATURES)   # not a hardcoded 4
 **Troubleshooting:** "A training loop that worked for single-timeframe models throws an error the moment you switch to a multi-timeframe model. What's the most likely category of bug?"
 
 **Model Answer:** "Almost certainly somewhere the training loop assumed its batch of inputs was a plain tensor rather than a dict of tensors — for instance, indexing a batch with `X[idx]` directly instead of going through a dispatch helper that checks `isinstance(X, dict)` first, or calling `.to(device)` on the whole batch object without recursing into each timeframe's tensor inside a dict. The fix pattern is always the same: any place the loop touches the input data needs to go through a small helper function that handles both the plain-tensor and dict-of-tensors cases, rather than being written assuming only one of them."
+
+## Architecture Summary
+
+A production ML training codebase must decouple the model architecture from the data loading and training loops. By enforcing a strict interface (e.g., separating `encode()` for feature extraction from `forward()` for final classification), MLOps engineers enable Data Scientists to rapidly hot-swap different architectures (CNNs, LSTMs, Transformers) without breaking the surrounding MLflow logging or evaluation pipelines.
+
+```mermaid
+flowchart TD
+    subgraph Modular_PyTorch_Architecture["Modular Training Pipeline Architecture"]
+        direction TB
+        
+        subgraph Data_Loader["Data Loader"]
+            Input[Raw Time-Series Data]
+        end
+        
+        subgraph Model_Registry["Interchangeable Architecture Blocks"]
+            direction LR
+            LSTM[LSTM Encoder]
+            TCN[Temporal Convolution Encoder]
+            Trans[Transformer Encoder]
+        end
+        
+        subgraph Classification_Head["Shared Forward Logic"]
+            Pool[Feature Pooling]
+            FC[Fully Connected Layers]
+            Pred[Final Prediction]
+            
+            Pool --> FC --> Pred
+        end
+        
+        Input -->|Easily routes to any encoder| Model_Registry
+        Model_Registry -->|Outputs standard shape vector| Classification_Head
+    end
+```
 
 ## Related Chapters
 

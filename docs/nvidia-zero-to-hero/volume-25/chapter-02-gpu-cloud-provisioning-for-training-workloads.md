@@ -19,6 +19,21 @@ tags: [gpu, provisioning, docker, nvidia-container-toolkit, nebius]
 
 A GPU sitting in a cloud VM is useless to a training job until several independent layers agree with each other: the kernel driver must recognize the hardware, the container runtime must be able to hand GPU access into a container (most real training runs happen inside containers, not directly on the host), and there must be somewhere durable to put the multi-gigabyte artifacts (datasets, checkpoints, tracking-server data) that outlive any single container. Skipping verification of any one layer means a training job can fail — or worse, silently run on CPU — for a reason that looks like a code bug but is actually an infrastructure gap.
 
+## Beginner's Primer: The Bare Metal Foundation
+
+Before we can build an MLOps pipeline (tracking models, versioning data), we need a place to run it. 
+
+If you rent an NVIDIA L40S GPU from a cloud provider (like AWS, GCP, or Nebius), you don't magically get an AI factory. You get a raw, empty Linux server. If you try to run a PyTorch Docker container on it immediately, the container will say: *"I don't see a GPU."*
+
+Why? Because Docker, by default, builds an invisible wall around your code to keep it safe. That wall blocks access to the physical GPU hardware.
+
+To break that wall, an MLOps Engineer must provision the server manually:
+1. **The Driver:** Install the NVIDIA Linux Driver so the OS can talk to the GPU.
+2. **The Toolkit:** Install the `nvidia-container-toolkit`. This is a special key that allows Docker to punch a hole through its invisible wall and hand the GPU over to the container.
+3. **The Storage:** Mount a massive extra hard drive (a block volume). Why? Because if you train an AI model for 3 days and save the 140GB file to the default OS drive, and then you accidentally delete the VM to save money, your model is gone forever. You must mount a separate drive that survives even if the VM is destroyed.
+
+This chapter walks through the exact Linux commands to provision a raw GPU server for MLOps.
+
 ## WHAT
 
 For this project, "provisioned" meant four independent, verifiable properties on one Nebius L40S VM:
@@ -168,6 +183,27 @@ sudo docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
 **Troubleshooting:** "A training job that ran fine yesterday now reports the GPU is not visible, with no code changes. What's your first diagnostic step?"
 
 **Model Answer:** "I'd re-run the same layered verification from this chapter, in order, rather than guessing: host-level `nvidia-smi` first, to rule out a driver-level issue like a failed update or a host reboot that didn't reload the module; then the `--gpus all` container test, to isolate whether it's a host or a Docker-runtime issue; then check `docker ps` for whether another container is holding an exclusive lock on the device. Going in this order means each step either confirms or rules out an entire layer, rather than jumping straight to the training code, which almost certainly hasn't changed if nothing was deployed."
+
+## Architecture Summary
+
+Before deploying MLOps pipelines, the underlying compute infrastructure must be properly staged. Provisioning a bare-metal or cloud GPU instance requires a strict sequence: installing the NVIDIA Host Driver, configuring the Container Toolkit to allow Docker access to the hardware, mounting persistent Block Storage separate from the OS drive to protect model weights from VM termination, and locking down the host firewall (`ufw`).
+
+```mermaid
+flowchart TD
+    subgraph MLOps_Node_Provisioning["GPU Node Provisioning Pipeline"]
+        direction TB
+        
+        Raw[Raw Cloud VM] --> Driver[1. Install NVIDIA Driver <br/> Verify: nvidia-smi]
+        
+        Driver --> Docker[2. Install Docker & Container Toolkit <br/> Verify: docker run --gpus all nvidia/cuda]
+        
+        Docker --> Storage[3. Format & Mount Persistent Volume <br/> Update /etc/fstab with UUID]
+        
+        Storage --> Firewall[4. Lock down UFW Firewall <br/> Allow SSH, Block Rest]
+        
+        Firewall --> Ready[Node Ready for MLOps Pipeline]
+    end
+```
 
 ## Related Chapters
 

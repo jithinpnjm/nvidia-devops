@@ -19,6 +19,23 @@ tags: [distributed-training, ddp, torchrun, scaling, mlops]
 
 This project's entire model sweep — three single-timeframe architectures, a multi-timeframe fusion model, all 7 walk-forward folds, real training runs — ran on **one L40S GPU**, and every individual fold trained in well under two minutes. It is tempting, when a bootcamp volume mentions "GPU training," to assume distributed multi-node training is always the destination. It usually isn't. This chapter's job is to be honest about that, and to be precise about the two genuinely different reasons a project *does* eventually need it.
 
+## Beginner's Primer: Do you actually need DDP?
+
+In Volume 13, we learned the deep math behind Distributed Data Parallelism (DDP) and FSDP. We learned how to tie 1,000 GPUs together into a massive supercomputer to train ChatGPT.
+
+But you are an MLOps engineer at a bank, predicting stock prices. Your dataset is 5 Gigabytes. Your model has 10 Million parameters. 
+Your manager buys an 8-GPU server and tells you: *"Configure DDP so we can use all 8 GPUs to train our model!"*
+
+**You must push back.**
+If your model fits easily into a single GPU, turning on DDP is actually a terrible idea. 
+Why? Because DDP adds a massive "Communication Tax" (Volume 13). If you split a tiny model across 8 GPUs, the GPUs will spend 90% of their time talking to each other over the network, and only 10% of their time doing math. The training job will actually run *slower* than if you just used 1 GPU.
+
+So, what do you do with the other 7 GPUs?
+You run **Independent Experiments**. 
+Instead of forcing 8 GPUs to work on 1 model, you run 8 *different* models (with different hyperparameters) at the exact same time, each using exactly 1 GPU. This requires zero network communication, gets 100% compute efficiency, and speeds up your research by 8x. 
+
+This chapter teaches you when to use DDP, and when to use independent scaling.
+
 ## WHAT
 
 "Scaling" a training pipeline actually means one of two different things, and confusing them leads to the wrong infrastructure investment:
@@ -123,6 +140,35 @@ wait
 **Troubleshooting:** "A DDP-enabled training job hangs indefinitely at startup on a fresh multi-node allocation. Given this chapter's framing, what's the first thing you'd check — and where would you look for the deep mechanics?"
 
 **Model Answer:** "First, I'd confirm whether this workload genuinely needed DDP in the first place, per this chapter's kind #1 vs. kind #2 distinction — if it's actually many independent small runs mistakenly wrapped in DDP, the fix might be to remove DDP entirely rather than debug it. If DDP is genuinely necessary (the model/data really doesn't fit on one GPU), the hang is almost always a process-group formation issue — mismatched `MASTER_ADDR`/`MASTER_PORT` across nodes, or a firewall blocking the rendezvous port between nodes — and Volume 13's Chapter 8 (NCCL Collectives) and its Lab 1 troubleshooting guide are the right place for the actual diagnostic sequence, since that's this bootcamp's dedicated deep-dive into that exact failure mode."
+
+## Architecture Summary
+
+MLOps Engineers must protect data scientists from unnecessary distributed systems complexity. If a model fits into a single GPU's VRAM, wrapping it in PyTorch DDP will only add NCCL network overhead and increase failure rates. Instead of scaling *up* (using DDP), MLOps pipelines for small-to-medium models should scale *out* (running dozens of independent Hyperparameter tuning jobs simultaneously across the cluster), maximizing hardware utilization without any network synchronization penalties.
+
+```mermaid
+flowchart TD
+    subgraph MLOps_Scaling_Decision["GPU Scaling Strategy for MLOps"]
+        direction TB
+        
+        Q1{"Does the Model + Batch <br/> exceed 80GB VRAM?"}
+        
+        Q1 -->|Yes, e.g., 70B LLM| DDP[Distributed Training <br/> DDP / FSDP Required]
+        
+        Q1 -->|No, e.g., Small Timeseries Model| Q2{"Do we need to test <br/> 50 Hyperparameters?"}
+        
+        Q2 -->|Yes| Parallel[Independent Parallel Execution <br/> e.g., Ray Tune]
+        
+        Parallel --> Node["8-GPU Server"]
+        Node -.->|CUDA_VISIBLE_DEVICES=0| J1[Job 1: Learning Rate 0.01]
+        Node -.->|CUDA_VISIBLE_DEVICES=1| J2[Job 2: Learning Rate 0.05]
+        Node -.->|...| J8[Job 8]
+        
+        J1 & J2 & J8 -->|No network sync required! <br/> 100% Compute Efficiency| MLflow[(MLflow Database)]
+    end
+    
+    style DDP fill:#ffcccc,stroke:#cc0000
+    style Parallel fill:#ccffcc,stroke:#006600
+```
 
 ## Related Chapters
 

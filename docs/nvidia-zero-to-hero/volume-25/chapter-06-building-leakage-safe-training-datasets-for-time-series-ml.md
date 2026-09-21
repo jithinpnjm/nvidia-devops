@@ -21,6 +21,17 @@ Time-series data has a property that trips up dataset construction far more ofte
 
 This chapter documents two real leakage risks this project actually had to design around — one in labeling, one in dataset splitting — plus a real bug (not leakage, but a related data-loss failure mode) that was caught by testing a boundary condition directly.
 
+## Beginner's Primer: Time Traveling Models
+
+If you are training an AI model to detect cats and dogs, the order of the images does not matter. You can take 10,000 photos, shuffle them randomly, train on 80%, and test on 20%.
+
+If you are training an AI model to predict the Stock Market (Time-Series data), shuffling the data is a catastrophic mistake. 
+
+If you take 10 years of stock data, shuffle the days randomly, and train on 80% and test on 20%, you will experience **Data Leakage (Time Travel)**. 
+The model will accidentally see data from 2023 during training, and then be "tested" on data from 2022. The model will score 99% accuracy because it literally saw the future. You will deploy the model, and it will immediately lose all your money because, in the real world, you cannot see tomorrow's prices.
+
+To prevent Time Travel, MLOps engineers enforce strict **Walk-Forward Validation**. You are never allowed to shuffle data. You must train on Jan-March, and test on April. Then train on Jan-April, and test on May. This mathematically guarantees the model is only ever tested on the "unknown future."
+
 ## WHAT
 
 Two independent properties, both required:
@@ -181,6 +192,36 @@ In production, the untouched holdout block plays a specific, disciplined role: i
 **Troubleshooting:** "A colleague says their walk-forward validation must be leakage-free because they're 'not using random splits.' Is chronological splitting alone sufficient?"
 
 **Model Answer:** "No — chronological splitting prevents the split-level leakage (future data appearing in a training set before a chronologically earlier validation set), but it says nothing about leakage inside the label or feature computation itself. This chapter's own project needed both: chronological walk-forward folds *and* a per-session, forward-window-only label computation that's separately leakage-safe. A team could have perfectly chronological splits and still leak badly if, say, a feature was computed using a centered rolling window that includes future values, or if daily/session boundaries aren't respected and a label reaches across a discontinuity it shouldn't. I'd ask specifically how the label and every engineered feature are computed, not just how the train/validation boundary is drawn."
+
+## Architecture Summary
+
+When building time-series datasets (financial trading, IoT sensor telemetry), MLOps pipelines must strictly enforce chronology to prevent "Data Leakage." If traditional random K-Fold cross-validation is used, the model will inadvertently train on future data to predict past events, resulting in artificially high offline accuracy and catastrophic failure in production. Engineers must implement sequential Walk-Forward validation splits.
+
+```mermaid
+flowchart TD
+    subgraph Data_Leakage_Prevention["Time-Series Validation Splits"]
+        direction TB
+        
+        subgraph Bad["Random K-Fold (Data Leakage!)"]
+            direction LR
+            D1[Train: 2021] --> D2[Train: 2023] --> D3[Test: 2022]
+            D3 -.->|Model saw 2023 before predicting 2022!| Fail[Artificial 99% Accuracy]
+        end
+        
+        subgraph Good["Walk-Forward Validation (Production Standard)"]
+            direction LR
+            W1[Train: Jan-Mar] --> W2[Test: Apr]
+            W3[Train: Jan-Apr] --> W4[Test: May]
+            W5[Train: Jan-May] --> W6[Test: Jun]
+            
+            W2 -.-> W3
+            W4 -.-> W5
+        end
+    end
+    
+    style Bad fill:#ffcccc,stroke:#cc0000
+    style Good fill:#ccffcc,stroke:#006600
+```
 
 ## Related Chapters
 
