@@ -16,6 +16,21 @@ By the end of this chapter, you will be able to:
 - Distinguish compute-bound scaling limits from memory-bound limits
 - Decide when distributed training is mandatory versus optional
 
+## Beginner's Primer: The "Too Big to Fit" Problem
+
+When you learn to code on your laptop, your program fits neatly into your computer's RAM. If you need more power, you buy a bigger computer. 
+
+In modern AI (Large Language Models), we hit a hard physical wall. The biggest, most expensive single GPU chip NVIDIA sells today (the H100) has 80GB of memory. 
+
+Now look at a model like Llama-3 (70 Billion Parameters). 
+Just loading the raw parameters (the "brain") into memory takes 140GB. 
+But training is much harder than just loading. To train the brain, you have to track Gradients (how wrong the brain was) and Optimizer States (how to adjust the brain to be less wrong). This inflates the memory requirement to over **1.2 Terabytes**. 
+
+**1.2 Terabytes > 80 Gigabytes.** 
+It physically does not fit.
+
+Therefore, we are forced to slice the AI model into pieces and distribute those pieces across dozens or hundreds of GPUs, linking them together with massive cables (NVLink/InfiniBand) so they act like one giant Mega-GPU. This Volume explains exactly how we perform that slicing.
+
 ## Why Distributed Training Exists
 
 The fundamental fact: **GPU VRAM has grown linearly; model parameter counts have grown exponentially.**
@@ -178,6 +193,29 @@ If GPU 3 showed 45% utilization while others showed 88%, that GPU is a straggler
 **Troubleshooting:** "A training job reports CUDA OOM after 100 steps. Nvidia-smi shows GPU 0 at 89% memory, but GPU 1 and GPU 2 are at 45% and 52%. What's the likely issue, and what's your first diagnostic step?"
 
 **Model Answer:** "The unbalanced memory usage is a clue. GPU 0 is the primary compute device, and GPUs 1 and 2 are underutilized. This suggests a single-GPU training job that accidentally created multiple processes but only one is doing work—a common mistake when launching with `torchrun` or `torch.distributed.launch` but the model isn't actually using `DistributedDataParallel`. Or, the data loader is not sharded, so only one GPU is loading data while the others wait. First diagnostic: check the process list with `nvidia-smi pmon` to see which processes are actually running on each GPU. If I see a Python process on GPU 0 and nothing substantial on 1 and 2, then the training script is not actually distributed. If I see processes on all three, check the NCCL logs: `NCCL_DEBUG=TRACE` and rerun to see if communication is happening symmetrically."
+
+## Architecture Summary
+
+Distributed training is fundamentally a memory management problem before it is a compute problem. The VRAM capacity of single GPUs has not kept pace with the exponential parameter growth of Large Language Models. Platform engineers must master the math of memory footprints to justify when the massive cost of distributed NVLink/InfiniBand infrastructure is required.
+
+```mermaid
+flowchart TD
+    subgraph Single_GPU_Limits["Why 1 GPU is never enough"]
+        direction TB
+        subgraph VRAM["80GB VRAM Limit"]
+            W[Model Weights]
+            G[Gradients]
+            O[Optimizer States]
+            A[Activations]
+        end
+        
+        W --> |140GB| Overflow[Out of Memory]
+        G --> |140GB| Overflow
+        O --> |560GB| Overflow
+    end
+    
+    Overflow --> Solution["We must slice these components<br/>across multiple GPUs (ZeRO/FSDP)"]
+```
 
 ## Related Chapters
 
