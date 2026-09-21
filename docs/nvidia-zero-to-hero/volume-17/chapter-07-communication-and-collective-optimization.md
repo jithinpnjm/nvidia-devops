@@ -23,6 +23,18 @@ If GPU 0 finishes its math, and then sits completely idle while it waits for GPU
 
 The only way to optimize distributed training is to **Overlap Communication with Computation**. A Senior Architect designs systems where the GPUs are crunching math *at the exact same time* the network is transferring data.
 
+## Beginner's Primer: Hiding the Mailman
+
+Imagine you are running a business where you write 100 letters a day, and the mailman has to deliver them. 
+
+**Sequential Execution (Bad):**
+You spend 8 hours writing all 100 letters. When you finish, you call the mailman. You sit at your desk doing nothing for 4 hours while he delivers them. The total time taken is 12 hours. You are wasting 4 hours of productivity waiting for the network.
+
+**Overlapping Communication (Good):**
+You write 10 letters (a "bucket") and immediately hand them to the mailman. While he drives off to deliver those 10, you keep writing the next 10. You do this all day. By the time you finish writing the last 10 letters, the mailman is almost completely done delivering. The total time taken is 8 hours and 10 minutes. You completely "hid" the mailman's driving time behind your writing time.
+
+In AI training, PyTorch groups gradients into "Buckets." If you don't tune your bucket size correctly, the GPU waits until it has computed the entire model before calling NCCL to send the data. Tuning the bucket size ensures the network cards are transmitting data *while* the Tensor Cores are crunching the next layer. 
+
 ## 1. The Physics of Overlap
 
 Imagine a model with 10 layers. 
@@ -74,3 +86,33 @@ Simultaneously, the GPU will continue calculating the gradients for the remainin
 **Conceptual:** What does it mean to "Overlap Communication with Computation" in distributed training? *(Hint: Instead of waiting for a GPU to finish all its math before sending the results over the network (which causes the GPU to idle during the transfer), the framework chunks the data. As soon as the first chunk of math is done, it is sent over the network asynchronously while the GPU simultaneously begins computing the math for the second chunk, hiding the network latency).*
 
 **Architecture:** Explain how NVIDIA SHARP improves performance on an InfiniBand network. *(Hint: In a standard `AllReduce` operation, the GPUs must send data to each other and perform the averaging math themselves, generating massive network traffic. SHARP offloads the averaging math directly into the InfiniBand Switch ASICs. The switch calculates the average as the data flows through it, halving the network traffic and reducing the latency of collective operations).*
+
+## Architecture Summary
+
+Because network latency (InfiniBand/RoCE) is orders of magnitude slower than VRAM access, AI training must never wait synchronously on the network. Performance engineers must tune PyTorch's DDP/FSDP `bucket_cap_mb` to ensure gradients are sent over the network exactly as they are calculated, visually resulting in the "Red" network blocks sliding perfectly underneath the "Blue" compute blocks in an Nsight Systems trace. 
+
+```mermaid
+flowchart TD
+    subgraph Communication_Overlap_Optimization["Communication and Compute Overlap"]
+        direction TB
+        
+        subgraph Bad["Unoptimized (Sequential)"]
+            direction LR
+            C1[Compute Layer 1] --> C2[Compute Layer 2] --> C3[Compute Layer 3]
+            C3 --> N1[NCCL All-Reduce Wait: 300ms]
+        end
+        
+        subgraph Good["Optimized (Overlapped)"]
+            direction LR
+            C4[Compute Layer 1] --> C5[Compute Layer 2] --> C6[Compute Layer 3]
+            N2[NCCL Transfer L1] -.-> N3[NCCL Transfer L2] -.-> N4[NCCL Transfer L3]
+            
+            C4 --> N2
+            C5 --> N3
+            C6 --> N4
+        end
+    end
+    
+    style Bad fill:#ffcccc,stroke:#cc0000
+    style Good fill:#ccffcc,stroke:#006600
+```

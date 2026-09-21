@@ -23,6 +23,22 @@ In inference, your goal is to process the maximum number of user requests per do
 
 If you misconfigure an inference server, you might achieve an incredible 10,000 requests per second, but every user has to wait 5 seconds for a response. The business will fail. A Senior Architect must navigate the strict mathematical trade-offs between Latency, Throughput, and Accuracy.
 
+## Beginner's Primer: The Bus Terminal
+
+In Chapter 1, we introduced the Iron Triangle (Latency, Throughput, Utilization). Let's bring this to life. 
+
+Imagine an inference server is a bus terminal, and incoming API requests are passengers.
+- **Latency** is how long a passenger waits before arriving at their destination.
+- **Throughput** is how many passengers the terminal processes per hour.
+
+If you dispatch a bus the *millisecond* one passenger sits down (Batch Size = 1), that passenger gets amazing Latency! But you are sending an empty bus. You will go bankrupt. Your Throughput is terrible. 
+
+If you wait for 50 passengers to fill every seat before leaving (Batch Size = 50), your Throughput is incredible, and your costs are low! But the first passenger who sat down has been waiting an hour. Their Latency is terrible.
+
+**Dynamic Batching** is the algorithm inference servers (like Triton) use to solve this. It says: *"Wait a maximum of 50 milliseconds. If the bus is full, leave immediately. If 50ms passes and there are only 12 people, leave anyway so they don't get angry."*
+
+Tuning that exact millisecond threshold is the foundation of Inference Optimization. 
+
 ## 1. The Latency vs. Throughput Curve
 
 You cannot optimize both simultaneously. You must map the curve.
@@ -78,3 +94,27 @@ These three optimizations will likely drop your P99 TTFT from 800ms back down to
 **Conceptual:** Explain the trade-off between Latency and Throughput when tuning dynamic batch size for an inference server. *(Hint: To increase Throughput, the server must wait to gather a large batch of requests, processing them all simultaneously to maximize GPU utilization. However, waiting to build that batch introduces artificial queueing time, which increases the end-to-end Latency for the user. You must tune the batch size to maximize throughput without breaching the maximum latency SLA).*
 
 **Architecture:** What is the primary operational risk of using aggressive quantization (like INT4) to optimize an inference model? *(Hint: While aggressive quantization drastically reduces VRAM requirements and increases speed, squeezing complex 32-bit floating-point numbers into a tiny 4-bit space permanently destroys data precision. This can severely degrade the 'intelligence' of the model, leading to hallucinations, incorrect math, or loss of reasoning capabilities. It requires rigorous automated accuracy testing before deployment).*
+
+## Architecture Summary
+
+Inference optimization is an exercise in FinOps (Financial Operations). Generating tokens faster than humans can read them offers no business value. Engineers must implement Dynamic Batching to intentionally delay requests, grouping them together to maximize GPU utilization and Throughput, while carefully stopping just short of breaching the user's Latency SLA. When hardware limits are reached, Quantization (lowering math precision) is the ultimate lever to increase capacity.
+
+```mermaid
+flowchart TD
+    subgraph The_Inference_Optimization_Loop["Maximizing Serving Economics"]
+        direction TB
+        
+        Q1{"Are we breaching <br/> the Latency SLA?"}
+        Q1 -->|No| Safe[User is happy. <br/> GPU is underutilized.]
+        
+        Safe -->|Optimize Economics| Fix1[Increase Maximum Batch Size <br/> Increase Batch Wait Time <br/> Drives up Throughput]
+        
+        Q1 -->|Yes| Q2{"Is GPU Compute <br/> at 100%?"}
+        
+        Q2 -->|No| Fix2[We are artificially queueing too long. <br/> Decrease Batch Wait Timeout.]
+        Q2 -->|Yes| Q3{"Are we out of VRAM?"}
+        
+        Q3 -->|Yes| Fix3[Quantize to FP8 / INT4 <br/> Enable PagedAttention]
+        Q3 -->|No| Fix4[Implement Prompt Caching <br/> Chunked Prefills]
+    end
+```
