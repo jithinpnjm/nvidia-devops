@@ -5,6 +5,23 @@ sidebar_position: 2
 description: "Understand and recover from GPU driver crashes, Xid error codes, and unrecoverable GPU errors — the authoritative Xid reference table for this curriculum."
 ---
 
+# GPU Driver Crash and Xid Errors
+
+## Beginner's Primer: The Xid Encyclopedia
+
+When a user writes bad Python code and tries to access memory that doesn't exist, the program crashes with a "Segmentation Fault." 
+But what happens when the physical GPU silicon encounters a catastrophic error, like overheating, a power surge, or a cosmic ray flipping a bit in memory?
+
+The physical GPU cannot throw a Python exception. Instead, it sends an emergency signal up the PCIe bus to the NVIDIA Kernel Driver. The Driver translates this signal into a standardized error code called an **Xid Error**. It then writes this code directly into the Linux Operating System's system log (`dmesg`).
+
+If a training job crashes and you do not check `dmesg` for Xid errors, you are flying blind. 
+Xid errors are grouped into three categories:
+1. **User Errors (e.g., Xid 13, 31):** The data scientist wrote a bad CUDA kernel that crashed the GPU. Tell them to fix their code.
+2. **Correctable Hardware Errors (e.g., Xid 94):** The GPU detected a minor hardware glitch (like an ECC memory flip) but successfully fixed it on the fly. The job continues. This is a warning sign.
+3. **Unrecoverable Hardware Errors (e.g., Xid 62, 79):** The physical silicon is dead, or the GPU has literally fallen off the PCIe bus. The node must be cordoned, and the GPU must be physically removed from the server (RMA).
+
+This chapter serves as your master reference guide for identifying and reacting to every major Xid error.
+
 ## Symptoms
 
 - Xid error messages in `dmesg` output
@@ -316,3 +333,28 @@ A: "I classify by tier, not by treating every Xid as equally urgent. Codes like 
 **Q: "A GPU shows Xid 92 a few times over a week — do you take it offline?"**
 
 A: "Not immediately, but I don't ignore it either. Xid 92 is a high single-bit ECC error rate — it's a precursor signal, not a failure by itself, since single-bit ECC events are correctable and the GPU's memory is designed to handle them. What matters is the trend: I'd pull the DCGM ECC history and check whether the rate is flat or accelerating week-over-week. If it's accelerating, I'd schedule preventive maintenance or replacement before it progresses to an uncontained error, rather than waiting for a Tier 3 event to force an unplanned outage. I've seen exactly this pattern — rising Xid 92 for hours, then an Xid 79 bus failure — so treating the early rate increase as a real signal, not noise, is the difference between a scheduled maintenance window and an unplanned incident."
+
+## Architecture Summary
+
+Xid errors are the most critical diagnostic signals in an AI cluster. They bridge the gap between physical silicon failures and the Linux operating system. SREs must proactively monitor `dmesg` across the fleet for Xid codes, categorizing them instantly to determine if the failure requires a software fix (User Error), a node reboot (Driver Error), or a physical hardware replacement (Silicon/Bus Error).
+
+```mermaid
+flowchart TD
+    subgraph The_Xid_Triage_Tree["Xid Error Diagnostic Decision Tree"]
+        direction TB
+        
+        Log[SRE Detects Xid Error in 'dmesg'] --> Triage{What is the Xid Number?}
+        
+        Triage -->|Xid 13 / 31 / 43| User[User / Application Error <br/> e.g., Segfault, Out of Memory]
+        Triage -->|Xid 92 / 94| Warn[Correctable Hardware Error <br/> e.g., Single-bit ECC flip <br/> Action: Monitor trend]
+        Triage -->|Xid 48 / 62 / 79| Dead[Unrecoverable Hardware Error <br/> e.g., GPU fell off bus <br/> Action: Cordon & RMA]
+        
+        User --> Fix1[Fix: Data Scientist must debug <br/> their PyTorch/CUDA code.]
+        Warn --> Fix2[Fix: None immediately. <br/> Replace GPU if error rate spikes.]
+        Dead --> Fix3[Fix: Hard Reboot. <br/> If error persists, replace silicon.]
+    end
+    
+    style User fill:#e6f3ff,stroke:#0066cc
+    style Warn fill:#fff3e6,stroke:#cc6600
+    style Dead fill:#ffcccc,stroke:#cc0000,stroke-width:2px
+```

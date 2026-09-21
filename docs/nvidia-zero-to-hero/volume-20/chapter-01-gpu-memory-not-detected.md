@@ -5,6 +5,22 @@ sidebar_position: 1
 description: "Diagnose and resolve scenarios where GPU memory is unavailable, undetected, or unavailable to CUDA applications."
 ---
 
+# GPU Memory Not Detected
+
+## Beginner's Primer: The Missing RAM
+
+Imagine you buy a brand-new smartphone that says it has 16GB of RAM. You turn it on, try to open an app, and the phone says: *"Error: 0GB RAM Available."*
+
+In the AI world, this happens to $30,000 GPUs constantly. 
+A data scientist will launch a Pod on an H100 (which has 80GB of memory). The Pod will instantly crash with `CUDA_ERROR_OUT_OF_MEMORY`. The data scientist runs `nvidia-smi` and sees that the GPU is completely empty, but the "Total Memory" column literally says `0 MiB`.
+
+Before you panic and RMA the hardware back to NVIDIA, you must understand how GPUs present memory to the operating system.
+Most of the time, the memory isn't broken; it is just **hidden**. 
+1. **The MIG Trap:** If the cluster administrator enabled MIG (Multi-Instance GPU) on the hardware, the physical GPU stops presenting its 80GB of memory to the OS. It hides it, waiting for you to slice it into smaller profiles. If you didn't create the profiles, the memory stays hidden.
+2. **The Driver Trap:** If the Linux Kernel Driver version doesn't perfectly match the User-Space library version (often caused by bad Docker containers), the two layers cannot talk to each other, and the memory query returns a `0`. 
+
+This chapter explains how to find the missing memory without ripping the server out of the rack.
+
 ## Symptoms
 
 - CUDA applications report insufficient memory despite GPU having ample capacity
@@ -285,3 +301,25 @@ A: "The key differentiator is whether the GPU is otherwise fully responsive. If 
 **Q: "A containerized job reports CUDA errors that the same code doesn't produce on bare metal. Why might that be memory-related?"**
 
 A: "A common cause is a driver/library version mismatch specific to the container — if the container image bundles its own CUDA/driver userspace libraries rather than using the NVIDIA Container Toolkit runtime to mount the host's matching libraries, the container's userspace can end up talking to a kernel module of a different version than it expects. This often manifests as memory allocation failures or outright `nvidia-smi` initialization failures inside the container, while the host's own `nvidia-smi` works fine. The fix is making sure the container runtime is configured to inject the host driver stack rather than shipping its own, which is what the NVIDIA Container Toolkit is specifically designed to handle."
+
+## Architecture Summary
+
+When a GPU reports `0 MiB` of total memory, engineers must resist the urge to immediately blame faulty hardware. In modern infrastructure, this is almost always a configuration fault—either the GPU is in MIG mode without instantiated slices, or there is a critical version mismatch between the host's kernel driver and the container's user-space libraries.
+
+```mermaid
+flowchart TD
+    subgraph SRE_Triage_Flow["Triage: GPU Memory Not Detected"]
+        direction TB
+        
+        Alert[nvidia-smi shows '0 MiB' Total Memory] --> Check1{Are there Xid Errors <br/> in dmesg?}
+        
+        Check1 -->|Yes| RMA[Hardware Fault / PCIe Issue <br/> Action: RMA GPU]
+        Check1 -->|No| Check2{Check MIG Status <br/> nvidia-smi mig -lgi}
+        
+        Check2 -->|MIG Enabled but No Instances| Fix1[Configuration Error: <br/> GPU memory is hidden. <br/> Action: Create MIG profiles.]
+        Check2 -->|MIG Disabled| Check3{Check Driver Versions <br/> dmesg vs nvml}
+        
+        Check3 -->|Version Mismatch| Fix2[Driver / Toolkit Issue: <br/> Action: Fix Container image <br/> or reinstall drivers.]
+        Check3 -->|Versions Match| Escalate[Escalate to NVIDIA Support]
+    end
+```

@@ -5,6 +5,21 @@ sidebar_position: 4
 description: "Diagnose and resolve NVLink communication failures, degraded links, and topology misconfigurations."
 ---
 
+# NVLink Errors and Topology Issues
+
+## Beginner's Primer: The Broken Bridge
+
+Imagine two cities (GPU 0 and GPU 1) that trade massive amounts of goods. 
+Normally, they have a massive 10-lane superhighway connecting them directly. This is **NVLink**. 
+They also have a tiny, winding dirt road connecting them. This is the **PCIe Bus**.
+
+If a bridge on the superhighway collapses (an NVLink hardware error), the trucks don't stop. The truck drivers are smart; they realize the highway is broken, so they route all 10,000 trucks onto the tiny dirt road. 
+
+From the outside, the AI training job hasn't crashed. There are no obvious error messages on the screen. The job just suddenly became 10x slower. 
+
+If you are a beginner, you will stare at the PyTorch code trying to figure out why it's slow. 
+If you are a Senior SRE, you immediately open a terminal and type `nvidia-smi topo -m` to look at the "Map" of the highways. If the map says the two cities are connected by `PIX` (the PCIe dirt road) instead of `NV#` (the NVLink superhighway), you instantly know the physical hardware bridge has collapsed, and you must call the data center technician to fix it.
+
 ## Symptoms
 
 - NVLink error counters increment in DCGM
@@ -261,3 +276,26 @@ A: "I check both GPUs' error counters for the shared link independently. If one 
 **Q: "Your topology looks completely correct but AllReduce is still 2x slower than expected. Is this an NVLink chapter problem?"**
 
 A: "Not necessarily, and I'd be careful not to force it into this chapter's diagnostic path just because NVLink is involved in the collective. If `nvidia-smi topo -m` shows the expected NV# links everywhere and DCGM shows clean error counters, the topology and hardware are healthy — the slowdown is happening somewhere else. I'd go to the NCCL-timeout chapter's methodology instead: check per-rank op-count progression to see if one rank is starved upstream of the collective, or check whether the NCCL algorithm selection is appropriate for the message size. Misattributing a data-pipeline or algorithm-selection problem to NVLink hardware wastes an escalation and delays finding the actual cause."
+
+## Architecture Summary
+
+When an AI training job experiences a massive, inexplicable 10x drop in speed without actually crashing, SREs must immediately suspect a silent NVLink failure. When a high-speed NVLink connection degrades (due to a physical defect or NVSwitch failure), the NVIDIA driver will silently fall back to routing traffic over the agonizingly slow PCIe bus. Proving this requires checking the physical topology map via `nvidia-smi topo -m`.
+
+```mermaid
+flowchart TD
+    subgraph NVLink_Topology_Triage["Triage: Silent NVLink Degradation"]
+        direction TB
+        
+        Alert[Job is 10x slower but not crashing] --> Topo[Run: nvidia-smi topo -m]
+        
+        Topo --> Check1{Does the matrix show <br/> 'NV#' or 'PIX/PHB'?}
+        
+        Check1 -->|NV#| Clean[NVLink is healthy. <br/> The bottleneck is elsewhere <br/> Check CPU/Dataloader]
+        Check1 -->|PIX or PHB| Check2{Is MIG Enabled?}
+        
+        Check2 -->|Yes| MIG[Working as designed. <br/> MIG physically disables NVLink <br/> between slices.]
+        Check2 -->|No| Broken[NVLink Failure! <br/> Traffic fell back to PCIe.]
+        
+        Broken --> Fix[Action: Check dmesg for Xid 74. <br/> Reseat the GPU or NVSwitch.]
+    end
+```

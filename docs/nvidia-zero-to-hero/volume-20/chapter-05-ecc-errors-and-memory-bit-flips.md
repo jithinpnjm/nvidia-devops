@@ -5,6 +5,24 @@ sidebar_position: 5
 description: "Detect, diagnose, and respond to ECC errors, correctable/uncorrectable bit flips, and memory reliability issues."
 ---
 
+# ECC Errors and Memory Bit Flips
+
+## Beginner's Primer: Cosmic Rays and Checksums
+
+At the physical level, computer memory (RAM/VRAM) is just billions of microscopic capacitors holding an electrical charge. A charge means `1`, no charge means `0`. 
+
+Sometimes, physical reality intervenes. A tiny fluctuation in the power supply, a microscopic defect in the silicon, or literally a high-energy cosmic ray passing through the Earth's atmosphere can hit the memory chip and flip a `0` to a `1`. 
+
+If that `0` was part of a financial calculation, or part of a neural network's weights, the AI model will suddenly output completely incorrect garbage. 
+
+To stop this, Enterprise GPUs use **ECC (Error-Correcting Code) Memory**. 
+ECC adds extra mathematical checksums to the memory.
+- **Single-Bit Error:** If one bit flips, the ECC math instantly detects it, mathematically fixes it on the fly, and the AI job continues as if nothing happened. This is called a **Correctable Error**. 
+- **Double-Bit Error:** If two bits flip right next to each other, the math detects it but cannot fix it. The GPU instantly throws a fatal Xid Error and halts. This is called an **Uncorrectable Error**.
+
+A beginner ignores Correctable Errors because the job didn't crash. 
+A Senior SRE monitors them obsessively. A rising number of Correctable Errors is the engine light flashing—it means the physical silicon is dying, and an Uncorrectable Error is mathematically imminent. You must proactively rip the GPU out of the cluster before it crashes a massive training job.
+
 ## Symptoms
 
 - DCGM reports correctable ECC errors (CECs)
@@ -300,3 +318,31 @@ A: "Xid 94 is a contained ECC error — the GPU handled it internally, no data w
 **Q: "How does the GPU's row-remap mechanism relate to Xid 63 and 64, and why does it matter operationally?"**
 
 A: "Modern NVIDIA GPUs can remap a memory row that's shown a correctable error to a spare row, so future accesses avoid the degraded location entirely — that remapping event is what generates Xid 63, and it's routine, self-healing behavior with no action needed. What I do watch operationally is the remaining headroom for this mechanism — `nvidia-smi -q -d ROW_REMAPPER` shows how many banks still have spare capacity versus how many have already used it. If that headroom gets thin, or if the remapping itself ever fails — which generates Xid 64 — that's a hard escalation, because at that point the GPU's own self-healing capability for memory errors is exhausted or broken, and any subsequent correctable error has nowhere to go but become a real problem."
+
+## Architecture Summary
+
+ECC (Error Correcting Code) memory is the ultimate defense against silent data corruption in AI training. The GPU hardware detects and fixes single-bit flips on the fly (Correctable Errors), emitting Xid 94 logs. SREs must monitor the velocity of these logs over time; if a GPU's correctable error rate spikes, it indicates physical silicon degradation. The SRE must cordon the node and trigger an RMA before the degradation inevitably results in an Uncorrectable Error (Xid 48) that crashes the training workload.
+
+```mermaid
+flowchart TD
+    subgraph ECC_Memory_Triage["Triage: GPU Memory Bit Flips"]
+        direction TB
+        
+        Event[DCGM detects memory bit flip] --> Hardware{ECC Hardware Engine}
+        
+        Hardware -->|Single-Bit| Correct[Correctable Error <br/> Hardware fixes it instantly]
+        Hardware -->|Double-Bit| Uncorrect[Uncorrectable Error <br/> Hardware halts!]
+        
+        Correct --> Log1[Logs: Xid 94 <br/> Job continues normally]
+        Uncorrect --> Log2[Logs: Xid 48 <br/> Job CRASHES]
+        
+        Log1 --> Alert1{Does the error rate <br/> exceed normal trends?}
+        Log2 --> Alert2[SRE Paged: <br/> Cordon Node & RMA GPU]
+        
+        Alert1 -->|No| Safe[Ignore. Normal physics.]
+        Alert1 -->|Yes| Escalate[Silicon is degrading. <br/> Proactively RMA GPU.]
+    end
+    
+    style Log2 fill:#ffcccc,stroke:#cc0000
+    style Escalate fill:#fff3e6,stroke:#cc6600
+```
