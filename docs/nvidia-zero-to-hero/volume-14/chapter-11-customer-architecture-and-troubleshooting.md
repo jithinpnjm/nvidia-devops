@@ -9,6 +9,19 @@ tags: [customer-architecture, troubleshooting, enterprise]
 
 Enterprise customer design begins with constraints: data location, identity, platform standard, support model, latency, throughput, tenancy, facility, and change policy. A "proper" architecture for a startup differs from a proper architecture for a regulated financial institution.
 
+## Beginner's Primer: The SA Discovery Process
+
+If you are interviewing for a Senior Solutions Architect (SA) role, your job is not just to know how technology works—your job is to know **how to ask the right questions**. 
+
+When a customer says, *"I want to build an AI chatbot using LLaMA-3,"* a junior engineer immediately starts writing Kubernetes YAML. 
+A Senior SA stops and asks:
+1. **Data Gravity:** Where does the data live? If the data is in an on-premise Oracle database, you cannot easily run the AI in AWS without incurring massive data egress fees and latency.
+2. **Compliance:** Are you a hospital? If so, the AI cannot run on a shared public cloud; it must run on a sovereign or air-gapped infrastructure.
+3. **Latency:** Are users waiting for the answer on a website (needs 200ms latency), or is this summarizing PDFs overnight (can take 5 minutes)?
+4. **Operations:** Does your team know Kubernetes? If not, selling them a complex Bare-Metal K8s cluster is setting them up for failure; you should recommend a managed service or vSphere.
+
+This chapter outlines the exact "Discovery Framework" used by NVIDIA SAs to translate vague business requests into concrete, supportable infrastructure architectures.
+
 ## Discovery Framework
 
 A complete discovery interview answers these nine questions, in order:
@@ -232,3 +245,25 @@ NOT a system failure; system is working as designed under load.
 **DON'T:** Promise that "enterprise support makes the platform just work" or that "you don't need to understand Kubernetes/GPU/networking."
 
 **Better:** "NVIDIA qualifies NIM + CUDA + driver combinations, so if you hit a bug in that layer, we have clear support. But you're responsible for your Kubernetes cluster stability, network throughput to your model cache, and whether your application's data pipeline is fast enough. Those are your architecture decisions, not ours."
+
+## Architecture Summary
+
+A Senior Solutions Architect does not just design technical systems; they design supportable operational models. The discovery process must uncover the customer's constraints around data gravity, security, latency, and team skillset before recommending an AI Enterprise architecture. When troubleshooting, the SA must methodically rule out network, Kubernetes, and hardware layers before declaring an NVIDIA software fault.
+
+```mermaid
+flowchart TD
+    subgraph The_SA_Discovery_Process["Solutions Architect Discovery Flow"]
+        direction TB
+        Customer["Customer: 'I want AI'"] --> Q1{What is the SLA?}
+        Q1 -->|Real-Time (<200ms)| A1[Architecture: NIM + Bare Metal / High-End vSphere]
+        Q1 -->|Batch / Offline| A2[Architecture: Job Queues + Cheaper GPUs]
+        
+        A1 & A2 --> Q2{Where is the Data?}
+        Q2 -->|On-Premise / Regulated| A3[Air-Gapped / Enterprise DMZ + NVAIE]
+        Q2 -->|Cloud / Public| A4[Managed CSP (e.g. AWS / Azure)]
+        
+        A3 & A4 --> Q3{What is the Team Skillset?}
+        Q3 -->|Strong K8s| A5[Bare-Metal Kubernetes + GPU Operator]
+        Q3 -->|VMware heavy| A6[vSphere + vGPU]
+    end
+```

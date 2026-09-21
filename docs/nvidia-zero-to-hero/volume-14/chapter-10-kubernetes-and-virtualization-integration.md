@@ -9,6 +9,18 @@ tags: [kubernetes, virtualization, integration]
 
 NVIDIA AI Enterprise can participate in bare-metal Kubernetes, virtualized Kubernetes (running inside VMs), and VM-based application architectures. The correct model depends on isolation, operations, performance, and support requirements. Each architecture has a different failure boundary.
 
+## Beginner's Primer: Bare-Metal vs. Virtualization
+
+A classic IT debate is whether to run applications on "Bare-Metal" (directly on the physical server) or in "Virtual Machines" (like VMware vSphere). 
+
+For AI, the decision changes the entire architecture stack.
+1. **Bare-Metal Kubernetes (e.g. OpenShift on Bare Metal):** The fastest option. The AI application talks directly to the GPU hardware. However, it requires the Kubernetes administrators to manage the Host Linux OS, kernel modules, and driver updates (usually via the GPU Operator). It is complex but yields maximum performance.
+2. **Kubernetes on Virtualization (e.g. Tanzu on vSphere):** The most common enterprise choice. The physical server runs VMware ESXi. The ESXi hypervisor slices the GPU using **NVIDIA vGPU** and gives a virtual GPU to a Linux VM. Kubernetes then runs inside that Linux VM. 
+   - *The Catch:* You now have TWO drivers. The Host Driver on ESXi, and the Guest Driver inside the Linux VM. They must be kept perfectly in sync, or the AI workloads will crash.
+3. **VM-Only (No Kubernetes):** Legacy apps running directly on Windows or Linux VMs using vGPU.
+
+As an AI Architect, you must decide which deployment model fits the organization's skillset. If they have a massive VMware team but zero Kubernetes experience, forcing them into Bare-Metal Kubernetes will result in immediate operational failure.
+
 ## Integration Layers and Support Boundaries
 
 | Layer | Bare-metal Kubernetes | Kubernetes on vSphere | VM-only (no K8s) |
@@ -165,3 +177,30 @@ kubectl logs -n gpu-operator -l app=nvidia-device-plugin --tail=50
 - [ ] Kubernetes version is compatible with GPU Operator version (check matrix)
 - [ ] Test GPU allocation: `kubectl run test --image=nvidia/cuda:12.4.1-runtime --limits="nvidia.com/gpu=1"`
 - [ ] Upgrade path is documented (GPU Operator updates, K8s version sync)
+
+## Architecture Summary
+
+NVIDIA AI Enterprise supports both Bare-Metal and Virtualized deployments. Virtualization (vSphere/vGPU) provides excellent enterprise isolation and leverages existing IT skillsets but introduces a complex dual-driver architecture (Host + Guest). Bare-Metal provides maximum performance and simplifies the driver stack, but forces the K8s platform team to manage low-level OS lifecycle.
+
+```mermaid
+flowchart TD
+    subgraph Deployment_Architectures["AI Infrastructure Deployment Models"]
+        direction LR
+        
+        subgraph BareMetal["Bare-Metal Kubernetes"]
+            direction TB
+            BM_K8s[Kubernetes Worker Node]
+            BM_K8s --> BM_Driver[NVIDIA Linux Driver]
+            BM_Driver --> BM_GPU[Physical GPU]
+        end
+        
+        subgraph Virtualized["Virtualized Kubernetes (vSphere)"]
+            direction TB
+            VM_K8s[K8s running inside Linux VM]
+            VM_K8s --> Guest_Driver[Guest NVIDIA Driver]
+            Guest_Driver --> ESXi[VMware ESXi Hypervisor]
+            ESXi --> Host_Driver[vGPU Manager / Host Driver]
+            Host_Driver --> Virt_GPU[Physical GPU]
+        end
+    end
+```
