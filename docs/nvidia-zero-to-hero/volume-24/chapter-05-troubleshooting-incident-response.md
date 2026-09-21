@@ -18,6 +18,24 @@ By the end of this project, you will be able to:
 - Implement targeted fixes with minimal cluster disruption
 - Prevent recurrence via monitoring and automation
 
+## Beginner's Primer: The Capstone Reality Check
+
+In Volume 20, we learned the theory of Cross-Layer Diagnostics and how to hunt down Xid errors, Thermal Throttling, and silent PCIe drops. 
+
+In this Capstone, theory ends. You are on call.
+
+An interviewer will present you with a wall of text: log files, `dmesg` outputs, and `nvidia-smi` snapshots. They will say: *"The cluster is slow. You have 15 minutes to tell me why before we breach our SLA."*
+
+If you randomly guess the answer, you fail.
+To pass, you must demonstrate the **SRE Incident Response Framework**. 
+1. Did the PyTorch code change? (No).
+2. Are the GPUs doing math? (Yes, `SM_ACTIVE` is 90%). 
+3. Are there Xid errors? (No).
+4. What does the network map say? (`nvidia-smi topo -m`).
+
+Ah! The map says GPU 2 and GPU 3 are connected via `PIX` (slow PCIe) instead of `NV#` (fast NVLink). The physical NVLink bridge died. The traffic was silently rerouted over the slow dirt road, causing the 10x latency spike. 
+This chapter tests your ability to methodically read the logs to reach this exact conclusion under pressure.
+
 ## Problem Statement
 
 **Incident:** Training job on 8-GPU cluster suddenly reports 10× latency increase (8 ms per step → 80 ms per step) at 14:32 UTC. The cluster is still running; no obvious errors in logs. You have 15 minutes to identify the problem before SLO breach and 30 minutes to implement a fix.
@@ -342,6 +360,27 @@ These changes move the incident from 30 minutes to resolve to 2 minutes (automat
 3. **Correlate by time:** Events happening at the same second are likely causally related.
 4. **Automate mitigation:** Manual diagnosis is slow. Add automatic detection → automatic fix when possible.
 5. **The smoking gun is usually obvious:** NVLink disabled (red text in nvidia-smi) is obvious; we just had to look.
+
+## Architecture Summary
+
+The Incident Response Capstone forces engineers to apply the "Cross-Layer Diagnosis" theory from Volume 20 to a real-world outage. When an AI job suffers a massive 10x latency spike without crashing, the engineer must read the provided raw terminal outputs (`dmesg`, `ncc_test`, `nvidia-smi topo -m`) to mathematically eliminate the Code and the Network, isolating the failure to a silent NVLink hardware degradation.
+
+```mermaid
+flowchart TD
+    subgraph Incident_Response_Capstone["Capstone 5: Simulated Incident Triage"]
+        direction TB
+        
+        Alert[PagerDuty: 10x Latency Spike] --> Dmesg{Check dmesg for <br/> Xid Errors}
+        
+        Dmesg -->|No Errors Found| SM{Check DCGM <br/> SM_ACTIVE}
+        
+        SM -->|SM is 90% Busy| Topo{Run nvidia-smi topo -m}
+        
+        Topo -->|Shows 'PIX' instead of 'NV#'| RootCause[Root Cause Identified! <br/> Silent NVLink Degradation]
+        
+        RootCause --> Action[Action: Cordon Node. <br/> Kill Job. <br/> Resubmit to healthy node.]
+    end
+```
 
 ## Discussion Questions
 

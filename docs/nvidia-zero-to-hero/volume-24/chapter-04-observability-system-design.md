@@ -18,6 +18,17 @@ By the end of this project, you will be able to:
 - Correlate metrics across multiple sources to diagnose root cause
 - Optimize storage without losing observability
 
+## Beginner's Primer: The Capstone Reality Check
+
+In Volumes 16 and 19, we learned the theory of SRE Observability: DCGM metrics, Prometheus scraping, and avoiding "The Utilization Lie."
+
+In this Capstone, you must prove you can build the nervous system of an AI Factory from scratch. 
+
+An interviewer will say: *"We have a 100-GPU cluster. The training job crashed overnight. The data scientists are blaming the infrastructure. Prove to me it wasn't the hardware."*
+
+If you just list tools ("I would use Grafana and Prometheus"), you fail. 
+To pass, you must write the exact **PromQL (Prometheus Query Language)** queries that detect a Thermal Throttle, an Xid ECC Memory error, or a silent NVLink degradation. You must demonstrate how to combine labels (e.g., matching a GPU UUID to a specific Kubernetes Pod Name) so that when an alert fires in PagerDuty, the on-call engineer knows exactly which Data Scientist's code crashed the GPU. This chapter gives you the exact metric schema required to pass.
+
 ## Problem Statement
 
 You're building monitoring for a 100-GPU production cluster. Your constraints:
@@ -425,6 +436,36 @@ The tradeoff: I lose fine-grained data over time, but I keep the storage managea
 3. **Cardinality kills performance:** Watch your label count; unique label combinations explode as you add dimensions.
 4. **Compression matters:** Time-series databases compress 4–10×. Budget accordingly.
 5. **Correlation is key:** Single metrics are noise; correlated metrics across sources tell a story.
+
+## Architecture Summary
+
+A theoretical understanding of SRE is useless without the ability to write the actual PromQL queries that trigger PagerDuty. The Capstone solution requires defining a strict Metric Schema via DCGM-Exporter, and writing the mathematical thresholds that catch Thermal Throttling, Xid Hardware Faults, and Idle/Zombie Pods without generating false-positive alert fatigue.
+
+```mermaid
+flowchart TD
+    subgraph Observability_System_Capstone["Capstone 4: SRE Alerting Design"]
+        direction TB
+        
+        subgraph Bad["Naive Alerting (The Problem)"]
+            direction LR
+            GPU[GPU Temp > 80C] --> Alert1[Fire Alert!]
+            Alert1 -.-> Ignored[SRE gets 500 alerts a day. <br/> Ignores all of them.]
+        end
+        
+        subgraph Good["Correlated Alerting (The Solution)"]
+            direction TB
+            Metric1[DCGM_FI_DEV_GPU_TEMP > 80]
+            Metric2[DCGM_FI_DEV_CLOCK_THROTTLE_REASONS == HW_SLOWDOWN]
+            
+            Metric1 & Metric2 --> AND{PromQL 'AND' operator}
+            AND --> Alert2[Fire High-Priority Page]
+            Alert2 -.-> Fix[SRE knows exactly what is wrong. <br/> Escalates to Facilities for HVAC fix.]
+        end
+    end
+    
+    style Bad fill:#ffcccc,stroke:#cc0000
+    style Good fill:#ccffcc,stroke:#006600
+```
 
 ## Discussion Questions
 

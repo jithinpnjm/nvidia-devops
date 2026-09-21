@@ -18,6 +18,21 @@ By the end of this project, you will be able to:
 - Measure and trade off utilization vs isolation
 - Debug MIG configuration issues (priority inversion, memory hotspotting)
 
+## Beginner's Primer: The Capstone Reality Check
+
+In Volume 11, we learned that Time-Slicing causes "Noisy Neighbor" problems, and MIG (Multi-Instance GPU) physically isolates workloads using concrete hardware walls.
+
+In this Capstone, you must prove you can actually implement the geometry of MIG.
+
+The interviewer will hand you a single 80GB H100 GPU and 3 different customers. 
+- Customer A needs 35GB of memory.
+- Customer B needs 15GB of memory.
+- Customer C needs 15GB of memory.
+
+If you just guess and try to assign random memory sizes, the GPU will reject your configuration. As we learned, MIG acts like Tetris. You can only slice the GPU into mathematically supported fractions (e.g., `1g.10gb`, `2g.20gb`, `3g.40gb`). 
+
+To pass this assignment, you must calculate the exact, valid MIG profiles required to fit all 3 customers onto the single H100 without wasting silicon, and you must write the exact Linux commands to apply that configuration to the hardware.
+
 ## Problem Statement
 
 A shared GPU cluster serves three competing workloads:
@@ -399,6 +414,37 @@ If they were different jobs with different priority, I might add QoS (Quality of
 3. **Profile real workloads:** Estimates are guides; always benchmark on actual models to verify SLO compliance.
 4. **Document tradeoffs:** Why did you choose 1×2g.20gb + 2×1g.10gb over, say, a single 4g.40gb partition shared via time-slicing? Trade-offs matter.
 5. **Measure both ways:** Alone (baseline) and together (under contention).
+
+## Architecture Summary
+
+This Capstone tests your ability to translate abstract SLA constraints into physical hardware partitioning. The engineer must recognize that the massive memory requirement of the LLM dictates a `3g.40gb` slice, while the smaller but latency-sensitive inference APIs fit perfectly into `1g.10gb` and `2g.20gb` slices. This creates a fully utilized, mathematically valid, hardware-isolated H100 GPU.
+
+```mermaid
+flowchart TD
+    subgraph MIG_Configuration_Capstone["Capstone 6: Hardware Multi-Tenancy"]
+        direction TB
+        
+        subgraph Constraints["Workload SLA Analysis"]
+            W1[7B LLM: Needs 35GB VRAM]
+            W2[Batch CNN: Needs 12GB VRAM]
+            W3[Real-time DB: Needs 8GB VRAM]
+        end
+        
+        subgraph Tetris["MIG Profile Selection"]
+            W1 -->|Assign| P1[Profile: 3g.40gb]
+            W2 -->|Assign| P2[Profile: 2g.20gb]
+            W3 -->|Assign| P3[Profile: 1g.10gb]
+        end
+        
+        subgraph Hardware["Physical H100 80GB GPU"]
+            P1 --> H1[Hardware Slice 1]
+            P2 --> H2[Hardware Slice 2]
+            P3 --> H3[Hardware Slice 3]
+            
+            H1 -.->|1g.10gb Leftover| Free[Unused / Reserved]
+        end
+    end
+```
 
 ## Discussion Questions
 

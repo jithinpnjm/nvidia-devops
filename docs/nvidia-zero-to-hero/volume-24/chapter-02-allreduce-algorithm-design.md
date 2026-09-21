@@ -18,6 +18,17 @@ By the end of this project, you will be able to:
 - Measure actual latency and throughput on NVLink-connected GPUs
 - Compare algorithm overhead versus framework (NCCL) implementation
 
+## Beginner's Primer: The Capstone Reality Check
+
+In Volume 13, Chapter 8, we learned the theory behind NCCL and the `AllReduce` algorithm used to synchronize gradients across GPUs. 
+
+In this Capstone, you are no longer allowed to just talk about it. You must build it. 
+
+If you apply for a Distributed Systems Engineering role, the interviewer will ask you to write pseudo-code (or actual C++/Python code) to implement an `AllReduce` algorithm from scratch, without using the NCCL library. 
+If you write a "Naive" algorithm (where GPU 1 sends its data to GPU 2, then GPU 3, then GPU 4), you fail. The network will instantly congest and crash. 
+
+To pass, you must write a **Ring AllReduce** algorithm. You must structure the code so that GPU 1 sends to GPU 2 *at the exact same time* that GPU 2 sends to GPU 3. You must calculate the exact number of steps required ($2 \times (N-1)$), and you must mathematically prove that your algorithm prevents network bottlenecks. This chapter provides the exact starter code and testing framework to master this challenge.
+
 ## Problem Statement
 
 A distributed training job runs on 8 GPUs (e.g., 2-node setup: 4 GPUs per node connected via NVLink, nodes connected via InfiniBand at ~50 GB/s per link — an IB4-class fabric). Each GPU must synchronize gradients (100 MB tensor) after backward pass. You must:
@@ -408,6 +419,34 @@ In practice, this is why monitoring link health (via IB counters) is critical in
 3. **Pipelining (non-blocking MPI calls) is critical to saturate links; blocking calls serialize and lose the speedup.**
 4. **NCCL's auto-tuning beats hand-optimized ring because it adapts to your hardware and uses advanced algorithms.**
 5. **Bandwidth efficiency is key metric: you want to saturate all available links simultaneously.**
+
+## Architecture Summary
+
+Writing a naive `AllReduce` algorithm causes network congestion because it forces GPUs to take turns broadcasting massive gradient tensors. The Capstone solution requires implementing a Ring AllReduce algorithm, which splits the tensor into chunks and forces all GPUs to transmit data simultaneously in a circle. This perfectly saturates the network bandwidth without causing collisions.
+
+```mermaid
+flowchart TD
+    subgraph Ring_AllReduce_Capstone["Capstone 2: Ring AllReduce Optimization"]
+        direction TB
+        
+        subgraph Naive["Naive Broadcast (The Problem)"]
+            direction LR
+            G1[GPU 1] -->|Sends 100MB| G2[GPU 2]
+            G1 -->|Sends 100MB| G3[GPU 3]
+            G1 -->|Sends 100MB| G4[GPU 4]
+            G1 -.->|Network crashes <br/> due to bottleneck| Fail[Job Halts]
+        end
+        
+        subgraph Ring["Ring AllReduce (The Solution)"]
+            direction LR
+            R1[GPU 1] -->|Sends 25MB| R2[GPU 2]
+            R2 -->|Sends 25MB| R3[GPU 3]
+            R3 -->|Sends 25MB| R4[GPU 4]
+            R4 -->|Sends 25MB| R1
+            R1 -.->|All links saturated <br/> simultaneously| Win[100% Efficiency]
+        end
+    end
+```
 
 ## Discussion Questions
 

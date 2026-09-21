@@ -18,6 +18,17 @@ By the end of this project, you will be able to:
 - Use NVIDIA profiling tools to validate optimization impact with real data
 - Make informed tradeoffs between register usage, shared memory, and occupancy
 
+## Beginner's Primer: The Capstone Reality Check
+
+In the first 23 volumes of this course, you learned the theory of NVIDIA AI Infrastructure. You learned about the Roofline Model, Memory Bandwidth, and CUDA Kernels.
+
+In Volume 24, theory ends. These are **Capstone Projects**.
+If you apply for a job at an elite AI company, they will not ask you multiple-choice questions. They will give you a broken piece of code, or a broken cluster, and say: *"Fix it by tomorrow."*
+
+This chapter simulates a realistic CUDA optimization take-home assignment. You are given a poorly written Matrix Multiplication kernel. If you just guess and change random variables, the kernel might get 5% faster. To pass the assignment, you must use **Nsight Compute (`ncu`)** to mathematically prove the bottleneck (Memory Bandwidth), implement **Shared Memory Tiling** to trap the data in the ultra-fast L1 cache, and push the hardware to 80% of its physical limit. 
+
+This is where you prove you are a Senior Engineer.
+
 ## Problem Statement
 
 You are optimizing a matrix multiplication kernel for inference on NVIDIA H100 GPUs. The kernel must:
@@ -390,6 +401,28 @@ I might also consider tensor operations if the framework supports it, or use lib
 3. **Roofline is your friend:** Plot your kernel against the roofline to see if you're compute-bound or memory-bound. Guides your next optimization.
 4. **Diminishing returns are real:** You can often get 80% of peak easily; the last 10% takes 5× the effort. Know when to stop.
 5. **Correctness over speed:** A 55-TFLOPS incorrect kernel is useless. Always validate against a reference (cuBLAS, CPU).
+
+## Architecture Summary
+
+Writing a naive CUDA kernel for Matrix Multiplication forces the GPU to repeatedly read identical data from slow global VRAM, resulting in a Memory Bandwidth bottleneck. The Capstone solution requires implementing a Tiled Architecture, where small blocks of the matrix are loaded once into the ultra-fast L1 Shared Memory, and the math is performed entirely within the cache, shifting the bottleneck to the Compute Cores.
+
+```mermaid
+flowchart TD
+    subgraph CUDA_Capstone["Capstone 1: Kernel Optimization"]
+        direction TB
+        
+        subgraph Naive["Naive Kernel (The Problem)"]
+            Global1[Global VRAM] -->|16 reads per output| Core1[Compute Core]
+            Core1 -.->|Memory Bandwidth Saturated| Slow[Low FLOPS]
+        end
+        
+        subgraph Tiled["Tiled Kernel (The Solution)"]
+            Global2[Global VRAM] -->|1 read per block| Shared[Shared L1 Cache]
+            Shared -->|Instant Access| Core2[Compute Core]
+            Core2 -.->|Tensor Cores Maxed| Fast[High FLOPS]
+        end
+    end
+```
 
 ## Discussion Questions
 

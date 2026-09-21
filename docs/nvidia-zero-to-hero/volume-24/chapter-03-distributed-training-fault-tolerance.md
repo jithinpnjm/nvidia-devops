@@ -18,6 +18,16 @@ By the end of this project, you will be able to:
 - Design a robust training loop that survives infrastructure failures
 - Measure checkpoint overhead and recovery time
 
+## Beginner's Primer: The Capstone Reality Check
+
+In Volume 13, Chapter 9, we learned the theory behind Checkpointing and Recovery. We learned that when you run a 1,024-GPU cluster for 3 months, a hardware failure is mathematically guaranteed. 
+
+In this Capstone, you must prove you can actually build a resilient training loop.
+
+If you write a PyTorch script that simply runs for 100 epochs, you fail the interview. The interviewer will interrupt your code, intentionally kill one of your GPU worker processes midway through epoch 50, and ask: *"How does your code recover without human intervention?"*
+
+To pass, your code must demonstrate **Asynchronous Checkpointing** (saving the model state to disk without freezing the GPUs) and **Elastic Recovery** (using `torchrun` to automatically detect the dead worker, spin up a replacement, load the last checkpoint from disk, and seamlessly resume math at epoch 50). This chapter provides the exact starter code to survive the interviewer's chaos test.
+
 ## Problem Statement
 
 You are building a training service that must reliably train large models on multi-GPU infrastructure. Your system must:
@@ -402,6 +412,38 @@ In production, I'd also have a periodic 'health check': every hour, all ranks co
 3. **Reproducibility is hard:** Ensure all ranks load identical state and use deterministic operations. Silent divergence is worse than crashes.
 4. **Overhead is acceptable:** 1–2% checkpoint overhead is worth the insurance.
 5. **Test failure scenarios:** Simulate failures regularly to catch bugs before production.
+
+## Architecture Summary
+
+A naive PyTorch training loop assumes the hardware is flawless, meaning a single GPU failure permanently destroys days of progress. The Capstone solution requires building an Elastic Training Loop using `torchrun` and distributed checkpointing, proving that the software can survive sudden hardware death, automatically reload state, and resume without human intervention.
+
+```mermaid
+flowchart TD
+    subgraph Fault_Tolerance_Capstone["Capstone 3: Elastic Training & Recovery"]
+        direction TB
+        
+        subgraph Naive["Naive Training Loop (The Problem)"]
+            Start1[Start Training] --> Math1[Run 10,000 Steps]
+            Math1 --> Crash1{GPU Dies at Step 9,999}
+            Crash1 -->|Job Failed| Lose[Lose 3 months of progress!]
+        end
+        
+        subgraph Resilient["Elastic Training Loop (The Solution)"]
+            direction TB
+            Start2[Start Training] --> Math2[Run 1,000 Steps]
+            Math2 --> Save[Save Async Checkpoint to Disk]
+            Save --> Math3[Run Next 1,000 Steps]
+            Math3 --> Crash2{GPU Dies at Step 1,500}
+            
+            Crash2 --> Torchrun[Torchrun detects dead worker]
+            Torchrun --> Reload[Reload Checkpoint 1,000]
+            Reload --> Resume[Resume Training from Step 1,000]
+        end
+    end
+    
+    style Lose fill:#ffcccc,stroke:#cc0000
+    style Resume fill:#ccffcc,stroke:#006600
+```
 
 ## Discussion Questions
 
