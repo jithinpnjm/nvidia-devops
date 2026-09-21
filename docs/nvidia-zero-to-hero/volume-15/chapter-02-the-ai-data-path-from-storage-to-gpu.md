@@ -9,6 +9,20 @@ tags: [data-path, storage, gpu-memory]
 
 Data may cross storage media, storage servers, switches, NICs, the kernel, page cache, CPU memory, PCIe, and GPU memory before a kernel can use it. Each crossing is a potential bottleneck and a place where copies, synchronization, or serialization can degrade throughput.
 
+## Beginner's Primer: The Bucket Brigade
+
+To understand where latency hides in an AI training job, imagine a bucket brigade trying to put out a fire. 
+1. **The Lake (Storage Array):** This is your massive PB-scale Lustre or NetApp system. It holds all the water (data).
+2. **The First Worker (The Network NIC):** They scoop the water out of the lake.
+3. **The Second Worker (The Host CPU/RAM):** They take the bucket from the NIC, inspect it, and put it down on the ground (CPU RAM).
+4. **The Third Worker (The PCIe Bus):** They pick the bucket up from the ground and carry it to the fire.
+5. **The Fire (The GPU):** The water is finally thrown onto the fire.
+
+If the GPU is starving for data, beginners immediately blame the Lake (the Storage Array). They assume the hard drives are too slow. 
+But what if the Host CPU is so busy processing other things that it drops the bucket? What if the PCIe bus is clogged? 
+
+If any single worker in this bucket brigade is slow, the fire doesn't get put out. You cannot troubleshoot AI storage by only looking at the storage array. You must measure the flow rate at *every single handoff point*. This chapter shows you exactly what Linux commands to run to measure each step of the journey.
+
 | Chapter metadata | Value |
 |---|---|
 | Volume | 15 — AI Storage, Checkpointing, and Data Pipelines |
@@ -314,6 +328,34 @@ GPU Memory Usage
    train_loader = DataLoader(..., collate_fn=pin_collate)
    ```
    **Result:** Loader time drops to 30ms, GPU utilization: 94%, throughput: 58 GB/s.
+
+## Architecture Summary
+
+The path from the hard drive to the GPU's Tensor Cores involves dozens of hardware and software boundaries. A bottleneck at the Host CPU (e.g., waiting for PyTorch to decode JPEGs) will look identical to a broken storage array if you only look at GPU utilization. Performance engineering requires isolating the exact boundary where the data flow stops.
+
+```mermaid
+flowchart TD
+    subgraph The_Data_Path["The AI Storage Data Path"]
+        direction TB
+        
+        Disk[(Storage Array <br/> Lustre/BeeGFS)]
+        NIC1[Storage Server NIC]
+        Network[Spine/Leaf Switches]
+        NIC2[Compute Node NIC]
+        CPU[Host CPU <br/> Decodes/Pre-processes]
+        RAM[Host RAM <br/> Page Cache / Staging]
+        PCIe[PCIe Gen 5 Bus]
+        GPU[GPU VRAM]
+        
+        Disk -->|Reads files| NIC1
+        NIC1 -->|RoCE / TCP| Network
+        Network --> NIC2
+        NIC2 --> RAM
+        RAM -->|PyTorch Dataloader| CPU
+        CPU -->|Pinned Memory Copy| PCIe
+        PCIe --> GPU
+    end
+```
 
 ---
 

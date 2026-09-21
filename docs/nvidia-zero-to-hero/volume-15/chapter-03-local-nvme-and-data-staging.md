@@ -9,6 +9,22 @@ tags: [nvme, data-staging, cache]
 
 Local NVMe places high-throughput storage near the GPU node. It reduces shared-fabric demand and can absorb bursty temporary I/O. Used correctly, it transforms a network-bound system into a compute-bound system. Used incorrectly, it creates complexity without benefit.
 
+## Beginner's Primer: Why Do We Still Need Local Disks?
+
+In a modern enterprise, you are taught that "local storage is bad." Everything should be stateless, and data should live on massive, highly available, shared NAS or SAN arrays (like Pure Storage or NetApp). 
+
+In AI, this logic flips.
+
+AI training jobs read the exact same data millions of times. A computer vision model might read the same 10,000 images 500 times (500 epochs) to learn their features. 
+If 1,000 GPUs reach across the data center network to the shared NAS array to read those same 10,000 images 500 times, you will melt your network switches. 
+
+The solution is **Data Staging (Caching)**.
+Every NVIDIA DGX or modern AI server has massive, blazingly fast NVMe drives bolted directly to the motherboard. 
+- During **Epoch 1**, the server reaches across the network, reads the images, and saves a copy onto its local NVMe drive. This is slow.
+- During **Epochs 2 through 500**, the server reads the images directly from its own local NVMe drive. The network traffic drops to zero. The GPUs are fed instantly. 
+
+This chapter explains how to use these local NVMe drives to cache datasets and stage checkpoints so the expensive network doesn't become the bottleneck.
+
 | Chapter metadata | Value |
 |---|---|
 | Volume | 15 — AI Storage, Checkpointing, and Data Pipelines |
@@ -218,6 +234,32 @@ This pattern prevents subtle bugs where a training run uses stale cached data th
 | "Local NVMe is full after epoch 1" | Cache capacity too small for dataset | Run: `find /dataset -type f -exec du -c {} \;` to sum actual size. Compare to NVMe capacity: `lsblk` | Increase NVMe size, or reduce dataset if possible. Monitor eviction rate. |
 | "NVMe shows 3.5 GB/s in `fio`, but training only sees 150 MB/s" | NUMA affinity or CPU bottleneck, not NVMe | Run training with `numactl --hardware`, check which NUMA node the data loader is on. Profile CPU: `perf record -g python train.py`, look for Python decode/transform in the flamegraph. | Pin data loader to same NUMA node as NVMe's attached CPU. Move expensive transforms (decoding, augmentation) to a separate preprocessing step. |
 | "Nodes A and B have identical NVMe, but B is 30% slower" | NVMe firmware, controller temperature, or background activity differs | Check: `smartctl -a /dev/nvme0n1` on both nodes. Compare temperatures, power states, firmware versions. Check for background scrubbing: `iostat -x 1` on B during idle. | Update firmware if versions differ. Disable background TRIM/GC during training (it runs asynchronously and competes for I/O). Thermal throttle? Check `smartctl` for ThrottlingReasonTempHigh or similar. |
+
+## Architecture Summary
+
+Local NVMe on GPU worker nodes provides critical I/O acceleration for multi-epoch training and massive checkpointing. By caching datasets locally, the cluster protects the shared storage network from redundant traffic. By staging checkpoints locally, GPUs experience sub-second pauses instead of minutes-long stalls, with the actual write to the slow network happening asynchronously in the background.
+
+```mermaid
+flowchart TD
+    subgraph NVMe_Staging_Architecture["The Role of Local NVMe in AI"]
+        direction TB
+        
+        subgraph Compute_Node["GPU Worker Node (e.g. DGX)"]
+            GPU[GPU VRAM]
+            NVMe[(Local NVMe Drives <br/> 30GB/s+ Bandwidth)]
+        end
+        
+        subgraph Storage_Fabric["Network Fabric"]
+            Shared[(Shared NAS/Parallel FS <br/> Lustre / BeeGFS)]
+        end
+        
+        Shared -.->|Epoch 1: Slow Network Read| NVMe
+        NVMe ===>|Epoch 2-N: Blazing Fast Cache Read| GPU
+        
+        GPU ===>|Checkpoint: Fast Local Write (<1s)| NVMe
+        NVMe -.->|Background Async Flush| Shared
+    end
+```
 
 ## Interview-Ready Answer
 
