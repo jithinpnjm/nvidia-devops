@@ -18,6 +18,16 @@ By the end of this project, you will be able to:
 - Calculate cost per inference request
 - Trade off cost vs latency and handle traffic spikes
 
+## Beginner's Primer: The Capstone Reality Check
+
+In Chapter 10, we learned that designing a Training cluster is about maximizing PetaFLOPs over a multi-month marathon.
+
+In this Capstone, the interviewer tests if you can pivot your brain to **Inference Economics**. 
+They will present a scenario: *"Design a multi-tenant Inference API to serve 3 different LLMs. We need to handle 1,000 requests per second, and users must receive their first token in under 500ms."*
+
+If you suggest buying an 8-GPU H100 NVLink cluster and connecting it with InfiniBand, you fail. 
+To pass this assignment, you must prove you understand the Iron Triangle (Latency vs Throughput vs Cost). You must mathematically prove that cheaper L40S or PCIe A100 GPUs are the correct choice for this workload. You must diagram an API Gateway that implements Rate Limiting, an Inference Engine (like vLLM) that uses Continuous Batching to maximize throughput without breaching the 500ms SLA, and you must calculate the exact cost of generating 1,000 tokens.
+
 ## Problem Statement
 
 You need to serve three LLMs simultaneously to external customers:
@@ -390,6 +400,25 @@ In practice, I'd start with separate GPUs, measure utilization, then consolidate
 3. **Queueing adds latency:** Must budget for queue wait time in SLO. 10× spike can cause 10 sec queues.
 4. **Model isolation is hard:** Time-slicing introduces overhead; separate GPUs are simpler but more expensive.
 5. **Measure and iterate:** Profile real models, benchmark under load, adjust batch size and GPU count based on data.
+
+## Architecture Summary
+
+This Capstone challenges candidates to architect a highly available, low-latency, and cost-effective AI serving platform. A Senior Architect must demonstrate the ability to select the correct hardware (cost-efficient PCIe GPUs), deploy the correct software (Triton / vLLM for Continuous Batching), and calculate the precise mathematical balance between batching for maximum throughput and returning answers quickly enough to satisfy a strict 500ms P99 SLA.
+
+```mermaid
+flowchart TD
+    subgraph Inference_Capstone["Capstone 11: Multi-Tenant Inference Design"]
+        direction TB
+        
+        Req[Requirement: <br/> 3 Models, 50k Users, 500ms SLA] --> FinOps[1. Financial Optimization <br/> Select L40S or PCIe A10G GPUs <br/> Avoid Expensive NVLink]
+        
+        FinOps --> Software[2. Software Architecture <br/> Deploy vLLM or Triton <br/> Enable PagedAttention KV Cache]
+        
+        Software --> Batch[3. Batching Math <br/> Calculate Max Batch Size <br/> Ensure Batch Compute Time < 500ms SLA]
+        
+        Batch --> Scale[4. High Availability <br/> Deploy behind Load Balancer <br/> Scale based on Queue Depth, not CPU]
+    end
+```
 
 ## Discussion Questions
 

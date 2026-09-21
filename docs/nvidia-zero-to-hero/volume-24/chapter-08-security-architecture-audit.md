@@ -18,6 +18,15 @@ By the end of this project, you will be able to:
 - Verify fixes reduce attack surface
 - Assess tradeoff between security and performance
 
+## Beginner's Primer: The Capstone Reality Check
+
+In Volume 18, we covered the theory of Zero-Trust architecture, Threat Modeling, and Container Escapes.
+
+In this Capstone, the interviewer will hand you a diagram of a multi-tenant AI cluster and say: *"This architecture was designed by a junior engineer. Find the 5 critical security vulnerabilities that would allow a hacker to steal our proprietary model weights, and write the exact configuration changes required to fix them."*
+
+To pass this assignment, you cannot just say "add a firewall." 
+You must spot the fact that the GPU Operator is running with overly permissive RBAC privileges. You must spot the fact that users are allowed to pull unverified `.pickle` models directly from the public internet without an Admission Controller blocking them. You must spot that Time-Slicing is being used for hostile multi-tenancy, exposing the VRAM to snooping, and mandate a switch to MIG. This chapter tests your ability to think like an attacker.
+
 ## Problem Statement
 
 A cloud provider runs a multi-tenant GPU cluster. Three customers lease GPUs:
@@ -385,6 +394,39 @@ The tradeoff is always performance. Every security feature costs time. I'd start
 3. **Defense in depth:** No single fix is complete. Layer multiple defenses (isolation, encryption, monitoring).
 4. **Performance matters:** Security features must not tank performance; &lt;5% overhead is practical target.
 5. **Audit regularly:** New vulnerabilities emerge; re-audit annually.
+
+## Architecture Summary
+
+This Capstone simulates a grueling Security Architecture audit. The candidate must systematically hunt down and remediate five major vulnerabilities in a poorly designed multi-tenant cluster: overly permissive RBAC roles, hostile Time-Slicing, lack of NetworkPolicies (allowing lateral movement), unrestricted public internet access for pulling poisoned models, and lack of IOMMU hardware protections on the PCIe bus. 
+
+```mermaid
+flowchart TD
+    subgraph Security_Audit_Capstone["Capstone 8: Vulnerability Audit & Remediation"]
+        direction TB
+        
+        subgraph Vulnerability["Found Vulnerability"]
+            V1[Hostile Multi-Tenancy <br/> using Time-Slicing]
+            V2[Container running as Root]
+            V3[Public Internet Access <br/> to HuggingFace]
+            V4[Unrestricted API Access]
+        end
+        
+        subgraph Remediation["Architectural Fix"]
+            R1[Implement MIG <br/> Hardware VRAM Isolation]
+            R2[Implement Pod Security Admission <br/> Block 'privileged: true']
+            R3[Implement Internal Harbor Mirror <br/> Scan for poisoned .pickle files]
+            R4[Implement Default-Deny NetworkPolicies]
+        end
+        
+        V1 --> R1
+        V2 --> R2
+        V3 --> R3
+        V4 --> R4
+    end
+    
+    style Vulnerability fill:#ffcccc,stroke:#cc0000
+    style Remediation fill:#ccffcc,stroke:#006600
+```
 
 ## Discussion Questions
 

@@ -18,6 +18,16 @@ By the end of this project, you will be able to:
 - Handle long-running and short-running jobs equitably
 - Design for maximum utilization while preventing starvation
 
+## Beginner's Primer: The Capstone Reality Check
+
+In Volume 11 and 23, we discussed the absolute chaos of managing an AI Research Cluster. 
+
+In this final Capstone, you must architect the governance model for that chaos. 
+The interviewer presents a scenario: *"You manage a 32-GPU cluster for a university. Professor A submits a massive 3-month job that requires 32 GPUs. Student B submits a tiny job that requires 1 GPU for 5 minutes. If you use a standard queue, Student B has to wait 3 months to do 5 minutes of homework."*
+
+To pass this assignment, you must design a **Fair-Share Scheduling Architecture**. 
+You must define strict Service Tiers (e.g., Interactive vs Batch). You must explain how a scheduler (like Slurm or Run:ai) utilizes "Preemption" to temporarily kill Professor A's job, slot in Student B's 5-minute job, and then automatically resume Professor A's job from a checkpoint. You must also prove how you will use DCGM metrics to automatically bill Professor A's specific department for the exact GPU hours they consumed.
+
 ## Problem Statement
 
 An AI research lab has 5 research groups (A–E) sharing one 32-GPU cluster. Workload characteristics:
@@ -329,6 +339,30 @@ Also, I'd offer a premium queue: if Group A is willing to pay 2× the cost, they
 3. **Utilization matters:** Fair allocation alone can leave GPUs idle; backfilling fills gaps.
 4. **Cost transparency builds trust:** Labs accept fairness if they understand and can predict costs.
 5. **Monitor continuously:** Fairness and utilization targets drift over time; weekly audits catch problems early.
+
+## Architecture Summary
+
+Designing a Research Infrastructure cluster tests a candidate's mastery of Multi-Tenant Governance. The architect must synthesize strict Hardware Isolation (MIG) for interactive Jupyter workloads with complex Orchestration Policies (Slurm / Kubernetes Preemption) for batch workloads. The goal is to maximize cluster utilization while guaranteeing fairness, ensuring that a single massive training run never starves out dozens of smaller, highly concurrent research experiments.
+
+```mermaid
+flowchart TD
+    subgraph Research_Cluster_Capstone["Capstone 12: Multi-Tenant Research Governance"]
+        direction TB
+        
+        Q[Requirement: 50 Competing Researchers] --> Tiers[1. Service Tier Definition]
+        
+        Tiers --> Tier1[Interactive Tier: <br/> Jupyter Notebooks <br/> SLA: Instant Start]
+        Tiers --> Tier2[Batch Tier: <br/> Multi-Month Training <br/> SLA: Best Effort]
+        
+        Tier1 --> Config1[Hardware: L40S or A10G <br/> Isolation: MIG or Time-Slicing]
+        Tier2 --> Config2[Hardware: HGX H100 NVLink <br/> Isolation: Whole Node Only]
+        
+        Config2 --> Sched[2. Fair-Share Scheduler]
+        Sched --> Policy[Preemption Policy: <br/> If resources exhausted, pause long <br/> batch jobs to admit new interactive jobs.]
+        
+        Policy --> Cost[3. Chargeback Pipeline <br/> Attribute DCGM metrics to Namespace <br/> Bill specific Research Grants]
+    end
+```
 
 ## Discussion Questions
 

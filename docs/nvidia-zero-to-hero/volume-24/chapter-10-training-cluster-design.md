@@ -19,6 +19,21 @@ By the end of this project, you will be able to:
 - **Sanity-check a stated requirement against a stated budget early — and know how to communicate an honest gap to a stakeholder instead of quietly fudging the numbers**
 - Document architectural decisions and tradeoffs
 
+## Beginner's Primer: The Capstone Reality Check
+
+In Volume 21 and 23, we discussed the theoretical blueprints for building an AI Training Factory.
+
+In this Capstone, you must build the actual blueprint.
+The interviewer hands you a blank whiteboard and says: *"Design a cluster to train a 50-Billion parameter LLM. You have $5 Million."*
+
+**The Trap:** If you immediately start drawing servers, you fail.
+To pass this assignment, you must first do the math. 
+1. How many PetaFLOPs does a 50B model require to train?
+2. How many H100 GPUs do I need to achieve those PetaFLOPs in 30 days?
+3. Oh no. The math says I need 2,000 GPUs. That costs $60 Million. I only have $5 Million. 
+
+The purpose of this Capstone is to test your **Executive Communication**. You must stop the design, turn to the interviewer, and mathematically prove that their budget is impossible for their stated goal. You must then pivot and design the best possible cluster the $5 Million *can* buy, explaining exactly what the new, degraded timeline will be. 
+
 ## Problem Statement
 
 A research lab needs a GPU cluster to train large language models:
@@ -355,6 +370,36 @@ Then I'd build a prototype on 8 GPUs, verify my assumptions about throughput and
 5. **Cost is real:** Dream designs fail budget; optimize aggressively.
 6. **Fault tolerance is essential:** Checkpointing and automatic recovery prevent disasters.
 7. **Document decisions:** Why this topology? Why this network? Future engineers need to understand.
+
+## Architecture Summary
+
+This Capstone is the ultimate test of a Senior Solutions Architect. The candidate must synthesize everything learned in the Masterclass: deriving compute requirements from raw FLOPs math, selecting HGX 8-GPU nodes, designing a non-blocking InfiniBand NDR network, and architecting an asynchronous Lustre checkpointing pipeline. Crucially, the candidate must demonstrate the business acumen to push back on impossible budget constraints using objective mathematics.
+
+```mermaid
+flowchart TD
+    subgraph Capstone_10_System_Design["Capstone 10: Training Cluster Design"]
+        direction TB
+        
+        subgraph Math["1. The Mathematical Reality Check"]
+            Req[Requirement: Train 50B Model] --> FLOPs[Calculate Total PetaFLOPs required]
+            FLOPs --> Count[Divide by H100 MFU to get GPU Count]
+            Count --> Price[Multiply by $30k]
+            Price --> Budget{Does it fit $5M?}
+            
+            Budget -->|No!| Push[Push Back: 'Your budget is mathematically impossible.']
+        end
+        
+        subgraph Arch["2. The $5M Architecture"]
+            Nodes[Compute: 16x HGX H100 8-GPU Nodes]
+            Net[Network: Single-Rack InfiniBand NDR (Non-Blocking)]
+            Store[Storage: High-Bandwidth Parallel FS for Checkpoints]
+            
+            Push --> Nodes
+            Nodes --> Net
+            Net --> Store
+        end
+    end
+```
 
 ## Discussion Questions
 

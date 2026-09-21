@@ -18,6 +18,16 @@ By the end of this project, you will be able to:
 - Optimize for cost vs latency tradeoffs
 - Design upgrade paths and refresh cycles
 
+## Beginner's Primer: The Capstone Reality Check
+
+In Volume 19 and 21, we covered the theory of FinOps, Capacity Planning, and predicting the future.
+
+In this Capstone, the interviewer hands you an Excel spreadsheet and a 3-year timeline. 
+The spreadsheet shows a startup currently using 16 GPUs, growing at 25% per quarter. The interviewer asks: *"Build me a purchasing roadmap for the next 2 years with a strict $5 Million budget. If user latency spikes because you didn't buy enough GPUs, you fail. If you buy too many GPUs and bankrupt the company, you fail."*
+
+To pass this assignment, you must prove you understand **Supply Chain Lead Times** and **Hardware Generations**. 
+You cannot assume you can buy 64 GPUs on Day 1. You must model out Phased Purchases (e.g., buying 16 more GPUs in Q2, waiting for delivery in Q3). You must also account for operational expenses (OpEx): running 64 GPUs costs hundreds of thousands of dollars in electricity and cooling per year. This chapter provides the mathematical framework to build a bulletproof Capacity Forecast.
+
 ## Problem Statement
 
 A company currently operates a 16-GPU cluster. Usage is growing 25% per quarter. In 2 years, they expect:
@@ -437,6 +447,31 @@ I'd also set up monitoring: if queue depth hits 20+ jobs, alert me immediately. 
 3. **SLO is the hard constraint:** If latency exceeds SLO, add GPUs immediately.
 4. **Power is a hidden cost:** Often 20–30% of total OpEx; plan for it.
 5. **Leave margin:** Budget should have 10–20% headroom for surprises.
+
+## Architecture Summary
+
+Capacity Planning is an exercise in applied mathematics and risk management. The candidate must successfully forecast user demand, translate that demand into specific hardware requirements (GPUs, Switches, Storage), and model the Total Cost of Ownership (TCO) across 2 years. The winning strategy staggers CapEx purchases to align with 6-month supply chain lead times, ensuring the cluster always maintains a 20% capacity buffer to handle sudden traffic spikes without breaching latency SLAs.
+
+```mermaid
+flowchart TD
+    subgraph Capacity_Planning_Capstone["Capstone 9: 2-Year Financial Forecast"]
+        direction TB
+        
+        Data[Historical Usage Data <br/> 25% Growth per Quarter] --> Forecast[Project Demand 24 Months Out]
+        
+        Forecast --> Model{Hardware Modeling}
+        Model --> GPU[Calculate GPU Count Needed]
+        Model --> Power[Calculate Power/Cooling kW]
+        Model --> Store[Calculate PB Storage]
+        
+        GPU & Power & Store --> Budget{Does it fit the $5M Budget?}
+        
+        Budget -->|No| Fix[Optimize: Implement MIG, <br/> Spot Instances, and Reaper Bots]
+        Budget -->|Yes| Schedule[Build Procurement Schedule <br/> Account for 6-Month Lead Times]
+        
+        Fix --> Schedule
+    end
+```
 
 ## Discussion Questions
 

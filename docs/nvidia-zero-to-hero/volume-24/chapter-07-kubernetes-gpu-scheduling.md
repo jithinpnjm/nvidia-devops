@@ -18,6 +18,15 @@ By the end of this project, you will be able to:
 - Measure job latency impact under contention
 - Design admission control to prevent oversubscription
 
+## Beginner's Primer: The Capstone Reality Check
+
+In Volume 10 and 11, we learned that the default Kubernetes scheduler is terrible at handling GPUs. It treats a $30,000 GPU exactly the same as 1 Megabyte of RAM—as a simple integer count.
+
+In this Capstone, you must prove you can fix Kubernetes. 
+The interviewer will present a scenario: *"You have an 8-GPU cluster. You have a massive batch training job, and a real-time user inference API. Both are submitted at the same time. The batch training job consumes all 8 GPUs. The user inference API is stuck in Pending. The users are furious."*
+
+To pass this assignment, you must write the exact Kubernetes YAML required to establish **PriorityClasses** and **ResourceQuotas**. You must demonstrate how to configure the cluster to automatically **Preempt** (kill) a portion of the batch training job, forcibly evict it from the GPU, and instantly slot the high-priority inference API in its place. This tests your ability to protect business SLAs during chaotic multi-tenant resource contention.
+
 ## Problem Statement
 
 A Kubernetes cluster has 8 GPUs (2 nodes, 4 GPUs per node). Three job types arrive:
@@ -335,6 +344,35 @@ I'd also set up monitoring: track how long each job spends in Pending state. If 
 3. **Starvation prevention is automatic:** Kubernetes scheduler has built-in mechanisms; configure them appropriately.
 4. **Fairness is measurable:** Track resource allocation per priority class; adjust quotas to match business needs.
 5. **Test under contention:** SLOs are easy to meet when resources are plentiful; validate them under full load.
+
+## Architecture Summary
+
+This Capstone tests the candidate's ability to override the default, blind Kubernetes scheduler using PriorityClasses, Preemption, and strict ResourceQuotas. A Senior Architect must prove they can guarantee an Inference API's strict latency SLA by configuring the cluster to automatically evict low-priority batch training jobs when sudden traffic spikes demand immediate GPU access.
+
+```mermaid
+flowchart TD
+    subgraph K8s_Scheduling_Capstone["Capstone 7: Multi-Tenant Scheduling & Preemption"]
+        direction TB
+        
+        subgraph Constraints["Cluster Capacity: 8 GPUs"]
+            Priority1[Inference API <br/> Priority: High <br/> Needs 4 GPUs]
+            Priority2[Batch Training <br/> Priority: Low <br/> Needs 8 GPUs]
+        end
+        
+        subgraph Scheduler["Kubernetes Default Scheduler"]
+            direction TB
+            Q1{Batch Job arrives first. <br/> Occupies all 8 GPUs.}
+            Q1 --> Q2{Inference Job arrives.}
+            Q2 -->|If no PriorityClass| Pending[Inference Stuck Pending! <br/> SLA Breached.]
+            Q2 -->|With PriorityClass| Preempt[K8s Evicts 4 Batch Pods.]
+        end
+        
+        Preempt --> Run[Inference starts instantly. <br/> Batch job scales down to 4 GPUs. <br/> Both run concurrently.]
+    end
+    
+    style Pending fill:#ffcccc,stroke:#cc0000
+    style Preempt fill:#ccffcc,stroke:#006600
+```
 
 ## Discussion Questions
 
