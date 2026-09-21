@@ -10,6 +10,19 @@
 
 Predictive maintenance reduces equipment downtime 30-50%, saving $100Ks-$1Ms per facility annually.
 
+## Beginner's Primer: Industrial IoT and The Edge
+
+When building AI for a manufacturing plant (like a car factory or an oil refinery), you are dealing with **Industrial IoT (Internet of Things)**. 
+
+Imagine a massive factory floor with 1,000 motors spinning. If a motor breaks unexpectedly, the entire assembly line halts, costing the company $50,000 per hour. The goal of AI is *Predictive Maintenance*: listening to the vibrations of the motor to predict that it will break 7 days from now, allowing the company to replace it during scheduled weekend downtime.
+
+**The Architectural Challenge:**
+You cannot stream the high-frequency vibration data (audio) from 1,000 motors over the internet to a cloud GPU. The factory's internet connection would instantly saturate, and if the internet went down, the factory would lose all its AI monitoring. 
+
+The solution is deploying NVIDIA's smallest chips—the **Jetson** family (like the Jetson Orin NX)—directly onto the factory floor next to the machines. These tiny, ruggedized, low-power GPUs process the audio streams locally, run the AI inference, and only send a tiny text message back to the central server saying: *"Motor 42 is going to fail on Tuesday."* 
+
+This is the essence of Edge Computing in manufacturing: processing massive raw data locally, and transmitting only the valuable insights globally.
+
 ## Use Case: Bearing Failure Prediction (50 production lines, 1,250 bearings)
 
 ### Requirements
@@ -52,6 +65,31 @@ Predictive maintenance reduces equipment downtime 30-50%, saving $100Ks-$1Ms per
 | False alarms (health drops then recovers) | Sensor drift or electrical noise | Recalibrate or add shielded cable |
 | Missed failures (bearing fails with high health) | Model trained on different equipment | Retrain on field data |
 | Edge offline every 6 hours | Power brownout on production line | Add UPS or upgrade line power |
+
+## Architecture Summary
+
+Manufacturing AI architectures rely on Industrial Edge deployment. Rather than centralizing massive amounts of sensor telemetry into a cloud database, inference is pushed to the physical factory floor using low-power NVIDIA Jetson hardware. This ensures the AI remains functional even during internet outages, and drastically reduces bandwidth costs by only transmitting the final predictive insights to the central dashboard.
+
+```mermaid
+flowchart TD
+    subgraph Manufacturing_AI_Architecture["Industrial Edge Predictive Maintenance"]
+        direction TB
+        
+        subgraph Factory_Floor["The Edge (Air-Gapped / Low Bandwidth)"]
+            direction LR
+            Motor[Industrial Motor] -->|Vibration / Audio Data| Sensor[IoT Sensors]
+            Sensor -->|High-Frequency Streaming| Jetson[NVIDIA Jetson Orin <br/> Edge Inference]
+        end
+        
+        subgraph Central_IT["Corporate Cloud / Datacenter"]
+            Dashboard[Maintenance Dashboard]
+            ERP[Factory ERP System <br/> Schedules Repairs]
+        end
+        
+        Jetson -->|Low-Bandwidth Alert: 'Motor 4 failing in 7 days'| Dashboard
+        Dashboard --> ERP
+    end
+```
 
 ## Related Chapters
 

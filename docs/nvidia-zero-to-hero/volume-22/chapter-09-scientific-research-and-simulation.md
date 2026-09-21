@@ -14,6 +14,19 @@ Scientific simulations differ from ML workloads:
 - Checkpointing is critical (can't lose 3 days of compute)
 - Reproducibility is paramount (bit-identical results)
 
+## Beginner's Primer: HPC vs AI
+
+Historically, the people buying thousands of GPUs were not AI startups; they were National Laboratories (like Oak Ridge or Lawrence Livermore) doing **HPC (High-Performance Computing)**.
+
+HPC involves using math to simulate the real world: weather forecasting, nuclear explosions, black holes, and aerodynamics. 
+
+An HPC cluster looks exactly like an AI Training cluster (e.g., thousands of GPUs connected via InfiniBand), but the software and the math are entirely different. 
+- **AI** is mostly multiplying massive blocks of numbers (Matrix Multiplication using Tensor Cores). 
+- **HPC** is often solving complex Differential Equations using traditional CUDA cores. 
+- **Precision:** AI can use sloppy math (FP8 or FP16) to go faster, because a neural network can "guess" the missing details. HPC requires absolute perfection (FP64 Double Precision). If you use sloppy math to simulate a hurricane, the hurricane in the simulation will veer off course and hit the wrong city. 
+
+Because HPC jobs run continuously for months to simulate 100 years of weather, **Checkpointing** (Volume 15) is the single most important architectural requirement. If a GPU dies on day 45, and you haven't checkpointed the weather simulation, you just wasted 45 days of a supercomputer's time. 
+
 ## Use Case: Climate Modeling (100-year forecast)
 
 ### Requirements
@@ -56,6 +69,43 @@ Scientific simulations differ from ML workloads:
 - If crash mid-checkpoint: lose &lt;2.4 hours compute
 - If entire cluster fails: restart from previous successful checkpoint
 - Expected failures: ~1 per 2-month job
+
+## Architecture Summary
+
+HPC (High-Performance Computing) environments prioritize absolute mathematical precision (FP64) and long-term fault tolerance. Because scientific simulations (like climate modeling) run continuously for months without pausing, the architecture must support massive, high-speed, asynchronous checkpointing to distributed parallel filesystems (Lustre) to ensure that inevitable hardware failures do not destroy weeks of computational progress.
+
+```mermaid
+flowchart TD
+    subgraph HPC_Architecture["HPC Climate Simulation Architecture"]
+        direction TB
+        
+        subgraph Compute["Supercomputer Grid"]
+            Node1[A100 FP64 Node]
+            Node2[A100 FP64 Node]
+            Node1 <==>|InfiniBand NDR| Node2
+        end
+        
+        subgraph Storage["Parallel Filesystem (Lustre)"]
+            Check[(Checkpoint Repository)]
+        end
+        
+        subgraph Operations["Fault Tolerance"]
+            Sim[Run Simulation Math]
+            Write[Async Dump State to Disk]
+            Crash{Hardware Fault?}
+            
+            Sim -->|Every 2 hours| Write
+            Write --> Check
+            
+            Sim --> Crash
+            Crash -->|Yes| Pull[Load last Checkpoint]
+            Pull -->|Reads from| Check
+            Pull --> Sim
+        end
+        
+        Compute -.-> Operations
+    end
+```
 
 ## Related Chapters
 

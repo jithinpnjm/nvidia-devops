@@ -10,6 +10,16 @@
 
 GPU-accelerated medical imaging analysis reduces radiologist review time 80% while maintaining clinical accuracy.
 
+## Beginner's Primer: AI as a Medical Device
+
+When selling AI into a hospital system, you are no longer just selling software; you are selling a "Medical Device." 
+
+If a hospital uses AI to scan a chest X-Ray for cancer, the architecture is bound by two extreme constraints:
+1. **HIPAA (Data Privacy):** The hospital cannot simply upload patient X-Rays to an S3 bucket in the public cloud. The architecture must feature zero-trust data handling, edge-redaction of PII (removing patient names from the metadata of the image), and Confidential Computing (Volume 18) to ensure encryption during math execution.
+2. **FDA Regulations (Auditability):** If the AI flags a patient for cancer, and the patient sues the hospital a year later, the hospital must be able to mathematically prove exactly what AI model made that decision. 
+
+A Senior Solutions Architect does not just design the GPU cluster; they design the **Model Lineage** pipeline. Every time an inference runs, the system must log the SHA256 cryptographic hash of the exact model weights used, the exact version of Triton Inference Server, and the exact timestamp. This ensures that the AI's diagnosis is completely reproducible during a legal audit.
+
 ## Use Case: CT Lung Cancer Screening (50,000 patients/year)
 
 ### Requirements
@@ -41,6 +51,36 @@ GPU-accelerated medical imaging analysis reduces radiologist review time 80% whi
 
 - Radiologist time saved: $1.9M/year (19,167 hours/year × ~$100/hour blended rate, from Requirements)
 - **Net benefit: ~$1.76M/year, payback in under 2 months**
+
+## Architecture Summary
+
+Healthcare AI architectures justify their GPU hardware costs by drastically reducing highly-paid specialist review time (e.g., Radiologists). However, these architectures must integrate seamlessly with legacy hospital systems (PACS) and enforce rigid HIPAA data privacy, requiring edge-anonymization of DICOM images before the data ever touches the GPU inference cluster.
+
+```mermaid
+flowchart TD
+    subgraph Healthcare_AI_Architecture["Medical Imaging Inference Pipeline"]
+        direction TB
+        
+        subgraph Hospital_Intranet["Hospital Edge"]
+            PACS[Hospital PACS System <br/> Raw Patient CT Scans]
+            Anonymizer[DICOM Anonymizer <br/> Strips PII / PHI]
+        end
+        
+        subgraph AI_Cluster["NVIDIA Inference Cluster (On-Prem)"]
+            Triton[Triton Server: 3D CNN]
+            Audit[(Immutable Audit Log <br/> Logs Model SHA256)]
+        end
+        
+        subgraph Output["Clinical Workflow"]
+            Rad[Radiologist Review Dashboard <br/> AI Highlights Anomalies]
+        end
+        
+        PACS --> Anonymizer
+        Anonymizer -->|Secure TLS| Triton
+        Triton -->|Saves evidence| Audit
+        Triton -->|Flags High-Risk| Rad
+    end
+```
 
 ## Related Chapters
 
