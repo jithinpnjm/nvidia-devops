@@ -18,6 +18,21 @@ By the end of this chapter, you will be able to:
 - Diagnose scheduling bottlenecks
 - Design SLOs for managed clusters
 
+## Beginner's Primer: The Kubernetes Abstraction Leak
+
+A favorite tactic of Senior Interviewers is testing whether you know where Kubernetes "stops" and the NVIDIA hardware "begins."
+
+A junior DevOps engineer thinks of Kubernetes as magic. They write `nvidia.com/gpu: 1` in their YAML, and the Pod gets a GPU. 
+
+A Senior Architect knows this is a fragile abstraction. 
+- The Kubernetes Scheduler doesn't actually know what a GPU is. It just subtracts the number "1" from a spreadsheet of node resources. 
+- The **NVIDIA Device Plugin** is the agent that populates that spreadsheet. 
+- The **NVIDIA Container Toolkit** is the low-level binary that actually injects the `/dev/nvidia0` device file into the container sandbox.
+
+If an interviewer asks: *"The node says it has 8 GPUs, the pod requested 1 GPU, the pod is scheduled, but the Python code crashes with `No CUDA device found`. What broke?"*
+
+The answer is never "The Scheduler." The Scheduler did its job (the pod is scheduled). The failure is at the Runtime Injection layer (the Container Toolkit failed to mount the driver libraries into the pod). Mastering this strict boundary between Scheduling (Control Plane) and Injection (Data Plane) is mandatory for passing platform interviews.
+
 ## Kubernetes GPU Scheduling
 
 ### GPU Resource Model
@@ -479,6 +494,24 @@ If SLA is missed, increase maxTotalUnreadyPercentage or pre-provision extra node
 **Corrective answer:** "Peak demand is 32 GPUs for 2 hours/day = 1.5% utilization. That's wasteful. Autoscaling lets us scale down to 2 GPUs at night (90% cost savings during off-peak). Total cost is 5× lower."
 
 **Verification Point:** Can the candidate design autoscaling policies and estimate cost trade-offs?
+
+## Architecture Summary
+
+When interviewing for Kubernetes roles in AI, candidates must differentiate between native CPU scheduling and the complexities of Extended Resources (GPUs). They must articulate the specific role of the NVIDIA Device Plugin, how to circumvent Kubernetes' lack of topology awareness using NFD/GFD node labeling, and how to debug the strict boundary between Pod Scheduling (Control Plane) and GPU Injection (Data Plane).
+
+```mermaid
+flowchart TD
+    subgraph K8s_Interview["Interview Strategy: K8s Orchestration"]
+        direction TB
+        
+        Q[Interviewer: 'Pod is Pending. Why?'] --> Sched[Check Scheduler: <br/> Are there enough nvidia.com/gpu resources?]
+        Sched -.->|Yes| Aff[Check Affinity/Taints: <br/> Do Node Labels match?]
+        
+        Q2[Interviewer: 'Pod is Running but CUDA fails. Why?'] --> Run[Check Runtime: <br/> Did the Container Toolkit inject the driver?]
+        
+        Q3[Interviewer: 'How do we schedule topology?'] --> Topo[Explain NFD & GFD <br/> K8s only counts integers. <br/> Labels are required for NVLink topology.]
+    end
+```
 
 ## Related Chapters
 

@@ -18,6 +18,23 @@ By the end of this chapter, you will be able to:
 - Assess regulatory requirements (HIPAA, SOC2, etc.)
 - Validate security through testing and monitoring
 
+## Beginner's Primer: The Zero-Trust Datacenter
+
+If you are interviewing for a DevSecOps or Security Architect role, the interviewer will test your ability to look past software bugs and see **Threat Vectors**. 
+
+An AI cluster is the most dangerous system in a modern enterprise because it fundamentally requires the two things security teams hate most:
+1. **Root Access:** To install GPU drivers, you need deep kernel privileges. 
+2. **Untrusted Code:** Data scientists download random open-source Python models and run them on your hardware.
+
+An interviewer will ask: *"How do you secure a multi-tenant AI cluster?"*
+
+If you answer *"Network Firewalls and Namespaces,"* you fail. Firewalls do not protect the PCIe bus. Namespaces do not stop a malicious Python script from scanning the GPU VRAM to steal a rival company's data. 
+To pass, you must demonstrate **Defense in Depth**:
+- **Hardware Layer:** Use IOMMU to stop rogue PCIe devices.
+- **Isolation Layer:** Use MIG (Hardware partitions) instead of Time-Slicing. 
+- **Encryption Layer:** Use Confidential Computing (Hopper Enclaves) to encrypt data while it sits in VRAM.
+- **Supply Chain Layer:** Block all direct downloads from the internet. Force developers to use an internal mirror that scans models for malicious Python `pickle` payloads.
+
 ## Threat Model: GPU Infrastructure
 
 **Attack surface (GPU cluster):**
@@ -457,6 +474,29 @@ This is not optional—HIPAA violations carry per-violation tiered penalties of 
 **Corrective answer:** "No. Audit logging is mandatory under HIPAA. If performance is an issue, use async logging or upgrade to faster storage. Never disable compliance controls."
 
 **Verification Point:** Can the candidate design HIPAA-compliant systems and explain compliance requirements?
+
+## Architecture Summary
+
+Security interviews focus on the candidate's ability to identify AI-specific vulnerabilities that traditional web architects miss. This includes understanding the "Shared Fate" problem of running firewalls on host OSs (solved by BlueField DPUs), the risk of executing untrusted `.pickle` models, and the lack of hardware memory isolation in software Time-Slicing.
+
+```mermaid
+flowchart TD
+    subgraph Interview_Security["Security Architecture Interview Strategy"]
+        direction TB
+        
+        Q[Interviewer: 'How do we secure AI?'] --> V1{"1. Hardware Trust"}
+        V1 -.->|Answer| A1[IOMMU secures the PCIe bus. <br/> Secure Boot prevents rootkits.]
+        
+        Q --> V2{"2. Multi-Tenancy"}
+        V2 -.->|Answer| A2[Time-slicing is vulnerable. <br/> Use MIG for hardware VRAM isolation.]
+        
+        Q --> V3{"3. Supply Chain"}
+        V3 -.->|Answer| A3[Block internet downloads. <br/> Scan for malicious 'pickle' files. <br/> Use .safetensors.]
+        
+        Q --> V4{"4. Confidentiality"}
+        V4 -.->|Answer| A4[Hopper Confidential Computing <br/> encrypts VRAM in use.]
+    end
+```
 
 ## Related Chapters
 

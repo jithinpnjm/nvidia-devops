@@ -10,6 +10,20 @@
 
 ## Interview Question: Design a Multi-Tenant LLM Inference Service
 
+## Beginner's Primer: Inference vs. Training Design
+
+In Chapter 10, we designed a Training Cluster. It was a massive, single-site supercomputer optimized purely for math throughput. 
+
+In this chapter, we design an **Inference Cluster**. 
+If you design an Inference cluster using the Training blueprint, you will fail the interview. 
+
+An Inference cluster is a global web service. 
+- You do not care about maximum batch sizes; you care about **Time To First Token (TTFT)**. 
+- You do not care about InfiniBand; you care about **Global Load Balancers** and **Multi-Region Failover**. 
+- You do not care about 8-GPU NVLink nodes; you care about cheaper PCIe GPUs (like the L40S) to minimize your **Cost-per-Token**.
+
+When the interviewer asks you to design an Inference service, they are testing your ability to balance Latency SLAs, High Availability, and FinOps (Cost Optimization) using tools like Continuous Batching, Triton Inference Server, and Paged KV Caches.
+
 **Constraints (given in interview):**
 
 - Serve multiple LLM models (7B, 13B, 70B parameters)
@@ -359,6 +373,28 @@ Answer:
 - Implement backpressure: reject excess requests with graceful message
 - Queue with limited size (reject if queue > 10K)
 - Offer "burst capacity" tier for premium customers
+
+## Architecture Summary
+
+An Inference System Design interview tests a candidate's ability to prioritize Latency and High Availability over raw throughput. The candidate must architect a multi-region deployment with Global Load Balancing, justify their GPU hardware choice based on FinOps metrics (Cost-per-Token), and explain how inference engines (Triton/vLLM) use Continuous Batching and Paged KV Caches to prevent Out-Of-Memory crashes during unexpected traffic spikes.
+
+```mermaid
+flowchart TD
+    subgraph System_Design_Inference["System Design: Global Inference API"]
+        direction TB
+        
+        Q[Interviewer: 'Design an Inference API'] --> Req[1. Clarify Requirements <br/> QPS, Latency SLA, Multi-Tenant]
+        
+        Req --> Compute[2. Compute Design <br/> L40S or A10G PCIe GPUs <br/> Optimize for Cost/Token]
+        Compute --> Engine[3. Inference Engine <br/> vLLM / Triton <br/> Continuous Batching & KV Caching]
+        Engine --> Avail[4. High Availability <br/> Multi-Region Active-Active <br/> Global Load Balancing]
+        Avail --> Scale[5. Autoscaling & Backpressure <br/> Scale on Queue Depth, not CPU]
+        
+        Scale -.->|Interview Follow-ups| Tradeoffs{Discuss Trade-offs}
+        Tradeoffs -->|P99 Latency Spiking?| Fix1[Decrease Max Batch Size <br/> Implement Prompt Caching]
+        Tradeoffs -->|Out of VRAM?| Fix2[Implement FP8 Quantization]
+    end
+```
 
 ## Related Chapters
 

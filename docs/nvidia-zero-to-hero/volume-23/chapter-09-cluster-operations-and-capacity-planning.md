@@ -18,6 +18,22 @@ By the end of this chapter, you will be able to:
 - Plan network upgrades and topology
 - Balance CapEx and OpEx trade-offs
 
+## Beginner's Primer: The FinOps Interview
+
+When interviewing for a Senior SRE or Platform Architect role, the interviewer will eventually ask a **Capacity Planning** question. They are testing whether you think like a technician or a business leader.
+
+*Interviewer: "Our Datadog dashboard says our 100-GPU cluster is 98% allocated. The data scientists are demanding we spend $3 Million on 100 more GPUs. Do you approve the purchase order?"*
+
+If you say "Yes, the metrics show we are out of capacity," you fail the interview.
+A Senior Architect responds with **FinOps (Financial Operations)** logic:
+
+1. **Allocation vs Utilization:** "Just because Kubernetes says the GPU is allocated does not mean it is doing math. I will check the DCGM `SM_ACTIVE` metric. I guarantee 60% of those GPUs are sitting completely idle because developers forgot to turn off their Jupyter Notebooks over the weekend."
+2. **The Reaper:** "I will deploy an automated Reaper script that kills idle pods, instantly reclaiming 60% of the cluster capacity for free."
+3. **Sharing:** "I will enable Time-Slicing and MIG for development workloads to double our density."
+4. **Conclusion:** "I will reject the purchase order, saving the company $3 Million, and solve the bottleneck with software."
+
+This chapter provides the frameworks to answer these capacity and ROI questions perfectly.
+
 ## GPU Hardware Selection Framework
 
 ### Workload-Driven GPU Choices
@@ -410,6 +426,28 @@ Improve utilization to 50-55% through process changes (no CapEx), then re-assess
 **Corrective answer:** "No, yet. Cutting capacity might create new bottleneck. If teams wait in queue > 1 hour for GPUs, you've hurt productivity. Better to improve scheduling first, then rightsizе."
 
 **Verification Point:** Can the candidate analyze utilization patterns and propose targeted improvements?
+
+## Architecture Summary
+
+Operations interviews test a candidate's ability to balance technical capability against financial reality (CapEx vs OpEx). A candidate must know when to buy H100s (Training) vs L40S (Inference), how to forecast capacity around 6-month supply chain lead times, and how to use software (Spot instances, Reapers, MIG) to maximize ROI before requesting budget for new hardware.
+
+```mermaid
+flowchart TD
+    subgraph Interview_Capacity_Planning["Interview Strategy: Capacity Planning"]
+        direction TB
+        
+        Q[Interviewer: 'We are out of GPUs. <br/> Should we buy more?'] --> Verify{Verify DCGM: <br/> Is SM_ACTIVE high?}
+        
+        Verify -->|No| Fix1[Action: Kill Idle Pods. <br/> Implement FinOps Reaper.]
+        Verify -->|Yes| Opt{Are workloads <br/> optimized?}
+        
+        Opt -->|No| Fix2[Action: Implement MIG / <br/> Time-Slicing for Dev workloads]
+        Opt -->|Yes| Hardware{Hardware Purchase <br/> Required}
+        
+        Hardware -->|Interactive API| Buy1[Buy: L40S or PCIe A10G <br/> Optimize for Cost/Token]
+        Hardware -->|LLM Training| Buy2[Buy: H100 SXM5 <br/> Optimize for Max TFLOPS]
+    end
+```
 
 ## Related Chapters
 

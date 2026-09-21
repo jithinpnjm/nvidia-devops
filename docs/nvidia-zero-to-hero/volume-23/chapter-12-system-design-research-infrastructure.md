@@ -10,6 +10,20 @@
 
 ## Interview Question: Design a Research GPU Cluster
 
+## Beginner's Primer: The Wild West of AI
+
+In the last two chapters, we designed systems for single, predictable purposes: A Training Cluster (one massive job) and an Inference Cluster (thousands of tiny API calls).
+
+A **Research Cluster** is the absolute worst of both worlds. 
+You have 50 different data science teams. 
+- Alice wants 1 GPU for a 5-minute Jupyter Notebook experiment.
+- Bob wants 64 GPUs for a 3-month LLaMA training run.
+- Charlie writes terrible code that leaks memory and crashes the node.
+
+If you use a simple First-In-First-Out (FIFO) queue, Bob's 3-month job will block Alice from doing 5 minutes of work. 
+
+Answering this interview question requires you to design a **Fair-Share Scheduler** (like Slurm or Run:ai). You must explain how to implement Quotas, Preemption (kicking Bob off the GPU so Alice can run her 5-minute job, then letting Bob resume), and hardware-level isolation (MIG) so Charlie's bad code doesn't crash Alice's notebook. This tests your mastery of multi-tenant governance.
+
 **Constraints (given in interview):**
 
 - Support 50 research teams (professors, students, postdocs)
@@ -413,6 +427,28 @@ Answer:
 - **Chapter 7:** [Kubernetes Scheduling](./chapter-07-kubernetes-and-container-orchestration.md) — scheduler design
 - **Chapter 9:** [Cluster Operations](./chapter-09-cluster-operations-and-capacity-planning.md) — hardware and cost planning
 - **Volume 21:** AI Factory (reference architectures)
+
+## Architecture Summary
+
+Designing a Research GPU Cluster is the ultimate test of multi-tenant governance. Candidates must demonstrate how to manage highly chaotic, mixed workloads by defining strict Service Tiers, implementing Fair-Share Queues, enabling job Preemption, and utilizing hardware boundaries like MIG to prevent "noisy neighbor" researchers from crashing each other's experiments.
+
+```mermaid
+flowchart TD
+    subgraph System_Design_Research["System Design: Research GPU Cluster"]
+        direction TB
+        
+        Q[Interviewer: 'Design a shared cluster <br/> for 50 diverse teams'] --> Req[1. Clarify Requirements <br/> Job Durations, Quotas, Security]
+        
+        Req --> Tiers[2. Define Service Tiers <br/> Interactive (Notebooks) vs Batch (Training)]
+        Tiers --> Sched[3. Fair-Share Scheduling <br/> Slurm / Run:ai Queueing]
+        Sched --> Isolate[4. Hardware Isolation <br/> MIG for Interactive / Whole GPU for Batch]
+        Isolate --> Preempt[5. Preemption Strategy <br/> Pause long jobs for short jobs]
+        
+        Preempt -.->|Interview Follow-ups| Tradeoffs{Discuss Trade-offs}
+        Tradeoffs -->|Job keeps getting preempted?| Fix1[Require researchers to implement <br/> Async Checkpointing]
+        Tradeoffs -->|OOM Cross-Kills?| Fix2[Migrate from Time-Slicing to MIG]
+    end
+```
 
 ---
 

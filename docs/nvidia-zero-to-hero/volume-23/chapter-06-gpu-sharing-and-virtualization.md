@@ -18,6 +18,18 @@ By the end of this chapter, you will be able to:
 - Make cost vs. isolation trade-offs
 - Design fair resource allocation policies
 
+## Beginner's Primer: The Sharing Matrix
+
+When interviewing for a Cloud or Platform role, the interviewer will almost certainly test your ability to navigate the "Sharing Matrix." 
+
+They will present a scenario: *"We have 10 data scientists doing PyTorch development, and 2 production LLM Inference APIs. We have two H100 GPUs. How do you configure the cluster?"*
+
+If you say "Time-Slicing for everything to maximize density," you fail the interview. You must prove you understand the Blast Radius.
+- **Development (Jupyter Notebooks):** Time-slicing is perfect here. It's cheap, high-density, and if the data scientists crash each other's pods via Out-Of-Memory (OOM) errors, it's annoying but not a disaster. 
+- **Production Inference:** Time-slicing is illegal here. The lack of memory isolation causes catastrophic latency jitter, destroying the SLA. You must use **MIG (Multi-Instance GPU)**. MIG physically partitions the silicon, guaranteeing that Production API A can never steal memory bandwidth from Production API B.
+
+A Senior Architect matches the sharing technology to the strictness of the Service Level Agreement (SLA).
+
 ## GPU Sharing Strategies
 
 ### Multi-Instance GPU (MIG)
@@ -359,6 +371,29 @@ Before deploying shared GPU systems:
 - [ ] Test failure mode (what if one job crashes?)
 - [ ] Verify fair resource distribution (scheduler fairness)
 - [ ] Measure cost per unit ($/training hour, $/inference)
+
+## Architecture Summary
+
+GPU Sharing questions in an interview are designed to test a candidate's grasp of Risk vs Reward. Candidates must clearly delineate between the hardware-enforced concrete walls of MIG (safe for multi-tenant production) and the software-based illusion of Time-Slicing (high density, but vulnerable to OOM cross-kills). 
+
+```mermaid
+flowchart TD
+    subgraph Interview_GPU_Sharing["Interview Strategy: GPU Sharing"]
+        direction TB
+        
+        Q1[Interviewer: 'How do we share GPUs?'] --> Triage{"What is the Workload SLA?"}
+        
+        Triage -->|Dev / Jupyter Notebooks| Time[Software: Time-Slicing]
+        Triage -->|Prod Inference / Multi-Tenant| MIG[Hardware: MIG]
+        Triage -->|Legacy Enterprise VMs| vGPU[Hypervisor: vGPU]
+        
+        Time -.->|Trap| Trap1[Do not use for Prod! <br/> Zero Memory Isolation.]
+        MIG -.->|Trap| Trap2[You cannot change MIG profiles <br/> without draining the entire Node.]
+    end
+    
+    style Trap1 fill:#ffcccc,stroke:#cc0000
+    style Trap2 fill:#ffcccc,stroke:#cc0000
+```
 
 ## Related Chapters
 

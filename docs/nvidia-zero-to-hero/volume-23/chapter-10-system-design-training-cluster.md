@@ -10,6 +10,22 @@
 
 ## Interview Question: Design a 1000-GPU Training Cluster
 
+## Beginner's Primer: The System Design Interview
+
+If you interview for a Senior Cloud Architect or Platform Engineer role, the technical questions (e.g., *"What is an Xid error?"*) will eventually stop, and the **System Design** portion will begin. 
+
+The interviewer will hand you a marker, point to a whiteboard, and give you an impossibly vague prompt: *"Design a 1,000-GPU training cluster for a $15 Million budget."*
+
+**How to Fail:** Immediately drawing servers on the whiteboard and saying *"I'll buy H100s and connect them with InfiniBand."*
+
+**How to Pass:** Follow a strict, 4-step framework.
+1. **Clarify Requirements:** "Are we training massive LLMs or small computer vision models? What is the timeline?"
+2. **Compute Strategy:** "Based on the LLM requirement, we must use 8-GPU HGX nodes with NVLink. PCIe GPUs will not suffice."
+3. **Network Strategy:** "To support 1,000 GPUs, we must build a Rail-Optimized InfiniBand topology so AllReduce traffic doesn't block."
+4. **Storage & Fault Tolerance:** "At 1,000 GPUs, hardware failures are mathematically guaranteed. We need a Lustre parallel file system to handle asynchronous checkpoints."
+
+This chapter provides the exact script to deliver a flawless System Design presentation.
+
 **Constraints (given in interview):**
 
 - Support 100 concurrent training jobs
@@ -317,6 +333,28 @@ Answer:
 - 99% SLA requires &lt; 14 minutes downtime/day
 - 1000 iterations × 1 sec/iter = 1000 sec = 16 min overhead
 - Barely achievable; need better checkpoint strategy or higher MTBF
+
+## Architecture Summary
+
+A Training Cluster System Design interview tests a candidate's ability to synthesize Compute, Network, Storage, and Operations into a single cohesive architecture. The candidate must justify their hardware choices (e.g., H100 SXM5 for 3D parallelism), their network topology (Rail-Optimized InfiniBand to minimize the communication tax), and their fault-tolerance strategy (Lustre Async Checkpointing to mitigate inevitable hardware crashes).
+
+```mermaid
+flowchart TD
+    subgraph System_Design_Training["System Design: 1,000-GPU Training Cluster"]
+        direction TB
+        
+        Q[Interviewer: 'Design a Training Cluster'] --> Req[1. Clarify Requirements <br/> Model size, Timeline, Budget]
+        
+        Req --> Compute[2. Compute Node Design <br/> HGX 8-GPU (NVLink 900GB/s)]
+        Compute --> Network[3. Network Design <br/> InfiniBand NDR (Rail-Optimized)]
+        Network --> Storage[4. Storage Design <br/> Parallel FS for Checkpointing]
+        Storage --> Ops[5. Operations & Scheduling <br/> Slurm / K8s Gang Scheduling]
+        
+        Ops -.->|Interview Follow-ups| Tradeoffs{Discuss Trade-offs}
+        Tradeoffs -->|Budget cut in half?| Cut[Drop InfiniBand for RoCE <br/> Drop H100 for A100]
+        Tradeoffs -->|Job keeps crashing?| Fix[Implement Async Checkpointing]
+    end
+```
 
 ## Related Chapters
 
