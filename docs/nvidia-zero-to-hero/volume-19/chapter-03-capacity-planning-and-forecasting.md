@@ -23,6 +23,21 @@ Whether on-premises or in the cloud, high-end GPUs (like H100s or B200s) are sca
 
 A Senior Architect must execute rigorous **Capacity Planning**. You must forecast exactly how much compute the business will need 6 to 12 months in the future, balancing the risk of under-provisioning (stalling the business) against the risk of over-provisioning (wasting tens of millions of dollars).
 
+## Beginner's Primer: The Empty Hotel
+
+Imagine you manage a very expensive hotel. You look at your booking system, and 100% of the rooms are reserved. People are waiting outside, demanding rooms. You panic and tell the owner to spend $10 Million to build a new wing.
+
+But before you build, you physically walk down the hallway and open the doors. 
+You find that 80% of the rooms are completely empty. The guests paid for them, dropped their bags off, and never came back. 
+
+This is exactly what happens in AI clusters. 
+A Data Scientist writes a Kubernetes Pod requesting `nvidia.com/gpu: 1`. Kubernetes gives them the GPU (Booking the room). The Data Scientist runs a 5-minute training job, but forgets to delete the Pod. The Pod sits there for 3 weeks, doing absolutely zero math, but holding the GPU hostage. 
+
+Kubernetes says the cluster is 100% full (Allocated). 
+The physical silicon (DCGM) says it is 0% busy (Utilized). 
+
+FinOps (Financial Operations) in AI is the practice of building automated "Reaper" bots that scan the physical silicon metrics (DCGM), find these empty hotel rooms, and automatically kick the data scientists out so other people can use the hardware. 
+
 ## 1. The Fallacy of Linear Forecasting
 
 If your user base doubles, your AI infrastructure does not necessarily double. 
@@ -73,3 +88,39 @@ This simple software reconfiguration will instantly multiply our usable cluster 
 **Conceptual:** Why is buying GPU capacity in the cloud using standard 'On-Demand' pricing usually a terrible financial strategy for steady-state AI inference? *(Hint: On-Demand pricing charges a massive premium for flexibility. Steady-state inference workloads run 24/7. By committing to Reserved Instances (1 or 3-year contracts) or moving the steady-state baseline to on-premises bare-metal, organizations can reduce their hardware costs by 50% to 70%, reserving On-Demand solely for unpredictable, bursty traffic).*
 
 **Architecture:** How does an automated FinOps 'Reaper' operator identify zombie workloads? *(Hint: It cannot use Kubernetes API metrics, because zombie pods are fully 'allocated' and look healthy to Kubernetes. The reaper must query the deep hardware metrics from the DCGM Exporter (e.g., SM Activity or Tensor Core utilization). If the physical hardware registers near-zero math execution for an extended period, the reaper mathematically proves the workload is idle and automatically terminates it).*
+
+## Architecture Summary
+
+AI Capacity Planning requires navigating extreme hardware costs and long supply-chain lead times. Senior Architects must divorce "Kubernetes Allocation" from "Silicon Utilization." By implementing strict GPU Sharing techniques (MIG/Time-Slicing) and deploying automated "Reaper" bots that terminate idle pods based on raw DCGM hardware metrics, platform teams can reclaim massive amounts of stranded capacity before resorting to buying new hardware.
+
+```mermaid
+flowchart TD
+    subgraph The_FinOps_Reaper_Pipeline["Automated GPU Capacity Reclamation"]
+        direction TB
+        
+        subgraph Node["GPU Worker Node"]
+            Pod[Data Scientist Jupyter Notebook]
+            GPU[Physical GPU]
+            Pod -.->|Allocated but Idle| GPU
+        end
+        
+        subgraph Telemetry["Monitoring Stack"]
+            DCGM[DCGM Exporter]
+            Prom[Prometheus]
+            DCGM -->|SM_ACTIVE = 0% for 4 hours| Prom
+        end
+        
+        subgraph FinOps["FinOps Reaper Bot"]
+            Bot[Kubernetes CronJob / Operator]
+            API[K8s API Server]
+        end
+        
+        Prom -->|Triggers Alert| Bot
+        Bot -->|Sends Delete Command| API
+        API ===>|Evicts Zombie Pod| Pod
+        API -.->|Slack Notification| User[Data Scientist]
+    end
+    
+    style Bot fill:#ccffcc,stroke:#006600,stroke-width:2px
+    style Pod fill:#ffcccc,stroke:#cc0000
+```
