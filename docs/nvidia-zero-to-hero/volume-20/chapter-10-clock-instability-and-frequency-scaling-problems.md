@@ -5,6 +5,21 @@ sidebar_position: 10
 description: "Diagnose GPU clock instability, frequency scaling failures, and performance variability from clocking issues."
 ---
 
+# Clock Instability and Frequency Scaling Problems
+
+## Beginner's Primer: The Confused Engine
+
+In Chapter 6, we learned that a GPU slows down (throttles its clock speed) when it overheats. 
+But what if the GPU is perfectly cold, drawing very little power, and it *still* randomly slows down?
+
+This is called **Clock Instability (DVFS Oscillation)**. 
+DVFS (Dynamic Voltage and Frequency Scaling) is a feature built into modern GPUs to save electricity. If the GPU thinks it isn't doing any hard work, it downshifts into a lower gear (a lower P-State) to save power. When hard work arrives, it upshifts back to maximum speed.
+
+The problem? AI workloads are bursty. If a PyTorch dataloader is slightly unoptimized, it might feed the GPU a batch of images, pause for 5 milliseconds, and feed it another batch. 
+The GPU sees that 5-millisecond pause and thinks, *"Oh, I'm idle! I'll downshift to save power."* A millisecond later, the next batch arrives, and the GPU frantically tries to upshift. 
+
+The GPU ends up violently shifting gears thousands of times a second. The resulting "gear grinding" destroys performance. SREs must diagnose this using DCGM, and then use `nvidia-smi` to manually lock the GPU into top gear (`-lgc`) to prevent it from ever downshifting.
+
 ## Symptoms
 
 - GPU clock speed fluctuates wildly (1980 MHz → 500 MHz → 1980 MHz) during steady workload
@@ -388,3 +403,31 @@ A: "That sounds like the GPU is stuck in a lower P-state and can't transition ba
 **Q: "How would you prevent clock instability in a production cluster?"**
 
 A: "First, I'd make sure DVFS is disabled in BIOS on all nodes with production GPUs — set power management to 'Performance' mode consistently. Then I'd monitor: every 30 seconds, sample GPU clock from each GPU and alert if I see > 3 unique clock values in a 5-minute window. If a GPU starts oscillating, I'd drain it from the cluster and investigate. I'd also do monthly BIOS settings audits to make sure some system config change didn't accidentally re-enable DVFS. Finally, I'd stay current on driver updates because clock-related firmware bugs get fixed regularly. The key insight is that oscillation is always a sign of something wrong — either something's protecting the GPU (thermal, power), or something's misconfigured."
+
+## Architecture Summary
+
+Clock Instability occurs when the GPU's power-saving features (DVFS) conflict with the microsecond-level bursty nature of AI workloads. When the GPU rapidly oscillates between high and low clock speeds (P-States), overall throughput collapses. SREs must use DCGM to confirm the oscillation is *not* caused by Thermal/Power limits, and then use `nvidia-smi -lgc` to enforce a rigid hardware clock lock, disabling power-saving features in favor of absolute deterministic performance.
+
+```mermaid
+flowchart TD
+    subgraph Triage_Clock_Instability["Triage: GPU Clock Oscillation"]
+        direction TB
+        
+        Alert[Job is slow. Clock speed is <br/> violently fluctuating.]
+        
+        Alert --> Check1{Check DCGM: <br/> CLOCK_THROTTLE_REASONS}
+        
+        Check1 -->|HW_SLOWDOWN| Thermal[Thermal / Power Limit Hit! <br/> GPU is protecting itself. <br/> See Chapter 6 / 9.]
+        
+        Check1 -->|None| Check2{Check Workload <br/> via Nsight Systems}
+        
+        Check2 -->|Bursty Math| DVFS[DVFS Oscillation: <br/> GPU is trying to save power <br/> during microsecond idle gaps.]
+        Check2 -->|Steady Math| Bug[Driver / Firmware Bug <br/> Stuck in low P-State.]
+        
+        DVFS --> Fix1[Fix: Lock clocks to max using: <br/> nvidia-smi -lgc]
+        Bug --> Fix2[Fix: Reset clocks using: <br/> nvidia-smi -rgc <br/> Update NVIDIA Driver.]
+    end
+    
+    style Thermal fill:#fff3e6,stroke:#cc6600
+    style DVFS fill:#e6f3ff,stroke:#0066cc
+```

@@ -5,6 +5,21 @@ sidebar_position: 8
 description: "Diagnose fan failures, predict cooling system degradation, and respond to thermal emergencies."
 ---
 
+# Fan Failure and Cooling System Degradation
+
+## Beginner's Primer: The Silent Killer
+
+In Chapter 6, we discussed "Thermal Throttling," where the GPU gets too hot and slows itself down to survive. Usually, this happens because the datacenter air conditioning (HVAC) is struggling on a hot summer day.
+
+But what if the datacenter is perfectly cold, yet one specific GPU is melting?
+
+This points to a localized mechanical failure on the GPU itself: **The Fans**.
+A high-end NVIDIA GPU pulls 700 Watts of power. Without active cooling, it will hit its thermal limit (85°C) and trigger a hardware slowdown within seconds. If the cooling failure is catastrophic, the GPU will hit its critical limit (e.g., 95°C) and the hardware will instantly kill the power to prevent the silicon from literally catching fire. 
+
+The danger for SREs is that fan failures are often "silent" from a software perspective. The AI job keeps running, but it runs 50% slower because the GPU is desperately throttling itself to stay alive. If you are not actively monitoring the fan speed metrics via `nvidia-smi` or DCGM, you will never know why the server is slow. 
+
+This chapter teaches you how to spot a dying fan *before* it completely seizes up and melts your hardware.
+
 ## Symptoms
 
 - Fan speed stuck at 0 RPM despite high GPU temperature
@@ -374,3 +389,30 @@ A: "That sounds like DVFS oscillation — the GPU is probably hitting thermal th
 **Q: "How would you build a predictive system to detect fan degradation before it causes problems?"**
 
 A: "I'd track fan speed trend over weeks. Normal fans maintain consistent RPM at the same temperature. Degrading fans start requiring higher speeds to maintain the same temperature. I'd set a monthly baseline: at 80°C, what's the typical fan speed? If it's usually 60%, and one month it's 70%, the fan is working harder. If it climbs to 80%, 90%, 100% over several months, that's a leading indicator that the fan is failing. I'd also monitor temperature rise rate under fixed GPU load: if it rises slower with time, the fan is degrading. At 2-3 months before fan dies, I'd schedule preemptive replacement before it actually fails in production."
+
+## Architecture Summary
+
+Cooling system degradation is a slow, silent killer of GPU performance. As fans age, bearings wear out, or dust accumulates in the heatsink, the GPU must spin the fans faster to maintain the same temperature. SREs must proactively monitor the correlation between Fan Speed, Temperature, and Power Draw. A GPU pulling 700W with 100% Fan Speed but still hitting 85°C indicates severe thermal degradation (e.g., dried thermal paste) and requires immediate physical maintenance.
+
+```mermaid
+flowchart TD
+    subgraph Triage_Cooling_Failures["Triage: Cooling System Degradation"]
+        direction TB
+        
+        Alert[DCGM: High GPU Temperature] --> Check1{Is the Fan Speed <br/> responding?}
+        
+        Check1 -->|Fan Speed = 0%| DeadFan[Dead Fan / Controller Fault! <br/> Action: Cordon Node & RMA GPU]
+        
+        Check1 -->|Fan Speed > 90%| Check2{Is the Datacenter <br/> Ambient Temp normal?}
+        
+        Check2 -->|No| HVAC[Facility Cooling Issue <br/> Action: Escalate to Facilities]
+        
+        Check2 -->|Yes| Check3{Is the GPU pulling <br/> high Power (Watts)?}
+        
+        Check3 -->|No| Sensor[Faulty Temp Sensor <br/> Action: Reboot / RMA]
+        Check3 -->|Yes| Paste[Degraded Thermal Paste <br/> or Dust Blockage. <br/> Action: Clean and Repaste.]
+    end
+    
+    style DeadFan fill:#ffcccc,stroke:#cc0000
+    style Paste fill:#fff3e6,stroke:#cc6600
+```

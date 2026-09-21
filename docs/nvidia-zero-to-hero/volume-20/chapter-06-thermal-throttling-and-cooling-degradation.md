@@ -5,6 +5,20 @@ sidebar_position: 6
 description: "Diagnose thermal throttling events, monitor cooling system health, and resolve temperature-related performance loss."
 ---
 
+# Thermal Throttling and Cooling Degradation
+
+## Beginner's Primer: The Boiling Engine
+
+If you rev a sports car engine in a hot desert, it will eventually overheat. If the engine's computer is smart, it won't let the engine blow up. Instead, it will automatically cut the fuel supply, forcing the car to slow down until it cools off. 
+
+This is exactly what an NVIDIA GPU does. 
+When an H100 GPU pulls 700 Watts of electricity, it generates an immense amount of heat. If the datacenter air conditioning (HVAC) fails, or the liquid cooling loop gets clogged, the GPU temperature skyrockets. 
+
+At a critical threshold (usually 85°C), the GPU's firmware intervenes to prevent the silicon from melting. It triggers **HW_SLOWDOWN (Thermal Throttling)**. The GPU mathematically halves its clock speed. 
+
+To the Data Scientist, their training job suddenly takes twice as long. They assume their code is broken. 
+To the SRE, this is an infrastructure failure. The SRE must use DCGM telemetry to prove that the GPU hit `85C` and triggered a `THERMAL_SYNC`. The fix is not to rewrite PyTorch; the fix is to call the Datacenter Facilities Manager and ask why the HVAC system is broken in Rack 42.
+
 ## Symptoms
 
 - GPU clock speed drops from 1980 MHz (H100 SXM5 boost) to 1833 MHz during load
@@ -365,3 +379,28 @@ A: "That timing pattern screams facility issue. The data center probably has pea
 **Q: "How would you build a preventive monitoring system to catch thermal degradation before it affects training?"**
 
 A: "I'd set up continuous metrics collection: every 30 seconds, record GPU temperature, fan speed, and clock speed. Then I'd build a Prometheus alert on two things: (1) if temperature > 80°C for > 5 minutes, page on-call to investigate; (2) if throttle events are detected, alert immediately because throttling means we're already losing performance. I'd also run a weekly synthetic load test — schedule a 10-minute constant-load job on each GPU and verify temperature stays &lt; 75°C and clock stays > 1900 MHz. If it doesn't, that GPU is due for thermal paste replacement. This way we catch degradation before it hits production."
+
+## Architecture Summary
+
+When an AI job inexplicably slows down, SREs must immediately rule out Thermal Throttling. A GPU protects itself from melting by dynamically slashing its clock speed when it hits ~85°C. SREs must proactively monitor the DCGM `CLOCK_THROTTLE_REASONS` metric to catch this silent degradation, differentiating between localized hardware failures (e.g., a dead fan or dried thermal paste on one GPU) and environmental failures (e.g., a broken CRAC cooling unit affecting an entire rack).
+
+```mermaid
+flowchart TD
+    subgraph Triage_Thermal_Throttling["Triage: GPU Thermal Degradation"]
+        direction TB
+        
+        Alert[Job Speed drops by 30%+] --> Throttled{Check DCGM: <br/> CLOCK_THROTTLE_REASONS}
+        
+        Throttled -->|Not Throttled| Software[Check Code / Dataloader]
+        Throttled -->|HW_SLOWDOWN| Scope{Is it affecting 1 GPU <br/> or the whole Rack?}
+        
+        Scope -->|1 GPU| Fan{Is Fan Speed at 100%?}
+        Scope -->|Whole Rack| HVAC[Datacenter Cooling Failure <br/> Escalate to Facilities Mgmt]
+        
+        Fan -->|No| BrokenFan[Fan Controller / Hardware Failure <br/> Action: RMA]
+        Fan -->|Yes| Paste[Thermal Paste Degraded / Blocked Airflow <br/> Action: Clean/Repaste GPU]
+    end
+    
+    style HVAC fill:#ffcccc,stroke:#cc0000
+    style Paste fill:#fff3e6,stroke:#cc6600
+```

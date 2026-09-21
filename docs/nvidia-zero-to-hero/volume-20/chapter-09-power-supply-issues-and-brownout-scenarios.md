@@ -5,6 +5,22 @@ sidebar_position: 9
 description: "Diagnose power delivery failures, voltage instability, and GPU behavior during power anomalies."
 ---
 
+# Power Supply Issues and Brownout Scenarios
+
+## Beginner's Primer: The Power Spike
+
+An NVIDIA H100 GPU pulls 700 Watts of electricity. A server with 8 of these GPUs pulls over 6,000 Watts, not counting the CPUs or the cooling fans. 
+This is the equivalent of running 6 microwave ovens on maximum power, simultaneously, from a single wall outlet. 
+
+But AI workloads do not pull power smoothly. 
+When 8 GPUs finish transferring data over the network and suddenly all smash the gas pedal to start a Matrix Multiplication (Tensor Core activity), the power draw spikes from 500W to 6,000W in a fraction of a millisecond. 
+
+If the server's Power Supply Units (PSUs) or the datacenter's electrical grid cannot instantly deliver that massive surge of electricity, a **Brownout** occurs. The voltage sags. 
+
+When the GPU detects this voltage drop, it immediately panics. To prevent the server from completely shutting off, the GPU dramatically throttles its own power limit (e.g., dropping from 700W down to 300W). 
+
+The result? The AI training job suddenly takes twice as long, and the data scientist complains the code is slow. This chapter teaches SREs how to use DCGM and IPMI tools to prove the datacenter electrical grid is starving the server.
+
 ## Symptoms
 
 - GPU power limit suddenly drops (e.g., 300W → 200W cap)
@@ -373,3 +389,29 @@ A: "That's a power delivery failure specific to that GPU. Could be: (1) the powe
 **Q: "How would you design a power budgeting system to prevent these issues?"**
 
 A: "I'd set up three layers: (1) Per-GPU: measure actual power draw of each job and use that to set realistic power limits (e.g., if training uses 260W, cap at 280W, not 300W); (2) Per-node: total power budget = PSU capacity * 0.8, cap all GPUs so total never exceeds this; (3) Cluster-wide: understand facility power delivery and throttle cluster if overall demand gets close to facility limit. Then I'd add monitoring: continuous tracking of power draw per GPU, alerts if any GPU is within 20% of its power limit, and predictive analysis that says 'at current utilization, this PSU will hit capacity in 2 hours when this new job starts.' Finally, I'd run a monthly PSU stress test: run all GPUs at max power for 30 minutes and check for voltage sag. If voltage drops below spec, I'd schedule PSU replacement before it becomes a problem."
+
+## Architecture Summary
+
+AI training clusters place violent, microsecond-level spike demands on datacenter electrical grids. If a Power Supply Unit (PSU) cannot sustain the voltage during a Tensor Core burst, the GPUs will automatically throttle their power limits to prevent a hard crash (Brownout protection). SREs must correlate DCGM power limit drops with IPMI voltage metrics to prove electrical insufficiency, differentiating localized PSU failures from broader datacenter power constraints.
+
+```mermaid
+flowchart TD
+    subgraph Triage_Power_Failures["Triage: GPU Power Throttling"]
+        direction TB
+        
+        Alert[Job is slow. DCGM shows <br/> Power Limit dropped from 700W to 300W]
+        
+        Alert --> Check1{Are all 8 GPUs <br/> throttled simultaneously?}
+        
+        Check1 -->|No. Only 1 GPU| Local[Local Power Failure <br/> Check PCIe cables / 8-pin connectors]
+        Check1 -->|Yes. All 8 GPUs| Check2{Check IPMI/BMC <br/> for Voltage Sag}
+        
+        Local --> Fix1[Reseat Cables. If fails, RMA GPU.]
+        
+        Check2 -->|PSU Voltage Drop| PSU[Server PSU Failure / Overload]
+        Check2 -->|Datacenter Voltage Drop| Grid[Datacenter PDU / Grid Overload]
+        
+        PSU --> Fix2[Replace PSU / Balance Rails]
+        Grid --> Fix3[Escalate to Facilities / Cap Max Watts via nvidia-smi]
+    end
+```
