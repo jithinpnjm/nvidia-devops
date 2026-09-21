@@ -9,6 +9,20 @@ tags: [nemo, customization, training]
 
 Model customization connects data governance, distributed training, evaluation, checkpointing, and deployment. A production customization workflow requires tracking lineage so that a deployed model can be reproduced or rolled back.
 
+## Beginner's Primer: NIM vs. NeMo
+
+To understand NVIDIA's software stack, you must understand the separation between **Serving** and **Training**.
+
+- **NIM** (Chapter 3) is for **Serving**. It takes a finished, fully baked model and hosts it for users to chat with. 
+- **NeMo** is for **Training and Customization**. It is the factory where the model is baked.
+
+If you download an open-source model like LLaMA-3 from Hugging Face, it only knows general knowledge. If you want it to act like a specialized Financial Advisor, you cannot just put it in a NIM. You must first teach it finance. 
+
+This process is called **Fine-Tuning**. 
+You feed the model thousands of proprietary banking documents. Because this requires changing the internal math (the weights) of the model, you must use a training framework. **NVIDIA NeMo** is a massive, end-to-end enterprise framework for this exact purpose. It handles data curation, distributed multi-node fine-tuning (using Megatron-LM), and evaluation.
+
+Once NeMo finishes fine-tuning the model and proving it gives good financial advice, NeMo exports the finished weights. You then take those weights and wrap them inside a **NIM** to serve to your customers. 
+
 ## Workflow
 
 ```mermaid
@@ -193,3 +207,36 @@ Timestamp, GPU, Power(W), Temp(C), Utilization(%)
 ```
 
 **Diagnosis:** GPU utilization oscillates between 95% (busy) and 8% (idle), indicating data pipeline cannot keep up with compute throughput. Recommendation: parallelize data loading (more workers), prefetch batches to GPU, or increase batch size to reduce overhead.
+
+## Architecture Summary
+
+NVIDIA NeMo is the enterprise factory for customizing foundation models. It orchestrates the entire lifecycle from data curation to distributed fine-tuning (using techniques like PEFT/LoRA) to evaluation. The critical output of the NeMo pipeline is a finalized, optimized set of model weights that are ready to be packaged and deployed into a NIM for production inference.
+
+```mermaid
+flowchart TD
+    subgraph The_Enterprise_AI_Lifecycle["NeMo to NIM Pipeline"]
+        direction TB
+        
+        subgraph NeMo["NVIDIA NeMo Framework (Training/Tuning)"]
+            Base[Base Foundation Model <br/> e.g., Llama-3-70B]
+            Data[Proprietary Enterprise Data]
+            Tune[NeMo Distributed Fine-Tuning <br/> LoRA / PEFT]
+            Eval[NeMo Evaluator <br/> Accuracy Checks]
+            
+            Base --> Tune
+            Data --> Tune
+            Tune --> Eval
+        end
+        
+        subgraph Export["Export Artifacts"]
+            Weights[(Customized Weights)]
+        end
+        
+        subgraph Serving["NVIDIA NIM (Inference)"]
+            API[NIM Container <br/> REST API]
+        end
+        
+        Eval -->|If passes| Weights
+        Weights -->|Mounted into| API
+    end
+```

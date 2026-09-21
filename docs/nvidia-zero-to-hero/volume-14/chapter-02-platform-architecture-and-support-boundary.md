@@ -9,6 +9,21 @@ tags: [support-boundary, architecture, operations]
 
 Supportability depends on knowing where responsibility changes. A broken deployment requires diagnosis across multiple layers, and a clear support boundary prevents hours of "which team should own this?" conversations.
 
+## Beginner's Primer: The AI Layer Cake
+
+When a Generative AI application crashes, troubleshooting it is like trying to find a bad ingredient in a 7-layer wedding cake. 
+Who baked which layer?
+
+If a chatbot returns an error to a user, the failure could be:
+1. **The Application Layer:** The front-end React app or the backend Python API. (Customer owned).
+2. **The Serving Layer:** The NVIDIA NIM container or Triton server running the model. (NVIDIA owned).
+3. **The Orchestration Layer:** The Kubernetes cluster (e.g., Red Hat OpenShift, VMware Tanzu). (Platform Vendor owned).
+4. **The Device Layer:** The NVIDIA GPU Operator injecting the GPU into the container. (NVIDIA owned).
+5. **The OS Layer:** The Linux Kernel and NVIDIA Driver. (OEM / NVIDIA owned).
+6. **The Hardware Layer:** The physical GPU, PCIe bus, or InfiniBand network. (OEM / Customer owned).
+
+If you call NVIDIA Enterprise Support because your chatbot is broken, they cannot help you debug your React code, and they cannot help you debug a broken Cisco network switch. This chapter strictly defines the "Support Boundary"—the exact lines where NVIDIA's responsibility begins and ends, and how you as a Platform Engineer must prove the failure is inside NVIDIA's boundary before escalating a ticket.
+
 ## Responsibility Map
 
 | Layer | Typical primary owner | NVIDIA responsibility boundary |
@@ -162,3 +177,42 @@ evidence collection is fast and the boundary is clear."
    - If GPU memory &lt; model size: platform team must allocate larger GPU or reduce batch size.
    - If image pull fails with 401: customer’s NGC credentials need renewal.
    - If readiness probe fails: may be model download timeout; NVIDIA advises on GPU/network, customer fixes network path.
+
+## Architecture Summary
+
+Operating an enterprise AI factory requires strict definitions of support boundaries. NVIDIA AI Enterprise provides support for the core AI software stack (Drivers, Toolkits, NIMs, NeMo), but the customer remains responsible for the underlying infrastructure (Storage, Networking, Kubernetes control plane) and the overarching business application logic.
+
+```mermaid
+flowchart TD
+    subgraph Support_Boundaries["The Enterprise AI Support Layer Cake"]
+        direction TB
+        
+        App["Customer Business App / Chatbot"]
+        Data["Customer Data / Prompt Engineering"]
+        
+        subgraph NVAIE["NVIDIA AI Enterprise (NVAIE) Support Boundary"]
+            NIM["NIM / Triton (Serving)"]
+            NeMo["NeMo Framework (Training)"]
+            CTK["NVIDIA Container Toolkit"]
+            Driver["NVIDIA GPU Driver"]
+        end
+        
+        K8s["Kubernetes Control Plane (e.g. OpenShift)"]
+        Hardware["OEM Hardware & Network Fabric"]
+        
+        App --> Data
+        Data --> NIM
+        Data --> NeMo
+        NIM --> CTK
+        NeMo --> CTK
+        CTK --> Driver
+        Driver --> K8s
+        K8s --> Hardware
+    end
+    
+    style App fill:#ffeee6,stroke:#cc4400
+    style Data fill:#ffeee6,stroke:#cc4400
+    style NVAIE fill:#e6ffe6,stroke:#006600,stroke-width:2px
+    style K8s fill:#e6f3ff,stroke:#0066cc
+    style Hardware fill:#e6f3ff,stroke:#0066cc
+```

@@ -9,6 +9,19 @@ tags: [licensing, entitlement, operations]
 
 Licensing is part of availability. A platform that depends on entitlement must define how credentials are issued, rotated, monitored, audited, and recovered. A missing or expired NGC token is no different from a missing database password — it's an outage.
 
+## Beginner's Primer: AI Software isn't Free Anymore
+
+In the early days of Kubernetes and Docker, everything was open-source. You didn't need a license key to run an Nginx web server or a MySQL database.
+
+Enterprise AI is different. 
+If you want to run NVIDIA AI Enterprise (NVAIE) software—including vGPU, NIMs, and proprietary models—you must prove to NVIDIA that you have paid for it. This introduces a new operational hurdle: **License Management**.
+
+There are two primary systems you must manage:
+1. **NGC API Tokens:** These act like passwords. You give them to your Kubernetes cluster so it has permission to download the NIM containers and model weights from the NVIDIA GPU Cloud. If this token expires, your cluster cannot download the software, and your Pods will fail to start.
+2. **NVIDIA License System (NLS):** This is a continuous heartbeat. For software like vGPU, the VM must constantly check in with an NVIDIA License Server to say, *"I am still authorized to run at full speed."* If the license server goes down, the GPU performance is intentionally throttled, ruining the AI workload.
+
+Platform Engineers must treat NVIDIA License Keys exactly like production Database Passwords: they must be rotated, stored in secure vaults (like HashiCorp Vault), and monitored constantly for expiration. 
+
 ## Entitlement Decision Tree
 
 ```mermaid
@@ -220,4 +233,35 @@ spec:
                 exit 1
               fi
           restartPolicy: OnFailure
+```
+
+## Architecture Summary
+
+Managing entitlements is a critical availability concern. If a license server goes offline, or an API token expires without the DevOps team noticing, production AI workloads will fail to pull images or experience massive performance throttling. The architecture must include active monitoring of token expiration dates and strict GitOps secrets management.
+
+```mermaid
+flowchart TD
+    subgraph Operations_Layer["NVAIE Licensing & Entitlement Operations"]
+        direction TB
+        
+        subgraph Secret_Management["Secrets Vault (e.g. HashiCorp)"]
+            Token[NGC API Token]
+            License[NLS Client Config]
+        end
+        
+        subgraph Kubernetes_Cluster["AI Cluster"]
+            ExternalSecret[ExternalSecrets Operator <br/> syncs to K8s Secrets]
+            vGPU_Pod[vGPU VM / Driver]
+            NIM_Pod[NIM Container]
+            
+            ExternalSecret -->|Mounts| vGPU_Pod
+            ExternalSecret -->|Mounts| NIM_Pod
+        end
+        
+        Token --> ExternalSecret
+        License --> ExternalSecret
+        
+        vGPU_Pod -.->|Heartbeat Ping| DLS[NVIDIA DLS License Server]
+        NIM_Pod -.->|Pulls Artifacts| NGC[NVIDIA NGC Catalog]
+    end
 ```

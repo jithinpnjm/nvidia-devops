@@ -9,6 +9,22 @@ tags: [ngc, containers, supply-chain]
 
 NGC distributes containers, models, charts, and related artifacts. Production use requires artifact governance — because a mutable tag can change, a credential can expire, and supply-chain risk depends on reproducible versioning.
 
+## Beginner's Primer: The AI Supply Chain
+
+Every software engineer knows about Docker Hub: the place where you go to download container images like Nginx or Redis. 
+NVIDIA has its own version of Docker Hub called **NGC (NVIDIA GPU Cloud)**. 
+
+However, NGC contains much more than just Docker containers. It is the central distribution hub for the entire NVIDIA AI ecosystem. It hosts:
+- **Containers:** GPU Operator, Triton, NeMo, NIM.
+- **Models:** Massive 140GB model weights.
+- **Helm Charts:** Kubernetes deployment manifests.
+- **SDKs:** Specialized CUDA libraries.
+
+In a hobbyist environment, you just type `docker pull nvcr.io/nvidia/nim/llama3:latest` and run it. 
+In an enterprise, pulling code randomly from the internet into your secure data center is a massive security risk. What if a bad actor injected a cryptominer into the image? What if NVIDIA pushes an update to `:latest` that breaks your application?
+
+Platform Engineers must secure this supply chain. They do this by setting up a **Mirror** (an internal registry like Harbor or Artifactory), forcing Kubernetes to pull images from the internal mirror instead of NGC directly, and using **Digest Pinning** (e.g., `sha256:123abc...`) so that the code can literally never change without the security team's approval. 
+
 ## Artifact Lifecycle
 
 ```mermaid
@@ -176,4 +192,38 @@ Fix: The error "insufficient_scope" means the NGC token doesn't have permission 
      --docker-password=<full-api-key-not-truncated>
 2. Verify token is not expired: curl -H "Authorization: Bearer $NGC_API_KEY" https://api.ngc.nvidia.com/
 3. Re-deploy the pod (will re-pull with new secret)
+```
+
+## Architecture Summary
+
+NGC is the definitive source of truth for NVIDIA AI software. To use it in a secure enterprise environment, engineers must decouple their production clusters from the public internet. This requires implementing an internal Enterprise Registry cache, strictly scanning all artifacts for vulnerabilities, and pinning cryptographic SHA256 digests to prevent supply chain poisoning.
+
+```mermaid
+flowchart TD
+    subgraph Supply_Chain_Governance["Enterprise NGC Supply Chain"]
+        direction TB
+        
+        subgraph Public_Internet["Public NVIDIA Infrastructure"]
+            NGC[NGC Catalog <br/> nvcr.io]
+        end
+        
+        subgraph Enterprise_DMZ["Enterprise DMZ / Security Zone"]
+            Harbor[Internal Registry Mirror <br/> e.g., Harbor / Jfrog]
+            Scanner[CVE Security Scanner]
+            
+            Harbor --> Scanner
+            Scanner -->|If clean| Approved[Approved Tag & Digest]
+        end
+        
+        subgraph Production_Cluster["Air-Gapped Kubernetes"]
+            Pod[AI Pod]
+        end
+        
+        NGC -->|Pull & Sync| Harbor
+        Approved -->|kubectl apply <br/> using sha256| Pod
+    end
+    
+    style Public_Internet fill:#ffcccc,stroke:#cc0000
+    style Enterprise_DMZ fill:#fff3e6,stroke:#cc6600
+    style Production_Cluster fill:#e6ffe6,stroke:#006600
 ```
