@@ -9,6 +9,18 @@ tags: [checkpointing, recovery, storage]
 
 Checkpointing is one of the highest-impact optimizations in distributed training, often reducing recovery time from days to hours. But a poorly designed checkpoint architecture can block training, waste storage, and create silent data corruption risks. This chapter covers the patterns used in production to checkpoint safely and efficiently.
 
+## Beginner's Primer: The Cost of Saving
+
+As covered in Volume 13, Checkpointing is the act of "Saving the Game" during AI training. 
+Because hardware failures are mathematically guaranteed in a 1,000-GPU cluster, you must save your progress frequently (e.g., every 30 minutes).
+
+The problem is the **Checkpoint Pause**.
+If saving the model takes 5 minutes, and you do it every 30 minutes, your expensive GPUs are sitting completely idle for 16% of the day. You are literally burning money while waiting for the hard drives to finish writing.
+
+To solve this, Storage Engineers implement two distinct pipelines:
+1. **Asynchronous Checkpointing:** The GPUs write the checkpoint to the ultra-fast Local NVMe drives on their own motherboard. This takes 2 seconds. The GPUs immediately go back to doing math. A background CPU thread quietly moves the checkpoint from the Local NVMe to the remote NAS over the network.
+2. **Checkpoint Cleanup:** If a model checkpoint is 100GB, and you save every 30 minutes for a month, you will generate 144 Terabytes of checkpoints. You must implement aggressive lifecycle policies to delete old checkpoints and only keep the last N versions, or you will run out of storage space and crash the training job.
+
 | Chapter metadata | Value |
 |---|---|
 | Volume | 15 — AI Storage, Checkpointing, and Data Pipelines |
@@ -251,6 +263,34 @@ time python restore_and_resume.py --ckpt /shared-storage/ckpt-1000.pt
 | Some ranks take 2x longer to write checkpoint | Measure write time per rank; compare network paths to storage | Rank's network link or NIC is slower, or it's on a different NUMA node from the cache | Check network interface: `ethtool` and latency to storage. Verify NUMA affinity. Move rank's loader to correct NUMA node. |
 | Rank 0 finishes checkpoint but rank 7 is still writing (straggler) | Measure batch time per rank during training (code above) | Rank 7 has slower hardware, different load, or is competing for resources | Use `numactl` to move rank 7 to a less-contested NUMA domain. Profile rank 7's training loop for bottlenecks. Consider disabling turbo-boost on other ranks to equalize speeds. |
 | Checkpoint never completes (infinite loop on write) | Check filesystem space and inode usage | Storage is completely full; write is blocked waiting for space | Delete old checkpoints immediately. Monitor storage growth during checkpoint; alert if >90%. Set up automatic cleanup before running full training. |
+
+## Architecture Summary
+
+Checkpoints protect millions of dollars of GPU compute from hardware failures, but the act of saving the state can ironically become the biggest bottleneck in the system. Platform engineers must build asynchronous staging pipelines using Local NVMe drives and background CPU threads to ensure the "Checkpoint Pause" never starves the Tensor Cores. 
+
+```mermaid
+flowchart TD
+    subgraph Checkpoint_Architecture["Asynchronous Checkpointing"]
+        direction TB
+        
+        subgraph GPU_Node["GPU Training Node"]
+            direction TB
+            GPU[GPU VRAM <br/> Weights & Optimizer State]
+            NVMe[(Local NVMe <br/> Fast Staging Buffer)]
+            CPU[Background CPU Thread]
+            
+            GPU ==>|1. Synchronous Pause: Fast Write (<1s)| NVMe
+            GPU -.->|2. Resumes Math immediately| GPU
+            NVMe -->|3. Read by Thread| CPU
+        end
+        
+        subgraph Shared_Storage["Durable Remote Storage"]
+            Lustre[(Lustre / NAS <br/> High Capacity, Slower Latency)]
+        end
+        
+        CPU -.->|4. Asynchronous Network Flush (Minutes)| Lustre
+    end
+```
 
 ## Interview-Ready Answers
 
