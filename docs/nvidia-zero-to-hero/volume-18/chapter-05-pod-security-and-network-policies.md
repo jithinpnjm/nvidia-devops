@@ -22,6 +22,20 @@ If a user uploads a malicious payload to an AI inference endpoint, and that payl
 
 If you have not implemented strict **Pod Security Standards** and **Network Policies**, that attacker can easily escape the container, gain root access to the host server, and move laterally across the network to steal data from other departments.
 
+## Beginner's Primer: The Jailbreak
+
+In the cloud-native world, there is a dangerous misconception: *"Containers are secure."*
+
+**They are not.** A container is not a Virtual Machine. A Virtual Machine has its own fake hardware and its own fake Operating System. A container is just a normal Linux process pretending to be isolated using software tricks (cgroups and namespaces). It shares the exact same Linux Kernel as the host server.
+
+If a hacker breaks into a Jupyter Notebook container, and they notice the container was launched by a junior engineer as `root` (or with `privileged: true`), the hacker can execute a "Container Escape." They simply ask the shared Linux Kernel for permission to see the host's hard drive, and because they are root, the Kernel says yes. The hacker is now out of the container and has full control of the physical server.
+
+To stop this, Platform Engineers use two tools:
+1. **Pod Security Admission (PSA):** A bouncer at the door of Kubernetes that looks at the Pod YAML and says, *"You are trying to run as root. Rejected."*
+2. **Network Policies:** If the hacker does get inside the container, but can't escape it, they will try to scan the network to find other databases to hack (Lateral Movement). A Network Policy acts as an invisible, microscopic firewall wrapped tightly around the single Pod. The policy says, *"This AI container is only allowed to talk to the API Gateway. Any attempt to ping the internet or another database is instantly blocked."*
+
+This chapter covers how to lock the container doors and extinguish lateral movement.
+
 ## 1. Pod Security Admission (PSA)
 
 By default, Docker and Kubernetes are dangerously permissive. A pod can ask to run as the `root` user, mount the host's `/etc` directory, or use the host's networking namespace. 
@@ -85,3 +99,37 @@ We will configure the Kubernetes API server to strictly enforce the `Restricted`
 **Conceptual:** Why is running a container as the `root` user considered a severe security risk in a multi-tenant Kubernetes cluster? *(Hint: Containers share the underlying host's Linux kernel. While namespaces provide some isolation, a process running as root inside a container has a vastly larger attack surface to exploit kernel vulnerabilities (e.g., container escape exploits). If they break out, they gain root access to the physical server and all other containers running on it. Pods should always run with `runAsNonRoot: true`).*
 
 **Architecture:** Explain the concept of a "Default Deny" NetworkPolicy in Kubernetes. *(Hint: By default, Kubernetes allows all pods to communicate with each other. A Default Deny policy is a rule applied to a namespace that blocks all incoming and outgoing network traffic. Once applied, an architect must write specific 'allow' rules to permit only the exact required communication paths (e.g., allowing an API gateway to talk to an inference pod). This drastically limits the lateral movement of an attacker if a pod is compromised).*
+
+## Architecture Summary
+
+Assuming a container will eventually be breached is the foundation of Zero-Trust architecture. To contain the blast radius of a compromised AI Pod, platform engineers must enforce Pod Security Admission (PSA) to physically reject privileged containers, and deploy Default-Deny Network Policies to prevent the compromised Pod from scanning the internal cluster network. 
+
+```mermaid
+flowchart TD
+    subgraph Data_Plane_Security["Container & Network Security"]
+        direction TB
+        
+        subgraph Kubernetes_API["Control Plane"]
+            PSA[Pod Security Admission]
+            PodYaml[User Submits Pod YAML <br/> privileged: true]
+            
+            PodYaml --> PSA
+            PSA -.->|Blocks: Violates Baseline Profile| PodYaml
+        end
+        
+        subgraph Worker_Node["Worker Node"]
+            direction LR
+            ValidPod[Valid Pod <br/> runAsUser: 1000]
+            
+            subgraph Micro_Firewall["Network Policy"]
+                ValidPod -->|Allowed| Gateway[API Gateway]
+                ValidPod -.x|Blocked| DB[(Internal Database)]
+                ValidPod -.x|Blocked| Net[Public Internet]
+            end
+        end
+    end
+    
+    style PSA fill:#ccffcc,stroke:#006600
+    style ValidPod fill:#ccffcc,stroke:#006600
+    style Micro_Firewall fill:#fff3e6,stroke:#cc6600,stroke-width:2px
+```

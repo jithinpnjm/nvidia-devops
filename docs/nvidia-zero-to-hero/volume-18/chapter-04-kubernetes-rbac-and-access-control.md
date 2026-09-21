@@ -23,6 +23,20 @@ A Junior Administrator creates a `ClusterRoleBinding` granting `cluster-admin` t
 
 A Senior Architect enforces the **Principle of Least Privilege**. A user or a service account should possess the exact, minimal permissions required to execute their specific job, and nothing more.
 
+## Beginner's Primer: The Hotel Keycard
+
+Imagine Kubernetes is a massive hotel. 
+
+If you give a guest (a Data Scientist) a **Master Key** (`cluster-admin`), they can open any room in the hotel. They can walk into the basement, shut off the power, and walk into other guests' rooms. This is obviously disastrous. 
+
+Instead, you use **RBAC (Role-Based Access Control)** to program a smart keycard. 
+- You define a **Role** (e.g., "Guest"). The rule says: "Can open door 402. Cannot open any other door."
+- You define a **RoleBinding**. This takes the specific person (e.g., "Alice") and hands them the "Guest" keycard for Room 402 (a specific Namespace).
+
+Now Alice can train her AI models in her specific room (Namespace). She cannot see Bob's AI models in Room 403, and she definitely cannot go to the basement to mess with the NVIDIA GPU Operator (the cluster infrastructure). 
+
+But what if a robot (a CI/CD Pipeline or a software agent) needs a keycard? You give the robot a **Service Account**. Service Accounts are just keycards for software instead of humans. You must strictly limit what these robots can do, because if a hacker tricks the robot, they steal its keycard.
+
 ## 1. The Anatomy of RBAC
 
 RBAC is built on four core Kubernetes objects:
@@ -84,3 +98,37 @@ Third, we will create a new Service Account and bind it to this specific `Role` 
 **Conceptual:** What is the difference between a `RoleBinding` and a `ClusterRoleBinding` in Kubernetes? *(Hint: A `RoleBinding` grants permissions only within a specific Namespace (e.g., giving a user access to manage pods only in the 'finance' namespace). A `ClusterRoleBinding` grants permissions globally across the entire cluster (e.g., allowing a user to view all Nodes or manage Persistent Volumes across all namespaces). You should almost never give standard users ClusterRoleBindings).*
 
 **Architecture:** Why must the Service Account used by the NVIDIA GPU Operator be heavily guarded? *(Hint: The GPU Operator is responsible for deploying the NVIDIA drivers and device plugins. To do this, it deploys DaemonSets that run highly privileged containers with deep access to the host's Linux kernel (to insert kernel modules). If an attacker compromises the GPU Operator's Service Account, they can leverage those privileges to gain root access to every physical node in the cluster).*
+
+## Architecture Summary
+
+Kubernetes RBAC is the primary control plane boundary in an AI cluster. Platform engineers must ruthlessly enforce the Principle of Least Privilege. By binding human users (via SSO/OIDC) and software agents (via Service Accounts) to highly restricted, namespace-scoped `Roles`, the blast radius of a compromised credential is mathematically contained, preventing attackers from pivoting to steal datasets or hijack the physical GPU hardware.
+
+```mermaid
+flowchart TD
+    subgraph K8s_RBAC_Architecture["Kubernetes RBAC (Least Privilege Model)"]
+        direction LR
+        
+        subgraph Actors["Who is acting?"]
+            User[Human Data Scientist <br/> Authenticated via OIDC/SSO]
+            SA[CI/CD Service Account <br/> Machine Token]
+        end
+        
+        subgraph Bindings["The Keycard Handout"]
+            RB[RoleBinding <br/> Binds Actor to Role in a Namespace]
+        end
+        
+        subgraph Roles["The Permissions Rules"]
+            Role["Role (Namespace Scoped) <br/> allow: create, get, list <br/> resources: pods, jobs"]
+            CRole["ClusterRole (Global) <br/> allow: delete <br/> resources: nodes, namespaces"]
+        end
+        
+        User --> RB
+        SA --> RB
+        RB --> Role
+        
+        RB -.x|BLOCKED: No Master Keys| CRole
+    end
+    
+    style CRole fill:#ffcccc,stroke:#cc0000
+    style Role fill:#ccffcc,stroke:#006600
+```

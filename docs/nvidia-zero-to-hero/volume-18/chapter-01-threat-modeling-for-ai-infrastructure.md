@@ -23,6 +23,17 @@ When a data scientist submits a training job to a cluster, they are essentially 
 
 If a Senior Security Architect treats a GPU cluster like a standard web cluster, the environment will be breached. You must construct a new Threat Model specifically designed for the physics of accelerated computing.
 
+## Beginner's Primer: Thinking Like an Attacker
+
+If you want to secure a bank, you don't just buy a thicker vault door; you look at the ventilation shafts, the employee badges, and the armored trucks. This is **Threat Modeling**.
+
+In AI, an attacker (or a careless employee) can breach the system in ways that don't exist in traditional software:
+1. **The Poisoned Model:** A data scientist downloads a "free" model off the internet. It turns out the model file secretly contains a Python virus that steals data the moment it is loaded into the GPU.
+2. **The Noisy Neighbor:** Two different companies are renting space on the same physical server. Company A writes a malicious script that intentionally crashes the GPU, causing Company B's AI to go offline.
+3. **The Invisible Network:** The cluster uses GPUDirect RDMA. The data bypasses the CPU completely and flies straight from the storage array to the GPU over InfiniBand. Because it bypasses the CPU, the traditional Linux Firewall (`iptables`) is completely blind to it. 
+
+To secure an AI Factory, you must build "Defense in Depth". If the firewall fails, the container security must catch it. If the container security fails, the hardware-level isolation (MIG / vGPU) must catch it. This volume teaches you how to lock every single door.
+
 ## 1. The Expanded Attack Surface
 
 An AI cluster introduces three unique threat vectors that do not exist in standard IT.
@@ -65,3 +76,39 @@ To secure this platform and satisfy the CISO, we must redesign the architecture 
 **Conceptual:** Why is downloading a pre-trained AI model from the public internet considered a severe security risk? *(Hint: Many AI model formats (like Python `pickle` files) can contain arbitrary executable code. If an attacker poisons a model on a public repository, loading that model into your cluster can trigger a Remote Code Execution (RCE) exploit, compromising the server).*
 
 **Architecture:** Explain why standard Linux firewalls (`iptables`) are ineffective at securing traffic between two GPUs during a distributed training job. *(Hint: Distributed training uses RDMA (Remote Direct Memory Access) over InfiniBand or RoCEv2. RDMA explicitly bypasses the Linux Kernel and the OS networking stack to achieve microsecond latency. Because the traffic never touches the kernel, kernel-based firewalls like `iptables` are completely blind to it and cannot block or filter it).*
+
+## Architecture Summary
+
+AI Infrastructure requires a fundamentally different threat model than traditional web architectures. Because AI workloads require deep kernel privileges (to access GPU drivers) and rely on kernel-bypassing networks (RDMA/InfiniBand), traditional OS-level firewalls and container boundaries are insufficient. Security must be enforced at the hardware level (MIG, vGPU, DPUs) and at the supply chain level (blocking poisoned models from entering the cluster).
+
+```mermaid
+flowchart TD
+    subgraph AI_Threat_Model["AI Infrastructure Threat Vectors"]
+        direction TB
+        
+        subgraph SupplyChain["1. The AI Supply Chain"]
+            Internet[Public HuggingFace / DockerHub]
+            Poison[Threat: Poisoned Model Weights / Malicious Code]
+            Internet -.->|Downloads| Poison
+        end
+        
+        subgraph Execution["2. The Execution Environment"]
+            Cont[Standard Linux Container]
+            Escape[Threat: Container Breakout to Host OS]
+            Cont -.->|Exploits Driver| Escape
+        end
+        
+        subgraph Network["3. The AI Network Fabric"]
+            RDMA[GPUDirect RDMA Traffic]
+            Blind[Threat: Bypasses Host Firewall iptables]
+            RDMA -.->|Invisible Data Exfiltration| Blind
+        end
+        
+        Poison -.->|Executes in| Cont
+        Escape -.->|Gains access to| Network
+    end
+    
+    style Poison fill:#ffcccc,stroke:#cc0000
+    style Escape fill:#ffcccc,stroke:#cc0000
+    style Blind fill:#ffcccc,stroke:#cc0000
+```

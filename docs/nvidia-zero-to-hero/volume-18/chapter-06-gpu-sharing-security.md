@@ -23,6 +23,17 @@ A GPU is a massive memory bank. If two competing companies (or two restricted de
 
 This chapter analyzes the specific security boundaries of the three sharing technologies: Time-Slicing, MIG, and vGPU.
 
+## Beginner's Primer: The Shared Hotel Room
+
+In Volume 11, we talked about sharing GPUs to save money. Let's look at those same sharing mechanisms from a security perspective. 
+
+Imagine your company rents a hotel.
+- **Time-Slicing (The Hostel Room):** You put 10 strangers in the exact same room with 10 beds. It's incredibly cheap. But if one person blasts music, everyone suffers (No Compute Isolation). If one person leaves their diary on the table, anyone can read it (No Memory Isolation). You should *never* put rival companies in a Time-Sliced GPU.
+- **MIG (The Hotel Suites):** You put up concrete walls, dividing the floor into 7 private suites. Each suite has its own locked door. The people in Suite 1 literally cannot break into Suite 2 to steal their data (Hardware Memory Isolation). This is perfectly safe for multi-tenancy.
+- **vGPU (The VIP Penthouse):** You put a security guard (The Hypervisor) outside the door. The guard checks everyone's ID before they even get to the locked concrete suites. This is the absolute highest level of enterprise security.
+
+A Junior Engineer configures Time-Slicing because "it lets us run more Pods." A Senior Security Architect audits the tenant relationships and enforces MIG to prevent cross-tenant data theft.
+
 ## 1. Time-Slicing: The Illusion of Isolation
 
 Software Time-Slicing (via the NVIDIA GPU Operator `replicas` setting) is the most dangerous sharing method in an enterprise environment.
@@ -83,3 +94,27 @@ Because MIG enforces Base and Limit registers at the silicon level, it physicall
 **Conceptual:** Why is software Time-Slicing a massive security vulnerability in a multi-tenant cluster? *(Hint: Time-Slicing relies on software context switching to share a single GPU. All workloads share the same physical pool of VRAM and L2 cache. This allows for Denial of Service attacks (one tenant hoarding all VRAM) and potential out-of-bounds memory read attacks, as there is no hardware-level isolation protecting the data).*
 
 **Architecture:** Explain how MIG (Multi-Instance GPU) physically isolates memory. *(Hint: When you partition a GPU using MIG, the silicon configures strict Base and Limit registers for the memory controllers. These registers act as physical hardware firewalls. If a process in MIG Slice 1 attempts to request data from a memory address belonging to MIG Slice 2, the hardware instantly blocks the request, making cross-tenant memory snooping mathematically impossible).*
+
+## Architecture Summary
+
+Security architects must align the mechanism of GPU sharing with the strictness of the multi-tenant threat model. Time-Slicing provides density but exposes tenants to noisy neighbors and potential memory Snooping. MIG creates hardware-enforced concrete walls inside the silicon, making it safe for processing sensitive data across competing departments.
+
+```mermaid
+flowchart TD
+    subgraph Multi_Tenant_Threat_Matrix["GPU Isolation Threat Matrix"]
+        direction TB
+        
+        Q1{"Are the tenants <br/> Zero-Trust?"}
+        
+        Q1 -->|No. They are friendly <br/> data scientists.| Soft[Use Time-Slicing]
+        Soft --> Vuln1[Vulnerability Accepted: <br/> Out-Of-Memory Cross-Kills]
+        
+        Q1 -->|Yes. They process PII / <br/> HIPAA data.| Q2{"Do they require <br/> custom kernels/OS?"}
+        
+        Q2 -->|No| MIG[Use MIG]
+        MIG --> Secure1[Secured by Hardware: <br/> Base & Limit Registers <br/> Memory perfectly isolated]
+        
+        Q2 -->|Yes| VGPU[Use vGPU / Virtualization]
+        VGPU --> Secure2[Secured by Hypervisor: <br/> SR-IOV Passthrough]
+    end
+```

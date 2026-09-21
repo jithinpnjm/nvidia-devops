@@ -23,6 +23,19 @@ You can build a perfectly secure, air-gapped data center, but if you allow a dev
 
 A Senior Architect must design an automated, mathematically rigorous "air-lock" that intercepts, scans, and signs every single piece of software and data before it is allowed to execute on the GPU cluster.
 
+## Beginner's Primer: The Trojan Horse
+
+When you download a `.jpg` image off the internet, you are generally safe because an image is just static data. 
+When you download an AI model from Hugging Face (often a `.bin` or `.pt` file), you might assume it is also just static data. 
+
+**It is not.**
+Historically, PyTorch models were saved using a Python tool called `pickle`. The problem with `pickle` is that it doesn't just save data; it can save *executable code*. 
+If a bad actor uploads a "free, highly accurate AI model" to the internet, but hides a tiny Python script inside the `.pickle` file, the exact millisecond you load that model into your GPU, the script executes and gives the hacker full control of your server. 
+
+To solve this, the AI industry invented a new file format called **Safetensors** (`.safetensors`). Safetensors is physically incapable of holding executable code; it can only hold raw numbers (math). 
+
+As a Platform Engineer, you must build automated pipelines that scan every model downloaded from the internet, block `pickle` files, and force users to use `safetensors`. This is what it means to secure the "AI Supply Chain."
+
 ## 1. The Container Supply Chain
 
 A developer writes a `Dockerfile`: `FROM pytorch/pytorch:latest`. 
@@ -80,3 +93,46 @@ Furthermore, we will implement a mandatory scanning phase for all AI models. Any
 **Conceptual:** Why is loading a standard PyTorch model file (`.pt` or `.pkl`) downloaded from the internet a massive security risk? *(Hint: Standard PyTorch model files use Python's `pickle` serialization format. Pickle is not secure; it allows for arbitrary code execution during deserialization. Loading a poisoned pickle file can instantly give an attacker a shell on your server. You should always use the `.safetensors` format, which only stores raw data and cannot execute code).*
 
 **Architecture:** Explain how container signing (e.g., using Cosign) and Kubernetes Admission Controllers work together to secure a cluster. *(Hint: When a CI/CD pipeline builds and scans a container, it cryptographically signs the image to prove it is safe and approved. In Kubernetes, an Admission Controller intercepts every attempt to launch a Pod. It checks the signature of the requested container image. If the signature is invalid or missing (meaning the image was tampered with or pulled directly from an unapproved source), the Admission Controller blocks the Pod from starting).*
+
+## Architecture Summary
+
+Securing an AI cluster requires establishing a "Zero-Trust Airlock" between the public internet and the production environment. Platform teams must implement internal container mirrors (Harbor/Artifactory), force rigorous vulnerability scanning, and mathematically sign the approved containers. Furthermore, models downloaded from HuggingFace must be aggressively scanned for Python `pickle` exploits and converted to secure `.safetensors` before deployment.
+
+```mermaid
+flowchart TD
+    subgraph The_AI_Supply_Chain_Airlock["Zero-Trust AI Supply Chain Pipeline"]
+        direction TB
+        
+        subgraph Public_Internet["Untrusted Public Sources"]
+            DockerHub[DockerHub / NGC]
+            HF[Hugging Face Models]
+        end
+        
+        subgraph The_Airlock["Enterprise DMZ (The Airlock)"]
+            Scanner1[Trivy: Container CVE Scanner]
+            Scanner2[PickleScan: Model Malware Scanner]
+            Convert[Convert .pt to .safetensors]
+            Sign[Cosign: Cryptographically Sign Artifacts]
+            
+            DockerHub --> Scanner1
+            HF --> Scanner2
+            Scanner2 -->|If safe| Convert
+            Scanner1 & Convert --> Sign
+        end
+        
+        subgraph Internal_Registry["Trusted Internal Registries"]
+            Harbor[Harbor Container Registry]
+            S3[S3 Model Bucket]
+            Sign --> Harbor & S3
+        end
+        
+        subgraph Production_K8s["Production Cluster"]
+            Kyverno[Kyverno Admission Controller]
+            Pod[AI Training Pod]
+            
+            Kyverno -.->|Blocks Unsigned Images!| DockerHub
+            Kyverno -->|Verifies Signature| Harbor
+            Harbor --> Pod
+        end
+    end
+```
