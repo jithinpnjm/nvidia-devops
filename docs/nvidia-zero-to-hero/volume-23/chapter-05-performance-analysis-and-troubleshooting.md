@@ -18,6 +18,21 @@ By the end of this chapter, you will be able to:
 - Estimate achievable speedup before implementing optimization
 - Scale performance across multiple GPUs systematically
 
+## Beginner's Primer: The Detective's Methodology
+
+In an NVIDIA performance interview, you will be presented with a scenario: *"A customer's model is running at 50% of expected speed. Fix it."*
+
+If your answer is *"I would change the code to use FP16,"* you will fail the interview. You guessed the solution without finding the problem.
+
+Performance Engineering is detective work. You must establish a rigid **Diagnostic Methodology**:
+1. **The Theoretical Limit:** Before looking at the code, use the **Roofline Model** to calculate exactly how fast the code *should* be running based on the laws of physics (Memory Bandwidth vs Math FLOPS).
+2. **The Bottleneck Hunt:** Use tools (`nsys` and `ncu`) to find out where the time is actually going. Is the GPU waiting for the CPU? Is the CPU waiting for the Hard Drive?
+3. **The Hypothesis:** *"The GPU is memory-bound because the data loader is sending uncoalesced memory requests."*
+4. **The Fix:** Implement Tiling or FlashAttention.
+5. **The Verification:** Run the profiler again to prove the metric improved.
+
+This chapter trains you to answer interview questions using this rigid, top-down scientific method.
+
 ## Roofline Model Deep Dive
 
 The roofline model combines **compute capability** and **memory bandwidth** to establish a performance ceiling.
@@ -325,6 +340,31 @@ Kernel is slow?
    ├─ Measure AllReduce time
    ├─ Compare to compute time
    └─ If AllReduce > 15% of compute, optimize communication
+```
+
+## Architecture Summary
+
+Performance troubleshooting requires moving from macro-level assumptions to micro-level mathematical proof. An architect must demonstrate the ability to calculate a workload's Arithmetic Intensity, plot it on the Roofline graph, and then utilize Nsight Compute to prove whether a specific CUDA kernel is failing due to Register Spilling (Compute Bound) or Uncoalesced Access (Memory Bound).
+
+```mermaid
+flowchart TD
+    subgraph Interview_Performance_Troubleshooting["Performance Troubleshooting Framework"]
+        direction TB
+        
+        Start[Interviewer: 'The model is slow.'] --> Q1{Isolate the Domain}
+        
+        Q1 -->|Single Node| Roof[Apply Roofline Model]
+        Q1 -->|Multi Node| Comm[Check NCCL Traces]
+        
+        Roof --> Q2{"Compute or Memory Bound?"}
+        
+        Q2 -->|Memory Bound| Fix1[Action: Optimize Memory Access <br/> Kernel Fusion / FlashAttention]
+        Q2 -->|Compute Bound| Fix2[Action: Optimize Math <br/> Quantize to FP8 / Int4]
+        
+        Comm --> Q3{"Is AllReduce > 10% of Step Time?"}
+        Q3 -->|Yes| Fix3[Action: Overlap Compute with Comm <br/> Tune NCCL Bucket Size]
+        Q3 -->|No| Fix4[Action: Check Dataloader / CPU]
+    end
 ```
 
 ## Related Chapters

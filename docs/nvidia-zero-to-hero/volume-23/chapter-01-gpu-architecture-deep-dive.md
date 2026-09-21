@@ -18,6 +18,19 @@ By the end of this chapter, you will be able to:
 - Explain latency hiding and how it enables high GPU utilization
 - Design kernels with hardware execution model in mind
 
+## Beginner's Primer: The GPU Factory
+
+When you sit down for a Senior Solutions Architect interview at NVIDIA, you are not just expected to know how to deploy a Docker container. You are expected to know exactly what the physical silicon is doing.
+
+Think of a GPU as a massive, ultra-efficient factory. 
+- **The SM (Streaming Multiprocessor):** This is a specific assembly line inside the factory. An H100 GPU has 132 of these assembly lines working in parallel.
+- **The Threads:** The factory workers. 
+- **The Warp:** A manager groups 32 workers together into a "Warp." The manager shouts an instruction: *"Tighten the bolt!"* All 32 workers must tighten the bolt at the exact same millisecond. If 16 workers need to tighten a bolt, and 16 need to hammer a nail, the manager forces the hammer group to wait while the bolt group works. (This is the dreaded **Warp Divergence**).
+
+**Latency Hiding:**
+What happens if the 32 workers need to wait 10 minutes for a parts delivery (Memory Fetch)? Do they stand around doing nothing?
+No. The GPU factory is so massive that the manager simply pushes that Warp aside, grabs a *different* group of 32 workers who already have their parts, and tells them to work. The assembly line never stops moving. This is called **Latency Hiding**, and it is the entire secret to GPU performance. To hide latency, you need high **Occupancy** (lots of extra workers ready to step in). 
+
 ## The GPU Execution Model: SMs and Warps
 
 ### What Is a Streaming Multiprocessor (SM)?
@@ -509,6 +522,33 @@ Before claiming mastery, can you:
 - [ ] Identify divergence in code and estimate its cost?
 - [ ] Apply the roofline model to identify compute- vs. memory-bound kernels?
 - [ ] Read nvidia-smi output and diagnose bottlenecks?
+
+## Architecture Summary
+
+Passing a Senior Architecture interview requires deep silicon-level knowledge. A candidate must confidently explain how the Streaming Multiprocessors (SMs) schedule blocks of 32 threads (Warps), how memory latency is hidden by swapping warps (Occupancy), and the catastrophic performance penalty of uncoalesced memory access and branching logic (Warp Divergence). 
+
+```mermaid
+flowchart TD
+    subgraph GPU_Silicon_Execution_Model["GPU Architecture & Execution"]
+        direction TB
+        
+        subgraph SM["Streaming Multiprocessor (SM)"]
+            direction TB
+            Warp1[Warp 1: 32 Threads <br/> Currently Executing Math]
+            Warp2[Warp 2: 32 Threads <br/> Waiting on VRAM Fetch]
+            Warp3[Warp 3: 32 Threads <br/> Ready to Execute]
+            
+            Warp2 -.->|Swaps out to hide latency| Warp3
+        end
+        
+        subgraph Constraints["Performance Killers"]
+            Diverge[Warp Divergence <br/> Threads 1-16 turn left, 17-32 turn right <br/> Threads execute serially.]
+            Uncoalesced[Uncoalesced Memory <br/> Threads ask for random VRAM addresses <br/> Memory Bus saturated with waste.]
+        end
+        
+        SM --> Constraints
+    end
+```
 
 ## Related Chapters
 

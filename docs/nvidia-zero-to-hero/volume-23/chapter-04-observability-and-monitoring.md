@@ -18,6 +18,18 @@ By the end of this chapter, you will be able to:
 - Monitor distributed training systems
 - Measure cost per compute unit ($/FLOP, $/iteration)
 
+## Beginner's Primer: The SRE Mindset
+
+When an interviewer asks an infrastructure candidate about Observability, they are not asking if you know how to install Prometheus. They are testing your **SRE (Site Reliability Engineering) Mindset**.
+
+A junior engineer monitors *hardware*. They create an alert that fires when a GPU hits 85°C. The result? The on-call engineer gets woken up at 3 AM for an alert they can't fix, they suffer alert fatigue, and eventually, they ignore the pager entirely.
+
+A Senior Architect monitors *the customer experience*. They use **SLIs (Service Level Indicators)**. 
+- Instead of monitoring GPU temperature, they monitor **Time To First Token (TTFT)**. If the user receives their AI chat response in under 200ms, the cluster is healthy, even if the GPUs are running hot.
+- If the TTFT spikes to 5 seconds, an alert fires. Only *then* does the SRE look at the GPU temperature to figure out why the cluster is failing the customer.
+
+In this chapter, we will practice answering interview questions by framing every technical metric (DCGM, Xid errors, NCCL timeouts) through the lens of business value and SLOs.
+
 ## The Observability Framework
 
 GPU monitoring requires metrics at four levels:
@@ -370,6 +382,30 @@ MEMORY_PRESSURE_ALERT:
 2. **Job health:** Throughput, convergence, gradient distribution
 3. **Network health:** AllReduce time, bandwidth, packet loss
 4. **Cost:** GPU-hours per day, cost per job, utilization trend
+
+## Architecture Summary
+
+In an SRE interview, candidates must prove they can build an observability pipeline that filters noise and only pages engineers when business SLAs are threatened. This means utilizing DCGM-Exporter for raw hardware telemetry, but combining it with Application Metrics (like Inference Latency or Training Tokens/sec) to generate true Service Level Indicators (SLIs).
+
+```mermaid
+flowchart TD
+    subgraph Observability_Interview["The SRE Observability Mindset"]
+        direction TB
+        
+        Q1{"Is the Customer/Job <br/> Impacted?"}
+        
+        Q1 -->|No| Hardware[Hardware is degraded but <br/> Redundancy is handling it.]
+        Hardware --> Ticket[Action: Cut a Jira ticket. <br/> Do not page 3AM on-call.]
+        
+        Q1 -->|Yes| SLI[SLO Breached! <br/> e.g., TTFT > 1000ms]
+        SLI --> Page[Action: PagerDuty Alert!]
+        
+        Page --> Triage[Triage Phase]
+        Triage -.->|1. Look at App Logs| App[Check PyTorch / Triton]
+        Triage -.->|2. Look at Network| Net[Check NCCL / InfiniBand]
+        Triage -.->|3. Look at Silicon| DCGM[Check DCGM Xid / Thermals]
+    end
+```
 
 ## Related Chapters
 

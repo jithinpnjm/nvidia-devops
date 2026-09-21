@@ -18,6 +18,20 @@ By the end of this chapter, you will be able to:
 - Design distributed training systems with gradient compression and pipeline parallelism
 - Optimize for network topology (NVLink, InfiniBand, Ethernet)
 
+## Beginner's Primer: Strong vs Weak Scaling
+
+In an NVIDIA interview, you will be asked how to scale a cluster. You must know the difference between Strong Scaling and Weak Scaling.
+
+Imagine you have 1 worker painting a house, and it takes 10 hours. 
+- **Strong Scaling:** You hire 9 more workers (10 total) to paint the *same* house. Ideally, it now takes 1 hour. This is extremely difficult to achieve in AI, because the 10 workers spend half their time bumping into each other (Communication Overhead).
+- **Weak Scaling:** You hire 9 more workers, but you give them 9 *more* houses to paint. It still takes 10 hours, but now you have painted 10 houses. This is much easier to achieve. 
+
+In AI Training:
+- **Strong Scaling** is keeping the Global Batch Size the same, but adding more GPUs to finish the epoch faster. 
+- **Weak Scaling** is increasing the Global Batch Size proportionally as you add GPUs, processing massive datasets in the same amount of time.
+
+If an interviewer asks you why scaling from 8 GPUs to 64 GPUs resulted in terrible efficiency, you must demonstrate how the network topology (NVLink vs InfiniBand) limits Strong Scaling due to the exponential growth in `AllReduce` communication tax.
+
 ## Collective Communication Fundamentals
 
 ### AllReduce: The Core Primitive
@@ -394,6 +408,27 @@ Expected improvement: ~15-20% (takes efficiency from 73% to 88-93%)"
 - [ ] Design topology-aware communication schedules?
 - [ ] Estimate gradient compression impact on accuracy and speed?
 - [ ] Diagnose scaling bottlenecks from performance data?
+
+## Architecture Summary
+
+Distributed Systems interviews focus heavily on the mathematical limits of scaling. Candidates must prove they understand how the NCCL `AllReduce` algorithm synchronizes gradients across a cluster, why increasing GPU counts inherently decreases scaling efficiency (the communication tax), and how to use weak scaling to maintain High MFU (Model Flops Utilization).
+
+```mermaid
+flowchart TD
+    subgraph Multi_GPU_Scaling["Distributed Training Scaling"]
+        direction TB
+        
+        Q1{"Are you trying to train <br/> the exact same batch faster?"}
+        
+        Q1 -->|Yes| Strong[Strong Scaling]
+        Strong --> Lim1[Limit: Amdahl's Law. <br/> The Communication Tax grows <br/> exponentially as you add GPUs.]
+        
+        Q1 -->|No. I want to train <br/> a larger batch in the same time.| Weak[Weak Scaling]
+        Weak --> Lim2[Limit: Gustafson's Law. <br/> Much easier to scale efficiently <br/> by keeping GPUs fed.]
+        
+        Lim1 -.-> Fix1[Fix: Faster InfiniBand / NVLink <br/> Overlap Compute with Comm]
+    end
+```
 
 ## Related Chapters
 
