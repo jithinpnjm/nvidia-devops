@@ -27,6 +27,18 @@ You will be able to:
 - Correlate distributed training metrics with GPU-level observability
 - Use traces and communication libraries to diagnose distributed stalls
 
+## Beginner's Primer: The Convoy Problem
+
+Imagine a military convoy of 1,000 trucks driving across the desert. They all must arrive at the destination at the exact same time. 
+
+If you look at the dashboard of Truck #1, it might say it is driving at 10 mph. Why so slow? The engine is perfectly fine. The driver is perfectly fine. 
+Truck #1 is driving at 10 mph because Truck #842 has a flat tire, and the entire convoy must slow down to wait for it. 
+
+This is the fundamental reality of Distributed AI Training. 
+When 1,000 GPUs are training a model (using Data Parallelism or Pipeline Parallelism), they must constantly synchronize their math. If 999 GPUs finish their math in 100 milliseconds, but GPU #842 takes 500 milliseconds (because it got too hot, or its network cable is slightly damaged), **all 1,000 GPUs must wait 500 milliseconds.**
+
+If you only monitor the average utilization of the cluster, you will see terrible performance, but you won't know why. Distributed Observability is the art of finding the **Straggler**—the single flat tire holding up the entire 1,000-GPU convoy.
+
 ## The Observability Layers in Distributed Systems
 
 ```mermaid
@@ -306,6 +318,35 @@ Epoch 5, Step 1000:
 Conclusion: All-reduce is bottleneck, not GPU compute
 Problem: One node (node2) is not participating in all-reduce efficiently
 Action: Check if node2 has network link degradation, or if there's a topology issue
+```
+
+## Architecture Summary
+
+In distributed training, the speed of the entire cluster is dictated by the single slowest GPU (the straggler). Distributed observability requires a centralized time-series database (like Prometheus) that aggregates metrics across all nodes, allowing engineers to visualize variance (e.g., identifying the one GPU out of 1,024 that is clock-throttling or experiencing high network latency).
+
+```mermaid
+flowchart TD
+    subgraph The_Straggler_Effect["Distributed Observability"]
+        direction TB
+        
+        subgraph Node1["Node A (Healthy)"]
+            GPU1[GPU 1 <br/> 100ms Compute]
+            GPU2[GPU 2 <br/> 100ms Compute]
+        end
+        
+        subgraph Node2["Node B (Straggler)"]
+            GPU3[GPU 3 <br/> 100ms Compute]
+            GPU4[GPU 4 <br/> Thermal Throttled <br/> 500ms Compute]
+        end
+        
+        Sync["NCCL All-Reduce (Barrier)"]
+        
+        GPU1 & GPU2 & GPU3 -->|Wait 400ms!| Sync
+        GPU4 -->|Arrives Late| Sync
+    end
+    
+    style GPU4 fill:#ffcccc,stroke:#cc0000,stroke-width:2px
+    style Sync fill:#fff3e6,stroke:#cc6600
 ```
 
 ## Key Takeaways

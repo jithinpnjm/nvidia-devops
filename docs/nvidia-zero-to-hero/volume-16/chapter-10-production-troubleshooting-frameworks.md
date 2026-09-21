@@ -27,6 +27,20 @@ You will be able to:
 - Know which commands to run first (highest signal)
 - Recognize anti-patterns that waste time
 
+## Beginner's Primer: The MTTR Metric
+
+In incident response, the most important metric is **MTTR (Mean Time To Recovery)**. 
+When a 1,000-GPU cluster goes down, you are burning thousands of dollars every hour. You do not have time to guess.
+
+A beginner faced with a failing job will SSH into a random node, run `nvidia-smi`, look at the output, and say *"I don't know, it looks fine."* Then they will restart the Pod. (Restarting a Pod destroys all the evidence of *why* it crashed).
+
+A Senior SRE uses strict **Troubleshooting Frameworks**. 
+A framework is a flowchart. It stops you from guessing. It forces you to ask binary questions (Yes/No) that eliminate massive parts of the system instantly.
+- *Is `nvidia-smi` responding?* No -> The PCIe bus or kernel driver is dead. Do not check PyTorch logs.
+- *Is GPU utilization > 90%?* Yes -> Are Tensor Cores active? No -> You are memory-bound. Do not check the network.
+
+This chapter gives you the exact flowcharts that NVIDIA engineers use to achieve low MTTR. Print them out. Keep them on your desk when you are on-call.
+
 ## Framework 1: GPU Job Slow/Failed
 
 ```mermaid
@@ -198,6 +212,27 @@ Don't do these; they waste time:
 | Assume single root cause | Failures cascade; fixing one symptom might reveal another | Fix most urgent symptom first, then re-diagnose |
 | Rely on `nvidia-smi` snapshot | One reading is noise; need trend | Run `nvidia-smi dmon` for sustained observation |
 | Ignore application logs | GPU metrics alone can't tell you if the job is correct | Always check app logs in parallel with GPU metrics |
+
+## Architecture Summary
+
+When millions of dollars of hardware stall, SREs must rely on strict, pre-defined decision trees rather than intuition. This ensures that MTTR (Mean Time To Recovery) remains low. The first step is always isolating the domain: Is it a physical hardware fault (Xid/Temperature), a system software fault (Driver/Container), or an application bottleneck (Memory Bandwidth/Network)?
+
+```mermaid
+flowchart TD
+    subgraph SRE_Incident_Response["General GPU Incident Triage"]
+        direction TB
+        Incident["PagerDuty: AI Job Failed"] --> HW{Hardware Layer <br/> dmesg / DCGM}
+        
+        HW -->|Xid 43 / 62| RMA[Physical Hardware Fault <br/> Drain Node, RMA GPU]
+        HW -->|Clean| OS{OS / Driver Layer <br/> lsmod / nvidia-smi}
+        
+        OS -->|Driver Missing| Reload[Driver crashed or unloaded <br/> Modprobe / Restart Node]
+        OS -->|Driver Clean| App{Application Layer <br/> K8s Logs / Nsight}
+        
+        App -->|NCCL Timeout| Net[Network Fault / Straggler <br/> Check InfiniBand / PCIe]
+        App -->|CUDA OOM| Code[User Code Error <br/> Batch Size too large]
+    end
+```
 
 ## Key Takeaways
 

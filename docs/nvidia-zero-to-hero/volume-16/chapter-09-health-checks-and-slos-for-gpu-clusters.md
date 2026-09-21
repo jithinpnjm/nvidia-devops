@@ -27,6 +27,22 @@ You will be able to:
 - Create error budgets and use them to balance reliability with feature velocity
 - Set alerts that distinguish "problem solved" from "problem masked"
 
+## Beginner's Primer: SLI vs SLO vs SLA
+
+In Site Reliability Engineering (SRE), there is a strict vocabulary for measuring health:
+
+1. **SLI (Service Level Indicator):** This is the raw metric you are measuring.
+   - *Example:* "Percentage of AI API requests that return within 2 seconds."
+2. **SLO (Service Level Objective):** This is your internal goal for that metric. If you fail this, you wake up an engineer.
+   - *Example:* "99% of API requests must return within 2 seconds."
+3. **SLA (Service Level Agreement):** This is the legal contract with your customer. If you fail this, you pay them money.
+   - *Example:* "If 95% of API requests don't return within 2 seconds, we refund 10% of their monthly bill."
+
+When operating an AI Factory, the hardest part is defining the SLIs. 
+If you define your SLI as "GPU Utilization > 80%", you are going to be miserable. Utilization is not a business metric; it's a hardware metric. If the GPU is at 80% utilization because the code is stuck in an infinite loop, the customer is furious, but your SLO is "green."
+
+Good SLIs measure the *User Experience* (Time To First Token, Job Completion Time, Node Availability). This chapter bridges the gap between raw hardware metrics and actual business health.
+
 ## SLIs: What to Measure
 
 | SLI | Definition | Measurement | Why It Matters |
@@ -192,6 +208,38 @@ Status: Approaching error budget limit. New deployments frozen until Sept 1.
 - Alert: Cluster availability < 95%
   Action: Incident escalation, all hands on deck
   Impact: Critical; service degraded
+```
+
+## Architecture Summary
+
+Operating a massive GPU cluster requires moving from manual firefighting to systematic SRE practices. Platform teams must separate hardware health (Node Readiness Probes) from business health (Service Level Indicators like Time To First Token). When SLIs breach SLOs, Error Budgets dictates whether the team should freeze feature deployments and focus on reliability engineering.
+
+```mermaid
+flowchart TD
+    subgraph SRE_Health_Model["The SRE Health Model for AI"]
+        direction TB
+        
+        subgraph SLI["1. Service Level Indicator (SLI)"]
+            Metric[Prometheus: % of requests under 50ms]
+        end
+        
+        subgraph SLO["2. Service Level Objective (SLO)"]
+            Goal[Target: 99% success rate]
+        end
+        
+        subgraph ErrorBudget["3. Error Budget"]
+            Budget[1% allowable failure rate]
+        end
+        
+        subgraph Action["4. Consequence"]
+            Alert[PagerDuty Alert]
+            Freeze[Feature Freeze]
+        end
+        
+        SLI -->|Measured against| SLO
+        SLO -->|Determines| ErrorBudget
+        ErrorBudget -.->|Depleted| Action
+    end
 ```
 
 ## Cross-References

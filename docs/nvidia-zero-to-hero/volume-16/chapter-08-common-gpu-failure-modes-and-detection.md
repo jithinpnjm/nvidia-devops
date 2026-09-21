@@ -27,6 +27,21 @@ You will be able to:
 - Set alerts that catch failures while still giving time to intervene
 - Recover from transient failures without user impact
 
+## Beginner's Primer: Xid Errors
+
+When you run a standard web server, applications crash all the time. You restart them and move on.
+When you run a $30,000 H100 GPU, hardware crashes are not just annoying; they require physical intervention in the data center.
+
+NVIDIA tracks every possible hardware and driver fault using an index system called **Xid Errors**. If a GPU faults, the NVIDIA driver writes a code (e.g., `Xid 62`) to the host Linux OS logs (`dmesg`).
+
+As a Senior Platform Engineer, you must memorize the most common Xid errors, because they immediately tell you whose fault the crash is:
+- **Xid 13 (Graphics Exception):** The user wrote bad CUDA code or tried to access memory that doesn't exist. Tell the data scientist to fix their code.
+- **Xid 31 (Memory Page Fault):** Often means the application tried to allocate more memory than exists. Usually a software issue.
+- **Xid 43 / 62 / 63 (ECC Memory Errors):** A physical hardware failure. Cosmic rays or degraded silicon flipped a 1 to a 0 in the GPU's memory. The GPU must be RMA'd and replaced by the data center tech.
+- **Xid 79 (Fallen off the bus):** The GPU completely vanished from the PCIe bus. It might be overheating, or poorly seated in its motherboard slot.
+
+If you don't monitor for Xid errors, you will waste hours debugging your Python code when the physical silicon is actually dying.
+
 ## Failure Mode 1: GPU Thermal Throttling (Overheating)
 
 **Signature:** Temperature rises above thermal limit (85°C for most NVIDIA data-center GPUs); clock rate drops; throughput falls.
@@ -327,6 +342,32 @@ nvidia-smi -q | grep "Power Draw"
 | GPU fell off bus | Xid error in logs | nvidia-smi fails | Immediate (GPU offline) |
 | Memory fragmentation | Allocation latency spike | Memory used > 95% | Hours (OOM crash coming) |
 | Straggler GPU | One GPU 30%+ slower than others | Clocks lower on straggler | Minutes (job starves, throughput drops) |
+
+## Architecture Summary
+
+Every GPU failure has a distinctive signature across the metrics (DCGM) and logs (`dmesg` Xid errors). Proper observability architecture dictates that alerts should not fire merely when "something is broken", but should be categorized by the required intervention: Software Fix (OOMs / Xid 13), Environmental Fix (Thermal Throttling), or Physical Hardware Replacement (Xid 62 / ECC Errors).
+
+```mermaid
+flowchart TD
+    subgraph GPU_Failure_Signatures["Common GPU Failure Modes"]
+        direction TB
+        
+        Event[Monitoring Alert Fires] --> Check1{Are there Xid Errors in dmesg?}
+        
+        Check1 -->|Yes| Xid[Xid Error Triage]
+        Xid -->|Xid 13 / 31| UserError[User Software Error <br/> Out of Memory / Bad Memory Access]
+        Xid -->|Xid 43 / 62 / 63| ECC[SRAM/DRAM ECC Fault <br/> Hardware is failing -> RMA]
+        Xid -->|Xid 79| OffBus[Fell off the bus <br/> PCIe issue or Power fault -> Hard Reboot]
+        
+        Check1 -->|No| Check2{Check Thermal & Clocks}
+        Check2 -->|Clocks Dropping <br/> Temp > 85C| Throttling[Thermal Throttling <br/> Check Datacenter Cooling]
+        Check2 -->|Clocks Fine <br/> 1 GPU Idle| Straggler[Network/CPU Straggler <br/> Check NCCL / PyTorch code]
+    end
+    
+    style UserError fill:#e6f3ff,stroke:#0066cc
+    style ECC fill:#ffcccc,stroke:#cc0000
+    style Throttling fill:#fff3e6,stroke:#cc6600
+```
 
 ## Key Takeaways
 

@@ -27,6 +27,23 @@ You will be able to:
 - Identify the difference between compute-bound, memory-bound, and instruction-bound kernels
 - Use profiling to diagnose and fix performance regressions
 
+## Beginner's Primer: Metrics vs Traces
+
+In Chapter 2, we learned that Metrics (like `nvidia-smi` or Grafana) give you averages over time. 
+If your commute to work took 1 hour, a Metric simply says: *Total Time = 60 minutes*. 
+If you want to know *why* it took 60 minutes, a Metric is useless. 
+
+A **Trace** is a micro-level timeline of your exact commute:
+- 0:00 - 0:05: Walked to car
+- 0:05 - 0:25: Drove on highway
+- 0:25 - 0:55: Stuck at broken traffic light
+- 0:55 - 1:00: Parked car
+
+In AI, when a training job is slow but the metrics look fine, Performance Engineers use Profiling tools (like NVIDIA Nsight Systems, or `nsys`) to generate Traces. 
+A Trace will show you exactly what the GPU was doing at the microsecond level. It might show that the GPU spent 5ms doing Matrix Math (driving on the highway) and 25ms waiting for the CPU to send the next batch of data (stuck at the traffic light). 
+
+This chapter teaches you which tools to use to generate these traces, and how to read the complex flame graphs they produce.
+
 ## Three Profiling Tools and When to Use Them
 
 ```mermaid
@@ -300,6 +317,28 @@ nsys profile -t cuda,cudnn,cublas,nccl \
 # - Do all-reduces get longer over time?
 # - Do GPUs get hotter and clock down over time?
 # - Is there a consistent pattern or random variation?
+```
+
+## Architecture Summary
+
+While DCGM metrics are sufficient for cluster-level health, debugging the performance of a specific AI model requires deep profiling tools like Nsight Systems (`nsys`) and Nsight Compute (`ncu`). These tools generate trace timelines that allow engineers to see exactly how long CUDA kernels take to execute, revealing whether a job is bottlenecked by Memory Bandwidth, Tensor Core utilization, or PCIe data transfers.
+
+```mermaid
+flowchart TD
+    subgraph Profiling_Tools["The NVIDIA Profiling Stack"]
+        direction TB
+        
+        Q{"What is the Performance Question?"}
+        
+        Q -->|How are GPUs interacting with each other/CPU?| Nsys["Nsight Systems (nsys)"]
+        Q -->|Why is a specific math function slow?| Ncu["Nsight Compute (ncu)"]
+        
+        Nsys -.->|Output| Trace["Timeline Trace (Timeline.nsys-rep)"]
+        Ncu -.->|Output| Kernels["Kernel Deep-Dive (Instruction execution)"]
+        
+        Trace --> View1["Visualizes: CPU/GPU overlaps, NCCL delays"]
+        Kernels --> View2["Visualizes: Memory Bandwidth vs Compute Bound"]
+    end
 ```
 
 ## Key Takeaways

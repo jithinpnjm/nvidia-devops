@@ -27,6 +27,22 @@ You will be able to:
 - Write effective postmortems that prevent recurrence
 - Build institutional memory around failure modes
 
+## Beginner's Primer: The Value of a Runbook
+
+When you are woken up at 3:00 AM because a production 512-GPU training job just crashed, you will not have the cognitive capacity to remember complex DCGM CLI commands or PyTorch profiling flags. 
+
+Panic leads to guessing. Guessing leads to actions like "Just restart the node," which destroys the log files and traces you needed to figure out *why* the node crashed in the first place.
+
+**A Runbook** is a step-by-step instruction manual written when you were calm, to be read when you are panicked. 
+Every single alert configured in Prometheus must have a corresponding Runbook attached to it. The alert message in Slack/PagerDuty should literally contain a link to the Runbook. 
+
+The Runbook tells the on-call engineer:
+1. What the alert means.
+2. The exact 3 Linux commands to run to confirm the error.
+3. The exact steps to mitigate the error (e.g., Cordon the node, drain the pods, submit a ticket to the Datacenter tech).
+
+This final chapter provides the templates for building those Runbooks, cementing the gap between pure technical knowledge and mature Site Reliability Engineering (SRE) operations.
+
 ## Incident Response Runbooks
 
 A runbook is a decision tree in text form. When an alert fires, execute the runbook, not arbitrary commands.
@@ -271,6 +287,26 @@ Cooling fan on gpu-node-03 failed (bearing failure, audible grinding). Thermal m
 3. **Architecture** — Redesign to make the failure impossible
    - Before: Single fan point-of-failure
    - After: Redundant fans with automatic failover
+
+## Architecture Summary
+
+Incident Response in an AI Factory is the culmination of all observability efforts. A successful SRE team treats incidents not as failures, but as forced learning opportunities. By standardizing Runbooks and enforcing blameless Postmortems, the team systematically eliminates single points of failure in both the software architecture and the hardware topology.
+
+```mermaid
+flowchart TD
+    subgraph The_SRE_Incident_Lifecycle["Incident Response & Postmortem Loop"]
+        direction TB
+        
+        Alert[Prometheus Alert Fires] --> Triage[SRE reads Runbook]
+        Triage --> Mitigate[Mitigate Issue <br/> e.g., Cordon Node]
+        Mitigate --> Recover[Service Restored]
+        
+        Recover --> Postmortem[Write Blameless Postmortem]
+        Postmortem --> RootCause[Identify Root Cause <br/> e.g., Hardware Xid 62]
+        RootCause --> ActionItems[Create Action Items <br/> e.g., Automate RMA process]
+        ActionItems -->|Improves System| Alert
+    end
+```
 
 ## Key Takeaways
 

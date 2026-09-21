@@ -27,6 +27,19 @@ You will be able to:
 - Balance quality (precision, batch size) with cost
 - Identify inference bottlenecks (model loading, queuing, communication)
 
+## Beginner's Primer: Inference vs Training Metrics
+
+Monitoring an AI cluster used for Training is fundamentally different from monitoring an AI cluster used for Inference (Serving).
+
+**Training Observability:**
+- You care about *Throughput*. You want the GPU utilization pinned at 100% for 30 days straight. If the GPU drops to 0%, you have a massive network or dataloader bottleneck. The goal is to finish the math as quickly as possible.
+
+**Inference Observability:**
+- You care about *Latency*. If an Inference GPU is running at 100% utilization, you are in a crisis. It means your incoming request queue is overflowing, and the user's chatbot is taking 30 seconds to reply (a violation of your SLA). 
+- In inference, you *want* the GPU to sit somewhat idle (e.g., 60% utilization) so it has "burst capacity" ready to instantly answer a user's question with low latency.
+
+Because of this, you cannot use the same Grafana dashboards for Inference that you use for Training. For inference, you must monitor Kubernetes Ingress queue depth, Time To First Token (TTFT), and Inter-Token Latency (ITL) from Volume 12. This chapter explains how to set those up.
+
 ## Inference Workload Characteristics
 
 | Training | Inference |
@@ -205,6 +218,36 @@ Cost per request: $2,234 / 259.2M = $0.0000086 per request (~$8.60 per million r
 4. **Multi-model sharing** — run multiple models on one GPU via MIG
    - Cost impact: Lower (amortize GPU cost across multiple model instances)
    - Complexity: Higher (requires scheduling, context switching)
+
+## Architecture Summary
+
+Inference observability requires shifting focus from the physical silicon to the user experience. While DCGM tracks hardware thermals and VRAM, the primary SLOs for an Inference team must be built around the API Gateway and the Inference Engine (e.g., Triton / vLLM), tracking Queue Depth, TTFT, and ITL to ensure the real-time AI service remains responsive.
+
+```mermaid
+flowchart TD
+    subgraph The_Inference_Monitoring_Stack["Inference Observability Pipeline"]
+        direction TB
+        
+        subgraph Gateway["API Gateway / LB"]
+            HTTP[HTTP Response Codes <br/> 429 Too Many Requests]
+        end
+        
+        subgraph Serving["Inference Engine (Triton)"]
+            Queue[Queue Depth <br/> How many users waiting?]
+            Batch[Dynamic Batch Size <br/> Efficiency metric]
+        end
+        
+        subgraph GPU["Physical GPU (DCGM)"]
+            VRAM[KV Cache VRAM Usage]
+            Temp[Thermal Throttling]
+        end
+        
+        Gateway -->|If 429s spike| Queue
+        Queue -->|If Queue > 50| Batch
+        Batch -->|If Batching is maxed out| VRAM
+        VRAM -->|If memory is full| Scale[Action: Auto-Scale / Add more GPUs]
+    end
+```
 
 ## Key Takeaways
 
