@@ -26,6 +26,26 @@ Every AI model has a specific mathematical signature: **Arithmetic Intensity**. 
 
 By plotting the model's Arithmetic Intensity against the GPU's physical limits, you create the **Roofline Model**. The Roofline Model instantly, mathematically tells you if your code is bound by Compute or bound by Memory.
 
+## Beginner's Primer: The Kitchen Analogy
+
+The **Roofline Model** is the most important concept in AI performance engineering. Let's explain it using a restaurant kitchen.
+
+Imagine a chef (the GPU's Compute Cores) making a complex soup.
+- **Memory Bandwidth** is the waiter running to the pantry to grab ingredients (Data).
+- **Compute (FLOPS)** is the chef chopping the ingredients (Math).
+
+**Scenario 1: Memory-Bound (The Slanted Roof)**
+The chef needs to make a simple salad. They need 100 different ingredients from the pantry, but they only have to chop each one in half. The chef finishes chopping instantly and spends 95% of their time standing around waiting for the waiter to run back and forth to the pantry. 
+*Buying a faster chef (upgrading to an H100 GPU) will not speed up the salad. You are limited by the waiter's running speed (Memory Bandwidth).*
+*Most AI Inference (like ChatGPT generating one word at a time) is Memory-Bound.*
+
+**Scenario 2: Compute-Bound (The Flat Roof)**
+The chef is making an intricate soup. The waiter brings them one carrot. The chef spends 10 minutes carefully carving the carrot into a swan. The waiter stands around bored.
+*Buying a faster waiter (faster VRAM) will not speed up the soup. You are limited by the chef's chopping speed (FLOPS).*
+*Most AI Training (like churning massive batches of data through a ResNet model) is Compute-Bound.*
+
+The Roofline Model is a graph that mathematically proves whether your AI model is making a salad or carving a swan, telling you exactly how to fix it.
+
 ## 1. Arithmetic Intensity (The X-Axis)
 
 Arithmetic Intensity is calculated as:
@@ -78,3 +98,25 @@ We will implement **TensorRT Quantization (INT8)**. By shrinking the 32-bit mode
 **Conceptual:** What does the 'Ridge Point' represent on a Roofline Model graph? *(Hint: It is the exact mathematical point of equilibrium for a specific GPU where a workload transitions from being Memory-Bandwidth Bound (the slanted roof) to Compute-Bound (the flat horizontal roof). It is calculated as Peak FLOPS / Peak Memory Bandwidth).*
 
 **Architecture:** Why does deploying an LLM with a Batch Size of 1 almost always result in the GPU operating under the Memory-Bound (slanted) roof? *(Hint: At a batch size of 1, the GPU must read the entire massive model weight matrix from VRAM just to process a single token (very low math per byte read). This low Arithmetic Intensity forces the workload to be bottlenecked entirely by memory bandwidth, leaving the massive compute cores mostly idle).*
+
+## Architecture Summary
+
+The Roofline Model mathematically defines the absolute limits of an AI workload on a specific GPU. By calculating a workload's Arithmetic Intensity (FLOPS per Byte) and charting it against the GPU's memory bandwidth (the slanted roof) and compute capabilities (the flat roof), engineers can immediately determine whether optimization efforts should focus on reducing math (e.g., quantization) or reducing memory traffic (e.g., batching or operator fusion).
+
+```mermaid
+flowchart TD
+    subgraph The_Roofline_Model["The Roofline Theorem"]
+        direction TB
+        
+        Q{"What is the Workload?"}
+        
+        Q -->|High Math, Low Data| Compute[Compute Bound <br/> 'The Flat Roof']
+        Q -->|High Data, Low Math| Memory[Memory Bandwidth Bound <br/> 'The Slanted Roof']
+        
+        Compute -.->|Diagnosis| Ex1["Training with large Batch Sizes"]
+        Compute -->|Fix| Opt1["Optimize Algorithms, Quantize to FP8"]
+        
+        Memory -.->|Diagnosis| Ex2["Inference with Batch Size = 1"]
+        Memory -->|Fix| Opt2["Increase Batch Size, Operator Fusion, Caching"]
+    end
+```

@@ -22,6 +22,20 @@ To a Senior Architect, this statement is completely meaningless. Fast at what? I
 
 Performance engineering is not about blindly applying configurations until a number goes up. It is a rigorous, scientific discipline. It begins with defining a strict mathematical baseline, formulating a hypothesis, and measuring the exact impact of a single variable change. If you optimize an AI cluster without establishing an Evidence Ladder first, you will invariably optimize the wrong component, wasting millions of dollars in compute time.
 
+## Beginner's Primer: The Iron Triangle of AI
+
+If you are new to Performance Engineering, you must first unlearn how you think about speed. In traditional software, "fast" just means low latency. In AI, "fast" is a constant tug-of-war between three forces:
+
+1. **Latency:** How fast does a single user get an answer? (Example: 100ms Time-to-First-Token).
+2. **Throughput:** How many total words can the server output per second across all users? (Example: 5,000 tokens/sec).
+3. **Utilization:** How busy is the physical GPU hardware? (Example: 80% Tensor Core Activity).
+
+**The Trap:** You cannot maximize all three at the same time. 
+If you want perfect latency for User A, you give them a dedicated GPU. But now your Throughput and Utilization are terrible, and you are wasting $30,000. 
+If you want perfect Utilization, you force 100 users to wait in a queue for 5 seconds so you can send all 100 requests to the GPU in one massive batch. Throughput and Utilization are amazing, but Latency is terrible, and the users all quit your app.
+
+A Performance Engineer's job is not to make the GPU "fast." Their job is to find the exact mathematical balancing point in the Iron Triangle that satisfies the business SLA while minimizing hardware costs.
+
 ## 1. Measurement Precedes Optimization
 
 The golden rule of performance engineering is: **Never optimize what you have not accurately measured.**
@@ -81,3 +95,21 @@ By implementing Triton Inference Server and enabling Dynamic Batching, we can gr
 **Conceptual:** Why is increasing batch size generally detrimental to API latency? *(Hint: To build a large batch, the inference server must deliberately hold early requests in a queue while it waits for subsequent requests to arrive. This artificial queueing time directly adds to the end-to-end latency experienced by the user who submitted the first request).*
 
 **Architecture:** Explain the "Evidence Ladder" in performance diagnosis. *(Hint: It is a structured approach to troubleshooting. You start with the macro, application-level symptoms (e.g., API timeouts). Then you check system-level metrics (e.g., CPU/RAM usage). Then you check component-level metrics (e.g., PCIe/NVLink bandwidth). Finally, you drop down to execution-level traces (e.g., Nsight Systems) to find the exact microsecond bottleneck. Skipping steps leads to false conclusions).*
+
+## Architecture Summary
+
+Performance engineering requires discarding vague subjective complaints ("the AI is slow") in favor of strict mathematical baselines. Engineers must navigate the "Iron Triangle" of Latency, Throughput, and Utilization, understanding that optimizing for one often degrades another. Diagnosis must follow an Evidence Ladder, progressing from high-level application metrics down to microsecond-level hardware traces.
+
+```mermaid
+flowchart TD
+    subgraph The_Evidence_Ladder["The Performance Evidence Ladder"]
+        direction TB
+        
+        L1["1. Application (Macro)"] -.->|What is the user feeling?| Ex1["e.g. ITL > 50ms (User sees stuttering)"]
+        L2["2. System (OS)"] -.->|Is the host healthy?| Ex2["e.g. CPU 100%, RAM 80%"]
+        L3["3. Component (Hardware)"] -.->|Which pipe is clogged?| Ex3["e.g. NVLink BW saturated, PCIe Idle"]
+        L4["4. Execution (Micro Trace)"] -.->|Why exactly did it stall?| Ex4["e.g. GPU blocked waiting on 'ncclAllGather'"]
+        
+        L1 --> L2 --> L3 --> L4
+    end
+```

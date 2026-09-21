@@ -21,6 +21,19 @@ If the storage array is slow, the CPU starves. If the CPU starves, the PCIe bus 
 
 If you look at the InfiniBand metrics, you might mistakenly conclude the network is broken. A Senior Architect does not guess. They execute a deterministic diagnostic tree to isolate the exact bottleneck.
 
+## Beginner's Primer: Finding the Clog
+
+Imagine your AI training cluster is a complex plumbing system. Water (Data) flows from a reservoir (Storage Array), through a filter (CPU Dataloader), down a wide pipe (PCIe Bus), into a boiler (GPU Compute), and finally out a spout (Network).
+
+If water isn't coming out of the spout fast enough, where is the problem?
+- A beginner immediately takes the spout apart (blames the Network).
+- A Senior Engineer walks backward from the spout to the reservoir, checking the water pressure at every single valve.
+
+If the water pressure is 100% right before the boiler (GPU), but only 10% after it, the boiler is the bottleneck. (Compute-Bound).
+If the water pressure is 10% *before* the boiler, you walk backward. Check the wide pipe (PCIe). Check the filter (CPU). Check the reservoir (Storage). 
+
+**The Golden Rule of AI Troubleshooting:** Never look at a metric in isolation. A GPU sitting at 10% utilization is not a GPU problem; it is a symptom of an upstream clog. This chapter provides the exact flowcharts to trace the clog back to its source.
+
 ## 1. The Diagnostic Tree (Top-Down Isolation)
 
 Always start at the macro level (the timeline) before diving into micro-architecture (the kernel).
@@ -73,3 +86,29 @@ We will fix this by migrating the image decoding and augmentation logic off the 
 **Conceptual:** If a GPU's Tensor Cores are at 10% utilization, but the GPU VRAM Memory Controller is at 100% utilization, what is the architectural bottleneck? *(Hint: The workload is Memory Bandwidth Bound (operating under the slanted roof of the Roofline Model). The model requires so much data to be read from memory that the physical wires connecting VRAM to the compute cores are saturated, leaving the massive Tensor Cores starved for data).*
 
 **Architecture:** Why is low InfiniBand network utilization during a distributed training job not definitive proof that the network is healthy? *(Hint: The network only transmits data (gradients) after the GPUs finish computing them. If the GPUs are starving because of a slow storage array or a CPU Dataloader bottleneck, they will never generate the gradients. The network will show low utilization simply because it is waiting for the upstream compute pipeline to give it data).*
+
+## Architecture Summary
+
+Bottleneck identification in AI infrastructure is not about looking at a single dashboard; it is a systematic process of elimination. Engineers must follow the data pipeline backward from the GPU Compute cores, checking memory bandwidth, PCIe transfer rates, CPU dataloader threads, and finally physical storage IOPS to find the exact point where the flow is restricted.
+
+```mermaid
+flowchart TD
+    subgraph Bottleneck_Isolation["The Performance Clog Decision Tree"]
+        direction TB
+        
+        Start[Symptom: Slow Step Time] --> Q1{Is GPU Tensor Core <br/> Util > 80%?}
+        
+        Q1 -->|Yes| Opt[Code is heavily optimized. <br/> To go faster, change the algorithm <br/> or buy faster GPUs.]
+        
+        Q1 -->|No| Q2{Is GPU VRAM Memory <br/> Controller at 100%?}
+        Q2 -->|Yes| Mem[Memory Bound <br/> Fix: Quantize to FP8 / Fusion]
+        
+        Q2 -->|No| Q3{Is PCIe Bus <br/> Bandwidth Maxed?}
+        Q3 -->|Yes| PCI[PCIe Bound <br/> Fix: Enable GPUDirect Storage]
+        
+        Q3 -->|No| Q4{Is Host CPU <br/> at 100% Usage?}
+        Q4 -->|Yes| CPU[CPU Bottleneck <br/> Fix: Use NVIDIA DALI for decodes]
+        
+        Q4 -->|No| Storage[Storage Bound <br/> Fix: Upgrade Lustre / NVMe Cache]
+    end
+```
