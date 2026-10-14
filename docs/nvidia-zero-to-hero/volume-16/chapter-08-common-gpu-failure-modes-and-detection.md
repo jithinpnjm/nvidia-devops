@@ -37,7 +37,7 @@ NVIDIA tracks every possible hardware and driver fault using an index system cal
 As a Senior Platform Engineer, you must memorize the most common Xid errors, because they immediately tell you whose fault the crash is:
 - **Xid 13 (Graphics Exception):** The user wrote bad CUDA code or tried to access memory that doesn't exist. Tell the data scientist to fix their code.
 - **Xid 31 (Memory Page Fault):** Often means the application tried to allocate more memory than exists. Usually a software issue.
-- **Xid 43 / 62 / 63 (ECC Memory Errors):** A physical hardware failure. Cosmic rays or degraded silicon flipped a 1 to a 0 in the GPU's memory. The GPU must be RMA'd and replaced by the data center tech.
+- **Xid 48 (double-bit ECC error) and Xid 64 (memory remapping failure):** Memory faults that the GPU could not correct or remap. NVIDIA's Xid Catalog lists `CONTACT_SUPPORT` as the investigatory action for both, with a workflow or GPU reset as the immediate action. Xid 63 (a memory remapping *event*) is routine: the catalog's immediate and investigatory action is `IGNORE`. Count it, but do not treat it as a failure by itself.
 - **Xid 79 (Fallen off the bus):** The GPU completely vanished from the PCIe bus. It might be overheating, or poorly seated in its motherboard slot.
 
 If you don't monitor for Xid errors, you will waste hours debugging your Python code when the physical silicon is actually dying.
@@ -356,7 +356,7 @@ flowchart TD
         
         Check1 -->|Yes| Xid[Xid Error Triage]
         Xid -->|Xid 13 / 31| UserError[User Software Error <br/> Out of Memory / Bad Memory Access]
-        Xid -->|Xid 43 / 62 / 63| ECC[SRAM/DRAM ECC Fault <br/> Hardware is failing -> RMA]
+        Xid -->|Xid 48 / 64| ECC[Uncorrected memory error or remap failure <br/> Follow catalog workflow -> escalate]
         Xid -->|Xid 79| OffBus[Fell off the bus <br/> PCIe issue or Power fault -> Hard Reboot]
         
         Check1 -->|No| Check2{Check Thermal & Clocks}

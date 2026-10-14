@@ -319,5 +319,5 @@ flowchart TD
 - [Upgrades and Production Troubleshooting](./chapter-11-upgrades-and-production-troubleshooting)
 - [Volume 07, Chapter 5 — GPUDirect RDMA](../volume-07/chapter-05-gpudirect-rdma.md)
 - [NVIDIA GPU Operator documentation](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/)
-- [NVIDIA Network Operator documentation](https://docs.nvidia.com/networking/display/kubernetes)
+- [NVIDIA Network Operator documentation](https://docs.nvidia.com/networking/display/kubernetes2670/index.html)
 - [Kubernetes controller pattern](https://kubernetes.io/docs/concepts/architecture/controller/)

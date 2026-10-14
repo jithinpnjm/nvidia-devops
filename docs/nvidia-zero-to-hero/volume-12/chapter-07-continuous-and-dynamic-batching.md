@@ -463,4 +463,4 @@ flowchart TD
 1. **Orca: A Distributed Serving System for Transformer-Based Generative Models (OSDI 2022):** [https://www.usenix.org/conference/osdi22/presentation/yu](https://www.usenix.org/conference/osdi22/presentation/yu)
 2. **Sarathi-Lean: Efficient LLM Inference with Chunked Prefills (arxiv 2024):** [https://arxiv.org/abs/2403.04797](https://arxiv.org/abs/2403.04797)
 3. **vLLM Continuous Batching Architecture:** [https://docs.vllm.ai/en/stable/design/kernel.html](https://docs.vllm.ai/en/stable/design/kernel.html)
-4. **TensorRT-LLM In-Flight Batching & Scheduling:** [https://nvidia.github.io/TensorRT-LLM/architecture/in-flight-batching.html](https://nvidia.github.io/TensorRT-LLM/architecture/in-flight-batching.html)
+4. **TensorRT-LLM In-Flight Batching & Scheduling:** [https://nvidia.github.io/TensorRT-LLM/latest/llm-api/reference/BatchingType.html](https://nvidia.github.io/TensorRT-LLM/latest/llm-api/reference/BatchingType.html)

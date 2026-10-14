@@ -120,7 +120,7 @@ Before accepting a new rack or rail, confirm that the team can show:
 
 ## Further Reading
 
-- [NVIDIA RoCE documentation](https://docs.nvidia.com/networking/display/mlnxofedv23100540/rdma%2Bover%2Bconverged%2Bethernet%2B%28roce%29)
+- [NVIDIA RoCE documentation](https://networking-docs.nvidia.com/mlnxofedswum/24100700/rdma-over-converged-ethernet-roce)
 - [RFC 3168 — The Addition of ECN to IP](https://www.rfc-editor.org/rfc/rfc3168.html)
 - [IEEE 802.1Qbb overview](https://1.ieee802.org/dcb/802-1qbb/)
 

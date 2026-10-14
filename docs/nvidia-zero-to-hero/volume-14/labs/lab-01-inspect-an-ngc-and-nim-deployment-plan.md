@@ -50,7 +50,7 @@ qualified_matrix:
   gpu_operator_version: "24.3.0"
   gpu_type: "A100 40GB"
   # ✅ Verification command:
-  # curl https://www.nvidia.com/en-us/ai-enterprise/documentation/ | grep "qualified-combinations"
+  # curl https://docs.nvidia.com/ai-enterprise/ | grep "qualified-combinations"
   compatibility_approved: true
   compatibility_approval_ticket: "SEC-12345"
 

@@ -352,5 +352,5 @@ Before moving on, confirm that you can:
 
 ## Further Reading
 
-- [NVIDIA: RDMA over Converged Ethernet (RoCE)](https://docs.nvidia.com/networking/display/mlnxofedv23100540/rdma%2Bover%2Bconverged%2Bethernet%2B%28roce%29)
+- [NVIDIA: RDMA over Converged Ethernet (RoCE)](https://networking-docs.nvidia.com/mlnxofedswum/24100700/rdma-over-converged-ethernet-roce)
 - [NVIDIA: RoCE configuration with PFC and ECN](https://docs.nvidia.com/networking-ethernet-software/cumulus-linux-57/Layer-1-and-Switch-Ports/Quality-of-Service/RDMA-over-Converged-Ethernet-RoCE/)

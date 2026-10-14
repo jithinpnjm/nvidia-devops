@@ -703,7 +703,7 @@ By tuning MTU, BBR, Ring Buffers, and deeply understanding the failure modes of 
 - [NVIDIA Cumulus Linux Network Architecture Guide](https://docs.nvidia.com/networking-ethernet-software/)
 - [Linux Kernel Documentation: Networking](https://www.kernel.org/doc/html/latest/networking/index.html)
 - [BBR: Congestion-Based Congestion Control (Google Research)](https://queue.acm.org/detail.cfm?id=3022184)
-- [Understanding RoCEv2 and Data Center Quantized Congestion Notification](https://developer.nvidia.com/networking/ethernet)
+- [Understanding RoCEv2 and Data Center Quantized Congestion Notification](https://docs.nvidia.com/networking-ethernet-software/cumulus-linux-512/Layer-1-and-Switch-Ports/Quality-of-Service/RDMA-over-Converged-Ethernet-RoCE/)
 
 
 ## 11. Advanced Network Architectures: Bonding and Teaming

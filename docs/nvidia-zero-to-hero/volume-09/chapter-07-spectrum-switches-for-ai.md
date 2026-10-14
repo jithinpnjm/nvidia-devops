@@ -343,6 +343,5 @@ flowchart TD
 
 ## Further Reading
 
-- [NVIDIA Spectrum telemetry documentation](https://docs.nvidia.com/networking/display/neov27/telemetry)
-- [Historical/reference NVIDIA WJH configuration documentation](https://docs.nvidia.com/networking/display/onyxv3102002/configure%2Bwhat%2Bjust%2Bhappened%2B%28wjh%29%2Busing%2Bcli) — use the current NOS documentation for supported syntax and availability.
+- [Historical/reference NVIDIA WJH configuration documentation](https://docs.nvidia.com/networking-ethernet-software/cumulus-linux-512/Monitoring-and-Troubleshooting/Network-Troubleshooting/Mellanox-WJH/) — use the current NOS documentation for supported syntax and availability.
 - [NVIDIA RoCE overview](https://docs.nvidia.com/networking-ethernet-software/cumulus-linux-40/Network-Solutions/RDMA-over-Converged-Ethernet-RoCE/)

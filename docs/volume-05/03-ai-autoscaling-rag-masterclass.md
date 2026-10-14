@@ -496,7 +496,7 @@ When a GPU throws an XID error, the pod often hangs, but K8s won't restart it be
 :::
 
 - **XID 13, 31 (Memory Page Fault):** Usually caused by out-of-memory errors in the CUDA application or invalid memory access. Check if vLLM's `gpu_memory_utilization` is set too high (e.g., 0.99) leaving no room for PyTorch operations.
-- **XID 43 (Stopped processing):** The infamous "GPU fell off the bus." Often a hardware issue, power fluctuation, or thermal event.
+- **XID 43 (GPU stopped processing):** The GPU stopped processing work. This is not the "fell off the bus" error, which is Xid 79. The Xid Catalog lists `IGNORE` as the immediate action and `CONTACT_SUPPORT` as the investigatory action; look at what else was logged around it.
 - **XID 79 (Fallen off the bus):** Hard hardware failure. The node must be cordoned and the GPU replaced.
 
 **Automated Remediation Script:**

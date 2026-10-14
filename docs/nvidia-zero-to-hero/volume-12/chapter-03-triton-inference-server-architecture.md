@@ -530,5 +530,5 @@ flowchart LR
 ### Authoritative References
 - **NVIDIA Triton Inference Server Architecture Guide**: [https://github.com/triton-inference-server/server/blob/main/docs/user_guide/architecture.md](https://github.com/triton-inference-server/server/blob/main/docs/user_guide/architecture.md)
 - **Triton Model Configuration Specification**: [https://github.com/triton-inference-server/server/blob/main/docs/user_guide/model_configuration.md](https://github.com/triton-inference-server/server/blob/main/docs/user_guide/model_configuration.md)
-- **KServe v2 Data Plane Protocol**: [https://github.com/kserve/kserve/tree/master/docs/samples/v2](https://github.com/kserve/kserve/tree/master/docs/samples/v2)
+- **KServe v2 Data Plane Protocol**: [https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/client_guide/kserve.html](https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/client_guide/kserve.html)
 - **Triton Performance Tuning Guide**: [https://github.com/triton-inference-server/server/blob/main/docs/user_guide/optimization.md](https://github.com/triton-inference-server/server/blob/main/docs/user_guide/optimization.md)

@@ -357,6 +357,6 @@ If test fails:
 
 ## 17. Additional References
 
-- NVIDIA Triton Inference Server: https://docs.nvidia.com/deeplearning/triton/user-guide/
+- NVIDIA Triton Inference Server: https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/index.html
 - TensorRT Optimization: https://docs.nvidia.com/deeplearning/tensorrt/developer-guide/
 - HAProxy Load Balancing: https://www.haproxy.org/

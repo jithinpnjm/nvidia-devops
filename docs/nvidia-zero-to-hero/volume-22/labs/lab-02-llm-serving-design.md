@@ -335,5 +335,5 @@ index   gpu   sm  mem  enc
 ## 15. Additional References
 
 - vLLM documentation: https://docs.vllm.ai/
-- NVIDIA LLM inference guide: https://docs.nvidia.com/deeplearning/tensorrt-llm/user-guide/
+- NVIDIA LLM inference guide: https://nvidia.github.io/TensorRT-LLM/
 - OpenAI API spec: https://platform.openai.com/docs/api-reference

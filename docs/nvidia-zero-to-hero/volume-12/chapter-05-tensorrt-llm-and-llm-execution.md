@@ -471,7 +471,7 @@ flowchart TD
 
 ### References & Documentation
 1. **TensorRT-LLM GitHub Repository:** [https://github.com/NVIDIA/TensorRT-LLM](https://github.com/NVIDIA/TensorRT-LLM)
-2. **TensorRT-LLM C++ Executor API Architecture:** [https://nvidia.github.io/TensorRT-LLM/executor.html](https://nvidia.github.io/TensorRT-LLM/executor.html)
+2. **TensorRT-LLM C++ Executor API Architecture:** [https://nvidia.github.io/TensorRT-LLM/advanced/executor.html](https://nvidia.github.io/TensorRT-LLM/advanced/executor.html)
 3. **Megatron-LM: Training Multi-Billion Parameter Language Models:** [https://arxiv.org/abs/1909.08053](https://arxiv.org/abs/1909.08053)
 4. **FlashDecoding: Fast On-chip Attention for Long Sequences:** [https://crfm.stanford.edu/2023/10/12/flashdecoding.html](https://crfm.stanford.edu/2023/10/12/flashdecoding.html)
 5. **SmoothQuant: Accurate and Efficient Post-Training Quantization for Large Language Models:** [https://arxiv.org/abs/2211.10438](https://arxiv.org/abs/2211.10438)

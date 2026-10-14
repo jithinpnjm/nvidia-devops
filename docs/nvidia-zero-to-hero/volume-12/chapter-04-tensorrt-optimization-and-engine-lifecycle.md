@@ -521,6 +521,6 @@ flowchart TD
 
 ### References & Documentation
 1. **NVIDIA TensorRT Developer Guide:** [https://docs.nvidia.com/deeplearning/tensorrt/developer-guide/index.html](https://docs.nvidia.com/deeplearning/tensorrt/developer-guide/index.html)
-2. **NVIDIA TensorRT C++ API Reference:** [https://docs.nvidia.com/deeplearning/tensorrt/api/c_api/index.html](https://docs.nvidia.com/deeplearning/tensorrt/api/c_api/index.html)
+2. **NVIDIA TensorRT C++ API Reference:** [https://docs.nvidia.com/deeplearning/tensorrt/latest/api/c-api.html](https://docs.nvidia.com/deeplearning/tensorrt/latest/api/c-api.html)
 3. **ONNX-TensorRT Compiler & Parser:** [https://github.com/onnx/onnx-tensorrt](https://github.com/onnx/onnx-tensorrt)
 4. **NVIDIA TensorRT Model Optimizer (Quantization & FP8):** [https://github.com/NVIDIA/TensorRT-Model-Optimizer](https://github.com/NVIDIA/TensorRT-Model-Optimizer)

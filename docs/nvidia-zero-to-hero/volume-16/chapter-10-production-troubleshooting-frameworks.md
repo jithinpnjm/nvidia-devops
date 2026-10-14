@@ -223,7 +223,7 @@ flowchart TD
         direction TB
         Incident["PagerDuty: AI Job Failed"] --> HW{Hardware Layer <br/> dmesg / DCGM}
         
-        HW -->|Xid 43 / 62| RMA[Physical Hardware Fault <br/> Drain Node, RMA GPU]
+        HW -->|Xid 48 / 62 / 64 / 79| RMA[Likely hardware fault <br/> Drain node, follow Xid Catalog, escalate]
         HW -->|Clean| OS{OS / Driver Layer <br/> lsmod / nvidia-smi}
         
         OS -->|Driver Missing| Reload[Driver crashed or unloaded <br/> Modprobe / Restart Node]

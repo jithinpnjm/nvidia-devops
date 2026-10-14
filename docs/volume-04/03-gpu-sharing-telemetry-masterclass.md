@@ -211,9 +211,9 @@ GPUs will fail. Understanding the semantics of these failures is the difference 
 
 **XID 31: GPU Memory Page Fault. A process tried to access unallocated memory. Similar to a segfault. Almost always a software issue. Ensure workloads are not leaking memory.**
 
-**XID 43: Stopped processing. The GPU fell off the bus. PCIe AER (Advanced Error Reporting) triggered. Often a physical seating issue, riser cable fault, or extreme thermal event.**
+**XID 43: GPU stopped processing. This is distinct from Xid 79 ("GPU has fallen off the bus"). The Xid Catalog's immediate action is `IGNORE` and the investigatory action is `CONTACT_SUPPORT`, so correlate it with other Xids and with PCIe AER messages before concluding anything.**
 
-**XID 62: Internal Microcontroller Halt. A fatal hardware error in the GPU's internal RISC-V processors (GSP). Usually requires a reset. If persistent, requires RMA.**
+**XID 62: Internal micro-controller halt (PMU halt). The Xid Catalog lists `RESET_GPU` as the immediate action and `CONTACT_SUPPORT` as the investigatory action. If it recurs after a reset, escalate. (GSP errors are Xid 119 and 120.)**
 
 **XID 74: NVLink Error. CRC errors on the high-speed fabric. Check NVSwitch telemetry, optical transceivers (if NVLink C2C), or physical board seating.**
 

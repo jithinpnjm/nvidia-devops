@@ -154,6 +154,8 @@ Successfully ran diagnostic for group.
 
 DCGM exposes hundreds of metrics (called "fields"). The most important ones for observability:
 
+> **Field names are changing. Check before you alert.** Current DCGM documentation marks several widely used fields as deprecated in favor of fields with explicit units, for example `DCGM_FI_DEV_GPU_UTIL` (203) → `DCGM_FI_DEV_GPU_UTIL_RATIO`, `DCGM_FI_DEV_FB_USED` / `FB_FREE` / `FB_TOTAL` → `..._BYTES`, `DCGM_FI_DEV_SM_CLOCK` / `MEM_CLOCK` → `..._HERTZ`, `DCGM_FI_DEV_THERMAL_VIOLATION` → `DCGM_FI_DEV_GPU_THERMAL_THROTTLE_SECONDS_TOTAL`, and `DCGM_FI_DEV_POWER_VIOLATION` → `DCGM_FI_DEV_GPU_POWER_THROTTLE_SECONDS_TOTAL` (DCGM Field Identifiers). The exporter keeps "legacy exporter names" in its default collector file and maps them to canonical fields (DCGM Exporter Metrics, "Shipped Default Metrics"). The Prometheus names in this chapter therefore still work, but the *units and semantics* follow the canonical field behind them. Verify unit and range on your exporter version before you write a threshold (for example, whether a utilization series is 0 to 100 or 0 to 1), and prefer the canonical names in new collector files.
+
 ### Execution Metrics
 
 | DCGM Field | Query | Typical Range | When to Alert |

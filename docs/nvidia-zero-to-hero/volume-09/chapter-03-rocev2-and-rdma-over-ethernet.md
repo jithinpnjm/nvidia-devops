@@ -371,6 +371,6 @@ Before moving on, confirm that you can:
 
 ## Further Reading
 
-- [NVIDIA: RDMA over Converged Ethernet (RoCE)](https://docs.nvidia.com/networking/display/mlnxofedv23100540/rdma%2Bover%2Bconverged%2Bethernet%2B%28roce%29)
+- [NVIDIA: RDMA over Converged Ethernet (RoCE)](https://networking-docs.nvidia.com/mlnxofedswum/24100700/rdma-over-converged-ethernet-roce)
 - [NVIDIA MLNX_OFED documentation: GID tables and RoCE modes](https://docs.nvidia.com/networking/display/nvidia-mlnx-ofed-documentation-v24-10-2-1-8-0-lts-2024-lts-u2.pdf)
 - [RFC 5040: Remote Direct Memory Access Protocol Specification](https://www.rfc-editor.org/rfc/rfc5040.html)

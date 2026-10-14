@@ -445,7 +445,10 @@ spec:
     repository: nvcr.io/nvidia
     image: driver
     version: "535.104.05"
-    use_gdrcopy: true
+    gdrcopy:
+      enabled: true
+    rdma:
+      enabled: false   # legacy nvidia-peermem; you may not need it, see the GPU Operator GPUDirect RDMA page
   toolkit:
     enabled: true
   devicePlugin:
@@ -465,7 +468,7 @@ spec:
 
 **Architectural Trade-offs:**
 - **Driver in a Container:** The GPU Operator runs the NVIDIA driver as a privileged DaemonSet pod. *Trade-off:* This requires building kernel modules on the fly or pre-compiling them. It greatly simplifies upgrades but increases container startup time slightly if modules must compile.
-- **`use_gdrcopy: true`:** Enables GPU Direct RDMA, critical for InfiniBand-backed distributed training.
+- **`driver.gdrcopy`:** Enables GDRCopy, a library and driver for low-latency CPU-to-GPU memory copies. It is not GPUDirect RDMA. In the GPU Operator, `driver.rdma.enabled` controls whether the driver DaemonSet builds and loads the legacy `nvidia-peermem` module, and the GPU Operator documentation notes that you might be able to use GPUDirect RDMA without enabling it (for example through DMA-BUF). Check the GPUDirect RDMA page for your driver and kernel.
 - **Time-slicing vs MIG:** The `devicePlugin` configuration points to a ConfigMap that allows GPUs to be oversubscribed (Time-Slicing) for inference, or partitioned hardware-wise via `migManager`.
 
 ## 6. Senior Level Troubleshooting & Architecture

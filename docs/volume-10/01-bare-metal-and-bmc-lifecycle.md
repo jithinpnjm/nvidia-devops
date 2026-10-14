@@ -79,42 +79,37 @@ Modern AI infrastructure systems like the DGX H100 are not standard 1U pizza-box
 
 Every bare-metal enterprise server contains a **Baseboard Management Controller (BMC)**—an autonomous ARM-based System-on-Chip (commonly ASPEED AST2500 or AST2600) powered by auxiliary power standby rails. Even when the host power state is `Off` (and the CPUs/GPUs have no power), the BMC is alive, running its own embedded Linux OS (like OpenBMC), and listening on its dedicated MAC address on the OOB network.
 
-### 2.1 The Architectural Shift: Why IPMI is Dead
+### 2.1 Why Redfish is the primary management interface
 
-For two decades, the **Intelligent Platform Management Interface (IPMI 2.0)** was the industry standard for out-of-band management. It operated over UDP port 623 using a binary packet format. Today, IPMI is considered a legacy protocol and a security liability, superseded by **DMTF Redfish**.
+The **Intelligent Platform Management Interface (IPMI 2.0)** was the long-standing standard for out-of-band management. It runs over UDP port 623 (RMCP+) with binary messages. **Redfish**, defined by the DMTF (specification DSP0266), is a RESTful interface using JSON over HTTPS. NVIDIA's DGX documentation uses Redfish for firmware, BIOS, boot order, power capping, and telemetry on DGX H100/H200, and `ipmitool` still appears in the same documents for tasks such as a BMC cold reset (`ipmitool mc reset cold`). The accurate position is that Redfish is the documented API for fleet automation while IPMI tooling remains present and sometimes needed.
 
-| Dimension | Legacy IPMI 2.0 | Modern DMTF Redfish |
+| Dimension | IPMI 2.0 | DMTF Redfish |
 |---|---|---|
-| **Transport Protocol** | RMCP+ over UDP port 623 | HTTPS (TLS 1.2/1.3) over TCP port 443 |
-| **Payload Structure** | Opaque binary byte-packed SDR (Sensor Data Records) | Human-readable, schema-validated JSON / OData |
-| **Authentication & Security** | Cipher Suite 0/3 vulnerabilities, weak RAKP hashes | TLS certificates, OAuth2, RBAC, session tokens |
-| **Query Flexibility** | Primitive byte offsets, vendor-specific OEM hex commands | Standard RESTful verbs (`GET`, `POST`, `PATCH`, `DELETE`) |
-| **Eventing Model** | SNMP Traps, Platform Event Trap (PET) | Webhooks, Server-Sent Events (SSE) |
-| **GPU & Accelerator Support** | None natively (requires opaque raw OEM hex bridges) | Standardized schemas for Processors, Memory, PCIeDevices, Fabrics |
+| Transport | RMCP+ over UDP port 623 | HTTPS over TCP (the spec requires TLS 1.2 or later; implementations "shall support" it) |
+| Payload | Binary messages, sensor data records, vendor OEM commands | JSON validated by schemas, OData conventions |
+| Authentication | Authentication and cipher-suite options vary by BMC configuration | HTTP Basic (HTTPS required) and Redfish session login (`X-Auth-Token`); services shall support both (DSP0266 §13.3) |
+| Operations | Command-oriented | Standard HTTP verbs (`GET`, `POST`, `PATCH`, `DELETE`) on resources; `POST` for actions |
+| Eventing | Platform event traps | Redfish `EventService`, including server-sent events (DSP0266) |
+| Accelerators | Vendor-specific extensions | Standard schema coverage for processors, memory, PCIe devices, and fabrics, plus vendor OEM extensions |
 
-### 2.2 The Reality of Legacy IPMI
+Treat any IPMI "cipher suite" or "RAKP" security discussion as a reason to review your BMC configuration, not as a general verdict on the protocol. Disable what you do not use, change default credentials, and keep BMCs on an isolated management network.
 
-To understand why AI Factories mandate Redfish, look at a legacy IPMI raw command. To get a vendor-specific GPU thermal reading via IPMI, an administrator had to send cryptic hexadecimal payloads:
+**Discover URIs, do not hard-code them.** Redfish resource names are platform-specific. A DGX H100/H200 uses `/redfish/v1/Systems/DGX`, `/redfish/v1/Managers/BMC`, and `/redfish/v1/Chassis/DGX`; another vendor's server uses different member names. Start at the service root `/redfish/v1/` and follow `@odata.id` links. The examples below use the DGX H100/H200 paths documented in the NVIDIA DGX user guide (Redfish APIs Support); adapt them for other platforms.
 
-```bash
-# Legacy IPMI: Sending raw hex to query a proprietary OEM sensor
-$ ipmitool -I lanplus -H 10.0.0.5 -U admin -P secret raw 0x30 0x90 0x01
- 00 1a 45 00 00
-```
-*What does `00 1a 45 00 00` mean? Unless you have the vendor's proprietary datasheet, it is meaningless.*
+### 2.2 IPMI in practice
 
-Standard IPMI commands were also highly inefficient. To get a list of sensors, the client had to issue sequential requests, which over high-latency WAN links took minutes:
+You will still meet IPMI. Typical uses are power and sensor queries and a BMC cold reset:
 
 ```bash
-# Iterating through Sensor Data Records (SDR)
-$ ipmitool -I lanplus -H 10.0.0.5 -U admin -P secret sdr list
-CPU0_Temp        | 45 degrees C      | ok
-CPU1_Temp        | 48 degrees C      | ok
-MB_Air_Inlet     | 22 degrees C      | ok
-# GPUs were rarely mapped natively without complex OEM extensions
+$ ipmitool -I lanplus -H <bmc-ip> -U <user> -P <password> sdr list
+$ ipmitool -I lanplus -H <bmc-ip> -U <user> -P <password> mc reset cold
 ```
 
-By contrast, Redfish provides self-describing JSON over standard HTTPS.
+- `-I lanplus` selects the IPMI 2.0 LAN interface (RMCP+).
+- `sdr list` prints the sensor data records. Names and coverage depend on the BMC, and accelerators are often covered only through vendor extensions.
+- `mc reset cold` resets the BMC itself. NVIDIA's firmware update procedure for DGX H100/H200 uses it to reboot the BMC after a BMC firmware update (DGX H100/H200 Firmware Update Guide, "Firmware Update Steps").
+
+Avoid vendor `raw` byte commands in runbooks unless the vendor documents them. They are opaque to the next engineer and break across BMC firmware versions.
 
 ---
 
@@ -123,25 +118,25 @@ By contrast, Redfish provides self-describing JSON over standard HTTPS.
 Redfish exposes a predictable, hierarchical URI tree rooted at `/redfish/v1`. It acts as a RESTful interface to the BMC's internal state, structured around OData vocabularies.
 
 ```text
-/redfish/v1
-├── /Systems/System_0                <-- Host CPU, Memory, PowerState, Bios
-│   ├── /Bios/Settings               <-- Pending BIOS attributes (staged for next boot)
-│   ├── /Processors/CPU_0            <-- Host CPU telemetry & specs
-│   └── /Storage/RAID_Controller     <-- Virtual drives and NVMe controller health
-├── /Chassis
-│   ├── /DGX_Chassis                 <-- Physical enclosure, Power, Thermal (Fans/Temperatures)
-│   ├── /Motherboard                 <-- Host compute tray BMC, VRMs
-│   └── /GPU_Tray_0                  <-- SXM Baseboard, NVSwitch thermal sensors
-├── /Managers/BMC_0                  <-- BMC network, NTP, SSL certs, event logs
-└── /UpdateService
-    ├── /FirmwareInventory           <-- Installed firmware versions across all components
-    └── /Actions/UpdateService.SimpleUpdate <-- Out-of-band firmware push
+/redfish/v1                                  <-- service root: discover everything from here
+├── /Systems/<system-id>                     <-- DGX H100/H200: DGX. Host CPU, memory, power state, boot, BIOS
+│   ├── /Bios                                <-- BIOS attributes (changes apply at the next boot)
+│   └── /SecureBoot                          <-- Secure Boot state and key databases
+├── /Systems/HGX_Baseboard_0                 <-- GPU baseboard: /Processors/GPU_SXM_<id>/EnvironmentMetrics
+├── /Chassis/<chassis-id>                    <-- DGX H100/H200: DGX. /Sensors
+├── /Managers/<manager-id>                   <-- DGX H100/H200: BMC. Network, accounts, log services (/LogServices/SEL)
+├── /UpdateService                           <-- /FirmwareInventory, /upload (multipart push), SimpleUpdate action
+├── /TaskService                             <-- long-running operations (firmware updates return a task)
+├── /TelemetryService                        <-- metric reports
+└── /SessionService/Sessions                 <-- session login (X-Auth-Token)
 ```
+
+(Member names for the DGX H100/H200 follow NVIDIA's Redfish examples. Treat names in angle brackets as values you discover.)
 
 ### 3.1 Authenticating and Establishing a Session
 
 :::info
-While basic auth (passing `-u user:password` to curl) works, production automation should create a session token. This avoids passing credentials in every HTTP header, prevents logging of plaintext passwords in proxies, and significantly reduces the cryptographic CPU load on the embedded BMC processor.
+The Redfish specification requires services to support both HTTP Basic authentication (HTTPS only) and session login, and says that "for improved performance and security, a client should use the session management interface to create a Redfish login session" (DSP0266 §13.3). Create a session, send the returned `X-Auth-Token` on later requests, and `DELETE` the session when you are done. Sessions time out if idle rather than expiring at a fixed time.
 :::
 
 ```mermaid
@@ -151,7 +146,7 @@ sequenceDiagram
     
     Admin->>BMC: POST /redfish/v1/SessionService/Sessions (Credentials)
     BMC-->>Admin: 201 Created (X-Auth-Token, Location URL)
-    Admin->>BMC: GET /redfish/v1/Systems/System_0 (Header: X-Auth-Token)
+    Admin->>BMC: GET /redfish/v1/Systems/DGX (Header: X-Auth-Token)
     BMC-->>Admin: 200 OK (System Inventory JSON)
     Admin->>BMC: DELETE /redfish/v1/SessionService/Sessions/1
     BMC-->>Admin: 204 No Content (Session Closed)
@@ -180,14 +175,14 @@ Let's query the core system identity. This endpoint is critical for asset manage
 ```bash
 # Retrieve system metadata and power state
 $ curl -s -k -H "X-Auth-Token: ${TOKEN}" \
-  https://10.230.12.45/redfish/v1/Systems/System_0
+  https://10.230.12.45/redfish/v1/Systems/DGX
 ```
 
-*Truncated JSON Output:*
+*Truncated JSON output (illustrative values, not captured from a live system):*
 ```json
 {
   "@odata.type": "#ComputerSystem.v1_17_0.ComputerSystem",
-  "Id": "System_0",
+  "Id": "DGX",
   "Name": "NVIDIA DGX H100",
   "SystemType": "Physical",
   "AssetTag": "AI-COMPUTE-042",
@@ -218,78 +213,34 @@ $ curl -s -k -H "X-Auth-Token: ${TOKEN}" \
     }
   },
   "Links": {
-    "Chassis": [{"@odata.id": "/redfish/v1/Chassis/DGX_Chassis"}]
+    "Chassis": [{"@odata.id": "/redfish/v1/Chassis/DGX"}]
   }
 }
 ```
 
-### 3.3 Advanced Thermal Telemetry Extraction (The GPU Tray)
+### 3.3 Telemetry extraction
 
-In an AI Factory, thermal throttling is the silent killer of cluster performance. The GPU tray contains dozens of critical sensors. Unlike traditional servers, the DGX exposes an entirely separate chassis entity for the GPU tray.
+Thermal and power telemetry is how you catch throttling that the host OS never reports. The DGX H100/H200 guide documents these endpoints:
 
 ```bash
-# Extract individual GPU and NVSwitch thermal sensors
-$ curl -s -k -H "X-Auth-Token: ${TOKEN}" \
-  https://10.230.12.45/redfish/v1/Chassis/GPU_Tray_0/Thermal
+# Chassis sensors
+$ curl -k -u <user>:<password> https://<bmc-ip>/redfish/v1/Chassis/DGX/Sensors
+
+# Per-GPU environment metrics on the HGX baseboard
+$ curl -k -u <user>:<password> \
+    https://<bmc-ip>/redfish/v1/Systems/HGX_Baseboard_0/Processors/GPU_SXM_<id>/EnvironmentMetrics
+
+# Telemetry service metric reports
+$ curl -k -u <user>:<password> \
+    https://<bmc-ip>/redfish/v1/TelemetryService/MetricReports/NvidiaNMMetrics_0
 ```
 
-*Truncated JSON Output:*
-```json
-{
-  "@odata.type": "#Thermal.v1_7_1.Thermal",
-  "Id": "Thermal",
-  "Name": "GPU Tray Thermal Subsystem",
-  "Temperatures": [
-    {
-      "MemberId": "GPU_0_Die_Temp",
-      "Name": "GPU 0 Die Temperature",
-      "ReadingCelsius": 45.0,
-      "UpperThresholdNonCritical": 82.0,
-      "UpperThresholdCritical": 85.0,
-      "UpperThresholdFatal": 90.0,
-      "Status": {
-        "State": "Enabled",
-        "Health": "OK"
-      }
-    },
-    {
-      "MemberId": "GPU_1_Die_Temp",
-      "Name": "GPU 1 Die Temperature",
-      "ReadingCelsius": 47.0,
-      "UpperThresholdNonCritical": 82.0,
-      "UpperThresholdCritical": 85.0,
-      "UpperThresholdFatal": 90.0,
-      "Status": {
-        "State": "Enabled",
-        "Health": "OK"
-      }
-    },
-    {
-      "MemberId": "NVSwitch_0_Temp",
-      "Name": "NVSwitch 0 ASIC Temperature",
-      "ReadingCelsius": 52.0,
-      "UpperThresholdCritical": 95.0,
-      "Status": {
-        "State": "Enabled",
-        "Health": "OK"
-      }
-    }
-  ],
-  "Fans": [
-    {
-      "MemberId": "GPU_Fan_1",
-      "Name": "GPU Tray Cooling Fan 1",
-      "Reading": 12500,
-      "ReadingUnits": "RPM",
-      "LowerThresholdCritical": 1500,
-      "Status": {
-        "State": "Enabled",
-        "Health": "OK"
-      }
-    }
-  ]
-}
-```
+- `Sensors` lists the chassis sensor resources. Follow the returned `@odata.id` links to read individual readings.
+- `GPU_SXM_<id>` selects one GPU on the baseboard. Replace `<id>` with the GPU index your platform uses (discover members from `/redfish/v1/Systems/HGX_Baseboard_0/Processors`).
+- `-k` skips certificate verification, which is acceptable only for a lab BMC with a self-signed certificate.
+- Resource names and available metrics differ between platforms and BMC firmware. Read the response and follow its links instead of assuming a fixed schema.
+
+The older `Chassis/<id>/Thermal` resource exists in many Redfish implementations but the DMTF schema has moved toward `ThermalSubsystem` and `Sensors`. Use whichever your BMC actually exposes. Do not rely on any threshold values shown in examples elsewhere. Thresholds are platform data.
 
 ### 3.4 Out-of-Band Power Control via Actions
 
@@ -302,7 +253,7 @@ When a node's kernel panics and SSH/in-band agents stop responding, you must iss
 $ curl -s -k -X POST -H "X-Auth-Token: ${TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{"ResetType": "ForceRestart"}' \
-  https://10.230.12.45/redfish/v1/Systems/System_0/Actions/ComputerSystem.Reset
+  https://10.230.12.45/redfish/v1/Systems/DGX/Actions/ComputerSystem.Reset
 ```
 
 *Valid `ResetType` parameters:*
@@ -342,7 +293,7 @@ def get_system_health(bmc_ip, username, password):
     headers["X-Auth-Token"] = token
     
     # 2. Query System Health
-    sys_resp = requests.get(f"{base_url}/Systems/System_0", headers=headers, verify=False)
+    sys_resp = requests.get(f"{base_url}/Systems/DGX", headers=headers, verify=False)
     sys_data = sys_resp.json()
     
     health_status = sys_data.get("Status", {}).get("Health", "Unknown")
@@ -386,7 +337,7 @@ To orchestrate BMC configuration across hundreds of nodes seamlessly, Ansible's 
 
     - name: Trigger Graceful Restart
       ansible.builtin.uri:
-        url: "https://{{ inventory_hostname }}/redfish/v1/Systems/System_0/Actions/ComputerSystem.Reset"
+        url: "https://{{ inventory_hostname }}/redfish/v1/Systems/DGX/Actions/ComputerSystem.Reset"
         method: POST
         headers:
           X-Auth-Token: "{{ bmc_token }}"
@@ -448,12 +399,8 @@ $ curl -s -k -H "X-Auth-Token: ${TOKEN}" \
   "Name": "Firmware Inventory Collection",
   "Members@odata.count": 28,
   "Members": [
-    {"@odata.id": "/redfish/v1/UpdateService/FirmwareInventory/BMC"},
-    {"@odata.id": "/redfish/v1/UpdateService/FirmwareInventory/BIOS"},
-    {"@odata.id": "/redfish/v1/UpdateService/FirmwareInventory/GPU_0"},
-    {"@odata.id": "/redfish/v1/UpdateService/FirmwareInventory/GPU_1"},
-    {"@odata.id": "/redfish/v1/UpdateService/FirmwareInventory/NVSwitch_0"},
-    {"@odata.id": "/redfish/v1/UpdateService/FirmwareInventory/CX7_0"}
+    {"@odata.id": "/redfish/v1/UpdateService/FirmwareInventory/HostBMC_0"},
+    {"@odata.id": "/redfish/v1/UpdateService/FirmwareInventory/<component-id>"}  /* IDs are platform-specific; list the collection */
   ]
 }
 ```
@@ -560,32 +507,32 @@ Alternatively, you can "Push" the firmware payload directly to the BMC without h
 ```bash
 # Pushing firmware directly to the UpdateService
 $ curl -s -k -X POST -H "X-Auth-Token: ${TOKEN}" \
-  -F 'UpdateParameters={"Targets": ["/redfish/v1/UpdateService/FirmwareInventory/BMC"]};type=application/json' \
+  -F 'UpdateParameters={"Targets": ["/redfish/v1/UpdateService/FirmwareInventory/HostBMC_0"]};type=application/json' \
   -F 'UpdateFile=@/path/to/local/bmc_firmware_v2.0.bin;type=application/octet-stream' \
-  https://10.230.12.45/redfish/v1/UpdateService/update
+  https://<bmc-ip>/redfish/v1/UpdateService/upload
 ```
 
-### 4.5 The NVIDIA Containerized Firmware Update Toolkit
+### 4.5 NVIDIA's firmware tooling for DGX H100/H200: `nvfwupd`
 
-While Redfish allows component-by-component updates, NVIDIA provides an automated containerized firmware bundle (`fw-update`) that hashes, flashes, and verifies all subsystems in a single orchestrated pass. This is executed in-band on the host OS but leverages the BMC bridges heavily.
+For DGX H100/H200, NVIDIA documents two ways to update firmware out-of-band: the `nvfwupd` command-line tool (downloaded from the NVIDIA Enterprise Support Portal) and the Redfish API directly. The known issues and the steps are the same for both (DGX H100/H200 Firmware Update Guide, "About Firmware Updates"). The earlier draft of this section described a container image and an `update_fw all --preview` command. Neither is in the NVIDIA documentation.
 
 ```bash
-# Pull and run the official NVIDIA DGX H100 Firmware Container
-docker run --privileged --net=host --pid=host \
-  -v /var/log:/var/log \
-  -v /dev:/dev \
-  nvcr.io/nvidia/dgx-h100-firmware:24.04.1 \
-  update_fw all --preview
+# Compare installed versions with a firmware package
+$ nvfwupd --target ip=<bmc-ip> user=<user> password=<password> \
+    show_version -p <package>.fwpkg
 
-# Reviewing diff before live execution:
-# Component          Current Version       Target Version        Action
-# -----------------  --------------------  --------------------  ------
-# Motherboard BIOS   1.24.0                1.28.0                UPDATE
-# Motherboard BMC    23.09.04              24.03.02              UPDATE
-# GPU 0-7 VBIOS      96.00.74.00.04        96.00.89.00.01        UPDATE
-# NVSwitch 0-3       01.02.08              01.04.01              UPDATE
-# ConnectX-7 (x8)    28.39.1002            28.40.1000            UPDATE
+# Update a component (targets are given in a JSON file)
+$ nvfwupd -t ip=<bmc-ip> user=<user> password=<password> update_fw \
+    -p <package>.fwpkg -y -s update_bmc.json
+
+# Reboot the BMC after a BMC update
+$ ipmitool mc reset cold
 ```
+
+- `show_version -p` reports each component's installed version against the package and an `Up-To-Date` column.
+- `update_fw -s <file>.json` limits the update to the targets in the JSON file (for example the BMC or the GPU tray).
+- Quiesce the node first: stop GPU activity, including `nvidia-smi`, because it can prevent the VBIOS update, and do not add load such as jobs, diagnostics, or monitoring during the update.
+- Activation depends on the component: a BMC reset for the BMC, a cold reset of the system for BIOS and the GPU tray, and an AC power cycle for PCIe switches, retimers, EROT, and CPLDs. Downgrades use a documented `ForceUpdate` procedure. All of this, with version-path constraints and durations, is covered in [Chapter 10](./10-coordinated-cluster-wide-software-change-management.md), section 1.5.
 
 ---
 
@@ -610,7 +557,7 @@ Standard server BIOS factory defaults favor power efficiency, acoustic noise red
 
 Instead of physically connecting a crash-cart (keyboard/monitor) or using slow, macro-driven virtual KVM macros in a Java applet, you can modify BIOS attributes instantly and idempotently via the Redfish API.
 
-BIOS settings are stored in `/redfish/v1/Systems/System_0/Bios`. Modifying them is a two-step process:
+BIOS settings are stored in `/redfish/v1/Systems/DGX/Bios`. Modifying them is a two-step process:
 
 #### Step 1: Patch the Pending Attributes
 You send a `PATCH` request to the `/Bios/Settings` endpoint. These settings are staged in a pending area (BMC NVRAM) and will be applied by the UEFI firmware on the next host reboot.
@@ -627,7 +574,7 @@ $ curl -s -k -X PATCH -H "X-Auth-Token: ${TOKEN}" \
       "HyperThreading": "Disable"
     }
   }' \
-  https://10.230.12.45/redfish/v1/Systems/System_0/Bios/Settings
+  https://10.230.12.45/redfish/v1/Systems/DGX/Bios/Settings
 ```
 
 *Response Extract:*
@@ -644,10 +591,10 @@ $ curl -s -k -X PATCH -H "X-Auth-Token: ${TOKEN}" \
 $ curl -s -k -X POST -H "X-Auth-Token: ${TOKEN}" \
   -H "Content-Type: application/json" \
   -d '{"ResetType": "GracefulRestart"}' \
-  https://10.230.12.45/redfish/v1/Systems/System_0/Actions/ComputerSystem.Reset
+  https://10.230.12.45/redfish/v1/Systems/DGX/Actions/ComputerSystem.Reset
 ```
 
-During POST (Power-On Self-Test), the UEFI firmware reads the pending settings from the BMC, applies them to the system CMOS, and then clears the pending queue. Once the OS boots, you can GET `/redfish/v1/Systems/System_0/Bios` to verify the active attributes.
+During POST (Power-On Self-Test), the UEFI firmware reads the pending settings from the BMC, applies them to the system CMOS, and then clears the pending queue. Once the OS boots, you can GET `/redfish/v1/Systems/DGX/Bios` to verify the active attributes.
 
 ---
 
@@ -670,7 +617,7 @@ $ curl -s -k -X POST -H "X-Auth-Token: ${TOKEN}" \
     "CertificateString": "-----BEGIN CERTIFICATE-----\nMIIF...\n-----END CERTIFICATE-----\n",
     "CertificateType": "PEM"
   }' \
-  https://10.230.12.45/redfish/v1/Managers/BMC_0/NetworkProtocol/HTTPS/Certificates
+  https://10.230.12.45/redfish/v1/Managers/BMC/NetworkProtocol/HTTPS/Certificates
 ```
 
 **Disabling Legacy Protocols:**
@@ -685,7 +632,7 @@ $ curl -s -k -X PATCH -H "X-Auth-Token: ${TOKEN}" \
     "HTTP": { "ProtocolEnabled": false },
     "SSH": { "ProtocolEnabled": true, "Port": 22 }
   }' \
-  https://10.230.12.45/redfish/v1/Managers/BMC_0/NetworkProtocol
+  https://10.230.12.45/redfish/v1/Managers/BMC/NetworkProtocol
 ```
 
 ### 6.2 Role-Based Access Control (RBAC)
@@ -815,7 +762,7 @@ $ sudo tail -f /var/log/nginx/access.log | awk '$7 ~ /boot/'
 While Redfish operates completely out-of-band, the host OS on an NVIDIA DGX node runs the **NVIDIA System Management (`nvsm`)** daemon. `nvsm` acts as the bridge. It aggregates out-of-band BMC data (via local KCS/IPMB interfaces), host kernel telemetry, and NVML GPU metrics into a unified hardware health engine accessible from the command line.
 
 ```bash
-# Quick cluster-readiness health check
+# Quick cluster-readiness health check (layout below is illustrative, not captured from a live system)
 $ sudo nvsm show health
 Overall System Health: OK
   Component             Status
@@ -830,7 +777,7 @@ Overall System Health: OK
   PCIe Switches         OK
   Network Adapters      OK
 
-# Inspecting GPU baseboard detailed diagnostics and VBIOS parity
+# GPU detail (illustrative output; fields and values vary by NVSM release and platform)
 $ sudo nvsm show gpus
 GPU 0: NVIDIA H100 80GB HBM3
   Health               : OK
@@ -847,7 +794,7 @@ GPU 0: NVIDIA H100 80GB HBM3
 
 To generate a complete state snapshot for NVIDIA Enterprise Support (a mandatory step when RMA'ing hardware):
 ```bash
-$ sudo nvsm dump health --destination /tmp/dgx_health_dump_$(date +%F).tar.gz
+$ sudo nvsm dump health      # collects a support bundle; the command prints where it wrote the archive
 ```
 
 ---
@@ -864,7 +811,7 @@ $ sudo nvsm dump health --destination /tmp/dgx_health_dump_$(date +%F).tar.gz
 > 
 > 2. **NVLink Error Counters:** I query the NVSwitch and NVLink counters using `nvidia-smi nvlink --status -i 0` and check for cumulative symbol errors or replay events (`nvidia-smi nvlink -e`). A degrading NVLink cable or a microscopic defect on the SXM baseboard solder will cause packet retransmissions, stalling the entire all-reduce ring.
 > 
-> 3. **Thermal and Power Throttling:** I query the BMC out-of-band via Redfish (`/redfish/v1/Chassis/GPU_Tray_0/Thermal`) and check in-band GPU clocks via `nvidia-smi --query-gpu=clocks.current.graphics,clocks_event_reasons.hw_slowdown --format=csv`. If a fan tray failed or liquid cooling block flow is uneven, GPUs hit hardware slowdown, throttling clock speeds from 1980 MHz to 1200 MHz. In distributed training, because barrier synchronization requires all ranks to arrive together, one throttled GPU on one node forces all other 511 GPUs in the cluster to wait, killing performance."
+> 3. **Thermal and Power Throttling:** I query the BMC out-of-band via Redfish (`/redfish/v1/Chassis/DGX/Sensors`) and check in-band GPU clocks via `nvidia-smi --query-gpu=clocks.current.graphics,clocks_event_reasons.hw_slowdown --format=csv`. If a fan tray failed or liquid cooling block flow is uneven, GPUs hit hardware slowdown, throttling clock speeds from 1980 MHz to 1200 MHz. In distributed training, because barrier synchronization requires all ranks to arrive together, one throttled GPU on one node forces all other 511 GPUs in the cluster to wait, killing performance."
 
 ---
 
@@ -879,8 +826,8 @@ $ sudo nvsm dump health --destination /tmp/dgx_health_dump_$(date +%F).tar.gz
 > 2. **Firmware & BIOS Baseline Engine:** Before installing any operating system, we execute an automated Redfish-driven workflow. We push a locked baseline: system BIOS, BMC, GPU VBIOS, NVSwitch microcode, and ConnectX-7 firmware. We PATCH the BIOS attributes: Sub-NUMA Clustering enabled (SNC2/NPS4), C-states disabled, PCIe Relaxed Ordering enabled, and Max Payload Size set to 512 bytes. We assert these states via Redfish GETs before proceeding.
 > 
 > 3. **Hardware Acceptance Burn-In (The Gate):** Before nodes are enrolled into Base Command Manager or Slurm, each node must pass an automated acceptance suite:
->    - Level 3 DCGM diagnostic (`dcgmi diag -r 3`) to stress GPU memory, tensor cores, and thermal dissipation over 4 hours.
->    - NVLink loopback and bandwidth tests using `nvbandwidth` to verify full 900 GB/s bidirectional mesh bandwidth.
+>    - DCGM diagnostics with `dcgmi diag -r 3` (long suite, about 15 minutes per the DCGM documentation) and, for burn-in, `-r 4` (extended). Retain the full output as acceptance evidence.
+>    - NVLink loopback and bandwidth tests using `nvbandwidth` to measure NVLink bandwidth against the platform's published figure and your own baseline.
 >    - GPUDirect RDMA bidirectional bandwidth test using `ib_write_bw` across adjacent leaf switches to verify 400 Gb/s line-rate per port.
 > Only nodes that generate clean evidence artifacts are admitted into the provisioning pool."
 
@@ -905,7 +852,7 @@ $ sudo nvsm dump health --destination /tmp/dgx_health_dump_$(date +%F).tar.gz
 > "I cross-reference host software telemetry with out-of-band hardware event logs.
 > 
 > 1. **Check DCGM/NVML:** For GPU HBM memory, I run `nvidia-smi -q -d ECC` to look for Uncorrectable (Double-Bit) ECC errors on the specific GPU. If an uncorrectable error occurred, the GPU must be drained and reset using `nvidia-smi -r`. 
-> 2. **Query the BMC System Event Log (SEL):** Often, the OS may not catch rapid hardware faults before panicking. I query the Redfish event logs: `GET /redfish/v1/Managers/BMC_0/LogServices/EventLog/Entries`. I'm looking for memory bus parity errors, PCI AER fatal events, or CPU Machine Check Exceptions (MCE).
+> 2. **Query the BMC System Event Log (SEL):** Often, the OS may not catch rapid hardware faults before panicking. I query the Redfish event logs: `GET /redfish/v1/Managers/BMC/LogServices/EventLog/Entries`. I'm looking for memory bus parity errors, PCI AER fatal events, or CPU Machine Check Exceptions (MCE).
 > 3. **Isolate the Component:** If Redfish logs an uncorrectable error on `DIMM_A1` (Host System Memory), I schedule a node drain in Slurm and submit a hardware replacement ticket. If it's on the GPU, I use `dcgmi diag` to run a targeted memory stress test to determine if the failure is reproducible or a one-off cosmic ray bit-flip."
 
 ---
@@ -919,7 +866,7 @@ $ sudo nvsm dump health --destination /tmp/dgx_health_dump_$(date +%F).tar.gz
 > 1. **Replace the Bootloader:** We cannot boot arbitrary compiled PXELINUX or GRUB binaries. We must use a signed shim (`shimx64.efi`) which is signed by the Microsoft UEFI CA. The shim then chainloads our locally signed `grubx64.efi`.
 > 2. **Enforce HTTPS:** Secure boot architectures typically mandate HTTPS rather than HTTP for the network transfer to prevent man-in-the-middle attacks injecting a malicious kernel. I will update the DHCP Option 67 to `https://10.0.0.10/boot/shimx64.efi`.
 > 3. **Kernel Signing:** We must sign our `vmlinuz` payload using our organization's Machine Owner Key (MOK). During the first boot, we use an automated script or a remote KVM session to enroll the MOK public key into the UEFI variables via `mokutil`.
-> 4. **Redfish Enforcement:** I will assert that Secure Boot is enabled across the fleet by reading `GET /redfish/v1/Systems/System_0/SecureBoot` and verifying the `SecureBootEnable` property is set to `true`."
+> 4. **Redfish Enforcement:** I will assert that Secure Boot is enabled across the fleet by reading `GET /redfish/v1/Systems/DGX/SecureBoot` and verifying the `SecureBootEnable` property is set to `true`."
 
 ---
 

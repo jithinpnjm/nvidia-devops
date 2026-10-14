@@ -898,7 +898,7 @@ crictl rmp <sandbox_id>
 
 - [Kubernetes Container Runtime Interface (CRI) Specification](https://github.com/kubernetes/cri-api)
 - [Container Storage Interface (CSI) Specification](https://github.com/container-storage-interface/spec)
-- [NVIDIA Container Toolkit Architecture](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/architecture.html)
+- [NVIDIA Container Toolkit Architecture](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/arch-overview.html)
 - [Kubernetes Topology Manager Design Proposal](https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/693-topology-manager)
 - [Systemd Cgroup Driver in Kubernetes](https://kubernetes.io/docs/setup/production-environment/container-runtimes/#systemd-cgroup-driver)
 

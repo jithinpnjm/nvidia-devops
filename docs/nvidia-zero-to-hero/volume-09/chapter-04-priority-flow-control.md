@@ -334,7 +334,7 @@ flowchart TD
 ## Further Reading
 
 - [IEEE 802.1Qbb Priority-based Flow Control overview](https://1.ieee802.org/dcb/802-1qbb/)
-- [NVIDIA Flow Control documentation](https://docs.nvidia.com/networking/display/mlnxofedv461000/flow%2Bcontrol)
+- [NVIDIA Flow Control documentation](https://networking-docs.nvidia.com/mlnxofedswum/24100700/flow-control)
 - [NVIDIA Cumulus Linux QoS documentation](https://docs.nvidia.com/networking-ethernet-software/cumulus-linux-57/Layer-1-and-Switch-Ports/Quality-of-Service/)
 
 ## Cross References

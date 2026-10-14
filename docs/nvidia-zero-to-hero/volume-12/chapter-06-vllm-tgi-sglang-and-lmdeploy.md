@@ -427,4 +427,4 @@ flowchart TD
 1. **vLLM: Efficient Memory Management for Large Language Model Serving with PagedAttention (SOSP 2023):** [https://arxiv.org/abs/2309.06180](https://arxiv.org/abs/2309.06180)
 2. **SGLang: Efficient Execution of Structured Language Model Programs (NeurIPS 2024):** [https://arxiv.org/abs/2312.07104](https://arxiv.org/abs/2312.07104)
 3. **Hugging Face Text Generation Inference (TGI):** [https://github.com/huggingface/text-generation-inference](https://github.com/huggingface/text-generation-inference)
-4. **LMDeploy TurboMind Engine Documentation:** [https://github.com/ModelFoundry/lmdeploy](https://github.com/ModelFoundry/lmdeploy)
+4. **LMDeploy TurboMind Engine Documentation:** [https://github.com/InternLM/lmdeploy](https://github.com/InternLM/lmdeploy)
