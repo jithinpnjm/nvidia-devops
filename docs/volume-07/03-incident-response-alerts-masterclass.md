@@ -436,7 +436,6 @@ Reaching operational excellence in an AI factory is a journey:
 
 Aim for Level 4. In the AI era, human reaction time is the bottleneck.
 
-
 ## Appendix A: Complete Incident Runbooks
 
 ### Runbook A1: Infiniband Subnet Manager Split Brain
@@ -548,7 +547,6 @@ Detects edge case failure mode 1 in the deep learning stack.
     runbook: 'https://docs.nvidia.com/deploy/xid-errors/index.html'
 ```
 
-
 ## Appendix E: Extended Chaos Engineering Library
 
 ### E1: Chaos Scenario - Subsystem Failure 1
@@ -567,210 +565,109 @@ spec:
   duration: '1m'
 ```
 
-
 ## Appendix F: Daily Operations Checklist
 
 1. Verify Uptime for Core Service 1
    - Check logs in namespace `core-svc-1`
-   - Validate metrics: `up{service="core-svc-1"} == 1`
    - Ensure no OOM kills in the last 24 hours.
 2. Verify Uptime for Core Service 2
    - Check logs in namespace `core-svc-2`
-   - Validate metrics: `up{service="core-svc-2"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 3. Verify Uptime for Core Service 3
    - Check logs in namespace `core-svc-3`
-   - Validate metrics: `up{service="core-svc-3"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 4. Verify Uptime for Core Service 4
    - Check logs in namespace `core-svc-4`
-   - Validate metrics: `up{service="core-svc-4"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 5. Verify Uptime for Core Service 5
    - Check logs in namespace `core-svc-5`
-   - Validate metrics: `up{service="core-svc-5"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 6. Verify Uptime for Core Service 6
    - Check logs in namespace `core-svc-6`
-   - Validate metrics: `up{service="core-svc-6"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 7. Verify Uptime for Core Service 7
    - Check logs in namespace `core-svc-7`
-   - Validate metrics: `up{service="core-svc-7"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 8. Verify Uptime for Core Service 8
    - Check logs in namespace `core-svc-8`
-   - Validate metrics: `up{service="core-svc-8"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 9. Verify Uptime for Core Service 9
    - Check logs in namespace `core-svc-9`
-   - Validate metrics: `up{service="core-svc-9"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 10. Verify Uptime for Core Service 10
    - Check logs in namespace `core-svc-10`
-   - Validate metrics: `up{service="core-svc-10"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 11. Verify Uptime for Core Service 11
    - Check logs in namespace `core-svc-11`
-   - Validate metrics: `up{service="core-svc-11"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 12. Verify Uptime for Core Service 12
    - Check logs in namespace `core-svc-12`
-   - Validate metrics: `up{service="core-svc-12"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 13. Verify Uptime for Core Service 13
    - Check logs in namespace `core-svc-13`
-   - Validate metrics: `up{service="core-svc-13"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 14. Verify Uptime for Core Service 14
    - Check logs in namespace `core-svc-14`
-   - Validate metrics: `up{service="core-svc-14"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 15. Verify Uptime for Core Service 15
    - Check logs in namespace `core-svc-15`
-   - Validate metrics: `up{service="core-svc-15"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 16. Verify Uptime for Core Service 16
    - Check logs in namespace `core-svc-16`
-   - Validate metrics: `up{service="core-svc-16"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 17. Verify Uptime for Core Service 17
    - Check logs in namespace `core-svc-17`
-   - Validate metrics: `up{service="core-svc-17"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 18. Verify Uptime for Core Service 18
    - Check logs in namespace `core-svc-18`
-   - Validate metrics: `up{service="core-svc-18"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 19. Verify Uptime for Core Service 19
    - Check logs in namespace `core-svc-19`
-   - Validate metrics: `up{service="core-svc-19"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 20. Verify Uptime for Core Service 20
    - Check logs in namespace `core-svc-20`
-   - Validate metrics: `up{service="core-svc-20"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 21. Verify Uptime for Core Service 21
    - Check logs in namespace `core-svc-21`
-   - Validate metrics: `up{service="core-svc-21"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 22. Verify Uptime for Core Service 22
    - Check logs in namespace `core-svc-22`
-   - Validate metrics: `up{service="core-svc-22"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 23. Verify Uptime for Core Service 23
    - Check logs in namespace `core-svc-23`
-   - Validate metrics: `up{service="core-svc-23"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 24. Verify Uptime for Core Service 24
    - Check logs in namespace `core-svc-24`
-   - Validate metrics: `up{service="core-svc-24"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 25. Verify Uptime for Core Service 25
    - Check logs in namespace `core-svc-25`
-   - Validate metrics: `up{service="core-svc-25"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 26. Verify Uptime for Core Service 26
    - Check logs in namespace `core-svc-26`
-   - Validate metrics: `up{service="core-svc-26"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 27. Verify Uptime for Core Service 27
    - Check logs in namespace `core-svc-27`
-   - Validate metrics: `up{service="core-svc-27"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 28. Verify Uptime for Core Service 28
    - Check logs in namespace `core-svc-28`
-   - Validate metrics: `up{service="core-svc-28"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 29. Verify Uptime for Core Service 29
    - Check logs in namespace `core-svc-29`
-   - Validate metrics: `up{service="core-svc-29"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 30. Verify Uptime for Core Service 30
    - Check logs in namespace `core-svc-30`
-   - Validate metrics: `up{service="core-svc-30"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 31. Verify Uptime for Core Service 31
    - Check logs in namespace `core-svc-31`
-   - Validate metrics: `up{service="core-svc-31"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 32. Verify Uptime for Core Service 32
    - Check logs in namespace `core-svc-32`
-   - Validate metrics: `up{service="core-svc-32"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 33. Verify Uptime for Core Service 33
    - Check logs in namespace `core-svc-33`
-   - Validate metrics: `up{service="core-svc-33"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 34. Verify Uptime for Core Service 34
    - Check logs in namespace `core-svc-34`
-   - Validate metrics: `up{service="core-svc-34"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 35. Verify Uptime for Core Service 35
    - Check logs in namespace `core-svc-35`
-   - Validate metrics: `up{service="core-svc-35"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 36. Verify Uptime for Core Service 36
    - Check logs in namespace `core-svc-36`
-   - Validate metrics: `up{service="core-svc-36"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 37. Verify Uptime for Core Service 37
    - Check logs in namespace `core-svc-37`
-   - Validate metrics: `up{service="core-svc-37"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 38. Verify Uptime for Core Service 38
    - Check logs in namespace `core-svc-38`
-   - Validate metrics: `up{service="core-svc-38"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 39. Verify Uptime for Core Service 39
    - Check logs in namespace `core-svc-39`
-   - Validate metrics: `up{service="core-svc-39"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 40. Verify Uptime for Core Service 40
    - Check logs in namespace `core-svc-40`
-   - Validate metrics: `up{service="core-svc-40"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 41. Verify Uptime for Core Service 41
    - Check logs in namespace `core-svc-41`
-   - Validate metrics: `up{service="core-svc-41"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 42. Verify Uptime for Core Service 42
    - Check logs in namespace `core-svc-42`
-   - Validate metrics: `up{service="core-svc-42"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 43. Verify Uptime for Core Service 43
    - Check logs in namespace `core-svc-43`
-   - Validate metrics: `up{service="core-svc-43"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 44. Verify Uptime for Core Service 44
    - Check logs in namespace `core-svc-44`
-   - Validate metrics: `up{service="core-svc-44"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 45. Verify Uptime for Core Service 45
    - Check logs in namespace `core-svc-45`
-   - Validate metrics: `up{service="core-svc-45"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 46. Verify Uptime for Core Service 46
    - Check logs in namespace `core-svc-46`
-   - Validate metrics: `up{service="core-svc-46"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 47. Verify Uptime for Core Service 47
    - Check logs in namespace `core-svc-47`
-   - Validate metrics: `up{service="core-svc-47"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 48. Verify Uptime for Core Service 48
    - Check logs in namespace `core-svc-48`
-   - Validate metrics: `up{service="core-svc-48"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 49. Verify Uptime for Core Service 49
    - Check logs in namespace `core-svc-49`
-   - Validate metrics: `up{service="core-svc-49"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 50. Verify Uptime for Core Service 50
    - Check logs in namespace `core-svc-50`
-   - Validate metrics: `up{service="core-svc-50"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
-
 
 ---
 *End of Masterclass*

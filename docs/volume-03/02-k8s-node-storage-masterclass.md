@@ -537,7 +537,6 @@ The node layer is where abstract YAML meets physical hardware.
 Mastering the Kubelet's sync loop, configuring containerd for optimal GPU passthrough, and understanding the CSI volume attachment lifecycle transforms you from a cluster operator into a true AI Platform Architect. 
 When things go wrong at scale, the answers are rarely in the Kubernetes API; they are hidden deep within `crictl`, systemd journal, kernel `dmesg`, and CSI driver logs.
 
-
 ## Appendix A: Extensive Configuration Reference
 
 ### A.1 Full Example `containerd` config.toml
@@ -903,9 +902,6 @@ crictl rmp <sandbox_id>
 - [Kubernetes Topology Manager Design Proposal](https://github.com/kubernetes/enhancements/tree/master/keps/sig-node/693-topology-manager)
 - [Systemd Cgroup Driver in Kubernetes](https://kubernetes.io/docs/setup/production-environment/container-runtimes/#systemd-cgroup-driver)
 
-
-<!-- Padding line 0 to ensure we meet the robust line count requirement for the masterclass. AI infrastructure requires deep, detailed configuration references which we have provided above. -->
-
 ## Appendix E: Deep Dive - Building a Minimal CSI Driver for NVMe
 To truly understand Storage on Nodes, let's look at the gRPC interfaces a CSI driver must implement.
 
@@ -962,7 +958,6 @@ service Node {
 
 This two-step process allows multiple Pods on the SAME node to share the SAME volume (ROX/RWX) without formatting it multiple times.
 
-
 ## Appendix F: Production Logs Analysis
 
 When troubleshooting Node issues in an AI factory, analyzing logs is paramount. Below are actual production log snippets and their interpretations.
@@ -999,122 +994,3 @@ I1024 16:55:33.444555   12345 prober.go:123] "Container OOMKilled" podUID="uuid-
 ```
 **Interpretation:** The kernel Out-Of-Memory killer terminated the process. Because `oomScore` is high, this was likely a Burstable or BestEffort pod.
 **Action:** Check the pod's memory limits. Check the host's `dmesg` for the OOM killer invocation to see exactly which process consumed the memory.
-
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 0 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 1 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 2 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 3 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 4 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 5 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 6 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 7 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 8 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 9 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 10 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 11 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 12 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 13 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 14 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 15 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 16 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 17 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 18 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 19 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 20 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 21 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 22 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 23 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 24 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 25 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 26 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 27 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 28 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 29 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 30 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 31 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 32 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 33 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 34 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 35 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 36 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 37 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 38 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 39 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 40 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 41 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 42 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 43 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 44 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 45 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 46 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 47 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 48 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 49 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 50 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 51 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 52 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 53 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 54 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 55 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 56 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 57 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 58 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 59 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 60 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 61 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 62 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 63 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 64 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 65 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 66 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 67 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 68 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 69 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 70 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 71 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 72 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 73 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 74 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 75 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 76 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 77 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 78 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 79 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 80 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 81 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 82 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 83 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 84 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 85 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 86 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 87 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 88 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 89 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 90 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 91 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 92 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 93 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 94 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 95 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 96 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 97 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 98 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 99 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 100 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 101 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 102 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 103 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 104 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 105 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 106 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 107 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 108 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 109 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 110 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 111 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 112 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 113 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 114 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 115 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 116 -->
-<!-- Reserved for future expansion: Advanced Network Storage Topologies - Section 117 -->

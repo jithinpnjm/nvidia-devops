@@ -2,1054 +2,428 @@
 title: "Chapter 2 - NVIDIA Base Command Manager (BCM)"
 slug: "chapter-2-nvidia-base-command-manager"
 sidebar_position: 2
-description: "Comprehensive beginner-to-advanced masterclass on NVIDIA Base Command Manager (BCM): Active/passive head node HA, golden images, category-based provisioning, Slurm & Kubernetes integration, and automated health remediation at 10,000-node scale."
-source_document: "Authored directly for the JR2018680 gap-coverage volume — no DOCX source."
+description: "How NVIDIA Base Command Manager 11 works: the object model (devices, categories, roles, configuration overlays, software images), the boot and node-installer pipeline with install modes, software image management, Slurm and Kubernetes integration, power control, and the real BCM versus Ansible boundary. Grounded in the BCM 11 Administrator Manual."
+source_document: "Rewritten against the NVIDIA Base Command Manager 11 Administrator Manual (admin-manual.pdf), the BCM 11 Containerization Manual, and NVIDIA DOCA host-configuration documentation. Page numbers refer to the Administrator Manual PDF."
 ---
 
 # Chapter 2 — NVIDIA Base Command Manager (BCM)
 
-**Learning outcome:** Architect, deploy, configure, and safely operate an NVIDIA Base Command Manager (BCM) control plane for large-scale AI Factories. You will master the active/passive high-availability head node architecture, declarative category-based object models, software image provisioning mechanics (Stateless, Stateful, Overlay), network integration (InfiniBand, RoCE, Out-of-Band BMCs), workload orchestrator synchronization (Slurm, Kubernetes, Run:ai), and automated hardware health remediation using the `cmsh` CLI. 
+**Learning outcome:** Explain what BCM manages and how, operate it through `cmsh` with confidence, trace a node from power-on to a running OS, change a software image safely, and place BCM correctly next to Ansible, Slurm, and Kubernetes.
 
-**Prerequisites:** Familiarity with Linux command line, PXE/DHCP/DNS networking, fundamental high-availability concepts (Pacemaker, Corosync, DRBD), and basic understanding of GPU compute nodes.
+**Prerequisites:** Linux administration, PXE/DHCP/DNS basics, and the networking and Slurm material in the surrounding chapters.
 
-**Difficulty:** Beginner to Advanced.
+**Difficulty:** Intermediate to advanced. **Estimated reading time:** 90 minutes plus lab practice.
 
-**Estimated reading time:** 120 minutes plus hands-on implementation practice.
-
----
-
-## 1. Foundations: The Role of an AI Cluster Operating System
-
-In a modern enterprise AI Factory, deploying and maintaining hundreds of accelerated compute nodes (e.g., NVIDIA DGX SuperPODs, OEM HGX reference architectures) by hand—or even via fragmented, ad-hoc automation scripts like raw Ansible loops—is an operational anti-pattern. 
-
-Infrastructure configuration management tools (like Ansible, Puppet, or Chef) are highly effective for Day 2 configuration (installing packages, managing users). However, they are fundamentally inadequate for **Day 0 and Day 1 bare-metal lifecycle management**:
-1. How does a brand-new, unformatted bare-metal node receive its initial operating system?
-2. How do you simultaneously power-cycle 500 servers via their baseboard management controllers (BMCs)?
-3. How do you prevent network saturation when 500 servers attempt to download a 30 GB OS image concurrently?
-4. How do you dynamically inject the exact PCIe topology of an 8-GPU node into Slurm's `gres.conf` without manual transcription errors?
-
-**NVIDIA Base Command Manager (BCM)** (the enterprise evolution of Bright Cluster Manager) solves these challenges. It serves as the foundational operating system of the AI cluster. It bridges raw bare-metal hardware (managed via BMCs, Redfish, and IPMI) to high-level workload orchestrators (Slurm, Kubernetes, Run:ai).
-
-As an **NVIDIA Senior Solutions Architect**, you must understand BCM not merely as a GUI or CLI tool, but as an **immutable infrastructure control plane**. You are expected to design high-availability head node topologies, engineer software images and category policies, orchestrate large-scale zero-downtime rolling upgrades, and automate hardware health gating.
+**A note on sources.** An earlier version of this chapter described BCM high availability as Corosync/Pacemaker/DRBD, image distribution as BitTorrent, and boot modes called `SYNCLOCAL` and `BITTORRENT`. None of those appear in the BCM 11 Administrator Manual. This rewrite follows the manual. Where a statement is an architect's judgment instead of documented behavior, the text says so.
 
 ---
 
-## 2. BCM High-Level Architecture and Control Plane Topology
+## 1. Why a cluster manager exists
 
-BCM operates on a hierarchical manager-agent architecture designed to eliminate single points of failure and scale across thousands of accelerated nodes. 
+Configuration management tools such as Ansible are strong on Day 2: packages, users, services. They are weak on the questions that come first on a new cluster:
+
+1. How does an unformatted bare-metal node get its first operating system?
+2. How do you power-cycle several hundred nodes through their BMCs in a controlled way?
+3. How do you stop several hundred nodes from pulling an OS image from one server at the same moment?
+4. How do you keep the scheduler's idea of each node consistent with the hardware actually present?
+
+BCM (the successor to Bright Cluster Manager) covers that lifecycle: install and boot, provision images, power control, monitoring and health checks, high availability for the head node, and integration with workload managers. It is not a replacement for Ansible. Section 10 draws the boundary.
+
+---
+
+## 2. Architecture
 
 ```mermaid
 flowchart TD
-    subgraph ManagementCluster["BCM High-Availability Head Node Pair"]
-        HN1["Active Head Node (HN-01)
-        - CMDaemon (Primary)
-        - Image Repository (/cm/images)
-        - MariaDB Galera Cluster
-        - DHCP / DNS / PXE / HTTPBoot
-        - Slurmctld / K8s Control Plane"]
-        
-        HN2["Passive Head Node (HN-02)
-        - CMDaemon (Standby)
-        - Corosync / Pacemaker HA
-        - DRBD / Shared Storage Replica
-        - Slurmctld (Backup)"]
-        
-        HN1 -- "Heartbeat & State Sync (DRBD / Galera)" --- HN2
+    subgraph HEAD["Head node (or HA pair)"]
+        CMD["CMDaemon<br/>cluster state and control, port 8080 HTTP / 8081 HTTPS"]
+        DB["MySQL database<br/>(CMDaemon state)"]
+        IMG["Software images<br/>/cm/images"]
+        SVC["DHCP, TFTP/HTTP boot, rsync provisioning,<br/>LDAP, DNS, NTP"]
     end
 
-    VIP["Virtual IP (Cluster Management Gateway)"]
-    HN1 --- VIP
-    HN2 -.-> VIP
-
-    subgraph Fabric["Out-of-Band & In-Band Management Fabrics"]
-        OOB_NET["1GbE Out-of-Band Network (BMCs)"]
-        MGMT_NET["10GbE/25GbE In-Band Provisioning Network"]
+    subgraph FRONT["Front ends"]
+        CMSH["cmsh (shell)"]
+        BV["Base View (web GUI)<br/>https://host:8081/base-view"]
     end
 
-    VIP --> OOB_NET
-    VIP --> MGMT_NET
-
-    subgraph NodeCategories["Declarative Node Categories"]
-        subgraph Cat_Training["Category: dgx-h100-training"]
-            T_NODE1["dgx-h100-01 (CMDaemon Agent)"]
-            T_NODE2["dgx-h100-02 (CMDaemon Agent)"]
-            T_NODE3["dgx-h100-32 (CMDaemon Agent)"]
-        end
-
-        subgraph Cat_Inference["Category: dgx-l40s-inference"]
-            I_NODE1["dgx-l40s-01 (CMDaemon Agent)"]
-            I_NODE2["dgx-l40s-16 (CMDaemon Agent)"]
-        end
+    subgraph NODES["Regular nodes"]
+        NI["node-installer<br/>(stripped OS, boot time)"]
+        ND["node CMDaemon<br/>(monitoring, configuration)"]
     end
 
-    MGMT_NET --> Cat_Training
-    MGMT_NET --> Cat_Inference
-    OOB_NET -.->|Redfish/IPMI Power Control| Cat_Training
-    OOB_NET -.->|Redfish/IPMI Power Control| Cat_Inference
+    CMSH --> CMD
+    BV --> CMD
+    CMD --- DB
+    CMD --- IMG
+    SVC --> NI
+    CMD <--> ND
+    BMC["BMCs: IPMI, iLO, DRAC, CIMC, Redfish"] -. "power control" .-> CMD
 ```
 
-### 2.1 Core Components and Responsibilities
+- **CMDaemon** is the central service. Its default ports are 8080 (HTTP) and 8081 (HTTPS), changeable with the `cm-cmd-ports` utility (BCM Admin Manual, p. 906). Base View connects to the HTTPS service on 8081 at `/base-view` (p. 39).
+- **Two front ends** speak to the same daemon: `cmsh` (the shell) and Base View (the web application). Pick `cmsh` for scripting and repeatable change, Base View for exploration.
+- **A head node is also a provisioning and boot node.** It always carries the `boot` and `provisioning` roles (pp. 244–245).
+- **Certificates and profiles.** Front-end access uses PEM certificates with profiles. The root account's `cmsh` certificate is `/root/.cm/admin.pem` with key `admin.key` (p. 36). A profile decides what a certificate holder may do, and `admin` is the built-in all-operations profile (p. 37).
+- **Password changes.** `cm-change-passwd` changes the head-node root, software-image root, node-installer root, and MySQL root passwords in one dialog. Run it on **both** head nodes in an HA pair, except that the image password is copied automatically (pp. 34–35).
 
-1. **Active/Passive Head Nodes**:
-   - The head node orchestrates the cluster. Production AI clusters **must** deploy two head nodes in an active/passive HA pair. This is governed by **Corosync** (cluster messaging) and **Pacemaker** (resource management) with an automated floating Virtual IP (VIP).
-   - State synchronization relies on **DRBD** (Distributed Replicated Block Device) or enterprise shared storage (like NetApp or VAST) for `/cm/shared` and `/cm/images`.
-   - A **MariaDB** cluster stores all cluster topology, node parameters, and historical metrics.
-   - If the active head node fails, Pacemaker promotes the standby head node, mounts the storage, starts CMDaemon, and resumes control in under 60 seconds without disrupting running GPU jobs on compute nodes.
-2. **CMDaemon (Cluster Management Daemon)**:
-   - The core engine running on both head nodes and every managed compute node.
-   - The head node CMDaemon provides the API, CLI (`cmsh`), and Web GUI. It acts as the central brain.
-   - The compute node CMDaemon handles local configuration application, monitors system health (temperatures, fans, ECC errors, network link state), and streams telemetry back to the head node.
-3. **Software Images (`/cm/images`)**:
-   - Complete OS root filesystems (golden images) stored on the head node. Nodes in a category boot or synchronize against these version-controlled directories.
-4. **Node Categories**:
-   - The primary abstraction unit in BCM. A category defines an operating template: assigned software image, kernel version, kernel boot parameters, network interface assignments, disk partitioning schemes, and workload manager roles (e.g., Slurm compute node vs. Kubernetes worker).
+Head node high availability is covered in [Senior Deep Dive 1](./13-senior-deep-dive-1-bcm-at-fleet-scale.md). It is `cmha-setup`-based, uses fencing and quorum, and is not a Pacemaker design.
 
 ---
 
-## 3. Deep Dive: Head Node High Availability (HA) Mechanics
+## 3. The object model: how BCM organizes a cluster
 
-Operating an AI cluster requires five-nines (99.999%) uptime for the control plane. If the head node goes down permanently, new jobs cannot schedule, nodes cannot reboot, and telemetry is lost. 
+Most BCM mistakes come from not knowing which object a setting belongs to. These are the objects you will touch.
 
-### 3.1 The HA Software Stack
+| Object | What it is | Key facts from the manual |
+|---|---|---|
+| **Device / node** | A physical node, head node, switch, PDU, etc. | Has interfaces, a MAC address, a BMC, and per-node overrides |
+| **Category** | A group of regular nodes that share configuration | A regular node is in **exactly one** category at all times, `default` unless changed (§2.1.3, p. 29) |
+| **Node group** | An arbitrary set of nodes for convenience | A node can be in zero or more groups. Groups carry no configuration, only operations (§2.1.4, p. 30) |
+| **Role** | A task a node can perform (boot, provisioning, storage, Slurm client...) | Assigned to nodes or categories. You cannot create custom roles, only `assign` existing ones (§2.1.5, p. 30) |
+| **Configuration overlay** | A group of roles assigned to chosen nodes, with a priority | Custom overlays can be created (§2.1.6, p. 31) |
+| **Software image** | A directory tree under `/cm/images` used as a node's root file system | Categories point at images, not one-to-one (p. 29) |
+| **Network** | A defined network (management, InfiniBand, BMC...) | Interfaces on nodes attach to networks |
+| **Partition** | The base cluster object (default category, default image, etc.) | `defaultcategory` is set here (p. 29) |
 
-BCM abstracts standard Linux HA components but requires SREs to understand them when deep troubleshooting is needed:
-* **Corosync:** Provides a robust multicast/unicast communication ring between `HN-01` and `HN-02`. It handles membership and quorum.
-* **Pacemaker:** The cluster resource manager. It decides which node should host the VIP, the primary DRBD volume, the MariaDB active instance, and the BCM `cmd` service.
-* **DRBD (Distributed Replicated Block Device):** A network block device that synchronously mirrors the `/cm/shared` and `/cm/images` partitions across the two head nodes.
+### 3.1 Inheritance rules
 
-### 3.2 Pacemaker Resource Status (crm_mon)
+- **Non-Boolean values:** a node inherits the category value, and a value set on the node overrides it.
+- **Boolean values:** a node does *not* inherit. The category value and the node value are combined with a Boolean OR (for example `datanode` and `installbootrecord`) (p. 29). Remember this when a node "refuses" to behave like its category.
+- **Categories and images:** no one-to-one requirement. Several categories can use one image, and a category can be switched between images (p. 29).
 
-When logged into an active head node, you can view the state of the Pacemaker cluster using the native `crm status` or `crm_mon` commands:
+### 3.2 Roles, priorities, and overlays
 
-```text
-# crm status
-Cluster Summary:
-  * Stack: corosync
-  * Current DC: headnode01 (version 2.0.5-10.el8) - partition with quorum
-  * Last updated: Thu Sep 17 14:22:01 2026
-  * Last change:  Wed Sep 16 09:15:00 2026 by root via crm_attribute on headnode01
-  * 2 nodes configured
-  * 15 resource instances configured
+Roles have fixed priorities by assignment level: **250** for category, **750** for node, and **500** by default for a configuration overlay (p. 30). So a node-level role overrides a category-level role, and also overrides the default overlay. Overlay priorities may be 0 to 1000, except 250 and 750, which are forbidden. A priority of -1 means "ignore this overlay" (p. 31).
 
-Node List:
-  * Online: [ headnode01 headnode02 ]
+Use this to design the cluster:
 
-Full List of Resources:
-  * Clone Set: pingd-clone [pingd]
-    * Started: [ headnode01 headnode02 ]
-  * Master/Slave Set: drbd_data_clone [drbd_data]
-    * Masters: [ headnode01 ]
-    * Slaves: [ headnode02 ]
-  * Resource Group: bcm-services
-    * fs_data  (ocf::heartbeat:Filesystem): Started headnode01
-    * vip_internal     (ocf::heartbeat:IPaddr2):    Started headnode01
-    * vip_external     (ocf::heartbeat:IPaddr2):    Started headnode01
-    * cmd_service      (systemd:cmd):               Started headnode01
-    * mariadb_service  (systemd:mariadb):           Started headnode01
-    * dhcpd_service    (systemd:dhcpd):             Started headnode01
-    * slurmctld_service(systemd:slurmctld):         Started headnode01
-```
+- Put hardware-class settings (disk layout, image, kernel parameters) in **categories**.
+- Put capability bundles (for example the Slurm client and submit roles) in **overlays**, so you can attach them to nodes from several categories without cloning categories.
+- Use **node-level** roles only for genuine exceptions, because they win over everything else.
 
-### 3.3 STONITH and Split-Brain Prevention
-
-:::danger
-A **split-brain** scenario occurs when the Corosync heartbeat network link between `HN-01` and `HN-02` breaks, but both nodes are still running. If both nodes promote themselves to Active, they will both attempt to mount the DRBD filesystem and write to it, causing immediate and catastrophic filesystem corruption.
-:::
-
-To prevent this, BCM implements **STONITH** (Shoot The Other Node In The Head), also known as Fencing. 
-
-```xml
-<!-- Example Pacemaker CIB fencing configuration -->
-<primitive id="fence_hn01" class="stonith" type="fence_ipmilan">
-  <instance_attributes id="fence_hn01-instance_attributes">
-    <nvpair id="fence_hn01-ipaddr" name="ipaddr" value="10.1.0.101"/>
-    <nvpair id="fence_hn01-login" name="login" value="admin"/>
-    <nvpair id="fence_hn01-passwd" name="passwd" value="SecureBMC_Pass!"/>
-    <nvpair id="fence_hn01-action" name="action" value="reboot"/>
-  </instance_attributes>
-</primitive>
-```
-
-If `HN-01` loses contact with `HN-02`, before `HN-01` does *anything*, it uses the Out-of-Band (BMC/IPMI) network to issue a hard power-off command to `HN-02`. Only after receiving confirmation that `HN-02` is physically powered down will `HN-01` assume the Active role.
+The manual's custom-role limitation is by design. If you need what looks like a custom role, create a configuration overlay (p. 31).
 
 ---
 
-## 4. The Declarative Object Model: `cmsh` Masterclass
+## 4. `cmsh` essentials
 
-In BCM, you never SSH into individual compute nodes to manually edit `/etc/fstab` or `/etc/network/interfaces`. Instead, you operate on a hierarchical object tree via the **Command Management Shell (`cmsh`)**.
-
-```text
-Cluster Object Tree
-├── Networks (Management, InfiniBand, Out-of-Band, Storage)
-├── Software Images (rocky9-cuda12.4-v1, ubuntu22-cuda12.2-v3)
-├── Node Categories (dgx-h100-prod, dgx-h100-canary, login-nodes)
-│   ├── Assigned Software Image
-│   ├── Kernel Boot Arguments (e.g., numa_balancing=0, iommu=pt)
-│   ├── Workload Roles (Slurm Client, K8s Node)
-│   └── Health Check Rulesets (DCGM, InfiniBand link checks)
-└── Devices / Nodes (dgx-01 to dgx-64)
-    ├── Hardware MAC & BMC IP
-    └── Category Membership (inherits all category attributes)
-```
-
-### 4.1 Navigating `cmsh` and Configuring Categories
-
-`cmsh` is modal and hierarchical, much like the Cisco IOS or Juniper Junos CLI.
-
-```bash
-# Enter BCM management shell
-$ cmsh
-
-# Inspect available software images
-[headnode]% softwareimage
-[headnode->softwareimage]% list
-Name                       Kernel Version             Path
--------------------------- -------------------------- ----------------------------------
-rocky9-dgx-v1.0            5.14.0-362.8.1.el9_3       /cm/images/rocky9-dgx-v1.0
-rocky9-dgx-v1.1-canary     5.14.0-427.18.1.el9_4      /cm/images/rocky9-dgx-v1.1-canary
-
-# Move up the tree and enter the category sub-mode
-[headnode->softwareimage]% ..
-[headnode]% category use dgx-h100-prod
-
-# Display all configuration parameters for the category
-[headnode->category[dgx-h100-prod]]% show
-Parameter                  Value
--------------------------- --------------------------------------------------------
-Name                       dgx-h100-prod
-Software image             rocky9-dgx-v1.0
-Install mode               SYNCLOCAL
-Kernel arguments           console=tty0 console=ttyS0,115200n8 numa_balancing=0 iommu=pt
-Nodes                      32
-Workload managers          Slurm
-Roles                      ComputeNode, DCGM-Exporter, InfiniBand-Node
-
-# Modifying a Category attribute (e.g., changing the installation mode)
-[headnode->category[dgx-h100-prod]]% set installmode FULL
-[headnode->category[dgx-h100-prod]*]% commit
-```
-
-### 4.2 Extracting and Versioning Configurations with `cm-dump`
-
-Infrastructure as Code (IaC) principles demand that cluster states be versioned in Git. While `cmsh` is interactive, BCM supports dumping its entire database or specific sub-trees into XML or JSON for backup and CI/CD integration.
-
-```bash
-# Dump the entire network topology configuration to XML
-$ cmsh -c "network; dump" > /root/backups/bcm_network_topology.xml
-```
-
-*Example XML Output (`bcm_network_topology.xml`):*
-```xml
-<?xml version="1.0"?>
-<cmConfig>
-  <Network>
-    <name>internalnet</name>
-    <baseAddress>10.141.0.0</baseAddress>
-    <broadcastAddress>10.141.255.255</broadcastAddress>
-    <domainName>cm.cluster</domainName>
-    <gateway>10.141.0.1</gateway>
-    <ipv6>no</ipv6>
-    <mtu>9000</mtu>
-    <netmask>255.255.0.0</netmask>
-    <notes>Primary high-speed provisioning and management fabric</notes>
-  </Network>
-  <Network>
-    <name>ibnet</name>
-    <baseAddress>10.142.0.0</baseAddress>
-    <broadcastAddress>10.142.255.255</broadcastAddress>
-    <domainName>ib.cluster</domainName>
-    <ipv6>no</ipv6>
-    <mtu>4092</mtu>
-    <netmask>255.255.0.0</netmask>
-    <notes>InfiniBand IPoIB Network for GPUDirect RDMA</notes>
-  </Network>
-</cmConfig>
-```
-
-These XML files can be stored in a Git repository. To restore or replicate the configuration on a new cluster:
-```bash
-$ cmsh -c "load /root/backups/bcm_network_topology.xml"
-```
-
----
-
-## 5. Software Images and Provisioning Mechanics
-
-How an operating system image is delivered to hundreds of bare-metal servers dictates boot speed, network traffic, and cluster reliability. 
-
-### 5.1 Image Storage and Modification (`cm-chroot-image`)
-
-A "Software Image" in BCM is a literal directory tree on the head node (e.g., `/cm/images/rocky9-dgx-v1.0/`). It contains a full Linux filesystem (`/etc`, `/usr`, `/var`, `/opt`).
-
-You do not SSH into a compute node to install packages. You install them into the image on the head node.
-
-```bash
-# Safely mount bind mounts (/dev, /proc, /sys) and chroot into the golden image
-$ cm-chroot-image /cm/images/rocky9-dgx-v1.0
-
-# You are now "inside" the golden image context
-(chroot) [root@headnode01 /]# dnf install -y htop tcpdump nvme-cli
-(chroot) [root@headnode01 /]# systemctl enable dcgm-exporter
-(chroot) [root@headnode01 /]# exit
-
-# Tell CMDaemon that the image has been modified so it updates the checksums
-$ cmsh -c "softwareimage use rocky9-dgx-v1.0; commit"
-```
-
-### 5.2 Provisioning Modes: Stateless vs. Stateful
-
-BCM supports three primary provisioning modes for AI Factories:
-
-| Provisioning Mode | Mechanics | Advantages | Disadvantages & Operational Risk |
-|---|---|---|---|
-| **Stateless (RAM / tmpfs)** | Kernel and initrd downloaded via HTTPBoot. Rootfs loaded entirely into host RAM (`tmpfs`) or mounted read-only over NFS. | Instant rollback upon reboot; perfectly immutable; local disk failure does not stop node. | Consumes 16GB–32GB of host RAM; rootfs writes lost on reboot; network storms if 100+ nodes reboot simultaneously. |
-| **Stateful (SYNCLOCAL)** | Node boots a minimal provisioning kernel; the golden image is synchronized via rsync directly to local NVMe SSDs; node reboots from local disk. | Zero RAM overhead; node can boot independently even if head node network is down; fast local I/O. | Disk drift can occur if users write local files; reimaging requires streaming full image data over the network. |
-| **Hybrid (Stateless Root + Local Caching)** | Read-only base OS loaded into memory or cached locally; local NVMe disks configured strictly as scratch storage (`/tmp`, `/scratch`). | Guaranteed software immutability with maximum local storage performance for AI checkpoints. | Complex initial partitioning scripts; requires strict local scratch cleanup policies via Slurm prolog/epilog. |
-
-### 5.3 Mitigating Provisioning Storms at Scale (BitTorrent)
-
-:::warning
-When reimaging 256 DGX H100 nodes (each requiring a 35 GB golden image), traditional unicast HTTP or rsync generates massive network storms. Saturating a single 25GbE head node interface would take over 50 minutes, leading to connection timeouts, failed DHCP leases, and kernel panics.
-:::
-
-Total Network Traffic = 256 nodes * 35 GB = 8.96 Terabytes
-
-**BCM's Production Solution: BitTorrent / Tree-Based Provisioning**
-
-BCM integrates a built-in BitTorrent tracker in CMDaemon. 
-1. The head node seeds the 35GB image to the first 4 nodes.
-2. Those 4 nodes immediately act as peers, seeding the chunks to 16 other nodes.
-3. Distribution cascades across the spine-leaf network. The head node network load remains constant at 35 GB, while the cluster provisions itself utilizing massive bisectional Top-of-Rack switch bandwidth.
-
-```mermaid
-flowchart TD
-    subgraph Seed["Head Node"]
-        HN["BCM Head Node (Seed)"]
-    end
-    
-    subgraph Rack1["First Wave (ToR 1)"]
-        N1["Node 01"]
-        N2["Node 02"]
-    end
-    
-    subgraph Rack2["Second Wave (ToR 2)"]
-        N3["Node 03"]
-        N4["Node 04"]
-        N5["Node 05"]
-        N6["Node 06"]
-    end
-    
-    HN -- "35GB Base Seed" ---> N1
-    HN -- "35GB Base Seed" ---> N2
-    N1 -- "Peer Transfer" ---> N3
-    N1 -- "Peer Transfer" ---> N4
-    N2 -- "Peer Transfer" ---> N5
-    N2 -- "Peer Transfer" ---> N6
-```
-
-To enable BitTorrent for a category:
-```bash
-$ cmsh
-[headnode]% category use dgx-h100-prod
-[headnode->category[dgx-h100-prod]]% set installmode BITTORRENT
-[headnode->category[dgx-h100-prod]]% commit
-```
-
----
-
-## 6. Large-Scale AI Factory Network Configuration
-
-An AI node typically has multiple network interfaces serving distinct roles. BCM manages this complexity through its declarative network topology.
-
-A standard NVIDIA DGX H100 node requires:
-* `eth0` / `enp1s0`: 1GbE Out-of-Band (BMC/Redfish).
-* `eth1` / `enp2s0`: 25GbE In-Band Provisioning and Slurm Management.
-* `ib0` to `ib7`: 8x 400 Gbps InfiniBand (NDR) or RoCE adapters for GPUDirect RDMA.
-
-### 6.1 Configuring GPUDirect RDMA Interfaces via `cmsh`
-
-You must assign IP addresses and InfiniBand configurations across all nodes. Doing this manually is impossible. BCM automates this using **Node Cloning** and **Device Ranges**.
+`cmsh` is a modal shell. Each mode (`device`, `category`, `softwareimage`, `network`, `monitoring`, `wlm`...) exposes objects you `use`, edit with `set`, and persist with `commit`.
 
 ```bash
 $ cmsh
-[headnode]% device
-# Define the range of the first 32 DGX nodes
-[headnode->device]% range dgx-01..dgx-32
-
-# Enter the interfaces sub-menu for all 32 nodes simultaneously!
-[headnode->device[dgx-01..dgx-32]]% interfaces
-
-# Create the first InfiniBand/RoCE network interface (ib0)
-[headnode->device[dgx-01..dgx-32]->interfaces]% add ib0
-[headnode->device[dgx-01..dgx-32]->interfaces[ib0]]% set network ibnet1
-[headnode->device[dgx-01..dgx-32]->interfaces[ib0]]% set ip 10.142.1.X # X denotes auto-increment
-[headnode->device[dgx-01..dgx-32]->interfaces[ib0]]% commit
+[basecm11]% category use default
+[basecm11->category[default]]% show
+[basecm11->category[default]]% set newnodeinstallmode FULL
+[basecm11->category*[default*]]% commit
 ```
-*Notice the `X` in the IP address.* BCM intelligently auto-increments the final octet for each node in the range, mapping `dgx-01` to `10.142.1.1`, `dgx-02` to `10.142.1.2`, and so on.
 
-### 6.2 Kernel Tuning for AI Workloads
+- The asterisk in the prompt marks uncommitted changes. Nothing takes effect until `commit`.
+- One-liners use `cmsh -c "mode; command; commit"`, for example `cmsh -c "category use default; set newnodeinstallmode FULL; commit"` (pp. 278, 298).
 
-AI workloads rely heavily on zero-copy DMA (Direct Memory Access) bypassing the CPU entirely. Certain default Linux kernel behaviors aggressively interfere with this. BCM applies kernel boot arguments universally via the Category configuration.
+**Acting on many nodes.** Two documented tools:
 
 ```bash
-[headnode]% category use dgx-h100-prod
-[headnode->category[dgx-h100-prod]]% append kernelparameters " numa_balancing=0 iommu=pt "
-[headnode->category[dgx-h100-prod]]% commit
+# Range of nodes, in device mode
+[basecm11->device]% range -n node0[01-24]
+[basecm11->device{-n node001..024}]%          # commands now apply to the range
+
+# foreach over a category, or a node range
+[basecm11->device]% foreach -c default (set pxelabel MEMTEST)
+[basecm11]% device foreach -n node001..node999 (set nextinstallmode nosync)
+[basecm11]% device commit
 ```
 
-**Why these specific parameters?**
-* `numa_balancing=0`: Disables the Linux kernel's automatic NUMA page migration. In PyTorch distributed training, data is precisely pinned to specific NUMA nodes nearest to specific GPUs. The kernel attempting to "helpfully" move this memory destroys performance.
-* `iommu=pt` (Pass-Through): Tells the IOMMU to allow device drivers (like the NVIDIA OpenRM driver and MOFED) direct access to memory without translating addresses through the IOMMU translation tables, drastically reducing latency for GPUDirect RDMA operations.
+- `range -n` selects nodes by name pattern. The prompt shows the active range (p. 77).
+- `foreach -c default (...)` repeats a command for every node in a category (p. 241). `-n` takes a node range.
+- Review a range with `list` before you `commit` a destructive setting.
 
 ---
 
-## 7. Workload Manager Integration: Slurm and Kubernetes
+## 5. Software images
 
-A core strength of BCM is its ability to provision and manage both **HPC/Slurm** and **Cloud-Native/Kubernetes** workload managers from the same control plane, guaranteeing that hardware specifications match scheduler configurations exactly.
+A software image is a directory tree on the head node, normally under `/cm/images/<name>`. Nodes get their root file system from an image at boot (full copy or incremental sync, depending on install mode). `default-image` is the image created at install.
 
-```mermaid
-flowchart TD
-    BCM_CTRL["BCM Control Plane (Head Node)"]
-    
-    subgraph SlurmOrch["HPC Track: Slurm Integration"]
-        SLURM_CONF["Auto-generated slurm.conf & gres.conf"]
-        SLURM_CTLD["Slurmctld (Managed Systemd Service)"]
-        SLURM_NODES["Slurm Compute Nodes (Enroot/Pyxis)"]
-    end
+### 5.1 Change an image safely
 
-    subgraph K8sOrch["Cloud-Native Track: Kubernetes Integration"]
-        K8S_CTRL["kube-apiserver & etcd"]
-        K8S_WORKERS["K8s GPU Nodes (Containerd + GPU Operator)"]
-        RUNAI["Run:ai Control Plane (Dynamic GPU Allocation)"]
-    end
+1. **Clone** the working image before changing it. Cloning copies settings and the data:
 
-    BCM_CTRL -->|Category Push| SLURM_CONF
-    BCM_CTRL -->|Service Lifecycle| SLURM_CTLD
-    SLURM_CTLD --> SLURM_NODES
-
-    BCM_CTRL -->|Automated Cluster Setup| K8S_CTRL
-    BCM_CTRL -->|Node Enrollment| K8S_WORKERS
-    K8S_WORKERS --> RUNAI
-```
-
-### 7.1 Slurm Automated Topology and GRES Generation
-
-If you configure Slurm manually, you must hand-write the `/etc/slurm/gres.conf` file mapping exactly which GPU sits on which PCIe bus, nearest to which CPU socket. A single typo degrades inter-GPU NVLink traffic.
-
-BCM queries the hardware topology of nodes via the CMDaemon agent upon boot, and automatically synthesizes consistent `slurm.conf` and `gres.conf` files, pushing them to the head node's `slurmctld`.
-
-*Example of BCM Auto-Generated `gres.conf` (DO NOT EDIT MANUALLY):*
-```text
-# /cm/shared/apps/slurm/var/etc/gres.conf
-# AUTOGENERATED BY BCM - ANY MANUAL CHANGES WILL BE OVERWRITTEN
-NodeName=dgx-01 Name=gpu Type=h100 File=/dev/nvidia0 COREs=0-15,64-79
-NodeName=dgx-01 Name=gpu Type=h100 File=/dev/nvidia1 COREs=0-15,64-79
-NodeName=dgx-01 Name=gpu Type=h100 File=/dev/nvidia2 COREs=16-31,80-95
-NodeName=dgx-01 Name=gpu Type=h100 File=/dev/nvidia3 COREs=16-31,80-95
-```
-
-### 7.2 Dynamic Node Reallocation (Slurm $\leftrightarrow$ Kubernetes)
-
-:::info
-In an AI Factory, infrastructure flexibility is critical. You may need 100% of nodes running Slurm for a multi-week foundation model pre-training run, followed by shifting 30% of nodes to Kubernetes for interactive fine-tuning (Jupyter) and inference serving (Triton/vLLM).
-:::
-
-**In BCM, this transition is declarative and fully automated:**
 ```bash
-# Reassign nodes 33 through 64 from the Slurm category to the Kubernetes category
-$ cmsh
-[headnode]% device
-[headnode->device]% range dgx-33..dgx-64
-[headnode->device[dgx-33..dgx-64]]% set category k8s-gpu-pool
-[headnode->device[dgx-33..dgx-64]]% commit
+[basecm11]% softwareimage
+[basecm11->softwareimage]% clone default-image imagetwo
+[basecm11->softwareimage*[imagetwo*]]% commit
 ```
+
+(The manual's example of the cloning workflow, §3.20.2, pp. 219–220.)
+
+2. **Chroot into the image with BCM's wrapper.** `cm-chroot-sw-img` works on all distributions and mounts `/proc`, `/sys`, `/dev` and the other special directories for you. This matters on Ubuntu, where package scripts need them (§9.4.1, pp. 535–536):
+
+```bash
+root@basecm11:~# cm-chroot-sw-img /cm/images/imagetwo
+root@basecm11:/# apt update; apt upgrade        # or dnf/yum/zypper on other distributions
+root@basecm11:/# exit
+```
+
+Alternatives are `chroot`, or the package manager's root option (`yum --installroot=/cm/images/imagetwo`, `rpm --root`, `zypper --root`). The earlier draft used a command named `cm-chroot-image`. The documented wrapper is `cm-chroot-sw-img`.
+
+3. **Lock the image while you update it,** because a package update fails to start if a provisioner is serving that image at that moment (p. 537):
+
+```bash
+cmsh -c "softwareimage lock imagetwo"
+yum --installroot /cm/images/imagetwo update
+cmsh -c "softwareimage unlock imagetwo"
+```
+
+4. **Tell BCM about a new kernel.** A kernel installed in an image is not used until you set it in CMDaemon. Then regenerate the ramdisk:
+
+```bash
+[basecm11->softwareimage]% use imagetwo
+[basecm11->softwareimage[imagetwo]]% set kernelversion          # TAB lists installed kernels
+[basecm11->softwareimage*[imagetwo*]]% commit -w
+```
+
+- `kernelversion` is the property that selects the kernel the nodes boot (§9.3.3, p. 532).
+- The extended BCM ramdisk is **not** rebuilt by the distribution's update. After a kernel or module change made outside CMDaemon, regenerate it (the `createramdisk` command, §5.8.6 and §9.4.3). A stale ramdisk is a classic cause of nodes failing during ramdisk load (p. 258).
+- Kernel parameters for an image are the `kernelparameters` property of `softwareimage` mode, for example `append kernelparameters " VLANID=89"` (pp. 261, 532).
+
+5. **Point a category at the image and roll it out.** Put the image on a category, then reboot nodes (an `AUTO` install pulls the latest image) or use `imageupdate` for small in-place changes. The comparison and the exclude-list pitfalls are in [Senior Deep Dive 1](./13-senior-deep-dive-1-bcm-at-fleet-scale.md), section 2.
+
+### 5.2 HA caveat
+
+Installing a new kernel on the active head node can, in edge cases, stop its network interface and trigger a failover. The manual advises making the change on the passive head first, or disabling automatic failover, before a change that could initiate one (§9.3.1, p. 529).
+
+---
+
+## 6. From power-on to a running node
+
+### 6.1 Before the kernel loads
+
+On x86 nodes the first stage is PXE. The `bootloaderprotocol` parameter selects what carries the later stages: `HTTP` (the default), `HTTPS`, or `TFTP`. With `HTTP`, the initial PXE still uses TFTP and then switches to HTTP for the kernel and RAM disk. The manual says HTTPS "should almost never be used because it is rarely implemented in hardware" (§5.1.6, p. 244). ARMv8 nodes use GRUB fetched from the head node instead of iPXE (§5.1.5, p. 243).
+
+```bash
+[basecm11->device[node001]]% get bootloaderprotocol
+[basecm11->device[node001]]% set bootloaderprotocol tftp
+[basecm11->device*[node001*]]% commit
+```
+
+- Set at category or node level. A node value overrides the category.
+
+The PXE menu defaults to the `AUTO` entry, which loads a kernel, runs `AUTO` install mode, and provisions `default-image` (p. 242). A node's PXE label can be overridden per node (`set pxelabel MEMTEST`) or set to `localdrive` to boot from its first local drive without the node-installer. The manual discourages `localdrive` because it usually makes node management harder (p. 242).
+
+InfiniBand booting and provisioning are optional. They are enabled per network (`network; set ibnet nodebooting yes`) and need InfiniBand drivers added to the ramdisk and a defined provisioning interface. By default provisioning uses Ethernet because InfiniBand modules are not available during the pre-init stage (§5.1.3, §5.3.3, pp. 242–260). The interface a node boots from (`BOOTIF`) must not already be configured as a device interface for that node (p. 243).
+
+### 6.2 The node-installer: 13 steps
+
+After the kernel and ramdisk load, the node runs the **node-installer**, a software image provided by the head node that talks to CMDaemon and finishes the boot (§5.4, p. 261). Its steps, in order:
+
+1. Request a node certificate.
+2. Decide or select the node configuration (identify the node by MAC address and, if configured, Ethernet switch port).
+3. Start all network interfaces.
+4. Determine install-mode type and execution mode.
+5. Run initialize scripts.
+6. Check partitions and RAID, mount file systems.
+7. Synchronize the local drive with the software image.
+8. Write network configuration files.
+9. Create the local `/etc/fstab`.
+10. Install GRUB if configured, and initialize SELinux if configured.
+11. Run finalize scripts.
+12. Unload drivers no longer needed.
+13. Switch the root device to the local drive and call `/sbin/init`.
 
 ```mermaid
 sequenceDiagram
-    participant Admin as Cluster Admin
-    participant BCM as BCM Head Node
-    participant Slurm as Slurm Controller
-    participant Node as Compute Node (dgx-33)
-    participant K8s as Kubernetes API
-
-    Admin->>BCM: set category k8s-gpu-pool
-    BCM->>Slurm: scontrol update State=DRAIN (Graceful drain)
-    Slurm-->>BCM: Jobs completed, Node drained
-    BCM->>Node: Reboot Command (via IPMI/Redfish)
-    Node->>BCM: PXE Boot & Request Golden Image
-    BCM-->>Node: k8s-gpu-pool Image (contains containerd, kubelet)
-    Node->>K8s: kubelet TLS bootstrap & join cluster
-    K8s-->>Node: Node registered as Kubernetes Worker
+    participant N as Node
+    participant H as Head node (DHCP, TFTP/HTTP, CMDaemon)
+    N->>H: PXE request (DHCP)
+    H-->>N: boot program, then kernel + ramdisk (bootloaderprotocol)
+    N->>H: node-installer: request certificate, identify node
+    H-->>N: node configuration, install mode
+    N->>N: check partitions, mount file systems
+    N->>H: rsync image (FULL or incremental sync)
+    H-->>N: image data
+    N->>N: write network config, fstab, GRUB; finalize scripts
+    N->>N: switch root to local drive, /sbin/init
+    N->>H: node CMDaemon connects, state UP
 ```
 
-*What happens next?* 
-1. BCM issues an API call to Slurm to drain nodes 33-64.
-2. Once jobs complete, CMDaemon reboots the nodes.
-3. The nodes PXE boot, pull the `k8s-gpu-pool` golden image, configure `containerd`, and register directly with the `kube-apiserver` as active GPU nodes.
+A new node that is unknown to CMDaemon is matched to a configuration through its MAC address or switch port. The installer can prompt an administrator to select a configuration, which is why placeholders (node objects with no MAC yet) are useful when adding many nodes (§5.4.2, §5.7, pp. 262–304).
+
+### 6.3 Install modes: what actually runs at boot
+
+The manual defines five install-mode values (§5.4.4, pp. 276–278):
+
+| Mode | Behavior |
+|---|---|
+| `AUTO` | Check the partition layout against the node's stored configuration. If they do not match (new node, corruption), do a `FULL` install. If healthy, do an **incremental sync** of the image |
+| `FULL` | Re-partition, create new file systems, and sync a full image. **Wipes all pre-boot drive content** |
+| `MAIN` | No disk check. Drop into maintenance mode for manual investigation. The drive is untouched |
+| `NOSYNC` | If the partition layout matches, skip image synchronization so drive contents persist. A layout mismatch still triggers a `FULL` sync. Not a data-protection mechanism |
+| `SKIP` | No partition check and no image sync. For data recovery attempts |
+
+Three settings control when a mode applies:
+
+- **New nodes:** the category property `newnodeinstallmode`, **default `FULL`**.
+- **The next boot only:** the node property `nextinstallmode`. This is how you reboot many nodes onto their existing disk without an image sync, for example `device foreach -n node001..node999 (set nextinstallmode nosync)` (p. 277).
+- **A PXE menu choice at the console,** for the current boot only; the menu default is `AUTO`.
+
+`imageupdate` (a running node) ignores install modes. The install mode applies only during the installer stage (p. 276). The decision is logged on the head node in `/var/log/node-installer`, with the disk check delegated to `/cm/node-installer/scripts/disks`, whose exit codes explain a surprise `FULL` install (p. 277).
+
+**Disk layouts.** Nodes can be disked, semi-diskless, or diskless (§3.13, p. 167). Which you choose changes what survives a reboot and how much RAM the image consumes. Choose per workload and read the matching section before standardizing.
+
+### 6.4 Scaling the boot path
+
+Two roles scale the pipeline, and they relieve different loads: `boot` relieves DHCP and TFTP, and `provisioning` serves images. Both are covered, with the parameters and failure behavior, in [Senior Deep Dive 1](./13-senior-deep-dive-1-bcm-at-fleet-scale.md) (section 1).
+
+### 6.5 About kernel parameters for AI nodes
+
+An earlier draft presented `numa_balancing=0` and `iommu=pt` as universal BCM tuning for GPUDirect RDMA. The sources do not support that framing. NVIDIA's DOCA documentation lists `iommu=pt` in specific procedures, for example as a fix when DMA fails with an `IO_PAGE_FAULT` message in `dmesg` and for some DOCA services. Treat kernel parameters as platform-specific settings you add for a documented reason and a measured effect, set through the image's `kernelparameters`, and validate on a canary before rollout.
 
 ---
 
-## 8. BCM Health Management and Automated Remediation
+## 7. Networks, interfaces, and power control
 
-In a multi-thousand GPU cluster, hardware degradation is a statistical certainty. If a job lands on a node with an uncorrectable ECC error or a failed NVLink, the entire distributed job (which might span 1,024 GPUs) will crash, wasting thousands of dollars in compute time.
-
-BCM provides an active **Health Checking Framework**:
-- Health scripts run locally on compute nodes via CMDaemon (`/cm/local/apps/cmd/etc/healthcheck.d/`).
-- Checks run at defined intervals (e.g., every 60 seconds) and during node boot/reprovisioning.
-
-### 8.1 Automated Node Quarantine Sequence
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant GPU as GPU 3 (SXM5)
-    participant CMD as CMDaemon (Compute Node)
-    participant HN as BCM Head Node
-    participant Slurm as Slurm Controller (slurmctld)
-
-    GPU->>CMD: NVML reports Double-Bit ECC Error (XID 48 / XID 79)
-    Note over CMD: BCM Health Check "check_gpu_health" FAILS
-    CMD->>HN: Alert: Node dgx-042 Health Status = UNHEALTHY (Metric: GPU_ECC_FAIL)
-    HN->>Slurm: Execute Slurm Action: scontrol update NodeName=dgx-042 State=DRAIN Reason="BCM-Health: Double-bit ECC on GPU 3"
-    Slurm-->>HN: Node Drained (Current job completes or checkpoints; no new jobs scheduled)
-    HN->>HN: Trigger PagerDuty / Webhook notification to SA / Operations team
-```
-
-### 8.2 Production Health Check Script (`check_nvlink.sh`)
-
-You will frequently write custom bash/python scripts for specific hardware edge cases. Here is a production-grade script that verifies all 18 NVLinks per H100 GPU are active before allowing the node to accept jobs.
+- **Interfaces and ranges.** Attach interfaces to networks per node or via a range. Check the exact `cmsh` syntax in the Administrator Manual chapter 3 for your release before scripting it. The earlier draft's `range dgx-01..dgx-32` and an `X` auto-increment placeholder for IP addresses are not shown in the manual's range documentation (p. 77).
+- **BMC interfaces.** BCM configures IPMI, iLO, DRAC, CIMC, and Redfish interfaces (§3.7, pp. 137–147). Power control uses a `powercontrol` property such as `ipmi0` or `ilo0`.
+- **Power operations.** The main operations are power on, off, reset, and status. `power reset` powers off and then on after a short delay (§4.2, pp. 231–236).
 
 ```bash
-#!/usr/bin/env bash
-# /cm/local/apps/cmd/etc/healthcheck.d/check_nvlink.sh
-# Exit 0 = HEALTHY, Exit 1 = WARNING, Exit 2 = CRITICAL/DRAIN
-
-# NVIDIA H100 SXM5 GPUs have exactly 18 NVLinks per GPU
-EXPECTED_LINKS=18 
-UNHEALTHY_GPUS=0
-
-# Ensure nvidia-smi is available
-if ! command -v nvidia-smi &> /dev/null; then
-    echo "CRITICAL: nvidia-smi not found. NVIDIA driver not loaded."
-    exit 2
-fi
-
-for i in {0..7}; do
-    # Query NVLink status for GPU $i
-    ACTIVE_LINKS=$(nvidia-smi nvlink --status -i $i | grep -c "Link.*: Active")
-    
-    if [ "$ACTIVE_LINKS" -lt "$EXPECTED_LINKS" ]; then
-        echo "CRITICAL: GPU $i has only $ACTIVE_LINKS/$EXPECTED_LINKS active NVLinks!"
-        UNHEALTHY_GPUS=$((UNHEALTHY_GPUS + 1))
-    fi
-done
-
-if [ "$UNHEALTHY_GPUS" -gt 0 ]; then
-    # Returning exit code 2 triggers BCM's automatic "Drain" action in Slurm
-    exit 2 
-fi
-
-echo "OK: All 8 GPUs report full NVLink mesh (18/18 links active)."
-exit 0
+[mycluster]% device power -n node001,node018..node033 on
+[mycluster]% device foreach -c default (set powercontrol ilo0)
+[mycluster]% device commit
 ```
 
----
-
-## 9. Zero-Downtime Rolling Upgrade Architecture
-
-Upgrading NVIDIA drivers, CUDA toolkits, or kernels across hundreds of production nodes requires a phased, strict **canary methodology** orchestrated by BCM. You do *not* run `yum update` globally.
-
-**The 5-Step Immutable Upgrade Process:**
-
-1. **Clone the Immutable Image:**
-   ```bash
-   $ cmsh -c "softwareimage clone rocky9-dgx-v1.0 rocky9-dgx-v2-canary"
-   ```
-
-2. **Chroot and Update the New Image:**
-   ```bash
-   $ cm-chroot-image /cm/images/rocky9-dgx-v2-canary
-   (chroot) [root@headnode01 /]# dnf update -y kernel
-   (chroot) [root@headnode01 /]# dnf install -y nvidia-driver-550.90.07 cuda-12-4
-   (chroot) [root@headnode01 /]# dracut -f  # Regenerate initramfs with new modules
-   (chroot) [root@headnode01 /]# exit
-   ```
-
-3. **Canary Deployment (5% of Fleet):**
-   Create a new category pointing to the new image, and move a few nodes into it.
-   ```bash
-   $ cmsh
-   [headnode]% category clone dgx-h100-prod dgx-h100-canary
-   [headnode->category[dgx-h100-canary]]% set softwareimage rocky9-dgx-v2-canary
-   [headnode->category[dgx-h100-canary]]% commit
-   [headnode]% device range dgx-01..dgx-04
-   [headnode->device[dgx-01..dgx-04]]% set category dgx-h100-canary
-   [headnode->device[dgx-01..dgx-04]]% commit
-   ```
-   *Nodes 1-4 drain from Slurm, reboot, provision the new image, and rejoin.*
-
-4. **Soak & Synthetic Stress Validation:**
-   Run the NVIDIA Datacenter GPU Manager (DCGM) Level 3 Diagnostic on the canary nodes.
-   ```bash
-   $ pdsh -w dgx-[01-04] "dcgmi diag -r 3"
-   ```
-   Run a 4-node NCCL All-Reduce benchmark (`all_reduce_perf`) to verify IB throughput. Soak for 24-48 hours under a real training workload.
-
-5. **Phased Fleet Promotion:**
-   If the error rate is zero, update the primary production category to point to the new image, and issue rolling reboots via Slurm maintenance reservations. If failures occur, rollback is instantaneous: simply point the category back to `rocky9-dgx-v1.0` and reboot.
+- `device power -n <list> on` powers on a node list. Output shows the power device and state per node.
+- Setting `powercontrol` per category selects the mechanism. Verify with `device power status -n <nodes>` before you rely on it. Automatic head-node failover needs working power control (see Deep Dive 1).
+- Scheduled power operations are available from `cmsh` only, with `--at`, `--after`, `-d`, and `--parallel-delay`, and `power wait`, `power cancel`, and `power list` manage them (p. 232).
 
 ---
 
-## 10. Senior Solutions Architect Troubleshooting Scenarios
+## 8. Workload managers: Slurm and Kubernetes
 
-### Scenario 1: Provisioning Network Saturation During Cluster Bring-Up
+### 8.1 Slurm
 
-**Interviewer:** *"We are deploying a 1,024-node DGX H100 SuperPOD using BCM. During initial provisioning, nodes take over 60 minutes to pull the OS image, DHCP leases are timing out, and 30% of nodes fail to boot entirely. How do you re-architect the deployment?"*
+`cm-wlm-setup` installs and configures a workload manager from a text dialog, and the result is represented in BCM as objects: roles such as `slurmclient` and `slurmsubmit`, assigned through configuration overlays (`slurm-client`, `slurm-submit`) or to nodes, plus a `wlm` mode object (`wlm use slurm`) holding cluster-wide settings (§7.5, pp. 401–427).
 
-**Candidate Answer:**
-> "A 60-minute boot time with dropouts at that scale indicates severe head node network saturation, unicast exhaustion, and potential ARP table overflows on the provisioning switch.
-> 1. **Switch to Peer-to-Peer / BitTorrent Provisioning:** In BCM, I configure the category install mode to use `BITTORRENT` instead of direct unicast `SYNCLOCAL`. The head node seeds chunks to the first set of Top-of-Rack (ToR) switches, and compute nodes distribute the chunks horizontally, utilizing massive non-blocking spine-leaf bandwidth rather than head node egress.
-> 2. **Leverage Multicast HTTPBoot:** If the network fabric explicitly supports PIM-SM and IGMP snooping, I enable BCM multicast provisioning. This streams the image payload exactly once to all 1,024 nodes simultaneously via UDP, reducing head node network egress to a constant 35 GB.
-> 3. **Implement Staggered Canary Provisioning:** I divide the 1,024 nodes into provisioning waves of 128 nodes each using BCM node groups. This ensures the head node’s MariaDB connection pools, DHCP daemon, and TFTP/HTTP servers are never overwhelmed."
+```bash
+[basecm11]% configurationoverlay use slurm-client
+[basecm11->configurationoverlay[slurm-client]]% roles
+[basecm11->configurationoverlay[slurm-client]->roles]% use slurmclient
+[...[slurmclient]]% genericresources
+[...[slurmclient]->genericresources]% add autodetected-gpus
+[...[slurmclient*]->genericresources*[autodetected-gpus*]]% set name gpu
+[...[slurmclient*]->genericresources*[autodetected-gpus*]]% set count 8
+[...[slurmclient*]->genericresources*[autodetected-gpus*]]% set addtogresconfig no
+[...[slurmclient*]->genericresources*[autodetected-gpus*]]% commit
+[basecm11->wlm[slurm]]% set gpuautodetect nvml
+[basecm11->wlm*[slurm*]]% commit
+```
 
----
+(Adapted from the manual's GPU autodetection example, p. 426.)
 
-### Scenario 2: Head Node Disaster Recovery and Database Brain-Split
+- `genericresources` declares *how many* GPUs Slurm should expect (here, 8 of name `gpu`). Slurm's GPU autodetection finds the details but not the count; the manual notes the count must still be specified (p. 425).
+- `addtogresconfig no` keeps this generic resource out of `gres.conf` while still adding the GRES information to `slurm.conf`, which is needed when autodetection owns `gres.conf`.
+- `gpuautodetect` accepts `bcm`, `none`, `nrt`, `nvml`, `off`, `oneapi`, and `rsmi` (p. 405). With `bcm`, BCM detects GPU counts and types and configures `slurm.conf` itself, and this does not work for nodes with mixed GPU vendors (p. 426). The vendor options (for NVIDIA, `nvml`) mean you must supply the `Gres=` count.
+- The setting can be applied globally in `wlm` mode, or per role (device, category, or overlay).
 
-**Interviewer:** *"The active BCM head node (HN-01) suffers a sudden catastrophic motherboard failure. How does BCM maintain cluster availability, and how do you prevent split-brain on the database and image store?"*
+The earlier draft showed a hand-written, "autogenerated" `gres.conf` with `COREs=` lists. Do not copy it. Let Slurm's own autodetection (or BCM's) produce topology-aware GRES, and review the result against `nvidia-smi topo -m` on a representative node.
 
-**Candidate Answer:**
-> "BCM utilizes a high-availability architecture driven by Corosync and Pacemaker:
-> 1. **Heartbeat and Quorum:** The two head nodes maintain redundant Corosync heartbeats across isolated physical interfaces (e.g., eth0 and eth1). Pacemaker monitors health checks for CMDaemon, MariaDB, and NFS services.
-> 2. **Split-Brain Prevention (Fencing):** Pacemaker enforces STONITH (Shoot The Other Node In The Head) via out-of-band IPMI/Redfish fencing. The surviving node (`HN-02`) issues a power-off command to `HN-01` over the BMC network. **Crucially, it will not assume control until it receives confirmation that HN-01 is dead.** This absolutely prevents two nodes from mounting the DRBD block device simultaneously.
-> 3. **State Consistency:** The image repository (`/cm/images`) and database (`/cm/shared`) sit on a DRBD block device operating in synchronous dual-primary or active/passive mode.
-> 4. **Compute Workload Isolation:** Compute nodes and Slurm jobs continue executing uninterrupted even during the 45-second head node failover because the compute nodes run local daemons (`slurmd`, `containerd`) that buffer state and do not require continuous head node connectivity."
+For the Slurm REST API (`slurmrestd` with JWT), the manual gives a full procedure, including creating a `jwt.key` readable by user `slurm`, configuring `AuthAltTypes=auth/jwt`, and registering `slurmrestd` as a monitored, autostarted BCM service (p. 424).
 
----
+### 8.2 Kubernetes
 
-### Scenario 3: DCGM Page Retirement Looping
+BCM deploys Kubernetes with `kubeadm` (from BCM 10.0 onward). BCM runs CoreDNS, the kubelet, and the control plane inside Kubernetes, and runs `etcd` **outside** Kubernetes (BCM 11 Containerization Manual, chapter 4). Setup is done with `cm-kubernetes-setup`. Details of cluster design belong in the Kubernetes volume. The point here is that both schedulers are first-class objects in the same control plane.
 
-**Interviewer:** *"You notice a DGX node is flapping in and out of the 'DRAIN' state in Slurm every 15 minutes. The BCM health check logs indicate an ECC error, but the node passes diagnostics upon reboot. What is happening and how do you fix it?"*
+### 8.3 Sharing nodes between Slurm and Kubernetes
 
-**Candidate Answer:**
-> "This is a classic 'Page Retirement Loop' caused by dynamic memory row mapping.
-> When the GPU encounters a double-bit ECC error, the NVIDIA driver attempts to dynamically retire that memory page. BCM's CMDaemon detects the XID 48/79 error in syslog or NVML, flags the node as unhealthy, and drains it in Slurm.
-> The automated remediation script then reboots the node. Upon reboot, the NVIDIA driver initializes, the faulty page is marked offline in the firmware frame buffer, and NVML reports 'Healthy'. BCM puts the node back online.
-> However, under extreme heavy AI training load, adjacent memory rows on the same physical DIMM degrade, triggering another ECC error 15 minutes later, starting the cycle over.
-> **The Fix:** I would manually intervene in BCM:
-> ```bash
-> $ cmsh -c "device use dgx-101; set status drain; commit"
-> ```
-> This prevents BCM from auto-resuming it. I would then run a long-duration `dcgmi diag -r 4` (Level 4, which takes hours) to permanently fail the hardware, extract the Field Replaceable Unit (FRU) logs via BCM's hardware tab, and open an RMA with NVIDIA Enterprise Support."
+The documented mechanism is **Auto Scaler (`cm-scale`)**. It collects workload information from the engines and re-purposes nodes by switching configuration overlays. The earlier draft claimed you move a node by changing its category in `cmsh`. Changing a category does change configuration, but it also changes the image and reboots the node, whereas Auto Scaler's documented use case is to turn a free Kubernetes node into a Slurm node "pretty much immediately" when Slurm jobs are pending (§8.1.1, pp. 467–468). See [the interview lab](./00c-slurm-bcm-interview-lab.md) for the interview framing.
 
 ---
 
-## Key Takeaways
+## 9. Health, monitoring, and rolling change
 
-1. **Category-Driven Immutability:** BCM abstracts physical servers into categories. You manage golden software images and category policies on the head node, never individual compute node configurations.
-2. **High-Availability Control Plane:** Production AI Factories require active/passive head node pairs with Corosync/Pacemaker, DRBD replication, and strict hardware fencing (STONITH) to prevent split-brain data corruption.
-3. **Optimized Image Distribution:** Large-scale clusters must utilize BitTorrent or Multicast provisioning to eliminate head-node network saturation during cluster-wide re-imaging.
-4. **Unified Slurm and Kubernetes Orchestration:** BCM seamlessly provisions Slurm HPC environments and bare-metal Kubernetes clusters (with NVIDIA GPU Operator and Run:ai), allowing dynamic capacity reallocation between the two by simply changing a node's category.
-5. **Proactive Health Gating:** Automated CMDaemon health scripts integrate with DCGM and NVML to detect degraded hardware (e.g., failed NVLinks or ECC double-bit errors) and immediately drain nodes from Slurm before distributed jobs fail.
+- **Health checks, triggers, and actions** form BCM's monitoring pipeline, including `Drain`, `Undrain`, `ImageUpdate`, `Reboot`, power actions, and `NVSMHealthDump` (§10, pp. 576–606). The pipeline, the severity defaults, and a safe remediation-tier design are in [Senior Deep Dive 1](./13-senior-deep-dive-1-bcm-at-fleet-scale.md), section 3.
+- **Health-check scripts** live in `/cm/local/apps/cmd/scripts/healthchecks`, and actions in `/cm/local/apps/cmd/scripts/actions` (pp. 576, 1046). The earlier draft's `healthcheck.d/check_nvlink.sh` path and exit-code semantics (0, 1, 2 mapping to healthy, warning, drain) are not in the manual. A standalone health check reports `PASS`, `FAIL`, or `UNKNOWN`, and may set its own severity such as `FAIL 40` (p. 577). Read an existing script under the documented directory before you write one.
+- **Rolling image change.** Clone the image, change it in a chroot, create a canary category that points at it, move a few nodes into the category, validate, and promote. The mechanics of image changes are section 5 here. The coordination around them (compatibility matrix, canary rings, Slurm `scontrol reboot ASAP nextstate=RESUME`) is in [Chapter 10](./10-coordinated-cluster-wide-software-change-management.md).
 
+---
 
-## 11. BCM vs. Ansible: The Exact Boundary of Responsibilities
-
-A common architectural trap for new AI platform teams is attempting to use Ansible for Day-0 bare-metal provisioning (which it is poor at) or attempting to use BCM to manage complex Day-2 application logic (which is clunky).
+## 10. BCM and Ansible: where the boundary really is
 
 ```mermaid
 flowchart LR
-    subgraph Day0["Day 0: NVIDIA BCM (Bare-Metal OS)"]
-        PXE["PXE / UEFI Boot"]
-        IMAGE["Golden OS Image Deployment"]
-        NET_INIT["Base Network Initialization (IPoIB)"]
-        KERNEL["Kernel Boot Parameters"]
+    subgraph BCM["BCM: lifecycle and cluster objects"]
+        A1["Boot, provisioning, install modes"]
+        A2["Images, categories, roles, overlays"]
+        A3["Power control, monitoring, health actions"]
+        A4["Slurm and Kubernetes setup"]
     end
-
-    subgraph Day1["Day 1: Ansible (Configuration & Daemons)"]
-        LDAP["Active Directory / LDAP Bindings"]
-        PROM["Prometheus Node Exporters"]
-        TUNE["Sysctl Tuning (TCP/IP)"]
-        DOCKER["Container Runtime Configs"]
+    subgraph ANS["Ansible: policy and application configuration"]
+        B1["Site-specific files and services"]
+        B2["Users, identity integration, agents"]
+        B3["Repeatable change driven from Git"]
     end
-
-    subgraph Day2["Day 2: Slurm / K8s (Workload)"]
-        SCHED["Job Scheduling"]
-        MPI["MPI Runtimes"]
-        NVIDIA_D["NVIDIA Container Toolkit"]
-    end
-
-    Day0 -->|CMDaemon Hands off| Day1
-    Day1 -->|Systemd Services Started| Day2
+    BCM --> ANS
 ```
 
-### The Architectural Division of Responsibilities
-
-| Responsibility Domain | Primary Tool | Why This Boundary Exists |
+| Responsibility | Natural owner | Why |
 |---|---|---|
-| **OS Provisioning & Disk Partitioning** | **NVIDIA BCM** | Bare-metal PXE booting, golden image management, and BitTorrent provisioning. |
-| **Initial Network Interface Setup (IPs, MTU)** | **NVIDIA BCM** | BCM's internal DHCP and DNS depend on its central IPAM database. |
-| **Kernel Parameters (`numa_balancing`)** | **NVIDIA BCM** | Configured via BCM Category so they are injected at boot via GRUB. |
-| **Active Directory / SSSD Configuration** | **Ansible** | Easier to manage complex LDAP bind templates and TLS certificates via Jinja2. |
-| **Prometheus / Grafana Exporters** | **Ansible** | Easy to deploy standard RPM/DEB packages and configure systemd units. |
-| **NVIDIA Driver & MOFED Installation** | **BCM** (in Image) | Kernel module compilation and package management require live OS execution, best done inside the `cm-chroot-image`. |
-| **Slurm Cluster Management** | **BCM** | BCM natively generates `/etc/slurm/slurm.conf` and synchronizes Munge keys automatically. |
-| **Custom Day-2 User Environment Setup** | **Ansible** | Creating specific Anaconda environments, NFS user mounts, and SSH keys. |
+| OS install, disk layout, image sync | BCM | The node-installer and install modes own this |
+| Kernel selection and ramdisk | BCM | `kernelversion`, `createramdisk`, `kernelparameters` |
+| Roles and workload manager objects | BCM | `wlm`, `slurmclient`, overlays |
+| Power control and head-node failover | BCM | Needs `powercontrol` and the HA stack |
+| Image contents (packages, driver, OFED) | Either, but pick one | Build into the image with `cm-chroot-sw-img`, or install at run time with Ansible. Mixing the two produces drift |
+| Site policy files, identity integration, extra agents | Ansible | Template-driven and reviewable in Git |
+
+BCM ships an Ansible collection, which the manual documents: modules such as `brightcomputing.bcm110.category` (with `cloneFrom`) let a playbook create and modify BCM objects (§14.10, p. 781). That makes BCM objects themselves manageable as code. The rule that holds up in production: **let BCM own what a node boots into, and let Ansible own what you want to review in a pull request.** Whichever you choose for a given file, choose one.
 
 ---
 
-## 12. Deep Dive: The Bare-Metal Boot Sequence (Trace Analysis)
+## 11. Troubleshooting scenarios
 
-To troubleshoot nodes that "hang on boot", a Senior Solutions Architect must understand the exact protocol flow of a BCM provisioned node.
+### Scenario 1: Mass boot failures during bring-up
 
-1. **Power On (BMC/Redfish):** BCM head node sends an IPMI `chassis power on` or Redfish POST request to the DGX BMC.
-2. **UEFI Network Boot:** The DGX node initializes the ConnectX-7 NIC and broadcasts a DHCPDISCOVER.
-3. **DHCP Offer (Head Node):** `dhcpd` on the head node responds with an IP address (from the Category range) and the "next-server" IP (the head node).
-4. **TFTP / HTTPBoot:** The node downloads the UEFI bootloader (`grubx64.efi`) and the GRUB menu configuration file via TFTP.
-5. **GRUB Execution:** The node reads the BCM-generated GRUB config, which instructs it to download the Linux kernel (`vmlinuz`) and the initial RAM disk (`initramfs`) via fast HTTP.
-6. **Kernel Initialization:** The kernel boots, loads essential modules (e.g., ext4, network drivers), and executes the BCM provisioning script inside the initramfs.
-7. **Image Transfer (SYNCLOCAL mode):** The initramfs script establishes a connection to the CMDaemon on the head node, verifies disk partitioning, and initiates an `rsync` or `BitTorrent` pull of the golden image into the local NVMe drive.
-8. **Pivot Root:** Once the image is copied, the initramfs executes a `pivot_root` or `chroot` into the newly populated NVMe disk.
-9. **Systemd Boot:** Standard Linux boot continues (systemd starts `sshd`, `slurmd`, `containerd`).
-10. **CMDaemon Registration:** The local `cmd` process starts, connects to the head node on port 8081, and reports `Node status: UP`.
+**Symptom.** Powering on hundreds of nodes produces boot failures that move around between attempts.
 
-*Example Syslog Snippet (Head Node) during Boot:*
-```text
-Sep 17 08:12:04 headnode01 dhcpd[1234]: DHCPDISCOVER from 00:11:22:33:44:55 via eth1
-Sep 17 08:12:04 headnode01 dhcpd[1234]: DHCPOFFER on 10.141.1.10 to 00:11:22:33:44:55 via eth1
-Sep 17 08:12:06 headnode01 in.tftpd[1235]: RRQ from 10.141.1.10 filename grubx64.efi
-Sep 17 08:12:15 headnode01 httpd[1236]: "GET /image/rocky9-dgx-v1.0/boot/vmlinuz HTTP/1.1" 200
-Sep 17 08:14:30 headnode01 cmd[999]: Node dgx-010 provisioning complete (SYNCLOCAL).
-Sep 17 08:15:12 headnode01 cmd[999]: Node dgx-010 state changed from PROVISIONING to UP.
-```
+**Reasoning.** The manual describes exactly this: "random different regular nodes are unable to boot, typically due to network effects" when DHCP and TFTP are overwhelmed (§5.1.7, p. 244). Distinguish boot load from provisioning load.
 
----
+**Steps.**
+1. Confirm boot failures happen at the PXE stage (DHCP/TFTP), not during image sync.
+2. Assign the `boot` role to one regular node per rack subnet to take DHCP and TFTP load.
+3. Separately, check provisioning capacity: `softwareimage; provisioningstatus` (slots, pending requests), and the cluster-wide `MaxNumberOfProvisioningThreads` in `/etc/cmd.conf` ([Deep Dive 1](./13-senior-deep-dive-1-bcm-at-fleet-scale.md)).
+4. Use `nextinstallmode nosync` for planned mass reboots where the disk contents should be kept, to avoid every node pulling image data.
 
-## 13. Advanced Slurm Integration: Epilog Storage Cleanup
+### Scenario 2: A node installs the wrong thing, or repeatedly re-images
 
-When running stateful workloads (where jobs write massive checkpoint files to local NVMe scratch space `/tmp` or `/scratch`), you must guarantee that one job's data is wiped before the next job starts. If you rely on users to clean up, the NVMe drives will fill up, and subsequent jobs will crash with `No space left on device`.
+**Symptom.** A node goes through a `FULL` install on every reboot.
 
-BCM allows you to configure Slurm Prolog and Epilog scripts directly via `cmsh`.
+**Reasoning.** `AUTO` falls back to `FULL` when the on-disk partition layout does not match the stored configuration. `/var/log/node-installer` records the decision, and `/cm/node-installer/scripts/disks` explains the exit code (p. 277).
 
-### Slurm Epilog Script Generation via BCM
+**Steps.** Read the node-installer log for the installer decision and the failing check. Compare the layout the node reports with the layout stored for its category. If a burn session destroyed the layout, a `FULL` sync on the next reboot is expected behavior (p. 277).
 
-```bash
-$ cmsh
-[headnode]% wlm
-[headnode->wlm]% slurm
-[headnode->wlm[slurm]]% set epilogscript /cm/shared/apps/slurm/scripts/epilog.sh
-[headnode->wlm[slurm]]% commit
-```
+### Scenario 3: A GPU that keeps failing health checks and returning
 
-*The Epilog Script (`/cm/shared/apps/slurm/scripts/epilog.sh`):*
-```bash
-#!/bin/bash
-# Slurm Epilog Script: Executes as root on the compute node AFTER the job completes.
+**Symptom.** A node is drained for a GPU memory error, passes after a reboot, and drains again later.
 
-JOB_ID=$SLURM_JOB_ID
-JOB_USER=$SLURM_JOB_USER
-
-# 1. Terminate any rogue processes left by the user (PyTorch DDP zombie processes)
-echo "Killing rogue processes for user $JOB_USER on job $JOB_ID"
-pkill -u $JOB_USER -f python
-
-# 2. Clean the local NVMe scratch space
-SCRATCH_DIR="/scratch/slurm_job_$JOB_ID"
-if [ -d "$SCRATCH_DIR" ]; then
-    echo "Wiping local NVMe scratch directory: $SCRATCH_DIR"
-    rm -rf "$SCRATCH_DIR"
-fi
-
-# 3. Reset GPU state (Clear memory and reset application clocks)
-nvidia-smi --gpu-reset -i 0,1,2,3,4,5,6,7
-
-exit 0
-```
+**Reasoning.** This is a remediation-design question, not a BCM bug. A reboot that returns suspect hardware to service hides a hardware fault. Use the tiered approach in [Deep Dive 1](./13-senior-deep-dive-1-bcm-at-fleet-scale.md): drain, collect evidence (`nvidia-bug-report.sh`, the Xid catalog, DCGM diagnostics), and escalate. Do not automate "reboot and resume" for hardware-class errors. Use `Drain` with notification, and keep the node out of rotation until hardware service.
 
 ---
 
-## 14. Identity Management: Active Directory and LDAP Integration
+## Key takeaways
 
-Enterprise AI Clusters require strict Role-Based Access Control (RBAC). You cannot manage local `/etc/passwd` files across 1,000 nodes. BCM natively integrates with Microsoft Active Directory and OpenLDAP.
-
-When LDAP is configured in BCM, the CMDaemon automatically configures `sssd` (System Security Services Daemon) inside the golden images and dynamically injects the necessary TLS certificates and bind credentials.
-
-### Configuring LDAP via `cmsh`
-
-```bash
-$ cmsh
-[headnode]% ldap
-[headnode->ldap]% set basedn "dc=enterprise,dc=com"
-[headnode->ldap]% set server "ldaps://ad.enterprise.com"
-[headnode->ldap]% set binddn "cn=bcm-svc,ou=ServiceAccounts,dc=enterprise,dc=com"
-[headnode->ldap]% set bindpassword "SuperSecretBindPass!"
-[headnode->ldap]% set enabletls yes
-[headnode->ldap]% set tlscacertificate /cm/shared/certs/enterprise_ca.pem
-[headnode->ldap]% commit
-```
-
-Once committed, BCM synchronizes this configuration. Any user logging into a DGX node via SSH (or authenticating to Slurm) is validated against the central Active Directory.
+1. **Know your objects.** Category (hardware class), role (capability), overlay (grouped roles with priority), image (root file system). Roles at node level win over category-level roles (priorities 750 over 250).
+2. **Booleans OR, values inherit.** That one rule explains many "why won't this node follow its category" cases.
+3. **The node-installer has 13 steps and five install modes.** `AUTO` is safe, `FULL` wipes, `NOSYNC` is not data protection, and `newnodeinstallmode` defaults to `FULL`.
+4. **Use `cm-chroot-sw-img`, lock the image, set `kernelversion`, and regenerate the ramdisk.** Skipping any of the last three is how nodes fail to boot after a "successful" update.
+5. **Slurm GPU configuration is documented.** `genericresources` for the count, `gpuautodetect` for the details, `wlm` mode for scope.
+6. **Nodes move between Slurm and Kubernetes through Auto Scaler.** Not through a category rename and a hope.
+7. **Choose one owner per file.** BCM or Ansible, never both.
 
 ---
 
-## 15. The InfiniBand Subnet Manager (OpenSM vs. UFM)
+## Sources
 
-An AI cluster is useless without its network fabric. For NVIDIA HGX/DGX systems, the compute fabric is typically NVIDIA Quantum InfiniBand (NDR 400Gbps or XDR 800Gbps). 
+- NVIDIA Base Command Manager 11 Administrator Manual: [admin-manual.pdf](https://docs.nvidia.com/base-command-manager/manuals/11/admin-manual.pdf). Sections cited: §2.1 (concepts), §2.3 to §2.4 (authentication, Base View), §2.5 (cmsh), §3.7 and §4 (BMC and power), §3.13 (disk layouts), §3.20 (configuration without CMDaemon), §5 (node provisioning), §7.5 (workload managers), §8 (Auto Scaler), §9 (software image management), §10 (monitoring), §14.10 (Ansible), Appendix C (cmd.conf).
+- NVIDIA Base Command Manager 11 Containerization Manual, chapter 4 Kubernetes: [containerization-manual.pdf](https://docs.nvidia.com/base-command-manager/manuals/11/containerization-manual.pdf)
+- NVIDIA DOCA documentation, host configuration (`iommu=pt`): [networking-docs.nvidia.com/doca](https://networking-docs.nvidia.com/doca/archive/3-5-0)
 
-InfiniBand is not Ethernet. It requires a central **Subnet Manager (SM)** to discover the topology, assign Local Identifiers (LIDs), and program routing tables across all switches.
-
-*   **Small Clusters (< 200 nodes):** You run `opensm` (Open Subnet Manager) on the BCM head node.
-*   **Large Clusters (> 200 nodes):** You disable OpenSM on the head node and use **NVIDIA UFM** (Unified Fabric Manager) running on dedicated appliances.
-
-### Configuring OpenSM in BCM
-
-If using BCM as the Subnet Manager, you assign the OpenSM role to the head nodes:
-
-```bash
-$ cmsh
-[headnode]% category use dgx-h100-prod
-# Ensure the IB network is configured
-[headnode->category[dgx-h100-prod]]% set roles
-# Add the SubnetManager role to the head node category (not the compute node category)
-[headnode->category[dgx-h100-prod]]% ..
-[headnode]% category use headnodes
-[headnode->category[headnodes]]% append roles SubnetManager
-[headnode->category[headnodes]]% commit
-```
-
-BCM will automatically generate `/etc/rdma/opensm.conf`, ensuring that if `HN-01` fails, `HN-02`'s OpenSM takes over the InfiniBand fabric without routing disruption (via SM standby handoff).
-
----
-
-## 16. Extensive Troubleshooting: BCM Logs and Daemons
-
-When an AI factory encounters a critical fault, you must know exactly which logs to grep.
-
-| Component | Log Path | Typical Error Indicators |
-|---|---|---|
-| **CMDaemon (Head Node)** | `/var/log/cmd.log` | `Failed to assign IP`, `Corosync split-brain`, `Image sync timeout`. |
-| **CMDaemon (Compute)** | `/var/log/cmd.log` (on node) | `Cannot reach headnode:8081`, `Health check failed`. |
-| **Slurm Controller** | `/var/log/slurm/slurmctld.log` | `Node dgx-014 not responding`, `Munge decode failed`. |
-| **Slurm Worker** | `/var/log/slurm/slurmd.log` | `OOM Killer invoked`, `GPU not accessible`. |
-| **Pacemaker/Corosync** | `/var/log/cluster/corosync.log` | `TOTEM token lost`, `STONITH fencing triggered`. |
-| **Provisioning TFTP** | `/var/log/messages` (filter `in.tftpd`) | `File not found`, `Timeout retrieving grubx64.efi`. |
-
-### Grepping the CMDaemon Log for Provisioning Failures
-
-If a node fails to boot, the first place to look is the head node `cmd.log`:
-
-```bash
-$ grep "dgx-045" /var/log/cmd.log | grep -i error
-
-# Output:
-2026-09-17 10:14:22 ERROR: Node dgx-045 MAC 00:11:22:AA:BB:CC requested DHCP but does not exist in BCM device database.
-```
-*Resolution:* The hardware team replaced a faulty NIC, changing the MAC address, but did not update BCM. Update the MAC via `cmsh`:
-```bash
-$ cmsh -c "device use dgx-045; set mac 00:11:22:AA:BB:CC; commit"
-```
-
----
-
-## 17. Multi-Tenant AI Factory: Kubernetes & Run:ai Setup via CLI
-
-In a multi-tenant environment, raw Slurm is often replaced by Kubernetes and Run:ai. BCM natively supports deploying highly available Kubernetes clusters.
-
-The `cm-kubernetes-setup` utility automates the deployment of `etcd`, `kube-apiserver`, `kubelet`, and CNI (Calico/Cilium) plugins.
-
-### Transcript: Bootstrapping Kubernetes via BCM
-
-```bash
-# Launch the interactive Kubernetes setup utility
-$ cm-kubernetes-setup
-
-1. Select Kubernetes Version: v1.30.0
-2. Select Container Runtime: containerd
-3. Select Master Nodes: headnode01, headnode02
-4. Select Worker Node Category: k8s-gpu-pool
-5. Select CNI Plugin: Calico
-6. Install NVIDIA GPU Operator? [Y/n]: Y
-7. Configure Run:ai integration? [Y/n]: Y
-   -> Enter Run:ai Tenant URL: https://enterprise.run.ai
-   -> Enter Run:ai Client ID: xxx-yyy-zzz
-
-# Executing setup...
-[INFO] Generating Kubernetes PKI certificates...
-[INFO] Pushing certificates to /cm/shared/apps/kubernetes/pki
-[INFO] Updating BCM Category 'k8s-gpu-pool' with Kubernetes roles.
-[INFO] Installing NVIDIA GPU Operator Helm chart...
-[INFO] Applying Run:ai Cluster Daemon daemonset...
-[SUCCESS] Kubernetes cluster initialized successfully.
-```
-
-Behind the scenes, BCM automatically updates the golden image for `k8s-gpu-pool` to include `kubelet` and `containerd`, and it modifies the systemd unit files so that upon boot, the nodes automatically join the Kubernetes cluster and register their GPUs via the NVIDIA device plugin.
-
----
-
-## 18. Custom DCGM Exporter Configuration for Prometheus
-
-BCM comes with built-in telemetry, but modern AI factories push all metrics to a central Prometheus/Grafana stack. You must configure the `dcgm-exporter` on all nodes to expose GPU telemetry (power, temperature, NVLink bandwidth, XID errors).
-
-### Step 1: Install DCGM in the Image
-```bash
-$ cm-chroot-image /cm/images/rocky9-dgx-v1.0
-(chroot) [root@headnode01 /]# dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/cuda-rhel9.repo
-(chroot) [root@headnode01 /]# dnf install -y datacenter-gpu-manager dcgm-exporter
-(chroot) [root@headnode01 /]# systemctl enable dcgm-exporter
-(chroot) [root@headnode01 /]# exit
-```
-
-### Step 2: Configure Prometheus Scrape Targets via BCM
-You don't need to manually configure Prometheus `scrape_configs`. BCM's monitoring agent automatically aggregates the metrics and exposes them at the head node level.
-
-```bash
-$ cmsh
-[headnode]% monitoring
-[headnode->monitoring]% setup
-# Follow prompts to enable Prometheus export on port 9090
-```
-
----
-
-## 19. Summary and Revision Material
-
-### 19.1 Core Vocabulary
-*   **CMDaemon**: The cluster management daemon, running on both head nodes and compute nodes, responsible for state execution and telemetry.
-*   **SYNCLOCAL**: BCM's stateful provisioning mode where the image is copied to the local NVMe drive.
-*   **Category**: A logical grouping of nodes that share the same software image, kernel parameters, and workload roles.
-*   **STONITH**: "Shoot The Other Node In The Head" - the hardware fencing mechanism used to prevent Pacemaker split-brain scenarios.
-
-### 19.2 Final Architecture Checklist
-Before handing over a 1,000-node BCM cluster to production data scientists, an SA must verify:
-- [ ] Active/Passive failover tested by physically unplugging the primary head node's power cords.
-- [ ] Split-brain fencing verified by disconnecting the Corosync heartbeat network.
-- [ ] BitTorrent provisioning tested (provisioning time should remain flat regardless of node count).
-- [ ] Custom BCM Health Checks configured for NVLink degradation and ECC double-bit errors.
-- [ ] Slurm auto-generated `gres.conf` validated against `nvidia-smi topo -m`.
-- [ ] Out-of-Band BMC credentials securely stored and tested via BCM power control commands.
-
-
----
-
-## 20. Extending BCM: The REST API and Python Bindings
-
-For mature DevOps organizations, interacting exclusively via the `cmsh` CLI is insufficient. Automation pipelines, ServiceNow integrations, and custom dashboards require programmatic access.
-
-BCM exposes a full JSON REST API (running by default on `https://<headnode-vip>:8081/json`). Alternatively, NVIDIA provides official Python bindings (`cm-python3`).
-
-### 20.1 Automating Node Draining via Python (ServiceNow Integration)
-
-Imagine an internal ITIL requirement where any node scheduled for physical maintenance in ServiceNow must be automatically drained in BCM and Slurm.
-
-*Example Python Script (`bcm_drain_node.py`):*
-```python
-#!/usr/bin/env python3
-import sys
-import argparse
-# cm-python3 is automatically installed in the BCM golden image
-from cm.api import API
-from cm.exception import CMException
-
-def drain_node(node_name, reason):
-    # Connect to the local CMDaemon
-    api = API()
-    try:
-        # Retrieve the node object from BCM's internal database
-        node = api.get_device(node_name)
-        if not node:
-            print(f"Error: Node {node_name} not found in BCM database.")
-            sys.exit(1)
-            
-        print(f"Current status of {node_name}: {node.status}")
-        
-        # Set the node to DRAIN
-        node.status = 'DRAIN'
-        node.status_reason = reason
-        
-        # Commit the transaction to the MariaDB backend
-        api.commit()
-        print(f"Successfully set {node_name} to DRAIN. Slurm will automatically be updated by CMDaemon.")
-        
-    except CMException as e:
-        print(f"BCM API Exception occurred: {str(e)}")
-        sys.exit(1)
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Drain a DGX node via BCM Python API")
-    parser.add_argument("--node", required=True, help="Hostname of the DGX node (e.g., dgx-128)")
-    parser.add_argument("--ticket", required=True, help="ServiceNow Ticket Number (e.g., INC0012345)")
-    args = parser.parse_args()
-    
-    drain_node(args.node, f"Maintenance Window: {args.ticket}")
-```
-
-### 20.2 Extracting Telemetry via the REST API
-
-Monitoring systems can dynamically query BCM for cluster state rather than statically hardcoding IP addresses.
-
-*Example `curl` query to extract all node IP addresses in the `dgx-h100-prod` category:*
-```bash
-# Obtain a session token
-TOKEN=$(curl -s -k -X POST https://headnode:8081/json \
-  -d '{"service":"User","call":"login","args":["admin","SuperSecretPass!"]}' \
-  | jq -r '.token')
-
-# Query devices by category
-curl -s -k -X POST https://headnode:8081/json \
-  -H "Cookie: auth=$TOKEN" \
-  -d '{"service":"Device","call":"getDevices","args":[{"category":"dgx-h100-prod"}]}' \
-  | jq '.[] | {name: .hostname, ip: .ip}'
-```
-
----
-
-## 21. More Senior SRE Interview Scenarios
-
-### Scenario 4: The Silent Slurm Partitioning Fault
-
-**Interviewer:** *"After a network switch reboot, a subset of 32 nodes (dgx-001 to dgx-032) show up as 'UP' and healthy in BCM (cmsh), but Slurm shows them as 'DOWN' and will not schedule jobs. Ping works. SSH works. What is the root cause, and how do you trace it?"*
-
-**Candidate Answer:**
-> "This is a classic 'Split-Brain Orchestrator' problem. BCM thinks the nodes are healthy because the CMDaemon heartbeat on port 8081 is functioning. Slurm thinks they are down because `slurmctld` cannot communicate with `slurmd` on port 6818.
-> 
-> **Root Cause Analysis Steps:**
-> 1. **Check Munge Authentication:** Slurm relies on Munge for cryptographic authentication. If the head node and the 32 compute nodes have drift in their `/etc/munge/munge.key`, or if time synchronization (NTP/Chrony) drifted by more than 5 minutes during the network outage, Munge will silently drop the packets. I would run `munge -n | ssh dgx-001 unmunge` to verify.
-> 2. **Check MTU Mismatch:** A switch reboot might have reverted a port channel to MTU 1500, while the nodes and head node are configured for MTU 9000 (Jumbo Frames). Small ping packets pass, but large Slurm RPC payloads fragment and drop. I would test with `ping -M do -s 8972 dgx-001`.
-> 3. **Check Firewall/iptables:** Ensure no rogue firewall rules were applied post-reboot blocking TCP 6818.
->
-> **The BCM Fix:** If Munge keys are out of sync, I don't manually copy them. I use BCM to force a resync:
-> ```bash
-> $ cmsh -c "device use dgx-001..dgx-032; resync munge; commit"
-> ```"
-
----
-
-### Scenario 5: Managing Large-Scale Storage Mounts (Lustre/VAST)
-
-**Interviewer:** *"Our AI researchers complain that when a node reboots, it takes 15 minutes before they can access the `/datasets` Lustre mount, stalling their Slurm jobs. How do you configure BCM to handle parallel, high-availability storage mounts?"*
-
-**Candidate Answer:**
-> "If `/datasets` is statically defined in `/etc/fstab` inside the BCM golden image, the node boot sequence blocks synchronously waiting for the network and the Lustre MDS to respond. At scale, 1,000 nodes simultaneously hitting the storage metadata server during a cluster reboot causes massive timeouts.
-> 
-> **The Architecture Solution:**
-> 1. **Remove static fstab entries:** I would remove the mount from the golden image's `/etc/fstab`.
-> 2. **Implement autofs (Automounter):** I configure `autofs` inside the BCM golden image. The filesystem is only mounted *just-in-time* when a user or a Slurm job accesses `/datasets`. This completely eliminates boot-time mount storms.
-> 3. **Implement BCM FSMount Objects:** Alternatively, BCM has a declarative `fsmount` object. I would define the Lustre mount centrally:
-> ```bash
-> $ cmsh
-> [headnode]% fsmount
-> [headnode->fsmount]% add /datasets
-> [headnode->fsmount[/datasets]]% set device 10.142.0.50@o2ib:/lfs
-> [headnode->fsmount[/datasets]]% set filesystem lustre
-> [headnode->fsmount[/datasets]]% set mountoptions _netdev,localflock
-> [headnode->fsmount[/datasets]]% commit
-> ```
-> BCM automatically distributes this mount configuration to the compute nodes and handles the `systemd` mount dependencies correctly against the `network-online.target`."
-
----
-
-## 22. End of Chapter Summary
-
-Mastering NVIDIA Base Command Manager is what separates a standard Linux systems administrator from an **NVIDIA AI Factory Platform Engineer**. By fully embracing BCM's declarative object model, treating software images as immutable artifacts, and leveraging advanced deployment techniques like BitTorrent provisioning and dynamic Kubernetes reallocation, you can manage 10,000 GPUs with the same operational overhead as 10 GPUs.
-
-Always rely on BCM as the ultimate source of truth for the physical infrastructure layer, and ensure strict boundaries between Day-0 BCM provisioning and Day-2 Ansible configuration management.
+**Not verified in this rewrite.** Disk-layout specifics (diskless versus semi-diskless trade-offs), the exact `cmsh` syntax for interface and network configuration on your release, and Run:ai integration with BCM. Check the matching manual sections before using those in a design.

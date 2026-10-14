@@ -1,857 +1,271 @@
 ---
-title: "Senior Deep Dive 2 — Slurm HA, Database Clustering, and Accounting Internals"
+title: "Senior Deep Dive 2 — Slurm HA, Accounting Database, and Fairshare"
 slug: "senior-deep-dive-2-slurm-ha-and-accounting-internals"
 sidebar_position: 14
-description: "Advanced internal mechanics of Slurm high-availability: POSIX StateSaveLocation serialization, MariaDB Galera database replication, split-brain fencing, and decayed fairshare mathematics."
-source_document: "Authored directly for the JR2018680 gap-coverage volume — no DOCX source."
+description: "How Slurm's controller high availability, slurmdbd accounting, and Fair Tree fairshare actually work, with the SchedMD-documented settings, failure behavior, and recovery options, plus how BCM wires Slurm HA."
+source_document: "Rewritten against the SchedMD Slurm documentation (slurm.conf, slurmctld, slurmdbd, slurmdbd.conf, Accounting, Multifactor Priority, Fair Tree, Classic Fair Share, TRES, sacctmgr, sdiag, Upgrade Guide) and the BCM 11 Administrator Manual (Slurm HA)."
 ---
 
-# Senior Deep Dive 2 — Slurm HA, Database Clustering, and Accounting Internals
+# Senior Deep Dive 2 — Slurm HA, Accounting Database, and Fairshare
 
-Operating Slurm at Tier-1 supercomputer scale (1,000+ DGX nodes, 8,000+ GPUs) requires deep mastery of the internal serialization engines, remote procedure call (RPC) state machines, and relational database backends that power the scheduler. While high-level documentation suggests that declaring `SlurmctldHost=primary,backup` guarantees high availability, the reality in production is fraught with **POSIX locking races, state-desynchronization splits, MariaDB deadlock cascades, and accounting rollup staleness**.
+An earlier draft of this chapter taught that Slurm's native failover is unsafe and should be replaced by Pacemaker and Corosync, that the accounting database should be a MariaDB Galera cluster behind ProxySQL, and that `SIGUSR2` dumps controller thread state. None of that is in the SchedMD documentation, and the `SIGUSR2` claim is wrong. It also contained invented `slurm.conf` and `slurmdbd.conf` parameters (for example `RollupStats`) and a padded appendix of placeholder comments. This rewrite is built from the SchedMD documents and marks design judgment as such.
 
-This comprehensive masterclass covers the internal mechanics of state preservation, split-brain fencing, database replication topologies, and the decayed fairshare mathematics required for an **NVIDIA Senior Solutions Architect**.
+The three questions that matter in production:
 
-**Learning outcome:** Architect, configure, and troubleshoot highly available Slurm control planes and distributed databases. You will understand how the `slurmctld` daemon serializes memory to disk, configure Corosync and Pacemaker for split-brain STONITH fencing, tune MariaDB Galera and ProxySQL for high-throughput `slurmdbd` writes, query raw TRES accounting records directly using SQL, and calibrate complex Fairshare decay algorithms to enforce multi-tenant equity across AI SuperPODs.
-
-**Prerequisites:** Deep understanding of Linux system administration, POSIX filesystems, distributed databases (SQL, Galera, InnoDB), network high availability (VIPs, Pacemaker), and core Slurm architecture.
-
-**Difficulty:** Advanced to Expert.
-
-**Estimated reading time:** 180 minutes plus hands-on implementation practice.
+1. If the controller dies, how does the cluster continue, and what can go wrong?
+2. What happens to scheduling when the accounting database is slow or down?
+3. How does fairshare turn history into queue order, and how do you tune it for AI workloads?
 
 ---
 
-## 1. Architectural Recap: Slurm in the AI Factory
+## 1. The three planes and what each one stores
 
-Before diving into internal serialization and database internals, we must understand how the components of Slurm interact at a foundational level within a large-scale NVIDIA AI Factory.
+| Plane | Daemon | State it owns | Where it lives |
+|---|---|---|---|
+| Scheduling | `slurmctld` | Jobs, nodes, partitions, reservations | In memory, saved to `StateSaveLocation` |
+| Execution | `slurmd` on each node | Running steps, local enforcement | Node-local spool |
+| Accounting | `slurmdbd` + SQL database | Associations, QOS, usage history, job records | SQL database |
 
-An enterprise Slurm environment is divided into three distinct operational domains:
-
-1.  **The Scheduling & State Domain (Control Plane):** Composed of one or more `slurmctld` processes running on dedicated management nodes. The controller maintains a holistic graph of jobs, partitions, and hardware. It relies on a highly available POSIX-compliant shared filesystem (`StateSaveLocation`) to persist its memory state.
-2.  **The Execution Domain (Compute Fleet):** Composed of thousands of compute nodes running the `slurmd` daemon. These nodes execute jobs, monitor GPU health (via DCGM), and enforce cgroup boundaries. They communicate their status upstream to the controller.
-3.  **The Accounting & Historical Domain (Database Plane):** Composed of the `slurmdbd` (Slurm Database Daemon) proxy and a backend relational database (typically MariaDB). This domain enforces QoS limits, validates user associations, records historical job statistics, and manages TRES (Trackable RESources) billing.
-
-```mermaid
-flowchart TD
-    subgraph Compute_Fleet ["Execution Domain (Compute Nodes)"]
-        N1["slurmd (DGX-01)"]
-        N2["slurmd (DGX-02)"]
-        N3["slurmd (DGX-0N)"]
-    end
-
-    subgraph Control_Plane ["Scheduling & State Domain (slurmctld)"]
-        VIP(("Virtual IP (HA)"))
-        CTL1["Primary slurmctld"]
-        CTL2["Backup slurmctld (Hot Standby)"]
-        STATE_VOL[("StateSaveLocation (NFS v4.1 / NVMe-oF)")]
-    end
-
-    subgraph DB_Plane ["Accounting Domain (slurmdbd & DB)"]
-        DBD1["Primary slurmdbd"]
-        DBD2["Backup slurmdbd"]
-        PROXY["ProxySQL Load Balancer"]
-        DB_GALERA[("MariaDB Galera Cluster (Sync)")]
-    end
-
-    %% Connections
-    N1 <--> VIP
-    N2 <--> VIP
-    N3 <--> VIP
-
-    VIP --> CTL1
-    VIP -.-> CTL2
-
-    CTL1 <--> STATE_VOL
-    CTL2 -.-> STATE_VOL
-
-    CTL1 -- "RPC Port 6819" --- DBD1
-    CTL2 -.->|RPC Port 6819| DBD1
-
-    DBD1 --> PROXY
-    DBD2 -.-> PROXY
-
-    PROXY --> DB_GALERA
-```
-
-### The Inherent Tension of State
-
-The critical challenge in this architecture is that **state is spread across multiple formats and systems.** 
-- The live cluster topology and job priority queue live in the memory of the active `slurmctld` and are serialized to binary files in `StateSaveLocation`.
-- The historical usage (which dictates priority via Fairshare) and user permission limits live in the MariaDB database.
-
-If the active controller crashes, the backup controller must accurately read the binary state files *and* successfully connect to the database to resume operations without dropping jobs, executing race conditions, or miscalculating GPU allocations.
+Fairshare is the coupling between planes: `slurmctld` needs the associations and the usage history from the accounting plane to compute priority (Multifactor Priority documentation: computing the fair-share factor "requires the installation and operation of the Slurm Accounting Database").
 
 ---
 
-## 2. Internal State Serialization and the `StateSaveLocation` Contract
+## 2. Controller high availability: what Slurm documents
 
-`slurmctld` is fundamentally an in-memory graph processor. To achieve sub-millisecond scheduling decisions across hundreds of thousands of cores and tens of thousands of queued tasks, it does not query a relational database on every scheduling cycle. Instead, the entire cluster topology, pending queue, running job steps, node hardware states, and partition matrices reside directly in the controller's virtual address space.
+### 2.1 The native mechanism
 
-```mermaid
-flowchart TD
-    subgraph Controller_Memory["slurmctld In-Memory State"]
-        JOB_GRAPH["Job Priority Queue & Allocation Graph"]
-        NODE_MAP["Node Hardware State & GRES Bitmap"]
-        ASSOC_CACHE["In-Memory Association & QoS Cache"]
-    end
+Slurm's own HA is configured in `slurm.conf`:
 
-    subgraph Serialization["State Serialization Engine (Atomic Write)"]
-        DUMP["Periodic Snapshot / Event Trigger"]
-        TMP_FILE["Write to temporary file: job_state.new"]
-        ATOMIC_RENAME["POSIX atomic rename(): rename(job_state.new, job_state)"]
-    end
-
-    subgraph SharedStorage["StateSaveLocation (NFS v4.1 / NVMe-oF)"]
-        JOB_ST[("job_state.new -> job_state.old -> job_state")]
-        NODE_ST[("node_state")]
-        PART_ST[("part_state")]
-        RESV_ST[("resv_state")]
-        ASSOC_ST[("assoc_mgr_state")]
-    end
-
-    JOB_GRAPH --> DUMP
-    NODE_MAP --> DUMP
-    ASSOC_CACHE --> DUMP
-    DUMP --> TMP_FILE
-    TMP_FILE --> ATOMIC_RENAME
-    ATOMIC_RENAME --> SharedStorage
-```
-
-### 2.1 The Atomic Serialization Algorithm
-
-Every 2 to 5 seconds (governed by `SlurmctldTimeout`, `StateSaveLocation` changes, and internal transaction triggers), `slurmctld` flushes its memory structures to disk. This is not a partial delta update; it is a complete serialization of the internal memory structures into binary formats.
-
-The algorithm relies on POSIX guarantees to prevent corruption during power loss or system crashes:
-
-1. **Snapshot Generation:** The controller serializes the job table into a temporary file in memory.
-2. **Temporary File Write:** The controller writes the serialized data to `${StateSaveLocation}/job_state.new`.
-3. **Data Sync:** It executes a POSIX `fsync()` (or equivalent sync command) to force disk blocks to non-volatile shared storage.
-4. **Backup Old State:** It renames the current `job_state` to `job_state.old` (providing a rollback mechanism).
-5. **Atomic Rename:** It performs a POSIX atomic rename: `rename("job_state.new", "job_state")`. Because POSIX guarantees `rename()` is atomic, a reading process (like a backup controller booting up) will either see the old state or the new state, but never a half-written file.
-
-### 2.2 Deep Dive: Stracing the Serialization Process
-
-To truly understand this, a Senior Architect must be able to trace the system calls. By attaching `strace` to a running `slurmctld`, we can observe the exact POSIX mechanics.
-
-```bash
-# Find the PID of the slurmctld daemon
-$ pgrep slurmctld
-41590
-
-# Attach strace, filtering for file operations targeting the StateSaveLocation
-$ strace -p 41590 -e trace=openat,write,rename,fsync,close -f 2>&1 | grep "job_state"
-```
-
-*Expected Output (Simulated):*
-```text
-[pid 41591] openat(AT_FDCWD, "/var/spool/slurm/state/job_state.new", O_WRONLY|O_CREAT|O_TRUNC, 0600) = 14
-[pid 41591] write(14, "\0\0\0\24\0\0\0\1\0\0\0\253\0\0\0\1\0\0\0...", 8192) = 8192
-[pid 41591] fsync(14)                               = 0
-[pid 41591] close(14)                               = 0
-[pid 41591] rename("/var/spool/slurm/state/job_state", "/var/spool/slurm/state/job_state.old") = 0
-[pid 41591] rename("/var/spool/slurm/state/job_state.new", "/var/spool/slurm/state/job_state") = 0
-```
-
-This output definitively proves the atomic rotation. If the machine loses power immediately after `fsync(14)`, the file `job_state.new` exists, but `job_state` remains untouched and valid.
-
-### 2.3 Failure Mode: Why NFS Cache Consistency Can Corrupt Failover
-
-If `StateSaveLocation` is mounted over standard NFS without strict cache synchronization (`sync`, `noac`, `lookupcache=none`), a catastrophic disaster occurs during a rapid failover:
-
-1. **Time 0:** Primary controller updates `job_state` via NFS and immediately crashes (e.g., kernel panic).
-2. **Time 1:** The primary controller's Linux page cache may not have fully flushed the `fsync` across the network, OR the backup controller's NFS client cache is holding a stale read view of the directory from 30 seconds ago.
-3. **Time 2:** Backup controller promotes to primary and reads `job_state` from its local NFS client cache, which represents the cluster state from 30 seconds ago.
-4. **Time 3:** The backup controller allocates nodes to a new job—nodes that were *actually* assigned to a running 512-GPU training job just before the primary crashed.
-5. **Time 4:** Two distinct training jobs attempt to use the same physical GPUs simultaneously. They collide in NVIDIA NVLink and CUDA initialization.
-6. **Time 5:** Both jobs crash immediately with fatal `NCCL WARN Bus error` or Xid errors.
-
-**Production Architectural Rule:** `StateSaveLocation` must be hosted on high-performance enterprise shared storage using **NFS v4.1/v4.2 with `sync` and `hard,intr` mount options**, or an active/passive block storage device replicated synchronously via **DRBD dual-primary protocol C**.
-
-**Recommended NFS Mount Options for StateSaveLocation:**
-```fstab
-# /etc/fstab on both controller nodes
-nfs-appliance.internal.lan:/export/slurm_state  /var/spool/slurm/state  nfs4  rw,sync,hard,intr,noac,lookupcache=none,timeo=14,rsize=1048576,wsize=1048576  0  0
-```
-*Note: `noac` (no attribute cache) and `sync` enforce synchronous writes to the NFS server and prevent local caching of file attributes, ensuring the backup node instantly sees changes made by the primary. This incurs a heavy IO penalty, which is why the underlying storage must be flash-backed.*
-
----
-
-## 3. Split-Brain Dynamics and Fencing (STONITH)
-
-Slurm's built-in failover mechanism is **optimistic** and assumes a well-behaved network.
-
-The native configuration in `slurm.conf`:
 ```ini
 SlurmctldHost=slurmctl-01
 SlurmctldHost=slurmctl-02
+StateSaveLocation=/shared/slurm/state
 SlurmctldTimeout=120
 ```
 
-Under this configuration, the backup controller (`slurmctl-02`) polls the primary via `slurm_rpc_ping` on TCP port 6817. If the primary does not respond within `SlurmctldTimeout` seconds, the backup assumes authority.
-
-### 3.1 The Split-Brain Catastrophe
-
-If a transient network partition isolates the management interface of `slurmctl-01` from `slurmctl-02`, but leaves `slurmctl-01` connected to the compute nodes:
-- `slurmctl-02` pings `slurmctl-01`, gets no response, promotes itself to Primary, and starts accepting new jobs.
-- `slurmctl-01` cannot see `slurmctl-02`, assumes it is still the Primary, and continues dispatching jobs.
-- Both controllers attempt to read and write `StateSaveLocation`.
-- The POSIX file locks collide, the binary state files become hopelessly corrupted, and the cluster falls into complete disarray. Compute nodes receive conflicting RPCs from two different masters.
+- `SlurmctldHost` must appear at least once. **If specified more than once, the first entry runs as primary and all others as standby backups.** If the primary fails, the first backup becomes primary until the first host comes back (slurm.conf).
+- **Every controller needs access to `StateSaveLocation`.** It must be readable and writable from the primary and all backups at all times. Slurm recommends a reliable file system such as RAID because all running and pending job information is stored there.
+- `SlurmctldTimeout` (default 120 s) is how long a backup waits for the primary to respond before assuming control.
+- `scontrol takeover [index]` tells a backup to take over now. By default the first backup requests control from the primary and waits for its termination; if the primary cannot be contacted, it switches directly. The documentation notes this speeds up failover when the primary is down and minimizes disruption when it is scheduled down (scontrol).
+- For a floating address, Slurm provides `SlurmctldPrimaryOnProg` and `SlurmctldPrimaryOffProg`, programs run when a controller becomes or stops being primary, so you can attach or detach a virtual IP (slurm.conf).
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    participant CTL1 as Primary slurmctld (Frozen / Network Split)
-    participant BMC1 as Primary Host BMC (Redfish)
-    participant PACE as Pacemaker / Watchdog Cluster Engine
-    participant CTL2 as Backup slurmctld
-    participant SLURMD as Compute Fleet (slurmd)
-
-    Note over CTL1,CTL2: Network Partition on Management Interface
-    CTL2->>CTL1: slurm_rpc_ping (Port 6817) - TIMEOUT
-    CTL2->>PACE: Report Primary Unreachable
-    
-    rect rgb(255, 230, 230)
-    Note over PACE,BMC1: STONITH Fencing Sequence (Mandatory Safety)
-    PACE->>BMC1: POST /redfish/v1/Systems/1/Actions/ComputerSystem.Reset {"ResetType": "ForceOff"}
-    BMC1-->>PACE: 200 OK (Primary Power Severed)
-    end
-    
-    PACE->>CTL2: Fencing Confirmed - Promote to Primary
-    CTL2->>CTL2: Read StateSaveLocation (Acquire exclusive flock)
-    CTL2->>SLURMD: Issue Heartbeat & Controller Election RPC
-    SLURMD-->>CTL2: Acknowledge CTL2 as Authoritative Master
+flowchart LR
+    CLI["sbatch, squeue, sinfo,<br/>slurmd on every node"] --> P["slurmctld primary<br/>(first SlurmctldHost)"]
+    CLI -. "after SlurmctldTimeout<br/>or scontrol takeover" .-> B["slurmctld backup<br/>(next SlurmctldHost)"]
+    P --- S[("StateSaveLocation<br/>shared, read-write for all controllers")]
+    B --- S
+    P --> D["slurmdbd"]
+    B --> D
 ```
 
-### 3.2 The Architectural Fix: Pacemaker and Corosync
+### 2.2 The risk Slurm itself calls out
 
-**The Solution:** Do not rely on Slurm's built-in failover for enterprise AI SuperPODs. Instead, run a single `SlurmctldHost` definition in `slurm.conf` bound to a Virtual IP (VIP). Use **Pacemaker with Corosync** to govern the VIP and the Slurm service.
+The slurm.conf manual states it plainly: **if two nodes are simultaneously configured and running as primary controller, "system behavior will be destructive."** (RELOCATING CONTROLLERS). That is the split-brain case, and it is the reason the design questions below matter.
 
-Pacemaker implements **STONITH (Shoot The Other Node In The Head)** via out-of-band IPMI or Redfish power cycling.
+Two design choices follow, and neither is dictated by the documentation. Choose deliberately.
 
-#### Step 1: Configure Corosync for Quorum
-Corosync handles network membership and messaging. It must have redundant network rings (e.g., using both the primary management network and a dedicated heartbeat network).
-
-```ini
-# /etc/corosync/corosync.conf
-totem {
-    version: 2
-    cluster_name: slurm_ha_cluster
-    transport: knet
-    crypto_cipher: aes256
-    crypto_hash: sha256
-}
-
-nodelist {
-    node {
-        ring0_addr: 10.100.1.10 # Primary network
-        ring1_addr: 192.168.1.10 # Dedicated heartbeat cross-over
-        name: slurmctl-01
-        nodeid: 1
-    }
-    node {
-        ring0_addr: 10.100.1.11
-        ring1_addr: 192.168.1.11
-        name: slurmctl-02
-        nodeid: 2
-    }
-}
-
-quorum {
-    provider: corosync_votequorum
-    two_node: 1 # Special directive allowing quorum with only 2 nodes
-}
-```
-
-#### Step 2: Configure Pacemaker Resources and Fencing
-
-Using the `pcs` (Pacemaker Configuration System) CLI, we define the VIP, the `slurmctld` service, and the IPMI fencing devices.
-
-```bash
-# 1. Define the Virtual IP that slurmd and clients will connect to
-pcs resource create ClusterIP ocf:heartbeat:IPaddr2 ip=10.100.1.100 cidr_netmask=24 op monitor interval=30s
-
-# 2. Define the slurmctld systemd resource
-pcs resource create Slurmctld systemd:slurmctld op monitor interval=60s
-
-# 3. Group them together so they always run on the same node
-pcs resource group add SlurmGroup ClusterIP Slurmctld
-
-# 4. Define STONITH devices using IPMI (BMC) for out-of-band power cycling
-pcs stonith create fence_node1 fence_ipmilan pcmk_host_list="slurmctl-01" ipaddr="10.200.1.10" login="admin" passwd="PASSWORD" lanplus=1 action=reboot
-pcs stonith create fence_node2 fence_ipmilan pcmk_host_list="slurmctl-02" ipaddr="10.200.1.11" login="admin" passwd="PASSWORD" lanplus=1 action=reboot
-
-# 5. Tie the fencing devices to ensure Node2 can fence Node1, and vice versa
-pcs constraint location fence_node1 prefers slurmctl-02=INFINITY
-pcs constraint location fence_node2 prefers slurmctl-01=INFINITY
-```
-
-**The Fencing Guarantee:** If Corosync detects that `slurmctl-01` is unreachable, Pacemaker will **not** start the `Slurmctld` service on `slurmctl-02` until it has received an IPMI acknowledgement from the BMC of `slurmctl-01` confirming that power has been physically severed. This eliminates split-brain mathematically.
-
----
-
-## 4. Database Clustering: `slurmdbd` and MariaDB Galera Internals
-
-While `slurmctld` manages live scheduling, `slurmdbd` (Slurm Database Daemon) manages historical usage, multi-tenant accounting, and QoS limits.
-
-In a large AI cluster executing thousands of short-lived parameter search jobs or inference endpoints per hour, the database layer experiences massive write pressure. A standalone MariaDB instance becomes a single point of failure and a performance bottleneck.
-
-```mermaid
-flowchart TD
-    subgraph SlurmLayer["Slurm Control Layer"]
-        CTLD["slurmctld (Active via VIP)"]
-    end
-
-    subgraph DbdLayer["Database Proxy Layer"]
-        DBD["slurmdbd (Active via VIP)"]
-    end
-
-    subgraph DBCluster["Synchronous Relational Store (MariaDB Galera)"]
-        PROXY["ProxySQL / HAProxy (Load Balancer & Connection Pool)"]
-        DB1[("Node 1: Galera Master (wsrep_node_1)")]
-        DB2[("Node 2: Galera Node (wsrep_node_2)")]
-        DB3[("Node 3: Galera Arbiter (garbd)")]
-    end
-
-    CTLD -- "RPC Port 6819" --- DBD
-    DBD -->|SQL TCP 3306| PROXY
-    PROXY -->|Single-Writer Flow (Read/Write)| DB1
-    PROXY -.->|Standby Flow (Fails over if DB1 dies)| DB2
-    
-    DB1 -- "Synchronous Write-Set Replication" --- DB2
-    DB1 -- "Quorum Voting" --- DB3
-    DB2 -- "Quorum Voting" --- DB3
-```
-
-### 4.1 Why Standard Active-Active Multi-Writer Galera Fails with Slurm
-
-MariaDB Galera Cluster is a synchronous multi-master database. Theoretically, you can write to any node. However, in high-throughput Slurm clusters, configuring a load balancer to distribute SQL writes from `slurmdbd` across multiple Galera database nodes concurrently causes **fatal database deadlock cascades (`wsrep_conflict`)**.
-
-- **The Mechanism:** `slurmdbd` executes batch updates across shared accounting parent tables (e.g., `cluster_assoc_table`, `usage_hour_table`). 
-- If Galera Node 1 processes an update for Association ID 500, and Galera Node 2 simultaneously processes an update for Association ID 500, both nodes commit locally.
-- During Galera's synchronous certification phase, the cluster detects a write-set conflict on the same row.
-- Galera forces one node to abort the transaction, returning: `Deadlock found when trying to get lock; try restarting transaction`.
-- `slurmdbd` is not designed to aggressively retry millions of deadlocked SQL transactions. It will eventually drop the connection, and its internal RPC queue will fill up.
-
-### 4.2 The Architectural Fix: ProxySQL Single-Writer
-
-To solve this, we deploy a 3-node Galera cluster (or 2 nodes + 1 Garbd arbiter for quorum) but place **ProxySQL** in front of it. ProxySQL is configured in an Active/Standby topology, directing all `slurmdbd` traffic to exactly one Galera node. The other nodes act purely as synchronous replicas.
-
-**ProxySQL Configuration Snippet (MySQL Interface):**
-```sql
--- Define the Galera backend servers in ProxySQL
-INSERT INTO mysql_servers (hostgroup_id, hostname, port, weight) VALUES (10, 'galera-node1', 3306, 1000);
-INSERT INTO mysql_servers (hostgroup_id, hostname, port, weight) VALUES (10, 'galera-node2', 3306, 1);
-
--- Configure the query routing rule to send all traffic to Hostgroup 10
-INSERT INTO mysql_query_rules (rule_id, active, match_digest, destination_hostgroup, apply)
-VALUES (1, 1, '.*', 10, 1);
-
-LOAD MYSQL SERVERS TO RUNTIME;
-SAVE MYSQL SERVERS TO DISK;
-LOAD MYSQL QUERY RULES TO RUNTIME;
-SAVE MYSQL QUERY RULES TO DISK;
-```
-*Because Node 1 has a weight of 1000 and Node 2 has a weight of 1, ProxySQL routes all traffic to Node 1 unless it is marked offline.*
-
----
-
-## 5. High-Throughput Accounting and `slurmdbd` Tuning
-
-Even with a single-writer Galera topology, the sheer volume of data generated by a large cluster can overwhelm the default InnoDB configuration.
-
-### 5.1 MariaDB InnoDB Tuning for `slurmdbd`
-
-The default MariaDB settings are tuned for low-memory web servers, not enterprise AI accounting databases handling millions of rows.
-
-**Critical `/etc/my.cnf.d/server.cnf` Overrides:**
-```ini
-[mysqld]
-# Allocate 60-80% of total system RAM to the InnoDB Buffer Pool
-# This ensures that active associations and job tables remain entirely in memory
-innodb_buffer_pool_size = 64G
-
-# Increase the log file size to handle massive burst transactions
-# Without this, MySQL checkpoints constantly to disk, crushing IOPS
-innodb_log_file_size = 4G
-innodb_log_buffer_size = 256M
-
-# Tune IO capacity for NVMe flash drives (Default is 200, which assumes spinning disks!)
-innodb_io_capacity = 20000
-innodb_io_capacity_max = 40000
-
-# Galera specific tuning for Slurm
-wsrep_provider_options="gcache.size=4G" # Handle larger state transfers during temporary node disconnects
-binlog_format=ROW # Mandatory for Galera
-innodb_autoinc_lock_mode=2 # Mandatory for Galera
-```
-
-### 5.2 Decoupling `slurmctld` from `slurmdbd` Latency
-
-If the database is undergoing heavy maintenance or rolling up millions of usage records, `slurmdbd` response times will spike. By default, if `slurmctld` asks `slurmdbd` to verify user limits and the DB is slow, the `slurmctld` scheduling thread blocks, freezing the entire cluster.
-
-To decouple them, configure `slurm.conf`:
-
-```ini
-# slurm.conf
-
-# Enforce limits, but allow the controller to operate using cached DB data
-AccountingStorageEnforce=associations,limits,qos
-AccountingStoreFlags=job_comment,job_env
-
-# The secret sauce: Enable step manager caching
-SlurmctldParameters=enable_step_mgr
-
-# How long to cache DB information before forcing a refresh
-# In large clusters, this prevents hammering the DB on every scheduling cycle
-MessageTimeout=30
-```
-
-And in `slurmdbd.conf`, optimize the rollup and purge processes:
-
-```ini
-# slurmdbd.conf
-
-# Do not keep granular step-by-step job accounting forever.
-# It bloats the database into terabytes. Purge it after 1-3 months.
-PurgeEventAfter=1month
-PurgeJobAfter=3months
-PurgeStepAfter=1month
-PurgeUsageAfter=12months
-
-# Enable background rollup processing
-RollupStats=yes
-```
-
----
-
-## 6. Advanced SQL Queries against the Slurm Database
-
-NVIDIA Senior Solutions Architects are frequently required to bypass the `sacct` CLI tool and query the MariaDB instance directly for root cause analysis, forensic auditing, or integrating with custom BI dashboards (e.g., Tableau, Grafana).
-
-The Slurm database schema is complex. Each cluster has its own set of tables prefixed by the cluster name (e.g., `clustername_job_table`).
-
-### 6.1 Identifying the Largest GPU Consumers in the Last 30 Days
-
-The `sacct` command parses TRES (Trackable RESources) slowly for massive time ranges. A direct SQL query is instantaneous.
-
-```sql
--- Querying against a cluster named 'dgx_superpod'
-SELECT 
-    user, 
-    account, 
-    COUNT(id_job) as total_jobs,
-    SUM(time_end - time_start) / 3600 AS total_wall_hours,
-    SUM(tres_req_str REGEXP 'gres/gpu=([0-9]+)' * (time_end - time_start)) / 3600 AS total_gpu_hours
-FROM 
-    dgx_superpod_job_table
-WHERE 
-    time_start > UNIX_TIMESTAMP(NOW() - INTERVAL 30 DAY)
-    AND state = 3 -- State 3 is COMPLETED
-GROUP BY 
-    user, account
-ORDER BY 
-    total_gpu_hours DESC
-LIMIT 10;
-```
-*(Note: Parsing the `tres_req_str` which looks like `1=1,2=16000,4=1,1001=8` requires understanding your cluster's specific TRES ID mappings. TRES ID 1001 is commonly the first GRES GPU).*
-
-### 6.2 Investigating Orphaned Job Records (Database Desync)
-
-Sometimes a job crashes catastrophically, the controller loses its state, and the job is never marked as completed in the database. These "zombie" jobs artificially inflate a user's active usage limits.
-
-```sql
--- Find jobs that the database thinks are RUNNING, but haven't been updated in 2 days
-SELECT 
-    id_job, 
-    user, 
-    time_start 
-FROM 
-    dgx_superpod_job_table 
-WHERE 
-    state = 1 -- State 1 is RUNNING
-    AND time_start < UNIX_TIMESTAMP(NOW() - INTERVAL 2 DAY);
-```
-To fix this, an administrator can forcefully update the state to `CANCELLED` (State 4) in the DB, though it is usually safer to use the `sacctmgr` CLI tool to perform administrative actions.
-
----
-
-## 7. Fairshare Internal Mathematics and Usage Decay
-
-In a multi-tenant NVIDIA AI Factory, resources are not first-come-first-serve. They are governed by the **Multifactor Priority Plugin**, with **Fairshare** being the dominant factor.
-
-Fairshare ensures that teams who have underutilized their allocated budget get higher queue priority than teams who have been monopolizing the cluster.
-
-### 7.1 The Fairshare Priority Equation
-
-Slurm computes a Fairshare factor `F` between 0.0 and 1.0:
-
-```text
-F = 2 ^ (- U_E / S_N)
-```
-
-Where:
-- `S_N`: Normalized Share. If Team A has 40 shares and Team B has 60 shares out of 100 total, Team A's `S_N` is 0.4.
-- `U_E`: Effective Usage. This is a measure of how much of the cluster the team has historically consumed, normalized against total cluster output.
-
-If `U_E` > `S_N` (The team has used more than their share), `F` drops below 0.5.
-If `U_E` < `S_N` (The team has used less than their share), `F` rises above 0.5.
-
-### 7.2 The Half-Life Decay Formula
-
-Historical usage is not kept forever. It is decayed exponentially using a half-life algorithm.
-
-At every periodic interval `Delta_t` (default 5 minutes), the historical raw usage `U_raw` is decayed according to the half-life constant `lambda`:
-
-```text
-U_decayed(t + Delta_t) = U_decayed(t) * e^(-lambda * Delta_t) + U_new
-```
-
-Where the decay parameter `lambda` is defined by the `slurm.conf` parameter `PriorityDecayHalfLife`:
-
-```text
-lambda = ln(2) / PriorityDecayHalfLife_in_seconds
-```
-
-### 7.3 Tuning `PriorityDecayHalfLife` for AI Workloads
-
-```ini
-PriorityType=priority/multifactor
-PriorityWeightFairshare=100000
-PriorityDecayHalfLife=14-0 # 14 days
-PriorityUsageResetPeriod=NONE # Do not forcefully zero out usage every month
-```
-
-**Architectural Insight:** Setting the correct half-life is critical for AI workflows. 
-- If `PriorityDecayHalfLife=1-0` (1 Day), a team could consume the entire cluster for a week, get penalized for a day, and have their priority completely restored 48 hours later. This encourages bad behavior.
-- If `PriorityDecayHalfLife=30-0` (30 Days), a team that bursts a massive 1,024-GPU training run for one week will be punished with low priority for over two months, preventing them from doing iterative debugging on small scale.
-
-**Best Practice:** A 7 to 14-day half-life (`7-0` or `14-0`) is the industry standard for LLM training environments. It balances burst consumption against long-term fairness, allowing accounts that burst during deadlines to naturally recover their queue priority over time.
-
----
-
-## 8. Senior Solutions Architect Interview & Troubleshooting Scenarios
-
-### Scenario 1: MariaDB Deadlocks Causing Slurmctld Thread Exhaustion
-
-**Interviewer:** *"During a 10,000-job synthetic benchmark run, `slurmctld` stops responding to `squeue` and `sbatch` commands. The process is still running, but all administrative commands hang. Inspecting `slurmdbd.log` shows hundreds of MariaDB deadlock errors. Inspecting `slurmctld.log` shows 'agent queue is full'. What happened, and how do you re-architect the accounting pipeline?"*
-
-**Candidate Answer:**
-> "This is a classic cascading failure between `slurmctld`, `slurmdbd`, and MariaDB:
-> 1. **The Root Cause:** In a high-throughput job submission burst, `slurmdbd` is issuing massive concurrent write-sets to MariaDB. If MariaDB is configured as a multi-writer Galera cluster or lacks appropriate index caching, row-level certification deadlocks occur. `slurmdbd` threads block waiting for database locks, eventually exhausting `slurmdbd`'s connection pool.
-> 2. **Cascade to the Controller:** Because `slurmctld` communicates synchronously with `slurmdbd` for association and QoS verifications on incoming `sbatch` calls, its internal RPC handler threads block waiting for the frozen DB proxy. The `slurmctld` internal thread pool (`SlurmctldParameters=server_thread_count`) exhausts. The controller freezes and stops servicing client RPCs like `squeue`.
-> 3. **The Solution:**
->    - **Single-Writer DB Proxy:** Route all `slurmdbd` traffic through ProxySQL to a single designated Galera writer node to eliminate write-set certification conflicts.
->    - **Tune InnoDB:** Increase `innodb_buffer_pool_size` and `innodb_log_file_size` on the MariaDB nodes to handle the transaction burst.
->    - **Slurmctld Decoupling:** In `slurm.conf`, ensure `SlurmctldParameters=enable_step_mgr` is active, and configure a shorter `MessageTimeout` so `slurmctld` aborts DB calls rather than hanging forever."
-
----
-
-### Scenario 2: Recovering from a Corrupted StateSaveLocation
-
-**Interviewer:** *"A catastrophic SAN failure corrupted the NFS appliance backing `StateSaveLocation`. The primary `slurmctld` crashed, and the backup refuses to start, throwing `fatal: error reading job_state`. The users are panicking. The compute nodes are still powered on and running jobs. How do you recover the cluster without killing the running jobs?"*
-
-**Candidate Answer:**
-> "If the state files are corrupted, we must force the controller to reconstruct its state from the active compute nodes.
-> 1. Move or rename the corrupted `/var/spool/slurm/state` directory and create a fresh, empty one with correct `slurm:slurm` permissions.
-> 2. Start `slurmctld` using the `-c` flag (clear state) or by temporarily adding `StateSaveLocation=/tmp/fresh_state` to `slurm.conf`. **Wait, `-c` will kill all jobs.** 
-> 3. **The Correct Recovery:** We *cannot* use `-c` if we want to save running jobs. Instead, we remove the corrupted `job_state` file, but leave the directory. We start `slurmctld`. It will complain about missing state.
-> 4. We then rely on the **Slurmd Timeout and Registration**. When `slurmctld` boots with an empty job table, it reaches out to the compute nodes (`slurmd`). The `slurmd` daemons report back their active job steps.
-> 5. Slurm will *attempt* to reconstruct running jobs based on node reports (a process called 'orphaned job recovery').
-> 6. *Reality Check:* In modern Slurm versions, if `job_state` is completely missing, recovering complex multi-node MPI jobs is incredibly difficult because the controller has lost the credential keys and allocation maps. The best effort is to restart the controller, let it register the nodes, and identify which jobs survived. We will likely have to manually requeue pending jobs, but running single-node jobs might survive the registration sync."
-
-*(Architect's Note: The only true protection against this is synchronous storage replication. Relying on node registration to rebuild state is a desperate last resort.)*
-
----
-
-### Scenario 3: Massive TRES Billing Anomaly
-
-**Interviewer:** *"A user submitted a job that ran for 1 hour, but the database billed them for 1,000,000 GPU hours, destroying their Fairshare priority. They are blocked from submitting jobs. How do you fix this?"*
-
-**Candidate Answer:**
-> "This happens when the controller time goes out of sync (NTP failure) or there is an integer underflow in the epoch timestamp calculations within `slurmdbd`.
-> 1. First, unblock the user. I would use `sacctmgr modify user <user> set RawUsage=0` to reset their usage, or manually update their `S_N` (shares) temporarily to boost their priority.
-> 2. Find the offending job using SQL against `cluster_job_table` searching for anomalies where `time_end - time_start` is exceptionally large.
-> 3. Delete or modify that specific row in the `cluster_job_table` and `cluster_usage_day_table` in MariaDB.
-> 4. Force a database recalculation by restarting `slurmdbd` or using `sacctmgr archive` to rebuild the historical rollups.
-> 5. Root cause the issue by checking `chronyd` or `ntpd` sync status on all control and compute nodes."
-
----
-
-## 9. Extending Accounting with Custom TRES (Trackable RESources)
-
-While CPUs and GPUs are tracked natively, an NVIDIA AI Factory often needs to track usage of distinct storage tiers or specialized software licenses.
-
-To track high-performance DDN EXAScaler NVMe storage consumption, we add custom TRES to the DB and `slurm.conf`:
-
-```ini
-AccountingStorageTRES=gres/gpu,license/ddn_nvme_tb
-```
-
-Then in the DB:
-```bash
-$ sacctmgr add tres license/ddn_nvme_tb
-```
-Now users can submit jobs requesting the storage tier, and Slurm will accurately bill their account.
-
-## 10. Summary and Conclusion
-
-1. **`StateSaveLocation` is the Single Source of Truth:** High availability relies entirely on synchronous POSIX shared storage. A backup controller starting with stale state will cause double-allocation and crash running jobs.
-2. **Pacemaker STONITH is Required:** Slurm's native ping-timeout mechanism cannot prevent split-brain during complex network partitions; hardware-level BMC fencing is mandatory in enterprise SuperPODs.
-3. **Single-Writer for MariaDB Galera:** Never configure active-active multi-writer database topologies under `slurmdbd`; certification deadlocks will exhaust controller threads and crash the scheduling plane.
-4. **Exponential Decay Governs Equity:** `PriorityDecayHalfLife` balances burst consumption against long-term fairness, allowing accounts that burst during deadlines to naturally recover their queue priority over time.
-5. **Decouple the Planes:** Tune `slurm.conf` parameters like `enable_step_mgr` to ensure that database latency spikes do not propagate into scheduling thread exhaustion.
-
-
-## 11. Appendix: Complete Reference Architectures and Advanced Settings
-
-To fully equip an NVIDIA AI Platform Engineer, we provide the complete reference configuration files required for the architectures discussed above.
-
-### 11.1 Complete `slurm.conf` for a 1,024-Node AI SuperPOD
-
-The following configuration file is optimized for high-throughput, latency-sensitive GPU scheduling:
-
-```ini
-# /etc/slurm/slurm.conf
-# -------------------------------------------------------------------------
-# CONTROL PLANE HA & CORE SETTINGS
-ClusterName=dgx_superpod
-SlurmctldHost=slurmctl-vip # Managed by Pacemaker
-SlurmctldPort=6817
-SlurmdPort=6818
-AuthType=auth/munge
-StateSaveLocation=/var/spool/slurm/state # MUST BE SYNC NFS OR DRBD
-SlurmdSpoolDir=/var/spool/slurmd
-SwitchType=switch/none
-MpiDefault=pmix
-SlurmctldPidFile=/var/run/slurmctld.pid
-SlurmdPidFile=/var/run/slurmd.pid
-ProctrackType=proctrack/cgroup
-ReturnToService=1
-SlurmctldTimeout=120
-SlurmdTimeout=300
-InactiveLimit=0
-MinJobAge=300
-KillWait=30
-Waittime=0
-
-# SCHEDULING ENGINES & OPTIMIZATIONS
-SchedulerType=sched/backfill
-SelectType=select/cons_tres
-SelectTypeParameters=CR_Core_Memory,CR_CORE_DEFAULT_DIST_BLOCK
-SchedulerParameters=bf_continue,bf_interval=30,bf_max_job_user=100,bf_resolution=60,bf_window=10080,max_rpc_cnt=150,sched_min_interval=2000000,batch_sched_delay=20
-
-# ACCOUNTING & MULTI-TENANCY
-AccountingStorageType=accounting_storage/slurmdbd
-AccountingStorageHost=slurmdbd-vip # Managed by ProxySQL
-AccountingStoragePort=6819
-AccountingStorageEnforce=associations,limits,qos
-AccountingStoreFlags=job_comment,job_env
-JobCompType=jobcomp/none
-JobAcctGatherType=jobacct_gather/linux
-JobAcctGatherFrequency=30
-SlurmctldParameters=enable_step_mgr
-
-# LOGGING
-SlurmctldDebug=info
-SlurmctldLogFile=/var/log/slurm/slurmctld.log
-SlurmdDebug=info
-SlurmdLogFile=/var/log/slurm/slurmd.log
-JobCompLoc=/var/log/slurm/jobcomp.log
-
-# PRIORITY & FAIRSHARE
-PriorityType=priority/multifactor
-PriorityDecayHalfLife=14-0
-PriorityCalcPeriod=5
-PriorityFavorSmall=NO
-PriorityMaxAge=14-0
-PriorityWeightAge=1000
-PriorityWeightFairshare=100000
-PriorityWeightJobSize=1000
-PriorityWeightPartition=1000
-PriorityWeightQOS=10000
-
-# HARDWARE DEFINITIONS (DGX H100)
-GresTypes=gpu
-NodeName=dgx-[0001-1024] CPUs=224 Boards=1 SocketsPerBoard=2 CoresPerSocket=56 ThreadsPerCore=2 RealMemory=2048000 MemSpecLimit=10240 Gres=gpu:h100:8 State=UNKNOWN
-
-# PARTITION MATRIX
-PartitionName=batch Nodes=dgx-[0001-1000] Default=YES MaxTime=14-0 State=UP
-PartitionName=interactive Nodes=dgx-[1001-1024] Default=NO MaxTime=04:00:00 State=UP
-```
-
-### 11.2 Complete `slurmdbd.conf` with Rollup Optimization
-
-```ini
-# /etc/slurm/slurmdbd.conf
-AuthType=auth/munge
-DbdHost=slurmdbd-vip
-DbdPort=6819
-SlurmUser=slurm
-LogFile=/var/log/slurm/slurmdbd.log
-PidFile=/var/run/slurmdbd.pid
-StorageType=accounting_storage/mysql
-StorageHost=10.100.1.50 # This is the ProxySQL Load Balancer IP
-StoragePort=3306
-StorageUser=slurm
-StoragePass=SuperSecretDBPass
-StorageLoc=slurm_acct_db
-
-# Prevent thread exhaustion during DB deadlocks
-MaxQueryTimeRange=10080
-MessageTimeout=30
-
-# Background rollup thread tuning
-RollupStats=yes
-
-# Purge historical data aggressively to keep the InnoDB Buffer Pool clean
-PurgeEventAfter=1month
-PurgeJobAfter=3months
-PurgeResvAfter=1month
-PurgeStepAfter=1month
-PurgeSuspendAfter=1month
-PurgeTXNAfter=1month
-PurgeUsageAfter=12months
-```
-
-### 11.3 Comprehensive MariaDB InnoDB Server Parameters Reference
-
-| Parameter | Recommended DB Value | Reason for the AI SuperPOD Scale |
+| Option | What it adds | Trade-off |
 |---|---|---|
-| `innodb_buffer_pool_size` | 64G | Holds all recent Job/Step metadata in RAM to prevent blocking I/O calls to disk. |
-| `innodb_log_file_size` | 4G | Absorbs heavy write bursts (e.g. 5,000 array tasks completing simultaneously) before flushing pages to tables. |
-| `innodb_flush_log_at_trx_commit` | 2 | Reduces fsync() syscalls to disk. Improves write throughput 3x-4x at the risk of losing less than 1 sec of data on sudden OS crash. |
-| `innodb_io_capacity` | 20000 | NVMe SSDs can handle massive IOPS; tuning this tells InnoDB it can flush dirty pages aggressively. |
-| `innodb_thread_concurrency` | 0 (Unlimited) | Lets the kernel manage thread scheduling, preventing MariaDB from artificially throttling connection threads. |
-| `max_connections` | 2000 | Required since ProxySQL multiplexing or `slurmdbd` can rapidly scale up connections during backfill bursts. |
-| `wsrep_slave_threads` | 32 | Number of applier threads for Galera replication; scales with core count. |
-| `wsrep_provider_options` | "gcache.size=4G" | Defines the ring buffer size for the Galera cache. Larger cache prevents full SST (State Snapshot Transfers) if a node drops for a few minutes. |
+| **Native HA only** (`SlurmctldHost` list, shared state, optional `SlurmctldPrimaryOnProg`) | Fewest moving parts; the failover logic is Slurm's own | The failover decision relies on `slurmctld`'s own timeout logic and on your shared storage behaving correctly |
+| **Native HA plus external fencing** (a cluster manager or BMC-based power fencing that ensures a dead primary is really off) | Removes the destructive both-primary case | Two systems now participate in the primary decision. They must agree, or they will fight. This is a deliberate engineering effort, not a default |
 
-### 11.4 Troubleshooting: Investigating Controller Thread Blockages
+BCM takes the first approach with a hook: on a BCM HA cluster, Slurm's `slurmctldstartpolicy` is `TAKEOVER` by default, which makes the `prefailoverscript` in the failover submode call `/cm/local/apps/cmd/scripts/slurm.takeover.sh`, so Slurm's `scontrol takeover` runs when the active head node changes. On a non-HA cluster the default is `ALWAYS`. The takeover is temporary: if the head node with the Slurm primary restarts, the primary takes its role back "as per Slurm documentation" (BCM 11 Admin Manual, §7.2.4, pp. 356–357). Combined with BCM's own fencing for the head-node pair ([Senior Deep Dive 1](./13-senior-deep-dive-1-bcm-at-fleet-scale.md)), that is the documented BCM design.
 
-One of the most complex tasks for a Senior Engineer is debugging a `slurmctld` process that is "running but unresponsive." 
+### 2.3 `StateSaveLocation`: what to ask of the storage
 
-When `slurmctld` locks up, you can dump its internal state by sending a `SIGUSR2` signal:
+The documentation requires shared read-write access and recommends reliability. It does not publish a mount-option recipe. Treat the following as questions to answer and test, not as documented settings:
 
-```bash
-$ kill -SIGUSR2 $(pgrep slurmctld)
-```
+- Does the file system give the standby controller a consistent view after the primary's last write? Test by killing the primary during load and checking what the backup recovers.
+- What happens to the controller when the file system stalls? A hung `StateSaveLocation` can stall scheduling.
+- Who owns backups of it? Restoring it is the documented way to revert an upgrade ([Chapter 10](./10-coordinated-cluster-wide-software-change-management.md)).
 
-This dumps the current state of all controller threads into `slurmctld.log`.
+The earlier draft's `noac,lookupcache=none` NFS options and its "DRBD dual-primary" recommendation were invented. If you use NFS, validate the specific appliance and mount options with failure injection instead of copying a recipe.
 
-**Analyzing the Dump:**
-If you see output like this in the log:
+### 2.4 Recovery options that exist (and the one that kills jobs)
+
+`slurmctld` startup flags control how much state is recovered (slurmctld man page):
+
+| Flag | Behavior |
+|---|---|
+| (none) / `-r` | **Default.** Recover partial state: jobs, and node DOWN/DRAIN state with reasons. No partition state is recovered |
+| `-R` | Recover full state: jobs, nodes, partitions, and power-save settings |
+| `-i` | Ignore errors reading state files on startup. **Anything not recovered is lost** |
+| `-c` | **Clear all previous state. All jobs, running and queued, are deleted** |
+
+The man page notes that it is rare you would want `-c` in production because all jobs will be killed.
+
+The earlier draft's "recover by deleting `job_state` and letting `slurmd` re-register" is not a documented recovery procedure. If the state directory is damaged:
+
+1. Stop `slurmctld` everywhere. Do not start a second primary.
+2. Restore `StateSaveLocation` from your most recent backup to the shared location.
+3. Start with the default flags and read the log. Use `-i` only after you accept losing what cannot be read.
+4. Use `-c` only as a decision to end all jobs.
+5. Validate with `squeue` and `sinfo` before reopening the queue.
+
+The point for design: **the quality of your `StateSaveLocation` backups is your recovery plan.** Backups are not optional.
+
+### 2.5 Which signals do what
+
+The earlier draft's `kill -SIGUSR2` thread dump does not exist. The documented `slurmctld` signals (slurmctld man page):
+
+| Signal | Effect |
+|---|---|
+| `SIGTERM`, `SIGINT`, `SIGQUIT` | Clean shutdown, saving state to the state save directory |
+| `SIGABRT` | Clean shutdown, save state, and core dump |
+| `SIGHUP` | Reload configuration, like `scontrol reconfigure` |
+| `SIGUSR2` | Re-read the log level from the config, then reopen the log file (use with `logrotate`) |
+| `SIGPROF` | Log connection-manager state (at debug level info or higher) |
+| `SIGCHLD`, `SIGUSR1`, `SIGXCPU`, `SIGPIPE`, `SIGALRM` | Explicitly ignored |
+
+To diagnose a controller that is running but unresponsive, use `sdiag`, which reports server thread count, agent queue, scheduler statistics, and RPC counts. A server thread count "often close to MAX_SERVER_THREADS" points to a bottleneck (sdiag man page).
+
+---
+
+## 3. Accounting: `slurmdbd` and the database
+
+### 3.1 What happens when `slurmdbd` is slow or down
+
+The Accounting documentation answers the question that the earlier draft got wrong:
+
+- If `slurmdbd` is configured but not responding, `slurmctld` uses **an internal cache until it returns**. The cache is written to local storage on shutdown and recovered at startup.
+- Job and step accounting records generated meanwhile are cached and sent when `slurmdbd` returns.
+- **Limits:** `slurmdbd` must be responding when `slurmctld` is **first started**, because no cache of accounts and user limits exists yet. If `slurmdbd` stays down long enough that the queue exceeds its maximum size, messages are dropped.
+
+So an accounting outage does not freeze scheduling by design, but it has a deadline. Alert on `slurmdbd` health well before the queue limit, and never restart `slurmctld` from a cold state while `slurmdbd` is down.
+
+### 3.2 Backup `slurmdbd`
+
+Configure `AccountingStorageBackupHost` in `slurm.conf` and `DbdBackupHost` in `slurmdbd.conf`. The backup should be on a different machine from the primary. Both instances must reach the same database, share the same munge key(s), and have the same users with the same UID/GIDs (Accounting documentation).
+
+That protects the daemon. It does not make the database highly available. For the database itself, use the high-availability option your database vendor supports for MySQL or MariaDB, and test the failover with `slurmdbd` pointed at it. SchedMD's documentation does not describe or endorse a specific clustering topology such as Galera or a proxy layer, so if you add one it is your design and your support boundary.
+
+### 3.3 Database settings SchedMD recommends
+
+The Accounting documentation lists server settings to review before running `slurmdbd` for the first time:
+
+| Setting | SchedMD guidance |
+|---|---|
+| `innodb_buffer_pool_size` | 5 to 50 percent of the SQL server's memory, and at least 4 GiB. Too small causes problems when upgrading large databases or purging old records |
+| `innodb_log_file_size` | 25 percent of `innodb_buffer_pool_size` divided by `innodb_log_files_in_group`. Larger values lengthen recovery after an unexpected shutdown |
+| `innodb_redo_log_capacity` | Use instead of the above on MySQL 8.0.30 and later; 25 percent of `innodb_buffer_pool_size` |
+| `innodb_lock_wait_timeout` | 900 seconds |
+| `max_allowed_packet` | At least 16M; must exceed `max_script_size` if you store job scripts |
+| `innodb_snapshot_isolation` | Set to OFF (on the MariaDB releases the document names) |
+
+The earlier draft recommended 60 to 80 percent of RAM for the buffer pool. SchedMD recommends 5 to 50 percent. Follow the vendor.
+
+### 3.4 `slurmdbd.conf` knobs that are real
+
+- `CommitDelay`: seconds between commits on a connection from `slurmctld`. For high job throughput, SchedMD says setting it (1 second in their testing) improves performance dramatically, at the cost of a small window for data loss if `slurmdbd` exits abnormally.
+- `MaxQueryTimeRange`: return an error for queries over too large a time span. Default is unlimited; operators and above are exempt. Use it to stop a careless reporting query from loading the daemon.
+- `Purge*After` (for example `PurgeJobAfter`, `PurgeStepAfter`, `PurgeUsageAfter`): units are months (default), days, or hours, and the purge occurs at the start of each month, day, or hour depending on the unit. **If unset, records are never purged.** `PurgeJobAfter` also covers job scripts and environments unless their own purge options are set. Aggregated information is preserved until `PurgeUsageAfter`.
+- `ArchiveJobs` and `ArchiveScript`: archive records when purging; default is no.
+- `MessageTimeout`: round-trip time allowed; default 10 seconds.
+
+`RollupStats`, which the earlier draft showed, is not a `slurmdbd.conf` parameter.
+
+### 3.5 Querying the database directly
+
+Reading SQL tables is possible but it is a fallback, not a primary interface. The schema is internal. Prefer `sacct`, `sreport`, and `sacctmgr`, and treat direct queries as read-only forensics on a replica. If you do query, remember that tables are prefixed by the cluster name (for example `clustername_job_table`) and that TRES IDs are site-specific: look them up in the TRES table before parsing `tres_req_str`.
+
+---
+
+## 4. Priority and fairshare
+
+### 4.1 The priority formula
+
+With `PriorityType=priority/multifactor`, a job's priority is a weighted sum (Multifactor Priority documentation):
+
 ```text
-slurmctld: thread 1 (main) waiting on mutex 0x12345 (job_write_lock)
-slurmctld: thread 2 (agent) holding mutex 0x12345, waiting on I/O to slurmdbd
+Job_priority = site_factor
+             + PriorityWeightAge       * age_factor
+             + PriorityWeightAssoc     * assoc_factor
+             + PriorityWeightFairshare * fair-share_factor
+             + PriorityWeightJobSize   * job_size_factor
+             + PriorityWeightPartition * priority_job_factor
+             + PriorityWeightQOS       * QOS_factor
+             + SUM(TRES_weight_<type> * TRES_factor_<type>)
+             - nice_factor
 ```
-This mathematically proves the bottleneck is NOT the scheduler CPU—it is the database connection. The agent thread is holding the global job write lock while waiting for the MariaDB database to acknowledge an update, causing all other threads to block.
 
-**Resolution path:**
-1. Check ProxySQL latency.
-2. Check MariaDB deadlocks in `SHOW ENGINE INNODB STATUS`.
-3. Check network latency between the controller and the DB VIP.
+All factors range from 0.0 to 1.0, weights are unsigned 32-bit integers, and the resulting priority is an integer from 0 to 4294967295. Use `sprio` (with `-w` to show the weights) to see the breakdown for a job, and `sshare -l` to see fairshare inputs.
 
-### 11.5 Advanced Fairshare Priority Tuning Profiles
+The documentation is explicit about what fairshare is *not*: "The fair-share factor does not involve a fixed allotment, whereby a user's access to a machine is cut off once that allotment is reached." It orders the queue, so under-serviced accounts go first and over-serviced accounts run when the machine would otherwise be idle. If you need hard limits, use QOS or association limits (for example `GrpTRESMins`) instead of tuning fairshare.
 
-In production, different business units require different priority algorithms.
+### 4.2 Fair Tree is the default
 
-**Profile A: The Strict Allocation Environment**
-- Users are granted a hard limit of GPU hours (e.g. 50,000 hours per quarter).
-- If they hit 50,000 hours, they are blocked entirely.
-- **Config:** Use `GrpTRESRunMins=gres/gpu=3000000` (50,000 hours) on the QOS.
-- **Fairshare:** `PriorityWeightFairshare=1000`. Set low, because the hard limit is the enforcer.
+Since Slurm 19.05, the fairshare algorithm is **Fair Tree**. The earlier "classic" algorithm is used only if `PriorityFlags=NO_FAIR_TREE` is set (Multifactor Priority documentation). Fair Tree ranks accounts by level so that if account A outranks sibling account B, **every child of A outranks every child of B**. `sshare -l` shows `Level FS`, which is infinity for an association with no usage.
 
-**Profile B: The Collaborative Pre-emptible Environment**
-- No hard limits. Teams can use as much as they want, but if the cluster is full, teams who have used less historically jump the queue.
-- **Config:** `PriorityDecayHalfLife=14-0`, `PriorityWeightFairshare=1000000`.
-- **Fairshare:** Set very high. It becomes the absolute determining factor for queue ordering.
+The simple formula the earlier draft showed, `F = 2^(-U/S)`, belongs to the **classic** algorithm. The classic documentation gives it as `F = 2**(-U/S/d)`, where `d` is `FairShareDampeningFactor` (default 1), and notes that 0.5 means the user has used exactly their share (Classic Fair Share). Know which algorithm you run before you explain a number to a customer.
 
-**Profile C: The Real-Time Inference Priority**
-- A specific QOS is used for interactive jupyter notebooks or model serving. These jobs must start instantly.
-- **Config:** `PriorityWeightQOS=10000000`.
-- Set QOS `interactive` to a high priority value. This ensures interactive jobs completely bypass Fairshare equations and immediately bubble to the top of the queue.
+### 4.3 Decay settings
 
-### 11.6 High Availability Disaster Recovery Runbook
+| Parameter | Documented default | Meaning |
+|---|---|---|
+| `PriorityDecayHalfLife` | 7 days (`7-0`) | Time over which historical usage halves. `0` means no decay |
+| `PriorityCalcPeriod` | 5 minutes | How often the decay is recalculated |
+| `PriorityUsageResetPeriod` | `NONE` | Resets association usage to zero at an interval (`NONE`, `NOW`, `DAILY`, `WEEKLY`...). Needed if `PriorityDecayHalfLife=0` |
+| `PriorityMaxAge` | 7 days | Queue wait at which the age factor maxes out |
 
-Every AI factory needs a DR runbook for when the automated STONITH mechanisms fail (e.g. the entire management rack loses power).
+Choosing a half-life is a policy decision about burst behavior. A shorter half-life forgives a big burst sooner, a longer one makes teams "pay back" a burst over weeks. The default of 7 days is a reasonable starting point. Move it only when you can state the behavior you want, then verify with `sshare` over a few weeks. The earlier draft's claim that 7 to 14 days is "the industry standard for LLM training" has no source behind it.
 
-**Phase 1: Regaining Quorum**
-If both `slurmctl-01` and `slurmctl-02` reboot and the network is partitioned, Corosync will block both nodes from starting Slurm because neither node has >50% of the votes.
+### 4.4 Charging for GPUs
 
-To forcefully override quorum on `slurmctl-01`:
-```bash
-$ corosync-quorumtool -e 1
+Fairshare usage defaults to `allocated_cpus * seconds`. To account for other resources, set `TRESBillingWeights` on the partition so GPUs contribute (Multifactor Priority). To track GPUs as TRES, list them in `AccountingStorageTRES`:
+
+```ini
+AccountingStorageTRES=gres/gpu
+PriorityWeightTRES=CPU=1000,Mem=2000,GRES/gpu=3000
 ```
-This tells Corosync "Expected votes is now 1." The cluster forms, and Pacemaker promotes the Virtual IP and starts `slurmctld`.
 
-**Phase 2: Verifying State Integrity**
-Once `slurmctld` is running, immediately run:
-```bash
-$ sinfo
-$ squeue
-```
-If `squeue` is empty, but you *know* jobs were running, do NOT submit new jobs. The state file was lost or corrupted during the crash.
+- `AccountingStorageTRES=gres/gpu` tracks GPU usage in addition to the default TRES (billing, CPU, energy, memory, node, FS/disk, pages, VMem). The defaults cannot be disabled, only appended to.
+- TRES are set up in the database automatically when `slurmctld` starts, so you do not need a separate step to add the type. The earlier draft's `sacctmgr add tres` step is unnecessary for this case.
+- If you track a GRES with a subtype (for example `gres/gpu:h100`), also list the generic `gres/gpu`, or requests that give only the generic type will not be accounted for. Setting `gres/gpu` also sets `gres/gpumem` and `gres/gpuutil`.
+- `PriorityWeightTRES` takes the form shown, applied only with `priority/multifactor` and a configured `AccountingStorageTRES`. The numbers above are the documentation's example, not a recommendation.
 
-**Phase 3: Forcing Node Registration**
-If state was lost, force all slurmd daemons to re-register and report their running steps back to the controller:
-```bash
-$ scontrol reconfigure
-```
-Check `slurmctld.log` for "Recovered job XX from node YY".
+---
 
-### 11.7 Monitoring Slurm HA with Prometheus and Grafana
+## 5. Failure scenarios
 
-Relying on CLI checks is insufficient for large-scale operations. Senior architects expose HA metrics to Prometheus.
+### Scenario 1: Commands hang and the accounting log shows database contention
 
-The `slurm_exporter` provides critical metrics:
+**Reasoning.** Do not assume the database froze the scheduler. By design, `slurmctld` uses a cache when `slurmdbd` is unresponsive. First find where the time is going.
 
-- `slurmctld_is_active`: 1 if this node is the primary, 0 if backup. Alerts should fire if SUM(slurmctld_is_active) != 1 across the cluster (indicating split-brain or total failure).
-- `slurm_queue_size`: Number of pending jobs.
-- `slurm_rpc_latency_ms`: If this metric spikes, it indicates database lock contention or `StateSaveLocation` NFS degradation.
+1. `sdiag`: look at server thread count against its maximum, the agent queue, and RPC counts.
+2. `slurmdbd` log: lock waits, slow queries, connection errors.
+3. Database: look for long-running queries (a reporting query across a huge range is a common cause; `MaxQueryTimeRange` exists for this).
+4. Mitigate: stop the offending queries, review `innodb_lock_wait_timeout`, `innodb_buffer_pool_size`, and consider `CommitDelay` for sustained high job rates.
+5. Prevent: purge old records (`Purge*After`) so the database does not grow without bound.
 
-### 11.8 End-to-End Database Migration Strategy
+### Scenario 2: Primary controller died, backup did not take over
 
-Moving an active Slurm database from a standalone MySQL server to a ProxySQL/Galera cluster without losing accounting data requires precise execution.
+**Check in order:** `SlurmctldHost` entries are present and identical on all hosts; the backup can read and write `StateSaveLocation`; `SlurmctldTimeout` has elapsed (default 120 s) or `scontrol takeover` was issued; the backup's log shows what it tried; on BCM, check `slurmctldstartpolicy` and the `prefailoverscript`. Never start a second primary by hand.
 
-1. **Pause Accounting:**
-   `scontrol reconfigure` does not pause DB writes. You must stop `slurmdbd` entirely.
-   ```bash
-   $ systemctl stop slurmdbd
-   ```
-   *Note: `slurmctld` will continue scheduling, caching accounting data in memory using `enable_step_mgr`.*
+### Scenario 3: A user's usage looks absurdly high and blocks their fairshare
 
-2. **Dump the Standalone Database:**
-   ```bash
-   $ mysqldump -u root -p --single-transaction --quick --lock-tables=false slurm_acct_db > slurm_backup.sql
-   ```
+**Reasoning.** First verify the record, then correct the cause, then the symptom.
 
-3. **Restore into the Galera Writer Node:**
-   ```bash
-   $ mysql -u root -p slurm_acct_db < slurm_backup.sql
-   ```
+1. Find the job with `sacct` and check the start and end times. A wildly wrong duration points to a clock problem (check time sync on controllers and nodes).
+2. Reset the account's accrued raw usage if warranted: `sacctmgr` supports `RawUsage=0` as the only value (reset to zero) when modifying an account. It cannot be used as a filter.
+3. Do not edit SQL rows directly. If the database truly has a wrong record, work with SchedMD support before changing accounting tables.
 
-4. **Verify Galera Replication:**
-   On Node 2, verify the data replicated synchronously:
-   ```sql
-   SHOW STATUS LIKE 'wsrep_cluster_size';
-   SHOW STATUS LIKE 'wsrep_local_state_comment';
-   ```
+---
 
-5. **Point `slurmdbd` to ProxySQL and Restart:**
-   Update `slurmdbd.conf` with the ProxySQL VIP, and start the service.
-   ```bash
-   $ systemctl start slurmdbd
-   ```
-   Check `/var/log/slurm/slurmdbd.log` to ensure it successfully reconnected and flushed the backlog of RPCs from the controller.
+## Key takeaways
 
-## 12. Conclusion
+1. **Slurm HA is native.** Multiple `SlurmctldHost` lines, a shared read-write `StateSaveLocation`, a 120 s default timeout, `scontrol takeover`, and VIP hooks. Two simultaneous primaries is destructive, so design fencing deliberately and make sure only one system decides who is primary.
+2. **Backups are the recovery plan.** `-c` kills all jobs, `-i` loses what it cannot read, and the default recovers partial state.
+3. **An accounting outage has a deadline, not an immediate effect.** `slurmctld` caches until the queue overflows, and `slurmdbd` must be up at first start.
+4. **Follow SchedMD's database settings,** not folklore: buffer pool 5 to 50 percent of memory, lock wait 900 s, and purges set explicitly (unset means never purge).
+5. **Know your fairshare algorithm.** Fair Tree is the default since 19.05. `2^(-U/S)` is the classic formula.
+6. **Fairshare orders the queue; it does not cap usage.** Use QOS or association limits for hard caps.
 
-The transition from a standard HPC cluster to a multi-tenant NVIDIA AI Factory requires transforming Slurm from a simple job launcher into a highly available, deeply tuned orchestrator. By mastering POSIX serialization locks, enforcing strict STONITH fencing, designing single-writer Galera database topologies, and understanding the mathematical decay of Fairshare, Senior Solutions Architects guarantee that extreme-scale AI infrastructure remains stable, equitable, and performant under the most demanding production workloads.
+---
 
-<!-- Padding line 0 to ensure the file meets length requirements. -->
+## Sources
 
-<!--
-Extended scenario placeholder 0
-Ensuring the file size is very large.
--->
+- SchedMD Slurm documentation: [slurm.conf](https://slurm.schedmd.com/slurm.conf.html), [slurmctld](https://slurm.schedmd.com/slurmctld.html), [scontrol](https://slurm.schedmd.com/scontrol.html), [sdiag](https://slurm.schedmd.com/sdiag.html), [Accounting and Resource Limits](https://slurm.schedmd.com/accounting.html), [slurmdbd.conf](https://slurm.schedmd.com/slurmdbd.conf.html), [Multifactor Priority](https://slurm.schedmd.com/priority_multifactor.html), [Fair Tree](https://slurm.schedmd.com/fair_tree.html), [Classic Fair Share](https://slurm.schedmd.com/classic_fair_share.html), [TRES](https://slurm.schedmd.com/tres.html), [sacctmgr](https://slurm.schedmd.com/sacctmgr.html), [Upgrade Guide](https://slurm.schedmd.com/upgrades.html).
+- NVIDIA Base Command Manager 11 Administrator Manual, §7.2.4 Slurm HA and `slurmctldstartpolicy`: [admin-manual.pdf](https://docs.nvidia.com/base-command-manager/manuals/11/admin-manual.pdf)
+
+**Not verified in this rewrite.** The behavior of any specific shared file system as `StateSaveLocation` under failure, any database clustering topology under `slurmdbd`, and the exact queue limit at which `slurmctld` drops cached accounting messages (check `slurmdbd`/`slurm.conf` documentation for your version).

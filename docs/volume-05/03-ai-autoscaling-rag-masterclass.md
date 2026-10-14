@@ -478,7 +478,6 @@ You have now mastered the operational primitives of AI infrastructure. You under
 
 ---
 
-
 ### Extended Appendix: Deep Dive into NVIDIA DCGM Metrics for Autoscaling
 
 While queue depth and KV cache are the primary metrics for HPA/KEDA, low-level GPU telemetry provided by NVIDIA DCGM (Data Center GPU Manager) is crucial for infrastructure health and advanced routing.
@@ -570,7 +569,6 @@ Export this metric to a billing system (like Stripe or an internal chargeback sy
 
 Running LLMs in production is closer to running high-frequency trading systems than standard web applications. Every millisecond of latency, every gigabyte of memory bandwidth, and every PCIe transfer counts. Master the hardware, master the metrics, and you will master the AI Factory.
 
-
 ### Deep Dive Configuration Reference - Module 1
 
 When tuning the systems described above, administrators must configure exact parameters at the OS and network level.
@@ -605,113 +603,6 @@ llm = LLM(
     kv_cache_dtype="fp8",          # Compress KV cache by 50%
 )
 ```
-
-
-### Comprehensive Glossary of AI Infrastructure Terms
-
-- **Term 0 (AI Context):** Detailed explanation of the term 0 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 1 (AI Context):** Detailed explanation of the term 1 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 2 (AI Context):** Detailed explanation of the term 2 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 3 (AI Context):** Detailed explanation of the term 3 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 4 (AI Context):** Detailed explanation of the term 4 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 5 (AI Context):** Detailed explanation of the term 5 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 6 (AI Context):** Detailed explanation of the term 6 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 7 (AI Context):** Detailed explanation of the term 7 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 8 (AI Context):** Detailed explanation of the term 8 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 9 (AI Context):** Detailed explanation of the term 9 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 10 (AI Context):** Detailed explanation of the term 10 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 11 (AI Context):** Detailed explanation of the term 11 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 12 (AI Context):** Detailed explanation of the term 12 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 13 (AI Context):** Detailed explanation of the term 13 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 14 (AI Context):** Detailed explanation of the term 14 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 15 (AI Context):** Detailed explanation of the term 15 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 16 (AI Context):** Detailed explanation of the term 16 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 17 (AI Context):** Detailed explanation of the term 17 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 18 (AI Context):** Detailed explanation of the term 18 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 19 (AI Context):** Detailed explanation of the term 19 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 20 (AI Context):** Detailed explanation of the term 20 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 21 (AI Context):** Detailed explanation of the term 21 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 22 (AI Context):** Detailed explanation of the term 22 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 23 (AI Context):** Detailed explanation of the term 23 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 24 (AI Context):** Detailed explanation of the term 24 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 25 (AI Context):** Detailed explanation of the term 25 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 26 (AI Context):** Detailed explanation of the term 26 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 27 (AI Context):** Detailed explanation of the term 27 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 28 (AI Context):** Detailed explanation of the term 28 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 29 (AI Context):** Detailed explanation of the term 29 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 30 (AI Context):** Detailed explanation of the term 30 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 31 (AI Context):** Detailed explanation of the term 31 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 32 (AI Context):** Detailed explanation of the term 32 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 33 (AI Context):** Detailed explanation of the term 33 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 34 (AI Context):** Detailed explanation of the term 34 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 35 (AI Context):** Detailed explanation of the term 35 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 36 (AI Context):** Detailed explanation of the term 36 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 37 (AI Context):** Detailed explanation of the term 37 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 38 (AI Context):** Detailed explanation of the term 38 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 39 (AI Context):** Detailed explanation of the term 39 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 40 (AI Context):** Detailed explanation of the term 40 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 41 (AI Context):** Detailed explanation of the term 41 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 42 (AI Context):** Detailed explanation of the term 42 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 43 (AI Context):** Detailed explanation of the term 43 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 44 (AI Context):** Detailed explanation of the term 44 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 45 (AI Context):** Detailed explanation of the term 45 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 46 (AI Context):** Detailed explanation of the term 46 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 47 (AI Context):** Detailed explanation of the term 47 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 48 (AI Context):** Detailed explanation of the term 48 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 49 (AI Context):** Detailed explanation of the term 49 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 50 (AI Context):** Detailed explanation of the term 50 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 51 (AI Context):** Detailed explanation of the term 51 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 52 (AI Context):** Detailed explanation of the term 52 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 53 (AI Context):** Detailed explanation of the term 53 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 54 (AI Context):** Detailed explanation of the term 54 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 55 (AI Context):** Detailed explanation of the term 55 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 56 (AI Context):** Detailed explanation of the term 56 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 57 (AI Context):** Detailed explanation of the term 57 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 58 (AI Context):** Detailed explanation of the term 58 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 59 (AI Context):** Detailed explanation of the term 59 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 60 (AI Context):** Detailed explanation of the term 60 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 61 (AI Context):** Detailed explanation of the term 61 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 62 (AI Context):** Detailed explanation of the term 62 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 63 (AI Context):** Detailed explanation of the term 63 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 64 (AI Context):** Detailed explanation of the term 64 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 65 (AI Context):** Detailed explanation of the term 65 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 66 (AI Context):** Detailed explanation of the term 66 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 67 (AI Context):** Detailed explanation of the term 67 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 68 (AI Context):** Detailed explanation of the term 68 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 69 (AI Context):** Detailed explanation of the term 69 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 70 (AI Context):** Detailed explanation of the term 70 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 71 (AI Context):** Detailed explanation of the term 71 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 72 (AI Context):** Detailed explanation of the term 72 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 73 (AI Context):** Detailed explanation of the term 73 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 74 (AI Context):** Detailed explanation of the term 74 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 75 (AI Context):** Detailed explanation of the term 75 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 76 (AI Context):** Detailed explanation of the term 76 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 77 (AI Context):** Detailed explanation of the term 77 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 78 (AI Context):** Detailed explanation of the term 78 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 79 (AI Context):** Detailed explanation of the term 79 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 80 (AI Context):** Detailed explanation of the term 80 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 81 (AI Context):** Detailed explanation of the term 81 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 82 (AI Context):** Detailed explanation of the term 82 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 83 (AI Context):** Detailed explanation of the term 83 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 84 (AI Context):** Detailed explanation of the term 84 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 85 (AI Context):** Detailed explanation of the term 85 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 86 (AI Context):** Detailed explanation of the term 86 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 87 (AI Context):** Detailed explanation of the term 87 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 88 (AI Context):** Detailed explanation of the term 88 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 89 (AI Context):** Detailed explanation of the term 89 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 90 (AI Context):** Detailed explanation of the term 90 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 91 (AI Context):** Detailed explanation of the term 91 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 92 (AI Context):** Detailed explanation of the term 92 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 93 (AI Context):** Detailed explanation of the term 93 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 94 (AI Context):** Detailed explanation of the term 94 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 95 (AI Context):** Detailed explanation of the term 95 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 96 (AI Context):** Detailed explanation of the term 96 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 97 (AI Context):** Detailed explanation of the term 97 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 98 (AI Context):** Detailed explanation of the term 98 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-- **Term 99 (AI Context):** Detailed explanation of the term 99 relating to NVIDIA hardware, AI software, Kubernetes deployment strategies, metric collection, and cost optimization techniques, expanding the knowledge base of the reader significantly.
-
-
-### End of Masterclass
 
 ### Extended Appendix: Troubleshooting Inference Performance and Latency
 
@@ -760,8 +651,6 @@ Furthermore, if the InfiniBand network is congested (or if RoCEv2 is dropping pa
 1. Switch to a micro-batching scheduler (like 1F1B - One Forward, One Backward) if training, or ensure your inference engine uses interleaved pipelines.
 2. Inspect the network fabric. Run `ib_write_bw` and `ib_read_bw` tests between the nodes. If bandwidth is below expected (e.g., getting 50Gbps on a 400Gbps link), check the switch QoS settings, MTU mismatches, or RDMA misconfigurations.
 
-### End of Troubleshooting Guide
-
 ### Production Checklists for AI Factories
 
 Before handing over an AI Factory cluster to internal developers or external tenants, run through this final operational checklist:
@@ -794,7 +683,6 @@ Before handing over an AI Factory cluster to internal developers or external ten
 - [ ] Secrets (API keys, HuggingFace tokens) stored in HashiCorp Vault or AWS Secrets Manager, injected via CSI driver.
 
 By strictly adhering to these principles and architectures, you transform a cluster of GPUs into a true NVIDIA AI Factory.
-
 
 ### Extended Appendix: Vector Database Benchmarking and Tuning
 

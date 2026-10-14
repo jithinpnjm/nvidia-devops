@@ -252,63 +252,61 @@ If the user's Python script attempts to open `/dev/nvidia2`, the kernel intercep
 
 The Slurm controller (`slurmctld`) is a single binary holding the state of a multi-million-dollar supercomputer. If `slurmctld` dies and is unrecoverable, the cluster stops accepting jobs, and running jobs may lose their telemetry or fail gracefully depending on configurations.
 
-Production environments use an Active/Passive HA model for the controller.
+Slurm's controller HA is built in: you list more than one controller in `slurm.conf`, give them shared access to the state directory, and a backup takes over when the primary stops responding. Details, failure behavior, and recovery options are in [Senior Deep Dive 2](./14-senior-deep-dive-2-slurm-ha-and-accounting-internals.md). This section gives the working summary.
 
-### 4.1 Architecture of HA Controllers
+### 4.1 Architecture of HA controllers
 
 ```mermaid
 flowchart LR
-    subgraph StorageLayer["NFS / Weka / VAST"]
-        StateSaveLocation["/var/spool/slurmctld_state (Shared File System)"]
+    subgraph StorageLayer["Shared storage"]
+        StateSaveLocation["StateSaveLocation (read-write for every controller)"]
     end
-    
-    subgraph ControllerFabric["Control Plane"]
-        CTL1["Primary slurmctld (10.10.10.11)"] 
-        
-        CTL2["Backup slurmctld (10.10.10.12)"]
+
+    subgraph ControllerFabric["Control plane"]
+        CTL1["Primary slurmctld (first SlurmctldHost)"]
+        CTL2["Backup slurmctld (next SlurmctldHost)"]
     end
-    
-    subgraph ComputeNodes["Compute Fabric"]
+
+    subgraph ComputeNodes["Compute fabric"]
         N1["slurmd"]
         N2["slurmd"]
     end
-    
-    CTL1 -- "Read/Write State (ACTIVE)" ---> StateSaveLocation
-    CTL2 -- "Read Only (STANDBY)" ---> StateSaveLocation
-    
-    CTL1 -- "Heartbeat (ping)" ---> CTL2
-    
-    N1 -. "Heartbeat" .-> CTL1
-    N2 -. "Heartbeat" .-> CTL1
-    
-    N1 -. "Heartbeat Fallback" .-> CTL2
-    N2 -. "Heartbeat Fallback" .-> CTL2
+
+    CTL1 --- StateSaveLocation
+    CTL2 --- StateSaveLocation
+    N1 --> CTL1
+    N2 --> CTL1
+    N1 -. "after failover" .-> CTL2
+    N2 -. "after failover" .-> CTL2
 ```
 
-In `slurm.conf`, HA is defined simply:
+In `slurm.conf`, HA is declared by listing the controllers:
 
 ```ini
 SlurmctldHost=slurmctl-01(10.10.10.11)
 SlurmctldHost=slurmctl-02(10.10.10.12)
 StateSaveLocation=/var/shared_spool/slurmctld_state
+SlurmctldTimeout=120
 ```
 
-### 4.2 The Failover Mechanism
+- If `SlurmctldHost` appears more than once, **the first entry is primary and the rest are standby backups**. If the primary fails, the first backup becomes primary until the first host returns (slurm.conf).
+- The address in parentheses is optional and tells Slurm how to reach the host.
+- `SlurmctldTimeout` is the time a backup waits for the primary to respond before assuming control. The default is 120 seconds.
 
-1.  **State Save Location:** Both controllers MUST mount a shared, highly available filesystem (like a resilient NFS mount, or a dedicated HA block storage) at the `StateSaveLocation`. This directory contains binary state files (`job_state`, `node_state`, `resv_state`) written continuously by the active controller.
-2.  **Heartbeats:** The Primary Controller and Backup Controller communicate via periodic pings (defined by `SlurmctldTimeout`).
-3.  **Takeover:** If the Backup Controller fails to receive a ping from the Primary within `SlurmctldTimeout` (e.g., 30 seconds), it assumes the Primary is dead.
-4.  **State Restoration:** The Backup Controller reads the binary files from `StateSaveLocation` into RAM, reconstructing the exact state of every job, node, and partition.
-5.  **Compute Node Redirection:** The `slurmd` daemons on the compute nodes are also configured with both `SlurmctldHost` entries. When they realize the Primary is unreachable, they begin routing their communications to the Backup. The Backup transitions to the ACTIVE state.
+### 4.2 The failover mechanism
 
-### 4.3 Split-Brain Mitigation
+1. **State.** Every controller must have read-write access to `StateSaveLocation` at all times. The directory holds all running and pending job information, so Slurm recommends a reliable file system.
+2. **Detection.** The backup waits `SlurmctldTimeout` seconds for the primary to respond before assuming control. An administrator can speed this up with `scontrol takeover`, which asks the first backup to take over and waits for the primary to terminate (or switches directly if the primary cannot be contacted).
+3. **Redirection.** `slurmd` daemons and client commands need the full `SlurmctldHost` list (distribute the same `slurm.conf` everywhere) so they find the new primary.
+4. **Virtual IP (optional).** `SlurmctldPrimaryOnProg` and `SlurmctldPrimaryOffProg` run programs when a controller becomes or stops being primary, so a virtual address can follow the primary.
 
-"Split-brain" occurs when both controllers believe they are ACTIVE. This usually happens during a network partition where the controllers cannot ping each other, but both can communicate with subsets of the compute nodes. If both write to the `StateSaveLocation` simultaneously, state corruption is imminent.
+### 4.3 Split-brain: what the documentation says and what to design
 
-**Mitigation Strategies:**
+The slurm.conf manual states that if two nodes are simultaneously configured as primary and both are running `slurmctld`, "system behavior will be destructive." So the design requirement is that exactly one controller can ever act as primary.
 
-1.  **Strict File Locking on Shared Storage:** Slurm relies on POSIX file locking on the `StateSaveLocation`. The ACTIVE controller takes an exclusive lock on a lockfile. The STANDBY controller polls this lock. If your NFS server does not respect POSIX locks perfectly (a common issue with legacy or misconfigured NFS implementations), split-brain *will* occur. Validate lock propagation heavily during deployment.
-2.  **Fencing:** While Slurm natively handles failover gracefully, hyper-scale environments often use external cluster managers (like Pacemaker/Corosync) simply to STONITH ("Shoot The Other Node In The Head") a non-responsive controller via IPMI/Redfish before allowing the backup to assume the active role, guaranteeing no split-brain.
+1. **Verify the shared storage.** Confirm the standby sees a consistent view of `StateSaveLocation` after the primary's last write, and test it by killing the primary under load. SchedMD documents the requirement (shared, read-write, reliable) but does not publish file-system-specific tuning, so treat any recipe you find, including older versions of this chapter, as something to test on your storage.
+2. **Decide whether you need external fencing.** Some sites add power fencing through the BMC so a dead primary is definitely off before the backup acts. That adds a second decision-maker, and it must not fight Slurm's own failover. BCM, for example, relies on Slurm's `scontrol takeover` plus its own head-node fencing ([Senior Deep Dive 1](./13-senior-deep-dive-1-bcm-at-fleet-scale.md)).
+3. **Practice recovery before you need it** (section 7, Scenario 2).
 
 ---
 
@@ -323,8 +321,7 @@ Slurm uses the `slurmdbd` (Database Daemon) and the Multifactor Priority Plugin 
 ```mermaid
 flowchart TD
     subgraph DatabaseLayer["Relational Database"]
-        MySQL[(MariaDB / MySQL
-        Galera Cluster)]
+        MySQL[(MariaDB / MySQL)]
     end
     
     subgraph DBD["Accounting Server (slurmdb-01)"]
@@ -349,7 +346,7 @@ flowchart TD
 ```
 
 :::tip
-`slurmdbd` stands between the controllers and the raw database. *Never* allow `slurmctld` to talk directly to MySQL. The backend database should itself be highly available, typically using a MariaDB Galera cluster with a VIP (Virtual IP) provided by Keepalived or HAProxy.
+`slurmdbd` stands between the controllers and the database: `slurmctld` talks to `slurmdbd` (port 6819 by default) and `slurmdbd` talks to MySQL or MariaDB. If `slurmdbd` stops responding, `slurmctld` runs from an internal cache and queues accounting records, but `slurmdbd` must be up when `slurmctld` first starts. For database availability, use the high-availability mechanism your database vendor supports and test `slurmdbd` against it. SchedMD documents a backup `slurmdbd` (`AccountingStorageBackupHost` and `DbdBackupHost`) but does not prescribe a database clustering topology. See [Senior Deep Dive 2](./14-senior-deep-dive-2-slurm-ha-and-accounting-internals.md).
 :::
 
 ### 5.2 Configuring `slurmdbd.conf`
@@ -358,23 +355,29 @@ flowchart TD
 # /etc/slurm/slurmdbd.conf
 AuthType=auth/munge
 DbdHost=slurmdb-01
+DbdPort=6819
+SlurmUser=slurm
 StorageType=accounting_storage/mysql
-StorageHost=db-cluster-vip
+StorageHost=db-host
 StoragePort=3306
 StorageUser=slurm
-StoragePass=SuperSecretPassword
+StoragePass=<set a real secret and restrict file permissions>
 StorageLoc=slurm_acct_db
 
-# Rollups: Aggregate raw job data for fast reporting
-ArchiveEvents=yes
-ArchiveJobs=yes
-ArchiveSteps=no
+# Purge old records. If these are unset, records are NEVER purged.
 PurgeJobAfter=12months
-PurgeStepAfter=1months
+PurgeStepAfter=1month
+ArchiveJobs=yes            # archive job records when purging (default is no)
 
 LogFile=/var/log/slurm/slurmdbd.log
 DebugLevel=info
 ```
+
+- `DbdHost` and `DbdPort` must match `AccountingStorageHost` and `AccountingStoragePort` in `slurm.conf` (the port defaults to 6819).
+- `Purge*After` uses months by default (or days/hours if you say so) and the purge runs at the start of each month, day, or hour depending on the unit. Aggregated usage is kept until `PurgeUsageAfter`.
+- `ArchiveJobs=yes` writes purged job records to the archive. Without it, purged records are gone.
+- The `slurmdbd.conf` file holds a database password. Keep it readable only by `SlurmUser`.
+- The database server itself needs the settings SchedMD lists (buffer pool size, lock wait timeout, and so on), covered in [Senior Deep Dive 2](./14-senior-deep-dive-2-slurm-ha-and-accounting-internals.md), section 3.3.
 
 ### 5.3 The Hierarchy: Clusters, Accounts, and Users
 
@@ -454,18 +457,23 @@ When calculating a user's historical usage for Fairshare, Slurm applies these we
 
 ## 6. Live Cluster Upgrades and Maintenance Operations
 
-A 2000-node AI Factory running a 3-month foundation model training job cannot be rebooted for a minor Slurm patch. Slurm is designed to be upgraded *live*, with zero downtime to running jobs and no loss of queuing state.
+A 2000-node AI Factory running a 3-month foundation model training job cannot be rebooted for a minor Slurm patch. Slurm supports in-place upgrades within a documented compatibility window, and running jobs continue on the compute nodes while the controller is down. Plan the controller outage and the backups.
 
-### 6.1 The Upgrade Rule
+### 6.1 The upgrade rules (from the SchedMD Upgrade Guide)
 
 :::warning
-Slurm daemons are backwards compatible, but **not forwards compatible** in an upgrade scenario. 
+**Reverting an upgrade is not supported once any Slurm daemon has been started.** On startup the daemons convert their state files and database to the new version's structure, and an older version will not recognize them. Your only way back is restoring backups of `StateSaveLocation` and the accounting database, which discards everything that happened after the backups.
 :::
 
-**The immutable order of operations for a Slurm upgrade:**
-1. Upgrade `slurmdbd` (The database daemon must be the newest binary).
-2. Upgrade `slurmctld` (The controller can talk to an older `slurmd`, but `slurmd` cannot be newer than the controller).
-3. Upgrade `slurmd` on the compute nodes (can be done in rolling batches).
+The documented order of operations is: prepare the cluster, create backups, upgrade `slurmdbd`, upgrade `slurmctld`, upgrade `slurmd` (preferably together with `slurmctld`), upgrade login nodes and client commands, rebuild any customized plugins, test key functionality, and archive the backup data (Slurm Upgrade Guide).
+
+Other rules from the same guide that this chapter's earlier draft left out:
+
+- **Compatibility window.** In-place upgrades work only between releases inside the supported window, and upgrades from incompatible versions "fail immediately upon startup". Go in steps, verifying each. The guide's table lists the compatible prior versions for each release (for example, 24.11 accepts 24.05, 23.11, and 23.02). Check it for your target.
+- **Finish old jobs before the next upgrade.** Jobs that started before `slurmd` was upgraded run with the old `slurmstepd`. Wait for them to finish before starting another upgrade or using new features.
+- **Upgrade packages together.** With RPM/DEB, upgrade all Slurm packages on a host at once and use `dnf` or `apt`, not low-level `rpm` or `dpkg`, which may not enforce the dependencies.
+- **Mind `reconfig_on_restart`.** If `SlurmctldParameters=reconfig_on_restart` is enabled, `slurmd` and `sackd` could be upgraded earlier than you intend. Consider disabling it temporarily.
+- **Minor releases are friendlier.** Upgrades between maintenance releases follow the same procedure but take less time and tolerate mixed versions better. Keep current backups anyway.
 
 ```mermaid
 flowchart LR
@@ -544,55 +552,37 @@ For a given compute node (`dgx-01`):
 
 Operations in high-performance computing regularly involve diagnosing obscure distributed systems failures. 
 
-### Scenario 1: The Controller is Unresponsive (Database Deadlock)
+### Scenario 1: Commands hang and the accounting database is under strain
 
-**Symptom:** Users complain `squeue` hangs and eventually times out. `sinfo` hangs. The cluster appears completely dead, yet currently running training jobs are progressing.
-
-**Diagnosis:**
-1.  Check the `slurmctld` logs (`/var/log/slurm/slurmctld.log`). You see repeated messages:
-    ```
-    slurmctld: error: slurmdbd: agent queue is full, dropping requests
-    slurmctld: error: _slurm_send_recv_msg: Header lengths are longer than data received
-    ```
-2.  The controller is alive, but its internal threads are completely blocked waiting on RPC responses from `slurmdbd`. Because it is single-threaded in its main event loop for many operations, blocking on the DB stalls the entire scheduler.
-3.  Check the `slurmdbd` logs.
-    ```
-    slurmdbd: error: mysql_query failed: 1205 Lock wait timeout exceeded; try restarting transaction
-    ```
-4.  The root cause is not Slurm, but the backend MariaDB database. A massive complex query (perhaps an auditor running an unoptimized `sacct` query spanning 5 years of data) has taken a table-level read lock on `job_table`. `slurmdbd` is attempting to INSERT new job records and is blocked by the lock. The queue backs up, `slurmdbd` stops accepting connections, and `slurmctld` hangs waiting for `slurmdbd`.
-
-**Remediation:**
-1.  Log into the MariaDB server. Execute `SHOW FULL PROCESSLIST;`
-2.  Identify the long-running SELECT query holding the locks.
-3.  Kill the SQL query thread (`KILL <process_id>;`).
-4.  `slurmdbd` will immediately flush its queue of INSERTs, `slurmctld` will unblock, and `squeue` will return.
-
-### Scenario 2: Controller Split-Brain Recovery
-
-**Symptom:** After a severe network core switch failure, the network restores, but half the compute nodes report `State=DOWN` in `sinfo`. `slurmctld` logs show chaotic node state flapping.
+**Symptom:** `squeue` and `sinfo` are slow or time out while running jobs keep progressing.
 
 **Diagnosis:**
-During the network partition, the NFS storage holding `StateSaveLocation` suffered a lock failure. Both controllers assumed the ACTIVE role. 
-CTL1 received updates from Nodes 1-500. CTL2 received updates from Nodes 501-1000. Both controllers interleaved conflicting writes into `/var/spool/slurmctld_state/node_state`. The binary state file is heavily corrupted.
+1. By design `slurmctld` uses a cache when `slurmdbd` is unresponsive, so a database problem alone should not freeze scheduling immediately. Find where the time goes first. Run `sdiag` and look at the server thread count against its maximum, the agent queue, and RPC counts.
+2. Check the `slurmdbd` log for lock waits and connection errors, and the database for long-running queries. A very wide `sacct` or `sreport` query is a common culprit, and `MaxQueryTimeRange` in `slurmdbd.conf` exists to stop that.
+3. Check `slurmctld.log` for accounting queue messages. If `slurmdbd` stays down long enough for the queue to exceed its maximum size, messages are dropped.
 
 **Remediation:**
-You must perform a cold start of the Slurm state. This is destructive to the queue but preserves running jobs (usually).
+1. In the database, list running queries (`SHOW FULL PROCESSLIST;`), identify the one holding locks, and end it (`KILL <process_id>;`) with the owner's agreement.
+2. Confirm `slurmdbd` drains its queue and `slurmctld` returns to normal.
+3. Prevent a repeat: set `MaxQueryTimeRange`, purge old records, and review the database settings in Deep Dive 2.
 
-1.  Stop `slurmctld` on BOTH controllers.
-2.  Stop `slurmd` on ALL compute nodes (use parallel SSH/Ansible).
-    *CRITICAL:* Do not kill `slurmstepd`. The running GPU jobs are safe as long as `slurmstepd` lives.
-3.  On the primary controller, move the corrupted state files.
-    ```bash
-    mv /var/spool/slurmctld_state /var/spool/slurmctld_state.corrupt_backup
-    mkdir -p /var/spool/slurmctld_state
-    chown slurm:slurm /var/spool/slurmctld_state
-    ```
-4.  Start `slurmctld` on the Primary controller using the `-c` (Clear) flag. This forces Slurm to discard all previous state and rebuild it entirely from scratch.
-    ```bash
-    slurmctld -c
-    ```
-5.  Start `slurmd` on all compute nodes. As the nodes check in, they will report any running `slurmstepd` processes. `slurmctld` will adopt these orphaned processes and reconstruct the running job table dynamically. 
-6.  *Data Loss:* All *pending* (queued) jobs were lost in the state wipe and must be resubmitted by users.
+### Scenario 2: Recovering after a controller split or state-directory damage
+
+**Symptom:** After a network event, nodes show `DOWN`, `slurmctld` logs show conflicting node updates, or a controller refuses to start because it cannot read its state files.
+
+**Diagnosis:** Establish how many controllers believe they are primary. Two active primaries is the destructive case the slurm.conf manual warns about.
+
+**Remediation:**
+1. **Stop the extra primary first.** Stop `slurmctld` on all but one controller. Do not leave two running.
+2. **Do not use `slurmctld -c` to "rebuild from the nodes."** The man page says `-c` clears all previous state, that **all jobs, running and queued, are deleted**, and that it is rare you would want it in production because all jobs will be killed. The earlier version of this scenario described `-c` as preserving running jobs. That is incorrect.
+3. **Restore state from backup.** Restore `StateSaveLocation` from your latest backup. Start `slurmctld` with its default behavior, which recovers partial state (jobs and node DOWN/DRAIN state with reasons, but no partition state). Use `-R` to recover full state including partitions and power-save settings.
+4. **Use `-i` only as a deliberate loss decision.** It ignores errors reading state files, and anything unrecovered is lost.
+5. **Validate** with `squeue` and `sinfo` before reopening the queue, and have users resubmit anything the restore did not bring back.
+6. **Afterward,** find out why two controllers believed they were primary (shared storage, network, configuration) and fix that cause.
+
+The recovery plan is only as good as your backups of `StateSaveLocation`. See [Senior Deep Dive 2](./14-senior-deep-dive-2-slurm-ha-and-accounting-internals.md), section 2.4.
+
+---
 
 ### Scenario 3: GPU Binding Failures (Cgroup Issues)
 
@@ -671,7 +661,7 @@ This section contains an exhaustive list of highly technical interview questions
 
 ### Q1: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
 
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
+**Answer:** `sbatch` sends the job to `slurmctld` (default port 6817). With `AccountingStorageEnforce` set to include associations and limits, `slurmctld` validates the job against the association and QOS limits it holds in memory. That data comes from `slurmdbd` (default port 6819), which reads and writes the SQL database (default port 3306). A job that exceeds a limit is rejected or held with a reason at that point, depending on the limit type, and the message goes back to the `sbatch` client. If `slurmdbd` is down, `slurmctld` works from its cache of accounts and limits and queues accounting records until `slurmdbd` returns. I would not quote a latency budget or specific SQL lock behavior, because neither is documented. If asked, I would say that I would measure it with `sdiag` and the `slurmdbd` log.
 
 
 ## 10. Infrastructure as Code: Deploying Slurm via Ansible
@@ -823,7 +813,7 @@ The database daemon requires connection strings to MariaDB and its own configura
 
 ### 10.4 Deploying the HA Controllers
 
-The active/passive controllers must mount the shared NFS spool directory to avoid split-brain state corruption.
+Every controller must have read-write access to the shared state directory (`StateSaveLocation`). The NFS mount options below are an example only. SchedMD does not publish file-system-specific options, so validate whatever you use with failure injection before relying on it.
 
 ```yaml
 # playbooks/03-controllers.yaml

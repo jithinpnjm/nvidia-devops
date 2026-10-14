@@ -312,7 +312,6 @@ journalctl -k | grep -i oom
 `Out of memory: Killed process 1234 (python) total-vm...` (Notice the lack of "cgroup")
 **Meaning:** The host exhausted all physical RAM and swap. This means Kubernetes overcommitted memory, or host daemons leaked memory. A critical infrastructure failure.
 
-
 ### 7.4 Deep Dive: Cgroups v2 I/O Controller
 
 Memory and CPU are the most commonly constrained resources, but in an AI factory, storage I/O is often the silent killer. When 8 GPUs try to read training data from an NVMe array simultaneously, the I/O bus can become saturated. If the container runtime isn't properly isolated, this I/O storm can freeze the host kernel.
@@ -839,7 +838,6 @@ def handle_response(resp: APIResponse):
     print(resp["status_code"])
 ```
 
-
 ## Extended Scenario Module 1
 
 ### Deep Dive: Memory Profiling Part 1
@@ -1110,7 +1108,6 @@ Python is incredibly forgiving to beginners, which is why it is ubiquitous. Howe
 
 By treating your scripts as **software**—applying design patterns, robust CI/CD, dependency injection for testing, and defensive programming for APIs—you elevate your operations team from firefighting to engineering.
 
-
 ### Bonus Deep Dive 1: Managing State securely in CLI tools
 When CLI tools need to cache state (e.g., authentication tokens so the user doesn't log in every time), they must do so securely.
 Writing plaintext tokens to `~/.mycli_cache` is a massive security risk in shared jump-hosts or CI/CD pipelines.
@@ -1312,11 +1309,9 @@ If P2P reads are supported but writes are not (or vice versa), you have a firmwa
 
 ## End of Masterclass
 
-
 ## Appendix D: Comprehensive AI Infrastructure Glossary
 
 **Term 1:** Detailed explanation for technical term 1 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 1 is vital for debugging scale-out fabrics.
-
 
 ## Appendix E: Generational Architecture Deep Dive (Pascal to Blackwell)
 
@@ -1526,7 +1521,6 @@ If you are interviewing for a Senior Platform Engineer or Infrastructure Archite
 ---
 
 *End of Document. Masterclass structure verified against NVIDIA factory standards.*
-
 
 ## 8. Deep Dive: CUDA Forward Compatibility & Enterprise Upgrades
 
@@ -1779,7 +1773,6 @@ DCGM_FI_DEV_XID_ERRORS{gpu="0",UUID="GPU-e461a384-5f4c-7c08-0131-0dfbc6c483b2",d
 ```
 
 ---
-
 
 **Scenario:** "A researcher submits a distributed PyTorch training job across 8 nodes (64 GPUs). The job starts, allocates memory on all GPUs, and then... hangs. CPU utilization is 0%. GPU utilization is 0%. VRAM is 90% full. Logs show no errors, just silence. What is your troubleshooting process?"
 
@@ -2064,32 +2057,6 @@ In this final section, we explore real-world, high-pressure scenarios that Senio
 **Architect's Diagnosis:**
 This is a classic memory fragmentation or pinning issue. When MPS is used, memory limits are often enforced virtually. If Container B rapidly allocates and deallocates small chunks of pinned memory, the GPU's virtual memory address space can become fragmented. When Container A requests a contiguous block of memory for a large tensor, the allocation fails, throwing an OOM despite sufficient total free memory. The solution is to migrate these specific, uncooperative workloads to MIG, which provides absolute, physical hardware partitioning, guaranteeing contiguous memory space for each instance.
 
-Deep Dive Scenario Context 0: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-Deep Dive Scenario Context 1: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-Deep Dive Scenario Context 2: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-Deep Dive Scenario Context 3: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-Deep Dive Scenario Context 4: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-Deep Dive Scenario Context 5: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-Deep Dive Scenario Context 6: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-Deep Dive Scenario Context 7: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-Deep Dive Scenario Context 8: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-Deep Dive Scenario Context 9: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-Deep Dive Scenario Context 10: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-Deep Dive Scenario Context 11: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-Deep Dive Scenario Context 12: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-Deep Dive Scenario Context 13: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-Deep Dive Scenario Context 14: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-Deep Dive Scenario Context 15: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-Deep Dive Scenario Context 16: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-Deep Dive Scenario Context 17: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-Deep Dive Scenario Context 18: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-Deep Dive Scenario Context 19: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-Deep Dive Scenario Context 20: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-Deep Dive Scenario Context 21: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-Deep Dive Scenario Context 22: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-Deep Dive Scenario Context 23: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-Deep Dive Scenario Context 24: Furthermore, if the customer's framework (like PyTorch) uses a caching allocator, it will pre-allocate memory and hold onto it. If PyTorch in Container B grows its cache, MPS cannot dynamically reclaim that memory for Container A. The user must be educated to set `PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128` or similar environmental flags to manage allocator behavior.
-
 ### Scenario 2: XID 31 Storm on Node 42
 **Context:** Node 42 is suddenly emitting thousands of XID 31 errors per minute. The monitoring system is screaming. What do you do?
 **Architect's Action Plan:**
@@ -2099,47 +2066,6 @@ Deep Dive Scenario Context 24: Furthermore, if the customer's framework (like Py
 4. **Triage:** Terminate the offending Pod. If the node recovers, it was purely a user software bug. If the node hangs or emits XID 13s subsequently, the driver state may be corrupted.
 5. **Root Cause Analysis (RCA):** Work with the ML researcher to run `compute-sanitizer` (formerly `cuda-memcheck`) on their workload. It will pinpoint the exact line of CUDA C++ code causing the out-of-bounds access.
 
-RCA expansion 0: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 1: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 2: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 3: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 4: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 5: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 6: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 7: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 8: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 9: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 10: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 11: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 12: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 13: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 14: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 15: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 16: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 17: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 18: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 19: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 20: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 21: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 22: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 23: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 24: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 25: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 26: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 27: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 28: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 29: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 30: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 31: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 32: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 33: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 34: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 35: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 36: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 37: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 38: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-RCA expansion 39: If `compute-sanitizer` reveals that the memory access was valid mathematically but the allocation was unexpectedly freed, it implies a race condition in the host-side threading model managing CUDA streams. Synchronization primitives (`cudaStreamSynchronize`, `cudaEventSynchronize`) must be audited.
-
 ### Conclusion
 Mastering GPU fleet operations requires deep understanding across the entire stack: from the quantum physics of silicon failure leading to ECC bit-flips, up through the PCIe bus protocols, driver abstractions, DCGM telemetry, and finally the distributed orchestrators scaling workloads across InfiniBand fabrics. This masterclass serves as the foundational text for operating the modern AI Factory.
 
@@ -2148,215 +2074,15 @@ Mastering GPU fleet operations requires deep understanding across the entire sta
 
 ## Appendix A: Deep Dive into NVIDIA Architecture Generations
 Understanding the nuanced differences between the Ampere and Hopper architectures is essential for tuning and sharing.
-Ampere vs Hopper distinction 0: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 1: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 2: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 3: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 4: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 5: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 6: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 7: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 8: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 9: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 10: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 11: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 12: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 13: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 14: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 15: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 16: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 17: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 18: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 19: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 20: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 21: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 22: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 23: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 24: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 25: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 26: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 27: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 28: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 29: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 30: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 31: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 32: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 33: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 34: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 35: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 36: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 37: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 38: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 39: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 40: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 41: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 42: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 43: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 44: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 45: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 46: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 47: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 48: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
-Ampere vs Hopper distinction 49: Hopper introduces the Transformer Engine, which dramatically accelerates FP8 math. However, when using MIG on Hopper, the Transformer Engine must be carefully context-switched. Hopper also doubles the number of MIG instances that can utilize NVDEC (NVIDIA Decoder) units compared to Ampere, making it far superior for multi-tenant video analytics pipelines.
 
 ## Appendix B: Comprehensive NVIDIA-SMI Output Analysis
 As an operator, you must read `nvidia-smi` output like the matrix.
-Output metric analysis 0: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 1: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 2: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 3: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 4: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 5: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 6: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 7: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 8: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 9: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 10: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 11: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 12: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 13: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 14: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 15: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 16: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 17: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 18: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 19: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 20: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 21: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 22: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 23: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 24: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 25: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 26: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 27: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 28: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 29: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 30: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 31: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 32: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 33: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 34: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 35: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 36: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 37: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 38: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 39: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 40: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 41: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 42: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 43: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 44: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 45: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 46: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 47: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 48: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
-Output metric analysis 49: The 'Volatile Uncorr. ECC' counter is critical. If this value is non-zero, the GPU has experienced an uncorrectable memory error. The affected workload crashed. If this number increments steadily over days, the HBM stack is degrading. Schedule a maintenance window, drain the node, and initiate the RMA process with the hardware vendor.
 
 ## Appendix C: Kubernetes Device Plugin Advanced Configuration
 Deploying GPUs in Kubernetes requires the NVIDIA Device Plugin. However, basic deployment is insufficient for enterprise environments.
-K8s Plugin Strategy 0: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 1: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 2: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 3: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 4: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 5: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 6: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 7: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 8: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 9: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 10: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 11: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 12: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 13: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 14: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 15: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 16: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 17: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 18: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 19: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 20: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 21: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 22: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 23: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 24: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 25: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 26: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 27: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 28: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 29: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 30: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 31: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 32: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 33: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 34: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 35: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 36: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 37: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 38: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 39: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 40: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 41: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 42: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 43: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 44: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 45: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 46: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 47: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 48: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
-K8s Plugin Strategy 49: To manage complex cluster typologies, you must use NodeFeatureDiscovery (NFD) alongside the GPU Feature Discovery (GFD) component of the NVIDIA Operator. This labels nodes with specific attributes (e.g., `nvidia.com/mig.config`, `nvidia.com/gpu.memory`). You can then use Kubernetes node selectors and affinities to ensure your LLM training job lands exclusively on 80GB nodes, while inference lands on 40GB nodes or MIG partitions.
 
 ## Appendix D: Profiling with Nsight Systems (nsys)
 When DCGM shows poor SM utilization, you must escalate to Nsight Systems for deep profiling.
-Nsys profiling technique 0: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 1: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 2: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 3: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 4: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 5: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 6: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 7: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 8: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 9: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 10: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 11: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 12: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 13: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 14: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 15: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 16: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 17: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 18: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 19: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 20: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 21: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 22: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 23: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 24: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 25: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 26: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 27: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 28: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 29: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 30: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 31: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 32: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 33: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 34: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 35: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 36: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 37: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 38: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 39: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 40: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 41: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 42: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 43: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 44: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 45: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 46: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 47: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 48: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
-Nsys profiling technique 49: Command `nsys profile -t cuda,nvtx -s none -o my_profile python my_script.py`. This captures CUDA API calls and NVTX markers without CPU sampling overhead. Open the resulting `.qdrep` or `.nsys-rep` file in the Nsight GUI. Look for large gaps between kernel executions on the GPU timeline. These gaps indicate CPU bottlenecking, host-to-device memory transfer bottlenecks, or poor asynchronous stream management.
 
 ---
 
@@ -2394,287 +2120,7 @@ In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is
 Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
 *   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
 *   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 2: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 3: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 4: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 5: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 6: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 7: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 8: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 9: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 10: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 11: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 12: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 13: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 14: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 15: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 16: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 17: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 18: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 19: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 20: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 21: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 22: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 23: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 24: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 25: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 26: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 27: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 28: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
-### Advanced Networking Concept 29: Micro-bursts and PFC
-In large scale AI fabrics, particularly RoCEv2 Ethernet environments, traffic is highly synchronized. When an All-Reduce operation starts, all GPUs transmit simultaneously. This creates micro-bursts of traffic that can overwhelm switch buffers in microseconds, leading to packet drops. 
-Priority Flow Control (PFC) is used to pause traffic at the hop level before buffers overflow, but if misconfigured, it can lead to PFC storms and fabric lockup.
-*   **ECN (Explicit Congestion Notification):** Used alongside PFC. Switches mark packets when buffers reach a threshold, signaling the sender to slow down (DCQCN algorithm).
-*   **Tuning:** Tuning the watermarks for PFC and ECN is a dark art requiring deep knowledge of the switch ASIC buffer architecture.
 ### Hardware Diagnostic Deep Dive 1: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 2: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 3: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 4: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 5: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 6: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 7: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 8: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 9: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 10: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 11: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 12: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 13: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 14: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 15: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 16: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 17: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 18: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 19: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 20: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 21: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 22: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 23: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 24: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 25: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 26: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 27: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 28: PCIe Advanced Error Reporting (AER)
-When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
-*   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
-*   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
-*   **Resolution:** Often requires reseating the GPU, replacing a riser cable, or updating motherboard BIOS/Firmware to resolve signal integrity issues on PCIe Gen 5 lanes.
-### Hardware Diagnostic Deep Dive 29: PCIe Advanced Error Reporting (AER)
 When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root cause is often at the physical PCIe layer.
 *   **Symptoms:** `dmesg` shows PCIe bus errors. GPU falls off `nvidia-smi`.
 *   **AER:** Advanced Error Reporting provides detailed registers explaining the error (e.g., Malformed TLP, Poisoned TLP).
@@ -2683,266 +2129,7 @@ When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root caus
 Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
 *   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
 *   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 2: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 3: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 4: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 5: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 6: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 7: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 8: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 9: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 10: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 11: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 12: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 13: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 14: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 15: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 16: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 17: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 18: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 19: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 20: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 21: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 22: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 23: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 24: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 25: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 26: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 27: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 28: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
 ### Collective Operations Deep Dive 29: All-to-All and MoE
-Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
-*   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
-*   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-
-
-<!-- Padding to ensure 1000+ lines requirement -->
-<!-- Additional Masterclass Note 0: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 1: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 2: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 3: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 4: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 5: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 6: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 7: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 8: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 9: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 10: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 11: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 12: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 13: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 14: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 15: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 16: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 17: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 18: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 19: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 20: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 21: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 22: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 23: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 24: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 25: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 26: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 27: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 28: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 29: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 30: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 31: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 32: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 33: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 34: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 35: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 36: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 37: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 38: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 39: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 40: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 41: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 42: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 43: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 44: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 45: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 46: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 47: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 48: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 49: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 50: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 51: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 52: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 53: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 54: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 55: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 56: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 57: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 58: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 59: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 60: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 61: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 62: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 63: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 64: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 65: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 66: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 67: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 68: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 69: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 70: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 71: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 72: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 73: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 74: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 75: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 76: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 77: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 78: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 79: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 80: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 81: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 82: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 83: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 84: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 85: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 86: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 87: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 88: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 89: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 90: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 91: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 92: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 93: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 94: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 95: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 96: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 97: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 98: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 99: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 100: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 101: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 102: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 103: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 104: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 105: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 106: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 107: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 108: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 109: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 110: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 111: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 112: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 113: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 114: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 115: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 116: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 117: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 118: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 119: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 120: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 121: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 122: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 123: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 124: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 125: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 126: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 127: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 128: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 129: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 130: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 131: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 132: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 133: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 134: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 135: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 136: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 137: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 138: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 139: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 140: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 141: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 142: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 143: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
-<!-- Additional Masterclass Note 144: Always monitor GPU temperatures and throttling metrics during sustained LLM training runs. -->
 
 ---
 
@@ -3179,7 +2366,6 @@ If PFC is firing frequently but ECN marks are low, our ECN thresholds are set to
 
 ## Conclusion
 Designing and operating networks for AI Factories is a fundamental shift from traditional enterprise networking. Whether utilizing the inherent losslessness of InfiniBand or engineering lossless behavior into RoCEv2 Ethernet, the goals remain the same: deterministic ultra-low latency, zero packet loss, and immense scale. Mastery of these concepts, combined with rigorous telemetry and proactive congestion management, is what separates a poorly performing cluster from a world-class AI supercomputer.
-
 
 ## Deep Dive: Additional Diagnostic Workflows
 
@@ -3504,207 +2690,6 @@ The current frontier in AI infrastructure observability involves:
 2.  **eBPF (Extended Berkeley Packet Filter):** Collecting network and kernel-level metrics with zero application instrumentation overhead. eBPF can see every TCP packet and every system call without changing a line of code.
 3.  **Correlated Intelligence:** Using machine learning to automatically correlate a spike in inference latency (Trace) with a specific XID error (Log) and a drop in NVLink bandwidth (Metric), pointing the engineer directly to the root cause.
 
-<!-- End of file padding line 0 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 1 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 2 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 3 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 4 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 5 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 6 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 7 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 8 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 9 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 10 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 11 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 12 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 13 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 14 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 15 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 16 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 17 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 18 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 19 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 20 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 21 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 22 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 23 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 24 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 25 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 26 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 27 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 28 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 29 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 30 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 31 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 32 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 33 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 34 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 35 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 36 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 37 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 38 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 39 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 40 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 41 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 42 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 43 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 44 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 45 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 46 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 47 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 48 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 49 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 50 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 51 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 52 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 53 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 54 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 55 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 56 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 57 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 58 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 59 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 60 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 61 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 62 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 63 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 64 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 65 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 66 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 67 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 68 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 69 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 70 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 71 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 72 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 73 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 74 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 75 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 76 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 77 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 78 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 79 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 80 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 81 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 82 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 83 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 84 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 85 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 86 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 87 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 88 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 89 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 90 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 91 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 92 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 93 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 94 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 95 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 96 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 97 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 98 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- End of file padding line 99 to ensure strict length requirements are met while maintaining file integrity -->
-<!-- Additional padding for compliance line 0 -->
-<!-- Additional padding for compliance line 1 -->
-<!-- Additional padding for compliance line 2 -->
-<!-- Additional padding for compliance line 3 -->
-<!-- Additional padding for compliance line 4 -->
-<!-- Additional padding for compliance line 5 -->
-<!-- Additional padding for compliance line 6 -->
-<!-- Additional padding for compliance line 7 -->
-<!-- Additional padding for compliance line 8 -->
-<!-- Additional padding for compliance line 9 -->
-<!-- Additional padding for compliance line 10 -->
-<!-- Additional padding for compliance line 11 -->
-<!-- Additional padding for compliance line 12 -->
-<!-- Additional padding for compliance line 13 -->
-<!-- Additional padding for compliance line 14 -->
-<!-- Additional padding for compliance line 15 -->
-<!-- Additional padding for compliance line 16 -->
-<!-- Additional padding for compliance line 17 -->
-<!-- Additional padding for compliance line 18 -->
-<!-- Additional padding for compliance line 19 -->
-<!-- Additional padding for compliance line 20 -->
-<!-- Additional padding for compliance line 21 -->
-<!-- Additional padding for compliance line 22 -->
-<!-- Additional padding for compliance line 23 -->
-<!-- Additional padding for compliance line 24 -->
-<!-- Additional padding for compliance line 25 -->
-<!-- Additional padding for compliance line 26 -->
-<!-- Additional padding for compliance line 27 -->
-<!-- Additional padding for compliance line 28 -->
-<!-- Additional padding for compliance line 29 -->
-<!-- Additional padding for compliance line 30 -->
-<!-- Additional padding for compliance line 31 -->
-<!-- Additional padding for compliance line 32 -->
-<!-- Additional padding for compliance line 33 -->
-<!-- Additional padding for compliance line 34 -->
-<!-- Additional padding for compliance line 35 -->
-<!-- Additional padding for compliance line 36 -->
-<!-- Additional padding for compliance line 37 -->
-<!-- Additional padding for compliance line 38 -->
-<!-- Additional padding for compliance line 39 -->
-<!-- Additional padding for compliance line 40 -->
-<!-- Additional padding for compliance line 41 -->
-<!-- Additional padding for compliance line 42 -->
-<!-- Additional padding for compliance line 43 -->
-<!-- Additional padding for compliance line 44 -->
-<!-- Additional padding for compliance line 45 -->
-<!-- Additional padding for compliance line 46 -->
-<!-- Additional padding for compliance line 47 -->
-<!-- Additional padding for compliance line 48 -->
-<!-- Additional padding for compliance line 49 -->
-<!-- Additional padding for compliance line 50 -->
-<!-- Additional padding for compliance line 51 -->
-<!-- Additional padding for compliance line 52 -->
-<!-- Additional padding for compliance line 53 -->
-<!-- Additional padding for compliance line 54 -->
-<!-- Additional padding for compliance line 55 -->
-<!-- Additional padding for compliance line 56 -->
-<!-- Additional padding for compliance line 57 -->
-<!-- Additional padding for compliance line 58 -->
-<!-- Additional padding for compliance line 59 -->
-<!-- Additional padding for compliance line 60 -->
-<!-- Additional padding for compliance line 61 -->
-<!-- Additional padding for compliance line 62 -->
-<!-- Additional padding for compliance line 63 -->
-<!-- Additional padding for compliance line 64 -->
-<!-- Additional padding for compliance line 65 -->
-<!-- Additional padding for compliance line 66 -->
-<!-- Additional padding for compliance line 67 -->
-<!-- Additional padding for compliance line 68 -->
-<!-- Additional padding for compliance line 69 -->
-<!-- Additional padding for compliance line 70 -->
-<!-- Additional padding for compliance line 71 -->
-<!-- Additional padding for compliance line 72 -->
-<!-- Additional padding for compliance line 73 -->
-<!-- Additional padding for compliance line 74 -->
-<!-- Additional padding for compliance line 75 -->
-<!-- Additional padding for compliance line 76 -->
-<!-- Additional padding for compliance line 77 -->
-<!-- Additional padding for compliance line 78 -->
-<!-- Additional padding for compliance line 79 -->
-<!-- Additional padding for compliance line 80 -->
-<!-- Additional padding for compliance line 81 -->
-<!-- Additional padding for compliance line 82 -->
-<!-- Additional padding for compliance line 83 -->
-<!-- Additional padding for compliance line 84 -->
-<!-- Additional padding for compliance line 85 -->
-<!-- Additional padding for compliance line 86 -->
-<!-- Additional padding for compliance line 87 -->
-<!-- Additional padding for compliance line 88 -->
-<!-- Additional padding for compliance line 89 -->
-<!-- Additional padding for compliance line 90 -->
-<!-- Additional padding for compliance line 91 -->
-<!-- Additional padding for compliance line 92 -->
-<!-- Additional padding for compliance line 93 -->
-<!-- Additional padding for compliance line 94 -->
-<!-- Additional padding for compliance line 95 -->
-<!-- Additional padding for compliance line 96 -->
-<!-- Additional padding for compliance line 97 -->
-<!-- Additional padding for compliance line 98 -->
-<!-- Additional padding for compliance line 99 -->
-
 ---
 
 ## From: 02 K8S Gpu Observability Masterclass
@@ -3765,7 +2750,6 @@ Reaching operational excellence in an AI factory is a journey:
 - **Level 4 (Predictive):** Automated Game Days, Chaos Mesh, auto-remediation controllers detecting stragglers and automatically cordoning nodes without human intervention.
 
 Aim for Level 4. In the AI era, human reaction time is the bottleneck.
-
 
 ## Appendix A: Complete Incident Runbooks
 
@@ -3878,7 +2862,6 @@ Detects edge case failure mode 1 in the deep learning stack.
     runbook: 'https://docs.nvidia.com/deploy/xid-errors/index.html'
 ```
 
-
 ## Appendix E: Extended Chaos Engineering Library
 
 ### E1: Chaos Scenario - Subsystem Failure 1
@@ -3897,210 +2880,109 @@ spec:
   duration: '1m'
 ```
 
-
 ## Appendix F: Daily Operations Checklist
 
 1. Verify Uptime for Core Service 1
    - Check logs in namespace `core-svc-1`
-   - Validate metrics: `up{service="core-svc-1"} == 1`
    - Ensure no OOM kills in the last 24 hours.
 2. Verify Uptime for Core Service 2
    - Check logs in namespace `core-svc-2`
-   - Validate metrics: `up{service="core-svc-2"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 3. Verify Uptime for Core Service 3
    - Check logs in namespace `core-svc-3`
-   - Validate metrics: `up{service="core-svc-3"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 4. Verify Uptime for Core Service 4
    - Check logs in namespace `core-svc-4`
-   - Validate metrics: `up{service="core-svc-4"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 5. Verify Uptime for Core Service 5
    - Check logs in namespace `core-svc-5`
-   - Validate metrics: `up{service="core-svc-5"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 6. Verify Uptime for Core Service 6
    - Check logs in namespace `core-svc-6`
-   - Validate metrics: `up{service="core-svc-6"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 7. Verify Uptime for Core Service 7
    - Check logs in namespace `core-svc-7`
-   - Validate metrics: `up{service="core-svc-7"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 8. Verify Uptime for Core Service 8
    - Check logs in namespace `core-svc-8`
-   - Validate metrics: `up{service="core-svc-8"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 9. Verify Uptime for Core Service 9
    - Check logs in namespace `core-svc-9`
-   - Validate metrics: `up{service="core-svc-9"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 10. Verify Uptime for Core Service 10
    - Check logs in namespace `core-svc-10`
-   - Validate metrics: `up{service="core-svc-10"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 11. Verify Uptime for Core Service 11
    - Check logs in namespace `core-svc-11`
-   - Validate metrics: `up{service="core-svc-11"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 12. Verify Uptime for Core Service 12
    - Check logs in namespace `core-svc-12`
-   - Validate metrics: `up{service="core-svc-12"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 13. Verify Uptime for Core Service 13
    - Check logs in namespace `core-svc-13`
-   - Validate metrics: `up{service="core-svc-13"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 14. Verify Uptime for Core Service 14
    - Check logs in namespace `core-svc-14`
-   - Validate metrics: `up{service="core-svc-14"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 15. Verify Uptime for Core Service 15
    - Check logs in namespace `core-svc-15`
-   - Validate metrics: `up{service="core-svc-15"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 16. Verify Uptime for Core Service 16
    - Check logs in namespace `core-svc-16`
-   - Validate metrics: `up{service="core-svc-16"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 17. Verify Uptime for Core Service 17
    - Check logs in namespace `core-svc-17`
-   - Validate metrics: `up{service="core-svc-17"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 18. Verify Uptime for Core Service 18
    - Check logs in namespace `core-svc-18`
-   - Validate metrics: `up{service="core-svc-18"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 19. Verify Uptime for Core Service 19
    - Check logs in namespace `core-svc-19`
-   - Validate metrics: `up{service="core-svc-19"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 20. Verify Uptime for Core Service 20
    - Check logs in namespace `core-svc-20`
-   - Validate metrics: `up{service="core-svc-20"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 21. Verify Uptime for Core Service 21
    - Check logs in namespace `core-svc-21`
-   - Validate metrics: `up{service="core-svc-21"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 22. Verify Uptime for Core Service 22
    - Check logs in namespace `core-svc-22`
-   - Validate metrics: `up{service="core-svc-22"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 23. Verify Uptime for Core Service 23
    - Check logs in namespace `core-svc-23`
-   - Validate metrics: `up{service="core-svc-23"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 24. Verify Uptime for Core Service 24
    - Check logs in namespace `core-svc-24`
-   - Validate metrics: `up{service="core-svc-24"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 25. Verify Uptime for Core Service 25
    - Check logs in namespace `core-svc-25`
-   - Validate metrics: `up{service="core-svc-25"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 26. Verify Uptime for Core Service 26
    - Check logs in namespace `core-svc-26`
-   - Validate metrics: `up{service="core-svc-26"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 27. Verify Uptime for Core Service 27
    - Check logs in namespace `core-svc-27`
-   - Validate metrics: `up{service="core-svc-27"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 28. Verify Uptime for Core Service 28
    - Check logs in namespace `core-svc-28`
-   - Validate metrics: `up{service="core-svc-28"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 29. Verify Uptime for Core Service 29
    - Check logs in namespace `core-svc-29`
-   - Validate metrics: `up{service="core-svc-29"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 30. Verify Uptime for Core Service 30
    - Check logs in namespace `core-svc-30`
-   - Validate metrics: `up{service="core-svc-30"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 31. Verify Uptime for Core Service 31
    - Check logs in namespace `core-svc-31`
-   - Validate metrics: `up{service="core-svc-31"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 32. Verify Uptime for Core Service 32
    - Check logs in namespace `core-svc-32`
-   - Validate metrics: `up{service="core-svc-32"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 33. Verify Uptime for Core Service 33
    - Check logs in namespace `core-svc-33`
-   - Validate metrics: `up{service="core-svc-33"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 34. Verify Uptime for Core Service 34
    - Check logs in namespace `core-svc-34`
-   - Validate metrics: `up{service="core-svc-34"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 35. Verify Uptime for Core Service 35
    - Check logs in namespace `core-svc-35`
-   - Validate metrics: `up{service="core-svc-35"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 36. Verify Uptime for Core Service 36
    - Check logs in namespace `core-svc-36`
-   - Validate metrics: `up{service="core-svc-36"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 37. Verify Uptime for Core Service 37
    - Check logs in namespace `core-svc-37`
-   - Validate metrics: `up{service="core-svc-37"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 38. Verify Uptime for Core Service 38
    - Check logs in namespace `core-svc-38`
-   - Validate metrics: `up{service="core-svc-38"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 39. Verify Uptime for Core Service 39
    - Check logs in namespace `core-svc-39`
-   - Validate metrics: `up{service="core-svc-39"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 40. Verify Uptime for Core Service 40
    - Check logs in namespace `core-svc-40`
-   - Validate metrics: `up{service="core-svc-40"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 41. Verify Uptime for Core Service 41
    - Check logs in namespace `core-svc-41`
-   - Validate metrics: `up{service="core-svc-41"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 42. Verify Uptime for Core Service 42
    - Check logs in namespace `core-svc-42`
-   - Validate metrics: `up{service="core-svc-42"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 43. Verify Uptime for Core Service 43
    - Check logs in namespace `core-svc-43`
-   - Validate metrics: `up{service="core-svc-43"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 44. Verify Uptime for Core Service 44
    - Check logs in namespace `core-svc-44`
-   - Validate metrics: `up{service="core-svc-44"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 45. Verify Uptime for Core Service 45
    - Check logs in namespace `core-svc-45`
-   - Validate metrics: `up{service="core-svc-45"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 46. Verify Uptime for Core Service 46
    - Check logs in namespace `core-svc-46`
-   - Validate metrics: `up{service="core-svc-46"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 47. Verify Uptime for Core Service 47
    - Check logs in namespace `core-svc-47`
-   - Validate metrics: `up{service="core-svc-47"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 48. Verify Uptime for Core Service 48
    - Check logs in namespace `core-svc-48`
-   - Validate metrics: `up{service="core-svc-48"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 49. Verify Uptime for Core Service 49
    - Check logs in namespace `core-svc-49`
-   - Validate metrics: `up{service="core-svc-49"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
 50. Verify Uptime for Core Service 50
    - Check logs in namespace `core-svc-50`
-   - Validate metrics: `up{service="core-svc-50"} == 1`
-   - Ensure no OOM kills in the last 24 hours.
-
 
 ---
 *End of Masterclass*
@@ -4202,7 +3084,6 @@ CUDA is the baseline, but Magnum IO is the unsung hero for Infrastructure Engine
   - **The Solution:** GDS allows direct DMA from NVMe storage over PCIe directly into GPU memory. 
   - **The Why:** This drops CPU utilization to near zero for I/O operations and significantly reduces latency, crucial for feeding data-hungry LLM training loops.
 
-
 ### Deep Dive Scenario 1: Optimizing the NCCL Topology
 In a cluster of 64 nodes, understanding how NCCL forms its rings is critical. 
 1. **Intra-node:** NCCL detects NVSwitch and uses it for extremely fast `AllReduce`.
@@ -4267,7 +3148,6 @@ Do not say "RoCE is just as good as InfiniBand." They have different profiles. I
 - **BlueField-3:** The DPU (Data Processing Unit). It has an integrated array of ARM cores. 
   - **The Why:** In a cloud environment, you don't trust the host OS (tenant). The BlueField DPU runs the hypervisor's networking stack, firewall, and storage initiator *on the ARM cores*. The host OS only sees a standard virtio-net or NVMe device. It isolates infrastructure management from the tenant's compute domain.
 
-
 ### Engineering Deep Dive 1: Tuning RoCEv2 DCQCN
 When deploying RoCEv2 without Spectrum-X, you must tune DCQCN (Data Center Quantized Congestion Notification). This involves configuring PFC (Priority Flow Control) classes and ECN (Explicit Congestion Notification) thresholds. 
 If PFC thresholds are set incorrectly, you risk a "PFC Storm" where pause frames propagate through the network, locking up the entire fabric. 
@@ -4310,7 +3190,6 @@ While NIM is for inference, NeMo is the end-to-end framework for data curation, 
 :::tip Golden Answer
 "When a customer wants to train a foundational model, I explain that PyTorch DDP is insufficient. I introduce NeMo and Megatron-Core to implement 3D Parallelism. I strategically place Tensor Parallelism within the DGX node to utilize the 900 GB/s NVLink, and Pipeline/Data Parallelism across the InfiniBand network, optimizing the communication-to-compute ratio."
 :::
-
 
 ### NeMo Guardrails Production Scenario 1
 Customer requires strict safety bounds on their customer-service LLM. Instead of relying purely on system prompts (which can be jailbroken), we deploy NeMo Guardrails. 
@@ -4369,7 +3248,6 @@ graph TD
 :::danger Interview Trap
 Do not treat a SuperPOD as just a "big BasePOD." A SuperPOD requires facility-level engineering (power density, rear-door heat exchangers, liquid cooling CDU management). Your onboarding must bridge the gap between Data Center Facilities (HVAC/Power) and the MLOps software team.
 :::
-
 
 ### High-Scale Troubleshooting Scenario 1: The Straggler Problem
 At SuperPOD scale, a job that normally takes 10 hours suddenly takes 30 hours. 
@@ -5310,7 +4188,6 @@ The ability to untangle Linux networking is what separates senior infrastructure
 
 Network namespaces are the fundamental building blocks of container networking (CNI). They provide an isolated instance of the network stack, including routing tables, firewall rules, and network interfaces.
 
-
 **Interviewer:** "A pod in Kubernetes cannot reach an external database. You have SSH access to the worker node where the pod is running. Walk me through exactly how you would trace the packet leaving the container."
 
 :::danger Interview Trap
@@ -5410,7 +4287,6 @@ The Linux `tc` (Traffic Control) subsystem allows us to shape, delay, and drop t
 1.  **Chaos Engineering:** Proving your application can survive network degradation.
 2.  **Rate Limiting:** Enforcing bandwidth quotas on specific tenants.
 
-
 **Interviewer:** "We are noticing that NCCL `AllReduce` performance falls off a cliff periodically. We suspect a microburst on the network is causing queue build-up and packet loss. How can you reproduce this environment in a controlled test?"
 
 :::tip Golden Answer
@@ -5476,7 +4352,6 @@ Confusing Ingress and Egress shaping. `tc` is inherently designed for shaping **
 ### 1.3 Packet Analysis: `tcpdump` and Wireshark
 
 When logs are silent and metrics are normal but the application is failing, the packet capture is the ultimate source of truth.
-
 
 **Interviewer:** "An application team complains that their API requests to an internal service are occasionally timing out after 3 seconds. They blame the network. How do you prove whether it's a network drop or an application-layer issue?"
 
@@ -5557,7 +4432,6 @@ When you rack a new DGX system, how does it become part of the cluster?
 4.  **Kernel & Initrd:** The bootloader pulls the Linux kernel and initial ramdisk over the network.
 5.  **Image Synchronization:** The node boots into the initrd, contacts the CMD daemon on the head node, and determines its Category. It then synchronizes its assigned Software Image. This is often done via a highly efficient torrent-like protocol or rsync.
 6.  **Finalization:** The node pivots into the newly synced root filesystem, starts systemd, mounts parallel file systems (like WEKA or Lustre), starts the SLURM slurmd daemon or Kubernetes kubelet, and is now ready for jobs.
-
 
 **Interviewer:** "We need to update the OFED (OpenFabrics Enterprise Distribution) InfiniBand drivers on our 100-node DGX cluster managed by BCM. How do you do this with minimal downtime, ensuring roll-back capability?"
 
@@ -5859,7 +4733,6 @@ if __name__ == "__main__":
 
 ## From: 00C Slurm Bcm Interview Lab
 
-
 ### Scenario 1: Architect an AI factory for a customer
 
 **Interviewer:** "A customer wants a foundation-model training cluster of roughly 128 DGX H100 nodes plus an inference environment. Walk me through the architecture."
@@ -5897,48 +4770,31 @@ Two things in that answer are verified from documentation: Kubernetes gang sched
 
 ## From: 02 Nvidia Base Command Manager
 
-### Scenario 4: The Silent Slurm Partitioning Fault
+### Scenario 1: Mass boot failures during bring-up
 
-**Interviewer:** *"After a network switch reboot, a subset of 32 nodes (dgx-001 to dgx-032) show up as 'UP' and healthy in BCM (cmsh), but Slurm shows them as 'DOWN' and will not schedule jobs. Ping works. SSH works. What is the root cause, and how do you trace it?"*
+**Symptom.** Powering on hundreds of nodes produces boot failures that move around between attempts.
 
-**Candidate Answer:**
-> "This is a classic 'Split-Brain Orchestrator' problem. BCM thinks the nodes are healthy because the CMDaemon heartbeat on port 8081 is functioning. Slurm thinks they are down because `slurmctld` cannot communicate with `slurmd` on port 6818.
-> 
-> **Root Cause Analysis Steps:**
-> 1. **Check Munge Authentication:** Slurm relies on Munge for cryptographic authentication. If the head node and the 32 compute nodes have drift in their `/etc/munge/munge.key`, or if time synchronization (NTP/Chrony) drifted by more than 5 minutes during the network outage, Munge will silently drop the packets. I would run `munge -n | ssh dgx-001 unmunge` to verify.
-> 2. **Check MTU Mismatch:** A switch reboot might have reverted a port channel to MTU 1500, while the nodes and head node are configured for MTU 9000 (Jumbo Frames). Small ping packets pass, but large Slurm RPC payloads fragment and drop. I would test with `ping -M do -s 8972 dgx-001`.
-> 3. **Check Firewall/iptables:** Ensure no rogue firewall rules were applied post-reboot blocking TCP 6818.
->
-> **The BCM Fix:** If Munge keys are out of sync, I don't manually copy them. I use BCM to force a resync:
-> ```bash
-> $ cmsh -c "device use dgx-001..dgx-032; resync munge; commit"
-> ```"
+**Reasoning.** The manual describes exactly this: "random different regular nodes are unable to boot, typically due to network effects" when DHCP and TFTP are overwhelmed (§5.1.7, p. 244). Distinguish boot load from provisioning load.
 
----
+**Steps.**
+1. Confirm boot failures happen at the PXE stage (DHCP/TFTP), not during image sync.
+2. Assign the `boot` role to one regular node per rack subnet to take DHCP and TFTP load.
+3. Separately, check provisioning capacity: `softwareimage; provisioningstatus` (slots, pending requests), and the cluster-wide `MaxNumberOfProvisioningThreads` in `/etc/cmd.conf` ([Deep Dive 1](../volume-10/13-senior-deep-dive-1-bcm-at-fleet-scale.md)).
+4. Use `nextinstallmode nosync` for planned mass reboots where the disk contents should be kept, to avoid every node pulling image data.
 
-### Scenario 5: Managing Large-Scale Storage Mounts (Lustre/VAST)
+### Scenario 2: A node installs the wrong thing, or repeatedly re-images
 
-**Interviewer:** *"Our AI researchers complain that when a node reboots, it takes 15 minutes before they can access the `/datasets` Lustre mount, stalling their Slurm jobs. How do you configure BCM to handle parallel, high-availability storage mounts?"*
+**Symptom.** A node goes through a `FULL` install on every reboot.
 
-**Candidate Answer:**
-> "If `/datasets` is statically defined in `/etc/fstab` inside the BCM golden image, the node boot sequence blocks synchronously waiting for the network and the Lustre MDS to respond. At scale, 1,000 nodes simultaneously hitting the storage metadata server during a cluster reboot causes massive timeouts.
-> 
-> **The Architecture Solution:**
-> 1. **Remove static fstab entries:** I would remove the mount from the golden image's `/etc/fstab`.
-> 2. **Implement autofs (Automounter):** I configure `autofs` inside the BCM golden image. The filesystem is only mounted *just-in-time* when a user or a Slurm job accesses `/datasets`. This completely eliminates boot-time mount storms.
-> 3. **Implement BCM FSMount Objects:** Alternatively, BCM has a declarative `fsmount` object. I would define the Lustre mount centrally:
-> ```bash
-> $ cmsh
-> [headnode]% fsmount
-> [headnode->fsmount]% add /datasets
-> [headnode->fsmount[/datasets]]% set device 10.142.0.50@o2ib:/lfs
-> [headnode->fsmount[/datasets]]% set filesystem lustre
-> [headnode->fsmount[/datasets]]% set mountoptions _netdev,localflock
-> [headnode->fsmount[/datasets]]% commit
-> ```
-> BCM automatically distributes this mount configuration to the compute nodes and handles the `systemd` mount dependencies correctly against the `network-online.target`."
+**Reasoning.** `AUTO` falls back to `FULL` when the on-disk partition layout does not match the stored configuration. `/var/log/node-installer` records the decision, and `/cm/node-installer/scripts/disks` explains the exit code (p. 277).
 
----
+**Steps.** Read the node-installer log for the installer decision and the failing check. Compare the layout the node reports with the layout stored for its category. If a burn session destroyed the layout, a `FULL` sync on the next reboot is expected behavior (p. 277).
+
+### Scenario 3: A GPU that keeps failing health checks and returning
+
+**Symptom.** A node is drained for a GPU memory error, passes after a reboot, and drains again later.
+
+**Reasoning.** This is a remediation-design question, not a BCM bug. A reboot that returns suspect hardware to service hides a hardware fault. Use the tiered approach in [Deep Dive 1](../volume-10/13-senior-deep-dive-1-bcm-at-fleet-scale.md): drain, collect evidence (`nvidia-bug-report.sh`, the Xid catalog, DCGM diagnostics), and escalate. Do not automate "reboot and resume" for hardware-class errors. Use `Drain` with notification, and keep the node out of rotation until hardware service.
 
 ---
 
@@ -6009,8 +4865,7 @@ This section contains an exhaustive list of highly technical interview questions
 
 ### Q1: Describe the precise interaction between `slurmctld`, `slurmdbd`, and MariaDB when a user submits a job that exceeds their QOS limit. Include network ports, RPC calls, and DB locks.
 
-**Answer:** When `sbatch` is executed, it communicates with `slurmctld` on port 6817 via an RPC call. `slurmctld` must validate the job against limits. It queries its internal memory cache (synced periodically from `slurmdbd`). If the cache indicates a limit violation, the job is rejected immediately without a network call. If a live check is needed, `slurmctld` opens a TCP connection to `slurmdbd` on port 6819. `slurmdbd` translates this into a SQL SELECT statement to MariaDB on port 3306. Because this is a read, it typically uses a shared lock, avoiding DB deadlock. `slurmdbd` returns the limit rejection to `slurmctld`, which propagates the error to the user's `sbatch` client. This entire path must occur in under 2 seconds to avoid queue stalling.
-
+**Answer:** `sbatch` sends the job to `slurmctld` (default port 6817). With `AccountingStorageEnforce` set to include associations and limits, `slurmctld` validates the job against the association and QOS limits it holds in memory. That data comes from `slurmdbd` (default port 6819), which reads and writes the SQL database (default port 3306). A job that exceeds a limit is rejected or held with a reason at that point, depending on the limit type, and the message goes back to the `sbatch` client. If `slurmdbd` is down, `slurmctld` works from its cache of accounts and limits and queues accounting records until `slurmdbd` returns. I would not quote a latency budget or specific SQL lock behavior, because neither is documented. If asked, I would say that I would measure it with `sdiag` and the `slurmdbd` log.
 
 ## 10. Infrastructure as Code: Deploying Slurm via Ansible
 
@@ -6301,29 +5156,24 @@ slurmd: error: slurm_receive_msg: Zero Bytes were transmitted or received
 
 ## From: 08 Enroot And Pyxis Containers For Hpc
 
-When interviewing for an NVIDIA Solutions Architect, Platform Engineering, or MLOps infrastructure role, expect deep architectural questions differentiating container runtimes.
+**Q1. Why is Enroot "little to no isolation," and why is that a feature on a GPU cluster?**
+> "Enroot's README describes it as an unprivileged chroot that keeps filesystem separation but removes much of container isolation. On a training cluster that means the job sees the host's network and devices directly, which is what NCCL over InfiniBand needs, with no extra network layer. The cost is weaker isolation between tenants than a full container runtime, which is why you run it as an unprivileged user and add namespaces (`--net`, `--pid`, `--ipc`, `--uts`) only when you need them."
 
-**Q1: Explain the architectural difference between Kubernetes/Docker overlay networks (CNI) and how Pyxis/Enroot handles networking for multi-node training. Why is the Enroot approach preferred for HPC?**
-> **Ideal Answer:** Kubernetes relies on CNI plugins (like Calico or Cilium) which often create complex software-defined networking bridges, IP-in-IP encapsulation, or iptables rules to route traffic between container namespaces across nodes. This adds latency and drastically reduces InfiniBand RoCE throughput. Pyxis/Enroot takes a fundamentally simpler approach: it runs the container in the **host network namespace** by default (`CLONE_NEWNET` is deliberately *not* unshared unless explicitly requested). The containerized application binds directly to the host's physical InfiniBand NICs and IP addresses, achieving 100% bare-metal RDMA performance with zero encapsulation overhead.
+**Q2. How do GPUs and InfiniBand get into an Enroot container?**
+> "Through pre-start hook scripts in `hooks.d`. `98-nvidia.sh` uses libnvidia-container and the `NVIDIA_*` variables, and `99-mellanox.sh` injects host MOFED and selects HCAs with `MELLANOX_VISIBLE_DEVICES`. They run with full capabilities before the container switches to its final root. Configuration files in `environ.d` and `mounts.d` need `.env` and `.fstab` extensions and are static, which is a different mechanism."
 
-**Q2: What is a SquashFS file, and why does Enroot compile OCI layers into this format instead of utilizing OverlayFS? Discuss the impact on parallel file systems.**
-> **Ideal Answer:** OverlayFS operates by stacking multiple directory trees and resolving file requests through union mounts. When pulling an OCI image, it untars hundreds of thousands of individual files. On a parallel file system like Lustre, this causes a "metadata storm"—massive lock contention on the Metadata Server (MDS) as thousands of compute nodes simultaneously attempt to stat/open small files. SquashFS is a highly compressed, read-only block-level filesystem stored as a single contiguous file (`.sqsh`). Enroot mounts this file via a loopback device. This shifts the burden from the Lustre MDS to the Object Storage Targets (OSTs), which stream the large sequential blocks at maximum bandwidth. Furthermore, the Linux host aggressively caches these blocks in RAM, reducing subsequent container startups to milliseconds.
+**Q3. A job ran out of space writing a checkpoint inside the container. What happened?**
+> "Probably a write into the container root file system. By default it is read-only, so the job needed either `--container-writable` or a bind mount. For checkpoints I'd always use `--container-mounts` to a shared file system. I'd also check whether the job started a squashfs image directly, because in that mode changes are held in memory."
 
-**Q3: Describe how Enroot safely grants a user "root" privileges inside a container without compromising the multi-tenant security of the physical compute node.**
-> **Ideal Answer:** Enroot relies on Linux User Namespaces. When initializing the container, Enroot calls `unshare(CLONE_NEWUSER)`. Using the host's `/etc/subuid` and `/etc/subgid` delegations, the kernel maps the user's unprivileged host UID (e.g., `1005`) to `UID 0` inside the namespace. Inside the container, the user acts as root—they can install packages or modify files *within the isolated rootfs*. However, if they attempt to mount a host device or access a file owned by `root` on the host, the kernel intercepts the syscall, sees the true host UID (`1005`), and safely denies access. No persistent root-level daemons (like `dockerd`) are ever involved.
+**Q4. How do you stop 500 nodes from hammering a registry?**
+> "Import once, write the `.sqsh` to shared storage, and point `--container-image` at the path. That makes the registry a one-time dependency. For authentication on NGC I'd check the credentials file has both the `nvcr.io` and `authn.nvidia.com` entries."
 
-**Q4: How does Pyxis solve the MPI (Message Passing Interface) bootstrapping problem when running distributed workloads inside isolated containers?**
-> **Ideal Answer:** When running MPI across nodes, the MPI processes must exchange network topologies (LID, IP, GID) before establishing data connections. In a Slurm environment, this is handled by PMIx (Process Management Interface for Exascale) communicating with the `slurmd` daemon on the host. If the MPI process is trapped inside a container, it cannot reach the host's PMIx sockets. Pyxis solves this by explicitly bind-mounting the PMIx domain sockets (`/var/run/pmix*` or `/tmp/pmix*`) from the host OS directly into the Enroot container namespace, allowing the containerized NCCL/MPI libraries to transparently negotiate with the bare-metal Slurm daemons.
-
-**Q5: A user complains that their containerized PyTorch job runs out of memory instantly when they try to save a model checkpoint to `/workspace/model.pt`. They are using `--container-remap-root`. What is happening and how do you fix it?**
-> **Ideal Answer:** When using `--container-remap-root`, Enroot provisions a read-write environment by laying a `tmpfs` (RAM disk) OverlayFS on top of the read-only SquashFS image. This `tmpfs` is strictly limited by available host memory (and often capped by Slurm cgroups). When the user attempts to write a 10GB model checkpoint into the container's root filesystem (e.g., `/workspace`), they are actually writing directly into RAM, instantly exhausting the memory allocation and triggering the Linux OOM Killer. The fix is to stop writing to the container root, and instead use `--container-mounts` to bind-mount a physical, high-capacity parallel filesystem directory from the host into the container (e.g., `--container-mounts=/shared/checkpoints:/ckpt`) and save the model to `/ckpt/model.pt`.
-
----
+**Q5. What breaks when you upgrade Slurm?**
+> "Pyxis. Since Slurm 21.08 it must be compiled against the Slurm release it runs under, otherwise Slurm refuses to load it. So the upgrade plan includes rebuilding and redeploying Pyxis on every node before declaring the upgrade done."
 
 ---
 
 ## From: 10 Coordinated Cluster Wide Software Change Management
-
 
 ### Scenario 1: "Can we roll back the firmware?"
 
@@ -6356,7 +5206,6 @@ When interviewing for an NVIDIA Solutions Architect, Platform Engineering, or ML
 
 ## From: 13 Senior Deep Dive 1 Bcm At Fleet Scale
 
-
 ### Scenario 1: Making a large BCM cluster boot and provision reliably
 
 **Interviewer:** "A customer is bringing up several hundred DGX nodes under BCM. Nodes fail to PXE boot unpredictably. How do you approach it?"
@@ -6382,72 +5231,31 @@ When interviewing for an NVIDIA Solutions Architect, Platform Engineering, or ML
 
 ## From: 14 Senior Deep Dive 2 Slurm Ha And Accounting Internals
 
-### Scenario 1: MariaDB Deadlocks Causing Slurmctld Thread Exhaustion
+### Scenario 1: Commands hang and the accounting log shows database contention
 
-**Interviewer:** *"During a 10,000-job synthetic benchmark run, `slurmctld` stops responding to `squeue` and `sbatch` commands. The process is still running, but all administrative commands hang. Inspecting `slurmdbd.log` shows hundreds of MariaDB deadlock errors. Inspecting `slurmctld.log` shows 'agent queue is full'. What happened, and how do you re-architect the accounting pipeline?"*
+**Reasoning.** Do not assume the database froze the scheduler. By design, `slurmctld` uses a cache when `slurmdbd` is unresponsive. First find where the time is going.
 
-**Candidate Answer:**
-> "This is a classic cascading failure between `slurmctld`, `slurmdbd`, and MariaDB:
-> 1. **The Root Cause:** In a high-throughput job submission burst, `slurmdbd` is issuing massive concurrent write-sets to MariaDB. If MariaDB is configured as a multi-writer Galera cluster or lacks appropriate index caching, row-level certification deadlocks occur. `slurmdbd` threads block waiting for database locks, eventually exhausting `slurmdbd`'s connection pool.
-> 2. **Cascade to the Controller:** Because `slurmctld` communicates synchronously with `slurmdbd` for association and QoS verifications on incoming `sbatch` calls, its internal RPC handler threads block waiting for the frozen DB proxy. The `slurmctld` internal thread pool (`SlurmctldParameters=server_thread_count`) exhausts. The controller freezes and stops servicing client RPCs like `squeue`.
-> 3. **The Solution:**
->    - **Single-Writer DB Proxy:** Route all `slurmdbd` traffic through ProxySQL to a single designated Galera writer node to eliminate write-set certification conflicts.
->    - **Tune InnoDB:** Increase `innodb_buffer_pool_size` and `innodb_log_file_size` on the MariaDB nodes to handle the transaction burst.
->    - **Slurmctld Decoupling:** In `slurm.conf`, ensure `SlurmctldParameters=enable_step_mgr` is active, and configure a shorter `MessageTimeout` so `slurmctld` aborts DB calls rather than hanging forever."
+1. `sdiag`: look at server thread count against its maximum, the agent queue, and RPC counts.
+2. `slurmdbd` log: lock waits, slow queries, connection errors.
+3. Database: look for long-running queries (a reporting query across a huge range is a common cause; `MaxQueryTimeRange` exists for this).
+4. Mitigate: stop the offending queries, review `innodb_lock_wait_timeout`, `innodb_buffer_pool_size`, and consider `CommitDelay` for sustained high job rates.
+5. Prevent: purge old records (`Purge*After`) so the database does not grow without bound.
 
----
+### Scenario 2: Primary controller died, backup did not take over
 
-### Scenario 2: Recovering from a Corrupted StateSaveLocation
+**Check in order:** `SlurmctldHost` entries are present and identical on all hosts; the backup can read and write `StateSaveLocation`; `SlurmctldTimeout` has elapsed (default 120 s) or `scontrol takeover` was issued; the backup's log shows what it tried; on BCM, check `slurmctldstartpolicy` and the `prefailoverscript`. Never start a second primary by hand.
 
-**Interviewer:** *"A catastrophic SAN failure corrupted the NFS appliance backing `StateSaveLocation`. The primary `slurmctld` crashed, and the backup refuses to start, throwing `fatal: error reading job_state`. The users are panicking. The compute nodes are still powered on and running jobs. How do you recover the cluster without killing the running jobs?"*
+### Scenario 3: A user's usage looks absurdly high and blocks their fairshare
 
-**Candidate Answer:**
-> "If the state files are corrupted, we must force the controller to reconstruct its state from the active compute nodes.
-> 1. Move or rename the corrupted `/var/spool/slurm/state` directory and create a fresh, empty one with correct `slurm:slurm` permissions.
-> 2. Start `slurmctld` using the `-c` flag (clear state) or by temporarily adding `StateSaveLocation=/tmp/fresh_state` to `slurm.conf`. **Wait, `-c` will kill all jobs.** 
-> 3. **The Correct Recovery:** We *cannot* use `-c` if we want to save running jobs. Instead, we remove the corrupted `job_state` file, but leave the directory. We start `slurmctld`. It will complain about missing state.
-> 4. We then rely on the **Slurmd Timeout and Registration**. When `slurmctld` boots with an empty job table, it reaches out to the compute nodes (`slurmd`). The `slurmd` daemons report back their active job steps.
-> 5. Slurm will *attempt* to reconstruct running jobs based on node reports (a process called 'orphaned job recovery').
-> 6. *Reality Check:* In modern Slurm versions, if `job_state` is completely missing, recovering complex multi-node MPI jobs is incredibly difficult because the controller has lost the credential keys and allocation maps. The best effort is to restart the controller, let it register the nodes, and identify which jobs survived. We will likely have to manually requeue pending jobs, but running single-node jobs might survive the registration sync."
+**Reasoning.** First verify the record, then correct the cause, then the symptom.
 
-*(Architect's Note: The only true protection against this is synchronous storage replication. Relying on node registration to rebuild state is a desperate last resort.)*
-
----
-
-### Scenario 3: Massive TRES Billing Anomaly
-
-**Interviewer:** *"A user submitted a job that ran for 1 hour, but the database billed them for 1,000,000 GPU hours, destroying their Fairshare priority. They are blocked from submitting jobs. How do you fix this?"*
-
-**Candidate Answer:**
-> "This happens when the controller time goes out of sync (NTP failure) or there is an integer underflow in the epoch timestamp calculations within `slurmdbd`.
-> 1. First, unblock the user. I would use `sacctmgr modify user <user> set RawUsage=0` to reset their usage, or manually update their `S_N` (shares) temporarily to boost their priority.
-> 2. Find the offending job using SQL against `cluster_job_table` searching for anomalies where `time_end - time_start` is exceptionally large.
-> 3. Delete or modify that specific row in the `cluster_job_table` and `cluster_usage_day_table` in MariaDB.
-> 4. Force a database recalculation by restarting `slurmdbd` or using `sacctmgr archive` to rebuild the historical rollups.
-> 5. Root cause the issue by checking `chronyd` or `ntpd` sync status on all control and compute nodes."
-
----
-
-## 9. Extending Accounting with Custom TRES (Trackable RESources)
-
-While CPUs and GPUs are tracked natively, an NVIDIA AI Factory often needs to track usage of distinct storage tiers or specialized software licenses.
-
-To track high-performance DDN EXAScaler NVMe storage consumption, we add custom TRES to the DB and `slurm.conf`:
-
-```ini
-AccountingStorageTRES=gres/gpu,license/ddn_nvme_tb
-```
-
-Then in the DB:
-```bash
-$ sacctmgr add tres license/ddn_nvme_tb
-```
-Now users can submit jobs requesting the storage tier, and Slurm will accurately bill their account.
+1. Find the job with `sacct` and check the start and end times. A wildly wrong duration points to a clock problem (check time sync on controllers and nodes).
+2. Reset the account's accrued raw usage if warranted: `sacctmgr` supports `RawUsage=0` as the only value (reset to zero) when modifying an account. It cannot be used as a filter.
+3. Do not edit SQL rows directly. If the database truly has a wrong record, work with SchedMD support before changing accounting tables.
 
 ---
 
 ## From: 15 Senior Deep Dive 3 Mpi And Nccl Joint Debugging
-
 
 ### Scenario 1: A large job dies every eight to twelve hours with a watchdog timeout
 
@@ -6466,7 +5274,6 @@ Now users can submit jobs requesting the storage tier, and Slurm will accurately
 ---
 
 ## From: 16 Senior Deep Dive 4 Coordinated Firmware Driver Os Rollout Across Compute Network Storage
-
 
 ### Checkpoints got slower after a maintenance window
 
@@ -6511,10 +5318,8 @@ Now users can submit jobs requesting the storage tier, and Slurm will accurately
 - Volume 10: Terraform for Infrastructure as Code
 - Volume 10: Ansible for Infrastructure Automation
 
-
 ## 17. Conclusion
 
 Git is the foundation upon which all modern AI factories are built. By mastering its internal mechanics, SREs ensure that infrastructure changes are auditable, verifiable, and above all, safe.
 
 ---
-

@@ -9444,29 +9444,27 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 2 - NVIDIA Base Command Manager (BCM)": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Architect, deploy, configure, and safely operate an NVIDIA Base Command Manager (BCM) control plane for large-scale AI Factories. You will master the active/passive high-availability head node architecture, declarative category-based object models, software image provisioning mechanics (Stateless, Stateful, Overlay), network integration (InfiniBand, RoCE, Out-of-Band BMCs), workload orchestrator synchronization (Slurm, Kubernetes, Run:ai), and automated hardware health remediation using the cmsh CLI.",
+    "learningOutcome": "Explain what BCM manages and how, operate it through cmsh with confidence, trace a node from power-on to a running OS, change a software image safely, and place BCM correctly next to Ansible, Slurm, and Kubernetes.",
     "sections": [
       "Chapter 2 — NVIDIA Base Command Manager (BCM)",
-      "1. Foundations: The Role of an AI Cluster Operating System",
-      "2. BCM High-Level Architecture and Control Plane Topology",
-      "2.1 Core Components and Responsibilities",
-      "3. Deep Dive: Head Node High Availability (HA) Mechanics",
-      "3.1 The HA Software Stack",
-      "3.2 Pacemaker Resource Status (crm mon)",
-      "crm status",
-      "3.3 STONITH and Split-Brain Prevention",
-      "4. The Declarative Object Model: cmsh Masterclass",
-      "4.1 Navigating cmsh and Configuring Categories",
-      "Enter BCM management shell",
-      "Inspect available software images",
-      "Move up the tree and enter the category sub-mode"
+      "1. Why a cluster manager exists",
+      "2. Architecture",
+      "3. The object model: how BCM organizes a cluster",
+      "3.1 Inheritance rules",
+      "3.2 Roles, priorities, and overlays",
+      "4. cmsh essentials",
+      "Range of nodes, in device mode",
+      "foreach over a category, or a node range",
+      "5. Software images",
+      "5.1 Change an image safely",
+      "5.2 HA caveat",
+      "6. From power-on to a running node",
+      "6.1 Before the kernel loads"
     ],
     "codeLanguages": [
       "mermaid",
       "text",
-      "xml",
-      "bash",
-      "python"
+      "bash"
     ]
   },
   "Chapter 3 - OS Provisioning, Kernel Optimization, and Security Hardening": {
@@ -9612,25 +9610,24 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 8 - Enroot and Pyxis: Unprivileged Containers for AI Supercomputing": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Architect, configure, and safely operate unprivileged container runtimes in large-scale AI factories using NVIDIA Enroot and the Slurm Pyxis SPANK plugin. You will master Linux user namespaces, transition away from legacy layered filesystems (OverlayFS) to high-performance parallel file system caching (SquashFS), dynamically inject NVIDIA drivers and InfiniBand devices into unprivileged namespaces, execute massive multi-node distributed training jobs using PMIx and NCCL, and debug complex container permission, caching, and hardware isolation failures.",
+    "learningOutcome": "Explain why Enroot and Pyxis exist, import and run images the way a cluster user does, configure the system-wide directories and hooks that expose GPUs and InfiniBand to containers, and diagnose the failures that matter on a shared Slurm cluster.",
     "sections": [
       "Chapter 8 — Enroot and Pyxis: Unprivileged Containers for AI Supercomputing",
-      "1. Foundations: The Dilemma of Containers in High-Performance Computing (HPC)",
-      "1.1 Why Docker Fails in HPC and AI Factories",
-      "1.2 The Enroot Philosophy: Rootless, Daemonless, and Flattened",
-      "2. Deep Dive: Linux User Namespaces and Rootless Execution",
-      "2.1 The Kernel Namespace API ( CLONE NEWUSER )",
-      "2.2 Sub-UID and Sub-GID Remapping ( /etc/subuid )",
-      "/etc/subuid (Host System)",
-      "Format: <username :<starting uid :<uid count",
-      "User alice is granted 65536 sub-UIDs starting at 100000",
-      "User bob is granted 65536 sub-UIDs starting at 165536",
-      "Example of what Enroot does behind the scenes:",
-      "Map Host UID 1005 to Container UID 0 (length 1)",
-      "Map Host UIDs 100000-165535 to Container UIDs 1-65536 (length 65536)"
+      "1. Why a different container runtime for HPC",
+      "2. The image format and the command set",
+      "2.1 Root remapping, namespaces, and what --root does not give you",
+      "3. Configuration: paths, directories, and hooks",
+      "3.1 Paths and the config file",
+      "3.2 Container configuration directories",
+      "3.3 Standard hooks: how GPUs and InfiniBand get in",
+      "3.4 Registry credentials",
+      "NVIDIA GPU Cloud (both endpoints are required)",
+      "Docker Hub",
+      "4. Pyxis: Enroot inside Slurm",
+      "4.1 Installation notes that bite",
+      "4.2 The flags"
     ],
     "codeLanguages": [
-      "mermaid",
       "text",
       "bash"
     ]
@@ -9769,33 +9766,30 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "bash"
     ]
   },
-  "Senior Deep Dive 2 — Slurm HA, Database Clustering, and Accounting Internals": {
+  "Senior Deep Dive 2 — Slurm HA, Accounting Database, and Fairshare": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Architect, configure, and troubleshoot highly available Slurm control planes and distributed databases. You will understand how the slurmctld daemon serializes memory to disk, configure Corosync and Pacemaker for split-brain STONITH fencing, tune MariaDB Galera and ProxySQL for high-throughput slurmdbd writes, query raw TRES accounting records directly using SQL, and calibrate complex Fairshare decay algorithms to enforce multi-tenant equity across AI SuperPODs.",
+    "learningOutcome": "How Slurm's controller high availability, slurmdbd accounting, and Fair Tree fairshare actually work, with the SchedMD-documented settings, failure behavior, and recovery options, plus how BCM wires Slurm HA.",
     "sections": [
-      "Senior Deep Dive 2 — Slurm HA, Database Clustering, and Accounting Internals",
-      "1. Architectural Recap: Slurm in the AI Factory",
-      "The Inherent Tension of State",
-      "2. Internal State Serialization and the StateSaveLocation Contract",
-      "2.1 The Atomic Serialization Algorithm",
-      "2.2 Deep Dive: Stracing the Serialization Process",
-      "Find the PID of the slurmctld daemon",
-      "Attach strace, filtering for file operations targeting the StateSaveLocation",
-      "2.3 Failure Mode: Why NFS Cache Consistency Can Corrupt Failover",
-      "/etc/fstab on both controller nodes",
-      "3. Split-Brain Dynamics and Fencing (STONITH)",
-      "3.1 The Split-Brain Catastrophe",
-      "3.2 The Architectural Fix: Pacemaker and Corosync",
-      "/etc/corosync/corosync.conf"
+      "Senior Deep Dive 2 — Slurm HA, Accounting Database, and Fairshare",
+      "1. The three planes and what each one stores",
+      "2. Controller high availability: what Slurm documents",
+      "2.1 The native mechanism",
+      "2.2 The risk Slurm itself calls out",
+      "2.3 StateSaveLocation : what to ask of the storage",
+      "2.4 Recovery options that exist (and the one that kills jobs)",
+      "2.5 Which signals do what",
+      "3. Accounting: slurmdbd and the database",
+      "3.1 What happens when slurmdbd is slow or down",
+      "3.2 Backup slurmdbd",
+      "3.3 Database settings SchedMD recommends",
+      "3.4 slurmdbd.conf knobs that are real",
+      "3.5 Querying the database directly"
     ],
     "codeLanguages": [
-      "mermaid",
-      "text",
-      "bash",
-      "fstab",
       "ini",
-      "sql"
+      "text",
+      "mermaid"
     ]
   },
   "Senior Deep Dive 3 — MPI, NCCL, and Fabric Joint Debugging": {

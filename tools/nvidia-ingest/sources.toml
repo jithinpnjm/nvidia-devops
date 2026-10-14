@@ -441,6 +441,11 @@ urls = [
  "https://raw.githubusercontent.com/NVIDIA/enroot/master/doc/configuration.md",
  "https://raw.githubusercontent.com/NVIDIA/pyxis/master/README.md",
  "https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/main/README.md",
+ "https://raw.githubusercontent.com/NVIDIA/enroot/master/doc/standard-hooks.md",
+ "https://raw.githubusercontent.com/NVIDIA/enroot/master/doc/image-format.md",
+ "https://raw.githubusercontent.com/NVIDIA/enroot/master/doc/cmd/start.md",
+ "https://raw.githubusercontent.com/NVIDIA/enroot/master/doc/cmd/import.md",
+ "https://raw.githubusercontent.com/NVIDIA/enroot/master/doc/installation.md",
 ]
 
 [[pdf]]

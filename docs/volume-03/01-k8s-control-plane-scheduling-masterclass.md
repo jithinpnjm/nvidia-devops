@@ -384,7 +384,6 @@ spec:
 
 Mastering the Kubernetes Control Plane and Scheduling is critical for AI Factory operations. By understanding the intricate dances of `ResourceVersion`, etcd quorum, Topology Management, Gang Scheduling with Kueue, and the future-proof capabilities of DRA, Platform Engineers can build resilient, high-throughput engines capable of training the next generation of massive AI models.
 
-
 ## 10. Advanced Production Scenario 1: Deep Systems Integration
 
 Operating highly available infrastructure requires deep systems integration. In scenario 1, we explore further into edge cases and advanced scaling metrics.
@@ -431,41 +430,3 @@ spec:
 ### 10.3 Debugging Network Overlays
 
 Often, scheduling issues are masked as network issues. When a pod is scheduled but cannot reach the metadata server, check the CNI plugin and kube-proxy. The interactions between IPVS, iptables, and eBPF data planes are critical to understand.
-
-### 11.2 Deep dive into metrics
-
-### 12.2 Deep dive into metrics
-
-### 13.2 Deep dive into metrics
-
-### 14.2 Deep dive into metrics
-
-### 15.2 Deep dive into metrics
-
-### 16.2 Deep dive into metrics
-
-### 17.2 Deep dive into metrics
-
-### 18.2 Deep dive into metrics
-
-### 19.2 Deep dive into metrics
-
-### 20.2 Deep dive into metrics
-
-### 21.2 Deep dive into metrics
-
-### 22.2 Deep dive into metrics
-
-### 23.2 Deep dive into metrics
-
-### 24.2 Deep dive into metrics
-
-### 25.2 Deep dive into metrics
-
-### 26.2 Deep dive into metrics
-
-### 27.2 Deep dive into metrics
-
-### 28.2 Deep dive into metrics
-
-### 29.2 Deep dive into metrics

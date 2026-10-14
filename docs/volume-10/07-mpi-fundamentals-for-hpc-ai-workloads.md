@@ -475,7 +475,6 @@ Mastering MPI, PMIx, and NCCL fundamentally changes your capability from managin
 
 By applying these architectural principles, you ensure that NVIDIA AI Factories operate at maximum utilization, scaling seamlessly from 8 GPUs to 100,000 GPUs without compromise.
 
-
 ---
 
 ## Appendix A: Exhaustive NCCL Environment Variable Reference Matrix
@@ -605,7 +604,6 @@ handle.wait()
 ```
 This enables the critical **Compute-Communication Overlap** visualized in Nsight Systems traces.
 
-
 ## Appendix F: Extended Glossary and Metric Tracking
 **Metric 1: Bus Bandwidth vs. Algorithmic Bandwidth**
 - Algorithmic Bandwidth = (Size of Data) / (Time taken).
@@ -646,17 +644,6 @@ If NCCL hangs on a specific node, you can trace the CUDA ioctls specifically to 
 strace -e trace=ioctl -p <PID_OF_PYTHON_WORKER>
 ```
 Look for `ioctl(3, _IOC(_IOC_READ|_IOC_WRITE, 0x46, 0x2a, 0x20))` which are the low-level calls to `/dev/nvidiactl` and `/dev/nvidia0`. A hang here indicates the GPU has crashed at the driver level (usually accompanied by an XID).
-
-
-<!-- Extended padding for detailed spec compliance 1 -->
-<!-- Extended padding for detailed spec compliance 2 -->
-<!-- Extended padding for detailed spec compliance 3 -->
-<!-- Extended padding for detailed spec compliance 4 -->
-<!-- Extended padding for detailed spec compliance 5 -->
-<!-- Extended padding for detailed spec compliance 6 -->
-<!-- Extended padding for detailed spec compliance 7 -->
-<!-- Extended padding for detailed spec compliance 8 -->
-<!-- Extended padding for detailed spec compliance 9 -->
 
 ## Appendix K: Multi-Rail Networking Deep Dive
 In massive systems like DGX SuperPODs, a single node does not use a single 400G network connection; it uses multiple. This is termed "Multi-Rail".

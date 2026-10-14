@@ -76,11 +76,12 @@ SelectTypeParameters=CR_Core_Memory,CR_CORE_DEFAULT_DIST_BLOCK
 GresTypes=gpu,mps
 
 # Prolog and Epilog Configuration
-# The Prolog runs as root before the job step. If it exits non-zero, the job is 
-# requeued and the node is marked DOWN or DRAINED (depending on PrologFlags).
+# The Prolog runs as root on each allocated node. If it exits non-zero, the node is set
+# to DRAIN and the job is requeued (the job is held unless nohold_on_prolog_fail is set
+# in SchedulerParameters). See "Failure Handling" in the Slurm Prolog and Epilog guide.
 Prolog=/etc/slurm/prolog.sh
 
-# The Epilog runs as root after the job step.
+# The Epilog runs as root after the job. If it fails (non-zero) or times out, the node is DRAINED.
 Epilog=/etc/slurm/epilog.sh
 
 # PrologFlags Alloc ensures the prolog runs at the time of resource allocation,
@@ -93,8 +94,10 @@ HealthCheckInterval=300
 HealthCheckNodeState=ANY
 
 # Job Limits and Timeouts
-# Essential: Prevent the Epilog from taking down the cluster if it hangs.
-EpilogMsgTime=300 # Wait 5 minutes for Epilog to finish before marking node DOWN
+# Bound how long Slurm waits for prolog/epilog scripts. A timeout drains the node.
+# (EpilogMsgTime is NOT this: it is a microsecond delay that spreads epilog-completion
+# messages from large jobs so the controller is not flooded.)
+PrologEpilogTimeout=300
 UnkillableStepTimeout=60 # Force kill processes that ignore SIGTERM after 60s
 ```
 
@@ -378,11 +381,14 @@ The **NVIDIA Data Center GPU Manager (DCGM)** provides standardized, active diag
 
 ### DCGM Run Levels (Diagnostics)
 
-| Diagnostic Tier | Command | Execution Time | Scope & Verification Engine | Operational Phase |
+| Level | Command | Documented duration | What it covers (DCGM diagnostics documentation) | Typical use |
 |---|---|---|---|---|
-| **Level 1 (Quick)** | `dcgmi diag -r 1` | 5–10 seconds | Blacklist test, NVML API functionality, CUDA runtime initialization, basic PCIe bus enumeration. | Used in **Slurm Job Prolog** before every job launch. |
-| **Level 2 (Medium)** | `dcgmi diag -r 2` | 2–5 minutes | PCIe Gen5 bus bandwidth validation, GPUDirect P2P bandwidth, targeted memory stress. | Used during **scheduled maintenance** and after node boot/join. |
-| **Level 3 (Stress)** | `dcgmi diag -r 3` | 15–30 minutes | Full Tensor Core stress (FP16/FP8/TF32 GEMM kernels), maximum power draw verification, deep HBM3 memory ECC error generation. | Used during **Day-0 node acceptance**, RMA hardware burn-in, and after node drain. |
+| 1 (`quick`, `short`) | `dcgmi diag -r 1` | Normally seconds | Built-in software deployment checks: NVML/CUDA libraries, device access, conflicting processes, page retirement / row remap / InfoROM / memory-health state, Fabric Manager state | Readiness check, including before admitting work |
+| 2 (`medium`) | `dcgmi diag -r 2` | About 2 minutes | Adds `memory` and `pcie` tests (framebuffer faults, PCIe and peer bandwidth, replays, NVLink state) | Investigating a failed workload |
+| 3 (`long`) | `dcgmi diag -r 3` | About 15 minutes | Long hardware diagnostics (adds the stress, power, and bandwidth plugins) | Administrator-led isolation, acceptance, post-repair |
+| 4 (`xlong`) | `dcgmi diag -r 4` | Longer than level 3 | Extended hardware diagnostics | Post-mortem and burn-in |
+
+Later suites include the checks of earlier ones and are more invasive. Suite composition varies with the DCGM release, hardware, and privileges (DCGM docs, "Run Levels and Tests"). Run levels 2 to 4 only when the node is out of production.
 
 ### Executing and Parsing DCGM Diagnostics in Automation
 
@@ -586,24 +592,41 @@ When a training job terminates (whether by successful completion, cancellation, 
 
 Crucially, the Epilog is the primary deterministic detection mechanism for **Hardware XID Errors** that occurred *during* the workload execution.
 
-### Understanding NVIDIA XID Errors
+### Understanding NVIDIA Xid errors
 
-An **XID error** is an event recorded by the NVIDIA kernel driver (`nvidia.ko`) into the operating system's kernel ring buffer (`dmesg`). It indicates a hardware, thermal, driver, or application-level fault.
+An Xid is an event the NVIDIA kernel driver logs to the kernel log (`NVRM: Xid ...`). Do not hard-code your own "drain on these, ignore those" list from memory. NVIDIA publishes the **Xid Catalog**, which gives each code a description, the GPU generations it applies to, and two recommended actions (NVIDIA Xid Errors, "Analyzing Xid Errors with the Xid Catalog"):
 
-*Not all XID errors require hardware replacement or node draining.* Some are purely user-space errors (e.g., an application accessing out-of-bounds memory). Draining nodes for user-space errors creates artificial cluster starvation.
+- **Immediate action** (resolution bucket): an automatable recovery step to ready the system for new applications.
+- **Investigatory action**: guidance if the Xid recurs or is unexpected.
 
-**Critical Hardware XIDs (Require Immediate Drain & Diagnostics):**
-*   **XID 44:** Graphics Engine fault (often hardware related if recurrent).
-*   **XID 48:** Double-bit ECC error. Data is corrupt. Hardware replacement often needed.
-*   **XID 62:** Internal microcontroller halt. Requires GPU reset, often indicates hardware instability.
-*   **XID 74:** NVLink Error. Often indicates a faulty NVSwitch or GPU baseboard.
-*   **XID 79:** GPU has fallen off the PCIe bus. Severe hardware or PCIe fabric issue.
-*   **XID 119/120:** GSP (GPU System Processor) RPC timeout or failure.
+The bucket names (for example `RESTART_APP`, `RESET_GPU`, `RESTART_BM`, `CONTACT_SUPPORT`, `IGNORE`) are defined on the catalog's Fault Resolution Buckets worksheet. An excerpt for the codes most often discussed (from the catalog table; check the current catalog for your GPU generation and driver):
 
-**Application XIDs (Require Reset, but No Drain):**
-*   **XID 13:** Graphics Engine Exception. Often a segmentation fault in user code.
-*   **XID 31:** GPU memory page fault. The user application accessed invalid memory.
-*   **XID 109:** Context switch timeout. The user application hung the GPU.
+| Xid | Description (catalog) | Immediate action | Investigatory action |
+|---|---|---|---|
+| 13 | Graphics Engine Exception | RESTART_APP | WORKFLOW_XID_13 |
+| 31 | GPU memory page fault | RESTART_APP | WORKFLOW_XID_31 |
+| 44 | Graphics Engine fault during context switch | IGNORE | CONTACT_SUPPORT |
+| 45 | Preemptive cleanup, due to previous errors – Most likely to  | WORKFLOW_XID_45 | Solo: RESTART_FM  Not Solo: IGNORE (follow other Xid) |
+| 48 | Double Bit ECC Error | WORKFLOW_XID_48 | WORKFLOW_XID_48 |
+| 62 | Internal micro-controller halt  (newer drivers) | RESET_GPU | CONTACT_SUPPORT |
+| 63 | GPU memory remapping event | IGNORE | IGNORE |
+| 64 | GPU memory remapping failure | RESET_GPU | CONTACT_SUPPORT |
+| 74 | NVLINK Error | WORKFLOW_NVLINK_ERR | CONTACT_SUPPORT |
+| 79 | GPU has fallen off the bus | RESTART_BM | CONTACT_SUPPORT |
+| 94 | Contained memory error | RESTART_APP | IGNORE (sympathetic) |
+| 95 | Uncontained memory error | RESET_GPU | IGNORE (sympathetic) |
+| 109 | Context Switch Timeout Error | RESET_GPU | CONTACT_SUPPORT |
+| 119 | GSP RPC Timeout | RESET_GPU | INVESTIGATE_SW |
+| 120 | GSP Error | RESET_GPU | INVESTIGATE_SW |
+
+How to use this in a health gate:
+
+1. Parse the Xid code from `NVRM: Xid (PCI:...): <code>, ...` in the kernel log.
+2. Look the code up in the catalog for your driver and GPU generation.
+3. Map the **immediate action** to your automation (for example restart the application, reset the GPU, restart the node), and map **CONTACT_SUPPORT** or repeated occurrence to a drain-and-escalate policy.
+4. Treat a code appearing in a different state from the catalog's expectation as a reason to read the catalog entry, not as a reason to improvise.
+
+Two cautions: some Xids are consequences of others (Xid 45 "preemptive cleanup" follows earlier errors, and the catalog marks several as "follow other Xid"), so act on the root event; and the catalog's actions differ by code, so a single blanket "drain on any Xid" or "ignore application Xids" rule will be wrong for some. The earlier version of this chapter classified Xid 44 as a hardware fault needing an immediate drain and Xid 109 as a harmless application error. The catalog's immediate actions are `IGNORE` for 44 and `RESET_GPU` for 109.
 
 ### Masterclass Epilog Script (Python)
 
@@ -625,8 +648,11 @@ from datetime import datetime
 NODE_NAME = os.uname().nodename
 LOG_FILE = "/var/log/slurm/epilog_cleanup.log"
 
-# Define hardware-fatal XIDs that mandate node quarantining
-FATAL_XIDS = {44, 48, 62, 74, 79, 119, 120}
+# Site policy: Xids that send the node to drain-and-escalate instead of auto-recovery.
+# Derive this set from the NVIDIA Xid Catalog for your GPU generation and driver, and review it
+# when either changes. Example only; the catalog's immediate action for Xid 44 is IGNORE,
+# and 119/120 are RESET_GPU with INVESTIGATE_SW as the investigatory action.
+FATAL_XIDS = {48, 62, 74, 79, 119, 120}
 
 def log(msg, level="INFO"):
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
@@ -909,7 +935,7 @@ Managing an AI factory requires deep forensics. When a job fails, the immediate 
 **Candidate Answer:**
 > "The node is hanging because the Epilog script is blocking the Slurm Daemon (`slurmd`) from finalizing the job state.
 > 1. **The Mechanism:** Slurm waits for the Node Epilog script to exit before transitioning the node from `completing` back to `idle`. If the script executes `rm -rf /scratch/terabytes_of_small_files`, the I/O bottleneck on the local NVMe or networked file system causes the script to take hours.
-> 2. **The Failure Cascade:** If the Epilog takes longer than `EpilogMsgTime` (default is often too long or infinite), the node hangs. If it times out, Slurm usually marks the node as `DOWN`, effectively removing it from the cluster.
+> 2. **The Failure Cascade:** If the Epilog runs longer than `EpilogTimeout` (which defaults to `PrologEpilogTimeout`), Slurm terminates it and **drains the node**, so the node leaves the pool. A non-zero exit from the Epilog also drains the node (Slurm Prolog and Epilog guide, Failure Handling).
 > 3. **The Architectural Fix:**
 >    - **Never perform unbounded synchronous I/O in an Epilog.**
 >    - **Solution A (Backgrounding):** Move the heavy `rm -rf` into an asynchronous background process using `nohup` or `systemd-run`.
@@ -949,9 +975,9 @@ $ journalctl -u slurmd.service | grep -i oom
 **Interviewer:** *"A multi-node job fails immediately upon start. The application logs show an NCCL timeout, and dmesg on one node shows `XID 74`. The `nvidia-smi nvlink -s` output shows all links are up. What is happening?"*
 
 **Candidate Answer:**
-> "XID 74 indicates an NVLink error. While the physical PHY layer might be up (so `nvidia-smi` reports links as active), the data link or routing layer within the **NVSwitch** fabric may be degraded or misconfigured.
-> 1. **Investigation:** I would use `dcgmi diag -r 2` to run the targeted P2P bandwidth test. If it fails, the issue is not the optical cables, but the internal baseboard NVLink routing.
-> 2. **Resolution:** A soft reset of the NVSwitch via `nvidia-smi` or a full node power cycle (cold boot via BMC) is required to reset the baseboard microcontroller. If the issue persists, the GPU baseboard requires an RMA."
+> "Xid 74 is an NVLink error. The catalog's immediate action is the NVLink error workflow (`WORKFLOW_NVLINK_ERR`) and the investigatory action is `CONTACT_SUPPORT`. Links showing as up in `nvidia-smi nvlink -s` does not rule out a degraded link, since the Xid is the evidence.
+> 1. **Investigation:** Run `dcgmi diag -r 2`, whose `pcie` test covers peer bandwidth and NVLink state and error problems. Collect the kernel log lines around the Xid, `nvidia-bug-report.sh` output, and NVSwitch and Fabric Manager state if the platform has them.
+> 2. **Resolution:** Follow the workflow the catalog points to for your platform. Do not return the node to service on the strength of a reboot alone. If the Xid recurs, escalate with the evidence package."
 
 ---
 
