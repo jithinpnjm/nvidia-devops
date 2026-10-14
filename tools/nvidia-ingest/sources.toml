@@ -1,0 +1,557 @@
+# Seed URLs are starting points: verify each loads before a big crawl.
+# prefix limits the crawl; "latest" paths are moving targets (recorded as such).
+
+[[source]]
+name = "nccl"
+product = "NCCL"
+version = "latest"
+seed = "https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/index.html"
+prefix = "https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/"
+max_pages = 500
+
+[[source]]
+name = "gpu-operator"
+product = "GPU Operator"
+version = "latest"
+seed = "https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/index.html"
+prefix = "https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/"
+max_pages = 500
+
+[[source]]
+name = "dcgm"
+product = "DCGM"
+version = "latest"
+seed = "https://docs.nvidia.com/datacenter/dcgm/latest/index.html"
+prefix = "https://docs.nvidia.com/datacenter/dcgm/latest/"
+max_pages = 500
+
+[[source]]
+name = "xid"
+product = "Xid Errors"
+version = "latest"
+seed = "https://docs.nvidia.com/deploy/xid-errors/index.html"
+prefix = "https://docs.nvidia.com/deploy/xid-errors/"
+max_pages = 200
+
+[[pdf]]
+name = "bcm11-admin"
+product = "Base Command Manager admin manual"
+version = "11"
+url = "https://docs.nvidia.com/base-command-manager/manuals/11/admin-manual.pdf"
+
+[[pdf]]
+name = "bcm11-install"
+product = "Base Command Manager installation manual"
+version = "11"
+url = "https://docs.nvidia.com/base-command-manager/manuals/11/installation-manual.pdf"
+
+[[pdf]]
+name = "bcm11-containerization"
+product = "Base Command Manager containerization manual"
+version = "11"
+url = "https://docs.nvidia.com/base-command-manager/manuals/11/containerization-manual.pdf"
+
+[[pdf]]
+name = "superpod-gb300-ra"
+product = "DGX SuperPOD reference architecture (GB300)"
+version = "as published"
+url = "https://docs.nvidia.com/pdf/dgx-spod-gb300-ra.pdf"
+
+[[pdf]]
+name = "superpod-b200-dc"
+product = "DGX SuperPOD data center best practices (B200)"
+version = "as published"
+url = "https://docs.nvidia.com/dgx-pdf/nvidia-dgx-superpod-data-center-best-practices-with-dgx-b200.pdf"
+
+
+[[source]]
+name = "slurm"
+product = "Slurm"
+version = "latest"
+seed = "https://slurm.schedmd.com/quickstart_admin.html"
+prefix = "https://slurm.schedmd.com/"
+max_pages = 700
+
+[[source]]
+name = "k8s"
+product = "Kubernetes"
+version = "latest"
+seed = "https://kubernetes.io/docs/concepts/"
+prefix = ["https://kubernetes.io/docs/concepts/", "https://kubernetes.io/docs/tasks/", "https://kubernetes.io/docs/setup/", "https://kubernetes.io/docs/tutorials/security/", "https://kubernetes.io/docs/reference/access-authn-authz/", "https://kubernetes.io/docs/reference/networking/", "https://kubernetes.io/docs/reference/node/"]
+max_pages = 1800
+
+[[source]]
+name = "terraform"
+product = "Terraform"
+version = "latest"
+seed = "https://developer.hashicorp.com/terraform/language"
+prefix = ["https://developer.hashicorp.com/terraform/language", "https://developer.hashicorp.com/terraform/cli", "https://developer.hashicorp.com/terraform/intro"]
+max_pages = 500
+
+[[source]]
+name = "lustre"
+product = "Lustre manual"
+version = "latest"
+seed = "https://doc.lustre.org/lustre_manual.xhtml"
+prefix = "https://doc.lustre.org/lustre_manual.xhtml"
+max_pages = 2
+
+[[source]]
+name = "beegfs"
+product = "BeeGFS"
+version = "latest"
+seed = "https://doc.beegfs.io/latest/"
+prefix = "https://doc.beegfs.io/latest/"
+max_pages = 300
+
+[[source]]
+name = "prometheus"
+product = "Prometheus"
+version = "latest"
+seed = "https://prometheus.io/docs/introduction/overview/"
+prefix = ["https://prometheus.io/docs/introduction/", "https://prometheus.io/docs/prometheus/latest/", "https://prometheus.io/docs/alerting/latest/", "https://prometheus.io/docs/practices/", "https://prometheus.io/docs/instrumenting/", "https://prometheus.io/docs/operating/"]
+max_pages = 300
+
+[[source]]
+name = "pytorch-dist"
+product = "PyTorch distributed"
+version = "latest"
+seed = "https://docs.pytorch.org/docs/2.14/distributed.html"
+prefix = ["https://docs.pytorch.org/docs/2.14/distributed", "https://docs.pytorch.org/docs/2.14/fsdp"]
+max_pages = 60
+
+[[source]]
+name = "mlflow"
+product = "MLflow"
+version = "latest"
+seed = "https://mlflow.org/docs/latest/"
+prefix = "https://mlflow.org/docs/latest/"
+max_pages = 400
+
+
+[[source]]
+name = "git-book"
+product = "Pro Git"
+version = "latest"
+seed = "https://git-scm.com/book/en/v2"
+prefix = "https://git-scm.com/book/en/v2"
+max_pages = 150
+
+[[source]]
+name = "systemd"
+product = "systemd man pages"
+version = "latest"
+seed = "https://www.freedesktop.org/software/systemd/man/latest/"
+prefix = "https://www.freedesktop.org/software/systemd/man/latest/"
+max_pages = 900
+
+[[source]]
+name = "tensorrt-llm"
+product = "TensorRT-LLM"
+version = "latest"
+seed = "https://nvidia.github.io/TensorRT-LLM/"
+prefix = "https://nvidia.github.io/TensorRT-LLM/"
+max_pages = 1500
+
+[[source]]
+name = "triton"
+product = "Triton Inference Server"
+version = "latest"
+seed = "https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/index.html"
+prefix = "https://docs.nvidia.com/deeplearning/triton-inference-server/user-guide/docs/"
+max_pages = 500
+
+[[source]]
+name = "dynamo"
+product = "Dynamo"
+version = "latest"
+seed = "https://docs.nvidia.com/dynamo/latest/index.html"
+prefix = "https://docs.nvidia.com/dynamo/"
+max_pages = 600
+
+[[source]]
+name = "tensorrt"
+product = "TensorRT"
+version = "latest"
+seed = "https://docs.nvidia.com/deeplearning/tensorrt/latest/index.html"
+prefix = "https://docs.nvidia.com/deeplearning/tensorrt/latest/"
+max_pages = 300
+
+[[source]]
+name = "nemo-framework"
+product = "NeMo Framework"
+version = "latest"
+seed = "https://docs.nvidia.com/nemo-framework/user-guide/latest/overview.html"
+prefix = "https://docs.nvidia.com/nemo-framework/user-guide/latest/"
+max_pages = 400
+
+[[source]]
+name = "nim"
+product = "NIM"
+version = "latest"
+seed = "https://docs.nvidia.com/nim/index.html"
+prefix = "https://docs.nvidia.com/nim/"
+max_pages = 1500
+
+[[source]]
+name = "guardrails"
+product = "NeMo Guardrails"
+version = "latest"
+seed = "https://docs.nvidia.com/nemo/guardrails/latest/index.html"
+prefix = "https://docs.nvidia.com/nemo/guardrails/latest/"
+max_pages = 300
+
+[[source]]
+name = "container-toolkit"
+product = "Container Toolkit"
+version = "latest"
+seed = "https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/index.html"
+prefix = "https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/"
+max_pages = 150
+
+[[source]]
+name = "mig"
+product = "MIG user guide"
+version = "latest"
+seed = "https://docs.nvidia.com/datacenter/tesla/mig-user-guide/index.html"
+prefix = "https://docs.nvidia.com/datacenter/tesla/mig-user-guide/"
+max_pages = 100
+
+[[source]]
+name = "fabric-manager"
+product = "Fabric Manager"
+version = "latest"
+seed = "https://docs.nvidia.com/datacenter/tesla/fabric-manager-user-guide/index.html"
+prefix = "https://docs.nvidia.com/datacenter/tesla/fabric-manager-user-guide/"
+max_pages = 60
+
+[[source]]
+name = "gds"
+product = "GPUDirect Storage"
+version = "latest"
+seed = "https://docs.nvidia.com/gpudirect-storage/index.html"
+prefix = "https://docs.nvidia.com/gpudirect-storage/"
+max_pages = 150
+
+[[source]]
+name = "gpudirect-rdma"
+product = "GPUDirect RDMA"
+version = "latest"
+seed = "https://docs.nvidia.com/cuda/gpudirect-rdma/index.html"
+prefix = "https://docs.nvidia.com/cuda/gpudirect-rdma/"
+max_pages = 40
+
+[[source]]
+name = "doca"
+product = "DOCA SDK"
+version = "latest"
+seed = "https://networking-docs.nvidia.com/doca/archive/3-5-0"
+prefix = "https://networking-docs.nvidia.com/doca/archive/3-5-0"
+max_pages = 800
+pagetree = "https://networking-docs.nvidia.com/doca/archive/3-5-0/__pagetree.json"
+
+[[source]]
+name = "cuda-programming"
+product = "CUDA C++ Programming Guide"
+version = "latest"
+seed = "https://docs.nvidia.com/cuda/cuda-programming-guide/index.html"
+prefix = ["https://docs.nvidia.com/cuda/cuda-programming-guide/", "https://docs.nvidia.com/cuda/cuda-c-programming-guide/"]
+max_pages = 150
+
+[[source]]
+name = "cuda-best-practices"
+product = "CUDA Best Practices"
+version = "latest"
+seed = "https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/index.html"
+prefix = "https://docs.nvidia.com/cuda/cuda-c-best-practices-guide/"
+max_pages = 60
+
+[[source]]
+name = "nsight-systems"
+product = "Nsight Systems"
+version = "latest"
+seed = "https://docs.nvidia.com/nsight-systems/UserGuide/index.html"
+prefix = "https://docs.nvidia.com/nsight-systems/"
+max_pages = 200
+
+[[source]]
+name = "nsight-compute"
+product = "Nsight Compute"
+version = "latest"
+seed = "https://docs.nvidia.com/nsight-compute/NsightCompute/index.html"
+prefix = "https://docs.nvidia.com/nsight-compute/"
+max_pages = 200
+
+[[source]]
+name = "vgpu"
+product = "vGPU"
+version = "latest"
+seed = "https://docs.nvidia.com/vgpu/index.html"
+prefix = "https://docs.nvidia.com/vgpu/"
+max_pages = 300
+
+[[source]]
+name = "ai-enterprise"
+product = "AI Enterprise"
+version = "latest"
+seed = "https://docs.nvidia.com/ai-enterprise/index.html"
+prefix = "https://docs.nvidia.com/ai-enterprise/"
+max_pages = 300
+
+[[source]]
+name = "ngc"
+product = "NGC"
+version = "latest"
+seed = "https://docs.nvidia.com/ngc/index.html"
+prefix = "https://docs.nvidia.com/ngc/"
+max_pages = 200
+
+[[source]]
+name = "cumulus"
+product = "Cumulus Linux 5.12"
+version = "latest"
+seed = "https://docs.nvidia.com/networking-ethernet-software/cumulus-linux-512/"
+prefix = "https://docs.nvidia.com/networking-ethernet-software/cumulus-linux-512/"
+max_pages = 700
+
+[[source]]
+name = "mlnx-ofed"
+product = "MLNX_OFED 24.10"
+version = "latest"
+seed = "https://networking-docs.nvidia.com/mlnxofedswum/24100700"
+prefix = "https://networking-docs.nvidia.com/mlnxofedswum/24100700"
+max_pages = 400
+pagetree = "https://networking-docs.nvidia.com/mlnxofedswum/24100700/__pagetree.json"
+
+[[source]]
+name = "network-operator"
+product = "Network Operator 26.7"
+version = "latest"
+seed = "https://docs.nvidia.com/networking/display/kubernetes2670/index.html"
+prefix = "https://docs.nvidia.com/networking/display/kubernetes2670/"
+max_pages = 300
+
+[[source]]
+name = "ufm-enterprise"
+product = "UFM Enterprise 6.19.1"
+version = "latest"
+seed = "https://networking-docs.nvidia.com/ufmenterprisearum/6191"
+prefix = "https://networking-docs.nvidia.com/ufmenterprisearum/6191"
+max_pages = 500
+pagetree = "https://networking-docs.nvidia.com/ufmenterprisearum/6191/__pagetree.json"
+
+[[source]]
+name = "ibdiagnet"
+product = "IBUtils2 / ibdiagnet 2.27.0"
+version = "latest"
+seed = "https://networking-docs.nvidia.com/ibdiagnetutilityum/2.27.0"
+prefix = "https://networking-docs.nvidia.com/ibdiagnetutilityum/2.27.0"
+max_pages = 200
+pagetree = "https://networking-docs.nvidia.com/ibdiagnetutilityum/2.27.0/__pagetree.json"
+
+[[source]]
+name = "nvml"
+product = "NVML API"
+version = "latest"
+seed = "https://docs.nvidia.com/deploy/nvml-api/index.html"
+prefix = "https://docs.nvidia.com/deploy/nvml-api/"
+max_pages = 150
+
+[[source]]
+name = "nvidia-smi"
+product = "nvidia-smi"
+version = "latest"
+seed = "https://docs.nvidia.com/deploy/nvidia-smi/index.html"
+prefix = "https://docs.nvidia.com/deploy/nvidia-smi/"
+max_pages = 10
+
+[[source]]
+name = "megatron-core"
+product = "Megatron Core"
+version = "latest"
+seed = "https://docs.nvidia.com/megatron-core/developer-guide/latest/index.html"
+prefix = "https://docs.nvidia.com/megatron-core/developer-guide/latest/"
+max_pages = 300
+
+[[source]]
+name = "dgx-h100"
+product = "DGX H100 user guide"
+version = "latest"
+seed = "https://docs.nvidia.com/dgx/dgxh100-user-guide/introduction-to-dgxh100.html"
+prefix = "https://docs.nvidia.com/dgx/dgxh100-user-guide/"
+max_pages = 150
+
+[[source]]
+name = "dgx-os"
+product = "DGX OS 7 user guide"
+version = "latest"
+seed = "https://docs.nvidia.com/dgx/dgx-os-7-user-guide/index.html"
+prefix = "https://docs.nvidia.com/dgx/dgx-os-7-user-guide/"
+max_pages = 150
+
+[[git]]
+name = "ansible"
+product = "Ansible docs (RST source)"
+version = "main branch"
+repo = "https://github.com/ansible/ansible-documentation.git"
+paths = ["docs/docsite/rst/playbook_guide", "docs/docsite/rst/inventory_guide", "docs/docsite/rst/getting_started", "docs/docsite/rst/collections_guide", "docs/docsite/rst/vault_guide", "docs/docsite/rst/tips_tricks", "docs/docsite/rst/os_guide", "docs/docsite/rst/network"]
+
+[[git]]
+name = "openmpi"
+product = "Open MPI docs (RST source)"
+version = "main branch"
+repo = "https://github.com/open-mpi/ompi.git"
+paths = ["docs"]
+
+[[git]]
+name = "fastapi"
+product = "FastAPI docs"
+version = "main branch"
+repo = "https://github.com/tiangolo/fastapi.git"
+paths = ["docs/en/docs"]
+
+[[git]]
+name = "openbmc"
+product = "OpenBMC docs"
+version = "main branch"
+repo = "https://github.com/openbmc/docs.git"
+paths = ["architecture","designs","development","anti-patterns"]
+
+[[git]]
+name = "rdma-core"
+product = "rdma-core docs"
+version = "main branch"
+repo = "https://github.com/linux-rdma/rdma-core.git"
+paths = ["Documentation"]
+
+[[git]]
+name = "opensm"
+product = "OpenSM docs"
+version = "main branch"
+repo = "https://github.com/linux-rdma/opensm.git"
+paths = ["doc"]
+
+[[md]]
+name = "enroot-pyxis"
+product = "Enroot and Pyxis"
+version = "master"
+urls = [
+ "https://raw.githubusercontent.com/NVIDIA/enroot/master/README.md",
+ "https://raw.githubusercontent.com/NVIDIA/enroot/master/doc/usage.md",
+ "https://raw.githubusercontent.com/NVIDIA/enroot/master/doc/configuration.md",
+ "https://raw.githubusercontent.com/NVIDIA/pyxis/master/README.md",
+ "https://raw.githubusercontent.com/NVIDIA/k8s-device-plugin/main/README.md",
+]
+
+[[pdf]]
+name = "redfish-spec"
+product = "DMTF Redfish DSP0266_1.21.0"
+version = "as published"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0266_1.21.0.pdf"
+
+[[pdf]]
+name = "redfish-resource-guide"
+product = "DMTF Redfish DSP2046_2024.4"
+version = "as published"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP2046_2024.4.pdf"
+
+[[pdf]]
+name = "redfish-schema"
+product = "DMTF Redfish DSP0268_2024.4"
+version = "as published"
+url = "https://www.dmtf.org/sites/default/files/standards/documents/DSP0268_2024.4.pdf"
+
+[[git]]
+name = "vllm"
+product = "vLLM docs"
+version = "main branch"
+repo = "https://github.com/vllm-project/vllm.git"
+paths = ["docs"]
+
+[[git]]
+name = "dvc"
+product = "DVC docs"
+version = "main branch"
+repo = "https://github.com/iterative/dvc.org.git"
+paths = ["content/docs"]
+
+[[source]]
+name = "cuda-compat"
+product = "CUDA Compatibility"
+version = "latest"
+seed = "https://docs.nvidia.com/deploy/cuda-compatibility/index.html"
+prefix = "https://docs.nvidia.com/deploy/cuda-compatibility/"
+max_pages = 60
+
+[[source]]
+name = "cuda-release-notes"
+product = "CUDA Toolkit release notes"
+version = "latest"
+seed = "https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/index.html"
+prefix = "https://docs.nvidia.com/cuda/cuda-toolkit-release-notes/"
+max_pages = 20
+
+[[source]]
+name = "driver-install"
+product = "NVIDIA Datacenter Driver Installation Guide"
+version = "latest"
+seed = "https://docs.nvidia.com/datacenter/tesla/driver-installation-guide/index.html"
+prefix = "https://docs.nvidia.com/datacenter/tesla/driver-installation-guide/"
+max_pages = 80
+
+[[source]]
+name = "datacenter-driver-notes"
+product = "NVIDIA Datacenter Drivers release notes"
+version = "latest"
+seed = "https://docs.nvidia.com/datacenter/tesla/index.html"
+prefix = "https://docs.nvidia.com/datacenter/tesla/"
+max_pages = 150
+
+[[source]]
+name = "dgx-h100-fw"
+product = "DGX H100 firmware update guide"
+version = "latest"
+seed = "https://docs.nvidia.com/dgx/dgxh100-fw-update-guide/index.html"
+prefix = "https://docs.nvidia.com/dgx/dgxh100-fw-update-guide/"
+max_pages = 60
+
+[[source]]
+name = "cuda-install-linux"
+product = "CUDA Installation Guide for Linux"
+version = "latest"
+seed = "https://docs.nvidia.com/cuda/cuda-installation-guide-linux/index.html"
+prefix = "https://docs.nvidia.com/cuda/cuda-installation-guide-linux/"
+max_pages = 60
+
+# Local books (own O'Reilly account, personal study only; never committed: data/ is gitignored).
+# Every subfolder of books_dir with Markdown is indexed as "book:<folder>".
+[books]
+dir = "/Users/jithinpjoseph/oreilly-downloader/output"
+
+[[source]]
+name = "superpod-ra-h100"
+product = "DGX SuperPOD reference architecture (H100)"
+version = "latest"
+seed = "https://docs.nvidia.com/dgx-superpod/reference-architecture-scalable-infrastructure-h100/latest/index.html"
+prefix = "https://docs.nvidia.com/dgx-superpod/reference-architecture-scalable-infrastructure-h100/latest/"
+
+[[source]]
+name = "superpod-ra-b200"
+product = "DGX SuperPOD reference architecture (B200)"
+version = "latest"
+seed = "https://docs.nvidia.com/dgx-superpod/reference-architecture-scalable-infrastructure-b200/latest/index.html"
+prefix = "https://docs.nvidia.com/dgx-superpod/reference-architecture-scalable-infrastructure-b200/latest/"
+
+[[source]]
+name = "superpod-deploy"
+product = "DGX SuperPOD deployment guide"
+version = "latest"
+seed = "https://docs.nvidia.com/dgx-superpod/deployment-guide-dgx-superpod/latest/index.html"
+prefix = "https://docs.nvidia.com/dgx-superpod/deployment-guide-dgx-superpod/latest/"
+
+[[source]]
+name = "superpod-admin"
+product = "DGX SuperPOD administration guide"
+version = "latest"
+seed = "https://docs.nvidia.com/dgx-superpod/administration-guide-dgx-superpod/latest/index.html"
+prefix = "https://docs.nvidia.com/dgx-superpod/administration-guide-dgx-superpod/latest/"

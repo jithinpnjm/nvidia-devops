@@ -2,8 +2,8 @@
 title: "Chapter 12 - Customer runbooks, onboarding and best-practice documentation"
 slug: "chapter-12-customer-runbooks-onboarding-and-best-practice-documentation"
 sidebar_position: 12
-description: "Chapter 12 - Customer runbooks, onboarding and best-practice documentation — Bare-Metal, HPC Operations and Infrastructure-as-Code."
-source_document: "Authored directly for the JR2018680 gap-coverage volume — no DOCX source."
+description: "Runbook and onboarding-guide design for customer handoff, with three worked runbooks built from vendor documentation: NCCL initialization failures, Xid 79, and BCM provisioning failures."
+source_document: "Extended with runbooks verified against the NCCL User Guide (networking troubleshooting, logging, diagnostics), the NVIDIA Xid Errors catalog, and the BCM 11 Administrator Manual."
 ---
 
 **Learning outcome:** Produce a runbook that a customer's on-call engineer can execute correctly at 3am under pressure without you in the room, and an onboarding guide that gives a new customer team enough context to make good decisions on day one — and know why these are two different documents, not one document written twice.
@@ -167,6 +167,198 @@ incident-time                              day-one / steady-state
 narrow, prescriptive                       broad, educational
 ```
 
+## Three runbooks built from vendor documentation
+
+The DRAIN example above shows the shape. The next three show what it looks like when every check comes from a vendor document instead of from memory. Each cites its source. Where the vendor document stops and the runbook adds a decision, the text says so, because that line is where a reviewer should push back.
+
+### Runbook A: Multi-node job hangs or fails during NCCL initialization
+
+This answers Practice item 5. It follows the order of NVIDIA's NCCL networking troubleshooting guide: confirm which transport NCCL chose, then test the NICs, then the fabric.
+
+```text
+SYMPTOM
+  A multi-node job stops making progress during startup, or fails with an
+  NCCL WARN before the first training step.
+
+VERIFICATION 1: which transport did NCCL pick?
+  Re-run a 2-node nccl-tests job with NCCL_DEBUG=INFO.
+  Applies if the log shows:   NCCL INFO Using network IB
+                              (or the RoCE equivalent for your fabric)
+  Does not match if it shows: NCCL WARN Failed to initialize any NET plugin
+                              or a socket transport on an IB/RoCE cluster.
+  Source: NCCL "Logging" page; NCCL_IB_DISABLE falls back to IP sockets.
+
+VERIFICATION 2: built-in diagnostics (NCCL 2.31 and later only)
+  $ NCCL_RUN_DIAGNOSTICS=1 <application>
+  Read lines prefixed "NCCL DIAG". [OK] = check passed. [INFO] = review,
+  for example "p2p: only 52/56 GPU-to-GPU peer accesses passed verification".
+  Diagnostics are informational. They do not abort initialization.
+  If NCCL is older than 2.31, skip this step.
+
+DECISION TREE (each branch is a command result, not a judgment)
+  A. Some UP interfaces cannot reach other nodes
+     -> set NCCL_SOCKET_IFNAME to the intended interface and retest.
+        (NCCL auto-detects interfaces and can hang on an UP interface
+        that cannot communicate.)
+
+  B. ibstatus / ibstat on every node used
+     Port state must be Active, physical state LinkUp, link layer as
+     expected (InfiniBand vs Ethernet), and Rate must match the fabric.
+     Any port Down/Init/Armed or a downshifted rate
+        -> STOP, go to ESCALATION (fabric/hardware owner).
+
+  C. sminfo (InfiniBand only)
+     Fails or shows no SM
+        -> STOP, go to ESCALATION (fabric owner). Note: on a fabric using
+           the SMP firewall, sminfo fails by design, so confirm with the
+           fabric owner before declaring an SM outage.
+
+  D. Log contains "Call to ibv_create_qp failed" or "ibv_reg_mr failed"
+        -> pinned-memory limit. Check:  ulimit -l  (inside a job launch)
+           NVIDIA's fix: memlock unlimited (soft and hard) in
+           /etc/security/limits.conf, and for Slurm make sure jobs launch
+           with the updated limits.
+
+  E. RoCE only: "ibv_modify_qp failed with error Invalid argument"
+        -> GID index. NCCL 2.21 and later select it dynamically; do not set
+           NCCL_IB_GID_INDEX. On older NCCL, use show_gids and set it.
+
+  F. Fabric looks healthy, still slow or intermittent
+     Server:  ib_write_bw -d mlx5_0 -a
+     Client:  ib_write_bw -d mlx5_0 <server> -a
+     Repeat with --use_cuda=<gpu_id> to compare host-memory vs GPU-memory
+     paths (check ib_write_bw --help for the options your perftest build
+     supports). Also: ib_write_lat for tail latency, rdma statistic for
+     growing rnr_nak_retry_err / packet_seq_err / local_ack_timeout_err,
+     perfquery -x <lid> for SymbolErrorCounter / LinkDownedCounter.
+     Host path OK but GPU path poor -> GPUDirect RDMA problem
+        -> see Chapter 10 section 1.2 (nvidia-peermem build order).
+     Errors climbing on one rail only -> run ibdiagnet and ESCALATE with
+        the report.
+
+MITIGATION
+  Apply only the one branch that matched. After each change, repeat
+  VERIFICATION 1 on two nodes before restarting the full job.
+
+ESCALATION (checkable conditions)
+  - Any port not Active/LinkUp, or rate lower than the fabric's rate
+  - sminfo shows no SM
+  - Error counters (SymbolErrorCounter, LinkDownedCounter) increase between
+    two reads taken a few minutes apart
+  - ibdiagnet reports missing links, bad ports, or routing inconsistency
+  Attach: NCCL_DEBUG=INFO log, ibstat output, perfquery readings with
+  timestamps, ibdiagnet report.
+```
+
+Why this works as a runbook: each branch is selected by a printed result. No step asks the responder to "assess" anything. The one design decision the runbook adds is the stop rule in branches B and C. NVIDIA's guide does not tell you to stop there, but a responder without fabric access cannot fix those anyway.
+
+### Runbook B: A node logs Xid 79 ("GPU has fallen off the bus")
+
+NVIDIA's Xid catalog describes the event and gives causes, not a repair procedure. The runbook below is therefore an operating policy built on those facts, and it says which parts are policy.
+
+```text
+SYMPTOM
+  Kernel log contains:  NVRM: Xid (PCI:0000:5a:00): 79, GPU has fallen
+  off the bus.  The node may also have been drained automatically.
+
+VERIFICATION
+  Find every Xid, with the PCI address:
+  $ journalctl -k | grep "NVRM: Xid"      (or grep the syslog file)
+
+  The line format is documented: PCI bus/device/function, Xid number, then
+  Xid-specific data. Record the PCI address of the GPU named in the 79.
+
+  Per the Xid catalog, this event is logged when the driver tries to reach
+  the GPU over PCI Express and finds it inaccessible. It is "often caused by
+  hardware failures on the PCI Express link", and can also be caused by
+  failing GPU hardware or other driver issues.
+
+DECISION TREE
+  Is the node still drained or removed from scheduling?
+    NO  -> drain it now (Slurm: scontrol update nodename=<node> state=drain
+           reason="Xid 79"; BCM: the Drain action). Do not return it to
+           service from this runbook.
+    YES -> continue.
+
+  Collect evidence BEFORE any reboot (policy: a reboot can clear the
+  evidence the catalog tells you to look at):
+    - nvidia-bug-report.sh   (run as root; produces nvidia-bug-report.log.gz)
+    - system event logs and kernel PCI event logs, as the catalog advises
+    - the BMC system event log (hardware faults often appear there)
+
+MITIGATION
+  None self-service. This runbook does not reboot the node to "see if it
+  comes back". Hand the evidence package to the hardware owner.
+
+ESCALATION
+  Always. Trigger: any Xid 79. The responder's job is containment and
+  evidence, not repair.
+
+FOLLOW-UP (policy)
+  Record the GPU's PCI address and serial. A second Xid 79 on the same
+  device after hardware service is a recurrence and goes to the vendor
+  with both evidence packages.
+```
+
+What is documented here: the Xid format, the meaning of 79, its likely causes, the log-review advice, and `nvidia-bug-report.sh` as the standard collection tool. What is policy: draining first, no reboot before collection, and always escalating. Say so when you hand this to a customer, so they can adjust the policy to their hardware-support contract.
+
+### Runbook C: A BCM node will not finish provisioning
+
+BCM reports where the node is in the install pipeline through node states. Those states tell you which half of the problem you have (BCM 11 Admin Manual, §5.5, pp. 291–294).
+
+```text
+SYMPTOM
+  A node sits in an INSTALLER_* state, or cycles through install and reboot.
+
+VERIFICATION
+  $ cmsh -c "device; status node001"
+  Read the state, then match it:
+
+  INSTALLER_FAILED
+    The node-installer found an unrecoverable problem, for example it
+    cannot find the local drive or a network interface will not start. It
+    is also set when handover to the local init takes too long to reach
+    UP, or when a reboot takes too long.
+    -> open the node's console; the installer message names the cause.
+
+  INSTALLER_UNREACHABLE
+    The head node can no longer ping the node during install. The node may
+    have crashed inside the installer.
+    -> check power and console via the BMC.
+
+  INSTALLER_REBOOTING
+    Normal and short: the installer reboots to load the right kernel. If it
+    lasts too long BCM sets INSTALLER_FAILED.
+
+  INSTALLER_CALLINGINIT -> UP never reached
+    The installer handed control to the node's init, but the node did not
+    reach UP in time. Per the manual, either the handover failed or init
+    could not start CMDaemon on the node.
+    -> check the node console for init and CMDaemon start-up errors.
+
+PROVISIONING CAPACITY CHECK (applies to slow installs, not failures)
+  $ cmsh -c "softwareimage; provisioningstatus"
+  Shows pending requests, slots in use per provisioner, and which images
+  are up to date. Documented behaviors that explain a stalled node:
+    - requests are deferred when no provisioner has a free slot
+    - a failed transfer is retried 5 times
+    - a provisioner that loses connectivity keeps its allocated requests
+      for 180 seconds before they fail
+    - a provisioner being updated does not serve nodes until it finishes
+  Pending requests but zero active -> check provisioner health and drain state.
+
+MITIGATION
+  Match the single state above. Do not power-cycle in a loop: INSTALLER_FAILED
+  repeating with the same cause means the cause is not transient.
+
+ESCALATION
+  Trigger: INSTALLER_FAILED twice in a row with the same installer message,
+  or INSTALLER_UNREACHABLE with the BMC also unreachable.
+  Attach: console capture, status output, provisioningstatus output.
+```
+
+Two cautions from the same manual belong in the onboarding guide, not in the runbook: a node set to `CLOSED` stays closed across reboots until someone runs `open`, and `close` does not stop the workload manager, so jobs can keep running (§5.5.4).
+
 ## Closing the loop with the rest of Volume 10
 
 Every chapter in this volume produces operational knowledge that is worthless to a customer's ops team unless it survives the handoff in one of these two forms: BCM node provisioning and lifecycle become runbook entries for "node fails to image" and onboarding-guide sections on "how nodes get added to the cluster"; Ansible/Terraform-managed configuration becomes onboarding-guide sections on "how to propose a config change" and runbook entries for "a config apply failed partway through"; Slurm administration becomes the DRAIN-state runbook above and an onboarding section on partition/QOS structure; MPI and Enroot/Pyxis become troubleshooting-entry-point references for "my multi-node job hangs" or "my container won't launch"; and Chapter 10's coordinated change management becomes the change-calendar process a new team needs to know exists before they file a ticket assuming they can apply a config change themselves at any time. A Solutions Architect handing off a cluster is graded on whether this documentation lets the customer's team operate without a call back to the SA — that is the actual acceptance criterion, and it is testable: hand the documentation to someone who wasn't in the deployment and see if they resolve a seeded, realistic incident using only what's written down.
@@ -175,7 +367,7 @@ Every chapter in this volume produces operational knowledge that is worthless to
 
 A customer's platform team wrote a document titled "Runbook: GPU node health issues" that opened with three paragraphs explaining MIG, ECC error semantics, and how the DCGM health check subsystem works, followed by a narrative description of "what to do" written in flowing prose rather than steps. A routine, previously-seen issue — a single MIG-partition ECC event degrading a subset of pods, the same class of event as this volume's earlier MIG worked examples — occurred at 2am. The on-call engineer read the document, understood the background, but could not quickly extract the actual sequence of commands to run under time pressure, and escalated a routine, already-documented issue as a full incident, paging two additional engineers who were not needed.
 
-The postmortem's finding was not "the on-call engineer should have read more carefully" — it was that the document was written as an onboarding-guide explanation wearing a runbook's title. The fix split it into two real documents: a short runbook (symptom → `dcgm diag`/`nvidia-smi -q -d ECC` verification → decision tree by error severity → mitigation → escalation trigger) that a person under pressure could execute in under two minutes, and a separate best-practices page carrying the MIG/ECC background explanation for people onboarding with time to actually read it. Nothing about the underlying technical content changed — only which document format it was forced into.
+The postmortem's finding was not "the on-call engineer should have read more carefully" — it was that the document was written as an onboarding-guide explanation wearing a runbook's title. The fix split it into two real documents: a short runbook (symptom → `dcgmi diag`/`nvidia-smi -q -d ECC` verification → decision tree by error severity → mitigation → escalation trigger) that a person under pressure could execute in under two minutes, and a separate best-practices page carrying the MIG/ECC background explanation for people onboarding with time to actually read it. Nothing about the underlying technical content changed — only which document format it was forced into.
 
 ## Mnemonic
 
