@@ -23,7 +23,7 @@ DCGM (NVIDIA Data Center GPU Manager) is the single most important tool for GPU 
 You will be able to:
 - Install and configure DCGM on GPU nodes
 - Run DCGM diagnostics to validate GPU health
-- Extract metrics from DCGM programmatically (SDK, REST API, Prometheus exporter)
+- Extract metrics from DCGM programmatically (C/Python/Go bindings, dcgmi, Prometheus exporter)
 - Understand which metrics are available for which GPU models
 - Set up DCGM monitoring in production with persistence and reliability
 - Diagnose DCGM failures and recover GPUs that DCGM can't see
@@ -37,7 +37,7 @@ But what if you have a cluster of 1,000 servers? You cannot SSH into 1,000 serve
 You need a programmatic tool that runs quietly in the background on every single server, continuously gathering data from the GPU hardware, and organizing it so it can be shipped off to a central dashboard.
 **That tool is DCGM (Data Center GPU Manager).**
 
-DCGM is the unsung hero of the NVIDIA software stack. It is a lightweight C-based agent that talks directly to the NVIDIA Kernel driver (NVML). It does three major things:
+DCGM is the unsung hero of the NVIDIA software stack. It is a library and optional daemon that reads GPU state through the NVIDIA driver (NVML). It does three major things:
 1. **Telemetry:** It constantly reads the temperature, power, clock speeds, and memory usage.
 2. **Health Checks:** It constantly watches for hardware failures, ECC memory errors, and PCIe link issues.
 3. **Diagnostics:** You can ask DCGM to run a "stress test" on the GPU to verify the silicon is healthy before handing it to a customer.
@@ -46,111 +46,109 @@ Every major enterprise monitoring tool (Prometheus, DataDog, New Relic) gets its
 
 ## What DCGM Does
 
-DCGM is a daemon that runs on the host and exposes GPU state through multiple interfaces:
+DCGM is a library plus an optional daemon. It collects *fields* (temperature, power, ECC counters, link state, profiling metrics) for *entities* (GPUs, MIG instances, NVSwitches, NVLinks, and on current releases NVIDIA CPUs and ConnectX adapters). Clients read those fields, run health checks and diagnostics, and apply policies (DCGM documentation, About).
 
 ```mermaid
 flowchart TB
-    H["GPU Hardware<br/>(Temperature, clocks, power, errors, etc.)"]
-    D["DCGM Daemon<br/>(dcgmd)<br/>Polls hardware every 100ms"]
-    
-    D -->|DCGM C API| SDK["Applications<br/>(Python libraries, custom code)"]
-    D -->|REST API| REST["HTTP clients<br/>(curl, scripts)"]
-    D -->|Prometheus format| PROM["DCGM Exporter<br/>(dcgm-exporter container)"]
-    D -->|Command-line| CLI["CLI tools<br/>(dcgmi, nvidia-smi)"]
-    
-    H -->|Kernel driver| D
-    
-    SDK -->|Field collection| App["Your monitoring app"]
-    REST -->|JSON| App
-    PROM -->|Scrape /metrics| App
-    CLI -->|stdout| App
+    HW["GPU hardware"]
+    DRV["NVIDIA driver and NVML"]
+    HE["DCGM host engine<br/>standalone: nv-hostengine process<br/>embedded: libdcgm inside another process"]
+
+    HW --> DRV --> HE
+    HE --> CLI["dcgmi (command line)"]
+    HE --> API["C/C++ API, Python and Go bindings"]
+    HE --> EXP["dcgm-exporter<br/>Prometheus /metrics, default :9400"]
+    EXP --> PROM["Prometheus"]
 ```
 
-### The Two Modes of DCGM
+### Embedded versus standalone
 
-**Embedded Mode:** DCGM runs inside your application or monitoring process. Low-latency access to metrics, but requires code integration.
+**Embedded.** DCGM runs as a shared library inside another process. The documentation notes that `dcgm-exporter` does exactly this by default: it initializes an embedded host engine inside the exporter process through `libdcgm`.
 
-**Standalone Mode:** DCGM daemon runs as a system service. Applications query it over IPC or REST API. Standard production setup.
+**Standalone.** A separate host-engine process, `nv-hostengine`, serves command-line and remote clients. Packaged installs run it as the `nvidia-dcgm` systemd service. `dcgm-exporter` can connect to a standalone host engine instead of embedding one (option `--remote-hostengine-info`, whose displayed example value uses port 5555).
+
+Pick one deliberately. Running a standalone host engine *and* an embedded one in the exporter doubles the collection work for the same fields. The exporter documentation says to follow the selected installation guide "instead of assuming that every exporter deployment requires a separately installed DCGM host engine."
+
+### Fields and watches: why DCGM stays cheap
+
+A *field* is a numeric ID with metadata (entity level, scope, value type, and whether it is a gauge, counter, event, or attribute). A *watch* asks the host engine to collect chosen fields for chosen entities at an interval, with retention limits. The host engine collects one stream per entity-field pair, no matter how many clients ask. If two clients want GPU 0 power every 5 s and every 1 s, DCGM collects at 1 s and both read from the shared stream (DCGM docs, Fields and Watches).
+
+Two consequences for operations:
+
+1. **Cadence is a cost knob.** More entity-field pairs, shorter intervals, and longer retention all raise host-engine load. The documentation says to choose a cadence by how quickly an operator can act on the value, not by the fastest number accepted.
+2. **A sample has a timestamp.** The timestamp is when DCGM collected the value, not when you read it. A recent sample of a counter can describe a very long history, and a stale sample can stay readable until retention expires. Check the timestamp before trusting a dashboard panel.
+
+The exporter's default collection interval is **30,000 ms (30 s)**, set with `-c`/`--collect-interval` or `DCGM_EXPORTER_INTERVAL` (DCGM docs, dcgm-exporter reference). Short events between scrapes can be missed with the default. The DCGM docs add that Xid and clock-event counts use configurable windows (`--xid-count-window-size`, default 300,000 ms) for that reason.
 
 ## Installing and Starting DCGM
 
-### Step 1: Install DCGM Package
+### Step 1: Install the DCGM 4 packages
+
+DCGM 4 ships CUDA-major-specific runtime packages. First find the CUDA major version your driver supports, then install the matching package from the NVIDIA repository (DCGM docs, Install DCGM):
 
 ```bash
-# On Ubuntu/Debian
-apt-get update
-apt-get install datacenter-gpu-manager
+$ nvidia-smi -q | grep -E 'Driver Version|CUDA Version'
+$ CUDA_VERSION=12            # the major version shown above
 
-# On RHEL/CentOS
-yum install datacenter-gpu-manager
+# Ubuntu / Debian
+$ sudo apt-get update
+$ sudo apt-get install --yes --install-recommends datacenter-gpu-manager-4-cuda${CUDA_VERSION}
 
-# Verify installation
-dcgmi -V
+# RHEL / Rocky / Fedora
+$ sudo dnf install --assumeyes datacenter-gpu-manager-4-cuda${CUDA_VERSION}
 ```
 
-**Real output:**
+- The first command prints the CUDA user-mode version your installed driver supports; use that major number.
+- The package name carries the CUDA major (`datacenter-gpu-manager-4-cuda12`). It requires `datacenter-gpu-manager-4-core`.
+- Older tutorials install a package named `datacenter-gpu-manager` (DCGM 3.x). The install guide tells you to remove it, together with `datacenter-gpu-manager-config`, before installing DCGM 4.
+- Requirements from the guide: at least 16 GB host RAM and at least as many CPU cores as GPUs. DCGM is tested with NVIDIA Datacenter Drivers. On NVSwitch systems, Fabric Manager must match the driver major version.
 
-```text
-DCGM Diagnostic
-Build: 12.7.1
-Copyright 2017-2024 NVIDIA Corporation
-DCGM Version: 3.7.1
-Diagnostic Version: 3.7.1
-```
-
-### Step 2: Start the DCGM Daemon
+### Step 2: Start the host engine
 
 ```bash
-# Enable and start the daemon
-systemctl enable nv-hostengine
-systemctl start nv-hostengine
-
-# Verify it's running
-ps aux | grep nv-hostengine
-systemctl status nv-hostengine
+$ sudo systemctl enable --now nvidia-dcgm
+$ systemctl status nvidia-dcgm --no-pager
+$ dcgmi discovery --list
 ```
 
-**Real output:**
+- `enable --now` starts the service and makes it start at boot. The service name is `nvidia-dcgm`, not `nv-hostengine`.
+- `systemctl status` shows whether the service is running. A process can be "running" before the listener and GPU access are usable, so do not stop there.
+- `dcgmi discovery --list` is the real check: it asks the host engine for the GPUs, NVSwitches, ConnectX devices, and CPUs it knows. Inactive GPUs are omitted unless you add `--all`.
 
-```text
-● nv-hostengine.service - NVIDIA DCGM Engine
-     Loaded: loaded (/etc/systemd/system/nv-hostengine.service; enabled; vendor preset: enabled)
-     Active: active (running) since Wed 2026-07-30 14:23:45 UTC; 2h 15min ago
-   Main PID: 2843 (nv-hostengine)
-      Tasks: 8 (limit: 4915)
-        CPU: 145ms
-        CGroup: /system.slice/nv-hostengine.service
-                └─2843 /usr/bin/nv-hostengine -n
-```
+The packaged DCGM 4.6 unit runs `/usr/bin/nv-hostengine -n --service-account nvidia-dcgm` (the `-n` flag keeps it in the foreground so systemd tracks the real process).
 
-### Step 3: Test DCGM Communication
+### Step 3: Sample live fields and run a quick diagnostic
 
 ```bash
-# Query all GPUs via DCGM
-dcgmi diag -r 1
+$ dcgmi dmon --list                         # field IDs, short column names, descriptions
+$ dcgmi dmon --field-id 100,101 --count 10  # two fields, every GPU, ten samples
+$ dcgmi diag --run 1                        # quick deployment checks (alias: -r short)
 ```
 
-**Real output (healthy):**
+- `dmon --list` is a metadata catalogue for your `dcgmi` build, not a hardware probe. A listed field can still be unsupported on your GPU.
+- `--count 10` stops after ten samples; the default delay is 1,000 ms (`--delay`). Without `--count`, `dmon` runs until interrupted.
+- A value of `N/A` can mean not supported, not found, no permission, or not yet sampled. `dmon` does not distinguish them.
+- `dcgmi diag --run` accepts levels `1` to `4`, with aliases `quick`/`short`, `medium`, `long`, and `xlong`. Level 1 takes seconds, level 2 about two minutes, level 3 about 15 minutes. Later levels include earlier checks and are more invasive, so schedule them with workload owners.
+
+The diagnostic prints a table. The documentation gives this illustrative shape for a failed test:
 
 ```text
-Diagnostic Level 1 (Quick)
-For GPU 0 [A100-PCIE-40GB]:
-  Power: 185W / 250W ✓
-  Temperature: 68°C / 85°C limit ✓
-  Memory: 28GB / 40GB ✓
-  Throttling: None ✓
-  ECC: Enabled, 0 errors ✓
+Successfully ran diagnostic for group.
++---------------------------+------------------------------------------------+
+| Diagnostic                | Result                                         |
++===========================+================================================+
+|-----  Metadata  ----------+------------------------------------------------|
+| DCGM Version              | <installed-version>                            |
+| Driver Version Detected   | <driver-version>                               |
+| GPU Device IDs Detected   | <device-id>                                    |
++-----  Hardware  ----------+------------------------------------------------+
+| memory                    | Fail                                           |
+|                           | GPU0: Fail                                     |
+| Warning: GPU0             | <condition-specific error message>             |
++---------------------------+------------------------------------------------+
 ```
 
-**Real output (GPU offline):**
-
-```text
-Diagnostic Level 1 (Quick)
-For GPU 0: FAILED — GPU not visible (driver issue or hardware offline)
-For GPU 1 [A100-PCIE-40GB]:
-  Power: 190W / 250W ✓
-  ...
-```
+(Source: DCGM documentation, "Results and Logging". Exact categories, tests, statuses, and messages vary by release, hardware, and request.) Use `--json` for automation, but note the documentation says the JSON schema is not stable across releases.
 
 ## Core DCGM Metrics
 
@@ -184,181 +182,136 @@ DCGM exposes hundreds of metrics (called "fields"). The most important ones for 
 | `DCGM_FI_DEV_ECC_DBE_VOL_TOTAL` | Count of uncorrected double-bit errors | 0-∞ | > 0 (data corruption risk) |
 | `DCGM_FI_DEV_XID_ERRORS` | GPU exceptions (Xid code) | 0 | > 0 (GPU fault) |
 
-## Querying DCGM: Three Methods
+## Querying DCGM
 
-### Method 1: Command-Line (dcgmi)
-
-```bash
-# Get a snapshot of all metrics for all GPUs
-dcgmi diag -r 1
-
-# Get one specific field
-dcgmi dmon -s g -c 1  # 1 sample, GPU field group
-```
-
-**Output:**
-
-```
-    gpu   sm    mem   fb  pclk  mclk     pwr     tmp  ecc.err
-      0  85.0   78.0  28.0 1410  1410  185.0W   68.0   0 / 0
-      1  84.0   79.0  30.0 1410  1410  195.0W   72.0   0 / 0
-      2   5.0    1.0   2.0  300   300   50.0W   45.0   0 / 0
-```
-
-### Method 2: REST API
+### Method 1: `dcgmi`
 
 ```bash
-# DCGM can expose REST API (if configured)
-curl -s http://localhost:5555/api/v1/dcgm/gpu_status | jq '.data[] | {gpu: .gpuId, temp: .temperature, power: .power}'
+$ dcgmi discovery --list                    # what DCGM sees
+$ dcgmi discovery --info aptc --gpuid 0     # identity, power limits, thermal limits, clocks
+$ dcgmi dmon --field-id 100,101 --count 5   # sample fields for all GPUs
+$ dcgmi diag --run 2                        # medium validation
 ```
 
-### Method 3: Prometheus Exporter (Production Standard)
+- `discovery --info` takes letters: `a` device identity and firmware, `p` power limits, `t` thermal limits, `c` supported clocks, `w` workload power profiles. Combine each at most once.
+- `dmon` creates connection-scoped watches that end when it exits. Other clients can still keep the same fields watched, so stopping `dmon` does not prove collection stopped.
 
-The DCGM Prometheus exporter is the standard way to integrate with monitoring stacks:
+### Method 2: Language bindings
+
+The C/C++ API, the installed Python bindings, and the separately distributed Go bindings expose the full feature surface and are the right choice for long-running integrations that need structured results and callbacks (DCGM docs, About). The earlier draft of this chapter described a REST API on port 5555. DCGM documentation describes no such API. Port 5555 appears only as the example value for connecting to a remote host engine.
+
+### Method 3: The Prometheus exporter (production default)
+
+`dcgm-exporter` selects DCGM fields from a collector CSV, watches them, adds entity and optional Kubernetes labels, and serves Prometheus text at `/metrics` on `:9400` by default.
+
+For a package-managed host:
 
 ```bash
-# Run DCGM exporter as Docker container
-docker run -d \
-  --name dcgm-exporter \
-  --gpus all \
-  --privileged \
-  --net=host \
-  -e DCGM_EXPORTER_LISTEN=":9400" \
-  -e DCGM_EXPORTER_KUBERNETES=false \
-  nvcr.io/nvidia/k8s/dcgm-exporter:3.1.7-3.1.7-ubuntu20.04
-
-# Verify metrics are exported
-curl -s http://localhost:9400/metrics | head -50
+$ sudo apt-get install datacenter-gpu-manager-exporter       # or: sudo dnf install ...
+$ sudo systemctl enable --now nvidia-dcgm nvidia-dcgm-exporter
+$ curl -s http://localhost:9400/metrics | head -40
 ```
 
-**Real output:**
+- The package installs `/usr/bin/dcgm-exporter`, the default collector file `/etc/dcgm-exporter/default-counters.csv`, and the unit `nvidia-dcgm-exporter.service`.
+- `curl ... /metrics` is the end-to-end check. If the endpoint answers but has no `DCGM_FI_*` lines, the exporter is up and the field selection or GPU access is wrong.
+
+To change which fields are exported, point the exporter at your own three-column collector CSV:
+
+```bash
+$ dcgm-exporter -f /etc/dcgm-exporter/my-counters.csv -c 10000
+```
+
+- `-f` (`--collectors`, env `DCGM_EXPORTER_COLLECTORS`) selects the CSV. A file-backed CSV is watched for changes, and `SIGHUP` reloads it.
+- `-c 10000` sets the collection interval to 10 s (default 30 s). Shorter intervals raise host-engine load, as covered earlier.
+- Other flags and environment variables take effect only after restart. Precedence is command-line flag, then environment variable, then config file, then default.
+
+On Kubernetes, `-k` (`--kubernetes`) maps metrics to pods. In most clusters the GPU Operator deploys and manages the exporter for you ([Volume 10](../volume-10/index.md)).
+
+Illustrative shape of the output (labels vary with version and options):
 
 ```text
 # HELP DCGM_FI_DEV_GPU_TEMP GPU temperature (in C).
 # TYPE DCGM_FI_DEV_GPU_TEMP gauge
-DCGM_FI_DEV_GPU_TEMP{gpu="0",uuid="GPU-<uuid>"} 68
-DCGM_FI_DEV_GPU_TEMP{gpu="1",uuid="GPU-<uuid>"} 72
-DCGM_FI_DEV_GPU_TEMP{gpu="2",uuid="GPU-<uuid>"} 45
-
-# HELP DCGM_FI_DEV_FB_USED Framebuffer memory used (in MB).
-# TYPE DCGM_FI_DEV_FB_USED gauge
-DCGM_FI_DEV_FB_USED{gpu="0",uuid="GPU-<uuid>"} 28672
-DCGM_FI_DEV_FB_USED{gpu="1",uuid="GPU-<uuid>"} 30000
-DCGM_FI_DEV_FB_USED{gpu="2",uuid="GPU-<uuid>"} 2048
-
-# HELP DCGM_FI_DEV_GPU_UTIL GPU utilization (%).
-# TYPE DCGM_FI_DEV_GPU_UTIL gauge
-DCGM_FI_DEV_GPU_UTIL{gpu="0",uuid="GPU-<uuid>"} 85
-DCGM_FI_DEV_GPU_UTIL{gpu="1",uuid="GPU-<uuid>"} 78
-DCGM_FI_DEV_GPU_UTIL{gpu="2",uuid="GPU-<uuid>"} 5
+DCGM_FI_DEV_GPU_TEMP{gpu="0",UUID="GPU-<uuid>",...} <value>
 ```
 
 ## DCGM in Production: Reliability and Recovery
 
-### DCGM Failures and Recovery
+### Monitor the monitor
 
-DCGM can fail silently or noisily:
+If the host engine or exporter stops, you lose GPU visibility without any GPU symptom. Alert on the exporter target being down (the Prometheus `up` metric for the DCGM job) and on the freshness of DCGM samples, not only on GPU values.
 
 ```bash
-# Monitor DCGM daemon health
-ps aux | grep nv-hostengine
-
-# Check DCGM logs
-journalctl -u nv-hostengine -n 100
-
-# If DCGM is not running
-systemctl restart nv-hostengine
-
-# If a GPU has fallen off the bus
-# (see Xid error in dmesg)
-nvidia-smi -pm 1  # Enable persistence mode
-nvidia-smi -c 3   # Reset GPU (requires root, causes workload interruption)
+$ systemctl status nvidia-dcgm nvidia-dcgm-exporter --no-pager
+$ journalctl --unit=nvidia-dcgm.service --boot
+$ sudo systemctl restart nvidia-dcgm
 ```
 
-**Real error in DCGM logs:**
+- Use the journal to read the packaged service's log. The DCGM documentation advises against starting a second server process just to see console output.
+- A restart drops client watches. Clients that reconnect must re-create their watches.
 
-```
-Aug 30 14:22:15 node-01 nv-hostengine[2843]: GPU 2 driver communication failed
-Aug 30 14:22:15 node-01 nv-hostengine[2843]: GPU 2 not responding, attempting recovery
-Aug 30 14:22:16 node-01 nv-hostengine[2843]: GPU 2 recovered
-```
+### Logging for problem reports
 
-### DCGM Configuration for HA (High Availability)
+The documented evidence set for any DCGM problem report is `nvidia-bug-report.log.gz` (from `nvidia-bug-report.sh`), the full output of `dcgmi -v`, and the relevant logs (DCGM docs, Debugging and Troubleshooting).
 
-For production clusters:
+```bash
+# Host-engine debug logging as a systemd drop-in (survives package upgrades)
+$ sudo systemctl edit nvidia-dcgm.service
+[Service]
+Environment="__DCGM_DBG_LVL=DEBUG"
+$ sudo systemctl restart nvidia-dcgm
 
-```yaml
-# /etc/dcgm/dcgm-systemd-params
-# Run DCGM in the most verbose mode to catch issues early
-# Enable field caching for high-frequency queries
-# Set appropriate sampling intervals
-
-# File: /etc/dcgm/dcgm-systemd-params
-LD_LIBRARY_PATH=/usr/lib/x86_64-linux-gnu:/usr/local/cuda/lib64
-DCGM_EXPORT_FIELDS="all"  # Export all available fields
-DCGM_LOG_LEVEL="3"         # INFO level logging
+# Diagnostic debug log for one run
+$ dcgmi diag -r short --debugLogFile /tmp/nvvs.log -d DEBUG
 ```
 
-## Worked Example: Diagnosing a GPU That DCGM Can't Reach
+- Edit the service through a drop-in, never the vendor unit. The documentation lists editing the vendor unit as never appropriate, because a package upgrade can overwrite it.
+- `__DCGM_DBG_LVL` is the environment fallback for host-engine log level. A `--log-level` option on the command line takes precedence over it.
+- `-d DEBUG` and `--debugLogFile` apply to the diagnostic run only.
 
-**Scenario:** DCGM reports "GPU 1 not visible" but `nvidia-smi` shows 4 GPUs.
+### GPUs that detach or disappear
 
-**Step 1: Check if nvidia-smi sees the GPU**
+From DCGM 4.5 with driver 590, DCGM supports GPU binding and unbinding at runtime and starts even if no GPU is detected. When a GPU detaches, DCGM removes it from groups, drops its watches and cached values, and resets applied configuration, which is not reapplied automatically when it returns. Watches on the built-in all-GPUs group apply to newly attached GPUs automatically. Health checks do not report incidents on detached GPUs, so a missing GPU can look like a quiet one. Pair DCGM with a GPU-count check (for example `dcgmi discovery --list --all`) in your alerting.
+
+## Worked Example: DCGM Does Not List a GPU That `nvidia-smi` Shows
+
+**Scenario.** `nvidia-smi -L` lists four GPUs, but a monitoring job based on DCGM covers only three.
+
+**Step 1: Compare the two views.**
 
 ```bash
 $ nvidia-smi -L
-GPU 0: NVIDIA A100-PCIE-40GB
-GPU 1: NVIDIA A100-PCIE-40GB
-GPU 2: NVIDIA A100-PCIE-40GB
-GPU 3: NVIDIA A100-PCIE-40GB
+$ dcgmi discovery --list --all
 ```
 
-**Step 2: Check DCGM daemon and logs**
+- `--all` includes inactive GPUs. For any included GPU whose status is not `OK`, the output adds a `Status: <state>` line and marks its name and PCI bus ID `(last known)`, meaning the values are cached.
+- If the GPU appears here with a non-OK status, DCGM knows it but cannot use it right now. If it is missing entirely, restart the host engine and look again.
+
+**Step 2: Check the service and its journal.**
 
 ```bash
-$ systemctl status nv-hostengine
-Active: active (running)
-
-$ journalctl -u nv-hostengine -n 50 | grep -i "gpu 1"
-GPU 1: Driver initialization failed
+$ systemctl status nvidia-dcgm --no-pager
+$ journalctl --unit=nvidia-dcgm.service --boot | tail -50
 ```
 
-**Step 3: Check DCGM startup directly**
+**Step 3: Check the kernel side.** If the GPU is genuinely inaccessible, the kernel log carries the Xid evidence:
 
 ```bash
-$ dcgmi diag -r 1
-GPU 0: OK
-GPU 1: FAILED — GPU not accessible
-GPU 2: OK
-GPU 3: OK
+$ journalctl -k | grep "NVRM: Xid"
 ```
 
-**Step 4: Check if DCGM permissions are the issue**
+An Xid 79 ("GPU has fallen off the bus") means the driver found the GPU inaccessible over PCI Express and is often a PCIe link or hardware problem (NVIDIA Xid Errors catalog). Do not try to fix that from DCGM. Collect `nvidia-bug-report.sh` output and hand it to the hardware owner.
+
+**Step 4: Check privileges.** The packaged service uses the `nvidia-dcgm` service account. If a command works as root but not under the service, the difference is process credentials, not DCGM itself. Compare `systemctl cat nvidia-dcgm.service` with the privileges of the failing process.
+
+**Step 5: Re-verify with a client request.**
 
 ```bash
-# DCGM daemon runs as root; check if nv-hostengine can access GPU 1
-$ sudo -u root dcgmi diag -r 1
-GPU 0: OK
-GPU 1: OK (works with root)
-GPU 2: OK
-GPU 3: OK
+$ sudo systemctl restart nvidia-dcgm
+$ dcgmi discovery --list
 ```
 
-**Diagnosis:** DCGM is running as wrong user or with wrong permissions.
-
-**Solution:**
-
-```bash
-# Ensure nv-hostengine runs as root
-systemctl edit nv-hostengine
-# Change User= to run as root
-
-systemctl restart nv-hostengine
-
-# Verify
-dcgmi diag -r 1
-# All GPUs should now be visible
-```
+The final client request is the real test. The documentation warns that a process can be reported as running before the expected listener, libraries, or GPU access are usable.
 
 ## Architecture Summary
 
@@ -377,7 +330,7 @@ flowchart TD
         
         subgraph User_Space["Host OS (User Space)"]
             NVML[NVML C-API]
-            DCGM[nv-hostengine <br/> DCGM Background Daemon]
+            DCGM[nv-hostengine <br/> DCGM host engine]
             
             Driver <==> NVML
             NVML <==> DCGM
@@ -388,7 +341,7 @@ flowchart TD
             Exporter[DCGM-Exporter / Prometheus]
             
             DCGM -.->|Text output| CLI
-            DCGM -.->|gRPC / HTTP| Exporter
+            DCGM -.->|libdcgm: embedded by default, or remote host engine| Exporter
         end
     end
 ```

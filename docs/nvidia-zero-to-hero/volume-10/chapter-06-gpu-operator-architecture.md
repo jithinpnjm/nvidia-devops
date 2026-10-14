@@ -73,7 +73,7 @@ flowchart TD
 
 The controller watches its declarative policy and reconciles the child resources needed to reach it. Most node-facing components run as DaemonSets because their work is tied to local hardware and the kubelet. A controller can converge Kubernetes objects, but it cannot make an unsupported kernel, a failed module load, or an unavailable registry safe. Those conditions remain operational dependencies.
 
-**What the reconciled state looks like as real output.** `kubectl get clusterpolicy -o yaml` on a healthy install:
+**What the reconciled state looks like as illustrative output.** `kubectl get clusterpolicy -o yaml` on a healthy install:
 
 ```yaml
 $ kubectl get clusterpolicy cluster-policy -o yaml

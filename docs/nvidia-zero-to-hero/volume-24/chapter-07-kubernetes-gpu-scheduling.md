@@ -157,7 +157,7 @@ spec:
 4. **Starvation prevention:** Every job makes progress (not preempted indefinitely)
 5. **Scheduling efficiency:** >85% GPU utilization (not idle)
 
-## Real Output: Scheduling Simulation
+## Illustrative Output: Scheduling Simulation
 
 **Kubernetes scheduler state (simulated):**
 

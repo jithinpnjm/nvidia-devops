@@ -118,7 +118,7 @@ for gpu_id in $(nvidia-smi --list-gpus | awk '{print $2}' | tr -d '()'); do
 done
 ```
 
-**Real output (mixed):**
+**Illustrative output (mixed; shape only, not captured from a live system):**
 
 ```
 Checking GPU 0...

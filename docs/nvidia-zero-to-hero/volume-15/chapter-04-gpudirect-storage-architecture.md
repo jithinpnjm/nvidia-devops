@@ -108,7 +108,7 @@ lctl list_param mgc.* | grep -i gds  # Check if OST has GDS capability
 nvidia-smi topo -m
 ```
 
-**Real output:**
+**Illustrative output (shape only, not captured from a live system):**
 ```text
         GPU0    GPU1    GPU2    GPU3    NIC0    NIC1    CPU Affinity    NUMA Affinity
 GPU0     X      NV2      NV2    NV4      PHB      PHB    0-31            N/A
@@ -156,7 +156,7 @@ GPU 0
   Rx Throughput: 5678 MB/s
 ```
 
-**Real output during CPU-bounce I/O (no GDS):**
+**Illustrative output during CPU-bounce I/O (no GDS):**
 ```text
 GPU 0
   Tx Throughput: 0 MB/s

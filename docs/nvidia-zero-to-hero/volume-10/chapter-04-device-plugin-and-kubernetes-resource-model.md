@@ -79,7 +79,7 @@ The plugin exposes a local gRPC endpoint under the device-plugin framework and r
 
 The exact API version and allocation strategy are implementation details that must match the Kubernetes release and NVIDIA device-plugin configuration in use. Treat the plugin’s release notes and supported configuration as the authority, rather than copying old socket paths or annotations from a different cluster.
 
-**What the contract looks like as real output.** `kubectl describe node` on a healthy GPU node shows capacity and allocatable as separate lines, and they normally agree:
+**What the contract looks like as illustrative output.** `kubectl describe node` on a healthy GPU node shows capacity and allocatable as separate lines, and they normally agree:
 
 ```text
 $ kubectl describe node gpu-node-07

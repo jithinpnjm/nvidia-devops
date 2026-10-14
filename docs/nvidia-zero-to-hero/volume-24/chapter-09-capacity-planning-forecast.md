@@ -262,7 +262,7 @@ if __name__ == '__main__':
 4. **Upgrade plan:** Define clear hardware refresh cycles (every 6 months)
 5. **Cost breakdown:** Itemize CapEx vs OpEx; identify major cost drivers
 
-## Real Output: Capacity Plan
+## Illustrative Output: Capacity Plan
 
 ```
 === CAPACITY PLAN SUMMARY ===

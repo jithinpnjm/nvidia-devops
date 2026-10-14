@@ -194,7 +194,7 @@ dcgmi dmon -s pucvmet -c 300  # 300 samples at 1Hz = 5 minutes
 dmesg -T | tail -20
 
 # 5. DCGM daemon alive?
-systemctl status nv-hostengine
+systemctl status nvidia-dcgm
 
 # 6. Specific job diagnostics?
 strace -p <pid>  # See what process is blocked on

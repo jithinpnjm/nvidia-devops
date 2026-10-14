@@ -245,9 +245,11 @@ Performance (64-GPU H100 cluster, 1 GB gradient):
   
 NCCL algorithm selection:
   Environment variables:
-    NCCL_ALGO=RING        (force ring)
-    NCCL_ALGO=TREE        (force tree)
-    NCCL_ALGO=COLLNET     (use dedicated in-network aggregation, if available)
+    NCCL_ALGO=Ring        (restrict to ring)
+    NCCL_ALGO=Tree        (restrict to tree)
+    NCCL_ALGO=CollnetDirect / CollnetChain   (in-network aggregation, NCCL 2.14+, needs the CollNet plugin and
+                                              NCCL_COLLNET_ENABLE=1; the name 'Collnet' applies only to 2.5-2.13)
+    (Forcing an algorithm is a last resort; NCCL selects by topology. Since 2.24, invalid tokens fail.)
     
   Debugging:
     NCCL_DEBUG=INFO       (see which algorithm chosen)
@@ -499,14 +501,14 @@ nsys profile -w=restart --sample=none --trace=cuda,nvtx -o profile --gpu-metrics
 
 ### 6.2 Tuning NCCL for Your Cluster
 
-| Issue | Symptom | NCCL Environment Variable | Recommended Value |
+| Issue | Symptom | NCCL Environment Variable | Guidance (NCCL User Guide, Environment Variables) |
 |---|---|---|---|
-| **AllReduce too slow (>50ms on 64 GPU)** | Congestion or wrong algorithm | `NCCL_ALGO` | RING (usually default, but try COLLNET if available) |
-| **High variance in AllReduce latency** | Packet loss, IB flapping | `NCCL_IB_HCA` | Specify explicit IB adapter (e.g., mlx5_0) |
-| **AllReduce stalls (hangs indefinitely)** | PFC credit exhaustion, deadlock | `NCCL_IB_PCI_ACCESS_METHOD` | RELAXED (default) or FLUSH (slower but safer) |
-| **Memory exhaustion in large AllReduce** | Buffering too much data | `NCCL_BUFFSIZE` | Reduce from 256MB to 32MB |
-| **Single-node AllReduce bottleneck** | NVLink not used | `NCCL_NVLINK` | NVLINK (force NVLink, disable IB within node) |
-| **Unbalanced AllReduce (some GPU slow)** | One node slower network | `NCCL_ALGO=TREE` | Switch to tree to reduce impact of slow node |
+| **Collective slower than baseline at scale** | Congestion, or an unsuitable algorithm | `NCCL_ALGO` | Leave unset unless you have measured a better choice: NCCL selects by topology. Valid names include `Ring`, `Tree`, `CollnetChain` and `CollnetDirect` (2.14 and later), and `NVLS`/`NVLSTree` (NVLink SHARP). Since 2.24, unexpected tokens fail, and if `ring` is not listed there is no fallback to it |
+| **High variance in AllReduce latency** | Packet loss, link flapping, one slow rail | `NCCL_IB_HCA` | Select adapters explicitly, for example `=mlx5_0:1,mlx5_1:1` (`=` means exact names), after confirming port state with `ibstat` |
+| **Memory pressure from NCCL buffers** | Out-of-memory near collectives | `NCCL_BUFFSIZE` | Default is 4194304 bytes (4 MiB); values are integers in bytes, powers of 2 recommended. Reduce only if memory-constrained, and re-benchmark |
+| **Intra-node traffic not using NVLink** | Single-node all-reduce slower than expected | `NCCL_P2P_LEVEL`, `NCCL_P2P_DISABLE` | NCCL chooses automatically. `NVL` limits P2P to NVLink-connected GPUs, and `NCCL_P2P_DISABLE=1` disables P2P (a diagnostic, not a tuning step). Confirm the transport actually used with `NCCL_DEBUG=INFO` |
+| **IB performance in virtualized environments** | Lower than bare-metal baseline | `NCCL_IB_PCI_RELAXED_ORDERING` | Default `2` (use Relaxed Ordering if available); `1` forces it and fails if unavailable; `0` disables it |
+
 
 ---
 
@@ -514,8 +516,8 @@ nsys profile -w=restart --sample=none --trace=cuda,nvtx -o profile --gpu-metrics
 
 | Symptom | Diagnostic | Root Cause | Resolution | Recovery Time |
 |---|---|---|---|---|
-| **AllReduce timeout (>30s, kills job)** | Job exits with "NCCL operation timed out" | Network flap, all-to-all congestion, or failed GPU | Check IB port stats (`ibnetdiscover`), GPU health (`nvidia-smi`), restart NCCL timeout to 120s | 5–10 min |
-| **AllReduce stalls (10–100x slower than baseline)** | NCCL_DEBUG=TRACE shows all steps taking >1ms each | PFC pause storm, IB buffer exhaustion | Reduce batch size, enable `NCCL_ASYNC_ERROR_HANDLING=1` | 30 sec (rerun iteration) |
+| **AllReduce timeout (>30s, kills job)** | Job exits with "NCCL operation timed out" | Network flap, all-to-all congestion, or failed GPU | Check IB port state and error counters (`ibstat`, `perfquery`), GPU health (`nvidia-smi`, kernel `NVRM: Xid` messages); raise the framework's process-group timeout only after the link and GPUs are shown healthy | 5–10 min |
+| **AllReduce stalls (10–100x slower than baseline)** | `nccl-tests` bandwidth well below the cluster baseline; PFC pause counters rising | PFC pause storm, IB buffer exhaustion | Inspect PFC/ECN configuration and counters on NICs and switches (`ethtool -S`, `nv show qos roce` on Cumulus). Reducing batch size does not fix congestion, and async error handling changes how errors surface, not speed | 30 sec (rerun iteration) |
 | **Irregular AllReduce latency (some iterations 5ms, others 50ms)** | Training throughput variance | Noisy neighbor job contending for uplinks | Use resource isolation (cgroups, bandwidth reservation) | 2–5 min (kill noisy job) |
 | **AllReduce works at 8 GPU, fails at 64 GPU** | Job hangs on first AllReduce after 64-GPU launch | IB switch port MTU mismatch or NCCL rank mismatch | Verify IB MTU=4096 across all switches, verify torch.distributed.launch rank assignment | 10 min (reconfigure MTU, relaunch) |
 

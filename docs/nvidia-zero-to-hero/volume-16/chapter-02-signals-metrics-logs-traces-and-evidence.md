@@ -183,57 +183,26 @@ DCGM_FI_DEV_GPU_UTIL{gpu="1",uuid="GPU-<uuid>"} 78
 
 ### Level 2: Logs via DCGM Events and Kernel Logs
 
-DCGM has a built-in event log for hardware errors and state changes. The kernel also logs GPU events to `dmesg` or `journalctl`.
+DCGM does not keep a general "event log" file you can tail. It exposes health and policy mechanisms (passive health watches, policy notifications, and on-demand diagnostics), and the kernel logs GPU faults to `dmesg` or `journalctl`. Use DCGM for state you can query, and the kernel log for the fault evidence.
 
-**Collecting DCGM events:**
+**Querying DCGM for health and diagnostics:**
 
 ```bash
-# Set up DCGM to log events to a local file
-dcgm-exporter --enable-field-group-all --log-level=info &
-# or query the event log directly
-dcgmi topo --format=json  # Shows GPU topology and any errors
+# Is the GPU population what you expect? (--all adds inactive GPUs)
+dcgmi discovery --list --all
 
-# For more detailed event inspection
-dcgmi diag -r 5  # Runs a 5-minute diagnostic and reports any anomalies
+# Passive health watches: set up with `dcgmi health`, then check
+dcgmi health --check
+
+# Active diagnostics, from quick to extended (see the DCGM chapter for levels)
+dcgmi diag --run 1
 ```
 
-**Sample DCGM diagnostic output showing an error:**
+- `discovery --list --all` shows GPUs DCGM knows about, including inactive ones with a non-OK status.
+- `dcgmi health` enables and checks DCGM's passive health monitoring. See its reference page for the watch-selection flags on your release.
+- `dcgmi diag --run 1` runs the quick deployment checks. Levels 2 to 4 are progressively longer and more invasive (level 3 takes about 15 minutes), so coordinate them with workload owners.
 
-```text
-$ dcgmi diag -r 1
-Diagnostic Level 1 (Quick)
-For GPU 0 [A100-PCIE-40GB]:
-  Power Limit: 250W, Power Draw: 185W ✓
-  Thermal Limit: 85°C, Current Temp: 72°C ✓
-  Memory: 40GB, Used: 28GB, Free: 12GB ✓
-  SM Clock: 1410 MHz (max: 1980 MHz) ✓
-  Throttling: None detected ✓
-
-For GPU 1 [A100-PCIE-40GB]:
-  Power Limit: 250W, Power Draw: 195W ✓
-  Thermal Limit: 85°C, Current Temp: 78°C ✓
-  Memory: 40GB, Used: 30GB, Free: 10GB ✓
-  SM Clock: 1410 MHz (max: 1980 MHz) ✓
-  Throttling: None detected ✓
-
-For GPU 2 [A100-PCIE-40GB]:
-  Power Limit: 250W, Power Draw: 50W ⚠ (Low — GPU may be idle or underutilized)
-  Thermal Limit: 85°C, Current Temp: 45°C ✓
-  Memory: 40GB, Used: 2GB, Free: 38GB ✓
-  SM Clock: 300 MHz (idle clock gating) — GPU is NOT running
-  Throttling: None ✓
-
-For GPU 3 [A100-PCIE-40GB]:
-  Power Limit: 250W, Power Draw: 0W ✗ ERROR: GPU is powered off or disconnected
-  Thermal Limit: 85°C, Current Temp: N/A
-  Memory: N/A
-  ECC Status: DISABLED (GPU is offline)
-```
-
-**Interpretation:**
-- GPU 0, 1: Normal operation, work is happening, good thermal headroom
-- GPU 2: Idle (no work assigned), not an error but should be investigated if work was expected
-- GPU 3: CRITICAL — GPU is offline; either hardware failure or driver issue
+The diagnostic prints a result table of tests, per-entity statuses (Pass, Fail, and others), and warnings. For its shape, see the "Results and Logging" section of the DCGM diagnostics documentation. The exact tests and wording vary by DCGM release, hardware, and request, so treat any example you see in a blog post as a shape, not a contract. Interpret results by test name: a failed `memory` test points to framebuffer, ECC, or cache faults, and a failed `pcie` test to PCIe or NVLink bandwidth, latency, replay, or AER problems.
 
 **Kernel logs for GPU events:**
 

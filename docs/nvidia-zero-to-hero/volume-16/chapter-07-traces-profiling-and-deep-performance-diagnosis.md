@@ -72,7 +72,7 @@ nvidia-smi dmon -s pucvmet -c 600  # Monitor for 600 seconds
 # p: Power, u: GPU Util, c: clocks, v: video encode, m: memory util, e: ECC, t: Temp
 ```
 
-**Real output during training:**
+**Illustrative output during training:**
 
 ```text
     gpu   pwr  gpu  mem   enc   dec  mclk  pclk   fb    bar1  sbecc dbecc  temp

@@ -217,7 +217,7 @@ torchrun --nproc_per_node=4 \
 4. **Checkpoint overhead &lt; 10%:** Checkpoint writes add &lt; 10% to total training time
 5. **All ranks recover together:** No rank waits indefinitely for others; synchronization is automatic
 
-## Real Output: Training Log with Failure and Recovery
+## Illustrative Output: Training Log with Failure and Recovery
 
 ```
 [Epoch 0, Batch 0] Loss: 2.3045

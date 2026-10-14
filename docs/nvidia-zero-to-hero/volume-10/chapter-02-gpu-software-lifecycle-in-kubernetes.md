@@ -58,7 +58,7 @@ flowchart BT
 
 The graph explains common surprises. A device plugin can advertise a resource while a misconfigured runtime prevents Pod startup. A minimal CUDA container can pass while a framework image fails due to its own dependencies. A node can be `Ready` while the driver failed to load after reboot. Treating the graph as an ordered set of validation gates makes the failure visible at the right boundary.
 
-**Reading the `Loaded?` branch as real output.** After a kernel update, the node reports `Ready` normally:
+**Reading the `Loaded?` branch as illustrative output.** After a kernel update, the node reports `Ready` normally:
 
 ```text
 $ kubectl get node gpu-node-22

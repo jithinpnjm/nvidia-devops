@@ -200,7 +200,7 @@ flowchart TD
 5. **Operability:** Automated monitoring and recovery; no manual intervention
 6. **Documentation:** Architecture document with decisions and tradeoffs
 
-## Real Output: Design Specification
+## Illustrative Output: Design Specification
 
 ```
 TRAINING CLUSTER ARCHITECTURE SPECIFICATION

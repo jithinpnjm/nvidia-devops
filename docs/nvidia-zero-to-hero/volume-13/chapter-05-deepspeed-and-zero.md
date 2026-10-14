@@ -218,8 +218,10 @@ DeepSpeed training requires a configuration file (JSON):
 ```bash
 # Enable NCCL tracing
 export NCCL_DEBUG=INFO
-export NCCL_ASYNC_ERROR_HANDLING=1
-export NCCL_TIMEOUT=1200
+# Collective timeout and async error handling are framework settings, not
+# NCCL variables: in PyTorch, pass timeout=datetime.timedelta(seconds=1200)
+# to init_process_group, and check the async-error-handling variable name
+# (it carries the TORCH_NCCL_ prefix in recent PyTorch) for your release.
 
 torchrun --nproc_per_node=8 train.py 2>&1 | tee train.log
 ```
@@ -255,8 +257,9 @@ ssh node7 iostat 1   # Check disk I/O
 ibstat  # Check InfiniBand link status
 ibdiagnet  # Detailed InfiniBand diagnostics
 
-# Increase timeout further (temporary workaround)
-export NCCL_TIMEOUT=3600  # 1 hour
+# Increase the process-group timeout further (temporary workaround), in code:
+#   dist.init_process_group("nccl", timeout=datetime.timedelta(seconds=3600))
+# There is no NCCL_TIMEOUT environment variable.
 ```
 
 ## The NVMe Thrashing Problem

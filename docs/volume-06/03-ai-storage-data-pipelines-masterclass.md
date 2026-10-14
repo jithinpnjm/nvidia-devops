@@ -456,15 +456,15 @@ Logs / Cold Checkpoints]
     end
 
     %% Connections
-    S3 === "Data Prep / ETL Sync" === PFS
+    S3 ===|"Data Prep / ETL Sync"| PFS
     
-    PFS_OSS === "Dataset Streaming Checkpoint Bursts" === NIC1
-    PFS_OSS === "Dataset Streaming Checkpoint Bursts" === NIC2
+    PFS_OSS ===|"Dataset Streaming Checkpoint Bursts"| NIC1
+    PFS_OSS ===|"Dataset Streaming Checkpoint Bursts"| NIC2
     
-    NIC1 === "PCIe DMA (GDS)" === GPU1
-    NIC2 === "PCIe DMA (GDS)" === GPU2
+    NIC1 ===|"PCIe DMA (GDS)"| GPU1
+    NIC2 ===|"PCIe DMA (GDS)"| GPU2
     
-    NVMe === "PCIe DMA" === GPU3
+    NVMe ===|"PCIe DMA"| GPU3
     
     HostCPU -. "Control / Polling" .-> NIC1
     HostCPU -. "Control / Polling" .-> NVMe

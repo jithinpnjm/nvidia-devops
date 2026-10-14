@@ -188,7 +188,7 @@ data:
     DCGM_FI_DEV_ECC_DBE_VOL_TOTAL, dcgm_ecc_dbe, gauge, Double-bit ECC errors.
     
     # Profiling Metrics (Requires DCGM Profiling to be enabled)
-    DCGM_FI_PROF_TENSOR_CORE_ACTIVE, dcgm_tensor_core_active, gauge, Tensor Core Activity ratio.
+    DCGM_FI_PROF_PIPE_TENSOR_ACTIVE, dcgm_tensor_core_active, gauge, Tensor Core Activity ratio.
     DCGM_FI_PROF_DRAM_ACTIVE, dcgm_dram_active, gauge, DRAM Activity ratio.
 ```
 

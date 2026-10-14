@@ -54,7 +54,7 @@ Alert trigger:
   AND
   increase(DCGM_FI_DEV_THERMAL_VIOLATION[1h]) > 0
 
-Real output (failing):
+Illustrative output (failing; shape only, not captured from a live system):
   Temperature: 85°C (at limit)
   Clock rate: 1200 MHz (reduced from 1410 MHz nominal)
   Utilization: Still 85% (GPU is working, but throttled)
@@ -114,7 +114,7 @@ Alert trigger:
   OR
   increase(DCGM_FI_DEV_ECC_DBE_VOL_TOTAL[1h]) > 0
 
-Real output (failing):
+Illustrative output (failing; shape only, not captured from a live system):
   Corrected ECC errors: 245 in last hour (normal: 0-5)
   Uncorrected ECC errors: 0 (still within tolerance, but trending up)
   Prediction: At this rate, uncorrected errors coming in 1-2 weeks
@@ -173,7 +173,7 @@ Alert trigger:
   OR
   dmesg shows: "Xid (PCI:xxxx:xx:xx.x): [error code]"
 
-Real output (failing):
+Illustrative output (failing; shape only, not captured from a live system):
   $ nvidia-smi
   ERROR: Failed to initialize NVML: Driver/library version mismatch
 
@@ -236,7 +236,7 @@ Alert trigger:
   AND
   allocation latency > 100ms (visible in application logs)
 
-Real output (failing):
+Illustrative output (failing; shape only, not captured from a live system):
   $ python train.py
   ... training runs fine ...
   Step 1000: allocation_time=120ms (normal: 1ms)
@@ -290,7 +290,7 @@ print(f"Fragmentation: {(torch.cuda.memory_reserved() - torch.cuda.memory_alloca
 Alert trigger:
   max(DCGM_FI_DEV_GPU_UTIL by gpu) - min(...) > 30%  # More than 30% variation between GPUs
 
-Real output (failing):
+Illustrative output (failing; shape only, not captured from a live system):
   GPU 0: 85% utilization, 1410 MHz
   GPU 1: 85% utilization, 1410 MHz
   GPU 2: 48% utilization, 900 MHz  ← STRAGGLER (half utilization)

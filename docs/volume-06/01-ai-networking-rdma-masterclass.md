@@ -86,7 +86,7 @@ graph LR
     AppA -. "Registers Memory" .-> HCAA
     AppB -. "Registers Memory" .-> HCAB
     
-    HCAA === "Zero-Copy Network Transfer" === HCAB
+    HCAA ===|"Zero-Copy Network Transfer"| HCAB
     MemA --- "PCIe DMA" --- HCAA
     HCAB --- "PCIe DMA" --- MemB
 ```

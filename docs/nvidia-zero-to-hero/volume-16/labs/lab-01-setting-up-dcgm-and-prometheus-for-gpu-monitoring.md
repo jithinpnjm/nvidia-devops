@@ -12,96 +12,80 @@ tags: [gpu, observability, dcgm, prometheus, lab, hands-on]
 
 **Time:** 45 minutes | **Difficulty:** Intermediate | **Prerequisites:** GPU node with NVIDIA drivers, `docker` or native package manager
 
-## Step 1: Install DCGM
+## Step 1: Install DCGM 4
+
+DCGM 4 packages are named for the CUDA major version your driver supports. Find it first:
 
 ```bash
-# On Ubuntu/Debian
+nvidia-smi -q | grep -E 'Driver Version|CUDA Version'
+CUDA_VERSION=12      # the major version printed above
+
+# Ubuntu / Debian (NVIDIA CUDA repository configured)
 sudo apt-get update
-sudo apt-get install -y datacenter-gpu-manager
+sudo apt-get install --yes --install-recommends datacenter-gpu-manager-4-cuda${CUDA_VERSION}
 
-# Verify installation
-dcgmi -V
+# RHEL / Rocky / Fedora
+# sudo dnf install --assumeyes datacenter-gpu-manager-4-cuda${CUDA_VERSION}
+
+# Verify the client
+dcgmi -v
 ```
 
-**Expected output:**
+- If a package named `datacenter-gpu-manager` (DCGM 3.x) is installed, remove it first, along with `datacenter-gpu-manager-config`.
+- `dcgmi -v` prints the DCGM version and build information for your release. **Record it:** it is also the first thing to attach to any problem report.
 
-```text
-DCGM Diagnostic
-Build: 12.7.1
-Copyright 2017-2024 NVIDIA Corporation
-DCGM Version: 3.7.1
-```
-
-## Step 2: Start DCGM Daemon
+## Step 2: Start the DCGM host engine
 
 ```bash
-# Enable and start
-sudo systemctl enable nv-hostengine
-sudo systemctl start nv-hostengine
-
-# Verify it's running
-sudo systemctl status nv-hostengine
-ps aux | grep nv-hostengine
+sudo systemctl enable --now nvidia-dcgm
+systemctl status nvidia-dcgm --no-pager
+dcgmi discovery --list
 ```
 
-**Expected output:**
+- The packaged service is `nvidia-dcgm` (it runs `nv-hostengine`).
+- **Success looks like:** `dcgmi discovery --list` prints a line for every GPU you expect. `systemctl status` alone is not proof, because a process can be running before it is usable.
+- **If a GPU is missing:** `dcgmi discovery --list --all` includes inactive GPUs and shows a non-OK `Status:` for them. Then check `nvidia-smi -L` and the kernel log for `NVRM: Xid`.
 
-```text
-● nv-hostengine.service - NVIDIA DCGM Engine
-     Loaded: loaded
-     Active: active (running)
-```
-
-## Step 3: Test DCGM Can See Your GPUs
+## Step 3: Run a quick diagnostic
 
 ```bash
-# Run quick diagnostic
-dcgmi diag -r 1
+dcgmi diag --run 1        # alias: -r short
 ```
 
-**Expected output (healthy):**
+- Level 1 runs quick deployment checks that normally take seconds. Levels 2 to 4 are longer and more invasive, so do not run them on a node that is serving production work.
+- **Success looks like:** a result table with a `Pass` for each test in the Software category. A failed test shows `Fail`, the affected entity (for example `GPU0`), and a warning with the condition.
+- **If it fails:** confirm the NVIDIA driver is loaded (`nvidia-smi` works), then re-run with `--debugLogFile /tmp/nvvs.log -d DEBUG` and keep the log.
 
-```text
-Diagnostic Level 1 (Quick)
-For GPU 0 [NVIDIA A100-PCIE-40GB]:
-  Power: 185W / 250W ✓
-  Temperature: 45°C / 85°C ✓
-  Memory: 0GB / 40GB ✓
-  Throttling: None ✓
-  ECC: Enabled, 0 errors ✓
-```
+## Step 4: Run the DCGM Prometheus exporter
 
-**If diagnostic fails:** Check that NVIDIA driver is loaded (`nvidia-smi` should work).
-
-## Step 4: Run DCGM Prometheus Exporter
-
-Option A: **Using Docker (recommended for isolation)**
+Option A: **Package (recommended on a bare-metal host)**
 
 ```bash
-# Pull DCGM exporter image
-docker pull nvcr.io/nvidia/k8s/dcgm-exporter:3.1.7-3.1.7-ubuntu20.04
+sudo apt-get install --yes datacenter-gpu-manager-exporter     # or: sudo dnf install datacenter-gpu-manager-exporter
+sudo systemctl enable --now nvidia-dcgm nvidia-dcgm-exporter
+systemctl status nvidia-dcgm-exporter --no-pager
+```
 
-# Run exporter
-docker run -d \
+- The package installs `/usr/bin/dcgm-exporter`, the default collector file `/etc/dcgm-exporter/default-counters.csv`, and the unit `nvidia-dcgm-exporter.service`.
+- By default the exporter embeds its own host engine. It does not need `nvidia-dcgm` running, but starting both is harmless on a single host. Do not point two exporters at the same host.
+
+Option B: **Container**
+
+```bash
+export DCGM_EXPORTER_TAG=latest       # or pin a version tag from the exporter container catalog
+docker run -d --rm \
   --name dcgm-exporter \
   --gpus all \
-  --privileged \
-  --net=host \
-  nvcr.io/nvidia/k8s/dcgm-exporter:3.1.7-3.1.7-ubuntu20.04
+  --cap-add SYS_ADMIN \
+  -p 9400:9400 \
+  nvcr.io/nvidia/k8s/dcgm-exporter:${DCGM_EXPORTER_TAG}
 
 docker ps | grep dcgm-exporter
 ```
 
-Option B: **Native Installation**
-
-```bash
-# Install dcgm-exporter package
-sudo apt-get install -y dcgm-exporter
-
-# Start service
-sudo systemctl start dcgm-exporter
-sudo systemctl status dcgm-exporter
-```
+- `--gpus all` exposes every GPU to the container (requires the NVIDIA Container Toolkit).
+- `--cap-add SYS_ADMIN` allows DCGM profiling fields such as `DCGM_FI_PROF_*`. Review it before using this command in production.
+- `-p 9400:9400` publishes the default exporter port. Pin `DCGM_EXPORTER_TAG` in production; `latest` follows new releases.
 
 ## Step 5: Verify Metrics Are Exported
 
@@ -110,7 +94,7 @@ sudo systemctl status dcgm-exporter
 curl -s http://localhost:9400/metrics | head -50
 ```
 
-**Expected output (first 20 lines):**
+**Illustrative output (shape only, not captured from a live system):**
 
 ```text
 # HELP DCGM_FI_DEV_GPU_TEMP GPU temperature (in C).
@@ -240,7 +224,7 @@ done
 
 ## Verification Checklist
 
-- [ ] DCGM daemon is running (`systemctl status nv-hostengine`)
+- [ ] DCGM daemon is running (`systemctl status nvidia-dcgm`)
 - [ ] DCGM exporter is accessible (`curl http://localhost:9400/metrics`)
 - [ ] Prometheus is scraping DCGM (`http://localhost:9090/targets` shows `dcgm` as Up)
 - [ ] GPU metrics are appearing in Prometheus (`curl` query returns non-null values)

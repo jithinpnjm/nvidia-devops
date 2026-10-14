@@ -110,7 +110,7 @@ ethtool ensXfY
 
 **Expected output:** the route identifies egress interface and next hop; link output includes MTU; `ethtool` reports negotiated link state where supported.
 
-**Annotated real output:**
+**Annotated illustrative output (shape only, not captured from a live system):**
 
 ```text
 $ ip route get 10.20.8.5
@@ -143,7 +143,7 @@ ethtool -S ensXfY
 
 **Expected output:** `nvidia-smi topo -m` presents a topology matrix on GPU hosts; `ethtool -S` returns driver-specific counters.
 
-**Annotated real output:**
+**Annotated illustrative output (shape only, not captured from a live system):**
 
 ```text
 $ nvidia-smi topo -m

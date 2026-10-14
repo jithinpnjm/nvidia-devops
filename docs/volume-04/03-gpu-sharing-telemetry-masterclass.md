@@ -375,7 +375,7 @@ while true; do
 done
 
 # 3. Terminate DCGM and NV-Hostengine to release file descriptors
-ssh root@$NODE 'systemctl stop dcgm-exporter nv-hostengine'
+ssh root@$NODE 'systemctl stop nvidia-dcgm-exporter nvidia-dcgm'
 
 # 4. Unload kernel modules (critical for driver upgrade without reboot)
 ssh root@$NODE 'rmmod nvidia_uvm nvidia_drm nvidia_modeset nvidia'

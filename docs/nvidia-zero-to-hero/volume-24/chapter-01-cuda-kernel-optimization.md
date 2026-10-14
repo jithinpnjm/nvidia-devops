@@ -136,7 +136,7 @@ If optimization from scratch feels too open-ended, start with these incremental 
 4. **Occupancy:** Reduce register usage (e.g., via loop unrolling limitations) to increase active warps per SM
 5. **Compare to cuBLAS:** Verify your kernel is within 90% of cuBLAS throughput (cuBLAS is nearly optimal; get close to it, not better)
 
-## Real Output: Profiling Evidence
+## Illustrative Output: Profiling Evidence
 
 **Actual Nsight Compute output from a well-optimized kernel (tiling + coalescing):**
 
@@ -199,7 +199,7 @@ flowchart TD
 | Observation | Root Cause | Diagnostic Command | Fix |
 |---|---|---|---|
 | Throughput only 14 TFLOPS (21% of peak) | Insufficient occupancy; register pressure high | `ncu --set full -k optimized_matmul ./kernel` → check "Occupancy" row | Reduce loop unrolling, share more computation across threads |
-| Memory bandwidth 1.2 TB/s (29% of peak) | Poor memory coalescing; threads access non-consecutive addresses | `ncu --set memory_chart -k optimized_matmul ./kernel` → check "Memory Throughput" chart; use `nvprof --print-gpu-trace` to see L1/L2 misses | Restructure tile loading: ensure warp loads a contiguous cache line from global memory |
+| Memory bandwidth 1.2 TB/s (29% of peak) | Poor memory coalescing; threads access non-consecutive addresses | `ncu --set memory_chart -k optimized_matmul ./kernel` → check "Memory Throughput" chart; use `ncu` (Nsight Compute) memory-workload sections to see L1/L2 hit rates (`nvprof` does not support Ampere and later GPUs) | Restructure tile loading: ensure warp loads a contiguous cache line from global memory |
 | 41 TFLOPS but correctness fails (error > 1e-5) | Shared memory bank conflicts or incorrect synchronization | Run with small matrix (256×256) and compare element-wise to reference | Add `__syncthreads()` between reads and writes; check shared memory layout for 32-way bank conflicts |
 | Kernel times out (hangs indefinitely) | Insufficient shared memory; implicit fallback to global memory thrashing | Check device specs: `nvidia-smi -q \| grep "Max Clocks"` and kernel shared memory limit | Reduce tile size (e.g., 8×8 instead of 32×32); ensure total shared memory &lt; 96 KB per block |
 | Performance degrades with larger N (e.g., 8192×8192) | L2 cache thrashing; working set no longer fits | `ncu -k optimized_matmul --set full` with N=8192 → L2 hit rate drops to &lt;20% | Consider multi-kernel approach: partition matrix into cache-aligned tiles processed sequentially |

@@ -136,7 +136,7 @@ Enable NCCL debug logging to isolate the failing rank, then test raw hardware co
 ```bash
 # Set explicit debugging and error handling for NCCL
 export NCCL_DEBUG=INFO
-export NCCL_ASYNC_ERROR_HANDLING=1
+export TORCH_NCCL_ASYNC_ERROR_HANDLING=1   # PyTorch-side setting; confirm the name for your PyTorch release
 
 # Run nccl-tests across nodes to identify the hardware fault
 mpirun -np 16 -H node1:8,node2:8 ./build/all_reduce_perf -b 8 -e 128M -f 2 -g 1

@@ -18,7 +18,7 @@ description: "Standardize AI operations. Learn how to write actionable runbooks 
 
 The ultimate test of a Senior Architect is not how well they build a system, but how well the system survives when they are not in the room.
 
-If a multi-node training job crashes at 3:00 AM on a Sunday, the Tier-1 SRE on-call will receive the PagerDuty alert. If the alert simply says `NCCL_TIMEOUT` and there is no runbook, the SRE will wake up the Senior Architect. This leads to severe alert fatigue, burnout, and high turnover.
+If a multi-node training job crashes at 3:00 AM on a Sunday, the Tier-1 SRE on-call will receive the PagerDuty alert. If the alert simply says "NCCL watchdog timeout" and there is no runbook, the SRE will wake up the Senior Architect. This leads to severe alert fatigue, burnout, and high turnover.
 
 To build a sustainable operational culture, you must encode the complex diagnostic matrices of AI hardware into strict, deterministic **Operational Runbooks**. 
 

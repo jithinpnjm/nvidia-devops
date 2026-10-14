@@ -222,7 +222,7 @@ if __name__ == '__main__':
 4. **Storage and documentation:** Detailed MIG configuration saved; rationale for partition sizing explained
 5. **Throughput measurement:** Actual throughput meets calculated prediction (within 10% error)
 
-## Real Output: MIG Configuration and Benchmark
+## Illustrative Output: MIG Configuration and Benchmark
 
 ```
 $ nvidia-smi mig -lgi
@@ -274,7 +274,7 @@ flowchart TD
 
 | Observation | Root Cause | Diagnostic | Fix |
 |---|---|---|---|
-| Online inference latency jumped from 4ms to 12ms when batch inference started | Priority inversion; batch kernel preempts embedding kernel; no QoS scheduling | Enable GPU trace and check kernel order: `nvprof --print-gpu-trace` | Implement kernel scheduling priority in CUDA or use time-slicing instead of MIG (requires QoS support, available in NVIDIA A100 with MPS) |
+| Online inference latency jumped from 4ms to 12ms when batch inference started | Priority inversion; batch kernel preempts embedding kernel; no QoS scheduling | Capture a GPU trace and check kernel order: `nsys profile --trace=cuda ./app` then `nsys stats --report cuda_gpu_trace report.nsys-rep` (`nvprof` does not support Ampere and later GPUs) | Implement kernel scheduling priority in CUDA or use time-slicing instead of MIG (requires QoS support, available in NVIDIA A100 with MPS) |
 | Memory error: embedding model can't allocate 2GB on partition (partition has 20GB) | Memory fragmentation; previous workload left many small free blocks that don't coalesce | Check `nvidia-smi dmon` or write to `deviceQuery`; check virtual memory pressure | Restart partition (clear all processes), or use unified memory with managed allocations |
 | Measured batch throughput 35 img/s, but calculated should be 65 img/s (50% less) | Model inference slower than expected; possibly hitting memory bandwidth or something else blocking | Run same model on native GPU (no MIG) to baseline; compare | Profile model with Nsight Compute to find actual bottleneck; may be memory-bound rather than compute-bound |
 | One partition shows 100% utilization but low actual throughput | GPU is computing but inefficiently; possibly stalled on memory access or sync points | Use Nsight Compute on that partition's process: `ncu -k [kernel_name] --set full /path/to/workload` | Optimize kernel; or increase batch size to hide memory latency |

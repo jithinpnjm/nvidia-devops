@@ -200,7 +200,7 @@ Response Steps:
    - ETA: Hours to days (depends on hardware availability)
 
    Category B (Driver/Daemon Issue):
-   - Restart DCGM daemon: systemctl restart nv-hostengine
+   - Restart DCGM daemon: systemctl restart nvidia-dcgm
    - If doesn't fix: Upgrade driver or DCGM version
    - Test with: dcgmi diag -r 1
 

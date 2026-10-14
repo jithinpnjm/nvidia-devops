@@ -166,7 +166,7 @@ Time    GPU_Util  Mem_Util
 nvidia-smi --query-gpu=memory.total,memory.used,memory.free --format=csv
 ```
 
-**Real output:**
+**Illustrative output (shape only, not captured from a live system):**
 
 ```text
 40960 MiB, 28672 MiB, 12288 MiB
@@ -285,7 +285,7 @@ flowchart TD
 nvidia-smi -q | grep -A2 "Throttle"
 ```
 
-**Real output (healthy):**
+**Illustrative output (healthy; shape only, not captured from a live system):**
 
 ```text
 Throttle Reason
@@ -294,7 +294,7 @@ Throttle Reason
     Thermal                  : No throttling
 ```
 
-**Real output (degrading):**
+**Illustrative output (degrading; shape only, not captured from a live system):**
 
 ```text
 Throttle Reason

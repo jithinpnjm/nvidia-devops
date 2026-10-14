@@ -5,6 +5,10 @@ ap = argparse.ArgumentParser(); ap.add_argument("q"); ap.add_argument("-s"); ap.
 a = ap.parse_args()
 q = " ".join(f'"{t}"' for t in re.findall(r"[A-Za-z0-9_]+", a.q))
 sql = "select source,url,heading,body from chunks where chunks match ?" + (" and source=?" if a.s else "") + " order by rank limit ?"
-args = [q] + ([a.s] if a.s else []) + [a.n]
-for s, u, h, b in sqlite3.connect("data/index.db").execute(sql, args):
+db = sqlite3.connect("data/index.db")
+rows = db.execute(sql, [q] + ([a.s] if a.s else []) + [a.n]).fetchall()
+if not rows:  # AND of every term found nothing: fall back to OR, best BM25 first
+    q = " OR ".join(f'"{t}"' for t in re.findall(r"[A-Za-z0-9_]+", a.q))
+    rows = db.execute(sql, [q] + ([a.s] if a.s else []) + [a.n]).fetchall()
+for s, u, h, b in rows:
     print(f"\n##### [{s}] {h}\n{u}\n{b[:a.c]}")

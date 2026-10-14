@@ -57,7 +57,7 @@ flowchart TD
     C -->|No, all ranks<br/>stalled together| I{"Deadlock: mismatched<br/>collective calls or<br/>call ordering across ranks?"}
     I -->|Yes| J["Application bug —<br/>divergent code path<br/>calling different<br/>collectives per rank"]
     I -->|No| K{"Timeout value too<br/>aggressive for message<br/>size / fabric latency?"}
-    K -->|Yes| L["Increase NCCL_TIMEOUT<br/>appropriately, don't just<br/>disable timeout entirely"]
+    K -->|Yes| L["Raise the process-group<br/>timeout appropriately,<br/>don't just disable it"]
     K -->|No| M["Check fabric health<br/>fleet-wide (Volume 19 Ch05)"]
     H --> N["Isolate degraded rank,<br/>apply Ch07/Volume19-Ch05<br/>PCIe/fabric remediation"]
 ```
@@ -157,13 +157,15 @@ $ /opt/nccl-tests/build/all_reduce_perf -b 128M -e 128M -f 2 -g 8 --nnodes <n>
 ### Step 4: if the hang traces to a timeout value mismatched to message size
 
 ```bash
-# NCCL's default timeout can be too aggressive for very large collectives
-# on a congested or high-latency fabric — but raising it should be a
-# deliberate, bounded decision, not "disable timeout entirely"
-$ export NCCL_TIMEOUT=1800   # was default ~600s; raised deliberately
-                              # after confirming large messages legitimately
-                              # need more time on this topology, not
-                              # papering over a real hang
+# NCCL has no NCCL_TIMEOUT variable. The collective timeout belongs to the
+# framework's process group; in PyTorch it is the `timeout` argument of
+# init_process_group (its documented signature shows timeout=None, so read
+# the effective default for your release before quoting a number).
+# Raising it should be a deliberate, bounded decision, not "disable it".
+import datetime, torch.distributed as dist
+dist.init_process_group("nccl", timeout=datetime.timedelta(seconds=1800))
+# 1800 s is an example. Pick a value only after confirming that large
+# messages legitimately need more time on this topology.
 ```
 
 **Do not set an unbounded or extremely large timeout as a default fix** — a genuinely hung rank should still surface as a timeout within a reasonable window; disabling the safety net just delays detection of a real problem by hours instead of minutes.
@@ -180,7 +182,7 @@ else:
     dist.all_reduce(tensor_a)
 # Every non-zero rank is now waiting for a collective that rank 0
 # will call, but no other rank will ever call — permanent deadlock,
-# not a timing issue, and increasing NCCL_TIMEOUT will never fix it
+# not a timing issue, and increasing the process-group timeout will never fix it
 ```
 
 ```bash
@@ -224,7 +226,7 @@ else:
 | One rank never reaches the current op count, others waiting | NCCL trace shows one rank stuck at a lower opCount; that rank's GPU shows low utilization, no Xid | Rank is starved upstream of NCCL — usually a slow/uneven data pipeline, not a network issue | Fix data pipeline bottleneck (uneven sharding, slow storage); NCCL itself isn't the problem | All ranks progress through opCounts in lockstep, fetch times uniform |
 | One rank stuck, GPU shows an Xid error | dmesg on that rank's node shows a Tier 2/3 Xid (Chapter 02) | GPU or process fault, NCCL hang is a downstream symptom | Resolve per Chapter 02's tiered Xid guidance; restart job from checkpoint | Job resumes cleanly on replacement hardware |
 | All ranks stall simultaneously, none progressing | NCCL trace shows every rank stuck at differing, non-converging op counts | Application-level deadlock — divergent collective call pattern across ranks (a code bug) | Fix the code path so every rank calls the same sequence of collectives unconditionally | Code review/test confirms symmetric collective calls across all ranks; job completes |
-| Timeout fires on legitimately large collectives on a slower/longer-latency link | No hardware fault found; message size and fabric topology explain the duration | NCCL_TIMEOUT set too aggressively for this workload's actual collective duration | Deliberately raise NCCL_TIMEOUT to a bounded, justified value — not disable it | Collectives complete within the new timeout consistently; timeout doesn't mask a real future hang |
+| Timeout fires on legitimately large collectives on a slower/longer-latency link | No hardware fault found; message size and fabric topology explain the duration | Process-group timeout set too aggressively for this workload's actual collective duration | Deliberately raise the process-group timeout (for PyTorch, the `timeout` argument of `init_process_group`) to a bounded, justified value — not disable it | Collectives complete within the new timeout consistently; timeout doesn't mask a real future hang |
 | Bandwidth to one rank measurably lower than others | `nccl-tests` per-rank bandwidth shows an outlier | Degraded fabric link (see Volume 19 Chapter 5 methodology) | Apply Chapter 5's `ibstat` Rate check and remediation | Per-rank bandwidth uniform across the job after fix |
 
 ## Prevention
@@ -271,9 +273,9 @@ nvidia-smi topo -m >> nccl_escalation.log
 
 **Q: "A distributed training job hangs with an NCCL timeout. How do you find which rank is the problem?"**
 
-A: "I enable `NCCL_DEBUG=INFO` and let it run long enough to capture trace output, then grep for the collective operation counts per rank. Ranks that have moved on to a higher op count are healthy and waiting; the rank still stuck at a lower op count is the one to investigate — everyone else is correctly blocked on it because that's how a synchronous collective works. Once I have that rank identified, I check whether its process is alive and whether its GPU shows any Xid errors. If both look healthy but SM utilization is near zero, that tells me the rank isn't even reaching the collective call yet — it's starved somewhere upstream, most commonly a slow or unevenly-sharded data pipeline, not a network problem at all."
+A: "I enable `NCCL_DEBUG=INFO` and let it run long enough to capture trace output, then grep for the collective operation counts per rank. On NCCL 2.24 or newer, the RAS client `ncclras` reports this directly: a MISMATCH row says how many ranks have launched up to each collective operation count and names the lagging ranks. Ranks that have moved on to a higher op count are healthy and waiting; the rank still stuck at a lower op count is the one to investigate — everyone else is correctly blocked on it because that's how a synchronous collective works. Once I have that rank identified, I check whether its process is alive and whether its GPU shows any Xid errors. If both look healthy but SM utilization is near zero, that tells me the rank isn't even reaching the collective call yet — it's starved somewhere upstream, most commonly a slow or unevenly-sharded data pipeline, not a network problem at all."
 
-**Q: "Why shouldn't you just set a very large NCCL_TIMEOUT as a default fix for these hangs?"**
+**Q: "Why shouldn't you just set a very large collective timeout as a default fix for these hangs?"**
 
 A: "Because the timeout is a safety net for detecting a genuine hang, and disabling it or setting it enormously large just delays detection of a real problem — instead of finding out in 10 minutes that a rank has died or a process is deadlocked, you find out hours later, after wasting far more compute time waiting. If large collectives genuinely need more time on a particular topology, I'd raise the timeout deliberately and by a bounded, justified amount based on measured collective duration — but that's a different decision than treating the timeout as an annoyance to suppress. I'd rather have a timeout that fires and forces investigation than a job that silently wastes GPU-hours for hours before anyone notices."
 

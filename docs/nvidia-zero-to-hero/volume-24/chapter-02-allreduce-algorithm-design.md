@@ -218,7 +218,7 @@ int main(int argc, char **argv) {
 4. **Bandwidth analysis:** Calculate effective bandwidth per algorithm; ring should achieve ≥70% of theoretical peak
 5. **Topology awareness:** Document how NVLink vs Infiniband links are utilized in each algorithm
 
-## Real Output: Algorithm Comparison
+## Illustrative Output: Algorithm Comparison
 
 **Benchmark results on 8-GPU H100 cluster (2 nodes, 4 GPUs per node, NVLink8 intra-node, IB4 inter-node):**
 

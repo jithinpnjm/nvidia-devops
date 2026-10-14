@@ -5854,22 +5854,21 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Learning Objectives",
       "Beginner's Primer: What is DCGM?",
       "What DCGM Does",
-      "The Two Modes of DCGM",
+      "Embedded versus standalone",
+      "Fields and watches: why DCGM stays cheap",
       "Installing and Starting DCGM",
-      "Step 1: Install DCGM Package",
-      "On Ubuntu/Debian",
-      "On RHEL/CentOS",
-      "Verify installation",
-      "Step 2: Start the DCGM Daemon",
-      "Enable and start the daemon",
-      "Verify it's running",
-      "Step 3: Test DCGM Communication"
+      "Step 1: Install the DCGM 4 packages",
+      "Ubuntu / Debian",
+      "RHEL / Rocky / Fedora",
+      "Step 2: Start the host engine",
+      "Step 3: Sample live fields and run a quick diagnostic",
+      "Core DCGM Metrics",
+      "Execution Metrics"
     ],
     "codeLanguages": [
       "mermaid",
       "text",
-      "bash",
-      "yaml"
+      "bash"
     ]
   },
   "Chapter 05 — Prometheus, Grafana, and Observability Dashboards": {
@@ -6117,19 +6116,19 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "learningOutcome": "Hands-on: Install DCGM, export metrics to Prometheus, verify your first dashboard works.",
     "sections": [
       "Lab 01 — Setting Up DCGM and Prometheus for GPU Monitoring",
-      "Step 1: Install DCGM",
-      "On Ubuntu/Debian",
-      "Verify installation",
-      "Step 2: Start DCGM Daemon",
-      "Enable and start",
-      "Verify it's running",
-      "Step 3: Test DCGM Can See Your GPUs",
-      "Run quick diagnostic",
-      "Step 4: Run DCGM Prometheus Exporter",
-      "Pull DCGM exporter image",
-      "Run exporter",
-      "Install dcgm-exporter package",
-      "Start service"
+      "Step 1: Install DCGM 4",
+      "Ubuntu / Debian (NVIDIA CUDA repository configured)",
+      "RHEL / Rocky / Fedora",
+      "sudo dnf install --assumeyes datacenter-gpu-manager-4-cuda${CUDA VERSION}",
+      "Verify the client",
+      "Step 2: Start the DCGM host engine",
+      "Step 3: Run a quick diagnostic",
+      "Step 4: Run the DCGM Prometheus exporter",
+      "Step 5: Verify Metrics Are Exported",
+      "Check that exporter is listening",
+      "HELP DCGM FI DEV GPU TEMP GPU temperature (in C).",
+      "TYPE DCGM FI DEV GPU TEMP gauge",
+      "HELP DCGM FI DEV FB FREE Framebuffer memory free (in MB)."
     ],
     "codeLanguages": [
       "bash",

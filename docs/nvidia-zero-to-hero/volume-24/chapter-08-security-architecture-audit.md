@@ -165,7 +165,7 @@ ibmvit -m 0 -r -o traffic.pcap  # Capture all traffic on subnet
 4. **Assess risk/impact:** Rank vulnerabilities by likelihood and impact
 5. **Document tradeoffs:** Why some fixes aren't deployed (cost, complexity, performance)
 
-## Real Output: Security Audit Report
+## Illustrative Output: Security Audit Report
 
 ```
 SECURITY AUDIT REPORT: Multi-Tenant GPU Cluster

@@ -187,7 +187,7 @@ flowchart TB
 5. **Isolation:** One model's load doesn't affect another's latency
 6. **Documentation:** Architecture with hardware choices, cost breakdown, and capacity plan
 
-## Real Output: Deployment Specification
+## Illustrative Output: Deployment Specification
 
 ```
 INFERENCE SERVING ARCHITECTURE

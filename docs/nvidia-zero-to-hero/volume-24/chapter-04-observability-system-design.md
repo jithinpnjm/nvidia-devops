@@ -217,7 +217,7 @@ if __name__ == '__main__':
 6. **Storage &lt; 1 TB/month:** Calculate actual storage with your metrics schema
 7. **Alert fatigue &lt; 5%:** Less than 5% false-positive alerts (spurious alerts)
 
-## Real Output: Monitoring Dashboard
+## Illustrative Output: Monitoring Dashboard
 
 **Grafana dashboard snapshot (simulated data):**
 

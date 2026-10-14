@@ -195,7 +195,7 @@ prof.print_table()
 # Look for: which ops consume most time? Are kernels running?
 ```
 
-➕ **Real output interpretation:**
+➕ **Reading the illustrative output:**
 
 ```text
 $ dcgmi dmon -c 10
