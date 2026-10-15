@@ -123,6 +123,8 @@ flowchart LR
 
 ### Annotated `iblinkinfo`: reading rate and width together, with a worked number
 
+**Illustrative output, not captured from a fabric.** The speed column format varies by `iblinkinfo` version; the tool commonly prints the per-lane speed next to the width (for example, a 4X NDR link reads as 4X at 100 Gbps per lane, not 400 Gbps). That per-lane convention is not verified against NVIDIA documentation here, so confirm how your version prints it before building alerts on the string. The lines below use an aggregate label only to make the width contrast easy to see.
+
 ```text
 $ iblinkinfo -S <switch-guid>
    Switch: 0x506b4b0300a1c210:
@@ -235,7 +237,7 @@ Compare both endpoints, cable support, firmware, configured rate, and physical c
 
 Restore a supported endpoint/cable/firmware combination and verify stable negotiation.
 
-**Evidence.** `ibstat` and `iblinkinfo` compared side by side, plus the arithmetic consequence:
+**Evidence (illustrative output).** `ibstat` and `iblinkinfo` compared side by side, plus the arithmetic consequence:
 
 ```text
 $ ibstat mlx5_1 | grep -E 'State|Rate'

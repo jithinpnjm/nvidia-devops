@@ -122,9 +122,6 @@ spec:
           value: "true"
         - name: "DCGM_EXPORTER_COLLECTORS"
           value: "/etc/dcgm-exporter/custom-metrics.csv"
-        # Enable device mapping to map logical GPU IDs to physical UUIDs
-        - name: "DCGM_EXPORTER_DEVICE_PREFIX"
-          value: "nvidia.com/gpu"
         ports:
         - name: metrics
           containerPort: 9400

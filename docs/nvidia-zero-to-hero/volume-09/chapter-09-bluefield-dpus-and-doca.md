@@ -104,7 +104,7 @@ flowchart TD
 
 In current NVIDIA documentation, DPU mode can use representors for an Arm-side path and embedded-switch rules for a fast path. Treat host availability during boot, representor behavior, and permitted host administration as design constraints, not incidental details.
 
-**Illustrative annotated output — checking each of the three layers in Figure 9.9.1's decision path separately, the way the story's corrected incident process does:**
+**Illustrative annotated output (service and interface names such as `openvswitch-policy-load.service` are placeholders, not NVIDIA-documented units) — checking each of the three layers in Figure 9.9.1's decision path separately, the way the story's corrected incident process does:**
 
 ```text
 # Layer 3: is the external uplink healthy from the switch's point of view?
@@ -210,7 +210,7 @@ The monitoring goal is a traceable failure boundary: “host cannot reach DPU fu
 
 **Diagnosis:** verify the host-facing function, DPU control-plane readiness, embedded-switch/representor state, policy revision, and external uplink as separate checkpoints. Compare the DPU image and policy with a healthy node. Do not infer host forwarding from uplink state.
 
-**Evidence in practice — this is the exact three-layer capture from the "Trust and administration" section above:** `swp14 up` at the leaf switch, `openvswitch-policy-load.service` showing `Active: failed` on the DPU's Arm side, and `enp1s0f0np0 DOWN` on the host. The middle layer is the divergent one — comparing this DPU's policy-load service status against a healthy node's (`Active: active (exited)`, load succeeded) is what actually localizes the fault, not re-checking the uplink a second time or assuming a host driver problem.
+**Evidence in practice — this is the three-layer pattern illustrated in the "Trust and administration" section above:** `swp14 up` at the leaf switch, `openvswitch-policy-load.service` showing `Active: failed` on the DPU's Arm side, and `enp1s0f0np0 DOWN` on the host. The middle layer is the divergent one — comparing this DPU's policy-load service status against a healthy node's (`Active: active (exited)`, load succeeded) is what actually localizes the fault, not re-checking the uplink a second time or assuming a host driver problem.
 
 **Resolution:** restore the approved DPU policy or image via the documented recovery path, then validate host-to-fabric traffic and the workload separately — confirming both `openvswitch-policy-load.service` reports success and `enp1s0f0np0` comes up before considering the node ready.
 
@@ -222,7 +222,7 @@ The monitoring goal is a traceable failure boundary: “host cannot reach DPU fu
 
 **Diagnosis:** compare desired state and actual DPU mode, image, embedded-switch rules, certificates, and service revisions. Correlate the first divergence with deployment events.
 
-**Evidence in practice:**
+**Illustrative evidence (not captured output).** `/etc/dpu-image-version` and `dpu-agent` below are placeholders for whatever your site's DPU provisioning tooling records; they are not NVIDIA-documented names. Substitute the image/BFB version query and the provisioning service from your own deployment (see the BlueField/DOCA installation guide for the documented version-reporting commands).
 
 ```text
 $ for h in node07 node08 node09; do echo "== $h =="; ssh $h-bmc "cat /etc/dpu-image-version"; done
@@ -240,7 +240,7 @@ Aug 01 03:45:11 node09-dpu dpu-agent: reconcile abandoned after 5 retries
 
 Comparing image versions across three "identical" servers immediately isolates `node09` as the divergent one, and the DPU agent's own log shows exactly why: an image pull that timed out repeatedly during the original rollout and was silently abandoned after retries, rather than escalated. The node kept running its previous image the whole time — which is why fabric-wide counters look normal (this node was never disconnected, just running stale policy).
 
-**Resolution:** reconcile the node through the controlled deployment mechanism instead of making an undocumented local change. Verify the revision and data path afterward — confirm `dpu-image-version` matches the fleet and the reconcile log shows a clean success, not just that reachability returned.
+**Resolution:** reconcile the node through the controlled deployment mechanism instead of making an undocumented local change. Verify the revision and data path afterward — confirm the DPU image version (as reported by your tooling) matches the fleet and the reconcile log shows a clean success, not just that reachability returned.
 
 **Prevention:** use immutable release artifacts, inventory reconciliation, and canary rollout with drift alerts.
 

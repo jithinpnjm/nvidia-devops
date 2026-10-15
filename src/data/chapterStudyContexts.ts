@@ -9422,15 +9422,15 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "1.1 The Hardware Architecture Diagram",
       "1.2 Key Hardware Boundaries",
       "2. The Out-of-Band Control Plane: IPMI vs. Redfish",
-      "2.1 The Architectural Shift: Why IPMI is Dead",
-      "2.2 The Reality of Legacy IPMI",
-      "Legacy IPMI: Sending raw hex to query a proprietary OEM sensor",
-      "Iterating through Sensor Data Records (SDR)",
-      "GPUs were rarely mapped natively without complex OEM extensions",
+      "2.1 Why Redfish is the primary management interface",
+      "2.2 IPMI in practice",
       "3. Deep Dive: The DMTF Redfish REST API",
       "3.1 Authenticating and Establishing a Session",
       "1. Create a Redfish Session",
-      "3.2 Querying System Inventory and Power State"
+      "3.2 Querying System Inventory and Power State",
+      "Retrieve system metadata and power state",
+      "3.3 Telemetry extraction",
+      "Chassis sensors"
     ],
     "codeLanguages": [
       "mermaid",

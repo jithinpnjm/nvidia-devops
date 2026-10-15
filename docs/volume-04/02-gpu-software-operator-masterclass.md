@@ -561,9 +561,8 @@ driver:
   env:
     - name: ACCEPT_EULA
       value: "yes"
-    # Enable persistence mode to prevent driver unloading when idle, saving initialization time
-    - name: NVIDIA_PERSISTENCE_MODE
-      value: "1"
+    # NVIDIA_PERSISTENCE_MODE is not a documented GPU Operator driver variable; check the
+    # GPU Operator driver docs for how persistence is handled in your release.
       
   # RDMA/MOFED Settings
   rdma:
@@ -1000,7 +999,7 @@ While we covered the `ConfigMap`, the `nvidia-device-plugin` DaemonSet accepts c
 
 *   `--fail-on-init-error=true`: (Recommended) If the plugin cannot talk to NVML on startup, it crashes (CrashLoopBackOff). This is *better* than failing silently and reporting 0 GPUs, as an alert will fire for the crashing DaemonSet.
 *   `--pass-device-specs=true`: Required for CDI. This tells the plugin to return CDI device names (e.g., `cdi.k8s.io/nvidia.com/gpu=0`) to the Kubelet during the `Allocate` call, rather than raw `/dev/nvidia0` mount paths.
-*   `--device-discovery-strategy=nvml`: (Default) Uses NVML to find GPUs.
+*   `--device-discovery-strategy=nvml`: Uses NVML to find GPUs.
 *   `--device-discovery-strategy=tegra`: Used for NVIDIA Jetson (ARM edge devices) where NVML does not exist, and the plugin must use sysfs/tegra APIs instead.
 
 ### 20.1 Integrating with Virtualization (vGPU)

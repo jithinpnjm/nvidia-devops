@@ -182,11 +182,10 @@ As an AI Infrastructure engineer, you control NCCL behavior through environment 
 export NCCL_SOCKET_IFNAME=eth0
 export NCCL_IB_HCA=mlx5
 
-# Disable fallback to shared memory or CPU paths if P2P/IB fails.
-# Crucial for performance debugging - forces a crash instead of silent degradation.
+# Make sure P2P and IB are not disabled. There is no documented NCCL variable that
+# turns off fallback; verify the transport actually chosen from NCCL_DEBUG=INFO output.
 export NCCL_P2P_DISABLE=0 
 export NCCL_IB_DISABLE=0
-export NCCL_FALLBACK_DISABLED=1
 
 # Debugging flags - The AI Engineer's best friend.
 # Set to INFO to see topology detection and interface binding.
