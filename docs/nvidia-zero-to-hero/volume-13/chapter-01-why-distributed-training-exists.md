@@ -67,7 +67,7 @@ TOTAL:                                        ~180-190 GB
 
 An A100 (80 GB) or H100 (80 GB) cannot fit this. A four-GPU node (320 GB combined) might fit it with checkpointing, but forward + backward on a single GPU is impossible.
 
-**Real annotated `nvidia-smi` output from a failed training attempt:**
+**Illustrative annotated `nvidia-smi` output from a failed training attempt (not captured):**
 
 ```bash
 $ nvidia-smi --query-gpu=index,memory.used,memory.free,memory.total --format=csv -l 1
@@ -167,7 +167,7 @@ nvidia-smi --query-gpu=index,memory.used,memory.total,utilization.gpu --format=c
 | GPU utilization (%) | 80-95% sustained | &lt; 50% sustained (compute starvation); 100% static (likely hung) |
 | Memory growth over time | flat after warmup | climbing linearly (likely memory leak or runaway activations) |
 
-**Real observed output from a healthy 4-GPU distributed training run:**
+**Illustrative output (not captured):**
 
 ```bash
 $ for i in {1..4}; do nvidia-smi -i $i --query-gpu=index,memory.used,memory.free,utilization.gpu --format=csv; done

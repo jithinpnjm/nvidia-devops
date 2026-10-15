@@ -106,7 +106,7 @@ Start the server on the selected device and port using the appropriate `ib_send_
 Example pattern:
 
 ```bash
-ib_write_lat -d <device> -i <port> --report_gbits
+ib_write_lat -d <device> -i <port> -a
 ```
 
 On the client, connect to the server and test a range of message sizes. Use the exact syntax supported by the installed tool version.

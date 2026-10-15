@@ -102,14 +102,22 @@ A cumulative counter value is often less useful than its rate of increase. Alert
 
 ### Annotated counter deltas: what "the fabric failed slowly" looks like in numbers
 
+Illustrative values (not captured). Each snapshot is a read of the cumulative counters with `perfquery <switch-lid> 12`; do not reset the counters between reads, because the trend is the evidence.
+
 ```text
 # Day 1
-$ ibqueryerrors -s SymbolErrorCounter,LinkDownedCounter -k <switch-lid> | grep "port 12"
-GUID 0x506b... port 12: [SymbolErrorCounter == 4] [LinkDownedCounter == 0]
+$ perfquery <switch-lid> 12 | grep -E 'SymbolErrorCounter|LinkDownedCounter'
+SymbolErrorCounter:.............4
+LinkDownedCounter:..............0
 
 # Day 4
-$ ibqueryerrors -s SymbolErrorCounter,LinkDownedCounter -k <switch-lid> | grep "port 12"
-GUID 0x506b... port 12: [SymbolErrorCounter == 890] [LinkDownedCounter == 3]
+SymbolErrorCounter:.............890
+LinkDownedCounter:..............3
+
+# Day 7
+SymbolErrorCounter:.............41200
+LinkDownedCounter:..............11
+```
 
 None of these three snapshots alone triggers a naive "nonzero error" alert differently from the others — 4, 890, and 41,200 are all "some errors." Reading them as a *rate* changes the picture entirely: the delta from day 1 to day 4 is ~886 over 3 days (~295/day); day 4 to day 7 is ~40,310 over 3 days (~13,400/day) — a roughly 45x acceleration in error rate, with `LinkDownedCounter` (forced link recovery events) climbing in step. This is exactly the "acceleration in error rate" alert condition this section recommends, and it is the specific evidence that would have caught this chapter's opening incident on day 4, days before the cable finally forced a hard recovery and training throughput visibly collapsed.
 
@@ -261,7 +269,7 @@ UFM is not a replacement for the subnet manager, `ibstat`, `iblinkinfo`, or `ibd
 - it runs (or manages) the subnet manager function described in Chapter 5, giving it a supported, centralized home instead of a bare `opensm` process;
 - it continuously collects the same categories of state and counters this chapter walks through by hand — link state, speed/width, error and congestion counters, SM sweep health — across the entire fabric, and persists them as the kind of topology-aware, baselined telemetry this chapter argues you need;
 - it surfaces that telemetry as fabric-wide dashboards and APIs, rather than requiring an engineer to run `ibqueryerrors` or `iblinkinfo` against one switch at a time; and
-- it can act on what it observes: UFM supports automated responses to detected congestion or link degradation — for example, adjusting routing away from a degrading path or triggering an alert/workflow the moment an error-rate acceleration like the one in this chapter's "Day 1 / Day 4 / Day 7" example is detected — instead of waiting for a human to notice the trend across manually pulled snapshots.
+- it raises events and alarms from the telemetry it collects, so an error-rate acceleration like the one in this chapter's "Day 1 / Day 4 / Day 7" example can trigger an alert or external workflow instead of waiting for a human to notice the trend across manually pulled snapshots. Check the UFM documentation for your edition for which automated actions it supports.
 
 That last point is the practical difference in scale. The manual workflow this chapter teaches — pull counters, compute a delta, compare against baseline, correlate with topology — is exactly correct and is what UFM automates under the hood; the value of learning it by hand first is that it is what you fall back on when UFM (or any dashboard) is unavailable, wrong, or itself under investigation, and it is what lets you sanity-check what a dashboard is telling you rather than trust it blindly. In production, most large InfiniBand fleets run UFM (or an equivalent centralized fabric manager) as the day-to-day operational surface, with the CLI tools used for targeted investigation, verification, and any environment where the management plane itself is in question.
 
@@ -290,13 +298,12 @@ The value may reflect an old event. Compare timestamps and deltas before declari
 
 Retain the history, verify current rate, and correlate with the last maintenance or failure window.
 
-**Evidence.** Two queries a few minutes apart settle it without ambiguity:
+**Evidence (illustrative output, not captured).** Two reads a few minutes apart settle it without ambiguity:
 
 ```text
-$ ibqueryerrors -s SymbolErrorCounter -k <lid> | grep "port 9"; sleep 300; \
-  ibqueryerrors -s SymbolErrorCounter -k <lid> | grep "port 9"
-GUID 0x506b... port 9: [SymbolErrorCounter == 12034]
-GUID 0x506b... port 9: [SymbolErrorCounter == 12034]
+$ perfquery <lid> 9 | grep SymbolErrorCounter; sleep 300; perfquery <lid> 9 | grep SymbolErrorCounter
+SymbolErrorCounter:.............12034
+SymbolErrorCounter:.............12034
 ```
 
 Identical value across a 5-minute window with real traffic flowing means the delta is zero — the count reflects a past event, not an active fault. This single check is what distinguishes "old scar tissue in a cumulative counter" from "actively degrading right now," and it takes thirty seconds against a counter history that might otherwise trigger an unnecessary cable replacement.
@@ -357,7 +364,7 @@ The dashboard is therefore designed around service outcomes rather than decorati
    **Model answer:** "Because a nonzero cumulative value tells you an event happened at some point in the counter's lifetime, not that it's happening now. I've directly compared two snapshots minutes apart and found zero delta on an alarming-looking counter — the fault was history, not an active condition. Reading rate of change instead of raw value is what turns a counter into evidence rather than noise."
 
 2. Which metrics distinguish congestion from physical failure?
-   **Model answer:** "Wait/credit-stall counters like `XmtWait` rising with `SymbolErrorCounter` and `LinkDownedCounter` flat means congestion — the link itself is healthy, traffic is just queueing. The reverse — errors and recovery events climbing while wait counters stay modest — points to a physical fault. I always pull both counter families together, because reading just one can point you at the wrong fix entirely."
+   **Model answer:** "Wait/credit-stall counters like `PortXmitWait` rising with `SymbolErrorCounter` and `LinkDownedCounter` flat means congestion — the link itself is healthy, traffic is just queueing. The reverse — errors and recovery events climbing while wait counters stay modest — points to a physical fault. I always pull both counter families together, because reading just one can point you at the wrong fix entirely."
 
 3. How would you detect a reduced-width link?
    **Model answer:** "`iblinkinfo` reports width alongside rate explicitly — a port showing the correct rate label but fewer active lanes than its sibling ports is the signature. I wouldn't rely on `ibstat` alone for this on every platform, since width isn't always in its default output; I'd cross-check with the tool that actually prints lane count."

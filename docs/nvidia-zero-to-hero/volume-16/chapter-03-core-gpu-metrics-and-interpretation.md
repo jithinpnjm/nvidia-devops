@@ -91,7 +91,7 @@ nvidia-smi -l 1  # Update every 1 second
 nvidia-smi -q -d UTILIZATION  # One-shot detailed query
 ```
 
-**Real `nvidia-smi -q` output:**
+**Illustrative `nvidia-smi -q` output (not captured):**
 
 ```text
 GPU 0: A100-PCIE-40GB
@@ -212,7 +212,7 @@ print(f'GPU memory available: {torch.cuda.get_device_properties(0).total_memory 
 "
 ```
 
-**Sample output:**
+**Illustrative output (not captured):**
 
 ```text
 GPU memory allocated: 28.4 GB (actually using)
@@ -350,7 +350,7 @@ nvidia-smi dmon -s pucvmet
 # p: Power (mW), u: GPU Util (%), c: clocks (MHz), v: video encode, m: memory util, e: ECC, t: Temperature
 ```
 
-**Sample output (healthy):**
+**Illustrative output (not captured) (healthy):**
 
 ```
     gpu   pwr  gpu  mem   enc   dec  mclk  pclk   fb    bar1  sbecc dbecc
@@ -361,7 +361,7 @@ nvidia-smi dmon -s pucvmet
 
 **Interpretation:** GPUs 0, 1 running at peak clocks (1410 MHz), temps 68-72°C, no throttling.
 
-**Sample output (throttling):**
+**Illustrative output (not captured) (throttling):**
 
 ```
     gpu   pwr  gpu  mem   enc   dec  mclk  pclk   fb    bar1  sbecc dbecc

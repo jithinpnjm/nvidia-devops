@@ -20,7 +20,7 @@ The H100 is the superstar of AI. It dominates headlines and budget approvals. Bu
 
 In production engineering, the highest volume of GPU compute happens during **Inference** (serving user requests), not Training. Inference workloads require low latency, high concurrency, and extreme power efficiency. 
 
-NVIDIA produces a specific lineage of GPUs explicitly optimized for Inference and Edge computing. As a Senior Architect, mastering this tier (T4 -> L4 -> L40S) allows you to slash your cloud bill by 80% without sacrificing user experience.
+NVIDIA produces a specific lineage of GPUs explicitly optimized for Inference and Edge computing. As a Senior Architect, mastering this tier (T4 -> L4 -> L40S) lets you avoid paying for HBM-class hardware on workloads that do not need it.
 
 ## 1. The T4 (Turing) — The Legacy Workhorse
 Launched in 2018, the T4 became the most widely deployed inference GPU in cloud history. 
@@ -33,19 +33,19 @@ Launched in 2018, the T4 became the most widely deployed inference GPU in cloud 
 The L4 is the direct successor to the T4. It is the ultimate "Swiss Army Knife" for AI at the edge or in cost-sensitive cloud deployments.
 * **Specs:** 24GB GDDR6, 72W TDP, PCIe single-slot.
 * **Compute Upgrade:** Uses the Ada Lovelace architecture, featuring 4th-Gen Tensor Cores. It natively supports FP8. 
-* **The Secret Weapon (Video):** The L4 possesses highly advanced **NVDEC / NVENC** hardware video engines. It can decode up to 1040 concurrent 1080p video streams in hardware. If you are building a system to analyze security camera footage, the L4 will destroy an H100 in cost-to-performance ratio because the H100 lacks the massive array of video decoding silicon.
+* **The Secret Weapon (Video):** The L4 possesses highly advanced **NVDEC / NVENC** hardware video engines. It decodes many concurrent video streams in hardware (see the L4 datasheet for supported codec and stream counts). If you are building a system to analyze security camera footage, the L4 will destroy an H100 in cost-to-performance ratio because the L4 has dedicated video encode and decode engines (NVENC and NVDEC) that the H100 only partly provides (it has NVDEC but no NVENC).
 
 ## 3. The L40S (Ada Lovelace) — The "H100 Alternative"
-During the peak of the Generative AI boom in 2023, H100s had a 52-week lead time. Enterprises were desperate for hardware to run LLMs. NVIDIA released the **L40S**.
+During the peak of the Generative AI boom in 2023, H100s were scarce and enterprises were desperate for hardware to run LLMs. NVIDIA released the **L40S**.
 
 The L40S is arguably the most misunderstood GPU in the portfolio. 
-* **Specs:** 48GB GDDR6a, 350W TDP, PCIe dual-slot.
-* **The Compute:** It features 4th-Gen Tensor Cores and FP8 precision. In raw Single-GPU math, it approaches the performance of an H100.
+* **Specs:** 48GB GDDR6, 350W TDP, PCIe dual-slot.
+* **The Compute:** It features 4th-Gen Tensor Cores and FP8 precision. For some single-GPU workloads (FP8 inference on models that fit in 48GB) it is competitive with an H100 at lower cost; it has far lower memory bandwidth.
 * **The Missing Link:** **It has absolutely no NVLink.** 
 
 ### The L40S Use Case
 Because the L40S lacks NVLink, it is a catastrophic choice for training massive models (which requires fast GPU-to-GPU synchronization). 
-However, if you are *serving* an LLM that fits entirely within its 48GB of memory (e.g., Llama-3 8B or 70B with FP8 quantization), the lack of NVLink doesn't matter. The L40S will serve the model blazing fast, at a fraction of the cost and power footprint of an H100. Furthermore, because it uses standard PCIe and standard GDDR6a memory (not HBM), it is incredibly easy to source and deploy in standard enterprise servers.
+However, if you are *serving* an LLM that fits entirely within its 48GB of memory (e.g., Llama-3 8B at FP16 or FP8; a 70B model does not fit in 48GB even at FP8 and needs 4-bit quantization or multiple GPUs), the lack of NVLink doesn't matter. The L40S will serve the model blazing fast, at a fraction of the cost and power footprint of an H100. Furthermore, because it uses standard PCIe and standard GDDR6 memory (not HBM), it is incredibly easy to source and deploy in standard enterprise servers.
 
 ## Architectural Decision Matrix: Inference
 

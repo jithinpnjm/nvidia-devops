@@ -45,7 +45,7 @@ nim:
   replicaCount: 3
   
   image:
-    repository: nvcr.io/nvidia/nim/llama2-7b
+    repository: nvcr.io/nim/meta/llama3-8b-instruct
     tag: "1.0.5"
     digest: "sha256:a1b2c3d4e5f6..." # Pin immutable digest, not tag
     pullPolicy: IfNotPresent
@@ -80,15 +80,13 @@ nim:
             topologyKey: kubernetes.io/hostname  # Spread across nodes
   
   env:
-    - name: NGC_API_TOKEN
+    - name: NGC_API_KEY
       valueFrom:
         secretKeyRef:
           name: ngc-credentials  # Pre-created, rotated monthly
           key: api-token
-    - name: NIM_HTTP_PORT
+    - name: NIM_HTTP_API_PORT
       value: "8000"
-    - name: NIM_GRPC_PORT
-      value: "8001"
   
   cache:
     enabled: true
@@ -98,7 +96,7 @@ nim:
   
   livenessProbe:
     httpGet:
-      path: /v1/health
+      path: /v1/health/ready
       port: 8000
     initialDelaySeconds: 60    # Allow 60s for GPU initialization
     periodSeconds: 30
@@ -107,7 +105,7 @@ nim:
   
   readinessProbe:
     httpGet:
-      path: /v1/health
+      path: /v1/health/ready
       port: 8000
     initialDelaySeconds: 300   # Model download may take minutes
     periodSeconds: 10
@@ -116,7 +114,7 @@ nim:
   
   startupProbe:
     httpGet:
-      path: /v1/health
+      path: /v1/health/ready
       port: 8000
     initialDelaySeconds: 0
     periodSeconds: 10

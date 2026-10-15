@@ -149,9 +149,8 @@ A distributed training job on Slurm has two distinct commands doing two distinct
 #SBATCH --job-name=llama-70b-fsdp
 #SBATCH --nodes=4                 # 4 physical nodes
 #SBATCH --gpus-per-node=8         # all 8 GPUs per node
-#SBATCH --ntasks-per-node=8       # one process per GPU (matches gpus-per-node)
-#SBATCH --gres=gpu:8              # explicit GRES request, belt-and-suspenders with gpus-per-node
-#SBATCH --cpus-per-task=16        # CPU threads per rank (dataloader workers, etc.)
+#SBATCH --ntasks-per-node=1       # one torchrun launcher per node; torchrun spawns the 8 per-GPU workers
+#SBATCH --cpus-per-task=64        # CPU threads for the launcher and its 8 workers (dataloader workers, etc.)
 #SBATCH --time=24:00:00
 #SBATCH --partition=gpu-h100
 #SBATCH --output=logs/%x-%j.out
@@ -166,18 +165,18 @@ srun torchrun \
     train_fsdp.py --resume-from checkpoints/latest.pt
 ```
 
-`--nodes=4` plus `--ntasks-per-node=8` gives 32 total tasks — one per GPU across the whole job, which is exactly the world size FSDP/DDP expect. `--gres=gpu:8` is what actually causes `slurmd` to bind 8 physical GPUs (via cgroups) to this job's processes on each node; without it, the job could land on GPU nodes and see zero GPUs.
+`--nodes=4` plus `--ntasks-per-node=1` starts exactly one `torchrun` per node. Each launcher spawns `--nproc_per_node=8` workers, so the world size is 32, one rank per GPU. Using `--ntasks-per-node=8` here would start eight launchers per node and oversubscribe the GPUs. `--gpus-per-node=8` is what causes `slurmd` to bind 8 physical GPUs (via cgroups) to the job on each node; without a GPU request, the job could land on GPU nodes and see zero GPUs.
 
-**2. `srun` — launch the processes.** `srun` is what turns an allocation into running processes across all allocated nodes. Here it's launching `torchrun` once per node (Slurm's `--ntasks-per-node=8` combined with `torchrun --nproc_per_node=8` means Slurm places one `torchrun` supervisor per node, and `torchrun` fans that out to 8 local worker processes — this is the standard pattern for Slurm + torchrun, distinct from running `srun` with one task per GPU directly).
+**2. `srun` — launch the processes.** `srun` is what turns an allocation into running processes across all allocated nodes. Here it's launching `torchrun` once per node (Slurm's `--ntasks-per-node=1` combined with `torchrun --nproc_per_node=8` means Slurm places one `torchrun` supervisor per node, and `torchrun` fans that out to 8 local worker processes — this is the standard pattern for Slurm + torchrun, distinct from running `srun` with one task per GPU directly).
 
 **3. Rank assignment.** Slurm sets environment variables inside every task it launches; a training script (or `torchrun`, as shown above) reads them to build the distributed process group:
 
 | Variable | Meaning |
 |---|---|
-| `SLURM_PROCID` | Global rank of this task across the entire job (0 to `SLURM_NTASKS-1`) |
-| `SLURM_NTASKS` | Total number of tasks — the world size |
+| `SLURM_PROCID` | Global index of this task across the job (0 to `SLURM_NTASKS-1`); with one launcher per node this equals the node index |
+| `SLURM_NTASKS` | Total number of tasks (the node count here; the world size is nodes times `--nproc_per_node`) |
 | `SLURM_NODEID` | Index of the node this task is running on (0 to `SLURM_NNODES-1`) |
-| `SLURM_LOCALID` | Rank of this task within its node (maps to `LOCAL_RANK`) |
+| `SLURM_LOCALID` | Rank of this task within its node (with one launcher per node this is 0; `torchrun` assigns `LOCAL_RANK` to its workers) |
 | `SLURM_NODELIST` | Compact hostlist of allocated nodes (expand with `scontrol show hostnames`) |
 
 `torchrun`'s own `--node_rank`/rendezvous logic reuses these to derive PyTorch's `RANK`/`LOCAL_RANK`/`WORLD_SIZE` — the same variables Chapter 3's DDP and this volume's labs read directly when launching without Slurm. Slurm doesn't replace `torchrun`'s process-group bootstrap; it's the layer that decides which physical nodes run it and feeds it the topology.

@@ -18,11 +18,11 @@ description: "Master the multi-plane network architecture of an AI Factory. Map 
 
 In standard enterprise IT, you have one network. You plug a server into a switch, assign an IP address, and route traffic via VLANs. 
 
-If you attempt to use VLANs to manage traffic in an AI Factory, the cluster will fail. 
+Relying on VLANs alone to separate traffic in an AI Factory is a common way to end up with unpredictable training performance. 
 
-An NVIDIA DGX SuperPOD generates an apocalyptic amount of network traffic. During distributed training, the GPUs synchronize gradients (Compute traffic), read datasets (Storage traffic), and stream metrics to Prometheus (Management traffic) simultaneously. If these three traffic streams collide on the same physical switch, the massive burst of Compute traffic will instantly drop the Management packets, severing SSH connections and crashing the Kubernetes control plane.
+An NVIDIA DGX SuperPOD generates an apocalyptic amount of network traffic. During distributed training, the GPUs synchronize gradients (Compute traffic), read datasets (Storage traffic), and stream metrics to Prometheus (Management traffic) simultaneously. If these three traffic streams collide on the same physical switch, the massive burst of Compute traffic can starve Management packets, causing SSH sessions to stall and control-plane heartbeats to time out.
 
-To survive, a Senior Architect must design a **Multi-Plane Network Topology**. The networks must be physically air-gapped. 
+To survive, a Senior Architect must design a **Multi-Plane Network Topology**. The networks should be physically separate. 
 
 ## 1. The Four Planes of AI Networking
 
@@ -54,7 +54,7 @@ A modern DGX node is plugged into four completely isolated physical networks.
 How do you connect 1,000 GPUs together across the Compute Fabric without introducing latency bottlenecks? You use a **Rail-Optimized** design.
 
 Inside a DGX, there are 8 GPUs (GPU 0 through 7). Each GPU has its own dedicated NIC (NIC 0 through 7). 
-If you plug all 8 NICs into the exact same Top-of-Rack switch, you have created a standard "Fat Tree" topology. 
+If you plug all 8 NICs of a server into the same Top-of-Rack switch, traffic between same-index GPUs on different servers may need to cross the spine. 
 
 **NVIDIA's Rail-Optimized design does something different:**
 1. NIC 0 from *Server 1* plugs into Switch 0.
@@ -103,11 +103,11 @@ During production, tenant jobs randomly hang and crash with NCCL timeout errors.
 
 While VLANs and QoS provide logical isolation, they do not provide physical isolation. When a massive 100-Billion parameter model initiates a checkpoint save, it blasts terabytes of storage data into the network switches. Even with QoS prioritizing the GPU compute traffic, the physical buffer queues inside the network switches fill up with storage packets. 
 
-When the GPU compute packets arrive, they encounter microsecond delays (jitter) waiting for the storage packets to clear the buffers. In traditional web networking, a 5-microsecond delay is invisible. In distributed training, if GPU 0 experiences a 5-microsecond delay, GPUs 1 through 10,000 must sit completely idle, halting the entire supercomputer. 
+When the GPU compute packets arrive, they encounter microsecond delays (jitter) waiting for the storage packets to clear the buffers. In traditional web networking, a 5-microsecond delay is invisible. In distributed training, collectives are synchronous, so the slowest participant (and any tail latency on its path) sets the pace for every GPU in the job. 
 
-Furthermore, if a buffer overflows, packets are dropped. Dropped packets force TCP retransmissions, creating a catastrophic cascade of latency that triggers NCCL communication timeouts, crashing the training jobs. 
+Furthermore, if a buffer overflows on a lossless-intended fabric, congestion spreads or packets are dropped, which forces retransmissions (or RoCE/IB error recovery) and can trigger NCCL communication timeouts that crash training jobs. 
 
-We must implement a **Physically Air-Gapped Network Topology**. The Storage traffic and the GPU Compute traffic must travel over entirely separate network interface cards, through separate physical cables, into separate physical leaf and spine switches. Only physical isolation guarantees the zero-jitter environment required for scale-out training."
+We should implement a **physically separate network topology**. The Storage traffic and the GPU Compute traffic must travel over entirely separate network interface cards, through separate physical cables, into separate physical leaf and spine switches. Physical isolation is the most reliable way to protect the latency-sensitive compute fabric from storage bursts."
 
 ## Interview Preparation
 

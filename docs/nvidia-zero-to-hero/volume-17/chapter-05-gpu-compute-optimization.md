@@ -79,7 +79,7 @@ To hide latency (like waiting for a quick memory fetch), an SM keeps multiple Wa
 
 **The Dimension Trap (Tile Sizing):**
 Tensor Cores are highly specialized physical circuits designed to multiply matrices of specific sizes (e.g., 16x16 or 8x32 blocks, called Tiles). 
-If your data scientist designs a neural network layer with a dimension of `15` or `17` instead of `16`, the Tensor Cores cannot process it perfectly. The hardware must pad the matrix with zeroes to make it fit the 16x16 hardware block, wasting massive amounts of compute power crunching empty numbers. 
+If your data scientist designs a neural network layer with a dimension of `15` or `17` instead of `16`, the Tensor Cores cannot process it perfectly. The library must either pad the matrix with zeroes to fit the hardware tile or fall back to a slower non-Tensor-Core kernel, wasting compute on empty numbers or leaving Tensor Cores unused. 
 
 *Architectural Mandate:* Neural network dimensions (batch size, hidden layers, vocabulary size) must always be multiples of 8, 16, or 64 to perfectly align with the physical silicon architecture of the Tensor Cores.
 
@@ -95,9 +95,9 @@ You have designed a model with highly irregular matrix dimensions (761 and 30,00
 
 NVIDIA GPUs accelerate deep learning using **Tensor Cores**. Tensor Cores are physical, hardwired circuits designed to execute massive matrix multiplications at blinding speed. However, to achieve this speed, the hardware requires the input matrices to be perfectly aligned to specific tile sizes—typically multiples of 8 or 16 for FP16 math on Ampere architecture.
 
-When you feed a dimension of 761 into the GPU, the CUDA compiler and the cuBLAS libraries cannot perfectly map the math onto the Tensor Core tiles. The hardware is forced to pad the matrices with useless zeroes to reach a multiple of 16 (e.g., padding 761 up to 768). The Tensor Cores end up spending a massive percentage of their clock cycles calculating math on zeroes, which destroys throughput. Furthermore, irregular dimensions prevent the SM from achieving optimal **Occupancy**, crippling its ability to hide memory latency.
+When you feed a dimension of 761 into the GPU, the CUDA compiler and the cuBLAS libraries cannot perfectly map the math onto the Tensor Core tiles. The libraries must pad the matrices with zeroes to reach an aligned size (e.g., 761 up to 768) or fall back to less efficient kernels. Either way, the GPU ends up spending a massive percentage of their clock cycles calculating math on zeroes, which destroys throughput. Furthermore, irregular dimensions prevent the SM from achieving optimal **Occupancy**, crippling its ability to hide memory latency.
 
-We must immediately refactor the model architecture. We will pad the vocabulary size to 30,032 (a multiple of 16) and adjust the hidden dimension to 768. This minor change to the model's structure perfectly aligns the mathematical matrices with the physical silicon, instantly unlocking the Tensor Cores and potentially doubling the training throughput."
+We must immediately refactor the model architecture. We will pad the vocabulary size to 30,032 (a multiple of 16) and adjust the hidden dimension to 768. This minor change to the model's structure perfectly aligns the mathematical matrices with the physical silicon, which lets the libraries use their Tensor Core kernels and can substantially improve training throughput (measure it)."
 
 ## Interview Preparation
 

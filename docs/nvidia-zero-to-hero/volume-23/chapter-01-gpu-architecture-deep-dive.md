@@ -201,7 +201,7 @@ __global__ void matmul_tiled(float *A, float *B, float *C, int n) {
 
 ### Question 1: Explain Occupancy and How It Affects Performance
 
-**Scenario:** "You write a kernel that uses 80 registers per thread and 4 KB of shared memory per block. On an A100 (192 KB L1/shared combined, 96 KB shared per SM configurable, 65,536 32-bit registers = 256 KB register file per SM), what's the maximum occupancy? Does higher occupancy always mean better performance?"
+**Scenario:** "You write a kernel that uses 80 registers per thread and 4 KB of shared memory per block. On an A100 (192 KB L1/shared combined, up to 164 KB shared per SM, configurable, 65,536 32-bit registers = 256 KB register file per SM), what's the maximum occupancy? Does higher occupancy always mean better performance?"
 
 **Model Answer (3–4 minutes):**
 
@@ -209,7 +209,7 @@ __global__ void matmul_tiled(float *A, float *B, float *C, int n) {
 
 With 65,536 registers total per SM, I can fit 65,536 ÷ 2,560 = 25.6 → **25 warps** from a register perspective (rounding down — you can't launch a fractional warp). The SM hardware cap is 64 warps, so in this case registers ARE the binding constraint, not the warp-count cap.
 
-Shared memory: 4 KB per block. A100 SMs have 96-192 KB of shared memory (configurable). At 25 warps ≈ 3-4 blocks (depending on block size), shared memory usage is nowhere near the 96+ KB budget, so shared memory isn't the constraint here.
+Shared memory: 4 KB per block. A100 SMs have a 192 KB combined L1/shared array, of which up to 164 KB can be configured as shared memory. At 25 warps ≈ 3-4 blocks (depending on block size), shared memory usage is nowhere near the shared-memory budget, so shared memory isn't the constraint here.
 
 The limiter is **registers**: 25 warps out of a possible 64. So my occupancy is 25 ÷ 64 ≈ **39% occupancy** — well below the 100% a candidate might assume from the 64-warp headline number.
 

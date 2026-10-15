@@ -91,13 +91,13 @@ for gpu_id in $(nvidia-smi --list-gpus | awk '{print $2}' | tr -d '()'); do
   fi
   
   # Check 2: Temperature OK?
-  temp=$(nvidia-smi -i $gpu_id -q --format=csv,noheader --query-gpu=temperature.gpu)
+  temp=$(nvidia-smi -i $gpu_id --format=csv,noheader --query-gpu=temperature.gpu)
   if [ $temp -gt 82 ]; then
     echo "FAIL: GPU $gpu_id temp $temp°C (> 82°C threshold)"
   fi
   
   # Check 3: Power stable?
-  power=$(nvidia-smi -i $gpu_id -q --format=csv,noheader --query-gpu=power.draw | cut -d' ' -f1)
+  power=$(nvidia-smi -i $gpu_id --format=csv,noheader --query-gpu=power.draw | cut -d' ' -f1)
   if [ ${power%.*} -lt 50 ]; then
     echo "FAIL: GPU $gpu_id power $power W (expected > 50W under load)"
   fi
@@ -166,7 +166,7 @@ Interpretation:
 - Use error budget to decide: can we upgrade software? Can we reboot? Can we replace hardware?
 ```
 
-**Real error budget tracking:**
+**Illustrative error budget tracking (not captured):**
 
 ```
 Month: August 2026

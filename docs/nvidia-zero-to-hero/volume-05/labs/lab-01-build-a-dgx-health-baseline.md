@@ -95,7 +95,7 @@ free -h > memory.txt
 
 **Expected result:** files describing the operating system, kernel, CPU topology, and host memory.
 
-➕ **Realistic, annotated content of two of those files:**
+**Illustrative output (not captured): realistic, annotated content of two of those files:**
 
 ```text
 $ cat host-identity.txt
@@ -134,7 +134,7 @@ nvidia-smi --query-gpu=index,name,uuid,pci.bus_id,temperature.gpu,power.draw,pow
 
 **Healthy indicators:** all expected GPUs are visible, identifiers remain stable, no unexpected memory use exists on an idle node, and topology matches the approved design.
 
-➕ **Realistic `gpu-summary.csv` content, annotated:**
+**Illustrative output (not captured): realistic `gpu-summary.csv` content, annotated:**
 
 ```text
 index, name, uuid, pci.bus_id, temperature.gpu, power.draw, power.limit, memory.total, memory.used
@@ -145,7 +145,7 @@ index, name, uuid, pci.bus_id, temperature.gpu, power.draw, power.limit, memory.
 ```
 On a genuinely idle node, `memory.used` should be near zero (the `4MiB` here is normal driver/context overhead, not a leaked workload) and `power.draw` should sit well below `power.limit` — a value like `380` here on an idle GPU would mean *something* is already running and the node is not actually idle, which invalidates the rest of this baseline capture until investigated. `temperature.gpu` in the low-to-mid 30s (Celsius) at idle is the number to compare against later runs: if a later capture on the same node shows idle temperatures 15-20°C higher with nothing running, that is evidence of a cooling regression worth chasing before it ever shows up as a throttling incident under load.
 
-➕ **A realistic `nvidia-smi topo -m` capture, since this is the single most consulted file when a later acceptance check fails:**
+**Illustrative output (not captured): a realistic `nvidia-smi topo -m` capture, since this is the single most consulted file when a later acceptance check fails:**
 
 ```text
 $ nvidia-smi topo -m
@@ -200,7 +200,7 @@ grep -Ei 'NVRM|Xid|PCIe|AER|thermal|nvme|timeout|reset|link.*down' kernel-journa
 
 A non-empty file is not automatically a failure. Each entry must be correlated with time, device, and impact.
 
-➕ **Realistic `suspected-errors.txt` content and how to read it — the difference between noise and a real finding:**
+**Illustrative output (not captured): realistic `suspected-errors.txt` content and how to read it — the difference between noise and a real finding:**
 
 ```text
 $ cat suspected-errors.txt
@@ -208,9 +208,9 @@ Jul 28 09:14:02 dgx-node07 kernel: NVRM: Xid (PCI:0000:3d:00): 79, GPU has falle
 Jul 28 09:14:03 dgx-node07 kernel: pcieport 0000:3c:00.0: AER: Corrected error received
 Jul 30 02:00:11 dgx-node07 kernel: nvme nvme1: I/O 42 QID 3 timeout, aborting
 ```
-These three lines are not equally serious and should not be triaged the same way. `Xid 79` (`GPU has fallen off the bus`) on GPU `3d:00` is a hard hardware fault — the GPU stopped responding on the PCIe bus entirely, and NVIDIA's own Xid reference classifies this as almost always requiring hardware reseat or replacement, not a driver retry. The `AER: Corrected error` line is a PCIe-layer *corrected* error — the hardware detected and fixed a transient bit error automatically; a single corrected error is normal background noise on any large fleet, but a rapidly *climbing count* of corrected errors on the same device is a leading indicator of a connector or slot going bad, worth trending rather than ignoring outright. The `nvme` timeout is a separate device entirely and should be triaged against that NVMe's own health, not conflated with the GPU line above it just because both matched the same grep.
+These three lines are not equally serious and should not be triaged the same way. `Xid 79` (`GPU has fallen off the bus`) on GPU `3d:00` is a hard hardware fault — the GPU stopped responding on the PCIe bus entirely, and in NVIDIA's Xid documentation it is listed with several possible causes (hardware, power or thermal events, driver); treat it as a hardware-level event first and check the Xid catalog for your driver version. The `AER: Corrected error` line is a PCIe-layer *corrected* error — the hardware detected and fixed a transient bit error automatically; a single corrected error is normal background noise on any large fleet, but a rapidly *climbing count* of corrected errors on the same device is a leading indicator of a connector or slot going bad, worth trending rather than ignoring outright. The `nvme` timeout is a separate device entirely and should be triaged against that NVMe's own health, not conflated with the GPU line above it just because both matched the same grep.
 
-**Interview-ready line:** "Xid 79 means the GPU disappeared from the PCIe bus — that's not something a driver reload fixes, and I wouldn't spend a maintenance window on software troubleshooting for that code. A corrected AER error, by contrast, is expected background noise unless the rate is climbing — conflating the two wastes an incident response cycle on the wrong fix."
+**Interview-ready line:** "Xid 79 means the GPU disappeared from the PCIe bus — a driver reload rarely recovers it, so check power, thermals, and seating before spending a window on software troubleshooting. A corrected AER error, by contrast, is expected background noise unless the rate is climbing — conflating the two wastes an incident response cycle on the wrong fix."
 
 ## Step 7 — Run a minimal functional check
 
@@ -222,7 +222,7 @@ Example container pattern:
 docker run --rm --gpus all <approved-cuda-image> nvidia-smi
 ```
 
-Replace `&lt;approved-cuda-image&gt;` with an image allowed by your environment.
+Replace `<approved-cuda-image>` with an image allowed by your environment.
 
 ## Step 8 — Create acceptance criteria
 
@@ -289,7 +289,7 @@ Remove one expected compute interface from a copied `ip-addresses.txt`. Confirm 
 
 Inspect `lspci`, kernel logs, driver state, power events, and management-controller logs. Do not repeatedly reboot without preserving evidence.
 
-➕ **Real evidence, the fast triage:**
+**Illustrative output (not captured) — evidence, the fast triage:**
 ```text
 $ lspci -nn | grep -i nvidia | wc -l
 6        ← expected 8
@@ -305,7 +305,7 @@ If `lspci` also reports only 6 devices, the missing GPUs never enumerated on the
 
 Verify hardware inventory, PCIe enumeration, firmware baseline, and whether a component was replaced or disabled.
 
-➕ **Real evidence — comparing this node's topology file against the archived baseline:**
+**Illustrative output (not captured) — evidence — comparing this node's topology file against the archived baseline:**
 ```text
 $ diff -u ../known-good/gpu-topology.txt gpu-topology.txt
 -GPU2   NV18  NV18   X    NV18  SYS   PXB   32-63         1
@@ -317,7 +317,7 @@ A single character's difference — `NV18` degraded to `PHB` between GPU2 and GP
 
 Check driver health, container runtime configuration, NVIDIA Container Toolkit integration, permissions, and the selected image.
 
-➕ **Real evidence — the exact failure this produces:**
+**Illustrative output (not captured) — evidence — the exact failure this produces:**
 ```text
 $ docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
 docker: Error response from daemon: could not select device driver "" with capabilities: [[gpu]].

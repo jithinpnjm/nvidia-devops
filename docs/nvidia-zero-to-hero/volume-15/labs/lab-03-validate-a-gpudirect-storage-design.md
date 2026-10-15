@@ -19,7 +19,7 @@ tags: [lab, gpudirect-storage, gds]
 
 GDS is supposed to read directly from storage to GPU memory, avoiding CPU bounce. It only works if ALL of these are true:
 
-1. GPU driver is new enough (`nvidia-fs --version` present)
+1. GPU driver is new enough (`nvidia_fs` kernel module loaded)
 2. Storage is GDS-compatible (NVMe-oF, specific Lustre OST versions)
 3. GPU and storage are in same PCIe domain (not "PHB" in topology)
 4. Buffers are aligned (4 KB for NVMe-oF, 8 KB for Lustre)
@@ -38,15 +38,15 @@ echo "=== GDS PREREQUISITE CHECK ===" | tee gds-check.txt
 
 # Check 1: GDS package installed
 echo "Check 1: GDS installed?" >> gds-check.txt
-nvidia-fs --version 2>/dev/null && echo "✓ PASS" >> gds-check.txt || echo "✗ FAIL: nvidia-fs not installed" >> gds-check.txt
+lsmod | grep -q nvidia_fs && echo "✓ PASS" >> gds-check.txt || echo "✗ FAIL: nvidia-fs not installed" >> gds-check.txt
 
 # Check 2: GDS driver status
 echo -e "\nCheck 2: GDS driver loaded?" >> gds-check.txt
-if [ -f /proc/driver/nvidia-fs/status ]; then
-    cat /proc/driver/nvidia-fs/status >> gds-check.txt
+if [ -f /proc/driver/nvidia-fs/stats ]; then
+    cat /proc/driver/nvidia-fs/stats >> gds-check.txt
     echo "✓ PASS" >> gds-check.txt
 else
-    echo "✗ FAIL: /proc/driver/nvidia-fs/status not found" >> gds-check.txt
+    echo "✗ FAIL: /proc/driver/nvidia-fs/stats not found" >> gds-check.txt
 fi
 
 # Check 3: GPU and storage topology
@@ -61,7 +61,7 @@ if [ -d "/sys/class/nvme" ]; then
     echo "✓ PASS" >> gds-check.txt
 elif command -v lfs &> /dev/null; then
     echo "Lustre detected; checking OST GDS capability..." >> gds-check.txt
-    lctl list_param llite.*.gds_state 2>/dev/null >> gds-check.txt || echo "GDS not explicitly listed" >> gds-check.txt
+    /usr/local/cuda/gds/tools/gdscheck.py -p 2>/dev/null | grep -i lustre >> gds-check.txt || echo "GDS not explicitly listed" >> gds-check.txt
 else
     echo "✗ FAIL: No NVMe or Lustre detected" >> gds-check.txt
 fi

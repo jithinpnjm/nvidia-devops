@@ -74,7 +74,7 @@ flowchart TD
         GPU2["NVIDIA H100"] -- "NVML/I2C" --- Driver
         
         Driver -- "IOCTL" --- NVEngine["dcgm-engine / nv-hostengine"]
-        NVEngine -- "gRPC" --- DCGMExporter["dcgm-exporter"]
+        NVEngine -- "DCGM API" --- DCGMExporter["dcgm-exporter"]
         
         Kubelet["Kubelet/cAdvisor"] -. "Pod Metadata" .- DCGMExporter
     end
@@ -85,7 +85,7 @@ flowchart TD
     end
 ```
 
-The standard deployment in Kubernetes is `dcgm-exporter`. It reads metrics from the `nv-hostengine` and formats them for Prometheus. Crucially, `dcgm-exporter` connects to the Kubelet API to append Kubernetes-specific labels (Pod Name, Namespace, Container) to the hardware metrics.
+The standard deployment in Kubernetes is `dcgm-exporter`. It reads metrics from the `nv-hostengine` and formats them for Prometheus. Crucially, `dcgm-exporter` reads the kubelet pod-resources socket to append Kubernetes-specific labels (Pod Name, Namespace, Container) to the hardware metrics.
 
 ### 2.2 Production `dcgm-exporter` Deployment
 
@@ -156,44 +156,43 @@ metadata:
   namespace: gpu-operator
 data:
   custom-metrics.csv: |
-    # Format: 
-    # DCGM_FIELD, Prometheus_Metric_Name, Prometheus_Metric_Type, Description
-    
+    # Format: DCGM field name, Prometheus metric type, help text
+    # The Prometheus metric name is the DCGM field name itself.
+
     # Core utilization
-    DCGM_FI_DEV_SM_CLOCK, dcgm_sm_clock, gauge, SM clock frequency (in MHz).
-    DCGM_FI_DEV_MEM_CLOCK, dcgm_memory_clock, gauge, Memory clock frequency (in MHz).
-    DCGM_FI_DEV_GPU_UTIL, dcgm_gpu_utilization, gauge, GPU utilization (in %).
-    DCGM_FI_DEV_MEM_COPY_UTIL, dcgm_mem_copy_utilization, gauge, Memory utilization (in %).
-    
+    DCGM_FI_DEV_SM_CLOCK, gauge, SM clock frequency (in MHz).
+    DCGM_FI_DEV_MEM_CLOCK, gauge, Memory clock frequency (in MHz).
+    DCGM_FI_DEV_GPU_UTIL, gauge, GPU utilization (in %).
+    DCGM_FI_DEV_MEM_COPY_UTIL, gauge, Memory utilization (in %).
+
     # Memory
-    DCGM_FI_DEV_FB_TOTAL, dcgm_fb_total, gauge, Framebuffer memory total (in MiB).
-    DCGM_FI_DEV_FB_FREE, dcgm_fb_free, gauge, Framebuffer memory free (in MiB).
-    DCGM_FI_DEV_FB_USED, dcgm_fb_used, gauge, Framebuffer memory used (in MiB).
-    
+    DCGM_FI_DEV_FB_FREE, gauge, Framebuffer memory free (in MiB).
+    DCGM_FI_DEV_FB_USED, gauge, Framebuffer memory used (in MiB).
+
     # Power and Thermal
-    DCGM_FI_DEV_POWER_USAGE, dcgm_power_usage, gauge, Power draw (in W).
-    DCGM_FI_DEV_GPU_TEMP, dcgm_gpu_temp, gauge, GPU temperature (in C).
-    
+    DCGM_FI_DEV_POWER_USAGE, gauge, Power draw (in W).
+    DCGM_FI_DEV_GPU_TEMP, gauge, GPU temperature (in C).
+
     # PCIe & NVLink (Critical for Distributed workloads)
-    DCGM_FI_DEV_PCIE_TX_THROUGHPUT, dcgm_pcie_tx_bytes, gauge, PCIe TX Bandwidth (in bytes).
-    DCGM_FI_DEV_PCIE_RX_THROUGHPUT, dcgm_pcie_rx_bytes, gauge, PCIe RX Bandwidth (in bytes).
-    DCGM_FI_DEV_NVLINK_BANDWIDTH_TOTAL, dcgm_nvlink_bandwidth_total, gauge, NVLink Bandwidth total (in bytes).
-    
+    DCGM_FI_PROF_PCIE_TX_BYTES, counter, PCIe TX bytes.
+    DCGM_FI_PROF_PCIE_RX_BYTES, counter, PCIe RX bytes.
+    DCGM_FI_DEV_NVLINK_BANDWIDTH_TOTAL, counter, NVLink bandwidth counter total.
+
     # Errors & Diagnostics
-    DCGM_FI_DEV_XID_ERRORS, dcgm_xid_errors, gauge, Value of the last XID error encountered.
-    DCGM_FI_DEV_ECC_SBE_VOL_TOTAL, dcgm_ecc_sbe, gauge, Single-bit ECC errors.
-    DCGM_FI_DEV_ECC_DBE_VOL_TOTAL, dcgm_ecc_dbe, gauge, Double-bit ECC errors.
-    
+    DCGM_FI_DEV_XID_ERRORS, gauge, Value of the last XID error encountered.
+    DCGM_FI_DEV_ECC_SBE_VOL_TOTAL, counter, Single-bit volatile ECC errors.
+    DCGM_FI_DEV_ECC_DBE_VOL_TOTAL, counter, Double-bit volatile ECC errors.
+
     # Profiling Metrics (Requires DCGM Profiling to be enabled)
-    DCGM_FI_PROF_PIPE_TENSOR_ACTIVE, dcgm_tensor_core_active, gauge, Tensor Core Activity ratio.
-    DCGM_FI_PROF_DRAM_ACTIVE, dcgm_dram_active, gauge, DRAM Activity ratio.
+    DCGM_FI_PROF_PIPE_TENSOR_ACTIVE, gauge, Tensor Core Activity ratio.
+    DCGM_FI_PROF_DRAM_ACTIVE, gauge, DRAM Activity ratio.
 ```
 
 ### 2.4 Understanding Key GPU Metrics
 
-- **`dcgm_gpu_utilization` vs `dcgm_tensor_core_active`**: GPU Utilization merely means a kernel is executing on the GPU. It does *not* mean the GPU is doing useful work. A GPU can be at 100% utilization while spinning on a memory lock, doing zero math. `dcgm_tensor_core_active` measures if the specialized matrix-multiply hardware (Tensor Cores), which do the heavy lifting in AI, are actually being used. High GPU utilization + Low Tensor Core activity usually indicates a memory-bound workload or unoptimized kernels.
-- **`dcgm_nvlink_bandwidth_total`**: In a multi-GPU training job (e.g., using DeepSpeed or Megatron-LM), GPUs communicate via NVLink (AllReduce operations). If this metric is zero or very low during training, your job has fallen back to PCIe, and performance will be abysmal.
-- **`dcgm_xid_errors`**: The most critical health metric. Non-zero values indicate a driver or hardware fault. XID 31 (Memory Page Fault) or XID 119/120 (GSP Firmware Errors) often require Pod restarts or node cordoning.
+- **`DCGM_FI_DEV_GPU_UTIL` vs `DCGM_FI_PROF_PIPE_TENSOR_ACTIVE`**: GPU Utilization merely means a kernel is executing on the GPU. It does *not* mean the GPU is doing useful work. A GPU can be at 100% utilization while spinning on a memory lock, doing zero math. `DCGM_FI_PROF_PIPE_TENSOR_ACTIVE` measures if the specialized matrix-multiply hardware (Tensor Cores), which do the heavy lifting in AI, are actually being used. High GPU utilization + Low Tensor Core activity usually indicates a memory-bound workload or unoptimized kernels.
+- **`DCGM_FI_DEV_NVLINK_BANDWIDTH_TOTAL`**: In a multi-GPU training job (e.g., using DeepSpeed or Megatron-LM), GPUs communicate via NVLink (AllReduce operations). If this metric is zero or very low during training, your job has fallen back to PCIe, and performance will be abysmal.
+- **`DCGM_FI_DEV_XID_ERRORS`**: The most critical health metric. Non-zero values indicate a driver or hardware fault. XID 31 (Memory Page Fault) or XID 119/120 (GSP Firmware Errors) often require Pod restarts or node cordoning.
 
 ---
 
@@ -222,11 +221,12 @@ spec:
       - >
         nsys profile 
         --trace=cuda,osrt,nvtx,cudnn,cublas 
-        --output=/workspace/profiles/profile_%p.qdrep 
+        --output=/workspace/profiles/profile_%p 
         --force-overwrite=true 
         python train.py
     securityContext:
-      # Required for Nsight Systems to trace properly inside a container
+      # Often needed for CPU sampling/tracing inside a container (alternatively relax
+      # kernel.perf_event_paranoid on the node); check the Nsight Systems docs
       capabilities:
         add: ["SYS_ADMIN"]
     resources:
@@ -238,7 +238,7 @@ spec:
 
 ### 3.2 PyTorch Profiler Integration
 
-For deep learning engineers, PyTorch's native profiler, augmented with NVIDIA's Kineto library, is the standard. It emits traces that can be viewed in TensorBoard.
+For deep learning engineers, PyTorch's native profiler, built on the Kineto library (which uses NVIDIA CUPTI for GPU events), is the standard. It emits traces that can be viewed in TensorBoard.
 
 ```python
 import torch
@@ -340,6 +340,8 @@ histogram_quantile(0.99, sum(rate(vllm:time_per_output_token_seconds_bucket[5m])
 vllm:gpu_cache_usage_perc > 0.90
 ```
 
+Metric names change between vLLM releases (for example, newer versions rename the KV cache and per-token latency metrics); confirm names against your server's `/metrics` output.
+
 ---
 
 ## 5. The NVIDIA AI Factory Observability Stack
@@ -377,8 +379,8 @@ Below is a truncated, but highly functional JSON configuration for a Grafana das
       "datasource": "Prometheus",
       "targets": [
         {
-          "expr": "avg by(kubernetes_node) (dcgm_gpu_utilization)",
-          "legendFormat": "{{kubernetes_node}}",
+          "expr": "avg by(Hostname) (DCGM_FI_DEV_GPU_UTIL)",
+          "legendFormat": "{{Hostname}}",
           "refId": "A"
         }
       ],
@@ -390,8 +392,8 @@ Below is a truncated, but highly functional JSON configuration for a Grafana das
       "datasource": "Prometheus",
       "targets": [
         {
-          "expr": "avg by(kubernetes_node) (dcgm_tensor_core_active)",
-          "legendFormat": "{{kubernetes_node}}",
+          "expr": "avg by(Hostname) (DCGM_FI_PROF_PIPE_TENSOR_ACTIVE)",
+          "legendFormat": "{{Hostname}}",
           "refId": "B"
         }
       ],
@@ -442,7 +444,7 @@ Below is a truncated, but highly functional JSON configuration for a Grafana das
       "datasource": "Prometheus",
       "targets": [
         {
-          "expr": "sum(dcgm_xid_errors > 0)",
+          "expr": "sum(DCGM_FI_DEV_XID_ERRORS > 0)",
           "legendFormat": "XID Error Count",
           "refId": "E"
         }
@@ -494,7 +496,7 @@ Users report that the AI chat application feels "unresponsive." Sometimes it tak
 The monitoring dashboard shows:
 - `vllm:time_to_first_token_seconds` (TTFT) P99 is spiking from 0.2s to 4.5s.
 - `vllm:time_per_output_token_seconds` (ITL) remains stable at 45ms.
-- GPU Utilization (`dcgm_gpu_utilization`) is hovering around 85%.
+- GPU Utilization (`DCGM_FI_DEV_GPU_UTIL`) is hovering around 85%.
 
 **The Investigation:**
 Because ITL is stable, we know the GPU memory bandwidth is not the bottleneck, and the GPUs are successfully processing the Decode phase. The delay is entirely in the Prefill phase (TTFT). 
@@ -509,7 +511,7 @@ The KV Cache is saturated. LLM inference engines pre-allocate a chunk of GPU mem
 2. **Medium term:** Evaluate if the `gpu_memory_utilization` flag in vLLM can be increased safely without causing OOMs, allocating a higher percentage of the physical VRAM to the KV cache.
 3. **Long term:** Implement continuous batching tuning or evaluate chunked prefill techniques if long prompts are dominating the cache.
 
-### 6.2 Scenario 2: XID 119 and Node Cordons
+### 6.2 Scenario 2: Double-Bit ECC Error (XID 48) and Node Cordons
 
 **The Symptom:**
 A large 64-GPU (8-node) PyTorch distributed training job crashes after 14 hours. 
@@ -517,11 +519,11 @@ The K8s logs for the pod show a generic `CUDA error: uncorrectable ECC error enc
 Kube-state-metrics shows the Pod transitioned to `Failed`.
 
 **The Investigation:**
-1. We query Prometheus for `dcgm_xid_errors`. We see a spike to value `48` (Double Bit ECC error) and `119` (GSP firmware error) on `kubernetes_node="dgx-04"`, device `nvidia.com/gpu=3`.
-2. We look at `dcgm_ecc_dbe` (Double Bit Errors). It incremented from 0 to 1 on that exact GPU at the time of the crash.
+1. We query Prometheus for `DCGM_FI_DEV_XID_ERRORS`. We see a spike to value `48` (Double Bit ECC error) and `119` (GSP firmware error) on `Hostname="dgx-04"`, device `nvidia.com/gpu=3`.
+2. We look at `DCGM_FI_DEV_ECC_DBE_VOL_TOTAL` (Double Bit Errors). It incremented from 0 to 1 on that exact GPU at the time of the crash.
 
 **The Root Cause:**
-Hardware memory degradation. A cosmic ray or silicon defect caused a double-bit memory error in the H100's HBM. The NVIDIA driver caught it (XID 48), which caused the CUDA context to abort, crashing the training container.
+An uncorrectable (double-bit) ECC error occurred in the H100's HBM, which can come from hardware degradation or a transient fault. The NVIDIA driver caught it (XID 48), which caused the CUDA context to abort, crashing the training container.
 
 **The Solution:**
 1. The GPU operator should ideally have a node-problem-detector running that watches for XID 48/119 in `dmesg`.
@@ -535,10 +537,10 @@ Hardware memory degradation. A cosmic ray or silicon defect caused a double-bit 
 A customer complains that their Megatron-LM training job is scaling poorly. Moving from 1 node (8 GPUs) to 2 nodes (16 GPUs) resulted in only a 1.2x speedup instead of the expected 1.8x - 1.9x.
 
 **The Investigation:**
-1. We look at `dcgm_gpu_utilization`. It looks spiky, oscillating between 100% and 0%. This indicates a synchronization bottleneck; the GPUs are waiting for data.
-2. We check `dcgm_nvlink_bandwidth_total`. On Node 1, it's near max capacity (~900 GB/s for H100). 
+1. We look at `DCGM_FI_DEV_GPU_UTIL`. It looks spiky, oscillating between 100% and 0%. This indicates a synchronization bottleneck; the GPUs are waiting for data.
+2. We check `DCGM_FI_DEV_NVLINK_BANDWIDTH_TOTAL`. On Node 1, it's near max capacity (~900 GB/s peak bidirectional for H100). 
 3. We check Network I/O (InfiniBand/RoCE) via `node-exporter` or custom IB exporters. Cross-node traffic is minimal, far below the 400Gbps capacity.
-4. We look at `dcgm_pcie_tx_bytes`. We see massive spikes on the PCIe bus.
+4. We look at `DCGM_FI_PROF_PCIE_TX_BYTES`. We see massive spikes on the PCIe bus.
 
 **The Root Cause:**
 The NCCL (NVIDIA Collective Communications Library) topology detection failed or was misconfigured. Instead of using InfiniBand/RoCE for cross-node communication via GPU-Direct RDMA, NCCL fell back to routing traffic over the PCIe bus to the CPU, then out through the standard host ethernet. This severely chokes the AllReduce operations.
@@ -553,7 +555,7 @@ Ensure the Pod has the correct network annotations (e.g., Multus for secondary R
 **Q: How does `dcgm-exporter` map a physical GPU (e.g., PCIe Bus ID 0000:81:00.0) to a Kubernetes Pod name?**
 **A:** `dcgm-exporter` uses the Kubelet's `pod-resources` gRPC API. The Kubernetes device plugin advertises GPUs to the kubelet using UUIDs. When a Pod requests a GPU, the kubelet assigns a UUID. `dcgm-exporter` queries this local gRPC endpoint (`/var/lib/kubelet/pod-resources/kubelet.sock`), gets the mapping of Pod -> GPU UUID, and then uses NVML/DCGM to map the UUID to the physical hardware stats, appending the K8s metadata labels before exposing them to Prometheus.
 
-**Q: You see high `dcgm_gpu_utilization` but low `dcgm_power_usage` and low `dcgm_tensor_core_active`. What is happening?**
+**Q: You see high `DCGM_FI_DEV_GPU_UTIL` but low `DCGM_FI_DEV_POWER_USAGE` and low `DCGM_FI_PROF_PIPE_TENSOR_ACTIVE`. What is happening?**
 **A:** The workload is likely memory-bound or PCIe-bound. The CUDA kernels are active (hence high utilization), but they are spending most of their time waiting for data to arrive from VRAM or over the PCIe bus. Because they are not doing intensive FP16/BF16 math on the Tensor Cores, the power draw remains relatively low.
 
 **Q: Explain the difference between Continuous Batching and static batching, and how it affects the ITL metric.**
@@ -569,8 +571,8 @@ Kubernetes GPU Observability requires crossing the boundary between software orc
 - Correlate K8s cluster state (Pending/Failed Pods) with hardware state (XID errors) to automate node remediation.
 
 ### Cross-References
-- For details on automated node cordoning based on XID errors, see `docs/volume-07/03-node-problem-detector-and-gpu-operator.md`.
-- For deep dives into NCCL and GPU-Direct RDMA troubleshooting (Scenario 3), refer to `docs/volume-06/networking-in-ai-factories.md`.
+- For details on automated node cordoning based on XID errors, see [the incident response and alerting masterclass](./03-incident-response-alerts-masterclass.md).
+- For deep dives into NCCL and GPU-Direct RDMA troubleshooting (Scenario 3), refer to [the GPUDirect and fabric operator masterclass](../volume-06/02-gpudirect-fabric-operator-masterclass.md).
 
 ### Further Reading
 - [NVIDIA DCGM Documentation](https://docs.nvidia.com/datacenter/dcgm/latest/user-guide/index.html)
@@ -588,7 +590,7 @@ A classic problem is a `OOMKilled` event. In a CPU context, this is straightforw
 
 If a pod is `OOMKilled` (status 137), check:
 1. `container_memory_working_set_bytes` (cAdvisor) -> If this hit the pod limit, it's a CPU RAM OOM.
-2. `dcgm_fb_used` -> If this hit `dcgm_fb_total`, it's a CUDA OOM. *Crucially, a CUDA OOM does not usually cause the pod to be `OOMKilled` by the Kubelet. It causes a Python exception (`torch.cuda.OutOfMemoryError`), which causes the pod to crash with status 1 (Error).*
+2. `DCGM_FI_DEV_FB_USED` -> If it approached the framebuffer total (`DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE`), it's a CUDA OOM. *Crucially, a CUDA OOM does not usually cause the pod to be `OOMKilled` by the Kubelet. It causes a Python exception (`torch.cuda.OutOfMemoryError`), which causes the pod to crash with status 1 (Error).*
 
 ### 2. OpenTelemetry for Inference Pipelines
 

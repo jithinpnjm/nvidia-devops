@@ -40,7 +40,7 @@ This chapter covers how to lock the container doors and extinguish lateral movem
 
 By default, Docker and Kubernetes are dangerously permissive. A pod can ask to run as the `root` user, mount the host's `/etc` directory, or use the host's networking namespace. 
 
-Historically, this was managed by PodSecurityPolicies (PSP), but those are deprecated. The modern standard is **Pod Security Admission (PSA)**.
+Historically, this was managed by PodSecurityPolicies (PSP), which were removed in Kubernetes 1.25. The modern standard is **Pod Security Admission (PSA)**.
 
 PSA allows you to apply strict security profiles to entire namespaces:
 1.  **Privileged:** Completely open. (Reserved exclusively for the `gpu-operator` and infrastructure agents).

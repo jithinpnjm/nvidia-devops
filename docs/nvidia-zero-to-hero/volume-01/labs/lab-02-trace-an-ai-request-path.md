@@ -84,7 +84,7 @@ python3 --version
 curl --version | head -n 1
 ```
 
-Expected output resembles:
+Expected output resembles (illustrative, not captured):
 
 ```text
 Python 3.12.x
@@ -224,7 +224,7 @@ cd ~/nvidia-zero-to-hero/lab-02
 python3 request_path_server.py | tee healthy.log
 ```
 
-Expected output:
+Expected output (illustrative, not captured):
 
 ```text
 Listening on http://127.0.0.1:8080 with PREPROCESS_MS=20 and EXECUTION_MS=80
@@ -261,7 +261,7 @@ curl -sS -o /dev/null \
   http://127.0.0.1:8080
 ```
 
-Expected output is approximately:
+Expected output is approximately (illustrative, not captured):
 
 ```text
 status=200 total_seconds=0.10...

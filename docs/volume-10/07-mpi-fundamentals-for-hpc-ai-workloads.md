@@ -20,7 +20,7 @@ source_document: "Authored directly for the JR2018680 gap-coverage volume — no
 
 ## 1. Foundations: The Evolution of Distributed Message Passing
 
-In traditional High-Performance Computing (HPC) and modern AI Distributed Training, a single compute node is rarely sufficient to solve complex problems. When a deep learning model exceeds the memory capacity of a single GPU (e.g., a 175B parameter LLM requiring 800GB of VRAM just for weights), or when training time on a single node exceeds practical limits, the workload must be distributed across hundreds or thousands of GPUs.
+In traditional High-Performance Computing (HPC) and modern AI Distributed Training, a single compute node is rarely sufficient to solve complex problems. When a deep learning model exceeds the memory capacity of a single GPU (e.g., a 175B parameter LLM needs roughly 350 GB for FP16 weights alone, and several times that with gradients and optimizer state), or when training time on a single node exceeds practical limits, the workload must be distributed across hundreds or thousands of GPUs.
 
 Orchestrating thousands of independent processes across a network requires standardized mechanisms for process synchronization, identity assignment, and data exchange. 
 
@@ -57,7 +57,7 @@ MPI defines two primary modalities for moving data:
 
 While MPI is foundational, traditional implementations (like OpenMPI or MPICH) were optimized for CPU-to-CPU communication over standard networks or legacy InfiniBand. In traditional MPI, moving data from GPU 0 on Node A to GPU 0 on Node B required copying the data from the GPU to the CPU, sending it over the network to Node B's CPU, and finally copying it to Node B's GPU.
 
-This host-staging bottleneck is fundamentally incompatible with modern AI workloads demanding Terabytes per second of bandwidth. Consequently, the AI industry bifurcated the distributed stack: **MPI/PMIx now handles the Control Plane, while NVIDIA NCCL handles the GPU Data Plane.**
+Host staging is a poor fit for modern GPU training bandwidth demands (CUDA-aware MPI and GPUDirect reduce it, but NCCL is the dominant choice for GPU collectives). In practice, the AI industry bifurcated the distributed stack: **MPI/PMIx now handles the Control Plane, while NVIDIA NCCL handles the GPU Data Plane.**
 
 ---
 
@@ -87,21 +87,21 @@ NVIDIA AI Factories utilize one of two RDMA-capable fabric protocols:
 **2. RoCEv2 (RDMA over Converged Ethernet):**
 - Encapsulates InfiniBand transport headers inside standard UDP/IP Ethernet packets.
 - Allows AI clusters to use standard Ethernet switches (e.g., NVIDIA Spectrum-4, Arista, Cisco).
-- **CRITICAL REQUIREMENT:** Standard Ethernet is inherently "lossy" (it drops packets under congestion). To emulate InfiniBand's lossless nature, RoCEv2 strictly requires:
+- **Important requirement:** Standard Ethernet is "lossy" (it drops packets under congestion). To approximate InfiniBand's lossless behavior, RoCEv2 deployments typically configure:
   - **Priority Flow Control (PFC):** Prevents buffer overruns by sending "PAUSE" frames.
   - **Explicit Congestion Notification (ECN):** Marks packets during mild congestion so endpoints slow down transmission rates (DCQCN algorithm).
 
 ### 2.3 GPUDirect RDMA (GDR)
 
-**GPUDirect RDMA** represents the ultimate optimization for multi-node GPU communication. It enables the Host Channel Adapter (HCA) to directly access the GPU's High Bandwidth Memory (HBM) over the PCIe bus or NVLink switch, completely bypassing the host CPU's system memory.
+**GPUDirect RDMA** represents the ultimate optimization for multi-node GPU communication. It enables the Host Channel Adapter (HCA) to directly access the GPU's High Bandwidth Memory (HBM) over PCIe (using the `nvidia-peermem` kernel module or dma-buf), bypassing a bounce through the host CPU's system memory.
 
 When NCCL executes an All-Reduce operation across nodes:
 1. GPU 0 (Node A) stages a tensor in its HBM.
-2. The local ConnectX-7 HCA reads the tensor directly from GPU 0's HBM via PCIe/NVLink.
+2. The local ConnectX-7 HCA reads the tensor directly from GPU 0's HBM via PCIe.
 3. The HCA transmits the data across the InfiniBand/RoCE fabric via RDMA.
 4. The remote ConnectX-7 HCA (Node B) writes the data directly into GPU 0's HBM on Node B.
 
-If GPUDirect RDMA fails or falls back to system memory, distributed training throughput will instantly collapse by 80-90%.
+If GPUDirect RDMA is unavailable and NCCL falls back to staging through system memory, inter-node bandwidth can drop substantially; the size of the drop depends on the platform, so benchmark with nccl-tests.
 
 ---
 
@@ -120,8 +120,8 @@ flowchart TD
     subgraph BootstrapLayer["2. Process Bootstrap & Rendezvous (Control Plane)"]
         SRUN["srun / mpirun"]
         PMIX["PMIx Server & Client Plugin
-        - Assigns WORLD_SIZE, RANK, LOCAL_RANK
-        - Exchanges IP:Port endpoints across ranks"]
+        - MPI launch: rank/size wire-up and endpoint exchange
+        - PyTorch uses SLURM_* env vars + a c10d store instead"]
     end
 
     subgraph AppLayer["3. Workload Framework Execution"]
@@ -137,7 +137,8 @@ flowchart TD
 
     SLURM --> SRUN
     SRUN --> PMIX
-    PMIX --> TORCH
+    PMIX -.-> TORCH
+    SRUN --> TORCH
     TORCH --> C10D
     C10D --> NCCL
     NCCL --> NVLINK
@@ -154,22 +155,18 @@ Slurm is the master orchestrator. Its responsibilities are strictly limited to t
 
 ### 3.2 PMIx (Process Management Interface Exascale)
 
-In the early days of MPI, launching a 10,000-process job involved the root node opening 10,000 SSH connections to execute commands, leading to "boot storms" that took over 30 minutes just to start a job.
+Launching thousands of processes by having a root node open one SSH connection per process does not scale. **PMIx** is a standard API for process launch support: wire-up, key-value exchange between ranks, and process-set information. In a Slurm cluster:
+1. `srun --mpi=pmix` asks `slurmd` on each allocated node to start `slurmstepd`, which launches the local tasks and hosts the PMIx server (Slurm must be built with PMIx support; check `srun --mpi=list`).
+2. Each MPI process links its PMIx client library and connects to the local server (a UNIX domain socket).
+3. Ranks publish their endpoint information (put/commit) and the PMIx servers exchange it across nodes (a fence), so every rank can look up its peers without SSH.
 
-**PMIx** solves this by establishing a scalable wire protocol for process bootstrap:
-1. `srun` issues a launch command to the local Slurm daemons across the cluster.
-2. The processes launch almost instantly.
-3. Each process links against the `libpmix.so` library.
-4. When PyTorch calls `torch.distributed.init_process_group()`, the PMIx client connects to the local `slurmstepd` via a UNIX domain socket.
-5. All processes publish their IP addresses and listener ports to a distributed Key-Value (KV) store managed by PMIx.
-6. Slurm/PMIx uses a tree-based communication algorithm to instantly distribute the KV store to all nodes.
-7. Within milliseconds, all 10,000 ranks know the IP addresses and endpoints of every other rank.
+Note that this is MPI-side machinery. PyTorch does not use PMIx: with `srun`, a typical script reads `SLURM_PROCID`, `SLURM_LOCALID`, and `SLURM_NTASKS` to derive rank, local rank, and world size, and uses `MASTER_ADDR`/`MASTER_PORT` (a c10d TCP store) for rendezvous. See the Slurm `mpi_guide` and the PMIx documentation for the supported plugin matrix.
 
 ### 3.3 NVIDIA NCCL
 
-Once PMIx has successfully exchanged the endpoints (the "rendezvous" phase), the Control Plane steps back. PyTorch hands over the execution of collective operations to **NCCL**. 
+Once the ranks have rendezvoused (through PMIx for MPI jobs, or the c10d store for PyTorch, which distributes NCCL's unique ID), the control plane steps back and the framework hands collective operations to **NCCL**. 
 
-NCCL constructs its own high-speed communication rings and trees, probing the hardware to detect NVLink, PCIe switches, and ConnectX HCAs. From this point forward, the GPU Data Plane is completely isolated from Slurm and PMIx.
+NCCL constructs its own high-speed communication rings and trees, probing the hardware to detect NVLink, PCIe switches, and ConnectX HCAs. From this point forward, GPU collective traffic does not go through Slurm or PMIx (NCCL still uses TCP sockets for its bootstrap, which is why `NCCL_SOCKET_IFNAME` matters).
 
 ---
 
@@ -192,7 +189,12 @@ This is the most scalable, native method for launching distributed AI workloads 
 #SBATCH --exclusive                # Dedicated node access
 
 # srun inherits the SBATCH environment variables
-srun --mpi=pmix      --kill-on-bad-exit=1      python3 /workspace/train.py      --global-batch-size 1024      --tensor-model-parallel-size 8      --pipeline-model-parallel-size 4
+srun --mpi=pmix \
+  --kill-on-bad-exit=1 \
+  python3 /workspace/train.py \
+  --global-batch-size 1024 \
+  --tensor-model-parallel-size 8 \
+  --pipeline-model-parallel-size 4
 ```
 
 **Why this is superior at scale:**
@@ -206,7 +208,15 @@ Many environments (especially those lacking Slurm, like plain Kubernetes or bare
 
 ```bash
 # Example mpirun launch across two nodes over SSH
-mpirun -np 16        -hostfile /opt/cluster/hosts.txt        -bind-to none -map-by slot        -x NCCL_DEBUG=INFO        -x LD_LIBRARY_PATH        -x PATH        -mca pml ob1 -mca btl ^openib        -mca btl_tcp_if_include enp1s0f0        python3 train.py
+mpirun -np 16 \
+  -hostfile /opt/cluster/hosts.txt \
+  -bind-to none -map-by slot \
+  -x NCCL_DEBUG=INFO \
+  -x LD_LIBRARY_PATH \
+  -x PATH \
+  -mca pml ob1 -mca btl ^openib \
+  -mca btl_tcp_if_include enp1s0f0 \
+  python3 train.py
 ```
 
 **Understanding the `mpirun` flags:**
@@ -221,15 +231,20 @@ mpirun -np 16        -hostfile /opt/cluster/hosts.txt        -bind-to none -map-
 AI researchers commonly use `torchrun` (part of PyTorch `c10d`), which provides fault-tolerant elastic capabilities independent of MPI. 
 
 ```bash
-# Node 0 (Master) execution
-torchrun --nnodes=64          --nproc_per_node=8          --rdzv_id=job_123          --rdzv_backend=c10d          --rdzv_endpoint=10.100.1.10:29500          --node_rank=0          train.py
+# Run the same command on every node (c10d rendezvous assigns node ranks dynamically;
+# do not pass --node_rank with --rdzv_backend). The endpoint host is one of the participating nodes.
+torchrun --nnodes=64 \
+  --nproc_per_node=8 \
+  --rdzv_id=job_123 \
+  --rdzv_backend=c10d \
+  --rdzv_endpoint=10.100.1.10:29500 \
+  train.py
 
-# Node 1 execution
-torchrun --nnodes=64          --nproc_per_node=8          --rdzv_id=job_123          --rdzv_backend=c10d          --rdzv_endpoint=10.100.1.10:29500          --node_rank=1          train.py
+
 ```
 
-**Architectural Warning on `torchrun`:**
-While `torchrun` is flexible, the `c10d` default TCP rendezvous backend requires all nodes to register with Node 0 via a standard TCP connection. At massive scale (>2,000 ranks), this creates a severe network boot-storm and socket exhaustion on Node 0. For enterprise deployments, always transition from `torchrun` to `srun --mpi=pmix` when crossing the 32-node threshold.
+**Architectural note on `torchrun`:**
+The `c10d` rendezvous funnels every node through one endpoint host, which can become a startup bottleneck at large scale, and that host is a single point of failure for rendezvous. On Slurm clusters it is common to launch with `srun` (one task per GPU, deriving rank from `SLURM_PROCID`) instead; the node count at which this matters depends on your environment, so measure startup time.
 
 ---
 
@@ -240,22 +255,26 @@ Consider a dual-socket system (e.g., DGX H100 or AWS p5.48xlarge):
 - CPU Socket 0 (NUMA Node 0) manages GPUs 0-3 and Network HCAs 0-3.
 - CPU Socket 1 (NUMA Node 1) manages GPUs 4-7 and Network HCAs 4-7.
 
-These two CPU sockets are connected by a relatively narrow interconnect (Intel UPI or AMD Infinity Fabric), typically offering 64 GB/s of bandwidth. 
+These two CPU sockets are connected by an inter-socket interconnect (Intel UPI or AMD Infinity Fabric) whose bandwidth is far below NVLink's; check your server vendor's specification for the exact figure. 
 
-If Rank 0 (assigned to GPU 0 on Socket 0) executes a Python data loader process that is inadvertently scheduled by the OS onto CPU Socket 1, every memory access must cross the UPI link. More critically, if GPUDirect RDMA is misconfigured, GPU collective traffic may be routed across the UPI link. An NVLink domain operates at 900 GB/s; bottlenecking it with a 64 GB/s UPI link instantly destroys training scaling.
+If Rank 0 (assigned to GPU 0 on Socket 0) executes a Python data loader process that is inadvertently scheduled by the OS onto CPU Socket 1, every memory access must cross the UPI link. More critically, if GPUDirect RDMA is misconfigured, GPU collective traffic may be routed across the UPI link. H100 NVLink offers 900 GB/s of total bandwidth per GPU; routing traffic over the inter-socket link instead can severely limit scaling.
 
 ### 5.1 Enforcing Strict Hardware Binding with Slurm
 
 To guarantee absolute locality, you must configure Slurm to pin processes to specific CPU cores mapped to specific GPUs.
 
 ```bash
-# Correctly binding processes to NUMA domains
-srun --mpi=pmix      --cpu-bind=cores      --accel-bind=g      python3 train.py
+# Binding tasks to cores and to the GPU closest to those cores (requires GPU GRES and topology
+# information such as gres.conf Cores= or AutoDetect=nvml)
+srun --mpi=pmix \
+  --cpu-bind=cores \
+  --gpu-bind=closest \
+  python3 train.py
 ```
 
 **Deep Dive into Binding Parameters:**
-- `--cpu-bind=cores`: Forces `srun` to lock the task to specific physical CPU cores using Linux `cgroups` and `taskset`. The OS scheduler is strictly forbidden from migrating the PyTorch process to a different core, preventing L3 cache invalidation.
-- `--accel-bind=g`: The "magic" parameter. Slurm probes the server's hardware topology via `hwloc`, identifies which CPU cores are physically adjacent to which GPUs across the PCIe switches, and strictly binds the task to that optimal pairing.
+- `--cpu-bind=cores`: Binds each task to specific CPU cores (via Slurm's `task/affinity` or `task/cgroup` plugin), so the OS scheduler does not migrate the process between cores or sockets.
+- `--gpu-bind=closest`: Binds each task to the GPU(s) closest to its allocated CPU cores, using the CPU-to-GPU affinity Slurm knows from `gres.conf` (`Cores=`) or NVML autodetection. `--accel-bind=g` is a related option that binds tasks to GPUs closest to the allocated CPUs. Verify the behavior against your Slurm version's `srun` man page.
 
 ### 5.2 Validating Binding via `numactl`
 
@@ -263,6 +282,7 @@ To verify your bindings are correct in production, you can wrap your Python scri
 
 ```bash
 # Create a wrapper script: launch.sh
+#!/bin/bash
 echo "Rank $SLURM_PROCID on $(hostname) bound to:"
 numactl --show | grep "physcpubind"
 exec "$@"
@@ -271,7 +291,7 @@ exec "$@"
 srun --mpi=pmix ./launch.sh python3 train.py
 ```
 
-If binding is successful, you will see output proving that Local Rank 0 is bound to cores 0-15, Local Rank 1 to cores 16-31, and so forth, perfectly aligned with the NUMA topology.
+If binding is successful, you should see, for example, that Local Rank 0 is bound to cores 0-15, Local Rank 1 to cores 16-31, and so forth, perfectly aligned with the NUMA topology.
 
 ---
 
@@ -283,9 +303,9 @@ The NVIDIA Collective Communications Library (NCCL, pronounced "Nickel") is the 
 
 When a PyTorch distributed job initializes, NCCL performs an exhaustive topological hardware scan. 
 
-1. **Intra-Node Discovery:** NCCL parses `/sys/class/pci_bus/` and uses NVML to discover the exact layout of GPUs, NVSwitches, and PCIe PLX bridges.
+1. **Intra-Node Discovery:** NCCL reads the PCI topology from sysfs and uses NVML to discover the exact layout of GPUs, NVSwitches, and PCIe PLX bridges.
 2. **Inter-Node Discovery:** NCCL queries the network interfaces, identifying InfiniBand HCAs (e.g., `mlx5_0`, `mlx5_1`). It matches HCAs to GPUs based on PCIe locality.
-3. **Graph Synthesis:** NCCL synthesizes an internal graph model and calculates the optimal routing path for tensors. If it detects an NVSwitch, it routes traffic through NVLink. If it detects ConnectX-7, it enables GPUDirect RDMA.
+3. **Graph Synthesis:** NCCL synthesizes an internal graph model and calculates the optimal routing path for tensors. If it detects an NVSwitch, it routes traffic through NVLink. If the NIC and GPU topology and the kernel modules (`nvidia-peermem` or dma-buf) permit it, it uses GPUDirect RDMA.
 
 ### 6.2 Ring vs. Tree Collective Algorithms
 
@@ -317,12 +337,12 @@ flowchart LR
 **1. Ring All-Reduce:**
 - **Mechanism:** Each rank divides the gradient tensor into *N* chunks. In the first phase (Reduce-Scatter), chunks are passed circularly; each rank receives a chunk, adds its own local chunk, and passes it forward. In the second phase (All-Gather), the fully summed chunks are distributed around the ring.
 - **Bandwidth Utilization:** Nearly 100% of link capacity.
-- **Scaling:** Operates optimally on moderate rank counts (up to 256 GPUs). Large tensors dominate.
+- **Scaling:** Latency grows with rank count, so rings suit large messages and moderate scale; for very large rank counts NCCL's tuner may prefer trees.
 
 **2. Double-Binary Tree All-Reduce:**
 - **Mechanism:** Nodes are structured as a hierarchy. Data is reduced (summed) up the tree to the root node, and then broadcast back down the branches.
 - **Latency Advantage:** Completes in $O(\log N)$ steps compared to the Ring's $O(N)$ steps. 
-- **Scaling:** Crucial for massive scale (e.g., 4,096+ GPUs) or for very small message sizes (like Mixture of Experts metadata) where network latency outweighs pure bandwidth constraints.
+- **Scaling:** Helpful at large rank counts and for small messages where latency dominates. NCCL selects among Ring, Tree, NVLS (NVLink SHARP), CollNet, and other algorithms automatically based on topology and message size.
 
 ### 6.3 Essential NCCL Environment Variables
 
@@ -330,21 +350,20 @@ A Senior AI Infrastructure Engineer must master NCCL environment variables to tu
 
 | Environment Variable | Purpose | AI Factory Production Value | Troubleshooting Use Case |
 |---|---|---|---|
-| `NCCL_DEBUG` | Sets the logging verbosity level. | `VERSION` (Default) | Set to `INFO` for debugging hangs, crashes, or bandwidth drops. |
+| `NCCL_DEBUG` | Sets the logging verbosity level. | Unset, or `WARN` | Set to `INFO` for debugging hangs, crashes, or bandwidth drops. |
 | `NCCL_DEBUG_SUBSYS` | Filters debug logs to specific subsystems. | Unset | `INIT,GRAPH,ENV,NET` to isolate topology discovery vs network fabric issues. |
 | `NCCL_IB_HCA` | Explicitly targets specific InfiniBand devices. | `mlx5_0,mlx5_1,...` or `=mlx5_0:1` | Force NCCL to ignore management ethernet interfaces and strictly use RDMA fabrics. |
-| `NCCL_IB_GID_INDEX` | Selects the RoCEv2 routing GID. | `3` (Standard RoCEv2 UDP) | Must be set to 3 in Ethernet environments; otherwise packets lack PFC tags. |
-| `NCCL_NET_GDR_LEVEL` | Determines how aggressively GPUDirect RDMA traverses PCIe switches. | `5` or `MAX` | `5` enables GDR across NVSwitch hops; if set to 0, GDR is disabled. |
+| `NCCL_IB_GID_INDEX` | Selects the GID used in RoCE mode. | Site-specific (inspect with `show_gids`) | Pick the GID that is RoCE v2 with the IP version you use; newer NCCL (2.21+) can auto-select when unset. |
+| `NCCL_NET_GDR_LEVEL` | Maximum NIC-to-GPU distance at which GPUDirect RDMA is used. | Unset (NCCL chooses) | Use a path-type string (`LOC`, `PIX`, `PXB`, `PHB`, `SYS`) to widen or narrow the cutoff when diagnosing GDR behavior. |
 | `NCCL_P2P_DISABLE` | Disables intra-node NVLink/PCIe peer-to-peer. | `0` (Must be enabled) | Set to `1` temporarily to isolate faulty NVLink hardware causing data corruption (XIDs). |
 | `NCCL_ALGO` | Forces NCCL to use a specific collective algorithm. | Unset (Auto) | Set to `Ring` or `Tree` to benchmark specific topology performance. |
 
-**Code Example: A Fully Optimized NCCL Slurm Launch:**
+**Example NCCL Slurm launch (values are site-specific illustrations; do not copy blindly):**
 ```bash
 export NCCL_DEBUG=INFO
 export NCCL_IB_HCA="=mlx5_0,mlx5_1,mlx5_2,mlx5_3,mlx5_4,mlx5_5,mlx5_6,mlx5_7"
-export NCCL_IB_GID_INDEX=3
-export NCCL_IB_TC=106            # Maps traffic to Lossless QoS queue via DSCP
-export NCCL_NET_GDR_LEVEL=5
+export NCCL_IB_GID_INDEX=3       # Site-specific: verify with show_gids
+export NCCL_IB_TC=106            # Site-specific example: must match your switch/NIC QoS (DSCP) configuration
 export NCCL_SOCKET_IFNAME=bond0  # Control plane bootstrap via bonded Ethernet
 
 srun --mpi=pmix python3 /workspace/train.py
@@ -368,16 +387,27 @@ An `mpirun` command often contains dozens of `-mca` flags required to force traf
    - `-mca pml ucx`: Forces MPI to use the modern, highly optimized UCX library for data transport.
 
 3. **Collective (COLL):** Manages collective algorithms.
-   - `-mca coll_hcoll_enable 1`: Enables Hardware Collectives (HCOLL), allowing modern ConnectX HCAs and Quantum switches to perform mathematical reductions (like `SUM`) directly on the network ASIC, entirely bypassing the host CPU and GPU.
+   - `-mca coll_hcoll_enable 1`: Enables HCOLL, NVIDIA's collective offload library for MPI, which can use SHARP in-network reductions on supported InfiniBand fabrics. It applies to MPI collectives, not to NCCL's GPU collectives.
 
 ### 7.2 The Ultimate HPC-X Launch Command
 
 A production bare-metal cluster without Slurm requires extensive explicit configuration:
 
 ```bash
-mpirun -np 256        --hostfile /etc/opt/cluster/hosts.txt        --bind-to none        --map-by slot        -x LD_LIBRARY_PATH        -x NCCL_DEBUG=INFO        -x NCCL_IB_HCA=mlx5_0,mlx5_1        -mca pml ucx        -mca btl ^openib,smcuda        -mca btl_tcp_if_include ens1f0        -mca coll_hcoll_enable 0        -mca plm_rsh_no_tree_spawn 1        -mca routed_radix 256        python3 megatron_pretrain.py
+mpirun -np 256 \
+  --hostfile /etc/opt/cluster/hosts.txt \
+  --bind-to none --map-by slot \
+  -x LD_LIBRARY_PATH \
+  -x NCCL_DEBUG=INFO \
+  -x NCCL_IB_HCA=mlx5_0,mlx5_1 \
+  -mca pml ucx \
+  -mca btl ^openib,smcuda \
+  -mca btl_tcp_if_include ens1f0 \
+  -mca coll_hcoll_enable 0 \
+  -mca plm_rsh_no_tree_spawn 1 \
+  python3 megatron_pretrain.py
 ```
-*Note: `-mca routed_radix 256` prevents the default binary tree SSH spawn from timing out on large clusters by flattening the launch hierarchy.*
+*Note: `plm_rsh_no_tree_spawn 1` makes mpirun launch every daemon directly instead of through a tree of remote launches. Tune launch parameters (including `routed_radix`) against the OpenMPI documentation for your version.* The `/etc/opt/cluster/hosts.txt` and interface names are placeholders.
 
 ---
 
@@ -391,10 +421,10 @@ If a job initializes slowly (taking 15+ minutes to start), NCCL might be struggl
 
 ```bash
 # Wrap the python execution in strace to log system calls
-srun --mpi=pmix strace -tt -e trace=open,openat,read -o strace_nccl_%t.log python3 train.py
+srun --mpi=pmix bash -c 'strace -f -tt -e trace=open,openat,read -o /tmp/strace_nccl_${SLURM_PROCID}.log python3 train.py'
 
-# Analyzing the output:
-$ grep "/sys/class/pci_bus" strace_nccl_*.log | head -n 5
+# Analyzing the output (illustrative, not captured):
+$ grep "/sys/class/pci_bus" /tmp/strace_nccl_*.log | head -n 5
 10:45:01.123456 openat(AT_FDCWD, "/sys/class/pci_bus/0000:80/device/numa_node", O_RDONLY) = 3
 10:45:01.123500 read(3, "0\n", 4096) = 2
 ```
@@ -405,8 +435,12 @@ $ grep "/sys/class/pci_bus" strace_nccl_*.log | head -n 5
 To visualize the interplay between GPU compute kernels and NCCL network transfers, NVIDIA provides Nsight Systems.
 
 ```bash
-# Profile the rank and capture MPI/NCCL API calls and CUDA activity
-srun --mpi=pmix      nsys profile --trace=cuda,mpi,nvtx,osrt      --output=megatron_trace_%q{SLURM_PROCID}      --force-overwrite=true      python3 train.py
+# Profile each rank and capture CUDA, MPI, NVTX, and OS runtime activity (NCCL appears via CUDA kernels/NVTX ranges)
+srun --mpi=pmix \
+  nsys profile --trace=cuda,mpi,nvtx,osrt \
+  --output=megatron_trace_%q{SLURM_PROCID} \
+  --force-overwrite=true \
+  python3 train.py
 ```
 
 When opened in the Nsight Systems GUI, you will see a detailed timeline. Look for:
@@ -434,33 +468,32 @@ A 128-node job is submitted via Slurm. The application prints `[Rank 0] Initiali
 ### Scenario 2: Catastrophic Performance Regression (Bandwidth Collapse)
 
 **The Incident:**
-A benchmarking script normally reports 380 GB/s All-Reduce bus bandwidth across 16 nodes. Suddenly, it drops to 45 GB/s. Training step time increases from 2.5 seconds to 18 seconds.
+*Illustrative scenario with example numbers.* A benchmarking script normally reports a stable All-Reduce bus bandwidth across 16 nodes. Suddenly, it drops to a fraction of that. Training step time increases from 2.5 seconds to 18 seconds.
 
 **The Diagnosis & Remediation:**
-1. **Identify the Symptom:** 45 GB/s matches the exact memory bandwidth limit of dual-socket Intel/AMD host CPUs crossing the PCIe bus. This indicates **GPUDirect RDMA has catastrophically failed**. Tensors are being routed from the GPU, up through the CPU system memory, and then down to the NIC.
+1. **Identify the Symptom:** A sudden large drop with no change in code or topology is consistent with **GPUDirect RDMA no longer being used**, so tensors are staged through CPU system memory on the way to the NIC. It is a hypothesis to confirm, not a conclusion.
 2. **Check the NCCL Logs:** 
-   Enable `export NCCL_DEBUG=INFO`. You will likely see the following critical warning:
-   `NCCL INFO NET/IB : GPU Direct RDMA Disabled for HCA mlx5_0 (no peermem)`
+   Enable `export NCCL_DEBUG=INFO` and look at the `NET/IB` lines during initialization. A healthy run reports GPU Direct RDMA as enabled for each HCA (wording varies by NCCL version); its absence, or a warning about the peer-memory module, points to this cause.
 3. **Verify the Peer Memory Driver:**
    GPUDirect RDMA requires a kernel module to map GPU physical memory to the InfiniBand NIC. SSH into a worker node and run:
-   `lsmod | grep nv_peer_mem` or `lsmod | grep nvidia_peermem`.
-   If the output is empty, the driver failed to load during a recent OS patch or kernel update.
+   `lsmod | grep nvidia_peermem` (`nv_peer_mem` on legacy stacks).
+   If the output is empty, the module may have failed to load after an OS or driver update; check `dmesg` and `modprobe nvidia_peermem`.
 4. **Check PCIe ACS (Access Control Services):**
-   If `peermem` is loaded but speeds are still low, check the BIOS. If `PCIe ACS` (IOMMU isolation) is enabled, the PCIe PLX switches are physically forbidden from routing peer-to-peer traffic between the NIC and GPU, forcing all traffic up to the CPU root complex. ACS must be disabled in the BIOS for AI Factory nodes.
+   If `peermem` is loaded but speeds are still low, check the BIOS. If PCIe ACS (Access Control Services) is enabled on the PCIe switches between the NIC and GPU, peer-to-peer traffic can be redirected up to the root complex, which hurts GPUDirect RDMA. NVIDIA and server vendors document ACS handling per platform (DGX systems ship preconfigured); follow your platform vendor's guidance rather than a blanket rule.
 
-### Scenario 3: InfiniBand Congestion and PFC Storms
+### Scenario 3: RoCE Congestion and PFC Storms
 
 **The Incident:**
 Training is running fine for hours, but periodically step times spike from 2 seconds to 45 seconds, causing timeouts. The network telemetry dashboard shows massive packet drops.
 
 **The Diagnosis & Remediation:**
 1. **Isolate Fabric Congestion:** On RoCEv2 networks, lossy Ethernet requires Priority Flow Control (PFC) to prevent buffer drops. If a single degraded server reads from the network slower than it receives (due to CPU throttling or PCIe errors), it issues a PFC "PAUSE" frame to the switch. 
-2. **The Congestion Spreading Effect:** The Top of Rack (ToR) switch's buffers fill up, causing it to send PAUSE frames to the Core switches. Within milliseconds, the entire 400Gbps fabric pauses. This is known as a **PFC Storm**.
+2. **The Congestion Spreading Effect:** The Top of Rack (ToR) switch's buffers fill up, causing it to send PAUSE frames upstream. Pause can propagate hop by hop and stall unrelated traffic. This is known as a **PFC Storm**.
 3. **Inspect Hardware Counters:**
    Run the Mellanox command on a suspected node:
-   `ethtool -S ens5f0 | grep -i pause` or `mlnx_qos -i ens5f0`.
-   If `rx_pause_frames` is incrementing rapidly into the millions, this specific node is the congestion victim/source.
-4. **The Fix:** Implement PFC Watchdog on the switches. If a port holds a PAUSE state for more than 500ms, the switch should automatically drop the packets and reset the queue rather than halting the entire multi-million dollar data center fabric.
+   `ethtool -S ens5f0 | grep -i pause` (look at per-priority pause counters such as `rx_prio<N>_pause` and `tx_prio<N>_pause`, and `rx_pause_ctrl_phy`; names vary by driver) or `mlnx_qos -i ens5f0`.
+   Rapidly incrementing pause counters on one node suggest it is the source or victim of the congestion.
+4. **The Fix:** Enable the PFC watchdog (pause storm protection) on the switches and NICs per your vendor's documentation. When a queue stays paused beyond the configured interval, the watchdog breaks the pause so one bad endpoint does not stall the fabric. Also fix the underlying cause on the offending node.
 
 ---
 
@@ -473,7 +506,7 @@ Mastering MPI, PMIx, and NCCL fundamentally changes your capability from managin
 3. **Debug Systematically:** When the cluster hangs, follow the execution chain: Did the processes launch? (Slurm/PMIx) -> Did they find each other's IPs? (`NCCL_SOCKET_IFNAME`) -> Did they construct a valid hardware ring/tree? (`NCCL_DEBUG=INFO`) -> Are the packets physically dropping? (InfiniBand/RoCE counters).
 4. **Trust GPUDirect RDMA:** The ultimate goal of every configuration parameter is to keep data off the CPU and exclusively moving between GPU High Bandwidth Memory and InfiniBand/RoCE Host Channel Adapters.
 
-By applying these architectural principles, you ensure that NVIDIA AI Factories operate at maximum utilization, scaling seamlessly from 8 GPUs to 100,000 GPUs without compromise.
+Applying these principles consistently is what keeps GPU utilization high as the cluster grows.
 
 ---
 
@@ -483,30 +516,30 @@ As a reference for production environments, here is an exhaustive matrix of crit
 
 ### A.1 Network and Fabric Targeting
 * `NCCL_IB_HCA`: String. (e.g. `mlx5_0,mlx5_1`). Forces NCCL to use specified InfiniBand devices. Use prefix `=` (e.g. `=mlx5_0`) to mandate exact matches.
-* `NCCL_IB_TIMEOUT`: Integer. Defaults to 14. Adjusts InfiniBand retry timeout. Increasing to 22 can survive minor link flaps in massive topologies without crashing the job.
-* `NCCL_IB_RETRY_CNT`: Integer. Defaults to 7. Number of times to retry a failed IB transaction before throwing a fatal error.
-* `NCCL_IB_GID_INDEX`: Integer. Critical for RoCEv2. Set to `3` for typical IPv4 UDP encapsulation ensuring PFC QoS DSCP markings function correctly.
+* `NCCL_IB_TIMEOUT`: Integer. Exponent for the IB retry timeout (about 4.096 microseconds times 2 to the power of the value). The NCCL documentation gives a default of 20 for current releases; the product with `NCCL_IB_RETRY_CNT` sets how long NCCL retries before raising a network error (about 30 seconds with the defaults).
+* `NCCL_IB_RETRY_CNT`: Integer. Defaults to 7. Number of times to retry a failed IB transaction before NCCL raises a network error.
+* `NCCL_IB_GID_INDEX`: Integer. Selects the GID in RoCE mode; find the right index with `show_gids`. The index depends on your GID table (commonly the RoCE v2 IPv4 entry), and NCCL 2.21+ can select one automatically when this is unset.
 * `NCCL_IB_SL`: Integer. Service Level. Maps IB traffic to a specific QoS Virtual Lane. Essential for multi-tenant fabrics.
-* `NCCL_IB_TC`: Integer. Traffic Class. Applies DSCP values to RoCE IP headers.
-* `NCCL_IB_AR_THRESHOLD`: Integer. Adaptive Routing threshold. Enables IB Adaptive Routing for packets exceeding this size (often 8192 bytes).
-* `NCCL_IB_QPS_PER_CONNECTION`: Integer. Number of Queue Pairs (QPs) per connection. Default 1. Can be increased to 4 or 8 to saturate 400G/800G links for massive tensors.
-* `NCCL_IB_PCI_RELAXED_ORDERING`: Integer. (0 or 1). Enables PCIe relaxed ordering. Significantly improves memory write bandwidth on modern architectures by allowing out-of-order DMA writes.
-* `NCCL_NET_GDR_LEVEL`: Integer/String. Controls GPUDirect RDMA. Set to `0` to disable. Set to `1` (or `SYS`) to enable over system bus. Set to `5` (or `MAX`) to force NVLink/PCIe switch traversal.
+* `NCCL_IB_TC`: Integer. InfiniBand traffic class field; on RoCE it carries the DSCP/ECN bits, so it must match your QoS configuration.
+* `NCCL_IB_AR_THRESHOLD`: Integer. Adaptive Routing threshold. Data above this size is sent as a separate message that can leverage adaptive routing.
+* `NCCL_IB_QPS_PER_CONNECTION`: Integer. Number of queue pairs per connection between two ranks. NCCL documents that on RoCE (and multi-level fabrics) more than one QP per connection may be needed to saturate the network or improve routing entropy; tune empirically.
+* `NCCL_IB_PCI_RELAXED_ORDERING`: Integer. (0 or 1). Enables PCIe relaxed ordering. Enables PCIe relaxed ordering for the IB verbs transport, which NCCL documents as greatly helping InfiniBand performance in virtualized environments.
+* `NCCL_NET_GDR_LEVEL` (formerly `NCCL_IB_GDR_LEVEL`): Maximum NIC-to-GPU distance for GPUDirect RDMA, given as a path-type string (`LOC` disables it; `PIX`, `PXB`, `PHB`, `SYS` progressively widen it). If unset, NCCL selects a value from the topology.
 * `NCCL_SOCKET_IFNAME`: String. Binds control TCP sockets to specific interfaces (e.g., `eth0`, `bond0`, `enp*`). Use `^docker0,lo` to explicitly exclude virtual interfaces.
 
 ### A.2 Topology and Algorithm Control
-* `NCCL_ALGO`: String. `Tree`, `Ring`, `CollNet`. Forces a specific collective algorithm.
+* `NCCL_ALGO`: String list. Includes `Ring`, `Tree`, `CollnetChain`, `CollnetDirect`, `NVLS`, `NVLSTree` (version-dependent). Restricts NCCL to specific algorithms; prefix with `^` to exclude.
 * `NCCL_PROTO`: String. `LL`, `LL128`, `Simple`. 
   - `LL` (Low Latency): Used for very small messages.
-  - `LL128`: 128-byte optimized low latency.
+  - `LL128`: low-latency variant using 128-byte operations; only enabled on hardware where it is safe (e.g., NVLink-connected GPUs).
   - `Simple`: Standard bulk data transfer.
 * `NCCL_TOPO_FILE`: String. Path to a custom XML topology file. Allows architects to override NCCL's auto-discovery if the hypervisor or container masks true hardware PCIe topologies.
 * `NCCL_P2P_DISABLE`: Integer. (0 or 1). If 1, disables direct GPU-to-GPU peer-to-peer (NVLink/PCIe), forcing all traffic through host memory. Used purely for debugging hardware faults.
 * `NCCL_SHM_DISABLE`: Integer. (0 or 1). If 1, disables POSIX shared memory (`/dev/shm`) fallback for intra-node communication.
-* `NCCL_GRAPH_FILE`: String. Dumps the synthesized XML topology graph to disk for manual inspection. `NCCL_GRAPH_FILE=topo.xml`.
+* `NCCL_GRAPH_FILE` / `NCCL_TOPO_DUMP_FILE`: `NCCL_GRAPH_FILE` points NCCL at a file that supplies the ring/tree graph to use (an advanced override). To dump the detected XML topology for inspection, use `NCCL_TOPO_DUMP_FILE=topo.xml`.
 
 ### A.3 Debugging and Profiling
-* `NCCL_DEBUG`: String. `VERSION`, `WARN`, `INFO`, `TRACE`. Base logging level.
+* `NCCL_DEBUG`: String. `VERSION`, `WARN`, `INFO`, `TRACE` (newer releases add more). Base logging level.
 * `NCCL_DEBUG_SUBSYS`: String. `INIT`, `COLL`, `P2P`, `SHM`, `NET`, `GRAPH`, `TUNING`, `ENV`, `ALL`. Filters massive log output.
 * `NCCL_DEBUG_FILE`: String. Redirects output from stdout/stderr to a specific file template (e.g. `nccl_debug_%h_%p.log` where %h is hostname, %p is PID).
 
@@ -525,11 +558,11 @@ When configuring `mpirun` for bare-metal systems, the Modular Component Architec
 * `-mca btl ^openib`: Disables the legacy OpenFabrics Verbs driver (prevents conflicts with UCX).
 * `-mca btl_tcp_if_include <interface>`: Restricts fallback TCP traffic to a specific subnet or interface.
 * `-mca btl_tcp_if_exclude <interface>`: Prevents OpenMPI from attempting to route traffic over loopback (`lo`) or Docker bridges (`docker0`).
-* `-mca coll_hcoll_enable 1`: Enables Hardware Collectives via Mellanox SHARP (Scalable Hierarchical Aggregation and Reduction Protocol).
+* `-mca coll_hcoll_enable 1`: Enables the HCOLL collective offload library, which can use SHARP (Scalable Hierarchical Aggregation and Reduction Protocol) on supported InfiniBand fabrics.
 * `-mca coll_hcoll_np 128`: Sets the threshold (number of processes) above which HCOLL is activated.
 * `-mca plm_rsh_agent "ssh -q -o StrictHostKeyChecking=no"`: Streamlines the SSH launch process, preventing manual key confirmation prompts from hanging automated pipeline launches.
 * `-mca plm_rsh_no_tree_spawn 1`: Forces a flat SSH launch instead of a tree spawn. Resolves intermittent timeouts during massive job initialization on slow management networks.
-* `-mca routed_radix 1024`: Increases the radix of the routing tree to handle larger clusters without generating excessive hop delays during startup.
+* `-mca routed_radix <N>`: Sets the fan-out of the routing tree used for launch and control messages; consult the OpenMPI documentation for your version before changing it.
 
 ## Appendix C: Deep Dive into PCIe Architecture and Switch Topologies
 
@@ -543,15 +576,15 @@ When NCCL routes traffic from GPU 0 to NIC 0, GPUDirect RDMA allows the data to 
 
 ### C.2 IOMMU and Access Control Services (ACS)
 The Input-Output Memory Management Unit (IOMMU) translates device virtual addresses to physical memory addresses. For security in virtualized cloud environments (like AWS or Azure), the hypervisor relies on PCIe ACS to force all device-to-device traffic up to the IOMMU (located on the CPU die) to check permissions.
-If ACS is enabled on bare-metal systems, peer-to-peer routing at the PCIe switch level is blocked. Data is forced to travel up to the CPU, instantly saturating the upstream PCIe lane and destroying RDMA bandwidth.
-For an NVIDIA AI Factory to operate at peak efficiency, the BIOS must explicitly disable PCIe ACS on the compute lanes, entrusting security to the orchestrator layer (Slurm).
+If ACS is enabled on bare-metal systems, peer-to-peer routing at the PCIe switch level is blocked. Data is forced to travel up to the root complex, which can limit peer-to-peer and GPUDirect RDMA bandwidth.
+Whether and where to disable ACS is platform-specific (and a security trade-off); follow your server and NVIDIA platform guidance.
 
 ## Appendix D: Simulating Network Failures (Chaos Engineering)
 
 To validate alerting and monitor cluster resilience, SREs frequently inject targeted failures.
 
 **1. Injecting Link Flaps (Port Toggle):**
-Use Mellanox tools to simulate a dirty optics cable or failing switch port:
+Only on an isolated test node or drained maintenance window. Make sure you are not disabling the port that carries your management access, and verify the port returns to Active (`ibstat`) before ending the test. Illustrative commands (LID 1, port 1 are placeholders):
 ```bash
 # Bring down a physical IB link
 ibportstate 1 1 disable
@@ -560,15 +593,17 @@ sleep 3
 # Bring it back up
 ibportstate 1 1 enable
 ```
-Observe how NCCL reacts. With `NCCL_IB_RETRY_CNT=7` and `NCCL_IB_TIMEOUT=14`, the training job should stall, print warnings, and automatically resume once the link recovers. If the timeout is too low, PyTorch will crash with a fatal `DistBackendError`.
+Observe how NCCL reacts. A short flap may be absorbed by IB retries (the retry window is set by `NCCL_IB_TIMEOUT` and `NCCL_IB_RETRY_CNT`); a longer outage ends in an NCCL network error that fails the job, and PyTorch surfaces it as a distributed-backend error.
 
-**2. Injecting PCIe Errors (AER):**
-Advanced Error Reporting (AER) handles correctable hardware errors on the PCIe bus. Excessive AERs indicate failing riser cables or overheated GPUs.
+**Cleanup:** confirm with `ibstat` that the port is Active and the job or test traffic recovers.
+
+**2. Monitoring PCIe Errors (AER):**
+Advanced Error Reporting (AER) reports correctable and uncorrectable errors on the PCIe bus. Persistent AER messages can indicate marginal links, risers, or cabling.
 Monitor AERs via `dmesg`:
 ```bash
 dmesg -w | grep -i AER
 ```
-A continuous flood of AER logs will saturate the host OS CPU, dropping network packets and triggering PFC storms across the fabric.
+A continuous stream of AER messages is a reason to drain the node and inspect the link, because it can degrade throughput and mask other faults.
 
 ## Appendix E: The Role of PyTorch `torch.distributed`
 
@@ -576,6 +611,7 @@ While NCCL handles the hardware, `torch.distributed` is the Python user interfac
 
 **ProcessGroup Initialization:**
 ```python
+import os
 import torch
 import torch.distributed as dist
 
@@ -611,12 +647,12 @@ This enables the critical **Compute-Communication Overlap** visualized in Nsight
 Always quote *Bus Bandwidth* when evaluating hardware network health, as it reflects the physical link saturation independently of rank count.
 
 **Metric 2: XID Errors**
-When a GPU encounters a hardware, thermal, or driver fault, it throws an XID error in `dmesg` (e.g., `NVRM: Xid (PCI:0000:01:00): 79, GPU has fallen off the bus`). XID 79 and XID 119 are fatal in distributed training, requiring immediate node draining and reboot.
+When a GPU encounters a hardware, thermal, or driver fault, it throws an XID error in `dmesg` (e.g., `NVRM: Xid (PCI:0000:01:00): 79, GPU has fallen off the bus`). Xid 79 (fallen off the bus) and Xid 119 (GSP timeout) generally require draining the node; see NVIDIA's Xid documentation for the recommended action for each code.
 
 ## Appendix G: Common MPI Launch Error Codes
-* **Error 139 (SIGSEGV):** Segmentation fault. Often caused by mismatched CUDA versions between compiled NCCL libraries and the runtime driver.
-* **Error 137 (SIGKILL):** OOM Killer. The Linux kernel killed the MPI process because it consumed all system RAM (not GPU VRAM). Check dataloader worker memory usage.
-* **Error 143 (SIGTERM):** Graceful termination signal sent by Slurm when the job wall time (`--time=HH:MM:SS`) expires.
+* **Exit code 139 (128 + SIGSEGV):** Segmentation fault. One possible cause is mismatched CUDA versions between compiled NCCL libraries and the runtime driver.
+* **Exit code 137 (128 + SIGKILL):** Frequently the Linux OOM killer (confirm in `dmesg`) or a cgroup memory limit. Host RAM, not GPU VRAM, is the usual culprit. Check dataloader worker memory usage.
+* **Exit code 143 (128 + SIGTERM):** Termination signal, for example from Slurm at the time limit (followed by SIGKILL after the grace period), `scancel`, or preemption.
 
 ## Appendix H: Infiniband Subnet Manager Debugging
 * `ibstat`: Shows the state of all local IB ports (Active, Down, Initializing).
@@ -626,7 +662,7 @@ When a GPU encounters a hardware, thermal, or driver fault, it throws an XID err
 ## Appendix I: Verifying PCIe Topology with `nvidia-smi topo -m`
 To verify that NVLink and PCIe switches are correctly detected, use the topology matrix command.
 ```bash
-$ nvidia-smi topo -m
+$ nvidia-smi topo -m      # illustrative output (not captured); column set varies by system
         GPU0    GPU1    NIC0    NIC1    CPU Affinity    NUMA Affinity
 GPU0     X      NV12    PIX     SYS     0-15            0
 GPU1    NV12     X      SYS     PIX     0-15            0
@@ -643,16 +679,16 @@ If NCCL hangs on a specific node, you can trace the CUDA ioctls specifically to 
 ```bash
 strace -e trace=ioctl -p <PID_OF_PYTHON_WORKER>
 ```
-Look for `ioctl(3, _IOC(_IOC_READ|_IOC_WRITE, 0x46, 0x2a, 0x20))` which are the low-level calls to `/dev/nvidiactl` and `/dev/nvidia0`. A hang here indicates the GPU has crashed at the driver level (usually accompanied by an XID).
+You will see `ioctl` calls on file descriptors for `/dev/nvidiactl` and `/dev/nvidia*`. A process stuck in one of these calls points at the driver; check `dmesg` for Xid messages.
 
 ## Appendix K: Multi-Rail Networking Deep Dive
 In massive systems like DGX SuperPODs, a single node does not use a single 400G network connection; it uses multiple. This is termed "Multi-Rail".
 - A standard DGX H100 has 8 separate ConnectX-7 adapters (one per GPU).
-- These 8 HCAs are connected to 8 separate InfiniBand leaf switches (called "Rails" or "Planes").
-- This means GPU 0 only talks on Rail 0, and GPU 1 only talks on Rail 1.
-- Why? It creates a non-blocking fabric. If GPU 0 on Node A needs to talk to GPU 0 on Node B, it goes through Leaf Switch 0. It never competes for bandwidth with GPU 1 talking to GPU 1 on Leaf Switch 1.
+- In a rail-optimized topology, HCA N of every node connects to the same leaf switch (rail N).
+- NCCL pairs each GPU with its nearest HCA, so GPU 0 traffic to GPU 0 on another node stays on rail 0.
+- Why? Same-index GPUs communicate through a single leaf hop without competing with other rails.
 
-When configuring Slurm or MPI in a Multi-Rail environment, it is critical that `NCCL_IB_HCA` is mapped correctly. If `NCCL_IB_HCA=mlx5_0,mlx5_1...` is in the wrong order relative to the GPUs, NCCL will route GPU 0 traffic out of HCA 1, crossing the PCIe switch and destroying performance.
+When configuring Slurm or MPI in a Multi-Rail environment, it is critical that `NCCL_IB_HCA` is mapped correctly. NCCL normally matches GPUs to HCAs by PCIe locality; if you hardcode `NCCL_IB_HCA`, make sure it lists the right devices (and that the list is not inconsistent with the topology), or you can force traffic over a distant HCA and hurt performance.
 
 ## Appendix L: Diagnosing Memory Registration (MR) Limits
 RDMA requires physical memory pages to be "pinned" (locked in physical RAM so the OS doesn't page them out to disk). This is called Memory Registration.
@@ -694,7 +730,7 @@ Check its CPU affinity using `taskset`:
 ```bash
 taskset -cp <PID>
 ```
-Output: `pid 12345's current affinity list: 0-15`
+Example output: `pid 12345's current affinity list: 0-15`
 If the list shows all cores (e.g. `0-127`), Slurm cgroup binding failed, and the OS scheduler is freely migrating the process across sockets.
 
 ## Appendix Q: Validating OpenMPI Installations
@@ -703,11 +739,11 @@ To ensure your HPC-X or OpenMPI installation actually has RDMA and UCX support c
 ompi_info | grep pml
 ompi_info | grep btl
 ```
-You should see `pml:ucx` and `btl:openib`. If they are missing, the MPI library was compiled without InfiniBand headers (`libibverbs-dev`), and it will silently fall back to TCP over Ethernet.
+You should see a `pml: ucx` entry (the `openib` BTL was removed in OpenMPI 5, so its absence is expected there). If they are missing, the MPI library was compiled without InfiniBand headers (`libibverbs-dev`), and it will silently fall back to TCP over Ethernet.
 
 ## Appendix R: Understanding `MPI_Barrier`
 `MPI_Barrier(MPI_COMM_WORLD)` is a function that forces all ranks to wait until every single rank has reached the barrier.
-In AI training, PyTorch inserts implicit barriers during `all_reduce`. If Rank 0 takes 1 second to compute the forward pass, and Rank 1 takes 5 seconds, Rank 0 will sit completely idle at the `all_reduce` barrier for 4 seconds.
+In AI training, `all_reduce` acts as a synchronization point across ranks. If Rank 0 takes 1 second to compute the forward pass, and Rank 1 takes 5 seconds, Rank 0 will sit completely idle at the `all_reduce` barrier for 4 seconds.
 This is known as "Straggler Effect". 
 Use Nsight Systems to find the straggler node, and then check that node for:
 1. CPU throttling (Thermal issues).
@@ -723,7 +759,4 @@ cma_roce_mode -d mlx5_0 -p 1 -m 2
 This forces the NIC to trust DSCP headers for QoS queues and sets the RoCE version to v2 (UDP).
 
 ## Appendix T: NCCL Tree vs Ring Tradeoffs in Large Models
-For models like GPT-3 (175B), Pipeline Parallelism splits the model across nodes.
-Within a single pipeline stage (Data Parallelism), gradients are extremely large. NCCL will prefer **Ring All-Reduce**.
-For small synchronization steps (like broadcasting global loss), NCCL will prefer **Tree**.
-Monitoring `NCCL_ALGO` in the debug logs will show NCCL dynamically swapping between them thousands of times per second.
+NCCL chooses the algorithm and protocol per operation from message size, rank count, and topology; as a rule of thumb large gradient all-reduces favor Ring (bandwidth) and small, latency-bound operations at scale favor Tree. Treat this as a heuristic and verify with nccl-tests (`NCCL_ALGO=Ring` versus `Tree`) on your fabric rather than assuming.

@@ -24,11 +24,11 @@ nim-broken-abc123    0/1     ImagePullBackOff   0          3m
 ```bash
 # Get the deployment to see what it's trying to pull
 kubectl describe pod nim-broken-abc123 | grep Image:
-# Output: Image: nvcr.io/nvidia/nim/llama2-7b:1.0.5
+# Illustrative output (not captured): Image: nvcr.io/nim/meta/llama3-8b-instruct:1.0.5
 
 # Get the exact image hash from the registry (if it exists)
 # First, check if this tag exists at all
-curl -I https://nvcr.io/v2/nvidia/nim/llama2-7b/manifests/1.0.5 \
+curl -I https://nvcr.io/v2/nim/meta/llama3-8b-instruct/manifests/1.0.5 \
   -H "Authorization: Bearer $NGC_API_TOKEN"
 # 200 OK = tag exists
 # 404 Not Found = tag doesn't exist (misspelled?)
@@ -37,13 +37,15 @@ curl -I https://nvcr.io/v2/nvidia/nim/llama2-7b/manifests/1.0.5 \
 # Record findings in evidence file
 cat >> troubleshooting-evidence.txt <<EOF
 Step 1: Image reference
-  Pod is trying to pull: nvcr.io/nvidia/nim/llama2-7b:1.0.5
+  Pod is trying to pull: nvcr.io/nim/meta/llama3-8b-instruct:1.0.5
   Tag exists in NGC: YES (200 OK response)
   Next step: Check entitlement
 EOF
 ```
 
 ## Step 2: Verify Entitlement and Token Scope
+
+> **Caveat:** The `api.ngc.nvidia.com` REST paths below are illustrative and are not confirmed against NVIDIA documentation, and the REST API may not accept a raw API key as a bearer token. The documented, reliable credential test is a registry login: `docker login nvcr.io --username '$oauthtoken' --password "$NGC_API_KEY"` followed by `docker pull` of the NIM image. Treat the curl calls as a pattern for HTTP-level diagnosis, not as verified endpoints.
 
 ```bash
 # Check if NGC token is valid
@@ -57,7 +59,7 @@ curl -H "Authorization: Bearer $NGC_API_TOKEN" \
 curl -s -H "Authorization: Bearer $NGC_API_TOKEN" \
   https://api.ngc.nvidia.com/v2/user/profile | jq .
 
-# Expected output (if token is valid):
+# Illustrative output (not captured) (if token is valid):
 # {
 #   "name": "your-ngc-account",
 #   "status": "active",
@@ -106,7 +108,7 @@ curl -I https://nvcr.io/v2/
 
 # Registry reachability (authenticated)
 curl -I -H "Authorization: Bearer $NGC_API_TOKEN" \
-  https://nvcr.io/v2/nvidia/nim/llama2-7b/manifests/1.0.5
+  https://nvcr.io/v2/nim/meta/llama3-8b-instruct/manifests/1.0.5
 # Expected: 200 OK
 # If: 401 Unauthorized → token wrong (step 2 should have caught this)
 # If: Connection refused → firewall blocking outbound HTTPS
@@ -162,7 +164,7 @@ EOF
 ```bash
 # Which node is the pod on? (or trying to run on?)
 kubectl get pod nim-broken-abc123 -o wide
-# Output: nim-broken-abc123 ... gpu-node-0
+# Illustrative output (not captured): nim-broken-abc123 ... gpu-node-0
 
 # SSH to that node (or use kubectl debug)
 kubectl debug node/gpu-node-0 -it --image=ubuntu:22.04 -- bash
@@ -198,12 +200,12 @@ EOF
 ```bash
 # Get detailed pod events
 kubectl describe pod nim-broken-abc123 | grep -A 10 "Events:"
-# Example output:
+# Illustrative output (not captured):
 # Events:
 #   Type     Reason                 Age   From               Message
 #   ----     ------                 ----  ----               -------
 #   Normal   Scheduled              5m    default-scheduler  Successfully assigned to gpu-node-0
-#   Warning  Failed                 5m    kubelet            Failed to pull image "nvcr.io/nvidia/nim/llama2-7b:1.0.5": rpc error: code = Unknown desc = failed to pull and unpack image ...: failed to resolve reference "nvcr.io/nvidia/nim/llama2-7b:1.0.5": pull access denied, repository does not exist or may require "...
+#   Warning  Failed                 5m    kubelet            Failed to pull image "nvcr.io/nim/meta/llama3-8b-instruct:1.0.5": rpc error: code = Unknown desc = failed to pull and unpack image ...: failed to resolve reference "nvcr.io/nim/meta/llama3-8b-instruct:1.0.5": pull access denied, repository does not exist or may require "...
 
 # Parse the error:
 # "pull access denied" → usually entitlement or token (step 2)
@@ -237,7 +239,7 @@ kubectl create namespace troubleshooting-test
 # Use the exact same image, but with debug flags
 kubectl run nim-test -it \
   --namespace=troubleshooting-test \
-  --image=nvcr.io/nvidia/nim/llama2-7b:1.0.5 \
+  --image=nvcr.io/nim/meta/llama3-8b-instruct:1.0.5 \
   --image-pull-policy=Always \
   -- nvidia-smi
 
@@ -264,7 +266,7 @@ kubectl create secret docker-registry ngc-secret-invalid \
 # Deploy with broken secret
 kubectl run nim-broken-token -it \
   --namespace=troubleshooting-test \
-  --image=nvcr.io/nvidia/nim/llama2-7b:1.0.5 \
+  --image=nvcr.io/nim/meta/llama3-8b-instruct:1.0.5 \
   --overrides='{"spec":{"imagePullSecrets":[{"name":"ngc-secret-invalid"}]}}' \
   -- echo "test"
 
@@ -283,7 +285,7 @@ kubectl create secret docker-registry docker-secret \
 # Deploy trying to pull from docker.io (wrong registry)
 kubectl run nim-wrong-registry -it \
   --namespace=troubleshooting-test \
-  --image=nvcr.io/nvidia/nim/llama2-7b:1.0.5 \
+  --image=nvcr.io/nim/meta/llama3-8b-instruct:1.0.5 \
   --overrides='{"spec":{"imagePullSecrets":[{"name":"docker-secret"}]}}' \
   -- echo "test"
 
@@ -326,7 +328,7 @@ kubectl logs -l app=nim-deployment --tail=20 | grep -i "model\|readiness\|ready"
 
 # 7. Test inference
 kubectl port-forward svc/nim-deployment 8000:8000 &
-curl http://localhost:8000/v1/health
+curl http://localhost:8000/v1/health/ready
 ```
 
 ## Evidence Collection Checklist

@@ -142,7 +142,7 @@ flowchart LR
 ```bash
 # 1. Verify DCGM is installed and the daemon is running
 dcgmi diag -r 1
-# Output will show all GPUs and basic health status
+# Illustrative output (not captured): will show all GPUs and basic health status
 
 # 2. Export metrics via DCGM exporter
 docker run -d --gpus all --net=host nvidia/dcgm-exporter:latest
@@ -152,7 +152,7 @@ docker run -d --gpus all --net=host nvidia/dcgm-exporter:latest
 curl http://localhost:9400/metrics | head -20
 ```
 
-**Real sample output:**
+**Illustrative output (not captured):**
 
 ```text
 # HELP DCGM_FI_DEV_GPU_TEMP GPU temperature (in C).
@@ -246,7 +246,7 @@ nsys profile -t cuda,cudnn,cublas --gpu-metrics-device all python train.py
 # Generates report: report1.nsys-rep (can be analyzed in Nsight UI or CLI)
 ```
 
-**Real sample trace output (simplified):**
+**Illustrative output (not captured) (simplified):**
 
 ```
 Kernel: matmul_kernel_fp32

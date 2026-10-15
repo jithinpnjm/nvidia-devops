@@ -49,8 +49,8 @@ When an Ethernet frame arrives at the physical port of the Network Interface Car
    - The hard IRQ handler disables further NIC interrupts for that queue.
    - It schedules a software interrupt (`NET_RX_SOFTIRQ`).
 5. **SoftIRQ Polling:** The softirq runs (visible as `ksoftirqd` processes or high `si` time in `top`). It polls the Rx Ring via the driver's NAPI `poll()` function, retrieving packets in batches (up to `netdev_budget`, default 300).
-6. **SKB Allocation:** For each packet, the kernel allocates an `sk_buff` (Socket Buffer) structure. This is the fundamental data structure for packets in the Linux kernel.
-7. **Traffic Control and XDP:** eBPF XDP (eXpress Data Path) programs run here, before the main stack. XDP can drop or redirect packets with minimal overhead. If passed, the packet enters the core stack (`netif_receive_skb`).
+6. **XDP (optional):** In native mode, eBPF XDP (eXpress Data Path) programs run inside the driver, before an `sk_buff` is allocated. XDP can drop or redirect packets with minimal overhead.
+7. **SKB Allocation and Traffic Control:** For packets that continue, the kernel allocates an `sk_buff` (Socket Buffer), the fundamental packet data structure in the Linux kernel, and the packet enters the core stack (`netif_receive_skb`), where `tc` ingress hooks can act.
 8. **Routing and Netfilter (PREROUTING):** The kernel determines if the packet is destined for a local socket or needs forwarding. It traverses the Netfilter `PREROUTING` chain (where DNAT occurs).
 9. **Local Delivery (INPUT):** If destined locally, it traverses the `INPUT` chain.
 10. **Transport Layer (TCP/UDP):** The packet reaches the TCP or UDP stack. TCP validates sequence numbers, handles acknowledgments, and places the payload into the specific socket's receive buffer.
@@ -91,9 +91,9 @@ flowchart TD
     NIC -- "Assert Interrupt" ---> HardIRQ
     HardIRQ -- "Disable IRQ & Schedule" ---> SoftIRQ
     SoftIRQ -- "Batch Read (netdev_budget)" ---> Driver
-    Driver --> SKB
-    SKB --> XDP
-    XDP --> TC
+    Driver --> XDP
+    XDP --> SKB
+    SKB --> TC
     TC --> NetfilterPre
     NetfilterPre --> Routing
     
@@ -113,7 +113,7 @@ flowchart TD
 ```
 
 :::warning NAPI Polling and SoftIRQs
-When you see a CPU core completely pegged at 100% `si` (software interrupt) in `top`, it means `ksoftirqd` is overwhelmed trying to pull packets out of the `RxRing`. This is the exact point where the ring buffer overflows and the NIC hardware begins incrementing `rx_missed_errors` and dropping packets *before* they ever reach `tcpdump`.
+When you see a CPU core completely pegged at 100% `si` (software interrupt) in `top`, it means `ksoftirqd` is overwhelmed trying to pull packets out of the `RxRing`. This is the exact point where the ring buffer overflows and the NIC hardware begins incrementing drop counters (for example `rx_missed_errors`; mlx5 uses names such as `rx_out_of_buffer` and `rx_discards_phy`) and dropping packets *before* they ever reach `tcpdump`.
 :::
 
 ### 1.2 Receive-Side Scaling (RSS) and Interrupt Affinity
@@ -142,7 +142,7 @@ When `ksoftirqd` cannot process packets fast enough, the Rx Ring Buffer fills up
 # Check current ring buffer sizes
 ethtool -g eth0
 
-# Output excerpt:
+# Illustrative output (not captured):
 # Ring parameters for eth0:
 # Pre-set maximums:
 # RX:             8192
@@ -201,7 +201,7 @@ The kernel maintains the routing table in an optimized structure called the FIB.
 ```bash
 ip -4 route show table main
 
-# Output:
+# Illustrative output (not captured):
 # default via 10.0.0.1 dev eth0 proto dhcp metric 100 
 # 10.0.0.0/24 dev eth0 proto kernel scope link src 10.0.0.50 
 # 192.168.100.0/24 via 10.0.0.2 dev eth0
@@ -284,13 +284,13 @@ When a VM on `br0` sends an ARP request, the Linux kernel encapsulates it in UDP
 
 ## 3. Sockets, TCP Internals, and Tuning at Scale
 
-TCP tuning is mandatory for maximizing bandwidth over High Bandwidth-Delay Product (BDP) networks. The default Linux TCP settings are optimized for 1Gbps WAN connections, not 400Gbps NVMe-oF data center fabrics.
+TCP tuning is mandatory for maximizing bandwidth over High Bandwidth-Delay Product (BDP) networks. The default Linux TCP buffer limits are sized for far smaller bandwidth-delay products than a 400Gbps data center fabric.
 
 ### 3.1 Advanced TCP State Machine Analytics
 
 While basic states (`ESTABLISHED`, `LISTEN`) are well known, debugging network anomalies requires deep knowledge of intermediate states.
 
-- **TIME_WAIT:** After sending the final `ACK` to close a connection, the socket stays in `TIME_WAIT` for 2*MSL (usually 60 seconds). This prevents delayed packets from the old connection from interfering with a new connection reusing the same port.
+- **TIME_WAIT:** After sending the final `ACK` to close a connection, the socket stays in `TIME_WAIT` for 2*MSL (60 seconds on Linux). This prevents delayed packets from the old connection from interfering with a new connection reusing the same port.
   - *SRE Issue:* Highly concurrent proxies run out of ephemeral ports because thousands of sockets are stuck in `TIME_WAIT`.
   - *Fix:* Increase local port range: `sysctl -w net.ipv4.ip_local_port_range="1024 65535"`. Use connection pooling.
 - **SYN_RECV:** Indicates the host received a `SYN` and sent a `SYN-ACK` but never received the final `ACK`. 
@@ -303,18 +303,18 @@ While basic states (`ESTABLISHED`, `LISTEN`) are well known, debugging network a
 
 Congestion control determines how aggressively TCP scales up its transmission rate and how it reacts to congestion.
 
-**CUBIC (Legacy Default):**
+**CUBIC (the Linux default):**
 - **Loss-based.** It increases the sending window until a packet is dropped.
 - When a packet drops, it assumes the network is congested and drastically cuts the window size.
 - *Problem:* In modern networks with deep buffers, it causes "bufferbloat" (filling buffers and adding massive latency before dropping). In shallow-buffer AI switches, a single microburst drop causes CUBIC to unnecessarily throttle bandwidth, taking a long time to recover to 100Gbps.
 
 **BBR (Bottleneck Bandwidth and RTT):**
 - **Model-based.** Developed by Google. It constantly measures the maximum delivery rate and minimum round-trip time.
-- It paces packets to exactly match the bottleneck bandwidth, aiming to keep switch buffers completely empty.
-- *Result:* Maximum throughput and minimum latency, even in the presence of minor packet loss. Highly recommended for AI node tuning.
+- It paces packets to exactly match the bottleneck bandwidth, aiming to keep standing queues in switch buffers small.
+- *Result:* Maximum throughput and minimum latency, even in the presence of minor packet loss. BBR is a reasonable option for WAN or storage-client traffic; validate it against CUBIC on your own workload, since results depend on the path and kernel version.
 
 ```bash
-# Enable BBR (requires fq qdisc)
+# Enable BBR (fq is the traditional pairing; kernels since 4.13 can pace internally)
 sysctl -w net.core.default_qdisc=fq
 sysctl -w net.ipv4.tcp_congestion_control=bbr
 ```
@@ -339,7 +339,7 @@ sysctl -w net.ipv4.tcp_wmem="4096 65536 134217728" # 128MB Max Tx
 sysctl -w net.core.rmem_max=134217728
 sysctl -w net.core.wmem_max=134217728
 
-# TCP Window Scaling (RFC 1323) must be on (it is by default)
+# TCP Window Scaling (RFC 7323) must be on (it is by default)
 sysctl -w net.ipv4.tcp_window_scaling=1
 ```
 
@@ -356,7 +356,7 @@ While optimized TCP is great for storage and management, GPU-to-GPU communicatio
 
 ### 4.1 The TCP/IP CPU Bottleneck
 
-At 400Gbps, a CPU core is entirely consumed just processing headers, calculating checksums, and handling interrupts. Furthermore, data must be copied from user-space (GPU RAM) to kernel-space, then to the NIC. This introduces latency jitter and limits maximum throughput.
+At 400Gbps, a CPU core is entirely consumed just processing headers, calculating checksums, and handling interrupts. Furthermore, data must be copied from user-space (host RAM) to kernel-space, then to the NIC. This introduces latency jitter and limits maximum throughput.
 
 ### 4.2 Remote Direct Memory Access (RDMA)
 
@@ -393,7 +393,7 @@ flowchart LR
 ```
 
 :::info UDP Source Port Entropy
-Notice the UDP Header in RoCEv2. The Destination Port is fixed at 4791, but the Source Port is dynamically generated based on a hash of the internal InfiniBand Queue Pair Number (QPN). This entropy is critical: it allows the data center's ECMP switches to hash different RoCEv2 flows across multiple physical spines, achieving true load balancing.
+Notice the UDP Header in RoCEv2. The Destination Port is fixed at 4791, but the Source Port is dynamically generated typically derived from a hash of per-flow values such as the Queue Pair numbers. This entropy is critical: it allows the data center's ECMP switches to hash different RoCEv2 flows across multiple physical spines, achieving true load balancing.
 :::
 
 Because it uses IP and UDP, RoCEv2 is fully routable across standard spine-leaf topologies using ECMP (Equal-Cost Multi-Path) routing, heavily utilizing UDP source port entropy for load balancing.
@@ -411,6 +411,8 @@ At 400Gbps, using 1500-byte frames requires processing ~33 million packets per s
 # Set MTU using iproute2
 ip link set dev enp1s0f0 mtu 9000
 ```
+Note that the RoCE/InfiniBand active MTU is capped at 4096 bytes, so the NIC reports an RDMA MTU of 4096 even when the Ethernet MTU is 9000.
+
 *Architecture Warning:* MTU must be identical end-to-end. If a host sends an MTU 9000 packet and a switch port is set to MTU 1500, the switch silently drops the packet.
 
 ### 4.5 Lossless Ethernet: PFC and ECN
@@ -419,7 +421,7 @@ RDMA relies on a lossless fabric. If Ethernet drops a packet, RoCEv2 relies on G
 
 **1. Priority Flow Control (PFC - IEEE 802.1Qbb):**
 - Link-level flow control.
-- When a switch's receive buffer fills, it sends a PFC "PAUSE" frame to the sender for a specific traffic class (DSCP value, usually DSCP 26 for RoCE).
+- When a switch's receive buffer fills, it sends a PFC "PAUSE" frame to the sender for a specific traffic class (a priority mapped from PCP or DSCP; DSCP 26 is a common choice for RoCE in NVIDIA reference configurations).
 - The sender stops transmitting for a specified time.
 - *Risk:* Can cause "Head-of-Line Blocking" and cascading "PFC Storms" that lock up the entire fabric.
 
@@ -441,7 +443,7 @@ sequenceDiagram
 ```
 
 :::tip Tuning ECN vs PFC
-Soft throttling without hard pauses is the goal. Modern NVIDIA AI factories tune ECN thresholds on their Spectrum switches to trigger *before* PFC is ever needed. If your `ethtool` counters show millions of `rx_pause_ctrl_frames`, your ECN thresholds are misconfigured or too high, forcing the fabric to rely on brutal L2 pauses.
+Soft throttling without hard pauses is the goal. Modern NVIDIA AI factories tune ECN thresholds on their Spectrum switches to trigger *before* PFC is ever needed. If your `ethtool -S` counters show rapidly growing pause counters (for example `rx_pause_ctrl_phy` or the per-priority `rx_prioN_pause` counters on mlx5), your ECN thresholds are misconfigured or too high, forcing the fabric to rely on brutal L2 pauses.
 :::
 
 ### 4.6 Validating RDMA and RoCEv2
@@ -452,13 +454,15 @@ SREs use `rdma-core` utilities to validate fabrics.
 # Show RDMA devices and their status
 ibv_devinfo
 
+# Illustrative output (not captured):
 # hca_id: mlx5_0
 #         port:   1
 #                 state:                  PORT_ACTIVE (4)
 #                 link_layer:             Ethernet
 
-# Check for RDMA traffic counters
-ethtool -S enp1s0f0 | grep -i roce
+# Check RDMA counters (RoCE counters live in the RDMA subsystem, not usually ethtool)
+rdma statistic show
+cat /sys/class/infiniband/mlx5_0/ports/1/hw_counters/*
 ```
 
 To run a true hardware-to-hardware throughput test, bypassing the kernel:
@@ -489,7 +493,7 @@ It operates using a hash table in memory.
 
 ### 5.2 Conntrack Exhaustion (The Silent Killer)
 
-If the conntrack table fills up, the kernel silently drops new connection attempts. This is the #1 cause of intermittent network timeouts in heavy production clusters.
+If the conntrack table fills up, the kernel silently drops new connection attempts. This is a common cause of intermittent network timeouts on busy NAT and Kubernetes nodes.
 
 ```bash
 # Check current count
@@ -502,7 +506,7 @@ cat /proc/sys/net/netfilter/nf_conntrack_max
 `nf_conntrack: table full, dropping packet`
 
 **SRE Tuning Solution:**
-Increase the max table size, but you *must* also increase the hash size to prevent hash collisions (which cause high CPU load during lookups).
+Increase the max table size, and also size the hash table (buckets) accordingly to limit hash collisions (which cause high CPU load during lookups).
 
 ```bash
 # Set hash size (usually max / 4 or max / 8)
@@ -570,7 +574,7 @@ DNS primarily uses UDP. UDP has no built-in retransmission. If a DNS query is dr
 
 ## 7. Security: TLS Offload, kTLS, and Encryption
 
-Encrypting 100Gbps+ of data via TLS or IPsec consumes immense CPU resources. A single core can typically only handle a few Gbps of AES-GCM encryption, even with AES-NI hardware instructions.
+Encrypting 100Gbps+ of data via TLS or IPsec consumes immense CPU resources. A single core can sustain only a modest fraction of a 100Gbps link in software TLS or IPsec, even with AES-NI instructions (the exact rate depends on CPU and cipher).
 
 ### 7.1 Kernel TLS (kTLS)
 
@@ -579,7 +583,7 @@ Kernel TLS (kTLS) allows the user-space application to perform the handshake, bu
 
 ### 7.2 Hardware TLS Offload (DPUs/SmartNICs)
 
-Modern NVIDIA BlueField DPUs (Data Processing Units) support hardware kTLS offload. The Linux kernel passes the keys down to the NIC hardware. The data travels unencrypted across the PCIe bus, and the NIC encrypts it at line rate just before putting it on the wire. This provides encryption with zero host CPU overhead, allowing full 400Gbps line-rate IPsec or TLS.
+Some NVIDIA ConnectX adapters and BlueField DPUs support hardware kTLS and IPsec offload (check the model and driver documentation). The Linux kernel passes the keys down to the NIC hardware. The data travels unencrypted across the PCIe bus, and the NIC encrypts it at line rate just before putting it on the wire. This moves the cryptographic work off the host CPU; achievable line rate depends on the adapter model.
 
 ---
 
@@ -593,7 +597,7 @@ Capturing packets is standard; understanding advanced flags is senior.
 
 ```bash
 # Capture full packet payload on eth0, don't resolve IPs/ports, write to pcap
-tcpdump -i eth0 -n -nn -s 0 -w capture.pcap
+tcpdump -i eth0 -nn -s 0 -w capture.pcap
 
 # Capture only TCP SYN and FIN packets (troubleshoot connection establishment/teardown)
 tcpdump -i eth0 'tcp[tcpflags] & (tcp-syn|tcp-fin) != 0'
@@ -625,10 +629,10 @@ When `tcpdump` is too heavy for a 100Gbps link, eBPF allows tracing kernel funct
 
 ```bash
 # Trace TCP retransmits system-wide using a bpftrace one-liner
-bpftrace -e 'kprobe:tcp_retransmit_skb { printf("Retransmit: %s:%d\\n", ntop(arg0), arg1); }'
+bpftrace -e 'kprobe:tcp_retransmit_skb { @retrans[comm] = count(); }'
 
-# Trace DNS query latency
-bpftrace -e 'tracepoint:syscalls:sys_enter_connect { @start[tid] = nsecs; } tracepoint:syscalls:sys_exit_connect /@start[tid]/ { @ms = (nsecs - @start[tid]) / 1000000; printf("Connect ms: %d\\n", @ms); delete(@start[tid]); }'
+# Trace connect() latency per call
+bpftrace -e 'tracepoint:syscalls:sys_enter_connect { @start[tid] = nsecs; } tracepoint:syscalls:sys_exit_connect /@start[tid]/ { $ms = (nsecs - @start[tid]) / 1000000; printf("connect ms: %d\n", $ms); delete(@start[tid]); }'
 ```
 
 ### 8.4 ethtool Hardware Counters
@@ -658,7 +662,7 @@ watch -d 'ethtool -S enp1s0f0 | grep -E "rx_missed|crc|pause|roce"'
 **Investigation:** 
 - `ping` works. `telnet port 5432` works.
 - `tcpdump` shows the three-way handshake (`SYN`, `SYN-ACK`, `ACK`) succeeds.
-- The server sends a massive packet (length 1514). It never arrives at the client.
+- The server sends a full-sized packet (larger than 1500 bytes on the wire). It never arrives at the client.
 **Diagnosis:** The server interface has MTU 9000. Somewhere in the middle, a router has MTU 1500. The router drops the packet and sends an ICMP "Fragmentation Needed" message back. However, an aggressive firewall blocks all ICMP traffic. The server never gets the ICMP message, so it never shrinks the packet size. This is a Path MTU Discovery (PMTUD) Blackhole.
 **Resolution:** Fix the MTU mismatch, allow ICMP Type 3 Code 4 through firewalls, or enable TCP MSS Clamping.
 
@@ -671,6 +675,7 @@ iptables -t raw -A PREROUTING -s 10.0.0.5 -j TRACE
 # Tail the kernel log
 dmesg -w
 ```
+(On modern kernels the TRACE target logs only if a netfilter log backend is loaded, for example `modprobe nf_log_ipv4` and `sysctl net.netfilter.nf_log.2=nf_log_ipv4`; with nftables use `nft monitor trace`.)
 **Diagnosis:** You see the packet traverse `PREROUTING`, enter `INPUT`, and hit rule #45 in the `filter` table, which is a `DROP` rule that was misconfigured by an automated process.
 
 ### Scenario 4: Interview Question - Zero Copy
@@ -696,7 +701,7 @@ Mastering Linux networking at the scale of NVIDIA AI Factories requires transcen
 By tuning MTU, BBR, Ring Buffers, and deeply understanding the failure modes of the TCP/IP stack, Infrastructure Engineers ensure that multi-million dollar GPU clusters spend their time computing, not waiting on the network.
 
 ### Cross-References
-- To understand how container overlay networks map to these host fundamentals, see `Volume 1, Chapter 5: Namespaces and Cgroups`.
+- To understand how container overlay networks map to these host fundamentals, see `Volume 1, Chapter 4: Systemd, Cgroups, and Containers`.
 - For storage IO performance, which relies heavily on tuned TCP, refer to `Volume 1, Chapter 2: Storage IO Masterclass`.
 
 ### Authoritative Further Reading
@@ -733,7 +738,7 @@ If both `eth0` and `eth1` connect to the same physical switch, the switch itself
 
 ### 11.3 Multi-Homing in RoCEv2 (Alternative to Bonding)
 
-Because LACP cannot stripe a single flow across multiple links, RoCEv2 architectures often avoid bonding entirely for data traffic. Instead, they use multiple independent IP addresses on different subnets (e.g., `mlx5_0` on 192.168.10.x, `mlx5_1` on 192.168.20.x). MPI and NCCL are intelligent enough to stripe the data across multiple NICs natively at the application layer, achieving true 800Gbps (2x400) throughput.
+Because LACP cannot stripe a single flow across multiple links, RoCEv2 architectures often avoid bonding entirely for data traffic. Instead, they use multiple independent IP addresses on different subnets (e.g., `mlx5_0` on 192.168.10.x, `mlx5_1` on 192.168.20.x). MPI and NCCL are intelligent enough to stripe the data across multiple NICs natively at the application layer, aggregating bandwidth across both NICs.
 
 ## 12. Software-Defined Networking (SDN) and Open vSwitch (OVS)
 
@@ -759,13 +764,13 @@ ovs-dpctl dump-flows
 ### 12.2 OVS Hardware Offload (TC Flower)
 
 Modern SmartNICs can offload OVS datapath rules directly into hardware using Linux Traffic Control (TC) Flower classifier.
-When `ovs-vswitchd` programs the kernel datapath, the kernel simultaneously programs the NIC's eSwitch hardware. Subsequent packets are switched entirely in hardware, achieving zero CPU utilization for overlay networking.
+When `ovs-vswitchd` programs the kernel datapath, the kernel simultaneously programs the NIC's eSwitch hardware. Subsequent packets are switched entirely in hardware, greatly reducing host CPU use for overlay networking.
 
 ## 13. Advanced Netfilter: iptables vs. nftables
 
 The legacy `iptables` uses sequential rule evaluation. If you have 10,000 rules, a packet might have to be checked against 9,999 rules before being accepted.
 
-`nftables` is the modern replacement in the Linux kernel. It compiles rules into a pseudo-state machine, allowing constant-time O(1) lookups using sets and maps (dictionaries).
+`nftables` is the modern replacement in the Linux kernel. It compiles rules into a pseudo-state machine, providing efficient set and map lookups (hash-based or interval-tree-based) instead of walking a linear rule list.
 
 ```bash
 # nftables syntax for dropping a large set of IPs efficiently
@@ -801,12 +806,12 @@ A `veth` pair acts like a virtual patch cable. What goes in one end comes out th
 
 ### Scenario 6: The veth CPU Bottleneck
 **Symptom:** A Kubernetes pod doing heavy network I/O is capping out at ~15Gbps, even though the host has a 100GbE NIC. The host CPU shows a single core at 100% `si` (softirq).
-**Diagnosis:** Standard `veth` interfaces do not support multi-queue (RSS) natively in the same way physical hardware does. All traffic crossing the `veth` pair is processed by a single kernel thread on a single CPU core.
+**Diagnosis:** Traffic crossing a `veth` pair is processed in softirq context on the CPU that handles the flow, and a single flow cannot be spread across cores, so a single heavy flow can saturate one core. Throughput figures vary widely by kernel version and configuration.
 **Resolution:** Use a CNI that supports SR-IOV (Single Root I/O Virtualization) or IPVLAN. SR-IOV creates virtual hardware functions (VFs) on the physical NIC, which are passed directly into the container namespace, bypassing `veth` and the host kernel entirely.
 
 ### Scenario 7: Time Synchronization and PTP
 **Symptom:** Distributed database transactions are failing due to clock skew, despite NTP running on all nodes.
-**Diagnosis:** NTP (Network Time Protocol) operates at the application layer over UDP and is subject to variable network latency and OS scheduling jitter. It can only guarantee millisecond accuracy. Modern distributed systems (and 5G teleco) require microsecond accuracy.
+**Diagnosis:** NTP (Network Time Protocol) operates at the application layer over UDP and is subject to variable network latency and OS scheduling jitter. Typical NTP accuracy is in the sub-millisecond to millisecond range. Some distributed systems (and 5G telecom) need microsecond-level accuracy or better.
 **Resolution:** Deploy PTP (Precision Time Protocol - IEEE 1588). PTP uses hardware timestamping on the NIC (the NIC records the exact nanosecond the packet hits the wire) and specialized switch configurations (Boundary Clocks) to achieve sub-microsecond synchronization.
 ```bash
 # Verify NIC supports hardware timestamping
@@ -837,9 +842,9 @@ The Linux Traffic Control (TC) subsystem is the engine behind Quality of Service
 ### 16.1 Classless vs. Classful Qdiscs
 
 - **Classless Qdiscs:** Apply to the entire interface.
-  - `pfifo_fast`: The legacy default. A simple 3-band queue based on the IP ToS (Type of Service) byte.
+  - `pfifo_fast`: The legacy kernel default (many modern distributions set `fq_codel` instead). A simple 3-band queue based on the IP ToS (Type of Service) byte.
   - `fq_codel` (Fair Queuing Controlled Delay): The modern default for general purpose servers. It automatically creates separate queues for every flow and prioritizes sparse flows (like SSH or ICMP) over bulk flows (like large downloads), drastically reducing bufferbloat.
-  - `fq` (Fair Queuing): Strictly required for the BBR TCP congestion control algorithm. It paces packets out of the interface to avoid overwhelming micro-buffers on network switches.
+  - `fq` (Fair Queuing): The traditional pairing for the BBR congestion control algorithm (kernels since 4.13 can also pace internally). It paces packets out of the interface to avoid overwhelming micro-buffers on network switches.
 
 - **Classful Qdiscs:** Allow you to create complex hierarchies of queues with different rules.
   - `HTB` (Hierarchical Token Bucket): Used for strict bandwidth shaping. You can define a parent class with 10Gbps limit, and child classes for web traffic (5Gbps) and storage traffic (5Gbps), allowing them to borrow bandwidth from each other if one is idle.
@@ -865,15 +870,15 @@ While RoCEv2 runs over standard Ethernet, NVIDIA's Quantum InfiniBand remains th
 
 ### 17.1 The Subnet Manager (SM)
 - **Ethernet (RoCEv2):** Relies on distributed routing protocols like BGP or OSPF. Every switch computes its own routing table. Convergence during a link failure takes milliseconds to seconds.
-- **InfiniBand:** Uses a centralized Subnet Manager (SM), typically `opensm` running on a switch or a dedicated management node. The SM has a god-view of the entire fabric. It computes all paths and pushes the forwarding tables to the switches. Convergence is microsecond-fast, but the SM represents a single point of failure (hence, High Availability SM setups are required).
+- **InfiniBand:** Uses a centralized Subnet Manager (SM), typically `opensm` running on a switch or a dedicated management node. The SM has a god-view of the entire fabric. It computes all paths and pushes the forwarding tables to the switches. Failover and reroute after a link failure depend on the SM detecting the change and reprogramming forwarding tables (typically sub-second to seconds, depending on fabric size and configuration), and the SM represents a single point of failure (hence, High Availability SM setups are required).
 
 ### 17.2 Credit-Based Flow Control
 - **Ethernet (RoCEv2):** Uses PFC (Priority Flow Control). A receiver sends a "Pause" frame *after* its buffers hit a certain threshold. It is reactive.
-- **InfiniBand:** Uses absolute credit-based flow control. A sender *cannot* transmit a packet unless it knows the receiver has a buffer available. It is proactive and mathematically guarantees zero buffer overruns and zero dropped packets due to congestion.
+- **InfiniBand:** Uses absolute credit-based flow control. A sender *cannot* transmit a packet unless it knows the receiver has a buffer available. It is proactive: the fabric is lossless by design, so congestion shows up as back-pressure (and possible congestion spreading) instead of drops.
 
 ### 17.3 Adaptive Routing (AR)
 - **Ethernet (ECMP):** Traffic is hashed across multiple paths. A single flow is locked to a single path. If that path is congested, the flow suffers, even if another path is completely idle (Elephant Flow problem).
-- **InfiniBand Adaptive Routing:** The switch dynamically evaluates congestion on a packet-by-packet basis. It can scatter packets belonging to the same flow across multiple paths and reassemble them at the destination switch (using NVIDIA SHARP or advanced switch silicon). This yields 100% link utilization without Hash Polarization.
+- **InfiniBand Adaptive Routing:** The switch dynamically evaluates congestion on a packet-by-packet basis. It can steer packets belonging to the same flow across multiple paths, with the receiving adapter handling any resulting reordering. This improves link utilization and reduces hash polarization compared with static ECMP hashing.
 
 ## 18. The Evolution: Spectrum-X and NVLink over Ethernet
 
@@ -884,8 +889,8 @@ Standard Ethernet cannot do per-packet Adaptive Routing because out-of-order pac
 Spectrum-X solves this: the switches perform per-packet Adaptive Routing, scattering the RoCE packets. The BlueField-3 DPU at the receiving end has a dedicated hardware reordering engine that puts the packets back in sequence before delivering them to the host GPU.
 
 ### 18.2 Direct Data Placement (DDP) and NVLink
-NVLink is NVIDIA's proprietary, ultra-high bandwidth, ultra-low latency intra-node GPU interconnect (often 900 GB/s per GPU). 
-Historically, scaling beyond a single chassis required crossing into the network domain (InfiniBand/RoCE). Newer architectures are exploring extending NVLink semantics directly over copper/optical Ethernet (NVLink Switch fabric), creating multi-rack domains that appear as a single massive memory space to the application.
+NVLink is NVIDIA's proprietary, high-bandwidth GPU interconnect (900 GB/s total per GPU on H100). 
+Scaling beyond a single chassis has traditionally required crossing into the network domain (InfiniBand/RoCE). NVLink Switch systems (for example NVL72 racks) extend an NVLink domain across multiple trays or racks; this is a separate NVLink fabric, not NVLink running over Ethernet.
 
 ## 19. Advanced Packet Drop Debugging
 
@@ -898,7 +903,7 @@ When packets go missing, `tcpdump` is useless if the drop happens *before* the p
 # Start dropwatch
 dropwatch -l kas
 
-# Output example:
+# Illustrative output (not captured):
 # 1 drops at tcp_v4_rcv+0x8c (Software drop in TCP stack)
 # 5 drops at nf_hook_slow+0x12a (Dropped by Netfilter/iptables)
 ```
@@ -930,9 +935,9 @@ When `tcpdump`ing RoCE traffic, verify that the ECT bits are actually being set 
 
 ### 20.2 The PFC Pause Frame
 A PFC Pause Frame is an L2 Ethernet MAC Control frame (EtherType 0x8808).
-It contains an 8-bit vector indicating which Priority Classes (0-7) should be paused, and a 16-bit timer value indicating how long to pause (in "quanta" of the port speed).
+It contains a priority-enable vector indicating which Priority Classes (0-7) are affected, plus a pause-time field for each of the eight priorities (in "quanta" of 512 bit times).
 
-If you see these in Wireshark, the fabric is under severe stress and ECN tuning has failed.
+Seeing occasional PFC frames is normal on a lossless fabric; sustained or growing pause counts indicate congestion and usually point to ECN tuning problems.
 
 
 ## 21. Hardware Offloads: SR-IOV and DPDK
@@ -958,7 +963,7 @@ echo 4 > /sys/class/net/enp1s0f0/device/sriov_numvfs
 
 DPDK is a set of user-space libraries designed for fast packet processing.
 Instead of relying on the kernel's NAPI to process interrupts, a DPDK application takes complete control of the NIC. It uses Poll Mode Drivers (PMDs) that run in a tight `while(true)` loop on a dedicated, pinned CPU core.
-- *Advantage:* Capable of processing 100+ million packets per second on a single core.
+- *Advantage:* Can process tens of millions of packets per second per core on suitable hardware (the rate depends on packet size, NIC, and the application).
 - *Disadvantage:* The CPU core is pinned at 100% utilization permanently, even if no traffic is flowing. The application must implement its own TCP/IP stack (or use a user-space stack like F-Stack) because the Linux kernel stack is completely bypassed.
 
 ## 22. eBPF and XDP (eXpress Data Path)
@@ -985,7 +990,7 @@ Cilium attaches eBPF programs to the `tc` (Traffic Control) ingress hooks of bot
 
 A Long Fat Network (LFN, pronounced "elephan(t)") is a network with a very high Bandwidth-Delay Product. For example, syncing a 50TB dataset from an AI factory in Virginia to a backup site in Oregon (80ms RTT over a 100Gbps link).
 
-### 23.1 TCP Window Scaling (RFC 1323)
+### 23.1 TCP Window Scaling (RFC 7323)
 
 The original TCP header only allocated 16 bits for the Window Size, allowing a maximum buffer of 65,535 bytes.
 On an LFN, 65KB is filled in microseconds. The sender must then stop and wait 80ms for an ACK, yielding a maximum throughput of a few Mbps regardless of the link speed.
@@ -996,17 +1001,16 @@ TCP Window Scaling adds a TCP Option during the `SYN` handshake. It specifies a 
 
 ### 23.2 Selective Acknowledgements (SACK) Penalty
 
-While SACK is generally good, on an extremely high BDP network, processing massive SACK blocks when packet loss occurs can actually cause a CPU bottleneck in the kernel's TCP stack (often referred to as the SACK processing nightmare). The kernel locks the socket to process the retransmission list, blocking the application.
-Advanced tuning in these rare scenarios sometimes involves tuning `tcp_sack` or migrating completely to UDP-based bulk transfer protocols like Aspera (FASP) or UDT.
+SACK is generally essential on high-BDP paths, but heavy loss with very large windows makes the sender's retransmission bookkeeping more expensive. Keep SACK enabled; for bulk transfers over lossy long-haul paths, consider parallel streams or UDP-based bulk transfer tools.
 
 ## 24. Security at Scale: MACsec
 
 As AI factories expand beyond single data centers, interconnects over dark fiber require encryption. 
-IPsec (Layer 3 encryption) and TLS (Layer 4/7) introduce massive overhead.
+IPsec (Layer 3 encryption) and TLS (Layer 4/7) add CPU overhead unless offloaded.
 
 **MACsec (IEEE 802.1AE)** operates at Layer 2. It encrypts the entire Ethernet frame payload hop-by-hop.
 - Because it operates at L2, it can easily be implemented directly in the NIC hardware (PHY layer).
-- NVIDIA ConnectX and BlueField adapters support MACsec hardware offload, allowing 400Gbps line-rate encryption with ~0µs additional latency and zero CPU impact.
+- Some NVIDIA ConnectX and BlueField adapters and switches support MACsec hardware offload, which removes the encryption cost from the host CPU (check the model documentation for supported speeds).
 - *Limitation:* It is strictly point-to-point (or point-to-multipoint on an L2 domain). It cannot route encrypted packets across an L3 Internet path like IPsec can.
 
 ## 25. The Final Solutions Architect Scenarios
@@ -1014,8 +1018,8 @@ IPsec (Layer 3 encryption) and TLS (Layer 4/7) introduce massive overhead.
 ### Scenario 11: The Phantom ARP Drops
 **Symptom:** Two hosts in the same subnet cannot communicate. `ping` returns "Destination Host Unreachable". 
 **Investigation:** `ip neigh` shows the MAC address for the destination is `INCOMPLETE`. `tcpdump` shows ARP Requests going out, and ARP Replies coming back, but the host ignores them.
-**Diagnosis:** The host has multiple interfaces on the same subnet (or overlapping subnets). Linux has a feature called `rp_filter` (Reverse Path Filtering). When the ARP reply arrives on `eth1`, but the routing table dictates the route to that IP goes out `eth0`, the kernel drops the packet as an anti-spoofing measure.
-**Resolution:** `sysctl -w net.ipv4.conf.all.rp_filter=2` (Loose mode) or `0` (Disabled).
+**Diagnosis:** The host has multiple interfaces on the same subnet. By default Linux answers ARP for any local IP on any interface ("ARP flux"), so replies can arrive on, or be sourced from, the wrong interface and the neighbor entry never completes. Separately, `rp_filter` (reverse path filtering) can drop IP packets that arrive on an interface other than the one the routing table would use for the source address.
+**Resolution:** For ARP flux, set `net.ipv4.conf.all.arp_ignore=1` and `net.ipv4.conf.all.arp_announce=2`. If `rp_filter` is dropping legitimate multi-homed traffic, use `sysctl -w net.ipv4.conf.all.rp_filter=2` (loose mode) rather than disabling it.
 
 ### Scenario 12: UDP Buffer Overflows in Syslog/StatsD
 **Symptom:** Monitoring graphs show sudden drops in metrics during peak load, but the servers are not crashing.
@@ -1033,11 +1037,6 @@ IPsec (Layer 3 encryption) and TLS (Layer 4/7) introduce massive overhead.
 **Diagnosis:** The `tcpdump` output on the receiver shows `cksum 0x1a2b (incorrect)`. The sender's NIC is supposed to calculate the checksum via hardware offload (`tx-checksumming`), but due to a driver bug, it is calculating it incorrectly. The receiver's hardware drops the packet as corrupt, but `tcpdump` (which hooks in before the drop) sees it.
 **Resolution:** Disable hardware checksum offload on the sender temporarily: `ethtool -K eth0 tx off`.
 
-### Scenario 15: The RoCEv2 Multicast Storm
-**Symptom:** Enabling RoCEv2 on a new cluster instantly causes 100% CPU utilization on all switch control planes in the pod.
-**Diagnosis:** Some MPI implementations or RDMA discovery mechanisms default to using L2 Multicast or Broadcast to find peers. If IGMP Snooping is not configured correctly on the Ethernet switches, they flood these high-rate discovery packets out of every single port, melting the switch CPUs.
-**Resolution:** Configure IGMP Snooping and an IGMP Querier on the fabric, or explicitly configure the MPI frameworks to use strict unicast IP lists for peer discovery.
-
 ---
 
 ## 26. Ultimate Conclusion
@@ -1049,15 +1048,17 @@ By mastering the kernel datapath, embracing hardware offloads, and understanding
 
 ## 27. Appendix A: Comprehensive `sysctl` Tuning Cheat Sheet
 
-For a high-performance NVIDIA AI Node (like a DGX system) acting as both a compute node and storage client, the following `sysctl.conf` block represents a battle-tested baseline. *Always test these in your specific environment.*
+For a high-performance NVIDIA AI Node (like a DGX system) acting as both a compute node and storage client, the following `sysctl.conf` block is an example starting point, not a verified recommendation. *Test every value in your specific environment.* The `nf_conntrack` keys exist only when the module is loaded, and `ip_forward`/`rp_filter` are needed only on hosts that route or run multi-homed setups.
 
 ```ini
 # /etc/sysctl.d/99-ai-factory-network.conf
 
 # --- IP Routing and Forwarding ---
+# Only on hosts that forward traffic (routers, Kubernetes nodes):
 net.ipv4.ip_forward = 1
-net.ipv4.conf.all.rp_filter = 0
-net.ipv4.conf.default.rp_filter = 0
+# Disabling rp_filter weakens anti-spoofing; prefer 2 (loose) unless needed:
+net.ipv4.conf.all.rp_filter = 2
+net.ipv4.conf.default.rp_filter = 2
 
 # --- TCP Congestion Control and Queuing ---
 net.core.default_qdisc = fq

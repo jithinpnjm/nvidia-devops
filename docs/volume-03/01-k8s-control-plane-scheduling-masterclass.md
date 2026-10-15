@@ -176,7 +176,7 @@ graph LR
 
 If the network link between AZ-A and AZ-B fails:
 - AZ-A has 2 nodes. They can form a quorum (2 >= 2). They elect a leader and continue serving requests.
-- AZ-B has 1 node. It cannot form a quorum. It will continually call for elections but fail. API servers connected to E3 will become read-only or fail.
+- AZ-B has 1 node. It cannot form a quorum. It will continually call for elections but fail. API servers that can only reach E3 will fail requests that need etcd (writes and consistent reads) until the partition heals.
 
 :::info Senior Solutions Architect Interview Question
 *Question:* "You manage a 3-node etcd cluster. One node is destroyed permanently. The cluster remains operational. A junior engineer suggests adding a new 4th node immediately to 'restore redundancy' before removing the dead node from the cluster state. What happens?"
@@ -229,11 +229,13 @@ flowchart TD
 ```
 
 1. **Queueing:** Pods wait in the scheduling queue.
-2. **Filter:** Nodes that cannot satisfy the Pod's requirements (e.g., inadequate CPU/RAM/GPUs, mismatched node selectors, missing taints) are eliminated.
+2. **Filter:** Nodes that cannot satisfy the Pod's requirements (e.g., inadequate CPU/RAM/GPUs, mismatched node selectors, untolerated taints) are eliminated.
 3. **Score:** The remaining nodes are ranked based on criteria like image locality (does the node already have the 20GB LLM image?), balanced resource allocation, and pod affinity.
 4. **Reserve:** The scheduler tentatively reserves resources on the chosen node.
-5. **Permit:** Used for gang scheduling (waiting for all pods in a job to be ready).
+5. **Permit:** Plugins can approve, deny, or delay binding here; coscheduling-style plugins use it to hold pods until the whole group can be placed.
 6. **Bind:** The scheduler tells the API server to assign the Pod to the node.
+
+The real framework has more extension points than this simplified diagram shows (QueueSort, PreFilter, PostFilter for preemption, PreScore, and PreBind/PostBind around Bind).
 
 ### 5.2 Preemption and PriorityClasses
 
@@ -325,36 +327,37 @@ spec:
         nominalQuota: 128 # 128 H100s total
 ```
 
-When a user submits a PyTorchJob, Kueue checks if 64 GPUs are available in the `cluster-queue-h100`. If only 56 are available, the Job remains in the queue, and *no* pods are created, leaving the 56 GPUs free for other smaller jobs.
+When a user submits a PyTorchJob, Kueue admits it only if the requested 64 GPUs fit within the ClusterQueue's remaining quota (here 128 nominal). Admission is quota-based; a `ResourceFlavor` named `default-flavor` and a `LocalQueue` in the user's namespace must also exist. If quota is insufficient, the Job stays suspended and *no* pods are created. To also account for real node capacity, combine Kueue with `waitForPodsReady` or a ProvisioningRequest-based admission check.
 
 ## 8. Dynamic Resource Allocation (DRA)
 
-DRA is a major paradigm shift in how Kubernetes handles specialized hardware. Instead of the simple scalar limits of the Device Plugin API (e.g., `nvidia.com/gpu: 4`), DRA introduces `ResourceClaim` and `ResourceClass`, behaving similarly to PVCs and StorageClasses.
+DRA (Dynamic Resource Allocation) is a different model from the Device Plugin API. Instead of scalar counts (e.g., `nvidia.com/gpu: 4`), devices are described in `ResourceSlice` objects published by a DRA driver, workloads request them through `ResourceClaim`/`ResourceClaimTemplate` objects, and a `DeviceClass` (analogous to a StorageClass) defines classes of devices. DRA graduated to stable in Kubernetes 1.34 (`resource.k8s.io/v1`); verify the API version supported by your cluster, since earlier releases used `v1beta1`/`v1beta2` and the original `v1alpha2` "classic" DRA with `ResourceClass` and `parametersRef` was removed.
 
 ### 8.1 Why DRA for NVIDIA GPUs?
 
-The traditional device plugin is blind to topology, networking, and specific GPU capabilities. What if you need:
-- 4 GPUs connected via NVSwitch?
-- 1 MIG (Multi-Instance GPU) slice of exactly 3g.20gb?
-- 8 GPUs with specific InfiniBand SR-IOV VFs attached to the exact same PCIe root complex?
+The traditional device plugin only counts opaque devices and cannot express attributes or relationships. What if you need:
+- GPUs selected by attribute (for example a specific product or memory size)?
+- A MIG (Multi-Instance GPU) slice of a particular profile?
+- A GPU and a NIC VF that are aligned on the same PCIe root or NUMA node?
 
-DRA allows the scheduler to call out to an NVIDIA-specific external DRA driver during the scheduling cycle.
+With structured parameters, the driver advertises devices and their attributes, and the scheduler matches claims (including CEL selectors) against them during scheduling. The NVIDIA DRA driver for GPUs provides the `gpu.nvidia.com` device class.
 
 ### 8.2 DRA Workflows
 
 ```yaml
-# Example of DRA ResourceClaimTemplate
-apiVersion: resource.k8s.io/v1alpha2
+# Illustrative ResourceClaimTemplate using the stable API; adjust names and selectors to your driver version
+apiVersion: resource.k8s.io/v1
 kind: ResourceClaimTemplate
 metadata:
   name: gpu-claim
 spec:
   spec:
-    resourceClassName: nvidia-gpu-h100
-    parametersRef:
-      apiGroup: dra.nvidia.com
-      kind: GpuAllocationPolicy
-      name: nvswitch-connected-4x
+    devices:
+      requests:
+      - name: gpu
+        exactly:
+          deviceClassName: gpu.nvidia.com
+          count: 4
 ---
 apiVersion: v1
 kind: Pod
@@ -369,56 +372,39 @@ spec:
       - name: gpus
   resourceClaims:
   - name: gpus
-    source:
-      resourceClaimTemplateName: gpu-claim
+    resourceClaimTemplateName: gpu-claim
 ```
 
 ### 8.3 Troubleshooting DRA Allocations
 
 **Scenario: DRA Claims Pending**
-*Symptom:* Pod is in `Pending` state. `kubectl describe pod` shows: `Waiting for ResourceClaim to be allocated`.
-*Root Cause:* The scheduler's DRA plugin contacted the NVIDIA DRA driver, but the driver could not fulfill the specific constraints (e.g., requested `nvswitch-connected-4x`, but no single node has 4 available GPUs on the same NVSwitch).
-*Resolution:* Inspect the `ResourceClaim` object directly. Check the events on the claim, and verify node topologies using tools like `nvidia-smi topo -m` and ensuring the DRA resource exporter has accurately updated the node's capacity.
+*Symptom:* Pod is in `Pending` state and `kubectl describe pod` shows a scheduling event about unallocated ResourceClaims.
+*Root Cause:* No node's published devices satisfy the claim (for example, a CEL selector or count that no single node can meet, or the DRA driver's kubelet plugin is not running so no `ResourceSlice` objects exist).
+*Resolution:* Inspect the `ResourceClaim` and its events (`kubectl describe resourceclaim`), list `ResourceSlice` objects to see what the driver actually advertises (`kubectl get resourceslices`), check the DRA driver pods on the node, and compare against `nvidia-smi topo -m`.
 
 ## 9. Conclusion
 
 Mastering the Kubernetes Control Plane and Scheduling is critical for AI Factory operations. By understanding the intricate dances of `ResourceVersion`, etcd quorum, Topology Management, Gang Scheduling with Kueue, and the future-proof capabilities of DRA, Platform Engineers can build resilient, high-throughput engines capable of training the next generation of massive AI models.
 
-## 10. Advanced Production Scenario 1: Deep Systems Integration
-
-Operating highly available infrastructure requires deep systems integration. In scenario 1, we explore further into edge cases and advanced scaling metrics.
-
-### 10.1 Component Failure Analysis
-
-When analyzing the API server during peak load, it is crucial to understand the interactions with the container runtime. The Kubelet acts as a bridge between the API Server and the underlying nodes.
-
-```mermaid
-graph LR
-    API[kube-apiserver] --> K[Kubelet]
-    K --> CRI[Containerd / CRI-O]
-    CRI --> RUNC[runc / nvidia-container-runtime]
-    RUNC --> KERNEL[Linux Kernel]
-```
-
-### 10.2 Deep dive into metrics
+## 10. Control Plane Metrics and API Priority and Fairness
 
 Metrics to monitor closely:
 - `apiserver_request_total`: Total number of requests.
 - `apiserver_request_duration_seconds`: Request latency.
-- `etcd_disk_wal_fsync_duration_seconds`: etcd disk sync latency. A slow disk will kill the entire cluster.
+- `etcd_disk_wal_fsync_duration_seconds`: etcd WAL fsync latency. Slow disks cause leader election churn and API latency across the whole cluster.
 - `scheduler_scheduling_algorithm_duration_seconds`: Time taken by the scheduler to find a node.
 
-In the context of scaling to 5000+ nodes, you must heavily tune APF (API Priority and Fairness) to prevent rogue operators from overwhelming the system.
+At large node counts, tune APF (API Priority and Fairness) so that one noisy client cannot starve others. A `PriorityLevelConfiguration` only takes effect when a `FlowSchema` routes requests to it.
 
 ```yaml
-apiVersion: flowcontrol.apiserver.k8s.io/v1beta3
+apiVersion: flowcontrol.apiserver.k8s.io/v1
 kind: PriorityLevelConfiguration
 metadata:
   name: ai-workload-level
 spec:
   type: Limited
   limited:
-    assuredConcurrencyShares: 50
+    nominalConcurrencyShares: 50
     limitResponse:
       type: Queue
       queuing:
@@ -426,7 +412,3 @@ spec:
         handSize: 5
         queueLengthLimit: 200
 ```
-
-### 10.3 Debugging Network Overlays
-
-Often, scheduling issues are masked as network issues. When a pod is scheduled but cannot reach the metadata server, check the CNI plugin and kube-proxy. The interactions between IPVS, iptables, and eBPF data planes are critical to understand.

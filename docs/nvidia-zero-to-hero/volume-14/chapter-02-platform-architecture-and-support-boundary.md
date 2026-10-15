@@ -47,7 +47,7 @@ flowchart TD
     GPU -->|Yes| NIM{Is NIM Pod Ready<br/>and model accessible?}
     
     NIM -->|No| Ent["Check entitlement, artifact pull, GPU memory<br/>→ Check NGC entitlement, verify container digest<br/>→ NVIDIA AI Enterprise support if qualified matrix"]
-    NIM -->|Yes| App{Does deterministic inference<br/>test pass?<br/>curl service/health}
+    NIM -->|Yes| App{Does deterministic inference<br/>test pass?<br/>curl service/v1/health/ready}
     
     App -->|No| Nim2["Model readiness, GPU memory, framework logs<br/>→ Check model logs and GPU utilization<br/>→ NIM support if matrix-qualified"]
     App -->|Yes| Perf["Latency or throughput degradation<br/>→ Inspect batching, data pipeline, network<br/>→ Customer architecture review; NVIDIA can advise<br/>on GPU utilization, not guarantee throughput"]

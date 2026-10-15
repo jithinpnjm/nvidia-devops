@@ -48,11 +48,11 @@ flowchart TD
 Most developers interact with the **Runtime API**. This is a high-level C++ API that handles the heavy lifting of GPU memory allocation (`cudaMalloc`), data transfers (`cudaMemcpy`), and thread management. It is designed to be easy to use.
 
 ### 1.2 The CUDA Driver API (`libcuda.so`)
-The Runtime API secretly compiles down into calls to the **Driver API**. The Driver API is a much lower-level C API. It provides extreme, fine-grained control over GPU contexts and memory modules. Frameworks that need absolute control (like the Triton Inference Server or specialized compilers) often bypass the Runtime API and interact with the Driver API directly.
+The Runtime API secretly compiles down into calls to the **Driver API**. The Driver API is a much lower-level C API. It provides extreme, fine-grained control over GPU contexts and memory modules. Some frameworks and compilers that need that control (for example, those that load modules or manage contexts themselves) call the Driver API directly instead of going through the Runtime API.
 
 ### 1.3 The NVIDIA Kernel Module (`nvidia.ko`)
 Both APIs ultimately send instructions down into the Linux Kernel. The **NVIDIA Display Driver (Linux Kernel Module)** is the actual software that has ring-0 privileges to manipulate the physical GPU hardware via the PCIe bus. 
-* *Note: NVIDIA recently open-sourced their kernel modules (OpenRM) to better integrate with modern Linux distributions.*
+* *Note: NVIDIA publishes open GPU kernel modules as an alternative to the proprietary ones; check the driver documentation for which GPU generations support them.*
 
 ## 2. Containers and the NVIDIA Container Toolkit
 
@@ -72,7 +72,7 @@ When you launch a container and request a GPU (`--gpus all`), the Container Tool
 A Platform team upgrades the NVIDIA drivers on their Kubernetes worker nodes to Version 535. However, the data science team is running legacy Docker containers containing CUDA Toolkit Version 11.4. The data scientists panic, stating: "We have to rebuild all our Docker images to match your new Host driver, otherwise PyTorch will crash!"
 
 **The Senior Architect Response:**
-"You do not need to rebuild your containers. The CUDA software stack is designed with **Forward Compatibility**. 
+"You do not need to rebuild your containers. The CUDA software stack is designed so that a newer driver keeps running applications built against older CUDA toolkits (driver backward compatibility). 
 
 NVIDIA maintains strict separation between the **CUDA Toolkit/Runtime** (which lives inside your Docker container) and the **NVIDIA Driver** (which lives on the host OS). The host NVIDIA Driver is backward-compatible. A modern Version 535 host driver perfectly understands API calls coming from an older CUDA 11.4 Runtime inside a container. 
 

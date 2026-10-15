@@ -110,7 +110,7 @@ When responding to an incident, identify the mechanism in use:
 | `nvidia-smi -i 0 --query-gpu=mig.mode.current` outputs “Enabled” | MIG is active; each pod should see distinct MIG instances |
 | `nvidia-smi` shows one physical GPU but many pods are Running | Time-slicing is likely; check device-plugin replicas config |
 | Process inside pod sees `/dev/nvidia*` with high device number | Possible MIG or vGPU device mapping (ask `nvidia-smi --query-processes` on host) |
-| Pod running inside a VM; host shows vGPU manager running | vGPU mechanism; check `/opt/grid/nvidia-smi -lvi` on host |
+| Pod running inside a VM; host shows vGPU manager running | vGPU mechanism; check `nvidia-smi vgpu` on host |
 | `kubectl get nodes -o custom-columns=NAME:.metadata.name,GPU:.status.allocatable.nvidia\\.com/gpu` shows high GPU counts (e.g., 4 or 8 per node) | Time-slicing with replicas configured to 4 or 8 |
 
 **Evidence-gathering playbook during an incident:**
@@ -118,7 +118,7 @@ When responding to an incident, identify the mechanism in use:
 1. On the host running the GPU:
    ```bash
    nvidia-smi mig -lgi  # Are GI/CI present? (MIG is in use)
-   /opt/grid/nvidia-smi -lvi  # Are vGPUs listed? (vGPU is in use)
+   nvidia-smi vgpu  # Are vGPUs listed? (vGPU is in use)
    nvidia-smi --query-processes=pid,process_name --format=csv  # How many processes? (time-slicing has many)
    ```
 

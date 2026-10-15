@@ -64,7 +64,7 @@ Compare step time and peak memory between the DDP baseline (Lab 01) and this FSD
 
 ## 11. Safe Failure Injection
 **Action:** Attempt to restore an FSDP checkpoint onto a different number of GPUs without configuring the correct state dict mapping.
-**Expected Result:** The process group should hang or crash with an explicit NCCL error.
+**Expected Result:** The restore should fail at load time with a Python-level error about mismatched shards, shapes, or world size (not an NCCL error). Use a throwaway copy of the checkpoint so the original stays intact.
 
 ## 12. Recovery Steps
 Use PyTorch's distributed checkpointing API to properly stitch and reshard the checkpoint for the new world size.

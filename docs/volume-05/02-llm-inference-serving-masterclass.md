@@ -98,20 +98,21 @@ Instead, serving engines cache the K and V tensors from previous steps. When gen
 ### 3.2 The Memory Math of the KV Cache
 
 The KV cache is not small. Let's calculate its size.
-For a single token in a single layer, the size is:
-`2 (for K and V) * Hidden_Dimension * Number_of_Layers * Bytes_Per_Parameter`
+For a single token across all layers, the size is:
+`2 (for K and V) * Number_of_Layers * KV_Heads * Head_Dim * Bytes_Per_Element`
 
-For a model like LLaMA-2 70B (FP16):
-*   Hidden Dimension: 8192
+For a model like LLaMA-2 70B (FP16), which uses grouped-query attention (GQA):
 *   Layers: 80
-*   Bytes per parameter (FP16): 2
+*   KV heads: 8 (versus 64 query heads)
+*   Head dimension: 128
+*   Bytes per element (FP16): 2
 
-`2 * 8192 * 80 * 2 = 2.62 MB per token.`
+`2 * 80 * 8 * 128 * 2 = 327,680 bytes (~0.31 MB) per token.`
 
 If you have a batch of 128 requests, and each reaches a sequence length of 2048 tokens:
-`128 * 2048 * 2.62 MB = ~687 GB of KV Cache.`
+`128 * 2048 * 0.31 MB = ~86 GB of KV Cache.`
 
-This exceeds the capacity of an 8x H100 80GB node (640GB) just for the cache, ignoring the model weights!
+Without GQA (full multi-head attention, KV dimension equal to the hidden size of 8192), the same arithmetic gives `2 * 80 * 8192 * 2 = ~2.6 MB` per token and ~687 GB for the same batch, which is why GQA matters so much for serving. Always compute the KV size from your model's actual config (`num_key_value_heads`).
 
 ### 3.3 The Problem with Traditional Memory Management
 
@@ -136,16 +137,16 @@ Instead of contiguous memory, the KV cache is divided into fixed-size "blocks" (
 
 ```mermaid
 graph TD
-    subgraph Logical View (Request 1)
+    subgraph LV1["Logical View (Request 1)"]
         Prompt[Prompt Tokens] --> Gen1[Gen Token 1-16]
         Gen1 --> Gen2[Gen Token 17-32]
     end
     
-    subgraph Logical View (Request 2)
+    subgraph LV2["Logical View (Request 2)"]
         Req2Prompt[Prompt Tokens]
     end
 
-    subgraph Physical VRAM (KV Cache Blocks)
+    subgraph PV["Physical VRAM (KV Cache Blocks)"]
         Block0[Block 0: Req1 Prompt]
         Block1[Block 1: Req2 Prompt]
         Block2[Block 2: Req1 Gen 1-16]
@@ -158,7 +159,7 @@ graph TD
     Gen2 -.-> Block4
     Req2Prompt -.-> Block1
     
-    style Physical VRAM fill:#ddd,stroke:#333
+    style PV fill:#ddd,stroke:#333
 ```
 
 **Benefits of PagedAttention:**
@@ -175,7 +176,7 @@ With PagedAttention solving the memory fragmentation crisis, we can now aggressi
 ### 4.1 Static vs. Dynamic vs. Continuous Batching
 
 *   **Static Batching:** Wait for N requests. Run them all. Wait for all N to finish. Highly inefficient because sequences have different lengths. The GPU sits idle waiting for the longest sequence to finish.
-*   **Dynamic Batching (Cellular):** Wait for N requests. Pad them to the same length. Still wastes compute on padding tokens.
+*   **Dynamic Batching (server-side):** Collect requests that arrive within a short window into one batch. Better than one-at-a-time, but the batch still runs to completion together, so short sequences wait on long ones.
 *   **Continuous Batching (In-Flight Batching):** The state-of-the-art approach used in vLLM and TensorRT-LLM.
 
 Continuous Batching operates at the *iteration* level, not the request level. The scheduler evaluates the queue and the currently running batch before every single forward pass.
@@ -297,7 +298,7 @@ trtllm-build \
 
 *Deep Dive on Build Flags:*
 *   `--gemm_plugin`: Enables TensorRT's optimized General Matrix Multiply kernels, critical for prefill speed.
-*   `--use_paged_context_fmha`: Enables Fused Multi-Head Attention specifically designed for Paged KV caches. This is mandatory for efficient Continuous Batching.
+*   `--use_paged_context_fmha`: Enables fused attention over a paged KV cache during the context (prefill) phase. It is needed for features such as chunked context and KV cache reuse; check the TensorRT-LLM docs for your release.
 *   **The Shape Constraints (`max_batch_size`, `max_input_len`, `max_seq_len`):** Unlike PyTorch which is dynamic, TRT needs maximum bounds at compile time to allocate optimal workspace memory and select kernels. If an inference request exceeds `max_seq_len` at runtime, it will fail. If you set these values too high (e.g., max_batch_size 1024), the compiler might select less efficient kernels or you will run out of VRAM just allocating the engine contexts. Sizing these properly requires profiling your specific production workload.
 
 ---
@@ -351,9 +352,7 @@ output [
 instance_group [
   {
     count: 1
-    kind: KIND_GPU
-    # Required for TRT-LLM if tp_size > 1. Tells Triton how many GPUs this instance requires.
-    gpus: [ 0, 1 ] 
+    kind: KIND_CPU
   }
 ]
 
@@ -361,6 +360,10 @@ parameters: {
   key: "triton_backend"
   value: { string_value: "tensorrtllm" }
 }
+# GPU placement is controlled through backend parameters (for example gpu_device_ids
+# and the participant/orchestrator settings), not instance_group GPUs. Use the reference
+# config.pbtxt from the tensorrtllm_backend repository for your release as the starting point;
+# this listing is abbreviated.
 parameters: {
   key: "gpt_model_path"
   value: { string_value: "/models/trt-engines/llama-3-8b/engine" }
@@ -381,18 +384,18 @@ parameters: {
   value: { string_value: "0.9" } # Use 90% of REMAINING free VRAM for KV cache
 }
 parameters: {
-  key: "chunked_context"
+  key: "enable_chunked_context"
   value: { string_value: "true" } # Enable chunked prefill
 }
 ```
 
 *Architectural Significance:*
 1.  **Decoupled Policy:** Standard Triton expects 1 request = 1 response. For LLMs, we want Server-Sent Events (SSE) streaming (1 request = N token responses). `decoupled: True` enables the backend to return multiple responses asynchronously.
-2.  **KV Cache Allocation:** The `kv_cache_free_gpu_mem_fraction` is critical. If set too high (e.g., 0.99), memory fragmentation or a sudden spike in context usage during decode might cause the OS/CUDA to OOM. 0.85 - 0.90 is the standard production safety buffer.
+2.  **KV Cache Allocation:** The `kv_cache_free_gpu_mem_fraction` is critical. If set too high (e.g., 0.99), memory fragmentation or a sudden spike in context usage during decode might cause the OS/CUDA to OOM. Leave headroom and tune it against your own peak prompt lengths.
 
 ---
 
-## 8. System-Level Optimization: NVIDIA Dynamo and CUDA Graphs
+## 8. System-Level Optimization: CUDA Graphs and torch.compile
 
 While framework-level batching is vital, system-level optimizations squeeze the final drops of performance out of the silicon.
 
@@ -407,11 +410,11 @@ CUDA Graphs solve this. Instead of launching 50 individual kernels sequentially 
 
 TRT-LLM utilizes CUDA Graphs aggressively. However, graphs require static shapes. Because Continuous Batching constantly changes the batch size and sequence lengths, TRT-LLM must compile multiple CUDA graphs for different common "buckets" of batch sizes, falling back to standard execution if a batch doesn't match a graph.
 
-### 8.3 PyTorch Compile / NVIDIA Dynamo
+### 8.3 torch.compile (TorchDynamo)
 
-NVIDIA Dynamo is a graph compiling technology integrated into the PyTorch 2.x ecosystem (`torch.compile`). If you are running raw PyTorch or vLLM, `torch.compile` attempts to JIT-compile your Python loops into optimized Triton kernels or CUDA Graphs automatically.
+TorchDynamo is the graph-capture frontend behind PyTorch 2.x `torch.compile`. If you are running raw PyTorch or vLLM, `torch.compile` can capture the model and generate fused kernels (via TorchInductor, which emits Triton kernels) and can be combined with CUDA Graphs. (Do not confuse it with NVIDIA Dynamo, a separate NVIDIA distributed inference serving framework.)
 
-While powerful for ML engineers iterating rapidly, for hardened production deployment, the static compilation of TRT-LLM currently provides more predictable latency profiles than JIT Dynamo compilation.
+While powerful for ML engineers iterating rapidly, JIT compilation adds warm-up time and shape-dependent recompilation, whereas ahead-of-time engines such as TRT-LLM give you a fixed, validated artifact. Measure both against your latency SLA.
 
 ---
 
@@ -475,10 +478,10 @@ The architect must enforce SLAs.
 
 **Analysis & Root Cause:**
 If the continuous batcher over-admits requests and runs out of KV Cache blocks, it must *preempt* active sequences to make room. 
-In modern engines (vLLM/TRT-LLM), preempted sequences are swapped out of GPU HBM over the PCIe bus into CPU System RAM. When they are ready to resume, they must be swapped back in. If the system is hovering right at the memory limit, it enters a thrashing state—constantly swapping KV cache blocks over PCIe, saturating the bus and halting compute.
+Depending on engine and version, preempted sequences are either swapped out of GPU HBM over the PCIe bus into CPU system RAM and later swapped back in, or dropped and recomputed (vLLM's recompute policy). Either way the work is paid for twice. If the system is hovering right at the memory limit, it enters a thrashing state—constantly swapping KV cache blocks over PCIe, saturating the bus and halting compute.
 
 **Resolution:**
-1. Monitor the `vllm:num_preemptions` or equivalent TRT-LLM metric. Any non-zero preemption rate indicates a misconfigured capacity limits or insufficient horizontal scaling.
+1. Monitor the vLLM preemption counter (`vllm:num_preemptions_total` in recent releases; confirm in your `/metrics` output) or the equivalent metric in your engine. Any non-zero preemption rate indicates a misconfigured capacity limits or insufficient horizontal scaling.
 2. Tune the scheduler. In vLLM, ensure `gpu_memory_utilization` accurately reflects available VRAM, and consider lowering it slightly if memory fragmentation is occurring despite PagedAttention (rare, but possible with certain alignments).
 
 ---
@@ -501,7 +504,7 @@ If you are interviewing for a Senior MLOps or Platform Engineer role managing LL
 
 **Q5: Describe a scenario where you would intentionally restrict the maximum batch size of your continuous batcher.**
 *A strong answer discusses the Latency vs. Throughput trade-off. To maintain a strict SLA for Time-Per-Output-Token (TPOT) for a streaming chatbot application, you must limit the batch size. Unbounded batch sizes will maximize overall hardware throughput (Tokens/sec) but will slow down individual generation speeds to unacceptable levels for human readers.*
-\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n
+
 ---
 # End of Masterclass Document
 
@@ -606,19 +609,19 @@ Just like PagedAttention pages the KV Cache, modern engines page the LoRA weight
 
 ```mermaid
 graph TD
-    subgraph Active Batch
-        Req1[Request 1 (Customer A)] --> LoRA_A[Apply LoRA A Weights]
-        Req2[Request 2 (Customer B)] --> LoRA_B[Apply LoRA B Weights]
-        Req3[Request 3 (Base)] --> Base[No LoRA]
+    subgraph AB["Active Batch"]
+        Req1["Request 1 (Customer A)"] --> LoRA_A["Apply LoRA A Weights"]
+        Req2["Request 2 (Customer B)"] --> LoRA_B["Apply LoRA B Weights"]
+        Req3["Request 3 (Base)"] --> Base["No LoRA"]
     end
     
-    subgraph Memory Hierarchy
-        BaseModel[Base Model Weights - Always in VRAM]
-        LoRACache[LoRA VRAM Cache - LRU Policy]
-        HostRAM[CPU Host RAM - All 1000+ LoRAs]
+    subgraph MH["Memory Hierarchy"]
+        BaseModel["Base Model Weights - Always in VRAM"]
+        LoRACache["LoRA VRAM Cache - LRU Policy"]
+        HostRAM["CPU Host RAM - All 1000+ LoRAs"]
     end
     
-    BaseModel --> Active Batch
+    BaseModel --> AB
     HostRAM -- PCIe Paging --> LoRACache
     LoRACache --> LoRA_A
     LoRACache --> LoRA_B
@@ -631,9 +634,9 @@ The PCIe bottleneck for KV cache swapping and LoRA paging is a major limitation 
 The NVIDIA GH200 (Grace Hopper Superchip) fundamentally alters this. By connecting the Grace CPU and Hopper GPU via NVLink-C2C (900 GB/s bidirectional, 7x faster than PCIe Gen5), the GPU can address the CPU's massive LPDDR5X memory pool almost as if it were VRAM.
 
 This enables:
-* Near-instantaneous KV cache swapping.
+* Much faster KV cache swapping than over PCIe.
 * Storing tens of thousands of active LoRAs in fast CPU memory.
-* Processing sequences exceeding 1 million tokens that would never fit in pure VRAM.
+* Holding much longer contexts than HBM alone could fit, at the cost of lower bandwidth for the spilled portion.
 
 ## 15. Summary
 

@@ -82,7 +82,7 @@ flowchart TD
 ```
 
 :::info Cross-Socket Penalties
-In the topology above, cross-NUMA traffic traversing the UPI or xGMI links incurs massive latency penalties and halves the available bandwidth. In AI workloads, pinning a process to CPU 0 while reading data into GPU 2's memory is a fatal misconfiguration known as the "NUMA trap."
+In the topology above, cross-NUMA traffic traversing the UPI or xGMI links incurs a latency penalty and consumes inter-socket bandwidth that the local path does not. In AI workloads, pinning a process to CPU 0 while reading data into GPU 2's memory is a fatal misconfiguration known as the "NUMA trap."
 :::
 
 ### 2.1 The Problem of Non-Uniformity
@@ -93,7 +93,7 @@ In the diagram above, if a process running on `CPU Socket 0` attempts to feed da
 ## 3. Processes, Threads, and Execution Contexts
 
 ### 3.1 What is a Process?
-To the Linux kernel, a process is essentially a data structure: the `task_struct`. This massive structure (often over 8KB in memory) tracks everything about a running program:
+To the Linux kernel, a process is essentially a data structure: the `task_struct`. This large structure (several KB; the size varies by kernel version and configuration) tracks everything about a running program:
 *   **State:** Running, Sleeping, Stopped, Zombie.
 *   **Virtual Memory:** Pointers to the memory descriptor (`mm_struct`) and page tables.
 *   **File Descriptors:** Open files, sockets, and pipes.
@@ -167,7 +167,7 @@ For over 15 years, Linux relied on CFS for normal (`SCHED_OTHER`) tasks. CFS doe
 ### 4.3 The Shift to EEVDF (Earliest Eligible Virtual Deadline First)
 Starting around Kernel 6.6, Linux replaced CFS with EEVDF. Why? CFS struggled with latency-sensitive tasks.
 *   **CFS Problem:** A task that wakes up after a long sleep has a very low `vruntime`. CFS runs it immediately and for a long time, potentially starving latency-sensitive microservices.
-*   **EEVDF Solution:** Calculates a "Virtual Deadline" for when a task *should* receive its fair share. It picks the task with the earliest deadline. It completely eliminates CFS's complex heuristic workarounds for wake-up latency.
+*   **EEVDF Solution:** Calculates a "Virtual Deadline" for when a task *should* receive its fair share. It picks the task with the earliest deadline. It replaces several of CFS's wake-up latency heuristics with an explicit deadline model.
 
 ### 4.4 CPU Pinning in AI Workloads
 In an AI factory, we *hate* the kernel's load balancer. When a process is migrated from CPU 0 to CPU 1, it loses its L1/L2 cache locality, causing cache misses and latency spikes.
@@ -248,9 +248,9 @@ Linux is greedy. It will use all available free memory to cache file reads and w
 ### 6.1 Memory Zones and Watermarks
 Physical memory is divided into Zones. Each zone has three watermarks: `high`, `low`, and `min`.
 
-*   **Free Memory > High:** System is happy.
-*   **Free Memory < Low:** `kswapd` (kernel swap daemon) wakes up in the background and starts asynchronous reclaim (evicting page cache or swapping out anonymous memory).
-*   **Free Memory < Min:** **Direct Reclaim.** The system is desperate. The process asking for memory is *paused* while the kernel synchronously reclaims memory. This causes massive latency spikes ("stalls").
+*   **Free Memory above High:** System is happy.
+*   **Free Memory below Low:** `kswapd` (kernel swap daemon) wakes up in the background and starts asynchronous reclaim (evicting page cache or swapping out anonymous memory).
+*   **Free Memory below Min:** **Direct Reclaim.** The system is desperate. The process asking for memory is *paused* while the kernel synchronously reclaims memory. This causes massive latency spikes ("stalls").
 
 ### 6.2 Swappiness (`vm.swappiness`)
 This sysctl controls the kernel's preference during memory reclaim.
@@ -276,8 +276,8 @@ Non-Uniform Memory Access (NUMA) is the most critical concept for modern bare-me
 
 ### 7.1 Understanding NUMA Nodes
 A NUMA node usually corresponds to a physical CPU socket and the RAM banks directly attached to it. 
-*   **Local Access:** CPU 0 accessing RAM attached to CPU 0. (Fast, ~80ns latency).
-*   **Remote Access:** CPU 0 accessing RAM attached to CPU 1. (Slow, ~130ns latency, consumes interconnect bandwidth).
+*   **Local Access:** CPU 0 accessing RAM attached to CPU 0. (Fast; typical local DRAM latency is on the order of 100 ns, hardware-dependent).
+*   **Remote Access:** CPU 0 accessing RAM attached to CPU 1. (Slower, often noticeably higher latency than local, and consumes interconnect bandwidth).
 
 ### 7.2 NUMA Policies
 When a process calls `malloc()`, Linux delays physical allocation until the memory is touched (Demand Paging). When touched, which NUMA node provides the RAM?
@@ -289,7 +289,7 @@ Imagine this scenario in PyTorch:
 1.  Main thread runs on CPU Node 0. It allocates 100GB for dataset loading. (Memory lives on Node 0).
 2.  The PyTorch worker threads are spawned. The scheduler places them on CPU Node 1 to balance the load.
 3.  The GPU attached to Node 1 needs the data. 
-4.  **Result:** The GPU queries CPU Node 1's PCIe switch, which traverses the UPI link to CPU Node 0, fetching RAM from Node 0. Bandwidth is halved, latency doubles.
+4.  **Result:** The GPU queries CPU Node 1's PCIe switch, which traverses the UPI link to CPU Node 0, fetching RAM from Node 0. Remote access adds latency and is limited by the inter-socket link bandwidth.
 
 **The Fix:** Strict NUMA binding.
 
@@ -297,7 +297,7 @@ Imagine this scenario in PyTorch:
 # Check NUMA topology
 numactl --hardware
 
-# Output snippet:
+# Illustrative output (not captured):
 # available: 2 nodes (0-1)
 # node 0 cpus: 0 1 2 3 ... 31
 # node 0 size: 515598 MB
@@ -321,7 +321,7 @@ When all reclaim efforts fail, and swapping is exhausted, the system is Out of M
 ### 8.1 The `oom_score` Algorithm
 The kernel must decide which process to kill. It calculates an `oom_score` for every process.
 *   **Base Score:** Proportional to the percentage of RAM the process is using (e.g., 50% RAM = score of 500 out of 1000).
-*   **Root Privilege:** Processes running as root get a slight score discount.
+*   **Root Privilege:** Older kernels gave root-owned processes a small score discount; this was removed in newer kernels (4.17 and later), so do not rely on it.
 *   **Adjustment:** `oom_score_adj` (range -1000 to +1000) is added to the base score.
 
 ### 8.2 Protecting Critical Daemons
@@ -331,7 +331,7 @@ In Kubernetes/Slurm clusters, we do not want the OOM killer destroying `kubelet`
 # View the score of a process (e.g., PID 1234)
 cat /proc/1234/oom_score
 
-# Protect sshd completely from the OOM killer
+# Protect sshd completely (requires root) from the OOM killer
 echo -1000 > /proc/$(pidof sshd)/oom_score_adj
 ```
 *Note: A score of `-1000` makes the process immune to OOM kills.*
@@ -361,8 +361,7 @@ int main() {
         return 1;
     }
     
-    printf("Virtual Memory Allocated. Physical RAM used: 0 bytes. Press Enter to touch pages...
-");
+    printf("Virtual Memory Allocated. Physical RAM used: 0 bytes. Press Enter to touch pages...\n");
     getchar();
     
     // Demand Paging in action: Writing triggers minor page faults, allocating physical RAM.
@@ -371,8 +370,7 @@ int main() {
         arr[i] = 'A'; // Touch one byte per page to force physical allocation
     }
     
-    printf("Physical RAM completely allocated. Press Enter to exit...
-");
+    printf("Physical RAM completely allocated. Press Enter to exit...\n");
     getchar();
     
     munmap(ptr, size);
@@ -428,7 +426,7 @@ Is your PyTorch job CPU bound, or is the kernel struggling?
 # Record system-wide CPU activity for 10 seconds, sampling at 99Hz
 perf record -F 99 -a -g -- sleep 10
 
-# Analyze the flamegraph/callstack
+# Browse the recorded call stacks (feed perf script output to FlameGraph tools for a flamegraph)
 perf report
 ```
 If you see `_raw_spin_lock_irqsave` or `page_fault` dominating the profile, your workload is hitting kernel contention, not user-space application logic.
@@ -444,7 +442,7 @@ strace -e trace=open,openat,read,write -f -p $(pgrep -n python)
 
 ### 10.3 Identifying NUMA Imbalance with `numastat`
 ```bash
-numastat -m
+numastat
 ```
 Watch the `Numa_Miss` and `Numa_Foreign` columns. If these values are climbing rapidly while your workload runs, you have memory allocated on the wrong node, and cross-socket traffic is killing your performance.
 
@@ -468,7 +466,7 @@ Watch the `Numa_Miss` and `Numa_Foreign` columns. If these values are climbing r
 3. Use `bpftrace` to trace scheduler latencies (run queue latency). We see tasks waiting >500ms to get on a CPU.
 4. Check `cat /proc/sys/vm/zone_reclaim_mode`. 
 **Root Cause:** The system hit the `low` memory watermark on a specific NUMA node. Direct reclaim kicked in, halting user threads to free memory synchronously.
-**Resolution:** Tune `vm.min_free_kbytes` to a much higher value (e.g., 3-5% of total RAM) to ensure `kswapd` wakes up earlier and does asynchronous reclaim, preventing the direct reclaim stalls.
+**Resolution:** Raise `vm.min_free_kbytes` moderately (test on a canary node; very large values waste RAM and can cause their own problems) to help `kswapd` wakes up earlier and does asynchronous reclaim, preventing the direct reclaim stalls.
 
 ---
 
@@ -516,8 +514,8 @@ vm.swappiness = 1
 vm.min_free_kbytes = 10485760
 
 # Control how the kernel handles NUMA node memory exhaustion.
-# 0 = Local node only (OOM if local is full)
-# 1 = Reclaim from local, then fallback to remote.
+# 0 = Disabled: allocate from other nodes when the local node is low (default on modern kernels)
+# 1 = Enabled: reclaim pages on the local node before falling back to remote nodes.
 vm.zone_reclaim_mode = 0
 
 # Dirty memory management. 
@@ -544,6 +542,7 @@ kernel.pid_max = 4194304
 To truly harness NUMA, developers use `libnuma`. Here is an example of explicitly allocating memory on Node 1.
 
 ```c
+#include <stdio.h>
 #include <numa.h>
 #include <numaif.h>
 
@@ -575,8 +574,3 @@ int main() {
     return 0;
 }
 ```
-
-## Appendix D: In-Depth Breakdown of System Calls
-
-### Syscall Deep Dive 1: The inner workings and performance impact on AI Workloads.
-In high-throughput environments, the overhead of context switching between user space and kernel space becomes a major bottleneck. This section examines the impact of frequent syscall invocations, TLB flushing during mode switches, and how io_uring mitigates these issues.

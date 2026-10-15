@@ -717,7 +717,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Software",
       "Permissions",
       "6. Environment",
-      "Expected Output",
+      "Expected Output (illustrative, not captured)",
       "Common Problems",
       "7. Components"
     ],
@@ -769,7 +769,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Software",
       "Permissions",
       "6. Environment",
-      "Expected Output",
+      "Expected Output (illustrative, not captured)",
       "Common Errors",
       "7. Components"
     ],
@@ -1326,6 +1326,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "SASS (Streaming Assembler) — The Hard Binary",
       "PTX (Parallel Thread Execution) — The Virtual Assembly",
       "3. Fatbin (The Best of Both Worlds)",
+      "sm 80: A100 SASS; sm 90: H100 SASS; compute 90: PTX for future GPUs",
       "Customer Scenario (Senior Level)",
       "Interview Preparation"
     ],
@@ -1412,7 +1413,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "6. Environment",
       "Purpose",
       "Commands",
-      "Expected Output"
+      "Expected Output (illustrative, not captured)"
     ],
     "codeLanguages": [
       "mermaid",
@@ -1970,7 +1971,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "1. The Physical Boundary",
       "2. The Firmware Boundary (The Danger Zone)",
       "The \"Frankenstein\" Risk",
-      "3. NVQual and NVIDIA-Certified Systems",
+      "3. NVIDIA-Certified Systems and NVIDIA Qualification Testing",
       "Customer Scenario (Senior Level)",
       "Interview Preparation"
     ],
@@ -2639,7 +2640,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
+      "text",
+      "bash"
     ]
   },
   "Chapter 07 — Adaptive Routing and Congestion Control": {
@@ -2664,7 +2666,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     ],
     "codeLanguages": [
       "mermaid",
-      "text"
+      "text",
+      "bash"
     ]
   },
   "Chapter 08 — HDR, NDR, XDR, and Link Evolution": {
@@ -2709,8 +2712,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Annotated counter deltas: what \"the fabric failed slowly\" looks like in numbers",
       "Day 1",
       "Day 4",
-      "Inventory Is Telemetry Context",
-      "Baseline Design"
+      "Day 7",
+      "Inventory Is Telemetry Context"
     ],
     "codeLanguages": [
       "mermaid",
@@ -3840,16 +3843,16 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Learning objectives",
       "Beginner's Primer: VMs vs. Containers",
       "The architecture has two paths",
-      "Verify vGPU host software is healthy",
-      "Output:",
-      "vGPU Manager Version: 535.104.06",
-      "Device UUID: GPU-12345678-abcd-ef00",
-      "VM UUID vGPU ID Device UUID Profile",
-      "550e8400-e29b-41d4-a716-446655440000 0 GPU-12345678.../0 a100-20gb",
-      "Verify profiles available on this GPU",
-      "Device 0 NVIDIA A100-20Q (UUID: GPU-12345678...)",
-      "[0] a100-4q 4GB framebuffer",
-      "[1] a100-10q 10GB framebuffer"
+      "Verify vGPU host software is healthy (the Virtual GPU Manager ships the standard nvidia-smi)",
+      "Illustrative output (not captured): lists physical GPUs and, below them, active vGPUs per VM",
+      "List active vGPU instances and their VMs",
+      "List vGPU types the physical GPU supports, and those that can still be created",
+      "Detailed per-vGPU view",
+      "Guest sees the vGPU device",
+      "Illustrative output (not captured; guest does NOT see the host's A100 directly):",
+      "NVIDIA GRID A100-20Q",
+      "Temp: 45C Power: 18W / 400W (within guest's assigned limit)",
+      "Memory: 2000MiB / 20000MiB"
     ],
     "codeLanguages": [
       "mermaid",
@@ -4634,8 +4637,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Memory Timeline for FSDP Forward + Backward",
       "Wrapping Policies: The Critical Configuration",
       "Result: All 140GB gathered at forward start, fits only on huge GPUs",
-      "Wrap each transformer block individually",
-      "Or use auto wrap"
+      "Wrap each transformer block as its own FSDP unit via an auto-wrap policy",
+      "Real-World FSDP Training Output"
     ],
     "codeLanguages": [
       "text",
@@ -5052,7 +5055,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "training metadata.yaml — saved alongside checkpoint",
       "Troubleshooting Low GPU Utilization",
       "Step 1: Check GPU utilization with dcgmi dmon",
-      "Output columns: Timestamp, GPU, Power, Temp, Utilization",
+      "Illustrative output (not captured) columns: Timestamp, GPU, Power, Temp, Utilization",
       "If utilization < 50%, GPU is truly idle (step 2)",
       "If utilization 90%, GPU is saturated (not a GPU problem, check app or data loading)",
       "Step 2: Check if it's data loading (most common culprit)",
@@ -5084,7 +5087,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "2. Verify the policy version actually deployed",
       "Compare deployed version with your Git repository's latest policy",
       "3. Simulate the exact request with policy",
-      "Debug endpoint (or in your test environment):"
+      "Hypothetical in-house debug endpoint (NeMo Guardrails does not ship this; adapt to your own service):"
     ],
     "codeLanguages": [
       "mermaid",
@@ -5106,7 +5109,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "artifact review template.yaml",
       "Troubleshooting",
       "Step 1: Verify the exact image reference and digest",
-      "Output: Image: nvcr.io/nvidia/nim/llama2-7b:1.0.5",
+      "Illustrative output (not captured): Image: nvcr.io/nim/meta/llama3-8b-instruct:1.0.5",
       "(Note the tag, not the digest — this is a problem if it's mutable)",
       "Step 2: Check if the image pull secret exists and is valid",
       "Should have .dockerconfigjson with nvcr.io credentials",
@@ -5134,7 +5137,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Troubleshooting",
       "Step 1: Verify the NGC token hasn't expired",
       "Check in NGC web UI → account settings → API keys",
-      "Or if you have token, estimate: NGC tokens are typically valid for 1 year from creation",
+      "Or if you have token, estimate: expiry is chosen when the key is generated; check it in the NGC UI",
       "Step 2: Test token manually from a test pod",
       "200 = token works",
       "401 = token invalid/expired/revoked",
@@ -5188,7 +5191,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "GPU visibility check",
       "GPU Operator status",
       "Driver verification",
-      "Output should show GPU info",
+      "Illustrative output (not captured): should show GPU info",
       "Pod GPU allocation",
       "Should show GPU in container",
       "Kubernetes in VM (vSphere with vGPU)",
@@ -5348,7 +5351,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Scenario: Pod cannot start, stuck in ImagePullBackOff",
       "Step 1: Extract Exact Image Reference and Digest",
       "Get the deployment to see what it's trying to pull",
-      "Output: Image: nvcr.io/nvidia/nim/llama2-7b:1.0.5",
+      "Illustrative output (not captured): Image: nvcr.io/nim/meta/llama3-8b-instruct:1.0.5",
       "Get the exact image hash from the registry (if it exists)",
       "First, check if this tag exists at all",
       "200 OK = tag exists",
@@ -5381,7 +5384,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "or on BeeGFS:",
       "Storage Bandwidth and Saturation",
       "Lustre storage health",
-      "Output: Shows how full each OST is and available capacity per target"
+      "Illustrative output (not captured): Shows how full each OST is and available capacity per target"
     ],
     "codeLanguages": [
       "text",
@@ -5404,10 +5407,10 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Real-time I/O trace to the storage device",
       "2. Storage Server Queue and Controller",
       "On the storage server, check RPC queue depth",
-      "or directly:",
       "During I/O, monitor server-side service time",
       "3. Network Fabric and Link Health",
-      "Check NIC link speed and errors"
+      "Check NIC link speed and errors",
+      "Modern NIC stats:"
     ],
     "codeLanguages": [
       "mermaid",
@@ -5456,7 +5459,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "GPU support",
       "Verify NVIDIA driver is new enough and GDS-capable",
       "GDS package installed?",
-      "Expected output: \"NVIDIA gpufs version X.X.X\"",
+      "Illustrative output (not captured): nvidia fs module listed; gdscheck reports driver, filesystem, and platform support",
       "If missing: GDS is not installed; all I/O uses CPU bounce",
       "Storage support (NVMe-oF, specific Lustre OST versions)",
       "For NVMe-oF:",
@@ -5505,7 +5508,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Measurement Tools and Interpretation",
       "Metadata Operations",
       "Check MDS health and load",
-      "Output: shows which nodes run MDS",
+      "Illustrative output (not captured): shows which nodes run MDS",
       "Real-time metadata stats (requires beegfs-utils installed)",
       "Monitor a single metadata operation",
       "Storage Targets and Fill Balance",
@@ -5587,7 +5590,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Measure File-Open Rate",
       "During training, count how many file opens are happening per second",
       "Using strace (heavy overhead, only for diagnosis):",
-      "Output:",
+      "Illustrative output (not captured):",
       "% time seconds usecs/call calls errors syscall",
       "45.23 2.140 8 267500 1234 openat",
       "This means: 267,500 openat calls in 2.14 seconds ≈ 125K opens/sec",
@@ -5808,7 +5811,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "The Observability Stack: How to Collect All Three",
       "Level 1: Metrics via DCGM + Prometheus",
       "1. Verify DCGM is installed and the daemon is running",
-      "Output will show all GPUs and basic health status",
+      "Illustrative output (not captured): will show all GPUs and basic health status",
       "2. Export metrics via DCGM exporter",
       "This exposes http://localhost:9400/metrics in Prometheus format",
       "3. Verify metrics are flowing"
@@ -5964,11 +5967,11 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Beginner's Primer: Xid Errors",
       "Failure Mode 1: GPU Thermal Throttling (Overheating)",
       "Check fan speed",
-      "Output: 100% is normal; 0% means fan failure",
+      "Illustrative output (not captured): 100% is normal; 0% means fan failure",
       "Check thermal throttle history",
-      "Output: Thermal Slowdown: Active (GPU is throttling RIGHT NOW)",
+      "Illustrative output (not captured): Thermal Slowdown: Active (GPU is throttling RIGHT NOW)",
       "Check power efficiency (if power supply is bad)",
-      "Output: Oscillating wildly = power supply instability",
+      "Illustrative output (not captured): Oscillating wildly = power supply instability",
       "Immediate: reduce load to give cooling system time",
       "(set job to lower batch size, or pause job)",
       "Investigation:",
@@ -6019,7 +6022,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Framework 1: GPU Job Slow/Failed",
       "Real Example: Slow Training Job",
       "Check data loader performance",
-      "Output: 150 samples/sec (very slow!)",
+      "Illustrative output (not captured): 150 samples/sec (very slow!)",
       "Framework 2: GPU Temperature Rising",
       "Framework 3: ECC Errors Appearing",
       "Framework 4: Multi-GPU Job Stall (One GPU Slow)",
@@ -6943,7 +6946,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Overview",
       "Chapter Structure",
       "Chapters",
-      "Labs",
+      "Labs (planned, not yet written)",
       "Prerequisites",
       "How to Use This Volume",
       "Learning Outcomes"
@@ -6994,8 +6997,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Confirm current GPU state matches the Xid 79 diagnosis",
       "(no output — GPU 0a:00.0 missing entirely, confirms Xid 79)",
       "Second diagnostic step: check ECC/retirement history for context",
-      "(if GPU is off the bus, query the last-known-good DCGM snapshot instead of live)",
-      "Resolution"
+      "(if the GPU is off the bus, query historical telemetry instead of live data,",
+      "for example the Prometheus series for DCGM FI DEV ECC SBE AGG TOTAL and"
     ],
     "codeLanguages": [
       "mermaid",
@@ -7074,10 +7077,10 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Diagnosis flowchart",
       "First diagnostic step: classify correctable vs. uncorrectable, and get the full counter picture",
       "Second step: pull the rate trend, not just the current count",
+      "Pseudo-query: weekly deltas of the DCGM FI DEV ECC SBE AGG TOTAL series in Prometheus (30 days)",
       "Third step: correlate against thermal and power history",
-      "Fourth step: identify which specific memory partition is affected, if the tooling supports it",
-      "For row-remap-specific detail (post-Ampere GPUs)",
-      "Resolution"
+      "PromQL has no correlation() function; export both series and compute it offline (for example in pandas)",
+      "Fourth step: identify which specific memory partition is affected, if the tooling supports it"
     ],
     "codeLanguages": [
       "mermaid",
@@ -7103,8 +7106,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Check Clock Speed Changes",
       "Output stable at ~1833 MHz",
       "Check Thermal Events in DCGM",
-      "GPU Event:Thermal",
-      "Measure Cooling System Health"
+      "Measure Cooling System Health",
+      "Resolution"
     ],
     "codeLanguages": [
       "mermaid",
@@ -7126,11 +7129,11 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Diagnosis Flowchart",
       "First Diagnostic Step: Check dmesg for PCIe Errors",
       "Check DCGM DMA Error Counters",
-      "GPU DMA Errors",
+      "Illustrative: sample the PCIe replay counter field (look up IDs with dcgmi dmon -l )",
+      "GPU PCIE REPLAY COUNTER",
       "Measure PCIe Bandwidth",
-      "Use nvidia-smi or bandwidthTest to measure GPU ↔ Host transfers",
-      "Check PCIe Link Status",
-      "Expected: LnkSta should now show x16 or higher speed"
+      "Use the CUDA samples bandwidthTest (built from the cuda-samples repo; the older",
+      "demo suite path below exists only in some CUDA toolkit versions)"
     ],
     "codeLanguages": [
       "mermaid",
@@ -7177,12 +7180,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Diagnosis",
       "Diagnosis Flowchart",
       "First Diagnostic Step: Check Power State",
-      "Check if limit was set via nvidia-smi",
-      "Or check BIOS for power management settings",
-      "System Management Interrupt (SMI) logs",
+      "Check whether a startup script or service sets the limit via nvidia-smi",
+      "Also check BMC/BIOS power capping settings and the throttle reasons",
       "Monitor Power Stability",
       "GPU Pwr Temp SM Mem Enc Dec XSM Mxm Fbg Xid Pid Name",
-      "Check DCGM Power Throttling Events"
+      "Check DCGM Power Throttling Events",
+      "Sample DCGM power and throttle-reason fields (look up IDs with dcgmi dmon -l )"
     ],
     "codeLanguages": [
       "mermaid",
@@ -7307,10 +7310,10 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Exercise 1 Solution: GPU Slow",
       "Exercise 2 Solution: Distributed Training Stalls",
       "Exercise 3 Solution: Multiple Failure Modes",
-      "Step 1: Check temperature",
-      "Output: 85°C → confirms thermal throttling",
-      "Step 2: Check for thermal throttle events",
-      "Output: \"Thermal slowdown events: 500 in last hour\" → confirmed"
+      "Step 1: integrity evidence",
+      "Step 2: performance cause",
+      "Step 3: which rank is late",
+      "Expected Outcomes"
     ],
     "codeLanguages": [
       "bash",
@@ -7330,12 +7333,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Exercise 2: Which GPU is the Straggler?",
       "Exercise 3: The Intermittent Failure",
       "Exercise 1 Solution: Thermal or Power?",
-      "Check PSU capacity vs load",
-      "If PSU output voltage is sagging (e.g., 12V → 10.5V), confirms power issue",
-      "Measure power draw when power limit removed",
-      "If it immediately jumps to 300W, PSU was the bottleneck",
-      "Reduce power limit permanently to stable value",
-      "Verify temperature stabilizes below 80°C"
+      "Which reason is active right now?",
+      "SW Power Cap, HW Slowdown, HW Thermal Slowdown, SW Thermal Slowdown, HW Power Brake Slowdown",
+      "Is the configured power limit lower than the default?",
+      "Chart temperature, power, and the throttle-reason field together over the incident window",
+      "(DCGM FI DEV GPU TEMP, DCGM FI DEV POWER USAGE, DCGM FI DEV CLOCK THROTTLE REASONS)",
+      "Exercise 2 Solution: Which GPU is the Straggler?"
     ],
     "codeLanguages": [
       "bash",
@@ -7355,12 +7358,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Exercise 2: Thermal Throttling Incident (30 min)",
       "Exercise 3: ECC Error Storm (30 min)",
       "Exercise 1 Solution: NCCL Hang",
-      "Step 1: NCCL DEBUG output",
-      "TIMEOUT OR HANG DETECTED",
+      "Step 1: NCCL DEBUG output (message format varies by NCCL version)",
+      "Illustrative reading: ranks 0, 1, 3 log opCount N+1; rank 2 is still at opCount N",
+      "and nothing new is logged for several seconds → rank 2 has not reached the collective",
       "Step 2: GPU 2 investigation",
       "Exercise 2 Solution: Thermal Throttling Incident",
-      "Step 1: Temperature check",
-      "Step 2: Fan check"
+      "Step 1: Temperature check"
     ],
     "codeLanguages": [
       "bash",
@@ -7382,10 +7385,10 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Exercise 1 Solution: Fan Failure Postmortem",
       "PROACTIVE FAN MONITORING (should run weekly)",
       "Alert rule (Prometheus)",
+      "Placeholder metric; use deriv() on a temperature gauge (rate() is for counters)",
       "Exercise 2 Solution: ECC Error Escalation Postmortem",
       "Real-time ECC monitoring with automated response",
-      "Exercise 3 Solution: NCCL Timeout Postmortem",
-      "1. Real-time AllReduce latency monitoring (per GPU pair)"
+      "Exercise 3 Solution: NCCL Timeout Postmortem"
     ],
     "codeLanguages": [
       "text",
@@ -7410,8 +7413,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "PART 3: COST ANALYSIS AND TARGETS",
       "3.1 The Cost Tree",
       "3.2 Cost Per Output Calculation",
-      "64-GPU H100 training cluster training Llama-3-70B",
-      "= (0.350 64) 1.35 = 30.24 kW"
+      "64-GPU H100 SXM training cluster training Llama-3-70B",
+      "= (0.700 64) 1.35 = 60.48 kW (GPUs only; host CPUs, NICs, and storage add more)"
     ],
     "codeLanguages": [
       "text",
@@ -7429,14 +7432,14 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Chapter Metadata",
       "Beginner's Primer: Building the Mega-Node",
       "PART 1: GPU SELECTION MECHANICS",
-      "1.1 Current GPU Landscape (August 2026)",
+      "1.1 GPU Landscape (selected data center GPUs)",
       "1.2 Cost Per TFLOP Analysis",
       "PART 2: SINGLE-NODE DESIGN",
       "2.1 Node Configurations",
       "2.2 Node Selection Decision Tree",
       "PART 3: MULTI-NODE TOPOLOGY DESIGN",
-      "3.1 Topology Topologies & Their Trade-offs",
-      "3.2 Real Topology Example: 128-GPU Cluster",
+      "3.1 Topologies and Their Trade-offs",
+      "3.2 Worked Example: 128-GPU Cluster (16 nodes)",
       "PART 4: INTERCONNECT SELECTION",
       "4.1 Interconnect Comparison Matrix"
     ],
@@ -7463,13 +7466,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "2.3 Tree AllReduce (Moderate Latency)",
       "PART 3: COLLECTIVE LIBRARY IMPLEMENTATIONS",
       "3.1 NVIDIA NCCL (The Standard)",
-      "3.2 Custom Collective Optimization via NCCL Graphs",
-      "Standard NCCL AllReduce (re-optimizes every call)"
+      "3.2 Reducing Launch Overhead with CUDA Graphs",
+      "PART 4: TOPOLOGY-SPECIFIC OPTIMIZATIONS"
     ],
     "codeLanguages": [
       "text",
       "yaml",
-      "python",
       "bash",
       "mermaid"
     ]
@@ -7491,8 +7493,8 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Optimal data pipeline for distributed training",
       "Usage",
       "In training loop",
-      "Performance:",
-      "Local NVMe hit: ~2ms per 256MB batch (overhead <1% of compute time)"
+      "Relative expectations (measure your own):",
+      "Local NVMe hit: lowest latency, negligible overhead"
     ],
     "codeLanguages": [
       "text",
@@ -7504,7 +7506,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 05 — Power Delivery and Thermal Management": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Power budgeting, cooling design, efficiency optimization, cost allocation. Real power numbers (H100 350W, cooling overhead).",
+    "learningOutcome": "Power budgeting, cooling design, efficiency optimization, cost allocation. Planning power numbers (H100 SXM 700W, DGX H100 ~10.2 kW, cooling overhead).",
     "sections": [
       "Chapter 05 — Power Delivery and Thermal Management",
       "Chapter Metadata",
@@ -7514,12 +7516,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "1.2 Cluster-Level Power Budget",
       "PART 2: COOLING DESIGN",
       "2.1 Cooling Technologies Comparison",
-      "2.2 Reference Cooling Design: 64-GPU Air-Cooled Rack",
+      "2.2 Reference Cooling Design: 64-GPU Air-Cooled Deployment",
       "2.3 Thermal Shutdown & Throttling",
       "Monitoring GPU thermal state",
-      "Expected behavior during training:",
-      "Normal operation: 65–70°C",
-      "High ambient or poor cooling: 72–75°C (warning, consider reducing workload)"
+      "Thresholds are model-specific. Query the slowdown and shutdown temperatures with:",
+      "nvidia-smi -q -d TEMPERATURE",
+      "and confirm whether the GPU is actually throttling with:"
     ],
     "codeLanguages": [
       "yaml",
@@ -7531,7 +7533,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 06 — Software Stack Integration": {
     "volume": "Academy orientation",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "CUDA runtime, frameworks (PyTorch, JAX, TensorFlow), distributed training orchestration.",
+    "learningOutcome": "CUDA runtime, frameworks (PyTorch, JAX), distributed training orchestration.",
     "sections": [
       "Chapter 06 — Software Stack Integration",
       "Chapter Metadata",
@@ -7539,14 +7541,14 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "PART 1: CUDA RUNTIME CONFIGURATION",
       "1.1 CUDA Version & Driver Alignment",
       "1.2 CUDA Memory Management",
-      "Critical CUDA settings for multi-GPU training",
-      "1. Enable CUDA graphs (reduces launch overhead, critical for many-GPU scenarios)",
-      "2. GPU memory allocation strategy",
-      "3. Enable peer-to-peer GPU communication (within node, critical for NVLink)",
-      "4. Memory pool configuration (reduces fragmentation)",
-      "Verification: Check GPU memory state",
-      "Expected output (H100 80GB):",
-      "GPU 0:"
+      "Useful CUDA/PyTorch settings for multi-GPU training",
+      "1. Consistent device ordering across tools (nvidia-smi, CUDA) on every node",
+      "2. Allocator configuration to reduce fragmentation. Set before the first CUDA allocation.",
+      "(expandable segments is available in recent PyTorch releases; see the PyTorch CUDA docs)",
+      "3. Peer-to-peer access: CUDA enables NVLink/PCIe peer access automatically when NCCL or",
+      "PyTorch copies between GPUs. You can check capability, but you do not enable it by hand:",
+      "4. Inspect memory (reserved memory includes the caching allocator's cached blocks)",
+      "PART 2: PYTORCH DISTRIBUTED TRAINING SETUP"
     ],
     "codeLanguages": [
       "yaml",
@@ -7571,9 +7573,9 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Heuristic: LR scales with sqrt(batch size)",
       "base lr = 1e-4 (for 32-token batch)",
       "scaled lr = base lr sqrt(8192 / 32) = base lr 16 = 1.6e-3",
-      "Effective training:",
-      "Per-GPU throughput: 500K tokens/sec (constant)",
-      "Cluster throughput: 64 × 500K = 32M tokens/sec"
+      "Learning-rate scaling is a heuristic (linear and square-root rules both exist); tune it and use warmup.",
+      "Scaling efficiency = (cluster throughput) / (N × single-GPU throughput); measure it, and",
+      "expect it to fall as AllReduce time becomes exposed."
     ],
     "codeLanguages": [
       "python",
@@ -7590,20 +7592,21 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Beginner's Primer: The Inference Economics",
       "PART 1: INFERENCE ARCHITECTURE FUNDAMENTALS",
       "1.1 Throughput vs. Latency Trade-off",
-      "Production LLM serving: balance latency (user experience) and throughput (cost)",
-      "Scenario: Llama-3-70B inference server, H100 GPU, 2000 QPS peak",
-      "Option A: Large batches (B=256)",
-      "Prefill: 256 sequences × 512 avg tokens = 131K tokens",
-      "Prefill throughput: 1500 tokens/sec (limited by HBM)",
-      "Prefill latency: 131K / 1500 = 87 seconds... NO, wrong calculation",
-      "Actually:",
-      "Time per forward pass @ batch=256: 256 sequences × 10ms per seq = 2.56 sec",
-      "But that's wrong too. Let me think more carefully.",
-      "Per-GPU throughput (decode-bound):"
+      "First-principles decode model for Llama-3-70B in BF16 on 2x H100 (tensor parallel = 2)",
+      "KV cache check: ~320 KB per token (Llama-3-70B, BF16); 64 sequences x ~660 tokens = ~14 GB,",
+      "which fits in the ~20 GB left after weights on two 80 GB GPUs.",
+      "1.2 vLLM Serving Architecture",
+      "Example: Llama-3-70B-Instruct on 2 GPUs (tensor parallel), BF16",
+      "Flag names and defaults change between vLLM releases; check vllm serve --help for your version.",
+      "PART 2: MULTI-GPU INFERENCE SCALING",
+      "2.1 Tensor Parallelism for Inference",
+      "2.2 Multi-GPU Serving Cluster",
+      "PART 3: SERVING CHALLENGES & SOLUTIONS"
     ],
     "codeLanguages": [
       "python",
       "text",
+      "bash",
       "yaml",
       "mermaid"
     ]
@@ -7619,8 +7622,9 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "1.1 Active-Active Inference Serving",
       "1.2 Disaster Recovery & Failover",
       "Health checks + automatic failover",
-      "Failover time: <1 second (health check detects in 10 sec, but client retries immediately)",
-      "SLA impact: <0.1% error rate during regional outage (if N+1 redundancy)",
+      "Failover time: health checks detect an outage in about 10 s (plus the request timeout for",
+      "requests already in flight); clients that retry immediately fail over faster.",
+      "Capacity must exist in the surviving regions (N+1 sizing) or failover only moves the overload.",
       "PART 2: CROSS-REGION TRAINING COORDINATION",
       "2.1 Asynchronous Model Synchronization",
       "Architecture Summary",
@@ -7676,7 +7680,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Month +11: 755 QPS (164% growth over 12 months — there is no forecast[12]; the function",
       "only returns 12 months out, so \"Month +12\" is out of range and would raise",
       "IndexError if referenced)",
-      "GPU requirement (from Chapter 8: 15.2 QPS per GPU)"
+      "GPU requirement (from Chapter 8: ~15.2 QPS per 2-GPU replica = ~7.6 QPS per GPU)"
     ],
     "codeLanguages": [
       "python",
@@ -7695,15 +7699,15 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "PART 1: UTILIZATION OPTIMIZATION",
       "1.1 GPU Utilization Strategies",
       "1.2 Cost per Output Metric",
-      "Define cost per output (not per GPU)",
-      "LLM Inference API Example",
-      "Costs",
-      "Cost per million tokens = $0.00000155 × 1,000,000 = $1.55",
-      "Business target: $0.001 per million tokens (to be profitable)",
-      "Current cost: $1.55 per million tokens",
-      "Gap: 1550x too expensive!",
-      "Cost reduction strategies:",
-      "1. Larger regional deployment (500x GPU → unit costs drop 30%)"
+      "Define cost per output (not per GPU). Sizing continues Chapter 08: 408 GPUs serving 2000 QPS.",
+      "Costs (per day)",
+      "≈ $18.1K per day",
+      "≈ $18.1K / 25,900 million tokens ≈ $0.70 per million tokens (at constant 2000 QPS)",
+      "Compare to your price per million tokens and your real average load. If traffic averages",
+      "40% of peak, the hardware and operations share per token is about 2.5x higher.",
+      "Levers: quantization (more concurrency per GPU), better batching, higher utilization, cheaper",
+      "capacity for non-latency-critical work (spot), and shared infrastructure across models.",
+      "PART 2: SPOT INSTANCES & CLOUD STRATEGY"
     ],
     "codeLanguages": [
       "yaml",
@@ -7719,7 +7723,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
     "sections": [
       "Chapter 13 — Reference Architecture: 100-GPU Training Cluster",
       "Beginner's Primer: Putting It All Together",
-      "COMPLETE DESIGN: LLAMA-100B TRAINING",
+      "COMPLETE DESIGN: 70B-CLASS LLM TRAINING",
       "Cluster Specification",
       "Hardware Cost Breakdown",
       "Deployment Procedure",
@@ -7815,7 +7819,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Download: nccl allreduce simulator.py (provided)",
       "Exercise 1: Ring AllReduce (20 min)",
       "Test cases",
-      "Expected output (verified by running the code above):",
+      "Output computed from the code above:",
       "N=64, data=1000MB, bw=400Gbps → AllReduce time: 51.97ms",
       "N=64, data=1000MB, bw=100Gbps → AllReduce time: 170.10ms",
       "N=128, data=1000MB, bw=400Gbps → AllReduce time: 65.09ms",
@@ -7841,9 +7845,9 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "lab03 data pipeline.py",
       "Test 1: Naive DataLoader (no prefetching)",
       "Test 2: Optimized DataLoader (4 workers, pinned memory)",
-      "Expected output:",
-      "Test 1: ~30–50 MB/sec (CPU I/O bottleneck, single-threaded)",
-      "Test 2: ~80–120 MB/sec (parallel workers, pinned memory)",
+      "Illustrative expectation (your numbers will differ):",
+      "Test 2 should be clearly faster than Test 1 because multiple workers overlap file reads",
+      "with the main process; the absolute MB/sec depends on your storage and file sizes",
       "Exercise 2: Distributed Loading (20 min)",
       "Simulate distributed training (64 GPU)",
       "Estimate throughput",
@@ -7866,7 +7870,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Historical & forecast data",
       "Sanity check: What's the peak demand?",
       "Convert to GPU requirements (from Chapters 8, 7)",
-      "Inference: 15.2 QPS per GPU (Chapter 8)",
+      "Inference: ~7.6 QPS per GPU (Chapter 8: ~15.2 QPS per 2-GPU replica)",
       "Training: 8 GPU per job (Chapter 7)",
       "Plot",
       "Key insights",
@@ -8533,7 +8537,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "View which CPU is currently handling an interrupt (e.g., IRQ 123)",
       "1.3 Tuning the Rx Path: Ring Buffers and Coalescing",
       "Check current ring buffer sizes",
-      "Output excerpt:",
+      "Illustrative output (not captured):",
       "Ring parameters for eth0:",
       "Pre-set maximums:"
     ],
@@ -8556,13 +8560,13 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "2. Systemd and the Boot Chain",
       "2.1 The Boot Sequence",
       "2.2 Systemd Unit Files and Dependencies",
-      "/usr/lib/systemd/system/nvidia-fabricmanager.service",
-      "Ensure we only run after network and syslog are available",
-      "Crucial: Ensure the NVIDIA device nodes are created before this starts",
-      "Restart logic for high availability",
-      "Secure the service",
+      "Illustrative sketch only: check the unit shipped by your Fabric Manager package.",
       "2.3 Investigating Boot Times",
-      "Analyze the overall boot time"
+      "Analyze the overall boot time",
+      "Illustrative output (not captured):",
+      "Startup finished in 35.123s (firmware) + 12.456s (loader) + 8.789s (kernel) + 45.123s (userspace) = 1min 41.491s",
+      "multi-user.target reached after 45.100s in userspace.",
+      "Find the specific services taking the longest"
     ],
     "codeLanguages": [
       "mermaid",
@@ -8772,12 +8776,12 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "2.3 Deep Dive: Kubelet Configuration",
       "/var/lib/kubelet/config.yaml",
       "--- Node Performance & AI Tuning ---",
+      "memoryManagerPolicy: Static requires reservedMemory to be configured; omit unless you need it",
       "Max pods reduced due to heavy AI workloads per node",
-      "Frequency of PLEG",
+      "Maximum period between syncs of running containers and config",
       "3. Node Pressure and Eviction",
       "3.1 Eviction Thresholds",
-      "3.2 Quality of Service (QoS) Classes",
-      "4. Container Runtime Interface (CRI) & Pod Sandbox"
+      "3.2 Quality of Service (QoS) Classes"
     ],
     "codeLanguages": [
       "mermaid",
@@ -8852,14 +8856,14 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "2.1 The Kernel-Mode Driver (KMD)",
       "2.2 The User-Mode Driver (UMD) and CUDA Runtime",
       "2.3 Verification at the Base Layer",
+      "Illustrative expected results (not captured) are shown in the comments below.",
       "1. Verify PCIe detection",
       "Expected: 3D controller: NVIDIA Corporation H100 PCIe (rev a1)",
       "2. Verify kernel modules are loaded",
       "Expected:",
       "nvidia uvm 1441792 0",
       "nvidia modeset 1314816 0",
-      "nvidia 56897536 15 nvidia uvm,nvidia modeset",
-      "3. Check character devices (CRITICAL)"
+      "nvidia 56897536 15 nvidia uvm,nvidia modeset"
     ],
     "codeLanguages": [
       "bash",
@@ -8887,7 +8891,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Set compute mode to EXCLUSIVE PROCESS to ensure only the MPS server can access the GPU directly",
       "Provision resources (e.g., limit a client to 20% of threads)",
       "1.3 MIG (Multi-Instance GPU)",
-      "1. Enable MIG mode (requires root, may require driver reload or node reboot)"
+      "1. Enable MIG mode (requires root; may require a GPU reset or reboot)"
     ],
     "codeLanguages": [
       "bash",
@@ -9338,24 +9342,24 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "Foundations: start here before using the interview question bank { foundations-start-here-before-using-the-interview-question-bank}",
       "Part 1: The Inference Load Balancing Conundrum",
       "Question 3: Avi LB vs NGINX LB (Why Enterprise L7/L4 Matters for AI)",
-      "Typical NGINX configuration for gRPC - notice the manual tuning required",
+      "Typical NGINX configuration for gRPC - illustrative; notice the manual tuning required",
       "Part 2: The Core of the Beast - Serving Engines",
       "Question 9: Inferencing using Triton, vLLM, TensorRT",
       "config.pbtxt",
-      "Input for prompt",
-      "Output for generated text",
-      "vLLM Engine Arguments mapped to Triton",
       "Part 3: Data Preparation Pipelines and MLOps",
       "The Problem: The Data Bottleneck",
-      "Question: Designing the High-Throughput Data Pipeline"
+      "Question: Designing the High-Throughput Data Pipeline",
+      "Conceptual Ray Data Pipeline for massive scale embedding",
+      "1. Initialize Ray cluster connection",
+      "2. Read raw text from S3 distributed"
     ],
     "codeLanguages": [
       "nginx",
       "text",
       "mermaid",
+      "json",
       "protobuf",
-      "python",
-      "yaml"
+      "python"
     ]
   },
   "05 - Linux, Networking, and IaC Gauntlet": {
@@ -9483,9 +9487,9 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
       "2.2 Network Booting: PXE and HTTPBoot",
       "2.3 Automated Provisioning: Kickstart Architecture",
       "3. Deep Dive: A Production RHEL/Rocky Kickstart Profile",
+      "Illustrative Kickstart: adapt device names, sizes, and repos to your hardware.",
       "/var/www/html/ks.cfg",
-      "---------------------------------------------------------",
-      "NVIDIA AI Factory Production Kickstart - Rocky Linux 9"
+      "---------------------------------------------------------"
     ],
     "codeLanguages": [
       "mermaid",
@@ -9527,7 +9531,7 @@ export const chapterStudyContexts: Record<string, ChapterStudyContext> = {
   "Chapter 5 - Terraform for Infrastructure as Code in AI Factories": {
     "volume": "Volume 10",
     "lens": "cross-volume senior DevOps and AI-infrastructure practice",
-    "learningOutcome": "Architect, write, refactor, and safely operate production-grade Infrastructure as Code (IaC) using Terraform, OpenTofu, and HCP Terraform (Terraform Cloud). You will master core HCL language constructs (locals, data sources, for each , dynamic blocks, built-in functions), execute complex state and CLI operations ( import , refresh , state mv , state rm , force-unlock , moved blocks), manage multi-environment workspaces, and deploy Day-0 infrastructure scaffolding for an NVIDIA AI Factory (Cluster Placement Groups, 8-rail 400 Gbps RoCE/EFA networks, high-throughput checkpoint storage, and Slurm control planes).",
+    "learningOutcome": "Architect, write, refactor, and safely operate production-grade Infrastructure as Code (IaC) using Terraform, OpenTofu, and HCP Terraform (Terraform Cloud). You will master core HCL language constructs (locals, data sources, for each , dynamic blocks, built-in functions), execute complex state and CLI operations ( import , refresh , state mv , state rm , force-unlock , moved blocks), manage multi-environment workspaces, and deploy Day-0 infrastructure scaffolding for an NVIDIA AI Factory (Cluster Placement Groups, multi-rail RDMA networking such as EFA, high-throughput checkpoint storage, and Slurm control planes).",
     "sections": [
       "Chapter 5 — Terraform for Infrastructure as Code in AI Factories",
       "1. Foundations: The Imperative vs. Declarative Paradigm",

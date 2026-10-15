@@ -127,7 +127,7 @@ if __name__ == "__main__":
 
 In traditional Python web servers (WSGI - Web Server Gateway Interface), each request is handled by a dedicated thread or process. 
 - **WSGI (Gunicorn/Flask):** 100 concurrent requests require 100 threads. If thread #1 is waiting for a database query to return, that thread does nothing else. 
-- **ASGI (Uvicorn/FastAPI):** A single thread runs an Event Loop. When Request #1 hits an I/O wait (like `await db.fetch()`), the Event Loop pauses Request #1 and begins processing Request #2. When the DB replies, Request #1 resumes. 1 thread can handle 10,000 concurrent I/O-bound requests.
+- **ASGI (Uvicorn/FastAPI):** A single thread runs an Event Loop. When Request #1 hits an I/O wait (like `await db.fetch()`), the Event Loop pauses Request #1 and begins processing Request #2. When the DB replies, Request #1 resumes. One thread can multiplex thousands of concurrent I/O-bound requests, limited by file descriptors, memory, and how much CPU work each request does.
 
 ```mermaid
 flowchart LR
@@ -188,7 +188,8 @@ async def submit_job(request: GPUJobRequest):
     # This is non-blocking I/O
     async with httpx.AsyncClient() as client:
         try:
-            # We await the network call, freeing the event loop for other requests
+            # We await the network call, freeing the event loop for other requests.
+            # The URL is a placeholder; the real Slurm REST API (slurmrestd) uses versioned paths like /slurm/vX.Y.Z/job/submit.
             response = await client.post("http://slurm-api:8080/submit", json=request.model_dump())
             response.raise_for_status()
         except httpx.HTTPError as e:
@@ -233,11 +234,14 @@ async def async_provision_node(node_name: str):
     await asyncio.sleep(10)
     print(f"Node {node_name} provisioned.")
 
-@app.post("/nodes/{node_name}/provision")
+@app.post("/nodes/{node_name}/provision", status_code=202)
 async def provision_endpoint(node_name: str, background_tasks: BackgroundTasks):
     # Enqueue the task; FastAPI will run it after sending the HTTP response
     background_tasks.add_task(async_provision_node, node_name)
-    return {"message": "Provisioning started in background", "status": "202 Accepted"}
+    return {"message": "Provisioning started in background"}
+
+# Note: BackgroundTasks run in the same process and are lost if it restarts.
+# For durable or long-running work, use a job queue (Celery, ARQ, etc.).
 ```
 
 ---
@@ -246,9 +250,9 @@ async def provision_endpoint(node_name: str, background_tasks: BackgroundTasks):
 
 A FastAPI script running via `python main.py` is not production-ready.
 
-1. **Uvicorn + Gunicorn:** In production, use Gunicorn as a process manager to fork multiple Uvicorn ASGI workers. A common formula is `workers = (2 * CPU_CORES) + 1`.
+1. **Uvicorn + Gunicorn:** In production, use Gunicorn as a process manager to fork multiple Uvicorn ASGI workers. The classic `(2 * CPU_CORES) + 1` formula comes from Gunicorn's sync workers; for async Uvicorn workers, start with roughly one worker per core and tune from load tests. (Uvicorn can also manage workers itself with `--workers`.)
    `gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker`
-2. **Timeouts:** Uvicorn does not have a global request timeout. If an endpoint hangs indefinitely, the client will time out, but the server task remains in memory (a memory leak). Always use `timeout=` arguments on every `httpx` or DB call.
+2. **Timeouts:** Uvicorn does not have a global request timeout. If an endpoint hangs indefinitely, the client will time out, but the server-side handler may keep running and holding resources (connections, memory) until it finishes. Always use `timeout=` arguments on every `httpx` or DB call.
 3. **Observability:** Integrate Prometheus metrics using a middleware (like `prometheus-fastapi-instrumentator`) to automatically track request counts, latency (`http_request_duration_seconds`), and error rates.
 
 ---

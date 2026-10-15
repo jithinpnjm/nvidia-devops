@@ -252,6 +252,8 @@ Bundling improves reproducibility. Platform integration may reduce image size an
 
 **Evidence — reproducing this chapter's Story exactly:**
 
+*Illustrative output (not captured):*
+
 ```text
 $ nvidia-smi --query-gpu=name,compute_cap --format=csv
 name, compute_cap
@@ -264,12 +266,16 @@ $ cuobjdump --list-elf ./inference_engine | grep -i sm_
 
 The binary embeds native SASS for `sm_80` (A100) and `sm_86` (A10/A40) — nothing for `sm_90` (H100) — and:
 
+*Illustrative output (not captured):*
+
 ```text
 $ cuobjdump --list-ptx ./inference_engine
 (no output)
 ```
 
 No PTX fallback is embedded either. The application call:
+
+*Illustrative session (not captured):*
 
 ```text
 >>> engine.run(batch)
@@ -284,6 +290,8 @@ Check for module load, JIT compilation, library initialization, context creation
 
 **Evidence — a PTX-only build's cold start:**
 
+*Illustrative output (not captured):*
+
 ```text
 $ ./inference_engine --request-count=5
 request 1: 2,340.6 ms   <- JIT compiling PTX for this GPU, first module load
@@ -293,7 +301,7 @@ request 4: 11.9 ms
 request 5: 12.1 ms
 ```
 
-Request 1 is roughly 190x slower than steady state. In a build that ships only PTX (no matching native SASS for this GPU), that gap is JIT compilation happening synchronously on the first module load — confirm with `CUDA_CACHE_DISABLE=0` and checking whether `~/.nv/ComputeCache` (or the configured JIT cache path) is writable and persistent; an ephemeral or read-only container filesystem forces this cost to repeat on every pod restart instead of being paid once.
+Request 1 is roughly 190x slower than steady state. In a build that ships only PTX (no matching native SASS for this GPU), that gap is JIT compilation happening synchronously on the first module load — confirm that `CUDA_CACHE_DISABLE` is not set to `1` (which disables the JIT cache) and check whether `~/.nv/ComputeCache` (or the configured JIT cache path) is writable and persistent; an ephemeral or read-only container filesystem forces this cost to repeat on every pod restart instead of being paid once.
 
 ### Problem: Works on host, fails in container
 
@@ -304,6 +312,8 @@ Compare loaded libraries, device exposure, container-runtime configuration, imag
 Resolve the image by digest, compare library manifests, and verify that search paths did not select a new runtime or domain library.
 
 **Evidence — comparing library manifests across the update:**
+
+*Illustrative output (not captured):*
 
 ```text
 $ diff <(ldd ./inference_engine | sort) reports/pre-update-ldd.txt

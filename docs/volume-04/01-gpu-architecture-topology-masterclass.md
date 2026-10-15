@@ -173,7 +173,7 @@ Historically, PCIe limited BAR size to 256MB. If a CPU wanted to access a 80GB H
 # How to check BAR1 memory size
 nvidia-smi -q -d MEMORY | grep -A 5 "BAR1"
 ```
-*Expected Output for properly configured system:*
+*Illustrative output (not captured) for a properly configured system:*
 ```text
     BAR1 Memory Usage
         Total                             : 81920 MiB
@@ -208,7 +208,7 @@ You must constantly monitor link speeds.
 # Check current vs maximum PCIe link width and speed
 nvidia-smi -q -d PCI | grep -A 5 "Link"
 ```
-*Output showing a HEALTHY link:*
+*Illustrative output (not captured) showing a HEALTHY link:*
 ```text
     GPU Link Info
         PCIe Generation
@@ -229,7 +229,7 @@ However, in AI, we *want* GPUs to talk to each other directly (Peer-to-Peer or P
 
 If ACS is enabled on the PCIe switch, P2P traffic over PCIe will be blocked, or worse, forced to bounce up to the CPU and back down, halving bandwidth and destroying latency.
 
-**Remediation:** In multi-GPU systems relying on PCIe for P2P, ACS must be disabled in the system BIOS or kernel parameters (`pci=pcie_bus_perf`).
+**Remediation:** In multi-GPU systems relying on PCIe for P2P, ACS must be disabled on the PCIe switches, either in the BIOS or at boot by clearing the ACS control bits with `setpci`. (`pci=pcie_bus_perf` only tunes PCIe payload sizes and does not affect ACS.)
 
 ---
 
@@ -302,7 +302,7 @@ flowchart TD
 As a Platform Engineer, `nvidia-smi topo -m` is your compass. It outputs a matrix showing the topology between every GPU and the CPU/NICs.
 
 ```text
-# Simplified snippet of nvidia-smi topo -m for an 8-GPU HGX node
+# Illustrative output (not captured): simplified snippet of nvidia-smi topo -m for an 8-GPU HGX node
         GPU0    GPU1    GPU2    ...     NIC0    NIC1    CPU Affinity
 GPU0     X      NV18    NV18    ...     NODE    SYS     0-15
 GPU1    NV18     X      NV18    ...     SYS     NODE    0-15
@@ -311,13 +311,14 @@ GPU1    NV18     X      NV18    ...     SYS     NODE    0-15
 
 **Legend Decoder:**
 *   **X:** Self.
-*   **SYS:** Connection traversing PCIe across the system bus (Slowest - routed through CPU QPI/UPI).
-*   **NODE:** Connection traversing a PCIe switch without crossing the CPU (Faster).
+*   **SYS:** Path traverses PCIe plus the SMP interconnect between NUMA nodes (QPI/UPI/Infinity Fabric). Slowest.
+*   **NODE:** Path traverses PCIe plus PCIe Host Bridges within a single NUMA node.
+*   **PHB / PXB / PIX:** Path crosses a host bridge, multiple PCIe switches, or at most a single PCIe switch, respectively (PIX is the fastest PCIe-only path).
 *   **NV#:** Connection via NVLink (Fastest). The number (e.g., 18) indicates the number of NVLinks. For Hopper H100, 18 links * 50GB/s = 900GB/s bandwidth.
 *   **CPU Affinity:** Which CPU cores are directly connected to this GPU's root complex.
 
 :::danger Critical Failure Mode
-**Crucial Check:** If you run `topo -m` on an HGX node and see `SYS` or `NODE` instead of `NV#` between GPUs, the NVSwitch fabric has failed, or the NVLink driver (`nvidia-peermem`) is not loaded. Training will fall back to PCIe, and performance will drop by 90%.
+**Crucial Check:** If you run `topo -m` on an HGX node and see `SYS` or `NODE` instead of `NV#` between GPUs, the NVSwitch fabric is not up (for example, NVIDIA Fabric Manager is not running or has failed) or the NVLinks are down. Collectives will fall back to PCIe and throughput will drop sharply; measure it rather than assuming a number.
 :::
 
 ### 5.4 SHARP (Scalable Hierarchical Aggregation and Reduction Protocol)
@@ -325,7 +326,7 @@ GPU1    NV18     X      NV18    ...     SYS     NODE    0-15
 When training models across hundreds of GPUs, the GPUs must constantly sum up their gradients (an "AllReduce" operation).
 
 Traditionally, GPUs send arrays of numbers to each other, and the GPUs perform the addition. 
-**SHARP** moves the math into the network switches (Quantum InfiniBand or external NVSwitches). 
+**SHARP** moves the math into the network switches (Quantum InfiniBand; NVLink SHARP, or NVLS, does the same inside NVSwitch). 
 
 The GPUs send data to the switch, the switch's ASIC adds the numbers together, and sends the result back. This halves the network traffic and frees the GPU to focus on compute. Understanding SHARP is vital for scaling beyond a single 8-GPU node.
 
@@ -353,7 +354,7 @@ This cross-socket hop adds extreme latency and is a massive bottleneck. The UPI 
 # View NUMA hardware topology
 numactl --hardware
 ```
-*Output:*
+*Illustrative output (not captured):*
 ```text
 available: 2 nodes (0-1)
 node 0 cpus: 0 1 2 3 4 5 6 7 ... 31
@@ -411,12 +412,12 @@ This section details real-world scenarios you will encounter managing AI infrast
 **Investigation:**
 1. NCCL (NVIDIA Collective Communications Library) is the library that manages multi-GPU communication. When it crashes, it's usually a fabric error.
 2. You check `dmesg` or the system journal: `dmesg | grep -i nvlink`.
-3. You see: `NVRM: Xid (PCI:0000:10:00): 119, NVLink Down`.
+3. You see an NVLink Xid in the kernel log, for example `NVRM: Xid (PCI:0000:10:00): 74, ...` (Xid 74 is the NVLink error; see the NVIDIA Xid catalog for the decoded fields).
 4. You use DCGM (Data Center GPU Manager) to check for CRC errors:
    ```bash
    dcgmi diag -r 1
-   # Or check stats
-   dcgmi dmon -e 150,151
+   # Or watch NVLink CRC error counters (confirm field IDs with: dcgmi dmon -l)
+   dcgmi dmon -e 409,419
    ```
 
 **Root Cause:** An NVLink physical connection between two GPUs has failed or is throwing excessive CRC (Cyclic Redundancy Check) errors. NCCL tried to push data, failed, and timed out.
@@ -476,7 +477,7 @@ This is why an H100 SuperPOD has an 8:8 ratio (8 GPUs and 8 ConnectX-7 NICs per 
 **A:** I would use `nvidia-smi topo -m` to identify which CPU node the target GPU is attached to. Then, I would use `numastat -p <pid>` to check where the process is allocating memory, and `taskset -p <pid>` to see its CPU affinity. If a process is driving GPU 0 (attached to Node 0) but its threads are on Node 1, it's misaligned.
 
 **Q: If a DGX node shows GPUs communicating via `SYS` in `topo -m`, what is happening?**
-**A:** The NVLink fabric is down. `SYS` indicates traffic is routing over PCIe and through the system CPU inter-socket link (UPI/QPI). This is a critical failure resulting in massive performance degradation. The cause is likely an NVSwitch hardware failure, or the `nvidia-peermem` kernel module is not loaded to enable peer-to-peer fabric.
+**A:** Those GPU pairs are not reaching each other over NVLink. `SYS` indicates the path crosses PCIe and the inter-socket link (UPI/QPI). On an NVSwitch-based system this is a critical failure with large performance degradation. Check Fabric Manager status, NVLink status (`nvidia-smi nvlink -s`), and the kernel log for NVLink Xids. (`nvidia-peermem` is for GPUDirect RDMA, not NVLink.)
 
 ## 10. Conclusion and Next Steps
 
@@ -514,19 +515,15 @@ To prove the topological differences, we use `p2pBandwidthLatencyTest` (part of 
 ./p2pBandwidthLatencyTest
 ```
 *Analysis:* 
-You will see a matrix. 
-- GPU 0 to GPU 0 (Local HBM): > 2000 GB/s
-- GPU 0 to GPU 1 (NVLink): ~800 GB/s
-- GPU 0 to CPU (PCIe): ~50 GB/s
-- GPU 0 to GPU 4 (across QPI without NVLink): ~15 GB/s
+You will see a bandwidth matrix. Expect local HBM to be far higher than NVLink peer-to-peer, NVLink peer-to-peer to be far higher than PCIe, and a PCIe path that crosses sockets to be the lowest. Exact figures depend on GPU model, driver, and platform, so record your own baseline.
 
 This empirical data is how you prove to developers that their placement strategy matters.
 
 ### Step 4: NVLink Error Injection and Monitoring
 In a lab environment, you can use DCGM to monitor for fabric errors.
 ```bash
-# Start DCGM metrics stream for NVSwitch errors
-dcgmi dmon -e 150,151,152
+# Stream NVLink CRC error counters (confirm field IDs with: dcgmi dmon -l)
+dcgmi dmon -e 409,419
 ```
 If you see non-zero numbers incrementing during training, the physical links are degrading. This often precedes a hard node crash.
 
@@ -572,11 +569,6 @@ Displays the matrix of write P2P capabilities.
 If P2P reads are supported but writes are not (or vice versa), you have a firmware bug on the PCIe switch or a driver initialization error. Both must be `OK` for full NCCL support.
 
 ## End of Masterclass
-
-
-## Appendix D: Comprehensive AI Infrastructure Glossary
-
-**Term 1:** Detailed explanation for technical term 1 relating to NVIDIA architecture, PCIe, NVLink, or NUMA topologies. This ensures a comprehensive baseline of terminology for the masterclass. Understanding term 1 is vital for debugging scale-out fabrics.
 
 
 ## Appendix E: Generational Architecture Deep Dive (Pascal to Blackwell)
@@ -722,12 +714,13 @@ nvidia-smi --query-gpu=timestamp,name,pci.bus_id,driver_version,pstate,pcie.link
 ```
 
 ### Power States (P-States)
-GPUs have power states ranging from P0 (maximum performance) to P12 (minimum power).
-During training, GPUs should be in P0 or P2. If a GPU is stuck in P8 while running a workload, it is throttling severely, usually due to:
-1.  **Thermal Throttling:** Reached HW_SLOWDOWN threshold (usually 85C-90C).
-2.  **Power Throttling:** The node power supply cannot deliver requested wattage.
+GPUs have power states ranging from P0 (maximum performance) to P12 (minimum power). A busy data center GPU normally sits in P0 or a low-numbered state; a GPU stuck in a deep idle state such as P8 while running a workload deserves investigation. Clock throttling is reported separately, usually due to:
+1.  **Thermal Throttling:** The GPU reached a slowdown temperature threshold (model-specific; see `nvidia-smi -q -d TEMPERATURE`).
+2.  **Power Throttling:** The GPU hit its power cap or the platform signaled a power brake.
 
-You can verify throttling reasons using `nvidia-smi -q -d CLOCK_EVENTS`.
+You can verify throttling reasons using `nvidia-smi -q -d PERFORMANCE`.
+
+Illustrative output (not captured):
 
 ```text
     Clocks Event Reasons

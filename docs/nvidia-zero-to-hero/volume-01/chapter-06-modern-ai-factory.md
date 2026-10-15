@@ -88,7 +88,7 @@ A CIO tells you: "We have an empty row in our existing corporate data center. We
 **The Senior Architect Response:**
 "We cannot proceed with this design for three critical facility and architectural reasons:
 
-1. **Power & Weight:** Eight DGX H100 servers in a single rack will draw nearly 85kW of power and weigh over 1,000 pounds. Your corporate data center floor tiles will likely collapse under the weight, and your power distribution units (PDUs) will instantly overload. We must limit the deployment to 2 or 4 servers per rack, depending on your facility's per-rack power maximums.
+1. **Power & Weight:** Eight DGX H100 servers in a single rack will draw nearly 85kW of power and weigh over 1,000 pounds. Check the floor loading rating against that weight, and expect your power distribution units (PDUs) to be overloaded at standard ratings. We must limit the deployment to 2 or 4 servers per rack, depending on your facility's per-rack power maximums.
 2. **Cooling:** Your facility utilizes standard forced-air cooling. Pushing 85kW of heat out of a single rack will overwhelm the ambient air conditioning, causing the GPUs to immediately thermal-throttle, wasting your multi-million dollar investment. We either need to space the servers out or retrofit your row with Rear Door Heat Exchangers.
 3. **Storage Starvation:** Connecting these servers to your legacy SAN storage will result in massive GPU idle time. The GPUs will process data 10x faster than the SAN can deliver it over standard protocols. We must design a dedicated, high-throughput parallel storage tier attached directly to the InfiniBand backend fabric to leverage GPUDirect Storage."
 

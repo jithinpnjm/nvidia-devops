@@ -114,13 +114,14 @@ Do not replace cables because utilization is high. Do not tune congestion contro
 
 ### Annotated evidence: telling the two apart from counters alone
 
+Read the port counters with `perfquery <switch-lid> <port>` and compare deltas over a window (do not use `-R` or `ibqueryerrors -k`/`-K`, which clear counters). The summary below is illustrative (not captured) and condenses the three relevant fields per port:
+
 ```text
-$ ibqueryerrors -s XmtWait,SymbolErrorCounter,LinkDownedCounter -k <switch-lid>
-GUID 0x506b4b0300a1c210 port 3: [XmtWait == 998432] [SymbolErrorCounter == 0] [LinkDownedCounter == 0]
-GUID 0x506b4b0300a1c210 port 4: [XmtWait == 2109] [SymbolErrorCounter == 41] [LinkDownedCounter == 2]
+switch port 3: PortXmitWait=998432  SymbolErrorCounter=0   LinkDownedCounter=0
+switch port 4: PortXmitWait=2109    SymbolErrorCounter=41  LinkDownedCounter=2
 ```
 
-Port 3 has a large `XmtWait` (credit-stall time) with zero physical errors — the table's "congestion" column: usually active link, throughput variable, resolved by routing/placement/capacity. Port 4 has a small `XmtWait` but nonzero `SymbolErrorCounter` and `LinkDownedCounter` — the table's "physical/link fault" column: this port is intermittently recovering from real signal errors, which is a cable/optics/port problem, not a traffic-pattern problem. Reading both columns from the same query is what stops the classic mistake this section warns about: fixating on port 3's alarming wait number and missing that port 4's small-but-nonzero error counters are the actual hardware fault.
+Port 3 has a large `PortXmitWait` (time the port had data to send but could not, typically credit stall) with zero physical errors — the table's "congestion" column: usually active link, throughput variable, resolved by routing/placement/capacity. Port 4 has a small `PortXmitWait` but nonzero `SymbolErrorCounter` and `LinkDownedCounter` — the table's "physical/link fault" column: this port is intermittently recovering from real signal errors, which is a cable/optics/port problem, not a traffic-pattern problem. Reading both columns from the same query is what stops the classic mistake this section warns about: fixating on port 3's alarming wait number and missing that port 4's small-but-nonzero error counters are the actual hardware fault.
 
 ## Head-of-Line Blocking
 
@@ -259,15 +260,18 @@ Trace the counter gradient toward the likely root of the congestion tree. Correl
 
 Relieve the destination bottleneck, rebalance paths or placement, and verify that upstream wait counters return to baseline.
 
-**Evidence.** Sampling `XmtWait` across an entire tier, sorted, shows the gradient pointing toward the root:
+**Evidence (illustrative output, not captured).** Sampling `PortXmitWait` deltas across an entire tier shows the gradient pointing toward the root:
+
+```bash
+for p in 1 2 3 4 5 6 7 8; do echo -n "port $p: "; perfquery <leaf-lid> $p | awk '/PortXmitWait/ {print $NF}'; done
+```
 
 ```text
-$ for p in 1 2 3 4 5 6 7 8; do ibqueryerrors -s XmtWait -k <leaf-lid> | grep "port $p:"; done
-GUID 0x50... port 1: [XmtWait == 340]
-GUID 0x50... port 2: [XmtWait == 298]
-GUID 0x50... port 3: [XmtWait == 51204]
-GUID 0x50... port 4: [XmtWait == 47890]
-GUID 0x50... port 5: [XmtWait == 312]
+port 1: delta 340
+port 2: delta 298
+port 3: delta 51204
+port 4: delta 47890
+port 5: delta 312
 ```
 
 Ports 3 and 4 (both facing the same downstream leaf/rack) are two orders of magnitude above their siblings — that pair, not the whole tier, is the congestion tree's root. Tracing which destination sits behind ports 3-4 (via the topology inventory from Lab 01/03) turns "collective performance worsened under concurrency" into a specific rack to investigate for oversubscription or a synchronized-incast pattern.
@@ -303,7 +307,7 @@ Review reaction timing, rate parameters, service-level mapping, and packet-order
 
 Rollback to the last validated policy, then retune one parameter at a time.
 
-**Evidence.** A paired latency-percentile comparison, before and after enabling the feature, shows exactly what "average improves, tail worsens" means in numbers:
+**Evidence (illustrative numbers, not measurements).** A paired latency-percentile comparison, before and after enabling the feature, shows exactly what "average improves, tail worsens" means in numbers:
 
 ```text
                    p50      p95      p99      max

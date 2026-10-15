@@ -1,6 +1,6 @@
 ---
 title: Chapter 06 — Software Stack Integration
-description: CUDA runtime, frameworks (PyTorch, JAX, TensorFlow), distributed training orchestration.
+description: CUDA runtime, frameworks (PyTorch, JAX), distributed training orchestration.
 sidebar_position: 7
 tags: [cuda, pytorch, distributed-training, deepspeed, orchestration]
 ---
@@ -18,6 +18,9 @@ tags: [cuda, pytorch, distributed-training, deepspeed, orchestration]
 | Core question | How do you configure CUDA, frameworks, and distributed training libraries so they actually use 64+ GPUs efficiently without configuration errors? |
 
 ---
+
+
+> **Note on figures:** Version numbers, configuration values, and performance expectations in this chapter are examples. Check NVIDIA's CUDA compatibility documentation, the NGC container release notes, and the framework documentation for the versions you deploy.
 
 ## Beginner's Primer: The Software Glue
 
@@ -38,78 +41,64 @@ If any of these layers are misconfigured, the training job will instantly crash 
 ### 1.1 CUDA Version & Driver Alignment
 
 ```yaml
-COMPATIBILITY MATRIX (August 2026)
+COMPATIBILITY PRINCIPLES (versions change; verify against NVIDIA documentation)
 
-GPU:              H100 SXM5
-NVIDIA Driver:    560.x (latest production, released Jan 2026)
-CUDA Toolkit:     12.5 (matches driver)
-cuDNN:            9.2 (supports FP8, FP16 acceleration)
-NCCL:             2.22.x (latest, optimized AllReduce)
-PyTorch:          2.4.0+ (or with cu121 build)
-JAX:              0.4.30+ (with jaxlib 0.4.30)
+Layers, bottom to top:
+  GPU hardware and firmware
+  NVIDIA kernel driver (installed on the host; sets the maximum CUDA version supported)
+  CUDA runtime/toolkit (often bundled inside the framework container or wheel)
+  cuDNN, NCCL, cuBLAS (bundled or installed alongside the toolkit)
+  Framework (PyTorch, JAX) built against specific CUDA/cuDNN/NCCL versions
 
-Version Alignment Rule:
-  NVIDIA Driver ← limits CUDA Toolkit version
-  CUDA Toolkit ← limits cuDNN/NCCL/PyTorch compatibility
-  
-  Mismatch example (DON'T DO THIS):
-    Driver 550 (old) + CUDA 12.5 (new) = CUDA runtime errors
-    CUDA 12.0 + cuDNN 8.0 (old) = low performance (missing FP8 ops)
+Rules that hold across releases:
+  - The host driver must be at least as new as the minimum required by the CUDA version in the container.
+  - Within one CUDA major version, CUDA minor-version compatibility lets newer toolkits run on
+    older drivers (with some feature limits); across major versions you need a new driver.
+  - Prefer NVIDIA NGC framework containers: each release pins a tested combination of CUDA,
+    cuDNN, NCCL, and framework, and its release notes state the minimum driver.
+  - Use the same container image on every node of a job, and the same driver branch on every host.
+  - Pin and record the versions (driver, CUDA, NCCL, framework) with every training run.
+
+Check what is installed:
+  nvidia-smi                      (driver version and the highest CUDA version it supports)
+  python -c "import torch; print(torch.version.cuda, torch.cuda.nccl.version())"
 ```
 
 ### 1.2 CUDA Memory Management
 
 ```python
-# Critical CUDA settings for multi-GPU training
+# Useful CUDA/PyTorch settings for multi-GPU training
 
-import torch
 import os
+import torch
 
-# 1. Enable CUDA graphs (reduces launch overhead, critical for many-GPU scenarios)
-os.environ["CUDA_LAUNCH_BLOCKING"] = "0"  # Default is good
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"  # Consistent ordering across nodes
+# 1. Consistent device ordering across tools (nvidia-smi, CUDA) on every node
+os.environ.setdefault("CUDA_DEVICE_ORDER", "PCI_BUS_ID")
 
-# 2. GPU memory allocation strategy
-torch.cuda.set_per_process_memory_fraction(0.95)  # Use 95% of GPU VRAM
-torch.cuda.empty_cache()  # Pre-allocate GPU memory
+# 2. Allocator configuration to reduce fragmentation. Set before the first CUDA allocation.
+#    (expandable_segments is available in recent PyTorch releases; see the PyTorch CUDA docs)
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
-# 3. Enable peer-to-peer GPU communication (within node, critical for NVLink)
-for i in range(torch.cuda.device_count()):
-    for j in range(torch.cuda.device_count()):
+# 3. Peer-to-peer access: CUDA enables NVLink/PCIe peer access automatically when NCCL or
+#    PyTorch copies between GPUs. You can check capability, but you do not enable it by hand:
+n = torch.cuda.device_count()
+for i in range(n):
+    for j in range(n):
         if i != j:
-            try:
-                torch.cuda.can_device_access_peer(i, j)
-                torch.cuda.enable_peer_access(i, j)
-            except RuntimeError:
-                pass  # P2P not available between GPUs
+            print(i, j, torch.cuda.can_device_access_peer(i, j))
 
-# 4. Memory pool configuration (reduces fragmentation)
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
-
-# Verification: Check GPU memory state
+# 4. Inspect memory (reserved memory includes the caching allocator's cached blocks)
 def check_gpu_memory():
     for i in range(torch.cuda.device_count()):
-        props = torch.cuda.get_device_properties(i)
-        total_memory = props.total_memory / 1e9  # GB
+        total = torch.cuda.get_device_properties(i).total_memory / 1e9
         allocated = torch.cuda.memory_allocated(i) / 1e9
         reserved = torch.cuda.memory_reserved(i) / 1e9
-        free = total_memory - allocated
-        
-        print(f"GPU {i}:")
-        print(f"  Total: {total_memory:.1f} GB")
-        print(f"  Allocated: {allocated:.1f} GB ({100*allocated/total_memory:.1f}%)")
-        print(f"  Reserved: {reserved:.1f} GB")
-        print(f"  Free: {free:.1f} GB")
+        print(f"GPU {i}: total {total:.1f} GB, allocated {allocated:.1f} GB, reserved {reserved:.1f} GB")
 
 check_gpu_memory()
-
-# Expected output (H100 80GB):
-# GPU 0:
-#   Total: 80.0 GB
-#   Allocated: 76.0 GB (95.0%)
-#   Reserved: 79.0 GB
-#   Free: 4.0 GB
 ```
+
+CUDA Graphs (to reduce kernel-launch overhead) are enabled through the framework (for example PyTorch CUDA graph capture or `torch.compile` modes), not through `CUDA_LAUNCH_BLOCKING`, which only forces synchronous kernel launches for debugging and should stay at `0` in production.
 
 ---
 
@@ -131,6 +120,7 @@ def setup_distributed():
     # Each process gets RANK (0–63), LOCAL_RANK (0–7 per node), WORLD_SIZE (64)
     # Set by torch.distributed.launch or torchrun
     
+    import os
     rank = int(os.environ.get("RANK", 0))
     world_size = int(os.environ.get("WORLD_SIZE", 1))
     local_rank = int(os.environ.get("LOCAL_RANK", 0))
@@ -157,7 +147,8 @@ def train_distributed():
     model = model.to(device)
     
     # Wrap with DDP (handles AllReduce for gradients automatically)
-    model = DDP(model, device_ids=[rank % 8], output_device=rank % 8)
+    local_rank = int(os.environ["LOCAL_RANK"])
+    model = DDP(model, device_ids=[local_rank], output_device=local_rank)
     
     # Optimizer
     optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
@@ -187,10 +178,10 @@ def train_distributed():
     dist.destroy_process_group()
 
 # Launch with torchrun (recommended):
-# torchrun --nproc_per_node=8 --nnodes=8 --node_rank=0 --master_addr=node0 --master_port=29500 train_script.py
+# torchrun --nproc_per_node=8 --nnodes=8 --node_rank=0 --rdzv_backend=c10d --rdzv_endpoint=node0:29500 train_script.py
+# (use --rdzv_id and the same command on every node; node_rank may be omitted with an elastic rendezvous)
 
-# Or torch.distributed.launch (older):
-# python -m torch.distributed.launch --nproc_per_node=8 --nnodes=8 --node_rank=0 --master_addr=node0 train_script.py
+# (torch.distributed.launch is deprecated in favor of torchrun)
 ```
 
 ### 2.2 DeepSpeed Integration (Production-Grade Training)
@@ -206,25 +197,24 @@ def train_with_deepspeed():
     
     # DeepSpeed config (ds_config.json)
     ds_config = {
-        "train_batch_size": 256,  # per-GPU batch size (distributed across ranks)
-        "gradient_accumulation_steps": 1,
+        "train_micro_batch_size_per_gpu": 4,   # per-GPU micro-batch (example value)
+        "gradient_accumulation_steps": 8,      # global batch = micro_batch × accumulation × world_size
+        "bf16": {"enabled": True},
         "optimizer": {
             "type": "AdamW",
             "params": {"lr": 1e-4, "betas": [0.9, 0.999], "eps": 1e-8, "weight_decay": 0.01}
         },
         "zero_optimization": {
-            "stage": 3,  # Maximum memory savings: shard model params, optimizer, activations
-            "offload_optimizer": {"device": "cpu", "pin_memory": True},  # CPU offload for even more memory
-            "offload_param": {"device": "cpu", "pin_memory": True},
+            "stage": 3,  # Shards parameters, gradients, and optimizer state across data-parallel ranks
+            # CPU offload trades GPU memory for PCIe traffic and is usually unnecessary on 80GB GPUs:
+            # "offload_optimizer": {"device": "cpu", "pin_memory": True},
+            # "offload_param": {"device": "cpu", "pin_memory": True},
             "reduce_scatter": True,
             "contiguous_gradients": True,
         },
         "gradient_clipping": 1.0,
-        "distributed_training": {
-            "data_parallel_size": 64,
-            "model_parallel_size": 1,
-        }
     }
+    # Data-parallel size comes from the launcher's world size (64 here), not from this config.
     
     # Initialize DeepSpeed engine
     model_engine, optimizer, _, _ = deepspeed.initialize(
@@ -252,10 +242,11 @@ def train_with_deepspeed():
     model_engine.save_checkpoint("./checkpoints", tag="final")
 
 # Benefits over vanilla DDP:
-#   ZeRO Stage 3: Reduces memory per GPU from ~70GB to ~20GB (3.5x savings)
-#   Enables training 400B+ parameter models on same GPU count
-#   Automatic activation checkpointing (recompute vs cache trade-off)
-#   Gradient accumulation & offloading built-in
+#   ZeRO Stage 3 shards parameters, gradients, and optimizer state across ranks, so per-GPU
+#   model-state memory drops roughly in proportion to the number of ranks
+#   Optional CPU/NVMe offload for models that still do not fit
+#   Activation checkpointing is configured separately (it is not automatic)
+#   Built-in gradient accumulation
 ```
 
 ---
@@ -264,122 +255,69 @@ def train_with_deepspeed():
 
 ### 3.1 PyTorch + JAX Interop
 
-```python
-# Hybrid training: PyTorch dataloader + JAX compute (rare but sometimes useful)
-
-import jax
-import jax.numpy as jnp
-from jax import grad, jit
-import torch
-from torch.utils.data import DataLoader
-
-def train_pytorch_dataloader_jax_compute():
-    """Load data via PyTorch, compute in JAX (example: tensor shaping differences)"""
-    
-    # PyTorch dataloader (handles batching, prefetching)
-    dataloader = DataLoader(dataset, batch_size=128, num_workers=4)
-    
-    # JAX model
-    def loss_fn(params, x, y):
-        logits = jax.nn.Dense(params, x)
-        return jnp.mean((logits - y) ** 2)
-    
-    grad_fn = jit(grad(loss_fn))  # Compile to GPU code
-    
-    # Training loop
-    for epoch in range(num_epochs):
-        for batch_idx, (x, y) in enumerate(dataloader):
-            # Convert PyTorch tensors to JAX arrays
-            x_jax = jnp.array(x.numpy())
-            y_jax = jnp.array(y.numpy())
-            
-            # Compute gradients in JAX
-            grads = grad_fn(params, x_jax, y_jax)
-            
-            # Update params
-            params = jax.tree_map(lambda p, g: p - 0.01*g, params, grads)
-```
+Mixing PyTorch data loading with JAX compute is uncommon, but it works when needed. Move tensors between frameworks without a host copy using DLPack (`torch.utils.dlpack.to_dlpack` and `jax.dlpack.from_dlpack`, or the `__dlpack__` protocol in recent releases), keep both frameworks on the same CUDA version, and avoid `numpy()` round trips on GPU tensors because they force a device-to-host copy. For multi-node JAX, initialize with `jax.distributed.initialize` and use the same NCCL-based collectives stack.
 
 ### 3.2 Kubernetes Orchestration for Distributed Training
 
-```yaml
-# Kubernetes manifest: Launch distributed training job on GPU cluster
+For production, prefer a purpose-built operator (Kubeflow Training Operator `PyTorchJob`, or a batch scheduler such as Kueue/Volcano) that gang-schedules all pods together. A plain Kubernetes Job can work using Indexed completion mode and a headless Service, as sketched below (adapt names and sizes to your cluster).
 
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: llama-train            # headless service for pod DNS
+spec:
+  clusterIP: None
+  selector:
+    job-name: llama-70b-training
+---
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: llama-70b-training
 spec:
-  parallelism: 8  # 8 nodes × 8 GPU = 64 GPUs
+  completionMode: Indexed      # each pod gets JOB_COMPLETION_INDEX 0..7
+  parallelism: 8               # 8 nodes × 8 GPU = 64 GPUs (all must run together)
   completions: 8
-  backoffLimit: 3  # Retry up to 3 times if pod fails
-  
+  backoffLimit: 3
   template:
     spec:
       restartPolicy: Never
-      
-      # GPU resource requests
+      subdomain: llama-train   # pods resolve as llama-70b-training-<index>.llama-train
       containers:
       - name: training
-        image: nvidia/pytorch:24.06-py3
-        
-        # Resource requests (guaranteed)
+        image: nvcr.io/nvidia/pytorch:24.06-py3   # example NGC tag; pin a tested release
         resources:
           limits:
-            nvidia.com/gpu: 8  # Request 8 GPUs per pod
-            memory: "400Gi"
-            cpu: "64"
+            nvidia.com/gpu: 8
           requests:
             nvidia.com/gpu: 8
-            memory: "400Gi"
-            cpu: "64"
-        
-        # Environment for distributed training
-        env:
-        - name: MASTER_ADDR
-          value: "training-pod-0"  # Pod 0 is master
-        - name: MASTER_PORT
-          value: "29500"
-        - name: WORLD_SIZE
-          value: "8"
-        - name: RANK
-          valueFrom:
-            fieldRef:
-              fieldPath: metadata.annotations['rank']  # Set by controller
-        
-        # Training command
-        command:
-          - python
-          - /workspace/train.py
-          - --model=llama-70b
-          - --batch-size=128
-          - --num-epochs=3
-        
-        # Volume for checkpoints (NFS mount)
+        command: ["/bin/bash", "-c"]
+        args:
+          - >
+            torchrun --nproc_per_node=8 --nnodes=8
+            --node_rank=$JOB_COMPLETION_INDEX
+            --master_addr=llama-70b-training-0.llama-train --master_port=29500
+            /workspace/train.py
         volumeMounts:
         - name: checkpoints
           mountPath: /workspace/checkpoints
-      
       volumes:
       - name: checkpoints
         persistentVolumeClaim:
           claimName: training-checkpoints-pvc
-      
-      # Node affinity (ensure GPUs on same node)
       affinity:
-        podAntiAffinity:
+        podAntiAffinity:       # one pod per node (each pod uses all 8 GPUs of its node)
           requiredDuringSchedulingIgnoredDuringExecution:
           - labelSelector:
               matchExpressions:
-              - key: training-job
+              - key: job-name
                 operator: In
-                values: ["llama-70b"]
+                values: ["llama-70b-training"]
             topologyKey: kubernetes.io/hostname
-
-# Usage:
-# kubectl apply -f training-job.yaml
-# kubectl logs -f job/llama-70b-training --all-containers=true
 ```
+
+A plain Job does not gang-schedule: if only some pods can be placed, the ones that start will wait for the missing ranks until the rendezvous times out. That is the main reason to use Kueue, Volcano, or the Training Operator. Also set InfiniBand/RDMA device access (for example via the NVIDIA Network Operator) so the pods can use the high-speed fabric.
 
 ---
 
@@ -387,10 +325,10 @@ spec:
 
 | Issue | Symptom | Root Cause | Resolution |
 |---|---|---|---|
-| **NCCL initialization timeout** | `RuntimeError: NCCL operation timed out` at startup | Master address unreachable or rank mismatch | Check MASTER_ADDR DNS, verify RANK env var matches pod index, increase timeout to 300s |
+| **NCCL initialization timeout** | `RuntimeError: NCCL operation timed out` at startup | Master address unreachable or rank mismatch | Check MASTER_ADDR DNS resolution from every pod, verify node ranks match pod indexes, confirm all pods are scheduled (gang scheduling), and only then consider a longer timeout |
 | **GPU peer access failure** | `RuntimeError: invalid device ordinal` or P2P disabled | GPU drivers not matching or insufficient permissions | Verify nvidia-smi output consistent on all nodes, check /proc/driver/nvidia/gpus permissions |
 | **Out-of-memory during training** | `torch.cuda.OutOfMemoryError: CUDA out of memory` | Model too large or batch size too high | Reduce batch size, enable gradient checkpointing, use ZeRO Stage 3 offloading |
-| **Slow gradient transfer (AllReduce)** | 100ms AllReduce on 64 GPU (should be 2–5ms) | IB disabled, using TCP fallback, or network congestion | Set `NCCL_DEBUG=INFO`, verify IB link status, reduce concurrent jobs |
+| **Slow gradient transfer (AllReduce)** | AllReduce far slower than the nccl-tests baseline for this cluster | IB disabled, using TCP fallback, or network congestion | Set `NCCL_DEBUG=INFO`, verify IB link status, reduce concurrent jobs |
 
 ## Architecture Summary
 

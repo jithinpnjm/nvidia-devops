@@ -1,6 +1,6 @@
 ---
 title: Chapter 05 — Power Delivery and Thermal Management
-description: Power budgeting, cooling design, efficiency optimization, cost allocation. Real power numbers (H100 350W, cooling overhead).
+description: Power budgeting, cooling design, efficiency optimization, cost allocation. Planning power numbers (H100 SXM 700W, DGX H100 ~10.2 kW, cooling overhead).
 sidebar_position: 6
 tags: [power, cooling, thermal, efficiency, pdu, facility]
 ---
@@ -19,14 +19,17 @@ tags: [power, cooling, thermal, efficiency, pdu, facility]
 
 ---
 
+
+> **Note on figures:** Power, cooling efficiency, and cost figures in this chapter are planning assumptions for illustration. Use the vendor's rated power for the exact system (for example the DGX H100 user guide lists about 10.2 kW maximum per system) and your facility's measured PUE.
+
 ## Beginner's Primer: The Physics of AI
 
 In traditional IT, a server rack holds 40 web servers and pulls about 5 to 10 kilowatts (kW) of power. You plug it into the wall, and the room's air conditioner keeps it cool.
 
 AI completely breaks the physics of traditional data centers.
-A single rack of modern NVIDIA DGX (H100) servers can pull **over 50 kilowatts (kW)** of power. 
+A single rack of modern NVIDIA DGX (H100) servers can pull **on the order of 40 kilowatts (kW) or more** (each system is rated at about 10.2 kW maximum, and four per rack is common for air cooling). 
 
-To put that in perspective, 50kW is enough power to run 40 standard American houses simultaneously. You are putting the electrical and heat output of an entire neighborhood into a single 2-foot by 4-foot metal box.
+To put that in perspective, 40 kW is several times the power of a whole traditional rack. You are putting the electrical and heat output of an entire neighborhood into a single 2-foot by 4-foot metal box.
 
 If you put an AI rack into a traditional data center, two things happen instantly:
 1. **The Brownout:** The server tries to pull more electricity than the copper wires in the wall can physically provide. The voltage sags, and the server crashes.
@@ -39,42 +42,22 @@ To build an AI Factory, architects must move beyond software and understand Data
 ### 1.1 Component Power Budgets
 
 ```yaml
-H100-BASED COMPUTE NODE POWER BREAKDOWN
+H100-BASED COMPUTE NODE POWER BREAKDOWN (DGX H100 class)
 
-GPU Power (per H100 SXM5):
-  Idle: ~50W (GPU memory clocks running)
-  Compute: 250–350W (depends on workload utilization, memory bandwidth)
-  Thermal design power (TDP): 700W (theoretical maximum spike, rare)
-  
-CPU Power (2× EPYC Bergamo):
-  Idle: ~100W per socket
-  Full compute: 500–700W per socket (all 128 cores active)
-  Training workload (moderate load): 200–300W total
+GPU power (per H100 SXM5):
+  Idle: tens of watts
+  Training: typically a large fraction of the 700W maximum TDP, depending on utilization
+  Maximum TDP: 700W (configurable power limit; check nvidia-smi -q -d POWER)
 
-Memory Power:
-  HBM power (H100 80GB): Included in GPU power
-  DDR5 (192GB host): ~20W
+Node-level (DGX H100 specification):
+  8 GPUs:           8 × 700W = 5.6 kW at maximum TDP
+  CPUs, memory, NVMe, 8 compute NICs, 2 DPUs, fans, and conversion losses:
+                    the remainder of the system's maximum rating
+  System maximum:   about 10.2 kW per node (use for provisioning)
 
-Storage Power:
-  NVMe drives (4×7.68TB PCIe 5.0): 4W per drive = 16W total
-  RAID controller: 10W
-
-Network Interface Cards (NICs):
-  1× ConnectX-7 NDR IB (400GbE): 25W
-  
-PDU & PSU Losses:
-  Typical efficiency: 90% (power delivered / power drawn from wall)
-  Example: 2.8 kW GPU + 0.3 kW CPU = 3.1 kW compute
-           3.1 kW / 0.90 = 3.44 kW at wall (0.34 kW loss in conversion)
-
-Total per-node power draw (full training):
-  GPU:           8 × 350W = 2,800W
-  CPU:           2 × 300W = 600W
-  Memory/Storage: 46W
-  NIC:           25W
-  Subtotal:      3,471W
-  
-  With PDU inefficiency: 3.471 kW / 0.90 = 3.86 kW at the PDU
+Planning rule:
+  Provision circuits, PDUs, and cooling for the system's rated maximum (10.2 kW), then
+  use measured power (DCGM, PDU metering) to refine utilization-based cost estimates.
 ```
 
 ### 1.2 Cluster-Level Power Budget
@@ -82,43 +65,26 @@ Total per-node power draw (full training):
 ```
 64-GPU TRAINING CLUSTER (8 nodes × 8 GPU each)
 
-Per-node power (training):        3.86 kW
-Cluster compute power:            8 nodes × 3.86 kW = 30.88 kW
+Per-node provisioning power:      10.2 kW
+Cluster IT load (provisioned):    8 nodes × 10.2 kW = 81.6 kW
 
-Facility overhead:
-  Cooling: Δ 30–40% overhead
-    Air cooling (standard): +40% (cooling efficiency COP ~3, requires extra energy)
-    Liquid cooling (advanced): +20% (better efficiency, but capital cost)
-  
-  Power distribution (PDUs, cabling, UPS):
-    Efficiency loss: ~10% (included above)
-  
-  Lighting, networking infrastructure: +5%
+Facility overhead (PUE, assumed): 1.35 (cooling, power distribution, lighting)
+Total facility power at full load: 81.6 kW × 1.35 ≈ 110 kW
 
-Total facility power (training):
-  Air cooling: 30.88 kW × 1.4 = 43.2 kW (including cooling)
-  Liquid cooling: 30.88 kW × 1.2 = 37.1 kW (including cooling)
+Assumed utilization schedule:
+  Training (16 hours/day):    ~110 kW
+  Idle (4 hours/day):         ~20 kW (cooling, power management, idle nodes)
+  Maintenance (4 hours/day):  ~40 kW
 
-Sustained utilization assumption:
-  Idle (overnight, weekends): ~5 kW (cooling, power management)
-  Training workload (8–16 hours/day): 37–43 kW
-  Maintenance/testing (4–8 hours/day): 20 kW
+Monthly energy (30 days):
+  Training:     16 h × 30 × 110 kW = 52,800 kWh
+  Idle:          4 h × 30 × 20 kW  =  2,400 kWh
+  Maintenance:   4 h × 30 × 40 kW  =  4,800 kWh
+  Total:                              60,000 kWh/month
 
-Monthly power consumption (production schedule):
-  Assume: 16 hours training/day, 4 hours idle/day, 4 hours maintenance/day
-  Training: 16 hr × 30 days × 40 kW = 19,200 kWh/month
-  Idle: 4 hr × 30 days × 5 kW = 600 kWh/month
-  Maintenance: 4 hr × 30 days × 20 kW = 2,400 kWh/month
-  Total: 22,200 kWh/month
-  
-  At $0.12/kWh (US industrial average):
-    Monthly cost: 22,200 × $0.12 = $2,664/month = $31,968/year
-    
-  Plus HVAC/facility overhead:
-    Typical facility allocation: +30% of compute power cost
-    Additional cost: $31,968 × 0.30 = $9,590/year
-    
-  Total facility cost: $31,968 + $9,590 = $41,558/year for 64-GPU cluster
+At $0.12/kWh (US industrial average):
+  Monthly cost: 60,000 × $0.12 = $7,200/month = $86,400/year for the 64-GPU cluster
+  (facility overhead is already included through the PUE factor)
 ```
 
 ---
@@ -127,58 +93,38 @@ Monthly power consumption (production schedule):
 
 ### 2.1 Cooling Technologies Comparison
 
-| Cooling Type | COP (Efficiency) | Capital Cost | Operational Cost | Noise | Maintenance | Best For |
-|---|---|---|---|---|---|---|
-| **Air Cooling (Standard)** | 2.5–3.0 | $50K–100K | High | Loud (80–90 dB) | Annual filter replacement | Research labs (tolerance for noise) |
-| **Precision Air Cooling (CAC)** | 2.5–3.5 | $100K–200K | High | 70–80 dB | Filter changes, damper maintenance | Production (some noise tolerance) |
-| **Liquid Cooling (Cold Plate)** | 4.0–5.0 | $200K–400K | Low | Quiet (60–70 dB) | Coolant monitoring, pump/seal maintenance | High-density production clusters |
-| **Immersion Cooling (Oil/Fluorinert)** | 5.0–6.0 | $300K–600K | Low | None (sealed pods) | Minimal (sealed system) | Highest density, data center floor optimization |
+| Cooling Type | Typical Role | Relative Capital Cost | Relative Operating Cost | Maintenance | Best For |
+|---|---|---|---|---|---|
+| **Air cooling (standard)** | Room-level CRAC/CRAH with hot/cold aisle | Lowest | Highest | Filter changes, fan maintenance | Lower-density racks, research labs |
+| **Air with containment** | Hot or cold aisle containment, higher supply temperature | Low to moderate | Moderate | Containment integrity, filters | Production air-cooled racks (roughly up to 40 kW per rack) |
+| **Direct-to-chip liquid (cold plate)** | Coolant loops to CPUs/GPUs with CDUs | Higher | Lower | Coolant quality, pumps, leak detection | High-density production clusters (Blackwell-class racks) |
+| **Immersion** | Servers in dielectric fluid | Higher | Lower | Fluid handling, specialized service | Highest density and specialized facilities |
 
-### 2.2 Reference Cooling Design: 64-GPU Air-Cooled Rack
+Efficiency differences are best compared through measured PUE for your site; request vendor data rather than using generic COP figures.
+
+### 2.2 Reference Cooling Design: 64-GPU Air-Cooled Deployment
 
 ```
-RACK THERMAL DESIGN
+THERMAL DESIGN
 
-GPU Node Layout:
-  Front of Rack (intake): 4×8-GPU nodes stacked vertically
-  CPU heatsinks: Facing hot-aisle (rear)
-  
-Airflow:
-  Hot-aisle: Rear of rack (warm air exhaust, 40–50°C)
-  Cold-aisle: Front of rack (cool air intake, 15–25°C)
-  
-  In-rack circulation:
-    GPU fans pull cold air from front, exhaust warm air to back
-    Each GPU: 100–150 CFM (cubic feet per minute)
-    Per-node: 8 GPU × 125 CFM = 1,000 CFM
-    Cluster: 8 nodes × 1,000 CFM = 8,000 CFM
-    
-    Air temperature rise across rack: ΔT = Power / (CFM × Cp × ρ)
-    ΔT = (30,880W / 1000) / (8000 CFM × 0.24 BTU/lb°F × 0.075 lb/ft³)
-    ΔT ≈ 20°C (difference between cold-aisle and hot-aisle)
+Layout:
+  64 GPUs = 8 nodes; with air cooling at about 4 nodes (≈ 40 kW) per rack this is 2 racks
+  Front of rack: cold-aisle intake. Rear: hot-aisle exhaust.
 
-HVAC System:
-  Data center CRACs (Computer Room Air Conditioning):
-    Capacity: 60–80 kW cooling
-    Intake: 15–20°C cold-aisle
-    Exhaust: 25–30°C after absorbing 30 kW compute heat
-    
-  Efficiency (COP = cooling / power):
-    30 kW compute / 10 kW HVAC = COP 3.0 (typical air cooling)
-    
-  Redundancy:
-    2 CRACs of 40 kW each (N+1 redundancy)
-    Total CRAC power: 20 kW (10 kW per unit at ~50% load)
+Airflow estimate (sensible heat):
+  Required airflow (CFM) ≈ 3.16 × Watts / ΔT(°F)
+  For 81,600 W of IT load and a 20°C (36°F) air temperature rise:
+    CFM ≈ 3.16 × 81,600 / 36 ≈ 7,160 CFM across the deployment
+  Check the node's rated airflow and inlet temperature limits in the vendor's site requirements.
 
-Temperature Monitoring:
-  GPU thermal target: 60–70°C (optimal for H100, max 80°C throttle)
-  Node intake temperature: 20–25°C
-  Node exhaust temperature: 35–45°C
-  
-  Alerts:
-    GPU >75°C: Reduce workload (lower batch size)
-    GPU >80°C: Thermal throttle (automatic, reduces clocks 5–10%)
-    Exhaust >50°C: Check if hot-aisle contains cold-aisle air (containment breach)
+HVAC:
+  Size cooling capacity for the total heat load (≈ 81.6 kW of IT heat plus margin) with N+1
+  redundancy, and keep supply air within the vendor's inlet temperature specification.
+
+Temperature monitoring:
+  Inlet (cold-aisle) temperature: within the vendor's specified range
+  GPU temperatures: watch trends against the GPU's slowdown and shutdown thresholds
+  Alerts: rising GPU temperature at constant load, rising exhaust temperature, or containment breach
 ```
 
 ### 2.3 Thermal Shutdown & Throttling
@@ -188,28 +134,23 @@ Temperature Monitoring:
 
 import subprocess
 
-def monitor_gpu_thermal():
-    """Check GPU temperatures and alert if throttling"""
-    result = subprocess.run(['nvidia-smi', '--query-gpu=index,temperature.gpu', '--format=csv,noheader'], 
-                          capture_output=True, text=True)
-    
-    for line in result.stdout.strip().split('\n'):
-        gpu_id, temp_c = line.split(',')
-        temp = int(temp_c)
-        
-        if temp > 75:
-            print(f"WARNING: GPU {gpu_id} at {temp}°C, approaching throttle threshold")
-        
-        if temp > 80:
-            print(f"ALERT: GPU {gpu_id} at {temp}°C, THROTTLING ACTIVE (clock reduced)")
-            # Mitigation: Reduce batch size or pause training
-            
-# Expected behavior during training:
-#   Normal operation: 65–70°C
-#   High ambient or poor cooling: 72–75°C (warning, consider reducing workload)
-#   Sustained >80°C: Automatic clock throttle (-10% performance per 1°C above 80°C)
-#   Emergency shutdown: >85°C (system-level thermal protection)
+def monitor_gpu_thermal(warn_c=80):
+    """Print GPUs above a site-chosen warning threshold."""
+    out = subprocess.run(
+        ['nvidia-smi', '--query-gpu=index,temperature.gpu', '--format=csv,noheader,nounits'],
+        capture_output=True, text=True).stdout
+    for line in out.strip().splitlines():
+        gpu_id, temp_c = [x.strip() for x in line.split(',')]
+        if int(temp_c) >= warn_c:
+            print(f"WARNING: GPU {gpu_id} at {temp_c} C; check throttle reasons")
+
+# Thresholds are model-specific. Query the slowdown and shutdown temperatures with:
+#   nvidia-smi -q -d TEMPERATURE
+# and confirm whether the GPU is actually throttling with:
+#   nvidia-smi -q -d PERFORMANCE   (look for HW/SW Thermal Slowdown)
 ```
+
+---
 
 ---
 
@@ -218,70 +159,49 @@ def monitor_gpu_thermal():
 ### 3.1 Power Distribution Tiers
 
 ```
-PDU (Power Distribution Unit) Architecture
+Power distribution (conceptual)
 
-Tier 1: Utility Power (Wall)
-  Input: 208V 3-phase, 100A circuit = 36 kW capacity
-  Incoming service: Typical data center provides 2 circuits per rack (72 kW total)
+Tier 1: Utility / UPS feed to the row
+  Provision per-rack circuits for the rack's rated load plus derating (continuous loads are typically
+  limited to 80% of the breaker rating by electrical code). Example: 3-phase 208V at 60A is about
+  21.6 kW rated and about 17.3 kW continuous, so a 40 kW rack needs multiple feeds.
 
-Tier 2: Rack PDU (Switched/Monitored)
-  Input: 208V 3-phase from wall circuit
-  Outlets: 20×20A circuits (rated for 4.8 kW per outlet, 16A continuous)
-  Total capacity: ~60 kW per PDU
-  
-  Smart features:
-    Power metering per outlet (measure consumption)
-    Inlet monitoring (current draw, temperature)
-    Outlet control (remote on/off, useful for power cycling stuck GPUs)
-    SNMP monitoring (feed metrics to Prometheus/Grafana)
+Tier 2: Rack PDU (switched/monitored)
+  Metered inlets and outlets, remote outlet control, SNMP/Redfish telemetry into Prometheus.
+  Size and balance phases for the actual node PSU inputs.
 
-Tier 3: Node PSU (Power Supply Unit)
-  Input: 208V 3-phase or 120V single-phase from PDU outlet
-  Output: 3.86 kW sustained, 4.5 kW peak
-  Efficiency: 90% (typical 80+ Gold rating)
-  Redundancy: Single PSU per node (N+0); high-end systems use dual PSU with 50% load per unit
+Tier 3: Node power supplies
+  DGX H100 uses multiple redundant power supplies; see the DGX H100 user guide for the supply
+  count, redundancy scheme, and input voltage range. Feed supplies from independent PDUs/feeds
+  (A/B) so one feed failure does not drop the node.
 
-POWER TOPOLOGY FOR 8-NODE CLUSTER:
-
-Wall ─────────┬─────────────────────┬─────────────────────┐
-             PDU-A (30 kW)         PDU-B (30 kW)      spare
-              │                      │
-        ┌─────┴─────┬───────┐   ┌──┬─┴────┬───────┐
-    Node1-4        spares   Node5-8     spares
-   (4×4kW)        (4×4kW)  (4×4kW)     (4×4kW)
+Planning: 8 nodes × 10.2 kW = 81.6 kW needs roughly 4-5 racks of capacity at 20 kW per rack, or
+2 racks at ~40 kW per rack with the higher-density feeds.
 ```
 
 ### 3.2 Power Consumption Forecasting
 
 ```yaml
-CLUSTER UTILIZATION & POWER PLANNING
+CLUSTER UTILIZATION & POWER PLANNING (illustrative)
 
-Scenario: Production training cluster ramping from 2 to 5 concurrent training jobs
+Using ~110 kW facility power per 64-GPU job (Part 1.2) at 16 hours/day of training:
 
 Month 1: 1 training job (8 nodes, 64 GPU)
-  Active nodes: 8/8
-  Power: 30.88 kW compute × 1.4 cooling = 43.2 kW sustained
-  Hourly cost: 43.2 kW × $0.12/kWh = $5.18/hour
-  Monthly (assuming 16hr/day training): $5.18 × 16 × 30 = $2,486
+  Facility power at load: ~110 kW → $13.20/hour
+  Monthly: $13.20 × 16 × 30 ≈ $6,340
 
 Month 2: 2 concurrent jobs (16 nodes, 128 GPU)
-  Active nodes: 16/16 (need to add more capacity or stagger jobs)
-  Power: 61.76 kW compute × 1.4 = 86.4 kW
-  Monthly cost: $86.4 × 0.12 × 16 × 30 = $4,976
+  Facility power at load: ~220 kW → $26.40/hour
+  Monthly: $26.40 × 16 × 30 ≈ $12,670
+  This exceeds a 144 kW budget, so power capacity must be added before the second job is deployed.
 
-Month 3–6: Upgrade facility power budget
-  Install 2nd PDU pair (additional 72 kW circuit from utility)
-  Cost: $5K installation + $500/month dedicated circuit charge
-  New capacity: 144 kW (supports 4–5 concurrent 64-GPU jobs)
-
-Electricity cost forecasting:
-  Year 1 (1–2 jobs avg): ~$40K
-  Year 2 (2–3 jobs avg): ~$70K
-  Year 3 (3–4 jobs avg): ~$100K
-  
-  Amortized over 3-year cluster life: $210K electricity + $30K facility overhead = $240K
-  Per-GPU: $240K / 64 GPU = $3,750/GPU over 3 years
+Planning rule: electricity scales roughly linearly with active nodes (about $86K/year per
+64-GPU cluster under the schedule in Part 1.2). The binding constraint is usually committed
+facility power and cooling capacity, not the electricity bill, so plan capacity upgrades
+12 months ahead of cluster growth.
 ```
+
+---
 
 ---
 
@@ -289,7 +209,7 @@ Electricity cost forecasting:
 
 | Symptom | Diagnostic | Root Cause | Resolution | Prevention |
 |---|---|---|---|---|
-| **GPUs throttling (clock reduction)** | `nvidia-smi` shows clocks at 1.2 GHz instead of 2.5 GHz | Thermal throttle due to high temperature (>80°C) | Reduce batch size, check cooling intake temp, verify fan operation | Monitor GPU temp trends, alert at >75°C |
+| **GPUs throttling (clock reduction)** | `nvidia-smi` shows clocks well below the GPU's max and a thermal slowdown reason active | Thermal throttle due to high temperature | Check cooling intake temp and airflow, verify chassis fan operation via the BMC | Monitor GPU temp trends against the GPU's slowdown threshold |
 | **Power loss (GPUs offline)** | Node powers off completely; BIOS not accessible | PSU overload or circuit breaker trip | Check PDU power draw; reduce node load (2 instead of 4 training jobs concurrently) | Monitor PDU inlet amps; alert at >80A |
 | **Intermittent node reboots** | Node restarts unprompted every 1–2 hours | Unstable power supply or thermal shutdown | Swap PSU with known-good unit; check inlet air temperature | Trend PSU output voltage; replace if unstable |
 | **Hot-aisle temperature > 45°C (setpoint 30°C)** | CRAC intake 25°C but exhaust 50°C | Hot-aisle/cold-aisle mixture (containment breach) | Seal gaps in raised floor, verify CRAC intake is pulling cold air | Implement blanking panels, monitor containment quarterly |
@@ -297,20 +217,20 @@ Electricity cost forecasting:
 
 ## Architecture Summary
 
-AI Infrastructure relies on extreme power density. An 8-GPU node pulls massive microsecond electrical spikes that traditional datacenter PDUs and HVAC systems cannot support. Architects must design containment cooling (preventing hot exhaust from mixing with cold intake) or migrate entirely to Direct-to-Chip Liquid Cooling for next-generation silicon (e.g., Blackwell).
+AI Infrastructure relies on extreme power density. An 8-GPU node draws up to about 10 kW, and training power swings with the workload, which traditional datacenter PDUs and HVAC systems may not support. Architects must design containment cooling (preventing hot exhaust from mixing with cold intake) or migrate entirely to Direct-to-Chip Liquid Cooling for next-generation silicon (e.g., Blackwell).
 
 ```mermaid
 flowchart TD
     subgraph Datacenter_Cooling_Architecture["AI Factory Cooling Solutions"]
         direction TB
         
-        Heat[Massive GPU Heat Generation] --> Q1{"Is rack density <br/> under 30 kW?"}
+        Heat[Massive GPU Heat Generation] --> Q1{"Is rack density <br/> within air-cooling limits?"}
         
         Q1 -->|Yes| Air[Air Cooling Architecture]
         Air --> ColdAisle[Cold Aisle Containment <br/> Force cold air into intake]
         Air --> HotAisle[Hot Aisle Containment <br/> Trap exhaust and vent out]
         
-        Q1 -->|No, > 50 kW| Liquid[Liquid Cooling Architecture]
+        Q1 -->|No, higher density| Liquid[Liquid Cooling Architecture]
         Liquid --> RDHX[Rear-Door Heat Exchangers <br/> Water-cooled rack doors]
         Liquid --> D2C[Direct-to-Chip <br/> Water blocks mounted on GPUs]
     end
@@ -322,9 +242,9 @@ flowchart TD
 
 Power and thermal design determines cluster reliability and operating cost:
 
-1. **Power budget:** 40–45 kW per 64-GPU cluster (sustained training), peaks to 50 kW during load.
-2. **Cooling:** Air cooling (COP 3.0) costs $40K + high energy bill; liquid cooling (COP 5.0) costs $300K but saves $200K/year in electricity.
+1. **Power budget:** about 82 kW of IT load per 64-GPU H100 cluster (8 nodes at ~10.2 kW), roughly 110 kW at the facility with a PUE of 1.35.
+2. **Cooling:** Air cooling works up to roughly 40 kW per rack with containment; beyond that, direct-to-chip liquid cooling is the usual path. Compare options with measured PUE and vendor quotes.
 3. **Monitoring:** Track GPU temp, PDU watts, inlet air temp; alert when any exceed thresholds.
-4. **Forecasting:** Plan facility power upgrades 12 months ahead; growth from 1 to 5 concurrent jobs doubles power requirements.
+4. **Forecasting:** Plan facility power upgrades 12 months ahead; each additional 64-GPU job adds roughly another 110 kW of facility power.
 
 **In Chapter 6:** Software stack integration. How do you orchestrate CUDA, PyTorch, JAX, and distributed training frameworks to actually use all 64 GPUs efficiently?

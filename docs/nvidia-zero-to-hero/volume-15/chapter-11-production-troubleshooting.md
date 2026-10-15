@@ -100,7 +100,7 @@ Run this every training run, before loading data. This becomes your "healthy" re
 diff healthy.txt current.txt | head -50
 ```
 
-**Output:**
+**Illustrative output (not captured):**
 ```
 < GPU0    dmon -s puctem shows: sm=92%, mem=40%
 > GPU0    dmon -s puctem shows: sm=15%, mem=5%     ← GPU idle!
@@ -137,7 +137,7 @@ while training:
 python -m cProfile -s cumtime train.py 2>&1 | head -30
 ```
 
-**Output:**
+**Illustrative output (not captured):**
 ```
    ncalls  tottime  cumtime  filename:lineno(function)
    120000   0.5     45.2    Image.open  ← Image decode
@@ -170,7 +170,7 @@ watch -n 1 'ethtool -S eth0 | grep -E "rx_errors|rx_dropped"'
 ```bash
 # Check NIC ring buffer settings
 ethtool -g eth0
-# Output: RX ring size: 256
+# Illustrative output (not captured): RX ring size: 256
 
 # Ring buffer is too small; packets are being dropped on burst
 # Increase ring buffer

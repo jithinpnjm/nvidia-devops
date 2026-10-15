@@ -21,7 +21,7 @@ These are not standard DevOps questions; they are Principal Engineer-level archi
 In legacy virtualized environments, network or storage I/O from a Virtual Machine (VM) traversed a hypervisor trap-and-emulate path. The guest OS would write to a virtual device driver, the hypervisor would intercept this action, translate it, and forward it to the physical hardware. This adds massive latency and burns CPU cycles—unacceptable for high-performance computing (HPC) or AI workloads.
 
 :::tip Golden Answer
-"SR-IOV is a PCI Express standard that allows a single physical PCIe device (like an NVIDIA ConnectX NIC) to appear as multiple separate physical PCIe devices to the system. It creates one Physical Function (PF) managed by the host, and multiple Virtual Functions (VFs). These VFs are lightweight PCIe functions that contain the resources necessary for data movement but lack configuration capabilities. We map these VFs directly into the memory space of a VM using PCIe passthrough (via the IOMMU), allowing the VM to talk directly to the hardware. Zero hypervisor overhead."
+"SR-IOV is a PCI Express standard that allows a single physical PCIe device (like an NVIDIA ConnectX NIC) to expose multiple lightweight PCIe functions to the system. It creates one Physical Function (PF) managed by the host, and multiple Virtual Functions (VFs). These VFs are lightweight PCIe functions that contain the resources necessary for data movement but lack configuration capabilities. We map these VFs directly into the memory space of a VM using PCIe passthrough (via the IOMMU), allowing the VM to talk directly to the hardware. Zero hypervisor overhead."
 :::
 
 ### Whiteboard Strategy: Drawing the Datapath
@@ -135,7 +135,7 @@ In the cloud, scaling a node pool is an API call. On bare-metal, it requires a h
 
 :::danger Interview Trap
 **The Trap:** Focusing entirely on `kubeadm` or `kubectl` commands and ignoring the physical reality of MAC addresses, switch port configurations, and IPMI.
-**The Reality:** Bare metal means hardware. If the switch port isn't configured for the right untagged VLAN during PXE boot, the node will never reach the provisioner. A senior engineer knows that bare metal scaling fails at the network fabric layer 90% of the time, not the K8s layer.
+**The Reality:** Bare metal means hardware. If the switch port isn't configured for the right untagged VLAN during PXE boot, the node will never reach the provisioner. A senior engineer knows that bare metal scaling very often fails at the network fabric or out-of-band layer, not the K8s layer.
 :::
 
 ```mermaid
@@ -209,13 +209,13 @@ graph TD
         direction LR
         PyTorchJob[PyTorchJob Operator]
         
-        subgraph Node A (Rank 0)
+        subgraph NA["Node A (Rank 0)"]
             PodA[Worker Pod 0 <br> Requests 8 GPUs]
             GPUA[8x H100 GPUs <br> NVLink]
             PodA --- GPUA
         end
         
-        subgraph Node B (Rank 1)
+        subgraph NB["Node B (Rank 1)"]
             PodB[Worker Pod 1 <br> Requests 8 GPUs]
             GPUB[8x H100 GPUs <br> NVLink]
             PodB --- GPUB

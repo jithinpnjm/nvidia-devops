@@ -65,13 +65,13 @@ Detected: 14:35:00 UTC (3 min after issue started)
 ```
 GPU Utilization: All 8 GPUs show 45–60% utilization (normally 95%+)
 GPU Memory: 60 GB used (normally 70+ GB used, approaching limit)
-GPU Clock: All GPUs at base clock 300 MHz (normally 1500+ MHz)
+GPU Clock: All GPUs at 300 MHz (far below the typical boost clock)
 Temperature: All GPUs at 45°C (normally 70°C)
 ```
 
 **T+10 min (Engineer checks logs):**
 ```
-NCCL Debug log: (with NCCL_DEBUG=TRACE enabled)
+Illustrative scenario log (not captured; NCCL does not emit lines in this format):
 [14:32:15.234] Rank 0: AllReduce started on group comm:1234567
 [14:32:15.456] Rank 0: Waiting for collective from rank 1, 2, 3, 4, 5, 6, 7
 [14:32:18.234] Rank 0: Message from rank 1 arrived (latency 2.78s ← 2780ms!)
@@ -90,8 +90,9 @@ IB Errors on Node2 incoming port: 234 errors in last 5 minutes (vs 0 yesterday)
 ```
 
 **T+15 min (What the engineer discovers by checking NVLink):**
+Illustrative output (not captured; real `nvlink --status` prints per-link speed, and per-link throughput comes from `-gt` or DCGM):
 ```
-$ nvidia-smi nvlink -sc 0
+$ nvidia-smi nvlink --status -i 0
 NVLink Status (GPU 0):
   NVLink 0: Active (6.5 GB/s, baseline 25 GB/s) ← 4× slower!
   NVLink 1: Active (23.8 GB/s, baseline 25 GB/s)  ← Mostly OK
@@ -139,7 +140,7 @@ nvidia-smi --query-gpu=index,utilization.gpu,utilization.memory,memory.used,temp
            --format=csv -l 1
 ```
 
-Expected output:
+Illustrative output (not captured):
 ```
 index, utilization.gpu [%], utilization.memory [%], memory.used [MiB], temperature.gpu [C], power.draw [W], clocks.current.graphics [MHz]
 0, 48, 70, 45000, 45, 180, 300
@@ -148,7 +149,7 @@ index, utilization.gpu [%], utilization.memory [%], memory.used [MiB], temperatu
 ...
 ```
 
-→ **Observation:** Clock at 300 MHz (base clock, not normal) + Utilization only 50% (normally 95%+) suggests GPU is power or thermally throttled, or waiting on something.
+→ **Observation:** Graphics clock at 300 MHz (far below the boost clock, i.e. clocks are being held down) + Utilization only 50% (normally 95%+) suggests GPU is power or thermally throttled, or waiting on something.
 
 ### 2. Check NCCL Logs
 ```bash
@@ -156,16 +157,17 @@ index, utilization.gpu [%], utilization.memory [%], memory.used [MiB], temperatu
 export NCCL_DEBUG=TRACE
 mpirun -np 8 python train.py 2>&1 | tee nccl.log
 
-# Look for latency in collective operations
-grep "AllReduce completed" nccl.log
+# Look for warnings, timeouts, or transport errors (NCCL's TRACE log does not
+# print a per-collective "completed in" line; use nccl-tests or framework timers for latency)
+grep -iE "warn|timeout|error" nccl.log
 ```
 
-Expected healthy output:
+Illustrative healthy output (not captured):
 ```
 [14:32:00.123] Rank 0: AllReduce started ... completed in 5.0ms
 ```
 
-Incident output:
+Illustrative incident output (not captured):
 ```
 [14:32:15.234] Rank 0: AllReduce started ...
 [14:32:18.234] Rank 1 message arrived (2780ms latency!)
@@ -203,10 +205,11 @@ ErrorsReceived: 234 ← New errors on link
 
 ### 4. Check NVLink Status
 ```bash
-nvidia-smi nvlink -sc 0  # -sc 0 = GPUIndex 0
+nvidia-smi nvlink --status -i 0   # per-link state for GPU 0
+nvidia-smi nvlink -e -i 0         # per-link error counters
 ```
 
-Expected:
+Illustrative output (not captured):
 ```
 NVLink 0: Active, 25.0 GB/s
 NVLink 1: Active, 25.0 GB/s
@@ -335,7 +338,7 @@ The time to diagnosis: ~15 minutes if I know where to look. Without structure, i
 
 **Q: What would you change to prevent this in the future?**
 
-**A:** "I'd add automatic link health monitoring. Every 5 minutes, run `nvidia-smi nvlink -sc` on all GPUs and log the results. If a link drops from 25 GB/s to &lt; 10 GB/s, alert immediately.
+**A:** "I'd add automatic link health monitoring. Every 5 minutes, run `nvidia-smi nvlink --status` (and `-e` for error counters) on all GPUs and log the results. If a link drops from 25 GB/s to &lt; 10 GB/s, alert immediately.
 
 I'd also add automatic mitigation: if a link fails, automatically exclude that GPU and restart the job. This can be done at the Kubernetes level: if a GPU reports link failure, evict the pod, it reschedules on different node.
 

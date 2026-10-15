@@ -68,7 +68,7 @@ Compare wall-clock time per epoch (or tokens/sec) between a single-GPU run (`pyt
 
 ## 11. Safe Failure Injection
 **Action:** Manually kill one of the worker processes (e.g., `kill -9 &lt;PID&gt;`) to simulate a node or GPU crash.
-**Expected Result:** The process group should hang or crash with an explicit NCCL error.
+**Expected Result:** The surviving ranks block in their next collective until the NCCL timeout, or `torchrun` terminates the whole worker group when it detects the failed worker; either way the job stops rather than continuing with fewer ranks. Kill only the processes of this lab job.
 
 ## 12. Recovery Steps
 Restart the job using `torchrun`. PyTorch's Elastic launcher can also be configured to restart automatically if `--max_restarts` is set.

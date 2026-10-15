@@ -77,12 +77,14 @@ flowchart LR
 
 **The gap between "GPU busy" and "Tensor Cores busy," made concrete.** `nvidia-smi`'s headline utilization field only reports whether *any* engine was active — it does not break down which one:
 
+*Illustrative output (not captured):*
+
 ```text
 $ nvidia-smi --query-gpu=utilization.gpu,utilization.memory --format=csv,noheader
 91 %, 18 %
 ```
 
-`utilization.gpu=91%` alone is consistent with three very different situations: a Tensor-Core-bound matmul, a purely scalar CUDA-Core kernel doing indexing work, or a kernel stalled on load/store units. `utilization.memory=18%` here at least rules out a memory-bandwidth-bound explanation, but distinguishing "Tensor Cores busy" from "CUDA Cores busy" still requires a profiler's pipeline-specific counter (Nsight Compute's Tensor Core utilization metric, or a framework-level op trace showing which kernels were dispatched) — `nvidia-smi` alone cannot answer the question this chapter opens with.
+`utilization.gpu=91%` alone is consistent with three very different situations: a Tensor-Core-bound matmul, a purely scalar CUDA-Core kernel doing indexing work, or a kernel stalled on load/store units. `utilization.memory=18%` here (a time-based measure of memory-interface activity, not achieved bandwidth) at least makes a memory-bound explanation less likely, but distinguishing "Tensor Cores busy" from "CUDA Cores busy" still requires a profiler's pipeline-specific counter (Nsight Compute's Tensor Core utilization metric, or a framework-level op trace showing which kernels were dispatched) — `nvidia-smi` alone cannot answer the question this chapter opens with.
 
 ## Why Specialization Exists
 
@@ -269,6 +271,8 @@ Do not optimize by core count alone. Select systems based on workload evidence.
 | Tensor kernels wait frequently | Memory bottleneck | Inspect memory throughput and stalls |
 
 **Turning "high GPU utilization but low model throughput" into evidence.** A `dmon` trace during inference, paired with the application's own tokens/s counter over the same window, is the concrete version of "general kernels dominate":
+
+*Illustrative output (not captured):*
 
 ```text
 $ nvidia-smi dmon -s ucm -c 4

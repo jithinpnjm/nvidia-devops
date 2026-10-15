@@ -135,7 +135,7 @@ EOF
 curl -s http://localhost:9090/api/v1/targets | grep dcgm
 ```
 
-**Expected output:**
+**Illustrative output (not captured):**
 
 ```json
 {
@@ -160,7 +160,7 @@ curl -s http://localhost:9090/api/v1/targets | grep dcgm
 curl -s 'http://localhost:9090/api/v1/query?query=DCGM_FI_DEV_GPU_TEMP' | jq '.data.result'
 ```
 
-**Expected output:**
+**Illustrative output (not captured):**
 
 ```json
 [
@@ -207,7 +207,7 @@ for i in {1..10}; do
 done
 ```
 
-**Expected output (should increase):**
+**Illustrative output (not captured) (should increase):**
 
 ```text
 "0"

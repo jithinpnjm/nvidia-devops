@@ -48,7 +48,7 @@ RBAC is built on four core Kubernetes objects:
 
 **The Danger Zone:**
 If you give a data scientist a `RoleBinding` that allows them to create `pods` in the `ai-dev` namespace, you might think they are isolated. 
-However, if you also allow them to create `RoleBindings` in that namespace, they can create a binding that grants their own Service Account full admin rights, escalating their privileges and bypassing your controls.
+Kubernetes blocks simple self-escalation: you cannot create a binding to a role containing permissions you do not hold unless you also have the `escalate` or `bind` verbs. Handing out those verbs (or broad wildcard permissions on `roles` and `rolebindings`) reopens the path. A more common route is creating pods that mount a more privileged ServiceAccount, or read `secrets`, so restrict those too.
 
 ## 2. Securing the GPU Platform Layer
 
@@ -73,7 +73,7 @@ You do not create users in Kubernetes. You must integrate Kubernetes with your e
 4.  The API server cryptographically verifies the token.
 5.  Kubernetes matches the `data-science-team` group to a pre-configured `RoleBinding`.
 
-This ensures that when an employee leaves the company and is deactivated in Active Directory, their access to the GPU cluster is instantly revoked. 
+This ensures that when an employee leaves the company and is deactivated in Active Directory, their access to the GPU cluster ends as soon as their existing token expires (keep token lifetimes short). 
 
 ## Customer Scenario (Senior Level)
 
@@ -89,7 +89,7 @@ We must immediately revoke the `cluster-admin` token and implement **Least Privi
 
 First, we will analyze the exact actions the CI/CD pipeline performs. It likely only needs to update Deployments and Services within the specific `production-inference` namespace. 
 
-Second, we will create a tightly scoped `Role` within the `production-inference` namespace that only allows `get, list, create, update, patch` verbs on `deployments`, `services`, and `ingresses`. It will explicitly deny access to `secrets` and `nodes`. 
+Second, we will create a tightly scoped `Role` within the `production-inference` namespace that only allows `get, list, create, update, patch` verbs on `deployments`, `services`, and `ingresses`. RBAC is purely additive (there are no deny rules), so by not granting `secrets` or `nodes` the Role excludes them. 
 
 Third, we will create a new Service Account and bind it to this specific `Role` using a `RoleBinding`. We will inject this new, heavily restricted token into GitLab. The deployment pipeline will continue to function perfectly, but the blast radius of a potential credential theft is mathematically contained to a single namespace, resolving the Critical audit finding."
 

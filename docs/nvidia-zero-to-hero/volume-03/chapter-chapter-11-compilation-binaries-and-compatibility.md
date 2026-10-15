@@ -35,7 +35,7 @@ But what does it compile the GPU code into? It has two choices: **SASS** or **PT
 ### SASS (Streaming Assembler) — The Hard Binary
 SASS is the exact, physical machine code understood by a specific generation of NVIDIA silicon. 
 * If you compile code into SASS for an A100 (Compute Capability `sm_80`), it is perfectly optimized for the A100.
-* **The Danger:** SASS is **not forward-compatible**. If you take that exact binary and run it on an H100 (Compute Capability `sm_90`), the H100 will not understand the instructions and will instantly crash.
+* **The Danger:** SASS is **not forward-compatible**. If you take that exact binary and run it on an H100 (Compute Capability `sm_90`), the H100 cannot load the instructions and the launch fails with a `no kernel image` error.
 
 ### PTX (Parallel Thread Execution) — The Virtual Assembly
 PTX is a virtual, high-level assembly language. It is not tied to physical silicon.
@@ -49,9 +49,10 @@ To solve the compatibility vs. speed issue, NVIDIA created the **Fat Binary (fat
 When building a production Docker container, a Senior SRE configures the compilation flags to embed *multiple versions* of the code into a single file.
 
 ```bash
-nvcc -gencode arch=compute_80,code=sm_80 \ # Embed A100 SASS
-     -gencode arch=compute_90,code=sm_90 \ # Embed H100 SASS
-     -gencode arch=compute_90,code=compute_90 # Embed PTX for future GPUs
+# sm_80: A100 SASS; sm_90: H100 SASS; compute_90: PTX for future GPUs
+nvcc -gencode arch=compute_80,code=sm_80 \
+     -gencode arch=compute_90,code=sm_90 \
+     -gencode arch=compute_90,code=compute_90
 ```
 
 When this container runs:

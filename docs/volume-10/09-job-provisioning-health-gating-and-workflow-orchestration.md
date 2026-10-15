@@ -48,7 +48,7 @@ In a distributed training run across `N` nodes, hardware Mean Time Between Failu
 Cluster MTBF = Single Node MTBF / N
 ```
 
-If a single DGX node has an MTBF of 1,000 days (~3 years), a cluster of 512 DGX nodes (4,096 GPUs) will experience an unhandled hardware fault or link drop roughly every **1.95 days**. Without proactive, automated health gating at the *Prolog* and *Epilog* stages, nodes with degraded hardware are blindly fed to multi-million parameter workloads. Jobs spend more time crashing, restarting, and reloading checkpoints than making training progress, severely impacting the Return on Investment (ROI) of the AI Factory.
+Treating failures as independent, and assuming for illustration that a single node has an MTBF of 1,000 days (~3 years; not a vendor figure), a cluster of 512 DGX nodes (4,096 GPUs) will experience an unhandled hardware fault or link drop roughly every **1.95 days**. Without proactive, automated health gating at the *Prolog* and *Epilog* stages, nodes with degraded hardware are blindly fed to multi-billion-parameter workloads. Jobs spend more time crashing, restarting, and reloading checkpoints than making training progress, severely impacting the Return on Investment (ROI) of the AI Factory.
 
 ---
 
@@ -131,7 +131,7 @@ In modern AI Factories, **cgroups v2** (Control Groups version 2) is the standar
 
 ```text
 # /etc/slurm/cgroup.conf
-CgroupAutomount=yes
+CgroupAutomount=yes   # ignored/not needed with cgroup v2 in recent Slurm releases; harmless to omit
 ConstrainCores=yes
 ConstrainRAMSpace=yes
 ConstrainSwapSpace=yes
@@ -155,7 +155,7 @@ Before looking at the script, understand the processes involved:
 2.  **Dataloader Workers (CPUs):** PyTorch spawns multiple CPU threads to read data from the NVMe/network, augment the images/text, and stage them in RAM.
 3.  **GPU Execution:** The data is pushed from RAM to GPU VRAM via PCIe, and the GPU executes the matrix multiplications.
 
-If you allocate 8 GPUs but only 2 CPU cores per task, your GPUs will sit idle at 0% utilization waiting for the CPUs to fetch data. A balanced DGX H100 has 112 or 128 cores per socket. You must map these correctly.
+If you allocate 8 GPUs but only 2 CPU cores per task, your GPUs will sit idle at 0% utilization waiting for the CPUs to fetch data. A DGX H100 has 112 CPU cores in total across its two sockets (2 x 56), which works out to 14 cores per GPU. Map your `--cpus-per-task` to your platform's actual core count.
 
 ### Deconstructing PyTorch DistributedDataParallel (DDP) Variables
 
@@ -183,28 +183,31 @@ PyTorch DDP requires specific environment variables to establish the NCCL commun
 #SBATCH --error=/scratch/logs/%x-%j.err
 
 # 1. Environment Setup & NCCL Tuning
-# Disable NCCL InfiniBand fallbacks. If IB fails, we want the job to crash immediately,
-# not silently fall back to slow Ethernet (TCP), which causes silent stragglers.
-export NCCL_IB_DISABLE=0
-export NCCL_NET_GDR_LEVEL=2            # Enable GPUDirect RDMA
+# Force the IB network module. NCCL_NET=IB makes NCCL fail if the IB transport cannot be used,
+# rather than silently falling back to slow TCP sockets, which causes silent stragglers.
+export NCCL_NET=IB                     # Fail instead of silently falling back to the Socket (TCP) transport
 # Explicitly map the ConnectX-7 HCAs to ensure NCCL doesn't guess wrong
 export NCCL_IB_HCA=mlx5_0:1,mlx5_1:1,mlx5_2:1,mlx5_3:1,mlx5_4:1,mlx5_5:1,mlx5_6:1,mlx5_7:1
 export NCCL_IB_TIMEOUT=22              # Increase timeout for large clusters
 export NCCL_DEBUG=INFO                 # Crucial for troubleshooting
 
-# 2. PyTorch Distributed Configuration
+# 2. PyTorch Distributed Configuration (illustrative: adapt to your training entrypoint)
 # Fetch the master node IP address dynamically from Slurm
-MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)
-MASTER_PORT=6000
-WORLD_SIZE=$(( SLURM_NNODES * SLURM_NTASKS_PER_NODE ))
+export MASTER_ADDR=$(scontrol show hostnames $SLURM_JOB_NODELIST | head -n 1)
+export MASTER_PORT=6000
+export WORLD_SIZE=$(( SLURM_NNODES * SLURM_NTASKS_PER_NODE ))
 
 echo "Training on $WORLD_SIZE GPUs. Master: $MASTER_ADDR:$MASTER_PORT"
 
 # 3. Launch the Workload via srun
 # srun propagates the tasks to all allocated nodes.
 # We use Apptainer (Singularity) or Enroot to run the NVIDIA PyTorch container.
+# RANK and LOCAL_RANK come from Slurm per task, so set them inside each task.
+# Megatron-LM reads MASTER_ADDR/MASTER_PORT/WORLD_SIZE/RANK/LOCAL_RANK from the environment
+# (it has no --master-addr, --node-rank, or --world-size flags).
 srun \
-  --mpi=pmix \
+  --mpi=none \
+  bash -c 'export RANK=$SLURM_PROCID LOCAL_RANK=$SLURM_LOCALID; exec "$@"' _ \
   apptainer exec --nv \
   --bind /scratch/datasets:/data \
   --bind /scratch/checkpoints:/checkpoints \
@@ -217,20 +220,17 @@ srun \
     --global-batch-size 1024 \
     --tensor-model-parallel-size 8 \
     --pipeline-model-parallel-size 4 \
-    --distributed-backend nccl \
-    --master-addr $MASTER_ADDR \
-    --master-port $MASTER_PORT \
-    --node-rank $SLURM_NODEID \
-    --world-size $WORLD_SIZE
+    --distributed-backend nccl
 ```
 
-Notice the explicit failure boundaries: `NCCL_IB_DISABLE=0` ensures that if the health gates failed to catch an InfiniBand failure, the job hard-crashes rather than silently falling back to a slower interface.
+Notice the explicit failure boundary: `NCCL_NET=IB` forces the IB network module, so if the health gates missed an InfiniBand failure the job fails at initialization instead of silently running over TCP sockets. (`NCCL_IB_DISABLE=0` is already the default and does not provide this guarantee.)
 
 ### Masterclass `sbatch` Template for MPI-based NCCL Tests
 
 While PyTorch DDP uses its own rendezvous mechanism (TCP/IP), pure MPI-based jobs (like NCCL bandwidth tests) rely entirely on PMIx or OpenMPI for process coordination. The script below tests the InfiniBand fabric by running a synchronized `all_reduce_perf` test across multiple nodes.
 
 ```bash
+#!/bin/bash
 #SBATCH --job-name=nccl_ib_test
 #SBATCH --nodes=4
 #SBATCH --ntasks-per-node=8
@@ -238,10 +238,8 @@ While PyTorch DDP uses its own rendezvous mechanism (TCP/IP), pure MPI-based job
 #SBATCH --exclusive
 #SBATCH --time=00:30:00
 
-# Bind tasks strictly to their local NUMA node sockets
-export OMPI_MCA_hwloc_base_binding_policy=numa
-export OMPI_MCA_pml=ucx
-export OMPI_MCA_btl=^openib
+# Note: with srun --mpi=pmix, Slurm (not mpirun) does the binding; OMPI_MCA_* settings apply to
+# mpirun launches. Use srun --cpu-bind / --gpu-bind for placement here.
 
 # Force NCCL to use all 8 InfiniBand cards (NDR 400G)
 export NCCL_IB_HCA=mlx5_0:1,mlx5_1:1,mlx5_2:1,mlx5_3:1,mlx5_4:1,mlx5_5:1,mlx5_6:1,mlx5_7:1
@@ -257,7 +255,7 @@ srun --mpi=pmix /shared/nccl-tests/build/all_reduce_perf \
     -c 1 \
     -n 100
 ```
-Running this test after node maintenance is critical for verifying that the full 3.2 Tbps of non-blocking bandwidth is available across the physical NVLink and InfiniBand fabrics.
+Running this test after node maintenance helps verify that the expected bandwidth is available across the NVLink and InfiniBand fabrics. Compare against a baseline you measured on the same hardware rather than a theoretical number.
 
 ---
 
@@ -270,7 +268,7 @@ flowchart TD
     subgraph Tier1["Tier 1: Continuous Background Health Check (Every 1–5m)"]
         NHC["Node Health Check (NHC) / BCM CMDaemon"]
         NHC -->|Polls| DCGM_T1["DCGM Field Polling (XID, Clocks, Temps)"]
-        NHC -->|Polls| IB_T1["InfiniBand Port Counters (symbol_error_rate)"]
+        NHC -->|Polls| IB_T1["InfiniBand Port Counters (SymbolErrorCounter)"]
         NHC -->|Polls| SYS_T1["Filesystem Mounts & Systemd Services"]
     end
 
@@ -287,7 +285,7 @@ flowchart TD
         EPILOG -->|Action 1| KILL_ZOMBIE["Terminate Rogue User Processes (pkill -9)"]
         EPILOG -->|Action 2| PURGE_CACHE["Wipe Local Job Scratch (/scratch/$SLURM_JOB_ID)"]
         EPILOG -->|Action 3| DMESG_CHECK["Audit Kernel Ring Buffer for New XIDs"]
-        EPILOG -->|Action 4| GPU_RESET["Release VRAM via nvidia-smi --gpu-reset"]
+        EPILOG -->|Action 4| GPU_RESET["Reset GPU state where supported (nvidia-smi --gpu-reset)"]
     end
 
     Tier1 -.->|Degradation Detected| DRAIN["Autonomous DRAIN: scontrol update NodeName=... State=DRAIN"]
@@ -319,25 +317,24 @@ NHC uses a configuration file (`/etc/nhc/nhc.conf`) to define checks.
 
 # 1. System basics
  * || check_fs_mount_rw -t nfs -f /shared_scratch
- * || check_hw_mem 2000000000  # Verify at least 2TB RAM exists
+ * || check_hw_mem 2000000000  # Min RAM in kB (about 2 TB); adjust to your platform
  * || check_ps_service -S slurmd
 
-# 2. NVIDIA GPU Checks (Requires NHC GPU Plugins)
- * || check_nv_health
- * || check_nvsmi_healthmon
+# 2. NVIDIA GPU checks: NHC does not ship a complete GPU check set. Wrap your own checks
+#    (nvidia-smi, DCGM) with check_cmd_status, or add site-specific .nhc check files.
+ * || check_cmd_status -t 30 -r 0 /usr/local/sbin/gpu_health.sh
 
-# 3. InfiniBand Fabric Checks
- * || check_ib_link_state mlx5_0 1 Active
- * || check_ib_link_speed mlx5_0 1 400
- * || check_ib_link_state mlx5_1 1 Active
- * || check_ib_link_speed mlx5_1 1 400
+# 3. InfiniBand fabric checks (check_hw_ib: minimum rate in Gb/s, optional device:port; verify syntax
+#    against the NHC documentation for your version)
+ * || check_hw_ib 400 mlx5_0:1
+ * || check_hw_ib 400 mlx5_1:1
 ```
 
-When NHC detects a failure, it immediately interfaces with Slurm to drain the node (`scontrol update NodeName=$HOSTNAME State=DRAIN`), preventing the scheduler from assigning new jobs to it.
+When an NHC check fails, NHC marks the node offline in the resource manager (for Slurm, by draining it with `scontrol update`), so the scheduler stops assigning new jobs to it.
 
 ### Custom NHC Checks (Python)
 
-While Bash is common, Python allows for deeper querying of the system state. You can write custom NHC checks for specific hardware bugs. For example, verifying PCIe ACS (Access Control Services) is disabled, which is strictly required for GPUDirect RDMA.
+While Bash is common, Python allows for deeper querying of the system state. You can write custom NHC checks for specific hardware bugs. For example, reporting PCIe ACS (Access Control Services) status, since ACS on switches between the NIC and GPU can hurt GPUDirect RDMA on some platforms (follow your platform vendor's guidance on whether it must be disabled). NHC checks are normally shell functions; a Python script is invoked through a wrapper such as `check_cmd_status`.
 
 ```python
 #!/usr/bin/env python3
@@ -347,20 +344,16 @@ import sys
 
 def check_pcie_acs():
     try:
-        # Query all PCIe devices for Access Control Services
+        # Requires root. The ACS control register is shown as "ACSCtl:" with +/- flags,
+        # e.g. "ACSCtl: SrcValid+ TransBlk- ReqRedir+ ..." (illustrative).
         lspci_out = subprocess.check_output(["lspci", "-vvv"], universal_newlines=True)
         acs_count = 0
-        lines = lspci_out.split('\n')
-        
-        for i, line in enumerate(lines):
-            if "Access Control Services" in line:
-                # Look at the next few lines for Enable+
-                for j in range(1, 4):
-                    if i+j < len(lines) and "Enable+" in lines[i+j]:
-                        acs_count += 1
-                        
+        for line in lspci_out.split('\n'):
+            if "ACSCtl:" in line and any(f in line for f in ("SrcValid+", "ReqRedir+", "CmpltRedir+", "UpstreamFwd+")):
+                acs_count += 1
+
         if acs_count > 0:
-            print(f"CRITICAL: PCIe ACS is enabled on {acs_count} devices. GPUDirect RDMA will degrade.")
+            print(f"CRITICAL: PCIe ACS is enabled on {acs_count} devices. GPUDirect RDMA may degrade.")
             sys.exit(1)
             
         print("OK: PCIe ACS is correctly disabled.")
@@ -392,18 +385,17 @@ Later suites include the checks of earlier ones and are more invasive. Suite com
 
 ### Executing and Parsing DCGM Diagnostics in Automation
 
-While `dcgmi diag` outputs text for humans, in automation scripts (like the Prolog), we mandate JSON output for robust parsing.
+While `dcgmi diag` outputs text for humans, automation should use JSON output (`-j`) for parsing.
 
 ```bash
 # Example: Running a Level 1 Diagnostic with JSON output
 $ sudo dcgmi diag -r 1 -j > /tmp/dcgm_diag.json
 ```
 
-*JSON output structure snippet:*
+*Simplified, illustrative JSON structure (not captured output; the real schema and field names differ by DCGM version, so inspect `dcgmi diag -r 1 -j` on your system before writing a parser):*
 
 ```json
 {
-  "version": "3.3.5",
   "gpu_count": 8,
   "test_categories": [
     {
@@ -422,16 +414,15 @@ $ sudo dcgmi diag -r 1 -j > /tmp/dcgm_diag.json
         {"name": "PCIe", "status": "Pass"}
       ]
     }
-  ],
-  "overall_result": "Pass"
+  ]
 }
 ```
 
-If `"overall_result"` is not `"Pass"`, the node must be immediately drained and subjected to Level 3 diagnostics or an RMA process. In an automated Python script, you would load this JSON, check `overall_result == "Pass"`, and iterate through `test_categories` to extract the exact failure reason for the drain message.
+If any test reports a failure, drain the node and run longer diagnostics (Level 3) or start the RMA process. In an automated script, load the JSON, walk the test categories and per-GPU results, and put the first failing test into the drain reason.
 
 ### Real-time Telemetry and Straggler Detection with DCGM-Exporter
 
-Beyond point-in-time diagnostics, DCGM runs a continuous background engine (`nv-hostengine`) that polls GPU sensors at 1-second or 100-millisecond intervals. This data is exposed via `dcgm-exporter` to Prometheus. 
+Beyond point-in-time diagnostics, DCGM runs a background engine (`nv-hostengine`) that polls GPU fields at a configurable interval (dcgm-exporter's default collection interval is on the order of seconds; check your configuration). This data is exposed via `dcgm-exporter` to Prometheus. 
 
 By monitoring specific metrics, your observability stack can detect **silent stragglers** that pass prolog checks but degrade under load.
 
@@ -456,16 +447,19 @@ groups:
   - alert: GPUStragglerDetected
     # Detect if one GPU's tensor core activity is significantly lower than the node average
     # during active training (GPU util > 80%)
+    # DCGM_FI_PROF_PIPE_TENSOR_ACTIVE is a ratio from 0 to 1, so 0.15 means 15 percentage points.
+    # Profiling metrics must be enabled in dcgm-exporter. Pipeline-parallel jobs can legitimately
+    # show uneven activity between stages; baseline before alerting.
     expr: >
-      (avg by (instance) (DCGM_FI_PROF_PIPE_TENSOR_ACTIVE) 
-       - DCGM_FI_PROF_PIPE_TENSOR_ACTIVE) > 15
-      and on (instance) (DCGM_FI_DEV_GPU_UTIL > 80)
+      (avg by (instance) (DCGM_FI_PROF_PIPE_TENSOR_ACTIVE)
+       - on (instance) group_right () DCGM_FI_PROF_PIPE_TENSOR_ACTIVE) > 0.15
+      and on (instance, gpu) (DCGM_FI_DEV_GPU_UTIL > 80)
     for: 5m
     labels:
       severity: critical
     annotations:
       summary: "GPU Straggler detected on {{ $labels.instance }} (GPU {{ $labels.gpu }})"
-      description: "GPU {{ $labels.gpu }} Tensor Core activity is 15% lower than the node average for 5 minutes. This is stalling the entire All-Reduce collective."
+      description: "GPU {{ $labels.gpu }} Tensor Core activity is more than 15 percentage points below the node average for 5 minutes. This is stalling the entire All-Reduce collective."
 ```
 
 When this alert fires, an automation webhook (e.g., via AWX or a custom Python service) can trigger a targeted pause, checkpoint, and drain of the offending node, allowing the job to resume on healthy hardware.
@@ -511,7 +505,7 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') [INFO] Starting Prolog for Job ${SLURM_JOB_ID
 
 # Gate 1: GPU Enumeration and NVML Responsiveness
 # A crashed driver or hung PCIe bus will cause nvidia-smi to hang or return fewer GPUs.
-GPU_COUNT=$(timeout 5s nvidia-smi --query-gpu=name --format=csv,noheader | wc -l || echo "0")
+GPU_COUNT=$(timeout 5s nvidia-smi --query-gpu=name --format=csv,noheader | wc -l || echo "0")  # a timeout leaves a count of 0
 if [ "${GPU_COUNT}" -ne 8 ]; then
     drain_node "Missing GPUs! Expected 8, enumerated ${GPU_COUNT} or NVML hung."
 fi
@@ -526,21 +520,25 @@ fi
 # Gate 3: Thermal or Power Hardware Slowdown (Throttling)
 # If a cooling loop failed, the GPU might still enumerate but run at 300MHz.
 # This creates a silent straggler.
-THROTTLED=$(nvidia-smi --query-gpu=clocks_event_reasons.hw_slowdown,clocks_event_reasons.sw_thermal_slowdown --format=csv,noheader | grep -ic "ACTIVE" || true)
+# Field values are "Active" or "Not Active"; count exact "Active" fields only.
+# (Older drivers name these clocks_throttle_reasons.*; verify with nvidia-smi --help-query-gpu.)
+THROTTLED=$(nvidia-smi --query-gpu=clocks_event_reasons.hw_slowdown,clocks_event_reasons.sw_thermal_slowdown --format=csv,noheader | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -cx 'Active' || true)
 if [ "${THROTTLED}" -gt 0 ]; then
     drain_node "Active Thermal/Hardware throttling detected on GPUs"
 fi
 
 # Gate 4: InfiniBand Fabric Health (Compute HCAs)
 # Ensure all 8 ConnectX-7 compute fabric adapters are physically linked and active.
+# ibstat lists every HCA port on the node (including storage/in-band ports on some systems),
+# so adjust the expected count and filter by device to match your platform.
 EXPECTED_HCA_PORTS=8
-# Use a fast rdma-core utility or ibstat
+# Use ibstat (infiniband-diags)
 ACTIVE_HCA_PORTS=$(ibstat | grep -E "State: Active" | wc -l || echo "0")
 if [ "${ACTIVE_HCA_PORTS}" -lt "${EXPECTED_HCA_PORTS}" ]; then
     drain_node "InfiniBand degradation! Active ports: ${ACTIVE_HCA_PORTS}/${EXPECTED_HCA_PORTS}"
 fi
 
-# Verify link speed is NDR 400G (Active at 4X Rate 100G)
+# Verify link speed is NDR 400G (ibstat reports Rate: 400)
 # A faulty optical cable might cause the link to negotiate down to 200G or 100G.
 DEGRADED_RATES=$(ibstat | grep "Rate:" | grep -v "400" | wc -l || true)
 if [ "${DEGRADED_RATES}" -gt 0 ]; then
@@ -550,14 +548,16 @@ fi
 # Gate 5: NVLink Fabric Health (NVSwitch)
 # Verify no NVLink ports are disabled or degraded between the GPUs and NVSwitches.
 # We parse the output of nvidia-smi nvlink.
-NVLINK_DOWN=$(nvidia-smi nvlink --status | grep -ic "Down" || true)
+# Active links print a speed ("Link N: <speed> GB/s"); inactive links print "<inactive>".
+# Verify the exact format on your driver version.
+NVLINK_DOWN=$(nvidia-smi nvlink --status | grep -ci "inactive" || true)
 if [ "${NVLINK_DOWN}" -gt 0 ]; then
     drain_node "NVLink degradation! One or more NVLink ports are down."
 fi
 
 # Gate 6: Process Sanitization
-# Clean up any leftover orphan GPU processes from previous jobs or interactive sessions.
-# This prevents OOM errors on job start.
+# Clean up leftover orphan GPU processes from previous jobs or interactive sessions.
+# Only safe on exclusive-node allocations: on shared nodes this would kill other jobs' processes.
 ORPHAN_PIDS=$(nvidia-smi --query-compute-apps=pid --format=csv,noheader)
 if [ -n "${ORPHAN_PIDS}" ]; then
     echo "$(date '+%Y-%m-%d %H:%M:%S') [WARN] Killing orphan GPU processes: ${ORPHAN_PIDS}" >> "${LOG_FILE}"
@@ -568,8 +568,8 @@ fi
 # Gate 7: Fast DCGM Diagnostics (Optional)
 # If you have strict SLA requirements, you can run Level 1 DCGM here.
 # Note: Ensure dcgmi diag -r 1 executes in <10s on your environment.
-DCGM_RES=$(dcgmi diag -r 1 -j | grep -c '"overall_result": "Pass"' || true)
-if [ "${DCGM_RES}" -eq 0 ]; then
+# Verify the JSON field names against your DCGM version; this greps for any failed test result.
+if ! timeout 30s dcgmi diag -r 1 -j > /tmp/dcgm_prolog_$$.json 2>&1 || grep -qi '"status": *"Fail' /tmp/dcgm_prolog_$$.json; then
     drain_node "DCGM Level 1 Diagnostic Failed"
 fi
 
@@ -580,7 +580,7 @@ exit 0
 ### Key Considerations for Prolog Scripts
 
 *   **Idempotency & Safety:** The script must not crash if a command is unavailable. Use `|| true` and `timeout` heavily. A crashing prolog drains the node.
-*   **Speed:** Never run `dcgmi diag -r 3` in a Prolog. The scheduler will time out the script and mark the node as DOWN, or users will experience massive queuing delays.
+*   **Speed:** Never run `dcgmi diag -r 3` in a Prolog. The script will hit the prolog timeout (which drains the node), and users will see long delays starting jobs.
 *   **Logging:** Always log locally to `/var/log/slurm/` or forward to a centralized logging system (syslog/FluentBit).
 *   **Permissions:** Prolog runs as `root`. Be extremely careful with `rm` commands or user inputs.
 
@@ -626,13 +626,14 @@ How to use this in a health gate:
 3. Map the **immediate action** to your automation (for example restart the application, reset the GPU, restart the node), and map **CONTACT_SUPPORT** or repeated occurrence to a drain-and-escalate policy.
 4. Treat a code appearing in a different state from the catalog's expectation as a reason to read the catalog entry, not as a reason to improvise.
 
-Two cautions: some Xids are consequences of others (Xid 45 "preemptive cleanup" follows earlier errors, and the catalog marks several as "follow other Xid"), so act on the root event; and the catalog's actions differ by code, so a single blanket "drain on any Xid" or "ignore application Xids" rule will be wrong for some. The earlier version of this chapter classified Xid 44 as a hardware fault needing an immediate drain and Xid 109 as a harmless application error. The catalog's immediate actions are `IGNORE` for 44 and `RESET_GPU` for 109.
+Two cautions: some Xids are consequences of others (Xid 45 "preemptive cleanup" follows earlier errors, and the catalog marks several as "follow other Xid"), so act on the root event; and the catalog's actions differ by code, so a single blanket "drain on any Xid" or "ignore application Xids" rule will be wrong for some. Note the catalog's immediate actions: `IGNORE` for Xid 44 and `RESET_GPU` for Xid 109, which differ from common folklore.
 
 ### Masterclass Epilog Script (Python)
 
 To demonstrate advanced parsing, here is a production Epilog written in Python, utilizing standard libraries for robust log analysis and system manipulation. Python is preferred over Bash for complex array parsing, regex, and structured logging.
 
 ```python
+#!/usr/bin/env python3
 # Script: /etc/slurm/epilog.d/99-ai-cleanup.py
 # Purpose: Slurm Job Epilog: Process Cleanup, Scratch Purge, and Kernel XID Audit
 # Execution: Runs as root after task completion.
@@ -680,14 +681,16 @@ def step_1_terminate_zombies():
     job_user = os.environ.get("SLURM_JOB_USER")
     if job_user and job_user != "root":
         log(f"Terminating residual processes for user {job_user}")
-        # Send SIGKILL to all processes owned by the user on this node
+        # Send SIGKILL to all of the user's processes on this node. Only safe on exclusive-node
+        # allocations: on shared nodes it would also kill the user's other jobs.
         run_cmd(f"pkill -9 -u {job_user}", ignore_errors=True)
         time.sleep(2) # Allow OS to reclaim resources
 
 def step_2_gpu_reset():
     log("Releasing GPU memory and resetting compute modes")
-    # GPU reset clears VRAM and IPC memory segments
-    # The -i flag can be used if targeting specific GPUs, but we reset all
+    # GPU memory is normally freed when processes exit. A reset fails if any process still uses a GPU
+    # and is not supported on every platform (e.g. NVSwitch-based systems have extra requirements),
+    # so treat it as best effort and see the nvidia-smi documentation.
     run_cmd("nvidia-smi --gpu-reset", ignore_errors=True)
 
 def step_3_purge_scratch():
@@ -697,6 +700,7 @@ def step_3_purge_scratch():
         if os.path.exists(scratch_dir):
             log(f"Purging job scratch directory: {scratch_dir}")
             # Use background removal for large I/O to prevent Epilog hang
+            os.makedirs("/scratch/trash", exist_ok=True)
             run_cmd(f"mv {scratch_dir} /scratch/trash/job_{job_id}_{int(time.time())}", ignore_errors=True)
             run_cmd(f"nohup rm -rf /scratch/trash/job_{job_id}_* > /dev/null 2>&1 &", ignore_errors=True)
             
@@ -705,7 +709,8 @@ def step_3_purge_scratch():
 
 def step_4_audit_dmesg_xids():
     log("Auditing kernel ring buffer for critical XID errors")
-    # Fetch dmesg logs from the last 30 minutes (to cover the end of the job and cleanup)
+    # Fetch kernel logs from the last 30 minutes. Note this can include Xids from before this job
+    # or from other jobs; production code should bound the window by the job's start time.
     # Using journalctl is often more reliable than dmesg -T
     journal_output = run_cmd("journalctl -k --since '30 minutes ago'")
     
@@ -738,8 +743,9 @@ if __name__ == "__main__":
         # Do not fail the epilog if python crashes, just exit 0 to allow node return,
         # relying on Tier 1 monitors to catch persistent issues if the epilog failed to clean up.
     
-    # Always exit 0 unless you want the node to remain in 'completing' state indefinitely.
-    # We handle failures by explicitly issuing a DRAIN command, not by exiting non-zero.
+    # Exit 0 so a clean epilog does not drain the node. A non-zero epilog exit drains the node
+    # (see Failure Handling in the Slurm Prolog and Epilog guide); we drain explicitly instead,
+    # with a clear reason.
     sys.exit(0)
 ```
 
@@ -806,9 +812,9 @@ Airflow operates as the "conductor." It doesn't run the heavy workloads directly
 ```mermaid
 sequenceDiagram
     participant User
-    participant Airflow (Orchestrator)
-    participant Slurm (Resource Manager)
-    participant Compute Nodes
+    participant Airflow as Airflow (Orchestrator)
+    participant Slurm as Slurm (Resource Manager)
+    participant Compute as Compute Nodes
 
     User->>Airflow: Trigger DAG (Prepare -> Train -> Eval)
     
@@ -824,9 +830,9 @@ sequenceDiagram
     Note over Airflow, Slurm: Task 2: LLM Train (GPU)
     Airflow->>Slurm: sbatch --nodes=64 train.sh
     Slurm-->>Airflow: JobID: 1002
-    Slurm->>Compute Nodes: Launch Prolog & Step
-    Compute Nodes-->>Slurm: XID 79 Detected! Epilog Drains Node
-    Slurm-->>Airflow: State: FAILED (Node Failure)
+    Slurm->>Compute: Launch Prolog & Step
+    Compute-->>Slurm: XID 79 Detected! Epilog Drains Node
+    Slurm-->>Airflow: State: NODE_FAIL / FAILED
     
     Note over Airflow: Airflow detects failure, triggers automated retry.
     Airflow->>Slurm: sbatch --nodes=64 train.sh (Retry 1)
@@ -844,7 +850,7 @@ from datetime import datetime, timedelta
 with DAG(
     dag_id='llm_training_pipeline',
     start_date=datetime(2024, 1, 1),
-    schedule_interval=None,
+    schedule=None,  # 'schedule_interval' was removed in Airflow 3
     catchup=False,
     default_args={
         'retries': 2, # Automatically retry if the job fails (e.g., due to a drained node)
@@ -853,8 +859,8 @@ with DAG(
 ) as dag:
 
     # 1. Submit the training job and wait for it to complete.
-    # Note: In production, use dedicated Slurm Operators (like slurm-airflow-provider)
-    # or the Slurm REST API, but SSH is common for legacy cluster integration.
+    # Note: In production, consider the Slurm REST API (slurmrestd) or a maintained Slurm provider,
+    # but SSH is common for legacy cluster integration.
     submit_training = SSHOperator(
         task_id='submit_slurm_training',
         ssh_conn_id='slurm_login_node',
@@ -909,10 +915,10 @@ Managing an AI factory requires deep forensics. When a job fails, the immediate 
 > 2. **Telemetry Collection via DCGM:**
 >    - I deploy **DCGM Exporter with custom high-frequency profiling metrics**: `DCGM_FI_DEV_GPU_UTIL`, `DCGM_FI_DEV_MEM_COPY_UTIL`, and specifically `DCGM_FI_PROF_SM_ACTIVE` (Streaming Multiprocessor activity) vs `DCGM_FI_PROF_PIPE_TENSOR_ACTIVE`.
 >    - Crucially, I monitor **InfiniBand port packet error rates and congestion marks** (`port_rcv_switch_relay_errors`, `PortXmitWait`).
-> 3. **The Root Cause:** A degraded optical transceiver on one ConnectX-7 HCA causes forward error correction (FEC) packet retransmits. The link does not drop (so Prolog passes), but effective bandwidth falls from 400 Gbps to 120 Gbps, creating an RDMA bottleneck.
+> 3. **A plausible root cause:** A degraded optical transceiver on one ConnectX-7 HCA causes high error-correction or retransmit activity. The link stays up (so the Prolog passes), but effective bandwidth drops well below line rate, creating an RDMA bottleneck.
 > 4. **Automated Isolation Architecture:**
->    - We implement an **NCCL Health Hook** using `NCCL_DEBUG=INFO` and `NCCL_DEBUG_SUBSYS=COLL` to log per-rank all-reduce latency.
->    - We configure an automated Prometheus alert: if any node’s `PortXmitWait` spikes by $> 3\sigma$ relative to cluster peers, the orchestrator triggers an automatic Slurm step pause, checkpoints the job, drains the straggler node, and resumes the job on a spare healthy node."
+>    - We run periodic `nccl-tests` (or application-level step-time metrics) per node group to measure per-node collective performance; NCCL's own debug logs show collective calls, not latencies.
+>    - We configure an automated Prometheus alert: if any node’s `PortXmitWait` spikes by $> 3\sigma$ relative to cluster peers, the orchestrator can checkpoint the job, drain the straggler node, and requeue the job on healthy hardware (a design target; the exact mechanics depend on the training framework's checkpointing)."
 
 ---
 
@@ -922,10 +928,10 @@ Managing an AI factory requires deep forensics. When a job fails, the immediate 
 **Candidate Answer:**
 > "No, draining a node on application-layer errors is a severe operational flaw that leads to unnecessary cluster depletion:
 > 1. **Categorizing the Error Boundary:**
->    - **Application/Software Errors (No Drain):** CUDA Out of Memory (OOM), NaN loss assertions, missing container libraries, and SIGKILL (exit code 137 from hitting memory cgroups) are purely user-space faults. The node hardware is completely healthy. The Epilog must cleanly purge `/tmp`, reset GPU memory via `nvidia-smi --gpu-reset`, and leave the node in `IDLE` state.
+>    - **Application/Software Errors (No Drain):** CUDA Out of Memory (OOM), NaN loss assertions, missing container libraries, and SIGKILL (exit code 137 from hitting memory cgroups) are purely user-space faults. The node hardware is completely healthy. The Epilog should clean up residual processes and scratch data and leave the node in `IDLE` state.
 >    - **Hardware/Driver Faults (Immediate Drain):** Hardware faults are identified strictly by kernel-level indicators: NVIDIA XID errors logged in `dmesg`, InfiniBand link-state flapping, PCIe AER fatal errors, or uncorrectable double-bit ECC events.
 > 2. **Remediation Architecture:**
->    The Epilog checks kernel ring buffers specifically for fatal hardware XIDs (e.g., XID 79 for GPU fallen off the bus, XID 48 for double-bit ECC, XID 62 for microcode panic). Only upon matching verified hardware signatures does it issue `scontrol update NodeName=... State=DRAIN`."
+>    The Epilog checks kernel ring buffers specifically for fatal hardware XIDs (e.g., XID 79 for GPU fallen off the bus, XID 48 for double-bit ECC, Xid 62 for an internal micro-controller halt). Only upon matching verified hardware signatures does it issue `scontrol update NodeName=... State=DRAIN`."
 
 ---
 
@@ -935,7 +941,7 @@ Managing an AI factory requires deep forensics. When a job fails, the immediate 
 **Candidate Answer:**
 > "The node is hanging because the Epilog script is blocking the Slurm Daemon (`slurmd`) from finalizing the job state.
 > 1. **The Mechanism:** Slurm waits for the Node Epilog script to exit before transitioning the node from `completing` back to `idle`. If the script executes `rm -rf /scratch/terabytes_of_small_files`, the I/O bottleneck on the local NVMe or networked file system causes the script to take hours.
-> 2. **The Failure Cascade:** If the Epilog runs longer than `EpilogTimeout` (which defaults to `PrologEpilogTimeout`), Slurm terminates it and **drains the node**, so the node leaves the pool. A non-zero exit from the Epilog also drains the node (Slurm Prolog and Epilog guide, Failure Handling).
+> 2. **The Failure Cascade:** If the Epilog runs longer than `PrologEpilogTimeout`, Slurm terminates it and **drains the node**, so the node leaves the pool. A non-zero exit from the Epilog also drains the node (Slurm Prolog and Epilog guide, Failure Handling).
 > 3. **The Architectural Fix:**
 >    - **Never perform unbounded synchronous I/O in an Epilog.**
 >    - **Solution A (Backgrounding):** Move the heavy `rm -rf` into an asynchronous background process using `nohup` or `systemd-run`.
@@ -960,12 +966,14 @@ When a user complains that their job "just died," the first tool is `sacct` (Slu
 $ sacct -j 104523 --format=JobID,JobName,State,ExitCode,MaxRSS,NodeList
 ```
 
-If the `ExitCode` is `0:137`, the process was killed by the OOM (Out Of Memory) killer because it exceeded the memory requested in the `sbatch` script (`#SBATCH --mem`). The Epilog will run and clean up, and the node remains healthy. 
+`ExitCode` is reported as `exit_code:signal`. A job killed for exceeding its memory allocation typically shows a `State` of `OUT_OF_MEMORY` (or a kill signal such as `0:9`), whereas a shell reporting 137 means 128 + SIGKILL. Compare `MaxRSS` with the `--mem` you requested. The Epilog will run and clean up, and the node remains healthy. 
 
 To verify this, an SRE can look directly at the Linux kernel cgroup logs (if systemd is managing cgroups):
 ```bash
 # Check the systemd log for the slurmd slice
 $ journalctl -u slurmd.service | grep -i oom
+# and the kernel log for OOM-killer or cgroup memory events:
+$ journalctl -k | grep -i -E 'out of memory|oom'
 ```
 
 ---
@@ -996,7 +1004,7 @@ To continue your masterclass education, you should consult the following primary
 ## Key Takeaways
 
 1. **Availability $\neq$ Readiness:** A node answering ping and running `slurmd` is not ready to train. Every node must pass active hardware gates before receiving work.
-2. **Gang Scheduling Amplifies Degradation:** In multi-node AI training, a single degraded GPU running 20% slow wastes 100% of the computing capacity across the entire allocated partition.
+2. **Gang Scheduling Amplifies Degradation:** In synchronized multi-node training, one degraded GPU holds back every other GPU in the job, so the whole allocation runs at roughly the pace of the slowest member.
 3. **Prolog Prevents Waste; Epilog Guarantees Cleanliness:** The Slurm Prolog runs in under 10 seconds to validate GPU enumeration, NVLink mesh, and InfiniBand line rates. The Epilog kills zombie processes, resets GPU state, and checks for hardware XIDs.
 4. **DCGM Diagnostic Tiers Serve Different Lifecycles:** Use Level 1 for rapid pre-job admission, Level 2 for scheduled maintenance, and Level 3 for Day-0 burn-in and post-drain hardware qualification.
 5. **Never Drain on User-Space Errors:** Differentiate application exceptions (OOM, PyTorch NaNs) from hardware faults (XID 79, PCIe AER, double-bit ECC) to prevent artificial cluster starvation.

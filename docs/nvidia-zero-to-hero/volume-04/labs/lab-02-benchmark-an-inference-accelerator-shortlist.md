@@ -111,7 +111,7 @@ nvidia-smi
 nvidia-smi topo -m
 ```
 
-**Expected output:**
+**Illustrative output (not captured):**
 
 ```
 $ nvidia-smi
@@ -147,6 +147,8 @@ free -h
 
 Save the output with the run manifest.
 
+Illustrative output (not captured):
+
 ```
 $ nvidia-smi --query-gpu=name,driver_version,memory.total,power.limit,temperature.gpu --format=csv
 name, driver_version, memory.total [MiB], power.limit [W], temperature.gpu
@@ -174,6 +176,8 @@ D_MON_PID=$!
 ```
 
 The selected fields capture power, utilization, clocks, memory, PCIe, errors, and temperature where supported.
+
+Illustrative output (not captured):
 
 ```
 $ tail -5 gpu-dmon.log
@@ -222,7 +226,7 @@ A valid run must satisfy all of the following:
 
 ## 10. Verification
 
-Compare candidates using a service-level table. Illustrative results from a "Moderate load" run (batch policy: runtime default, concurrency 4) comparing an L4 and a T4 on the same 7B-parameter INT8 model:
+Compare candidates using a service-level table. Illustrative, invented values (not measurements) for a "Moderate load" run (batch policy: runtime default, concurrency 4) comparing an L4 and a T4 on the same 7B-parameter INT8 model:
 
 | Candidate | Throughput | p95 latency | p99 latency | Peak memory | Avg. power | Errors |
 |---|---:|---:|---:|---:|---:|---:|

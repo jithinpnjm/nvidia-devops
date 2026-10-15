@@ -60,7 +60,7 @@ Historically, PyTorch models were saved using Python's `pickle` module (`.pkl` o
 
 **The Architect's Defense:**
 1.  **Ban Pickles:** A Senior Architect mandates that all models must be stored and loaded using the **`safetensors`** format. Safetensors only store pure mathematical data; they physically cannot execute code.
-2.  **Model Scanning:** Before a model is allowed into the internal model registry, it must be scanned. Tools like `clamav` or specialized AI security scanners check the model weights for known malware signatures or embedded malicious scripts.
+2.  **Model Scanning:** Before a model is allowed into the internal model registry, it must be scanned. Specialized scanners such as `picklescan` inspect pickle-based files for dangerous imports and opcodes, and generic antivirus scanning can complement them. Scanning is not proof of safety, which is why the safetensors requirement matters more.
 
 ## 3. The Python Dependency Trap (`pip`)
 
@@ -86,7 +86,7 @@ To secure this platform permanently, we must implement a **Zero-Trust AI Supply 
 
 We will immediately implement a Kubernetes Admission Controller (like Kyverno). We will configure a strict policy: Kubernetes will reject any Pod that attempts to pull an image from the public internet (e.g., DockerHub). All deployments must use images hosted in our internal, secure registry. 
 
-Furthermore, we will implement a mandatory scanning phase for all AI models. Any model downloaded from HuggingFace must be staged in a quarantine zone. An automated pipeline will use tools like `picklescan` to inspect the `.bin` files for malicious bytecode. If the model passes, the pipeline will convert the weights into the secure, non-executable **`.safetensors`** format, and upload it to our internal S3 bucket. The data science team will only be allowed to load `.safetensors` files into the production inference containers, closing the arbitrary code execution loophole forever."
+Furthermore, we will implement a mandatory scanning phase for all AI models. Any model downloaded from HuggingFace must be staged in a quarantine zone. An automated pipeline will use tools like `picklescan` to inspect the `.bin` files for malicious bytecode. If the model passes, the pipeline will, inside a sandboxed job with no network access, convert the weights into the secure, non-executable **`.safetensors`** format, and upload it to our internal S3 bucket. The data science team will only be allowed to load `.safetensors` files into the production inference containers, closing the arbitrary code execution loophole forever."
 
 ## Interview Preparation
 

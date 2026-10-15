@@ -41,13 +41,13 @@ This backplane physically wires 72 Blackwell GPUs directly into the NVSwitches.
 
 The GB200 NVL72 is not a server. **The Rack is the Server.**
 
-To the software, Kubernetes, and the PyTorch script, the rack appears as a single, monstrous GPU. 
+To the software, Kubernetes, and the PyTorch script, the rack presents one 72-GPU NVLink domain (software still sees 72 separate GPUs). 
 *   **Compute:** 72 Blackwell GPUs + 36 Grace ARM CPUs.
 *   **Memory Domain:** Because they are all connected via 5th-Gen NVLink, any of the 72 GPUs can read the memory of any other GPU at 1.8 TB/s. The entire rack shares a unified memory domain. 
 *   **Bandwidth:** The internal copper backplane pushes **130 Terabytes per second** of aggregate bandwidth.
 
 ### Why Copper?
-Optical fiber transceivers (lasers) generate heat and consume massive amounts of power (up to 20kW per rack just to power the lasers). By confining the 72 GPUs to a single rack, NVIDIA engineered the distances to be short enough to use passive copper wires, eliminating the optical power overhead entirely and saving the electricity for the GPUs.
+Optical fiber transceivers (lasers) generate heat and consume massive amounts of power (NVIDIA cites roughly 20 kW per rack saved by using copper instead of optics for the NVLink domain). By confining the 72 GPUs to a single rack, NVIDIA engineered the distances to be short enough to use passive copper wires, eliminating the optical power overhead entirely and saving the electricity for the GPUs.
 
 ## 3. Total Direct Liquid Cooling (DLC)
 
@@ -64,16 +64,16 @@ This mandates 100% Direct Liquid Cooling (DLC). Cold plates are physically bolte
 A generative AI startup raises $100M to build a cluster to train a 1.5-Trillion parameter Mixture of Experts (MoE) model. They are debating between purchasing 1,000 standard PCIe GPUs connected via 400G Ethernet, or purchasing a smaller fleet of GB200 NVL72 racks. They ask the Senior Architect: "Both options give us exactly 1,000 GPUs. Why should we lock ourselves into the complex liquid-cooling requirements of the NVL72 racks?"
 
 **The Senior Architect Response:**
-"Because 1,000 isolated GPUs cannot train a 1.5-Trillion parameter MoE model; they will suffocate on network latency. 
+"Because the all-to-all traffic of a very large MoE model is far better served by a 72-GPU NVLink domain than by an Ethernet fabric between small GPU islands. 
 
 A Mixture of Experts model routes data dynamically to different "Expert" neural networks on the fly. This requires catastrophic amounts of 'All-to-All' communication between the GPUs. 
 
-If you use standard PCIe GPUs, the GPUs must communicate this massive data volume across the Ethernet network. Standard Ethernet protocols and PCIe bottlenecks will introduce massive latency, completely stalling the training loop. Your $100M cluster will operate at 5% efficiency. 
+If you use standard PCIe GPUs, the GPUs must communicate this massive data volume across the Ethernet network. Standard Ethernet protocols and PCIe bottlenecks will introduce massive latency, completely stalling the training loop. Expect a large share of step time to be spent waiting on communication. 
 
-By purchasing the **GB200 NVL72 racks**, you are expanding the high-speed NVLink domain. In the NVL72, 72 GPUs communicate over a copper backplane at 1.8 TB/s, appearing as a single 130 TB/s memory domain. This allows the MoE model to route data between experts instantly, completely bypassing standard networking protocols. The complex liquid-cooling requirements are not a drawback; they are the physical price you must pay to achieve the rack-scale density necessary to keep a Trillion-parameter model fed."
+By purchasing the **GB200 NVL72 racks**, you are expanding the high-speed NVLink domain. In the NVL72, 72 GPUs communicate over a copper backplane at 1.8 TB/s, with roughly 130 TB/s of aggregate NVLink bandwidth across the domain. Expert-to-expert traffic inside the rack stays on NVLink instead of crossing the scale-out network. The complex liquid-cooling requirements are not a drawback; they are the physical price you must pay to achieve the rack-scale density necessary to keep a Trillion-parameter model fed."
 
 ## Interview Preparation
 
-**Conceptual:** What is the primary architectural difference between an HGX H100 server and a GB200 NVL72 rack? *(Hint: The H100 limits the NVLink domain (where GPUs share memory directly) to 8 GPUs inside a single chassis. The NVL72 extracts the NVSwitches into separate trays and uses a copper backplane to expand the NVLink domain to 72 GPUs across the entire rack, allowing the rack to act as a single GPU).*
+**Conceptual:** What is the primary architectural difference between an HGX H100 server and a GB200 NVL72 rack? *(Hint: The H100 limits the NVLink domain (where GPUs share memory directly) to 8 GPUs inside a single chassis. The NVL72 extracts the NVSwitches into separate trays and uses a copper backplane to expand the NVLink domain to 72 GPUs across the entire rack, giving the rack one large NVLink domain).*
 
-**Architecture:** Why does the GB200 NVL72 rack use a massive copper backplane instead of fiber optics to connect the 72 GPUs? *(Hint: Fiber optic transceivers consume massive amounts of power. Because the 72 GPUs are contained within the short physical distance of a single rack, NVIDIA can use passive copper, saving 20kW of power and allocating that electricity directly to the compute silicon).*
+**Architecture:** Why does the GB200 NVL72 rack use a massive copper backplane instead of fiber optics to connect the 72 GPUs? *(Hint: Fiber optic transceivers consume massive amounts of power. Because the 72 GPUs are contained within the short physical distance of a single rack, NVIDIA can use passive copper, saving on the order of 20 kW (NVIDIA's figure) and allocating that electricity directly to the compute silicon).*

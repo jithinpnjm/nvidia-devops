@@ -89,7 +89,7 @@ When you buy a DGX, NVIDIA guarantees the performance. When you buy an OEM HGX s
 ## Customer Scenario (Senior Level)
 
 **The Situation:**
-A manufacturing company's CTO states: "We need an 8-GPU H100 server for our internal AI workloads. Our reseller quoted us a Dell PowerEdge XE9680 (which contains an HGX H100 8-GPU board) and an NVIDIA DGX H100. The Dell server is 15% cheaper. Since they both use the exact same NVIDIA HGX board inside, there is zero difference in performance. We will buy the Dell."
+A manufacturing company's CTO states: "We need an 8-GPU H100 server for our internal AI workloads. Our reseller quoted us a Dell PowerEdge XE9680 (which contains an HGX H100 8-GPU board) and an NVIDIA DGX H100. The Dell server is cheaper (say 15%, an illustrative figure). Since they both use the exact same NVIDIA HGX board inside, there is zero difference in performance. We will buy the Dell."
 
 **The Senior Architect Response:**
 "While the bottom half of both servers is mathematically identical (the HGX baseboard), the servers as a whole are fundamentally different, and assuming identical performance is a dangerous architectural fallacy.
@@ -98,7 +98,7 @@ The performance of an AI workload is not just dictated by the GPU silicon; it is
 
 The NVIDIA DGX H100 is engineered with a strict 1:1 ratio of GPUs to ConnectX-7 400Gbps network cards (8 compute NICs total), allowing for 3.2 Tbps of egress bandwidth explicitly for distributed training. 
 
-If we choose the Dell server to save 15%, we must meticulously verify the OEM's PCIe topology and network configuration. Does the Dell quote include 8x ConnectX-7 NICs? Are those NICs placed on the exact same PCIe switches as the GPUs to enable GPUDirect RDMA, or are they routed through the CPU's UPI link? If the OEM chassis relies on a generic dual-NIC configuration to save costs, our multi-node training performance will drop by up to 80% due to network starvation. 
+If we choose the Dell server to save 15%, we must meticulously verify the OEM's PCIe topology and network configuration. Does the Dell quote include 8x ConnectX-7 NICs? Are those NICs placed on the exact same PCIe switches as the GPUs to enable GPUDirect RDMA, or are they routed through the CPU's UPI link? If the OEM chassis relies on a generic dual-NIC configuration to save costs, our multi-node training performance can drop substantially due to network starvation. 
 
 The OEM path is highly viable and often preferable for enterprise management integration, but we must validate the *entire* server architecture, not just the HGX tray, before signing the purchase order."
 
@@ -106,4 +106,4 @@ The OEM path is highly viable and often preferable for enterprise management int
 
 **Conceptual:** What is the fundamental difference between an NVIDIA DGX and an NVIDIA HGX? *(Hint: DGX is a fully integrated, turnkey server appliance designed entirely by NVIDIA. HGX is just the GPU baseboard (the bottom half), sold as a component to OEMs and cloud providers to integrate into their own custom servers).*
 
-**Architecture:** Why do cloud providers (Hyperscalers) exclusively use HGX boards rather than deploying DGX servers? *(Hint: Hyperscalers have massive proprietary infrastructure ecosystems (e.g., AWS Nitro, Azure custom data center racks). DGX appliances conflict with these proprietary control planes and form factors. HGX allows them to inject NVIDIA's maximum AI performance directly into their bespoke hardware designs).*
+**Architecture:** Why do cloud providers (Hyperscalers) mostly use HGX-based designs rather than deploying DGX servers? *(Hint: Hyperscalers have massive proprietary infrastructure ecosystems (e.g., AWS Nitro, Azure custom data center racks). DGX appliances conflict with these proprietary control planes and form factors. HGX allows them to inject NVIDIA's maximum AI performance directly into their bespoke hardware designs).*

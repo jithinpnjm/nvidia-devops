@@ -295,6 +295,8 @@ if __name__ == "__main__":
 
 ### Scenario 2: RadixAttention Cache Thrashing in SGLang under Non-Overlapping Prompts
 
+*Illustrative scenario (not a measured case): the percentages and latencies below are examples, and flag names should be checked against your SGLang version.*
+
 A software platform deployed SGLang to serve a coding assistant model. While performance was excellent for multi-turn chat sessions, latency degraded significantly (p90 TTFT increased by 400%) when executing automated unit-test generation tasks where input prompts shared zero common text prefixes.
 
 SGLang's RadixAttention engine continuously adds new sequence nodes into its global Radix Tree. Under a workload consisting of non-overlapping, distinct prompts, the tree accumulated thousands of unique leaf nodes. 
@@ -303,7 +305,7 @@ Because total VRAM was capped (`mem_fraction_static=0.85`), the engine hit memor
 
 #### Step-by-Step Resolution & Command-Line Tuning
 1. Increased static memory allocation fraction for KV cache from 0.85 to 0.92.
-2. Configured maximum tree node eviction thresholds to preserve core system prompt branches while instantly dropping non-reusable dynamic prompt nodes.
+2. Reviewed prefix-cache behavior for the workload; for prompts with no shared prefix, radix caching adds overhead and may be disabled (check `--disable-radix-cache` in your SGLang version).
 
 ```bash
 # Launch SGLang server with tuned memory fraction and prefix caching controls
@@ -312,11 +314,10 @@ python3 -m sglang.launch_server \
     --tp 2 \
     --mem-fraction-static 0.92 \
     --schedule-conservativeness 1.0 \
-    --enable-cache-report \
     --port 30000
 ```
 
-- Server telemetry (`/get_model_info`) confirmed LRU tree eviction events dropped by 92%.
+- Server metrics confirmed fewer cache evictions (illustrative).
 - Time-To-First-Token (TTFT) for unique non-overlapping prompts stabilized at 22 ms.
 
 ---

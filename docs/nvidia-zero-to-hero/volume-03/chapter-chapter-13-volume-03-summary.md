@@ -51,8 +51,8 @@ Before moving to Volume 4 (where we look at how to select the right GPU accelera
 * **CUDA Graphs:** Eliminates CPU launch overhead (15µs delays) by capturing and deploying an entire workflow of kernels directly to the GPU in one command. Critical for fast LLM decoding.
 
 ### 1.6 Compilation and Binaries
-* **SASS:** Physical machine code. Blazing fast, but crashes if deployed on a newer GPU architecture it wasn't compiled for.
-* **PTX:** Virtual assembly. Forward-compatible, but causes node-crashing RAM usage and 15-minute delays on startup due to Just-In-Time (JIT) compilation by the driver.
+* **SASS:** Physical machine code. Fastest startup, but fails to load on an architecture it wasn't compiled for (except within the same major architecture).
+* **PTX:** Virtual assembly. Forward-compatible, but JIT compilation by the driver can add long startup delays and extra host RAM use (unless the JIT cache is warm).
 * **The Fix:** Compile "Fatbins" containing SASS for all known architectures, and PTX for future-proofing.
 
 ### 1.7 Profiling (The SRE Superpower)

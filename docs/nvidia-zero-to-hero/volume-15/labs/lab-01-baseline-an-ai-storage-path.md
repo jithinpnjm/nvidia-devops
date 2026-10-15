@@ -80,7 +80,7 @@ nvidia-smi -i 0 -q | grep -E "Product Name|Memory|Driver" >> $OUTPUT_FILE
 echo "✓ Network and topology baseline saved to: $OUTPUT_FILE"
 ```
 
-**Expected output and interpretation:**
+**Illustrative output (not captured) and interpretation:**
 ```
 Network interfaces and status:
 eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 9000  ← MTU 9000 is good (jumbo frames enabled)

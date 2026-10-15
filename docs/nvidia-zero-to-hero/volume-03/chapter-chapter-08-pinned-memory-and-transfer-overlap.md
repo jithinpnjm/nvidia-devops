@@ -63,7 +63,7 @@ The CPU and GPU do *not* share physical RAM. Unified Memory is an illusion creat
 When the GPU attempts to read `data[0]`, the hardware realizes the data is actually sitting in CPU RAM. The GPU triggers a **Page Fault**.
 1. The GPU halts execution.
 2. The NVIDIA driver intervenes.
-3. The driver copies a 4KB "Page" of memory from the CPU, over the PCIe bus, into the GPU HBM.
+3. The driver migrates the faulting page (and typically a larger group of neighboring pages) from CPU memory, over the PCIe bus, into GPU HBM.
 4. The GPU resumes execution.
 
 If a GPU kernel iterates over a massive 10GB array allocated via UVM, the GPU will trigger millions of page faults. The workload will run incredibly slowly, staggering through endless micro-pauses.
@@ -83,7 +83,7 @@ A Data Science team builds a recommendation engine. They deploy it using a unifi
 **The Senior Architect Response:**
 "The GPU does not need to warm up. You are observing the brutal latency of **Demand Paging** via Unified Memory.
 
-On the very first request, the model weights and the user data reside in the Host CPU RAM. When your CUDA kernel launches and attempts to do math on the weights, it triggers millions of GPU Page Faults. The NVIDIA driver is forced to halt the SMs, copy 4KB pages of memory across the PCIe bus, and resume execution. This is why the first request takes 5 seconds.
+On the very first request, the model weights and the user data reside in the Host CPU RAM. When your CUDA kernel launches and attempts to do math on the weights, it triggers millions of GPU Page Faults. The NVIDIA driver is forced to halt the SMs, migrate pages of memory across the PCIe bus, and resume execution. This is why the first request takes 5 seconds.
 
 By the 10th request, the driver has successfully migrated the entire model's memory pages into the GPU's physical HBM. The page faults cease, and the kernel executes natively at HBM speeds, dropping the latency to 100ms. 
 

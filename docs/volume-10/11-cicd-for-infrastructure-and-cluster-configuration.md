@@ -85,13 +85,13 @@ flowchart TD
 3.  **Policy as Code (The Blast Radius Gate):** A non-human engine (like Open Policy Agent) evaluates the rendered plan against strict corporate rules (e.g., "No deletion of placement groups," "No security groups open to 0.0.0.0/0").
 4.  **Approval Gate:** For infrastructure, especially destructive actions, a human architect must review the exact plan artifact produced in Step 2.
 5.  **Canary Rollout:** Applying the change to a representative fraction of the hardware (e.g., one rack of DGX nodes) to catch hardware-specific bugs that dry-runs cannot detect (e.g., kernel panics on a new driver).
-6.  **Post-Apply Validation:** Running actual GPU diagnostics (`dcgm-diag`, `nccl-tests`) to prove the infrastructure is fully operational before proceeding to the rest of the fleet.
+6.  **Post-Apply Validation:** Running actual GPU diagnostics (`dcgmi diag`, `nccl-tests`) to prove the infrastructure is fully operational before proceeding to the rest of the fleet.
 
 ---
 
 ## 3. Pull Requests as the Control Plane: Terraform with Atlantis
 
-When an engineering team scales, running `terraform apply` locally becomes an existential threat to stability. State files get locked, code drifts from reality, and auditability is lost. **Atlantis** is the industry standard for Terraform pull request automation.
+When an engineering team scales, running `terraform apply` locally becomes an existential threat to stability. State files get locked, code drifts from reality, and auditability is lost. **Atlantis** is a widely used open-source tool for Terraform pull request automation.
 
 ### 3.1 Atlantis Architecture
 
@@ -145,14 +145,13 @@ workflows:
     plan:
       steps:
         - init
-        - plan:
-            extra_args: ["-out", "tfplan.binary"]
-        # Convert binary plan to JSON for policy evaluation
-        - run: terraform show -json tfplan.binary > tfplan.json
+        - plan   # Atlantis manages the plan file itself ($PLANFILE); do not override -out
+        # Convert Atlantis's plan file to JSON ($SHOWFILE) for policy evaluation
+        - show   # built-in step: runs 'terraform show -json $PLANFILE' into $SHOWFILE
         # 1. Run Checkov for static security analysis
-        - run: checkov -f tfplan.json --quiet
-        # 2. Run Open Policy Agent (OPA) / Conftest for custom blast-radius policies
-        - run: conftest test tfplan.json -p ../../../policies/
+        - run: checkov -f $SHOWFILE --quiet
+        # 2. Run OPA / Conftest for custom blast-radius policies
+        - run: conftest test $SHOWFILE -p ../../../policies/
     apply:
       steps:
         - apply
@@ -160,7 +159,7 @@ workflows:
 
 ### 3.3 The Atlantis Experience
 
-When an engineer opens a PR that modifies the VPC CIDR, Atlantis blocks the merge. It runs the plan, executes OPA, and comments:
+When an engineer opens a PR that modifies the VPC CIDR, the workflow can block the merge: Atlantis runs the plan, the policy step evaluates it, and the failing step is reported on the PR. A comment might look like this (illustrative, not captured output; the policy named here is one you would have to write):
 
 > **Atlantis Plan Output:**
 > ❌ **OPA Policy Violation:** 
@@ -176,7 +175,7 @@ For Kubernetes-native AI factories (where workloads, GPU Operators, and Slurm cl
 
 ### 4.1 The GitOps Reconciliation Loop
 
-In GitOps, the desired state of the cluster (deployments, configmaps, NVIDIA GPU Operator configurations) is declared purely in Git. An operator running *inside* the Kubernetes cluster continuously polls Git (e.g., every 3 minutes). If the live cluster state deviates from Git, the operator automatically forces the cluster back into alignment.
+In GitOps, the desired state of the cluster (deployments, configmaps, NVIDIA GPU Operator configurations) is declared purely in Git. An operator running *inside* the Kubernetes cluster periodically polls Git (Argo CD's default is about every 3 minutes, and webhooks can trigger refreshes sooner). If the live cluster state deviates from Git, the operator automatically forces the cluster back into alignment.
 
 ```mermaid
 sequenceDiagram
@@ -191,7 +190,7 @@ sequenceDiagram
     
     Admin->>K8s: 4. Manual `kubectl edit deployment` (Scales to 0)
     
-    Argo->>K8s: 5. Polling Loop detects Drift!
+    Argo->>K8s: 5. Controller detects drift (watches live state)
     Argo->>Git: 6. Compares with Source of Truth
     Argo->>K8s: 7. Auto-Heal: Re-applies 10 Replicas
     note right of Admin: Manual changes are futile. Git is the only truth.
@@ -225,6 +224,8 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true # Better for large CRDs
+      # Note: the GPU Operator can deploy NFD itself (nfd.enabled in its Helm values); deploy a separate
+      # NFD only if you manage it independently, to avoid two owners of the same labels.
 ```
 
 ### 4.3 Automated Dependency DAGs with Sync Waves
@@ -293,29 +294,36 @@ ansible_lint:
 # Stage 2: Secret scanning to ensure no SSH keys or API tokens were committed
 secret_scanning:
   stage: security
-  image: trufflesecurity/trufflehog:latest
+  image:
+    name: trufflesecurity/trufflehog:latest
+    entrypoint: [""]
   script:
     - trufflehog git file://. --only-verified --fail
 
 # Stage 3: Trigger the actual deployment in AWX/Tower
 deploy_to_production:
   stage: trigger_deployment
-  image: curlimages/curl:latest
+  image: alpine:3.19
+  before_script:
+    - apk add --no-cache curl jq
   only:
     - main
   script:
     - echo "Triggering AWX Job Template to deploy Slurm Configuration..."
     - |
-      RESPONSE=$(curl -s -X POST "${AWX_HOST}/api/v2/job_templates/24/launch/"         -H "Authorization: Bearer ${AWX_OAUTH_TOKEN}"         -H "Content-Type: application/json"         -d '{"extra_vars": {"target_environment": "production"}}')
+      RESPONSE=$(curl -s -X POST "${AWX_HOST}/api/v2/job_templates/24/launch/" \
+        -H "Authorization: Bearer ${AWX_OAUTH_TOKEN}" \
+        -H "Content-Type: application/json" \
+        -d '{"extra_vars": {"target_environment": "production"}}')
     - JOB_ID=$(echo $RESPONSE | jq -r '.job')
     - echo "Deployment started in AWX. Job ID: $JOB_ID"
     # Polling script to wait for AWX job completion and fail the pipeline if AWX fails
     - |
       while true; do
         STATUS=$(curl -s -H "Authorization: Bearer ${AWX_OAUTH_TOKEN}" "${AWX_HOST}/api/v2/jobs/${JOB_ID}/" | jq -r '.status')
-        if [[ "$STATUS" == "successful" ]]; then
+        if [ "$STATUS" = "successful" ]; then
           echo "Ansible Deployment Successful!"; exit 0;
-        elif [[ "$STATUS" == "failed" || "$STATUS" == "canceled" ]]; then
+        elif [ "$STATUS" = "failed" ] || [ "$STATUS" = "error" ] || [ "$STATUS" = "canceled" ]; then
           echo "Ansible Deployment Failed in AWX!"; exit 1;
         fi
         echo "Waiting for AWX job to complete... Current status: $STATUS"
@@ -336,7 +344,7 @@ A common beginner mistake is writing a pipeline that runs `terraform plan` on a 
 **Why is this dangerous?**
 Between the time the PR was approved and the time it merged, someone else might have merged a different change, or the cloud state might have drifted. The `apply` running on the main branch is evaluating state *for the first time*. It might destroy resources that the original `plan` did not show.
 
-**The Solution:** The pipeline must save the exact binary `.tfplan` file generated during the CI stage, upload it as an artifact, and the CD stage must download and execute *that exact binary file*: `terraform apply tfplan.binary`. This guarantees zero drift between the review and the execution.
+**The Solution:** The pipeline must save the exact binary `.tfplan` file generated during the CI stage, upload it as an artifact, and the CD stage must download and execute *that exact binary file*: `terraform apply tfplan.binary`. This ensures the apply executes exactly the plan that was reviewed (Terraform will refuse a saved plan whose base state has since changed). In the workflow below, the plan is generated by the run on `main` and held at the `environment` approval gate, so the approver reviews the plan that will be applied. Plan files can contain secrets: restrict artifact access and keep retention short.
 
 ### 6.2 Production-Grade GitHub Actions Workflow
 
@@ -353,6 +361,10 @@ on:
       - 'environments/production/**'
 
 # Use OIDC to eliminate long-lived cloud credentials
+concurrency:
+  group: terraform-production   # serialize runs against the same state
+  cancel-in-progress: false
+
 permissions:
   id-token: write 
   contents: read
@@ -395,7 +407,7 @@ jobs:
         run: terraform validate
 
       - name: Run Checkov (Security Static Analysis)
-        uses: bridgecrewio/checkov-action@master
+        uses: bridgecrewio/checkov-action@v12  # pin to a reviewed release or commit SHA
         with:
           directory: ${{ env.TF_WORKING_DIR }}
           framework: terraform
@@ -407,12 +419,12 @@ jobs:
           terraform plan -out=tfplan.binary
           # Convert to JSON for OPA
           terraform show -json tfplan.binary > tfplan.json
-        
+
       - name: Open Policy Agent (OPA) Blast-Radius Check
-        uses: open-policy-agent/conftest-action@v1.2.0
-        with:
-          files: ${{ env.TF_WORKING_DIR }}/tfplan.json
-          policy: policies/terraform/
+        working-directory: ${{ github.workspace }}
+        run: |
+          docker run --rm -v "$PWD:/project" -w /project openpolicyagent/conftest:latest \
+            test "${TF_WORKING_DIR}/tfplan.json" -p policies/terraform/
         
       - name: Upload Binary Plan Artifact
         uses: actions/upload-artifact@v4
@@ -452,6 +464,17 @@ Review the plan output in the Action logs.`
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.7.0"
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/GitHubActions-Terraform-Role
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Terraform Init
+        run: terraform init
 
       - name: Download Binary Plan Artifact
         uses: actions/download-artifact@v4
@@ -477,51 +500,43 @@ This Rego policy analyzes a Terraform plan and fails the CI pipeline if an engin
 
 ```rego
 # policies/terraform/cost_control.rego
+# Written for Rego v1 syntax (OPA 1.x / recent Conftest). For older OPA, drop `import rego.v1`
+# and use the pre-v1 rule syntax.
 package main
 
-# Deny by default
-default allow = false
+import rego.v1
 
-# Define restricted high-cost instance types (NVIDIA GPUs)
-restricted_instances = {
-  "p5.48xlarge",   # AWS H100
-  "p4d.24xlarge",  # AWS A100
-  "nd96isr_h100_v5" # Azure H100
+# Restricted high-cost AWS GPU instance types (this rule only inspects aws_instance resources)
+restricted_instances := {
+	"p5.48xlarge", # H100
+	"p4d.24xlarge", # A100
 }
 
-# Find all resources in the plan that are being created
-new_instances[resource] {
-    resource := input.resource_changes[_]
-    resource.type == "aws_instance"
-    resource.change.actions[_] == "create"
-    restricted_instances[resource.change.after.instance_type]
+# All aws_instance resources in the plan that are being created with a restricted type
+new_instances contains resource if {
+	some resource in input.resource_changes
+	resource.type == "aws_instance"
+	"create" in resource.change.actions
+	resource.change.after.instance_type in restricted_instances
 }
 
-# Calculate the total count of new GPUs being provisioned in this PR
-total_new_gpus = count(new_instances)
+# Count of restricted GPU instances being created in this plan (instances, not individual GPUs)
+total_new_instances := count(new_instances)
 
-# Rule 1: Reject if someone tries to spin up more than 16 GPUs without an explicit 'Override-Capacity' tag
-deny[msg] {
-    total_new_gpus > 16
-    
-    # Check if the engineer provided an override tag
-    override_tag_missing(new_instances)
-    
-    msg := sprintf("COST VIOLATION: Plan attempts to provision %v GPU instances (Max allowed: 16). Add the 'Override-Capacity' tag with Director approval to proceed.", [total_new_gpus])
+# Rule 1: Reject if more than 16 restricted instances are created without an 'Override-Capacity' tag
+deny contains msg if {
+	total_new_instances > 16
+	some resource in new_instances
+	not resource.change.after.tags["Override-Capacity"]
+	msg := sprintf("COST VIOLATION: Plan creates %v restricted GPU instances (max 16) and '%v' lacks the 'Override-Capacity' tag.", [total_new_instances, resource.address])
 }
 
-override_tag_missing(instances) {
-    some resource in instances
-    not resource.change.after.tags["Override-Capacity"]
-}
-
-# Rule 2: Prevent deletion of ANY resource tagged with "Mission-Critical: true"
-deny[msg] {
-    resource := input.resource_changes[_]
-    resource.change.actions[_] == "delete"
-    resource.change.before.tags["Mission-Critical"] == "true"
-    
-    msg := sprintf("BLAST RADIUS VIOLATION: Attempting to destroy mission-critical resource '%v'. This is hard-blocked by policy.", [resource.address])
+# Rule 2: Prevent deletion of ANY resource tagged "Mission-Critical" = "true"
+deny contains msg if {
+	some resource in input.resource_changes
+	"delete" in resource.change.actions
+	resource.change.before.tags["Mission-Critical"] == "true"
+	msg := sprintf("BLAST RADIUS VIOLATION: Attempting to destroy mission-critical resource '%v'.", [resource.address])
 }
 ```
 
@@ -653,10 +668,10 @@ A GitHub Actions pipeline fails with `InvalidIdentityToken: OpenIDConnect provid
 
 **Root Cause Analysis:**
 Historically, CI pipelines used long-lived static API keys (e.g., AWS Access Keys) stored in GitHub Secrets. This is a massive security risk. Modern pipelines use OpenID Connect (OIDC), where GitHub presents a short-lived cryptographic identity token to the cloud provider, which verifies GitHub's certificate thumbprint and grants temporary access.
-The cloud provider rotated or updated their trusted root CA thumbprints, or GitHub rotated theirs, causing the trust relationship to sever.
+Historically this error appeared when GitHub rotated the certificate behind its OIDC endpoint and the thumbprint configured in the AWS IAM OIDC provider no longer matched. AWS has since changed IAM to validate GitHub's OIDC provider against its trusted CA library rather than the configured thumbprint, so on current AWS the more common causes of OIDC failures are mismatches in the role's trust policy conditions (the `sub` and `aud` claims: repository, branch, or environment name changed) or an expired or deleted provider. Read the exact error and the trust policy before assuming a thumbprint problem.
 
 **Remediation:**
-The Identity Provider (IdP) configuration in the cloud (e.g., AWS IAM OIDC Provider) must be updated to trust the new certificate thumbprints provided by the VCS platform (GitHub/GitLab).
+Check the IdP configuration in the cloud (for AWS, the IAM OIDC provider and the role's trust policy `sub`/`aud` conditions) against the token claims GitHub or GitLab actually presents, and update whichever side is stale.
 
 ---
 
@@ -674,7 +689,7 @@ The Identity Provider (IdP) configuration in the cloud (e.g., AWS IAM OIDC Provi
 3. **Write a conceptual Open Policy Agent (OPA) rule that prevents any Terraform plan from deleting an AWS S3 bucket if the bucket's name contains the string "checkpoint".**
    *Answer focus:* Target the `delete` action in `resource.change.actions`, check `resource.type == "aws_s3_bucket"`, and use a string match on the `bucket` attribute.
 4. **An Ansible pipeline fails because a target node is unreachable via SSH. The pipeline exits with code `4`. How do you structure the CI pipeline to handle transient network blips versus hard failures?**
-   *Answer focus:* Ansible retry logic, `ansible-playbook --limit @retry`, or step-level retries in the CI runner configuration, distinguishing between host unreachability and task failures.
+   *Answer focus:* Ansible's exit code 4 means unreachable hosts, so retry only that case (CI step retries, or re-run with `--limit` on the unreachable hosts), while treating task failures (exit code 2) as hard failures.
 5. **Why is it dangerous to manage long-lived stateful resources (like an RDS database or a Slurm Control node) using ArgoCD's `prune: true` feature?**
    *Answer focus:* If the Git repository is accidentally corrupted, or someone deletes the YAML file by mistake, ArgoCD will immediately delete the production database to match the new "empty" Git state. Critical stateful resources often require `prune: false` or specific deletion-protection annotations.
 
@@ -750,6 +765,8 @@ build {
     inline = [
       "while [ ! -f /var/lib/cloud/instance/boot-finished ]; do echo 'Waiting for cloud-init...'; sleep 1; done",
       "sudo apt-get update && sudo apt-get upgrade -y",
+      # Note: if the upgrade installs a new kernel, reboot (Packer's expect_disconnect/pause_before)
+      # before installing headers, or the headers will not match the kernel that boots.
       "sudo apt-get install -y linux-headers-$(uname -r) gcc make software-properties-common"
     ]
   }
@@ -762,7 +779,7 @@ build {
     ]
   }
 
-  # Step 3: Run Goss or InSpec tests to validate the built image BEFORE creating the AMI
+  # Step 3: Validate the built image BEFORE the AMI is created (replace with Goss/InSpec in production)
   provisioner "shell" {
     inline = [
       "nvidia-smi --query-gpu=driver_version --format=csv,noheader",
@@ -780,7 +797,9 @@ A standard pipeline pattern is to trigger the Packer build automatically when th
 # .gitlab-ci.yml for Golden Image Factory
 build_golden_image:
   stage: build
-  image: hashicorp/packer:1.9
+  image:
+    name: hashicorp/packer:1.9
+    entrypoint: [""]
   script:
     - packer init packer/
     - packer validate packer/
@@ -804,24 +823,25 @@ Expanding on OPA, here are highly advanced Rego policies designed for Enterprise
 You must never allow `0.0.0.0/0` ingress on port 22 or InfiniBand/RoCE ports in a GPU cluster.
 
 ```rego
-# policies/terraform/network_security.rego
+# policies/terraform/network_security.rego (Rego v1 syntax)
 package network_security
 
-deny_public_ssh[msg] {
-    resource := input.resource_changes[_]
-    resource.type == "aws_security_group_rule"
-    resource.change.actions[_] != "delete"
-    
-    # Check if this rule allows port 22
-    resource.change.after.from_port <= 22
-    resource.change.after.to_port >= 22
-    resource.change.after.type == "ingress"
-    
-    # Check if cidr_blocks contains 0.0.0.0/0
-    cidr_blocks := resource.change.after.cidr_blocks[_]
-    cidr_blocks == "0.0.0.0/0"
-    
-    msg := sprintf("SECURITY VIOLATION: Security Group Rule '%v' allows public SSH access (0.0.0.0/0). Use Bastion/SSM instead.", [resource.address])
+import rego.v1
+
+deny_public_ssh contains msg if {
+	some resource in input.resource_changes
+	resource.type == "aws_security_group_rule"
+	not "delete" in resource.change.actions
+	resource.change.after.type == "ingress"
+
+	# The rule's port range covers 22
+	resource.change.after.from_port <= 22
+	resource.change.after.to_port >= 22
+
+	# The rule is open to the world
+	"0.0.0.0/0" in resource.change.after.cidr_blocks
+
+	msg := sprintf("SECURITY VIOLATION: Security Group Rule '%v' allows public SSH access (0.0.0.0/0). Use Bastion/SSM instead.", [resource.address])
 }
 ```
 
@@ -830,18 +850,18 @@ deny_public_ssh[msg] {
 Do not allow CI/CD to provision IAM roles with `AdministratorAccess`.
 
 ```rego
-# policies/terraform/iam_security.rego
+# policies/terraform/iam_security.rego (Rego v1 syntax)
 package iam_security
 
-deny_admin_iam[msg] {
-    resource := input.resource_changes[_]
-    resource.type == "aws_iam_role_policy_attachment"
-    resource.change.actions[_] != "delete"
-    
-    policy_arn := resource.change.after.policy_arn
-    endswith(policy_arn, "AdministratorAccess")
-    
-    msg := sprintf("IAM VIOLATION: Resource '%v' attempts to attach AdministratorAccess. Use least-privilege custom policies.", [resource.address])
+import rego.v1
+
+deny_admin_iam contains msg if {
+	some resource in input.resource_changes
+	resource.type == "aws_iam_role_policy_attachment"
+	not "delete" in resource.change.actions
+	endswith(resource.change.after.policy_arn, "AdministratorAccess")
+
+	msg := sprintf("IAM VIOLATION: Resource '%v' attempts to attach AdministratorAccess. Use least-privilege custom policies.", [resource.address])
 }
 ```
 
@@ -872,7 +892,8 @@ provider "vault" {
   }
 }
 
-# Fetch the BMC/IPMI password directly from Vault at runtime
+# Fetch the BMC/IPMI password directly from Vault at runtime.
+# Note: values read this way still end up in Terraform state, so protect the state backend.
 data "vault_generic_secret" "bmc_credentials" {
   path = "secret/bare-metal/bmc-admin"
 }
@@ -892,20 +913,20 @@ If you are using ArgoCD, how do you store a Kubernetes `Secret` manifest in Git?
 **Mozilla SOPS** allows you to encrypt the values of a YAML file using an AWS KMS key, while leaving the keys (structure) in plaintext. You commit the encrypted file to Git. 
 
 ```yaml
-# encrypted-secret.yaml (Committed to Git)
+# encrypted-secret.yaml (Committed to Git) - illustrative; real SOPS files carry more metadata
 apiVersion: v1
 kind: Secret
 metadata:
   name: slurmdbd-password
 type: Opaque
 stringData:
-  # The value below is encrypted by AWS KMS. ArgoCD's SOPS plugin decrypts it in-memory.
+  # The value below is encrypted by AWS KMS. A SOPS-aware tool decrypts it (Flux has native SOPS support; Argo CD needs a plugin such as KSOPS or helm-secrets).
   password: ENC[AES256_GCM,data:xyz123...,iv:abc...,tag:def...,type:str]
 sops:
   kms:
     - arn: arn:aws:kms:us-east-1:1234567890:key/abcdef
 ```
-ArgoCD pulls this file, uses the AWS KMS key (via an IAM role attached to the ArgoCD pod) to decrypt it, and applies it to the cluster as a native Kubernetes Secret.
+With the plugin (or Flux's built-in support) configured, the controller uses the AWS KMS key (via an IAM role bound to its service account) to decrypt the file and applies it to the cluster as a native Kubernetes Secret.
 
 ---
 
@@ -954,25 +975,27 @@ scontrol update NodeName=canary-[01-04] State=RESUME
 # Step 5: (Manual Approval Gate in CI/CD)
 
 # Step 6: Rollout to the rest of the fleet in batches of 10
-ansible-playbook update-driver.yml --limit "production_fleet" --forks 10 --serial 10
+# 'serial' is a play keyword, not a CLI flag; drive it from a variable in the playbook (serial: "{{ batch_size }}")
+ansible-playbook update-driver.yml --limit "production_fleet" --forks 10 -e batch_size=10
 ```
 
 ---
 
 ## 16. Further Advanced Troubleshooting Scenarios
 
-### Scenario 4: The Silent Terraform State Corruption
+### Scenario 4: Bypassing the Pipeline with a Mismatched Terraform Binary
 
 **The Incident:** 
-An engineer bypassed the CI pipeline and ran `terraform apply` locally using an older version of the Terraform binary (v1.3.0) against a state file that was previously upgraded by the CI pipeline to v1.7.0. The state file was corrupted, and the remote S3 backend rejected further updates due to lineage mismatches.
+An engineer bypassed the CI pipeline and tried to run `terraform apply` locally with an older Terraform binary (v1.3.0) against remote state last written by the pipeline's v1.7.0. Terraform refused with an error along the lines of "state snapshot was created by Terraform v1.7.0, which is newer than current v1.3.0". The engineer then tried workarounds (editing the state, switching backends) that created a real risk of divergent state.
 
 **Root Cause:**
-Terraform state files track the `terraform_version` that last modified them. Downgrading versions against a remote state is unsupported and causes structural corruption in the JSON graph.
+Terraform records the version that last wrote the state and refuses to operate on state written by a newer version, to avoid mis-reading changed formats. The refusal is a safeguard; the risk comes from working around it, and from local applies that bypass the pipeline's review, policy checks, and serialized execution.
 
 **Remediation:**
-1. Enforce `required_version = "~> 1.7.0"` in the `terraform {}` block to prevent older binaries from executing.
-2. Recover the state file from the S3 bucket's version history. Revert the object in S3 to the version immediately preceding the local corruption event.
-3. Run `terraform force-unlock` if a lock is lingering.
+1. Enforce `required_version = "~> 1.7.0"` in the `terraform {}` block and pin the same version in CI and developer tooling.
+2. Do not hand-edit or force-push state to get past the error. If state was altered, recover the previous object version from the versioned S3 bucket and verify with `terraform plan`.
+3. Run `terraform force-unlock` only after confirming no apply is in progress.
+4. Remove local apply rights to production state; make the pipeline the only writer.
 
 ### Scenario 5: Flux Reconciliation Hangs on Webhook Failures
 
@@ -983,7 +1006,7 @@ A Flux Kustomization controller is stuck in a `ReconciliationFailed` state for a
 Kubernetes Validating or Mutating Webhooks (e.g., from an OPA Gatekeeper or a security mesh) are failing or unreachable. When Flux attempts a `ServerSideApply`, the Kubernetes API server forwards the request to the broken webhook, which times out, causing the entire Flux reconciliation loop to hang.
 
 **Remediation:**
-Identify broken webhooks using `kubectl get validatingwebhookconfigurations`. If a webhook backend pod is dead (e.g., a node crashed), temporarily delete the webhook configuration or fix the backend pod to unblock the API server, allowing Flux to resume synchronization.
+Identify broken webhooks using `kubectl get validatingwebhookconfigurations` and `kubectl get mutatingwebhookconfigurations`. Prefer fixing the webhook backend pod. Removing a webhook configuration disables the policy it enforces, so do it only as a documented, temporary break-glass step. Setting a webhook's `failurePolicy` appropriately (and excluding system namespaces) prevents this class of hang.
 
 ---
 
@@ -1025,6 +1048,10 @@ on:
   schedule:
     - cron: '0 */4 * * *' # Every 4 hours
 
+permissions:
+  id-token: write   # required for AWS OIDC
+  contents: read
+
 jobs:
   detect_drift:
     runs-on: ubuntu-latest
@@ -1045,9 +1072,12 @@ jobs:
         
       - name: Terraform Plan (Detailed Exitcode)
         id: drift_plan
-        # -detailed-exitcode returns 0 (no diff), 1 (error), or 2 (diff exists)
-        continue-on-error: true
-        run: terraform plan -detailed-exitcode -refresh-only
+        # -detailed-exitcode returns 0 (no diff), 1 (error), or 2 (diff exists).
+        # Run steps do not expose their exit code as an output, so capture it explicitly.
+        run: |
+          set +e
+          terraform plan -detailed-exitcode -refresh-only
+          echo "exitcode=$?" >> "$GITHUB_OUTPUT"
         
       - name: Alert on Drift
         if: steps.drift_plan.outputs.exitcode == '2'
@@ -1060,6 +1090,7 @@ The production Terraform state no longer matches the live cloud environment. Ple
             }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
 ```
 
 ### 19.2 The "Reconciliation vs. Backport" Decision Matrix

@@ -66,6 +66,8 @@ flowchart TD
 
 **Confirming which side of the fork a real kernel lands on:**
 
+*Illustrative output (not captured):*
+
 ```text
 $ ncu --metrics lts__t_sector_hit_rate.pct,l1tex__t_sector_hit_rate.pct ./kernel
   l1tex__t_sector_hit_rate.pct    %    12.4
@@ -234,6 +236,8 @@ Possible causes include:
 
 **Turning "GPU has high memory throughput but low compute activity" into evidence.** The `sm%`/`mem%` pairing from earlier chapters is the same diagnostic here, applied to this row specifically:
 
+*Illustrative output (not captured):*
+
 ```text
 $ nvidia-smi dmon -s ucm -c 3
 # gpu   sm   mem
@@ -243,16 +247,18 @@ $ nvidia-smi dmon -s ucm -c 3
     0    17    95
 ```
 
-`mem` at 93-95% while `sm` sits at 15-17% is the direct evidence for "memory-bound execution" as stated in this row — the memory subsystem is doing nearly all it can while the compute pipelines wait. This reading alone doesn't distinguish *why* (poor reuse versus genuinely low arithmetic intensity by design); that requires the L1/L2 hit-rate check from the Big Picture section above as the next step.
+`mem` at 93-95% while `sm` sits at 15-17% is the direct evidence for "memory-bound execution" as stated in this row — the memory interface is busy almost all the time while the compute pipelines wait (`mem%` is a time-based busy fraction, not achieved bandwidth; confirm with `dram__throughput` in `ncu`). This reading alone doesn't distinguish *why* (poor reuse versus genuinely low arithmetic intensity by design); that requires the L1/L2 hit-rate check from the Big Picture section above as the next step.
 
 **Turning "uncoalesced or small transactions" into evidence.** The profiler's sector-efficiency metric is the direct measure of wasted bandwidth from bad access patterns:
 
+*Illustrative output (not captured):*
+
 ```text
 $ ncu --metrics l1tex__average_t_sectors_per_request_pipe_lsu_mem_global_op_ld.ratio ./kernel
-  l1tex__average_t_sectors_per_request_pipe_lsu_mem_global_op_ld.ratio    4.8
+  l1tex__average_t_sectors_per_request_pipe_lsu_mem_global_op_ld.ratio    18.6
 ```
 
-On architectures where a fully coalesced 32-thread warp load ideally maps to close to 1 sector-per-thread-worth of transactions, a ratio of 4.8 sectors per request indicates the memory system is fetching roughly 4-5x more data than the warp actually needs — the signature of scattered or strided addressing. This is the concrete number behind "delivered bandwidth is far below expectation": the *effective* useful-byte bandwidth is a fraction of the *raw* bytes-moved bandwidth when this ratio is high.
+For a warp of 32 threads each loading a 4-byte value from adjacent addresses, the 128 requested bytes span 4 sectors of 32 bytes, so the ideal ratio is about 4 sectors per request (the worst case is 32). A ratio of 18.6 indicates the memory system is fetching roughly 4-5x more sectors than the warp actually needs — the signature of scattered or strided addressing. This is the concrete number behind "delivered bandwidth is far below expectation": the *effective* useful-byte bandwidth is a fraction of the *raw* bytes-moved bandwidth when this ratio is high.
 
 ### Problem: Out-of-memory failures are intermittent
 

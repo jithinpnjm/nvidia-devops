@@ -310,6 +310,8 @@ A timeline should show whether idle gaps occur on the host, copy engines, or com
 
 **Evidence — two streams, zero real overlap:**
 
+*Illustrative output (not captured):*
+
 ```text
 $ nsys stats --report cuda_gpu_trace overlap-report.nsys-rep | head -8
  Start (ns)     Duration (ns)  Name                  Stream

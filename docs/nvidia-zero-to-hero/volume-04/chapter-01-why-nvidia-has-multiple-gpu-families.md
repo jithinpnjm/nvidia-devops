@@ -49,7 +49,7 @@ NVIDIA uses the same underlying silicon architecture (e.g., "Ada Lovelace" or "H
 * **Design Goal:** 24/7/365 maximum throughput, distributed training, and extreme memory bandwidth.
 * **Cooling:** Passive cooling (no moving parts). They rely entirely on the violent, jet-engine fans of the server chassis to push cold air through their massive heatsinks.
 * **Memory:** HBM (High-Bandwidth Memory) on the high-end cards, delivering terabytes per second of bandwidth.
-* **Interconnect:** Unrestricted NVSwitch and GPUDirect RDMA capabilities. 
+* **Interconnect:** NVLink (and NVSwitch on SXM/HGX systems) and GPUDirect RDMA support, depending on the SKU. 
 
 ## 2. The Technical Showstoppers for Gaming GPUs
 
@@ -57,7 +57,7 @@ Why does a cluster of RTX 4090s fail for enterprise AI?
 
 ### Reason 1: The Networking Bottleneck (No GPUDirect)
 As we learned in Volume 1, multi-GPU training requires GPUs to synchronize gradients constantly. Data Center GPUs use **GPUDirect RDMA** to push data directly from GPU memory into the InfiniBand NIC, bypassing the host CPU entirely. 
-Consumer GPUs strictly disable GPUDirect. To synchronize a model across two RTX 4090s, the data must travel from GPU A -> System RAM -> CPU -> NIC. The CPU bottlenecks the network, reducing multi-node training efficiency to near zero.
+GPUDirect RDMA is not supported on GeForce products. To synchronize a model across two RTX 4090s, the data must travel from GPU A -> System RAM -> CPU -> NIC. The CPU bottlenecks the network, sharply reducing multi-node training efficiency.
 
 ### Reason 2: The Interconnect Bottleneck (No NVLink)
 Training large models requires Tensor Parallelism (splitting matrix math across multiple GPUs). This requires 900+ GB/s of bandwidth. Consumer cards lack NVLink. They must communicate over the standard PCIe bus (~64 GB/s), creating a massive "Memory Wall" that strangles the Tensor Cores.

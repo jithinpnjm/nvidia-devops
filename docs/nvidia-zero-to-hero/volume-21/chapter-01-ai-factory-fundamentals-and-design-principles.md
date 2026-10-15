@@ -19,6 +19,9 @@ tags: [ai-factory, strategy, workload-characterization, slas, cost-analysis]
 
 ---
 
+
+> **Note on figures:** Prices, utilization, throughput, and cost figures in this chapter are illustrative planning assumptions, not vendor quotes or measurements. GPU specifications follow NVIDIA datasheets (see Chapter 02 for the table).
+
 ## Beginner's Primer: The AI Factory
 
 Why do we use the term **AI Factory**? 
@@ -33,7 +36,7 @@ Imagine a traditional car factory:
 If the metal stamping machine is too slow, the assembly robots sit idle. If you buy 100 assembly robots but only 1 stamping machine, you have wasted millions of dollars. 
 
 An AI Factory is identical. You are manufacturing "Intelligence."
-If you buy 1,000 H100 GPUs (the assembly robots) but you attach them to a standard 10Gbps enterprise network (the stamping machine), your $30 Million investment will sit 90% idle. 
+If you buy 1,000 H100 GPUs (the assembly robots) but you attach them to a standard 10Gbps enterprise network (the stamping machine), your $30 Million investment will sit largely idle waiting on data. 
 
 Building an AI Factory is not about buying the fastest GPU. It is about balancing the entire supply chain—Compute, Networking, Storage, Power, and Cooling—so that no single component starves the others. This volume is the capstone of the Zero-to-Hero series, teaching you how to architect that perfect balance.
 
@@ -104,22 +107,22 @@ WORKLOAD CHARACTERIZATION FRAMEWORK
 ```yaml
 Model:              Llama-3-70B (70B parameters)
 Model Precision:    BF16 (2 bytes/param → 140GB weights)
-Batch Size:         128 sequences (distributed across 64 GPUs)
+Batch Size:         128 sequences per step (global; example value)
 Sequence Length:    4096 tokens
 Training Duration:  7 days continuous
 Execution Mode:     Offline batch job, 24/7 reserved cluster
 
 Resource Demands:
-  Compute:         64x H100 (980 TFLOPS each @ BF16, ideal aggregate: 62,720 TFLOPS)
-  Memory:          40GB HBM per GPU (80GB → effective usable: 70GB for weights + activations + KV cache)
+  Compute:         64x H100 SXM (989 TFLOPS each, BF16 dense; ideal aggregate: 63,296 TFLOPS)
+  Memory:          80GB HBM3 per GPU (weights, gradients, optimizer state, and activations are sharded across GPUs)
   Network:         NVLink within node, high-speed inter-node for AllReduce
   Storage:         Checkpoints every 8 hours (1TB per checkpoint × 21 checkpoints)
-  Power:           64 × 350W = 22.4 kW for GPUs + 15 kW PDU/cooling = 37.4 kW total
-  Cooling:         ~50 kW total facility power for dense rack
+  Power:           64 × 700W = 44.8 kW for GPUs; 8 DGX-class nodes at up to ~10.2 kW each = ~82 kW IT load
+  Cooling:         plan for ~82 kW IT load plus facility overhead (PUE)
 
 Expected Outcome:
-  Training speed:   ~3,500 tokens/second aggregate (68% of peak theoretical 5,100 T/s)
-  Training cost:    37.4 kW × 168 hours × $0.12/kWh = $753 per training run
+  Training speed:   tokens/s ≈ MFU × peak FLOPs / (6 × parameters). At an assumed 40% MFU: 0.40 × 63,296e12 / (6 × 70e9) ≈ 60,000 tokens/second aggregate
+  Training cost:    ~82 kW × 1.35 PUE ≈ 110 kW × 168 hours × $0.12/kWh ≈ $2,200 per run (electricity only)
   Fault tolerance:  No recovery; restart entire run if GPU fails
 ```
 
@@ -127,22 +130,22 @@ Expected Outcome:
 
 ```yaml
 Model:              Llama-3-70B (served via vLLM with tensor parallelism)
-Model Precision:    FP8 quantized (35GB weights after quantization)
+Model Precision:    FP8 quantized (~70GB of weights, split across the 2-GPU tensor-parallel group)
 Serving Request SLA: 99.9% latency <500ms p99 TTFT, <100ms ITL
 Peak QPS:           2,000 requests/second (globally, across all replicas)
 Avg Response Length: 150 tokens (avg decode time: 15 seconds per request)
 
 Resource Demands:
-  Inference GPUs:   40× H100 GPUs minimum (each running 1 vLLM replica with 2-GPU tensor parallelism)
-  KV Cache Memory:  ~100GB per node during peak concurrency (280 concurrent requests, 356KB each)
+  Inference GPUs:   40× H100 GPUs minimum (20 vLLM replicas, each using 2-GPU tensor parallelism)
+  KV Cache Memory:  Llama-3-70B uses ~320 KB of KV cache per token in BF16 (2 × 80 layers × 8 KV heads × 128 head dim × 2 bytes), so a 4K-token request needs ~1.3 GB; size concurrency from that
   Network:          10Gbps ingress from LB, InfiniBand for inter-replica communication
-  Storage:          Model artifact (35GB per node, read-only, NVMe cached)
-  Power:            40 × 350W = 14 kW GPU + 10 kW cooling = 24 kW per cluster
+  Storage:           Model artifact (~70GB per replica in FP8, read-only, NVMe cached)
+  Power:            40 × 700W = 28 kW of GPU power per region (plus host, network, and cooling overhead)
   Replicas:         6 geographic regions (3 US coasts, 3 EMEA) = 240 GPUs total
 
 Expected Outcome:
   Throughput:       ~1,500 tokens/second per GPU (28% compute utilization due to decode-phase bottleneck)
-  Cost:             $0.0006 per 1K tokens (at $0.12/kWh and 14 kW per 40 GPUs, 1,500T/s throughput)
+  Cost:             roughly $0.0003 to $0.0007 per 1K tokens depending on utilization (see Part 3.2)
   Availability:     99.99% uptime SLA via multi-region active-active
   Recovery Time:    <30 seconds to reroute traffic after regional failure
 ```
@@ -150,18 +153,18 @@ Expected Outcome:
 #### Example C: Fine-tuning Service (LoRA, 100s of Customers)
 
 ```yaml
-Model Base:         Llama-3-7B (15GB weights)
-LoRA Rank:          16 (adds ~512 MB per customer model)
+Model Base:         Llama-3-8B (~16GB weights in BF16)
+LoRA Rank:          16 (adapter weights are typically tens to a few hundred MB per customer, depending on target modules)
 Batch Size:         32 sequences
 Sequence Length:    2048 tokens
 Execution Mode:     Multi-tenant, 50–200 concurrent fine-tuning jobs
 
 Resource Demands:
   Compute:          16× A100 (80GB) GPUs, each hosting 4–8 concurrent LoRA trainers
-  Memory:           Base model (shared) = 15GB, per-job overhead = 2GB (activations + optimizer states)
+  Memory:           Base model (shared) = ~16GB, per-job overhead = ~2GB (activations + adapter optimizer states; example values)
   Network:          Moderate (AllReduce within job only, no cross-job communication)
-  Storage:          LoRA weights (512MB × 100 customers = 50GB)
-  Power:            16 × 250W = 4 kW GPU + 3 kW cooling = 7 kW total
+  Storage:          LoRA weights (assume ~200MB × 100 customers = ~20GB)
+  Power:            16 × 400W (A100 80GB SXM) = 6.4 kW GPU, plus host and cooling overhead
 
 Expected Outcome:
   Throughput:       ~600 tokens/second per GPU (60% utilization due to multi-tenant context switching)
@@ -223,7 +226,7 @@ CAPEX (One-time)
 └── Installation/Labor   ($50K–$200K)
 
 OPEX (Recurring, per year)
-├── Electricity          (37.4 kW × 8760 hours × $0.12/kWh = $39.4K/year)
+├── Electricity          (~110 kW incl. PUE × 8760 hours × $0.12/kWh = ~$116K/year)
 ├── Facility             (Rent/depreciation for space, power distribution)
 ├── Maintenance/Support  (1–2% of hardware CAPEX = $20K–$40K/year)
 ├── Network Operations   (ISP, WAN, DDoS mitigation = $10K–$50K/year)
@@ -231,8 +234,8 @@ OPEX (Recurring, per year)
 └── Software Licenses    (Kubernetes, monitoring, NVIDIA licensing = $10K–$50K/year)
 
 TOTAL 3-YEAR TCO = CAPEX + (OPEX × 3)
-Example: $3.5M CAPEX + ($110K × 3 OPEX) = $3.83M over 3 years
-Average cost per GPU per year: $3.83M / 64 GPU / 3 years = $19,896/GPU/year
+Example (low end of each range above, ~$456K/year OPEX): $3.5M CAPEX + ($456K × 3) ≈ $4.87M over 3 years
+Average cost per GPU per year: $4.87M / 64 GPU / 3 years ≈ $25.4K/GPU/year
 ```
 
 ### 3.2 Cost Per Output Calculation
@@ -242,64 +245,66 @@ Workload-specific cost metrics drive infrastructure decisions:
 #### Training Cost Per Compute-Day
 
 ```python
-# 64-GPU H100 training cluster training Llama-3-70B
+# 64-GPU H100 SXM training cluster training Llama-3-70B
 
-power_per_gpu_kw = 0.350  # H100 at full compute: 350W
-power_pdu_overhead_factor = 1.35  # PDU losses, cooling, etc.
+power_per_gpu_kw = 0.700  # H100 SXM max TDP: 700W (typical training draw is often lower)
+power_pdu_overhead_factor = 1.35  # PDU losses, cooling, etc. (PUE-style factor; GPUs only)
 num_gpus = 64
 hours_per_compute_day = 24
 
 total_facility_power_kw = (power_per_gpu_kw * num_gpus) * power_pdu_overhead_factor
-# = (0.350 * 64) * 1.35 = 30.24 kW
+# = (0.700 * 64) * 1.35 = 60.48 kW (GPUs only; host CPUs, NICs, and storage add more)
 
 electricity_cost_per_kwh = 0.12  # $/kWh (US average industrial)
 facility_cost_per_hour = total_facility_power_kw * electricity_cost_per_kwh
-# = 30.24 * 0.12 = $3.63/hour
+# = 60.48 * 0.12 = $7.26/hour
 
 cost_per_compute_day = facility_cost_per_hour * hours_per_compute_day
-# = $3.63 * 24 = $87.12 per cluster compute-day (already accounts for all 64 GPUs)
+# = $7.26 * 24 = $174.2 per cluster compute-day (already accounts for all 64 GPUs)
 ```
 
 For a 7-day training run:
-- **Hardware cost:** $87.12/day × 7 days = $609.84 (no additional ×64 — `cost_per_compute_day` is already the whole 64-GPU cluster's daily cost)
+- **Electricity:** $174.2/day × 7 days ≈ $1,220 (no additional ×64 — `cost_per_compute_day` is already the whole 64-GPU cluster's daily cost)
 - **Plus personnel overhead** (hourly monitoring): ~$500/day × 7 days = $3,500
 - **Plus checkpoint storage** (1TB every 8h, 21 checkpoints × $0.023/GB/month ≈ $15): ~$300
-- **Total:** ~$4,410 for one training run
+- **Total:** ~$5,020 for one training run (electricity, personnel, storage; excludes hardware amortization)
 
-**Cost per training iteration:** $4,410 / 50 training iterations = **~$88 per iteration**
+**Cost per training iteration:** $5,020 / 50 training iterations = **~$100 per iteration** (here an "iteration" means one model-update run, not an optimizer step)
 
 #### Inference Cost Per Million Tokens
 
 ```python
-# 40× H100 inference cluster serving 2,000 QPS peak, 1,500 tokens/sec aggregate throughput
+# 40× H100 inference cluster (assumes ~1,500 generated tokens/sec per GPU, 60,000 tokens/sec aggregate)
 
-power_per_gpu_kw = 0.350
+power_per_gpu_kw = 0.700
 num_inference_gpus = 40
 cooling_overhead = 1.35
 facility_power_kw = power_per_gpu_kw * num_inference_gpus * cooling_overhead
-# = 0.350 * 40 * 1.35 = 18.9 kW
+# = 0.700 * 40 * 1.35 = 37.8 kW
 
-tokens_per_second_aggregate = 1500
+tokens_per_second_aggregate = 1500 * 40   # 60,000 tokens/sec
 seconds_per_million_tokens = 1_000_000 / tokens_per_second_aggregate
-# = 667 seconds = 0.185 hours
+# = 16.7 seconds = 0.00463 hours
 
 kwh_per_million_tokens = facility_power_kw * (seconds_per_million_tokens / 3600)
-# = 18.9 * 0.185 = 3.49 kWh
+# = 37.8 * 0.00463 = 0.175 kWh
 
 electricity_cost_per_kwh = 0.12
 cost_per_million_tokens_electricity = kwh_per_million_tokens * electricity_cost_per_kwh
-# = 3.49 * 0.12 = $0.42 per million tokens
+# = 0.175 * 0.12 = $0.021 per million tokens
 
-# Add amortized hardware cost
-total_cost_per_year_opex = 100_000  # salary + maintenance + etc
-inference_replicas_global = 6 * 40  # 6 regions × 40 GPUs
-cost_per_million_tokens_capex = (total_cost_per_year_opex / 365 / inference_replicas_global) * (seconds_per_million_tokens / 3600) / (1_000_000 / tokens_per_second_aggregate * 365)
-# Simplified: ~$0.08 per million tokens (approximate)
+# Add amortized hardware and operations
+hardware_capex = 40 * 30_000                 # $1.2M, amortized over 3 years
+yearly_cost = hardware_capex / 3 + 100_000   # + $100K/year opex (salary, maintenance, etc.)
+tokens_per_year = tokens_per_second_aggregate * 365 * 24 * 3600   # assumes 100% utilization
+cost_per_million_tokens_hw = yearly_cost / (tokens_per_year / 1_000_000)
+# = $500K / 1.89e6 million tokens ≈ $0.26 per million tokens at full utilization
 
-cost_per_million_tokens_total ≈ $0.42 + $0.08 = $0.50 per million tokens (electricity + amortized hardware)
+# Total ≈ $0.021 + $0.26 ≈ $0.28 per million tokens
+# At 40% average utilization, the hardware share is 2.5x higher (~$0.66/M)
 ```
 
-This translates to **$0.0005 per 1K tokens** at scale.
+This translates to roughly **$0.0003 per 1K tokens at full utilization** and about **$0.0007 per 1K tokens at 40% utilization**, under these assumptions. Utilization, not electricity, dominates the result.
 
 ### 3.3 Cost Target Setting
 
@@ -429,9 +434,9 @@ flowchart TD
     CostSmall -->|No| H100Small["H100 (higher TFLOPS,<br/>justify higher cost<br/>via throughput)"]
     
     CostMed -->|Yes| A100Med["2x A100 tensor-parallel<br/>(NVLink or PCIe)"]
-    CostMed -->|No| H100Med["2x H100 tensor-parallel<br/>(NVLink for <1% latency<br/>degradation over PCIe)"]
+    CostMed -->|No| H100Med["2x H100 tensor-parallel<br/>(NVLink strongly preferred;<br/>measure PCIe penalty)"]
     
-    CostLarge -->|Yes| H100NoNVL["4x H100 with PCIe<br/>Accept 15–20% throughput<br/>penalty over NVLink,<br/>save $100K+ per cluster"]
+    CostLarge -->|Yes| H100NoNVL["4x H100 with PCIe<br/>Accept a throughput penalty<br/>(measure it) to save cost"]
     CostLarge -->|No| H100NVL["4–8x H100 with NVLink<br/>(full performance,<br/>highest CAPEX)"]
     
     A100Small --> Final["Proceed to Chapter 2:<br/>Topology & Interconnect Design"]
@@ -450,13 +455,13 @@ Given: Number of GPUs, model size, latency SLA, cost target
 INTERCONNECT CHOICE FLOWCHART
 
 ├── 1–8 GPUs in single machine
-│   └── PCIe Gen 5 (max 128 GB/s)
+│   └── PCIe Gen 5 x16 (about 64 GB/s per direction)
 │       └── Suitable for: single-GPU or 2-GPU model parallel inference
 │       └── Cost: included with GPU
 │
 ├── 8–16 GPUs in single node (NVLink + IB to other nodes)
-│   └── Within-node: NVLink (600 GB/s or 1.8 TB/s H100-SXM5)
-│   └── Inter-node: InfiniBand HDR (200 GB/s) or NDR (400 GB/s)
+│   └── Within-node: NVLink (600 GB/s on A100, 900 GB/s on H100, 1.8 TB/s on Blackwell)
+│   └── Inter-node: InfiniBand HDR (200 Gb/s) or NDR (400 Gb/s) per port
 │       └── Suitable for: 8–16 GPU model parallel training/inference
 │       └── Cost: +$50K–100K per cluster for IB switch
 │
@@ -464,12 +469,12 @@ INTERCONNECT CHOICE FLOWCHART
 │   ├── Option A: NVLink + IB (high performance, expensive)
 │   │   └── 8 nodes × 8 GPU, NVLink within node, NDR IB between nodes
 │   │   └── Cost: $200K+ for IB fabric + switches
-│   │   └── Latency: AllReduce in 100–200 μs
+│   │   └── Lowest collective latency of the options here; verify with nccl-tests
 │   │
 │   └── Option B: NVLink + 400GbE Ethernet (good enough, cheaper)
 │       └── 8 nodes × 8 GPU, NVLink within node, 400GbE between nodes
-│       └── Cost: $100K for Ethernet switches (half IB cost)
-│       └── Latency: AllReduce in 500–1000 μs (5–10x slower than IB, but tolerable)
+│       └── Needs PFC/ECN tuning for lossless RoCEv2; compare quotes
+│       └── Collective performance depends heavily on tuning; measure before committing
 │
 └── >64 GPUs across multiple clusters/regions
     └── Multi-region: 10GbE or 100GbE WAN links
@@ -494,7 +499,7 @@ INTERCONNECT CHOICE FLOWCHART
 
 2. **Translate SLAs to infrastructure requirements (Week 1–2)**
    - "99.9% availability means ~22 minutes of acceptable downtime per month. That's not achievable with a single region or single GPU per model. We need at least 2 regions, each with 3 inference replicas."
-   - "500 QPS with 150-token avg response requires ~1,500 tokens/sec throughput. At 70B model, an H100 can only do ~300 tokens/sec due to memory bandwidth. That's 5–6 H100s minimum per region, so 12–14 H100s total for just the LLM service."
+   - "500 QPS with 150-token avg response requires ~1,500 tokens/sec throughput. A 70B model's decode throughput per GPU is bounded by memory bandwidth, so I would benchmark real tokens/sec per GPU with the target serving stack and size from that; for this example assume a few GPUs per region and revisit after benchmarking."
    - "Add fine-tuning capacity (8 A100s) + training (8 more H100s for background jobs) = 28–30 GPUs total."
 
 3. **Size within budget (Week 2)**

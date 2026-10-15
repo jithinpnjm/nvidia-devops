@@ -51,7 +51,7 @@ To understand how the attacker breached the AI cluster, you must analyze specifi
 
 *   **The Audit Logs:** Check the Kubernetes API audit logs. Did a legitimate user's compromised Service Account deploy the malicious pod?
 *   **The Container Image:** Inspect the image hash running on the node. Does it match the secure registry? If not, the attacker bypassed the Admission Controller. 
-*   **DCGM Metrics:** Did the GPU power draw spike to 700W constantly? Crypto-miners leave highly specific, sustained thermal and power signatures in DCGM that look very different from the bursty nature of standard AI inference.
+*   **DCGM Metrics:** Is GPU power draw pinned near its limit for hours on a node that should be idle or bursty? Cryptocurrency mining often shows sustained utilization, power, and thermal patterns in DCGM that differ from bursty inference, though this is a hint rather than proof.
 
 ## 3. Eradication and Recovery
 
@@ -61,7 +61,7 @@ Once the forensic snapshot is secure and the security team has identified the en
 
 If an attacker gained root on `gpu-node-42`, you cannot trust the OS, the drivers, or the firmware. 
 1. Re-image the bare-metal server using an automated PXE boot pipeline.
-2. Force a cryptographic firmware flash on the GPU and ConnectX NICs to ensure the attacker didn't leave a persistent rootkit in the silicon (as discussed in Chapter 2).
+2. Reflash the GPU and ConnectX NIC firmware with vendor-signed images (and verify versions) to reduce the risk that the attacker left a persistent rootkit in the silicon (as discussed in Chapter 2).
 3. Rotate all Kubernetes Secrets, Registry credentials, and S3 API keys that were present on that node.
 4. Allow the node to rejoin the cluster.
 

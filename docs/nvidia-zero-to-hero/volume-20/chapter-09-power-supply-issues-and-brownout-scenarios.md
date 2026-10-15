@@ -7,17 +7,19 @@ description: "Diagnose power delivery failures, voltage instability, and GPU beh
 
 # Power Supply Issues and Brownout Scenarios
 
+> **Note:** Terminal and log output blocks in this chapter are illustrative (not captured from a real system). Wattages, voltages, sensor names, and log lines are examples; sensor names and BMC output differ by vendor. Commands and flags are real unless marked as placeholders.
+
 ## Beginner's Primer: The Power Spike
 
 An NVIDIA H100 GPU pulls 700 Watts of electricity. A server with 8 of these GPUs pulls over 6,000 Watts, not counting the CPUs or the cooling fans. 
 This is the equivalent of running 6 microwave ovens on maximum power, simultaneously, from a single wall outlet. 
 
 But AI workloads do not pull power smoothly. 
-When 8 GPUs finish transferring data over the network and suddenly all smash the gas pedal to start a Matrix Multiplication (Tensor Core activity), the power draw spikes from 500W to 6,000W in a fraction of a millisecond. 
+When 8 GPUs finish transferring data over the network and suddenly all smash the gas pedal to start a Matrix Multiplication (Tensor Core activity), the power draw can swing by kilowatts within milliseconds. 
 
 If the server's Power Supply Units (PSUs) or the datacenter's electrical grid cannot instantly deliver that massive surge of electricity, a **Brownout** occurs. The voltage sags. 
 
-When the GPU detects this voltage drop, it immediately panics. To prevent the server from completely shutting off, the GPU dramatically throttles its own power limit (e.g., dropping from 700W down to 300W). 
+When the platform detects a power problem (for example an overloaded or failing PSU), the server's power management can assert a hardware power-brake signal or apply a power cap, and the GPUs then slow down sharply (for example from 700W toward a much lower level). `nvidia-smi` reports this as a clocks throttle reason such as HW Power Brake Slowdown or SW Power Cap. 
 
 The result? The AI training job suddenly takes twice as long, and the data scientist complains the code is slow. This chapter teaches SREs how to use DCGM and IPMI tools to prove the datacenter electrical grid is starving the server.
 
@@ -66,14 +68,14 @@ flowchart TD
 $ nvidia-smi -i 0 -q | grep -A 5 "Power Readings"
 
 Power Readings
-    Power Draw                          : 280 W
+    Power Draw                          : 198 W
     Power Limit                         : 200 W
     Default Power Limit                 : 300 W
     Enforced Power Limit                : 200 W
 ```
 
 **Interpretation:**
-- Power Draw (280W) exceeds Power Limit (200W) → GPU hitting power cap
+- Power Draw (198W) is pinned at the Power Limit (200W) → GPU hitting power cap
 - Default (300W) much higher than current (200W) → limit was changed
 - Question: Is this intentional reduction or hardware failure?
 
@@ -88,13 +90,10 @@ $ nvidia-smi -i 0 --query-gpu=power.limit,power.default_limit --format=csv,nohea
 Query who set the limit:
 
 ```bash
-# Check if limit was set via nvidia-smi
+# Check whether a startup script or service sets the limit via nvidia-smi
 grep -r "nvidia-smi.*-pl" /etc/
-ps aux | grep nvidia-smi
-
-# Or check BIOS for power management settings
-# System Management Interrupt (SMI) logs
-journalctl -u systemd-sysctl | grep -i power
+# Also check BMC/BIOS power capping settings and the throttle reasons
+nvidia-smi -i 0 -q -d PERFORMANCE
 ```
 
 ### Monitor Power Stability
@@ -117,25 +116,21 @@ $ nvidia-smi dmon -s puctem
 ### Check DCGM Power Throttling Events
 
 ```bash
-$ dcgmi dmon -s petm
-
-# GPU Pwr Exc Temp Mxm Fbg Xid Pid Name
-     0   0   0   0   0   0   - -
-     1   1   0   0   0   0   - -  <- Power event detected
-     2   0   0   0   0   0   - -
-     3   0   0   0   0   0   - -
+# Sample DCGM power and throttle-reason fields (look up IDs with `dcgmi dmon -l`)
+$ dcgmi dmon -e <DCGM_FI_DEV_POWER_USAGE id>,<DCGM_FI_DEV_CLOCK_THROTTLE_REASONS id>
+# GPU   POWER   THROTTLE_REASONS
+     0    300        0
+     1    145       <nonzero bitmask>  <- power-related throttle bit set (illustrative)
+     2    280        0
+     3    295        0
 ```
 
 Detailed diagnostics:
 
 ```bash
-$ dcgmi diag -r 3 2>&1 | grep -A 10 "Power"
-
-GPU 1: Power Test
-  Current power draw: 145 W
-  Power limit: 200 W
-  Power capping active: Yes
-  Reason: Insufficient power delivery (voltage sag detected)
+# DCGM diag level 3 stresses the GPU and reports power-related plugin results;
+# DCGM does not report "voltage sag" itself, use BMC sensors for that
+$ dcgmi diag -r 3 -i 1
 ```
 
 ### Measure Voltage Ripple
@@ -160,10 +155,9 @@ Expected: 12V ± 0.5V. If below 11.4V, PSU is sagging under peak load.
 ```bash
 $ dmesg | grep -i "psu\|power_supply\|voltage" | tail -20
 
-[12345.678901] ACPI POWER BUTTON: Power button pressed
-[12345.678905] nvidia: Power draw warning - exceeding PSU capacity
-[12345.678910] psu_monitor: PSU output voltage sag: 12V → 10.8V
-[12345.678915] GPU 1: Power capping activated (280W → 200W) to prevent brownout
+# Kernel logs rarely contain PSU sag messages. Look at the BMC system event log instead:
+$ ipmitool sel list | tail -20
+# (illustrative) PSU1 | Power Supply AC lost / Input voltage out of range | Asserted
 ```
 
 ## Resolution
@@ -197,7 +191,7 @@ $ dmesg | grep -i "psu\|power_supply\|voltage" | tail -20
 2. **Reduce overall cluster load:**
    ```bash
    # Move some jobs to other nodes
-   kubectl delete pod <job> --grace-period=30
+   kubectl cordon <node>   # then drain gracefully so jobs reschedule elsewhere
    ```
 
 3. **Schedule PSU upgrade or distribute load:**
@@ -208,15 +202,14 @@ $ dmesg | grep -i "psu\|power_supply\|voltage" | tail -20
 
 1. **Visual inspection:**
    ```bash
-   # Verify 6-pin or 8-pin connectors are firmly seated
+   # Verify power connectors are firmly seated
    # Check for burn marks or discoloration
-   # Verify cable gauge (12-gauge for 6-pin, 10-gauge for 8-pin)
+   # Use only vendor-supplied cables for the platform
    ```
 
 2. **Measure cable resistance (optional):**
    ```bash
-   # With multimeter, measure 12V power cable resistance
-   # Should be < 0.1 Ohm per cable
+   # Follow the server vendor's service procedure; do not probe live power rails
    ```
 
 ### Step 4: PSU Capacity Planning
@@ -228,7 +221,7 @@ $ dmesg | grep -i "psu\|power_supply\|voltage" | tail -20
    # For 4x A100: 4 * 300 * 1.3 = 1560W min PSU
    
    # Check current PSU capacity
-   sudo dmidecode --type 39 | grep "Nominal"
+   sudo dmidecode --type 39 | grep -i "Capacity"
    # Expected: >= 1560W for 4x A100
    ```
 
@@ -257,9 +250,9 @@ $ dmesg | grep -i "psu\|power_supply\|voltage" | tail -20
 
 3. **No power throttling events:**
    ```bash
-   dcgmi dmon -s petm
+   nvidia-smi -i 0 -q -d PERFORMANCE | grep -i "Power"
    
-   # Expected: Power Exc = 0 (no exceptions)
+   # Expected: SW Power Cap and HW Power Brake Slowdown both Not Active
    ```
 
 4. **Voltage stable:**
@@ -326,7 +319,7 @@ $ dmesg | grep -i "psu\|power_supply\|voltage" | tail -20
 
 3. **Power monitoring alerts:**
    ```bash
-   # Prometheus alert rules
+   # Prometheus alert rules (metric names are placeholders; dcgm-exporter exposes DCGM_FI_DEV_POWER_USAGE)
    alert: HighPowerDraw
    expr: nvidia_smi_power_draw > 300
    for: 5m

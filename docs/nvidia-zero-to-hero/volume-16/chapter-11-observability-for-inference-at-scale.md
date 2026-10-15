@@ -107,7 +107,7 @@ python -m vllm.entrypoints.openai.api_server \
 # Prometheus scrapes metrics at :8000/metrics
 ```
 
-**Real metrics from running LLM server:**
+**Illustrative metrics from running LLM server (not captured):**
 
 ```text
 # HELP vllm:prompt_tokens_total Total number of prompt tokens processed.
@@ -161,7 +161,7 @@ GPU Execution: Time to run inference (50-200ms depending on model size)
 Post-Process: Output decoding, response formatting (5-20ms)
 ```
 
-**Real latency breakdown for LLM inference:**
+**Illustrative latency breakdown for LLM inference (not captured):**
 
 ```
 P50 request latency: 180ms

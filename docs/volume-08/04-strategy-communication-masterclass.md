@@ -47,11 +47,11 @@ When an incident occurs, you must tailor the exact same underlying facts to four
 Here is how a Principal Architect translates this fact across the company:
 
 ### Altitude 1: The Operator (Action & Evidence)
-> *"Node gpu-07's MIG instance 2 threw ECC errors. Pods api-serve-4/5/9 failed liveness probes. Runbook executed: cordoned the node, drained the affected pods, confirmed XID errors via `nvidia-smi -q -d ECC`. Mitigation applied; traffic rerouted to healthy nodes."*
+> *"Node gpu-07's MIG instance 2 threw ECC errors. Pods api-serve-4/5/9 failed liveness probes. Runbook executed: cordoned the node, drained the affected pods, confirmed ECC counters via `nvidia-smi -q -d ECC` and the Xid events in `dmesg`. Mitigation applied; traffic rerouted to healthy nodes."*
 *Focus: Command-level, evidence-first, immediate actions taken.*
 
 ### Altitude 2: The Platform Lead (Blast Radius & Architecture)
-> *"One node's MIG partition suffered a hardware ECC event. It was contained entirely to that node; the other 7 nodes were unaffected. We had 11 minutes of degraded capacity, but no full outage because MIG's hardware isolation prevented the fault from crashing the other partitions on the exact same physical GPU. This is the isolation benefit we designed for paying off."*
+> *"One node's MIG partition suffered a hardware ECC event. It was contained entirely to that node; the other 7 nodes were unaffected. We had 11 minutes of degraded capacity, but no full outage because MIG's hardware partitioning limited the blast radius to the affected partition's workloads. This is the isolation benefit we designed for paying off."*
 *Focus: Blast radius, and explicitly naming how the architectural design mitigated the disaster.*
 
 ### Altitude 3: The Engineering Director (SLAs & Roadmaps)

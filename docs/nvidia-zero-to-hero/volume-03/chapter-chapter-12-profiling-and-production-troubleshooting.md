@@ -62,9 +62,9 @@ A Platform team is testing a new GPU cluster. They run a standard PyTorch benchm
 **The Senior Architect Response:**
 "The hardware is healthy. I generated an `nsys profile` trace of your benchmark. 
 
-Looking at the timeline, we can clearly see the CUDA execution streams are packed tightly. However, periodically, all execution on the GPU completely halts for tens of milliseconds. During these exact halts, the OS timeline shows significant activity in the Linux Page Fault handler. 
+Looking at the timeline, we can clearly see the CUDA execution streams are packed tightly. However, periodically, all execution on the GPU completely halts for tens of milliseconds. During these exact halts, the trace shows GPU page-fault and memory-migration activity (visible when Unified Memory events are traced). 
 
-This proves that your workload is utilizing Unified Memory (`cudaMallocManaged`) without prefetching. The GPU is stalling because it is waiting for the Linux OS to handle page faults and copy data from Host RAM over the PCIe bus on demand. We must either rewrite the code to explicitly allocate Device memory (`cudaMalloc`), or insert `cudaMemPrefetchAsync` before the execution loop. The 30% performance penalty is purely page-fault latency."
+This proves that your workload is utilizing Unified Memory (`cudaMallocManaged`) without prefetching. The GPU is stalling because it is waiting for the NVIDIA driver to handle page faults and migrate data from Host RAM over the PCIe bus on demand. We must either rewrite the code to explicitly allocate Device memory (`cudaMalloc`), or insert `cudaMemPrefetchAsync` before the execution loop. The 30% performance penalty is purely page-fault latency."
 
 ## Interview Preparation
 

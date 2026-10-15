@@ -139,6 +139,8 @@ Conceptually:
 cudaMemPrefetchAsync(data, bytes, device, stream);
 ```
 
+The argument list of `cudaMemPrefetchAsync` differs across CUDA toolkit versions (newer releases take a memory-location descriptor instead of a plain device ordinal); check the API reference for the toolkit you build against.
+
 Prefetching converts some demand-fault cost into an explicit, schedulable operation. It works best when the application knows the upcoming phase and can overlap movement with other work.
 
 A prefetch is a policy request, not a permanent lock. Later accesses may change placement.
@@ -238,6 +240,8 @@ The first iteration may fault and migrate pages. Compare warm and cold runs, the
 
 **Evidence — cold versus warm, and the effect of prefetching:**
 
+*Illustrative output (not captured):*
+
 ```text
 $ ./managed_bench --mode=cold
 iteration 1: 812.4 ms   (first touch: page faults dominate)
@@ -275,6 +279,8 @@ Inspect which GPU first touches each range, whether pages migrate between GPUs, 
 A CPU read can force synchronization and page movement. Move validation outside the hot path, copy a small summary, or separate CPU-owned metadata from GPU-owned data.
 
 **Evidence — one debug print costing more than the kernel it's checking:**
+
+*Illustrative output (not captured):*
 
 ```text
 $ ./managed_bench --mode=with-cpu-check

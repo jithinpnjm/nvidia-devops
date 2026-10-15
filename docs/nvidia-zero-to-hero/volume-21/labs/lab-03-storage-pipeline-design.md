@@ -7,14 +7,16 @@ tags: [lab, storage, data-pipeline, i-o-optimization]
 
 # Lab 03 — Storage Pipeline Design (100 min)
 
+> **Note:** Throughput figures and expected outputs in this lab are illustrative and depend entirely on your hardware, file system, and file sizes; run the code on your own system to get real numbers. The 100 MB/sec per GPU target is an assumed requirement typical of image or multimodal pipelines; tokenized-text LLM pretraining needs far less read bandwidth (see Chapter 04, Part 1).
+
 ## Objective
 
 Design and implement a high-throughput data loading pipeline for distributed training. Optimize for 100+ MB/sec throughput.
 
 ## Scenario
 
-Training Llama-70B on 64 GPUs requires:
-- 100 MB/sec aggregate throughput (100 MB/sec per GPU × 64 GPU)
+Training a multimodal model on 64 GPUs with a heavy input pipeline requires (assumed targets):
+- 6.4 GB/sec aggregate throughput (100 MB/sec per GPU × 64 GPU)
 - 3 TB training dataset (Pile subset)
 - Distributed loading (each GPU loads its own data partition)
 - Fault tolerance (resume from checkpoint on data loading failure)
@@ -58,10 +60,10 @@ for batch_idx, batch in enumerate(dataloader):
     total_tokens += batch.numel()
     if (batch_idx + 1) % 10 == 0:
         elapsed = time.time() - start
-        throughput_mbps = (total_tokens * 2) / (elapsed * 1_000_000)  # 2 bytes per token
+        throughput_mbps = (total_tokens * 4) / (elapsed * 1_000_000)  # int32 token IDs: 4 bytes per token
         print(f"  Batch {batch_idx+1:3d}: {throughput_mbps:.1f} MB/sec")
 
-print(f"Naive throughput: {(total_tokens*2)/(time.time()-start)/1_000_000:.1f} MB/sec (target: 100 MB/sec)\n")
+print(f"Naive throughput: {(total_tokens*4)/(time.time()-start)/1_000_000:.1f} MB/sec (target: 100 MB/sec)\n")
 
 # Test 2: Optimized DataLoader (4 workers, pinned memory)
 print("Test 2: Optimized DataLoader (4 workers, pinned)")
@@ -79,17 +81,17 @@ for batch_idx, batch in enumerate(dataloader_opt):
     total_tokens += batch.numel()
     if (batch_idx + 1) % 10 == 0:
         elapsed = time.time() - start
-        throughput_mbps = (total_tokens * 2) / (elapsed * 1_000_000)
+        throughput_mbps = (total_tokens * 4) / (elapsed * 1_000_000)
         print(f"  Batch {batch_idx+1:3d}: {throughput_mbps:.1f} MB/sec")
 
-print(f"Optimized throughput: {(total_tokens*2)/(time.time()-start)/1_000_000:.1f} MB/sec\n")
+print(f"Optimized throughput: {(total_tokens*4)/(time.time()-start)/1_000_000:.1f} MB/sec\n")
 
-# Expected output:
-# Test 1: ~30–50 MB/sec (CPU I/O bottleneck, single-threaded)
-# Test 2: ~80–120 MB/sec (parallel workers, pinned memory)
+# Illustrative expectation (your numbers will differ):
+# Test 2 should be clearly faster than Test 1 because multiple workers overlap file reads
+# with the main process; the absolute MB/sec depends on your storage and file sizes
 ```
 
-**Rubric:** Optimized throughput >80 MB/sec. Explain why multi-worker is faster.
+**Rubric:** Optimized throughput meets the assumed target on your hardware, or you identify the bottleneck (storage, CPU, file size). Explain why multi-worker is faster.
 
 ## Exercise 2: Distributed Loading (20 min)
 
@@ -140,7 +142,7 @@ total_throughput_mbps = throughput_per_gpu_mbps * world_size
 
 # Estimate training iteration time
 tokens_per_iteration = global_batch_size * 4096  # Seq length
-time_per_iteration_sec = (tokens_per_iteration * 2) / (total_throughput_mbps * 1_000_000)
+time_per_iteration_sec = (tokens_per_iteration * 4) / (total_throughput_mbps * 1_000_000)   # 4 bytes per int32 token
 
 print(f"Throughput: {total_throughput_mbps:.0f} MB/sec ({throughput_per_gpu_mbps} MB/sec per GPU)")
 print(f"Time per iteration: {time_per_iteration_sec:.2f} sec")
@@ -224,7 +226,7 @@ class TieredDataPipeline:
         """Simulate data loading with LRU cache"""
         
         hit_counts = {'NVMe': 0, 'NAS': 0, 'S3': 0}
-        nvme_capacity_bytes = 2 * 1024**3  # 2 TB
+        nvme_capacity_bytes = 2 * 1024**4  # 2 TB
         nvme_usage = 0
         
         # Simulate 1000 batch reads (working set > NVMe capacity)
@@ -265,7 +267,7 @@ pipeline = TieredDataPipeline(
 
 pipeline.measure_cache_efficiency(1000)
 
-# NVMe cache hit rate: ~80% (local working set), 10 GB/sec effective throughput
+# With an 80% NVMe hit rate: 0.8 × 7000 + 0.2 × 1000 = 5,800 MB/sec effective throughput
 ```
 
 **Rubric:** Implement prefetching. Calculate hit rate and effective throughput.
@@ -381,7 +383,7 @@ print(f"Model loss: {model_state['loss']:.2f}")
 
 ## Success Criteria
 
-- [ ] Single-GPU throughput: >80 MB/sec
+- [ ] Single-GPU pipeline meets the assumed throughput target, or the bottleneck is identified
 - [ ] Distributed loading: Correct data partitioning across 64 GPU
 - [ ] Storage tiering: NVMe cache >80% hit rate
 - [ ] Checkpoint: Save and resume works correctly with integrity checks

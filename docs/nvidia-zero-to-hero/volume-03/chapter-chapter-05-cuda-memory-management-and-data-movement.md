@@ -39,7 +39,7 @@ int size = 1000 * sizeof(float);
 cudaMalloc((void**)&d_A, size);
 ```
 
-**The Danger:** If a CPU tries to read the variable `d_A`, or if a GPU tries to read a standard CPU pointer, the program will trigger a Segmentation Fault. The pointer address space is physically separated.
+**The Danger:** If a CPU tries to read the variable `d_A`, or if a GPU tries to read a standard CPU pointer, the program will typically fail (a host segmentation fault, or a CUDA illegal-address error on the device). Host and device pointers refer to different address spaces unless you use managed or registered memory.
 
 ## 2. Moving the Data (`cudaMemcpy`)
 
@@ -86,7 +86,7 @@ sequenceDiagram
 As a Senior Architect, you must guide software teams to avoid the PCIe bottleneck.
 1. **Minimize Transfers:** Do not move data back and forth. Push the data to the GPU once, perform thousands of operations on it, and only copy the final result back to the CPU.
 2. **Batching:** Moving 1,000 tiny tensors over PCIe requires 1,000 separate PCIe handshake overheads. Combine them into one massive tensor and issue a single `cudaMemcpy`.
-3. **Pin Memory:** Standard CPU memory is "pageable" (the OS can swap it to disk). The GPU cannot safely DMA (Direct Memory Access) pageable memory. It must first copy it to a hidden "pinned" staging area. Developers should use `cudaMallocHost` to allocate "Pinned Memory" directly, doubling PCIe transfer speeds. (Covered deeply in Chapter 8).
+3. **Pin Memory:** Standard CPU memory is "pageable" (the OS can swap it to disk). The GPU cannot safely DMA (Direct Memory Access) pageable memory. It must first copy it to a hidden "pinned" staging area. Developers should use `cudaMallocHost` to allocate "Pinned Memory" directly, which typically raises achievable PCIe transfer speed. (Covered deeply in Chapter 8).
 
 ## Customer Scenario (Senior Level)
 

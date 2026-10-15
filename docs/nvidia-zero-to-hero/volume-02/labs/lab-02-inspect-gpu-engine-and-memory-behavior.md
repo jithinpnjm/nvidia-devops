@@ -137,7 +137,7 @@ This information becomes part of the baseline. Performance and command output va
 nvidia-smi
 ```
 
-**Expected output:**
+**Expected output (illustrative, not captured):**
 
 ```text
 +-----------------------------------------------------------------------------------------+
@@ -180,7 +180,7 @@ nvidia-smi \
   --format=csv
 ```
 
-**Expected output:**
+**Expected output (illustrative, not captured):**
 
 ```text
 index, name, uuid, pci.bus_id, driver_version, memory.total [MiB], memory.used [MiB], utilization.gpu [%], utilization.memory [%], temperature.gpu, power.draw [W], power.limit [W]
@@ -211,7 +211,7 @@ nvidia-smi \
 nvidia-smi topo -m
 ```
 
-**Expected output:**
+**Expected output (illustrative, not captured):**
 
 ```text
         GPU0    NIC0    CPU Affinity    NUMA Affinity
@@ -299,7 +299,7 @@ The pairing worth recording as a baseline: `Clocks: Graphics 345 MHz` against `M
 docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
 ```
 
-**Expected output:**
+**Expected output (illustrative, not captured):**
 
 ```text
 +-----------------------------------------------------------------------------------------+
@@ -328,7 +328,7 @@ Open a second terminal.
 nvidia-smi dmon -s pucm -d 1
 ```
 
-**Expected output:**
+**Expected output (illustrative, not captured):**
 
 ```text
 # gpu    pwr  gtemp    sm   mem  fb
@@ -371,7 +371,7 @@ docker run --rm --gpus all \
   '
 ```
 
-**Expected output:**
+**Expected output (illustrative, not captured):**
 
 ```text
 /tmp/cuda-samples/bin/x86_64/linux/release/deviceQuery Starting...
@@ -415,7 +415,7 @@ and:
 nvidia-smi --query-compute-apps=pid,process_name,gpu_uuid,used_memory --format=csv
 ```
 
-**Expected output:**
+**Expected output (illustrative, not captured):**
 
 ```text
 $ nvidia-smi pmon -s um -c 3

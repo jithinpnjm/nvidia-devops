@@ -7,6 +7,8 @@ description: "Diagnose and resolve NVLink communication failures, degraded links
 
 # NVLink Errors and Topology Issues
 
+> **Note:** Terminal and log output blocks in this chapter are illustrative (not captured from a real system). Hostnames, PIDs, UUIDs, counts, and timestamps are examples; commands and flags are real, but exact output formats vary by driver, NCCL, and DCGM version.
+
 ## Beginner's Primer: The Broken Bridge
 
 Imagine two cities (GPU 0 and GPU 1) that trade massive amounts of goods. 
@@ -55,7 +57,7 @@ flowchart TD
     I -->|Yes| J{"Xid 74 (NVLink Error)<br/>present in dmesg?"}
     J -->|Yes| K["Confirmed link fault —<br/>reset GPU, if persists<br/>escalate to hardware"]
     J -->|No| L["Marginal link — track<br/>error rate trend,<br/>preventive maintenance<br/>candidate"]
-    I -->|No, counters clean| M["Check for a software/config<br/>cause: NVLink disabled in<br/>BIOS, or MIG mode blocking<br/>P2P (see Volume 19 Ch08)"]
+    I -->|No, counters clean| M["Check for a software/config<br/>cause: NVLink disabled in<br/>BIOS, or MIG mode blocking<br/>P2P (see the MIG user guide)"]
 ```
 
 ### First diagnostic step: confirm actual vs. expected topology
@@ -74,7 +76,7 @@ GPU3    NV12    NV12    PIX      X      32-63
 # NUMA nodes (worst case)
 ```
 
-GPU2-GPU3 shows `PIX` — this pair is communicating over PCIe, not NVLink, while every other pair shows `NV12` (12 NVLink connections, the expected A100 SXM4 topology within a fully-connected 4-GPU baseboard). This alone is the finding: two GPUs that should have direct NVLink connectivity have fallen back to PCIe, which is roughly an order of magnitude lower bandwidth.
+GPU2-GPU3 shows `PIX` — this pair is communicating over PCIe, not NVLink, while every other pair shows `NV12` (12 NVLink connections, as an A100 NVSwitch-based system would report; a directly-connected 4-GPU A100 board would show a different NV# count). This alone is the finding: two GPUs that should have direct NVLink connectivity have fallen back to PCIe, which is roughly an order of magnitude lower bandwidth.
 
 ### Second step: check DCGM's NVLink error counters, not just link presence
 
@@ -109,7 +111,7 @@ $ dmesg -T | grep -i "xid.*74\|nvlink" | tail -10
 ```bash
 # NVLink P2P is intentionally disabled between separate MIG instances,
 # even on the same physical GPU — this is a security/isolation boundary
-# (see Volume 19 Chapter 08), not a fault, and produces a topology
+# (see the MIG user guide), not a fault, and produces a topology
 # matrix that superficially looks like a missing-link problem
 $ nvidia-smi -i 2 -q | grep -A3 "MIG Mode"
     MIG Mode
@@ -229,12 +231,14 @@ fi
 
 ```yaml
 - alert: NVLinkErrorRateRising
-  expr: increase(dcgm_nvlink_crc_errors[6h]) > 1000
+  # Illustrative threshold; exporter field names per the DCGM exporter docs
+  expr: increase(DCGM_FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL[6h]) > 1000
   for: 30m
   annotations:
     summary: "GPU {{ $labels.gpu }} link {{ $labels.link }} CRC errors rising — preventive maintenance candidate before full link-down"
 
 - alert: NVLinkDown
+  # Placeholder metric: derive link status from your exporter or a script around `dcgmi nvlink -s`
   expr: dcgm_nvlink_link_status == 0
   for: 5m
   labels: {severity: page}

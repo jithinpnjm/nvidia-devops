@@ -7,6 +7,8 @@ description: "Diagnose and resolve NCCL hangs, timeouts, and communication failu
 
 # NCCL Timeout and Collective Communication Failures
 
+> **Note:** Terminal and log output blocks in this chapter are illustrative (not captured from a real system). Hostnames, PIDs, UUIDs, counts, and timestamps are examples; commands and flags are real, but exact output formats vary by driver, NCCL, and DCGM version.
+
 ## Beginner's Primer: The Silent Wait
 
 In Volume 13 (Distributed Training), we learned that AI training relies on **Collectives**. 
@@ -149,7 +151,9 @@ $ ./resume_from_checkpoint.sh --job training-job-771
 
 ```bash
 # Follow Volume 19 Chapter 5's fabric-validation methodology exactly:
-$ /opt/nccl-tests/build/all_reduce_perf -b 128M -e 128M -f 2 -g 8 --nnodes <n>
+# Multi-node runs launch one process per GPU or node with mpirun/srun
+# (see the nccl-tests README); -g sets GPUs per process
+$ /opt/nccl-tests/build/all_reduce_perf -b 128M -e 128M -f 2 -g 8
 # Isolate the slow rank by bandwidth, then check ibstat Rate on that
 # specific host before assuming a software cause
 ```

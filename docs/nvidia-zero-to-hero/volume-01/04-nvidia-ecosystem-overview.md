@@ -42,13 +42,13 @@ Architects do not talk in generalizations; they talk in numbers. You must know t
 * **Memory (H100):** 80GB HBM3 at 3.35 TB/s bandwidth.
 * **Memory (H200):** 141GB HBM3e at 4.8 TB/s bandwidth.
 * **Interconnect:** 4th Gen NVLink (900 GB/s).
-* **Significance:** Introduced the **Transformer Engine**. Hopper can dynamically switch between FP8 (8-bit) and FP16 (16-bit) precision mathematically on the fly, doubling throughput for Large Language Models without altering code.
+* **Significance:** Introduced the **Transformer Engine**. Hopper's Transformer Engine manages per-layer scaling to choose between FP8 and 16-bit precision during training and inference, which can raise Large Language Model throughput when the framework integrates it.
 
 ### 2.3 Blackwell (B200 / GB200) — The Rack-Scale Era
 * **Memory:** 192GB HBM3e per GPU.
 * **Memory Bandwidth:** 8.0 TB/s.
 * **Interconnect:** 5th Gen NVLink (1.8 TB/s per GPU).
-* **Significance:** Blackwell introduces **FP4 (4-bit)** precision and expands the NVLink domain. Instead of just 8 GPUs talking over NVLink inside a single chassis, the **GB200 NVL72** allows 72 GPUs across an entire rack to share memory as a single 130 TB/s domain over copper backplanes.
+* **Significance:** Blackwell introduces **FP4 (4-bit)** precision and expands the NVLink domain. Instead of just 8 GPUs talking over NVLink inside a single chassis, the **GB200 NVL72** connects 72 GPUs across an entire rack in one NVLink domain (NVIDIA quotes 130 TB/s aggregate NVLink bandwidth) over a copper backplane.
 
 ---
 
@@ -56,7 +56,7 @@ Architects do not talk in generalizations; they talk in numbers. You must know t
 
 If the GPUs are the heart, the interconnects are the arteries. Bottlenecks here are the #1 cause of poor AI performance.
 
-1. **PCIe Gen5 (64–128 GB/s):** The standard motherboard bus. Used strictly for Host-to-Device (CPU-to-GPU) communication. It is *too slow* for GPU-to-GPU synchronization during training.
+1. **PCIe Gen5 (64–128 GB/s):** The standard motherboard bus. Primarily used for Host-to-Device (CPU-to-GPU) communication. It is *too slow* for GPU-to-GPU synchronization during training.
 2. **NVLink / NVSwitch (900–1800 GB/s):** The proprietary NVIDIA interconnect. It creates a fully non-blocking mesh between GPUs *inside* a node (or rack, in Blackwell). It allows GPUs to directly read/write each other's HBM.
 3. **InfiniBand (NDR 400G / X800 800G):** The lossless backend datacenter fabric used to connect *multiple nodes* together for scale-out training. Uses **GPUDirect RDMA** to bypass the CPU.
 4. **Spectrum-X Ethernet:** NVIDIA's AI-optimized Ethernet platform (RoCEv2). It introduces advanced telemetry and adaptive routing to prevent the packet-dropping issues that plague standard enterprise Ethernet during AI bursts.

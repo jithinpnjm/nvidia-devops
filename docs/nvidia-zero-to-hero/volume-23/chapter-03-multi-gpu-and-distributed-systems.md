@@ -101,7 +101,7 @@ Tree is better. Fewer hops, even if not all links are utilized.
 
 Setup:
 - 4 A100s per node (40 GB each)
-- NVLink within node: 600 GB/s per link
+- NVLink within node: 600 GB/s aggregate per GPU (A100 NVLink 3)
 - Inter-node: 200 Gbps (25 GB/s) InfiniBand
 
 Gradient size: 1 GB (typical for large model)

@@ -19,15 +19,18 @@ tags: [storage, data-pipeline, checkpoint, s3, nfs, performance]
 
 ---
 
+
+> **Note on figures:** Throughputs, capacities, and costs in this chapter are illustrative planning assumptions, not measurements or vendor quotes. Size your own pipeline from your measured tokens (or samples) per second and bytes per sample.
+
 ## Beginner's Primer: Feeding the Beast
 
 If the GPUs are the engine of your AI Factory, the Data is the fuel.
 
-The fastest engine in the world is useless if the fuel pump is broken. In AI, a single H100 GPU can chew through hundreds of Megabytes of data every single second. If you have 512 GPUs, your storage system must instantly deliver massive streams of data, perfectly synchronized, 24 hours a day.
+The fastest engine in the world is useless if the fuel pump is broken. In AI, the data rate per GPU depends entirely on the modality: text tokens are tiny, while images and video can demand hundreds of megabytes per second per GPU. If you have 512 GPUs, your storage system must instantly deliver massive streams of data, perfectly synchronized, 24 hours a day.
 
 There are three major fuel pumps you have to manage:
 1. **The Dataloader (Reading):** Pumping millions of images or text documents into the GPUs for training. If you store these as millions of tiny files, the storage system will spend all its time reading the "table of contents" (metadata) instead of sending the data. You must package data into large shards.
-2. **The Checkpoint (Writing):** Every few hours, all 512 GPUs will suddenly pause and dump their entire memory (Terabytes of data) to disk to save their progress. This is an explosive burst of write traffic that will crash standard enterprise NAS devices.
+2. **The Checkpoint (Writing):** Every few hours, all 512 GPUs will pause (or stream in the background) and write the model and optimizer state, often around a terabyte for a 70B model, to storage. This is an explosive burst of write traffic that will crash standard enterprise NAS devices.
 3. **The Caching Tier:** To protect your network, you don't stream data from AWS S3 directly into the GPUs. You stream it into local NVMe drives on the server (the staging area), and the GPU reads it from there.
 
 This chapter synthesizes the storage patterns from Volume 15 into high-level architectural requirements for building the AI Factory.
@@ -39,38 +42,29 @@ This chapter synthesizes the storage patterns from Volume 15 into high-level arc
 ```
 TRAINING DATA PIPELINE MATH
 
-H100 GPU computing characteristics:
-  Peak TFLOPS (BF16): 989 TFLOPS = 989 × 10^12 floating-point ops/sec
-  HBM Bandwidth: 3.352 TB/s (internal to GPU)
-  Per-token compute: ~15 floating-point operations (rough estimate for transformer)
-  
-Throughput calculation:
-  Tokens per second per GPU = 989 TFLOPS / 15 FLOPs per token = ~66 trillion (66T) tokens/sec theoretical
-  (This theoretical ceiling ignores memory bandwidth, attention overhead, and synchronization —
-  it's a useful upper bound, not an achievable number.)
-  Practical (accounting for memory, synchronization): ~300K–500K tokens/sec per GPU
-  
-  For 64 GPU:
-    Aggregate throughput: 500K × 64 = 32M tokens/sec = 8M words/sec
-    At ~4.5 bytes per token (UTF-8 text): 36 MB/sec... wait, that's wrong
-    
-Correction:
-    Tokens are integers (4 bytes each) or IDs (2 bytes each)
-    After tokenization: 500K tokens/sec × 2 bytes = 1 MB/sec per GPU
-    But tokens come with loss gradients, context embeddings, etc.
-    
-Real data flow in training:
-    Total throughput: ~50–100 MB/sec per GPU
-    64 GPU: 3.2–6.4 GB/sec aggregate
-    Per iteration (assume 500K tokens, 100ms compute): 50–100 MB/sec × 0.1 sec = 5–10 MB per iteration per GPU
-    
-Dataset size implications:
-    Llama-3-70B train: ~15 trillion tokens (~3 trillion after deduplication)
-    At 2 bytes per token: 6 TB dataset
-    With 64 GPU @ 100 MB/sec aggregate: 6 TB / (100 MB/sec × 64 GPU) ≈ 15 hours to load entire dataset once
-    In practice: ~30–40 hours to load (accounting for cache misses, seek time)
-    
-Storage requirement: Must support ≥100 MB/sec sustained throughput (cluster-level)
+Required read bandwidth = samples per second × bytes per sample
+
+Text LLM pretraining (tokenized, pre-packed):
+  tokens/s per GPU ≈ MFU × peak FLOPs / (6 × parameters)
+  Llama-3-70B on H100 at an assumed 40% MFU: 0.40 × 989e12 / (6 × 70e9) ≈ 940 tokens/s per GPU
+  64 GPUs ≈ 60,000 tokens/s
+  At 2–4 bytes per token ID: ≈ 120–240 KB/s for the whole cluster
+
+  Text pretraining therefore needs very little read bandwidth. The storage problems for
+  text LLMs are metadata (millions of small files), random access patterns, and above all
+  checkpoint writes (Part 3), not steady-state read throughput.
+
+Image / video / multimodal training (example to size, verify with your data):
+  ResNet-50-class vision training on an A100 is often in the low thousands of images/s;
+  at roughly 100–150 KB per JPEG that is several hundred MB/s per GPU, and
+  64 GPUs can need tens of GB/s of aggregate read bandwidth plus heavy CPU/GPU decode.
+
+Dataset size and epoch time:
+  A dataset of D bytes read at aggregate bandwidth B takes D / B per pass.
+  Example: 6 TB tokenized text at 1 GB/s aggregate = 6,000 s (about 1.7 hours) per pass, which
+  is far faster than the training run needs; storage is not the constraint in that case.
+
+Rule of thumb: measure your real samples/s and bytes/sample before buying storage.
 ```
 
 ### 1.2 Storage Tier Strategy
@@ -79,28 +73,25 @@ Storage requirement: Must support ≥100 MB/sec sustained throughput (cluster-le
 STORAGE TIER ARCHITECTURE
 
 Tier 1: GPU Cache (NVMe on compute node)
-  Capacity:      2–4 TB per node (8×7.68 TB NVMe = 61 TB in 8-node partition)
-  Throughput:    7 GB/sec per drive, total 56 GB/sec per node
-  Latency:       <1 ms random read
-  Use case:      Hot dataset (current training epoch)
-  Cost:          $0.0001 per GB/sec/month (very expensive per byte, but worth it for performance)
-  Maintenance:   Hot-swappable, RAID-1 or RAID-10 for fault tolerance
+  Capacity:      tens of TB per node (for example 8 × 3.84 TB NVMe in DGX H100, about 30 TB)
+  Throughput:    on the order of 7 GB/s per PCIe Gen4 NVMe drive; aggregate depends on RAID/striping
+  Latency:       sub-millisecond random read
+  Use case:      Hot dataset (current training epoch) and local checkpoint staging
+  Maintenance:   Treat as ephemeral cache; durability comes from the tiers below
 
-Tier 2: Cluster Storage (NAS, e.g., NetApp)
-  Capacity:      500 TB–2 PB per cluster
-  Throughput:    1–10 GB/sec (shared across many nodes)
-  Latency:       5–20 ms (network latency)
-  Use case:      Working dataset (all data needed for current training run)
-  Cost:          $0.001 per GB/sec/month (medium cost per byte)
-  Maintenance:   Managed appliance, automatic failover to secondary
+Tier 2: Cluster Storage (parallel file system or NAS, for example Lustre, GPFS, WEKA, VAST, NetApp)
+  Capacity:      hundreds of TB to PB per cluster
+  Throughput:    from a few GB/s (small NAS) to hundreds of GB/s (parallel file system), shared by all nodes
+  Latency:       milliseconds over the network
+  Use case:      Working dataset and shared checkpoints
+  Maintenance:   Managed system with HA controllers
 
-Tier 3: Long-term Archive (S3, GCS, cloud object storage)
-  Capacity:      Unlimited (cloud provider scale)
-  Throughput:    100 MB/sec–1 GB/sec per connection (multi-threaded S3)
-  Latency:       50–200 ms (cloud network + API)
-  Use case:      Raw dataset versioning, model checkpoints, long-term retention
-  Cost:          $0.00001–0.00001 per GB/sec/month (cheap per byte, expensive per request)
-  Maintenance:   Managed by cloud provider, versioning built-in
+Tier 3: Long-term Archive (S3, GCS, or other object storage)
+  Capacity:      Effectively unlimited
+  Throughput:    scales with parallel connections; per-connection throughput is modest
+  Latency:       tens to hundreds of milliseconds per request
+  Use case:      Raw dataset versioning, checkpoint backup, long-term retention
+  Maintenance:   Managed by the provider; versioning and lifecycle rules built in
 ```
 
 ---
@@ -116,17 +107,17 @@ GPU Cluster (64×H100)
 ├── Node 1–8: Local NVMe (8×7.68TB per node = 61TB per 8-node group)
 │   └── Training data for current epoch (200GB per GPU × 8 = 1.6 TB)
 │
-├── Cluster NAS (NetApp AFF A900)
+├── Cluster storage (example: an all-flash NAS or parallel file system)
 │   ├── Capacity: 500 TB
-│   ├── Throughput: 10 GB/sec (aggregated NFS share)
+│   ├── Throughput: 10 GB/sec (assumed aggregate)
 │   ├── Contains: Full training dataset (50–100 TB), intermediate checkpoints
 │   └── Connected via: 2× 400GbE NICs to cluster switch
 │
 └── Cloud Archive (AWS S3)
     ├── Capacity: Unlimited
-    ├── Initial dataset upload: ~100 TB (one-time, via AWS Snowball, not network)
-    ├── Checkpoint backup: Every 8 hours, 1 TB per checkpoint
-    └── Cost: $0.0005 per GB per month = $50/month for 100TB dataset
+    ├── Initial dataset upload: ~100 TB (one-time; physical transfer devices or a dedicated link may beat the public network)
+    ├── Checkpoint backup: Every 8 hours, ~1 TB per checkpoint
+    └── Cost: S3 Standard is roughly $0.023 per GB-month (check current pricing), so 100 TB is about $2,300/month
 ```
 
 ### 2.2 Data Loading Pipeline (PyTorch Example)
@@ -134,9 +125,9 @@ GPU Cluster (64×H100)
 ```python
 # Optimal data pipeline for distributed training
 
+import os
 import torch
 from torch.utils.data import DataLoader, IterableDataset
-import io
 
 class TrainingDataset(IterableDataset):
     def __init__(self, s3_path, local_cache_dir, batch_size, rank, world_size):
@@ -196,7 +187,7 @@ class TrainingDataset(IterableDataset):
             for local_file in os.listdir(self.local_cache):
                 with open(f"{self.local_cache}/{local_file}", 'rb') as f:
                     while True:
-                        tokens = f.read(2 * self.batch_size)  # 2 bytes per token
+                        tokens = f.read(4 * self.batch_size)  # int32 token IDs: 4 bytes per token
                         if not tokens:
                             break
                         
@@ -226,10 +217,10 @@ for batch in dataloader:
     loss.backward()
     optimizer.step()
 
-# Performance:
-#   Local NVMe hit: ~2ms per 256MB batch (overhead <1% of compute time)
-#   NAS fallback: ~10ms per batch (still acceptable, <1% overhead)
-#   S3 fallback: ~100–500ms per batch (major stall, avoid at training time)
+# Relative expectations (measure your own):
+#   Local NVMe hit: lowest latency, negligible overhead
+#   Shared file system fallback: higher latency, usually acceptable if prefetching hides it
+#   Object-store fallback at training time: can stall the GPUs, avoid it on the hot path
 ```
 
 ---
@@ -241,154 +232,68 @@ for batch in dataloader:
 ```yaml
 CHECKPOINT DESIGN FOR LLAMA-70B TRAINING
 
-Model size:        140 GB (70B params, BF16)
-Optimizer states:  AdamW: 2×140 GB (momentum + variance) = 280 GB
-Activations:       Peak during backward pass: 100 GB (gradient buffers)
-Total per-GPU memory: (140 + 280) / 64 GPU = 6.6 GB per GPU... 
+Training state with mixed-precision AdamW (bytes per parameter):
+  BF16 weights:            2
+  FP32 master weights:     4
+  Adam first moment (m):   4
+  Adam second moment (v):  4
+  Checkpoint total:        14 bytes/param × 70B ≈ 980 GB (about 1 TB)
+  (BF16 gradients, 2 bytes/param, are recomputed and not normally checkpointed.
+   Training memory is higher than the checkpoint: about 16 bytes/param ≈ 1.1 TB total.)
 
-Wait, that's wrong. Let me recalculate:
-  Distributed training with ZeRO-3 sharding:
-    Model params: 140 GB shared across 64 GPU = 2.1 GB per GPU
-    Optimizer states: 280 GB / 64 = 4.3 GB per GPU
-    Activations: 50–100 MB per GPU (gradient checkpointing reduces memory)
-    Total: ~7 GB per GPU (fits in 80 GB H100)
-
-Checkpoint file size:
-  Consolidated (all params + optimizer): 140 + 280 = 420 GB
-  Per-node (8 GPU × 7 GB): 56 GB
+With ZeRO-3 / FSDP sharding across 64 GPUs:
+  Per GPU shard:      ~980 GB / 64 ≈ 15 GB
+  Per node (8 GPUs):  ~122 GB
 
 Checkpoint frequency:
   Option A: Every 8 hours
-    - Risk: 8 hours of compute lost if failure
-    - Storage: 1 TB per checkpoint × 3 checkpoints/day × 7 days = 21 TB
-    - Cost: Checkpoint write + network transfer + storage
-    - Write time: 420 GB / 10 GB/sec (NAS throughput) = 42 seconds
-    - Recommendation: Production training, critical models
-  
+    - Risk: up to 8 hours of compute lost on failure
+    - Storage: ~1 TB per checkpoint × 3 per day × 7 days = ~21 TB (before retention policy)
+    - Write time to a shared file system at an assumed 10 GB/s aggregate: ~100 seconds
   Option B: Every 24 hours
-    - Risk: 24 hours of compute lost if failure
-    - Storage: 7 TB per week
-    - Write time: 42 seconds (negligible compared to 24h compute)
-    - Recommendation: Research training, non-critical models
+    - Risk: up to 24 hours lost on failure
+    - Storage: ~7 TB per week
 
 Checkpoint file format:
-  DeepSpeed checkpoint:
-    model_0/
-      mp_rank_00_model_states.pt     (model params shard)
-      optim_0/
-        optimizer_states.pt           (optimizer states shard)
-    global_step1000                    (step counter)
-  
-  File total: 420 GB (consolidated) or 56 GB per node (sharded)
+  Use the framework's sharded format (PyTorch Distributed Checkpoint, DeepSpeed, Megatron),
+  where each rank writes its own shard in parallel, rather than gathering everything on rank 0.
 
 Checkpoint write path:
-  GPU → GPU HBM (models states) → Host PCIe → Host RAM → NAS NFS → RAID → Disk
-  
-  Throughput bottleneck:
-    GPU → Host PCIe: 64 GB/s (Gen 5), OK
-    Host NAS network: 10 GB/sec (IB or 400GbE), this is the bottleneck
-    
+  GPU HBM → host memory over PCIe (Gen5 x16 about 64 GB/s per direction) → local NVMe or network file system
+
   Optimization:
-    Write to local NVMe first (56 GB / 7 GB/sec = 8 seconds)
-    Then async upload to NAS (10 GB/sec, hidden in background)
-    Total latency: 8 seconds (not 42 seconds)
+    Write shards to local NVMe first (122 GB per node at an assumed ~10–20 GB/s aggregate is
+    on the order of 10 seconds), then upload asynchronously to the shared tier in the
+    background. Training resumes after the fast local write, not after the slow upload.
 ```
 
 ### 3.2 Checkpoint Resume & Validation
 
 ```python
-# Robust checkpoint save/load with validation
+# Sharded checkpoint save/load with PyTorch Distributed Checkpoint (every rank writes its own shard)
+import torch.distributed.checkpoint as dcp
 
-import torch
-import hashlib
-from pathlib import Path
+def save_checkpoint(model, optimizer, step, path):
+    state_dict = {"model": model.state_dict(), "optim": optimizer.state_dict(), "step": step}
+    dcp.save(state_dict, storage_writer=dcp.FileSystemWriter(f"{path}/step-{step}"))
+    # Newer PyTorch releases also provide dcp.async_save to overlap the write with training
 
-class CheckpointManager:
-    def __init__(self, checkpoint_dir, s3_backup_path=None):
-        self.checkpoint_dir = Path(checkpoint_dir)
-        self.s3_backup = s3_backup_path
-        self.checkpoint_dir.mkdir(exist_ok=True)
-    
-    def save(self, model, optimizer, global_step, rank=0):
-        """Save checkpoint with validation"""
-        if rank != 0:
-            return  # Only rank 0 saves (consolidated checkpoint)
-        
-        checkpoint = {
-            'model_state': model.state_dict(),
-            'optimizer_state': optimizer.state_dict(),
-            'global_step': global_step,
-        }
-        
-        # Save to local NVMe (fast)
-        local_path = self.checkpoint_dir / f"checkpoint-step-{global_step}.pt"
-        torch.save(checkpoint, local_path)
-        
-        # Compute checksum for validation
-        checksum = self._compute_checksum(local_path)
-        with open(self.checkpoint_dir / f"checkpoint-step-{global_step}.md5", 'w') as f:
-            f.write(checksum)
-        
-        # Async backup to S3 (hidden in background)
-        if self.s3_backup:
-            import threading
-            s3_thread = threading.Thread(
-                target=self._upload_to_s3,
-                args=(local_path, global_step)
-            )
-            s3_thread.daemon = True
-            s3_thread.start()
-        
-        print(f"Checkpoint saved: {local_path} (checksum: {checksum[:8]}...)")
-    
-    def load(self, model, optimizer, resume_from_step=None):
-        """Load checkpoint with validation"""
-        if resume_from_step is None:
-            # Auto-detect latest checkpoint
-            checkpoints = sorted(self.checkpoint_dir.glob("checkpoint-step-*.pt"))
-            if not checkpoints:
-                print("No checkpoint found, starting from scratch")
-                return 0
-            resume_path = checkpoints[-1]
-            resume_from_step = int(resume_path.stem.split('-')[-1])
-        else:
-            resume_path = self.checkpoint_dir / f"checkpoint-step-{resume_from_step}.pt"
-        
-        # Validate checksum before loading
-        checksum_path = resume_path.with_suffix('.md5')
-        if checksum_path.exists():
-            with open(checksum_path, 'r') as f:
-                expected_checksum = f.read().strip()
-            actual_checksum = self._compute_checksum(resume_path)
-            if expected_checksum != actual_checksum:
-                raise RuntimeError(f"Checkpoint corrupted! Checksum mismatch: {actual_checksum} vs {expected_checksum}")
-            print(f"Checksum valid: {expected_checksum[:8]}...")
-        
-        # Load checkpoint
-        checkpoint = torch.load(resume_path)
-        model.load_state_dict(checkpoint['model_state'])
-        optimizer.load_state_dict(checkpoint['optimizer_state'])
-        global_step = checkpoint['global_step']
-        
-        print(f"Loaded checkpoint from step {global_step}")
-        return global_step
-    
-    def _compute_checksum(self, file_path):
-        """Compute MD5 checksum of checkpoint file"""
-        md5 = hashlib.md5()
-        with open(file_path, 'rb') as f:
-            for chunk in iter(lambda: f.read(4096), b''):
-                md5.update(chunk)
-        return md5.hexdigest()
-    
-    def _upload_to_s3(self, local_path, step):
-        """Async S3 backup"""
-        import s3fs
-        fs = s3fs.S3FileSystem()
-        s3_path = f"{self.s3_backup}/checkpoint-step-{step}.pt"
-        fs.put(str(local_path), s3_path)
-        print(f"Checkpoint backed up to S3: {s3_path}")
+def load_checkpoint(model, optimizer, path, step):
+    state_dict = {"model": model.state_dict(), "optim": optimizer.state_dict(), "step": step}
+    dcp.load(state_dict, storage_reader=dcp.FileSystemReader(f"{path}/step-{step}"))
+    model.load_state_dict(state_dict["model"])
+    optimizer.load_state_dict(state_dict["optim"])
+    return state_dict["step"]
 ```
+
+For FSDP models, use the FSDP-aware state-dict helpers (`torch.distributed.checkpoint.state_dict`) so sharded state is saved and restored correctly; check the PyTorch documentation for your release because these APIs have evolved.
+
+**Validation practices that matter regardless of framework:**
+- Write to a temporary name and rename on completion, so a crash never leaves a half-written checkpoint that looks valid.
+- Record per-shard checksums (for example SHA-256) in a manifest and verify them after upload and before resume.
+- Test restore regularly on a different node count, not just the happy path.
+- Keep at least the last two good checkpoints until the newest has been verified by a successful resume.
+- Back up asynchronously to object storage and verify the upload before deleting local copies.
 
 ---
 
@@ -396,9 +301,9 @@ class CheckpointManager:
 
 | Issue | Symptom | Root Cause | Resolution |
 |---|---|---|---|
-| **NAS unavailable (network partition)** | `mount: RPC call returned error code EACCES` | Cluster lost connectivity to NAS; network flap or NAS reboot | Failover to local NVMe cache, retry mount with exponential backoff, alert ops |
-| **Checkpoint corruption (size mismatch)** | `EOFError: file read fewer bytes than requested` | Incomplete write during network fault or power loss | Use checksums (MD5), validate before load, restore from S3 backup |
-| **Slow S3 uploads (>10 min to backup 420GB)** | Async upload thread reports `PutObject timeout` | S3 API rate limiting or network saturation | Use multipart upload (1GB chunks in parallel), exponential backoff on 5xx errors |
+| **NAS unavailable (network partition)** | NFS mount errors or hung I/O (exact messages vary by client and server) | Cluster lost connectivity to NAS; network flap or NAS reboot | Failover to local NVMe cache, retry mount with exponential backoff, alert ops |
+| **Checkpoint corruption (size mismatch)** | Loader errors such as short reads or checksum mismatches | Incomplete write during network fault or power loss | Use checksums (MD5), validate before load, restore from S3 backup |
+| **Slow S3 uploads (>10 min to back up ~1TB)** | Upload errors or timeouts | S3 API rate limiting or network saturation | Use multipart upload (1GB chunks in parallel), exponential backoff on 5xx errors |
 | **Data cache miss (NVMe evicted, revert to S3)** | Training stalls for 100–500ms per batch | Local NVMe capacity exceeded, working dataset larger than cache | Increase prefetch window, implement LRU eviction policy, or expand NVMe to 8 TB per node |
 
 ## Architecture Summary
@@ -429,9 +334,9 @@ flowchart TD
 
 Storage infrastructure must support:
 
-1. **Data feeding:** 100–500 MB/sec per GPU (3–30 GB/sec cluster-level for 64 GPUs).
-2. **Checkpoint management:** 420 GB every 8 hours, validated with checksums, backed up to S3.
+1. **Data feeding:** sized from measured samples/sec × bytes/sample: negligible for tokenized text, potentially tens of GB/sec cluster-wide for image and video workloads.
+2. **Checkpoint management:** about 1 TB (70B model with optimizer state) every few hours, written as sharded checkpoints, validated with checksums, backed up to S3.
 3. **Tiered storage:** NVMe cache (hot), NAS (warm), S3 (cold, long-term).
 4. **Resilience:** Local NVMe cache survives NAS outages; S3 backup survives cluster failure.
 
-**In Chapter 5:** We move to power delivery and thermal management. How do you cool 64 H100 GPUs drawing 22.4 kW without thermal throttling?
+**In Chapter 5:** We move to power delivery and thermal management. How do you power and cool 64 H100 GPUs (44.8 kW of GPU power alone, more than 80 kW for the nodes) without thermal throttling?

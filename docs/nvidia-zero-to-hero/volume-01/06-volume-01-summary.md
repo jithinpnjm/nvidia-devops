@@ -35,7 +35,7 @@ Before moving on to Volume 2 (where we will begin writing Python code to automat
 * **The GPU:** Built for massive, predictable throughput. Strips out control logic to pack thousands of ALUs. Uses SIMT (Single Instruction, Multiple Threads) and Zero-Cost Warp Scheduling to hide memory latency.
 
 ### 1.3 The Tensor Core Revolution
-A standard CUDA core multiplies two scalars. The invention of the **Tensor Core** allowed the GPU to multiply entire 4x4 matrices in a single clock cycle. This exponential leap in throughput was achieved by trading away extreme scientific precision (FP64) for lower, AI-optimized precisions (FP16, BF16, FP8, FP4). To unlock modern hardware performance, software *must* be compiled to target Tensor Cores.
+A standard CUDA core multiplies two scalars. The invention of the **Tensor Core** allowed the GPU to multiply entire 4x4 matrices in a single clock cycle. This large leap in throughput was achieved by trading away extreme scientific precision (FP64) for lower, AI-optimized precisions (FP16, BF16, FP8, FP4). To unlock modern hardware performance, software *must* be compiled to target Tensor Cores.
 
 ### 1.4 The Two Phases of LLM Inference
 LLM generation is not a uniform workload; it is a tale of two phases:

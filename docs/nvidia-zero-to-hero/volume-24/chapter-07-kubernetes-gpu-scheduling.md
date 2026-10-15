@@ -45,7 +45,7 @@ Design a scheduling strategy and verify all constraints are met.
 
 ## Starter YAML
 
-**Prerequisite:** The stock NVIDIA Kubernetes device plugin exposes `nvidia.com/gpu` as an **integer-only** extended resource — you cannot request `"0.5"` or `"0.25"` of a GPU out of the box. The fractional requests below only work if the cluster has the NVIDIA GPU Operator's **time-slicing** ConfigMap applied (or MPS configured) to advertise sub-integer/replicated GPU capacity. Without that prerequisite, these manifests would fail to schedule (`0/1 nodes are available: Insufficient nvidia.com/gpu`) or be silently truncated to `0`, since Kubernetes resource quantities for extended resources must be whole numbers unless the device plugin itself advertises fractional units.
+**Prerequisite:** The NVIDIA Kubernetes device plugin exposes `nvidia.com/gpu` as an **integer-only** extended resource, and extended resource requests must be whole numbers with requests equal to limits. Values such as `"0.5"` or `"0.25"` are rejected by the API server. To share a GPU, configure the device plugin (via the GPU Operator) with **time-slicing** `replicas: N`, or MPS, so each physical GPU is advertised as N schedulable `nvidia.com/gpu` units; pods then request an integer number of those units (for example `"1"` = one share, roughly 1/N of the GPU, without memory or fault isolation). For hard isolation use MIG instead.
 
 Kubernetes deployment manifests with resource requests/limits and priority classes:
 
@@ -120,9 +120,9 @@ spec:
         command: ["python", "inference_server.py", "--duration", "300"]
         resources:
           requests:
-            nvidia.com/gpu: "0.5"  # Request 50% of GPU (requires GPU Operator time-slicing/MPS config; not native to nvidia.com/gpu)
+            nvidia.com/gpu: "1"  # One time-sliced share (e.g. replicas: 2 advertises 2 shares per GPU)
           limits:
-            nvidia.com/gpu: "0.5"
+            nvidia.com/gpu: "1"
         ports:
         - containerPort: 8080
 
@@ -144,7 +144,7 @@ spec:
         command: ["python", "experiment.py"]
         resources:
           requests:
-            nvidia.com/gpu: "0.25"  # Fractional GPU (requires GPU Operator time-slicing/MPS config; not native to nvidia.com/gpu)
+            nvidia.com/gpu: "1"  # One time-sliced share (e.g. replicas: 4)
           limits:
             nvidia.com/gpu: "1"
 ```

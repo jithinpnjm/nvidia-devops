@@ -27,7 +27,7 @@ NVIDIA's solution to this physical limit is a proprietary, out-of-band communica
 **NVLink** is not a network protocol like Ethernet or TCP/IP. It is a direct, point-to-point physical wire connecting GPU silicon to GPU silicon. 
 
 ### The Generational Leap
-*   **NVLink 1.0 (Pascal P100):** 160 GB/s bidirectional bandwidth per GPU.
+*   **NVLink 1.0 (Pascal P100):** 160 GB/s total bidirectional bandwidth per GPU.
 *   **NVLink 2.0 (Volta V100):** 300 GB/s.
 *   **NVLink 3.0 (Ampere A100):** 600 GB/s.
 *   **NVLink 4.0 (Hopper H100):** 900 GB/s.
@@ -36,7 +36,7 @@ NVIDIA's solution to this physical limit is a proprietary, out-of-band communica
 When two GPUs are connected via NVLink, they can read each other's High-Bandwidth Memory (HBM) natively. To the software, accessing memory on a peer GPU over NVLink feels like an incredibly fast local memory access, utilizing **NVLink Memory Semantics** (Load/Store operations rather than complex network Send/Receive operations).
 
 ### The Physical Implementation (NVLink Bridges)
-If you buy standard PCIe GPUs (like the PCIe H100 or RTX Ada), the motherboards do not support NVLink routing. You must buy an **NVLink Bridge**—a physical hardware clip that snaps onto the top edge of two adjacent PCIe GPUs, bridging them together. 
+If you buy standard PCIe GPUs (like the PCIe H100), the motherboards do not support NVLink routing. You must buy an **NVLink Bridge**—a physical hardware clip that snaps onto the top edge of two adjacent PCIe GPUs, bridging them together. 
 
 *Limitation:* Bridges only connect GPUs in pairs or very limited meshes. If GPU 0 needs to talk to GPU 3, but is only bridged to GPU 1, the data must bounce through the PCIe bus.
 
@@ -54,7 +54,7 @@ In an 8-GPU HGX H100 baseboard (the heart of the DGX), there are 4 NVSwitches so
 *   The PCB traces route these 18 connections down into the 4 NVSwitches.
 *   The NVSwitches create a **fully non-blocking, all-to-all mesh**.
 
-**The Result:** GPU 0 can talk to GPU 7 at the exact same 900 GB/s speed that it can talk to GPU 1. There are no hops, no PCIe transfers, and no CPU involvement. The 8 GPUs effectively operate as a single, massive 640GB GPU.
+**The Result:** GPU 0 can talk to GPU 7 at the exact same 900 GB/s speed that it can talk to GPU 1. There are no hops, no PCIe transfers, and no CPU involvement. The 8 GPUs share one NVLink domain with 640 GB of aggregate HBM (they remain 8 separate GPUs to software, but peer memory access is fast).
 
 ## Architectural Diagram: PCIe vs NVSwitch
 
@@ -87,19 +87,19 @@ flowchart TD
 ## 3. NVLink C2C (Chip-to-Chip)
 
 With the introduction of the Grace CPU, NVLink expanded beyond GPU-to-GPU traffic. 
-**NVLink-C2C** physically fuses the Grace ARM CPU and the Hopper GPU together, allowing 900 GB/s communication between the host processor and the accelerator. This allows the GPU to read massive data structures (like 500GB recommendation engine embedding tables) stored in the CPU's LPDDR5X RAM, effectively destroying the historical PCIe memory wall.
+**NVLink-C2C** physically fuses the Grace ARM CPU and the Hopper GPU together, allowing 900 GB/s communication between the host processor and the accelerator. This allows the GPU to read massive data structures (like 500GB recommendation engine embedding tables) stored in the CPU's LPDDR5X RAM, greatly reducing the historical PCIe memory wall.
 
 ## Customer Scenario (Senior Level)
 
 **The Situation:**
-A research team purchased four top-of-the-line NVIDIA L40S PCIe GPUs and placed them in a standard server. They deployed a 70B parameter model using Tensor Parallelism across all four cards. They complain: "The L40S has excellent FP8 compute, but inference latency is wildly unacceptable. We must have misconfigured PyTorch."
+A research team purchased four top-of-the-line NVIDIA L40S PCIe GPUs and placed them in a standard server. They deployed a 70B parameter model using Tensor Parallelism across all four cards. They complain: "The L40S has excellent FP8 compute, but inference latency is unacceptably high. We must have misconfigured PyTorch."
 
 **The Senior Architect Response:**
 "PyTorch is configured correctly, but you have placed a multi-GPU synchronized workload onto an architecture that physically lacks a fast intra-node interconnect.
 
 The NVIDIA L40S is an incredibly powerful PCIe inference card, but it fundamentally lacks NVLink connectors. It cannot use an NVLink Bridge, nor can it interface with an NVSwitch. 
 
-Because you are using Tensor Parallelism to split the 70B model across four cards, the GPUs must synchronize their matrices over the motherboard's PCIe Gen4 bus. The PCIe bus provides roughly 32 GB/s to 64 GB/s of bandwidth, whereas Tensor Parallelism dictates hundreds of gigabytes per second of exchange. Your Tensor Cores are finishing their calculations instantly, and then sitting completely idle waiting for data to crawl across the PCIe bus.
+Because you are using Tensor Parallelism to split the 70B model across four cards, the GPUs must synchronize their matrices over the motherboard's PCIe Gen4 bus. The PCIe bus provides roughly 32 GB/s to 64 GB/s of bandwidth, whereas Tensor Parallelism does an all-reduce on every layer, so communication time is a large share of each token. Your Tensor Cores finish their calculations and then sit idle waiting for data to crawl across the PCIe bus.
 
 To fix this, we must either redesign the architecture by using a smaller model that fits on a single L40S (eliminating the need for cross-GPU communication), or we must migrate this 70B model to an HGX H100 or H200 system where the NVSwitch fabric can handle the massive inter-GPU synchronization bandwidth at 900 GB/s."
 

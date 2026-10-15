@@ -174,7 +174,7 @@ credential_management:
 # Step 1: Verify the NGC token hasn't expired
 echo "Token expiration date is:"
 # Check in NGC web UI → account settings → API keys
-# Or if you have token, estimate: NGC tokens are typically valid for 1 year from creation
+# Or if you have token, estimate: expiry is chosen when the key is generated; check it in the NGC UI
 
 # Step 2: Test token manually from a test pod
 kubectl run ngc-test -it --image=curlimages/curl -- \

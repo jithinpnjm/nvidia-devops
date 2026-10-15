@@ -70,7 +70,7 @@ GPU sits idle for 47 minutes per epoch, even though network has headroom.
 # Using strace (heavy overhead, only for diagnosis):
 strace -e openat -c python train.py 2>&1 | head -20
 
-# Output:
+# Illustrative output (not captured):
 # % time     seconds  usecs/call     calls  errors  syscall
 #  45.23       2.140        8       267500   1234  openat
 
@@ -78,7 +78,7 @@ strace -e openat -c python train.py 2>&1 | head -20
 # That's > your storage MDS capacity (50K–100K ops/sec) — metadata is saturated!
 ```
 
-**Real measurement on a system without strace:**
+**Illustrative measurement on a system without strace (not captured):**
 ```python
 import time
 import os
@@ -120,7 +120,7 @@ class InstrumentedDataset(torch.utils.data.Dataset):
 loader = torch.utils.data.DataLoader(InstrumentedDataset(...), batch_size=256, num_workers=8)
 ```
 
-**Real sample output:**
+**Illustrative output (not captured):**
 ```text
 Idx 0: 2350 opens/sec, 185.2 MB/s
 Idx 1000: 2410 opens/sec, 189.1 MB/s
@@ -161,7 +161,7 @@ for epoch in range(num_epochs):
         last_batch_time = time.time()
 ```
 
-**Real sample output:**
+**Illustrative output (not captured):**
 ```text
 Batch 0: wait_time=580ms
 Batch 1: wait_time=620ms

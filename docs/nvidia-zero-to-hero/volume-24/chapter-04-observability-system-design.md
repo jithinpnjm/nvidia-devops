@@ -313,16 +313,14 @@ Deploy DCGM-based exporter on each node:
 
 ```bash
 # Install NVIDIA DCGM
-apt-get install nvidia-datacenter-gpu-manager
+apt-get install datacenter-gpu-manager
 
-# Start exporter as service
-systemctl start nvidia-dcgm-exporter
-
+# Run dcgm-exporter (service or container; it listens on :9400 by default)
 # Verify metrics available
-curl http://localhost:9400/metrics | grep gpu_memory_used | head -5
-# Output:
-# gpu_memory_used{gpu_id="0",node="node1"} 32000000000
-# gpu_memory_used{gpu_id="1",node="node1"} 28000000000
+curl -s http://localhost:9400/metrics | grep DCGM_FI_DEV_FB_USED | head -5
+# Illustrative output (not captured); values are in MiB:
+# DCGM_FI_DEV_FB_USED{gpu="0",UUID="GPU-...",Hostname="node1"} 32000
+# DCGM_FI_DEV_FB_USED{gpu="1",UUID="GPU-...",Hostname="node1"} 28000
 # ...
 ```
 

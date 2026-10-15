@@ -196,7 +196,7 @@ print(f"Risk score: {result['risk_score']:.1f} ({result['severity']})")
 print(f"Inference latency: {result['latency_ms']:.1f} ms")
 ```
 
-Expected output:
+Illustrative output (not captured):
 
 ```
 Risk score: 78.3 (high)

@@ -152,7 +152,7 @@ ZeRO-3 + CPU Offload:
   This makes training 10-100× slower than pure GPU training
 ```
 
-**Real observed throughput:**
+**Illustrative throughput (not captured):**
 
 ```bash
 # 70B model, 8 A100 GPUs, ZeRO-3 on GPU only
@@ -175,7 +175,7 @@ DeepSpeed training requires a configuration file (JSON):
 
 ```json
 {
-  "train_batch_size": 32,
+  "train_batch_size": 256,
   "train_micro_batch_size_per_gpu": 4,
   "gradient_accumulation_steps": 8,
   
@@ -187,7 +187,7 @@ DeepSpeed training requires a configuration file (JSON):
     "reduce_scatter": true,
     "reduce_bucket_size": 5e8,
     "contiguous_gradients": true,
-    "cpu_offload": false
+    "offload_optimizer": {"device": "none"}
   },
   
   "optimizer": {
@@ -209,7 +209,7 @@ DeepSpeed training requires a configuration file (JSON):
 | stage | ZeRO stage (1, 2, or 3) | 2 |
 | overlap_comm | Overlap communication with computation | true |
 | reduce_bucket_size | Size of gradients to reduce at once | 5e8 |
-| cpu_offload | Offload to CPU RAM | false |
+| offload_optimizer.device | Where optimizer states live: `none`, `cpu`, or `nvme` (replaces the older `cpu_offload` flag) | none |
 
 ## Troubleshooting: ZeRO-3 Communication Hangs
 
@@ -226,7 +226,7 @@ export NCCL_DEBUG=INFO
 torchrun --nproc_per_node=8 train.py 2>&1 | tee train.log
 ```
 
-**Observed output before hang:**
+**Illustrative output (not captured) before hang:**
 
 ```
 [14:23:40] Rank 0-7: Step 1-10 complete, avg loss: 4.52
@@ -285,12 +285,14 @@ Training speed: 0.1 tokens/sec (50× slower than GPU-only)
 **Fix:**
 
 ```json
-// Offload ONLY optimizer states, not parameters
-"zero_infinity": {
-  "offload_optimizer_param_to_cpu": false,
-  "offload_activations": false,
-  "pin_memory": true,
-  "nvme_offload_dir": "/mnt/nvme_raid0"  // Must be fast NVMe RAID0
+// Offload ONLY optimizer states, not parameters (ZeRO stage 3 config fragment)
+"zero_optimization": {
+  "stage": 3,
+  "offload_optimizer": {
+    "device": "nvme",
+    "nvme_path": "/mnt/nvme_raid0",
+    "pin_memory": true
+  }
 }
 ```
 

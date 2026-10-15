@@ -108,7 +108,7 @@ uname -r
 nvidia-smi --query-gpu=driver_version --format=csv,noheader | sort -u
 ```
 
-### Expected Output
+### Expected Output (illustrative, not captured)
 
 The output should identify the operating-system release, kernel version, and one NVIDIA driver version.
 
@@ -146,7 +146,7 @@ Identify the installed devices using concise, script-friendly output.
 nvidia-smi --query-gpu=index,name,uuid,pci.bus_id,memory.total --format=csv
 ```
 
-#### Expected Output
+#### Expected Output (illustrative, not captured)
 
 ```text
 index, name, uuid, pci.bus_id, memory.total [MiB]

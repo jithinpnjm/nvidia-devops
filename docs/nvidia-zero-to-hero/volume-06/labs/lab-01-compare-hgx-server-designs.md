@@ -111,19 +111,21 @@ The purpose is to expose shared responsibility before an incident occurs.
 
 ## Step 3 — Build the technical comparison
 
+The filled-in matrices below use hypothetical vendor data invented for this exercise (not real proposals or measurements).
+
 ```md
 | Area | Requirement | Platform A | Platform B | Evidence quality |
 |---|---|---|---|---|
 | Accelerator | 8x H100 80GB SXM, NVLink-connected | 8x H100 80GB, `topo -m` confirms NV18 all-to-all | 8x H100 80GB, vendor spec sheet only, no topo output provided | A: Verified / B: Missing |
 | Host | Dual-socket, >=64 cores/socket | 2x 64-core, PCIe Gen5, balanced root ports | 2x 56-core, PCIe Gen5, root port count unconfirmed | A: Verified / B: Partial |
 | Memory | >=1.5TB per node | 2TB DDR5, 32 DIMMs, symmetric | 1.5TB DDR5, population pattern not disclosed | A: Verified / B: Partial |
-| Compute network | 400G RDMA per GPU-domain, non-blocking | 8x 400G ConnectX-7, 2 GPUs per NIC, `topo -m` shows PIX | 4x 400G, 4 GPUs per NIC, locality unconfirmed | A: Verified / B: Missing |
+| Compute network | 400G RDMA per GPU-domain, non-blocking | 8x 400G ConnectX-7, 1 GPU per NIC, `topo -m` shows PIX | 4x 400G, 2 GPUs per NIC, locality unconfirmed | A: Verified / B: Missing |
 | Storage network | Isolated from compute fabric | Dedicated 2x 200G storage NICs | Shared with compute fabric, no isolation | A: Verified / B: Verified (fails requirement) |
 | Local storage | NVMe scratch, >=15TB/node | 8x 3.84TB NVMe (RAID0 scratch) | 4x 7.68TB NVMe, redundancy mode unstated | A: Verified / B: Partial |
 | Management | Redfish-capable BMC, telemetry export | Redfish + vendor telemetry agent, Prometheus exporter available | BMC present, telemetry integration "roadmap" | A: Verified / B: Missing |
 | Firmware | Published qualified bundle, staged rollback | Documented bundle + canary/rollback process | Bundle exists, rollback process undocumented | A: Verified / B: Partial |
 | Cooling | Air-capable at launch, liquid-ready | Air-cooled, liquid-cooling variant available same chassis family | Air-cooled only, no liquid path | A: Verified / B: Verified (limits growth) |
-| Power | Redundant feeds, <=1.9kW/node headroom for 18kW/rack at 8 nodes | Dual 3kW PSUs, N+1, ~7.9kW/node measured design estimate | Dual 3kW PSUs, redundancy mode unconfirmed | A: Verified / B: Partial |
+| Power | Redundant feeds, <=1.9kW/node headroom for 18kW/rack at 8 nodes | Dual 3kW PSUs, N+1, ~7.9kW/node hypothetical design estimate | Dual 3kW PSUs, redundancy mode unconfirmed | A: Verified / B: Partial |
 | Service | 4-hour on-site response | Contracted 4-hour SLA, single escalation contact | Best-effort, no contracted SLA yet | A: Verified / B: Missing |
 ```
 
@@ -160,7 +162,7 @@ flowchart TD
     CPU0 <-->|"topo -m: PIX, 400G ConnectX-7"| CNIC0["Compute NIC 0-3"]
     CPU1 <-->|"topo -m: PIX, 400G ConnectX-7"| CNIC1["Compute NIC 4-7"]
     CPU0 <-->|"dedicated 200G, isolated from CNIC"| SNIC["Storage NICs"]
-    CPU0 <-->|"fio: 11GB/s seq read per device"| NVMe["8x 3.84TB NVMe"]
+    CPU0 <-->|"hypothetical fio: 11GB/s seq read per device"| NVMe["8x 3.84TB NVMe"]
 ```
 
 Platform B's diagram (built from its proposal, which never supplied `topo -m` output) has to be drawn with unlabeled or `unverified` edges instead — visually, that gap is the finding: a diagram that can cite a command for every edge versus one that can't is itself evidence of proposal maturity.

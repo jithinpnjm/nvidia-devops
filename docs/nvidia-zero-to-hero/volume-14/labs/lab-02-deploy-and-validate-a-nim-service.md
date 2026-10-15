@@ -50,7 +50,7 @@ Create a Helm values file:
 replicaCount: 1
 
 image:
-  repository: nvcr.io/nvidia/nim/llama2-7b
+  repository: nvcr.io/nim/meta/llama3-8b-instruct
   tag: "1.0.5"
   digest: "sha256:a1b2c3d4e5f6..."  # Pin immutable digest
 
@@ -110,7 +110,7 @@ kubectl get pods -n nim-staging -w
 
 # Check GPU was assigned
 kubectl exec -n nim-staging nim-staging-abc123 -- nvidia-smi
-# Expected output:
+# Illustrative output (not captured):
 # +-----+------------------+------+
 # | GPU | Name             | Mem  |
 # |  0  | NVIDIA A100 40GB  | ??? MB / 40960MB
@@ -127,7 +127,7 @@ kubectl logs -n nim-staging nim-staging-abc123 | grep -i "readiness\|model.*load
 kubectl port-forward -n nim-staging svc/nim-staging 8000:8000 &
 
 # Test health endpoint
-curl http://localhost:8000/v1/health
+curl http://localhost:8000/v1/health/ready
 # Expected: 200 OK, with service info
 
 # Test readiness (same endpoint)

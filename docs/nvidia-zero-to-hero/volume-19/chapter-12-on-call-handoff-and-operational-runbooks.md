@@ -27,7 +27,7 @@ To build a sustainable operational culture, you must encode the complex diagnost
 A good runbook does not contain theory. It contains exact commands, expected outputs, and specific escalation paths.
 
 **Example Runbook: XID 48 (Double-Bit ECC Error)**
-1.  **Symptom:** PagerDuty Alert fires: `DCGM_XID_ERROR_48_DETECTED` on `node-worker-42`.
+1.  **Symptom:** PagerDuty Alert fires: an XID 48 (double-bit ECC) alert on `node-worker-42`.
 2.  **Impact:** The GPU has suffered uncorrectable memory corruption. The active pod has crashed.
 3.  **Immediate Action (Mitigation):**
     *   Run `kubectl cordon node-worker-42`.
@@ -36,8 +36,9 @@ A good runbook does not contain theory. It contains exact commands, expected out
     *   SSH to node: `ssh node-worker-42`.
     *   Run `dmesg -T | grep NVRM`. Verify the XID 48 log exists.
 5.  **Resolution (Eradication):**
-    *   The hardware is physically damaged. Do NOT reboot the node.
-    *   Open a Jira ticket for the Data Center Hardware team: "RMA required for GPU 3 on node-worker-42. ECC Failure."
+    *   An uncorrectable (double-bit) ECC error needs a GPU reset or node reboot after the node is drained, as described in NVIDIA's XID and memory-error guidance, so that pending page retirements or row remaps take effect.
+    *   If the error recurs after the reset, the GPU is a candidate for RMA.
+    *   Open a Jira ticket for the Data Center Hardware team to track the event (for example, "XID 48 on GPU 3, node-worker-42; reset performed; RMA if it recurs").
     *   Update incident status to Resolved (Mitigated). 
 
 ## 2. Automated Remediation (Zero-Touch Ops)

@@ -40,9 +40,9 @@ NVIDIA solved the CPU Bounce Buffer with **Magnum IO** and **GPUDirect Storage (
 GDS fundamentally alters the data path. When the GPU asks for a massive training dataset over the network:
 1. The remote storage array sends the file over the InfiniBand network.
 2. The network card (ConnectX-7) receives the file.
-3. Because the NIC and the GPU sit on the same PCIe switch inside the DGX, the NIC pushes the file *directly* into the GPU's HBM memory.
+3. Because the NIC and the GPU sit on the same PCIe switch inside the DGX, the NIC can DMA the data *directly* into the GPU's HBM memory (this requires a GDS-capable file system client and cuFile configuration).
 
-**The CPU is completely bypassed.** The System RAM is completely bypassed. The latency plummets, and the throughput skyrockets to the maximum speed of the PCIe switch.
+**The CPU is completely bypassed.** The System RAM is completely bypassed. Latency drops and throughput is limited by the NIC, the PCIe path, and the storage system rather than by host memory copies.
 
 ```mermaid
 flowchart TD
@@ -63,9 +63,9 @@ flowchart TD
 GPUDirect Storage is useless if the hard drive itself is slow. Standard NAS (Network Attached Storage) appliances use single "head nodes" that bottleneck under heavy concurrent reads.
 
 AI Factories use **Parallel File Systems** (e.g., WEKA, Lustre, IBM Storage Scale, VAST Data).
-*   Instead of one storage server serving the file, the file is stripped in tiny pieces across 20 different storage servers filled with NVMe drives. 
+*   Instead of one storage server serving the file, the file is striped in pieces across 20 different storage servers filled with NVMe drives. 
 *   When the DGX cluster asks for the file, all 20 storage servers send their pieces simultaneously over the InfiniBand fabric. 
-*   This delivers terabytes per second of read throughput, ensuring the GPUs never wait for data.
+*   Aggregate read throughput scales with the number of storage nodes and network links, which is what keeps the GPUs from waiting on data.
 
 ## Customer Scenario (Senior Level)
 
@@ -76,11 +76,11 @@ They complain: "Our `nvidia-smi` utilization is dropping to 0% every 5 minutes. 
 **The Senior Architect Response:**
 "Tuning the Kubernetes scheduler will not fix this; your cluster is violently bottlenecked by your storage architecture. 
 
-A DGX SuperPOD contains hundreds of H100 GPUs, capable of ingesting data at petabytes per second. Your enterprise NFS appliance is attached via a 10Gbps link, which has an absolute theoretical maximum throughput of 1.2 Gigabytes per second. 
+A DGX SuperPOD contains hundreds of H100 GPUs, capable of consuming data far faster than a single NAS head can serve it. Your enterprise NFS appliance is attached via a 10Gbps link, which has an absolute theoretical maximum throughput of 1.2 Gigabytes per second. 
 
-Every 5 minutes, your GPUs churn through the data in their local memory instantly. They then request the next batch of data from the NFS server. The GPUs must sit entirely idle at 0% utilization while they wait for the 50TB dataset to painfully drip through that tiny 1.2 GB/s network pipe. Furthermore, because NFS does not support GPUDirect Storage (GDS), every byte of that data is bouncing through the host CPU's memory, congesting the PCIe bus.
+Every 5 minutes, your GPUs churn through the data in their local memory instantly. They then request the next batch of data from the NFS server. The GPUs must sit entirely idle at 0% utilization while they wait for the 50TB dataset to painfully drip through that tiny 1.2 GB/s network pipe. Furthermore, a 10GbE NFS mount over TCP is not a GPUDirect Storage (GDS) path (GDS with NFS requires NFS over RDMA on a supported stack), so every byte of that data is bouncing through the host CPU's memory, congesting the PCIe bus.
 
-To fix this, we must migrate the 50TB dataset off the legacy NFS appliance and onto a dedicated **Parallel File System** (like WEKA or Lustre). We must connect that storage array directly to the 400Gbps InfiniBand compute fabric. This will allow the storage nodes to blast data directly into the GPUs' memory simultaneously using GDS, entirely bypassing the CPU and keeping your Tensor Cores fed at 100%."
+To fix this, we must migrate the 50TB dataset off the legacy NFS appliance and onto a dedicated **Parallel File System** (like WEKA or Lustre). We must connect that storage array directly to the 400Gbps InfiniBand compute fabric. This will allow the storage nodes to blast data directly into the GPUs' memory simultaneously using GDS, entirely bypassing the CPU and keeping your Tensor Cores fed."
 
 ## Interview Preparation
 

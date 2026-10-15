@@ -8,7 +8,7 @@ source_document: "Authored directly for the JR2018680 gap-coverage volume — no
 
 # Chapter 5 — Terraform for Infrastructure as Code in AI Factories
 
-**Learning outcome:** Architect, write, refactor, and safely operate production-grade Infrastructure as Code (IaC) using Terraform, OpenTofu, and HCP Terraform (Terraform Cloud). You will master core HCL language constructs (locals, data sources, `for_each`, `dynamic` blocks, built-in functions), execute complex state and CLI operations (`import`, `refresh`, `state mv`, `state rm`, `force-unlock`, `moved` blocks), manage multi-environment workspaces, and deploy Day-0 infrastructure scaffolding for an NVIDIA AI Factory (Cluster Placement Groups, 8-rail 400 Gbps RoCE/EFA networks, high-throughput checkpoint storage, and Slurm control planes).
+**Learning outcome:** Architect, write, refactor, and safely operate production-grade Infrastructure as Code (IaC) using Terraform, OpenTofu, and HCP Terraform (Terraform Cloud). You will master core HCL language constructs (locals, data sources, `for_each`, `dynamic` blocks, built-in functions), execute complex state and CLI operations (`import`, `refresh`, `state mv`, `state rm`, `force-unlock`, `moved` blocks), manage multi-environment workspaces, and deploy Day-0 infrastructure scaffolding for an NVIDIA AI Factory (Cluster Placement Groups, multi-rail RDMA networking such as EFA, high-throughput checkpoint storage, and Slurm control planes).
 
 **Prerequisites:** Familiarity with Linux command line, JSON/YAML data structures, basic IP networking (CIDR, subnets, MTU), and cloud or virtualization primitives (VMs, block storage, object storage).
 
@@ -71,8 +71,8 @@ flowchart TD
 
     subgraph StateStorage["3. State Layer (terraform.tfstate)"]
         REMOTE_STATE[("Remote Backend: S3 / GCS / HCP Terraform
-        - Distributed Lock: DynamoDB / Consul / Cloud Lock
-        - Cryptographic Lineage & Resource ID Registry")]
+        - Locking: S3 lockfile / DynamoDB / Consul / platform lock
+        - Serial + lineage metadata & resource ID registry")]
     end
 
     subgraph ProviderPlugins["4. Provider Plugins (gRPC over Unix Domain Sockets)"]
@@ -109,7 +109,7 @@ flowchart TD
 - Providers translate Terraform's internal CRUD lifecycle (`Create`, `Read`, `Update`, `Delete`) into vendor-specific HTTP REST or gRPC API calls (e.g., AWS SDK, Azure Resource Manager, Kubernetes client-go, OpenStack Ironic).
 
 ### 3. Terraform OSS vs. OpenTofu
-In August 2023, HashiCorp shifted Terraform from the Mozilla Public License v2.0 (MPL 2.0) to the Business Source License v1.1 (BSL). In response, the Linux Foundation established **OpenTofu**—an open-source, community-governed fork under the MPL 2.0. Both share identical HCL syntax, provider compatibility, and execution workflows. Throughout this chapter, all commands and patterns apply interchangeably to `terraform` and `tofu`.
+In August 2023, HashiCorp shifted Terraform from the Mozilla Public License v2.0 (MPL 2.0) to the Business Source License v1.1 (BSL). In response, the Linux Foundation established **OpenTofu**—an open-source, community-governed fork under the MPL 2.0. Both share the same core HCL syntax, provider ecosystem, and workflow, although they have diverged on newer features (for example, OpenTofu's client-side state encryption). The commands in this chapter apply to both unless noted; substitute `tofu` for `terraform`.
 
 ---
 
@@ -212,7 +212,7 @@ locals {
 ```hcl
 # data.tf
 
-# 1. Query the latest official NVIDIA Deep Learning Base AMI (with pre-installed drivers and CUDA)
+# 1. Query the latest AWS-published Deep Learning Base AMI with NVIDIA drivers (name pattern may change; verify in your account)
 data "aws_ami" "nvidia_dlami" {
   most_recent = true
   owners      = ["amazon"]
@@ -233,7 +233,8 @@ data "aws_ami" "nvidia_dlami" {
   }
 }
 
-# 2. Query available Availability Zones that support P5 GPU hardware
+# 2. Query available Availability Zones. Note: this does NOT check P5 capacity; use the
+#    aws_ec2_instance_type_offerings data source to find AZs that offer p5.48xlarge.
 data "aws_availability_zones" "available" {
   state = "available"
   filter {
@@ -267,7 +268,7 @@ resource "aws_instance" "worker" {
 }
 ```
 
-*The Index-Shifting Disaster:* If someone removes `"node-a"` from the beginning of `var.node_names`, `node-b` becomes index `[0]`, and `node-c` becomes index `[1]`. Terraform compares index `[0]` (which was `node-a`, now named `node-b`) and determines that its tags and attributes changed. It then modifies or destroys and recreates running instances `[0]` and `[1]`, and terminates instance `[2]`. **Removing one item destroyed the entire cluster!**
+*The Index-Shifting Disaster:* If someone removes `"node-a"` from the beginning of `var.node_names`, `node-b` becomes index `[0]`, and `node-c` becomes index `[1]`. Terraform compares index `[0]` (which was `node-a`, now named `node-b`) and determines that its tags and attributes changed. Every shifted index shows a diff (at minimum the `Name` tag, and any attribute that forces replacement), and the instance at the last index is destroyed, which may not be the one you meant to remove. If a shifted attribute forces replacement, running instances are replaced.
 
 #### The Robust Pattern: `for_each` with Keys
 `for_each` binds each resource instance to an immutable map key or set string: `aws_instance.worker["node-a"]`.
@@ -329,34 +330,36 @@ locals {
 
 Many cloud resources require repeating nested configuration blocks (e.g., multiple network interfaces, storage block mappings, security group ingress rules). Writing these statically violates DRY principles and limits dynamic scaling.
 
-An NVIDIA H100 GPU instance (like AWS `p5.48xlarge`) requires **32 network card attachments across 8 distinct EFA network cards** to achieve 3.2 Tbps aggregate RDMA bisectional bandwidth. A `dynamic` block generates these nested blocks programmatically:
+An AWS `p5.48xlarge` (8x H100) exposes 32 network cards of 100 Gbps each (3,200 Gbps aggregate EFA bandwidth, per AWS documentation; confirm for your instance type). Declaring that many `network_interface` blocks by hand is error-prone, so a `dynamic` block generates them. In the `aws_instance` resource, each `network_interface` block references a pre-created interface (`network_interface_id`) and sets `device_index` and `network_card_index`; the subnet and security groups belong on the `aws_network_interface`:
 
 ```hcl
-variable "efa_interfaces" {
-  type = list(object({
-    device_index          = number
-    network_card_index   = number
-    subnet_id             = string
-    security_group_ids    = list(string)
-  }))
-  description = "List of 8 discrete EFA network rail interfaces"
+variable "efa_card_count" {
+  type        = number
+  description = "Number of network cards to populate (32 for p5.48xlarge per AWS docs; verify for your instance type)"
+  default     = 32
+}
+
+# One EFA interface per network card
+resource "aws_network_interface" "efa" {
+  for_each        = toset([for i in range(var.efa_card_count) : tostring(i)])
+  subnet_id       = aws_subnet.compute_subnet.id
+  security_groups = [aws_security_group.intra_cluster_sg.id]
+  interface_type  = "efa"
 }
 
 resource "aws_instance" "gpu_master_node" {
   ami           = data.aws_ami.nvidia_dlami.id
   instance_type = "p5.48xlarge"
 
-  # Programmatically generate 8 distinct network_interface attachment blocks
   dynamic "network_interface" {
-    for_each = var.efa_interfaces
-    iterator = rail
+    for_each = aws_network_interface.efa
+    iterator = card
 
     content {
-      device_index          = rail.value.device_index
-      network_card_index   = rail.value.network_card_index
-      subnet_id             = rail.value.subnet_id
-      security_groups       = rail.value.security_group_ids
-      delete_on_termination = true
+      network_interface_id = card.value.id
+      network_card_index   = tonumber(card.key)
+      # AWS expects device_index 0 on card 0 and 1 on the other cards
+      device_index = tonumber(card.key) == 0 ? 0 : 1
     }
   }
 
@@ -365,6 +368,8 @@ resource "aws_instance" "gpu_master_node" {
   }
 }
 ```
+
+Illustrative pattern: an interface can attach to only one instance, so a real fleet creates interfaces per instance (for example with `for_each` over a node-by-card map). Check the current AWS provider and EFA documentation for the exact attachment rules.
 
 ### 3.7 Essential Built-in HCL Functions
 
@@ -535,7 +540,7 @@ import {
 Then, instruct Terraform to automatically generate the required HCL code:
 
 ```bash
-# Automatically inspect the cloud API and generate the matching HCL resource block!
+# Generate draft HCL for the import blocks (review and edit it before committing)
 $ terraform plan -generate-config-out=generated_pg.tf
 ```
 
@@ -546,7 +551,7 @@ $ terraform plan -generate-config-out=generated_pg.tf
 The `terraform state` subcommands allow administrators to refactor code and resolve edge cases without modifying physical cloud infrastructure.
 
 ```bash
-# 1. List every resource address currently tracked in the state file
+# 1. List every resource address currently tracked in the state file (illustrative output follows)
 $ terraform state list
 aws_vpc.ai_vpc
 aws_placement_group.gpu_cluster_pg
@@ -566,7 +571,7 @@ $ terraform state rm 'aws_instance.gpu_workers["worker-rack1-u01"]'
 # 5. Download the raw remote state JSON to stdout/local disk for inspection
 $ terraform state pull > local_dump.json
 
-# 6. Manually push modified state back to remote storage (EXTREME CAUTION: Overrides remote lock)
+# 6. Push modified state back to the backend (EXTREME CAUTION: can overwrite newer state; refuses on lineage/serial mismatch unless -force)
 $ terraform state push emergency_recovered.json
 ```
 
@@ -598,7 +603,7 @@ moved {
 
 ### 4.9 Resolving Stale Locks: `terraform force-unlock`
 
-When a CI/CD pipeline (e.g., GitHub Actions or GitLab CI) is terminated abruptly or loses network connectivity mid-apply, the remote state lock in DynamoDB or Consul remains held. Subsequent applies fail immediately:
+When a CI/CD pipeline (e.g., GitHub Actions or GitLab CI) is terminated abruptly or loses network connectivity mid-apply, the remote state lock (an S3 lock file, a DynamoDB item, or Consul key, depending on backend) can remain held. Subsequent applies fail immediately. Illustrative output (not captured; wording varies by backend and version):
 
 ```text
 Error: Error acquiring the state lock: ConditionalCheckFailedException:
@@ -760,7 +765,7 @@ flowchart TD
     MERGE --> APPLY_GATE
     APPLY_GATE -->|Approved by Lead Architect| RUNNER
     RUNNER -->|Direct API Call| CLOUD_GPU
-    RUNNER -->|Dispatches Job via gRPC| AGENT
+    AGENT -->|Polls for jobs over outbound HTTPS| RUNNER
     AGENT -->|Local Network API Call| SUPERPOD
 ```
 
@@ -770,7 +775,7 @@ flowchart TD
 |---|---|---|---|
 | **License** | BSL 1.1 (Business Source License) | Commercial SaaS / Self-Hosted Enterprise | MPL 2.0 (Open Source) |
 | **Execution Context** | Local workstation or basic CI runner (`bash` shell) | Managed remote containerized execution engine | Local workstation or basic CI runner |
-| **State Locking** | Backend-specific (DynamoDB, Consul, GCS) | Built-in native platform locking | Backend-specific (DynamoDB, Consul, GCS) |
+| **State Locking** | Backend-specific (S3 lockfile or DynamoDB, Consul, GCS) | Built-in native platform locking | Backend-specific (S3 lockfile or DynamoDB, Consul, GCS) |
 | **State Encryption** | Plaintext JSON stored in remote bucket; relies on S3 SSE-KMS | Native platform encryption at rest with tenant keys | **Native client-side state encryption** (AES-GCM / KMS before upload) |
 | **Speculative Plans on PRs**| Requires custom shell scripting in GitHub Actions | Automated out-of-the-box PR comments with colored diffs | Requires custom shell scripting in GitHub Actions |
 | **Policy as Code** | External tools (Conftest, tfsec, trivy) | Built-in **Sentinel** and **OPA (Open Policy Agent)** | External tools or community OpenTofu integrations |
@@ -781,7 +786,7 @@ flowchart TD
 
 Provisioning GPU nodes without policy constraints introduces severe financial and architectural risks. A developer could inadvertently spin up 64x `p5.48xlarge` nodes in an unapproved region, or delete a cluster placement group while model training is active.
 
-Using **Open Policy Agent (OPA) Rego** in HCP Terraform or CI pipelines, platform teams enforce automated guardrails that intercept plans before execution:
+Using **Open Policy Agent (OPA) Rego** in HCP Terraform or CI pipelines, platform teams enforce automated guardrails that intercept plans before execution. The Rego below is an illustrative sketch over the Terraform plan JSON; HCP Terraform and Conftest each expect their own package and rule conventions, so adapt it to the engine you use:
 
 ```rego
 # policy/gpu_guardrails.rego
@@ -823,7 +828,7 @@ allow {
 
 In enterprise deployments combining on-premise NVIDIA DGX SuperPODs with hybrid cloud bursting, the Terraform control plane (HCP Terraform) cannot directly reach private bare-metal Base Command Manager (BCM) API endpoints behind corporate firewalls.
 
-By deploying a **Terraform Cloud Agent** within the on-prem management subnet, the agent establishes an outbound HTTPS connection to HCP Terraform, pulls queued jobs, executes provider plugins locally, and interacts directly with BCM, Redfish BMC APIs, and local InfiniBand subnet managers without opening inbound firewall ports.
+By deploying a **Terraform Cloud Agent** within the on-prem management subnet, the agent establishes an outbound HTTPS connection to HCP Terraform, pulls queued jobs, executes provider plugins locally, and reaches BCM, Redfish BMC endpoints, or other locally reachable APIs through the relevant providers, without opening inbound firewall ports.
 
 ---
 
@@ -848,7 +853,7 @@ terraform {
     bucket         = "enterprise-ai-terraform-state-prod"
     key            = "ai-factory/clusters/us-east-1/h100-superpod.tfstate"
     region         = "us-east-1"
-    dynamodb_table = "terraform-state-lock-prod"
+    dynamodb_table = "terraform-state-lock-prod" # DynamoDB locking is deprecated in newer Terraform; use_lockfile = true (Terraform 1.10+) is the S3-native alternative
     encrypt        = true
   }
 }
@@ -930,15 +935,23 @@ locals {
 ### 7.4 `data.tf`
 
 ```hcl
-# Fetch the single physical AZ in this region that houses NVIDIA P5 capacity
+# Fetch available AZs. Pick one that actually offers p5.48xlarge (see aws_ec2_instance_type_offerings);
+# names[0] below is only a placeholder choice.
 data "aws_availability_zones" "target_az" {
   state = "available"
 }
 
-# Fetch the official NVIDIA Deep Learning Base AMI
+# Fetch the AWS-published Deep Learning Base AMI with NVIDIA drivers
 data "aws_ami" "nvidia_ubuntu" {
   most_recent = true
   owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["Deep Learning Base OSS Nvidia Driver GPU AMI (Ubuntu 22.04) *"]
+  }
+}
+```
 
 ### 7.5 `network.tf`
 
@@ -954,7 +967,8 @@ resource "aws_vpc" "ai_vpc" {
   }
 }
 
-# 2. Compute Subnet with Jumbo Frame (MTU 9000) Support
+# 2. Compute subnet (MTU is not a subnet setting; AWS supports jumbo frames up to 9001 inside a VPC,
+#    and you configure the MTU on the instance interface in the OS)
 resource "aws_subnet" "compute_subnet" {
   vpc_id            = aws_vpc.ai_vpc.id
   cidr_block        = local.compute_subnet_cidr
@@ -965,8 +979,8 @@ resource "aws_subnet" "compute_subnet" {
   }
 }
 
-# 3. Cluster Placement Group (MANDATORY FOR 3.2 Tbps GPUDirect RDMA)
-# Forces all GPU worker nodes onto the same physical spine network switches
+# 3. Cluster Placement Group (packs instances close together within one AZ for low latency and
+#    high per-flow throughput; recommended by AWS for EFA/NCCL workloads)
 resource "aws_placement_group" "gpu_placement_group" {
   name     = "${local.name_prefix}-cluster-pg"
   strategy = "cluster"
@@ -976,7 +990,7 @@ resource "aws_placement_group" "gpu_placement_group" {
   }
 }
 
-# 4. Security Group Permitting Full Line-Rate Intra-Cluster RDMA
+# 4. Security Group permitting intra-cluster traffic (EFA requires all traffic allowed to/from the group itself)
 resource "aws_security_group" "intra_cluster_sg" {
   name        = "${local.name_prefix}-intra-cluster-sg"
   description = "Unrestricted intra-cluster communication for MPI, NCCL, and GPUDirect RDMA"
@@ -1053,7 +1067,7 @@ resource "aws_instance" "gpu_nodes" {
   for_each = local.gpu_worker_map
 
   ami                  = data.aws_ami.nvidia_ubuntu.id
-  instance_type        = "p5.48xlarge" # 8x NVIDIA H100 SXM5 GPUs, 3.2 Tbps EFA
+  instance_type        = "p5.48xlarge" # 8x NVIDIA H100 GPUs; EFA interfaces omitted here, see section 3.6
   subnet_id            = aws_subnet.compute_subnet.id
   placement_group      = aws_placement_group.gpu_placement_group.id
   vpc_security_group_ids = [aws_security_group.intra_cluster_sg.id]
@@ -1126,7 +1140,7 @@ flowchart LR
 
     subgraph BCM_Ansible_Boundary["Day 1 & Day 2: BCM & Ansible (OS, Hardware & Workload Stack)"]
         FIRMWARE["BMC / InfiniBand Firmware Flashing"]
-        KERNEL["Kernel Tuning (numa_balancing=0, iommu=pt)"]
+        KERNEL["Kernel Tuning (numa_balancing=disable, iommu=pt)"]
         DRIVERS["NVIDIA Open Drivers & MOFED OFED Install"]
         DCGM["DCGM Telemetry Daemons & Health Checks"]
         SLURM["Slurm daemons (slurmctld, slurmd, cgroups)"]
@@ -1155,12 +1169,12 @@ flowchart LR
 ### Scenario 1: The Catastrophic `-/+` (Forces Replacement) Incident
 
 #### The Production Incident
-During an active 30-day LLM pre-training run costing $45,000 per day across 64x H100 instances, an engineer opened a PR updating a security tag in the Terraform repository. Another engineer reviewed the PR, approved it, and applied it. Within seconds, all 64 running GPU instances were terminated by the cloud provider, destroying active training state and corrupted multi-gigabyte checkpoints in flight.
+*Illustrative composite scenario; figures are examples.* During an active 30-day LLM pre-training run costing $45,000 per day across 64x H100 instances, an engineer opened a PR updating a security tag in the Terraform repository. Another engineer reviewed the PR, approved it, and applied it. The apply replaced all 64 running GPU instances, destroying in-memory training state and any checkpoints in flight.
 
 #### Root Cause Analysis
 In the HCL code, the engineer had accidentally modified the `availability_zone` parameter or toggled a network attribute that the cloud provider API does not support updating in place. Terraform's reconciliation engine determined that the only way to satisfy the declared code was to destroy the existing instances and launch new ones. The plan output showed:
 ```text
-Plan: 64 to add, 0 to change, 64 to destroy.
+Plan: 64 to add, 0 to change, 64 to destroy.   (illustrative)
 ```
 The reviewer skimmed the summary line, assuming Terraform was performing a rolling tag update.
 
@@ -1189,7 +1203,7 @@ The reviewer skimmed the summary line, assuming Terraform was performing a rolli
 
 ### Scenario 2: Resolving an Orphaned Remote Backend State Lock
 
-A Jenkins or GitHub Actions CI runner executing `terraform apply` was terminated due to a spot node eviction or runner timeout. Subsequent runs immediately fail:
+A Jenkins or GitHub Actions CI runner executing `terraform apply` was terminated due to a spot node eviction or runner timeout. Subsequent runs immediately fail (illustrative output, not captured):
 ```text
 Error: Error acquiring the state lock: ConditionalCheckFailedException
 Lock Info:
@@ -1235,6 +1249,7 @@ Plan: 0 to add, 0 to change, 0 to destroy.
 
 During an incident, an on-call engineer used the cloud web console to manually increase the IOPS on an EBS volume attached to the Slurm controller node from 3,000 to 12,000 IOPS. Two weeks later, an unrelated Terraform PR is planned. The plan reports:
 ```text
+# illustrative plan output
   ~ aws_ebs_volume.slurm_spool {
       ~ iops = 12000 -> 3000
     }
@@ -1261,12 +1276,14 @@ If applied, Terraform would revert the performance optimization, degrading Slurm
 
 ## 10. Senior Solutions Architect Interview Questions & Defense Strategies
 
-### Question 1: How do you design an IaC deployment to guarantee 3.2 Tbps non-blocking bandwidth between GPU instances?
+### Question 1: How do you design an IaC deployment to give GPU instances the best chance of full EFA bandwidth?
 **Candidate Answer:**
-> "To deliver full 3.2 Tbps GPUDirect RDMA line-rate throughput across multi-node GPU training clusters, Terraform must satisfy three requirements:
-> 1. **Cluster Placement Groups:** Define an `aws_placement_group` with `strategy = "cluster"`. This instructs the hypervisor to schedule all GPU instances within the same physical rack row and spine switch domain, minimizing network hops.
-> 2. **Multi-Rail Network Interfaces:** Using `dynamic "network_interface"` blocks, configure 8 discrete Elastic Fabric Adapter (EFA) or RoCE network interfaces mapped to independent physical network cards per server.
-> 3. **Jumbo Frames (MTU 9000):** Configure the VPC compute subnet and instance interfaces for MTU 9000, eliminating packet fragmentation during high-volume NCCL All-Reduce collectives."
+> "To enable full EFA bandwidth across multi-node GPU training clusters, Terraform must satisfy three requirements:
+> 1. **Cluster Placement Groups:** Define an `aws_placement_group` with `strategy = "cluster"`, which places instances close together within an AZ for low latency and high throughput.
+> 2. **Multi-Rail Network Interfaces:** Using `dynamic "network_interface"` blocks, attach an EFA interface for each network card the instance type provides (32 on p5.48xlarge per AWS documentation), each on its own `network_card_index`.
+> 3. **Jumbo Frames:** Set the instance interface MTU to the supported jumbo value (9001 within an AWS VPC) in the OS image or cloud-init.
+>
+> Terraform provisions these; I would then validate achieved bandwidth with nccl-tests, since Terraform cannot guarantee line rate."
 
 ---
 
@@ -1274,7 +1291,7 @@ If applied, Terraform would revert the performance optimization, degrading Slurm
 **Candidate Answer:**
 > "`count` assigns sequential integer indices to resources (`[0]`, `[1]`, `[2]`). If an engineer removes an item from the middle or beginning of a list driving `count`, every subsequent resource's index shifts down by one.
 > 
-> Terraform evaluates this index shift as attribute mutations across every shifted instance. If an immutable attribute is touched, Terraform will terminate and recreate every subsequent node in the cluster.
+> Terraform evaluates this index shift as attribute changes on every shifted instance. If a changed attribute forces replacement, Terraform will recreate those nodes, and it destroys the instance at the highest index.
 > 
 > By contrast, `for_each` identifies resources using immutable string keys (e.g., `aws_instance.node["rack1-u01"]`). Removing any node touches only that specific key, leaving all other instances and ongoing training runs undisturbed."
 
@@ -1295,7 +1312,7 @@ If applied, Terraform would revert the performance optimization, degrading Slurm
 
 1. **Declarative Reconciliation:** Terraform calculates the minimal diff between declared HCL, the state file, and real-world infrastructure, constructing a Directed Acyclic Graph (DAG) for parallel execution.
 2. **Favor `for_each` over `count`:** Avoid `count` for compute fleets; index shifting can trigger unintended cascading recreation of running GPU instances.
-3. **Use `dynamic` Blocks for Multi-Rail Networking:** Model modern 8-rail 400 Gbps RoCE/EFA network architectures programmatically using nested `dynamic` blocks.
+3. **Use `dynamic` Blocks for Multi-Rail Networking:** Model multi-rail network attachments (for example 32 EFA cards on p5.48xlarge) programmatically with `dynamic` blocks.
 4. **Guard the Lifecycle:** Enforce `lifecycle { prevent_destroy = true }` on production placement groups, GPU worker nodes, and checkpoint storage volumes to prevent accidental teardowns.
 5. **Modernize State Management:** Use declarative `import` blocks (Terraform 1.5+) and `moved` blocks (Terraform 1.1+) for zero-downtime refactoring, and resolve pipeline interrupts using `terraform force-unlock`.
 6. **Respect the IaC Boundary:** Terraform owns Day-0 API-managed infrastructure outside the operating system; NVIDIA Base Command Manager (BCM) and Ansible own Day-1/Day-2 configuration inside the operating system.

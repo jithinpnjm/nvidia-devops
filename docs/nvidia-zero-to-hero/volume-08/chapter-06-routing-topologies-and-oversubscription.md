@@ -311,14 +311,17 @@ Static routing or placement concentrates flows on a subset of paths.
 
 Adjust routing policy, LID distribution, or workload placement, then validate under concurrent collective traffic.
 
-**Evidence.** Per-port transmit-byte counters across a leaf's uplinks during a running collective, sampled twice one second apart:
+**Evidence (illustrative output, not captured).** `PortXmitData` deltas across a leaf's uplinks during a running collective. Read `perfquery <leaf-lid> <port>` for each uplink before and after a sampling window and subtract; `PortXmitData` counts in units of 4 octets, so multiply the delta by 4 to get bytes. Do not use `perfquery -R` (it resets the counters). A small loop for this:
+
+```bash
+for p in 5 6 7 8; do echo -n "port $p: "; perfquery <leaf-lid> $p | awk '/PortXmitData/ {print $NF}'; done
+```
 
 ```text
-$ ibqueryerrors -s XmtData -k <leaf-lid> | sort -t= -k2 -n
-GUID 0x506b4b0300a1c210 port 5 (uplink to S1): [XmtData == 21474836480]
-GUID 0x506b4b0300a1c210 port 6 (uplink to S2): [XmtData == 21489234432]
-GUID 0x506b4b0300a1c210 port 7 (uplink to S3): [XmtData == 1073741824]
-GUID 0x506b4b0300a1c210 port 8 (uplink to S4): [XmtData == 1081654272]
+port 5 (uplink to S1): delta 21474836480 bytes
+port 6 (uplink to S2): delta 21489234432 bytes
+port 7 (uplink to S3): delta 1073741824 bytes
+port 8 (uplink to S4): delta 1081654272 bytes
 ```
 
 Four equal-speed uplinks; ports 5-6 have each moved roughly 20GB while ports 7-8 have each moved roughly 1GB in the same window — a 20:1 imbalance across paths that are architecturally identical. That ratio, not the topology diagram, is the evidence that routing or LID distribution is concentrating destination traffic onto two of four available uplinks rather than spreading it, exactly matching this scenario's symptom of "other equal-speed links remain lightly used."
@@ -349,7 +352,7 @@ Measure leaf-local versus spine-crossing traffic, uplink capacity, route balance
 
 An oversubscribed or poorly balanced inter-rack tier.
 
-**Evidence.** `ib_write_bw` run twice with identical parameters — once between two nodes on the same leaf, once between two nodes on different leaves through the spine — isolates the cut directly:
+**Evidence (illustrative output, not captured).** `ib_write_bw` run twice with identical parameters — once between two nodes on the same leaf, once between two nodes on different leaves through the spine — isolates the cut directly:
 
 ```text
 # Same-leaf pair

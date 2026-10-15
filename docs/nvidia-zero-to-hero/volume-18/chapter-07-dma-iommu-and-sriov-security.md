@@ -61,16 +61,16 @@ When deploying massive multi-tenant clouds, you need to share network cards.
 To a Virtual Machine, a VF looks like a dedicated, physical piece of hardware. 
 
 **The Security Implication:**
-Because the slicing happens in hardware (SR-IOV) and the memory mapping is controlled by the IOMMU, SR-IOV is incredibly secure. VM A is attached to VF 1. VM B is attached to VF 2. They physically cannot intercept each other's network traffic or DMA into each other's memory, providing bare-metal performance with hypervisor-level security.
+Because the slicing happens in hardware (SR-IOV) and the memory mapping is controlled by the IOMMU, SR-IOV provides hardware-level separation between VFs. VM A is attached to VF 1. VM B is attached to VF 2. They physically cannot intercept each other's network traffic or DMA into each other's memory, providing bare-metal performance with hypervisor-level security.
 
 ## 3. The Trade-off: Performance vs. Security
 
 Security is never free. 
 
-When you enable IOMMU, every single DMA request from the GPU or the NIC must be validated by the IOMMU hardware table. This lookup introduces a tiny amount of latency (nanoseconds). 
+When you enable IOMMU, every single DMA request from the GPU or the NIC must be validated by the IOMMU hardware table. This lookup (with IOTLB caching) adds some latency. 
 In an AI supercomputer executing billions of RDMA transfers per second over InfiniBand, this IOMMU overhead can slightly degrade peak throughput.
 
-*The Architect's Decision:* In a highly trusted, dedicated, bare-metal supercomputing cluster (where no multi-tenancy exists), engineers often disable IOMMU (`iommu=pt` or pass-through mode) to squeeze out the final 2% of performance. In an enterprise or cloud environment, IOMMU must be strictly enabled. 
+*The Architect's Decision:* In a highly trusted, dedicated, bare-metal supercomputing cluster (where no multi-tenancy exists), engineers often disable IOMMU (`iommu=pt` or pass-through mode) to recover IOMMU translation overhead (measure the actual impact on your platform). In an enterprise or cloud environment, IOMMU must be strictly enabled. 
 
 ## Customer Scenario (Senior Level)
 

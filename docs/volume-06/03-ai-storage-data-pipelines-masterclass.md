@@ -35,7 +35,7 @@ During dataset loading, epochs read massive amounts of data. In Computer Vision 
 
 ### The Checkpoint Burst Phase
 The true terror of AI storage is the checkpoint. Every $N$ iterations, the entire cluster must pause and dump the model's state (weights, optimizer states, gradients) to persistent storage. 
-For a trillion-parameter model, a single checkpoint can be several terabytes. When 1000 GPUs simultaneously flush their VRAM to the network, this creates a "thundering herd" of write I/O. If the storage cannot absorb this burst at Terabytes per second, training halts. The longer the checkpoint takes, the lower the cluster's overall Goodput (useful compute time).
+For a trillion-parameter model, a single checkpoint including optimizer state can reach tens of terabytes. When 1000 GPUs simultaneously flush their VRAM to the network, this creates a "thundering herd" of write I/O. If the storage cannot absorb this burst quickly, training stalls for the duration of the write. The longer the checkpoint takes, the lower the cluster's overall Goodput (useful compute time).
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'fontFamily': 'monospace', 'fontSize': '14px'}}}%%
@@ -71,15 +71,15 @@ A modern AI factory does not rely on a single storage tier. Cost, performance, a
 
 ### Tier 0: HBM (High Bandwidth Memory)
 - **Location:** On the GPU itself (co-packaged with the compute die).
-- **Capacity:** 80GB (A100), 80GB-141GB (H100/H200), up to 192GB (B200).
-- **Bandwidth:** ~3.3 TB/s (A100) to ~4.8 TB/s (H100) to >8 TB/s (B200).
+- **Capacity:** 40GB or 80GB (A100), 80GB (H100) to 141GB (H200), up to 192GB (B200, per NVIDIA's published specs for the SKU).
+- **Bandwidth:** roughly 1.5-2.0 TB/s (A100), ~3.35 TB/s (H100 SXM), ~4.8 TB/s (H200), ~8 TB/s (B200); check the datasheet for your exact SKU.
 - **Role:** This is where the actual matrix multiplication happens. Data must be here to be computed. It is extremely volatile and extremely expensive. Data is shuttled in and out constantly. 
 - **Failure Mode:** OOM (Out of Memory) errors in PyTorch if batch sizes or model weights exceed this capacity without proper sharding (e.g., FSDP, DeepSpeed ZeRO).
 
 ### Tier 1: Host NVMe (Local Cache)
-- **Location:** PCIe Gen 5 NVMe drives directly attached to the CPU/PCIe switch in the compute node.
-- **Example Hardware:** DGX H100 features 4x 3.84TB or 8x 3.84TB NVMe drives in a RAID 0 configuration.
-- **Bandwidth:** 10-14 GB/s per drive (up to 50-100 GB/s per node).
+- **Location:** NVMe drives directly attached to the CPU/PCIe switch in the compute node.
+- **Example Hardware:** DGX H100 ships with 8x 3.84TB NVMe drives for local data cache, typically configured as RAID 0 (separate from the OS drives).
+- **Bandwidth:** Depends on drive model and PCIe generation; benchmark the actual node with `fio`.
 - **Role:** Caching datasets locally. If a dataset fits here, or can be prefetched here asynchronously, it completely eliminates Tier 2 bottlenecks for read workloads.
 - **Software Integration:** Tools like AIStore, Alluxio, or localized Kubernetes HostPath caching operate heavily at this tier. This layer is crucial for read-heavy epochs where the dataset does not fit entirely in Host RAM.
 
@@ -145,7 +145,7 @@ To ensure GDS is functional on an Ubuntu system running in an AI factory, an adm
 # Verify nvidia-fs is loaded into the kernel
 lsmod | grep nvidia_fs
 
-# Expected Output:
+# Illustrative output (not captured):
 # nvidia_fs             217088  0
 # nvidia              42188800  213 nvidia_uvm,nvidia_fs,nvidia_modeset
 ```
@@ -157,56 +157,29 @@ NVIDIA provides `gdscheck` to validate the topology and driver stack. This tool 
 ```bash
 /usr/local/cuda/gds/tools/gdscheck -p
 
-# Expected Output snippet:
-# GDS release version: 1.8.1.71
-# nvidia_fs version:  2.16.1 libcufile version: 2.15
-# Platform: x86_64
-# ...
-# GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-xxxxx)
-#   PCIe Bus: 0000:10:00.0
-#   NUMA Node: 0
-#   NICs with direct path: mlx5_0, mlx5_1
-#   Status: Supported
+# gdscheck prints the platform support table (NVMe, NVMe-oF, Lustre, WekaFS, ...),
+# the nvidia_fs/libcufile versions, and per-driver/IOMMU/GPU support status.
+# Look for "Supported" next to the file system you plan to use, and for
+# "Platform verification succeeded". The exact layout varies by GDS release.
 ```
 
 ### Detailed GDS Configuration (`/etc/cufile.json`)
-The `libcufile` library dictates GDS behavior. Its configuration is critical and highly specific to the underlying file system. Here is a production-grade `cufile.json` optimized for a high-performance Lustre and WEKA hybrid environment.
+The `libcufile` library dictates GDS behavior. Its configuration is critical and highly specific to the underlying file system. Below is a minimal sketch using parameter names from the GDS configuration guide (`/etc/cufile.json`). Start from the file installed by your GDS package, change only what you need, and check the Configuration Guide for your release, because defaults and available keys differ per version and per file system.
 
 ```json
 {
     "logging": {
-        "level": "INFO",
-        "format": "TEXT",
-        "dir": "/var/log/gds"
+        "level": "ERROR"
     },
     "properties": {
-        "max_direct_io_size_kb": 16384,
-        "max_device_cache_size_kb": 131072,
-        "max_device_pinned_mem_kb": 33554432,
-        "posix_pool_slab_size_kb": 4,
-        "posix_pool_slab_count": 128,
-        "posix_drop_pool_slab_size_kb": 4,
-        "posix_drop_pool_slab_count": 128,
-        "use_compat_mode": false,
-        "use_poll_mode": true,
+        "max_device_pinned_mem_size_kb": 33554432,
+        "use_poll_mode": false,
         "poll_mode_max_size_kb": 4,
-        "force_compat_mode": false
-    },
-    "fs": {
-        "lustre": {
-            "rw_chunk_size": 1048576,
-            "dma_dev_mask": 0,
-            "posix_gds_min_kb": 4,
-            "gds_write_sync": true
-        },
-        "weka": {
-            "rw_chunk_size": 4194304,
-            "posix_gds_min_kb": 4
-        }
+        "allow_compat_mode": true
     }
 }
 ```
-*Architectural Note on Poll Mode:* Setting `use_poll_mode: true` is vital for ultra-low latency environments (like NVMe-oF/RDMA). In poll mode, the CPU actively spins waiting for the DMA completion interrupt. This burns CPU cycles to save microseconds of latency. Use it only if extreme latency sensitivity is required and CPU cores are abundant. If CPU cores are heavily utilized by data augmentation workers, set this to `false`.
+*Architectural Note on Poll Mode:* When `use_poll_mode` is true, reads and writes at or below `poll_mode_max_size_kb` (4 KB by default) are completed by polling instead of waiting for interrupts. That can lower latency for small IOs at the cost of CPU cycles, and it does nothing for the large sequential IOs that dominate AI datasets and checkpoints. `allow_compat_mode: true` lets cuFile fall back to the POSIX path when GDS is not available on a mount; set it to `false` while validating, so a silent fallback cannot hide a broken GDS setup.
 
 
 ## 5. Benchmarking AI Data Pipelines with FIO and IOR
@@ -291,9 +264,10 @@ metadata:
   name: weka-rwx-ai-optimized
 provisioner: csi.weka.io
 parameters:
-  volume-type: "directory" # Weka CSI provisions directories in the root fs as dynamic PVCs
+  # Illustrative: parameter names are defined by the WEKA CSI driver; confirm against the
+  # WEKA CSI documentation for your version (volumeType, filesystemName, secrets, etc.).
+  volumeType: dir/v1
   filesystemName: "ai-factory-primary-fs"
-  mountOptions: "num_cores=4,ro=false,dcache_size=1024" # Dedicate 4 CPU cores to DPDK polling
 reclaimPolicy: Retain
 allowVolumeExpansion: true
 ```
@@ -366,7 +340,7 @@ When an AI cluster scales beyond 256 GPUs, edge-case distributed systems failure
 **The Theory:** `D` state means "Uninterruptible Sleep". In Linux, this almost universally means the process is waiting on hardware I/O (disk or network). Because it is uninterruptible by signals, you cannot `kill -9` the process. The kernel is holding a lock, waiting for hardware to respond.
 
 **Investigation:**
-1. Check the kernel ring buffer (`dmesg -w` or `journalctl -kf`).
+1. Check the kernel ring buffer (`dmesg -w` or `journalctl -kf`). Illustrative output (not captured):
    ```text
    [ 4521.123456] INFO: task python3:12345 blocked for more than 120 seconds.
    [ 4521.123460]       Tainted: P           O      5.15.0-82-generic #91-Ubuntu
@@ -388,7 +362,7 @@ When an AI cluster scales beyond 256 GPUs, edge-case distributed systems failure
 
 **Resolution:** 
 1. If the storage network is fundamentally partitioned and the kernel is locked, the node must be forcefully hard rebooted (`ipmitool chassis power reset`). 
-2. **Architectural Fix:** To prevent cluster-wide hanging, ensure the storage client mounts use soft timeouts (`soft`, `timeo=600`) or specific abort parameters rather than hard blocking mounts (`hard`, `intr`). This allows the system call to eventually return an `EIO` error, crashing the python script cleanly rather than hanging the entire kernel.
+2. **Architectural Fix:** To prevent cluster-wide hanging, ensure the storage client mounts use soft or bounded timeouts where the filesystem client supports them (for NFS, `soft` with `timeo`/`retrans`, understanding that soft mounts can lose or corrupt in-flight writes, so use them for read-only dataset mounts rather than checkpoint targets) rather than hard blocking mounts. This lets the system call eventually return an error, failing the Python process cleanly rather than leaving it in D state.
 
 ### Scenario B: Metadata Server (MDS) Saturation and "The Small File Problem"
 **Symptom:** GPU utilization metrics (SM Activity) drop from a healthy 95% down to a jittery 30%. Storage bandwidth graphs on the Grafana dashboard show only 5 GB/s of throughput (far below the 400 GB/s capacity of the array). However, the Storage UI shows 100% CPU utilization and high IOPS on the Metadata Server (MDS) nodes.
@@ -400,7 +374,7 @@ Run an `strace -c` (summary mode) on the dataloader worker process.
 ```bash
 strace -c -p <PID_OF_PYTHON_WORKER>
 ```
-Look at the output:
+Illustrative output (not captured):
 ```text
 % time     seconds  usecs/call     calls    errors syscall
 ------ ----------- ----------- --------- --------- ----------------
@@ -426,9 +400,7 @@ Let us visualize the complete AI data pipeline for a large language model.
 %%{init: {'theme': 'dark', 'themeVariables': { 'fontFamily': 'monospace', 'fontSize': '12px'}}}%%
 flowchart TD
     subgraph "Tier 3: Data Lake (Object Storage)"
-        S3[S3 Data Lake
-Raw Text Data
-Logs / Cold Checkpoints]
+        S3["S3 Data Lake<br/>Raw Text Data<br/>Logs / Cold Checkpoints"]
     end
 
     subgraph "Tier 2: Parallel File System (Lustre/WEKA)"
@@ -443,7 +415,7 @@ Logs / Cold Checkpoints]
         direction TB
         HostCPU["Dual Intel Sapphire Rapids / AMD EPYC"]
         HostRAM["1-2 TB System RAM"]
-        NVMe["4x 3.84TB PCIe Gen5 NVMe Tier 1 Cache"]
+        NVMe["8x 3.84TB NVMe Tier 1 Cache"]
         
         subgraph "Tier 0: GPU Subsystem"
             GPU1["GPU 0: H100 80GB"]
@@ -482,7 +454,7 @@ Logs / Cold Checkpoints]
 1. **Ingestion (ETL):** Raw data is moved from S3 (Tier 3) to the PFS (Tier 2). Spark/Ray clusters perform tokenization, converting text into binary sequences (e.g., Megatron `.bin` and `.idx` files).
 2. **Staging:** Before training begins, prefetch scripts might load these binary chunks into the Tier 1 NVMe of the compute nodes.
 3. **Training Iterations:** The dataloader reads from Tier 1 NVMe (or directly from Tier 2 via GDS). Data flows directly into GPU VRAM (Tier 0). Compute happens. Gradients are exchanged via InfiniBand.
-4. **Checkpointing:** Every 1000 steps, training pauses. VRAM flushes to Tier 2 via GDS. The parallel file system absorbs Terabytes per second. Training resumes.
+4. **Checkpointing:** Every 1000 steps, training pauses. VRAM flushes to Tier 2 via GDS. The parallel file system absorbs the burst; size it against your checkpoint volume. Training resumes.
 5. **Archiving:** Asynchronous processes copy completed checkpoints from Tier 2 back to Tier 3 (S3) for long-term safe storage and eventual deployment to inference engines (Triton).
 
 ## Conclusion
@@ -499,10 +471,10 @@ To validate candidates for a Senior Platform Engineer or AI Solutions Architect 
 ### Q2: GPUDirect Storage Verification
 **Question:** You configured GPUDirect Storage (GDS), but the network engineers report massive traffic on the CPU memory buses during dataset loading. How do you troubleshoot if GDS is actually being used by the PyTorch process?
 **Expected Answer:** 
-1. Use `cfs_tools` or `gdscheck`. 
+1. Use `gdscheck -p` to confirm platform support, and `gdsio` / `gds_stats` to see whether cuFile IO is happening. 
 2. Trace the application using `strace` or eBPF to see if it is making standard POSIX `read()` calls (which bypass GDS) or `cuFileRead()` calls.
 3. Check `/var/log/gds/cufile.log` (if enabled in `cufile.json`) to confirm GDS active paths.
-4. Run `nvidia-smi dmon` to check PCIe bus utilization versus memory bus utilization.
+4. Compare host memory bandwidth (for example with `perf` or Intel PCM) with and without the cuFile path; a true GDS path should not show the payload crossing host memory.
 
 ### Q3: Designing for the Thundering Herd
 **Question:** We are training a 500 Billion parameter model. Our checkpoint size is 2 TB. We have 256 nodes. We checkpoint every 2 hours. What is the minimum write bandwidth the storage system must support to ensure checkpoints take less than 60 seconds?

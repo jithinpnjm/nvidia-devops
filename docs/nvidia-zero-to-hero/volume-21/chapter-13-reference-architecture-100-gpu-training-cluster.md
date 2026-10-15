@@ -11,13 +11,16 @@ tags: [reference-architecture, training-cluster, topology, deployment]
 
 Throughout Volume 21, we have discussed the individual pieces of an AI Factory: Compute, Storage, Network, Power, and Operations. 
 
+
+> **Note on figures:** Prices, schedules, and targets in this chapter are illustrative planning assumptions that build on Chapter 02 (a 16-node, 128-GPU pod). Use NVIDIA's DGX H100 / SuperPOD reference architecture documentation for validated bills of materials, cabling, and software versions.
+
 This chapter is the **Blueprints**. 
 If your CEO hands you $8 Million and says, *"Build me a data center to train our own proprietary LLaMA model from scratch,"* this is exactly what you buy, how you plug it in, and how you test it.
 
 We are designing a **128-GPU Training Cluster**. 
-Why 128? Because 128 GPUs fit perfectly into a single InfiniBand switch, creating a "Non-Blocking" network where every GPU can talk to every other GPU at maximum speed without passing through complex spine switches. This is the sweet spot for enterprise AI training.
+Why 128? Because 16 eight-GPU nodes is a practical building block: with a rail-optimized InfiniBand fabric (NIC k of every node on leaf switch k) every GPU reaches its same-rail peers through a single switch hop, and NVLink handles traffic between rails inside each node. It is small enough to build as one pod and large enough for serious training.
 
-## COMPLETE DESIGN: LLAMA-100B TRAINING
+## COMPLETE DESIGN: 70B-CLASS LLM TRAINING
 
 ### Cluster Specification
 
@@ -25,86 +28,76 @@ Why 128? Because 128 GPUs fit perfectly into a single InfiniBand switch, creatin
 CONFIGURATION:
 
 Compute:
-  16 nodes × 8 GPU H100 SXM5 = 128 GPUs (overkill for 100B, allows elasticity)
-  
-  Per-node:
-    CPU: 2× EPYC Bergamo 128 cores
-    Memory: 192 GB DDR5
-    GPU: 8× H100 80GB SXM5 (NVLink 5.0 within node)
-    Storage: 4× 7.68TB NVMe (RAID-1, 15TB effective)
-    NIC: 1× ConnectX-7 400GbE (NDR InfiniBand)
+  16 nodes × 8 GPU H100 SXM5 = 128 GPUs (more than a 70B model strictly needs, which allows
+  elasticity: multiple jobs, spare nodes, or faster training)
 
-Interconnect:
-  Switch: 1× NVIDIA Quantum2 NDR 400G
-  Topology: Single-rack, 16 compute ports + 4 uplink ports
-  Cables: Direct attach copper (DAC), 6ft
+  Per-node (DGX H100 class):
+    CPU: 2× Intel Xeon Platinum 8480C (112 cores total)
+    Memory: 2 TB DDR5
+    GPU: 8× H100 80GB SXM5 (NVLink 4 via NVSwitch, 900 GB/s per GPU)
+    Storage: 8× 3.84 TB NVMe (about 30 TB local cache)
+    Compute NICs: 8× ConnectX-7 400 Gb/s (one per GPU, NDR InfiniBand)
+    Storage/in-band: 2× BlueField-3 DPUs
+
+Interconnect (compute fabric):
+  Rail-optimized InfiniBand NDR: 8 leaf switches (one per rail), each with 16 node downlinks;
+  add a spine tier if the pod will grow beyond one leaf-only layer
+  Separate storage and management networks (do not share the compute rails)
+  Cabling: DAC for short runs, AOC/optics otherwise; follow the vendor cable-length rules
 
 Storage:
-  Cluster NAS: NetApp AFF A900 (500 TB, 10 GB/sec NFS)
+  Cluster storage: shared all-flash NAS or parallel file system (500 TB, ~10 GB/s assumed)
   Archive: AWS S3 (training dataset versioning, checkpoints)
 
 Cooling:
-  Liquid cooling (cold plate on GPUs)
-  Capacity: 50 kW (headroom 25%)
+  Air-cooled DGX H100 with hot/cold aisle containment
+  Capacity: plan ~163 kW of IT heat load (16 nodes × ~10.2 kW) plus margin, about 4 nodes
+  (≈ 41 kW) per rack across 4 racks
 
 Power:
-  Input: 2× 208V 3-phase circuits (72 kW total)
-  PDUs: 2× 40-outlet monitored/switched
-  UPS: 30 kW, 10 min backup power
+  Provision about 163 kW of IT load, fed from independent A/B feeds with rack PDUs sized for
+  ≈ 41 kW per rack (see Chapter 05 for derating)
+  UPS: cover network, storage, and management at minimum; size compute coverage deliberately
+  (training can ride through brief outages by checkpointing)
 
 Networking:
-  Public: 1× 100GbE connection to production network
-  Out-of-band management: 1 Gbps dedicated network
+  Public: 1× 100GbE connection to the production network
+  Out-of-band management: dedicated BMC network
 
 Observability:
-  GPU monitoring: NVIDIA DCGM + Prometheus exporter
-  Network: InfiniBand counters via Mellanox MLNX_OS
-  Compute: Telegraf node exporter
+  GPU monitoring: DCGM + dcgm-exporter into Prometheus
+  Network: UFM or ibdiagnet/perfquery counters, switch telemetry
+  Host: node_exporter
   Visualization: Grafana dashboards (GPU, network, power)
 
-TOPOLOGY DIAGRAM
+TOPOLOGY (rail-optimized)
 
-                    Public Network (100GbE)
-                           │
-                      Gateway Router
-                           │
-         ┌─────────────────┼─────────────────┐
-         │                 │                 │
-      ToR 1          NVIDIA Quantum2        ToR 2
-     (100GbE)        (400G NDR Switch)      (100GbE)
-         │             │  │  │  │           │
-         ├─────────────┼┼──────────┤
-         │             │ 16 ports  │        │
-    ┌────┴────┬────────┬────┬────────┐────┴─────┐
-    │         │        │    │        │          │
-  Node1    Node2   Node3   Node4  ...       Node16
- (8×H100)
+  Node 1 ... Node 16: each node has 8 NICs (rail 0 ... rail 7)
+  Leaf switch k connects NIC k of every node (16 downlinks each)
+  Inside each node, NVLink/NVSwitch moves data between GPUs on different rails
+  Storage and management networks are separate from the compute rails
 ```
 
 ### Hardware Cost Breakdown
 
 ```yaml
-CAPEX ANALYSIS:
+CAPEX ANALYSIS (illustrative, consistent with Chapter 02):
 
-GPUs: 128 × H100 SXM5 @ $30K = $3.84M (54% of hardware)
-CPUs + Memory: 16 × ($15K) = $240K
-NVMe Storage: 16 × ($50K) = $800K
-NDR Switch: 1 × $350K = $350K
-NAS (shared infrastructure): $200K (allocated)
-Cooling/Power/Rails: $400K
-Installation & Testing: $200K
-Subtotal Hardware: $6.03M
+GPU nodes: 16 × $285K (8× H100 SXM5 + CPUs, memory, NVMe, NICs) = $4.56M
+InfiniBand fabric (switches, optics, cables): ~$400K (get quotes)
+Shared storage (allocated share): $200K
+Racks, PDUs, cooling: $200K
+Installation & testing: $100K
+Subtotal hardware and install: ≈ $5.46M
 
-Software & Licensing:
-  NVIDIA Collective Communications: $50K (commercial license)
-  Operating system: $20K (RHEL licenses)
-  Monitoring (Grafana, Prometheus): $10K
-Subtotal Software: $80K
+Software & licensing:
+  NCCL, DCGM, Prometheus, Grafana: no license fee (open source / free to use)
+  OS subscription and optional NVIDIA AI Enterprise licenses: priced per GPU or per node (obtain quotes)
 
-TOTAL CAPEX: $6.11M
+TOTAL CAPEX: ≈ $5.5M
 
-Cost per GPU: $6.11M / 128 = $47.7K per GPU
-Cost per TFLOP: $6.11M / (128 × 989 TFLOPS) ≈ $48 per TFLOP (consistent with Chapter 2's ~$30-48/TFLOP per-GPU range for H100)
+Cost per GPU: $5.5M / 128 ≈ $43K per GPU
+Cost per BF16 TFLOP: $5.5M / (128 × 989 TFLOPS) ≈ $43 per TFLOP (consistent with Chapter 2)
 ```
 
 ### Deployment Procedure
@@ -116,7 +109,7 @@ Weeks 1-2: Site Preparation
   - Install power distribution (PDUs, cables, circuit breakers)
   - Install cooling infrastructure (chiller, coolant lines)
   - Set up racks and cable trays
-  - Verify utility power (208V 3-phase, 100A circuits available)
+  - Verify utility power (feed voltage, phase, and amperage per the rack PDU design)
   - Test UPS failover
 
 Weeks 3-4: Hardware Installation
@@ -126,30 +119,30 @@ Weeks 3-4: Hardware Installation
   - Verify IB link status (ibstat on each node, all ports UP)
 
 Weeks 5-6: Software & Configuration
-  - Install OS (RHEL 8.x or Ubuntu 22.04)
-  - Install NVIDIA drivers (Driver 560.x)
-  - Install CUDA 12.5 + cuDNN 9.2
-  - Install NCCL 2.22.x, Megatron-LM
-  - Configure distributed training environment (torchrun, DeepSpeed)
-  - Run NCCL tests on all node pairs (verify AllReduce latency <5ms)
+  - Install the vendor-validated OS image (for example DGX OS) or your standard Ubuntu/RHEL image
+  - Install the NVIDIA driver, CUDA, cuDNN, and NCCL versions from the validated stack for your
+    system (NVIDIA's DGX and NGC release notes list tested combinations); record all versions
+  - Configure the distributed training environment (torchrun, DeepSpeed, or Megatron-LM)
+  - Run nccl-tests across all node pairs and at full scale (verify bus bandwidth against baseline)
 
 Week 7: Baseline Performance Testing
-  - Train small model (GPT-2, 1.5B params) for 100 steps
-  - Measure throughput: Target 128 GPU × 6.5K TFLOPS = 832 TFLOPS (ideal)
-  - Measure actual: Typically 90% = 750 TFLOPS (excellent scaling)
-  - Verify AllReduce overhead <2%
-  - Measure power draw: 16 nodes × 3.86 kW = 61.8 kW (expected)
+  - Train a representative model (for example a small GPT-style model) for 100+ steps
+  - Measure throughput and model FLOPs utilization (MFU); compare against the reference numbers
+    for your model and software stack rather than a fixed percentage
+  - Verify exposed communication time is small relative to iteration time
+  - Measure power draw: 16 nodes can draw up to about 163 kW (16 × 10.2 kW rated); compare
+    measured draw under load to the rated maximum
 
 Week 8: Production Readiness
   - Deploy Prometheus + Grafana for monitoring
-  - Configure alerts (GPU temp >75°C, AllReduce >10ms, power >70 kW)
+  - Configure alerts (thermal slowdown reason, exposed communication time above baseline, power approaching feed limits)
   - Set up checkpoint infrastructure (NAS NFS, S3 sync)
-  - Configure job scheduler (Kubernetes or custom SLURM)
+  - Configure the job scheduler (Slurm or Kubernetes with a gang-scheduling layer)
   - Run 1-week stability test (burn-in training, detect intermittent failures)
 
 LAUNCH CHECKLIST:
   ✓ All 128 GPUs healthy (nvidia-smi output on each node)
-  ✓ All AllReduce latencies <5ms (NCCL test output)
+  ✓ nccl-tests bus bandwidth meets the baseline on every node pair and at full scale
   ✓ Checkpoint save/load working (test on small model)
   ✓ Monitoring alerts configured and tested
   ✓ Runbook for common failures written
@@ -371,10 +364,10 @@ test — because 'trust me, I checked' doesn't survive the first production inci
 DAILY OPERATIONS:
 
 Pre-Training Checklist:
-  1. Verify cluster health: `nvidia-smi` on all nodes shows all GPUs healthy
-  2. Check network: `ibstat` shows all IB ports UP
-  3. Verify storage: NAS mount point accessible, free space >50 TB
-  4. Check power/cooling: PDU <80A, facility temp <25°C
+  1. Verify cluster health: `nvidia-smi` and a quick `dcgmi diag -r 1` on all nodes show all GPUs healthy
+  2. Check network: `ibstat` shows all IB ports Active at full rate
+  3. Verify storage: NAS mount point accessible, free space above the planned checkpoint retention
+  4. Check power/cooling: PDU load below the derated limit, inlet temperature within spec
   5. Review alerts: No GPU errors, no network errors in past 24 hours
 
 Training Job Startup:
@@ -382,25 +375,25 @@ Training Job Startup:
   2. Allocate 128 GPUs via job scheduler
   3. Launch training with torchrun (auto-sets RANK, WORLD_SIZE)
   4. Verify all ranks connected (check NCCL startup logs)
-  5. Monitor first iteration: GPU utilization >90%, AllReduce <5ms
+  5. Monitor first iterations: SM activity and step time against the baseline
 
 Monitoring During Training:
   - Throughput: Should be stable within ±2%
-  - GPU utilization: >90%
-  - GPU temperature: 60–70°C
-  - AllReduce latency: 2–5 ms per iteration
+  - GPU SM activity: stable near the job's baseline
+  - GPU temperature: stable, no thermal slowdown reason
+  - Exposed communication time: stable near baseline
   - Loss: Smooth convergence (no NaN or divergence)
   - Checkpoint: Save every 500 steps (~8 hours for Llama-70B)
 
 Troubleshooting:
-  - Low throughput (<80% of baseline): Check AllReduce latency, GPU clocks, network congestion
-  - GPU thermal throttle: Reduce batch size, verify cooling
+  - Low throughput (<80% of baseline): Check exposed communication time, GPU clocks and throttle reasons, network congestion
+  - GPU thermal throttle: Verify cooling and airflow; see Volume 20 Chapter 6
   - Failed checkpoint: Retry save to NAS, fallback to S3 if NAS down
   - Hanging job: NCCL timeout likely; kill job, investigate rank connectivity
 
 Weekly:
-  - Review GPU error logs, replace any with >10 error counts/week
-  - Check data pipeline: Verify no I/O stalls, NAS performance >8 GB/sec
+  - Review GPU Xid and ECC trends (Volume 20 Chapters 2 and 5) and act per the tiered guidance
+  - Check data pipeline: Verify no I/O stalls and storage performance against the sizing target
   - Validate backups: Confirm S3 checkpoint sync completed
 
 MTTR Targets:
@@ -412,7 +405,7 @@ MTTR Targets:
 
 ## Architecture Summary
 
-Building a 128-GPU AI Training cluster requires meticulously balancing a $6 Million CapEx budget across H100 GPUs, high-speed NVMe storage, and a non-blocking InfiniBand NDR network. Success is determined during the 8-week deployment phase, where engineers must execute aggressive burn-in tests (HPL/NCCL) to identify "infant mortality" hardware failures before allowing data scientists to launch multi-month training jobs.
+Building a 128-GPU AI Training cluster requires meticulously balancing a ~$5.5 Million CapEx budget across H100 GPUs, high-speed NVMe storage, and a non-blocking InfiniBand NDR network. Success is determined during the 8-week deployment phase, where engineers must execute aggressive burn-in tests (HPL/NCCL) to identify "infant mortality" hardware failures before allowing data scientists to launch multi-month training jobs.
 
 ```mermaid
 flowchart TD
@@ -420,11 +413,11 @@ flowchart TD
         direction TB
         
         subgraph Storage_Tier["Parallel Storage"]
-            Lustre[(Lustre / BeeGFS <br/> High-Bandwidth Checkpoints)]
+            Lustre[(Shared storage <br/> NAS / parallel file system)]
         end
         
         subgraph Network_Tier["Non-Blocking InfiniBand Fabric"]
-            Switch[Single 64-Port NDR Switch <br/> No Spine/Leaf Oversubscription]
+            Switch[Rail-optimized NDR leaf switches <br/> One leaf per rail, non-blocking]
         end
         
         subgraph Compute_Tier["16x HGX Server Nodes"]
@@ -444,14 +437,14 @@ flowchart TD
 
 ## SUMMARY
 
-A production 100-GPU training cluster requires:
+A production 128-GPU training cluster requires:
 
-1. **Hardware:** 128 H100s ($3.84M), NDR switch ($350K), liquid cooling, redundant power.
-2. **Network:** Full-bisection interconnect (single-rack); AllReduce latency &lt;5ms.
-3. **Monitoring:** Real-time GPU/network metrics; alert if ANY metric deviates >10% from baseline.
+1. **Hardware:** 16 DGX H100-class nodes (about $4.56M of the ~$5.5M CAPEX), a rail-optimized NDR fabric, and power and cooling sized for about 163 kW.
+2. **Network:** Non-blocking, rail-aligned interconnect, validated with nccl-tests against a baseline.
+3. **Monitoring:** Real-time GPU/network metrics; alert when a metric deviates materially from its baseline.
 4. **Deployment:** 8-week process from bare metal to training (weeks 1-4 hardware, 5-6 software, 7-8 testing).
 5. **Operations:** Daily health checks, weekly trend analysis, MTTR &lt;15 min for most failures.
 
-**Cost:** $6.11M CAPEX + $0.6M OPEX/year = $8.91M over 3 years for a single-rack cluster.
+**Cost:** ≈ $5.5M CAPEX + ≈ $0.64M OPEX/year ≈ $7.4M over 3 years for this pod (illustrative; see Chapter 02).
 
 **In Chapter 14:** Reference architecture for multi-region inference deployment.

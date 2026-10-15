@@ -25,7 +25,7 @@ The question is never "is storage fast enough" in the abstract. It is "is the sl
 
 - Local NVMe as cache/staging cuts the critical-path stall on checkpoint restore and hot-shard reads, but needs eviction and lifecycle policy — it is not durable storage
 - GDS bypasses the CPU staging buffer via DMA directly between NIC/NVMe and GPU memory, but only over a PCIe topology that supports it (verify with `nvidia-smi topo -m`: look for `PHB` or better, not a path crossing an unsupported bridge)
-- Prove GDS is active, don't assume it: absence of `__memcpy_avx2` in a `perf record` profile, and nonzero `nvidia-smi pcie -q` Rx/Tx counters during the read
+- Prove GDS is active, don't assume it: absence of `__memcpy_avx2` in a `perf record` profile, and increasing `/proc/driver/nvidia-fs/stats` counters during the read
 
 ### Lustre and BeeGFS (Chapters 05–06) — Distributed metadata is the real differentiator, not "single vs. multiple MDS"
 
@@ -69,7 +69,7 @@ Before declaring an AI storage path "production ready," verify all of these:
 ```yaml
 # Data Path and Topology
 - [ ] Every layer of the data path (media, server, fabric, client FS, page cache, CPU mem, PCIe, GPU mem) benchmarked independently
-- [ ] GDS topology verified with nvidia-smi topo -m; GDS-active confirmed via perf and nvidia-smi pcie -q counters, not assumed
+- [ ] GDS topology verified with nvidia-smi topo -m; GDS-active confirmed via perf and nvidia-fs stats counters, not assumed
 - [ ] Local NVMe cache eviction/lifecycle policy defined (not treated as durable storage)
 
 # Filesystem Choice and Metadata
@@ -110,7 +110,7 @@ Candidates who understand this volume can answer:
 
 **"When do you reach for GPUDirect Storage instead of the standard read path?"**
 
-✅ Strong answer: "GDS is worth it when the CPU-bounce copy is a measurable fraction of your I/O time — typically large sequential reads feeding GPU-bound training or inference, where PCIe topology supports a direct path (PHB or better between the NIC/NVMe and the GPU). I wouldn't reach for it by default: it needs topology verification first, and I'd prove it's actually active with `perf` (no `__memcpy_avx2` in the profile) and `nvidia-smi pcie -q` counters, not just assume the driver flag did what it says. For small, metadata-heavy workloads, fixing the file-count problem usually matters more than GDS."
+✅ Strong answer: "GDS is worth it when the CPU-bounce copy is a measurable fraction of your I/O time — typically large sequential reads feeding GPU-bound training or inference, where PCIe topology supports a direct path (PHB or better between the NIC/NVMe and the GPU). I wouldn't reach for it by default: it needs topology verification first, and I'd prove it's actually active with `perf` (no `__memcpy_avx2` in the profile) and `nvidia-smi dmon -s t` counters, not just assume the driver flag did what it says. For small, metadata-heavy workloads, fixing the file-count problem usually matters more than GDS."
 
 ❌ Weak answer: "GDS makes every storage read faster" (ignores topology requirements and the cases where metadata, not bandwidth, is the bottleneck)
 

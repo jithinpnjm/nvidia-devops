@@ -294,7 +294,7 @@ nvcc -O3 -std=c++17 overlap_pipeline.cu -o overlap_pipeline
 ./overlap_pipeline
 ```
 
-Expected output resembles:
+Expected output resembles (illustrative, not captured):
 
 ```text
 validated 67108864 elements in 812.4 ms using 2 streams

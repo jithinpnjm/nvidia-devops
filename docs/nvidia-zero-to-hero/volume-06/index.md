@@ -21,9 +21,9 @@ In Volume 06, we explore the chaotic reality of the OEM ecosystem. We learn how 
 
 1.  **The Merchant Silicon Strategy:** Why cloud providers and enterprise IT departments prefer HGX over DGX (custom management planes, specific power footprints, and vendor lock-in).
 2.  **Inside the HGX Tray:** Dissecting the SXM GPU modules, the soldered NVSwitch chips, and the PCIe retimers that bridge the baseboard to the host CPU.
-3.  **OEM Support Boundaries:** Understanding who owns the firmware. Why blindly flashing NVIDIA VBIOS onto an OEM server can break the chassis thermal management and melt the GPUs.
+3.  **OEM Support Boundaries:** Understanding who owns the firmware. Why flashing GPU firmware onto an OEM server outside the OEM's supported process can break support and the validated thermal and power configuration.
 4.  **PCIe Topologies:** How to use `nvidia-smi topo -m` to detect if an OEM wired the Network Interface Cards (NICs) behind a CPU bottleneck, breaking GPUDirect RDMA.
-5.  **Power and Cooling Extremes:** The transition to 54-Volt power delivery to prevent melting copper wires, and the physics of "Airflow Shadowing" that forces OEMs to adopt Closed-Loop Liquid Cooling.
+5.  **Power and Cooling Extremes:** The move toward higher-voltage DC power distribution to limit current and resistive loss, and the physics of "Airflow Shadowing" that forces OEMs to adopt Closed-Loop Liquid Cooling.
 6.  **Storage Integration:** Why the physical placement of E1.S NVMe drives inside the chassis dictates whether GPUDirect Storage (GDS) functions correctly.
 7.  **The Rack-Scale Era (GB200 NVL72):** How the Blackwell generation breaks the 8-GPU chassis limit, utilizing copper backplanes and switch trays to extend the NVLink domain across 72 GPUs in a single liquid-cooled rack.
 

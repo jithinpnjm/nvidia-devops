@@ -269,7 +269,7 @@ The purpose is to demonstrate path sensitivity. Do not disable NVLink, change fi
 
 **Root cause:** Unsupported pair, platform limitation, isolation mode, or software mismatch.
 
-**Worked evidence for this exact symptom.** Topology says NVLink is present, but the p2p matrix and CUDA both refuse the pair — a MIG-enabled GPU in the mix:
+**Worked evidence for this exact symptom (illustrative output, not captured).** Topology says NVLink is present, but the p2p matrix and CUDA both refuse the pair — a MIG-enabled GPU in the mix:
 
 ```text
 $ nvidia-smi topo -m
@@ -301,7 +301,7 @@ Waiving test.
 
 **Resolution:** Correct placement, remove contention, restore the approved link state, or escalate hardware findings with evidence.
 
-**Worked evidence for this exact symptom.** GPU0-GPU3 tests far below the ~800 GB/s bidirectional baseline established in Step 4/Section 10 for every other pair:
+**Worked evidence for this exact symptom (illustrative output, not captured).** GPU0-GPU3 tests far below the ~800 GB/s bidirectional baseline established in Step 4/Section 10 for every other pair:
 
 ```text
 $ ./p2pBandwidthLatencyTest
@@ -318,7 +318,7 @@ GPU 3: NVIDIA H100 80GB HBM3 (UUID: GPU-f19a0d34-2e6f-4a0b-c3d2-4d5e6f708192)
          ... (links 0-3, 5-17: 0 errors)
 ```
 
-Bidirectional bandwidth for GPU0-GPU3 (`~311 GB/s`) is barely 39% of the ~800 GB/s every other pair achieves — well outside normal run-to-run variance (Step 5 showed ~0.4% spread on a healthy pair). `nvidia-smi nvlink --errorcounters` isolates it immediately: link 4 on GPU3 alone has accumulated `18,422` replay errors and `211` CRC errors while every other link on every other GPU reads zero. This is the `DegradedPath` branch of Figure 7.L2.1 — the link is still enumerated and still carries traffic (so `topo -m` still shows `NV18` and the pair still "works"), but a failing physical lane is forcing constant retransmission, which caps effective throughput far below the 17-link-healthy figure. The fix is a hardware escalation for that specific NVLink connector/riser, not a software or placement change — this is exactly the kind of fault that a topology-matrix-only check would miss entirely.
+Bidirectional bandwidth for GPU0-GPU3 (`~311 GB/s`) is barely 39% of the ~800 GB/s every other pair achieves — well outside normal run-to-run variance (a healthy pair normally varies by only a small percentage between runs; use your own Step 5 spread). `nvidia-smi nvlink --errorcounters` (flag spelling and output format vary by driver release; check `nvidia-smi nvlink -h`) points at the failing link: link 4 on GPU3 alone has accumulated `18,422` replay errors and `211` CRC errors while every other link on every other GPU reads zero. This is the `DegradedPath` branch of Figure 7.L2.1 — the link is still enumerated and still carries traffic (so `topo -m` still shows `NV18` and the pair still "works"), but a failing physical lane is forcing constant retransmission, which caps effective throughput far below the 17-link-healthy figure. The fix is a hardware escalation for that specific NVLink connector/riser, not a software or placement change — this is exactly the kind of fault that a topology-matrix-only check would miss entirely.
 
 ### Data-integrity validation fails
 

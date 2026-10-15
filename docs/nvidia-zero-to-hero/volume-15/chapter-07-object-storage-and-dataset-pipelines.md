@@ -117,7 +117,7 @@ throughput_mb_s = (8 * 1000) / elapsed  # 8 GB / elapsed time in seconds
 print(f"Parallel download: {throughput_mb_s:.0f} MB/s")
 ```
 
-**Real sample results:**
+**Illustrative sample results (not captured):**
 ```text
 Single object (1 GB):
   Time: 6.2 seconds
@@ -170,7 +170,7 @@ for epoch in range(num_epochs):
         print(f"Epoch {epoch}: hit_rate={hit_rate*100:.1f}%, download_wait={download_wait_time/60:.1f}min")
 ```
 
-**Sample output:**
+**Illustrative output (not captured):**
 ```
 Epoch 1: hit_rate=0.1%, download_wait=45.3min  ← Cache cold, lots of waiting
 Epoch 2: hit_rate=98.2%, download_wait=2.1min  ← Cache warm, GPU mostly fed

@@ -205,8 +205,7 @@ Don't do this for training; kills scaling efficiency.
 Environment:
   NCCL_DEBUG: INFO
   NCCL_SOCKET_IFNAME: eth0  # Use specific NIC
-  NCCL_ALGO: Ring  # Ring AllReduce (bandwidth-optimal)
-  NCCL_TREE_THRESHOLD: 10485760  # Use tree for < 10MB
+  NCCL_ALGO: Ring  # Force Ring; by default NCCL auto-selects Ring/Tree per message size and topology
 ```
 
 ### Phase 5: Fault Tolerance and Checkpoint Strategy (3 minutes)

@@ -86,7 +86,7 @@ rack_type: 42U, 3-phase 415V PDU, front-to-back airflow
 power_feed_a: PDU-A, 32A per phase, breaker panel RPP-3
 power_feed_b: PDU-B, 32A per phase, breaker panel RPP-4 (separate upstream panel from feed A)
 cooling_type: air
-compute_fabric: 8x 400G ConnectX-7 per node, non-blocking leaf switch, 2 GPUs per NIC
+compute_fabric: 8x 400G ConnectX-7 per node, non-blocking leaf switch, 1 GPU per NIC
 storage_fabric: 2x 200G storage NICs per node, isolated VLAN from compute fabric
 management_network: 1x 1G BMC port per node, dedicated out-of-band switch, no route to production VLANs
 ```
@@ -105,6 +105,8 @@ management_network: 1x 1G BMC port per node, dedicated out-of-band switch, no ro
 ## 8. Deployment Steps
 
 ### Step 1 — Build the rack elevation
+
+All weights, power figures, and clearances in this lab's worked tables are hypothetical values for the exercise. Replace them with the OEM's documented values for the exact configuration.
 
 Record each device, rack-unit position, weight, airflow direction, cable exit, and service clearance. Place heavy equipment low unless the vendor and rack design specify otherwise.
 
@@ -138,7 +140,7 @@ Calculate per-feed load and confirm that the design remains within approved cont
 | Top-of-rack + management + storage switches | ~0.6 kW |
 | **Total rack design load** | **~16.4 kW**, against an 18 kW facility limit — 1.6kW headroom |
 | PSU configuration | Dual 3kW PSUs per node, N+1 — each node can lose one PSU and stay powered from the other |
-| Single-feed failure test | With feed A down, feed B alone must carry the full ~16.4kW rack load — confirm feed B's breaker (32A @ 415V 3-phase ≈ 23kW capacity) has headroom above 16.4kW; it does, with margin |
+| Single-feed failure test | With feed A down, feed B alone must carry the full ~16.4kW rack load — confirm feed B can carry the load continuously. 32A at 415V 3-phase is about 23kW nameplate (1.732 x 415 x 32); applying a typical 80% continuous-load derate gives about 18.4kW, so ~16.4kW fits but with only ~2kW of margin (verify the derating rules in your electrical code and PDU documentation) |
 
 This is the calculation that rules out 4 nodes per rack at this facility: `4 × 7.9kW ≈ 31.6kW` plus switches would need roughly 32kW of continuous capacity against an 18kW limit — not close, and no amount of cable or airflow optimization changes that arithmetic.
 
@@ -229,8 +231,8 @@ Produce a decision table:
 
 | Domain | Status | Evidence | Risk | Required action |
 |---|---|---|---|---|
-| Power | Conditional go | ~16.4kW design load vs. 18kW limit; single-feed failure carries full load with margin (Step 2) | Low — 1.6kW headroom is thin for future growth | Re-run calculation before adding any third node to this rack |
-| Cooling | Go | Air-cooled, no throttle events in prior soak on same chassis family | Low | None |
+| Power | Conditional go | ~16.4kW design load vs. 18kW limit; single-feed failure carries full load with thin margin after continuous-load derating (Step 2) | Low — 1.6kW headroom is thin for future growth | Re-run calculation before adding any third node to this rack |
+| Cooling | Go | Hypothetical: no throttle events in a prior soak on the same chassis family (verify with your own soak test) | Low | None |
 | Weight | Go | 82kg/node x2 + switches well under rack static/dynamic rating | Low | None |
 | Networking | Conditional go | Compute NICs have no physical redundant path (Step 5); NCCL-level rerouting only | Medium — a single NIC failure removes that GPU domain from collectives until repaired | Document accepted risk with platform team; alarm on NIC link-down |
 | Storage | Go | Storage NICs dual-homed to two leaf switches, isolated VLAN from compute | Low | None |

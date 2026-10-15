@@ -145,6 +145,8 @@ Case A's `sm%` near zero confirms the device genuinely has nothing to do — the
 
 **Turning "poor multi-GPU scaling" into evidence.** This is the per-rank timing check from Chapter 11, restated here as the map's own row:
 
+*Illustrative output (not captured):*
+
 ```text
 $ for r in 0 1 2 3; do echo "rank $r: $(tail -1 rank_${r}.log)"; done
 rank 0: step_time_ms=49

@@ -12,7 +12,7 @@ description: "Master AI compliance. Learn how to centralize security logs, enfor
 | Difficulty | Intermediate |
 | Estimated reading time | 25 minutes |
 | Primary audience | Compliance Officers, DevSecOps, SREs |
-| Core question | When the government auditors arrive, how do you mathematically prove that your AI chatbot hasn't been leaking European patient data to American servers? |
+| Core question | When the government auditors arrive, how do you prove that your AI chatbot hasn't been leaking European patient data to American servers? |
 
 ## Introduction
 
@@ -52,7 +52,7 @@ You must deploy a centralized, immutable SIEM (Security Information and Event Ma
 ## 2. Data Provenance and Model Lineage
 
 Auditors will ask: *"How do you know this model is safe?"*
-You cannot say, "We tested it." You must provide the mathematical lineage.
+You cannot say, "We tested it." You must provide the documented lineage.
 
 **Model Lineage Tracking:**
 You must use a tool like MLflow or Weights & Biases to create an immutable cryptographic chain:
@@ -65,12 +65,12 @@ If the model misbehaves in production, you can trace it back to the exact line o
 
 ## 3. Data Residency and Geospatial Scheduling
 
-Regulations like GDPR mandate that data belonging to European citizens must not leave the European Union.
+Regulations like GDPR restrict transfers of personal data outside the EU/EEA unless a valid transfer mechanism or safeguard is in place, and many organizations enforce strict regional residency as policy.
 
-If your company has a global Kubernetes cluster spanning AWS regions in Frankfurt and New York, the Kubernetes scheduler might accidentally spin up a training job processing German user data on a GPU node in New York because compute was cheaper there. You just violated GDPR.
+If your company has a global Kubernetes cluster spanning AWS regions in Frankfurt and New York, the Kubernetes scheduler might accidentally spin up a training job processing German user data on a GPU node in New York because compute was cheaper there. You may have just created a GDPR transfer problem.
 
 **The Fix:** You must use strict **Node Affinities and Taints**. 
-Label nodes with their physical geography (`topology.kubernetes.io/region=eu-central-1`). Force data scientists to tag their workloads with data classification labels. Use admission controllers (OPA Gatekeeper) to ensure that a pod processing `classification=eu-pii` is mathematically barred from scheduling on any node lacking the `region=eu-central` label.
+Label nodes with their physical geography (`topology.kubernetes.io/region=eu-central-1`). Force data scientists to tag their workloads with data classification labels. Use admission controllers (OPA Gatekeeper) to ensure that a pod processing `classification=eu-pii` is rejected unless it is constrained to nodes labeled with an approved EU region (for example `topology.kubernetes.io/region=eu-central-1`).
 
 ## Customer Scenario (Senior Level)
 

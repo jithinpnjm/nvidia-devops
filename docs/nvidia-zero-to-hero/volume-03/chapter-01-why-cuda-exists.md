@@ -219,6 +219,8 @@ A change at one layer can expose assumptions at another. A new container image m
 
 **Row 1 evidence — `nvidia-smi succeeds` only proves the kernel driver, not the application path:**
 
+*Illustrative output (not captured):*
+
 ```text
 $ nvidia-smi
 +-----------------------------------------------------------------------------------------+
@@ -234,6 +236,8 @@ $ nvidia-smi
 
 Read this alongside the application's own probe. `nvidia-smi` talking to the driver and a framework reporting zero devices are **not contradictory** — they are two different layers. Confirm the gap with a minimal device query run in the *same* process context (same container, same user, same `CUDA_VISIBLE_DEVICES`):
 
+*Illustrative output (not captured):*
+
 ```text
 $ python3 -c "import torch; print(torch.cuda.is_available(), torch.cuda.device_count())"
 False 0
@@ -242,6 +246,8 @@ False 0
 **Interpretation:** the host driver is healthy (`nvidia-smi` above proves that), but the process cannot construct a CUDA context — the failure is strictly between "device visible to the OS" and "device visible to this process." That narrows the search to device-node exposure, `CUDA_VISIBLE_DEVICES` filtering, or a missing/incompatible user-space library — not to a driver reinstall.
 
 **Row 3 evidence — a library load error narrows the search further:**
+
+*Illustrative output (not captured):*
 
 ```text
 $ python3 -c "import torch; torch.zeros(1).cuda()"

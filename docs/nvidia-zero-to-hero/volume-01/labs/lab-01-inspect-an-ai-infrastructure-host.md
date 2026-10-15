@@ -130,7 +130,7 @@ Command:
 cat /etc/os-release
 ```
 
-Expected output:
+Expected output (illustrative, not captured):
 
 ```text
 NAME="Ubuntu"
@@ -158,7 +158,7 @@ Command:
 uname -r
 ```
 
-Expected output:
+Expected output (illustrative, not captured):
 
 ```text
 <kernel-version>
@@ -183,7 +183,7 @@ Command:
 lscpu
 ```
 
-Expected output includes:
+Expected output includes (illustrative, not captured):
 
 ```text
 Architecture:
@@ -238,7 +238,7 @@ Command:
 lspci
 ```
 
-Expected output:
+Expected output (illustrative, not captured):
 
 ```text
 <PCI devices on the host>
@@ -263,13 +263,13 @@ Command:
 lspci | grep -i nvidia
 ```
 
-Expected output on a GPU host:
+Expected output on a GPU host (illustrative, not captured):
 
 ```text
 <one or more NVIDIA devices>
 ```
 
-Expected output on a non-GPU host:
+Expected output on a non-GPU host (illustrative, not captured):
 
 ```text
 <no output>
@@ -294,13 +294,13 @@ Command:
 which nvidia-smi || echo "nvidia-smi not found"
 ```
 
-Expected output if installed:
+Expected output if installed (illustrative, not captured):
 
 ```text
 /usr/bin/nvidia-smi
 ```
 
-Expected output if missing:
+Expected output if missing (illustrative, not captured):
 
 ```text
 nvidia-smi not found
@@ -325,7 +325,7 @@ Command:
 nvidia-smi
 ```
 
-Expected output on a healthy GPU host includes:
+Expected output on a healthy GPU host includes (illustrative, not captured):
 
 ```text
 Driver Version:
@@ -334,7 +334,7 @@ GPU Name:
 Memory-Usage:
 ```
 
-Expected output on a host without `nvidia-smi`:
+Expected output on a host without `nvidia-smi` (illustrative, not captured):
 
 ```text
 command not found

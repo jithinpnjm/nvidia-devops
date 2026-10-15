@@ -7,6 +7,8 @@ description: "Detect, diagnose, and respond to ECC errors, correctable/uncorrect
 
 # ECC Errors and Memory Bit Flips
 
+> **Note:** Terminal and log output blocks in this chapter are illustrative (not captured from a real system). Counts, timestamps, and correlation values are examples; commands and flags are real, but exact output formats vary by driver and DCGM version. Query snippets that use `promql_query` or custom scripts are pseudo-commands.
+
 ## Beginner's Primer: Cosmic Rays and Checksums
 
 At the physical level, computer memory (RAM/VRAM) is just billions of microscopic capacitors holding an electrical charge. A charge means `1`, no charge means `0`. 
@@ -37,7 +39,7 @@ A Senior SRE monitors them obsessively. A rising number of Correctable Errors is
 
 - DCGM ECC counters (correctable, uncorrectable, aggregate)
 - ECC error rate trend (errors per GPU-hour)
-- Which memory module (HBM0-9 on H100) exhibits errors
+- Which memory region exhibits errors (where the tooling exposes it)
 - Thermal history correlation
 - Power supply ripple measurements
 
@@ -45,13 +47,13 @@ A Senior SRE monitors them obsessively. A rising number of Correctable Errors is
 
 ### Cross-reference to Chapter 02's Xid tiers first
 
-ECC events surface primarily through four Xid codes covered in Chapter 02's reference table — this chapter goes deeper on the ECC-specific diagnosis and remediation, but the tier classification comes from there:
+ECC events surface primarily through these Xid codes covered in Chapter 02's reference table — this chapter goes deeper on the ECC-specific diagnosis and remediation, but the tier classification comes from there:
 
 | Xid | Meaning | Tier |
 |---|---|---|
 | 63 | ECC page retirement/row remap recording event | Tier 1 — informational, self-healing |
 | 92 | High single-bit ECC error rate | Tier 1 — precursor signal, track trend |
-| 94 | Contained ECC error | Tier 1 — no action needed |
+| 94 | Contained ECC error (uncorrectable, contained to one application) | Tier 2 — restart the affected application, reset the GPU when convenient, track recurrence |
 | 48 | Double Bit ECC Error (uncorrectable) | Tier 3 — drain immediately |
 | 64 | ECC page retirement/row remap failure | Tier 3 — the self-healing mechanism itself failed |
 | 95 | Uncontained ECC error | Tier 3 — drain immediately, verify affected job output |
@@ -60,7 +62,7 @@ ECC events surface primarily through four Xid codes covered in Chapter 02's refe
 
 ```mermaid
 flowchart TD
-    A["ECC errors detected<br/>(any Xid from table above)"] --> B{"Correctable (63/92/94)<br/>or uncorrectable<br/>(48/64/95)?"}
+    A["ECC errors detected<br/>(any Xid from table above)"] --> B{"Correctable / remap (63/92)<br/>or uncorrectable<br/>(48/64/95; 94 is Tier 2)?"}
     B -->|Uncorrectable| C["Tier 3: drain immediately,<br/>flag any job output from<br/>the affected window as<br/>unverified — see Resolution"]
     B -->|Correctable| D["Pull DCGM ECC rate<br/>history — single event<br/>or a trend?"]
     D --> E{"Rate flat/low over<br/>trailing 7-30 days?"}
@@ -99,7 +101,7 @@ Zero double-bit (uncorrectable) errors, both volatile (since last reset) and agg
 ### Second step: pull the rate trend, not just the current count
 
 ```bash
-$ dcgmi dmon -e 202 --list-history --gpu 0 --window 720h  # 30 days
+# Pseudo-query: weekly deltas of the DCGM_FI_DEV_ECC_SBE_AGG_TOTAL series in Prometheus (30 days)
 
 Timestamp             SBE_delta   Cumulative
 2026-07-08 00:00:00      3            612
@@ -118,7 +120,8 @@ $ promql_query 'avg_over_time(gpu_temperature_celsius{gpu="0"}[30d])'
 $ promql_query 'max_over_time(gpu_temperature_celsius{gpu="0"}[30d])'
 84.6   # approaching throttle threshold — see Chapter 06
 
-$ promql_query 'correlation(gpu_temperature_celsius{gpu="0"}, dcgm_ecc_sbe_total{gpu="0"})[30d]'
+# PromQL has no correlation() function; export both series and compute it offline (for example in pandas)
+$ offline_correlation DCGM_FI_DEV_GPU_TEMP DCGM_FI_DEV_ECC_SBE_AGG_TOTAL
 0.81   # strong positive correlation
 ```
 
@@ -127,12 +130,8 @@ A strong correlation (0.81) between temperature and single-bit ECC rate over the
 ### Fourth step: identify which specific memory partition is affected, if the tooling supports it
 
 ```bash
-$ dcgmi diag -r 2 --json 2>/dev/null | jq '.tests[] | select(.name=="Memory")'
-{
-  "name": "Memory",
-  "result": "Pass",
-  "info": "0 errors found in current diagnostic pass"
-}
+$ dcgmi diag -r 2 -i 0
+# Review the memory-related test results in the report; the exact test names and layout vary by DCGM version
 
 # For row-remap-specific detail (post-Ampere GPUs)
 $ nvidia-smi -i 0 -q -d ROW_REMAPPER
@@ -143,14 +142,14 @@ Row Remapper
     Pending                              : No
     Remapping Failure Occurred           : No
     Bank Remap Availability History
-        Max                              : 640
+        Max                              : 630
         High                             : 8
         Partial                          : 2
         Low                              : 0
-        None                             : 630
+        None                             : 0
 ```
 
-12 correctable rows have been remapped out of the available pool, with 630 banks still reporting no remapping needed — the GPU's self-healing row-remap mechanism (the mechanism behind Xid 63) is functioning and has plenty of headroom. `Remapping Failure Occurred: No` is the specific field to watch — if this ever flips to `Yes`, that's Xid 64 territory (Tier 3), meaning the self-healing mechanism itself is failing, not just handling routine correctable events.
+12 correctable rows have been remapped, and 630 of 640 banks still have the maximum number of spare rows available (the "Max" bucket; the "Low" and "None" buckets are the ones that signal exhaustion) — the GPU's self-healing row-remap mechanism (the mechanism behind Xid 63) is functioning and has plenty of headroom. `Remapping Failure Occurred: No` is the specific field to watch — if this ever flips to `Yes`, that's Xid 64 territory (Tier 3), meaning the self-healing mechanism itself is failing, not just handling routine correctable events.
 
 ## Resolution
 
@@ -183,12 +182,12 @@ Remapping Failure Occurred           : No
 # Address the thermal root cause per Chapter 06's methodology first —
 # do not jump straight to hardware replacement when there's a clear
 # environmental driver
-$ sudo nvidia-smi -pl 250 -i 0   # reduce power limit temporarily
+$ sudo nvidia-smi -pl 250 -i 0   # example value only; the allowed range depends on the GPU model (query it with nvidia-smi -q -d POWER)
 $ # verify airflow, check thermal paste per Ch06 if temperature
   # doesn't respond to power reduction alone
 
 # Re-measure the ECC rate trend after 1-2 weeks of corrected thermal conditions
-$ dcgmi dmon -e 202 --list-history --gpu 0 --window 168h
+# Pseudo-query: daily deltas of DCGM_FI_DEV_ECC_SBE_AGG_TOTAL for the last 7 days
 Timestamp             SBE_delta
 2026-08-05 00:00:00      1
 2026-08-06 00:00:00      2
@@ -226,14 +225,14 @@ $ dcgmi diag -r 3 -i 0   # expect Hardware/Memory stage failure, confirming
 
 2. **For thermal-correlated correctable errors: rate returns to baseline after thermal fix:**
    ```bash
-   dcgmi dmon -e 202 --list-history --gpu 0 --window 168h
+   # Query the DCGM_FI_DEV_ECC_SBE_AGG_TOTAL series for the last 7 days in Prometheus
    # Expected: weekly delta back within historical normal range
    ```
 
 3. **Row remapper headroom still healthy:**
    ```bash
-   nvidia-smi -i 0 -q -d ROW_REMAPPER | grep -E "Remapping Failure|None"
-   # Expected: "Remapping Failure Occurred: No", most banks still in "None" category
+   nvidia-smi -i 0 -q -d ROW_REMAPPER | grep -E "Remapping Failure|Max|None"
+   # Expected: "Remapping Failure Occurred: No", most banks in the "Max" bucket, "Low"/"None" at or near zero
    ```
 
 4. **Affected job outputs reviewed (for uncorrectable-error cases):**
@@ -268,15 +267,15 @@ gpu-102          5                4             +25%          0.09  <- below ale
 ```yaml
 - alert: ECCRateRisingWithThermalCorrelation
   expr: |
-    (increase(dcgm_ecc_sbe_total[7d]) > 2 * increase(dcgm_ecc_sbe_total[7d] offset 7d))
+    (increase(DCGM_FI_DEV_ECC_SBE_AGG_TOTAL[7d]) > 2 * increase(DCGM_FI_DEV_ECC_SBE_AGG_TOTAL[7d] offset 7d))
     and
-    (avg_over_time(gpu_temperature_celsius[7d]) > 75)
+    (avg_over_time(DCGM_FI_DEV_GPU_TEMP[7d]) > 75)
   for: 6h
   annotations:
     summary: "GPU {{ $labels.gpu }} ECC rate rising with elevated temperature — check thermal (Ch06) before assuming hardware failure"
 
 - alert: RowRemapperFailure
-  expr: dcgm_row_remapper_failure == 1
+  expr: DCGM_FI_DEV_ROW_REMAP_FAILURE == 1
   for: 0m
   labels: {severity: page}
   annotations:
@@ -299,10 +298,10 @@ gpu-102          5                4             +25%          0.09  <- below ale
 echo "=== ECC Escalation Data ===" > ecc_escalation.log
 nvidia-smi -i 0 -q -d ECC >> ecc_escalation.log
 nvidia-smi -i 0 -q -d ROW_REMAPPER >> ecc_escalation.log
-dcgmi dmon -e 202 --list-history --gpu 0 --window 720h >> ecc_escalation.log
+# Add the 30-day DCGM_FI_DEV_ECC_SBE_AGG_TOTAL series export from Prometheus here
 dcgmi diag -r 3 -i 0 >> ecc_escalation.log 2>&1
 # Thermal/power history for correlation review
-promql_query 'gpu_temperature_celsius{gpu="0"}[30d]' >> ecc_escalation.log
+# Add the 30-day DCGM_FI_DEV_GPU_TEMP series export from Prometheus here
 ```
 
 ### Interview Preparation
@@ -313,7 +312,7 @@ A: "Not immediately — I'd first check whether the rate correlates with somethi
 
 **Q: "What's the difference in how you respond to Xid 94 versus Xid 48?"**
 
-A: "Xid 94 is a contained ECC error — the GPU handled it internally, no data was at risk, and no action is needed beyond logging it as part of the normal rate-trend tracking. Xid 48 is a double-bit, uncorrectable ECC error — the GPU could not correct it, meaning data integrity for that memory region isn't guaranteed. That's a completely different severity: I drain the GPU immediately, and just as importantly, I go back and flag whatever job was actively using that GPU's memory during the event, because its output might be silently corrupted rather than obviously crashed. The job not crashing doesn't mean its results are trustworthy if it was touching that memory region when an uncorrectable error occurred."
+A: "Xid 94 is a contained ECC error — an uncorrectable error that the GPU contained to a single application, so that application must be restarted while other applications are unaffected, and NVIDIA recommends resetting the GPU when convenient. Xid 48 is a double-bit, uncorrectable ECC error — the GPU could not correct it, meaning data integrity for that memory region isn't guaranteed. That's a completely different severity: I drain the GPU immediately, and just as importantly, I go back and flag whatever job was actively using that GPU's memory during the event, because its output might be silently corrupted rather than obviously crashed. The job not crashing doesn't mean its results are trustworthy if it was touching that memory region when an uncorrectable error occurred."
 
 **Q: "How does the GPU's row-remap mechanism relate to Xid 63 and 64, and why does it matter operationally?"**
 
@@ -321,7 +320,7 @@ A: "Modern NVIDIA GPUs can remap a memory row that's shown a correctable error t
 
 ## Architecture Summary
 
-ECC (Error Correcting Code) memory is the ultimate defense against silent data corruption in AI training. The GPU hardware detects and fixes single-bit flips on the fly (Correctable Errors), emitting Xid 94 logs. SREs must monitor the velocity of these logs over time; if a GPU's correctable error rate spikes, it indicates physical silicon degradation. The SRE must cordon the node and trigger an RMA before the degradation inevitably results in an Uncorrectable Error (Xid 48) that crashes the training workload.
+ECC (Error Correcting Code) memory is the ultimate defense against silent data corruption in AI training. The GPU hardware detects and fixes single-bit flips on the fly (Correctable Errors), emitting no job-visible failure (rate trends show up in ECC counters and Xid 92/63). SREs must monitor the velocity of these logs over time; if a GPU's correctable error rate spikes, it indicates physical silicon degradation. The SRE must cordon the node and trigger an RMA before the degradation inevitably results in an Uncorrectable Error (Xid 48) that crashes the training workload.
 
 ```mermaid
 flowchart TD
@@ -333,7 +332,7 @@ flowchart TD
         Hardware -->|Single-Bit| Correct[Correctable Error <br/> Hardware fixes it instantly]
         Hardware -->|Double-Bit| Uncorrect[Uncorrectable Error <br/> Hardware halts!]
         
-        Correct --> Log1[Logs: Xid 94 <br/> Job continues normally]
+        Correct --> Log1["Counters increment (SBE) <br/> Xid 63 / 92 as thresholds trip <br/> Job continues normally"]
         Uncorrect --> Log2[Logs: Xid 48 <br/> Job CRASHES]
         
         Log1 --> Alert1{Does the error rate <br/> exceed normal trends?}

@@ -85,7 +85,6 @@ spec:
   - type: prometheus
     metadata:
       serverAddress: http://prometheus-operated.monitoring.svc.cluster.local:9090
-      metricName: vllm_request_queue_depth
       threshold: '20' # Scale up when there are > 20 requests per pod in the queue
       query: |
         sum(vllm:num_requests_waiting{model_name="llama3-70b"}) 
@@ -105,7 +104,7 @@ Scaling to zero saves massive costs but introduces cold starts. A 70B parameter 
 
 **Techniques to mitigate cold starts:**
 1. **Weight Caching via HostPath/Local PVs:** Pre-pull weights to node NVMe drives.
-2. **GDRCopy / GPUDirect Storage (GDS):** Bypass the CPU and load weights directly from NVMe to GPU memory.
+2. **GPUDirect Storage (GDS):** Where supported by the filesystem, driver, and framework, DMA weights from NVMe or a parallel file system toward GPU memory without a CPU bounce buffer.
 3. **Model Warmup Containers:** Use an initContainer to load weights into a shared memory volume (tmpfs), though for 140GB this requires immense host RAM.
 4. **Pre-warmed Standby Nodes:** Keep instances running but with no models loaded, allocating GPUs to low-priority batch jobs that can be instantly preempted.
 
@@ -137,7 +136,7 @@ sequenceDiagram
     
     User->>Router: POST /generate (Prompt: 10k tokens)
     Router->>Prefill: Route to Prefill nodes
-    Note over Prefill: Processes 10k tokens.<br/>Generates KV Cache.<br/>Time: 200ms
+    Note over Prefill: Processes 10k tokens.<br/>Generates KV Cache.<br/>Time: (illustrative, not measured)
     Prefill->>Decode: Transfer KV Cache (via InfiniBand/RDMA)
     Note over Decode: Starts generating<br/>tokens 1 by 1.
     Decode->>User: Stream token 1
@@ -235,8 +234,9 @@ class EnterpriseRAG:
             query=query,
             k=5,
             expr=expr,          # Milvus metadata filtering
-            consistency_level="Bounded" # Balances freshness and performance
         )
+        # Note: build `expr` from validated values, never raw user input, to avoid filter injection.
+        # Consistency level is configured on the vector store/collection, not per search call here.
         return docs
 ```
 
@@ -246,7 +246,7 @@ In conversational AI or multi-turn RAG, the LLM must re-process the entire conve
 
 **Continuous Batching & PagedAttention:**
 vLLM introduced PagedAttention. It treats the KV cache like an operating system treats virtual memory. It chunks the cache into "blocks".
-When a user sends turn 2 of a conversation, if routed to the *same* pod, the pod can reuse the KV blocks from turn 1.
+When a user sends turn 2 of a conversation, if routed to the *same* pod, the pod can reuse the KV blocks from turn 1 if automatic prefix caching is enabled.
 
 **The Routing Problem:**
 To leverage this, your Ingress/Gateway must use **Session Affinity (Sticky Sessions)** based on a `Session-ID` header, routing the user to the exact pod that holds their KV cache. If the pod dies, the cache is lost, and the next pod will have to recompute it (a "cache miss", taking longer).
@@ -260,7 +260,7 @@ An AI Factory hosts multiple teams, products, and sometimes external customers. 
 ### 1. GPU Level Isolation (MIG vs vGPU)
 
 - **MIG (Multi-Instance GPU):** Hardware-level partitioning of Hopper/Ampere GPUs. Slices memory and compute cores physically. Guarantees QoS and fault isolation. If Tenant A runs an infinite loop or OOMs, Tenant B (on a different MIG slice) is unaffected.
-- **Time-Slicing (vGPU):** Software context switching. Good for development, terrible for production inference. Tenant A's massive matrix multiply will block Tenant B's request, causing latency spikes.
+- **Time-Slicing:** Software context switching (distinct from vGPU, which is hypervisor-level virtualization). Good for development, terrible for production inference. Tenant A's massive matrix multiply will block Tenant B's request, causing latency spikes.
 
 ### 2. Network and Data Isolation
 
@@ -299,7 +299,7 @@ spec:
 
 ## Part 5: Performance & Cost Engineering
 
-Cost optimization is the defining trait of a senior AI engineer. AI infrastructure is incredibly expensive; a cluster of 8x H100s can cost upwards of $30/hour in the cloud.
+Cost optimization is the defining trait of a senior AI engineer. AI infrastructure is incredibly expensive; an 8x H100 node costs a significant amount per hour; use your own contract or on-demand price in the calculation below.
 
 ### The Key Metric: Cost per 1k Tokens
 
@@ -311,7 +311,7 @@ To calculate this, you need:
 
 ### Optimization Strategies
 
-1. **Quantization:** Moving from fp16 to int8 (AWQ/GPTQ) or fp8 (Hopper native). Halves memory requirements, doubles batch size, nearly doubles throughput.
+1. **Quantization:** Moving from fp16 to int8 (AWQ/GPTQ) or fp8 (Hopper native). Reduces weight memory (roughly 2x going from FP16 to INT8/FP8), which frees room for KV cache and larger batches. Measure accuracy and throughput on your own workload.
 2. **Batching maximization:** Ensure your autoscaler does NOT scale up too early. If you scale at queue depth = 1, your batch size is 1. GPU utilization will be poor. Let the queue build slightly to achieve batch sizes of 32 or 64.
 3. **Spot Instances:** Run stateless inference on Spot instances. KEDA must be configured to gracefully drain pods when a Spot interruption notice is received.
 
@@ -321,10 +321,11 @@ To monitor cost efficiency, use these PromQL queries:
 
 ```promql
 # 1. KV Cache Utilization (Aim for > 80% before scaling up)
+# Metric names vary by vLLM version (newer releases use vllm:kv_cache_usage_perc); check /metrics.
 sum(vllm:gpu_cache_usage_perc) by (pod)
 
 # 2. Token Throughput per Pod
-rate(vllm:num_generation_tokens_total[1m])
+rate(vllm:generation_tokens_total[1m])
 
 # 3. Time to First Token (TTFT) - User Experience Metric
 histogram_quantile(0.95, rate(vllm:time_to_first_token_seconds_bucket[5m]))
@@ -443,7 +444,7 @@ In vector databases like Milvus or Qdrant, insertion is not the same as indexing
 1. The document is chunked, embedded, and inserted into the DB (often into a WAL or memory buffer).
 2. The DB must rebuild the HNSW graph index to make it searchable.
 3. If the DB is configured for high ingestion throughput, it delays index building.
-4. Also, check the `consistency_level`. If the query uses `Eventually` or `Bounded` consistency, it might hit a read replica that hasn't synced the new index.
+4. Also, check the `consistency_level`. With `Bounded` or `Eventually` consistency, a search may not yet see the most recent inserts.
 
 **The Fix:** 
 Force an index rebuild or flush after critical ingestions, or change the search query consistency level to `Strong` (at the cost of search latency).
@@ -460,7 +461,7 @@ Turn 2 goes to Pod B. Pod B does not have the KV cache. It must recompute the en
 
 **The Fix:**
 Implement **Sticky Sessions (Session Affinity)** at the Ingress controller (e.g., NGINX, Envoy, Traefik). 
-Route based on a `Chat-Session-ID` header. This ensures Turn 1, 2, and 3 all hit Pod A. Pod A utilizes its PagedAttention KV cache, meaning Turn 2 and 3 only require lightweight decoding, drastically reducing latency (Time To First Token).
+Route based on a `Chat-Session-ID` header. This ensures Turn 1, 2, and 3 all hit Pod A. Pod A can reuse its cached KV blocks (with automatic prefix caching enabled), meaning Turn 2 and 3 only need to prefill the new tokens, drastically reducing latency (Time To First Token).
 If Pod A reaches capacity (100% KV cache utilization), the Gateway must intelligently shed load and route to a new pod, accepting the cache miss penalty gracefully.
 
 ---
@@ -485,8 +486,8 @@ While queue depth and KV cache are the primary metrics for HPA/KEDA, low-level G
 #### Key DCGM Metrics for Production
 
 1. `DCGM_FI_DEV_GPU_UTIL`: The fraction of time the GPU was active. For LLM inference using continuous batching, this should almost always be near 100%. If it drops, your batch size is too small or you are bottlenecked by CPU/Network.
-2. `DCGM_FI_DEV_MEM_COPY_UTIL`: PCIe bandwidth utilization. High spikes here during inference indicate model weights are being swapped (bad) or massive KV caches are transferring.
-3. `DCGM_FI_PROF_SM_ACTIVE`: Symmetric Multiprocessor activity. Shows true compute utilization.
+2. `DCGM_FI_DEV_MEM_COPY_UTIL`: GPU memory-bandwidth utilization (not PCIe). For PCIe or NVLink traffic use `DCGM_FI_PROF_PCIE_TX_BYTES`/`RX_BYTES` and the NVLink profiling fields.
+3. `DCGM_FI_PROF_SM_ACTIVE`: Streaming Multiprocessor activity. Shows true compute utilization.
 4. `DCGM_FI_DEV_XID_ERRORS`: The most critical alert metric. XID errors indicate hardware or driver faults.
 
 #### XID Error Troubleshooting Guide
@@ -506,7 +507,7 @@ When a GPU throws an XID error, the pod often hangs, but K8s won't restart it be
 # In production, use Node Problem Detector + Kube-apiserver.
 
 while true; do
-  XID_ERRORS=$(curl -s http://localhost:9400/metrics | grep DCGM_FI_DEV_XID_ERRORS | awk '{print $2}')
+  XID_ERRORS=$(curl -s http://localhost:9400/metrics | grep '^DCGM_FI_DEV_XID_ERRORS' | awk '{s+=$NF} END {print s+0}')
   if [ "$XID_ERRORS" -gt "0" ]; then
     NODE_NAME=$(hostname)
     echo "CRITICAL: XID Error detected on $NODE_NAME. Tainting node..."
@@ -522,12 +523,12 @@ done
 Handling text is one thing. Handling Vision (Images/Video) and Audio adds immense strain on the ingress and prefill stages.
 
 #### Vision-Language Models (VLMs)
-Models like LLaVA or GPT-4o process images. An image is transformed into a sequence of embeddings. A 1080p image might equal 3000 tokens of compute during prefill.
+Models like LLaVA or GPT-4o process images. An image is transformed into a sequence of embeddings. Depending on the model and its image preprocessing, a single image can add hundreds to thousands of tokens of prefill.
 
 **Infrastructure Impacts:**
 1. **Payload Size:** REST APIs break down. Sending a 5MB base64 encoded image over JSON is inefficient. Use gRPC or upload the image to S3 and pass the signed URL to the model.
 2. **Network Ingress:** Your Ingress controller (e.g. NGINX) must be configured to allow large client body sizes (`client_max_body_size 50M`).
-3. **Prefill Compute Spike:** Vision models spend a disproportionate amount of time in the prefill stage. Disaggregated prefill is essentially mandatory for high-traffic VLM APIs.
+3. **Prefill Compute Spike:** Vision models spend a disproportionate amount of time in the prefill stage. Disaggregated prefill is worth evaluating for high-traffic VLM APIs.
 
 ```mermaid
 sequenceDiagram
@@ -539,7 +540,7 @@ sequenceDiagram
     User->>S3: PUT image.jpg (10MB)
     S3-->>User: Returns s3://bucket/image.jpg
     User->>VLM: POST /chat (url: s3://..., prompt: "Describe")
-    VLM->>S3: Stream image directly to GPU Memory (GDS)
+    VLM->>S3: Fetch image
     VLM->>GPU: Execute Vision Encoder
     GPU-->>User: Stream Text Response
 ```
@@ -557,7 +558,7 @@ You cannot simply divide node cost by the number of pods. If Tenant A sends 1 re
 ```promql
 # Calculate cost per tenant per hour
 sum(
-  increase(vllm:num_generation_tokens_total{tenant_id=~".*"}[1h]) 
+  increase(vllm:generation_tokens_total{tenant_id=~".*"}[1h]) # requires a tenant_id label added by your gateway or relabeling; vLLM does not emit it
   * 
   0.000005 # Cost per token factor based on underlying GPU spot price
 ) by (tenant_id)
@@ -573,7 +574,7 @@ Running LLMs in production is closer to running high-frequency trading systems t
 
 When tuning the systems described above, administrators must configure exact parameters at the OS and network level.
 
-**Kernel Tuning for RDMA/RoCE (InfiniBand):**
+**Host tuning notes (memlock matters for RDMA; the TCP buffer sysctls only affect TCP paths such as bootstrap, not RDMA data transfers):**
 ```bash
 # Set max locked memory to unlimited for RDMA buffer registration
 ulimit -l unlimited
@@ -583,9 +584,6 @@ sysctl -w net.core.rmem_max=16777216
 sysctl -w net.core.wmem_max=16777216
 sysctl -w net.ipv4.tcp_rmem="4096 87380 16777216"
 sysctl -w net.ipv4.tcp_wmem="4096 65536 16777216"
-
-# Enable IP forwarding if using specific network overlays
-sysctl -w net.ipv4.ip_forward=1
 ```
 
 **vLLM Advanced Engine Arguments:**
@@ -598,8 +596,7 @@ llm = LLM(
     tensor_parallel_size=8,        # Utilize 8 GPUs
     gpu_memory_utilization=0.95,   # Reserve 5% for PyTorch context
     enforce_eager=False,           # Use CUDA graphs for faster execution
-    max_context_len_to_capture=8192,
-    disable_custom_all_reduce=False, # Use custom NCCL kernels
+    disable_custom_all_reduce=False, # Keep vLLM's custom all-reduce kernel enabled where supported
     kv_cache_dtype="fp8",          # Compress KV cache by 50%
 )
 ```
@@ -641,7 +638,7 @@ If `gpu_memory_utilization` is set too high (e.g., 0.95 or 0.98), the engine all
 **Symptoms:**
 - You are using Pipeline Parallelism (PP=4) across 4 nodes.
 - GPU utilization drops significantly on Nodes 2, 3, and 4.
-- Network bandwidth on the InfiniBand NICs (`DCGM_FI_DEV_MEM_COPY_UTIL`) shows massive, erratic spikes followed by zero activity.
+- Network bandwidth on the InfiniBand NICs (from NIC counters or your fabric telemetry, not DCGM memory-copy utilization) shows massive, erratic spikes followed by zero activity.
 
 **Root Cause:**
 Pipeline bubbles. In naive pipeline parallelism, Node 1 processes its layers, sends the intermediate tensors to Node 2, and then sits idle waiting for the entire batch to clear. This creates massive idle bubbles.
@@ -691,14 +688,14 @@ When operating RAG at hyperscale (billions of vectors), the choice of database a
 #### The Memory Cost of HNSW
 HNSW (Hierarchical Navigable Small World) is the default index for Milvus, Qdrant, and PGVector. It is incredibly fast and highly accurate (high recall). However, it requires all data to be stored in memory.
 
-A 768-dimensional float32 vector takes 3KB. 1 Billion vectors = 3TB of raw data. The HNSW graph connections add another 2-3TB of overhead. You are looking at 5-6TB of RAM just to hold the index in memory. At cloud prices, massive memory instances are extremely expensive.
+A 768-dimensional float32 vector takes 3KB. 1 Billion vectors = 3TB of raw data. The HNSW graph links add further overhead that depends on the `M` parameter. Budget well over 3TB of RAM just to hold the index in memory. At cloud prices, massive memory instances are extremely expensive.
 
 #### Optimization Strategy: IVF_PQ (Inverted File with Product Quantization)
 If HNSW is too expensive, use IVF_PQ.
 1. **IVF (Inverted File):** Clusters vectors into Voronoi cells. Search first finds the closest cluster centroid, then only searches vectors within that cell.
 2. **PQ (Product Quantization):** Compresses the vector from float32 to a smaller representation (e.g., int8) by splitting the vector into sub-vectors and replacing them with centroid IDs from a codebook.
 
-This can compress the 6TB index down to ~500GB, allowing it to fit on a single, much cheaper memory instance, or even be served out of fast NVMe storage via memory mapping (MMap).
+Depending on `m` and `nbits`, this can shrink the index by an order of magnitude or more (at some recall cost), allowing it to fit on a single, much cheaper memory instance, or even be served out of fast NVMe storage via memory mapping (MMap).
 
 **Milvus Index Configuration Example (Python):**
 
@@ -733,7 +730,7 @@ collection.load()
 While vLLM is incredibly popular, NVIDIA Triton Inference Server is the enterprise standard for serving multiple heterogeneous models (TensorRT, ONNX, PyTorch, Python) simultaneously.
 
 #### Triton Queue Metrics for Autoscaling
-Unlike vLLM which exposes `vllm_request_queue_depth`, Triton exposes queue depth per model and per version. This allows for hyper-granular autoscaling.
+Unlike vLLM, which exposes `vllm:num_requests_waiting`, Triton exposes queue depth per model and per version. This allows for hyper-granular autoscaling.
 
 When you have a Triton ensemble (e.g., an image preprocessing Python backend connected to a TensorRT vision model), you want to scale based on the queue depth of the *bottleneck* model, not just the front-end ensemble.
 

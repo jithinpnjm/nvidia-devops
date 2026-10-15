@@ -317,6 +317,8 @@ kernel_b<<<...>>>(buf);
 CUDA_CHECK(cudaDeviceSynchronize());   // <-- checkpoint 2
 ```
 
+*Illustrative output (not captured):*
+
 ```text
 $ ./service_debug
 CUDA error at service.cu:142: an illegal memory access was encountered

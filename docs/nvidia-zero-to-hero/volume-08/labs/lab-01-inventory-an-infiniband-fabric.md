@@ -90,7 +90,7 @@ ibv_devinfo -v | tee volume08-lab01/host/ibv-devinfo.txt
 
 **Expected healthy output:** at least one device and one port with valid firmware and transport information.
 
-**Realistic example output:**
+**Illustrative output (not captured):**
 
 ```text
 $ ibv_devices
@@ -131,6 +131,8 @@ Record:
 
 A healthy production port is normally expected to be logically active at the designed rate. Exact output varies by platform.
 
+Illustrative output (not captured):
+
 ```text
 $ ibstat
 CA 'mlx5_0'
@@ -148,7 +150,7 @@ CA 'mlx5_0'
         Link layer: InfiniBand
 ```
 
-**Reading it:** `State: Active` and `Physical state: LinkUp` are the two checkpoints (Chapter 2). `Rate: 400` is the negotiated Gb/s. `Base lid: 12` means the SM assigned this port local ID 12 (mutable, not for durable inventory). `SM lid: 1` tells you which switch is running the SM. If any of these fields is wrong (state not Active, rate below design, base LID = 0), that's the failure point to investigate before anything above.
+**Reading it:** `State: Active` and `Physical state: LinkUp` are the two checkpoints (Chapter 2). `Rate: 400` is the negotiated Gb/s. `Base lid: 12` means the SM assigned this port local ID 12 (mutable, not for durable inventory). `SM lid: 1` is the LID of the port where the master SM runs (a managed switch or a management host, depending on the deployment). If any of these fields is wrong (state not Active, rate below design, base LID = 0), that's the failure point to investigate before anything above.
 
 ### Step 3 — Inspect GIDs and P_Keys
 

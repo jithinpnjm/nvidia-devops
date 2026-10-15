@@ -13,6 +13,12 @@ Storage in AI infrastructure is not just about keeping data safe; it is about fe
 
 ---
 
+:::note Illustrative output
+The command output blocks in this chapter (fd listings, `iostat`, `df`, `fio`, `/proc/pressure/io`, `strace`) are illustrative examples (not captured from a real system). Your values and column sets will differ by tool version.
+:::
+
+---
+
 ## Part 1: Foundations of Storage and Filesystems
 
 ### The Problem Storage Exists to Solve
@@ -150,7 +156,7 @@ lrwx------ 1 app app 64 Jul 30 10:00 4 -> socket:[884213]
 l-wx------ 1 app app 64 Jul 30 10:00 5 -> /var/log/app.log (deleted)
 lrwx------ 1 app app 64 Jul 30 10:00 6 -> /data/model-shard-0042.bin
 ```
-The `(deleted)` marker is the single most common real-world fd leak: a log rotation tool `unlink()`s the file, but the process still holds the fd open. Disk usage doesn't drop (`du` won't show it, the inode is still allocated) even though `ls` shows the file gone. **`df` and `du` disagreeing after a log rotation is this exact bug, every time — check `lsof +L1` before anything else.**
+The `(deleted)` marker is the single most common real-world fd leak: a log rotation tool `unlink()`s the file, but the process still holds the fd open. Disk usage doesn't drop (`du` won't show it, the inode is still allocated) even though `ls` shows the file gone. **`df` reporting much more used space than `du` after a log rotation is a classic symptom of this bug — check `lsof +L1` early.**
 
 ### `lsof -p`, `/proc/<PID>/limits`, and `ss -s`, annotated
 
@@ -415,7 +421,7 @@ flowchart TD
     Cache -. "write() returns (Fast, NOT Durable)" .-> App
     
     Cache -- "Explicit fsync()/fdatasync()" ---> Sync["Synchronous Flush (Thread Blocks)"]
-    Cache -- "Background pdflush/kworker" ---> Async["Kernel Writeback (Thread does not block)"]
+    Cache -- "Background kernel flusher (kworker) threads" ---> Async["Kernel Writeback (Thread does not block)"]
     
     Sync --> Block["Block Layer"]
     Async --> Block
@@ -459,28 +465,28 @@ Consider a distributed training run across 256 nodes, each equipped with 8x H100
 
 When the training loop begins, the data loaders on all 2,048 GPUs simultaneously issue `open()` and `read()` calls to the shared filesystem. This massive fan-in creates a sudden burst of metadata requests (to resolve file paths to object storage locations) and data reads. 
 
-If the storage system's metadata servers are not scaled proportionally, this metadata storm will manifest as high `await` times on the compute nodes, even if the raw storage bandwidth is underutilized. `iostat -xz 1` on the compute nodes might show low `%util` but soaring `aqu-sz` (queue size) for the network mounts.
+If the storage system's metadata servers are not scaled proportionally, this metadata storm will manifest as high `await` times on the compute nodes, even if the raw storage bandwidth is underutilized. `iostat -xz 1` covers only local block devices; for NFS mounts use `nfsiostat` or the client's mountstats to see per-operation RTT and queueing.
 
 Furthermore, if the data loading process relies on standard buffered I/O, the kernel's page cache on each compute node will rapidly fill up. The kernel must then aggressively evict pages to make room for new data, leading to high CPU overhead (visible as `kswapd` activity or high `sys` CPU time in `top`).
 
-To mitigate this, advanced data loaders utilize `O_DIRECT` or memory-mapped files (`mmap`), often combined with asynchronous I/O frameworks like `io_uring`. By bypassing the page cache, they eliminate the memory pressure and CPU overhead of memory copies.
+To mitigate this, advanced data loaders utilize `O_DIRECT`, often combined with asynchronous I/O frameworks like `io_uring` (note that `mmap` still goes through the page cache). By bypassing the page cache, they eliminate the memory pressure and CPU overhead of memory copies.
 
 The ultimate optimization is GPUDirect Storage (GDS). With GDS, the data flows directly from the NVMe drives (or network interface cards in the case of networked storage) over the PCIe bus to the GPU memory, completely bypassing the CPU and system memory. This maximizes throughput and minimizes latency, ensuring the GPUs are constantly fed with data.
 
-However, GDS requires careful alignment of data structures and specific filesystem support. If the alignment requirements are not met (as discussed in Part 3), the kernel will fall back to standard buffered I/O, negating the performance benefits. Diagnosing this fallback requires tracing syscalls with `strace` or analyzing performance counters using tools like `nsys` (NVIDIA Nsight Systems).
+However, GDS requires a supported filesystem and driver stack. When the direct path is unavailable, the cuFile library can fall back to a compatibility mode that uses ordinary POSIX I/O through host memory, negating the benefit. Check the cuFile logs and the `gdscheck` tool from the GDS package to confirm which path is in use.
 
 Therefore, a Senior Solutions Architect must not only understand the hardware capabilities but also intimately trace the software stack from the application's read request down to the PCIe transaction.
 
-## Appendix 30: Extended Troubleshooting Metrics
+## Appendix 2: Extended Troubleshooting Metrics
 When analyzing the storage stack in production, especially under the load of thousands of GPUs, traditional metrics often fail to reveal the true bottleneck. A common trap is relying solely on `iostat` without understanding its limitations on modern multi-queue NVMe drives. 
 
-As mentioned, `%util` in `iostat` measures the percentage of time the device had at least one outstanding request. On an old spinning disk, 100% utilization meant the drive was fully saturated. On a modern NVMe drive with 64K submission queues, a single-threaded process issuing sequential reads can drive `%util` to 100% while only consuming a fraction of the device's actual bandwidth and IOPS capacity. The drive is technically "busy" 100% of the time, but it's only processing one request at a time, completely failing to utilize its internal parallelism.
+As mentioned, `%util` in `iostat` measures the percentage of time the device had at least one outstanding request. On an old spinning disk, 100% utilization meant the drive was fully saturated. On a modern NVMe drive (the NVMe spec allows up to 64K queues, each up to 64K entries deep), a low-queue-depth workload (for example a single-threaded synchronous reader) can drive `%util` to 100% while only consuming a fraction of the device's actual bandwidth and IOPS capacity. The drive is technically "busy" 100% of the time, but it's only processing one request at a time, completely failing to utilize its internal parallelism.
 
 To accurately assess NVMe saturation, you must look at `aqu-sz` (average queue size) alongside bandwidth (`rkB/s`, `wkB/s`) and IOPS (`r/s`, `w/s`). If `%util` is 100% but `aqu-sz` is low (e.g., < 4) and bandwidth is far below the manufacturer's spec, the bottleneck is the application's I/O submission pattern (synchronous, single-threaded), not the drive itself.
 
 In such scenarios, rewriting the application to use asynchronous I/O (`io_uring`) or spawning multiple reader threads is required to build enough queue depth to saturate the NVMe controller. This is a critical distinction that separates a senior engineer from a junior one: diagnosing the application's I/O pattern as the limiting factor, rather than immediately blaming the hardware.
 
-Furthermore, consider the impact of the Linux block layer scheduler. By default, many distributions still use `mq-deadline` or `kyber` for NVMe drives. For raw performance in AI workloads, setting the scheduler to `none` (bypassing the scheduler entirely) often yields the best results, as the NVMe controller's internal firmware is better equipped to handle the massive parallelism than the OS software layer. 
+Furthermore, consider the impact of the Linux block layer scheduler. For NVMe drives most current kernels already default to `none`, but some distributions or udev rules select `mq-deadline` or `kyber`. For low-latency, high-parallelism workloads, `none` is commonly the best choice, since the device handles its own parallelism; verify with a benchmark on your hardware. 
 
 ```bash
 # Check the current scheduler
@@ -489,4 +495,4 @@ cat /sys/block/nvme0n1/queue/scheduler
 # Set the scheduler to 'none'
 echo none > /sys/block/nvme0n1/queue/scheduler
 ```
-This single parameter tweak, when applied across a cluster of 1,000 nodes, can recover thousands of IOPS and reduce tail latency significantly during parallel checkpointing events.
+The setting is not persistent across reboots (use a udev rule or tuned profile to persist it). Measure before and after with `fio`; the benefit depends on the device and workload and is often small.

@@ -42,7 +42,7 @@ If the Host CPU is not doing heavy math, the Linux kernel will drop the CPU freq
 **The AI Penalty:**
 When a GPU finishes a massive batch of math, it interrupts the CPU to ask for more data. If the CPU is asleep in a deep C-State, it takes milliseconds to wake up, ramp up its clock speed, and respond. Those milliseconds of latency happen thousands of times a second, creating a massive cumulative stall on the GPU.
 
-*The Fix:* An SRE must configure the CPU governor to `performance` mode, locking the CPU cores at maximum frequency and disabling deep sleep states. 
+*The Fix:* An SRE must set the CPU frequency governor to `performance` (which keeps clocks high) and, separately, limit deep C-states through BIOS settings or kernel parameters (for example `intel_idle.max_cstate=` on Intel platforms). 
 
 ## 2. PCIe Gen and ASPM
 
@@ -76,15 +76,15 @@ First, the kernel is likely placing the Host CPU cores into deep sleep states (C
 Second, the Linux kernel is likely pausing your critical inference threads to process random hardware interrupts (like a network packet arriving on a management interface) or running garbage collection. 
 
 To achieve absolute deterministic latency, we must execute extreme **System-Level Tuning**. 
-1. We will alter the CPU governor to `performance`, explicitly disabling C-States (`intel_idle.max_cstate=0`). The CPU cores will run at maximum frequency permanently.
+1. We will set the CPU governor to `performance` and limit deep C-states (for example with the `intel_idle.max_cstate` kernel parameter or a BIOS setting). The CPU cores will stay at high frequency and wake quickly.
 2. We will use `taskset` or `numactl` to pin the critical inference threads to specific CPU cores. 
 3. We will use `isolcpus` in the Linux boot parameters to explicitly tell the Linux kernel scheduler to *never* schedule generic OS tasks or hardware interrupts on those specific pinned cores. 
 
-By isolating the CPU cores and locking them at maximum power, we completely eliminate OS-level context-switching jitter, removing the 2-millisecond spikes entirely."
+By isolating the CPU cores and locking them at maximum power, we completely eliminate OS-level context-switching jitter, which should remove most OS-induced jitter; verify with a latency histogram."
 
 ## Interview Preparation
 
-**Conceptual:** Why must an SRE change the Linux CPU governor from `powersave` to `performance` on a GPU compute node? *(Hint: By default, Linux puts idle CPU cores to sleep to save power. When a GPU needs data, the sleeping CPU takes milliseconds to wake up and respond. This latency compounds thousands of times a second, starving the GPU. Setting the governor to `performance` locks the CPU at maximum speed, eliminating the wake-up latency).*
+**Conceptual:** Why must an SRE change the Linux CPU governor from `powersave` to `performance` on a GPU compute node? *(Hint: By default, Linux puts idle CPU cores to sleep to save power. When a GPU needs data, the sleeping CPU takes milliseconds to wake up and respond. This latency compounds thousands of times a second, starving the GPU. Setting the governor to `performance` keeps the CPU clocks high; limiting deep C-states addresses the wake-up latency).*
 
 **Architecture:** What is Active State Power Management (ASPM) and why should it be disabled on AI servers? *(Hint: ASPM is a hardware power-saving feature that puts PCIe lanes to sleep when idle. For AI workloads that require constant, microsecond-latency data transfers across the PCIe bus, the latency introduced by waking up the PCIe lanes causes severe performance jitter. It must be disabled via the kernel boot parameters).*
 
@@ -97,7 +97,7 @@ flowchart TD
     subgraph System_Level_Tuning["Host OS Performance Tuning Checklist"]
         direction TB
         
-        S1["1. CPU Power Management"] -->|Disable C-States| Fix1["Lock Governor to 'performance'"]
+        S1["1. CPU Power Management"] -->|Disable C-States| Fix1["Governor 'performance' + limit C-states"]
         S2["2. PCIe Power Management"] -->|Disable ASPM| Fix2["Set pcie_aspm=off in Grub"]
         S3["3. NUMA Topology"] -->|Prevent QPI/UPI Crossings| Fix3["Use numactl / K8s Topology Manager"]
         S4["4. OS Interrupt Jitter"] -->|Isolate CPU Cores| Fix4["Use isolcpus to dedicate cores to AI"]

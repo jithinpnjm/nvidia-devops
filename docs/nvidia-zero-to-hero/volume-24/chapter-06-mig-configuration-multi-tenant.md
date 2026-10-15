@@ -47,7 +47,7 @@ You have **one H100 GPU** (80 GB HBM3, ~989 TensorCore TFLOPS BF16 dense, ~3.35 
 
 ## MIG Partition Options
 
-**H100 80GB MIG profiles (real NVIDIA profile names):**
+**H100 80GB MIG profiles (real NVIDIA profile names; the TFLOPS column is a back-of-envelope slice-proportional estimate of the 989 TFLOPS dense BF16 peak, not an NVIDIA-published per-profile figure; the H100 also offers 1g.20gb, and valid placements are listed by `nvidia-smi mig -lgip`):**
 
 ```
 Profile       Compute Slices   GPU Memory   BF16 Tensor Core TFLOPS
@@ -59,7 +59,7 @@ Profile       Compute Slices   GPU Memory   BF16 Tensor Core TFLOPS
 1g.10gb       1/7              10 GB        141 TFLOPS
 ```
 
-The "Ng" prefix denotes N of 7 total GPU compute slices (the "7g" profile is always the full GPU — for an 80GB H100 that's `7g.80gb`). TFLOPS scale roughly proportionally with slice count; memory allocations are fixed by profile, not freely chosen.
+The "Ng" prefix denotes N of 7 total GPU compute slices (the "7g" profile is always the full GPU — for an 80GB H100 that's `7g.80gb`). TFLOPS in this table are estimated by scaling with slice count (actual per-instance SM counts do not scale exactly); memory allocations are fixed by profile, not freely chosen.
 
 MIG lets you **mix partition sizes on the same GPU**, as long as total compute slices ≤ 7 and total memory ≤ 80 GB (subject to the physical placement rules `nvidia-smi mig -lgip` reports for your specific GPU). Right-sizing each workload to its actual need — rather than carving the GPU into identical halves or quarters — is how MIG is normally used in production. Relevant combinations here:
 - **7g.80gb (1 partition):** One workload uses the full GPU

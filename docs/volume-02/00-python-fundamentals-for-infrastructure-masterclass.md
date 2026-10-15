@@ -101,7 +101,9 @@ Infrastructure code is heavily conditional. We constantly check states: *Is the 
 #### Conditional Assignments (Ternary Operator)
 In infrastructure code, we often fall back to defaults.
 ```python
-# Explicit (Verbous)
+import os
+
+# Explicit (Verbose)
 env = os.getenv("APP_ENV")
 if env:
     target_cluster = env
@@ -128,7 +130,7 @@ def fetch_logs(file_path):
         for line in f:
             yield line.strip()
 
-# The event loop is blocked here only for the current line.
+# Only one line is held in memory at a time.
 for log_entry in fetch_logs("/var/log/syslog"):
     if "ERROR" in log_entry:
         print(f"Found error: {log_entry}")
@@ -163,7 +165,7 @@ for yaml_file in manifest_dir.rglob("*.yaml"):
 ### 2.2 System Execution with `subprocess`
 
 :::warning Security Notice
-`os.system()` is fundamentally unsafe and deprecated. For executing shell commands (like `kubectl`, `aws`, or `helm`), use `subprocess.run`.
+`os.system()` runs its argument through a shell, which invites injection bugs and gives you no structured access to output or errors. For executing commands (like `kubectl`, `aws`, or `helm`), use `subprocess.run` with an argument list.
 :::
 
 ```mermaid
@@ -346,7 +348,7 @@ def retry(max_attempts=3, delay=2, backoff=2, exceptions=(Exception,)):
     """
     Retries a function upon failure with exponential backoff.
     
-    :param max_attempts: Maximum number of retries.
+    :param max_attempts: Maximum number of attempts (including the first call).
     :param delay: Initial delay between retries in seconds.
     :param backoff: Multiplier applied to delay after each retry.
     :param exceptions: Tuple of exceptions that trigger a retry.
@@ -396,19 +398,16 @@ classDiagram
         <<Abstract>>
         +authenticate()*
         +provision_vm(name)*
-        +delete_vm(id)*
     }
     
     class AWSProvider {
         +authenticate()
         +provision_vm(name)
-        +delete_vm(id)
     }
     
     class NVIDIAProvider {
         +authenticate()
         +provision_vm(name)
-        +delete_vm(id)
     }
     
     BaseCloudProvider <|-- AWSProvider
@@ -449,7 +448,7 @@ class AWSProvider(BaseCloudProvider):
         print(f"[AWS] Provisioning EC2 {size} named {name} -> {instance_id}")
         return {"provider": "aws", "id": instance_id, "status": "running"}
 
-# 3. Implement NVIDIA Specifics
+# 3. Implement NVIDIA Specifics (illustrative mock: the endpoint and token handling are placeholders, not a real provisioning API)
 class NVIDIAProvider(BaseCloudProvider):
     def __init__(self, endpoint: str):
         self.endpoint = endpoint
@@ -491,7 +490,7 @@ deploy_app_stack(nv_cloud, "ai-workload")
 In modern infrastructure, latency is primarily I/O bound (waiting for API responses, waiting for SSH execution, waiting for database queries). CPU-bound latency (data processing, rendering) is secondary in control planes.
 
 ### 5.1 The Global Interpreter Lock (GIL)
-CPython (the standard Python runtime) has a Global Interpreter Lock. This means **only one thread can execute Python bytecode at a time**, even on a 64-core machine.
+CPython (the standard Python runtime) has a Global Interpreter Lock. This means **only one thread can execute Python bytecode at a time** in the default build, even on a 64-core machine. (Python 3.13 added an optional experimental free-threaded build that removes this limit; the default build still has the GIL.)
 - **Multithreading** in Python is *only* good for I/O bound tasks (like multiple network requests), as the GIL is released during I/O waits.
 - **Multiprocessing** creates entirely new OS processes (bypassing the GIL), but consumes heavy memory. Good for CPU-bound tasks.
 - **AsyncIO** uses a single thread and an Event Loop to manage thousands of concurrent I/O operations cooperatively. It is the modern standard for fast networking.
@@ -577,6 +576,10 @@ async def bad_handler():
 **The Fix:**
 If you MUST use a blocking library (e.g., an older DB driver or SDK that doesn't support async), offload it to a thread pool via `run_in_executor`:
 
+```python
+import time
+import asyncio
+
 def legacy_blocking_task():
     # Some legacy boto3 or requests call
     time.sleep(5)
@@ -632,7 +635,7 @@ import sys
 # Start Terraform in a new session / process group
 process = subprocess.Popen(
     ["terraform", "apply", "-auto-approve"],
-    preexec_fn=os.setsid 
+    start_new_session=True  # new session/process group (preferred over preexec_fn=os.setsid)
 )
 
 def signal_handler(signum, frame):
@@ -785,7 +788,9 @@ class IPAllocation:
     cidr_block: str
     
     def __post_init__(self):
-        if not self.cidr_block.startswith("10.") and not self.cidr_block.startswith("192."):
+        import ipaddress
+        network = ipaddress.ip_network(self.cidr_block)  # raises ValueError if malformed
+        if not network.is_private:
             raise ValueError(f"Invalid private CIDR block: {self.cidr_block}")
 ```
 
@@ -826,9 +831,6 @@ def update_database_record(record_id, data):
     finally:
         print("Closing database connection.")
 ```
-
-### Pattern 2: Operational Checklist and Validation
-
 
 ---
 

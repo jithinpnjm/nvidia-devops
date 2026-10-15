@@ -119,7 +119,7 @@ uname -m
 lscpu | sed -n '1,20p'
 ```
 
-### Expected Output
+### Expected Output (illustrative, not captured)
 
 The commands should identify the distribution, running kernel, architecture, and basic CPU topology. Exact values depend on the host.
 
@@ -153,7 +153,7 @@ Verify that Linux detects NVIDIA hardware independently of CUDA runtime health.
 lspci -Dnn | grep -i nvidia
 ```
 
-#### Expected Output
+#### Expected Output (illustrative, not captured)
 
 ```text
 0000:07:00.0 3D controller [0302]: NVIDIA Corporation GA100 [A100 SXM4 40GB] [10de:20b0] (rev a1)

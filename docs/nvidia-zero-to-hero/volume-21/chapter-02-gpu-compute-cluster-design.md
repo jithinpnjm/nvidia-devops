@@ -19,13 +19,16 @@ tags: [gpu-cluster, topology, nvlink, infiniband, performance, cost-analysis]
 
 ---
 
+
+> **Note on figures:** Prices, utilization, efficiency, and cost figures in this chapter are illustrative planning assumptions, not vendor quotes or measurements. Hardware specifications in the tables follow NVIDIA datasheets for dense (non-sparse) Tensor Core throughput; always confirm against the current datasheet for the exact SKU you are buying.
+
 ## Beginner's Primer: Building the Mega-Node
 
 When you build a gaming PC, you plug a single GPU into a PCIe slot.
 When you build an AI Factory, you are buying pre-built "Mega-Nodes" (like an NVIDIA DGX server) that contain 8 GPUs squeezed into a single chassis. 
 
 Why 8? 
-Because 8 is the physical limit of how many GPUs NVIDIA can wire together using their ultra-fast **NVLink** and **NVSwitch** technology inside a single box. NVLink allows those 8 GPUs to talk to each other at 900 GB/s. If you used standard PCIe cables, they would talk at 64 GB/s. 
+Because 8 GPUs is the standard size of an NVIDIA HGX/DGX baseboard, where four NVSwitch chips wire all eight GPUs together over **NVLink** inside a single box (larger NVLink domains exist, such as the 72-GPU GB200 NVL72 rack). On H100, NVLink gives each GPU 900 GB/s of total bandwidth to the other GPUs. A PCIe Gen5 x16 link provides about 64 GB/s per direction. 
 
 This creates a massive architectural boundary:
 - **Intra-Node (Inside the box):** Communication is incredibly fast (900 GB/s via NVLink).
@@ -35,27 +38,27 @@ As an AI Architect, you must perfectly balance the power of the GPU (e.g., A100 
 
 ## PART 1: GPU SELECTION MECHANICS
 
-### 1.1 Current GPU Landscape (August 2026)
+### 1.1 GPU Landscape (selected data center GPUs)
 
-| GPU | Released | Memory | HBM Bandwidth | Peak TFLOPS (FP32) | Peak TFLOPS (TF32) | Peak TFLOPS (BF16) | Peak TFLOPS (FP8) | Tensor Cores | PCIe Bandwidth | Power | Cost per Unit | Cost per TFLOP |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| **A100 (PCIe)** | Aug 2020 | 40GB HBM2e | 1.555 TB/s | 19.5 | 156 | 312 | N/A | 6,912 | 64 GB/s | 250W | $10,000 | $32 |
-| **A100 (SXM4)** | Aug 2020 | 40GB HBM2e | 1.555 TB/s | 19.5 | 156 | 312 | N/A | 6,912 | — | 250W | $15,000 | $48 |
-| **A100 (80GB)** | Aug 2021 | 80GB HBM2e | 2.039 TB/s | 19.5 | 156 | 312 | N/A | 6,912 | — | 350W | $25,000 | $80 |
-| **H100 (PCIe)** | Mar 2023 | 80GB HBM3 | 2.457 TB/s | 67 | 495 | 989 | 1,979 | 14,080 | 64 GB/s | 350W | $20,000 | $20 |
-| **H100 (SXM5)** | Mar 2023 | 80GB HBM3 | 3.352 TB/s | 67 | 495 | 989 | 1,979 | 14,080 | — | 350W | $30,000 | $30 |
-| **H200 (SXM5)** | Mar 2024 | 141GB HBM3e | 4.8 TB/s | 67 | 495 | 989 | 1,979 | 14,080 | — | 500W | $40,000 | $40 |
-| **GB200** | Jun 2024 | 192GB (Grace CPU + 2×GB100) | 5.6 TB/s | 1,457 | 5,828 | 11,656 | 23,312 | 32,768 | — | 880W | $60,000 | $5 |
-| **L40S (inference)** | Nov 2023 | 48GB GDDR6 | 0.864 TB/s | 91 | 368 | 731 | — | 14,080 | 256 GB/s | 350W | $8,000 | $11 |
+| GPU | Announced | Memory | Memory bandwidth | FP32 (TFLOPS) | TF32 dense (TFLOPS) | BF16 dense (TFLOPS) | FP8 dense (TFLOPS) | Max power (TDP) | Illustrative unit price | Price per BF16 TFLOP |
+|---|---|---|---|---|---|---|---|---|---|---|
+| **A100 40GB PCIe** | May 2020 | 40GB HBM2 | 1.555 TB/s | 19.5 | 156 | 312 | N/A | 250W | $10,000 | $32 |
+| **A100 40GB SXM4** | May 2020 | 40GB HBM2 | 1.555 TB/s | 19.5 | 156 | 312 | N/A | 400W | $15,000 | $48 |
+| **A100 80GB SXM4** | Nov 2020 | 80GB HBM2e | 2.039 TB/s | 19.5 | 156 | 312 | N/A | 400W | $25,000 | $80 |
+| **H100 PCIe** | Mar 2022 | 80GB HBM2e | 2.0 TB/s | 51 | 378 | 756 | 1,513 | 350W | $20,000 | $26 |
+| **H100 SXM5** | Mar 2022 | 80GB HBM3 | 3.35 TB/s | 67 | 494 | 989 | 1,979 | 700W | $30,000 | $30 |
+| **H200 SXM** | Nov 2023 | 141GB HBM3e | 4.8 TB/s | 67 | 494 | 989 | 1,979 | 700W | $40,000 | $40 |
+| **L40S** | Aug 2023 | 48GB GDDR6 | 0.864 TB/s | 91.6 | 183 | 362 | 733 | 350W | $8,000 | $22 |
+| **GB200 NVL72 (rack)** | Mar 2024 | 72 B200 GPUs + 36 Grace CPUs per rack | see datasheet | see datasheet | see datasheet | see datasheet | see datasheet | liquid cooled, rack-scale (order of 100+ kW per rack) | quote only | n/a |
 
-*TFLOPS figures above are dense (non-sparsity) Tensor Core throughput, matching the values used in the cost-per-TFLOP examples below. A100 has no native FP8 Tensor Core support (FP8 was introduced with Hopper); its comparable low-precision figure is INT8 at 624 TOPS dense.*
+*Throughput values are dense (non-sparsity) Tensor Core figures; NVIDIA datasheets often quote the sparse figure, which is double. A100 has no FP8 Tensor Core support (FP8 arrived with Hopper). Prices are illustrative planning assumptions.*
 
 **Key Observations:**
-1. H100 has ~3x higher TFLOPS/$ than A100.
-2. H100 SXM5 > PCIe: 3.352 TB/s vs 2.457 TB/s (+36% HBM bandwidth) drives better multi-GPU scaling.
-3. H200 offers 76% more memory (141GB vs 80GB) but costs +33% and draws +43% power—ROI depends on model size.
-4. GB200 has extreme TFLOPS density but costs 2x H100 and draws 2.5x power; only economical at planet scale.
-5. L40S (inference GPU): cheaper, lower power than H100, but compute-limited; good for decode-bound workloads.
+1. Under these assumed prices, H100 SXM5 delivers roughly 1.6x the BF16 TFLOPS per dollar of A100 SXM4 (about $30 versus $48 per TFLOP), and the gap grows with FP8.
+2. H100 SXM5 versus PCIe: 3.35 TB/s versus 2.0 TB/s of memory bandwidth, 989 versus 756 dense BF16 TFLOPS, and 900 GB/s NVLink versus PCIe Gen5 between GPUs. SXM costs more power (700W versus 350W) but drives better multi-GPU scaling.
+3. H200 has the same compute as H100 SXM with 76% more memory (141GB versus 80GB) and 43% more bandwidth (4.8 versus 3.35 TB/s); ROI depends on model size and whether you are memory-capacity or bandwidth bound.
+4. Blackwell-generation systems (GB200 NVL72) are rack-scale, liquid-cooled products with a 72-GPU NVLink domain; plan them as a facility design project, not as a drop-in server.
+5. L40S is a PCIe, GDDR6 inference GPU with no NVLink: lower cost and power than H100, but much lower memory bandwidth, which matters for decode-bound LLM serving.
 
 ### 1.2 Cost Per TFLOP Analysis
 
@@ -72,22 +75,19 @@ H100 (SXM5):
   Cost: $30,000 / 989 TFLOPS (BF16) = $30 per TFLOP
   3-year CAPEX amortization: $30 / 3 = $10/TFLOP/year
 
-H200 (SXM5):
+H200 (SXM):
   Cost: $40,000 / 989 TFLOPS (BF16) = $40 per TFLOP
-  BUT: +76% memory enables larger model → +20% utilization
-  Effective cost: $40 * 0.8 / 3 = $11/TFLOP/year
-  
-Cost advantage: H200 ≈ H100 for training, but handles larger models
+  Same compute as H100, with more memory capacity and bandwidth. Whether that
+  pays back depends on whether your workload is memory-bound (assumption to measure,
+  not a fixed utilization gain)
 
-GB200 (inference focus, FP8):
-  Cost: $60,000 / 23,312 TFLOPS (FP8) = $2.57 per TFLOP
-  BUT: Requires $5K networking per GPU, $10K+ total cost of ownership per unit
-  Realistic cost: $8/TFLOP after overhead
-  Cost advantage: Only at >1000 GPU scale
+GB200 NVL72 (rack-scale):
+  Priced and deployed as a rack system; compare on delivered cost per training token or
+  per served token for your workload, not on list price per GPU
 ```
 
 **Recommendation Framework:**
-- **Training workload:** H100 SXM5 unless memory is critical (then H200).
+- **Training workload:** H100 SXM5 unless memory is critical (then H200), or Blackwell systems where available.
 - **Inference workload:** L40S if cost-dominant, H100 if performance-dominant.
 - **Multi-region scale (>256 GPUs):** Negotiate volume discounts; $/TFLOP may drop 20–30%.
 
@@ -100,30 +100,29 @@ GB200 (inference focus, FP8):
 #### Configuration A: 8×H100 SXM5 Dense Training Node
 
 ```yaml
-Specification:
+Specification (modeled on NVIDIA DGX H100 / HGX H100):
   GPUs:              8× H100 80GB SXM5 GPUs
   GPU Memory Total:  640 GB
-  GPU Interconnect:  NVLink 5.0 (600 GB/s full bisection)
-  CPU:               2× AMD EPYC Bergamo (128 cores, 192GB DDR5)
-  CPU Memory:        192 GB DDR5 (host pinned memory for P2P)
-  Storage:           4× 7.68 TB NVMe (30 TB total, PCIe 5.0 → 30 GB/s seq read)
-  
+  GPU Interconnect:  NVLink 4 via 4 NVSwitch chips (900 GB/s per GPU)
+  CPU:               2× x86 server CPUs (DGX H100 uses 2× Intel Xeon Platinum 8480C, 112 cores total)
+  CPU Memory:        2 TB DDR5 in DGX H100
+  Storage:           8× 3.84 TB NVMe (about 30 TB) local data cache in DGX H100
+
 Power & Cooling:
-  GPU Power:         8 × 350W = 2.8 kW
-  CPU Power:         2 × 600W = 1.2 kW
-  Total Peak:        4 kW (within standard 40A 208V PDU circuit)
-  Cooling:           Liquid loop with 5 kW capacity (130% headroom)
+  GPU Power:         8 × 700W = 5.6 kW
+  System Power:      DGX H100 is rated at up to about 10.2 kW per system
+  Cooling:           Air cooled; plan rack power and airflow for roughly 10 kW per node
 
 Network:
-  Host-to-Cluster:   1× 400GbE NIC (NVIDIA BlueField DPU for minimal host overhead)
-  In-band DCGM:      1 Gbps out-of-band management network
-  
+  Compute fabric:    8× ConnectX-7 NICs at 400 Gb/s (one per GPU, "rails")
+  Storage/in-band:   2× BlueField-3 DPUs
+  Management:        Separate out-of-band BMC network
+
 Performance Profile:
-  Theoretical Peak:  8 × 989 TFLOPS (BF16) = 7,912 TFLOPS
-  Practical Peak:    ~6,500 TFLOPS (80% efficiency due to synchronization, data loading)
-  AllReduce BW:      600 GB/s (full NVLink bisection)
-  
-Cost:
+  Theoretical Peak:  8 × 989 TFLOPS (BF16, dense) = 7,912 TFLOPS
+  Practical Peak:    ~6,500 TFLOPS (assumes about 80% efficiency; measure your own MFU)
+
+Cost (illustrative):
   8×H100 SXM5:       $240,000 (8 × $30K)
   CPUs, Memory, NVMe: $30,000
   Networking, Rails:  $10,000
@@ -138,69 +137,48 @@ Cost:
 
 ```yaml
 Specification:
-  GPUs:              8× H100 80GB PCIe GPUs (mounted in 8-slot GPU chassis)
+  GPUs:              8× H100 80GB PCIe GPUs (PCIe Gen5, 350W each)
   GPU Memory Total:  640 GB
-  GPU Interconnect:  PCIe 5.0 (32 GB/s per GPU, total 128 GB/s but switched, not full bisection)
-  CPU:               1× AMD EPYC Bergamo (128 cores, 192GB DDR5)
-  Storage:           6× 14TB HDD + 2× 7.68TB NVMe (84 TB + 15 TB, RAID-6 for data, RAID-1 for checkpoint)
-  
+  GPU Interconnect:  PCIe Gen5 x16 per GPU (about 64 GB/s per direction); optional NVLink bridges
+                     connect only pairs of H100 PCIe GPUs, not all eight
+  CPU:               1–2× x86 server CPUs with enough PCIe lanes for 8 GPUs and NICs
+  Storage:           Local NVMe for cache plus network storage for datasets
+
 Power & Cooling:
   GPU Power:         8 × 350W = 2.8 kW
-  CPU Power:         1 × 600W = 0.6 kW
-  Storage Power:     8 × 10W = 0.08 kW
-  Total Peak:        3.5 kW
-  Cooling:           Air + 4 kW spot cooling for storage enclosure
-  
+  CPU/other:         roughly 1–1.5 kW
+  Total Peak:        roughly 4–4.5 kW (confirm with the chassis vendor)
+  Cooling:           Air cooled
+
 Network:
-  Host-to-Cluster:   2× 100GbE NICs (redundancy, LACP bonding for 200GbE effective bandwidth to storage network)
-  
+  Host-to-Cluster:   2× 100GbE or faster NICs for storage/serving traffic
+
 Performance Profile:
-  Theoretical Peak:  8 × 989 TFLOPS (BF16) = 7,912 TFLOPS
-  Practical Peak:    ~5,500 TFLOPS (70% efficiency due to PCIe interconnect contention and data I/O)
-  AllReduce BW:      ~50 GB/s (PCIe bottleneck, 5–10x slower than SXM5 NVLink)
-  
+  Theoretical Peak:  8 × 756 TFLOPS (BF16, dense) = 6,048 TFLOPS
+  AllReduce:         limited by PCIe and host topology; far below an NVSwitch node
+
 Implications:
-  ✓ Good for: Inference serving (no AllReduce needed), single-model-per-GPU setups
-  ✗ Poor for: Distributed training (PCIe bottleneck kills scaling efficiency)
-  
-Cost:
+  Good for: inference serving (no AllReduce needed), single-model-per-GPU setups
+  Poor for: distributed training (PCIe bottleneck limits scaling efficiency)
+
+Cost (illustrative):
   8×H100 PCIe:       $160,000 (8 × $20K)
   CPU, Memory:       $20,000
-  Storage (84 TB):   $15,000
+  Storage:           $15,000
   Networking:        $8,000
   Chassis/Rails:     $7,000
   Assembly/Test:     $5,000
   Total Node Cost:   $215,000
-  Cost per GPU:      $26,875 (20% cheaper than SXM5 node)
+  Cost per GPU:      $26,875 (about 25% cheaper per GPU than the SXM5 node)
 ```
 
 **Use Case:** Inference serving where per-GPU isolation is beneficial, or batch inference jobs where each GPU runs independent workloads.
 
-#### Configuration C: 4×H100 SXM5 + 2×GB200 Hybrid Node
+#### Configuration C: GB200 NVL72 Rack (reference only)
 
-```yaml
-Specification:
-  GPUs:              4× H100 80GB SXM5 + 2× GB200 (GraceHopper, 192GB each)
-  GPU Memory Total:  320 GB (H100) + 384 GB (GB200) = 704 GB
-  GPU Interconnect:  NVLink 5.0 (mixed, Grace CPU has local interconnect to Hopper GPUs)
-  CPU:               1× Grace CPU (144 cores, 480GB HBM)
-  
-Performance:
-  H100 Subtree:      4 × 989 TFLOPS (BF16) = 3,956 TFLOPS
-  GB200 Subtree:     2 × 11,656 TFLOPS (BF16, theoretical) but grace-to-hopper bridge limits to ~5,000 TFLOPS effective
-  Total Aggregate:   ~8,500 TFLOPS effective
-  Cost per TFLOP:    ~$14 (100% cheaper than pure H100 for FP8 inference, but mixed-precision training has diminishing returns)
-  
-Cost & Power:
-  4×H100 SXM5:       $120,000
-  2×GB200:           $120,000
-  Grace CPU + cooling: $20,000
-  Networking:        $10,000
-  Total Node Cost:   $270,000
-  Power Peak:        4 × 350W + 2 × 880W = 3.36 kW
-```
+GB200 NVL72 is a rack-scale, liquid-cooled system: 36 Grace CPUs and 72 Blackwell GPUs connected as one NVLink domain. It is not a node you mix with H100 GPUs, and heterogeneous GPU generations inside one node are not a supported pattern. If you consider Blackwell, plan it as a separate pod with its own facility design (liquid cooling, rack power in the order of 100+ kW), scheduler pools, and software stack. Use NVIDIA's reference documentation for exact specifications.
 
-**Use Case:** Hybrid workload nodes at scale. GB200 excels at inference (especially FP8), H100 for training. But topology complexity increases operational burden.
+**Use Case:** Frontier-scale training and large-model inference where a 72-GPU NVLink domain matters. Topology and facility complexity are substantially higher than for 8-GPU nodes.
 
 ### 2.2 Node Selection Decision Tree
 
@@ -213,17 +191,17 @@ flowchart TD
     Q1 -->|Inference| Q2I{"Serving<br/>Pattern"}
     
     Q2T -->|<640GB| A8H100["8×H100 SXM5<br/>Full utilization<br/>for training"]
-    Q2T -->|>640GB| H200Node["6×H200 SXM5<br/>+ 2×H100<br/>More memory,<br/>accept heterogeneity"]
+    Q2T -->|>640GB| H200Node["8×H200 SXM<br/>(141GB per GPU,<br/>1.1TB per node)<br/>More memory per node"]
     
     Q2I -->|Low Cost<br/>Priority| ConfigB["Configuration B<br/>8×H100 PCIe<br/>+ Storage<br/>Reasoning: PCIe OK<br/>for inference no AllReduce"]
     Q2I -->|High Throughput<br/>Priority| ConfigA["8×H100 SXM5<br/>(slight overkill<br/>for inference alone<br/>but future-proof)"]
-    Q2I -->|Massive Scale<br/>FP8| ConfigC["4×H100 + 2×GB200<br/>Reasoning: Hybrid<br/>optimizes inference<br/>at billion-param scale"]
+    Q2I -->|Massive Scale<br/>FP8| ConfigC["GB200 NVL72 rack<br/>Reasoning: rack-scale NVLink<br/>domain, separate pod,<br/>liquid cooling required"]
     
-    A8H100 --> FinalA["Select 8×H100 SXM5 nodes<br/>Plan for AllReduce-bound training<br/>N nodes: aggregate TFLOPS = N × 6,500"]
-    H200Node --> FinalH200["Select hybrid memory config<br/>Expect 10–15% throughput<br/>penalty vs 8×H100<br/>for unbalanced workloads"]
+    A8H100 --> FinalA["Select 8×H100 SXM5 nodes<br/>Plan for AllReduce-bound training<br/>N nodes: practical aggregate = N × ~6,500 TFLOPS (assumed efficiency)"]
+    H200Node --> FinalH200["Select 8×H200 nodes<br/>Same compute as H100,<br/>more memory capacity<br/>and bandwidth"]
     ConfigB --> FinalB["Select PCIe + Storage<br/>Plan for<br/>model-per-GPU<br/>or batch inference"]
     ConfigA --> FinalA
-    ConfigC --> FinalC["Select hybrid H100+GB200<br/>Complex scheduling,<br/>workload-aware<br/>GPU assignment"]
+    ConfigC --> FinalC["Plan a separate Blackwell pod<br/>Facility design first,<br/>separate scheduler pool"]
     
     FinalA --> NextStep["Proceed to Part 3:<br/>Multi-Node Topology"]
     FinalH200 --> NextStep
@@ -235,163 +213,88 @@ flowchart TD
 
 ## PART 3: MULTI-NODE TOPOLOGY DESIGN
 
-### 3.1 Topology Topologies & Their Trade-offs
+### 3.1 Topologies and Their Trade-offs
 
-#### Topology 1: Single-Rack (8–16 nodes, 64–128 GPUs)
+Each 8-GPU compute node has eight 400 Gb/s NICs (one per GPU). Fabrics are normally built *rail-optimized*: NIC k of every node connects to leaf switch k, so GPUs with the same local index talk to each other through a single switch hop, and NVLink handles traffic between different local indexes inside a node. A Quantum-2 QM9700 switch provides 64 NDR (400 Gb/s) ports in 32 OSFP cages.
 
-```
-        ┌──────────────────────┐
-        │   ToR Switch (IB)    │  256 Gbps aggregate
-        │   (4× 200 Gbps uplink)
-        └──────────────────────┘
-                  │
-        ┌─────────┼─────────┬──────────┬──────────┐
-        │         │         │          │          │
-     Node 1    Node 2    Node 3     Node 4    ... Node 16
-    (8×H100)  (8×H100)  (8×H100)   (8×H100)   (8×H100)
-     
-    Single switch, hierarchical: leaf connections = 200 Gbps per node
-    Aggregate bisection:        16 nodes × 200 Gbps = 3.2 Tbps
-    Effective per-node AllReduce: Each node sees full 200 Gbps
-    
-Cost Breakdown:
-  1× NDR (400 Gbps) switch:     ~$300,000
-  16 nodes × $285K/node:        ~$4.56M (H100 SXM5 nodes)
-  Cables, rails, power:         ~$200,000
-  Total single-rack TCO:        ~$5.06M (1 year CAPEX only)
-  
-Performance:
-  AllReduce latency:            ~20 microseconds (fully switched fabric)
-  Per-GPU baseline throughput:  ~6,500 TFLOPS
-  Aggregate:                    128 × 6,500 TFLOPS = 832 TFLOPS
-  Utilization (AllReduce):      ~85% (20 μs overhead per iteration, assume 1ms training loop)
-  Cost per sustained TFLOP:     $5.06M / 832 TFLOPS / 3 years = $2,021 per TFLOP/year
-```
-
-**Suitable for:**
-- Research labs, smaller companies
-- Single model training across 64–128 GPUs
-- Real-time monitoring (all nodes in one rack)
-
-**Not suitable for:**
-- Multi-tenant clusters (noisy neighbors)
-- >256 GPU clusters (single switch becomes bottleneck)
-
-#### Topology 2: Multi-Rack Fat-Tree (32–256 GPUs, 4–32 racks)
+#### Topology 1: Single-Pod, Leaf Only (up to about 8 nodes, 64 GPUs)
 
 ```
-              Core Layer
-             (4 switches)
-          200 Gbps per link
-                  │
-    ┌─────────────┼─────────────┐
-    │             │             │
-   Agg 1        Agg 2        Agg 3
-  (switch)      (switch)      (switch)
-    │             │             │
-  ┌─┴─┬─────┐   ┌─┴─┬─────┐   ┌─┴─┬─────┐
-  │   │     │   │   │     │   │   │     │
- ToR ToR   ToR ToR ToR   ToR  ToR ToR   ToR
-  │   │     │
- (8) (8)   (8)  ... × 4 racks per aggregation switch
-nodes nodes nodes
-
-Structure:
-  3 Aggregation layers × 3 ToR switches each = 9 ToR switches total
-  36 compute nodes (4.5 nodes per rack), 288 GPUs max
-  Each node connects to 1 ToR @ 200 Gbps, ToR connects to 1 Agg @ 200 Gbps
-  Agg connects to Core @ 400 Gbps (2× 200 Gbps links)
-
-Aggregate Bisection Bandwidth:
-  Split traffic between left/right: 2 aggregation layers × 2 core links × 200 Gbps = 800 Gbps
-  Per-node effective: 800 Gbps / 36 nodes = 22 Gbps (decent for 64–128 node AllReduce)
-
-Cost Breakdown:
-  32 nodes × $285K:             ~$9.12M
-  4 ToR switches:               ~$400K
-  3 Agg switches:               ~$900K
-  Core interconnect:            ~$200K
-  Cables, labor:                ~$500K
-  Total 3-year TCO:             ~$11.1M
-  Cost per sustained TFLOP:     $11.1M / (32 × 6.5K TFLOPS) / 3 years = $1,796 per TFLOP/year
+  8 leaf switches (one per rail)
+     leaf k: one 400 Gb/s downlink per node (NIC k)
+  N nodes × 8 NICs × 400 Gb/s = 3.2 Tb/s injection bandwidth per node
+  No spine needed while every node's rail k lands on the same leaf k
+  and the leaf has enough ports (64 ports per QM9700)
 ```
 
-**Suitable for:**
-- Medium-scale clusters (128–256 GPUs)
-- Multiple concurrent training jobs (5–10 node allocations)
-- Fault tolerance via multiple paths (loss of one ToR affects only 8 nodes)
+Characteristics:
+- Fewest hops and simplest cabling; every GPU-to-GPU path across nodes crosses exactly one switch.
+- Growth beyond the leaf port count requires adding a spine tier.
+- All eight rails must be cabled and kept healthy; one failed rail degrades every node.
 
-**Not suitable for:**
-- Very high-concurrency inference (oversubscribed downlinks during traffic spike)
-- Latency-critical all-to-all communication (40–100 μs AllReduce vs 20 μs single-rack)
+**Suitable for:** research labs, a single training job on up to 64 GPUs, simple operations.
+**Not suitable for:** multi-tenant clusters that need job isolation, or growth beyond the leaf port count without redesign.
 
-#### Topology 3: Full Mesh (256+ GPUs, premium performance)
+#### Topology 2: Two-Tier Fat-Tree (leaf and spine, hundreds to thousands of GPUs)
 
 ```
-Every node connects directly to every other node via NVLink/NVLink-interconnect
-(Impractical beyond ~64 nodes due to:
-  - Each node would need 63 NVLink cables
-  - Switch port count → costs scale quadratically
-)
-
-Aggregate Bisection:           Full (unlimited, any-to-any)
-Per-node AllReduce latency:    ~5 microseconds
-Cost:                          2–3x Fat-Tree, only justified for ultra-scale HPC
-
-Not recommended for AI factory unless you have >1000 GPUs and custom ASIC switching.
+          Spine switches (non-blocking: uplinks = downlinks)
+                    │   │   │
+        ┌───────────┼───┼───┼───────────┐
+     Leaf 1 ... Leaf k ... Leaf 8 (rails)  ... repeated per scalable unit
+        │                                  
+   compute nodes (NIC k → leaf k of its unit)
 ```
 
-### 3.2 Real Topology Example: 128-GPU Cluster
+Characteristics:
+- Non-blocking when each leaf has as much uplink bandwidth as downlink bandwidth; oversubscription saves cost but hurts all-to-all collectives.
+- NVIDIA's DGX SuperPOD reference design uses scalable units of 32 DGX nodes with rail-optimized leaf switches and a spine tier; use the reference architecture for exact switch counts and cabling.
+- Losing a single leaf affects one rail for the nodes it serves; losing a spine switch reduces bisection bandwidth but not connectivity.
+
+**Suitable for:** 128 to several thousand GPUs, multiple concurrent jobs, fault tolerance via multiple paths.
+**Not suitable for:** designs that cannot afford the extra switch and cable count, or very small clusters.
+
+#### Topology 3: Three-Tier or Dragonfly-Style (very large scale)
+
+At tens of thousands of GPUs, two-tier fat-trees run out of ports and designers add a third tier or adopt different topologies (for example dragonfly variants with adaptive routing). These designs are specialized: they require validated reference architectures, topology-aware scheduling, and careful routing configuration. A full mesh where every node connects directly to every other node is not practical beyond a handful of nodes because port count and cabling grow quadratically.
+
+### 3.2 Worked Example: 128-GPU Cluster (16 nodes)
 
 ```yaml
-Architecture: Single-rack, 16 nodes, 8×H100 SXM5 per node
+Architecture: 16 nodes × 8× H100 SXM5, rail-optimized InfiniBand NDR
 
-Node Layout:
-  Rows 1–4: 4 nodes per row (16 nodes × 8 GPU = 128 GPUs)
-  
 Per-Node Specs:
-  GPU Interconnect:   NVLink 5.0 (full 600 GB/s bisection within node)
-  Host NIC:           1× 400GbE (NDR InfiniBand via NVIDIA ConnectX-7 adapter)
-  
+  GPU Interconnect:   NVLink 4 via NVSwitch (900 GB/s per GPU)
+  Compute NICs:       8× ConnectX-7 at 400 Gb/s (NDR InfiniBand), one per GPU
+
 Cluster Interconnect:
-  Switch:             1× NVIDIA Quantum2 400G NDR switch (36 ports)
-    - 16 ports for compute nodes (16 × 400 Gbps = 6.4 Tbps radix bandwidth)
-    - 4 ports reserved for external fabric (400GbE external links, uplinks to production network)
-    - Remaining ports for spares, management, monitoring
-  
-  Cable plan:
-    - Direct attach copper (DAC) for node-to-switch: 6 ft per cable
-    - Each node: 1 cable to switch (400G fiber for longer runs)
+  Compute links:      16 nodes × 8 NICs = 128 NDR links
+  Switches:           Rail-aligned leaf switches (for example QM9700, 64 NDR ports each);
+                      size the leaf and spine counts from the NVIDIA reference architecture
+  Management:         Separate InfiniBand/Ethernet management and storage networks
 
-Performance Envelope:
-  Single-node theoretical:       8 × 989 TFLOPS (BF16) = 7,912 TFLOPS/node
-  16-node aggregate:             16 × 7,912 TFLOPS = 126,592 TFLOPS (~126.6 PFLOPS) peak
-  Practical after AllReduce:     126,592 × 0.85 utilization ≈ 107,603 TFLOPS (~107.6 PFLOPS) sustained
-  
-  AllReduce time for 256 MB (gradient buffer):
-    - Within node (8 GPU via NVLink):      ~0.4 ms
-    - 16-node cluster via IB NDR:          ~2 ms
-    - Iteration time (assume 100ms compute, 2ms AllReduce): 102 ms
-    - Overhead: 2% (acceptable for large models)
+Performance Envelope (assumptions, measure your own):
+  Single-node theoretical:       8 × 989 TFLOPS (BF16 dense) = 7,912 TFLOPS/node
+  16-node aggregate:             16 × 7,912 = 126,592 TFLOPS (~126.6 PFLOPS) peak
+  Practical (assumed 85%):       ≈ 107,603 TFLOPS (~107.6 PFLOPS) sustained
 
-Cost Analysis:
+Cost Analysis (illustrative):
   16 × 8×H100 SXM5 nodes:       16 × $285K = $4.56M
-  1× NDR400 switch:             ~$350K
-  Cables + spares:              ~$50K
+  InfiniBand fabric (switches, optics, cables): ~$400K (placeholder; get quotes)
   Racks + PDUs + cooling:       ~$200K
   Installation + training:      ~$100K
-  Total CAPEX:                  $5.26M
-  
+  Total CAPEX:                  ≈ $5.26M
+
   Year-1 OPEX:
-    Electricity (37 kW × 8760 hr × $0.12/kWh): $38.8K
+    Electricity (16 nodes × ~10.2 kW = ~163 kW × 8760 h × $0.12/kWh): ≈ $171.6K
     Personnel (2 FTE):                          $400K
     Support/maintenance (1% CAPEX):             $52.6K
     Software licenses:                          $20K
-    Total OPEX:                                 $511.4K
-  
-  3-year TCO: $5.26M + ($511K × 3) = $6.79M
-  Cost per GPU-hour: $6.79M / (128 GPU × 8760 hr × 3 yr) = $0.026/GPU-hour
-  Cost per TFLOP-year: $6.79M / (107,603 TFLOPS × 3 yr) ≈ $21/TFLOP/year
+    Total OPEX:                                 ≈ $644K
+
+  3-year TCO: $5.26M + (3 × $644K) ≈ $7.19M
+  Cost per GPU-hour: $7.19M / (128 GPU × 8760 hr × 3 yr) ≈ $2.14/GPU-hour
+  Cost per TFLOP-year: $7.19M / (107,603 TFLOPS × 3 yr) ≈ $22/TFLOP/year
 ```
 
 ---
@@ -400,14 +303,16 @@ Cost Analysis:
 
 ### 4.1 Interconnect Comparison Matrix
 
-| Interconnect | Bandwidth | Latency | Cost per Node | Scaling to 128 GPU | Collision Handling | Best For |
-|---|---|---|---|---|---|---|
-| **PCIe Gen 5** | 128 GB/s (shared) | ~2 μs | $0 | Poor (AllReduce bottleneck) | No (stop-and-wait) | Single-GPU inference, isolated jobs |
-| **NVLink 5.0** | 600 GB/s (per direction) | &lt;0.5 μs | $0 (GPU-integrated) | Excellent (8 GPU/node) | Yes (full bisection) | Dense training nodes (8–16 GPU/node) |
-| **IB HDR (200G)** | 200 GB/s | ~1 μs (fabric) | $10K/node | Good (32–64 node feasible) | Yes (lossless) | Medium clusters, training (32–128 GPU) |
-| **IB NDR (400G)** | 400 GB/s | ~1.2 μs (fabric) | $15K/node | Very Good (64–256 node feasible) | Yes (lossless) | Large training (128–256 GPU), inference |
-| **400GbE Ethernet** | 400 GB/s | ~3 μs (fabric) | $8K/node | Fair (32–64 node feasible) | Lossy (TCP backoff) | Cost-sensitive, non-critical loads |
-| **NVSwitch** | 18 TB/s (internal to switch, for Grace Hopper clusters) | &lt;0.1 μs | N/A (integrated) | N/A | Proprietary | GB200+ clusters at scale |
+| Interconnect | Bandwidth (per link or GPU) | Scope | Scaling to 128 GPU | Loss behavior | Best For |
+|---|---|---|---|---|---|
+| **PCIe Gen5 x16** | about 64 GB/s per direction | GPU to host, GPU to NIC | Poor for GPU-to-GPU collectives | Standard PCIe | Single-GPU inference, isolated jobs |
+| **NVLink 4 (H100)** | 900 GB/s total per GPU | Inside a node (or NVLink domain) | Excellent inside 8-GPU nodes | Link-level retry | Dense training nodes |
+| **IB HDR** | 200 Gb/s (25 GB/s) per port | Between nodes | Good (32 to 64 node scale) | Lossless (credit-based flow control) | Medium clusters |
+| **IB NDR** | 400 Gb/s (50 GB/s) per port | Between nodes | Very good (hundreds of nodes) | Lossless (credit-based flow control) | Large training, inference |
+| **400GbE (RoCEv2)** | 400 Gb/s (50 GB/s) per port | Between nodes | Workable with careful PFC/ECN tuning | Lossless only if configured (PFC/ECN) | Cost-sensitive or Ethernet-standard sites |
+| **NVLink Switch (NVL72)** | 1.8 TB/s per GPU (NVLink 5) | Rack-scale domain | 72-GPU domain | Link-level retry | Blackwell rack-scale systems |
+
+Note the units: InfiniBand and Ethernet speeds are quoted in gigabits per second, so 400 Gb/s is 50 GB/s, an order of magnitude below NVLink 4's 900 GB/s. Latency and per-node cost vary by design and vendor; request measurements and quotes rather than relying on rule-of-thumb figures.
 
 ### 4.2 Decision Tree: Which Interconnect?
 
@@ -415,20 +320,20 @@ Cost Analysis:
 flowchart TD
     Q1{"Cluster Size<br/>(GPU count)?"} 
     
-    Q1 -->|1–8 GPU| PCIe["Use PCIe Gen 5<br/>Cost: $0<br/>Constraint: No<br/>multi-node training"]
+    Q1 -->|1–8 GPU| PCIe["Single node: NVLink inside<br/>an HGX/DGX node for training,<br/>PCIe for independent inference"]
     
     Q1 -->|8–32 GPU| Q2A{"Training or<br/>Inference?"}
-    Q2A -->|Training| NVLink["Use NVLink 5.0<br/>within nodes<br/>+ Ethernet 100G<br/>inter-node<br/>Cost: $8K/node"]
-    Q2A -->|Inference| ETH100["Use 100GbE<br/>Cost: $5K/node<br/>Latency OK for<br/>batch inference"]
+    Q2A -->|Training| NVLink["Use NVLink<br/>within nodes<br/>+ 200–400G fabric<br/>inter-node"]
+    Q2A -->|Inference| ETH100["Use 100GbE or faster<br/>Fine for batch inference"]
     
-    Q1 -->|32–128 GPU| Q2B{"Max latency<br/>tolerance?"}
-    Q2B -->|<100 μs (strict)| IBHDR["Use IB HDR (200G)<br/>Cost: $10K/node<br/>Utilization: ~90%<br/>AllReduce overhead: 2–3%"]
-    Q2B -->|<200 μs| IBNDR["Use IB NDR (400G)<br/>Cost: $15K/node<br/>Better headroom<br/>for future scales"]
-    Q2B -->|>500 μs OK| ETH400["Use 400GbE Ethernet<br/>Cost: $8K/node<br/>Accepts 5–10%<br/>AllReduce overhead"]
+    Q1 -->|32–128 GPU| Q2B{"Fabric priority?"}
+    Q2B -->|Strict latency<br/>and scale| IBHDR["Use IB HDR (200G)<br/>Lossless fabric"]
+    Q2B -->|Headroom for growth| IBNDR["Use IB NDR (400G)<br/>Better headroom<br/>for future scales"]
+    Q2B -->|Cost-sensitive| ETH400["Use 400GbE Ethernet (RoCEv2)<br/>Needs PFC/ECN tuning,<br/>measure overhead"]
     
-    Q1 -->|128–512 GPU| IBNDR2["Use IB NDR (400G)<br/>with multi-rack<br/>Fat-Tree topology<br/>Cost: $200K+ fabric"]
+    Q1 -->|128–512 GPU| IBNDR2["Use IB NDR (400G)<br/>with a two-tier<br/>rail-optimized Fat-Tree"]
     
-    Q1 -->|512+ GPU| CUSTOM["Consider custom<br/>NVSwitch + NDR hybrid<br/>or multiple clusters<br/>Cost: $500K+ custom"]
+    Q1 -->|512+ GPU| CUSTOM["Use a validated reference<br/>architecture (for example SuperPOD)<br/>or split into multiple pods"]
     
     PCIe --> Final["Decision Made:<br/>Interconnect Chosen"]
     NVLink --> Final
@@ -446,13 +351,11 @@ flowchart TD
 
 | Symptom | Root Cause | Diagnostic Command | Resolution | Recovery Time |
 |---|---|---|---|---|
-| **AllReduce latency 5–10x expected (should be 2ms, seeing 20ms)** | Noisy neighbor job on network uplink; IB congestion | `ibnetdiscover` → check port errors; `nvidia-smi nvlink -s` check link status; use `NCCL_DEBUG=TRACE` to profile AllReduce phases | Isolate noisy job to different rack or region; reduce batch size per-node to reduce AllReduce frequency | 5–10 min (requeue job) |
-| **Throughput 30% lower than expected (seeing 4.5 TFLOPS vs 6.5 TFLOPS expected)** | GPU-to-NVLink bridge not fully utilized; PCIe bottleneck on model load | `nvidia-dcgm --dtest 121` (synthetic bandwidth test); `nvidia-smi dmon` check GPU memory bandwidth utilization | Check if batch size too small (smaller batches = more I/O overhead); increase batch size or overlap computation with data load via prefetching | 30 min (rerun training test) |
-| **Some GPUs at 0% compute utilization, others at 100%** | Workload imbalance; one training process stalled or deadlocked | `nvidia-smi` check hanging processes; `ps aux \| grep python` check for zombie processes; check NCCL timeout logs | Kill stalled process; restart training from last checkpoint; increase NCCL timeout (default 30s) to 120s if network is slow | 2–5 min (restart training) |
-| **Node reboot required; training cluster becomes unavailable for hours** | No multi-node fault tolerance; single node failure cascades | Check if no health monitoring in place; review NCCL checkpoint strategy | Implement NCCL Checkpoint (writes gradient state to NVMe every N steps); allow resume without resync | 15–30 min per failure (restart) |
-| **Inter-node communication fails; hang on AllReduce** | IB link flap or packet loss; misconfigured NCCL (default uses fast path but falls back to TCP if IB unstable) | `ip link show` check IB interface status; `ibstat` for port state; `sudo ibdiagnet` for subnet health | Reseat NIC cable; reboot NIC firmware; force NCCL_SOCKET_NTHREADS=4 to bypass IB if chronically unstable | 10–20 min (NIC reset + reboot) |
-
----
+| **AllReduce much slower than the baseline for this cluster** | Congested or degraded fabric link; a rail running at reduced speed; noisy neighbor job | `ibstat` and `perfquery` for port state, speed, and error counters; `ibdiagnet` for fabric health; nccl-tests `all_reduce_perf` to compare against baseline; `NCCL_DEBUG=INFO` to see which transport and rails NCCL selected | Replace the degraded optic or cable; isolate the noisy job with scheduler placement; fix the rail that trained down | Minutes to hours depending on hardware |
+| **Throughput well below expected for the node type** | Data loading or CPU bottleneck, NVLink or PCIe fallback, thermal or power throttling | `nvidia-smi topo -m` and `nvidia-smi nvlink -s` for link state; `nvidia-smi -q -d PERFORMANCE` for throttle reasons; DCGM profiling fields (`DCGM_FI_PROF_SM_ACTIVE`, `DCGM_FI_PROF_PIPE_TENSOR_ACTIVE`); `dcgmi diag -r 3` | Fix the bottleneck identified (data pipeline, throttle cause, link); verify with a repeat run | 30 min or more |
+| **Some GPUs idle while others are busy** | A rank stalled or deadlocked; workload imbalance | `nvidia-smi` per-GPU utilization; per-rank NCCL op counts (see Volume 20 Chapter 3); process state | Restart from the last checkpoint after fixing the stalled rank | Minutes plus checkpoint restore time |
+| **Node failure takes the whole training job down** | Synchronous training has no built-in tolerance for a lost rank | Check checkpoint cadence and the job launcher's restart policy | Checkpoint regularly to durable storage, use an elastic or auto-restart launcher, keep spare nodes | Depends on checkpoint interval and restart time |
+| **Inter-node communication hangs** | InfiniBand link flap or packet loss; NCCL falling back to a slower transport | `ibstat` for port state; `ibdiagnet` for fabric health; `NCCL_DEBUG=INFO` to confirm the transport in use | Replace or reseat the cable or optic; update NIC firmware per the vendor procedure; use `NCCL_IB_HCA` to exclude a bad adapter while it is repaired | Minutes to hours |
 
 ## PART 6: INTERVIEW ANSWER: "HOW DO YOU JUSTIFY PREMIUM INTERCONNECT COSTS?"
 
@@ -466,17 +369,17 @@ flowchart TD
    - "That's an 8% total throughput loss, which directly translates to 8% longer training time or 8% more GPU hours."
 
 2. **Quantify training cost impact**
-   - "Training Llama-70B takes 7 days continuous on 64 GPUs (168 hours). With 8% throughput loss, that becomes ~181.4 hours (7.56 days) — 13.4 extra hours. At $0.026/GPU-hour, that's an extra $0.026 × 64 GPU × 13.4 extra hours ≈ $22 per training run."
-   - "We run this training twice per month for model iterations. That's ~$22 × 24 runs/year ≈ $537 per year in extra compute cost."
-   - "Over 3 years, that's only ~$1,611 in extra compute cost — nowhere close to justifying the $448K upfront Ethernet savings on compute overhead alone. The pure 'AllReduce overhead' argument, done correctly, does NOT support paying $7K/node for IB on this workload by itself."
+   - "Training Llama-70B takes 7 days continuous on 64 GPUs (168 hours). With 8% throughput loss, that becomes ~181.4 hours (7.56 days) — 13.4 extra hours. At $2.14/GPU-hour, that's an extra $2.14 × 64 GPU × 13.4 extra hours ≈ $1,835 per training run."
+   - "We run this training twice per month for model iterations. That's ~$1,835 × 24 runs/year ≈ $44K per year in extra compute cost."
+   - "Over 3 years, that's about $132K in extra compute cost — meaningful, but still well below the $448K upfront Ethernet savings. The pure 'AllReduce overhead' argument, done correctly, does NOT support paying $7K/node for IB on this workload by itself."
 
 3. **Quantify multi-model impact**
    - "Plus, we don't run just one model. Once we train Llama-70B, we'll train Llama-100B or a custom 80B model. Larger models have bigger gradient tensors and longer AllReduce times—the penalty compounds."
-   - "Doubling gradient tensor size means AllReduce time goes from 10ms to 30ms on Ethernet. Training loop becomes 130ms vs 102ms on IB. That's 27% overhead. Over 2 additional training runs per year: 27% × $0.026/GPU-hour × 64 GPU × 168 hours × 2 runs ≈ $151/year extra — again, a small number in isolation."
-   - "So the compute-overhead cost case for IB, even compounded across models, stays in the hundreds-to-low-thousands of dollars per year. It does not by itself justify $448K in upfront hardware cost — I want to be honest about that rather than force a number to fit the conclusion."
+   - "Doubling gradient tensor size means AllReduce time goes from 10ms to 30ms on Ethernet. Training loop becomes 130ms vs 102ms on IB. That's 27% overhead. Over 2 additional training runs per year: 27% × $2.14/GPU-hour × 64 GPU × 168 hours × 2 runs ≈ $12K/year extra — again, modest in isolation."
+   - "So the compute-overhead cost case for IB, even compounded across models, stays in the tens of thousands of dollars per year. It does not by itself justify $448K in upfront hardware cost — I want to be honest about that rather than force a number to fit the conclusion."
 
 4. **Account for future-proofing and fabric quality — the real justification**
-   - "Today, we assume 64 GPUs. In 18 months, we'll scale to 128 or 256. Ethernet fabrics degrade nonlinearly at scale (congestion, incast packet loss, tail latency) while IB with adaptive routing and lossless credit-based flow control scales far more predictably. Retrofitting an Ethernet fabric to IB mid-cluster-life costs on the order of $200K–300K in re-cabling, downtime, and re-validation."
+   - "Today, we assume 64 GPUs. In 18 months, we'll scale to 128 or 256. Ethernet fabrics degrade nonlinearly at scale (congestion, incast packet loss, tail latency) while IB with adaptive routing and lossless credit-based flow control scales far more predictably. Retrofitting a fabric mid-cluster-life costs real money in re-cabling, downtime, and re-validation (get a quote for your site)."
    - "There's also an engineering-time cost that doesn't show up in the GPU-hour math: debugging intermittent congestion-related training stalls on Ethernet fabrics is expensive in senior-engineer hours, and those incidents get more frequent as GPU count grows."
 
 5. **Recommendation**
@@ -510,13 +413,13 @@ flowchart TD
 GPU cluster design is a **three-level decision:**
 
 1. **Node level:** Choose GPU count per node (8-GPU NVLink node for training, 4–8 GPU PCIe for inference) and CPU/memory adequacy.
-2. **Interconnect level:** Within-node NVLink, between-node InfiniBand (or Ethernet if cost-constrained).
-3. **Topology level:** Single-rack for 64–128 GPU, Fat-Tree for 128–256 GPU, custom mesh for >512 GPU.
+2. **Interconnect level:** Within-node NVLink, between-node InfiniBand (or RoCE Ethernet if cost-constrained).
+3. **Topology level:** Leaf-only for small pods, two-tier rail-optimized Fat-Tree for hundreds to thousands of GPUs, validated reference architectures beyond that.
 
 **Key Takeaways:**
 1. H100 SXM5 is the right default for training (highest TFLOPS/$, excellent NVLink integration).
-2. NVLink within node (600 GB/s) is 10–30x faster than PCIe (128 GB/s); use 8-GPU SXM5 nodes for training.
-3. Between nodes, InfiniBand NDR (400G) vs 400GbE Ethernet: IB costs $7K more per node; at 64 GPUs the direct compute-overhead savings are only ~$537/year (not a compute-cost argument on their own), so the real justification for IB is fabric quality and predictable scaling past 128–256 GPUs, not near-term training throughput dollars.
-4. Topology matters: Single-rack is simple and low-cost for 64–128 GPU; Fat-Tree adds complexity but enables fault tolerance at 256+ GPU.
+2. NVLink within an H100 node (900 GB/s per GPU) is more than an order of magnitude faster than the 50 GB/s of a 400 Gb/s network port, and well above PCIe Gen5 (about 64 GB/s per direction); use 8-GPU SXM5 nodes for training.
+3. Between nodes, InfiniBand NDR (400G) vs 400GbE Ethernet: IB costs $7K more per node; at 64 GPUs the direct compute-overhead difference is roughly $44K/year under these assumptions (not enough on its own to justify the premium), so the real justification for IB is fabric quality and predictable scaling past 128–256 GPUs, not near-term training throughput dollars.
+4. Topology matters: a leaf-only pod is simple and low-cost for small clusters; a two-tier Fat-Tree adds complexity but scales and adds path redundancy.
 
 **In Chapter 3:** We zoom into the network layer detail. Given your cluster topology, how do you optimize collective communication (AllReduce, AllGather, ReduceScatter) for maximum throughput and minimum latency?

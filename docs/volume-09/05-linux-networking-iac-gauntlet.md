@@ -81,7 +81,7 @@ ip -n ns-blue link set lo up
 ip netns exec ns-red ping -c 3 192.168.1.2
 ```
 
-**Output:**
+**Illustrative output (not captured):**
 ```text
 PING 192.168.1.2 (192.168.1.2) 56(84) bytes of data.
 64 bytes from 192.168.1.2: icmp_seq=1 ttl=64 time=0.045 ms
@@ -153,7 +153,7 @@ tc qdisc add dev eth0 root netem delay 50ms 10ms loss 1%
 tc -s qdisc show dev eth0
 ```
 
-**Output:**
+**Illustrative output (not captured):**
 ```text
 qdisc netem 8001: root refcnt 2 limit 1000 delay 50.0ms  10.0ms loss 1%
  Sent 14234 bytes 98 pkt (dropped 1, overlimits 0 requeues 0)
@@ -258,7 +258,7 @@ Point to where the latency occurs. Is the latency between the SYN and SYN-ACK? (
 
 ## 2. Q16: How to use Base Command Manager (BCM)
 
-NVIDIA Base Command Manager (formerly Bright Cluster Manager) is the de facto standard for provisioning, managing, and monitoring massive bare-metal AI clusters (SuperPODs). It bridges the gap between raw hardware and scheduled workloads (Kubernetes or SLURM).
+NVIDIA Base Command Manager (formerly Bright Cluster Manager) is NVIDIA's cluster provisioning, management, and monitoring software for bare-metal AI clusters such as DGX BasePOD and SuperPOD deployments. It bridges the gap between raw hardware and scheduled workloads (Kubernetes or SLURM).
 
 ### 2.1 BCM Architecture Overview
 
@@ -277,7 +277,7 @@ When you rack a new DGX system, how does it become part of the cluster?
 2.  **Allocation:** The BCM Head Node receives the request. If the MAC address is known (pre-registered), it assigns the specific IP. If unknown, it can assign a temporary IP from a discovery pool.
 3.  **PXE Boot:** The node receives the DHCP ACK, which contains the `next-server` (the Head Node) and the boot filename. The node downloads the bootloader (e.g., GRUB via TFTP or HTTP).
 4.  **Kernel & Initrd:** The bootloader pulls the Linux kernel and initial ramdisk over the network.
-5.  **Image Synchronization:** The node boots into the initrd, contacts the CMD daemon on the head node, and determines its Category. It then synchronizes its assigned Software Image. This is often done via a highly efficient torrent-like protocol or rsync.
+5.  **Image Synchronization:** The node boots into the initrd, contacts the CMD daemon on the head node, and determines its Category. It then synchronizes its assigned Software Image. BCM provisions the image using rsync-based synchronization.
 6.  **Finalization:** The node pivots into the newly synced root filesystem, starts systemd, mounts parallel file systems (like WEKA or Lustre), starts the SLURM slurmd daemon or Kubernetes kubelet, and is now ready for jobs.
 
 
@@ -290,7 +290,7 @@ When you rack a new DGX system, how does it become part of the cluster?
 :::tip Golden Answer
 "I would use the BCM software image cloning feature.
 1. I clone the currently active software image (e.g., `ubuntu22-cuda12.1`) to a new image (e.g., `ubuntu22-cuda12.1-ofed5.9`).
-2. I `chroot` into this new image directory on the head node and install the new OFED drivers via the package manager.
+2. I enter the new image's root directory on the head node (BCM provides `cm-chroot-sw-img` for this) and install the new OFED drivers via the package manager.
 3. I take a single test node, change its Category assignment to point to this new software image, and reboot it.
 4. I verify the test node comes up, OFED is loaded (`ibstat`), and it can run NCCL tests.
 5. Once validated, I change the software image assignment for the entire compute node Category.
@@ -301,7 +301,7 @@ When you rack a new DGX system, how does it become part of the cluster?
 
 `cmsh` is the CLI for BCM. It is an object-oriented, hierarchical shell.
 
-**Basic Navigation:**
+**Basic Navigation (illustrative output, not captured):**
 ```text
 [root@headnode ~]# cmsh
 % device
@@ -325,23 +325,17 @@ When you rack a new DGX system, how does it become part of the cluster?
 % pexec -n node001..node010 "nvidia-smi -L"
 ```
 
-**Viewing Health Alerts:**
-```text
-% monitoring
-% getalerts
-node005: Thermal Event on GPU 3
-node012: InfiniBand link ib0 down
-```
+**Viewing Health Alerts:** BCM's monitoring and health-check framework raises alerts for conditions such as GPU thermal events or a down InfiniBand link. The exact `cmsh` commands and alert names depend on your BCM version and configured health checks, so confirm them in the BCM Administrator Manual.
 
 ### 2.4 Common BCM Troubleshooting
 
 **Node stuck in 'DOWN' state but is physically powered on:**
 1.  Check the BMC/IPMI console. Is it stuck in the BIOS?
 2.  Check the BCM head node DHCP logs (`/var/log/messages` or `journalctl -u dhcpd`). Is it requesting an IP?
-3.  Is it failing to pull the image? Check `cm-provisioning.log` on the head node. Often this happens if the software image is corrupted or missing dependencies for the initrd.
+3.  Is it failing to pull the image? Check the CMDaemon and node-installer logs on the head node (for example under `/var/log/cmdaemon`). Often this happens if the software image is corrupted or missing dependencies for the initrd.
 
 **Image update fails to apply:**
-1.  Ensure you actually ran `createramdisk` and `updateinitrd` on the software image if you changed kernel modules!
+1.  Ensure you regenerated the ramdisk (`createramdisk`) for the software image if you changed kernel modules, and that the provisioning nodes have the updated image!
     ```text
     % softwareimage
     % use my-new-image
@@ -495,8 +489,7 @@ df -h -x tmpfs -x devtmpfs | awk -v threshold="$THRESHOLD" '
         partition = $1;
         mount_point = $6;
         if (usage_percent >= threshold) {
-            printf "CRITICAL: Partition %s mounted on %s is at %d%% usage!
-", partition, mount_point, usage_percent;
+            printf "CRITICAL: Partition %s mounted on %s is at %d%% usage!\n", partition, mount_point, usage_percent;
         }
     }
 '
@@ -526,8 +519,7 @@ class GPUHealthHandler(BaseHTTPRequestHandler):
                 )
                 
                 # Parse output
-                temperatures = [int(x.strip()) for x in result.stdout.split('
-') if x.strip()]
+                temperatures = [int(x.strip()) for x in result.stdout.splitlines() if x.strip()]
                 
                 is_healthy = True
                 failing_temps = []
@@ -759,8 +751,9 @@ def analyze_slurm_ooms(start_time):
         req_mem = parts[3]
         max_rss = parts[4] # Max Resident Set Size (peak memory used)
         
-        # SLURM indicates OOM often as OUT_OF_MEMORY state, or sometimes FAILED
-        # and the MaxRSS is close to ReqMem.
+        # SLURM reports OOM kills as the OUT_OF_MEMORY state. Note that MaxRSS is
+        # recorded on job step rows (e.g. 123.batch), not on the parent job row, so
+        # you may need to join parent and step rows to see peak memory.
         if 'OUT_OF_MEMORY' in state:
              oom_jobs.append({
                  'job_id': job_id,
@@ -792,7 +785,6 @@ EXPECTED_MTU=4092 # Typical IP-over-IB MTU or RoCE MTU
 # Infinite monitoring loop
 while true; do
     # Fetch current MTU using iproute2
-    CURRENT_MTU=$(ip -brief link show dev "$INTERFACE" | awk '{print $NF}') # MTU is usually at the end, but let's be more robust:
     CURRENT_MTU=$(cat /sys/class/net/$INTERFACE/mtu 2>/dev/null)
 
     if [ -z "$CURRENT_MTU" ]; then
@@ -819,49 +811,16 @@ done
 
 ---
 
-## Appendix C: Advanced BCM Interactions
+## Appendix C: Automating BCM
 
-Let's look at how to automate BCM using its Python API (python-cmdaemon), rather than just the `cmsh` CLI.
+BCM can be driven from `cmsh` scripts (`cmsh -c "<commands>"`) and from its Python bindings (`pythoncm`). The exact object model, command names, and authentication differ by BCM version, so build automation from the BCM Administrator Manual and the `pythoncm` examples shipped with your installation rather than from memory.
 
-### C.1 Automating Node Draining via BCM Python API
+A safe maintenance workflow for a node, regardless of the tool you script it with:
 
-When you need to perform maintenance, you shouldn't just reboot nodes. You need to tell the scheduler (SLURM) to drain them, and tell BCM they are in maintenance mode.
-
-**Implementation (Python):**
-
-```python
-# Note: This requires the python-cmdaemon library installed on the BCM head node.
-try:
-    import cmdaemon.client
-except ImportError:
-    pass # Mocking for doc generation
-
-def drain_and_reboot_node(hostname, reason):
-    '''
-    Connects to local CMDaemon, sets a node to maintenance mode, 
-    instructs SLURM to drain it, and initiates a reboot.
-    '''
-    print(f"Initiating maintenance workflow for {hostname}...")
-    
-    # 1. Initialize client (assuming running on head node)
-    # client = cmdaemon.client.CMDaemonClient('127.0.0.1', 8080)
-    # client.login('root', 'password') # Or use certificate auth
-    
-    # 2. Get the node object
-    # node = client.get_device(hostname)
-    
-    # 3. Set BCM Maintenance Mode
-    # node.powerControl.powerAction = 'reboot' 
-    # node.maintenanceMode = True
-    # client.commit_device(node)
-    
-    # 4. Integrate with WLM (Workload Manager) - pseudo code
-    # slurm_service = client.get_service('slurm')
-    # slurm_service.drain_node(hostname, reason)
-    
-    print(f"Node {hostname} set to drain with reason: {reason}. BCM will track offline status.")
-
-```
+1.  Tell the workload manager to drain the node (Slurm: `scontrol update NodeName=<node> State=DRAIN Reason="maintenance"`; Kubernetes: `kubectl cordon` then `kubectl drain`).
+2.  Wait for running work to finish or be requeued.
+3.  Perform the BCM action (reboot, reprovision with a new software image, firmware update).
+4.  Verify health (`nvidia-smi`, `dcgmi diag -r 1`, fabric status) before returning the node to service (`scontrol update NodeName=<node> State=RESUME`, `kubectl uncordon`).
 
 ---
 
@@ -877,20 +836,20 @@ The ability to operate across these distinct layers—from inspecting hardware p
 
 AI workloads are increasingly orchestrated by Kubernetes. Understanding CNI (Container Network Interface) mechanics is vital.
 
-### D.1 CNI_0 BGP Peering Failure
+### D.1 Calico BGP Peering Failure
 
-**Scenario:** You have an on-premise Kubernetes cluster using CNI_0 for networking with BGP peering to Top of Rack (ToR) switches to advertise Pod IP routes. A new node is added, but pods on that node cannot reach pods on other nodes.
+**Scenario:** You have an on-premise Kubernetes cluster using Calico for networking with BGP peering to Top of Rack (ToR) switches to advertise Pod IP routes. A new node is added, but pods on that node cannot reach pods on other nodes.
 
 **Investigation Steps:**
 
 1.  **Check Node Status:** Is the node `Ready` in Kubernetes? Yes.
-2.  **Check CNI_0 Pods:** Are the `calico-node` DaemonSet pods running on the new node? Yes.
+2.  **Check Calico Pods:** Are the `calico-node` DaemonSet pods running on the new node? Yes.
 3.  **Inspect BGP Status (calicoctl):**
     Use `calicoctl` on the affected node to check peering status.
     ```bash
     calicoctl node status
     ```
-    *Output shows the connection to the ToR switch is in `Active` or `Connect` state, not `Established`.*
+    *Typical symptom: the peer to the ToR switch shows a state such as `Active` or `Connect` rather than `Established`.*
 
 4.  **Network Layer Debugging:**
     Why is the BGP session not establishing? BGP uses TCP port 179.
@@ -905,16 +864,16 @@ AI workloads are increasingly orchestrated by Kubernetes. Understanding CNI (Con
     The ToR switch configuration was not updated to accept the BGP peering connection from the new node's IP address. The infrastructure team must add the new neighbor to the switch configuration.
 
 :::info Whiteboard Strategy
-Draw the BGP architecture. Node -> ToR (eBGP or iBGP). Explain that CNI_0 distributes routes via BGP, and if the BGP session fails, the rest of the cluster doesn't know how to route packets to the PodCIDR assigned to the new node, resulting in blackholed traffic.
+Draw the BGP architecture. Node -> ToR (eBGP or iBGP). Explain that Calico distributes routes via BGP, and if the BGP session fails, the rest of the cluster doesn't know how to route packets to the PodCIDR assigned to the new node, resulting in blackholed traffic.
 :::
 
 ---
 
-## Appendix E.0: Storage Performance Scripting (IOPS & Bandwidth)
+## Appendix E: Storage Performance Scripting (IOPS & Bandwidth)
 
 AI training is often bottlenecked by storage (reading millions of images or text files).
 
-### E.1 Storage Bench_0 Script
+### E.1 Storage Benchmark Script
 
 **Scenario:** You need to benchmark a new parallel file system mount (`/weka/data`) from a compute node to ensure it meets the 50 GB/s requirement for a large language model.
 
@@ -948,13 +907,13 @@ echo "Starting FIO benchmark on $MOUNT_POINT..."
 fio $FIO_CONFIG --output-format=json > fio_results.json
 
 # Parse JSON with jq to get bandwidth in KB/s, convert to GB/s
-BW_KBS=\$(jq '.jobs[0].read.bw' fio_results.json)
-BW_GBS=\$(echo "scale=2; \$BW_KBS / 1024 / 1024" | bc)
+BW_KBS=$(jq '.jobs[0].read.bw' fio_results.json)
+BW_GBS=$(echo "scale=2; $BW_KBS / 1024 / 1024" | bc)
 
 echo "Benchmark Complete."
-echo "Sequential Read Bandwidth: \${BW_GBS} GB/s"
+echo "Sequential Read Bandwidth: ${BW_GBS} GB/s"
 
-if (( \$(echo "\$BW_GBS < 45.0" | bc -l) )); then
+if (( $(echo "$BW_GBS < 50.0" | bc -l) )); then
     echo "WARNING: Bandwidth is below the 50 GB/s threshold!"
 else
     echo "SUCCESS: Bandwidth meets requirements."
@@ -963,66 +922,3 @@ fi
 # Cleanup
 rm $FIO_CONFIG fio_results.json
 ```
-
----
-
-**Investigation Steps:**
-
----
-
-### E.1 Storage Bench_1 Script
-
-```bash
-
-[seq-read]
-rw=read
-EOF
-
-rm $FIO_CONFIG fio_results.json
-```
-
----
-
-**Investigation Steps:**
-
----
-
-### E.1 Storage Bench_2 Script
-
-```bash
-
-[seq-read]
-rw=read
-EOF
-
----
-
-**Investigation Steps:**
-
----
-
-### E.1 Storage Bench_3 Script
-
-```bash
-
-[seq-read]
-rw=read
-EOF
-
----
-
-**Investigation Steps:**
-
----
-
-### E.1 Storage Bench_4 Script
-
-```bash
-
-[seq-read]
-rw=read
-EOF
-
-rm $FIO_CONFIG fio_results.json
-```
-\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n

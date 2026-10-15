@@ -20,7 +20,7 @@ description: "Master Chaos Engineering for AI. Learn how to simulate catastrophi
 
 If you design a robust architecture (MIG, HA License Servers, Asynchronous Checkpointing) but you never actually test it, it will fail during a real incident. Configuration drift, unpatched bugs, and human error inevitably degrade the resilience of a system over time.
 
-A Senior SRE proves resilience through **Chaos Engineering** and **Game Days**. You do not wait for the hardware to fail at 3:00 AM on a Sunday. You intentionally break the hardware at 10:00 AM on a Tuesday, with the entire engineering team watching, to mathematically prove the automated recovery systems work.
+A Senior SRE proves resilience through **Chaos Engineering** and **Game Days**. You do not wait for the hardware to fail at 3:00 AM on a Sunday. You intentionally break the hardware at 10:00 AM on a Tuesday, with the entire engineering team watching, to demonstrate that the automated recovery systems work.
 
 ## Beginner's Primer: Chaos Engineering
 
@@ -54,9 +54,9 @@ A Game Day is a meticulously planned, controlled exercise. It is not random dest
 
 To validate an AI supercomputer, you must inject highly specific, AI-centric faults.
 
-*   **The XID Simulation:** Do not just reboot a node. Simulate a GPU hardware death. Use software tools to simulate an XID 48 (Double-Bit ECC Error) on a single GPU. *Validation:* Prove that the NVIDIA Device Plugin instantly marks the GPU as `Unhealthy`, the pod is evicted, and the node is cordoned without a human touching a keyboard.
-*   **The Network Blackhole:** While a multi-node training job is running `nccl-tests`, use `iptables` or switch commands to completely drop traffic on a single InfiniBand interface (`ib0`). *Validation:* Prove that NCCL gracefully detects the link failure, times out cleanly, and that the training orchestrator (Kubeflow/Slurm) successfully reboots the job from the last asynchronous checkpoint.
-*   **The License Server Outage:** Shut down the DLS (Delegated License Service) VMs. *Validation:* Prove that the vGPU clients fail over to the secondary HA license server without dropping their frame rates or throttling.
+*   **The XID Simulation:** Do not just reboot a node. Simulate a GPU hardware death. Inject an XID 48 (Double-Bit ECC Error) on a single GPU in a test environment, for example with DCGM's error-injection facility (`dcgmi test --inject`, intended for an isolated test host engine) or by driving the health-check path in staging. *Validation:* Prove that the NVIDIA Device Plugin marks the GPU as `Unhealthy`, the pod is evicted, and the node is cordoned without a human touching a keyboard.
+*   **The Network Blackhole:** While a multi-node training job is running `nccl-tests`, disable a single InfiniBand link, for example by bringing down the switch port (`ibportstate ... disable`, run against a switch) or the cable path. Host `iptables` rules do not affect RDMA traffic, so they are not a valid way to inject this fault. *Validation:* Prove that NCCL gracefully detects the link failure, times out cleanly, and that the training orchestrator (Kubeflow/Slurm) successfully reboots the job from the last asynchronous checkpoint.
+*   **The License Server Outage:** Shut down the DLS (Delegated License Service) VMs. *Validation:* Prove that the vGPU clients keep their leases and continue to operate (clients retain their license for the lease period) and that the secondary HA license server takes over.
 
 ## 3. The Incident Command System (ICS)
 
@@ -78,17 +78,17 @@ A company claims their LLM inference API has "Five Nines" (99.999%) availability
 
 The architecture was designed with the assumption that worker nodes operate independently of the control plane once pods are running. This is generally true for standard stateless web servers. However, it is demonstrably false for our specific AI platform layer.
 
-Upon reviewing the postmortem logs, we discovered that the **NVIDIA Device Plugin** and the **GPU Operator** daemonsets have aggressive liveness probes tied directly to the Kubernetes API server's responsiveness. When we killed the master node, the API server experienced a brief leader-election pause. The Device Plugins on the worker nodes panicked, assumed the cluster was dead, and restarted. This restart briefly unregistered the `nvidia.com/gpu` resources, causing the local `kubelets` to aggressively terminate all the running Triton inference pods.
+In this hypothetical scenario, the postmortem shows that the **NVIDIA Device Plugin** and the **GPU Operator** daemonsets have aggressive liveness probes tied directly to the Kubernetes API server's responsiveness. When we killed the master node, the API server experienced a brief leader-election pause. The Device Plugins on the worker nodes panicked, assumed the cluster was dead, and restarted. This restart briefly unregistered the `nvidia.com/gpu` resources, causing the local `kubelets` to aggressively terminate all the running Triton inference pods.
 
 To fix this, we will implement two architectural changes. 
 First, we will tune the liveness probe timeouts and backoff configurations in the GPU Operator Helm chart to be far more resilient to transient control-plane blips. 
-Second, we will implement Kubernetes **PriorityClasses** and **DisruptionBudgets** to ensure that critical inference pods are never forcefully evicted by the kubelet purely due to temporary resource advertising sync issues. 
+Second, we will review how the platform reacts when GPU resources briefly disappear from the node. Note that PodDisruptionBudgets only govern voluntary evictions via the Eviction API and do not stop the kubelet from terminating pods, so the real fix is keeping the device plugin and its health checks stable. 
 
-We will execute the exact same Game Day next week to mathematically prove the fix holds."
+We will execute the exact same Game Day next week to confirm the fix holds."
 
 ## Interview Preparation
 
-**Conceptual:** Why is a "Game Day" (Chaos Engineering) a mandatory practice for enterprise SRE teams? *(Hint: Complex distributed systems drift over time. You cannot guarantee that high-availability mechanisms (like automated failovers, health checks, and alerts) actually work unless you intentionally trigger them in a controlled manner. Game Days mathematically prove the resilience of the architecture and train the team on incident response before a real crisis occurs).*
+**Conceptual:** Why is a "Game Day" (Chaos Engineering) a mandatory practice for enterprise SRE teams? *(Hint: Complex distributed systems drift over time. You cannot guarantee that high-availability mechanisms (like automated failovers, health checks, and alerts) actually work unless you intentionally trigger them in a controlled manner. Game Days demonstrate the resilience of the architecture and train the team on incident response before a real crisis occurs).*
 
 **Architecture:** In an Incident Command System, why must the roles of "Incident Commander" and "Subject Matter Expert (SME)" be strictly separated? *(Hint: The SME needs absolute focus to dive deep into complex logs (like `dmesg` or `nsys` traces) to find the root cause. If they are constantly interrupted to provide status updates to management, they will make mistakes. The Incident Commander handles all communication, coordination, and executive shielding, allowing the SME to operate without distraction).*
 

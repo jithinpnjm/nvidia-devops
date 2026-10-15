@@ -98,8 +98,8 @@ Many of NVIDIA's tools (like Triton, TensorRT, and the GPU Operator) are open-so
 
 **NVAIE is the commercial, enterprise-grade software suite.** It provides:
 1. **Service Level Agreements (SLAs):** If your cluster goes down at 2:00 AM on a Sunday because of a bug in the NCCL library, NVAIE gives you direct access to NVIDIA engineering support to fix it.
-2. **Security & CVE Patching:** Open-source projects move fast and break things. NVAIE provides long-term support (LTS) branches of Triton, PyTorch, and drivers, ensuring that critical security vulnerabilities are patched without forcing the enterprise to upgrade to unstable edge releases.
-3. **NVIDIA NIMs:** The pre-built, highly optimized Inference Microservices (discussed in Chapter 7) are exclusively part of the commercial NVAIE entitlement. 
+2. **Security & CVE Patching:** Open-source projects move fast and break things. NVAIE provides long-term-support and production branches of supported components, ensuring that critical security vulnerabilities are patched without forcing the enterprise to upgrade to unstable edge releases.
+3. **NVIDIA NIMs:** The pre-built, highly optimized Inference Microservices (discussed in Chapter 7) are licensed for production use under the commercial NVAIE entitlement (NVIDIA also offers developer-program access for development and testing; check the current license terms). 
 
 ---
 
@@ -107,8 +107,8 @@ Many of NVIDIA's tools (like Triton, TensorRT, and the GPU Operator) are open-so
 
 Not every enterprise wants to build a physical data center. Buying DGX servers requires waiting months for delivery, securing megawatts of power, and hiring specialized InfiniBand networking engineers.
 
-**DGX Cloud** is NVIDIA's solution to this. It is a serverless AI training-as-a-service platform. 
-NVIDIA hosts massive SuperPODs inside major cloud providers (AWS, Azure, GCP, Oracle). Instead of dealing with Kubernetes, Slurm, drivers, or InfiniBand, a data scientist simply points their web browser to the DGX Cloud portal, submits their training job, and the infrastructure spins up instantly. It provides the exact performance of an on-premise DGX SuperPOD, but consumed as an OpEx cloud service.
+**DGX Cloud** is NVIDIA's solution to this. It is a managed AI training platform. 
+NVIDIA hosts massive SuperPODs inside major cloud providers (AWS, Azure, GCP, Oracle). Instead of dealing with Kubernetes, Slurm, drivers, or InfiniBand, a data scientist simply points their web browser to the DGX Cloud portal, submits their training job on NVIDIA-managed infrastructure. It provides the exact performance of an on-premise DGX SuperPOD, but consumed as an OpEx cloud service.
 
 ---
 

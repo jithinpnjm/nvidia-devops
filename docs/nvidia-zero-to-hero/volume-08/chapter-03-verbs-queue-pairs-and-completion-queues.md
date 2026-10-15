@@ -135,6 +135,8 @@ Production software should query capabilities rather than assuming one adapter p
 
 ### Annotated `ibv_devinfo -v`: the capability answers that matter before you write a line of verbs code
 
+The output below is illustrative (not captured); values differ by adapter, firmware, and driver version.
+
 ```text
 $ ibv_devinfo -v -d mlx5_0
 hca_id: mlx5_0
@@ -517,17 +519,16 @@ Compare both endpoints:
 
 One endpoint was configured with inconsistent peer or path attributes.
 
-**Evidence.** A minimal `rdma_cm`-based or raw-verbs connection attempt that fails during the RTR transition typically surfaces as an explicit modify-QP error rather than a silent hang:
+**Evidence (illustrative output, not captured).** A minimal raw-verbs connection attempt that fails during the RTR transition typically surfaces as an explicit modify-QP error rather than a silent hang:
 
 ```text
 $ ./rc_pingpong -d mlx5_0 -g 0 <server-ip>
   local address:  LID 0x000c, QPN 0x00012a, PSN 0x3a1f2e, GID ::
   remote address: LID 0x0051, QPN 0x0000e3, PSN 0x0091ab, GID ::
-Couldn't modify QP to RTR
-ibv_modify_qp: Invalid argument (path_mtu mismatch)
+Failed to modify QP to RTR
 ```
 
-`Invalid argument (path_mtu mismatch)` names the exact attribute: one side is configured for a 4096-byte active MTU and the other for 2048, and the RTR transition (which requires agreeing on remote path attributes, per Figure 8.3.4) rejects the mismatch outright rather than silently degrading. This is a direct instance of the `ibv_devinfo -v` capability check above — `active_mtu` differing between two "healthy" ports is invisible until a QP actually tries to connect.
+The failing step is the RTR transition, which is where remote path attributes (LID or GID, QPN, PSN, path MTU, SL) are supplied. The kernel verbs call returns a generic error such as `EINVAL` and does not name the offending attribute, so you compare both sides' attributes yourself. One common cause is a path MTU larger than a port's active MTU (for example 4096 requested where one port is limited to 2048). This is a direct instance of the `ibv_devinfo -v` capability check above — `active_mtu` differing between two "healthy" ports is invisible until a QP actually tries to connect.
 
 ### Scenario 2 — Receiver-not-ready or missing receives
 
@@ -577,7 +578,7 @@ Check:
 
 Find the first failing completion. Treat flushed completions as consequences. Quiesce the queue, rebuild transport state, and verify peer health before resuming.
 
-**Evidence.** A trimmed `ibv_poll_cq` loop's output, decoded, makes the "find the first one" instruction concrete:
+**Evidence (illustrative output, not captured).** A trimmed `ibv_poll_cq` loop's output, decoded, makes the "find the first one" instruction concrete:
 
 ```text
 wr_id=1042  status=IBV_WC_SUCCESS          opcode=RDMA_WRITE

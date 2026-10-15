@@ -102,7 +102,7 @@ systemctl restart prometheus
 # Should show time-series data points for each GPU on each node
 ```
 
-**Real query result:**
+**Illustrative query result (not captured):**
 
 ```text
 DCGM_FI_DEV_GPU_UTIL{gpu="0", node="gpu-node-01", uuid="GPU-xxxx"}  = 85
@@ -227,14 +227,14 @@ groups:
   - name: gpu_health
     interval: 30s
     rules:
-      # GPU Offline
-      - alert: GPUOffline
+      # GPU metrics endpoint down (adjust the job label to match your scrape config)
+      - alert: GPUExporterDown
         expr: |
-          count by (node, gpu) (DCGM_FI_DEV_GPU_UTIL) == 0
+          up{job="dcgm-exporter"} == 0
         for: 5m
         annotations:
-          summary: "GPU {{ $labels.gpu }} on {{ $labels.node }} is offline"
-          description: "No metrics from GPU {{ $labels.gpu }} for 5 minutes"
+          summary: "DCGM exporter target {{ $labels.instance }} is down"
+          description: "Prometheus could not scrape GPU metrics from {{ $labels.instance }} for 5 minutes"
       
       # Thermal Throttling
       - alert: GPUThermalThrottle

@@ -44,7 +44,7 @@ A common anti-pattern is the assumption that buying the latest NVIDIA H100 or B2
 :::
 
 :::info Production Story
-*Production Story:* A large financial institution procured a 128-node DGX H100 cluster for LLM training. They connected the nodes using a standard Spine-Leaf RoCEv2 topology but failed to implement proper Quality of Service (QoS) and Priority Flow Control (PFC). The result was continuous packet drops during All-Reduce operations, dropping training utilization (MFU) from an expected 45% to below 15%. The fix wasn't more GPUs; it was network engineering.
+*Illustrative production story (composite, not a documented incident):* A large financial institution procured a 128-node DGX H100 cluster for LLM training. They connected the nodes using a standard Spine-Leaf RoCEv2 topology but failed to implement proper Quality of Service (QoS) and Priority Flow Control (PFC). The result was continuous packet drops during All-Reduce operations, dropping training utilization (MFU) from an expected 45% to below 15%. The fix wasn't more GPUs; it was network engineering.
 :::
 
 ---
@@ -291,10 +291,10 @@ Data is broken into chunks and passed around a logical ring of GPUs.
 *   *Pros:* Bandwidth optimal for large messages. Constant bandwidth utilization regardless of node count.
 *   *Cons:* Latency scales linearly with the number of GPUs ($O(N)$). Bad for small messages at extreme scale.
 
-**2. Double Binary Tree (SHARP / In-Network Computing):**
-Data is aggregated hierarchically up a tree.
+**2. Double Binary Tree (and in-network reduction):**
+Data is aggregated hierarchically up a tree. NCCL's tree algorithm uses two complementary binary trees so that both directions of each link are used.
 *   *Pros:* Latency scales logarithmically ($O(\log N)$). Excellent for small messages or massive scales.
-*   *Cons:* More complex to configure. With NVIDIA Quantum InfiniBand, SHARP (Scalable Hierarchical Aggregation and Reduction Protocol) offloads the mathematical reduction directly to the switch silicon.
+*   *Cons:* Lower peak bandwidth than ring for large messages on many topologies. Separately from the tree algorithm, with NVIDIA Quantum InfiniBand, SHARP (Scalable Hierarchical Aggregation and Reduction Protocol) can offload the reduction to the switch silicon (NCCL uses it through its CollNet support when the SHARP plugin and fabric are configured).
 
 ### Tuning NCCL for Production
 
@@ -309,7 +309,7 @@ export NCCL_IB_DISABLE=0               # Ensure IB is used
 export NCCL_SOCKET_IFNAME=eth0         # Management interface for bootstrap
 export NCCL_NET_GDR_LEVEL=5            # Enable GPUDirect RDMA aggressively
 export NCCL_MIN_NCHANNELS=8            # Increase channels for high bandwidth paths
-export NCCL_CROSS_NIC=1                # Allow routing across different NICs on PCI switch
+export NCCL_CROSS_NIC=1                # Allow rings to use different NICs on send vs. receive; see NCCL docs before changing
 ```
 
 :::tip Architect Note
@@ -335,7 +335,7 @@ Consider a 175B parameter model (like GPT-3) trained with Megatron-LM (TP=8, PP=
 ### Storage Tiers for Checkpoints
 
 1.  **Tier 0: Host NVMe (Asynchronous Checkpointing).** Checkpoints are dumped locally to the node's NVMe drives instantly (seconds). Training resumes. A background process (e.g., PyTorch Distributed Checkpointing with asynchronous saves) slowly pushes the data to the parallel file system.
-2.  **Tier 1: Parallel File System (Lustre, WEKA).** High throughput network storage (TBs per second cluster-wide bandwidth).
+2.  **Tier 1: Parallel File System (Lustre, WEKA).** High throughput network storage (aggregate bandwidth scales with the number of storage servers; size it against your checkpoint volume).
 3.  **Tier 2: Object Store (S3, Swift).** Long-term, cold storage for intermediate epochs.
 
 ### PyTorch Distributed Checkpointing (DCP)
@@ -378,7 +378,7 @@ mpirun -np 16 -hostfile my_hosts   -x NCCL_DEBUG=INFO -x LD_LIBRARY_PATH   /path
 ```
 
 *What to look for:*
-*   **BusBandwidth (BusBW):** This is the theoretical bandwidth the GPUs are achieving. For an H100 with 400Gbps NDR IB NICs (total 3.2 Tbps per node), you want to see BusBW approaching the theoretical limit (usually around 350-380 GB/s inter-node depending on protocol overhead).
+*   **BusBandwidth (BusBW):** This is the theoretical bandwidth the GPUs are achieving. For an H100 with 400Gbps NDR IB NICs (total 3.2 Tbps per node), you want BusBW to approach, but stay below, the NIC line rate (400 GB/s aggregate here). Establish your own known-good baseline for this hardware and NCCL version rather than relying on a quoted number.
 *   **AlgBandwidth (AlgBW):** The actual payload bandwidth.
 *   **Consistency:** The bandwidth should scale linearly and not drop precipitously as message size increases.
 
@@ -386,7 +386,7 @@ mpirun -np 16 -hostfile my_hosts   -x NCCL_DEBUG=INFO -x LD_LIBRARY_PATH   /path
 
 Synthetic network tests are not enough. We must run a real model. NVIDIA NeMo framework provides standardized scripts.
 
-*   Measure **MFU (Model FLOPs Utilization)**: The ratio of observed throughput to the theoretical peak throughput of the GPU. Good MFU for LLMs is 40-55%.
+*   Measure **MFU (Model FLOPs Utilization)**: The ratio of observed throughput to the theoretical peak throughput of the GPU. Published large-scale LLM training runs commonly report roughly 35-55%, depending on model, scale, and precision.
 *   Measure **Tokens/sec/GPU**: The primary metric for LLM training speed.
 
 ### 3. Profiling with Nsight Systems (nsys)
@@ -419,7 +419,7 @@ This section details real-world debugging scenarios.
 3.  **Check for Stragglers:** A single node with a hardware error (e.g., thermal throttling, PCIe AER error) will halt the entire collective ring. Check `dmesg` on all nodes.
 4.  **Infiniband Checks:** Run `ibv_devinfo` to check port states. Check the subnet manager (OpenSM or UFM) for flap logs.
 
-*Solution Story:* A 64-node cluster experienced random NCCL hangs after 3 hours of training. Debugging revealed one specific optical transceiver on a leaf switch was failing intermittently, causing extreme packet loss. The `NCCL_DEBUG=INFO` logs showed retries timing out. Replacing the cable resolved the multi-million dollar hang.
+*Illustrative solution story (composite):* A 64-node cluster experienced random NCCL hangs after 3 hours of training. Debugging revealed one specific optical transceiver on a leaf switch was failing intermittently, causing extreme packet loss. The `NCCL_DEBUG=INFO` logs showed retries timing out. Replacing the cable resolved the multi-million dollar hang.
 
 ### Scenario 2: Checkpoint I/O Saturation
 
@@ -434,7 +434,7 @@ This section details real-world debugging scenarios.
 
 ### Scenario 3: Low MFU Despite Good Hardware
 
-**Symptoms:** Node passes `nccl-tests` with 380 GB/s BusBW. However, Megatron-LM MFU is stuck at 18%.
+**Symptoms:** Node passes `nccl-tests` at its known-good BusBW baseline. However, Megatron-LM MFU is stuck at 18%.
 
 **Diagnosis Process:**
 1.  Run `nsys profile`.
@@ -488,4 +488,3 @@ When a GPU appears to drop off the bus or NCCL hangs mysteriously, the root caus
 Mixture of Experts (MoE) architectures rely heavily on the All-to-All collective. Unlike All-Reduce which has predictable, symmetric traffic patterns, All-to-All traffic can be highly skewed depending on token routing.
 *   **Network Impact:** Demands massive non-blocking bisection bandwidth across the entire fabric.
 *   **Topology:** Fat-tree or Dragonfly topologies must be provisioned without oversubscription to handle MoE efficiently.
-### Collective Operations Deep Dive 29: All-to-All and MoE

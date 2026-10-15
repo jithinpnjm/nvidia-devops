@@ -294,6 +294,8 @@ Measure transfer size and frequency, reuse allocations, batch work, keep interme
 
 **Evidence — the exact pattern from this chapter's Story, quantified:**
 
+*Illustrative output (not captured):*
+
 ```text
 $ nsys stats --report cuda_api_sum profile-report.nsys-rep
  Time(%)  Total Time (ns)  Num Calls  Avg (ns)   Name
@@ -320,6 +322,8 @@ Inspect:
 Do not treat process memory reports as complete proof of available contiguous capacity.
 
 **Evidence — free memory does not mean a contiguous block is available:**
+
+*Illustrative output (not captured):*
 
 ```text
 $ nvidia-smi --query-gpu=memory.used,memory.free,memory.total --format=csv

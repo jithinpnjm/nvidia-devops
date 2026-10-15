@@ -72,15 +72,15 @@ Illustrative output (failing; shape only, not captured from a live system):
 ```bash
 # Check fan speed
 nvidia-smi -q | grep "Fan Speed"
-# Output: 100% is normal; 0% means fan failure
+# Illustrative output (not captured): 100% is normal; 0% means fan failure
 
 # Check thermal throttle history
 nvidia-smi -q | grep -A2 "Thermal Slowdown"
-# Output: Thermal Slowdown: Active (GPU is throttling RIGHT NOW)
+# Illustrative output (not captured): Thermal Slowdown: Active (GPU is throttling RIGHT NOW)
 
 # Check power efficiency (if power supply is bad)
 nvidia-smi -q | grep -A2 "Power Draw"
-# Output: Oscillating wildly = power supply instability
+# Illustrative output (not captured): Oscillating wildly = power supply instability
 ```
 
 **Remediation:**
@@ -131,7 +131,7 @@ Illustrative output (failing; shape only, not captured from a live system):
 # Query ECC counters
 nvidia-smi -q -d ECC | grep -E "Corrected|Uncorrected"
 
-# Real output:
+# Illustrative output (not captured):
 # ECC Errors (Corrected, per epoch)
 #   Volatile (this session): 0
 #   Aggregate (since boot): 145
@@ -194,11 +194,11 @@ Illustrative output (failing; shape only, not captured from a live system):
 # Check PCIe link status
 lspci -v | grep -E "Link|Status" | head -20
 
-# Real output (healthy):
+# Illustrative output (not captured) (healthy):
 # LnkCap: Speed 16GT/s, Width x16
 # LnkSta: Speed 16GT/s, Width x16
 
-# Real output (degraded):
+# Illustrative output (not captured) (degraded):
 # LnkSta: Speed 5GT/s, Width x1  ← DEGRADED LINK (x1 instead of x16)
 
 # Check for link down events
@@ -259,10 +259,10 @@ print(f"GPU memory allocated: {torch.cuda.memory_allocated() / 1e9:.2f} GB")
 print(f"GPU memory reserved: {torch.cuda.memory_reserved() / 1e9:.2f} GB")
 print(f"Fragmentation: {(torch.cuda.memory_reserved() - torch.cuda.memory_allocated()) / 1e9:.2f} GB")
 
-# Output (healthy):
+# Illustrative output (not captured) (healthy):
 # allocated: 28.4 GB, reserved: 30.2 GB, fragmentation: 1.8 GB
 
-# Output (failing):
+# Illustrative output (not captured) (failing):
 # allocated: 28.4 GB, reserved: 39.8 GB, fragmentation: 11.4 GB (GPU memory is fragmented!)
 ```
 
@@ -312,7 +312,7 @@ nvidia-smi dmon -s pucvmet -c 60 | awk '{print $1, $3}' | sort | uniq -c
 # GPU 2: utilization counts: 60 samples at ~85%
 # GPU 3: utilization counts: 60 samples at ~85%
 
-# Real output (straggler):
+# Illustrative output (not captured) (straggler):
 # GPU 2: utilization counts: 42 samples at 50%, 18 samples at 10% (oscillating!)
 ```
 

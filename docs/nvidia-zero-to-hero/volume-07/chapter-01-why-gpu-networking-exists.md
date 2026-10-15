@@ -12,7 +12,7 @@ description: "Understand the shift from single-node acceleration to distributed 
 | Difficulty | Advanced |
 | Estimated reading time | 30 minutes |
 | Primary audience | DevOps, SRE, Platform, Cloud and Infrastructure Engineers |
-| Core question | If an H100 has 14,000 cores and 3.35 TB/s of memory bandwidth, why do we care about the network? |
+| Core question | If an H100 SXM has 16,896 CUDA cores and 3.35 TB/s of memory bandwidth, why do we care about the network? |
 
 ## Introduction
 
@@ -20,7 +20,7 @@ In the early days of Deep Learning (circa 2012-2016), AI infrastructure was simp
 
 The network did not matter. The network was only used to SSH into the box and download the final model weights.
 
-Today, training a frontier Large Language Model (LLM) like Llama-3 or GPT-4 on a single GPU would take over 400 years. 
+Today, training a frontier Large Language Model (LLM) like Llama-3 or GPT-4 on a single GPU would take many thousands of GPU-years of compute. 
 To train these models in a commercially viable timeframe (months instead of centuries), the workload must be mathematically split across tens of thousands of GPUs simultaneously. 
 
 When you split a math equation across 10,000 calculators, the speed of the math no longer matters. The only thing that matters is how fast those 10,000 calculators can talk to each other to share their intermediate answers.
@@ -48,7 +48,7 @@ Standard enterprise networks use the TCP/IP protocol.
 4.  The CPU pushes it over the PCIe bus to the Network Interface Card (NIC).
 5.  The NIC sends it to the switch.
 
-This process introduces tens of microseconds of latency per hop, and completely pegs the Host CPU processing network interrupts.
+This process adds latency on the order of microseconds to tens of microseconds on each host, and consumes substantial host CPU cycles for protocol processing and interrupts at 100+ Gb/s.
 
 ### The Jitter of Deep Buffers
 Standard IT switches (like Cisco or Juniper core switches) have massive, deep buffers. If traffic spikes, the switch holds the packets in memory and delivers them a few milliseconds later. For web traffic, this is great; it prevents dropped connections.
@@ -68,16 +68,16 @@ To solve this, NVIDIA and Mellanox had to invent a fundamentally new type of net
 A Cloud Architect proposes a new AI cluster design. "We are going to buy 500 NVIDIA H100 servers. To save costs, we will use our existing 400G enterprise Ethernet core switches. We will just allocate a dedicated VLAN with strict Quality of Service (QoS) queues for the AI traffic. It's the same bandwidth as InfiniBand but saves us $2 Million."
 
 **The Senior Architect Response:**
-"Your design guarantees high bandwidth, but ignores latency, jitter, and kernel bypass, which will silently destroy the cluster's training efficiency.
+"Your design guarantees high bandwidth, but ignores latency, jitter, and kernel bypass, which can silently erode the cluster's training efficiency.
 
 Allocating a VLAN on a standard enterprise Ethernet switch does not change the physics of the switch ASIC. Enterprise switches buffer traffic dynamically and handle massive microbursts from standard IT workloads. Even with QoS, the AI traffic will experience microsecond jitter as it traverses the shared switch backplane. 
 
-In a synchronous distributed training job, a 10-microsecond delay for a single GPU stalls the entire 500-node cluster. 
+In a synchronous distributed training job, a delayed path for a single GPU holds back the whole collective. 
 
-Furthermore, standard Ethernet implies standard TCP/IP routing. We must utilize **RDMA (Remote Direct Memory Access)**. If your enterprise switches do not support Priority Flow Control (PFC) and Explicit Congestion Notification (ECN) perfectly tuned for RoCEv2, the network will drop packets during `AllReduce` microbursts. A single dropped packet requires a full TCP retransmission, introducing millisecond-level delays. We must use a dedicated, lossless AI fabric—either InfiniBand or an AI-optimized Ethernet switch like Spectrum-X—to isolate the GPUs from standard IT network physics."
+Furthermore, standard Ethernet implies standard TCP/IP routing. We must utilize **RDMA (Remote Direct Memory Access)**. If your enterprise switches do not support Priority Flow Control (PFC) and Explicit Congestion Notification (ECN) perfectly tuned for RoCEv2, the network will drop packets during `AllReduce` microbursts. A dropped RoCEv2 packet triggers go-back retransmission (and on some NICs a timeout), which can add large delays to the collective. We must use a dedicated, lossless AI fabric—either InfiniBand or an AI-optimized Ethernet switch like Spectrum-X—to isolate the GPUs from standard IT network physics."
 
 ## Interview Preparation
 
 **Conceptual:** Why is Jitter (inconsistent packet arrival time) deadlier to an AI cluster than absolute bandwidth limits? *(Hint: Distributed training uses synchronous Collective Communications. All GPUs must wait for the absolute slowest packet to arrive before the entire cluster can proceed to the next mathematical step. Jitter on one node throttles all nodes).*
 
-**Architecture:** Why is TCP/IP fundamentally incompatible with large-scale GPU training? *(Hint: The TCP/IP stack is processed by the Host CPU's Linux Kernel. Processing terabytes of network traffic via software interrupts maxes out the CPU, adding massive latency and bottlenecking the GPUs. We must bypass the kernel using RDMA).*
+**Architecture:** Why is kernel TCP/IP a poor fit for large-scale GPU training? *(Hint: The TCP/IP stack is processed by the Host CPU's Linux Kernel. Processing terabytes of network traffic via software interrupts maxes out the CPU, adding massive latency and bottlenecking the GPUs. We must bypass the kernel using RDMA).*

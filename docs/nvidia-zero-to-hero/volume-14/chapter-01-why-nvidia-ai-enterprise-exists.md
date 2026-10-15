@@ -146,7 +146,7 @@ deployment_manifest:
       version: "1.28.5"
       verified_against: "GPU Operator 24.3.0 tested with this K8s version"
     nim_container:
-      image: "nvcr.io/nvidia/nim/llama2-7b:1.0.5"
+      image: "nvcr.io/nim/meta/llama3-8b-instruct:1.0.5"
       digest: "sha256:a1b2c3d4..."  # Immutable reference
       last_checked: "2026-08-06"
     model_artifact:
@@ -157,7 +157,7 @@ deployment_manifest:
   incident_evidence_template:
     - pod_events_and_logs: "kubectl describe pod <name> -n default"
     - gpu_state: "nvidia-smi; dcgmi dmon"
-    - nim_readiness: "curl http://localhost:8000/v1/health"
+    - nim_readiness: "curl http://localhost:8000/v1/health/ready"
     - kubernetes_version: "kubectl version"
     - driver_version: "cat /proc/driver/nvidia/version"
 ```

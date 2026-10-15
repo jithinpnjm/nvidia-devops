@@ -45,7 +45,7 @@ When multiple teams (e.g., HR, Finance, and R&D) share a GPU cluster, tenancy de
 
 | Isolation Strategy | Security Posture | Trade-off |
 |---|---|---|
-| **Time-Slicing / Shared GPU** | **Weak.** Processes share the exact same GPU memory space. A malicious user could potentially read another user's VRAM. | High utilization, lowest security. Unacceptable for mixed-classification data. |
+| **Time-Slicing / Shared GPU** | **Weak.** Processes time-share the same GPU and the same physical memory pool, with no hardware-enforced memory partitioning or fault isolation; separation relies on per-process contexts and the driver. | High utilization, lowest security. Unacceptable for mixed-classification data. |
 | **Multi-Instance GPU (MIG)** | **Strong.** Hardware-level isolation of memory and compute. A crash in MIG A cannot affect MIG B. | Strict security, but limits maximum model size to the MIG partition size. |
 | **Physical Node Separation** | **Absolute.** Finance jobs run on Node X. HR jobs run on Node Y. Taints and Tolerations enforce this. | Guaranteed security. Results in lower overall hardware utilization (TCO penalty). |
 
@@ -78,6 +78,6 @@ If the data scientists need to debug CUDA errors, we will route the `dmesg` and 
 
 ## Interview Preparation
 
-**Conceptual:** Why is time-slicing GPUs dangerous in a multi-tenant environment processing classified data? *(Hint: Time-slicing shares the same physical VRAM across multiple processes. It lacks hardware-level memory protection, creating a theoretical vector for one tenant to read another tenant's data. You must use MIG or physical node isolation for classified workloads).*
+**Conceptual:** Why is time-slicing GPUs dangerous in a multi-tenant environment processing classified data? *(Hint: Time-slicing shares the same physical GPU and memory pool across multiple processes. It provides no hardware-enforced memory partitioning, no capacity isolation, and no fault isolation, so one tenant can exhaust memory or trigger faults that affect others. For classified workloads, require MIG or physical node isolation, and validate the residual risk with your security team).*
 
 **Architecture:** How do you secure the model supply chain before deploying an open-source LLM? *(Hint: Never pull directly from the public internet to a production node. Use a CI/CD pipeline to download the model, run security scans (like `safetensors` validation) to ensure arbitrary code execution payloads aren't embedded in the weights, and store the validated model in a private, internal artifact registry).*

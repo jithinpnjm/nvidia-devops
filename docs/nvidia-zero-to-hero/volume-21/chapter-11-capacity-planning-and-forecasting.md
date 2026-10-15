@@ -20,6 +20,8 @@ Conversely, if you panic and over-order 5,000 GPUs today, you will burn tens of 
 
 **Capacity Planning** is the mathematical discipline of predicting the future. SREs and FinOps teams must model their current utilization, project their growth curve, factor in hardware lead times, and make multi-million dollar purchasing decisions months in advance. 
 
+> **Note on figures:** Growth rates, prices, and lead times in this chapter are planning assumptions, not forecasts or quotes. Replace them with your own traffic history and vendor lead times.
+
 ## PART 1: DEMAND FORECASTING
 
 ### 1.1 Forecasting Model
@@ -72,15 +74,15 @@ for month, qps in enumerate(forecast):
 #            only returns 12 months out, so "Month +12" is out of range and would raise
 #            IndexError if referenced)
 
-# GPU requirement (from Chapter 8: 15.2 QPS per GPU)
-gpu_needed = np.array(forecast) / 15.2
+# GPU requirement (from Chapter 8: ~15.2 QPS per 2-GPU replica = ~7.6 QPS per GPU)
+gpu_needed = np.array(forecast) / 7.6
 print("\nGPU requirement (for p99 latency <500ms):")
 for month, gpus in enumerate(gpu_needed):
     print(f"  Month +{month}: {gpus:.0f} GPUs")
 
-# Month +0: 19 GPUs
-# Month +6: 33 GPUs
-# Month +11: 50 GPUs
+# Month +0: 38 GPUs
+# Month +6: 67 GPUs
+# Month +11: 99 GPUs
 ```
 
 ### 1.2 Hardware Refresh Cycles
@@ -119,7 +121,8 @@ TCO calculation (3-year):
   Total OPEX (3 years): $9M
   
   3-year TCO: $28.8M
-  Amortized cost per GPU-year: $28.8M / (464 + 60 + 100 GPU-years) = $24.8K per GPU per year
+  GPU-years in service: 464 × 3 + 60 × 2 + 100 × 1 = 1,612
+  Amortized cost per GPU-year: $28.8M / 1,612 ≈ $17.9K per GPU per year
 ```
 
 ---
@@ -131,31 +134,31 @@ TCO calculation (3-year):
 ```python
 # Example: Plan for 1000 QPS by year end
 
-current_demand = 400 QPS (current fleet ≈ 27 GPUs at 15.2 QPS/GPU, sized to just cover demand)
-target_capacity = 1000 QPS = 66 GPUs needed (total fleet size required to hit the year-end target)
+current_demand = 400 QPS   # ≈ 53 GPUs at ~7.6 QPS per GPU (Chapter 08: ~15.2 QPS per 2-GPU replica)
+target_capacity = 1000 QPS # ≈ 132 GPUs total fleet size required to hit the year-end target
 
 Option A: Buy all hardware upfront (overprovisioning)
-  Cost: 66 × $30K = $1.98M (immediate)
+  Cost: 132 × $30K = $3.96M (immediate)
   Utilization year 1: 400 QPS / 1000 QPS capacity = 40% (wasteful)
   Utilization year 2: 700 QPS / 1000 QPS = 70% (better)
   Pros: No scaling delay, no upgrade cost later
-  Cons: $1M+ idle capacity cost
+  Cons: ~$2M of idle capacity during year 1
 
-Option B: Buy incrementally (match demand)
-  Q1: 10 GPUs for 200 QPS (cost $300K, utilization 100%)
-  Q2: 10 GPUs for 200 QPS (cost $300K, utilization 100%)
-  Q3: 20 GPUs for 300+ QPS (cost $600K, utilization 95%)
-  Q4: 30 GPUs for 450+ QPS (cost $900K, utilization 92%)
-  Total year 1: 70 GPUs = $2.1M
-  
-  Pros: Lower idle cost (90% utilization vs 40%)
-  Cons: $120K extra due to incremental hardware costs, operational overhead of multiple upgrades
+Option B: Buy incrementally (match demand), +79 GPUs over the year
+  Q1: +20 GPUs (≈ +150 QPS), $600K
+  Q2: +20 GPUs, $600K
+  Q3: +20 GPUs, $600K
+  Q4: +19 GPUs, $570K
+  Total year 1: 79 GPUs ≈ $2.37M
 
-  Hybrid approach (recommended):
-  Add 40 GPUs immediately (year 1, month 1): $1.2M → capacity 640 QPS
-  Forecast: Monthly QPS growth 10% for first 6 months, then 5%
-  Utilization: 40–90% throughout year 1 (acceptable balance)
-  Plan upgrade for Q3 if growth accelerates
+  Pros: Lower idle cost; later purchases may be cheaper or newer generation
+  Cons: Lead times (3–9 months) mean each tranche must be ordered well before the demand arrives;
+        operational overhead of multiple installs; risk of stock-outs if growth outpaces orders
+
+Hybrid approach (often recommended):
+  Add 40 GPUs immediately: $1.2M → capacity ≈ (53 + 40) × 7.6 ≈ 700 QPS
+  Reassess monthly against the forecast; order the next tranche when forecast demand reaches
+  ~70% of capacity minus the supplier lead time
 ```
 
 ## Architecture Summary

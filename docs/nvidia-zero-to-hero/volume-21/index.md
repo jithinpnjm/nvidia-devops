@@ -33,7 +33,7 @@ Training data pipelines, model artifacts, checkpoint management. Throughput targ
 Power budgeting, cooling design, efficiency optimization, cost allocation.
 
 ### Chapter 6: Software Stack Integration
-CUDA runtime, frameworks (PyTorch, JAX, TensorFlow), distributed training orchestration.
+CUDA runtime, frameworks (PyTorch, JAX), distributed training orchestration.
 
 ### Chapter 7: Multi-Node Distributed Training
 AllReduce optimization, gradient compression, pipeline parallelism, fault tolerance mechanisms.

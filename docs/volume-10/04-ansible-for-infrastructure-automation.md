@@ -65,7 +65,7 @@ flowchart TD
     end
 
     subgraph TransportLayer["2. Transport Layer"]
-        SSH["SSH / Paramiko / Mitogen (Linux)"]
+        SSH["SSH / Paramiko (Linux)"]
         WINRM["WinRM (Windows)"]
     end
 
@@ -73,7 +73,7 @@ flowchart TD
         GPU1["GPU Worker Node 01 (H100)
         - Python 3.x
         - sudo privileges
-        - Temporary /tmp/.ansible"]
+        - Temporary ~/.ansible/tmp"]
         GPU2["GPU Worker Node 02 (H100)
         - Python 3.x
         - sudo privileges
@@ -85,7 +85,7 @@ flowchart TD
     end
 
     ControlNode -->|Pushes compiled Python modules via| TransportLayer
-    TransportLayer -->|Executes in memory & securely purges| ManagedNodes
+    TransportLayer -->|Runs module, returns JSON, removes temp files| ManagedNodes
 ```
 
 ### 2.1 The Control Node
@@ -171,7 +171,7 @@ inventory/
     └── dgx-h100-01.ai-factory.internal.yml # Granular overrides for one host
 ```
 
-**Example `group_vars/h100_nodes.yml`:**
+**Example `group_vars/h100_nodes.yml`** (version strings are placeholders; pin the versions you have qualified):
 ```yaml
 ---
 # Specific variables targeting the H100 architecture
@@ -266,7 +266,8 @@ Ansible provides `block`, `rescue`, and `always` constructs, mirroring the `try/
       block:
         - name: Install NVIDIA open kernel modules
           ansible.builtin.apt:
-            name: "nvidia-driver-{{ nv_driver_version }}-open"
+            # Ubuntu driver packages are named by branch (e.g. nvidia-driver-535-open), not full version
+            name: "nvidia-driver-{{ nv_driver_version.split('.')[0] }}-open"
             state: present
         
         - name: Verify NVIDIA System Management Interface (SMI) executes successfully
@@ -308,7 +309,7 @@ To install multiple packages, create multiple user accounts, or configure multip
       loop:
         - htop
         - sysstat
-        - rdmacore
+        - rdma-core
         - ibutils
         - infiniband-diags
         - perftest
@@ -462,7 +463,6 @@ SlurmdUser=root
 SlurmctldPort=6817
 SlurmdPort=6818
 AuthType=auth/munge
-CryptoType=crypto/munge
 ProctrackType=proctrack/cgroup
 TaskPlugin=task/cgroup,task/affinity
 
@@ -534,7 +534,7 @@ In AI Infrastructure, replacing the default kernel networking stacks with MOFED 
   ansible.builtin.command:
     cmd: "/mnt/mofed/mlnxofedinstall --force --without-fw-update"
   register: mofed_install_result
-  changed_when: "'Installation finished successfully' in mofed_install_result.stdout"
+  changed_when: mofed_install_result.rc == 0  # adjust to the installer output of your MOFED release
   # Asynchronous execution allows Ansible to not drop the SSH connection during long compiles
   async: 3600
   poll: 60
@@ -554,7 +554,7 @@ In AI Infrastructure, replacing the default kernel networking stacks with MOFED 
 ```
 
 **The Power of `flush_handlers` and `reboot`:**
-Replacing networking stacks requires a full system restart to load the new kernel modules cleanly before compiling the NVIDIA drivers (which depend on `ibcore` for GPUDirect RDMA). The handler utilizes `ansible.builtin.reboot`:
+Replacing networking stacks requires a full system restart to load the new kernel modules cleanly before compiling the NVIDIA drivers (GPUDirect RDMA relies on the `nvidia-peermem` module loading against the OFED RDMA stack). The handler utilizes `ansible.builtin.reboot`:
 
 ```yaml
 # roles/mofed/handlers/main.yml
@@ -654,7 +654,7 @@ By default, Ansible attempts to be extremely compatible, prioritizing legacy SSH
 # Increase parallel execution forks from 5 to 100
 forks = 100
 
-# Disable fact gathering globally if playbooks don't need facts, saving ~3-5 seconds per run
+# smart: gather facts only if not already cached (use gather_facts: false in a play to skip entirely)
 gathering = smart
 
 # Cache facts in a local JSON file so subsequent runs don't re-query the hardware
@@ -739,10 +739,10 @@ $ ansible-playbook site.yml -vvvv
 An engineer runs an Ansible playbook to update `libc` and `systemd` across 256 Ubuntu GPU workers. The playbook stalls indefinitely at the `apt` task. No timeout occurs. After 45 minutes, the operator must manually `ctrl+c` the playbook.
 
 **Root Cause Analysis:**
-The `apt` upgrade triggered an interactive `dpkg` prompt (e.g., *"The file /etc/ssh/sshd_config has been modified. Keep local version or replace?"*). Because Ansible operates via non-interactive SSH with no TTY, the `dpkg` prompt is waiting indefinitely for a user to press 'Y' or 'N' on a standard input that doesn't exist.
+An apt/dpkg run (commonly via `command`/`shell`, or a held lock from another process such as unattended-upgrades) stalled on an interactive `dpkg` prompt (e.g., *"The file /etc/ssh/sshd_config has been modified. Keep local version or replace?"*). Because Ansible operates via non-interactive SSH with no TTY, the `dpkg` prompt is waiting indefinitely for a user to press 'Y' or 'N' on a standard input that doesn't exist.
 
 **Remediation and Prevention:**
-Never run raw `apt upgrade` commands without enforcing non-interactive frontend environments. Use the dedicated Ansible module parameters, or if using `apt` directly, inject the `DEBIAN_FRONTEND` environment variable.
+Do not call raw `apt-get` through `command`/`shell` without a non-interactive frontend. The `apt` module sets `DEBIAN_FRONTEND=noninteractive` itself; pass `dpkg_options` to pre-answer conffile prompts, and set `lock_timeout` so a held lock fails instead of waiting.
 
 ```yaml
 # Correct way to handle APT upgrades safely in automation
@@ -750,6 +750,7 @@ Never run raw `apt upgrade` commands without enforcing non-interactive frontend 
   ansible.builtin.apt:
     upgrade: dist
     dpkg_options: 'force-confold,force-confdef' # Auto-answers 'keep old config'
+    lock_timeout: 300
   environment:
     DEBIAN_FRONTEND: noninteractive
 ```
@@ -791,7 +792,7 @@ The `until`, `retries`, and `delay` directives force Ansible to execute a `while
 A playbook provisions a local PostgreSQL database for Slurm accounting. The task uses the `command` module to execute `psql -U postgres -c "CREATE USER slurm WITH PASSWORD 'SuperSecret123!';"`. The playbook completes successfully. The next day, the security team flags that the raw, plaintext password was written into the centralized Ansible Tower execution logs, which are visible to hundreds of developers.
 
 **Root Cause Analysis:**
-Ansible logs the input arguments and output `stdout`/`stderr` of *every single task* to the console by default. If a task contains a password, token, or private key, it will be exposed.
+Ansible prints task results (including `stdout`/`stderr`) and, in verbose modes or on failure, module arguments. A password passed on a command line or in a task result can therefore land in console output and in AWX/Tower job logs.
 
 **Remediation Procedure:**
 Use the `no_log: true` directive on any task handling sensitive data. This forces Ansible to redact the task's output from the console and log files.
@@ -799,7 +800,8 @@ Use the `no_log: true` directive on any task handling sensitive data. This force
 ```yaml
 - name: Create Slurm database user
   ansible.builtin.command:
-    cmd: "psql -U postgres -c "CREATE USER slurm WITH PASSWORD '{{ slurm_db_password }}';""
+    cmd: >-
+      psql -U postgres -c "CREATE USER slurm WITH PASSWORD '{{ slurm_db_password }}';"
   no_log: true # Strictly prevents arguments and stdout from being logged to the console
 ```
 
@@ -811,7 +813,7 @@ Use the `no_log: true` directive on any task handling sensitive data. This force
 An engineer updates `group_vars/all.yml` to change the `nv_driver_version` to `535.154.05` for the entire fleet. They run the playbook, but notice that node `dgx-h100-02` mysteriously installed the older `525.85.12` driver instead.
 
 **Root Cause Analysis:**
-Ansible has a very strict Variable Precedence hierarchy (over 22 levels deep). Variables defined in `host_vars` override `group_vars`. Variables defined via the CLI (`-e`) override everything. In this case, another engineer had previously created `host_vars/dgx-h100-02.yml` and hardcoded the old driver version for a temporary debugging session, forgetting to delete it. That host-specific variable overrode the global group variable.
+Ansible has a very strict Variable Precedence hierarchy (22 levels in the Ansible documentation). Variables defined in `host_vars` override `group_vars`. Variables defined via the CLI (`-e`) override everything. In this case, another engineer had previously created `host_vars/dgx-h100-02.yml` and hardcoded the old driver version for a temporary debugging session, forgetting to delete it. That host-specific variable overrode the global group variable.
 
 **Remediation Procedure:**
 1. Use `ansible-inventory` CLI to debug the final variable state for a specific host:
@@ -837,12 +839,12 @@ You can enable the debugger globally in `ansible.cfg` (`enable_task_debugger = T
 ```
 
 ### 12.2 Using the Interactive Debugger
-If the JSON query above fails (e.g., `raw_topology_json` is missing the `gpus` key), Ansible halts and opens a REPL prompt instead of terminating:
+If the JSON query above fails (e.g., `raw_topology_json` is missing the `gpus` key), Ansible halts and opens a REPL prompt instead of terminating (illustrative output, not captured; the exact prompt text differs by version; `json_query` also requires the `community.general` collection and the `jmespath` Python library):
 
 ```text
 [Node: dgx-h100-01.ai-factory.internal]
 [Task: Extract GPU topology from JSON payload]
-[Error: dict object has no element gpus]
+[Error: 'dict object' has no attribute 'gpus']
 [debugger] > 
 ```
 
@@ -887,7 +889,10 @@ def main():
             module.fail_json(msg="nvidia-smi nvlink command failed", stderr=result.stderr)
             
         # Simplistic parsing for demonstration
-        active_links = result.stdout.count('Link is active')
+        # nvidia-smi nvlink -s prints one line per link, e.g. 'Link 0: <speed> GB/s' for active links
+        # (inactive links are reported differently). Verify the format on your driver version.
+        import re
+        active_links = len(re.findall(r'Link\s+\d+:\s+[\d.]+\s*GB/s', result.stdout))
         
         if active_links < expected:
             module.fail_json(msg=f"Degraded NVLink Fabric! Found {active_links} active links, expected {expected}.")
@@ -930,10 +935,10 @@ Instead of the Control Node pushing commands, each Managed Node runs a cron job 
 $ ansible-pull -U https://github.com/my-org/ai-factory-ansible.git -i inventory/localhost.yml site.yml
 ```
 
-*   **Pros:** Infinitely scalable. The execution load is distributed across the managed nodes themselves. No SSH bottlenecks.
+*   **Pros:** Scales further because the execution load is distributed across the managed nodes themselves. there is no central SSH fan-out.
 *   **Cons:** Decentralized logging requires a robust ELK/Splunk aggregation pipeline. You lose the ability to easily orchestrate rolling updates (e.g., restarting exactly 10% of nodes at a time), because nodes are operating independently.
 
-**AI Factory Recommendation:** Stick to the Push Model with highly tuned SSH pipelining up to ~2,000 nodes. Use Ansible Tower / AWX clustering if scaling further, as rolling updates are critical for Slurm orchestration.
+**AI Factory Recommendation:** Start with the Push Model and tuned SSH pipelining; move to pull or controller clustering (AWX/Ansible Automation Platform) when the single control node becomes the bottleneck, since rolling updates are critical for Slurm orchestration. Use Ansible Tower / AWX clustering if scaling further, as rolling updates are critical for Slurm orchestration.
 
 ---
 
@@ -954,7 +959,7 @@ Before handing over a cluster to data scientists, SREs must stress test the GPUs
       ansible.builtin.git:
         repo: 'https://github.com/wilicc/gpu-burn.git'
         dest: /tmp/gpu-burn
-        version: master
+        version: master  # pin a commit SHA in production
 
     - name: Compile GPU-Burn
       ansible.builtin.command: make
@@ -973,8 +978,9 @@ Before handing over a cluster to data scientists, SREs must stress test the GPUs
     - name: Validate zero hardware errors occurred
       ansible.builtin.assert:
         that:
-          - "'Faulty' not in gpu_burn_output.stdout"
-          - "'Xid error' not in gpu_burn_output.stderr"
+          - "'faulty' not in (gpu_burn_output.stdout | lower)"
+          # Xid errors appear in the kernel log (dmesg/journalctl -k), not gpu_burn output;
+          # check them in a separate task.
         fail_msg: "HARDWARE FAILURE DETECTED ON {{ inventory_hostname }}. Isolating node."
 ```
 
@@ -985,7 +991,7 @@ Ensuring the 3.2 Tbps InfiniBand fabric is functioning correctly requires runnin
 ```yaml
 - name: Execute Distributed NCCL All-Reduce Test
   hosts: slurm_controllers[0] # Run only from the master node
-  become: true
+  become: false  # OpenMPI refuses to run as root unless --allow-run-as-root is passed
   tasks:
     - name: Generate hostfile for OpenMPI
       ansible.builtin.template:
@@ -1006,7 +1012,7 @@ Ensuring the 3.2 Tbps InfiniBand fabric is functioning correctly requires runnin
     - name: Assert expected bandwidth
       ansible.builtin.assert:
         that:
-          - "nccl_results.stdout | regex_search('Avg bus bandwidth.*([0-9]{3}\.[0-9]+)')"
+          - "nccl_results.stdout | regex_search('Avg bus bandwidth.*([0-9]{3}[.][0-9]+)')"
         msg: "NCCL Bandwidth degraded below acceptable thresholds!"
 ```
 

@@ -221,6 +221,8 @@ Context creation has operational consequences:
 
 **Evidence for step 1 — device node access is a permissions problem, not a driver problem:**
 
+*Illustrative output (not captured):*
+
 ```text
 $ ls -l /dev/nvidia*
 crw-rw-rw- 1 root root 195,   0 Mar  3 09:12 /dev/nvidia0
@@ -232,6 +234,8 @@ crw-rw-rw- 1 root root 234,   0 Mar  3 09:12 /dev/nvidia-uvm
 If this instead returns `No such file or directory` inside a container while the host shows the nodes above, the container runtime never injected the devices — that is a Container Toolkit / CDI configuration gap, not something a driver reinstall touches.
 
 **Evidence for step 2 — confirm `libcuda.so` actually resolves, don't assume it:**
+
+*Illustrative output (not captured):*
 
 ```text
 $ ldconfig -p | grep libcuda
@@ -253,12 +257,14 @@ An empty result here — inside the container — while the host shows these two
 
 **Row 3 evidence — environment variables that silently filter devices:**
 
+*Illustrative output (not captured):*
+
 ```text
 $ env | grep -E 'CUDA_VISIBLE_DEVICES|NVIDIA_VISIBLE_DEVICES'
 NVIDIA_VISIBLE_DEVICES=none
 ```
 
-`NVIDIA_VISIBLE_DEVICES=none` is a common accidental leftover from a base image or CI template — it silently produces zero visible GPUs with no error message at all, and it is indistinguishable from a real driver failure unless you check the environment first. This single line explains more "works on host, fails in container" tickets than actual driver incompatibility does.
+`NVIDIA_VISIBLE_DEVICES=none` is a common accidental leftover from a base image or CI template — it silently produces zero visible GPUs with no error message at all, and it is indistinguishable from a real driver failure unless you check the environment first. Check it before suspecting the driver.
 
 **Row 5 evidence — the minimal test that separates framework bugs from platform bugs:**
 
@@ -270,6 +276,8 @@ Run this once on host, once inside the container, same GPU. If host prints `True
 ### Problem: Import succeeds, first GPU operation fails
 
 The application likely performs lazy initialization. Capture the first failing operation and inspect context creation, memory allocation, and library initialization rather than treating import success as validation.
+
+*Illustrative session (not captured):*
 
 ```text
 >>> import torch          # succeeds — no device touched yet

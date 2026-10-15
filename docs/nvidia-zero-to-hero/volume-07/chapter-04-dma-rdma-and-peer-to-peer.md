@@ -37,7 +37,7 @@ When a Python application (like a web server) wants to send data across a standa
 7. The NIC reads the data over the PCIe bus and sends it down the wire.
 
 For a 10 Gbps web server, the CPU easily handles this. 
-For a 400 Gbps AI training cluster, this process instantly consumes 100% of the CPU cores. The server crashes, and the GPUs sit idle.
+For a 400 Gbps AI training cluster, this process can consume many CPU cores, and throughput is often limited by the CPU rather than the NIC.
 
 ## 2. Direct Memory Access (DMA)
 
@@ -56,14 +56,14 @@ This requires **RDMA (Remote Direct Memory Access)**.
 With RDMA, the NIC on Server A reads data from its local RAM (via DMA), blasts it across the network fiber, and the NIC on Server B receives the packet and writes it *directly into the physical RAM of Server B*. 
 
 ### The Magic of Kernel Bypass
-During an RDMA transfer, the Linux Kernels on both servers are **completely unaware** that a massive data transfer just occurred. 
+Once queue pairs and memory registrations are set up (a control path that does involve the kernel), the data path of an RDMA transfer does not involve the Linux kernels on either server. 
 * There are no Context Switches.
-* There are no buffer copies.
+* There are no kernel buffer copies (the NIC reads and writes registered application memory).
 * There is no TCP/IP overhead.
-* The latency drops from hundreds of microseconds to **~1 microsecond**.
+* Small-message latency typically drops from tens of microseconds to low single-digit microseconds (hardware- and fabric-dependent).
 
 ### RDMA Fabrics
-You cannot run RDMA over a cheap generic network switch. It requires specialized NICs (like NVIDIA ConnectX) and lossless fabrics:
+RDMA requires RDMA-capable NICs (like NVIDIA ConnectX) and, in practice, a lossless or near-lossless fabric:
 * **InfiniBand:** Natively built from the ground up for RDMA.
 * **RoCE (RDMA over Converged Ethernet):** A protocol that encapsulates RDMA commands into UDP packets so they can travel over highly-tuned, lossless Ethernet switches.
 
@@ -89,7 +89,7 @@ flowchart LR
         Kern_C ~~~ Kern_D
     end
 ```
-*Notice how the Linux Kernels in the RDMA path are completely bypassed and do no work.*
+*Notice how the Linux Kernels are out of the data path in the RDMA case (they still handle setup).*
 
 ## Customer Scenario (Senior Level)
 
@@ -101,10 +101,10 @@ A cloud engineering team deploys a massive Ray cluster for distributed reinforce
 
 Your ConnectX-5 NICs are fully capable of 100 Gbps, but because your cluster is configured to use standard TCP sockets for distributed communication, every single packet is being routed through the Linux Kernel. Processing 100 Gigabits of TCP traffic per second requires calculating checksums and handling interrupts for millions of packets per second. This has completely saturated your CPU cores with kernel-space operations (`system` time). 
 
-To fix this, we do not need new CPUs. We need to implement **Kernel Bypass**. We must reconfigure the application to use **RDMA (RoCEv2)**. By binding your communication libraries to the RDMA verbs API, the ConnectX-5 NICs will push and pull data directly from the application's user-space memory across the network. The CPU utilization will instantly drop from 100% to near-idle, and your network throughput will saturate the full 100 Gbps line rate."
+To fix this, we do not need new CPUs. We need to implement **Kernel Bypass**. We must reconfigure the application to use **RDMA (RoCEv2)**. By binding your communication libraries to the RDMA verbs API, the ConnectX-5 NICs will push and pull data directly from the application's user-space memory across the network. CPU utilization should drop sharply and throughput should approach line rate, provided the RoCE fabric is configured correctly (PFC/ECN or equivalent). Verify with `ib_write_bw`."
 
 ## Interview Preparation
 
-**Conceptual:** What is Kernel Bypass, and why is it mandatory for AI Networking? *(Hint: Standard networking forces data through the OS Kernel for TCP/IP processing, causing massive CPU load and high latency context-switches. Kernel Bypass allows applications to talk directly to the NIC hardware via RDMA, achieving microsecond latency).*
+**Conceptual:** What is Kernel Bypass, and why is it mandatory for AI Networking? *(Hint: Standard networking forces data through the OS Kernel for TCP/IP processing, causing massive CPU load and high latency context-switches. Kernel Bypass allows applications to talk directly to the NIC hardware via RDMA, achieving low-microsecond latency).*
 
 **Architecture:** Explain how RDMA (Remote Direct Memory Access) moves a file from Server A to Server B. *(Hint: The application registers a region of physical memory with the NIC. The NIC uses DMA to read the memory, sends it across the lossless fabric, and the receiving NIC writes it directly into the receiving application's registered physical memory, completely bypassing both CPUs and both Linux kernels).*

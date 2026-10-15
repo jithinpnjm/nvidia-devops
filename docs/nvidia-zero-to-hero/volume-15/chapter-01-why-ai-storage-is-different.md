@@ -121,7 +121,7 @@ lctl get_param llite.*.stats 2>/dev/null | grep -E "close|open|getattr|readdir"
 beegfs-ctl --getentryinfo <path> 2>/dev/null
 ```
 
-**Real sample output — metadata-bound workload:**
+**Illustrative output (not captured) — metadata-bound workload:**
 ```text
 $ lctl get_param llite.*.stats | grep -E 'open|getattr' | head -3
 llite.lustre-3c69ee.mdt_stats=
@@ -147,13 +147,13 @@ Check whether the storage system itself is full or the network is the limit:
 ```bash
 # Lustre storage health
 lfs df -h
-# Output: Shows how full each OST is and available capacity per target
+# Illustrative output (not captured): Shows how full each OST is and available capacity per target
 
 # All targets should have similar fill levels (±5%)
 lfs df -i  # Inode usage per OST
 ```
 
-**Real sample output:**
+**Illustrative output (not captured):**
 ```text
 $ lfs df -h
 UUID                       bytes        Used   Available Use% Mounted on
@@ -185,7 +185,7 @@ fio --name=read --ioengine=libaio --rw=read --bs=1M --size=10G \
     --direct=1 --iodepth=32 --numjobs=1 --filename=/mnt/lustre/test.file
 ```
 
-**Real sample fio output:**
+**Illustrative sample fio output (not captured):**
 ```text
 read: (g=0): rw=read, bs=1MiB-1MiB, ioengine=libaio, iodepth=32
 read: Starting 1 process

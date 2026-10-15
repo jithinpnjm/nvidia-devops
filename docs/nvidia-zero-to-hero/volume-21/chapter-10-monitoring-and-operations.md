@@ -20,6 +20,8 @@ By deploying agents like DCGM (Data Center GPU Manager) and Prometheus, the oper
 But visualization is not enough. You must build **Alerting Rules**. 
 If a GPU hits 85°C and begins thermal throttling, an automated alert must instantly page the on-call engineer and point them to a specific Runbook (a step-by-step guide to fixing the issue). This chapter aggregates the SRE concepts from Volumes 16 and 19 into a concrete factory operations manual.
 
+> **Note on figures:** Targets and thresholds in this chapter are examples. Derive real values from your own measured baselines and from NVIDIA documentation for your GPU model. Metric names that are not `DCGM_FI_*` fields are placeholders for your own instrumentation.
+
 ## PART 1: OBSERVABILITY STACK
 
 ### 1.1 Key Metrics for Production Clusters
@@ -28,24 +30,24 @@ If a GPU hits 85°C and begins thermal throttling, an automated alert must insta
 GPU/NODE METRICS
 
 GPU Metrics (per GPU, via nvidia-smi, DCGM):
-  Utilization: Target >85% during training (indicates efficiency)
-  Memory: Target >85% allocated (indicates full use)
-  Temperature: Alert if >75°C (throttle at 80°C)
-  Power: Target ~350W under load (detect thermal throttle if <300W)
+  Utilization: track DCGM_FI_PROF_SM_ACTIVE and DCGM_FI_PROF_PIPE_TENSOR_ACTIVE; nvidia-smi GPU-Util alone is misleading
+  Memory: track used versus reserved (allocator caching) and OOM events
+  Temperature: alert on thermal slowdown reason and on temperature trend (thresholds are GPU-model specific; see nvidia-smi -q -d TEMPERATURE)
+  Power: compare against the node-type baseline (H100 SXM draws up to 700W); a drop at constant load suggests throttling
   Clock speed: Should be max (if reduced = throttle)
   
-  Example alert: GPU temp >75°C for >5 min → page on-call
+  Example alert: thermal slowdown reason active for >5 min → page on-call
 
 CLUSTER METRICS
 
 Throughput:
-  Training: Tokens/sec (target 32M tokens/sec for 64-GPU cluster)
-  Inference: QPS (target 500 QPS per region)
+  Training: Tokens/sec against the job's own measured baseline (Chapter 01 estimates tens of thousands of tokens/sec for a 70B model on 64 H100s)
+  Inference: QPS (about 667 QPS per region in the Chapter 08 sizing)
   Alert: If throughput <90% of baseline for 15 min → investigate
 
 AllReduce Latency:
-  Target: 2–5 ms for 64-GPU cluster (ring AllReduce)
-  Alert: If >10 ms for 3 consecutive iterations → network issue
+  Target: your measured nccl-tests baseline for this cluster
+  Alert: If exposed communication time rises well above baseline for several consecutive iterations → network or straggler issue
 
 Network:
   IB port error rate: Should be 0 (any errors indicate link issues)
@@ -85,10 +87,6 @@ scrape_configs:
         - 'node2:9100'
         - 'node3:9100'
         # ... all 16 nodes
-    metric_relabel_configs:
-      - source_labels: [__name__]
-        regex: 'nvidia_smi_.*|DCGM_FI_.*'
-        action: keep
   
   - job_name: 'nvidia-dcgm'
     scrape_interval: 10s
@@ -131,7 +129,7 @@ groups:
       
       # Training throughput SLO
       - alert: TrainingThroughputLow
-        expr: training_throughput_tokens_per_sec < 0.9 * 32_000_000  # 90% of target
+        expr: training_throughput_tokens_per_sec < 0.9 * 60000  # 90% of this job's measured baseline (example value)
         for: 5m
         annotations:
           summary: "Training throughput below SLO ({{ $value }})"
@@ -139,11 +137,11 @@ groups:
       
       # GPU temperature SLO (prevent throttling)
       - alert: GPUTemperatureHigh
-        expr: DCGM_FI_DEV_GPU_TEMP > 75
+        expr: DCGM_FI_DEV_GPU_TEMP > 80   # example threshold; set from the GPU model's slowdown temperature
         for: 1m
         annotations:
-          summary: "GPU {{ $labels.gpu }} above 75°C"
-          runbook: "Reduce batch size, check cooling"
+          summary: "GPU {{ $labels.gpu }} above 80°C"
+          runbook: "Check throttle reasons, cooling, and airflow (Volume 20 Chapter 6)"
       
       # Inference latency SLO
       - alert: InferenceLatencyP99High
@@ -155,7 +153,7 @@ groups:
       
       # Cluster availability SLO (infer from failed nodes)
       - alert: GPUFailureDetected
-        expr: increase(gpu_failure_count[10m]) > 0
+        expr: increase(gpu_failure_count[10m]) > 0   # placeholder metric (for example derived from Xid events)
         annotations:
           summary: "{{ $value }} GPU failures in last 10 min"
           runbook: "Investigate failed GPU, assess cluster SLA impact"
@@ -179,7 +177,7 @@ groups:
 INCIDENT: GPU FAILURE DETECTED
 
 Detection:
-  - DCGM detects GPU hang (no heartbeat for 30s)
+  - Health monitoring detects the failure (Xid event, DCGM health watch, or a hung job)
   - Alert fires: "GPUFailureDetected"
   - On-call gets paged immediately
 
@@ -191,7 +189,7 @@ Initial Response (5 min):
 
 Mitigation (15 min):
   - Restart failed node (firmware reset, OS reboot)
-  - If restart succeeds: Resume job from last checkpoint (loss ≈ 30 min work if checkpoints every 10 min)
+  - If restart succeeds: Resume job from last checkpoint (lost work is bounded by the checkpoint interval)
   - If restart fails: Reallocate job to different node
 
 Recovery (30–60 min):

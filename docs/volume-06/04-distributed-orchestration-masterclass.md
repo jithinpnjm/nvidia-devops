@@ -53,7 +53,7 @@ graph TD
 
 **Key Components:**
 :::info
-The `slurmctld` is the central brain. It maintains the state of the cluster, queues jobs, and allocates resources. It is single-threaded for many core operations, which is a critical architectural constraint to understand when dealing with high API throughput.
+The `slurmctld` is the central brain. It maintains the state of the cluster, queues jobs, and allocates resources. Much of its state handling is serialized behind internal locks, which is a critical architectural constraint to understand when dealing with high API throughput.
 :::
 *   **`slurmd`**: The agent running on every compute node. It is responsible for launching tasks, monitoring node state, and reporting back to `slurmctld`.
 *   **`slurmdbd`**: The database daemon. It handles the interface to the underlying relational database (usually MariaDB) to record accounting data, user limits (QOS), and historical job information. Offloading this from `slurmctld` prevents database latency from blocking the main scheduling loop.
@@ -68,10 +68,8 @@ Below is an advanced `slurm.conf` snippet designed for an NVIDIA DGX SuperPOD-li
 ```ini
 # --- slurm.conf (Advanced AI Factory Snippet) ---
 ClusterName=aifactory-omega
-ControlMachine=slurm-mgr-01
-ControlAddr=10.0.0.10
-BackupController=slurm-mgr-02
-BackupAddr=10.0.0.11
+SlurmctldHost=slurm-mgr-01(10.0.0.10)
+SlurmctldHost=slurm-mgr-02(10.0.0.11)  # backup controller (replaces deprecated ControlMachine/BackupController)
 
 # Advanced Scheduling and Topology
 SchedulerType=sched/backfill
@@ -112,9 +110,11 @@ To expose the complex internal topology of an HGX H100 baseboard (which contains
 
 ```ini
 # --- gres.conf ---
-# Mapping 8 H100 GPUs to their respective NUMA affinities
-# This ensures that CPU threads launching CUDA kernels are physically close to the GPU.
-AutoDetect=nvml
+# Illustrative manual mapping of 8 H100 GPUs to core affinities.
+# This keeps CPU threads that launch CUDA kernels close to their GPU.
+# Prefer AutoDetect=nvml (requires a Slurm build with NVML support) and omit the manual
+# lines below; use manual entries only when autodetection is not available.
+# AutoDetect=nvml
 Name=gpu Type=h100 File=/dev/nvidia0 COREs=0-27
 Name=gpu Type=h100 File=/dev/nvidia1 COREs=0-27
 Name=gpu Type=h100 File=/dev/nvidia2 COREs=28-55
@@ -125,7 +125,7 @@ Name=gpu Type=h100 File=/dev/nvidia6 COREs=84-111
 Name=gpu Type=h100 File=/dev/nvidia7 COREs=84-111
 ```
 
-*Note: `AutoDetect=nvml` allows Slurm to query the NVIDIA Management Library to dynamically construct this map, reducing administrative overhead.*
+*Note: `AutoDetect=nvml` (instead of the manual lines) allows Slurm to query the NVIDIA Management Library to dynamically construct this map, reducing administrative overhead.*
 
 ### 1.4 Job Steps, PMIx, and MPI Integration
 
@@ -171,7 +171,7 @@ kind: Job
 metadata:
   name: pytorch-training-job
 spec:
-  minAvailable: 8 # GANG SCHEDULING: Require exactly 8 pods to start
+  minAvailable: 8 # GANG SCHEDULING: do not start unless at least 8 pods can be placed
   schedulerName: volcano
   policies:
     - event: PodEvicted
@@ -191,7 +191,7 @@ spec:
 
 ### 2.3 Kueue: Cloud-Native Job Queueing
 
-While Volcano provides gang scheduling, K8s historically lacked a robust mechanism for job queueing and quota management (like Slurm's QOS and accounts). Google introduced **Kueue** to solve this.
+While Volcano provides gang scheduling, K8s historically lacked a robust mechanism for job queueing and quota management (like Slurm's QOS and accounts). The Kubernetes SIG Scheduling project **Kueue** addresses this.
 
 Kueue does not replace the scheduler (it works alongside the default scheduler or Volcano); it acts as an admission controller. It holds `Workloads` in a queue until the `ClusterQueue` has sufficient quota (e.g., "Team A is allowed 128 GPUs").
 
@@ -226,15 +226,15 @@ spec:
         spec:
           containers:
           - name: mpi-launcher
-            image: mpioperator/mpi-pi:latest
-            command: ["mpirun", "-np", "16", "/opt/nccl-tests/build/all_reduce_perf", "-b", "8", "-e", "128M", "-f", "2"]
+            image: <your-nccl-tests-image>  # an image that contains MPI and nccl-tests
+            command: ["mpirun", "-np", "16", "/opt/nccl-tests/build/all_reduce_perf", "-b", "8", "-e", "128M", "-f", "2"]  # path depends on your image
     Worker:
       replicas: 2
       template:
         spec:
           containers:
           - name: mpi-worker
-            image: mpioperator/mpi-pi:latest
+            image: <your-nccl-tests-image>
             resources:
               limits:
                 nvidia.com/gpu: 8
@@ -261,7 +261,7 @@ This is highly dangerous without strict resource partitioning. If both scheduler
 **How to implement safely:**
 *   **Static Partitioning:** Dedicate nodes 1-50 to Slurm, and 51-100 to K8s.
 *   **Dynamic Partitioning:** Use a higher-level orchestrator or Terraform to dynamically re-image or re-label nodes based on demand.
-*   **Cgroup Segregation:** Configure `slurmd` to only use `/sys/fs/cgroup/slurm` and Kubelet to use `/sys/fs/cgroup/kubepods`, and carefully manage CPU/Memory shares, though GPU sharing remains an issue without MIG (Multi-Instance GPU).
+*   **Cgroup Segregation:** Keep Slurm's job cgroups (created by `slurmstepd`) and the kubelet's `kubepods` hierarchy separate, and carefully manage CPU/Memory shares, though GPU sharing remains an issue without MIG (Multi-Instance GPU).
 
 ### 3.3 Data Locality in Hybrid Environments
 
@@ -286,7 +286,7 @@ Operating orchestration at an AI Factory scale requires thinking in distributed 
 
 **The Solution:**
 *   **K8s:** Use API Priority and Fairness (APF). Dedicate flow schemas for system components and rate-limit user service accounts.
-*   **Slurm:** Use Job Arrays (`sbatch --array=1-50000`). A job array is stored as a single job record in the database and expanded dynamically, drastically reducing RPC load and memory footprint.
+*   **Slurm:** Use Job Arrays (`sbatch --array=1-50000`). A job array is submitted as one request and its tasks are created lazily, drastically reducing RPC load and memory footprint. Note that `MaxArraySize` (default 1001) must be raised in `slurm.conf` to allow arrays this large.
 
 ### 4.3 Split-Brain and State Reconciliation
 
@@ -306,16 +306,16 @@ As a Senior Staff or Principal Engineer, you aren't just configuring systems; yo
 **Investigation:** 
 1. Check `slurmctld.log`. You see warnings about the RPC queue being full or threads taking too long to acquire locks.
 2. Run `top` on the controller. You see `slurmctld` consuming 100% of a single CPU core.
-**Root Cause:** A user submitted thousands of individual tiny jobs instead of a Job Array, and simultaneously, many short jobs are completing, triggering Epilog scripts. The single-threaded write-lock in `slurmctld` for state updates is bottlenecked. Node ping RPCs are timing out in the queue, causing nodes to go `UNKNOWN`.
+**Root Cause:** A user submitted thousands of individual tiny jobs instead of a Job Array, and simultaneously, many short jobs are completing, triggering Epilog scripts. The internal locks that `slurmctld` takes for state updates are a bottleneck. Node ping RPCs are timing out in the queue, causing nodes to go `UNKNOWN`.
 **Resolution:** 
 1. Immediate: Restart `slurmctld` (it will recover state from its state save files). Kill the user's rogue submission loop.
-2. Long-term: Enforce submission policies using a `job_submit.lua` plugin to reject high-frequency single job submissions and enforce Job Arrays. Tune `MaxRPCs` and thread limits in `slurm.conf`.
+2. Long-term: Enforce submission policies using a `job_submit.lua` plugin to reject high-frequency single job submissions and enforce Job Arrays. Tune RPC rate limiting (for example `SchedulerParameters=max_rpc_cnt=...`) and review the Slurm high-throughput guide.
 
 ### Scenario 2: K8s API Server OOM during Gang Scheduling Failure
 
 **Symptom:** Kubernetes API server restarts frequently. `kubectl` is unresponsive.
 **Investigation:** Kubelet logs show eviction due to MemoryPressure on the master nodes. Prometheus metrics show `etcd` database size growing rapidly and API server memory usage spiking right before crashes.
-**Root Cause:** A user submitted a Volcano Job with `minAvailable: 1000` for a 1000-pod MPI job. The cluster only has 500 nodes. Volcano continuously tries to schedule the pods, fails (because the gang requirement isn't met), and the K8s garbage collector tries to clean up the failed pods while the controller recreates them. This creates massive churn in `etcd`, blowing up the memory of the API server listening to watch events.
+**Root Cause:** A user submitted a Volcano Job with `minAvailable: 1000` for a 1000-pod MPI job. The cluster only has 500 nodes. The gang requirement can never be met, so the pods sit Pending while the scheduler and controllers retry, emit events, and update status. At large scale this churn adds load on `etcd` and the API server watch caches.
 **Resolution:** 
 1. Immediate: Delete the offending `Job` object.
 2. Long-term: Implement Kueue to prevent jobs from even entering the API as `Pods` until the total quota is available. Use admission controllers to validate that `minAvailable` does not exceed cluster capacity.
@@ -326,7 +326,7 @@ As a Senior Staff or Principal Engineer, you aren't just configuring systems; yo
 **Investigation:** 
 1. Check network interfaces on the compute nodes. The nodes have multiple InfiniBand interfaces (`ib0`, `ib1`, `ib2`, `ib3`).
 2. Run an `ib_write_bw` test between the nodes. It works.
-3. Check NCCL logs by exporting `NCCL_DEBUG=INFO`. The logs show NCCL is attempting to form a ring, but traffic is being routed asynchronously over a slower management Ethernet interface instead of the InfiniBand fabric, or it's trying to cross leaf switches incorrectly.
+3. Check NCCL logs by exporting `NCCL_DEBUG=INFO`. The logs show NCCL is attempting to form a ring, but traffic is being routed over a slower management Ethernet interface instead of the InfiniBand fabric, or it's trying to cross leaf switches incorrectly.
 **Root Cause:** The orchestrator (K8s or Slurm) allocated nodes that are across different spine switches, and the network routing table or NCCL topology XML is misconfigured, causing the high-speed RDMA traffic to fail or fall back to slow networks, leading to a timeout during the massive all-reduce operation.
 **Resolution:** Ensure K8s uses Multus CNI with SR-IOV or Macvlan to expose IB interfaces directly into the pod namespace. In Slurm, ensure the `topology.conf` is accurately reflecting the physical network so the scheduler prioritizes nodes on the same switch, and set `NCCL_IB_HCA` variables correctly.
 
@@ -357,7 +357,7 @@ If the storage system cannot handle the massive burst of IOPS and bandwidth, the
 Moving petabytes of training data across the datacenter network for every epoch is inefficient. Orchestrators must make intelligent placement decisions based on where the data resides.
 
 **Slurm Implementation:**
-Slurm can use the `--gres` flag to request nodes that have specific local cached data, or use advanced topology plugins to place compute jobs physically near the specific storage arrays containing their datasets.
+Slurm can steer jobs to nodes that hold cached data by tagging those nodes with a feature and requesting it with `--constraint`, or use advanced topology plugins to place compute jobs physically near the specific storage arrays containing their datasets.
 
 **Kubernetes Implementation:**
 Projects like **Fluid** (an open-source Kubernetes-native distributed dataset orchestrator and accelerator) integrate closely with scheduling. Fluid abstracts underlying caching engines (like Alluxio or JindoFS). 
@@ -494,9 +494,9 @@ Operating a massive distributed orchestrator requires extreme observability. You
 Slurm was written before Prometheus existed. To bridge this gap, AI Factories use `slurm-exporter` or custom Telegraf scripts to scrape Slurm state.
 
 **Critical Metrics to Watch:**
-*   `slurm_queue_length`: Separated by partition and state (pending vs running). A growing pending queue with available nodes indicates a scheduling blockage (e.g., gang scheduling failure).
-*   `slurm_rpc_stats`: Tracking the latency and count of RPCs to `slurmctld`. Spikes here warn of an impending controller crash.
-*   `slurm_node_states`: Specifically looking for nodes flapping in and out of `DOWN` or `DRAIN` states, often indicative of hardware failure (ECC errors on GPUs, fabric link flapping).
+*   Queue length (for example, `slurm_queue_length`; exact metric names depend on the exporter you deploy): Separated by partition and state (pending vs running). A growing pending queue with available nodes indicates a scheduling blockage (e.g., gang scheduling failure).
+*   RPC statistics (`sdiag` data, `slurm_rpc_stats` or equivalent): Tracking the latency and count of RPCs to `slurmctld`. Spikes here warn of an impending controller crash.
+*   Node states (`slurm_node_states` or equivalent): Specifically looking for nodes flapping in and out of `DOWN` or `DRAIN` states, often indicative of hardware failure (ECC errors on GPUs, fabric link flapping).
 
 ### 9.2 Kubernetes Observability via `kube-state-metrics`
 
@@ -504,18 +504,18 @@ In K8s, `kube-state-metrics` translates the API state into Prometheus metrics.
 
 **Critical Metrics to Watch:**
 *   `kube_pod_status_phase`: Monitoring failed and pending pods.
-*   `volcano_queue_status`: Monitoring the backlog of gang-scheduled jobs.
+*   Volcano's own scheduler metrics (check the metric names exposed by your Volcano version): Monitoring the backlog of gang-scheduled jobs.
 *   `kube_node_status_condition`: Monitoring nodes with `MemoryPressure` or `Ready=False`.
 
 ### 9.3 Distributed Tracing in AI Workloads
 
-Because AI workloads span both the orchestrator (Slurm/K8s) and the application (PyTorch/MPI), traditional metrics are not enough. Distributed tracing (using OpenTelemetry) is becoming critical.
+Because AI workloads span both the orchestrator (Slurm/K8s) and the application (PyTorch/MPI), traditional metrics are not enough. Correlating traces, metrics, and logs (for example with OpenTelemetry for the application layer) becomes important.
 
 Imagine tracing a single AI training step:
 1. Trace starts in the PyTorch application.
 2. Spans out to the NCCL library.
 3. Spans out to the InfiniBand driver.
-4. Spans out to the network switch (via telemetry telemetry).
+4. In practice, correlate with network switch telemetry by timestamp rather than a true trace span.
 
 This end-to-end view allows a Staff Engineer to instantly determine if a slow epoch is caused by a GPU thermal throttling, a congested InfiniBand link, or a slow storage checkpoint, rather than guessing based on aggregate metrics.
 
@@ -525,18 +525,3 @@ This end-to-end view allows a Staff Engineer to instantly determine if a slow ep
 The convergence of HPC and Cloud-Native paradigms is the defining characteristic of modern AI Infrastructure. The Staff Engineer must be fluent in both the rigid, high-performance world of Slurm and the flexible, API-driven world of Kubernetes. 
 
 Understanding the failure domains, control plane bottlenecks, and data path constraints of these orchestration systems is what separates a standard SysAdmin from an AI Infrastructure Architect.
-### 10.0 Deep Dive Architecture Extension 0
-To truly master this domain, consider the implication of network partitions on state consensus.
-```mermaid
-graph TD
-  State0 --> Consensus0
-  Consensus0 --> Action0
-```
-
-### 10.1 Deep Dive Architecture Extension 1
-To truly master this domain, consider the implication of network partitions on state consensus.
-```mermaid
-graph TD
-  State1 --> Consensus1
-  Consensus1 --> Action1
-```

@@ -20,7 +20,7 @@ However, NGC contains much more than just Docker containers. It is the central d
 - **Helm Charts:** Kubernetes deployment manifests.
 - **SDKs:** Specialized CUDA libraries.
 
-In a hobbyist environment, you just type `docker pull nvcr.io/nvidia/nim/llama3:latest` and run it. 
+In a hobbyist environment, you just type `docker pull nvcr.io/nim/meta/llama3-8b-instruct:latest` and run it. 
 In an enterprise, pulling code randomly from the internet into your secure data center is a massive security risk. What if a bad actor injected a cryptominer into the image? What if NVIDIA pushes an update to `:latest` that breaks your application?
 
 Platform Engineers must secure this supply chain. They do this by setting up a **Mirror** (an internal registry like Harbor or Artifactory), forcing Kubernetes to pull images from the internal mirror instead of NGC directly, and using **Digest Pinning** (e.g., `sha256:123abc...`) so that the code can literally never change without the security team's approval. 
@@ -29,13 +29,13 @@ Platform Engineers must secure this supply chain. They do this by setting up a *
 
 ```mermaid
 flowchart LR
-    Catalog["NGC Catalog<br/>nvcr.io/nvidia/nim/llama2-7b:latest<br/>mutable tag, always latest"]
+    Catalog["NGC Catalog<br/>nvcr.io/nim/meta/llama3-8b-instruct:latest<br/>mutable tag, always latest"]
     
     Approve["Security & License Review<br/>scan for CVE, verify model license<br/>approved by security-team"]
     
     Mirror["Enterprise Registry<br/>private ECR or Harbor<br/>controlled egress, cached locally"]
     
-    Pin["Digest Pinning<br/>nvcr.io/.../llama2-7b@sha256:abc123<br/>immutable, independently verified"]
+    Pin["Digest Pinning<br/>nvcr.io/nim/meta/llama3-8b-instruct@sha256:abc123<br/>immutable, independently verified"]
     
     Scan["Re-scan in Staging<br/>same image, staging policy<br/>before production approval"]
     
@@ -55,7 +55,7 @@ flowchart LR
    your "latest" now points to an untested version.
 
 ✅ Correct: Always use immutable digest
-   kubectl set image deployment/llm llm=nvcr.io/nvidia/nim/llama2-7b@sha256:abc123
+   kubectl set image deployment/llm llm=nvcr.io/nim/meta/llama3-8b-instruct@sha256:abc123
    Now the digest sha256:abc123 is explicitly pinned and cannot change.
 
 ❌ never trust a single registry alone
@@ -65,7 +65,7 @@ flowchart LR
 
 ✅ Correct: Mirror to enterprise registry
    # On a trusted GKE cluster or private data center:
-   docker pull nvcr.io/nvidia/nim/llama2-7b@sha256:abc123
+   docker pull nvcr.io/nim/meta/llama3-8b-instruct@sha256:abc123
    docker tag ... harbor-internal.company.com/llama2-7b:1.0.5
    docker push harbor-internal.company.com/llama2-7b:1.0.5
    # Now Kubernetes pulls from internal harbor, not NGC
@@ -93,7 +93,7 @@ flowchart LR
 ```yaml
 # artifact_review_template.yaml
 artifact_review:
-  image_or_model: "nvcr.io/nvidia/nim/llama2-7b:1.0.5"
+  image_or_model: "nvcr.io/nim/meta/llama3-8b-instruct:1.0.5"
   digest: "sha256:abc123def456..."
   review_date: "2026-08-07"
   reviewed_by: "security-team"
@@ -139,7 +139,7 @@ artifact_review:
 ```bash
 # Step 1: Verify the exact image reference and digest
 kubectl describe pod <pod> | grep Image
-# Output: Image: nvcr.io/nvidia/nim/llama2-7b:1.0.5
+# Illustrative output (not captured): Image: nvcr.io/nim/meta/llama3-8b-instruct:1.0.5
 # (Note the tag, not the digest — this is a problem if it's mutable)
 
 # Step 2: Check if the image pull secret exists and is valid
@@ -148,7 +148,7 @@ kubectl get secret ngc-secret -o yaml
 
 # Step 3: Manually test the pull (from pod's node)
 # SSH to the node and run:
-docker pull nvcr.io/nvidia/nim/llama2-7b:1.0.5
+docker pull nvcr.io/nim/meta/llama3-8b-instruct:1.0.5
 # Errors here tell you the exact problem:
 
 # "401 Unauthorized" → NGC credentials invalid or expired
@@ -183,7 +183,7 @@ Events:
   Type     Reason       Age    From               Message
   ----     ------       ----   ----               -------
   Normal   Scheduled    2m     default-scheduler  Successfully assigned to gpu-node-1
-  Warning  Failed       2m     kubelet            Failed to pull image "nvcr.io/nvidia/nim/llama2-7b:1.0.5": rpc error: code = Unknown desc = failed to pull and unpack image "nvcr.io/nvidia/nim/llama2-7b:1.0.5": failed to resolve reference "nvcr.io/nvidia/nim/llama2-7b:1.0.5": pull access denied, repository does not exist or may require authentication: server message: insufficient_scope
+  Warning  Failed       2m     kubelet            Failed to pull image "nvcr.io/nim/meta/llama3-8b-instruct:1.0.5": rpc error: code = Unknown desc = failed to pull and unpack image "nvcr.io/nim/meta/llama3-8b-instruct:1.0.5": failed to resolve reference "nvcr.io/nim/meta/llama3-8b-instruct:1.0.5": pull access denied, repository does not exist or may require authentication: server message: insufficient_scope
 
 Fix: The error "insufficient_scope" means the NGC token doesn't have permission for this model.
 1. kubectl create secret docker-registry ngc-secret \

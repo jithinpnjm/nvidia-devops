@@ -94,7 +94,7 @@ Record adapter firmware, MTU, switch port, selected interface, GID or LID, routi
 
 **Illustrative reference system used throughout this lab:** two 8x H100 80GB SXM DGX-H100-class nodes (`node-a`, `node-b`), dual-socket, four NVSwitch-connected GPUs per socket, one ConnectX-7 NDR400 InfiniBand adapter local to each GPU (`mlx5_0`…`mlx5_7`, 400 Gb/s per port, theoretical line rate 50 GB/s). All numbers below are illustrative for this class of node — record your own node's actual values, they will differ by adapter generation, cable/switch health, and firmware.
 
-Representative `nvidia-smi topo -m` output on `node-a` (abbreviated to the rows that matter for this lab; the full matrix has one row/column per GPU and NIC):
+Illustrative output (not captured): `nvidia-smi topo -m` on `node-a`, abbreviated to the rows that matter for this lab. It is simplified: on real DGX-class hardware, same-socket pairs that are not on the same PCIe switch typically show `NODE` or `PXB` rather than `SYS`.
 
 ```text
 $ nvidia-smi topo -m
@@ -139,7 +139,7 @@ ibv_devices
 rdma link show
 ```
 
-Representative output on `node-a` (one port shown; the reference node has 8 ConnectX-7 ports, `mlx5_0`…`mlx5_7`, one per GPU):
+Illustrative output (not captured) on `node-a` (one port shown; the reference node has 8 ConnectX-7 ports, `mlx5_0`…`mlx5_7`, one per GPU):
 
 ```text
 $ ibstat mlx5_0
@@ -197,7 +197,7 @@ for dev in /sys/class/infiniband/*/ports/*/counters; do
 done | tee "$LAB_DIR/counters-before.txt"
 ```
 
-Representative output for `mlx5_0`:
+Illustrative output (not captured) for `mlx5_0`:
 
 ```text
 ### /sys/class/infiniband/mlx5_0/ports/1/counters

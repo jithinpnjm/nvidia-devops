@@ -5,6 +5,9 @@ sidebar_position: 2
 description: "Given raw metric data, trace the chain from symptom to root cause."
 ---
 
+
+> **Note:** Output blocks and numbers in this lab are illustrative (not captured from a real system). Use them to practice the reasoning, not as reference values.
+
 ## Objective
 
 Practice analyzing real metric data to narrow down root cause from multiple possible explanations. Learn when correlations mislead and how to distinguish root causes from symptoms.
@@ -46,7 +49,7 @@ Evidence available:
 - Per-GPU iteration timing
 - NCCL_DEBUG trace (partial)
 
-Determine: Is GPU 2 slow, or is GPU 2 waiting for something else?
+Determine: Is GPU 2 slow, or is GPU 2 waiting for something else? (Hint: in a synchronized collective, ranks wait for each other, so per-rank latency numbers like these usually come from timing before the collective or from isolated pairwise tests.)
 
 ### Exercise 3: The Intermittent Failure
 
@@ -65,46 +68,33 @@ What is your hypothesis? What evidence would you collect to distinguish between 
 
 **Analysis of the evidence chain:**
 
-| Observation | Interpretation | Thermal? | Power? |
-|-------------|-----------------|----------|--------|
-| Temp 80°C rising | Close to throttle limit (85°C) | ✓ | ✗ |
-| Clock 1980 → 1833 MHz (-7%) | Frequency reduced | ✓ | ✓ |
-| Power 300 → 250W (-17%) | Power draw limited | ✗ | ✓ |
-| Fan 100% | Maxed trying to cool | ✓ | ✗ |
-| Utilization 95% stable | GPU still working hard | ✓ | ✓ |
+| Observation | Interpretation | Points to |
+|-------------|----------------|-----------|
+| Temp 80°C and rising | Approaching the slowdown threshold of many GPUs, but not conclusive | Thermal (weak) |
+| Clock 1980 → 1833 MHz | Clocks were reduced by something | Either |
+| Power 300 → 250 W | Draw fell, which happens with lower clocks or a power cap | Either |
+| Fan 100% | Cooling is maxed (if this GPU has a fan; see Chapter 06 caveat) | Thermal (weak) |
+| Utilization 95% stable | Utilization does not discriminate | Neither |
 
-**Root cause determination:**
-
-Look at the **asymmetry**: Temperature is rising while power is **capped at 250W**.
-
-- If this were **thermal throttling alone**: Temperature should plateau at 85°C (throttle limit), not keep rising. Fan at 100% should stabilize it.
-- Since temperature keeps rising despite maxed fan, the cooler is saturated.
-- Simultaneously, power is capped at 250W (down from 300W).
-
-**Most likely diagnosis: POWER LIMITING**
-- PSU has insufficient capacity
-- GPU's power delivery chip is raising its voltage ripple detection threshold
-- GPU activates power capping to prevent brownout
-- This reduces power draw, which reduces heat generation
-- But cooling system is already maxed, so temperature still rises slowly
+**Key point:** these numbers cannot distinguish thermal from power limiting by themselves. Lower clocks reduce power draw regardless of why the clocks dropped, so "power went down" is not evidence of a power cap. The discriminating evidence is the throttle reason bitmask.
 
 **Proof:**
 ```bash
-# Check PSU capacity vs load
-ipmitool sensor list | grep "PSU.*VOLT"
-# If PSU output voltage is sagging (e.g., 12V → 10.5V), confirms power issue
-
-# Measure power draw when power limit removed
-sudo nvidia-smi -i 0 -pl 300  # Restore original limit
-nvidia-smi -i 0 --query-gpu=power.draw --format=csv,noheader
-# If it immediately jumps to 300W, PSU was the bottleneck
-
-# Reduce power limit permanently to stable value
-sudo nvidia-smi -i 0 -pl 280
-# Verify temperature stabilizes below 80°C
+# Which reason is active right now?
+nvidia-smi -i 0 -q -d PERFORMANCE
+#   SW Power Cap, HW Slowdown, HW Thermal Slowdown, SW Thermal Slowdown, HW Power Brake Slowdown
+# Is the configured power limit lower than the default?
+nvidia-smi -i 0 --query-gpu=power.limit,power.default_limit --format=csv,noheader
+# Chart temperature, power, and the throttle-reason field together over the incident window
+#   (DCGM_FI_DEV_GPU_TEMP, DCGM_FI_DEV_POWER_USAGE, DCGM_FI_DEV_CLOCK_THROTTLE_REASONS)
 ```
 
-**Answer: This is power throttling masquerading as thermal throttling.**
+**Reading the result:**
+- Thermal slowdown active: fix cooling or airflow (Chapter 06, 08).
+- SW Power Cap active with `power.limit` below default: someone or something set a lower limit; confirm intent (Chapter 09).
+- HW Power Brake Slowdown or HW Slowdown active: platform-level power events; check BMC logs and PSU state (Chapter 09).
+
+**Answer:** undetermined from the listed metrics; the throttle reason bitmask decides it.
 
 ### Exercise 2 Solution: Which GPU is the Straggler?
 
@@ -128,7 +118,7 @@ The **asymmetry** is key: one GPU is 10x slower, others are identical.
 **Hypothesis 2: Communication path to/from GPU 2 is broken**
 - Test: Measure NVLink status and P2P bandwidth
 - NCCL AllReduce requires fast GPU-to-GPU communication
-- If NVLink to GPU 2 is degraded (Gen3 instead of Gen4), AllReduce is slow
+- If NVLink to GPU 2 is degraded (fewer active links or errors), AllReduce is slow
 
 **Hypothesis 3: GPU 2 is waiting for something upstream**
 - Test: Check NCCL_DEBUG trace for which GPU initiates
@@ -150,28 +140,29 @@ nvidia-smi nvlink --status
 
 # NCCL trace (who is slow to send vs receive?)
 NCCL_DEBUG=TRACE python train.py 2>&1 | grep -A 2 "AllReduce.*GPU_2"
-# Output: "GPU_2 send_timeout" → GPU 2 can't send fast enough
+# Look for the rank whose collective op count lags the others (see Chapter 03)
 ```
 
 **Most likely diagnosis: NVLink degraded to/from GPU 2**
 - GPU 2's computational power is fine (metrics healthy)
 - But AllReduce communication is 10x slower
-- NVLink to GPU 2 is operating at reduced speed (Gen3 instead of Gen4)
+- NVLink to GPU 2 is operating at reduced speed (fewer links up, or high error counts)
 
 **Proof and fix:**
 ```bash
-# Check link details
+# Check NVLink first
+nvidia-smi nvlink --status -i 2
+dcgmi nvlink -e -g 2
+# Then check the PCIe link, since PCIe training problems can also slow the GPU
 lspci -s <GPU2_PCI> -vvv | grep "LnkSta"
-# If shows Gen3 x8 instead of Gen4 x16, link trained down
-
-# Reseat GPU or NVLink cables
+# If the link trained down (reduced speed or width), reseat or service the GPU
 # Rescan PCIe bus
 echo 1 > /sys/bus/pci/devices/<gpu2_path>/remove
 sleep 2
 echo 1 > /sys/bus/pci/rescan
 
 # Re-run AllReduce test
-/opt/nccl-tests/build/allreduce_perf -b 1G -e 1G -f 2 -g 4
+/opt/nccl-tests/build/all_reduce_perf -b 1G -e 1G -f 2 -g 4
 # Expect: All GPU latencies now equal (~12ms)
 ```
 
@@ -261,6 +252,6 @@ python train.py | grep "throughput:"
 
 ## Verification Rubric
 
-**Exercise 1:** Your answer is "power limiting" (not just thermal), with evidence of voltage sag or power cap active ✓
+**Exercise 1:** You recognize that the listed metrics cannot separate thermal from power limiting and you use the throttle reason bitmask to decide ✓
 **Exercise 2:** Your answer identifies NVLink degradation as likely cause, with plan to check lspci and rescan ✓
 **Exercise 3:** Your answer suspects data loading (CPU), with timing instrumentation to prove it ✓

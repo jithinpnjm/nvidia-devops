@@ -27,7 +27,7 @@ Released in 2020, the A100 remains one of the most widely deployed AI accelerato
 * **Bandwidth:** 1.5 TB/s (40GB) and 2.0 TB/s (80GB).
 * **TDP:** 400W (SXM4).
 
-**The Operational Reality:** The A100 is highly stable, entirely air-coolable in standard high-density racks, and introduced **MIG (Multi-Instance GPU)**. Today, the A100 is largely considered a "legacy" architecture for Frontier model training because it lacks the FP8 Transformer Engine, meaning it requires double the memory bandwidth to train or serve an LLM compared to Hopper.
+**The Operational Reality:** The A100 is highly stable, entirely air-coolable in standard high-density racks, and introduced **MIG (Multi-Instance GPU)**. Today, the A100 is largely considered a "legacy" architecture for Frontier model training because it lacks the FP8 Transformer Engine, so it moves 16-bit data where Hopper can use 8-bit, roughly doubling memory traffic for the same model.
 
 ## 2. Hopper: H100 & H200 (The LLM Standard)
 
@@ -36,20 +36,20 @@ Released in 2022, the H100 was explicitly designed to break the memory bandwidth
 ### The H100
 * **Specs:** 80GB HBM3. 3.35 TB/s bandwidth. 
 * **TDP:** 700W (SXM5).
-* **The Paradigm Shift:** The jump to 700 Watts fundamentally changed data center design. 8-GPU servers now pulled over 10.2 kW. Traditional enterprise cooling struggled. The inclusion of the **Transformer Engine (FP8)** allowed the H100 to process LLMs up to 3x faster than the A100.
+* **The Paradigm Shift:** The jump to 700 Watts fundamentally changed data center design. 8-GPU servers now pulled over 10.2 kW. Traditional enterprise cooling struggled. The inclusion of the **Transformer Engine (FP8)** let the H100 deliver large LLM speedups over the A100 (NVIDIA's published multipliers depend on model and precision).
 
 ### The H200 Update
-In 2023, NVIDIA released the H200. The compute silicon is *exactly the same* as the H100. The only difference is the memory.
+NVIDIA announced the H200 in late 2023 and began shipping it in 2024. The compute silicon is *exactly the same* as the H100. The only difference is the memory.
 * **Specs:** 141GB HBM3e. 4.8 TB/s bandwidth.
-* **The Why:** As LLMs grew, the 80GB capacity of the H100 became a severe limitation. When serving LLMs, the **KV Cache** (storing conversation history) eats memory rapidly. The massive 141GB capacity of the H200 allows a single server to handle double the concurrent users before hitting an Out-Of-Memory (OOM) error, effectively cutting inference hosting costs in half.
+* **The Why:** As LLMs grew, the 80GB capacity of the H100 became a severe limitation. When serving LLMs, the **KV Cache** (storing conversation history) eats memory rapidly. The massive 141GB capacity of the H200 leaves far more room for KV cache per GPU, so a server can hold more concurrent sequences before hitting an Out-Of-Memory (OOM) error.
 
 ## 3. Blackwell: B200 (The Multi-Die Monster)
 
 Released in 2024, Blackwell represents the physical limit of single-die silicon manufacturing. 
 
 * **The Multi-Die Design:** A single silicon chip can only be made so large before manufacturing defects ruin it (the Reticle Limit). To make a more powerful GPU, NVIDIA took two massive dies and bridged them together with a 10 TB/s chip-to-chip interconnect. To the software, it appears as a single GPU.
-* **Specs:** 192GB HBM3e. 8.0 TB/s bandwidth. 
-* **TDP:** 1,000W+ per GPU.
+* **Specs:** HBM3e, up to 192 GB depending on SKU (HGX/DGX B200 are listed at 180 GB per GPU). 8.0 TB/s bandwidth. 
+* **TDP:** up to 1,000 W per GPU (configurable).
 * **Precision:** Introduces **FP4 (4-bit)** math. 
 
 ## Architectural Comparison Matrix
@@ -59,7 +59,7 @@ Released in 2024, Blackwell represents the physical limit of single-die silicon 
 | **A100** | Ampere | 80 GB | 2.0 TB/s | 400 W | MIG (Hardware Partitioning) |
 | **H100** | Hopper | 80 GB | 3.35 TB/s | 700 W | Transformer Engine (FP8) |
 | **H200** | Hopper | 141 GB | 4.8 TB/s | 700 W | Extreme Memory Capacity (KV Cache) |
-| **B200** | Blackwell | 192 GB | 8.0 TB/s | 1000W+ | FP4 & Multi-Die Scaling |
+| **B200** | Blackwell | 180-192 GB | 8.0 TB/s | up to 1000W | FP4 & Multi-Die Scaling |
 
 ## Customer Scenario (Senior Level)
 

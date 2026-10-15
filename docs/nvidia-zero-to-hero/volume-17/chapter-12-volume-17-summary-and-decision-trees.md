@@ -18,7 +18,7 @@ This volume established that performance engineering is not guesswork; it is a r
     *   **Nsight Compute (`ncu`):** Microscopic analysis of a single CUDA kernel. Proves warp divergence or cache misses (Micro).
 4.  **GPU Compute Optimization:** Hardware requires aligned data. Neural network dimensions must be multiples of 8 or 16 to utilize Tensor Core tiles perfectly. Avoid `if/else` branching logic to prevent **Warp Divergence**, which instantly halves GPU efficiency.
 5.  **Memory Optimization:** VRAM reads must be contiguous (Coalesced). Implement **Kernel Fusion** to keep math trapped in the ultra-fast L1 Cache. For LLMs, implement **FlashAttention** to completely bypass writing massive $N \times N$ matrices to global VRAM. 
-6.  **System-Level Tuning:** The Linux OS will slow down AI workloads. You must disable CPU C-States (set governor to `performance`), disable PCIe ASPM power saving, and strictly enforce NUMA pinning to prevent data from crossing the slow CPU interconnects.
+6.  **System-Level Tuning:** The Linux OS will slow down AI workloads. You must set the CPU governor to `performance` and limit deep C-states, disable PCIe ASPM power saving, and strictly enforce NUMA pinning to prevent data from crossing the slow CPU interconnects.
 
 ## The Senior Architect's Mandate
 

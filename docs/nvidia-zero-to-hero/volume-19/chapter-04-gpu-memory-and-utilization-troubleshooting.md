@@ -54,20 +54,20 @@ Tell the researchers to print the PyTorch memory summary: `print(torch.cuda.memo
 Look at the `Max Reserved` vs `Max Allocated` stats. If Reserved is 80GB but Allocated is only 40GB, PyTorch is holding massive amounts of fragmented, unusable memory hostage from the OS. 
 
 **The Fix:**
-Force the researchers to implement `torch.cuda.empty_cache()` at strategic points (though this hurts performance), or properly configure **Activation Checkpointing** to prevent the fragmentation entirely.
+Try the PyTorch allocator setting `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` (see the PyTorch CUDA memory management docs), reduce variable-size allocations, and use `torch.cuda.empty_cache()` sparingly at strategic points (it costs performance). Activation checkpointing reduces peak memory but does not by itself prevent fragmentation.
 
 ## 3. Hardware Degradation (The Silent Throttler)
 
 Sometimes, the researchers are right. The hardware is broken.
 
 GPUs run incredibly hot. If a fan fails in a server chassis, or the data center HVAC glitches, the GPU temperature will climb rapidly.
-NVIDIA GPUs are designed to protect themselves. When they hit a specific thermal threshold (e.g., 85°C), they do not crash. They instantly, silently drop their clock speed (e.g., from 1500 MHz down to 500 MHz). 
+NVIDIA GPUs are designed to protect themselves. When they hit a specific thermal threshold (e.g., 85°C), they do not crash. They silently reduce their clock speed (e.g., from 1500 MHz down to 500 MHz). 
 
 The `nvidia-smi` utilization will still show 100%. The job will not crash. But the math will take 3 times longer to execute. 
 
 **The Diagnostic Proof:**
 You must constantly monitor `DCGM_FI_DEV_CLOCK_THROTTLE_REASONS`. 
-If this metric registers `HW_SLOWDOWN` or `THERMAL_SYNC`, you have absolute proof of hardware degradation. 
+If the throttle-reasons bitmask shows hardware slowdown, thermal slowdown, or power brake bits (as in `nvidia-smi -q -d PERFORMANCE`), you have strong evidence of thermal or power limiting; confirm the cause with temperature and power telemetry. 
 
 ## Customer Scenario (Senior Level)
 
@@ -89,7 +89,7 @@ The application is completely healthy, and the network is fine. We must immediat
 
 **Conceptual:** If a PyTorch training job crashes with a `CUDA Out of Memory` error, but standard monitoring tools showed 15GB of free VRAM right before the crash, what happened? *(Hint: Memory Fragmentation. The 15GB of free VRAM was not contiguous; it was chopped up into thousands of tiny gaps. When PyTorch requested a single large block of memory for the next mathematical operation, the allocator could not find a large enough continuous space, causing the OOM crash despite the total 'free' capacity).*
 
-**Architecture:** Why is relying on `nvidia-smi` to detect a thermal issue dangerous for an SRE? *(Hint: `nvidia-smi` is a point-in-time snapshot tool. Thermal throttling events can happen in microsecond bursts, causing severe application latency without pushing the average temperature up permanently. SREs must use continuous telemetry (DCGM Exporter) to actively monitor the `CLOCK_THROTTLE_REASONS` register, which mathematically records exactly when and why the hardware was forced to downclock itself).*
+**Architecture:** Why is relying on `nvidia-smi` to detect a thermal issue dangerous for an SRE? *(Hint: `nvidia-smi` is a point-in-time snapshot tool. Throttling can be intermittent, so a manual check can miss it entirely. SREs must use continuous telemetry (DCGM Exporter) to actively monitor the `CLOCK_THROTTLE_REASONS` register, which records when and why the hardware was forced to downclock itself).*
 
 ## Architecture Summary
 

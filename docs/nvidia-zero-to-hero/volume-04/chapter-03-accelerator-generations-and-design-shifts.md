@@ -59,8 +59,8 @@ LLMs grew so large that they could no longer fit inside an 8-GPU chassis. The ne
 **The Silicon Shifts:**
 1.  **The Multi-Die Package:** A B200 is actually *two* massive GPU dies connected by a 10 TB/s chip-to-chip link, acting as a single processor.
 2.  **FP4 Precision:** The 2nd-generation Transformer Engine pushes precision down to 4-bit, doubling throughput again for inference.
-3.  **The NVL72 Rack-Scale Domain:** The definition of a "GPU node" expanded to the entire rack. Using the 5th generation of NVLink (1.8 TB/s per GPU) and massive copper backplanes, 72 Blackwell GPUs in a single rack share a single 130 TB/s memory domain, acting as one monstrous 1.4 ExaFLOP GPU. 
-*   **Specs (B200):** 192GB HBM3e. 8.0 TB/s bandwidth. 1000W+ TDP.
+3.  **The NVL72 Rack-Scale Domain:** The definition of a "GPU node" expanded to the entire rack. Using the 5th generation of NVLink (1.8 TB/s per GPU) and massive copper backplanes, 72 Blackwell GPUs in a single rack share a single 130 TB/s memory domain, which NVIDIA quotes at 1.4 exaFLOPS of FP4 inference compute for the full rack. 
+*   **Specs (B200):** HBM3e, up to 192 GB per GPU depending on SKU (HGX/DGX B200 are listed at 180 GB per GPU). 8.0 TB/s bandwidth. Up to 1,000 W TDP (configurable).
 
 ## Architectural Summary Matrix
 
@@ -69,8 +69,8 @@ LLMs grew so large that they could no longer fit inside an 8-GPU chassis. The ne
 | **Volta (V100)** | 2017 | 32 GB | 900 GB/s | Tensor Cores (FP16) | 300W |
 | **Ampere (A100)**| 2020 | 80 GB | 2.0 TB/s | MIG, TF32, Sparsity | 400W |
 | **Hopper (H100)**| 2022 | 80 GB | 3.35 TB/s | Transformer Engine, FP8 | 700W |
-| **Hopper (H200)**| 2023 | 141 GB| 4.8 TB/s | Extreme HBM3e Capacity | 700W |
-| **Blackwell (B200)**| 2024 | 192 GB| 8.0 TB/s | FP4, Multi-Die, NVL72 | 1000W+ |
+| **Hopper (H200)**| 2024 | 141 GB| 4.8 TB/s | Extreme HBM3e Capacity | 700W |
+| **Blackwell (B200)**| 2024 | 180-192 GB| 8.0 TB/s | FP4, Multi-Die, NVL72 | up to 1000W |
 
 ## Customer Scenario (Senior Level)
 

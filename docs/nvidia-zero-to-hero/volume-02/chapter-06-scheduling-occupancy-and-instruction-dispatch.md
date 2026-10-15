@@ -79,6 +79,8 @@ flowchart TD
 
 **Confirming residency limits directly from the compiler, before profiling.** The register ceiling this chapter keeps referencing is visible at compile time, not just in a profiler report:
 
+*Illustrative output (not captured):*
+
 ```text
 $ nvcc -O3 -Xptxas=-v kernel.cu -o kernel
 ptxas info    : Compiling entry function '_Z6kernelPfS_m' for 'sm_90'
@@ -325,6 +327,8 @@ Measure each layer before modifying kernel occupancy. A request queue may be emp
 | Small grid over time | Occupancy is high only during short kernel bursts |
 
 **Turning "HBM bandwidth saturated" into evidence, distinct from the occupancy number itself.** A profiler's achieved-occupancy metric and `dmon`'s memory percentage answer two different questions, and both are needed to diagnose this row:
+
+*Illustrative output (not captured):*
 
 ```text
 $ ncu --metrics sm__warps_active.avg.pct_of_peak_sustained_active,dram__throughput.avg.pct_of_peak_sustained_elapsed ./kernel

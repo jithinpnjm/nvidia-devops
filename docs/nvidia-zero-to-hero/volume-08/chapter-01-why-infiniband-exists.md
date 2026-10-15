@@ -271,7 +271,7 @@ A fabric that delivers slightly lower peak throughput but lower tail latency may
 
 ### Turning "predictability" into a number: annotated `ib_write_bw` and `ib_write_lat`
 
-Peak bandwidth claims are usually proven with a single large-message run. Predictability claims require reading the *distribution*, not the average. A representative `ib_write_bw` run (host-memory RDMA write, one queue pair, 2MiB messages) looks like this:
+Peak bandwidth claims are usually proven with a single large-message run. Predictability claims require reading the *distribution*, not the average. An `ib_write_bw` run (host-memory RDMA write, one queue pair, 2MiB messages) looks like the following. Both outputs in this section are illustrative and not captured from a real system:
 
 ```text
 $ ib_write_bw -d mlx5_0 -i 1 --report_gbits -F --duration 10 <server>
@@ -287,17 +287,17 @@ local address: LID 0x0c QPN 0x012a PSN 0x3a1f2e RKey 0x1c0a00 VAddr 0x7f2a100000
 remote address: LID 0x51 QPN 0x00e3 PSN 0x0091ab RKey 0x1c0b00 VAddr 0x7f11a0000000
 ---------------------------------------------------------------------------------------
  #bytes  #iterations  BW peak[Gb/sec]  BW average[Gb/sec]  MsgRate[Mpps]
- 2097152 18420        399.82           398.71              23.76
+ 2097152 237000       399.82           398.71              0.0238
 ---------------------------------------------------------------------------------------
 ```
 
-**Reading it:** `BW average` (398.71 Gb/s) is close to `BW peak` (399.82 Gb/s) — a ~0.3% spread. On a 400Gb/s-class HDR/NDR-generation link, this is the signature of a healthy, uncongested path: the average tracks the peak because nothing is intermittently stalling the queue pair. `local address`/`remote address` confirm this ran over the actual RC (Reliable Connected) transport at the LIDs shown, not a fallback path.
+**Reading it:** `BW average` (398.71 Gb/s) is close to `BW peak` (399.82 Gb/s) — a ~0.3% spread. On a 400Gb/s NDR link, this is the signature of a healthy, uncongested path: the average tracks the peak because nothing is intermittently stalling the queue pair. `local address`/`remote address` confirm this ran over the actual RC (Reliable Connected) transport at the LIDs shown, not a fallback path.
 
 Now the same path under concurrent load from an unrelated job sharing an upstream switch — same command, same message size, same host pair:
 
 ```text
  #bytes  #iterations  BW peak[Gb/sec]  BW average[Gb/sec]  MsgRate[Mpps]
- 2097152 18420        399.71           241.06              14.36
+ 2097152 144000       399.71           241.06              0.0144
 ```
 
 **Reading it:** `BW peak` is essentially unchanged (399.71 Gb/s) — the link itself is not degraded, and a single-snapshot "is the link fast?" check would still pass. `BW average` has collapsed to 241.06 Gb/s, a ~40% drop, because credit backpressure from the congested upstream path is stalling the queue intermittently. This is exactly the gap the chapter's "predictability versus peak speed" argument is about: **peak proves the link can go fast for an instant; average-under-concurrency proves whether it stays fast**, and only the second number predicts real job completion time. `ib_write_lat` run alongside this would show the same story from the latency side — p50 barely moves while p99 stretches, because tail latency is where synchronization amplification actually bites (Figure 8.1.2).
@@ -391,7 +391,7 @@ Check subnet-manager availability, port state, local identifier assignment, part
 - incompatible link settings;
 - stale or missing path state.
 
-**Evidence.** `ibstat` on the affected port is the first read:
+**Evidence (illustrative output, not captured).** `ibstat` on the affected port is the first read:
 
 ```text
 $ ibstat mlx5_2
@@ -431,7 +431,7 @@ Compare negotiated speed and width, error counters, routes, cable inventory, HCA
 - oversubscribed uplink;
 - remote NUMA placement.
 
-**Evidence.** Comparing `ibstat` between the slow rack and a known-good rack isolates width immediately:
+**Evidence (illustrative output, not captured).** Comparing `ibstat` between the slow rack and a known-good rack isolates width immediately:
 
 ```text
 # Known-good node

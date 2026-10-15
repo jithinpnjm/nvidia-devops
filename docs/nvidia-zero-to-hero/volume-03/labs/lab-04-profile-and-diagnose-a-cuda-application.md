@@ -316,7 +316,7 @@ Expected evidence:
 - Longer end-to-end time
 - Similar kernel correctness
 
-**Reference measurement — quantifying the regression before you capture your own:**
+**Illustrative reference measurement (not captured; quantifying the regression before you capture your own):**
 
 ```text
 $ cat reports/steady-*.txt | grep validated
@@ -341,7 +341,7 @@ Expected evidence:
 - Shorter individual operations
 - Possible reduction in effective bandwidth and throughput
 
-**Reference measurement — chunk size swept from 16 MiB down to 16 KiB, same total data:**
+**Illustrative reference measurement (not captured; chunk size swept from 16 MiB down to 16 KiB, same total data):**
 
 ```text
 $ ./overlap_pipeline 67108864 4194304    # 16 MiB chunks (baseline)
@@ -358,7 +358,7 @@ Replace pinned host buffers with pageable allocations in a lab-only branch.
 
 Expected evidence may include staging, reduced overlap, more host work, or lower transfer consistency. Behavior depends on runtime and platform, so rely on the timeline.
 
-**Reference measurement:**
+**Illustrative reference measurement (not captured):**
 
 ```text
 $ ./overlap_pipeline_pageable 67108864 4194304

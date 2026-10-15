@@ -171,15 +171,15 @@ weighted contribution = score × weight
 
 Because all candidates use the same scale and weights, the raw total is sufficient for comparison. Normalize it only when presentation requires a percentage.
 
-**Worked example — the Step 1 language-model workload scored against three real candidates:**
+**Worked example — the Step 1 language-model workload scored against three candidates. All latency and OOM figures below are hypothetical values invented to illustrate the method, not measurements:**
 
 Workload statement from Step 1: private LLM service, 7B-parameter model at FP16 (`7,000,000,000 × 2 bytes ≈ 14 GB` for weights), Kubernetes-deployed, p95 latency target 300ms at 20 concurrent sessions, shared across business units, data center power headroom is tight.
 
 ```md
 | Criterion (weight) | Candidate A: T4 16GB (score) | Candidate B: L4 24GB (score) | Candidate C: H100 80GB (score) |
 |---|---:|---:|---:|
-| Memory headroom (20) | 1 — 14GB weights leaves ~2GB for KV cache/20 sessions; measured OOM at 12 concurrent | 3 — 14GB weights + ~8GB headroom comfortably covers KV cache at 20 sessions | 5 — 14GB weights in 80GB leaves enormous headroom, no realistic ceiling here |
-| Latency under concurrency (20) | 2 — p95 measured at 480ms at 20 sessions, misses 300ms target | 4 — p95 measured at 240ms at 20 sessions, meets target with margin | 5 — p95 measured at 90ms at 20 sessions, far under target |
+| Memory headroom (20) | 1 — 14GB weights leaves ~2GB for KV cache/20 sessions; hypothetical: OOM at 12 concurrent | 3 — 14GB weights + ~8GB headroom comfortably covers KV cache at 20 sessions | 5 — 14GB weights in 80GB leaves enormous headroom, no realistic ceiling here |
+| Latency under concurrency (20) | 2 — hypothetical p95 of 480ms at 20 sessions, misses 300ms target | 4 — hypothetical p95 of 240ms at 20 sessions, meets target with margin | 5 — hypothetical p95 of 90ms at 20 sessions, far under target |
 | Throughput per node (15) | 2 — low headroom forces small batches | 4 — batches comfortably to the concurrency target | 5 — batches well past the target with room to spare |
 | Power/cooling fit (15) | 5 — 70W TDP, no facility risk | 4 — 72W TDP, no facility risk | 1 — 700W TDP; rack power headroom is explicitly tight per the workload statement |
 | Kubernetes/sharing fit (10) | 3 — supported, no MIG | 3 — supported, no MIG | 4 — MIG-capable, but overkill for one 7B model |
@@ -188,9 +188,9 @@ Workload statement from Step 1: private LLM service, 7B-parameter model at FP16 
 
 | Candidate | Weighted total |
 |---|---:|
-| A (T4) | 1×20 + 2×20 + 2×15 + 5×15 + 3×10 + 3×10 + 4×10 = 275 |
-| B (L4) | 3×20 + 4×20 + 4×15 + 4×15 + 3×10 + 3×10 + 4×10 = 340 |
-| C (H100) | 5×20 + 5×20 + 5×15 + 1×15 + 4×10 + 3×10 + 2×10 = 355 |
+| A (T4) | 1×20 + 2×20 + 2×15 + 5×15 + 3×10 + 3×10 + 4×10 = 265 |
+| B (L4) | 3×20 + 4×20 + 4×15 + 4×15 + 3×10 + 3×10 + 4×10 = 360 |
+| C (H100) | 5×20 + 5×20 + 5×15 + 1×15 + 4×10 + 3×10 + 2×10 = 380 |
 ```
 
 Reading this the way Step 8's verification questions expect: C scores highest on raw total, but its Power/cooling fit score of `1` is exactly the kind of high-impact, unresolved risk the risk register below is built to catch — the workload statement explicitly names tight power headroom as a facility constraint, and an H100-class part at 700W per card directly threatens it regardless of how well it wins on latency and memory. B is the traceable recommendation here: it clears every gate, meets the latency target with margin, and doesn't introduce the facility risk C does. This is also why gates run *before* scoring in the Figure above — if the facility gate (G3) had been written as "confirmed power budget for 700W/card," C would already be disqualified before this table is built, rather than requiring the risk register to catch it after the fact.

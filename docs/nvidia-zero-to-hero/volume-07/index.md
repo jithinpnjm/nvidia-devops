@@ -15,19 +15,19 @@ But a single GPU, no matter how powerful, is insufficient for modern Artificial 
 
 **When a workload scales beyond a single server, the network becomes the computer.**
 
-If you build a 10,000-GPU cluster, but the network introduces a 10-microsecond delay, 9,999 GPUs will halt their calculations and sit idle, waiting for data. You will have built the world's most expensive space heater.
+If you build a 10,000-GPU cluster, but the network is slow or inconsistent, synchronous collectives make every GPU wait for the slowest path, and expensive GPUs sit idle.
 
 In Volume 07, we explore the arteries of the AI Factory. We will trace the exact physical and software path a tensor takes to escape a GPU, cross a motherboard, and fly across a data center.
 
 ## What You Will Learn
 
-1. **The PCIe and NUMA Bottlenecks:** Why plugging a GPU into the wrong PCIe slot on a motherboard will destroy 80% of your cluster's performance.
+1. **The PCIe and NUMA Bottlenecks:** Why plugging a GPU into the wrong PCIe slot on a motherboard can seriously degrade your cluster's performance.
 2. **NVLink and NVSwitch:** How NVIDIA created a proprietary, 900+ GB/s fabric to connect GPUs *inside* a server, entirely bypassing the PCIe bus.
-3. **Kernel Bypass and RDMA:** Why standard TCP/IP networking (and the Linux Kernel) is physically incapable of handling AI traffic, and how Remote Direct Memory Access (RDMA) solves it.
+3. **Kernel Bypass and RDMA:** Why kernel TCP/IP networking struggles to keep up with AI traffic at 400 Gb/s per GPU, and how Remote Direct Memory Access (RDMA) solves it.
 4. **GPUDirect RDMA and Storage (GDS):** How network cards and storage arrays push data *directly* into the GPU's memory (HBM) without the host CPU ever knowing.
 5. **Topology-Aware Placement:** How to configure Kubernetes to respect physical hardware boundaries, ensuring Pods are pinned to the correct CPU sockets.
 6. **Multi-Node Collectives (NCCL):** How the NVIDIA Collective Communications Library dynamically routes traffic, and how **SHARP** allows the network switches to perform math on the fly.
-7. **Production Troubleshooting:** How Senior SREs use `ib_write_bw` and `nccl-tests` to mathematically prove whether a bottleneck is a dirty fiber optic cable or a software misconfiguration.
+7. **Production Troubleshooting:** How Senior SREs use `ib_write_bw` and `nccl-tests` to separate a link-level problem such as a dirty fiber from a software misconfiguration.
 
 ## Why This Matters for Senior Architects
 

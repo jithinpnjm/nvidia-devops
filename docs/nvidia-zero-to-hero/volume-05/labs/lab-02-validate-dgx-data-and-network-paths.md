@@ -114,13 +114,13 @@ Use a dedicated temporary directory and a tool approved by your organization. Ex
 
 ```bash
 fio --name=local-seq --directory=/safe/test/path --size=4G \
-  --rw=readwrite --bs=1M --iodepth=16 --direct=1 --runtime=60 \
+  --rw=readwrite --bs=1M --iodepth=16 --direct=1 --runtime=30 \
   --time_based --group_reporting
 ```
 
 Record bandwidth, IOPS, and latency. Compare with the validated platform baseline, not an internet benchmark.
 
-➕ **Realistic `fio` output, annotated:**
+**Illustrative output (not captured): realistic `fio` output, annotated:**
 ```text
 local-seq: (groupid=0, jobs=1): err= 0: pid=48213
   read: IOPS=3102, BW=3103MiB/s (3254MB/s)(90.9GiB/30001msec)
@@ -128,7 +128,7 @@ local-seq: (groupid=0, jobs=1): err= 0: pid=48213
   write: IOPS=3098, BW=3099MiB/s (3250MB/s)(90.7GiB/30001msec)
     clat (usec): min=175, max=9110, avg=318.90, stdev=102.55
 ```
-`BW=3103MiB/s` for reads is the headline figure to compare against the site baseline, but `clat` (completion latency) is what actually predicts training-loop stalls — an `avg` of `315us` with `stdev` around `98us` is a tight, predictable distribution; a device under contention typically keeps a similar average but develops a long tail (`max` far above `avg`, `stdev` blowing up), which is what causes intermittent step-time spikes even when average throughput looks fine on a dashboard. Compare `max` against `avg` specifically when a job reports "occasional slow steps" — a healthy device rarely shows `max` more than ~30x `avg`; this run's `max=8420us` against `avg=315us` (~27x) is within normal variance, not a red flag.
+`BW=3103MiB/s` for reads is the headline figure to compare against the site baseline, but `clat` (completion latency) is what actually predicts training-loop stalls — an `avg` of `315us` with `stdev` around `98us` is a tight, predictable distribution; a device under contention typically keeps a similar average but develops a long tail (`max` far above `avg`, `stdev` blowing up), which is what causes intermittent step-time spikes even when average throughput looks fine on a dashboard. Compare `max` against `avg` specifically when a job reports "occasional slow steps" — there is no universal max/avg threshold, so establish one from your own site baseline; in this illustrative run `max=8420us` against `avg=315us` (~27x) would be unremarkable only if the baseline looks the same.
 
 ### Step 3 — Inspect NIC health
 
@@ -140,7 +140,7 @@ ethtool -S <interface> | head -n 80
 
 Look for negotiated speed, link state, drops, resets, and physical errors.
 
-➕ **Realistic output, annotated:**
+**Illustrative output (not captured): realistic output, annotated:**
 ```text
 $ ethtool ens6f0
 Settings for ens6f0:
@@ -183,7 +183,7 @@ Example pattern:
 
 For multi-node execution, use the launcher and interface configuration approved for the cluster.
 
-➕ **Realistic `all_reduce_perf` output, annotated:**
+**Illustrative output (not captured): realistic `all_reduce_perf` output, annotated:**
 ```text
 #       size    count   type    redop   time   algbw   busbw  #wrong
        8388608 2097152  float    sum    412.3  20.35   35.61      0
@@ -210,13 +210,13 @@ Create an acceptance table:
 
 | Test | Expected | Observed | Pass/Fail | Evidence |
 |---|---|---|---|---|
-| Local storage | Site baseline: ≥3000MB/s seq R/W | 3103MiB/s read, 3099MiB/s write | Pass | `fio` output, Step 2 |
+| Local storage (illustrative values) | Site baseline: ≥3000MB/s seq R/W | 3103MiB/s read, 3099MiB/s write | Pass | `fio` output, Step 2 |
 | Shared storage | Workload requirement: ≥1500MB/s aggregate | 1720MB/s at 4 concurrent readers | Pass | `fio` against shared mount |
-| NIC link | Design value: 200Gb/s negotiated, 0 errors | 200000Mb/s, 0 RX/TX errors | Pass | `ethtool` output, Step 3 |
+| NIC link (illustrative) | Design value: 200Gb/s negotiated, 0 errors | 200000Mb/s, 0 RX/TX errors | Pass | `ethtool` output, Step 3 |
 | Local collective | Platform baseline: busbw ≥ 90GB/s at 512MB | 95.18GB/s at 512MB | Pass | `all_reduce_perf`, Step 6 |
 | Multi-node collective | Cluster baseline: busbw ≥ 80% of local-node busbw | 58.2GB/s (61% of local) | **Fail** | `all_reduce_perf` cross-node run |
 
-➕ **Reading the one failing row:** a multi-node collective landing at 61% of the local-node busbw baseline — well under the 80% acceptance threshold — is exactly the kind of result this lab's layered structure is built to catch before it reaches production: local collectives already passed, so the fabric and GPUs are individually fine, which narrows the investigation to inter-host transport (the `NCCL_DEBUG=INFO` transport-selection check from Chapter 6) or rank-to-NIC placement across nodes, not a blanket "the network is slow" conclusion.
+**Reading the one failing row:** a multi-node collective landing at 61% of the local-node busbw baseline — well under the 80% acceptance threshold — is exactly the kind of result this lab's layered structure is built to catch before it reaches production: local collectives already passed, so the fabric and GPUs are individually fine, which narrows the investigation to inter-host transport (the `NCCL_DEBUG=INFO` transport-selection check from Chapter 6) or rank-to-NIC placement across nodes, not a blanket "the network is slow" conclusion.
 
 ## 11. Observability
 
@@ -251,19 +251,19 @@ Observe the symptom and restore the baseline immediately.
 
 Validate routes, interface selection, firewalls, RDMA device visibility, MTU, process mapping, and fabric membership.
 
-➕ See Chapter 6's `NCCL_DEBUG=INFO`/`ibv_devices` walkthrough — the same log line (`NET/IB : No device found` followed by a silent fallback to `NET/Socket`) is the fastest way to tell a genuine fabric hang apart from a job that is technically progressing, just far slower than expected because RDMA was never actually in use.
+See Chapter 6's `NCCL_DEBUG=INFO`/`ibv_devices` walkthrough — the same log line (`NET/IB : No device found` followed by a silent fallback to `NET/Socket`) is the fastest way to tell a genuine fabric hang apart from a job that is technically progressing, just far slower than expected because RDMA was never actually in use.
 
 ### Storage throughput is unstable
 
 Check cache effects, competing tenants, queue depth, metadata load, network congestion, and device health.
 
-➕ **Real evidence — the `fio` `stdev`/`max` fields from Step 2 are the fastest instability signal:** a run reporting `avg=315us, stdev=98us, max=8420us` is stable variance; the same average with `stdev=1850us, max=94000us` is not — that spread, not the average alone, is what "unstable" means quantitatively, and it is what to trend run-over-run rather than just watching the headline `BW=` figure.
+**Illustrative output (not captured) — evidence — the `fio` `stdev`/`max` fields from Step 2 are the fastest instability signal:** a run reporting `avg=315us, stdev=98us, max=8420us` is stable variance; the same average with `stdev=1850us, max=94000us` is not — that spread, not the average alone, is what "unstable" means quantitatively, and it is what to trend run-over-run rather than just watching the headline `BW=` figure.
 
 ### One GPU group communicates more slowly
 
 Check GPU-to-NIC locality, PCIe state, NUMA placement, and whether ranks use the intended adapter.
 
-➕ **Real evidence:** compare `nvidia-smi topo -m`'s `CPU Affinity`/`NUMA Affinity` columns for the slow GPU group against `numactl --hardware` and the rank-launch command's affinity flags — a rank bound to NUMA node 0 driving a GPU wired to NUMA node 1 (visible as a `SYS` entry to its "local" NIC instead of `PXB`) reproduces exactly this symptom without any component being individually faulty.
+**Illustrative output (not captured) — evidence:** compare `nvidia-smi topo -m`'s `CPU Affinity`/`NUMA Affinity` columns for the slow GPU group against `numactl --hardware` and the rank-launch command's affinity flags — a rank bound to NUMA node 0 driving a GPU wired to NUMA node 1 (visible as a `SYS` entry to its "local" NIC instead of `PXB`) reproduces exactly this symptom without any component being individually faulty.
 
 ## 15. Cleanup
 

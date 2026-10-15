@@ -60,7 +60,7 @@ What if you need to process 1,000,000 elements, but you use blocks of 256 thread
 You cannot launch a fractional block. You must launch 3907 blocks.
 `3907 * 256 = 1,000,192` total threads. 
 
-You have spawned 192 extra threads. If those extra threads execute `C[i] = A[i] + B[i]`, they will attempt to read memory at index 1,000,001. This memory does not belong to the array. The GPU will throw an **Illegal Memory Access** (Segmentation Fault) and crash.
+You have spawned 192 extra threads. If those extra threads execute `C[i] = A[i] + B[i]`, they will attempt to read memory at index 1,000,001. This memory does not belong to the array. Depending on where the allocation ends, the GPU may raise an **Illegal Memory Access** error (the GPU analogue of a segmentation fault) or silently read or corrupt adjacent memory.
 
 **The Fix:**
 Every professional CUDA kernel must contain a boundary check:
@@ -85,9 +85,9 @@ You have configured your Grid to launch millions of Thread Blocks (`3840 x 2160`
 
 As we know from GPU architecture, the physical execution unit of an SM is a Warp (32 threads). When you spawn a Thread Block with 1 thread, the hardware scheduler must still allocate a full Warp of 32 threads. It executes your 1 thread, and the remaining 31 threads in the Warp sit completely idle. 
 
-You are systematically wasting 96.8% of the GPU's compute capacity. 
+You are systematically wasting about 97% (31 of 32 lanes) of the GPU's compute capacity. 
 
-To fix this, we must reconfigure your launch. You should use a 2D Thread Block size of `dim3(16, 16)` (256 threads per block). This perfectly aligns with Warp boundaries and will dramatically increase your SM Occupancy, likely speeding up your image filter by several orders of magnitude."
+To fix this, we must reconfigure your launch. You should use a 2D Thread Block size of `dim3(16, 16)` (256 threads per block). This perfectly aligns with Warp boundaries and will dramatically increase your SM Occupancy, likely speeding up your image filter substantially."
 
 ## Interview Preparation
 

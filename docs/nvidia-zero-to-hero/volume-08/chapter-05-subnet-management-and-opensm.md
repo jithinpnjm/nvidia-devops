@@ -263,6 +263,8 @@ The fabric should not be subject to conflicting policy from unmanaged SM instanc
 
 ### Annotated `sminfo`: proving there is exactly one master
 
+The output below is illustrative (not captured); the format follows `sminfo` but the values are invented.
+
 ```text
 $ sminfo
 sminfo: sm lid 1 sm guid 0x0002c903004a1b20, activity count 184223 priority 15 state 3 SMINFO_MASTER
@@ -379,11 +381,11 @@ Store periodic topology snapshots. They provide valuable before-and-after eviden
 
 Restore one authoritative, correctly configured SM and confirm a successful sweep.
 
-**Evidence.** `sminfo` (above) against every candidate host is the first read. If it returns zero masters:
+**Evidence (illustrative output, not captured).** `sminfo` (above) against every candidate host is the first read. If no SM answers, it fails with an error similar to the following (exact text varies by `infiniband-diags` version):
 
 ```text
 $ sminfo
-sminfo: iberror: failed: query resp was not SMINFO
+sminfo: iberror: failed: query
 ```
 
 This specific failure — a query error rather than a standby response — means no SM on the local management port is responding as authoritative at all, consistent with "no active SM" in the root-cause list. Pair it with `ibstat`'s `SM lid: 0` on affected ports (Chapter 2's annotated output) to confirm the two symptoms are the same root cause observed from two different vantage points, not two separate problems.
@@ -425,15 +427,15 @@ A flapping link, failing cable, unstable port, or power event repeatedly changes
 
 Quarantine or replace the unstable component, then verify sweep frequency returns to baseline.
 
-**Evidence.** OpenSM's log at heavy-sweep volume names the trigger explicitly rather than requiring inference:
+**Evidence (illustrative, not captured; exact log format and message text vary by OpenSM version).** OpenSM's log at heavy-sweep volume names the trigger explicitly rather than requiring inference:
 
 ```text
-Aug 06 14:02:11 [opensm] osm_state_mgr.c:812: OSM_LOG: Received a heavy sweep flag
-Aug 06 14:02:11 [opensm] osm_trap_rcv.c:349: OSM_LOG: Trap 128 received (link state change): LID 44 port 3
-Aug 06 14:02:14 [opensm] osm_state_mgr.c:812: OSM_LOG: Received a heavy sweep flag
-Aug 06 14:02:14 [opensm] osm_trap_rcv.c:349: OSM_LOG: Trap 128 received (link state change): LID 44 port 3
-Aug 06 14:02:18 [opensm] osm_state_mgr.c:812: OSM_LOG: Received a heavy sweep flag
-Aug 06 14:02:18 [opensm] osm_trap_rcv.c:349: OSM_LOG: Trap 128 received (link state change): LID 44 port 3
+Aug 06 14:02:11 [opensm] Received a heavy sweep flag
+Aug 06 14:02:11 [opensm] Trap 128 (link state change) received: LID 44 port 3
+Aug 06 14:02:14 [opensm] Received a heavy sweep flag
+Aug 06 14:02:14 [opensm] Trap 128 (link state change) received: LID 44 port 3
+Aug 06 14:02:18 [opensm] Received a heavy sweep flag
+Aug 06 14:02:18 [opensm] Trap 128 (link state change) received: LID 44 port 3
 ```
 
 The repeated `Trap 128` (link state change) against the same `LID 44 port 3` every few seconds is the unstable component identifying itself in the log — this is a flapping link, not a fabric-wide instability. `grep`-ing OpenSM's log for `Trap 128` and counting occurrences by LID/port turns "the fabric feels unstable" into a ranked list of exactly which port to physically inspect first.

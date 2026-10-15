@@ -45,11 +45,11 @@ Do not confuse MIG, MPS, and Time-Slicing.
 
 NVIDIA doesn't just sell GPUs; they sell system topologies designed to eliminate data movement bottlenecks.
 
-#### HGX (Hyperscale Graphics Extension)
+#### HGX
 HGX is the baseboard. It contains 4 or 8 GPUs connected via NVLink and NVSwitch.
 - **The Why:** PCIe Gen5 maxes out at 128 GB/s (bidirectional). An H100 GPU requires orders of magnitude more bandwidth to communicate with its peers during operations like `AllReduce` in distributed training. NVLink 4.0 provides 900 GB/s bidirectional bandwidth per GPU. NVSwitch creates a non-blocking all-to-all network *on the motherboard*.
 
-#### DGX (Data Center GPU Extension)
+#### DGX
 DGX is the fully integrated appliance. 
 - **The Why:** A DGX system (like DGX H100) is essentially an HGX baseboard married to dual x86 CPUs, massive amounts of system RAM, and a highly specific PCIe topology. Notice how a DGX H100 has 4x OSFP ports (8x 400Gbps links) going directly to the GPUs via PCIe Gen5 switches? This topology (Rail-optimized) ensures that GPU 0 can speak directly to the network without traversing the CPU root complex.
 
@@ -81,7 +81,7 @@ If a user misconfigures the `NCCL_TOPO_FILE` or if the PCIe topology is masked b
 
 ## Module 2: The Data Center Networking Trinity (Q12)
 
-The network is the computer. In AI, a 1% network packet drop can cause a 50% degradation in job completion time. This is because synchronous training (like Ring-AllReduce) is only as fast as the slowest link.
+The network is the computer. In AI, even a small packet-drop rate can sharply degrade job completion time. This is because synchronous training (like Ring-AllReduce) is only as fast as the slowest link.
 
 ### 2.1 InfiniBand (Quantum)
 
@@ -91,7 +91,7 @@ InfiniBand is not just "fast Ethernet". It is a lossless-by-design, software-def
 - **SHARP (Scalable Hierarchical Aggregation and Reduction Protocol):** This is the killer feature.
   - **The Problem:** In a standard `AllReduce`, GPUs send tensors to each other, adding them up over the network. This consumes massive network bandwidth and GPU compute time.
   - **The Solution:** SHARP offloads the mathematical reduction (addition) to the ASICs *inside the Quantum switch*. 
-  - **The Why:** The switch receives data from multiple nodes, adds it together in hardware, and broadcasts the result. This cuts network traffic by 50% for collective operations.
+  - **The Why:** The switch receives data from multiple nodes, adds it together in hardware, and broadcasts the result. This reduces the data that must cross the network for collective operations (the exact benefit depends on topology and message size).
 
 :::tip Golden Answer
 "When a customer asks why they can't just use their existing Enterprise Ethernet for a 1,000-GPU cluster, I explain credit-based flow control versus PFC (Priority Flow Control). Ethernet relies on dropping packets or pausing links reactively. InfiniBand is proactive. I then whiteboard how SHARP offloads in-network computing, fundamentally changing the scaling mathematics of large parameter models."
@@ -104,7 +104,7 @@ Why did NVIDIA build Spectrum-X if InfiniBand is so good? Because many enterpris
 - **RoCEv2 (RDMA over Converged Ethernet):** RDMA bypasses the CPU kernel completely. But RoCEv2 requires a lossless network. 
 - **The Spectrum-X Solution:**
   - **Adaptive Routing:** Traditional Ethernet uses ECMP (Equal-Cost Multi-Path), which hashes flows to paths. If two "elephant flows" hash to the same path, they collide and cause congestion, even if other paths are empty. Spectrum-X dynamically routes packets packet-by-packet (not flow-by-flow) across all available paths.
-  - **Out-of-Order Execution (BlueField-3):** Because packets take different paths, they arrive out of order. The BlueField-3 DPU buffers and reorders them in hardware before presenting them to the GPU, making the network behavior transparent to NCCL.
+  - **Out-of-Order Handling (BlueField-3 SuperNIC):** Because packets take different paths, they can arrive out of order. The NIC places data directly and reorders in hardware, so the network behavior is transparent to NCCL.
   - **Advanced Congestion Control:** Spectrum-X uses hardware telemetry to predict congestion and throttle senders precisely.
 
 ```mermaid
@@ -150,10 +150,10 @@ The hardware is the engine, but the software ecosystem is how enterprises actual
 
 NIM is the deployment vehicle for production AI. 
 - **The Problem:** Deploying an open-source LLM (like Llama-3) in production requires stitching together a model, an inference engine (like vLLM or TensorRT-LLM), an API server (like Triton Inference Server), handling model weights, optimizing for the specific GPU architecture, and building Docker containers. This takes weeks and is fragile.
-- **The Solution:** NIM packages the model weights, TensorRT-LLM engine, Triton API server, and CUDA dependencies into a single, pre-optimized Docker container. 
+- **The Solution:** NIM packages the model weights, an optimized inference engine (for LLM NIMs, typically TensorRT-LLM or vLLM depending on the NIM and profile), an API server, and CUDA dependencies into a single, pre-optimized container. 
 
 #### Under the Hood of NIM
-A NIM container isn't just a wrapper. At startup, the NIM orchestrator checks the physical GPU architecture (e.g., Ada vs Hopper). It automatically selects the optimal TensorRT engine profile (pre-compiled for that specific SM architecture) and configures Triton for the optimal batch size and KV cache memory allocation.
+A NIM container isn't just a wrapper. At startup, the NIM orchestrator checks the physical GPU architecture (e.g., Ada vs Hopper). It selects a matching optimized profile for the detected GPU (where one exists) and configures the engine's batching and KV cache memory allocation. Check the NIM documentation for the supported GPU and profile matrix of each NIM.
 
 :::info Whiteboard Strategy
 Draw the NIM architecture stack:
@@ -193,13 +193,13 @@ Infrastructure engineers must not only build systems; they must educate customer
 
 - **Target:** Data science teams, small PoCs.
 - **Topology:** Single node, 8 GPUs. 
-- **Focus:** The onboarding conversation here is entirely about maximizing single-node efficiency. We teach the customer about Base Command Manager (BCM) for bare-metal OS provisioning, Docker, and the NVIDIA Container Toolkit (nvidia-docker).
+- **Focus:** The onboarding conversation here is entirely about maximizing single-node efficiency. We teach the customer about DGX OS, the NVIDIA Container Toolkit, and NGC containers; Base Command Manager (BCM) comes in once there is a multi-node cluster to provision.
 - **The Trap:** Customers often try to run legacy monolithic Python scripts on a DGX. We must educate them on Jupyter integration, NGC containers, and utilizing MIG for parallel experimentation.
 
 ### 4.2 BasePOD Onboarding (The Rack Scale)
 
 - **Target:** Mid-size enterprises, fine-tuning, departmental infrastructure.
-- **Topology:** 2 to 8 DGX nodes, single InfiniBand or Ethernet switch fabric, centralized high-performance storage (e.g., VAST, WEKA, NetApp).
+- **Topology:** A small-to-mid number of DGX nodes (check the current BasePOD reference architecture for sizes), a switched InfiniBand or Ethernet fabric, centralized high-performance storage (e.g., VAST, WEKA, NetApp).
 - **Focus:** The conversation shifts from single-node execution to distributed computing. 
   - We must teach the concept of the **Compute Fabric** vs the **Storage Fabric** vs the **Management Fabric**.
   - We introduce Kubernetes, Slurm, and the NVIDIA Network Operator/GPU Operator.
@@ -228,10 +228,10 @@ graph TD
 
 - **Target:** Cloud Service Providers (CSPs), sovereign AI, massive foundational model training.
 - **Topology:** 32+ DGX nodes, multi-tier non-blocking network (Fat-Tree/Clos topology), liquid cooling.
-- **Focus:** At this scale, Mean Time Between Failures (MTBF) drops dramatically. If you have 4,000 GPUs, hardware *will* fail daily.
+- **Focus:** At this scale, Mean Time Between Failures (MTBF) drops dramatically. If you have thousands of GPUs, hardware failures become routine events.
   - The conversation is about **Resilience, Telemetry, and Rail Optimization**.
-  - **Rail Optimization Explained:** In a SuperPOD, GPU 0 on Node 1 should communicate with GPU 0 on Node 2 using the exact same physical switch (a "rail"). This ensures 1-hop latency for Tensor Parallelism. 
-  - We must teach the customer how to use UFM (Unified Fabric Manager) for predictive failure analysis and Base Command for scheduling jobs around degraded nodes.
+  - **Rail Optimization Explained:** In a SuperPOD, GPU 0 on Node 1 should communicate with GPU 0 on Node 2 using the exact same physical switch (a "rail"). This keeps same-rail traffic (for example data-parallel gradient exchange) to a single leaf-switch hop. 
+  - We must teach the customer how to use UFM (Unified Fabric Manager) for predictive failure analysis and your scheduler (Slurm or Kubernetes) for draining degraded nodes.
 
 :::danger Interview Trap
 Do not treat a SuperPOD as just a "big BasePOD." A SuperPOD requires facility-level engineering (power density, rear-door heat exchangers, liquid cooling CDU management). Your onboarding must bridge the gap between Data Center Facilities (HVAC/Power) and the MLOps software team.

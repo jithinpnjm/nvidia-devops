@@ -56,7 +56,7 @@ DPUs excel at **Micro-Segmentation**.
 Because every single packet entering or leaving the server must physically pass through the DPU, the DPU can act as an absolute enforcement point. 
 
 Using the **DOCA** software framework, security architects can write applications that leverage the DPU's hardware accelerators. 
-*   **RegEx Acceleration:** The DPU can perform Deep Packet Inspection (DPI) at 400 Gbps line-rate. It can scan incoming traffic for known malware signatures or SQL injection attacks without using a single cycle of the Host CPU. 
+*   **Hardware offload:** DOCA libraries (for example DOCA Flow for hardware-accelerated packet steering) let the DPU enforce policy and inspect traffic without Host CPU cycles. Which DOCA libraries and accelerators are available varies by BlueField generation, so check the DOCA documentation for your hardware.
 
 ## 3. Storage Encryption Offload
 
@@ -66,7 +66,7 @@ If the Host CPU handles the encryption, it slows down the AI training data pipel
 If you use a BlueField DPU, the architecture changes:
 1. The Host CPU writes plain-text data.
 2. The DPU intercepts it, encrypts it instantly using hardware cryptography engines, and sends the encrypted data to the storage array.
-3. The encryption keys never enter the Host RAM; they remain safely locked inside the DPU's secure enclave. 
+3. Depending on the design, the keys can be kept on the DPU side rather than in Host RAM. 
 
 ## Customer Scenario (Senior Level)
 
@@ -82,17 +82,17 @@ We will remove all firewall and routing logic from the host operating system. We
 
 We will migrate the firewall rules and the intrusion detection systems to run directly on the DPU's ARM processors, utilizing DOCA for hardware acceleration. 
 
-Under this new architecture, when a customer is compromised and the attacker gains root access to the host, they are trapped. The attacker cannot disable the firewall because the firewall is running on a physically separate computer (the DPU) that they cannot access. If the attacker attempts to launch a DDoS attack, the DPU will instantly detect the anomalous traffic and drop the packets at the hardware layer before they even hit the wire, containing the breach perfectly."
+Under this new architecture, when a customer is compromised and the attacker gains root access to the host, they are trapped. The attacker cannot disable the firewall because the firewall is running on a physically separate computer (the DPU) that they cannot access. If the attacker attempts to launch a DDoS attack, the DPU can rate-limit or drop traffic that violates policy before it reaches the wire, containing the breach."
 
 ## Interview Preparation
 
 **Conceptual:** What is the "Shared Fate" security problem, and how does a DPU solve it? *(Hint: Shared Fate means if an attacker gets root access to an OS, they can simply turn off the security software (firewalls/antivirus) running on that same OS. A DPU solves this by physically moving the security software onto a separate, isolated ARM processor on the network card. Even if the host OS is completely compromised, the attacker cannot touch the security policies enforced by the DPU).*
 
-**Architecture:** Why is offloading IPSec encryption to a BlueField DPU critical for high-performance AI clusters? *(Hint: Encrypting and decrypting 400 Gigabits of network traffic per second requires immense computational power. If forced onto the Host CPU, it will peg the cores at 100% and starve the GPUs of data. Offloading IPSec to the DPU's hardware cryptography engines provides line-rate encryption with zero impact on the Host CPU, and keeps the encryption keys safely isolated from the host OS).*
+**Architecture:** Why is offloading IPSec encryption to a BlueField DPU critical for high-performance AI clusters? *(Hint: Encrypting and decrypting 400 Gigabits of network traffic per second requires immense computational power. If forced onto the Host CPU, it will peg the cores at 100% and starve the GPUs of data. Offloading IPSec to the DPU's hardware cryptography engines moves the crypto work off the Host CPU, and can keep the keys on the DPU side, away from the host OS).*
 
 ## Architecture Summary
 
-BlueField DPUs fundamentally alter the security architecture of bare-metal and cloud AI clusters. By physically separating the infrastructure management (networking, firewalls, encryption) from the Host CPU and placing it onto an isolated ARM-based SoC, DPUs solve the "Shared Fate" vulnerability. A compromised host OS cannot bypass firewall rules or steal encryption keys because they are physically locked inside the DPU's TrustZone.
+BlueField DPUs fundamentally alter the security architecture of bare-metal and cloud AI clusters. By physically separating the infrastructure management (networking, firewalls, encryption) from the Host CPU and placing it onto an isolated ARM-based SoC, DPUs solve the "Shared Fate" vulnerability. With the DPU running in its trusted (embedded CPU) mode, a compromised host OS cannot disable firewall rules enforced on the DPU, and keys managed on the DPU are not in host memory.
 
 ```mermaid
 flowchart TD

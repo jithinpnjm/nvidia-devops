@@ -101,7 +101,7 @@ total = serialize_time + sync_time + write_time
 print(f"Total checkpoint time: {total:.2f}s (GPU idle for {total:.0f}s)")
 ```
 
-**Real sample output from a distributed training run:**
+**Illustrative output (not captured) from a distributed training run:**
 ```text
 Rank 0 serialization time: 3.1s, size: 8.25 GB
 Rank 0 sync time: 28.3s ← Rank 7 was 28s behind!

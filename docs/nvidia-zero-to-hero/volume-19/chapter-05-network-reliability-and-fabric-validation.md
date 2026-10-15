@@ -21,7 +21,7 @@ In standard enterprise networks, if `ping` works and TCP packets are flowing, th
 In AI clusters, `ping` is a useless diagnostic tool. 
 Distributed training relies on NCCL, RDMA, and lossless fabrics (InfiniBand or RoCEv2). If an optical transceiver is slightly degraded, it won't drop a ping packet, but it will drop 1 out of every 10,000 RDMA packets. 
 
-In a standard TCP network, that dropped packet causes a 1-millisecond retransmission delay. In a synchronous `AllReduce` training ring spanning 1,000 GPUs, that single dropped packet causes the entire supercomputer to pause, wait for a hardware timeout, and execute a Go-Back-N retransmission. The cluster's performance will collapse by 80%, with zero obvious errors on the application dashboard.
+In a standard TCP network, that dropped packet causes a 1-millisecond retransmission delay. In a synchronous `AllReduce` training ring spanning 1,000 GPUs, that single dropped packet causes the entire supercomputer to pause, wait for a hardware timeout, and execute a Go-Back-N retransmission. The cluster's performance can collapse, with no obvious errors on the application dashboard.
 
 A Senior SRE must debug the physical layer, the data link layer, and the routing layer simultaneously.
 
@@ -42,8 +42,8 @@ In AI networks (InfiniBand or RoCEv2), a degraded fiber optic cable (a broken wa
 Data center networks use complex fiber optic transceivers. These lasers degrade over time.
 
 When a transceiver starts dying, it begins flipping bits. The switch hardware detects this and uses Forward Error Correction (FEC) to fix it. 
-*   **The Symptom:** The link stays 'UP'. The ping succeeds. But the latency is destroyed because the hardware is constantly executing FEC math.
-*   **The Diagnostic:** You must log into the InfiniBand or Spectrum switches and check the port error counters. Specifically, look for `SymbolErrors` and `LinkDownedCounters`. If a specific port has millions of symbol errors, the optic is dying. You must physically replace the cable/transceiver.
+*   **The Symptom:** The link stays 'UP'. The ping succeeds. But when errors exceed what FEC can correct, packets are dropped and retransmitted, and throughput and tail latency suffer.
+*   **The Diagnostic:** You must log into the InfiniBand or Spectrum switches and check the port error counters. On InfiniBand, use `perfquery` and look for `SymbolErrorCounter` and `LinkDownedCounter` (NCCL's troubleshooting guide recommends `perfquery` for this); on Ethernet, check `ethtool -S` and the switch's FEC and CRC counters. If a specific port has millions of symbol errors, the optic is dying. You must physically replace the cable/transceiver.
 
 ## 2. Layer 2: The Congestion Nightmare (PFC Storms)
 
@@ -52,7 +52,7 @@ As extensively covered in Volume 9, RoCEv2 Ethernet relies on Priority Flow Cont
 If you configure the buffer thresholds incorrectly, the network will experience a **PFC Storm**. 
 Switch A tells Switch B to pause. Switch B tells Switch C to pause. 
 *   **The Symptom:** All links are 'UP'. The optical transceivers are perfect. But the network throughput drops to 0 GB/s. 
-*   **The Diagnostic:** Check the ConnectX NIC telemetry (`ethtool -S`) for `rx_pause_ctrl`. Check the switch dashboards for PFC Pause frames generated. If these counters are skyrocketing, you do not have a hardware failure; you have a QoS configuration failure or an application causing massive, unmanaged Incast microbursts.
+*   **The Diagnostic:** Check the ConnectX NIC telemetry (`ethtool -S`) for the pause counters (for example `rx_prio<N>_pause` and `rx_pause_ctrl_phy`). Check the switch dashboards for PFC Pause frames generated. If these counters are skyrocketing, you do not have a hardware failure; you have a QoS configuration failure or an application causing massive, unmanaged Incast microbursts.
 
 ## 3. Layer 3: Routing and Subnet Management
 
@@ -65,28 +65,28 @@ The Subnet Manager calculates the optimal path for every packet across the entir
 ## Customer Scenario (Senior Level)
 
 **The Situation:**
-A massive 128-node cluster uses RoCEv2 over 400G Ethernet. The cluster has been stable for months. Suddenly, all multi-node training jobs begin failing randomly with `NCCL WARN Call to epoll_wait failed`. The network team checks the core switches; CPU usage is low, links are up, and there are no PFC storms. They blame a recent PyTorch version update.
+A massive 128-node cluster uses RoCEv2 over 400G Ethernet. The cluster has been stable for months. Suddenly, all multi-node training jobs begin failing randomly with NCCL transport errors such as `NCCL WARN NET/IB : Got completion ... with error 12` (a transport retry exceeded error). The network team checks the core switches; CPU usage is low, links are up, and there are no PFC storms. They blame a recent PyTorch version update.
 
 **The Senior Architect Response:**
-"The PyTorch update is a coincidence. The `epoll_wait` timeout is the definitive signature of a silent RDMA packet drop causing a hardware-level Queue Pair timeout. 
+"The PyTorch update is a coincidence. A retry-exceeded completion error points to packets being lost or not acknowledged on the RDMA path. 
 
 Because the network team confirmed that PFC storms are not occurring and the core switches are healthy, we are likely dealing with a **Layer 1 Physical Degradation** that is failing silently.
 
 We must immediately bypass the high-level network dashboards and query the low-level hardware counters on the ConnectX-7 Network Interface Cards (NICs) across all 128 nodes. 
 
-We will run `ethtool -S` and specifically filter for the `rx_roce_v2_nak_seq_err` counter. This counter tracks how many times the RDMA hardware detected a missing packet and requested a Go-Back-N retransmission. In a healthy, lossless RoCEv2 fabric, this number must be exactly zero. 
+We will read the RDMA hardware counters on each node (under `/sys/class/infiniband/<device>/ports/<port>/hw_counters/`, for example `packet_seq_err`, `out_of_sequence`, `implied_nak_seq_err`, and `local_ack_timeout_err`) alongside `ethtool -S` and switch counters. Counter names vary by driver version, so confirm them on your system. In a healthy lossless RoCEv2 fabric, these should stay at or near zero. 
 
-We will likely find that exactly one node (e.g., Node 84) has a skyrocketing `nak_seq_err` counter. This mathematically proves that the optical transceiver or the fiber cable attached to Node 84 is physically degraded and dropping packets. Because distributed training relies on synchronous `AllReduce` rings, this single degraded cable on Node 84 is poisoning the entire 128-node collective. We will cordon Node 84 and dispatch a technician to replace the physical optics, instantly restoring cluster stability."
+We will likely find that exactly one node (e.g., Node 84) has rapidly increasing sequence-error or timeout counters. This points strongly at the optical transceiver or fiber attached to Node 84; confirm with the switch port's FEC/CRC counters. Because distributed training relies on synchronous `AllReduce` rings, this single degraded cable on Node 84 is poisoning the entire 128-node collective. We will cordon Node 84 and dispatch a technician to replace the physical optics, which should restore stability."
 
 ## Interview Preparation
 
 **Conceptual:** If an InfiniBand network cable is slightly damaged, why does the link usually stay 'UP' instead of completely failing? *(Hint: Modern networks use Forward Error Correction (FEC). If a cable is damaged and flips a few bits, the hardware detects the error and mathematically reconstructs the corrupted data on the fly. The link stays 'UP', but the constant error correction introduces massive latency, which can cripple a synchronous AI training job).*
 
-**Architecture:** In a RoCEv2 network, what is the significance of the `rx_roce_v2_nak_seq_err` counter on a ConnectX NIC? *(Hint: RoCEv2 is a lossless protocol built on top of UDP. If a packet is dropped by a switch, the receiving NIC detects a gap in the sequence numbers and generates a Negative Acknowledgment (NAK) to force a retransmission. If this counter is incrementing, it proves the network is not truly lossless, and the resulting retransmission latency is likely destroying the performance of the AI workload).*
+**Architecture:** In a RoCEv2 network, what is the significance of sequence-error counters such as `packet_seq_err` or `out_of_sequence` in the NIC's hw_counters? *(Hint: RoCEv2 is a lossless protocol built on top of UDP. If a packet is dropped by a switch, the receiving NIC detects a gap in the sequence numbers and generates a Negative Acknowledgment (NAK) to force a retransmission. If these counters are incrementing, the network is not behaving losslessly, and the resulting retransmission latency is likely destroying the performance of the AI workload).*
 
 ## Architecture Summary
 
-Network reliability in an AI cluster is fundamentally different from traditional IT. Because distributed training relies on synchronous `AllReduce` rings, a single slightly degraded optical cable (causing FEC corrections) or a congested switch (causing PFC Pause frames) on Node 84 will force the other 999 GPUs to sit completely idle. SREs must proactively monitor deep hardware counters (`nak_seq_err`, `FEC uncorrectable`) to hunt down and isolate degraded links before they poison the entire cluster's MFU.
+Network reliability in an AI cluster is fundamentally different from traditional IT. Because distributed training relies on synchronous `AllReduce` rings, a single slightly degraded optical cable (causing FEC corrections) or a congested switch (causing PFC Pause frames) on Node 84 will force the other 999 GPUs to sit completely idle. SREs must proactively monitor deep hardware counters (RDMA sequence-error counters, FEC uncorrectable codewords) to hunt down and isolate degraded links before they poison the entire cluster's MFU.
 
 ```mermaid
 flowchart TD

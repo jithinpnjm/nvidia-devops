@@ -78,6 +78,8 @@ flowchart TD
 
 **Confirming the top of the hierarchy is actually the bottleneck first.** Before reasoning about L2 or HBM, rule out the SM-side story with the same `dmon` line used throughout this volume:
 
+*Illustrative output (not captured):*
+
 ```text
 $ nvidia-smi dmon -s ucm -c 3
 # gpu   sm   mem
@@ -321,6 +323,8 @@ High utilization may indicate that kernels are active, not that execution engine
 `mem` sustained at 89-92% while `sm` sits at 20-23% is not a healthy "GPU is working hard" reading — it's the opposite: the SMs are mostly waiting, and the memory subsystem is close to its ceiling. This is the concrete reading that turns the table's first row from a plausible guess into a supported conclusion.
 
 **Turning "repeated host-device copies" into evidence.** A per-request timeline that separates transfer time from compute time is what actually proves a transfer bottleneck, since `dmon` alone cannot distinguish PCIe transfer activity from device-internal memory traffic:
+
+*Illustrative output (not captured):*
 
 ```text
 $ nsys profile --trace=cuda,nvtx -o /tmp/trace ./inference_request

@@ -37,7 +37,7 @@ As an AI Performance Engineer, your job is to defuse these memory explosions so 
 ## 1. Mixed Precision Training (AMP)
 
 Standard deep learning math is done in FP32 (32-bit precision). 
-NVIDIA Tensor Cores are explicitly designed to execute FP16 or BF16 (16-bit precision) at speeds up to 4x faster than FP32. 
+NVIDIA Tensor Cores are explicitly designed to execute FP16 or BF16 (16-bit precision) at much higher throughput than FP32. 
 
 If you just convert the entire model to FP16, the gradients might become so small that they round down to zero (Underflow), and the model stops learning. 
 
@@ -78,7 +78,7 @@ This is the classic signature of **Memory Fragmentation** and a lack of **Activa
 When you process a forward pass in PyTorch, the framework allocates massive blocks of VRAM to store the intermediate activations. Because standard PyTorch does not aggressively manage memory contiguity, these massive allocations fragment the remaining 50GB of free VRAM into thousands of tiny, unusable gaps. When the next layer requests a single 2GB contiguous block, the memory allocator fails to find one, throws a panic, and hard-crashes the job, despite 50GB technically being 'free'.
 
 We will immediately implement two software optimizations. 
-First, we will enable **Activation Checkpointing** (Gradient Checkpointing). We will instruct PyTorch to discard the massive activation tensors immediately after the forward pass, and recalculate them dynamically during the backward pass. This will completely eliminate the massive VRAM footprint that is causing the fragmentation.
+First, we will enable **Activation Checkpointing** (Gradient Checkpointing). We will instruct PyTorch to discard the massive activation tensors immediately after the forward pass, and recalculate them dynamically during the backward pass. This sharply reduces the activation memory footprint.
 
 Second, we will enable **Automatic Mixed Precision (AMP)** using `torch.autocast`. This will cast the massive activation tensors from 32-bit down to 16-bit, halving their physical size and doubling the speed at which the Tensor Cores process them. 
 

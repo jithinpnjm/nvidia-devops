@@ -243,6 +243,8 @@ Look for unsupported calls, broad synchronization, allocation inside capture, cr
 
 **Evidence — a typical capture failure and what it points at:**
 
+*Illustrative output (not captured):*
+
 ```text
 $ ./graph_service --capture
 terminate called after throwing an instance of 'std::runtime_error'
@@ -257,6 +259,8 @@ This generic-looking error is the runtime rejecting something that happened *ins
 Check whether node parameters still point to old buffers, whether updates succeeded, and whether pipeline slots are reused before completion.
 
 **Evidence — an update call whose failure went unchecked:**
+
+*Illustrative output (not captured):*
 
 ```text
 $ ./graph_service --shape=512
@@ -274,6 +278,8 @@ validation: FAIL
 The workload may be dominated by long kernels, transfers, queueing, or network latency. Compare host submission gaps before and after adoption.
 
 **Evidence — graphs applied to the wrong bottleneck:**
+
+*Illustrative output (not captured):*
 
 ```text
 $ nsys stats --report cuda_api_sum stream-baseline.nsys-rep | head -3

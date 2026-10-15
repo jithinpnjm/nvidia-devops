@@ -23,7 +23,7 @@ AI Factories do not use these cards.
 To push 400 Gigabits per second (Gbps) out of a single port, while simultaneously performing Hardware RDMA, packet encryption, and precise network routing, you need a specialized silicon processor that is almost as complex as a CPU. 
 
 In the NVIDIA ecosystem, this is the **ConnectX** family of SmartNICs. 
-As an architect, you must know exactly which generation of ConnectX matches your GPU architecture. If you pair an H100 with an outdated ConnectX-6 NIC, you instantly halve the bandwidth of the entire multi-million dollar cluster.
+As an architect, you must know exactly which generation of ConnectX matches your GPU architecture. If you pair an H100 with an older ConnectX-6 NIC, each GPU's network bandwidth is capped at 200 Gbps instead of 400 Gbps.
 
 ## 1. The ConnectX Generations
 
@@ -43,7 +43,7 @@ NVIDIA (following its acquisition of Mellanox) dominates the high-speed networki
 
 ### ConnectX-8 (The Blackwell B200 Era)
 * **Max Bandwidth:** 800 Gbps (XDR InfiniBand / 800G Ethernet).
-* **Bus:** PCIe Gen 6.0.
+* **Bus:** PCIe Gen 6.0 (verify lane configuration in the product brief).
 * **Architecture pairing:** Matches the extreme data requirements of the Blackwell B200 and GB200 architectures.
 
 ## 2. The Physics of the PCIe Bottleneck
@@ -52,10 +52,10 @@ Why couldn't NVIDIA just make a 1,000 Gbps ConnectX-7 card for the H100?
 Because of the Motherboard.
 
 Network cards plug into the PCIe bus. 
-A PCIe Gen 5.0 slot (with 16 lanes) has a maximum theoretical bidirectional bandwidth of roughly **64 Gigabytes per second (GB/s)**.
+A PCIe Gen 5.0 slot (with 16 lanes) has a maximum theoretical bandwidth of roughly **64 Gigabytes per second (GB/s) per direction**.
 If you convert 400 Gigabits per second (Gbps) into Bytes, it equals **50 Gigabytes per second (GB/s)**.
 
-The ConnectX-7 pushing 400G almost perfectly saturates the physical limits of the PCIe Gen 5 slot. To go any faster (like the ConnectX-8 at 800G), the entire server motherboard industry had to upgrade to PCIe Gen 6.
+A 400G port (50 GB/s) fits within a PCIe Gen 5 x16 slot (about 64 GB/s per direction, before protocol overhead), leaving little headroom. To go to 800G on a single x16 host interface, you need PCIe Gen 6; check the ConnectX-8 documentation for how it attaches (it can also expose additional PCIe lanes for GPUs).
 
 ## 3. Beyond Basic Networking (Hardware Offloads)
 
@@ -67,20 +67,20 @@ ConnectX cards are not just dumb pipes. They are "SmartNICs" packed with ASICs t
 ## Customer Scenario (Senior Level)
 
 **The Situation:**
-An enterprise purchases several 8-GPU H100 servers from a discount OEM. The OEM spec sheet says the servers include "Dual 200Gbps ConnectX-6 NICs per GPU, providing 400Gbps total bandwidth per GPU." The customer attempts to run a massively distributed PyTorch training job. The job fails constantly, and performance is 50% lower than expected. 
+An enterprise purchases several 8-GPU H100 servers from a discount OEM. The OEM spec sheet says the servers include "Dual 200Gbps ConnectX-6 NICs per GPU, providing 400Gbps total bandwidth per GPU." The customer attempts to run a massively distributed PyTorch training job. The job runs, but performance is well below expectation. 
 
 **The Senior Architect Response:**
 "The OEM has attempted a dangerous cost-saving measure that breaks the fundamental physics of the H100 architecture.
 
 An H100 GPU requires 400 Gbps of egress bandwidth. The standard way to achieve this is by pairing each H100 with a single PCIe Gen5 ConnectX-7 NIC.
 
-To save money on 400G optics and Gen5 motherboards, the OEM installed two older ConnectX-6 (200G) cards per GPU. Mathematically, $200 + 200 = 400$. Architecturally, this is a disaster. 
+To save money on 400G optics and Gen5 motherboards, the OEM installed two older ConnectX-6 (200G) cards per GPU. Arithmetically, 200 + 200 = 400, but the architecture is not equivalent. 
 
-First, to push 400G of traffic out of two separate 200G NICs, you must use software bonding (Link Aggregation) or highly complex multi-rail NCCL configurations. NCCL heavily prefers a single, clean 1:1 hardware path for GPUDirect RDMA. Forcing NCCL to split tensor traffic across two physical PCIe paths causes massive microsecond jitter, leading to synchronization timeouts and job crashes.
+First, to push 400G of traffic out of two separate 200G NICs, you must use software bonding (Link Aggregation) or highly complex multi-rail NCCL configurations. NCCL can use multiple NICs per GPU, but it works best with a clean, topology-matched path per GPU, and a GPU that is not near both NICs loses the direct PCIe path to at least one of them. Verify with `nvidia-smi topo -m` and `NCCL_DEBUG=INFO`.
 
-Second, the ConnectX-6 is a PCIe Gen 4 card. It physically cannot saturate the PCIe Gen 5 pathways connected to the H100 GPUs. 
+Second, the ConnectX-6 is a PCIe Gen 4 card and 200G per port, so each NIC tops out at about 200 Gbps; you need two of them (and two good PCIe paths) to match one ConnectX-7. 
 
-We must reject these servers. AI Infrastructure requires 1:1, generationally aligned components. H100 GPUs must be paired with single-port ConnectX-7 OSFP NICs to guarantee the clean, non-blocking RDMA paths required for multi-node scaling."
+We must reject these servers. AI Infrastructure requires 1:1, generationally aligned components. H100 GPUs must be paired with single-port ConnectX-7 OSFP NICs to match NVIDIA's reference 1:1 GPU-to-NIC design."
 
 ## Interview Preparation
 

@@ -167,8 +167,10 @@ If host-memory RDMA is unhealthy, the fault is below the GPU-direct layer.
 
 ### Annotated `ib_write_lat`: reading a latency test against a baseline, not in isolation
 
+The output below is illustrative (not captured). The real header also includes a `t_stdev` column, and the 99% and 99.9% percentile columns appear only when percentiles are requested (`-R`/`--percentiles` style flags vary by perftest version).
+
 ```text
-$ ib_write_lat -d mlx5_0 -i 1 --report_gbits -F <server>
+$ ib_write_lat -d mlx5_0 -i 1 -F <server>
 ---------------------------------------------------------------------------------------
                     RDMA_Write Latency Test
 Connection type : RC          Using SRQ      : OFF
@@ -372,7 +374,7 @@ A hang may be caused by a failed rank rather than the fabric itself.
 - separate traffic classes;
 - add capacity.
 
-**Evidence.** `ibqueryerrors -s XmtWait,SymbolErrorCounter` on the suspect tier (full annotated example in Chapter 7) is the confirming read: `XmtWait` elevated with `SymbolErrorCounter` and `LinkDownedCounter` flat is the specific signature that separates this incident class from Common Incident 4 above — same "throughput falls" symptom, opposite root cause and opposite fix.
+**Evidence.** `perfquery` counter deltas for `PortXmitWait`, `SymbolErrorCounter`, and `LinkDownedCounter` on the suspect tier (full annotated example in Chapter 7) are the confirming read: `PortXmitWait` elevated with `SymbolErrorCounter` and `LinkDownedCounter` flat is the specific signature that separates this incident class from Common Incident 4 above — same "throughput falls" symptom, opposite root cause and opposite fix.
 
 ## Common Incident 10: Post-Maintenance Topology Drift
 
@@ -467,7 +469,7 @@ The architect explains that the same symptom can originate from physical media, 
    **Model answer:** "Pairwise tests validate one link in isolation; a collective exercises the whole topology simultaneously, so oversubscription, route concentration, and synchronized congestion only appear under that combined load. I'd run collectives at increasing node counts and correlate per-link telemetry with rank placement, because the failure mode that only exists 'at scale' is specifically the interaction between many flows, which a two-node pairwise test structurally cannot reproduce."
 
 4. How do you distinguish congestion from a bad cable?
-   **Model answer:** "Pull both counter families together: `XmtWait` up with `SymbolErrorCounter`/`LinkDownedCounter` flat is congestion — queueing, no physical fault. Errors and recovery events climbing, regardless of wait counters, is a physical fault. I would never replace a cable because utilization looks high, and I would never tune congestion settings while a link is actively producing physical errors — the two require completely different fixes and mixing them up wastes a maintenance window."
+   **Model answer:** "Pull both counter families together: `PortXmitWait` up with `SymbolErrorCounter`/`LinkDownedCounter` flat is congestion — queueing, no physical fault. Errors and recovery events climbing, regardless of wait counters, is a physical fault. I would never replace a cable because utilization looks high, and I would never tune congestion settings while a link is actively producing physical errors — the two require completely different fixes and mixing them up wastes a maintenance window."
 
 5. Why should counters be collected before resetting a port?
    **Model answer:** "Because resetting a port or clearing its counters destroys the exact evidence — accumulated error counts, wait history — that would otherwise prove what was actually wrong. I've seen a 'quick reset to see if it helps' erase the only proof that a link had been silently degrading for days, turning a diagnosable incident into a mystery that recurs a week later."

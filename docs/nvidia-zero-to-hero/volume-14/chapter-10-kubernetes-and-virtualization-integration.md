@@ -27,7 +27,7 @@ As an AI Architect, you must decide which deployment model fits the organization
 |---|---|---|---|
 | **GPU access** | GPU Operator + device plugin + driver on host | GPU Operator in Linux VM + vGPU host driver + vSphere Config | VM hypervisor + vGPU profile |
 | **Ownership** | NVIDIA driver and K8s jointly | vSphere + NVIDIA (coordinated) | vSphere only |
-| **Performance** | Direct attach, ~2% overhead | VM overhead + vGPU time-slicing, ~10-15% | Depends on vGPU profile |
+| **Performance** | Direct attach, lowest overhead | Hypervisor and vGPU scheduling overhead; measure on your workload | Depends on vGPU profile |
 | **Isolation** | Pod network policies | VM network + Kubernetes network policies | VM firewall |
 | **Storage** | PVC with host path or network storage | PVC via vSphere storage class | VM virtual disk or NFS |
 | **Update cadence** | Coordinated with K8s upgrades | Requires vSphere and K8s sync | vSphere-driven |
@@ -72,7 +72,7 @@ dcgm-exporter-daemon-set-qwer5                     1/1     Running   0          
 # Driver verification
 $ kubectl debug node/gpu-node-0 -it --image=ubuntu:22.04 -- \
   bash -c "apt-get update && apt-get install -y nvidia-utils && nvidia-smi"
-# Output should show GPU info
+# Illustrative output (not captured): should show GPU info
 
 # Pod GPU allocation
 $ kubectl run gpu-test -it --image=nvidia/cuda:12.4.1-runtime-ubuntu22.04 \
@@ -86,7 +86,7 @@ $ kubectl run gpu-test -it --image=nvidia/cuda:12.4.1-runtime-ubuntu22.04 \
 # Example: vGPU profile assignment
 vmware_vgpu_config:
   vm_name: "k8s-node-gpu-1"
-  vgpu_profile: "A100D-40C"  # NVIDIA vGPU compute profile, 1/4 of an A100-40GB per VM
+  vgpu_profile: "A100D-40C"  # example vGPU profile name; pick from the profiles your vGPU release lists for the GPU
   # vGPU (hypervisor-level time/space-sliced profiles like A100D-40C) and MIG
   # (hardware spatial partitioning) are different, combinable mechanisms —
   # vGPU can itself be backed by MIG instances on MIG-capable GPUs, but the

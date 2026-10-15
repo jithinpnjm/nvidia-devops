@@ -241,6 +241,8 @@ flowchart TD
 
 **Evidence — the exact same-context comparison, host versus pod:**
 
+*Illustrative output (not captured):*
+
 ```text
 $ nvidia-smi -L
 GPU 0: NVIDIA A100-SXM4-40GB (UUID: GPU-3f9a1c...)
@@ -250,6 +252,8 @@ Failed to initialize NVML: Unknown Error
 ```
 
 `Unknown Error` from NVML inside the pod, while the host enumerates the GPU cleanly, is the specific fingerprint of a container-runtime/device-injection gap rather than a driver problem — check next:
+
+*Illustrative output (not captured):*
 
 ```text
 $ kubectl exec -it inference-pod-7c9 -- env | grep NVIDIA_VISIBLE_DEVICES
@@ -295,6 +299,8 @@ An OOM does not prove total memory is physically full; the allocator may be unab
 
 **Evidence — reading `nvidia-smi -q` memory section against a framework's own allocator summary:**
 
+*Illustrative output (not captured):*
+
 ```text
 $ nvidia-smi -q -d MEMORY | grep -A4 "FB Memory Usage"
 FB Memory Usage
@@ -305,6 +311,8 @@ FB Memory Usage
 ```
 
 `1895 MiB` free looks tight but nonzero — yet the very next allocation can still fail:
+
+*Illustrative output (not captured):*
 
 ```text
 >>> torch.cuda.memory_summary()
@@ -333,12 +341,16 @@ The framework's own summary shows 1,240 MiB reserved-but-unallocated, fragmented
 
 **Evidence — `compute-sanitizer` pinpointing the exact faulting line, versus the vague production error:**
 
+*Illustrative output (not captured):*
+
 ```text
 $ ./inference_engine 2>&1 | tail -2
 CUDA error: an illegal memory access was encountered (at synchronization)
 ```
 
 That alone only tells you *that* something faulted, not *what*. Re-run the same binary under the sanitizer to get a precise answer:
+
+*Illustrative output (not captured):*
 
 ```text
 $ compute-sanitizer --tool=memcheck ./inference_engine

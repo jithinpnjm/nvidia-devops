@@ -155,7 +155,7 @@ Low GPU utilization during training means the GPU is sitting idle waiting for so
 ```bash
 # Step 1: Check GPU utilization with dcgmi dmon
 dcgmi dmon -c 10  # Print GPU metrics every second, 10 times
-# Output columns: Timestamp, GPU, Power, Temp, Utilization
+# Illustrative output (not captured) columns: Timestamp, GPU, Power, Temp, Utilization
 # If utilization < 50%, GPU is truly idle (step 2)
 # If utilization > 90%, GPU is saturated (not a GPU problem, check app or data loading)
 

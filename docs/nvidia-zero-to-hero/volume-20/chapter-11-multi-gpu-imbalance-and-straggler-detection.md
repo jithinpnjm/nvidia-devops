@@ -7,6 +7,8 @@ description: "Detect and diagnose performance imbalance across multiple GPUs, id
 
 # Multi-GPU Imbalance and Straggler Detection
 
+> **Note:** Terminal output, logs, and timing figures in this chapter are illustrative (not captured from a real system); they show the shape of the evidence, not real measurements. Metric names in alert examples are placeholders for your own instrumentation.
+
 ## Beginner's Primer: Finding the Flat Tire
 
 In Volume 16 (Chapter 6) and Volume 13 (Chapter 11), we repeatedly discussed the concept of the **Straggler**—the single slow GPU that forces the other 999 GPUs to wait during a synchronous `AllReduce` network operation, destroying the speed of the entire cluster.
@@ -100,7 +102,9 @@ if dist.get_rank() == 0:
     print(f"Min={min(iter_times):.1f}ms, Max={max(iter_times):.1f}ms, Ratio={max(iter_times)/min(iter_times):.2f}x")
 ```
 
-**Expected output:**
+**Important:** a collective synchronizes the ranks, so an iteration time measured after `all_reduce` is nearly identical on every rank because fast ranks wait for slow ones. To find the straggler, record the per-rank time to reach the collective (data loading plus forward/backward, with `torch.cuda.synchronize()` before reading the clock) and compare that across ranks.
+
+**Illustrative output (not captured):**
 ```
 GPU 0: Iter time = 125.3 ms
 GPU 1: Iter time = 126.1 ms
@@ -137,16 +141,15 @@ cd nccl-tests
 sudo make
 
 # Run AllReduce test (4 GPUs)
-/opt/nccl-tests/build/allreduce_perf -b 1G -e 1G -f 2 -g 4
+/opt/nccl-tests/build/all_reduce_perf -b 1G -e 1G -f 2 -g 4
 
 # Example output:
-# rank 0 - allreduce 1073741824 elements in 125.0 us
-# rank 1 - allreduce 1073741824 elements in 128.5 us
-# rank 2 - allreduce 1073741824 elements in 2500.0 us  <- SLOW!
-# rank 3 - allreduce 1073741824 elements in 126.8 us
+# nccl-tests prints one summary row per message size, with columns such as
+# size, count, type, redop, root, time, algbw, busbw, #wrong (not per-rank rows).
+# To localize a slow GPU, rerun on subsets (for example CUDA_VISIBLE_DEVICES=0,1
+# then 0,2 then 0,3) and compare busbw across runs.
 ```
-
-GPU 2's AllReduce is 20x slower than expected. This indicates either:
+If runs that include GPU 2 show much lower bus bandwidth, that points to a problem on GPU 2's path. This indicates either:
 1. NVLink to/from GPU 2 is broken
 2. GPU-to-GPU communication path degraded
 3. Network latency issue (if on multiple nodes)
@@ -205,7 +208,7 @@ Expected: All GPUs should have dense kernel timeline. If one GPU has gaps, it's 
 
 1. **Reset GPU:**
    ```bash
-   sudo nvidia-smi -i 2 --reset
+   sudo nvidia-smi -i 2 --gpu-reset
    sleep 30
    
    # Re-run training and check if straggler is fixed
@@ -247,8 +250,8 @@ Expected: All GPUs should have dense kernel timeline. If one GPU has gaps, it's 
    
    sampler = DistributedSampler(
        dataset,
-       num_replicas=torch.cuda.device_count(),
-       rank=torch.cuda.current_device(),
+       num_replicas=dist.get_world_size(),
+       rank=dist.get_rank(),
        shuffle=True
    )
    loader = DataLoader(dataset, sampler=sampler, batch_size=256)
@@ -280,9 +283,9 @@ Expected: All GPUs should have dense kernel timeline. If one GPU has gaps, it's 
 
 2. **AllReduce latency uniform:**
    ```bash
-   /opt/nccl-tests/build/allreduce_perf -b 1G -e 1G -f 2 -g 4
+   /opt/nccl-tests/build/all_reduce_perf -b 1G -e 1G -f 2 -g 4
    
-   # Expected: All ranks show similar latency (± 10%)
+   # Expected: bus bandwidth within ~10% of the baseline for this node type, including runs on GPU subsets
    ```
 
 3. **All GPUs fully utilized:**
@@ -310,11 +313,11 @@ Expected: All GPUs should have dense kernel timeline. If one GPU has gaps, it's 
 
 | Symptom | Evidence | Root Cause | Fix | Verification |
 |---------|----------|-----------|-----|--------------|
-| GPU 2 iteration 10x slower, 5% utilization, others 95%+ | AllReduce latency to GPU 2 is 20x higher, NVLink link speed degraded | NVLink cable loose or link training failed | Reseat NVLink cables, run nvidia-smi nvlink --status to verify, reset GPU | AllReduce latency returns to normal, GPU 2 utilization 90%+, iteration time balanced |
+| GPU 2 iteration 10x slower, 5% utilization, others 95%+ | AllReduce latency to GPU 2 is 20x higher, NVLink link speed degraded | NVLink cable loose or link training failed | Reseat or service the NVLink path (via the vendor where it is a baseboard), run nvidia-smi nvlink --status to verify, reset GPU | AllReduce latency returns to normal, GPU 2 utilization 90%+, iteration time balanced |
 | All GPUs show similar iteration time but training 50% slower than expected | Utilization looks OK (80%+) but sustained throughput is low | GPU-to-GPU or node-to-node network congestion, inefficient data pipeline | Check NCCL parameters, enable NCCL DEBUG, profile data loading separately | Throughput increases to N x single_gpu_throughput |
 | Iteration time varies: sometimes 100ms, sometimes 1000ms randomly | One GPU sometimes idle, sometimes busy; no hardware pattern | Software load balancing issue, data loading bottleneck causes GPU stalls | Implement DistributedSampler for data distribution, add prefetching | Iteration time consistent ±5% across all samples |
-| Specific GPU always completes last (always visible in timeline) | Per-GPU timing shows GPU 1 always slower, others vary | GPU 1 thermal throttling or power capped due to degradation | Check GPU 1 temperature and power, compare to baseline, replace thermal paste if needed | GPU 1 iteration time similar to others |
-| AllReduce varies 100 → 500 microseconds random | NCCL test shows sporadic latency spikes, P2P bandwidth to straggler inconsistent | NVLink link training oscillating or switch fabric congestion | Disable DVFS on GPUs, check switch configuration, escalate to network team | AllReduce latency stable ± 10% |
+| Specific GPU always completes last (always visible in timeline) | Per-GPU timing shows GPU 1 always slower, others vary | GPU 1 thermal throttling or power capped due to degradation | Check GPU 1 temperature, power, and throttle reasons against peers; open a vendor service ticket if the cooling path is suspect | GPU 1 iteration time similar to others |
+| AllReduce varies 100 → 500 microseconds random | NCCL test shows sporadic latency spikes, P2P bandwidth to straggler inconsistent | NVLink link training oscillating or switch fabric congestion | Check NVLink/NVSwitch error counters and switch configuration, escalate to the hardware or network team | AllReduce latency stable ± 10% |
 
 ## Prevention
 
@@ -332,10 +335,10 @@ Expected: All GPUs should have dense kernel timeline. If one GPU has gaps, it's 
 
 2. **Weekly NCCL performance test:**
    ```bash
-   /opt/nccl-tests/build/allreduce_perf -b 1G -e 1G -f 2 -g 4 -c 0
+   /opt/nccl-tests/build/all_reduce_perf -b 1G -e 1G -f 2 -g 4 -c 0
    
-   # Log latency
-   # Alert if latency from any rank > baseline + 50%
+   # Log bus bandwidth
+   # Alert if bus bandwidth falls more than ~30-50% below the node-type baseline
    ```
 
 3. **Monthly NVLink health check:**
@@ -352,7 +355,7 @@ Expected: All GPUs should have dense kernel timeline. If one GPU has gaps, it's 
    expr: max(nvidia_training_iteration_time) / min(nvidia_training_iteration_time) > 1.2
    for: 5m
    annotations:
-     summary: "GPU iteration time imbalanced by {{ $value:.2f }}x"
+     summary: "GPU iteration time imbalanced by {{ $value | printf \"%.2f\" }}x"
    ```
 
 ## Escalation
@@ -375,7 +378,7 @@ echo "=== Multi-GPU Imbalance Escalation Data ===" > imbalance_escalation.log
 nvidia-smi dmon -s puctem -c 60 >> imbalance_escalation.log
 
 # NCCL performance
-/opt/nccl-tests/build/allreduce_perf -b 1G -e 1G -f 2 -g 4 -c 0 >> imbalance_escalation.log 2>&1
+/opt/nccl-tests/build/all_reduce_perf -b 1G -e 1G -f 2 -g 4 -c 0 >> imbalance_escalation.log 2>&1
 
 # NVLink status
 nvidia-smi nvlink --status >> imbalance_escalation.log

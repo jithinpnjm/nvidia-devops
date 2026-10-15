@@ -27,7 +27,7 @@ This internal journey is paved with catastrophic bottlenecks. If you do not unde
 The **Peripheral Component Interconnect Express (PCIe)** bus is the internal highway of a server. GPUs, NICs, and NVMe drives all plug into PCIe slots.
 
 *   **Lanes:** PCIe devices use "lanes" to communicate. A top-tier GPU or NIC uses 16 lanes (x16).
-*   **Generations:** PCIe Gen4 (common in Ampere A100 servers) provides roughly **32 GB/s** of bidirectional bandwidth. PCIe Gen5 (Hopper H100 servers) doubles this to roughly **64 GB/s**.
+*   **Generations:** PCIe Gen4 x16 (common in Ampere A100 servers) provides roughly **32 GB/s per direction**. PCIe Gen5 x16 (Hopper H100 servers) doubles this to roughly **64 GB/s per direction**.
 
 **The Mathematical Reality:**
 An H100 GPU has internal memory bandwidth of 3,350 GB/s. 
@@ -68,7 +68,7 @@ If GPU 0 is plugged into NUMA 0, but the Network Card (NIC) is plugged into NUMA
 2. CPU 0 pushes the data across the slow UPI link to CPU 1.
 3. CPU 1 pushes the data down to the NIC.
 
-The UPI link is not designed for hundreds of gigabytes per second of AI tensor traffic. It will immediately saturate, dropping performance by 50% to 80%.
+The UPI link is not designed for hundreds of gigabytes per second of AI tensor traffic. It can saturate, and the resulting performance loss can be large (measure it with `nccl-tests` or `ib_write_bw --use_cuda` rather than assuming a number).
 
 ## Architectural Diagram: Internal Topology
 
@@ -82,7 +82,7 @@ flowchart TD
     end
     
     subgraph "Catastrophic Topology (Cross-NUMA)"
-        CPU1[CPU 1 / NUMA 1] <-->|UPI Link bottleneck| CPU2[CPU 2 / NUMA 2]
+        CPU1[CPU 0 / NUMA 0] <-->|UPI Link bottleneck| CPU2[CPU 1 / NUMA 1]
         CPU1 --- GPU1[GPU 1]
         CPU2 --- NIC1[NIC 1]
         GPU1 -.->|Traffic forces UPI crossing| NIC1
@@ -94,8 +94,8 @@ flowchart TD
 Senior SREs never trust documentation. They verify the physical wires using `nvidia-smi topo -m`.
 
 *   **PIX / PXB:** The GPU and NIC share a PCIe switch. (Excellent. P2P is active).
-*   **NODE:** The GPU and NIC are connected to the same CPU without a switch. (Okay, but data hits the CPU).
-*   **SYS:** The GPU and NIC are on different CPUs. (Catastrophic. Cross-NUMA UPI boundary).
+*   **PHB / NODE:** PHB means the path crosses a PCIe host bridge (CPU root complex); NODE means it crosses host bridges within one NUMA node. (Acceptable, but data hits the CPU, and NCCL's default GDR distance limit may exclude it.)
+*   **SYS:** The GPU and NIC are on different NUMA nodes, so the path crosses the inter-socket link. (Worst case on the host.)
 
 ## Customer Scenario (Senior Level)
 
@@ -112,7 +112,7 @@ On Node A, Kubernetes randomly assigned the PyTorch job to GPUs 0 and 1, which a
 
 On Node B, Kubernetes randomly assigned the PyTorch job to GPUs 2 and 3, which are physically wired to CPU 1. When these GPUs attempt to send network traffic, the data must traverse the Intel UPI link to reach the NIC attached to CPU 0. The UPI link bottlenecks, causing the 50% performance drop. 
 
-To fix this cluster permanently, we must enable the **Kubernetes Topology Manager**. We configure the Kubelet with `--topology-manager-policy=single-numa-node`. This forces the Kubernetes scheduler to align the requested GPUs, CPUs, and Network Cards to the exact same physical NUMA boundary before allowing the Pod to start, ensuring deterministic hardware data paths."
+To fix this cluster, we can enable the **Kubernetes Topology Manager** in the kubelet (`--topology-manager-policy=single-numa-node`, normally set through the kubelet configuration file) together with the CPU Manager `static` policy. The kubelet then asks the device plugins for NUMA hints and rejects pod admission on the node unless the requested GPUs, exclusive CPUs, and any NIC exposed through a topology-aware device plugin can be placed on one NUMA node. This is a node-level admission decision, not a scheduler decision, so it makes data paths deterministic but can leave pods in a Topology Affinity Error state if no aligned placement exists."
 
 ## Interview Preparation
 

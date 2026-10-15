@@ -12,7 +12,7 @@ description: "Master FinOps and Capacity Management. Learn how to forecast GPU r
 | Difficulty | Advanced |
 | Estimated reading time | 30 minutes |
 | Primary audience | FinOps, Platform Leads, Capacity Planners |
-| Core question | If the data science team asks for 500 new H100 GPUs, how do you mathematically prove they only actually need 50? |
+| Core question | If the data science team asks for 500 new H100 GPUs, how do you prove they only actually need 50? |
 
 ## Introduction
 
@@ -54,7 +54,7 @@ To forecast accurately, SREs divide capacity into three distinct tiers:
 
 1.  **Baseline (Reserved / On-Prem):** The absolute minimum capacity required to serve the steady-state, 24/7 inference traffic, plus the baseline R&D workloads. This should be purchased via long-term cloud reserved instances (1-3 years) or built on-premises to achieve massive cost savings (often 60%+ cheaper than on-demand).
 2.  **Burst (On-Demand Cloud):** The capacity required for Black Friday traffic spikes or massive, infrequent training runs. You pay a premium for cloud on-demand elasticity, but you only pay for the exact hours you use it. 
-3.  **Spot / Preemptible (The Scavenger Tier):** Excess cloud capacity sold at a massive discount (often 70% off), but the cloud provider can kill the instance with 2 minutes of warning. Perfect for resilient, fault-tolerant batch jobs (like asynchronous data processing) or highly checkpointed training jobs.
+3.  **Spot / Preemptible (The Scavenger Tier):** Excess cloud capacity sold at a massive discount (often 70% off), but the cloud provider can reclaim the instance on short notice (AWS gives a 2-minute warning; other providers give less). Perfect for resilient, fault-tolerant batch jobs (like asynchronous data processing) or highly checkpointed training jobs.
 
 ## 3. FinOps: Ruthless De-Allocation
 
@@ -81,13 +81,13 @@ The root cause is a lack of Multi-Tenancy strategy. The AI team is assigning ful
 
 Before we spend a single dollar on new hardware, we will immediately implement **GPU Sharing**. We will utilize the GPU Operator to configure **Multi-Instance GPU (MIG)** on the staging nodes, slicing the physical GPUs into `1g.10gb` profiles, and we will implement **Time-Slicing** for the developer Jupyter notebooks. 
 
-This simple software reconfiguration will instantly multiply our usable cluster capacity by 7x, easily absorbing all current and projected workloads for the next 12 months using the hardware we already own."
+This software reconfiguration can raise usable capacity for small workloads substantially (a `1g.10gb` MIG profile yields up to 7 instances per 80 GB GPU), which we expect to absorb all current and projected workloads for the next 12 months using the hardware we already own."
 
 ## Interview Preparation
 
 **Conceptual:** Why is buying GPU capacity in the cloud using standard 'On-Demand' pricing usually a terrible financial strategy for steady-state AI inference? *(Hint: On-Demand pricing charges a massive premium for flexibility. Steady-state inference workloads run 24/7. By committing to Reserved Instances (1 or 3-year contracts) or moving the steady-state baseline to on-premises bare-metal, organizations can reduce their hardware costs by 50% to 70%, reserving On-Demand solely for unpredictable, bursty traffic).*
 
-**Architecture:** How does an automated FinOps 'Reaper' operator identify zombie workloads? *(Hint: It cannot use Kubernetes API metrics, because zombie pods are fully 'allocated' and look healthy to Kubernetes. The reaper must query the deep hardware metrics from the DCGM Exporter (e.g., SM Activity or Tensor Core utilization). If the physical hardware registers near-zero math execution for an extended period, the reaper mathematically proves the workload is idle and automatically terminates it).*
+**Architecture:** How does an automated FinOps 'Reaper' operator identify zombie workloads? *(Hint: It cannot use Kubernetes API metrics, because zombie pods are fully 'allocated' and look healthy to Kubernetes. The reaper must query the deep hardware metrics from the DCGM Exporter (e.g., SM Activity or Tensor Core utilization). If the physical hardware registers near-zero math execution for an extended period, the reaper has evidence the workload is idle and automatically terminates it).*
 
 ## Architecture Summary
 

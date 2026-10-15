@@ -222,7 +222,7 @@ Q5: Is preprocessing slow?
 Q6: Did precision or quantization change?
    A: Check deployed NIM image digest
       kubectl get deployment nim -o yaml | grep image
-      Currently: nvcr.io/nvidia/nim/llama2-13b@sha256:abc123
+      Currently: nvcr.io/nim/meta/llama3-70b-instruct@sha256:abc123
       No recent change
    → Config stable
 

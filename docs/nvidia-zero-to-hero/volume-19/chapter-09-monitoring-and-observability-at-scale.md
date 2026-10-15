@@ -67,7 +67,7 @@ To ensure our telemetry survives the chaos of a production incident, we must com
 
 We will deploy lightweight Prometheus instances as pure scraping agents. They will scrape the metrics and immediately stream them via Remote-Write to a horizontally scalable cluster of Thanos Receivers. 
 
-We will deploy dedicated Thanos Querier components to handle the Grafana read requests. By physically separating the ingest workload (scraping) from the query workload (dashboards), a massive spike in SRE queries during an incident can never crash the data collection pipeline. Furthermore, we will mandate the use of **Recording Rules** for all executive and high-level dashboards, ensuring that heavy aggregations are pre-computed in the background, keeping dashboard load times strictly under 2 seconds."
+We will deploy dedicated Thanos Querier components to handle the Grafana read requests. By physically separating the ingest workload (scraping) from the query workload (dashboards), a massive spike in SRE queries during an incident can never crash the data collection pipeline. Furthermore, we will mandate the use of **Recording Rules** for all executive and high-level dashboards, ensuring that heavy aggregations are pre-computed in the background, keeping dashboard load times low."
 
 ## Interview Preparation
 

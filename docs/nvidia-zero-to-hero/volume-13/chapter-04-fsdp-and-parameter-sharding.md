@@ -177,20 +177,14 @@ model = FSDP(model)  # Entire model as one FSDP unit
 **Good wrapping (do this):**
 
 ```python
-# Wrap each transformer block individually
-def setup_fsdp_wrap(model):
-    for module in model.modules():
-        if isinstance(module, TransformerBlock):
-            module = FSDP(module)
-    return model
-
-# Or use auto_wrap
-from torch.distributed.fsdp import auto_wrap_policy
+# Wrap each transformer block as its own FSDP unit via an auto-wrap policy
+import functools
+from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
+from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 
 auto_wrap_policy_fn = functools.partial(
-    default_auto_wrap_policy,
-    excluded_modules={TransformerBlock},
-    min_num_params=1e6,
+    transformer_auto_wrap_policy,
+    transformer_layer_cls={TransformerBlock},
 )
 
 model = FSDP(model, auto_wrap_policy=auto_wrap_policy_fn)
@@ -209,7 +203,7 @@ torchrun --nproc_per_node=8 train_fsdp.py \
   --fsdp_stage FULL_SHARD
 ```
 
-**Observed output (8 H100 GPUs, 70B model, batch 16 per GPU = 128 total):**
+**Illustrative output (not captured) (8 H100 GPUs, 70B model, batch 16 per GPU = 128 total):**
 
 ```
 [14:23:00] Initializing FSDP with FULL_SHARD stage
@@ -253,13 +247,12 @@ flowchart TD
 **Real scenario: Engineer tries to fit a 70B model on 4 GPUs with CPU offload:**
 
 ```python
-fsdp_config = {
-    'cpu_offload': True,  # Move parameters to CPU RAM during backward
-}
-model = FSDP(model, fsdp_config)
+from torch.distributed.fsdp import CPUOffload
+
+model = FSDP(model, cpu_offload=CPUOffload(offload_params=True))  # keep sharded parameters in CPU RAM
 ```
 
-**Observed training speed:**
+**Illustrative training speed (not captured):**
 
 ```
 Without CPU offload (16 GPUs):
@@ -283,10 +276,13 @@ Why? PCIe Gen4 bandwidth is 32 GB/s; GPU HBM bandwidth is 3 TB/s (100× faster).
 # Throughput: 10.4 tokens/sec (good utilization)
 
 # Or enable activation checkpointing + mixed precision
-fsdp_config = {
-    'activation_checkpointing': True,
-    'mixed_precision': torch.float16,
-}
+from torch.distributed.fsdp import MixedPrecision
+from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
+    apply_activation_checkpointing,
+)
+
+model = FSDP(model, mixed_precision=MixedPrecision(param_dtype=torch.bfloat16))
+apply_activation_checkpointing(model, auto_wrap_policy=auto_wrap_policy_fn)
 ```
 
 **Lesson:** CPU offload is only for research or experimentation. Production training should scale horizontally (add more GPUs) rather than offload vertically (move to slower memory).

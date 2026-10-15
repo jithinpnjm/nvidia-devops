@@ -189,7 +189,7 @@ print(f"  Total tokens generated: {sum(tokens)}")
 print(f"  Avg tokens per request: {sum(tokens) / len(tokens):.1f}")
 ```
 
-Expected output:
+Illustrative output (not captured):
 
 ```
 Results from 1,000 requests:

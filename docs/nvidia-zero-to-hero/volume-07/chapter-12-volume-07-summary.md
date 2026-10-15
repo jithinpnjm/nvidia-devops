@@ -30,22 +30,22 @@ Before diving into the low-level protocols of InfiniBand in Volume 08, you must 
 ### 1.1 The Motherboard Bottlenecks
 * **The Host Bounce Buffer:** Routing data through the CPU System RAM is a catastrophic failure. 
 * **PCIe Switches:** The unsung heroes of the motherboard. They allow a GPU and a Network Card (NIC) to communicate directly (Peer-to-Peer), entirely bypassing the CPU.
-* **NUMA Boundaries:** Crossing the QPI/UPI link between CPU 0 and CPU 1 destroys throughput. Kubernetes **Topology Manager** (`single-numa-node`) must be used to force the scheduler to align GPUs and NICs on the same socket.
+* **NUMA Boundaries:** Crossing the QPI/UPI link between CPU 0 and CPU 1 can hurt throughput. The kubelet **Topology Manager** (`single-numa-node`) can be used to align GPUs, CPUs, and topology-aware NICs on the same NUMA node at pod admission.
 
 ### 1.2 The Intra-Node Fabric (NVLink)
 * **PCIe is too slow:** At ~64 GB/s, it cannot handle Tensor Parallelism.
-* **NVLink & NVSwitch:** The proprietary, out-of-band fabric. Creates a fully non-blocking 900+ GB/s mesh between the 8 GPUs inside a chassis (or 72 GPUs in a Blackwell rack), effectively turning them into one massive GPU.
+* **NVLink & NVSwitch:** The proprietary, out-of-band fabric. Creates a fully non-blocking mesh with 900 GB/s per GPU (Hopper) between the 8 GPUs inside a chassis, or 1.8 TB/s per GPU across 72 GPUs in a GB200 NVL72 rack, giving each domain fast peer-to-peer memory access.
 
 ### 1.3 Bypassing the Kernel
-* **The TCP/IP Penalty:** Forcing 400 Gbps of traffic through the Linux kernel will instantly pin the CPU at 100% utilization and throttle the network.
-* **RDMA (Remote Direct Memory Access):** The NIC reads data directly from physical memory and writes it directly to remote memory. Zero CPU involvement. Zero context switches.
+* **The TCP/IP Penalty:** Forcing 400 Gbps of traffic through the Linux kernel can consume many CPU cores and limit throughput.
+* **RDMA (Remote Direct Memory Access):** The NIC reads data directly from physical memory and writes it directly to remote memory. No CPU involvement in the data path and no per-message system calls once the connection is set up.
 
 ### 1.4 GPUDirect Technology
 * **GPUDirect RDMA:** Allows the NIC to read/write directly to the GPU's High-Bandwidth Memory (HBM) over the PCIe bus. Essential for multi-node NCCL scaling.
 * **GPUDirect Storage (GDS):** Allows the NIC to read data from a remote Parallel File System and dump it straight into the GPU's HBM, bypassing the CPU and preventing data-loading starvation.
 
 ### 1.5 The Multi-Plane Network
-An AI Factory cannot use VLANs to separate traffic on a single switch. It requires physically air-gapped networks to prevent jitter:
+An AI Factory should not rely on VLANs alone to separate traffic on a single switch. Physically separate networks are the safer way to protect the compute fabric from jitter:
 1. **Compute Fabric:** Exclusively for GPU-to-GPU training (InfiniBand/RoCE). Rail-optimized.
 2. **Storage Fabric:** For loading datasets and saving checkpoints.
 3. **In-Band Management:** For Kubernetes API and OS traffic.
@@ -53,19 +53,19 @@ An AI Factory cannot use VLANs to separate traffic on a single switch. It requir
 
 ### 1.6 NCCL and Collectives
 * **NCCL:** The software library that routes data across the complex hardware topography. 
-* **SHARP:** In-Network computing. The InfiniBand switch itself performs the `AllReduce` math additions, freeing the GPUs to train faster and halving network traffic.
+* **SHARP:** In-Network computing. Supported Quantum switches perform part of the `AllReduce` reduction in the network, which can reduce endpoint work and traffic for some collectives.
 
 ### 1.7 Senior Troubleshooting Hierarchy
 You cannot debug a slow PyTorch job by blindly tweaking PyTorch. You must prove the hardware sequentially:
 1. `nvbandwidth`: Prove the PCIe lanes and motherboard are healthy.
-2. `ib_write_bw`: Prove the physical optical cables and switch ASICs are delivering line-rate RDMA.
+2. `ib_write_bw`: Check that the optical cables and switch ports deliver line-rate RDMA.
 3. `nccl-tests`: Prove the GPUDirect and software topology are configured correctly.
 
 ---
 
 ## 2. What Comes Next: Volume 08
 
-You now understand the architecture of GPU data paths and why RDMA is strictly required. 
+You now understand the architecture of GPU data paths and why RDMA is the norm for AI fabrics. 
 
 But what actually *is* InfiniBand? 
 

@@ -68,7 +68,7 @@ flowchart TD
 | Workload Type | Optimal Approach | Example | Why? |
 | :--- | :--- | :--- | :--- |
 | **CPU Bound** | `multiprocessing` | Data crunching, ML tensor ops (if not in C) | Bypasses GIL by creating separate OS processes. High memory overhead. |
-| **Light I/O Bound** | `threading` | Fetching 50 web pages | OS preemption handles switching. Easy to write, but thread overhead scales poorly past ~1,000 threads. |
+| **Light I/O Bound** | `threading` | Fetching 50 web pages | OS preemption handles switching. Easy to write, but thread overhead (stacks, scheduling) becomes significant at thousands of threads. |
 | **Heavy I/O Bound** | `asyncio` | 10,000 concurrent websocket connections | Cooperative multitasking in a single thread. Minimal memory overhead per task. |
 | **Subprocess Execution** | `subprocess` + `asyncio/threading` | Running `kubectl` or `ipmitool` commands | OS manages the child process execution; Python just waits for the pipe. |
 
@@ -159,7 +159,7 @@ If the child process outputs more than 64KB to `stdout`, and the parent process 
 
 #### How to fix Deadlock
 
-Always use `communicate()` to read pipes safely, as it uses background threads or asynchronous I/O (depending on implementation/OS) to read both pipes concurrently.
+Always use `communicate()` to read pipes safely. It drains stdout and stderr concurrently (via `selectors` on POSIX, helper threads on Windows) until EOF, then waits for the process. Note that it buffers all output in memory, so for very large or endless output, stream line by line from a single merged pipe (`stderr=subprocess.STDOUT`) or redirect to a file.
 
 ```python
 import subprocess
@@ -167,7 +167,7 @@ import time
 
 def stream_and_prevent_deadlock():
     # Command that generates a massive amount of output to stdout and some to stderr
-    # Using 'dd' to generate 10MB of null bytes encoded in base64
+    # Using 'dd' to generate 10MB of random bytes
     cmd = ["dd", "if=/dev/urandom", "bs=1M", "count=10"]
     
     # Start the process
@@ -208,12 +208,12 @@ sequenceDiagram
     participant Python as Parent Process
     participant Sub as Child Process (Popen)
 
+    Python->>OS: Create Pipes (stdout, stderr)
     Python->>OS: fork() & exec() child
     activate OS
     OS-->>Sub: Create Process
     deactivate OS
     activate Sub
-    Python->>OS: Create Pipes (stdout, stderr)
     Sub->>OS: Write to stdout pipe buffer (64KB)
     Note over Sub, OS: If buffer fills, Child BLOCKS
     Python->>OS: Read from pipes via communicate()
@@ -281,7 +281,7 @@ def query_fleet_concurrently(server_count: int):
     print(f"Success: {len(results)}, Errors: {len(errors)}")
 
 # Running sequentially would take ~30 seconds (100 * 0.3s avg latency)
-# Concurrently with 50 threads, it takes ~0.6 seconds.
+# Concurrently with 50 threads, it takes roughly a second (two "waves" of up to ~0.5s each).
 query_fleet_concurrently(100)
 ```
 
@@ -291,7 +291,7 @@ What happens if you try to query 1,000,000 servers using the above code?
 
 `future_to_server = {executor.submit(...) for ... in range(1_000_000)}`
 
-You will immediately generate 1,000,000 `Future` objects in memory. The `ThreadPoolExecutor` will only run 50 at a time, but the **queue** of pending tasks will consume gigabytes of RAM. This is a lack of backpressure.
+You will immediately generate 1,000,000 `Future` objects in memory. The `ThreadPoolExecutor` will only run 50 at a time, but the **queue** of pending tasks and their `Future` objects will consume significant RAM (hundreds of MB or more at this scale). This is a lack of backpressure.
 
 **Solution:** Use an `itertools.islice` to feed the executor in chunks, or use a `queue.Queue` with a maximum size to block submission when the queue is full.
 
@@ -416,7 +416,8 @@ def create_resilient_session() -> requests.Session:
     
     # Define retry strategy
     # Total retries: 5
-    # Backoff factor: 1 (sleeps for [0, 2, 4, 8, 16] seconds between retries)
+    # Backoff factor: 1 (exponential sleep between retries; the exact sequence differs by urllib3 version,
+    # roughly 1, 2, 4, 8, 16 seconds in urllib3 2.x)
     # Status forcelist: Retry on 429 (Rate Limit) and 5xx (Server Errors)
     retry_strategy = Retry(
         total=5,
@@ -439,7 +440,7 @@ def fetch_data():
     
     try:
         # ALWAYS include a timeout. Timeout is a tuple: (connect_timeout, read_timeout)
-        response = session.get("https://httpstat.us/503", timeout=(3.0, 10.0))
+        response = session.get("https://api.example.internal/health", timeout=(3.0, 10.0))
         response.raise_for_status() # Raises HTTPError for bad responses (4xx, 5xx) that exhaust retries
         return response.json()
     except requests.exceptions.RequestException as e:
@@ -454,7 +455,7 @@ def fetch_data():
 When a massive fleet of agents tries to hit an API server that just rebooted, they might all retry at the exact same intervals (e.g., all wait 2 seconds, all hit the server, all fail, all wait 4 seconds...). This creates a **thundering herd problem** that will repeatedly crash the recovering server. Adding jitter (randomness) prevents this.
 :::
 
-**Jitter** adds randomness to the backoff interval, spreading out the retries and allowing the server to recover. `urllib3` does not add jitter by default; for advanced use cases, the `tenacity` library is highly recommended.
+**Jitter** adds randomness to the backoff interval, spreading out the retries and allowing the server to recover. `urllib3` adds no jitter by default (urllib3 2.x has an optional `backoff_jitter` parameter on `Retry`); for more control, the `tenacity` library is a popular option.
 
 ---
 
@@ -477,7 +478,7 @@ class JSONFormatter(logging.Formatter):
     """Custom JSON formatter for production logs."""
     def format(self, record):
         log_record = {
-            "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),  # utcnow() is deprecated since 3.12
             "level": record.levelname,
             "name": record.name,
             "message": record.getMessage(),
@@ -525,7 +526,7 @@ def provision_node(node_id: str):
 provision_node("srv-db-001")
 ```
 
-The output is now easily parsed by any modern observability tool:
+The output (illustrative, not captured) is now easily parsed by any modern observability tool:
 ```json
 {"timestamp": "2023-10-27T10:00:00Z", "level": "INFO", "name": "infrastructure_agent", "message": "Starting provisioning for srv-db-001", "exception": null, "node_id": "srv-db-001", "correlation_id": "a1b2...", "region": "us-east-1"}
 ```
@@ -632,7 +633,7 @@ Mastering these paradigms shifts Python from a simple scripting language into a 
 
 ## Appendix A: Exhaustive Code Reference Library
 
-For the working engineer, this section provides copy-pasteable, production-ready templates for the most common infrastructure patterns.
+For the working engineer, this section provides starting-point templates (review and test before production use) for the most common infrastructure patterns.
 
 ### A.1 The Ultimate Asyncio Worker Pool Template
 
@@ -892,12 +893,14 @@ def validate_node(node_config: dict):
 
 ### A.5 The Tenacity Library: Advanced Retries
 
-While we showed `urllib3` retries earlier, the `tenacity` library is the industry standard for general-purpose retry logic in Python. It can retry any function, not just HTTP calls.
+While we showed `urllib3` retries earlier, the third-party `tenacity` library is a widely used option for general-purpose retry logic in Python. It can retry any function, not just HTTP calls.
 
 ```python
 import random
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, before_sleep_log
 import logging
+
+logger = logging.getLogger(__name__)
 
 # Retry configuration:
 # 1. Stop trying after 5 total attempts.

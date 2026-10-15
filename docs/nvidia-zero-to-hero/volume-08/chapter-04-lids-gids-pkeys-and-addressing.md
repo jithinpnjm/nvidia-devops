@@ -29,7 +29,7 @@ These values solve different problems. Treating them as interchangeable creates 
 
 ## Story: The Node That Changed Identity After Maintenance
 
-A cluster node is serviced and its HCA firmware is updated. After the maintenance window, the port becomes active and receives a different LID from the subnet manager.
+A cluster node is serviced and its HCA firmware is updated. After the maintenance window, the port becomes active and, in this story, receives a different LID from the subnet manager (LIDs can be kept stable with an SM LID-persistence feature, but they are not guaranteed to be).
 
 An operations script still assumes that the old LID permanently identifies the node. The script updates the wrong inventory record, and a troubleshooting engineer spends hours investigating an apparent duplicate endpoint.
 
@@ -199,6 +199,8 @@ Support bundles should capture the selected GID value and index, not only the ad
 
 ### Annotated `show_gids`: why "index 3" is not a portable statement
 
+The output below is illustrative (not captured) and shows a RoCE-mode (Ethernet link layer) port, where the GID table is derived from the port's MAC and IP addresses. On an InfiniBand link layer, index 0 is the link-local GID built from the subnet prefix and port GUID.
+
 ```text
 $ show_gids
 DEV     PORT    INDEX   GID                                     IPv4            VER     DEV
@@ -209,7 +211,7 @@ mlx5_0  1       2       0000:0000:0000:0000:0000:ffff:0a01:0203  10.1.2.3       
 mlx5_0  1       3       0000:0000:0000:0000:0000:ffff:0a01:0203  10.1.2.3       v2      mlx5_0
 ```
 
-Four entries for one physical port: indices 0-1 are link-local IB addressing under RoCE v1/v2 framing conventions carried in the table format, and indices 2-3 are the same host's RoCE-style IPv4-mapped address under v1 and v2. On a pure InfiniBand link-layer deployment the table is simpler, but the moment IP-over-IB, container networking, or a second protocol context is configured, table length and ordering can differ between two otherwise-identical hosts depending on boot order and driver version — which is exactly the "GID index 3 works on half the nodes" scenario below. Automation must select by matching value or explicit policy (for example, "the v2 RoCE entry whose IPv4 matches this host's management subnet"), never by a hardcoded index.
+Four entries for one physical port: indices 0-1 are the link-local (fe80::) GID in its RoCE v1 and v2 forms, and indices 2-3 are the host's IPv4-mapped GID in its v1 and v2 forms. On a pure InfiniBand link-layer deployment the table is simpler, but the moment IP-over-IB, container networking, or a second protocol context is configured, table length and ordering can differ between two otherwise-identical hosts depending on boot order and driver version — which is exactly the "GID index 3 works on half the nodes" scenario below. Automation must select by matching value or explicit policy (for example, "the v2 RoCE entry whose IPv4 matches this host's management subnet"), never by a hardcoded index.
 
 ## P_Keys: Partition Membership
 
@@ -237,7 +239,7 @@ Partition membership can distinguish full and limited members.
 A simplified interpretation is:
 
 - **full members** can communicate with full and limited members of the same partition;
-- **limited members** can communicate with full members but not necessarily directly with other limited members.
+- **limited members** can communicate with full members but not with other limited members.
 
 Exact policy should be verified against the active subnet-manager configuration and architecture.
 
@@ -406,7 +408,7 @@ Compare both endpoints:
 - stale path information;
 - incompatible path attributes.
 
-**Evidence.** P_Key tables from both endpoints, queried directly, resolve this fastest:
+**Evidence (illustrative output, not captured).** P_Key tables from both endpoints, queried directly, resolve this fastest. (The real `smpquery pkeys` output prints the table in rows of values; the one-entry-per-line layout below is simplified, and the exact argument order varies by `infiniband-diags` version, so check `smpquery -h`.)
 
 ```text
 # Host A
@@ -475,12 +477,12 @@ Correct the source policy, redeploy through the supported subnet-manager workflo
 
 ```text
 $ diff <(sort intended-pkey-policy.txt) <(smpquery pkeys -C mlx5_0 -P 1 12 | sort)
-< PKey[1]: 0x8021 (full)
+< PKey[1]: 0x8021
 ---
-> PKey[1]: 0x8021 (limited)
+> PKey[1]: 0x0021
 ```
 
-The value matches, but the membership bit does not — the source policy declared full membership, the programmed table shows limited. A limited member can reach full members of the partition but not other limited members, which explains a specific, asymmetric failure pattern: node A (limited) can talk to the partition's full-member nodes but not to node C (also limited) — a symptom that looks like random flakiness until the membership bit, not just the P_Key value, is checked.
+The partition number (low 15 bits, `0x0021`) matches, but the membership bit (the high bit of the 16-bit P_Key) does not: `0x8021` is a full member and `0x0021` is a limited member. The source policy declared full membership and the programmed table shows limited. A limited member can reach full members of the partition but not other limited members, which explains a specific, asymmetric failure pattern: node A (limited) can talk to the partition's full-member nodes but not to node C (also limited) — a symptom that looks like random flakiness until the membership bit, not just the P_Key value, is checked.
 
 ### Scenario 5 — GID tables differ across nominally identical nodes
 

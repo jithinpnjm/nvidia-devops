@@ -94,13 +94,13 @@ For deep analysis of a single kernel:
 
 ```bash
 # Run a single iteration with Nsight Compute profiling
-ncu --set full --export profile.ncu-rep python train.py --num-steps 1
+ncu --set full -o profile python train.py --num-steps 1  # writes profile.ncu-rep
 
 # or profile an already-compiled CUDA binary
-ncu profile.ncu --set full mycuda_app input.dat
+ncu --set full -o profile ./mycuda_app input.dat
 ```
 
-**Real Nsight Compute report output (simplified):**
+**Illustrative output (not captured) (simplified):**
 
 ```text
 Kernel: matmul_kernel_fp32
@@ -175,16 +175,16 @@ For understanding the full picture of a training job:
 
 ```bash
 # Trace a full training step
-nsys profile -t cuda,cudnn,cublas,nccl \
+nsys profile -t cuda,nvtx,osrt,cublas,cudnn \
   --gpu-metrics-device all \
-  --output timeline \
+  -o timeline \
   python train.py --num-steps 100
 
-# Generate timeline report
-nsys export --type timeline timeline.nsys-rep
+# Summarize kernel and API statistics from the report
+nsys stats timeline.nsys-rep
 ```
 
-**Real Nsys timeline output (simplified):**
+**Illustrative output (not captured) (simplified):**
 
 ```text
 Time (ms)  Duration (ms)  Event                           GPU    Details
@@ -267,13 +267,13 @@ Fix: Increase block size, increase grid size, or increase work per thread
 ```bash
 # Baseline: profile the reference version
 git checkout main
-nsys profile --output baseline.nsys-rep python train.py --num-steps 10
-nsys export --type timeline baseline.nsys-rep > baseline.txt
+nsys profile -o baseline python train.py --num-steps 10
+nsys stats --report cuda_gpu_kern_sum baseline.nsys-rep > baseline.txt
 
 # Current: profile your changes
 git checkout feature/my-optimization
-nsys profile --output current.nsys-rep python train.py --num-steps 10
-nsys export --type timeline current.nsys-rep > current.txt
+nsys profile -o current python train.py --num-steps 10
+nsys stats --report cuda_gpu_kern_sum current.nsys-rep > current.txt
 
 # Compare
 diff baseline.txt current.txt
@@ -284,7 +284,7 @@ diff baseline.txt current.txt
 # - Clocks throttling differently
 ```
 
-**Real regression detection:**
+**Illustrative regression detection (not captured):**
 
 ```text
 Baseline:
@@ -307,10 +307,10 @@ Next: Investigate what backward change affects all-reduce; optimize communicatio
 
 ```bash
 # Profile a representative training job with multiple steps
-nsys profile -t cuda,cudnn,cublas,nccl \
+nsys profile -t cuda,nvtx,osrt,cublas,cudnn \
   --gpu-metrics-device all \
   --sample=cpu \
-  --output job_profile.nsys-rep \
+  -o job_profile \
   python train.py --num-steps 100 --batch-size 256 2>&1 | tee train.log
 
 # Look for patterns in the timeline

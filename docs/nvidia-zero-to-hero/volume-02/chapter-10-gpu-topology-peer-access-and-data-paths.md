@@ -81,6 +81,8 @@ flowchart TD
 
 **The evidence this whole chapter is built on — one command, read correctly:**
 
+*Illustrative output (not captured):*
+
 ```text
 $ nvidia-smi topo -m
         GPU0    GPU1    GPU2    GPU3    NIC0    CPU Affinity    NUMA Affinity
@@ -280,6 +282,8 @@ Inspect the topology matrix, peer-access capability, collective traces, CPU affi
 The scheduler allocated GPUs across weaker communication paths or across NUMA boundaries.
 
 **Turning this into evidence.** Compare the topology matrix against the actually-assigned rank-to-GPU mapping used for the job:
+
+*Illustrative output (not captured):*
 
 ```text
 $ nvidia-smi topo -m | head -6

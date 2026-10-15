@@ -49,11 +49,11 @@ Git's storage model is built on four fundamental object types, compressed and st
 | **Commit** | Points to a single top-level Tree object, representing the entire project state. Also contains author metadata, a timestamp, a message, and zero or more parent commit pointers. | A reviewable unit of change, an audit evidence record, and a rollback target. In an AI factory, a commit represents a specific, deployable state of the infrastructure. |
 | **Annotated Tag** | Points to a commit and contains a message, tagger identity, and optional GPG cryptographic signature. | An immutable release point (e.g., `v2.4.1` of an infrastructure module, or `release-2023-10` for an environment state). |
 
-Because every object is cryptographically hashed (using SHA-1 or, in newer repositories, SHA-256), history is strictly immutable. If a single byte of a Terraform configuration changes, the blob hash changes. Because the tree points to the blob hash, the tree hash changes. Because the commit points to the tree hash, the commit hash changes. This cryptographic chain ensures that no one can quietly alter the history of an AI factory without detection. If an attacker tries to retroactively inject an SSH key into an old commit, the hashes of all subsequent commits would change, breaking the entire history and immediately alerting the team.
+Because every object is cryptographically hashed (using SHA-1 or, in newer repositories, SHA-256), history is tamper-evident: changing an old object changes its hash. If a single byte of a Terraform configuration changes, the blob hash changes. Because the tree points to the blob hash, the tree hash changes. Because the commit points to the tree hash, the commit hash changes. This cryptographic chain ensures that no one can quietly alter the history of an AI factory without detection. If an attacker retroactively alters an old commit, the hashes of all subsequent commits change, so anyone comparing against a known-good hash (a signed tag, a protected remote, or another clone) will see the mismatch. Detection depends on someone comparing, which is why protected branches and signed commits matter.
 
 #### A Deep Dive into the Objects Directory
 
-To truly understand how this works, let's look at the raw data structure inside a `.git` repository when you commit a single file:
+To see how this works, here is the raw data structure inside a `.git` repository when you commit a single file. All hashes and paths below are illustrative, not captured output (real object IDs depend on content, author, and time):
 
 ```bash
 $ mkdir ai-factory && cd ai-factory
@@ -110,7 +110,7 @@ flowchart LR
   L -->|git checkout / merge| W
 ```
 
-- **Working Tree:** The actual files you are modifying in your IDE or text editor. This is your scratchpad. If you run `terraform plan`, Terraform generates temporary files (like `.terraform.lock.hcl` updates or `.terraform/` provider binaries) in the working tree.
+- **Working Tree:** The actual files you are modifying in your IDE or text editor. This is your scratchpad. If you run `terraform init`, Terraform downloads provider binaries into `.terraform/` (which should be ignored) and may update `.terraform.lock.hcl` (which should be committed).
 - **Index (Staging Area):** A critical buffer zone. It allows you to selectively choose *which* modifications from the working tree will be included in the next commit. If you edited `main.tf` and also have a temporary `debug.log` file, you can stage `main.tf` and ignore the log file.
 - **Local Repository:** The committed history on your laptop, stored in the hidden `.git/` directory. Commits here are safe, but they only exist on your machine.
 - **Remote Repository:** The shared source of truth (e.g., GitHub Enterprise, GitLab, Bitbucket) where CI/CD pipelines operate. When you push, you synchronize your local repository's graph with the remote's graph.
@@ -126,7 +126,7 @@ Always inspect `git diff --cached` before creating an infrastructure commit. Thi
 
 ## 2. The Safe Infrastructure Workflow
 
-A reflex to type `git add . && git commit -m "update" && git push` is incredibly dangerous in infrastructure operations. If you run `terraform init` or `terraform plan` locally, Terraform creates hidden directories (like `.terraform/`) that download hundreds of megabytes of provider binaries (written in Go) for AWS, Azure, or Kubernetes. If you blindly add all files and commit, you will bloat the Git repository size immediately, slowing down all future clones for every engineer. Furthermore, if you are testing an Ansible playbook locally, it might generate debug logs or local key files. Committing these by accident can leak cloud credentials or overwrite remote state locks.
+A reflex to type `git add . && git commit -m "update" && git push` is incredibly dangerous in infrastructure operations. If you run `terraform init` or `terraform plan` locally, Terraform creates hidden directories (like `.terraform/`) that download hundreds of megabytes of provider binaries (written in Go) for AWS, Azure, or Kubernetes. If you blindly add all files and commit, you will bloat the Git repository size immediately, slowing down all future clones for every engineer. Furthermore, if you are testing an Ansible playbook locally, it might generate debug logs or local key files. Committing these by accident can leak cloud credentials or state.
 
 A safe, deliberate workflow designed for Systems Reliability Engineers (SREs) looks like this:
 
@@ -145,7 +145,7 @@ git switch -c feature/slurm-gpu-health-gate origin/main
 
 # 3. Inspect the state of your working directory.
 git status --short
-# Expected output:
+# Illustrative output:
 #  M docs/volume-10/06-slurm-administration-ha-accounting-and-upgrades.md
 # ?? .terraform/
 # ?? crash.log
@@ -196,7 +196,7 @@ git push -u origin feature/slurm-gpu-health-gate
 
 A robust `.gitignore` is the first line of defense against committing secrets, large binaries, or state files. Every AI Factory infrastructure repository must include a `.gitignore` that handles Terraform, Ansible, Python, and OS-level cruft.
 
-Here is the production-standard `.gitignore` for an NVIDIA AI Factory IaC repository:
+Here is a starting-point `.gitignore` for an AI Factory IaC repository, adapted from common Terraform and Python templates. Adjust it to your layout; for example, `*.tfvars` is ignored here because tfvars often hold secrets, so if you commit non-secret per-environment tfvars you must un-ignore them deliberately, and `.terraform.lock.hcl` must NOT be ignored:
 
 ```text
 # ==============================================================================
@@ -335,7 +335,7 @@ repos:
       - id: terraform_fmt
       - id: terraform_validate
       - id: terraform_tflint
-      - id: terraform_tfsec # Scans for security misconfigurations (e.g., open security groups)
+      - id: terraform_tfsec # Security scan; tfsec is being superseded by Trivy, so consider terraform_trivy where available
 
   - repo: https://github.com/ansible/ansible-lint.git
     rev: v6.17.2
@@ -343,7 +343,7 @@ repos:
       - id: ansible-lint
         files: \.(yaml|yml)$
 
-  - repo: https://github.com/zricethezav/gitleaks
+  - repo: https://github.com/gitleaks/gitleaks
     rev: v8.18.0
     hooks:
       - id: gitleaks # Scans for hardcoded AWS keys, NGC tokens, passwords
@@ -378,7 +378,7 @@ In a polyrepo architecture, you divide the infrastructure into dozens or hundred
 **Advantages:**
 - **Strict Blast Radius:** Git permissions native to GitHub/GitLab natively restrict access at the repository level. The Data Science team can be granted read/write access to a `kubernetes-manifests` repository, but absolutely zero access to the foundational `tf-module-vpc` repository.
 - **Targeted CI Pipelines:** The CI/CD pipeline is extremely simple. The pipeline for `ansible-role-dcgm` only runs Ansible molecule tests and YAML linting. It doesn't waste compute time running `terraform init`.
-- **Semantic Versioning:** Consumers can pin to specific, immutable module versions using Git tags (e.g., `git@github.com:org/tf-module-vpc.git?ref=v1.2.0`). This ensures that changes to a module do not break production until the production repository explicitly updates its version pin.
+- **Semantic Versioning:** Consumers can pin to specific, immutable module versions using Git tags (e.g., `source = "git::ssh://git@github.com/org/tf-module-vpc.git?ref=v1.2.0"`). This ensures that changes to a module do not break production until the production repository explicitly updates its version pin.
 
 **Disadvantages (Dependency Hell):**
 - **Coordinating Cross-Cutting Changes:** This is the major flaw of polyrepos. If you need to enable Jumbo Frames (MTU 9000) across the entire stack to support GPUDirect RDMA, you might need to open Pull Requests in the VPC module repo, the GPU cluster module repo, the Ansible role repo, and finally the production environment repo. You must merge them in the exact correct sequence, waiting for CI to pass on each. It turns a one-hour task into a three-day ordeal.
@@ -426,7 +426,7 @@ ai-factory-infrastructure/
 - **CI/CD Complexity:** If not configured carefully, changing a Markdown file in the `docs/` folder might trigger a 45-minute Terraform and Ansible integration test suite. You must use path-filtering in CI triggers (e.g., `paths: ['terraform/**']` in GitHub Actions).
 - **Granular Permissions:** Git natively only supports repo-level write access. If someone has write access to the monorepo, they theoretically have write access to production. To restrict production writes in a monorepo, you must heavily rely on the `CODEOWNERS` file and branch protection rules, ensuring that changes to `terraform/environments/production/` require mandatory approval from the `Global-SRE` team.
 
-**Industry Consensus for AI Infrastructure:** For modern AI factories, a heavily governed **Monorepo** is generally preferred. The ability to make atomic cross-domain changes is absolutely critical when tuning high-performance networking and compute stacks, where a change in Terraform often requires a corresponding change in Ansible and Kubernetes.
+**Recommendation (a judgment, not an industry standard):** For tightly coupled AI factory stacks, a heavily governed **Monorepo** is often a good fit. The ability to make atomic cross-domain changes is absolutely critical when tuning high-performance networking and compute stacks, where a change in Terraform often requires a corresponding change in Ansible and Kubernetes.
 
 ---
 
@@ -557,7 +557,7 @@ jobs:
 
             </details>
 
-            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`${{ env.working-directory }}\`, Workflow: \`${{ github.workflow }}\`*`;
+            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`, Working Directory: \`./terraform/environments/production\`, Workflow: \`${{ github.workflow }}\`*`;
 
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -627,6 +627,7 @@ Merge conflicts are extremely common in `terraform.lock.hcl`, Python `Pipfile.lo
 **Transcript of a resolution:**
 
 ```bash
+# Illustrative transcript (not captured)
 $ git rebase main
 Auto-merging .terraform.lock.hcl
 CONFLICT (content): Merge conflict in .terraform.lock.hcl
@@ -634,8 +635,8 @@ error: could not apply 3b2a1f8... Update Slurm configuration
 
 # Git is paused. We check the status.
 $ git status
-rebase in progress; onto e5f6g7h
-You are currently rebasing branch 'feature/slurm-upgrades' on 'e5f6g7h'.
+rebase in progress; onto e5f6a7b
+You are currently rebasing branch 'feature/slurm-upgrades' on 'e5f6a7b'.
   (fix conflicts and then run "git rebase --continue")
 
 Unmerged paths:
@@ -647,9 +648,9 @@ Unmerged paths:
 # to clear the conflict markers. The --ours flag during a rebase refers to the base branch (main).
 $ git checkout --ours .terraform.lock.hcl
 
-# We re-run the initialization command to regenerate the lockfile cleanly 
-# based on your new code combined with the upstream state.
-$ terraform init -upgrade
+# Re-run init so Terraform adds any missing provider hashes for your changes to the main-branch lockfile.
+# (Use -upgrade only if you intend to change provider versions.)
+$ terraform init
 
 # Stage the cleanly regenerated, conflict-free lockfile.
 $ git add .terraform.lock.hcl
@@ -748,6 +749,7 @@ Follow this exact incident response protocol:
 
      # Remove a specific file from all commits in history
      git filter-repo --path terraform/environments/prod/terraform.tfstate --invert-paths
+     # Note: git filter-repo removes the 'origin' remote as a safety measure, so re-add it before pushing.
 
      # Or, replace a specific leaked string (like a password) across all files in history
      # Create a expressions.txt file:
@@ -758,7 +760,9 @@ Follow this exact incident response protocol:
 4. **Force Push (The Difficult Part):** Because you rewrote history, every commit hash from the point of the leak onwards has changed. You must force push to the remote.
    ```bash
    git push origin --force --all
+   git push origin --force --tags
    ```
+   The hosting platform may keep the old objects reachable (pull request refs, caches, forks), so for a hosted repository also follow the platform's guidance for removing cached views and sensitive data (for GitHub, contact support). This is another reason revocation, not history rewriting, is the real fix.
 5. **Team Coordination:** This is highly disruptive. Every other engineer on the team must delete their local clone of the repository and re-clone it from the server. If a team member does a standard `git pull` or `git push` with their old history, they will re-upload the secret and undo the cleanup.
 
 ### 11.2 Prevention is Better Than Cure
@@ -777,7 +781,7 @@ In a high-stakes AI Factory, you cannot rely on the honor system. An engineer, e
 
 Navigate to the repository settings in GitHub or GitLab and configure these exact rules for the `main` branch (and any environment branches if using a branching model):
 
-- **Require a pull request before merging:** No one, not even organization administrators or repository owners, can push directly to `main` via the CLI (`git push origin main`). All changes must go through a PR.
+- **Require a pull request before merging:** Blocks direct pushes to `main` (`git push origin main`). Enable the option that applies the rules to administrators as well (on GitHub, include administrators / do not allow bypassing), or admins can still bypass.
 - **Require approvals:** Require at least one (or two for highly critical repos) approved reviews from designated teams before the merge button becomes active.
 - **Require status checks to pass:** The CI pipeline must complete successfully. This ensures that Terraform syntax (`terraform validate`), formatting (`terraform fmt -check`), security scanning (`tfsec` / `checkov`), and speculative plans (`terraform plan`) return a green status. If a check fails, the PR cannot be merged.
 - **Require linear history:** Prevent "merge commits" (e.g., `Merge branch 'feature' into main`). This forces developers to rebase their feature branches before merging, utilizing the "Squash and Merge" or "Rebase and Merge" strategies. A linear history makes `git log` much easier to read during incident response and makes `git bisect` far more reliable.
@@ -812,7 +816,7 @@ Create a file named `.github/CODEOWNERS` (or `.gitlab/CODEOWNERS`):
 /kubernetes/                       @ai-infrastructure/mlops-platform
 ```
 
-With this configured, if a single Pull Request modifies `terraform/environments/prod/storage.tf` and `terraform/environments/prod/network.tf`, the platform will block the merge until *both* a member of the `@ai-infrastructure/network-engineers` team AND a member of the `@ai-infrastructure/storage-admins` team approve the PR. This guarantees cross-domain architectural consensus.
+With this configured, if a single Pull Request modifies `terraform/environments/prod/storage.tf` and `terraform/environments/prod/network.tf`, and the branch protection rule "Require review from Code Owners" is enabled, the platform will block the merge until *both* a member of the `@ai-infrastructure/network-engineers` team AND a member of the `@ai-infrastructure/storage-admins` team approve the PR. This guarantees cross-domain architectural consensus.
 
 ---
 
@@ -835,7 +839,7 @@ git restore -- .
 
 ### 13.2 Safely Revert a Published Infrastructure Commit
 
-Suppose a merged PR introduced a subtle bug (e.g., an MTU configuration typo in Terraform that caused NCCL packets to drop silently, degrading GPU distributed training performance by 40%). 
+Suppose a merged PR introduced a subtle bug (e.g., an MTU configuration typo in Terraform that caused NCCL packets to drop silently, degrading GPU distributed training performance). 
 
 **Do not rewrite history on `main` to fix it.** The bad code was already deployed; the Git history must reflect that reality.
 
@@ -844,11 +848,12 @@ Instead, create an explicit, auditable reversal commit:
 ```bash
 # Finds the bad commit, calculates the exact inverse diff (adding what was removed, removing what was added),
 # and creates a brand new commit with those inverse changes.
-git revert <bad-commit-hash>
+git switch -c revert-bad-mtu origin/main
+git revert <bad-commit-hash>   # for a merge commit use: git revert -m 1 <merge-hash>
 
 # This opens your editor to confirm the revert message (e.g., "Revert: Tune MTU...").
 # Once saved, push the fix through standard CI/CD.
-git push origin feature/revert-bad-mtu
+git push -u origin revert-bad-mtu
 ```
 When this PR merges, the CI pipeline runs Terraform, which detects the reverted code, and applies the fix to the infrastructure, restoring the old MTU value.
 
@@ -874,7 +879,7 @@ Git tracks every movement of the `HEAD` pointer (every time you commit, checkout
 # View the local history of pointer movements
 git reflog --date=local
 
-# Output might look like:
+# Illustrative output:
 # a1b2c3d HEAD@{0}: reset: moving to HEAD~1
 # f9e8d7c HEAD@{1}: commit: Add aggressive GPU power limits
 # 3b2a1f8 HEAD@{2}: checkout: moving from feature-branch to main
@@ -917,9 +922,9 @@ git branch recovered-gpu-limits f9e8d7c
    ```
 5. **Iterate:** Git automatically calculates and checks out the next logical midpoint based on your answer. You repeat the apply-and-test cycle. Because it is a binary search (O(log n)), finding the bad commit among 100 commits takes only about 7 tests.
 6. **Identify the culprit:** Git will eventually output the exact commit that introduced the regression:
-   `e5f6g7h is the first bad commit`
+   `e5f6a7b is the first bad commit`
    `Author: Network Admin <netadmin@company.com>`
-   `Date:   Tue Oct 10 14:32:01 2023 -0400`
+   `Date:   Tue Oct 10 14:32:01 2023 -0400`   (illustrative)
    `    Tune MTU for RoCE fabric (changed from 9000 to 1500)`
 7. **Reset and Remediation:** Clean up your working tree and return to the original branch. Now you know exactly what to revert or fix.
    ```bash
@@ -952,6 +957,8 @@ Git LFS replaces large files with tiny text pointers inside the standard Git rep
    git commit -m "chore: add base golden image via LFS"
    git push origin main
    ```
+Note that LFS only affects new commits: a large file already committed stays in history until you rewrite it (for example with `git lfs migrate import`), and hosting platforms enforce LFS storage and bandwidth quotas.
+
 When you push, the tiny text pointer is pushed to the Git repository quickly, and the 5GB file is uploaded directly to the LFS storage backend. Now, standard Git commands work seamlessly. When another engineer clones the repository, the initial clone is fast. Git LFS then intercepts the checkout process and downloads the 5GB file only for the specific commit they are looking at, rather than downloading the entire history of the binary file.
 
 ---
@@ -975,7 +982,7 @@ When you push, the tiny text pointer is pushed to the Git repository quickly, an
 8. **What does `git cherry-pick` do and when is it dangerous?**
    *Answer:* It copies a single commit from one branch and applies it to another. It is useful for hotfixes, but dangerous because it creates a duplicate commit with a new hash, which can cause subtle merge conflicts later if the original branch is merged.
 9. **How would you prevent developers from committing files larger than 5MB?**
-   *Answer:* I would configure the `pre-commit` framework with a hook like `check-added-large-files` set to a max file size, enforcing it locally. Additionally, I would set up a server-side `pre-receive` hook in GitLab/GitHub Enterprise to reject pushes containing large blobs, forcing the use of Git LFS.
+   *Answer:* I would configure the `pre-commit` framework with a hook like `check-added-large-files` set to a max file size, enforcing it locally. Additionally, I would add a server-side control (a `pre-receive` hook on GitLab or GitHub Enterprise Server, or a repository push rule/ruleset that limits file size where the platform supports it) to reject pushes containing large blobs, forcing the use of Git LFS.
 
 ---
 

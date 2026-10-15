@@ -12,7 +12,7 @@ description: "Apply your networking knowledge to high-stakes architectural chall
 | Difficulty | Expert |
 | Estimated reading time | 30 minutes |
 | Primary audience | DevOps, SRE, Platform, Cloud and Infrastructure Engineers |
-| Core question | If you are given a blank check to build a 1,024-GPU cluster, how do you mathematically design the network? |
+| Core question | If you are given a blank check to build a 1,024-GPU cluster, how do you design the network from port counts? |
 
 ## Introduction
 
@@ -79,8 +79,8 @@ You must strictly reject oversubscription in a dedicated AI cluster.
 
 In traditional web hosting, a 2:1 or even 10:1 oversubscription ratio is perfectly fine because web traffic is bursty and random. AI training traffic is synchronous and massive. 
 
-When a 512-GPU training job reaches the end of a forward pass, all 512 GPUs will execute an `AllReduce` operation at the exact same microsecond. They will instantly flood the network with 400G of traffic each. 
-If the Leaf switch has 32 servers connected to it, but only 16 cables going up to the Spine (a 2:1 oversubscription), the traffic will violently slam into a physical wall at the Leaf switch. The switch will be forced to buffer the data, and ultimately drop packets. 
+When a 512-GPU training job reaches the end of a forward pass, all 512 GPUs will execute an `AllReduce` operation at the exact same microsecond. They can each drive up to 400G of traffic at the same time. 
+If the Leaf switch has 32 servers connected to it, but only 16 cables going up to the Spine (a 2:1 oversubscription), the uplinks become a bottleneck at the Leaf switch. The switch buffers the traffic and, on InfiniBand, applies credit-based backpressure (on lossy Ethernet it would drop packets), so congestion spreads and collective time increases. 
 
 You must mandate a 1:1 non-blocking architecture, regardless of multi-tenancy, because a single distributed job can perfectly saturate the network on its own.
 
@@ -95,9 +95,9 @@ To simplify the cluster, an engineer suggests routing the Parallel File System (
 You must enforce a physically separated **Multi-Plane Topology**.
 
 While InfiniBand has enough *bandwidth* for both, it does not have the architecture to protect *latency*. 
-During an `AllReduce` gradient synchronization, the GPUs are incredibly sensitive to latency jitter. If GPU 10 is delayed by 5 microseconds, all 1,000 GPUs stall for 5 microseconds. 
+During an `AllReduce` gradient synchronization, the GPUs are incredibly sensitive to latency jitter. If GPU 10's data is delayed, the collective cannot complete until it arrives, so every participating GPU waits. 
 
-If you route Storage traffic on the Compute network, a massive storage event (like writing a 100GB model checkpoint to disk) will flood the InfiniBand switches. While InfiniBand's flow control prevents packets from dropping, the storage packets will physically fill the buffers inside the switch. When the tiny, highly-sensitive Compute packets arrive at the switch, they are forced to wait in line behind the massive storage packets. This introduces severe microsecond jitter. 
+If you route Storage traffic on the Compute network, a massive storage event (like writing a 100GB model checkpoint to disk) will flood the InfiniBand switches. While InfiniBand's flow control prevents packets from dropping, the storage packets will physically fill the buffers inside the switch. When the tiny, highly-sensitive Compute packets arrive at the switch, they are forced to wait in line behind the massive storage packets. This adds queueing delay and jitter. 
 
 You must mandate a dedicated Storage Fabric (either separate InfiniBand switches or a dedicated 400G RoCEv2 Ethernet network) attached exclusively to the BlueField-3 DPUs, leaving the ConnectX-7 compute NICs completely free of storage noise.
 
@@ -107,4 +107,4 @@ You must mandate a dedicated Storage Fabric (either separate InfiniBand switches
 
 **Architecture:** What does "1:1 Oversubscription" (Non-blocking) mean in a Fat-Tree network topology? *(Hint: It means that for every gigabit of bandwidth connected "down" to the servers, there is exactly one gigabit of bandwidth connected "up" to the spine switches. This guarantees that all servers can talk to all other servers simultaneously without physically bottlenecking the switch).*
 
-**Troubleshooting:** Why is it catastrophic to mix Storage traffic and GPU Compute traffic on the same physical InfiniBand switches during large-scale training? *(Hint: Storage traffic causes microbursts that fill the switch buffers. This introduces microsecond latency (jitter) to the Compute traffic. Because training is synchronous, jitter on one node delays the entire cluster).*
+**Troubleshooting:** Why is it risky to mix Storage traffic and GPU Compute traffic on the same physical InfiniBand switches during large-scale training? *(Hint: Storage traffic causes microbursts that fill the switch buffers. This introduces microsecond latency (jitter) to the Compute traffic. Because training is synchronous, jitter on one node delays the entire cluster).*

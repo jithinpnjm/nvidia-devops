@@ -174,7 +174,7 @@ def heavy_infrastructure_task(nodes: int):
     return f"Processed {nodes} nodes."
 
 heavy_infrastructure_task(5)
-# Output:
+# Illustrative output (not captured):
 # [heavy_infrastructure_task] took 1.0012 seconds to execute.
 ```
 
@@ -194,8 +194,7 @@ def parse_large_log_file(filepath: str):
             if "ERROR" in line:
                 yield line.strip()
 
-# Memory usage is essentially zero, even if the file is 100 Terabytes.
-# It only holds one line in memory at a time.
+# Memory usage stays flat regardless of file size: only one line is held at a time.
 for error_log in parse_large_log_file("/var/log/syslog"):
     print(f"Found error: {error_log}")
 ```

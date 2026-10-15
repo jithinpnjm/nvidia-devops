@@ -7,6 +7,8 @@ description: "Diagnose and resolve scenarios where GPU memory is unavailable, un
 
 # GPU Memory Not Detected
 
+> **Note:** Terminal and log output blocks in this chapter are illustrative (not captured from a real system). Hostnames, PIDs, UUIDs, counts, and timestamps are examples; commands and flags are real, but exact output formats vary by driver and DCGM version.
+
 ## Beginner's Primer: The Missing RAM
 
 Imagine you buy a brand-new smartphone that says it has 16GB of RAM. You turn it on, try to open an app, and the phone says: *"Error: 0GB RAM Available."*
@@ -16,7 +18,7 @@ A data scientist will launch a Pod on an H100 (which has 80GB of memory). The Po
 
 Before you panic and RMA the hardware back to NVIDIA, you must understand how GPUs present memory to the operating system.
 Most of the time, the memory isn't broken; it is just **hidden**. 
-1. **The MIG Trap:** If the cluster administrator enabled MIG (Multi-Instance GPU) on the hardware, the physical GPU stops presenting its 80GB of memory to the OS. It hides it, waiting for you to slice it into smaller profiles. If you didn't create the profiles, the memory stays hidden.
+1. **The MIG Trap:** If the cluster administrator enabled MIG (Multi-Instance GPU) on the hardware, CUDA applications can only use memory through GPU instances. If you didn't create any instances, applications see no usable device or memory, even though the physical GPU is fine.
 2. **The Driver Trap:** If the Linux Kernel Driver version doesn't perfectly match the User-Space library version (often caused by bad Docker containers), the two layers cannot talk to each other, and the memory query returns a `0`. 
 
 This chapter explains how to find the missing memory without ripping the server out of the rack.
@@ -90,7 +92,7 @@ $ nvidia-smi mig -lgi
 No MIG-enabled GPU instances found on GPU 0.
 ```
 
-**Root cause found in this case:** MIG mode is enabled on the GPU, but no GPU instances have been created — a GPU in MIG mode with zero instances configured reports 0 total memory to the top-level device query, because in MIG mode, memory only becomes visible to CUDA through an instance, not the parent device. This is by design, not a fault, and it's the single most common cause of this symptom on a freshly-provisioned or recently-reconfigured MIG node.
+**Root cause found in this case:** MIG mode is enabled on the GPU, but no GPU instances have been created — a GPU in MIG mode with zero instances configured has no memory that CUDA applications can allocate from, because in MIG mode, memory is only usable through an instance, not the parent device. How a given `nvidia-smi` query presents this state varies by driver version. This is by design, not a fault, and it's the single most common cause of this symptom on a freshly-provisioned or recently-reconfigured MIG node.
 
 ```bash
 # Confirm: check if the application is even MIG-aware
@@ -262,6 +264,7 @@ echo "PASS: all GPUs report expected memory capacity"
 
 ```yaml
 - alert: GPUMemoryTotalMismatch
+  # Metric names are placeholders for your own exporter/recording rules
   expr: nvidia_smi_memory_total_bytes < 0.95 * nvidia_smi_memory_total_expected_bytes
   for: 10m
   annotations:

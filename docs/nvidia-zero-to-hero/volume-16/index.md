@@ -92,7 +92,7 @@ sidebar_position: 16
 
 Every chapter and lab in this volume follows the depth-rework framework:
 
-1. **Real, Annotated Command Outputs** — Every tool (`nvidia-smi`, `dcgmi`, Prometheus, Grafana) is shown with sample output, and every output is explained line-by-line.
+1. **Annotated Command Outputs** — Every tool (`nvidia-smi`, `dcgmi`, Prometheus, Grafana) is shown with illustrative (not captured) sample output, and every output is explained line-by-line.
 
 2. **Mechanism Diagrams with Decision Points** — Flowcharts and decision trees show not just "what is this," but "when this metric says X, what does it mean?" with evidence criteria.
 

@@ -141,14 +141,14 @@ __global__ void stride_conflict(float *data) {
 - Kernel uses 32 registers per thread
 - Kernel uses 4 KB shared memory per block
 - Block size: 256 threads (8 warps)
-- SM: 65,536 registers = 256 KB register file, 96 KB shared memory (A100)
+- SM: 65,536 registers = 256 KB register file, up to 164 KB configurable shared memory (A100)
 
 **Calculate occupancy:**
 
 1. **Registers per block:** 32 registers/thread × 256 threads = 8,192 registers = 8,192 × 4 bytes = 32,768 bytes = **32 KB** (registers must be converted to bytes at 4 bytes/register before comparing to a KB budget)
 2. **Max blocks limited by registers:** 256 KB ÷ 32 KB = **8 blocks**
-3. **Max blocks limited by shared:** 96 KB ÷ 4 KB = 24 blocks
-4. **Actual max blocks:** min(8, 24) = **8 blocks per SM**
+3. **Max blocks limited by shared:** 164 KB ÷ 4 KB ≈ 41 blocks
+4. **Actual max blocks:** min(8, 41) = **8 blocks per SM**
 5. **Warps per block:** 256 threads ÷ 32 = 8 warps
 6. **Total warps per SM:** 8 blocks × 8 warps = **64 warps**
 7. **SM warp limit:** 64 warps maximum
@@ -431,7 +431,7 @@ Is that actually compute-bound? Compare against a realistic FP32 compute peak: ~
 
 **Follow-up Trap:** "If tiling is so good, why not use larger tiles?"
 
-**Corrective answer:** "Shared memory is limited (96 KB per SM). A 64 × 64 tile = 16 KB (for one matrix). Tiling two matrices (As and Bs) = 32 KB. Beyond that, you start reducing occupancy. Also, larger tiles mean more threads synchronizing, which can reduce parallelism."
+**Corrective answer:** "Shared memory is limited (up to 164 KB per SM on A100, and at most 48 KB per block unless a kernel opts in to more). A 64 × 64 tile = 16 KB (for one matrix). Tiling two matrices (As and Bs) = 32 KB. Beyond that, you start reducing occupancy. Also, larger tiles mean more threads synchronizing, which can reduce parallelism."
 
 **Verification Point:** Can the candidate calculate arithmetic intensity and explain why it improves with tiling?
 

@@ -88,7 +88,7 @@ Launch with `torchrun`:
 torchrun --nproc_per_node=4 train_ddp.py
 ```
 
-**Observed output (4 H100 GPUs, 7B model, batch size 32 per GPU = 128 total):**
+**Illustrative output (not captured) (4 H100 GPUs, 7B model, batch size 32 per GPU = 128 total):**
 
 ```text
 [2025-01-15 14:23:00] Initializing process group with backend=nccl
@@ -164,7 +164,7 @@ With ~47ms All-Reduce overhead per step (12.3s total step) = 0.38% overhead.
 Expected speedup: ~3.98× (99.6% efficiency)
 ```
 
-**Real observed speedup (4 H100 nodes with NVLink):**
+**Illustrative speedup (4 H100 nodes with NVLink) (not captured):**
 
 ```bash
 Single GPU training (baseline):
@@ -247,7 +247,7 @@ def forward(self, x):
     return main_out  # Only return main, but aux gradients still flow
 ```
 
-**Real log output with NCCL_DEBUG=TRACE:**
+**Illustrative log output with NCCL_DEBUG=TRACE (not captured):**
 
 ```bash
 export NCCL_DEBUG=TRACE

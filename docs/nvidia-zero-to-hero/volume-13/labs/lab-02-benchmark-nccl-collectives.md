@@ -51,7 +51,7 @@ The `all_reduce_perf` output prints one row per message size with columns for `a
 `all_reduce_perf` is a standalone NCCL micro-benchmark — it launches NCCL communicators directly across `-g N` GPUs and runs ring All-Reduce at increasing message sizes (`-b` start size to `-e` end size), with no PyTorch, no model, and no training loop involved. Per Chapter 3's ring-AllReduce formula, each GPU moves `2×(N-1)/N × message_size` bytes total; `busbw` is `algbw × 2×(N-1)/N`, which normalizes the measured time so it's directly comparable to the physical link bandwidth regardless of GPU count.
 
 ## 9. Performance Benchmarking
-Plot `busbw` against message size. Compare the plateau value to the hardware's rated bandwidth: NVLink4 (~450 GB/s per direction, ~900 GB/s bidirectional aggregate across links) should show `busbw` in the 80-90%+ range of the theoretical ceiling for a healthy single-node config; PCIe Gen4 x16 (~32 GB/s per direction) is over an order of magnitude slower — if you see PCIe-class numbers on a system you expect to have NVLink, that's the signal to investigate topology (Section 10).
+Plot `busbw` against message size. Compare the plateau value to the hardware's rated bandwidth: NVLink4 (~450 GB/s per direction, ~900 GB/s bidirectional aggregate across links) should show a `busbw` plateau well above PCIe-class numbers on a healthy single-node config (compare against your own baseline and the NCCL-tests documentation rather than a fixed percentage); PCIe Gen4 x16 (~32 GB/s per direction) is over an order of magnitude slower — if you see PCIe-class numbers on a system you expect to have NVLink, that's the signal to investigate topology (Section 10).
 
 ## 10. Common Failures
 - **Bandwidth stuck at PCIe levels despite NVLink hardware being present:** Usually caused by ACS (Access Control Services) being enabled in the BIOS, which forces GPU-to-GPU traffic through the CPU root complex instead of peer-to-peer NVLink, or by `NCCL_P2P_DISABLE` being set.
@@ -59,11 +59,11 @@ Plot `busbw` against message size. Compare the plateau value to the hardware's r
 - **Process hangs instead of completing:** Usually a GPU topology mismatch between `-g` (GPUs requested) and GPUs actually visible/healthy on the node — check `nvidia-smi topo -m` first.
 
 ## 11. Safe Failure Injection
-**Action:** Disable NVLink or export `NCCL_P2P_DISABLE=1` to force PCIe fallback and observe the bandwidth drop.
-**Expected Result:** The process group should hang or crash with an explicit NCCL error.
+**Action:** In the shell that runs the benchmark, `export NCCL_P2P_DISABLE=1` to stop NCCL from using direct GPU peer-to-peer paths (NVLink or PCIe P2P). Do not touch hardware or BIOS settings.
+**Expected Result:** The run should still complete, but `busbw` should drop well below the baseline because traffic is staged through host memory. A hang or NCCL error means something else is wrong; unset the variable and re-check.
 
 ## 12. Recovery Steps
-Unset the environment variables or re-enable NVLink, then rerun the benchmark to confirm bandwidth is restored to baseline.
+Run `unset NCCL_P2P_DISABLE`, then rerun the benchmark to confirm bandwidth is restored to baseline.
 
 ## 13. Troubleshooting Guide
 - Run `nvidia-smi topo -m` first to see the actual GPU-to-GPU connectivity matrix (NV# links vs PIX/PXB/SYS PCIe paths) before assuming a software misconfiguration.

@@ -20,7 +20,7 @@ Building an AI cluster using OEM (Original Equipment Manufacturer) hardware intr
 
 When you buy a DGX directly from NVIDIA, the support structure is monolithic: if anything breaks, you call NVIDIA. When you buy a server from HPE, Dell, or Lenovo that contains an NVIDIA HGX baseboard, you are entering a shared responsibility model. 
 
-As a Senior SRE or Infrastructure Architect, you cannot afford to waste 48 hours bouncing between support tiers while a $100,000-per-day training job sits idle. You must understand exactly where the OEM's responsibility ends and where NVIDIA's begins, especially regarding firmware, hardware replacement, and platform validation.
+As a Senior SRE or Infrastructure Architect, you cannot afford to waste 48 hours bouncing between support tiers while an expensive training job sits idle. You must understand exactly where the OEM's responsibility ends and where NVIDIA's begins, especially regarding firmware, hardware replacement, and platform validation.
 
 ## 1. The Physical Boundary
 
@@ -29,7 +29,7 @@ The physical integration of an HGX server defines the support boundary.
 *   **The OEM's Responsibility (The Top Half):** The OEM designs and supports the chassis, the cooling fans or liquid cooling manifolds, the power supplies, the host motherboard, the Intel/AMD CPUs, the System RAM, and the PCIe risers that connect the host to the GPU tray.
 *   **NVIDIA's Responsibility (The Bottom Half):** NVIDIA designs and manufactures the HGX baseboard, the SXM GPUs, the NVSwitches, and the PCIe retimers. 
 
-However, **the customer does not buy the board from NVIDIA.** The customer buys the entire integrated server from the OEM. Therefore, the OEM acts as the primary point of contact for *all* hardware RMAs (Return Merchandise Authorizations). If an H100 GPU catches fire, you do not mail it to NVIDIA; you invoke your Dell or Supermicro warranty.
+However, **the customer does not buy the board from NVIDIA.** The customer buys the entire integrated server from the OEM. Therefore, the OEM acts as the primary point of contact for *all* hardware RMAs (Return Merchandise Authorizations). If a GPU fails, you generally do not mail it to NVIDIA; you invoke your Dell or Supermicro warranty.
 
 ## 2. The Firmware Boundary (The Danger Zone)
 
@@ -40,23 +40,23 @@ In an HGX server, there are dozens of independent firmware ecosystems:
 2.  **Network Cards (ConnectX):** Firmware provided by NVIDIA/Mellanox, but often repackaged and certified by the OEM.
 3.  **VBIOS (Video BIOS):** The firmware running on the individual SXM GPUs.
 4.  **NVSwitch Firmware:** The firmware running on the baseboard switches.
-5.  **Baseboard Management Controller (ERoT):** The HGX board has its own microcontrollers for power management and security (Endpoint Root of Trust).
+5.  **Baseboard controllers (HMC and ERoT):** The HGX board has its own management microcontroller (HGX Management Controller) and an External Root of Trust (ERoT) for firmware authentication; check the OEM and NVIDIA documentation for how each is updated on your platform.
 
 ### The "Frankenstein" Risk
-If a SysAdmin blindly downloads the latest GPU VBIOS directly from NVIDIA's website and forces a flash onto an OEM server, the server may never boot again. 
-The OEM heavily engineers the thermal limits and fan curves of their specific chassis. They test specific combinations of System BIOS, NIC firmware, and GPU VBIOS to ensure the fans ramp up correctly before the GPUs melt. 
+If a SysAdmin blindly downloads the latest GPU VBIOS directly from NVIDIA's website and forces a flash onto an OEM server, the update may be unsupported, may fail, or may leave the system in an unvalidated state. 
+The OEM heavily engineers the thermal limits and fan curves of their specific chassis. They test specific combinations of System BIOS, NIC firmware, and GPU VBIOS to ensure the fans and power limits behave correctly under GPU load. 
 
 **Senior Architect Rule:** On OEM systems, you *must* use the OEM's validated firmware packages (e.g., Dell Update Packages or Supermicro Update Manager) to flash the HGX baseboard, ensuring the thermal and power contracts between the host chassis and the NVIDIA silicon are maintained.
 
-## 3. NVQual and NVIDIA-Certified Systems
+## 3. NVIDIA-Certified Systems and NVIDIA Qualification Testing
 
-To prevent OEMs from building terrible servers that make NVIDIA GPUs look bad, NVIDIA enforces a strict validation program called **NVIDIA-Certified Systems** (formerly NVQual).
+To prevent OEMs from building terrible servers that make NVIDIA GPUs look bad, NVIDIA runs the **NVIDIA-Certified Systems** program, in which OEM systems are validated against NVIDIA test suites (NVIDIA's NVQual tooling is part of that qualification process; consult the program documentation for current requirements).
 
-Before an OEM is allowed to sell a server containing an HGX board, they must submit the design to NVIDIA. NVIDIA runs a brutal suite of synthetic benchmarks and thermal stress tests.
+Before an OEM is allowed to sell a server containing an HGX board, they must submit the design to NVIDIA. NVIDIA validates the design with performance and stress tests.
 *   If the OEM's PCIe layout creates a massive CPU bottleneck, it fails.
-*   If the OEM's fans cannot keep the 700W GPUs below thermal throttling limits during a 24-hour stress test, it fails.
+*   If the OEM's fans cannot keep the 700W GPUs below thermal throttling limits during the qualification stress tests, it fails.
 
-When you purchase a server bearing the "NVIDIA-Certified" badge, you are guaranteed that the OEM integration meets NVIDIA's strict reference baseline for AI performance.
+When you purchase a server bearing the "NVIDIA-Certified" badge, you have assurance that the system passed NVIDIA's qualification tests for its configuration; it is still worth validating your own configuration.
 
 ## Customer Scenario (Senior Level)
 

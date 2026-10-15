@@ -43,7 +43,7 @@ flowchart TD
     Client -->|stat, open, close, mkdir| MetaService
     Client -->|read, write| StorageService
     
-    MetaService -->|"Query: is metadata saturated?"| MetaQuery["Check: beegfs-ctl --lsmgmtd<br/>Healthy: <50K ops/sec per MDS<br/>Latency: <5ms per operation"]
+    MetaService -->|"Query: is metadata saturated?"| MetaQuery["Check: beegfs-ctl --listnodes --nodetype=meta<br/>Healthy: <50K ops/sec per MDS<br/>Latency: <5ms per operation"]
     StorageService -->|"Query: is storage balanced?"| StorageQuery["Check: beegfs-ctl --listtargets<br/>Healthy: all targets within ±5% fill"]
 ```
 
@@ -53,19 +53,19 @@ flowchart TD
 
 ```bash
 # Check MDS health and load
-beegfs-ctl --lsmgmtd  # List metadata services
-# Output: shows which nodes run MDS
+beegfs-ctl --listnodes --nodetype=meta --details  # List metadata services
+# Illustrative output (not captured): shows which nodes run MDS
 
 # Real-time metadata stats (requires beegfs-utils installed)
-beegfs-ctl --getstats [--nodetype=meta] 
+beegfs-ctl --serverstats --nodetype=meta
 
 # Monitor a single metadata operation
 time ls -la /beegfs/dataset/ | wc -l  # Time a stat on all files
 ```
 
-**Real sample output:**
+**Illustrative output (not captured):**
 ```bash
-$ beegfs-ctl --getstats --nodetype=meta
+$ beegfs-ctl --serverstats --nodetype=meta
 Metadata Service ID 1 (meta1.example.com):
   Used capacity: 45 GB / 500 GB (9%)
   Sessions: 24 active
@@ -89,15 +89,15 @@ Metadata Service ID 2 (meta2.example.com):
 
 ```bash
 # List all storage targets and their fill level
-beegfs-ctl --listtargets --nodeids
+beegfs-ctl --listtargets --nodetype=storage --spaceinfo
 
 # Real-time storage stats
-beegfs-ctl --getstats --nodetype=storage
+beegfs-ctl --serverstats --nodetype=storage
 ```
 
-**Real sample output:**
+**Illustrative output (not captured):**
 ```bash
-$ beegfs-ctl --listtargets --nodeids
+$ beegfs-ctl --listtargets --nodetype=storage --spaceinfo
 NodeID: 101 (storage1) Paths:
  TargetID: 1001 Capacity: 10.0 TB Used: 4.5 TB (45%) Path: /data/target1
  TargetID: 1002 Capacity: 10.0 TB Used: 4.4 TB (44%) Path: /data/target2
@@ -126,7 +126,7 @@ cat /etc/beegfs/beegfs-client.conf | grep -E "sysMgmtdHost|connUseRDMA|tuneUseGD
 beegfs-ctl --clientinfo  # Shows client's view of storage network
 ```
 
-**Real sample `/etc/beegfs/beegfs-client.conf`:**
+**Illustrative sample `/etc/beegfs/beegfs-client.conf` (not captured):**
 ```text
 sysMgmtdHost = mgmt.example.com
 connUseRDMA = true  # Enable RDMA (InfiniBand) if available
@@ -163,10 +163,10 @@ beegfs-ctl --setpattern --chunksize=1M --numtargets=8 /beegfs/data/
 # Stripe count interpretation
 # numtargets=1: all data on one target (bad for throughput)
 # numtargets=4: stripe across 4 targets (good for 4 GB/s aggregate)
-# numtargets=-1: stripe across all targets (good for checkpoints)
+# numtargets=<all targets>: stripe across all targets (good for checkpoints)
 ```
 
-**Real sample output:**
+**Illustrative output (not captured):**
 ```bash
 $ beegfs-ctl --getentryinfo /beegfs/dataset/train.tar.gz
 Entryinfo:
@@ -205,7 +205,7 @@ time dd if=/beegfs/training-data/large-file bs=4M count=25000 of=/dev/null iflag
 
 ```bash
 # Checkpoint directory with maximum striping (all targets)
-beegfs-ctl --setpattern --chunksize=2M --numtargets=-1 /beegfs/checkpoints/
+beegfs-ctl --setpattern --chunksize=2M --numtargets=12 /beegfs/checkpoints/
 
 # - -1 targets: stripe across ALL available targets
 # - 2 MB chunk size: smaller chunks = finer distribution = better parallelism for write
@@ -230,9 +230,9 @@ watch -n 1 'df -h /beegfs/checkpoints/'  # Watch available space during checkpoi
 
 | Symptom | Check | Diagnosis | Action |
 |---|---|---|---|
-| Metadata latency spike (30 ms+) during epoch start | `beegfs-ctl --getstats --nodetype=meta` | MDS is saturated opening millions of files | Reduce file count: repackage dataset into larger shards; use WebDataset or TFRECORD format |
-| One storage node is full (95%), others at 50% | `beegfs-ctl --listtargets --nodeids` | Striping preference or new data placement on one node | Rebalance: `beegfs-ctl --rebalance --targetid 2001 --numtargets -1` (moves files to spread load) |
-| Client read throughput is 800 MB/s (expected 4 GB/s) | `beegfs-ctl --clientinfo` and `lsof \| grep beegfs` | Client is connected to a slower path (wrong NIC, no RDMA), or single target | Check: is `connUseRDMA = true`? Is client on same network as storage? Verify with `iperf3` from storage node to client. |
+| Metadata latency spike (30 ms+) during epoch start | `beegfs-ctl --serverstats --nodetype=meta` | MDS is saturated opening millions of files | Reduce file count: repackage dataset into larger shards; use WebDataset or TFRECORD format |
+| One storage node is full (95%), others at 50% | `beegfs-ctl --listtargets --nodetype=storage --spaceinfo` | Striping preference or new data placement on one node | Rebalance: restripe or migrate affected files (for example with `beegfs-ctl --migrate`) and steer new data with the directory stripe pattern |
+| Client read throughput is 800 MB/s (expected 4 GB/s) | `beegfs-ctl --listnodes --nodetype=client` and `lsof \| grep beegfs` | Client is connected to a slower path (wrong NIC, no RDMA), or single target | Check: is `connUseRDMA = true`? Is client on same network as storage? Verify with `iperf3` from storage node to client. |
 | Different clients see different throughputs (2x variance) | Baseline each client: `time dd if=/beegfs/testfile bs=4M count=1000 of=/dev/null` | Client network locality or target affinity differs | Pin data loader to consistent CPU/NUMA node. Verify all clients have same BeeGFS config. |
 
 ## Architecture Summary
@@ -279,14 +279,14 @@ A: "Metadata saturation. With 256 GPUs opening files in parallel during epoch st
 
 **Q: Your BeeGFS cluster has 8 storage nodes, each with 10 TB, but aggregated stripe width is only 2 targets. Why is this a problem, and how do you fix it?**
 
-A: "A 500 GB checkpoint striped across 2 targets gets ~1.6 GB/s aggregate write speed. That's 312 seconds to write, during which training is stalled. With stripe width of 8, you get 6.4 GB/s and 78 seconds. The fix: change the stripe pattern for the checkpoint directory: `beegfs-ctl --setpattern --numtargets=-1 /beegfs/checkpoints/`. That applies to new files. For existing checkpoints, either restripe them or accept the slow checkpoints for the current run and plan for next runs. The operational lesson: set stripe pattern at the directory level when you create the filesystem, not retroactively."
+A: "A 500 GB checkpoint striped across 2 targets gets ~1.6 GB/s aggregate write speed. That's 312 seconds to write, during which training is stalled. With stripe width of 8, you get 6.4 GB/s and 78 seconds. The fix: change the stripe pattern for the checkpoint directory: `beegfs-ctl --setpattern --numtargets=12 /beegfs/checkpoints/`. That applies to new files. For existing checkpoints, either restripe them or accept the slow checkpoints for the current run and plan for next runs. The operational lesson: set stripe pattern at the directory level when you create the filesystem, not retroactively."
 
 ---
 
 ## Practice
 
-1. **Baseline your BeeGFS:** Run `beegfs-ctl --listtargets --nodeids` and `beegfs-ctl --getstats --nodetype=storage`. Check for fill-level imbalance (anything >10% difference is worth investigating).
+1. **Baseline your BeeGFS:** Run `beegfs-ctl --listtargets --nodetype=storage --spaceinfo` and `beegfs-ctl --serverstats --nodetype=storage`. Check for fill-level imbalance (anything >10% difference is worth investigating).
 
 2. **Measure metadata rate:** Write a loop that opens 50K files in `/beegfs/dataset/` and time it. Note the average open latency.
 
-3. **Test stripe patterns:** Create three test directories with `--numtargets=1`, `--numtargets=4`, and `--numtargets=-1`. Write a 10 GB file to each and measure read throughput. Document the relationship between stripe width and throughput.
+3. **Test stripe patterns:** Create three test directories with `--numtargets=1`, `--numtargets=4`, and `--numtargets=<all storage targets>`. Write a 10 GB file to each and measure read throughput. Document the relationship between stripe width and throughput.

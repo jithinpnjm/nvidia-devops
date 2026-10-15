@@ -28,7 +28,7 @@ This is the **NVIDIA Grace CPU**, and the resulting architecture is the **Grace 
 ## 1. The Grace CPU (ARM Architecture)
 
 The Grace CPU is not an x86 processor (like Intel or AMD). It is built on the **ARM** architecture (specifically Neoverse V2). 
-*   **Why ARM?** ARM processors are incredibly power-efficient. In a data center constrained by power, every watt spent on the CPU is a watt stolen from the GPU. Grace provides massive multi-core performance (72 to 144 cores) while sipping power.
+*   **Why ARM?** ARM processors are incredibly power-efficient. In a data center constrained by power, every watt spent on the CPU is a watt stolen from the GPU. Grace provides 72 Neoverse V2 cores per CPU (144 cores in the dual-CPU Grace CPU Superchip) while sipping power.
 *   **LPDDR5X Memory:** Instead of using standard DDR5 server RAM, Grace uses LPDDR5X (Low-Power DDR), achieving up to 500 GB/s of memory bandwidth at a fraction of the power cost.
 
 ## 2. The Superchip: NVLink-C2C
@@ -39,10 +39,10 @@ NVIDIA places the Grace CPU and the Hopper (or Blackwell) GPU onto the exact sam
 They wire them together using a proprietary interconnect called **NVLink-C2C (Chip-to-Chip)**. 
 
 ### The Bandwidth Revolution
-*   Standard PCIe Gen5 bandwidth: **64 GB/s**.
-*   NVLink-C2C bandwidth: **900 GB/s**. 
+*   Standard PCIe Gen5 x16 bandwidth: **64 GB/s per direction** (128 GB/s bidirectional).
+*   NVLink-C2C bandwidth: **900 GB/s total** (bidirectional).
 
-The connection between the CPU and the GPU is suddenly **14 times faster**. 
+The connection between the CPU and the GPU is roughly **7 times faster** than PCIe Gen5 x16 (NVIDIA's own comparison), and it is cache coherent. 
 
 ## 3. Unified Memory: The Death of cudaMemcpy
 
@@ -50,9 +50,9 @@ With a 900 GB/s link, the entire CUDA memory paradigm shifts.
 
 In a standard x86 system, if you use Unified Virtual Memory (UVM), the GPU triggers a Page Fault and waits agonizingly for the data to cross the 64 GB/s PCIe bus.
 
-On a Grace Hopper (GH200) Superchip, the CPU RAM (up to 480 GB of LPDDR5X) and the GPU RAM (96 GB of HBM3) are **coherently linked**. The GPU can read the CPU's memory directly at 900 GB/s. 
-*   A data scientist can load a massive 500 GB recommendation embedding table into the CPU's RAM, and the GPU can query it instantly as if it were local VRAM.
-*   The dreaded `cudaMemcpy` is effectively obsolete on this architecture. The developer simply allocates memory, and the hardware fetches it at NVLink speeds.
+On a Grace Hopper (GH200) Superchip, the CPU RAM (up to 480 GB of LPDDR5X) and the GPU RAM (96 GB of HBM3) are **coherently linked**. The GPU can read the CPU's memory directly over NVLink-C2C; sustained throughput to CPU memory is bounded by LPDDR5X bandwidth (up to about 500 GB/s) rather than the link's 900 GB/s peak. 
+*   A data scientist can load a massive 500 GB recommendation embedding table into the CPU's RAM, and the GPU can access it directly over NVLink-C2C, though at lower bandwidth and higher latency than local HBM.
+*   Explicit `cudaMemcpy` is much less necessary on this architecture: with system-allocated memory the GPU can access CPU memory directly, though placement still matters for performance.
 
 ## Architectural Diagram: x86 vs. Superchip
 
@@ -60,11 +60,11 @@ On a Grace Hopper (GH200) Superchip, the CPU RAM (up to 480 GB of LPDDR5X) and t
 flowchart TD
     subgraph "Legacy x86 Architecture"
         x86[Intel / AMD CPU] <-->|PCIe Gen5: 64 GB/s| GPU_x[NVIDIA H100]
-        x86 <--> DDR[DDR5 RAM: 300 GB/s]
+        x86 <--> DDR[DDR5 RAM: platform dependent]
     end
     
     subgraph "NVIDIA Grace Hopper (GH200)"
-        Grace[Grace ARM CPU] <-->|NVLink-C2C: 900 GB/s| Hopper[Hopper H100 GPU]
+        Grace[Grace ARM CPU] <-->|NVLink-C2C: 900 GB/s total| Hopper[Hopper H100 GPU]
         Grace <--> LPDDR[LPDDR5X RAM: 500 GB/s]
     end
 ```
@@ -80,10 +80,10 @@ A quantitative hedge fund runs a massive graph-neural-network algorithm. The alg
 Because your 400 GB dataset cannot fit in HBM, you are constantly page-faulting or copying data across the 64 GB/s PCIe bus. 
 
 We should migrate this specific workload to an **NVIDIA Grace Hopper (GH200) Superchip** cluster. 
-With the GH200, the CPU and GPU are linked via a 900 GB/s NVLink-C2C interconnect. We can load your entire 400 GB dataset into the Grace CPU's LPDDR5X memory. Your developers can delete all the complex `cudaMemcpy` and multi-GPU sharding code. The Hopper GPU will simply query the Grace CPU's memory directly over the NVLink-C2C connection, processing the massive graph dataset at speeds 14x faster than your current PCIe bottleneck allows."
+With the GH200, the CPU and GPU are linked via a 900 GB/s NVLink-C2C interconnect. We can load your entire 400 GB dataset into the Grace CPU's LPDDR5X memory. Your developers can drop much of the manual `cudaMemcpy` staging and multi-GPU sharding code, although the data still has to be placed and tuned deliberately. The Hopper GPU will simply query the Grace CPU's memory directly over the NVLink-C2C connection, processing the massive graph dataset at speeds roughly 7x faster than your current PCIe bottleneck allows."
 
 ## Interview Preparation
 
 **Conceptual:** Why did NVIDIA switch from Intel/AMD x86 CPUs to building their own ARM-based Grace CPUs? *(Hint: To eliminate the PCIe bottleneck by fusing the CPU and GPU together with the 900 GB/s NVLink-C2C interconnect, and to increase power efficiency using ARM).*
 
-**Architecture:** On a Grace Hopper (GH200) system, how does the memory access differ from a standard x86 server? *(Hint: Coherent Unified Memory. The GPU can read the CPU's massive LPDDR5X memory pool directly at 900 GB/s, effectively expanding the GPU's memory capacity for workloads like massive recommendation embedding tables).*
+**Architecture:** On a Grace Hopper (GH200) system, how does the memory access differ from a standard x86 server? *(Hint: Coherent Unified Memory. The GPU can read the CPU's massive LPDDR5X memory pool directly over the 900 GB/s NVLink-C2C link (bounded in practice by LPDDR5X bandwidth), effectively expanding the GPU's memory capacity for workloads like massive recommendation embedding tables).*

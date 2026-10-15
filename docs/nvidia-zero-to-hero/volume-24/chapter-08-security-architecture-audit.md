@@ -95,7 +95,8 @@ __global__ void timing_side_channel() {
 **Evidence:** Cache hit rate monitoring via performance counters:
 
 ```bash
-nvidia-smi dmon -c 100  # Monitor L2 cache statistics
+# nvidia-smi dmon reports SM/memory utilization, not L2 hit rates; use Nsight Compute/DCGM profiling metrics for cache counters
+nvidia-smi dmon -c 100
 
 # L2 cache shared between GPUs; B observes A's memory accesses
 ```
@@ -253,9 +254,9 @@ After applying recommendation 6: Suitable for encrypted data at rest
 
 ```bash
 # Check if containers have --privileged
-docker ps --format "table {{.Names}}\t{{.HostConfig.Privileged}}"
+docker inspect --format '{{.Name}} {{.HostConfig.Privileged}}' $(docker ps -q)
 
-# Output:
+# Illustrative output (not captured):
 # NAMES                    PRIVILEGED
 # customer-a-training      false       ✓
 # customer-b-inference     true        ✗ VULNERABILITY!

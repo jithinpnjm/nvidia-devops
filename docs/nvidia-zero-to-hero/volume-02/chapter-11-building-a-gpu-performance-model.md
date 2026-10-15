@@ -320,6 +320,8 @@ Break utilization into execution, memory, communication, and pipeline evidence. 
 
 **Turning this into evidence, ruling causes in and out.** A single `dmon` pass plus a power/clock check can eliminate several of these six causes in one step:
 
+*Illustrative output (not captured):*
+
 ```text
 $ nvidia-smi --query-gpu=utilization.gpu,utilization.memory,power.draw,power.limit,clocks.sm,clocks_throttle_reasons.active --format=csv,noheader
 94 %, 91 %, 305 W, 700 W, 1980 MHz, Active clock throttle reasons: N/A
@@ -332,6 +334,8 @@ $ nvidia-smi --query-gpu=utilization.gpu,utilization.memory,power.draw,power.lim
 Inspect communication time, rank imbalance, topology, collective configuration, and workload granularity.
 
 **Turning this into evidence.** Compare per-rank step time against the topology matrix — a rank sitting on a weak communication path shows up directly as an outlier:
+
+*Illustrative output (not captured):*
 
 ```text
 $ for r in 0 1 2 3; do echo "rank $r step_time_ms=$(grep step_time rank_${r}.log | tail -1 | awk '{print $NF}')"; done

@@ -7,6 +7,8 @@ description: "Master advanced troubleshooting techniques when individual metrics
 
 # Cross-Layer Diagnosis: When Metrics Lie
 
+> **Note:** Outputs, throughput numbers, and overhead percentages in this chapter are illustrative (not captured from a real system). Measure the overhead of each tool on your own workload.
+
 ## Beginner's Primer: Trusting the Wrong Liar
 
 In this final chapter of the Masterclass, we must confront the hardest truth in AI Operations: **Every dashboard lies.**
@@ -16,7 +18,7 @@ A Senior Architect knows that a green line can mean the system is completely bro
 
 Examples of Metrics Lying:
 1. **The Utilization Lie:** `nvidia-smi` shows 100% utilization. The GPU is actually doing zero math, just spinning in an infinite software loop. (Measure `SM_ACTIVE` instead).
-2. **The Memory Lie:** PyTorch allocates 100% of VRAM on startup. `nvidia-smi` shows 80GB used. The data scientist thinks they are out of memory. In reality, 75GB of that allocation is completely empty. (Measure PyTorch internal allocator stats instead).
+2. **The Memory Lie:** PyTorch's caching allocator keeps freed memory reserved rather than returning it to the driver, so `nvidia-smi` can show a very high number (for example 80GB used) even when much of that memory is cached and free for reuse inside the process. (Measure PyTorch internal allocator stats instead).
 3. **The Network Lie:** Node A shows massive network latency and timeouts. The network engineer replaces the switch. The network was fine. Node A was just waiting for Node B, which was suffering from a broken cooling fan and computing 10x slower. (Measure Straggler timelines instead).
 
 Cross-Layer Diagnosis is the art of never trusting a single metric. You must correlate the Hardware (DCGM), the OS (`dmesg`), the Network (`ibstat`), and the Code (PyTorch Profiler) simultaneously to find the truth.
@@ -150,15 +152,15 @@ echo "=== With nvidia-smi monitoring ==="
 while true; do nvidia-smi; sleep 1; done &
 python train.py --epochs 1 --batch-size 256 2>&1 | grep "throughput:"
 pkill nvidia-smi
-# Output: throughput: 450 samples/sec (10% slower)
+# Output: throughput: 450 samples/sec (illustrative: 10% slower)
 
 # Baseline with Nsight Systems profiler
 echo "=== With Nsight Systems ==="
 nsys profile -o trace python train.py --epochs 1 --batch-size 256 2>&1 | grep "throughput:"
-# Output: throughput: 250 samples/sec (50% slower!)
+# Output: throughput: 250 samples/sec (illustrative: 50% slower)
 ```
 
-**Observation:** Profiler overhead varies greatly. nvidia-smi has 10% impact, Nsight Systems has 50% impact. This is a Heisenbug — the measurement tool changes the behavior.
+**Observation (with the illustrative numbers above):** profiler overhead can vary greatly between tools and workloads. When the measurement tool changes the behavior you are trying to observe, it is called a Heisenbug.
 
 ### Correlate Across Independent Metrics
 
@@ -190,7 +192,7 @@ for iteration in range(100):
     metrics['dcgm'].append(dcgm_output)
     
     # PyTorch
-    torch_util = torch.cuda.utilization()  # Custom metric from app
+    torch_util = torch.cuda.utilization()  # NOTE: this reads the same NVML utilization counter as nvidia-smi; use a profiler or DCGM_FI_PROF_* fields for an independent view
     metrics['torch'].append(torch_util)
     
     # OS
@@ -256,12 +258,12 @@ When multiple layers report good metrics but application is slow:
 
 1. **Choose low-overhead profiler:**
    ```bash
-   # Overhead levels (fastest to slowest):
-   # 1. Simple timing (Python time.perf_counter) - < 1% overhead
-   # 2. nvidia-smi polling - 5-10% overhead
-   # 3. DCGM - 2-3% overhead
-   # 4. Nsight Systems - 30-50% overhead
-   # 5. Full system profiler (valgrind) - 5-10x overhead
+   # Rough ordering of overhead (lowest to highest); measure it on your own workload:
+   # 1. Simple timing (Python time.perf_counter)
+   # 2. DCGM / dcgm-exporter sampling
+   # 3. nvidia-smi polling (each call spawns a process)
+   # 4. Nsight Systems tracing
+   # 5. Heavyweight CPU instrumentation (valgrind-class tools)
    
    # For debugging: use simple timing first
    # For final verification: use Nsight with low-overhead options
@@ -291,7 +293,7 @@ When multiple layers report good metrics but application is slow:
    # that replicates training patterns but is smaller/faster
    
    # Example: profile 100 iterations instead of 1000
-   # This allows Nsight profiler to run without O(50%) overhead
+   # This limits the profiler's overhead and trace size
    ```
 
 ### Step 3: Cross-Check Metrics at Decision Points
@@ -440,7 +442,7 @@ done
 
 # Network metrics (if multi-GPU/node)
 nvidia-smi nvlink --status >> diagnosis_escalation.log
-/opt/nccl-tests/build/allreduce_perf -b 1G -e 1G >> diagnosis_escalation.log 2>&1
+/opt/nccl-tests/build/all_reduce_perf -b 1G -e 1G >> diagnosis_escalation.log 2>&1
 
 # OS-level metrics
 vmstat -n 1 30 >> diagnosis_escalation.log

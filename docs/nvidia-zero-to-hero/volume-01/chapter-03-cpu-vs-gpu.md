@@ -100,9 +100,9 @@ A Data Science team trains a model using standard FP32 precision on older NVIDIA
 **The Senior Architect Response:**
 "The infrastructure is healthy; the software is failing to target the silicon. 
 
-NVIDIA's massive leap in performance generation-over-generation is driven entirely by Tensor Cores operating at lower precisions (like BF16, FP8, or INT8). Because your legacy code strictly enforces FP32 (32-bit float) precision, the PyTorch runtime cannot utilize the modern Tensor Cores. The workload is falling back to the standard scalar CUDA cores, bypassing the primary acceleration hardware of the H100.
+NVIDIA's massive leap in performance generation-over-generation is driven largely by Tensor Cores operating at lower precisions (like BF16, FP8, or INT8). Because your legacy code strictly enforces FP32 (32-bit float) precision, the PyTorch runtime cannot utilize the modern Tensor Cores. The workload is falling back to the standard scalar CUDA cores, bypassing the primary acceleration hardware of the H100.
 
-To unlock the hardware, we must update the training script to use **Automatic Mixed Precision (AMP)** or compile the model for lower precision. Once the math is cast to BF16 or FP8, the runtime will engage the Tensor Cores, and you will see an immediate 4x to 6x leap in throughput."
+To unlock the hardware, we must update the training script to use **Automatic Mixed Precision (AMP)** or compile the model for lower precision. Once the math is cast to BF16 or FP8, the runtime will engage the Tensor Cores, and you should see a large throughput gain (the size depends on the model and framework)."
 
 ## Interview Preparation
 

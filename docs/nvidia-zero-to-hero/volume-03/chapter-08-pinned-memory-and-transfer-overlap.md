@@ -297,6 +297,8 @@ The runtime stages pageable memory or performs synchronization required by the o
 
 **Evidence — measuring pageable versus pinned side by side:**
 
+*Illustrative output (not captured):*
+
 ```text
 $ ./transfer_bench --mode=pageable --bytes=268435456
 pageable H2D: 268435456 bytes in 74.318 ms  (3.61 GB/s effective)
@@ -312,6 +314,8 @@ A 256 MiB transfer at 3.61 GB/s versus 15.88 GB/s — roughly 4.4x — is the si
 Inspect CPU affinity, memory policy, GPU NUMA node, and PCIe topology. The same pinned allocation strategy can behave differently when pages are placed on a remote socket.
 
 **Evidence — same pinned strategy, two NUMA placements:**
+
+*Illustrative output (not captured):*
 
 ```text
 $ numactl --hardware | head -4

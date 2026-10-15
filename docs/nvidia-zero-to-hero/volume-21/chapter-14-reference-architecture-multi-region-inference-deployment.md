@@ -11,11 +11,14 @@ tags: [reference-architecture, inference, multi-region, geo-failover]
 
 If a Training Cluster (Chapter 13) is a research laboratory, an Inference Cluster is a global cash register. 
 If the laboratory goes offline for 5 minutes, it's annoying, but the scientists just resume the job from the last checkpoint. 
+
+> **Note on figures:** Capacities, prices, and timings in this chapter are illustrative planning assumptions that continue the sizing from Chapters 08 and 09 (about 15 QPS per 2-GPU replica of Llama-3-70B). Benchmark your own model and serving stack, and use current provider pricing, before committing.
+
 If the cash register goes offline for 5 minutes, you lose millions of dollars, and your customers switch to a competitor.
 
 Because Inference is tied directly to customer experience, we cannot design it like a Training cluster. 
-1. We don't use InfiniBand; we use standard Ethernet so it integrates easily with global Cloud load balancers.
-2. We don't use 8-GPU NVLink nodes; we use cheaper 4-GPU PCIe nodes because we want to spread the risk out.
+1. The user-facing path is standard Ethernet and HTTP/gRPC so it integrates with global load balancers; inside a replica, tensor-parallel GPUs still talk over NVLink, and no inter-node collectives cross replicas.
+2. Replicas are small (a 2-GPU tensor-parallel group), so a failed GPU or node takes out a small slice of capacity rather than a whole training job.
 3. We don't put everything in one building. We put 1/3 of the GPUs in New York, 1/3 in London, and 1/3 in Tokyo. 
 
 If London loses power, the global DNS server instantly re-routes the European customers to New York. The latency increases slightly, but the AI API stays online. This chapter provides the exact architectural blueprints for a 99.9% uptime global serving platform capable of handling 2,000 Queries Per Second (QPS).
@@ -33,37 +36,32 @@ SLA:
   Latency p99 ITL: <150 ms (inter-token latency)
   Throughput: 2000 QPS sustained peak
 
-REGIONAL CLUSTERS (3 active-active regions):
+REGIONAL CLUSTERS (3 active-active regions, sized as in Chapter 08):
 
-Region 1: US-West (us-west-2, Oakland CA)
-  Capacity: 50 nodes × 8 GPU = 400 H100s
+Region 1: US-West (us-west-2, Oregon)
+  Capacity: 17 nodes × 8 GPU = 136 H100s -> 68 two-GPU replicas ≈ 1,034 QPS
   Peak QPS: 600 (30% of global traffic)
-  Model: Llama-70B, 2-GPU tensor parallelism
-  Inference replicas: 200 (one per 2-GPU unit)
-  Latency to users: 20 ms (US West coast)
-  Availability: 99.9% (3 AZs)
+  Model: Llama-3-70B, 2-GPU tensor parallelism
+  Latency to users: ~20 ms (US West coast)
+  Availability: multi-AZ
 
 Region 2: US-East (us-east-1, Virginia)
-  Capacity: 50 nodes × 8 GPU = 400 H100s
+  Capacity: 17 nodes × 8 GPU = 136 H100s -> 68 replicas ≈ 1,034 QPS
   Peak QPS: 600
-  Model: Llama-70B, 2-GPU tensor parallelism
-  Inference replicas: 200
-  Latency to users: 50 ms (US East coast)
-  Availability: 99.9% (3 AZs)
+  Latency to users: ~50 ms (US East coast)
 
 Region 3: EU-West (eu-west-1, Dublin Ireland)
-  Capacity: 50 nodes × 8 GPU = 400 H100s
+  Capacity: 19 nodes × 8 GPU = 152 H100s -> 76 replicas ≈ 1,155 QPS
   Peak QPS: 800 (40% of traffic, largest region)
-  Model: Llama-70B, 2-GPU tensor parallelism
-  Inference replicas: 200
-  Latency to users: 30 ms (Europe, Middle East, Africa)
-  Availability: 99.9% (3 AZs)
+  Latency to users: ~30 ms (Europe, Middle East, Africa)
 
 TOTAL INFRASTRUCTURE:
-  Hardware: 150 nodes, 1200 GPUs
-  Software: 600 inference replicas
-  Availability: N+2 per region (3 AZ, 2 AZs can fail without SLA breach)
-  Failover time: <30 seconds (health check + client retry)
+  Hardware: 53 nodes, 424 GPUs
+  Software: 212 inference replicas
+  Failover sizing: each region can absorb its neighbors' load if one region fails
+    (EU down: 400 QPS to each US region -> 1,000 QPS, within 1,034;
+     US-West down: 300 QPS each to US-East and EU -> 900 and 1,100 QPS, within capacity)
+  Failover time: tens of seconds (health check + DNS/LB update + client retry)
 
 GLOBAL LOAD BALANCING:
 
@@ -84,35 +82,34 @@ Intra-region routing:
   Concurrency per pod: 64 concurrent sequences max (KV cache limit)
   CPU-to-GPU: CPU runs pre/post-processing, GPU runs inference
 
-COST BREAKDOWN (Year 1):
+COST BREAKDOWN (Year 1, illustrative):
 
-Hardware (1200 GPUs):
-  GPUs: 1200 × $30K = $36M
-  Compute nodes: 150 × $10K = $1.5M
+Hardware (424 GPUs):
+  53 GPU nodes × $285K = $15.1M
   Networking: $2M
   Storage (NVMe, S3): $1.5M
-  Subtotal: $41M (one-time CAPEX)
+  Subtotal: ≈ $18.6M (one-time CAPEX)
 
 Operations (Annual):
-  Electricity: 400 kW avg × 8760h × $0.12/kWh = $420K
+  Electricity: 424 GPUs × 700W × 60% avg draw × 1.35 PUE ≈ 240 kW × 8760h × $0.12/kWh ≈ $252K
   Personnel: 20 engineers × $150K = $3M
   Network (inter-region WAN): $1M
   Cloud services (S3, monitoring): $0.5M
-  Subtotal: $4.92M/year OPEX
+  Subtotal: ≈ $4.75M/year OPEX
 
 Amortized (3-year TCO):
-  CAPEX: $41M / 3 = $13.67M/year
-  OPEX: $4.92M/year
-  Total: $18.59M/year = $6.2M per region/year
+  CAPEX: $18.6M / 3 = $6.2M/year
+  OPEX: $4.75M/year
+  Total: ≈ $10.95M/year ≈ $3.65M per region/year
 
-Cost per 1K QPS:
-  $6.2M / (2000 QPS) = $3.1K per 1K QPS
-  Annual tokens: 2000 QPS × 86,400 s/day × 365 days × 150 tokens/seq ≈ 9.46 trillion tokens/year
-  Cost per million tokens (annual cost / annual tokens, consistent units): $18.59M / (9.46 trillion / 1M) ≈ $1.96/1M tokens
-  NOT competitive vs AWS Bedrock (~$0.005–0.02/1M tokens) — self-hosting here is roughly
-  100-400x more expensive per token than Bedrock's published pricing. The case for self-hosting
-  a multi-region deployment has to rest on data residency, latency, or customization requirements
-  that Bedrock can't meet — not on raw per-token cost.
+Cost per token:
+  Annual tokens at constant peak: 2000 QPS × 86,400 s/day × 365 days × 150 tokens/seq ≈ 9.46 trillion tokens/year
+  Cost per million tokens: $10.95M / 9.46M ≈ $1.16 per million tokens (higher at lower average load;
+  Chapter 08 gets $0.83 with leaner personnel and network assumptions)
+  Compare this with your price per million tokens and with current managed-API prices for similar
+  models: self-hosting rarely wins on raw per-token cost at this scale unless utilization is high.
+  The case for self-hosting usually rests on data residency, latency, customization, or
+  sustained high utilization, not on cheaper tokens.
 ```
 
 ### Kubernetes Deployment
@@ -125,24 +122,28 @@ kind: Deployment
 metadata:
   name: vllm-inference-llama
 spec:
-  replicas: 200  # Per region (600 total across 3 regions)
+  replicas: 68  # Per region (US regions; 76 in EU)
   selector:
     matchLabels:
       app: vllm-inference
       model: llama-70b
-  
+
   template:
     metadata:
       labels:
         app: vllm-inference
         model: llama-70b
         region: us-west-2  # Per-region value
-    
+
     spec:
-      # GPU resource request
       containers:
       - name: vllm
-        image: vllm:0.5.0
+        image: vllm/vllm-openai:<pinned-tag>   # pin and test a specific release
+        args:                                   # vLLM is configured with CLI arguments
+          - --model=meta-llama/Llama-3.1-70B-Instruct
+          - --tensor-parallel-size=2
+          - --max-num-seqs=64
+          - --gpu-memory-utilization=0.90
         resources:
           limits:
             nvidia.com/gpu: 2  # 2-GPU tensor parallelism
@@ -150,39 +151,39 @@ spec:
           requests:
             nvidia.com/gpu: 2
             memory: "400Gi"
-        
+
         env:
-        - name: TENSOR_PARALLEL_SIZE
-          value: "2"
-        - name: GPU_MEMORY_UTILIZATION
-          value: "0.95"
-        - name: MAX_NUM_SEQS
-          value: "64"
         - name: VLLM_LOGGING_LEVEL
           value: "INFO"
-        
+
         ports:
         - containerPort: 8000
           name: http
-        
-        # Health probe (critical for failover)
+
+        # Loading 140 GB of weights takes minutes; use a startup probe so liveness
+        # does not kill the pod while it loads
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          periodSeconds: 10
+          failureThreshold: 60
+
         livenessProbe:
           httpGet:
             path: /health
             port: 8000
-          initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 3
-        
+
         readinessProbe:
           httpGet:
             path: /health
             port: 8000
-          initialDelaySeconds: 10
           periodSeconds: 5
           failureThreshold: 2
-      
+
       # Affinity: Spread across AZs
       affinity:
         podAntiAffinity:
@@ -195,10 +196,10 @@ spec:
                   operator: In
                   values: ["vllm-inference"]
               topologyKey: topology.kubernetes.io/zone
-        
-        nodeSelector:
-          gpu: "true"
-          compute-type: inference
+
+      nodeSelector:
+        gpu: "true"
+        compute-type: inference
 ---
 # Service for load balancing
 apiVersion: v1
@@ -225,19 +226,15 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: vllm-inference-llama
-  minReplicas: 150  # At least 150 replicas per region
-  maxReplicas: 250  # Scale to 250 if demand spikes
+  minReplicas: 50   # Floor per region (example)
+  maxReplicas: 68   # Cannot exceed the GPUs physically present; extra replicas need extra nodes
   metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 70
+  # CPU utilization is a poor scaling signal for GPU inference; scale on queue depth or
+  # concurrent requests exposed by the serving engine (requires a custom-metrics adapter)
   - type: Pods
     pods:
       metric:
-        name: inference_request_queue_depth
+        name: inference_request_queue_depth   # placeholder: map to the engine's waiting-requests metric
       target:
         type: AverageValue
         averageValue: "10"  # Scale if avg queue depth >10
@@ -250,44 +247,43 @@ FAILOVER SCENARIO: One entire region (us-west-2) fails
 
 Timeline:
 
-T+0: Region failures detected
-  - Health checker pings us-west-2 LB: Timeout
-  - 10 failed health checks = region marked DOWN
-  - 60 seconds elapsed
+T+0: Region failure begins
+  - Health checks against the us-west-2 load balancer start timing out
+  - After the configured number of consecutive failed checks (for example 3 checks at 10 s),
+    the region is marked DOWN: roughly 30 seconds elapsed
 
-T+60: Failover decision
-  - Global LB reroutes us-west-2 traffic to us-east-1 + eu-west-1
-  - Clients receive 500 errors for ~30 seconds (during DNS/LB update)
-  - New distribution: 600 QPS from us-west-2 → split to other regions
-  - us-east-1 now handles 1000 QPS (was 600, now at 95% capacity)
-  - eu-west-1 now handles 1000 QPS (was 800, now at 95% capacity)
+T+30–90 s: Failover
+  - The global load balancer / DNS removes us-west-2; clients retry against other regions
+  - Some requests fail during detection and DNS/LB propagation (the length depends on TTLs
+    and client retry behavior)
+  - New distribution: 600 QPS from us-west-2 split to us-east-1 (+300 -> 900 QPS, 87% of capacity)
+    and eu-west-1 (+300 -> 1,100 QPS, 95% of its 1,155 QPS capacity)
 
-T+90–120: Auto-scaling kicks in
-  - Kubernetes HPA detects queue depth >10, CPU >80%
-  - Spins up additional pods in us-east-1 and eu-west-1
-  - Scale from 200 to 250 replicas per region (marginal)
-  - At peak, can only scale to ~200 replicas per region (40% utilization headroom)
+T+90–120: Auto-scaling
+  - Replica autoscaling can only help if spare GPU nodes exist; with fixed GPU capacity the
+    surviving regions are already near their ceiling, so use admission control / load shedding
+    for traffic beyond capacity
 
 T+2 hours: Manual remediation
   - SRE team investigates us-west-2 (power loss? network partition?)
-  - If infrastructure recovers: Gradually shift traffic back over 30 min
-  - If infrastructure destroyed: Provision new region (3–7 days)
+  - If infrastructure recovers: gradually shift traffic back (for example over 30 minutes)
+  - If infrastructure destroyed: rebuilding a region takes weeks, not days, when hardware must be reordered
 
 IMPACT ANALYSIS:
-  Availability: 99.9% = 21.6 min downtime/month
-  This failure: 30 sec × 1 month / 30 = 1 sec acceptable downtime (WELL within budget)
-  SLA met: YES (despite complete region failure!)
+  Availability: 99.9% = 43.2 min downtime/month (21.6 min is the 99.95% budget used in Chapter 01)
+  This failure: ~30-90 s of elevated errors, well within the monthly error budget
+  SLA met: yes, provided surviving regions have capacity for the failover load
 
-COST OF OUTAGE:
-  Lost revenue: 30 sec × 2000 QPS × $0.0001 per request = $60
+COST OF OUTAGE (illustrative):
+  Lost revenue: 60 sec × a fraction of 2000 QPS × $0.0001 per request ≈ tens of dollars
   Personnel cost (incident response): 2 hours × $150/hr = $300
-  Total: ~$360 (negligible)
-  
+  Total: small compared with a full outage
+
 COST OF 3-REGION REDUNDANCY:
-  2-region would be cheaper ($30.7M vs $18.59M), BUT:
-    - 2-region failure = full outage (50/50 chance each region fails)
-    - Cost of outage (reputation, lost customers): $1M+
-  3-region: Small upfront cost avoids catastrophic failure risk
+  A 2-region design needs each region sized for 100% of peak (to survive losing the other),
+  so it needs the same total GPUs as 3 regions at 50% each, but offers less geographic coverage
+  and less failure isolation. 3 regions sized for N+1 (each region carries about half of peak
+  after a failure) gives more flexibility for roughly the same hardware total.
 ```
 
 ---
@@ -296,14 +292,14 @@ COST OF 3-REGION REDUNDANCY:
 
 Multi-region inference deployment provides:
 
-1. **Low latency:** Users in any region see &lt;50ms TTFT (good UX).
-2. **High availability:** 99.9% SLA despite any single-region failure.
-3. **Elastic scaling:** Auto-scale pods during traffic spikes.
-4. **Cost:** ~$1.96 per million tokens — substantially higher than commercial API pricing (e.g., AWS Bedrock ~$0.005–0.02/1M tokens); self-hosting is not a per-token cost play here.
+1. **Low latency:** Network round trip to the nearest region is tens of milliseconds, leaving TTFT dominated by queueing and prefill.
+2. **High availability:** the availability SLA holds through any single-region failure if surviving regions have the capacity.
+3. **Elastic scaling:** pod autoscaling helps only where spare GPU capacity exists; plan admission control for the rest.
+4. **Cost:** about $1.16 per million tokens under these assumptions; compare against current managed-API pricing and your own utilization, since self-hosting is rarely a pure per-token cost play.
 
 **Deployment complexity:** High (Kubernetes multi-cluster, cross-region failover, monitoring).
 
-**Key insight:** The economic case for self-hosting a multi-region deployment isn't "cheaper than the cloud API" on raw token cost — it's control over data residency, latency, and customization that a managed API can't offer. For non-critical services where those requirements don't apply, a managed API or a smaller single-region deployment is usually the more cost-effective choice.
+**Key insight:** The economic case for self-hosting a multi-region deployment usually isn't "cheaper than the cloud API" on raw token cost; check current API pricing and your utilization. It is control over data residency, latency, and customization that a managed API may not offer. For non-critical services where those requirements don't apply, a managed API or a smaller single-region deployment is usually the more cost-effective choice.
 
 ## Architecture Summary
 
@@ -340,11 +336,11 @@ flowchart TD
 
 From strategy (Chapter 1: workload characterization) to execution (Chapter 14: global deployment), an AI factory is built by layering constraints:
 
-1. **Constraints:** Business SLA (99.9% uptime), cost target (&lt;$0.01/token), workload profile (2000 QPS).
-2. **Hardware:** GPU selection (H100 vs H200), topology (single-rack vs multi-rack), interconnect (NVLink + InfiniBand).
+1. **Constraints:** Business SLA (99.9% uptime), cost target (price per million tokens), workload profile (2000 QPS).
+2. **Hardware:** GPU selection (H100 vs H200), topology (leaf-only pod vs two-tier fat-tree), interconnect (NVLink + InfiniBand).
 3. **Software:** Distributed training (DeepSpeed ZeRO), inference serving (vLLM), orchestration (Kubernetes).
 4. **Operations:** Monitoring (Prometheus), automation (HPA), incident response playbooks.
 
-Each decision ripples forward: A workload that requires 99.9% uptime → forces multi-region → forces 3x hardware cost → forces spot instances to offset cost → forces robust checkpoint management.
+Each decision ripples forward: A workload that requires 99.9% uptime → forces multi-region → forces roughly 1.5x hardware for N+1 failover → pushes cost optimization (spot for interruption-tolerant work, higher utilization) → forces robust checkpoint management.
 
 **Next steps:** Chapters 13–14 provided blueprints. Labs 01–04 teach design through hands-on exercises.

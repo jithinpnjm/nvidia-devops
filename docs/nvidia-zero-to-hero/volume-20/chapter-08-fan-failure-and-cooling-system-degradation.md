@@ -7,6 +7,10 @@ description: "Diagnose fan failures, predict cooling system degradation, and res
 
 # Fan Failure and Cooling System Degradation
 
+> **Note:** Terminal and log output blocks in this chapter are illustrative (not captured from a real system). Temperatures, fan percentages, and log lines are examples.
+
+> **Applicability caveat:** The `nvidia-smi` fan queries in this chapter apply only to GPUs with an on-board fan (for example workstation and some PCIe cards). Most data center GPUs, including HGX/DGX SXM modules and passively cooled PCIe cards such as the H100 PCIe or L40S, have no GPU-mounted fan; `fan.speed` reports `N/A` on them, and cooling comes from chassis fans managed by the server BMC. For those systems, check fan health through the BMC (for example `ipmitool sdr type Fan` or the Redfish Thermal/ThermalSubsystem resources), and treat fan or heatsink service as a vendor RMA or field-service action rather than something operators perform in the rack.
+
 ## Beginner's Primer: The Silent Killer
 
 In Chapter 6, we discussed "Thermal Throttling," where the GPU gets too hot and slows itself down to survive. Usually, this happens because the datacenter air conditioning (HVAC) is struggling on a hot summer day.
@@ -14,7 +18,7 @@ In Chapter 6, we discussed "Thermal Throttling," where the GPU gets too hot and 
 But what if the datacenter is perfectly cold, yet one specific GPU is melting?
 
 This points to a localized mechanical failure on the GPU itself: **The Fans**.
-A high-end NVIDIA GPU pulls 700 Watts of power. Without active cooling, it will hit its thermal limit (85°C) and trigger a hardware slowdown within seconds. If the cooling failure is catastrophic, the GPU will hit its critical limit (e.g., 95°C) and the hardware will instantly kill the power to prevent the silicon from literally catching fire. 
+A high-end NVIDIA GPU can draw up to 700 Watts (H100 SXM). Without adequate cooling, it will reach its thermal slowdown threshold and slow down quickly. If the cooling failure is catastrophic, the GPU will hit its critical limit (e.g., 95°C) and the GPU or system will shut down or power off to protect the hardware. 
 
 The danger for SREs is that fan failures are often "silent" from a software perspective. The AI job keeps running, but it runs 50% slower because the GPU is desperately throttling itself to stay alive. If you are not actively monitoring the fan speed metrics via `nvidia-smi` or DCGM, you will never know why the server is slow. 
 
@@ -102,26 +106,19 @@ If fan doesn't increase with temperature, fan is not responding.
 ### Check DCGM Fan Anomalies
 
 ```bash
-$ dcgmi dmon -s fan
-
-# GPU Fan Speed
-     0      0  <- Fan stuck at 0%
-     1     45  <- Fan normal
-     2     50  <- Fan normal
-     3     48  <- Fan normal
+# On servers with chassis fans, read fan sensors from the BMC instead
+$ ipmitool sdr type Fan
+FAN1             | 41h | ok  |  29.1 | 0 RPM   <- stuck fan (illustrative)
+FAN2             | 42h | ok  |  29.2 | 8400 RPM
+FAN3             | 43h | ok  |  29.3 | 8350 RPM
 ```
 
 Run diagnostic:
 
 ```bash
-$ dcgmi diag -r 3 2>&1 | grep -A 10 "Fan"
-
-GPU 0: Fan Test
-  Status: FAIL
-  Fan speed: 0 RPM
-  Expected speed range: 2000-5000 RPM at 80°C
-  Fan response: No response to temperature increase
-  Recommendation: Replace fan assembly
+# DCGM diag does not include a fan test. Use the BMC sensor readings above and
+# DCGM thermal/throttle fields to confirm the effect on the GPUs
+$ dcgmi diag -r 3 -i 0
 ```
 
 ### Measure Temperature Rise Rate
@@ -173,10 +170,7 @@ dmesg | grep -i "fan\|thermal" | tail -20
 
 ### Step 1: Immediate Action — Stop GPU Workload
 
-1. **Kill any jobs on the affected GPU:**
-   ```bash
-   pkill -f "CUDA_VISIBLE_DEVICES=0"
-   ```
+1. **Stop or drain jobs on the affected GPU or node:** list them with `nvidia-smi --query-compute-apps=pid,name --format=csv` and stop them, or cordon and drain the node.
 
 2. **Check thermal situation:**
    ```bash
@@ -212,9 +206,9 @@ If temperature is still low:
 
 1. **Check thermal sensor:**
    ```bash
-   nvidia-smi -i 0 -q | grep "GPU Thermal Slowdown"
+   nvidia-smi -i 0 -q -d PERFORMANCE | grep -i "Thermal Slowdown"
    
-   # If "Active", thermal sensor is working but fan is not
+   # If "Active", the thermal sensor is working and the GPU is limiting itself
    ```
 
 2. **Disable GPU from cluster:**
@@ -237,12 +231,12 @@ If waiting for replacement, can reduce GPU workload:
 
 ```bash
 # Lower GPU power limit to reduce heat generation
-sudo nvidia-smi -i 0 -pl 150
+sudo nvidia-smi -i 0 -pl 150   # example value; check the allowed range with nvidia-smi -q -d POWER
 
 # Only assign low-thermal-footprint jobs to this GPU
 ```
 
-**Trade-off:** 40-50% performance loss to prevent thermal shutdown.
+**Trade-off:** reduced performance (measure it) in exchange for lower heat output.
 
 ## Verification
 
@@ -281,9 +275,9 @@ sudo nvidia-smi -i 0 -pl 150
 
 4. **DCGM reports healthy fan:**
    ```bash
-   dcgmi dmon -s fan
+   ipmitool sdr type Fan
    
-   # Expected: Fan speed > 30% under any load
+   # Expected: all chassis fans report nonzero RPM within the vendor's range
    ```
 
 ### Production Troubleshooting Table
@@ -292,8 +286,8 @@ sudo nvidia-smi -i 0 -pl 150
 |---------|----------|-----------|-----|--------------|
 | Fan stuck at 0 RPM, temp rising 0.3°C/sec | DCGM shows "Fan speed: 0 RPM", no thermal response | Fan bearing seized or connector loose | Reseat fan power connector; if still stuck, replace fan/GPU | Fan speed > 30% under load, temp stabilizes at 75-80°C |
 | Silent GPU under load, temp 85°C | Fan speed 0%, acoustic: no fan noise | Complete fan failure | Power off node, remove GPU, replace fan assembly or GPU | After replacement, fan audible under load, temp &lt; 75°C |
-| Temperature rising even with 100% fan | Fan speed 100%, thermal sensor active, but temp continues rising | Thermal paste degraded or fan bearing failing | Verify fan is actually spinning (visual inspection); if spinning, replace thermal paste | Temperature drops to 70-75°C after paste replacement |
-| Fan speed erratic (0% → 100% → 0%) | Temperature oscillates, fan response inconsistent | DVFS or fan control firmware oscillation | Disable DVFS in BIOS, set fan to manual mode | Fan maintains stable speed curve matching temperature |
+| Temperature rising even with 100% fan | Fan speed 100%, thermal sensor active, but temp continues rising | Degraded thermal interface, blocked airflow, or failing fan | Verify fan is actually spinning (BMC sensors, visual inspection); if spinning, open a vendor service ticket | Temperature drops to the peer-GPU range after service |
+| Fan speed erratic (0% → 100% → 0%) | Temperature oscillates, fan response inconsistent | Fan control (BMC) profile oscillation, or boost/throttle cycling | Review the BMC fan profile and firmware; lock GPU clocks below the throttle point if needed | Fan maintains stable speed curve matching temperature |
 | Temperature sensor offline but GPU running | nvidia-smi shows no temperature value (N/A), no thermal throttle | Thermal sensor disconnected or faulty | Check sensor connector, reseat if accessible; otherwise replace GPU | Temperature readings appear, throttle capability returns |
 
 ## Prevention
@@ -330,7 +324,7 @@ sudo nvidia-smi -i 0 -pl 150
 
 3. **Fan speed alert rules:**
    ```bash
-   # Prometheus alerts
+   # Prometheus alerts (metric names are placeholders; chassis fan metrics usually come from a BMC/IPMI exporter)
    alert: FanStuck
    expr: nvidia_smi_fan_speed == 0 and nvidia_smi_temperature_current > 50
    for: 1m
@@ -384,7 +378,7 @@ A: "First, I'd check if this is a real problem or just a sensor issue. I'd run a
 
 **Q: "Fan speed oscillates between 0% and 100% every 5 seconds. What's happening?"**
 
-A: "That sounds like DVFS oscillation — the GPU is probably hitting thermal throttle, then cooling down, then throttling again in a loop. Or it could be fan control firmware oscillation. I'd first check if disabling DVFS in BIOS fixes it. If it does, it's definitely DVFS. If not, I'd check dmesg for thermal events to see if throttling is happening. If thermal events align with fan oscillation, the fan control is too aggressive — I'd adjust the fan curve in BIOS or switch to a linear mode instead of exponential. The key is that oscillation means the system is fighting itself: throttling to cool down, then ramping up, hitting thermal limit again."
+A: "That sounds like a control loop oscillating — either the GPU is hitting thermal throttle, cooling down, then throttling again, or the BMC fan profile is too aggressive. I'd first read the throttle reasons and temperature history to see whether throttling aligns with the fan swings. If it does, I'd review the BMC fan curve and firmware version with the vendor. The key is that oscillation means the system is fighting itself: throttling to cool down, then ramping up, hitting thermal limit again."
 
 **Q: "How would you build a predictive system to detect fan degradation before it causes problems?"**
 
@@ -392,7 +386,7 @@ A: "I'd track fan speed trend over weeks. Normal fans maintain consistent RPM at
 
 ## Architecture Summary
 
-Cooling system degradation is a slow, silent killer of GPU performance. As fans age, bearings wear out, or dust accumulates in the heatsink, the GPU must spin the fans faster to maintain the same temperature. SREs must proactively monitor the correlation between Fan Speed, Temperature, and Power Draw. A GPU pulling 700W with 100% Fan Speed but still hitting 85°C indicates severe thermal degradation (e.g., dried thermal paste) and requires immediate physical maintenance.
+Cooling system degradation is a slow, silent killer of GPU performance. As fans age, bearings wear out, or dust accumulates in the heatsink, the GPU must spin the fans faster to maintain the same temperature. SREs must proactively monitor the correlation between Fan Speed, Temperature, and Power Draw. A GPU pulling 700W with 100% Fan Speed but still hitting 85°C indicates severe thermal degradation (e.g., a degraded thermal interface) and requires immediate physical maintenance.
 
 ```mermaid
 flowchart TD
@@ -410,7 +404,7 @@ flowchart TD
         Check2 -->|Yes| Check3{Is the GPU pulling <br/> high Power (Watts)?}
         
         Check3 -->|No| Sensor[Faulty Temp Sensor <br/> Action: Reboot / RMA]
-        Check3 -->|Yes| Paste[Degraded Thermal Paste <br/> or Dust Blockage. <br/> Action: Clean and Repaste.]
+        Check3 -->|Yes| Paste[Degraded Thermal Interface <br/> or Dust Blockage. <br/> Action: Clean airflow path, vendor service.]
     end
     
     style DeadFan fill:#ffcccc,stroke:#cc0000

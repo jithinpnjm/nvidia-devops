@@ -90,7 +90,7 @@ clusterDomain: cluster.local
 # --- Node Performance & AI Tuning ---
 cpuManagerPolicy: static
 topologyManagerPolicy: single-numa-node
-memoryManagerPolicy: Static
+# memoryManagerPolicy: Static   # requires reservedMemory to be configured; omit unless you need it
 systemReserved:
   cpu: "2"
   memory: "4Gi"
@@ -105,7 +105,7 @@ evictionHard:
 # Max pods reduced due to heavy AI workloads per node
 maxPods: 30
 podPidsLimit: 4096
-# Frequency of PLEG
+# Maximum period between syncs of running containers and config
 syncFrequency: 1m0s
 ```
 
@@ -225,7 +225,7 @@ version = 2
             SystemdCgroup = true
 ```
 
-*Note:* Enabling `SystemdCgroup = true` here matches the `cgroupDriver: systemd` in the Kubelet config.
+*Note:* Enabling `SystemdCgroup = true` here matches the `cgroupDriver: systemd` in the Kubelet config. This is the containerd 1.x `version = 2` layout; containerd 2.x uses `version = 3` and different plugin names (for example `io.containerd.cri.v1.runtime`). In practice, let the toolkit write the NVIDIA runtime entry for you with `nvidia-ctk runtime configure --runtime=containerd` rather than hand-editing.
 
 ### 4.4 Debugging with `crictl`
 
@@ -274,6 +274,8 @@ A typical CSI driver consists of two main components:
 
 ### 5.3 CSI Volume Attach Pipeline Diagram
 
+Note: the attach step applies only to drivers that require attachment (`attachRequired: true` in the CSIDriver object). Many network filesystem drivers skip it and go straight to node-side mount.
+
 ```mermaid
 sequenceDiagram
     participant Pod
@@ -286,7 +288,7 @@ sequenceDiagram
 
     Pod->>API: Create Pod with PVC
     API->>AD: Watch Pod scheduling
-    AD->>CSIC: ControllerPublishVolume (Attach)
+    AD->>CSIC: Create VolumeAttachment; external-attacher calls ControllerPublishVolume
     CSIC->>Storage: API Call: Map LUN/Share to Node X
     Storage-->>CSIC: Attached to Node
     CSIC-->>AD: Attachment Complete
@@ -308,11 +310,13 @@ NVIDIA Magnum IO GPUDirect Storage (GDS) establishes a direct DMA (Direct Memory
 
 To use GDS in Kubernetes via CSI (e.g., with WEKA or VAST Data):
 1. The Storage must support GDS (usually via NVMe-oF or NFS over RDMA).
-2. The CSI Driver must be configured to mount the volume with specific options (e.g., `mountOptions: ["rdma"]`).
-3. The Pod must have the MOFED (Mellanox OFED) drivers and `nvidia.com/gpu` resources requested.
+2. The CSI driver must be configured as the storage vendor documents for GDS (mount options and client settings are vendor-specific).
+3. The node must have the NVIDIA GDS stack (`nvidia-fs`) and, for RDMA-based filesystems, the Mellanox OFED drivers installed, and the Pod must request `nvidia.com/gpu` resources.
 4. The Pod must mount the GDS-capable CSI volume.
 
-#### Example StorageClass for High-Performance AI (e.g., WekaFS)
+#### Example StorageClass shape for High-Performance AI (illustrative)
+
+The `provisioner` and `parameters` keys below are placeholders. Each CSI driver defines its own parameter names; take them from the vendor's CSI documentation.
 
 ```yaml
 apiVersion: storage.k8s.io/v1
@@ -324,8 +328,9 @@ reclaimPolicy: Retain
 volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: true
 parameters:
-  workspace-name: "ai-training-data"
-  mount-options: "numactl=auto,ro" # Read-only for datasets
+  # vendor-specific parameters go here (see the CSI driver documentation)
+mountOptions:
+- ro # Read-only for datasets
 ```
 
 *Note on `volumeBindingMode: WaitForFirstConsumer`:* This is critical for Local Path provisioners and highly recommended for network storage. It delays the provisioning of the PV until a Pod referencing the PVC is scheduled. This ensures the volume is created in the same availability zone or topology as the node where the Pod will run.
@@ -368,6 +373,8 @@ This allows applications to form clusters (e.g., a database cluster where node `
 
 ### 6.3 Deep Dive: StatefulSet Manifest with PVC Templates
 
+Illustrative manifest: Milvus is normally deployed with its Helm chart or operator, and `nvme-local-path` is a hypothetical StorageClass name.
+
 ```yaml
 apiVersion: v1
 kind: Service
@@ -377,7 +384,7 @@ metadata:
     app: milvus
 spec:
   ports:
-  - port: 21128
+  - port: 9091
     name: metrics
   clusterIP: None # Headless
   selector:
@@ -402,7 +409,7 @@ spec:
       - name: datanode
         image: milvusdb/milvus:v2.3.0
         ports:
-        - containerPort: 21128
+        - containerPort: 9091
           name: metrics
         volumeMounts:
         - name: data-volume
@@ -470,7 +477,7 @@ Fix:
 **Investigation & Root Cause:**
 The CSI controller thinks the volume is still attached to the old node. This happens if the old node crashes unexpectedly (e.g., network partition, hard reboot). The Kubelet on the dead node cannot run `NodeUnpublishVolume`, and the AttachDetach controller is waiting for confirmation.
 **Fix:**
-If the old node is truly dead, you must force delete the `VolumeAttachment` object associated with the old node, or delete the old Node object from the cluster, which triggers the CSI controller to forcefully detach the volume at the storage array level.
+If the old node is truly dead, you must force delete the `VolumeAttachment` object associated with the old node, or delete the old Node object from the cluster. On Kubernetes 1.28 and later, the preferred approach is to apply the `node.kubernetes.io/out-of-service` taint (`NoExecute`) to the confirmed-dead node, which lets the control plane force-detach its volumes. Only do this after verifying the node is really down, since forcing a detach while the node still writes can corrupt data.
 :::
 
 ### Scenario 3: Orphaned Pod Sandboxes
@@ -499,9 +506,9 @@ If this is frequent, investigate CNI plugin timeouts or upgrade containerd/kubel
 2. Verify MOFED and GDS drivers are active inside the container.
 3. Use the NVIDIA `gdscheck` utility inside the pod.
 **Root Cause:**
-`gdscheck` reports that the topology is suboptimal. The CSI volume was mounted, but because the Kubelet `topologyManagerPolicy` was set to `none`, the CPU and NIC handling the storage traffic were on NUMA node 0, while the GPUs assigned to the pod were on NUMA node 1. The data had to cross the slow QPI/UPI link between CPUs, entirely defeating the purpose of GDS.
+`gdscheck` and the topology tools (`nvidia-smi topo -m`) show the GPU and the storage NIC on different NUMA nodes or PCIe root complexes. Because the Kubelet `topologyManagerPolicy` was `none`, nothing aligned the CPUs and devices, so the traffic crossed the inter-socket link and lost much of the benefit of GDS.
 **Fix:**
-Set `topologyManagerPolicy: single-numa-node` in the Kubelet config to guarantee alignment of Storage NICs, CPUs, and GPUs on the same PCIe tree.
+Set `topologyManagerPolicy: single-numa-node` (with the static CPU Manager) to align CPUs and devices that provide topology hints. Note that Topology Manager only aligns devices exposed through device plugins or DRA, so a storage NIC must be exposed that way (for example via an SR-IOV or RDMA device plugin) to be covered.
 :::
 
 ---
@@ -514,8 +521,8 @@ Set `topologyManagerPolicy: single-numa-node` in the Kubelet config to guarantee
 2. Kubelet sees this in the Sync Loop and moves Pod to `Terminating`.
 3. Kubelet issues `StopContainer` via CRI to all app containers. Containerd sends SIGTERM.
 4. After the grace period (default 30s), Kubelet sends SIGKILL via CRI.
-5. Once containers are dead, Kubelet calls CNI `DEL` to tear down the network namespace.
-6. Kubelet calls `StopPodSandbox` and `RemovePodSandbox` via CRI.
+5. Once containers are dead, Kubelet calls `StopPodSandbox`; the runtime invokes CNI `DEL` to tear down the pod network.
+6. Kubelet later garbage-collects the sandbox with `RemovePodSandbox`.
 7. Kubelet calls CSI `NodeUnpublishVolume` to unmount the volume from the Pod directory.
 8. Kubelet updates API Server that the Pod is fully terminated.
 9. AttachDetach Controller sees Pod is gone and calls CSI `ControllerUnpublishVolume` to detach the LUN from the node.
@@ -527,7 +534,7 @@ Set `topologyManagerPolicy: single-numa-node` in the Kubelet config to guarantee
 **A:** 
 1. Isolate the workload using proper QoS classes.
 2. Ensure the Kubelet and system daemons are on a dedicated cgroup slice with reserved resources (`systemReserved`, `kubeReserved`).
-3. For extreme cases, implement `blkio` cgroup limits (via CRI/containerd config or custom annotations depending on the runtime support) to cap the IOPS/bandwidth of the misbehaving container, ensuring the node's root filesystem (where kubelet operates) remains responsive.
+3. For extreme cases, apply cgroup I/O limits (`io.max` on cgroup v2; support depends on the runtime and Kubernetes version) to cap the IOPS/bandwidth of the misbehaving container, ensuring the node's root filesystem (where kubelet operates) remains responsive.
 
 ---
 
@@ -539,168 +546,22 @@ When things go wrong at scale, the answers are rarely in the Kubernetes API; the
 
 ## Appendix A: Extensive Configuration Reference
 
-### A.1 Full Example `containerd` config.toml
+### A.1 containerd config.toml
 
-```toml
-version = 2
-root = "/var/lib/containerd"
-state = "/run/containerd"
-oom_score = -999
+Do not copy a hand-written "full" config. Generate the current default for your containerd version and edit only what you need:
 
-[grpc]
-  address = "/run/containerd/containerd.sock"
-  uid = 0
-  gid = 0
-  max_recv_message_size = 16777216
-  max_send_message_size = 16777216
-
-[debug]
-  address = ""
-  uid = 0
-  gid = 0
-  level = "info"
-
-[metrics]
-  address = "127.0.0.1:1338"
-  grpc_histogram = false
-
-[cgroup]
-  path = ""
-
-[plugins]
-  [plugins."io.containerd.grpc.v1.cri"]
-    disable_tcp_service = true
-    stream_server_address = "127.0.0.1"
-    stream_server_port = "0"
-    stream_idle_timeout = "4h0m0s"
-    enable_selinux = false
-    selinux_category_range = 1024
-    sandbox_image = "registry.k8s.io/pause:3.9"
-    stats_collect_period = 10
-    systemd_cgroup = false
-    enable_tls_streaming = false
-    max_container_log_line_size = 16384
-    disable_cgroup = false
-    disable_apparmor = false
-    restrict_oom_score_adj = false
-    max_concurrent_downloads = 3
-    disable_proc_mount = false
-    unset_seccomp_profile = ""
-    tolerate_missing_hugetlb_controller = true
-    disable_hugetlb_controller = true
-    ignore_image_defined_volumes = false
-
-    [plugins."io.containerd.grpc.v1.cri".containerd]
-      snapshotter = "overlayfs"
-      default_runtime_name = "nvidia"
-      no_pivot = false
-      disable_snapshot_annotations = true
-      discard_unpacked_layers = false
-
-      [plugins."io.containerd.grpc.v1.cri".containerd.default_tls_prefs]
-        min_version = ""
-        max_version = ""
-        cipher_suites = []
-
-      [plugins."io.containerd.grpc.v1.cri".containerd.untrusted_workload_runtime]
-        runtime_type = ""
-        runtime_engine = ""
-        runtime_root = ""
-        privileged_without_host_devices = false
-        base_runtime_spec = ""
-
-      [plugins."io.containerd.grpc.v1.cri".containerd.runtimes]
-        [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
-          runtime_type = "io.containerd.runc.v2"
-          runtime_engine = ""
-          runtime_root = ""
-          privileged_without_host_devices = false
-          base_runtime_spec = ""
-          [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
-            SystemdCgroup = true
-
-        [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia]
-          privileged_without_host_devices = false
-          runtime_engine = ""
-          runtime_root = ""
-          runtime_type = "io.containerd.runc.v2"
-          [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.nvidia.options]
-            BinaryName = "/usr/bin/nvidia-container-runtime"
-            SystemdCgroup = true
-
-    [plugins."io.containerd.grpc.v1.cri".cni]
-      bin_dir = "/opt/cni/bin"
-      conf_dir = "/etc/cni/net.d"
-      max_conf_num = 1
-      conf_template = ""
-
-    [plugins."io.containerd.grpc.v1.cri".registry]
-      config_path = ""
-
-      [plugins."io.containerd.grpc.v1.cri".registry.auths]
-
-      [plugins."io.containerd.grpc.v1.cri".registry.configs]
-
-      [plugins."io.containerd.grpc.v1.cri".registry.headers]
-
-      [plugins."io.containerd.grpc.v1.cri".registry.mirrors]
-
-    [plugins."io.containerd.grpc.v1.cri".image_decryption]
-      key_model = "node"
-
-    [plugins."io.containerd.grpc.v1.cri".x509_key_pair_streaming]
-      tls_cert_file = ""
-      tls_key_file = ""
-
-  [plugins."io.containerd.internal.v1.opt"]
-    path = "/opt/containerd"
-
-  [plugins."io.containerd.internal.v1.restart"]
-    interval = "10s"
-
-  [plugins."io.containerd.metadata.v1.bolt"]
-    content_sharing_policy = "shared"
-
-  [plugins."io.containerd.monitor.v1.cgroups"]
-    no_prometheus = false
-
-  [plugins."io.containerd.runtime.v1.linux"]
-    shim = "containerd-shim"
-    runtime = "runc"
-    runtime_root = ""
-    no_shim = false
-    shim_debug = false
-
-  [plugins."io.containerd.runtime.v2.task"]
-    platforms = ["linux/amd64"]
-
-  [plugins."io.containerd.service.v1.diff-service"]
-    default = ["walking"]
-
-  [plugins."io.containerd.snapshotter.v1.aufs"]
-    root_path = ""
-
-  [plugins."io.containerd.snapshotter.v1.btrfs"]
-    root_path = ""
-
-  [plugins."io.containerd.snapshotter.v1.devmapper"]
-    root_path = ""
-    pool_name = ""
-    base_image_size = ""
-    async_remove = false
-
-  [plugins."io.containerd.snapshotter.v1.native"]
-    root_path = ""
-
-  [plugins."io.containerd.snapshotter.v1.overlayfs"]
-    root_path = ""
-    upperdir_label = false
-
-  [plugins."io.containerd.snapshotter.v1.zfs"]
-    root_path = ""
+```bash
+containerd config default > /etc/containerd/config.toml
+# Add the NVIDIA runtime entry and set it as default
+nvidia-ctk runtime configure --runtime=containerd --set-as-default
+systemctl restart containerd
 ```
 
-### A.2 Full Example Kubelet Configuration
+The minimal GPU-relevant settings were shown in section 4.3 (systemd cgroup driver, `nvidia` runtime handler). Everything else should stay at your version's defaults unless you have a specific reason.
+
+### A.2 Example Kubelet Configuration
+
+An illustrative assembly of commonly set fields; validate it against the KubeletConfiguration reference for your Kubernetes version before use (for example `kubelet --config <file>` fails on unknown or invalid fields and feature gates).
 
 ```yaml
 apiVersion: kubelet.config.k8s.io/v1beta1
@@ -753,7 +614,6 @@ cpuManagerPolicy: static
 cpuManagerReconcilePeriod: 10s
 topologyManagerPolicy: single-numa-node
 topologyManagerScope: pod
-memoryManagerPolicy: Static
 runtimeRequestTimeout: 2m0s
 hairpinMode: promiscuous-bridge
 maxPods: 110
@@ -805,17 +665,6 @@ iptablesMasqueradeBit: 14
 iptablesDropBit: 15
 featureGates:
   RotateKubeletServerCertificate: true
-  CPUManager: true
-  TopologyManager: true
-  MemoryManager: true
-  DevicePlugins: true
-  LocalStorageCapacityIsolation: true
-  Sysctls: true
-  VolumeSnapshotDataSource: true
-  CSINodeInfo: true
-  CSIDriverRegistry: true
-  CSIBlockVolume: true
-  ExpandCSIVolumes: true
 serverTLSBootstrap: true
 ```
 
@@ -907,7 +756,7 @@ To truly understand Storage on Nodes, let's look at the gRPC interfaces a CSI dr
 
 A CSI Driver exposes three distinct gRPC services:
 1. `IdentityService`: Who are you? What capabilities do you have?
-2. `ControllerService`: (Runs on Control Plane) Provisioning, attaching, snapshotting.
+2. `ControllerService`: (Runs as a Deployment/StatefulSet, usually with CSI sidecars) Provisioning, attaching, snapshotting.
 3. `NodeService`: (Runs on every Node) Mounting, formatting, device discovery.
 
 ### E.1 IdentityService
@@ -919,7 +768,7 @@ service Identity {
   rpc Probe (ProbeRequest) returns (ProbeResponse) {}
 }
 ```
-The driver responds with its name (e.g., `csi.nvidia.com/nvme`) and version. It also reports if it has a ControllerService or just a NodeService.
+The driver responds with its name (a DNS-style identifier such as `example.com/nvme`; this one is hypothetical) and version. It also reports if it has a ControllerService or just a NodeService.
 
 ### E.2 ControllerService
 
@@ -960,9 +809,11 @@ This two-step process allows multiple Pods on the SAME node to share the SAME vo
 
 ## Appendix F: Production Logs Analysis
 
-When troubleshooting Node issues in an AI factory, analyzing logs is paramount. Below are actual production log snippets and their interpretations.
+When troubleshooting Node issues in an AI factory, analyzing logs is paramount. Below are illustrative log snippets (not captured from a real system) and how to interpret them.
 
 ### F.1 Kubelet PLEG Timeout Log
+
+Illustrative log lines (not captured; format and wording vary by Kubernetes version):
 
 ```text
 E1024 14:32:11.123456   12345 kubelet.go:1934] "PLEG is not healthy"
@@ -973,6 +824,8 @@ W1024 14:32:11.123567   12345 sync_loop.go:215] "Sync loop failed" error="pleg w
 
 ### F.2 Containerd GPU Injection Error
 
+Illustrative (not captured):
+
 ```text
 ERRO[2023-10-24T15:45:22.987654Z] RunPodSandbox for pod "ai-training-job-0" failed error="failed to create containerd task: failed to create shim task: OCI runtime create failed: container_linux.go:380: starting container process caused: process_linux.go:545: container init caused: Running hook #0:: error running hook: exit status 1, stdout: , stderr: nvidia-container-cli: initialization error: nvml error: driver not loaded: unknown"
 ```
@@ -981,16 +834,21 @@ ERRO[2023-10-24T15:45:22.987654Z] RunPodSandbox for pod "ai-training-job-0" fail
 
 ### F.3 CSI Mount Timeout
 
+Illustrative (not captured):
+
 ```text
 Warning  FailedMount  4m32s (x15 over 32m)  kubelet  MountVolume.SetUp failed for volume "pvc-abc-123" : rpc error: code = DeadlineExceeded desc = context deadline exceeded
 ```
-**Interpretation:** The Kubelet asked the CSI Node plugin to `NodePublishVolume`, but the gRPC call took longer than the timeout (usually 2 minutes). 
+**Interpretation:** The Kubelet asked the CSI Node plugin to `NodePublishVolume`, but the gRPC call exceeded its deadline. 
 **Action:** Check the CSI Node daemonset pod logs on that specific node. It might be hanging on an NFS mount command, or the storage network might be partitioned.
 
-### F.4 OOMKilled Event in Kubelet
+### F.4 OOMKilled in Pod Status
 
-```text
-I1024 16:55:33.444555   12345 prober.go:123] "Container OOMKilled" podUID="uuid-here" containerName="pytorch-worker" oomScore=999
+Kubernetes reports an OOM kill in the container status rather than as a dedicated kubelet log line:
+
+```bash
+kubectl get pod <pod> -o jsonpath='{.status.containerStatuses[*].lastState.terminated}'
+# Look for "reason":"OOMKilled" and "exitCode":137 (illustrative; exact fields vary by version)
 ```
-**Interpretation:** The kernel Out-Of-Memory killer terminated the process. Because `oomScore` is high, this was likely a Burstable or BestEffort pod.
-**Action:** Check the pod's memory limits. Check the host's `dmesg` for the OOM killer invocation to see exactly which process consumed the memory.
+**Interpretation:** The kernel OOM killer terminated the container process, either because the container hit its cgroup memory limit or because the node ran out of memory. Compare against section 11.4 of Volume 1, Chapter 4 to distinguish the two via `journalctl -k`.
+**Action:** Check the pod's memory limits and the host's `dmesg` for the OOM killer invocation to see exactly which process consumed the memory.

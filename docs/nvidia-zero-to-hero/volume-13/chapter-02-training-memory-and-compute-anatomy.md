@@ -209,7 +209,7 @@ for inputs, labels in dataloader:
     scaler.update()
 ```
 
-**Real observed memory reduction:**
+**Illustrative memory reduction (not captured):**
 
 ```bash
 $ python train.py --use_amp False

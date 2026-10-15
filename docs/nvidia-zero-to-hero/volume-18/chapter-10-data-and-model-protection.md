@@ -34,7 +34,7 @@ If you leave the Model Weights file sitting on a shared network drive (NFS), an 
 
 To protect Model Weights, Platform Engineers treat them like highly classified documents:
 1. **Model Registries:** You never store models on shared drives. You use a specialized vault (like MLflow or Harbor) that records exactly who downloaded the model and when.
-2. **Encryption:** You encrypt the model file so that even if the intern copies it to a USB drive, the file is scrambled garbage. The file can only be decrypted at the exact millisecond it is loaded into the GPU. 
+2. **Encryption:** You encrypt the model file so that even if the intern copies it to a USB drive, the file is scrambled garbage. The file is decrypted only by an authorized workload at load time. 
 
 This chapter explains how to build the vault.
 
@@ -46,7 +46,7 @@ Data scientists often leave model files scattered across Jupyter notebooks, loca
 All models must be stored in a centralized, secure **Model Registry** (e.g., MLflow, Harbor, AWS SageMaker Model Registry).
 
 1.  **Strict RBAC:** No human should have direct access to download the production model weights. Only the CI/CD pipeline and the production inference service accounts should have `GET` access to the registry.
-2.  **Immutability:** Once a model version is uploaded (e.g., `v1.4`), the registry must mathematically reject any attempts to overwrite it. This prevents attackers from silently replacing a good model with a poisoned model.
+2.  **Immutability:** Once a model version is uploaded (e.g., `v1.4`), the registry must reject any attempts to overwrite it. This prevents attackers from silently replacing a good model with a poisoned model.
 3.  **Audit Logging:** Every single time the model is downloaded, the registry must log the exact identity of the requesting service account and the IP address, pushing this log to the SIEM (Security Information and Event Management) system.
 
 ## 2. Encryption at Rest (KMS Integration)
@@ -59,7 +59,7 @@ The models must be encrypted at rest using a **Key Management Service (KMS)**.
 1.  When the training job finishes, the training pipeline calls the KMS (e.g., AWS KMS, HashiCorp Vault) to request a unique encryption key.
 2.  The pipeline encrypts the `model.safetensors` file and uploads the encrypted blob to the S3 registry.
 3.  When the Triton Inference Server boots up in production, it authenticates to the KMS using its strict Kubernetes Service Account identity. 
-4.  If authorized, Triton downloads the encrypted model, pulls the decryption key from the KMS, and decrypts the model securely in memory before loading it onto the GPU.
+4.  If authorized, a loader (an init container or custom model-loading step; Triton does not decrypt models on its own) downloads the encrypted model, obtains the data key from the KMS, and decrypts the model in memory or on a tmpfs before the server loads it. Where full client-side encryption is not required, server-side encryption with KMS keys (for example S3 SSE-KMS) gives a simpler variant.
 
 If an intern downloads the model file from S3, they only get useless ciphertext because they do not have access to the KMS keys.
 
@@ -86,9 +86,9 @@ To prevent this from ever happening again, we must implement a **Zero-Trust Stor
 
 First, we will eliminate broad Node-level IAM roles. We will use **IRSA (IAM Roles for Service Accounts)**. Only the specific Service Account attached to the Triton Inference deployment will be granted S3 read access. 
 Second, we will implement **KMS Envelope Encryption**. The model weights in S3 will be encrypted with a CMK (Customer Managed Key). 
-Third, we will disable `kubectl exec` across the production cluster. 
+Third, we will remove the `pods/exec` permission from human roles in the production cluster via RBAC. 
 
-Under this new architecture, even if an insider manages to download the file, they will only retrieve useless ciphertext because they cannot authenticate to the KMS to decrypt it."
+Under this new architecture, an insider who obtains the file without KMS access gets only ciphertext. Note that anyone who can read the decrypted weights inside the serving pod can still copy them, which is why exec access and egress controls matter."
 
 ## Interview Preparation
 

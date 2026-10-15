@@ -115,13 +115,13 @@ Solution: Reduce communication frequency, increase compute time per GPU, or use 
 ```bash
 # Collect metrics from both GPUs simultaneously
 nvidia-smi --query-gpu=index,utilization.gpu,utilization.memory,clocks.current.graphics --format=csv -l 1 &
-dcgmi dmon -s g -c 60  # 60 samples, 1 Hz
+dcgmi dmon -e 1001,1002,1004 -c 60    # 60 samples; GR engine active, SM active, tensor pipe active (list IDs with `dcgmi profile -l` or `dcgmi dmon -l`)
 
 # Measure NVLink traffic (requires nvidia-fabric-manager)
 nvidia-fabric-manager status  # or inspect ethtool for PCIe metrics
 ```
 
-**Output showing contention:**
+**Illustrative output (not captured):**
 
 ```
 GPU 0: util=85%, mem=88%, clock=1410 MHz
@@ -221,7 +221,7 @@ export NCCL_DEBUG_SUBSYS=ALL
 # Run training and capture NCCL logs
 python train.py 2>&1 | grep -E "ncclAllReduce|AllReduce_Sum" > nccl.log
 
-# Sample output:
+# Illustrative output (not captured):
 # ncclAllReduce(send 32GB, 8 ranks): 245 ms
 # Previous all-reduce on same data: 8 ms on single machine
 # (31x slower due to network, indicates network saturation)
@@ -307,7 +307,7 @@ if reduce_time > 1.0:  # More than 1 second to all-reduce
     print(f"SLOW ALLREDUCE: {reduce_time}s (out of {step_time}s step)")
 ```
 
-**Real diagnostic output:**
+**Illustrative diagnostic output (not captured):**
 
 ```
 Epoch 5, Step 1000:

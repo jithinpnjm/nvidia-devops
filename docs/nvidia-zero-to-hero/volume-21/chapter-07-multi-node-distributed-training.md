@@ -11,6 +11,9 @@ tags: [distributed-training, allreduce, parallelism, fault-tolerance, checkpoint
 
 In Volume 13, we covered the deep mathematical mechanics of Distributed Training (FSDP, ZeRO, Megatron). In this chapter, we apply those concepts to the physical architecture of the AI Factory.
 
+
+> **Note on figures:** Throughputs, step times, and recovery times in this chapter are illustrative assumptions. Measure tokens per second and recovery time on your own cluster.
+
 When you train a massive AI model (like a 70B LLM), it is impossible to fit it on one physical server. You must distribute the job across multiple physical servers (Multi-Node).
 
 This introduces massive physical risks:
@@ -37,65 +40,43 @@ global_batch_size = batch_size_per_gpu * num_gpus  # 8192 sequences
 #   base_lr = 1e-4 (for 32-token batch)
 #   scaled_lr = base_lr * sqrt(8192 / 32) = base_lr * 16 = 1.6e-3
 
-# Effective training:
-#   Per-GPU throughput: 500K tokens/sec (constant)
-#   Cluster throughput: 64 × 500K = 32M tokens/sec
-#   Scaling efficiency: ~90% (linear scaling due to optimized AllReduce)
+# Learning-rate scaling is a heuristic (linear and square-root rules both exist); tune it and use warmup.
+# Scaling efficiency = (cluster throughput) / (N × single-GPU throughput); measure it, and
+# expect it to fall as AllReduce time becomes exposed.
 ```
 
 ### 1.2 Pipeline Parallelism (Stage Splitting)
 
-```python
-# Reduce per-stage GPU memory by splitting model layers
+Pipeline parallelism assigns consecutive groups of layers to different GPUs (stages), so no single GPU must hold the whole model. To keep stages busy, each batch is split into micro-batches that flow through the stages in a pipeline.
 
-# Naive: 8 GPU, 8 layers per GPU (sequential)
-# Time: Layer 0 forward → Layer 1 forward → ... → Layer 7 forward → backward
-#       = 8 stages × 10ms per stage = 80ms forward, 80ms backward = 160ms/iter
-
-# With pipelining:
-# GPU 0: Layer 0 (8×8B params)
-# GPU 1: Layer 1 (8×8B params)
-# ...
-# GPU 7: Layer 7 (8×8B params)
-#
-# Timeline (with 4 micro-batches):
-# Batch 1: GPU0→1→2→3→4→5→6→7 (160ms forward)
-# Batch 2: (while Batch 1 backward): GPU0→1→2→3→4→5→6→7 (overlap!)
-# Throughput: 4 batches in ~280ms (vs 640ms sequentially) = 2.3x faster!
-# Cost: Inter-GPU communication, activation checkpointing, more complex code
-
-from torch.distributed.pipelining import schedule_1f1b
-
-# GPipe-style pipeline
-model = PipelineParallel(model, devices=[0,1,2,3,4,5,6,7])
+```text
+4 stages, 4 micro-batches (forward only, schematic):
+  time →
+  stage 0: m0 m1 m2 m3
+  stage 1:    m0 m1 m2 m3
+  stage 2:       m0 m1 m2 m3
+  stage 3:          m0 m1 m2 m3
+The idle slots at the start and end are the "pipeline bubble". With p stages and m micro-batches
+the bubble fraction is roughly (p - 1) / (m + p - 1), so more micro-batches shrink it.
+Schedules such as 1F1B interleave forward and backward passes to limit activation memory.
 ```
+
+Cost: point-to-point activation transfers between stages (cheap compared with AllReduce when stages sit on different nodes), bubble overhead, and more complex code. In PyTorch, see `torch.distributed.pipelining` (schedules such as GPipe and 1F1B); production LLM stacks usually use Megatron-LM or NeMo, which combine pipeline, tensor, and data parallelism.
 
 ### 1.3 Tensor Parallelism (Intra-Layer Sharding)
 
+Tensor parallelism splits the weight matrices inside a layer across GPUs. In a Transformer MLP block, the first matrix is split by columns and the second by rows (Megatron-style), so each block needs one AllReduce in the forward pass and one in the backward pass; attention is split by heads in the same spirit.
+
 ```python
-# Split single layer weights across GPUs (requires AllReduce per forward pass)
-
-# Naive: Dense layer [70B → 70B], model parallel across 4 GPU
-# GPU 0: Weight[17.5B, 70B]
-# GPU 1: Weight[17.5B, 70B]
-# GPU 2: Weight[17.5B, 70B]
-# GPU 3: Weight[17.5B, 70B]
-# Forward:
-#   Input [batch, 70B] → split by output features → GPU0 [batch, 17.5B]
-#   GPU 0 computes output fragment [batch, 17.5B]
-#   AllReduce to aggregate → Full output [batch, 70B]
-#   Cost: O(1) AllReduce per matrix multiply
-#   Benefit: Each GPU only stores 17.5B params (reduced memory)
-
-from megatron.core import parallel_state
+# Megatron-Core configuration sketch (other required TransformerConfig fields omitted)
 from megatron.core.transformer.transformer_config import TransformerConfig
 
 config = TransformerConfig(
-    tensor_model_parallel_size=4,  # Shard across 4 GPUs
-    pipeline_model_parallel_size=2,  # 2 pipeline stages
+    num_layers=80, hidden_size=8192, num_attention_heads=64,   # example Llama-70B-like shape
+    tensor_model_parallel_size=8,     # shard each layer across the 8 GPUs of one node (NVLink)
+    pipeline_model_parallel_size=2,   # 2 pipeline stages across nodes
 )
-
-# Megatron-LM: Production library for tensor parallelism
+# Tensor parallel communication happens on every layer, so keep it inside one NVLink domain
 ```
 
 ---
@@ -104,132 +85,33 @@ config = TransformerConfig(
 
 ### 2.1 Checkpoint Resume Strategy
 
-```python
-# Resilience: Resume training from last checkpoint if GPU fails
+Resilience starts with checkpoints that every rank can write and every restart can read. Use sharded, per-rank checkpoints (see Chapter 04, Part 3: PyTorch Distributed Checkpoint, DeepSpeed, or Megatron checkpoints) rather than gathering the whole model on rank 0, which does not scale to large models and fails under ZeRO-3/FSDP sharding.
 
-import os
-import pickle
-from pathlib import Path
+Policy checklist:
+- Checkpoint on a step interval derived from the cost of lost work versus the cost of writing (for example every 500 steps or every few hours), written first to fast node-local or shared storage and copied asynchronously to object storage.
+- Keep several recent checkpoints (not just one) and verify the newest by resuming from it before pruning older ones.
+- Record the step, data-loader position, RNG state, and learning-rate schedule so a resume continues the same trajectory.
+- Restart automatically from the latest complete checkpoint when a failure occurs (next section).
 
-class ResilientTrainer:
-    def __init__(self, checkpoint_dir="./checkpoints"):
-        self.checkpoint_dir = Path(checkpoint_dir)
-        self.checkpoint_dir.mkdir(exist_ok=True)
-    
-    def save_checkpoint(self, model, optimizer, global_step, rank=0):
-        """Save to fast local storage, async upload to S3"""
-        if rank != 0:
-            return
-        
-        checkpoint = {
-            'model': model.state_dict(),
-            'optimizer': optimizer.state_dict(),
-            'step': global_step,
-            'timestamp': time.time(),
-        }
-        
-        ckpt_path = self.checkpoint_dir / f"step-{global_step:06d}.pt"
-        torch.save(checkpoint, ckpt_path)
-        
-        # Keep only last 3 checkpoints (save disk space)
-        checkpoints = sorted(self.checkpoint_dir.glob("step-*.pt"))
-        for old_ckpt in checkpoints[:-3]:
-            old_ckpt.unlink()
-        
-        # Async S3 backup
-        import threading
-        threading.Thread(
-            target=self._upload_to_s3,
-            args=(ckpt_path, global_step),
-            daemon=True
-        ).start()
-    
-    def load_checkpoint(self, model, optimizer):
-        """Resume from latest checkpoint"""
-        checkpoints = sorted(self.checkpoint_dir.glob("step-*.pt"))
-        if not checkpoints:
-            return 0
-        
-        latest = checkpoints[-1]
-        ckpt = torch.load(latest)
-        
-        model.load_state_dict(ckpt['model'])
-        optimizer.load_state_dict(ckpt['optimizer'])
-        
-        return ckpt['step']
-    
-    def _upload_to_s3(self, local_path, step):
-        """Background S3 sync"""
-        import boto3
-        s3 = boto3.client('s3')
-        s3.upload_file(str(local_path), 'training-checkpoints', f"step-{step:06d}.pt")
-
-# Usage
-trainer = ResilientTrainer()
-model = MyModel()
-optimizer = torch.optim.AdamW(model.parameters())
-
-start_step = trainer.load_checkpoint(model, optimizer)
-
-for step in range(start_step, num_steps):
-    # Training
-    loss.backward()
-    optimizer.step()
-    
-    if step % 500 == 0:
-        trainer.save_checkpoint(model, optimizer, step)
-
-# If cluster fails at step 5243:
-#   - Restart training
-#   - load_checkpoint() restores from step-5000
-#   - Resume from step 5001
-#   - Only 243 steps of work lost
+```text
+Example: cluster fails at step 5243 with a checkpoint every 500 steps
+  - Restart the job; the launcher loads step-5000
+  - Training resumes from step 5001
+  - At most 500 steps of work are ever lost; here 243
 ```
 
 ### 2.2 Detecting & Recovering from Failures
 
-```python
-# Monitored training with automatic recovery
+When a rank or node dies, the NCCL communicators across the job are broken, and collectives either error out or hang until the timeout. In-process `try/except` retry loops generally cannot repair that state; the reliable pattern is to let the process group fail, kill the job, and restart from the last checkpoint:
 
-def train_with_fault_recovery():
-    max_retries = 3
-    
-    for attempt in range(max_retries):
-        try:
-            model, optimizer = setup_training()
-            global_step = trainer.load_checkpoint(model, optimizer)
-            
-            for step in range(global_step, num_steps):
-                # Training iteration
-                loss.backward()
-                optimizer.step()
-                
-                if step % 500 == 0:
-                    trainer.save_checkpoint(model, optimizer, step)
-                
-                # Health check: detect GPU failures
-                if step % 10 == 0:
-                    dist.barrier()  # Sync all ranks
-                    if rank == 0:
-                        print(f"Step {step}, Loss {loss:.4f}")
-            
-            print("Training complete!")
-            break
-        
-        except (RuntimeError, DistributedError) as e:
-            if attempt < max_retries - 1:
-                print(f"Error at step {global_step}: {e}")
-                print(f"Retrying from last checkpoint (attempt {attempt+1}/{max_retries})")
-                time.sleep(60)  # Wait before retry
-            else:
-                raise
+- **torchrun elastic restarts:** `torchrun --max-restarts=3 ...` restarts all workers after a failure (with a rendezvous backend such as c10d), and the training script resumes from the latest checkpoint at start-up.
+- **Scheduler-level restarts:** Slurm requeue (`--requeue`) or Kubernetes Job/Training Operator restart policies relaunch the job on healthy nodes; combine with node health checks (DCGM diag) so a bad node is excluded.
+- **Detect hangs, not just crashes:** set a bounded collective timeout and a watchdog (PyTorch's NCCL watchdog and flight recorder help diagnose which rank stalled), then restart.
+- **Spare capacity:** keep spare nodes so a restart does not wait for hardware repair.
 
-# Expected behavior:
-#   GPU failure detected → RuntimeError in allreduce or backward
-#   Catch error → reload from checkpoint
-#   Retry training → converge despite transient failures
-#   Recovery time: ~60 seconds (reload + sync)
-```
+Recovery time is dominated by detection time (the timeout), scheduling, process start-up, and checkpoint load; measure it in a game-day exercise.
+
+---
 
 ---
 
@@ -237,9 +119,9 @@ def train_with_fault_recovery():
 
 | Issue | Symptom | Diagnostic | Resolution |
 |---|---|---|---|
-| **Training slow (8hrs instead of 6hrs for 1 epoch)** | Throughput 30% below expected (20M tokens/sec vs 32M) | Check GPU utilization (nvidia-smi), AllReduce time (NCCL_DEBUG=TRACE), I/O latency | Increase batch size, reduce checkpointing frequency, verify no noisy neighbors |
-| **Stragglers (1 GPU much slower than others)** | One rank consistently slow in AllReduce, training hangs | NCCL_DEBUG shows one rank taking 10ms AllReduce vs 2ms others | Replace slow GPU, check thermal throttling (nvidia-smi dmon), verify network link |
-| **Deadlock in AllReduce (hangs indefinitely)** | Training freezes during backward pass, no output for 30+ seconds | NCCL_DEBUG shows AllReduce step taking >1 minute, IB port errors | Increase NCCL timeout to 300s, check IB link status (ibstat), restart NCCL |
+| **Training slow (8hrs instead of 6hrs for 1 epoch)** | Throughput 30% below expected (20M tokens/sec vs 32M) | Check GPU utilization (nvidia-smi), AllReduce time (nccl-tests, profiler, NCCL_DEBUG=INFO), I/O latency | Increase batch size, reduce checkpointing frequency, verify no noisy neighbors |
+| **Stragglers (1 GPU much slower than others)** | One rank consistently slow in AllReduce, training hangs | Per-rank timing or profiler traces show one rank arriving late to the collective | Replace slow GPU, check thermal throttling (nvidia-smi dmon), verify network link |
+| **Deadlock in AllReduce (hangs indefinitely)** | Training freezes during backward pass, no output for 30+ seconds | NCCL op counts stop advancing for a full iteration or longer, IB port errors | Identify the lagging rank (Volume 20 Chapter 3), check IB link status (`ibstat`, `perfquery`), and restart from the last checkpoint; raise the timeout only if the fabric and ranks are healthy |
 | **Model divergence (loss NaN)** | Loss becomes NaN after 1000 steps (was stable initially) | Check gradient magnitudes (print param.grad.abs().max()), learning rate | Reduce LR by 2x, enable gradient clipping (clip_grad_norm=1.0), check data pipeline |
 
 ## Architecture Summary
@@ -280,8 +162,8 @@ flowchart TD
 Distributed training at 64+ GPUs requires:
 
 1. **Scaling strategy:** Data parallelism (batch size) scales to 128+ GPU; pipeline/tensor parallelism needed for larger models.
-2. **AllReduce optimization:** Ring AllReduce on high-speed interconnect (IB NDR) keeps overhead &lt;2% at 64 GPU.
-3. **Fault tolerance:** Checkpoint every 500 steps; resume from last checkpoint on failure.
+2. **AllReduce optimization:** Overlap communication with backward compute and keep tensor-parallel traffic on NVLink; measure the exposed communication share.
+3. **Fault tolerance:** Sharded checkpoints at a measured interval; automatic restart from the last verified checkpoint on failure.
 4. **Monitoring:** Track throughput, AllReduce latency, gradient norm, loss trends.
 
 **In Chapter 8:** Inference serving (different from training; optimizes latency instead of throughput).

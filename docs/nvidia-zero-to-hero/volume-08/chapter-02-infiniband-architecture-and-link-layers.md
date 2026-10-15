@@ -200,6 +200,8 @@ Therefore, a health check must not record only `Active`. It should record:
 
 ### Annotated `ibstat`: the six fields above, field by field
 
+The output below is illustrative (not captured); real output also includes firmware version and GUID fields.
+
 ```text
 $ ibstat mlx5_0
 CA 'mlx5_0'
@@ -507,15 +509,20 @@ Credit backpressure, head-of-line blocking, routing concentration, or a stalled 
 
 Inspect per-port and per-VL behavior, destination hot spots, route distribution, and receiving endpoint health. Do not assume a lossless fabric is uncongested.
 
-**Evidence.** `ibqueryerrors` on the suspect switch, filtered to wait/congestion fields, before and after a load window:
+**Evidence (illustrative output, not captured).** `perfquery` on the suspect switch ports reads the `PortXmitWait` counter; take one read before and one after a load window and compare the deltas. (Do not use `perfquery -R` or `ibqueryerrors -k`/`-K` for this: those reset or clear counters and destroy the baseline.)
 
 ```text
-$ ibqueryerrors -s XmtWait -k <switch-lid>
-GUID 0x506b4b0300a1c210 port 3: [XmtWait == 184320]
-GUID 0x506b4b0300a1c210 port 7: [XmtWait == 41]
+$ perfquery <switch-lid> 3 | grep -E 'PortXmitWait|SymbolErrorCounter|LinkDownedCounter'
+SymbolErrorCounter:.............0
+LinkDownedCounter:..............0
+PortXmitWait:...................184320
+$ perfquery <switch-lid> 7 | grep -E 'PortXmitWait|SymbolErrorCounter|LinkDownedCounter'
+SymbolErrorCounter:.............0
+LinkDownedCounter:..............0
+PortXmitWait:...................41
 ```
 
-`XmtWait` counts cycles the port had data queued to transmit but was blocked on downstream credit — it is a congestion signal, distinct from `SymbolErrorCounter` or `LinkDownedCounter`, which indicate physical faults. Port 3 accumulating 184,320 wait-cycles against port 7's 41 (same switch, same sampling window, both physically clean) pinpoints port 3's downstream path as the actual bottleneck without any packet loss ever occurring — exactly the "no drops, still slow" pattern this scenario describes.
+`PortXmitWait` counts ticks the port had data queued to transmit but was blocked on downstream credit — it is a congestion signal, distinct from `SymbolErrorCounter` or `LinkDownedCounter`, which indicate physical faults. Port 3 accumulating 184,320 wait ticks against port 7's 41 (same switch, same sampling window, both physically clean) pinpoints port 3's downstream path as the actual bottleneck without any packet loss ever occurring — exactly the "no drops, still slow" pattern this scenario describes.
 
 ### Scenario 4 — One traffic class affects another
 

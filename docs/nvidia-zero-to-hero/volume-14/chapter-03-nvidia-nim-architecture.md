@@ -78,7 +78,7 @@ flowchart LR
     end
     
     subgraph NIM_Path ["NIM APPROACH (pre-integrated, supported)"]
-        Pull ["1. Pull nvcr.io/nvidia/nim/llama2-7b:1.0.5"]
+        Pull ["1. Pull nvcr.io/nim/meta/llama3-8b-instruct:1.0.5"]
         Creds ["2. Set NGC credentials and model cache"]
         Deploy2 ["3. Deploy with K8s manifest"]
         Check ["4. Wait for readiness; if it fails, NGC entitlement or GPU memory"]
@@ -112,11 +112,11 @@ flowchart TD
     end
     
     subgraph Readiness ["READINESS<br/>(is service ready to accept traffic?)"]
-        R["kubelet exec: /opt/nim/healthcheck<br/>Model loaded into GPU memory?<br/>API server responding?<br/>If false: model download in progress or failed."]
+        R["kubelet httpGet: /v1/health/ready<br/>Model loaded into GPU memory?<br/>API server responding?<br/>If false: model download in progress or failed."]
     end
     
     subgraph AppCorrectness ["APPLICATION CORRECTNESS<br/>(does inference work?)"]
-        A["Client perspective:<br/>curl http://service/v1/health<br/>Deterministic request returns expected output?<br/>If false: wrong model, wrong precision, or data pipeline issue."]
+        A["Client perspective:<br/>curl http://service/v1/health/ready (liveness: /v1/health/live)<br/>Deterministic request returns expected output?<br/>If false: wrong model, wrong precision, or data pipeline issue."]
     end
     
     Liveness -.->|"fails faster"| Readiness

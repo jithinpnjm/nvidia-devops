@@ -61,8 +61,8 @@ Time-slicing allows multiple containers to share the exact same physical pool of
 
 To prevent a single noisy neighbor from destroying the stability of a shared cluster, we must immediately pivot to hardware-level isolation. 
 
-We will reconfigure the GPUs using **Multi-Instance GPU (MIG)**. We will partition the A100s into seven mathematically rigid `1g.10gb` slices. 
-By enforcing MIG, we configure strict base and limit registers on the physical VRAM and L2 cache. If a student's script goes rogue and attempts an infinite memory allocation, it will hit the hard 10GB physical wall of its specific MIG slice and crash itself, leaving the other 6 slices on that physical GPU completely isolated, safe, and performing at full speed."
+We will reconfigure the GPUs using **Multi-Instance GPU (MIG)**. We will partition the A100s into seven `1g.10gb` slices (on 80 GB A100s). 
+With MIG, each instance gets its own dedicated memory slice, L2 cache banks, and memory controllers. If a student's script goes rogue and attempts an infinite memory allocation, it will hit the hard 10GB physical wall of its specific MIG slice and crash itself, leaving the other 6 slices on that physical GPU completely isolated, safe, and performing at full speed."
 
 ## Interview Preparation
 

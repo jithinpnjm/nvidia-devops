@@ -5,6 +5,9 @@ sidebar_position: 4
 description: "Analyze a real incident timeline and construct prevention strategies."
 ---
 
+
+> **Note:** Output blocks, timelines, thresholds, and numbers in this lab are illustrative (not captured from a real system). Thresholds are example values for the exercise; set real ones from your vendor guidance and fleet baselines. Correctable ECC errors are corrected by the hardware; the risk they signal is progressive degradation, and data-integrity risk comes from uncorrectable or uncontained errors (Xid 48/95/94).
+
 ## Objective
 
 Practice incident analysis: reconstruct what happened, identify root cause, and design prevention. Learn how to extract learning from failures.
@@ -143,8 +146,9 @@ for gpu in {0..7}; do
 done
 
 # Alert rule (Prometheus)
+# Placeholder metric; use deriv() on a temperature gauge (rate() is for counters)
 alert: FanDegradation
-expr: rate(gpu_temp[1m]) > 0.15  # °C per second
+expr: deriv(gpu_temp[1m]) > 0.15  # °C per second
 for: 10m  # Sustained high temp rise rate
 annotations:
   summary: "GPU {{ $labels.gpu }} showing signs of fan degradation"
@@ -190,7 +194,7 @@ Rule of thumb:
 
 ```
 The accuracy drop (92% → 85%) at 16:15 is the LATE warning.
-By then, 600+ errors have corrupted training state.
+By then, hundreds of errors have accumulated; the accuracy drop may come from uncorrectable errors or an unrelated cause, so the postmortem must check Xid 48/95/94 history rather than assume correctable errors caused it.
 
 Better indicators:
 - At 15:30: error rate 50/30min = 100/hour → 30x normal
@@ -221,7 +225,7 @@ class ECCMonitor:
         avg_rate = np.mean(self.errors_per_minute)
         
         if avg_rate > self.critical_rate:
-            print("CRITICAL: Stopping job to prevent data corruption")
+            print("CRITICAL: Stopping job; ECC rate indicates failing memory")
             self.stop_job()  # Kill training process
             self.drain_gpu()  # Remove from cluster
         elif avg_rate > self.warning_rate:
@@ -235,7 +239,7 @@ class ECCMonitor:
 **Incident Reconstruction:**
 
 ```
-Root cause (likely): NVLink to GPU 4 degraded (Gen3 x8 instead of Gen4 x16)
+Root cause (likely): NVLink or PCIe path to GPU 4 degraded (fewer links or a trained-down link); this is a hypothesis to verify with `nvidia-smi nvlink --status`, `dcgmi nvlink -e`, and `lspci`
 
 Timeline of degradation:
 10:00 - Training starts, all GPUs healthy, AllReduce latency 12ms
@@ -276,7 +280,7 @@ for i in {0..7}; do
 done
 
 # 2. AllReduce timeout detection and preemption
-export NCCL_DEBUG=TRACE
+export NCCL_DEBUG=INFO
 export NCCL_DEBUG_SUBSYS=COLL
 
 # Wrapper that monitors for timeouts
@@ -295,6 +299,7 @@ tail -f training.log | while read line; do
 done
 
 # 3. Prometheus alert for latency variance
+# Placeholder metric: export per-rank collective timing from your training code
 alert: NCCLLatencyAnomaly
 expr: |
   max(nccl_allreduce_latency) / min(nccl_allreduce_latency) > 2.5

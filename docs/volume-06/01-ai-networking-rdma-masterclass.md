@@ -49,7 +49,7 @@ sequenceDiagram
     G3->>G3: Next Iteration Start
 ```
 
-This phenomenon is **straggler amplification**. A 0.01% drop rate on a 10,000 GPU cluster can decimate cluster utilization (MFU - Model Flops Utilization). Thus, AI networks are engineered not just for high bandwidth, but for **ultra-low, deterministic latency and zero packet loss**.
+This phenomenon is **straggler amplification**. Even a very small drop rate on a very large cluster can sharply reduce cluster utilization (MFU - Model Flops Utilization). Thus, AI networks are engineered not just for high bandwidth, but for **ultra-low, deterministic latency and zero packet loss**.
 
 ---
 
@@ -112,19 +112,9 @@ InfiniBand (IB) was designed from day one for RDMA, lossless transmission, and H
 **Strengths:**
 - **Inherent Lossless Fabric:** Uses credit-based flow control at the link layer. A switch port will not transmit a packet unless it knows the receiving buffer has space. No dropped packets due to congestion.
 - **Adaptive Routing (AR):** IB switches make per-packet routing decisions based on real-time port loads, balancing traffic perfectly across multiple paths.
-- **Subnet Manager (SM):** Centralized control plane (OpenSM or UFM) that discovers topology, provisions routes, and handles failures instantly, avoiding the slow convergence of Ethernet protocols like BGP.
+- **Subnet Manager (SM):** Centralized control plane (OpenSM or UFM) that discovers topology, provisions routes, and reroutes around failures from a central view rather than relying on distributed protocol convergence.
 
-**InfiniBand Packet Structure:**
-```mermaid
-packet-beta
-    title InfiniBand Packet Encapsulation
-    0-7: "Local Routing Header (LRH)"
-    8-11: "Base Transport Header (BTH)"
-    12-15: "Extended Transport Header (ETH)"
-    16-31: "Payload (Data)"
-    32-35: "Invariant CRC (ICRC)"
-    36-39: "Variant CRC (VCRC)"
-```
+**InfiniBand packet layout (outer to inner):** Local Routing Header (LRH, 8 bytes), optional Global Routing Header (GRH, 40 bytes, used across subnets), Base Transport Header (BTH, 12 bytes), operation-specific extended transport headers (present only for some opcodes), payload, Invariant CRC (ICRC, 4 bytes), and Variant CRC (VCRC, 2 bytes).
 
 ### 3.2 RoCEv2: Ethernet Fights Back
 RoCEv2 encapsulates IB transport headers inside standard UDP/IPv4 or IPv6 headers, allowing RDMA to run over standard Ethernet switches.
@@ -136,18 +126,7 @@ RoCEv2 encapsulates IB transport headers inside standard UDP/IPv4 or IPv6 header
 2. **ECN (Explicit Congestion Notification):** Switches mark packets when queues get too deep (before they overflow). The receiver echoes this back (CNP - Congestion Notification Packet), and the sender slows down.
 3. **DCQCN (Data Center Quantized Congestion Notification):** The algorithmic framework used by NICs to react to ECN marks.
 
-**RoCEv2 Packet Structure:**
-```mermaid
-packet-beta
-    title RoCEv2 Packet Encapsulation
-    0-5: "Ethernet Header (MAC/VLAN)"
-    6-11: "IP Header (v4/v6)"
-    12-15: "UDP Header (Dest Port 4791)"
-    16-19: "IB Base Transport Header (BTH)"
-    20-31: "Payload (Data)"
-    32-35: "Invariant CRC (ICRC)"
-    36-39: "Ethernet FCS (CRC)"
-```
+**RoCEv2 packet layout (outer to inner):** Ethernet header (with optional VLAN), IPv4 or IPv6 header, UDP header (destination port 4791), Base Transport Header (BTH, 12 bytes), operation-specific extended headers (opcode dependent), payload, Invariant CRC (ICRC, 4 bytes), and the Ethernet FCS.
 
 ### 3.3 Trade-offs Summary
 
@@ -160,7 +139,7 @@ packet-beta
 | **Ecosystem** | NVIDIA end-to-end | Multi-vendor, standard tooling |
 | **Skillset** | Specialized HPC knowledge | Standard Network Engineering |
 
-*Note: NVIDIA Spectrum-X (Spectrum-4 switches + BlueField-3 DPUs) adds RoCE adaptive routing and advanced congestion control, significantly closing the gap between Ethernet and InfiniBand for AI workloads.*
+*Note: NVIDIA Spectrum-X (Spectrum-4 switches + BlueField-3 SuperNICs) adds RoCE adaptive routing and advanced congestion control, significantly closing the gap between Ethernet and InfiniBand for AI workloads.*
 
 ---
 
@@ -235,7 +214,7 @@ The fundamental tool for checking RDMA interface status is `ibstat` or `ibv_devi
 ibstat
 ```
 
-**Expected Output (InfiniBand):**
+**Illustrative output (not captured; InfiniBand):**
 ```text
 CA 'mlx5_0'
         CA type: MT4123
@@ -257,7 +236,7 @@ CA 'mlx5_0'
 ```
 *Note: State MUST be 'Active' and Physical state 'LinkUp'. The Base lid (Local Identifier) is assigned by the Subnet Manager. If State is 'Initializing', the SM is likely unreachable or misconfigured.*
 
-**Expected Output (RoCEv2):**
+**Illustrative output (not captured; RoCEv2):**
 ```text
 CA 'mlx5_1'
         Port 1:
@@ -288,7 +267,7 @@ ib_write_bw -d mlx5_0 -i 1
 ib_write_bw -d mlx5_0 -i 1 <IP_OF_NODE_A>
 ```
 
-**Expected Output:**
+**Illustrative output (not captured):**
 ```text
 ---------------------------------------------------------------------------------------
                     RDMA_Write BW Test
@@ -307,7 +286,7 @@ ib_write_bw -d mlx5_0 -i 1 <IP_OF_NODE_A>
  65536      5000           23500.2            23450.5              0.375208
 ---------------------------------------------------------------------------------------
 ```
-*For a 200Gbps HDR link, expected bandwidth is ~23,500 MB/s. For 400Gbps NDR, ~47,000 MB/s.*
+*As a rough sanity check, a 200Gbps HDR link tops out near 25 GB/s of line rate and a 400Gbps NDR link near 50 GB/s; measured perftest bandwidth should approach but not exceed that, minus protocol overhead.*
 
 ### 5.3 Configuring RoCEv2 Switch Ports (Mellanox Cumulus/Onyx)
 
@@ -315,14 +294,15 @@ To achieve a lossless fabric on Ethernet, switches must be configured for PFC (P
 
 RDMA traffic is typically mapped to Priority 3 (DSCP 24 or 26).
 
-**Example Configuration (Mellanox Onyx):**
+**Example Configuration (Mellanox Onyx; illustrative, syntax varies by NOS and version, so confirm against the NVIDIA switch and DOCA flow-control documentation):**
 ```text
 # Enable ECN for traffic class 3
 switch (config) # interface ethernet 1/1-1/32 traffic-class 3 congestion-control ecn minimum-absolute 150 maximum-absolute 1500
 
 # Enable PFC for priority 3
-switch (config) # interface ethernet 1/1-1/32 dcb priority-flow-control mode on force
-switch (config) # interface ethernet 1/1-1/32 dcb priority-flow-control priority 3
+switch (config) # dcb priority-flow-control enable force
+switch (config) # dcb priority-flow-control priority 3 enable
+switch (config) # interface ethernet 1/1 dcb priority-flow-control mode on force
 
 # Configure strict priority queueing and buffers
 switch (config) # interface ethernet 1/1-1/32 traffic-class 3 bind strict-priority
@@ -349,12 +329,7 @@ In RoCE networks, PFC creates a mechanism where Switch A tells Switch B to stop 
    - The switch automatically drops the packets in the paused queue to break the cycle.
    - Dropping a packet forces TCP/RoCE to retransmit, but saves the cluster from a hard hang.
 
-**Configuring Watchdog (Onyx):**
-```text
-switch (config) # dcb priority-flow-control deadlock-watchdog enable
-switch (config) # dcb priority-flow-control deadlock-watchdog timeout 50000 priority 3
-switch (config) # dcb priority-flow-control deadlock-watchdog action drop priority 3
-```
+**Configuring the watchdog:** The command names, timers, and actions differ by switch OS and release. Use the PFC watchdog / storm-protection section of your switch vendor's documentation rather than copying a generic snippet.
 
 ### 6.2 Microbursts and ECN Tuning
 **The Problem:** AI workloads generate synchronized, highly intensive traffic patterns (incast). Many GPUs send data to one GPU simultaneously. This causes sudden spikes (microbursts) that fill switch buffers in microseconds, faster than standard SNMP monitoring (which polls every 10-60 seconds) can detect.
@@ -376,9 +351,11 @@ Because RoCEv2 runs over UDP (Port 4791), you can capture headers using standard
 CNPs are sent when a receiver gets an ECN-marked packet. High CNP rates indicate congestion.
 
 ```bash
-# Capture RoCEv2 traffic, filter for UDP port 4791, and specifically look for BTH opcode indicating a CNP (0x81)
-# Note: BTH opcode is at a specific offset inside the UDP payload.
-sudo tcpdump -i mlx5_1 -nn -e -v udp port 4791
+# Capture RoCEv2 traffic by filtering on UDP port 4791 (CNPs carry BTH opcode 0x81).
+# Replace <netdev> with the Ethernet interface name (for example eth2), not the mlx5_x RDMA device name.
+# Caveat: on ConnectX NICs, RDMA traffic bypasses the kernel stack, so tcpdump on the host
+# may not see it. Use NVIDIA's ibdump tool or switch port mirroring (SPAN) for reliable captures.
+sudo tcpdump -i <netdev> -nn -e -v udp port 4791
 ```
 
 **Wireshark Analysis:**
@@ -432,9 +409,9 @@ When operating InfiniBand or RoCEv2, the link layer health is paramount.
 Link level retries occur when the physical layer fails to successfully deliver the frame.
 Use `ibportstate` to query the specific counters:
 ```bash
-ibportstate 1 1
+perfquery -x <LID> <PORT>
 ```
-Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
+(`ibportstate <LID> <PORT>` shows port state and speed; `perfquery` reads the performance counters.) Look for `LinkDownedCounter` and `SymbolErrorCounter`. High counts here usually point to:
 - Dirty or damaged fiber optic ends.
 - Failing optical transceivers.
 - Bad seating of the transceiver in the switch or NIC port.
@@ -443,8 +420,8 @@ Always replace cables and transceivers systematically and verify the counters ha
 ### Hardware Offload Verification
 Modern DPUs like the BlueField-3 offload many networking tasks. You must verify these offloads are active.
 ```bash
-ethtool -k mlx5_0 | grep tcp-segmentation
+ethtool -k <netdev> | grep tcp-segmentation
 ```
 Ensuring TSO (TCP Segmentation Offload) and LRO (Large Receive Offload) are correctly configured for your specific workload profile.
 For AI traffic (mostly RDMA), these legacy TCP offloads are less relevant, but ensuring the hardware is steering traffic correctly to the application queues is critical.
-Use `ethtool -S mlx5_0` to view detailed hardware statistics and confirm packets are bypassing the kernel.
+Use `ethtool -S <netdev>` to view NIC statistics (drops, pause frames, and ECN/CNP counters on mlx5). Pure RDMA traffic is counted in the RDMA hardware counters (for example under `/sys/class/infiniband/<dev>/ports/<n>/hw_counters/`).

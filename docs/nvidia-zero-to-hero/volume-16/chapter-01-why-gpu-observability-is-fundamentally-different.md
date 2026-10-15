@@ -140,7 +140,7 @@ Each layer is necessary:
 nvidia-smi --query-gpu=index,name,uuid,driver_version,memory.total,memory.used,memory.free,temperature.gpu,clocks.current.graphics,clocks.max.graphics --format=csv
 ```
 
-**Real sample output:**
+**Illustrative output (not captured):**
 
 ```text
 index,name,uuid,driver_version,memory.total,memory.used,memory.free,temperature.gpu,clocks.current.graphics,clocks.max.graphics

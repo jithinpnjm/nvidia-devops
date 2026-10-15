@@ -35,7 +35,7 @@ The KMD consists of several loadable kernel modules (LKMs) that interface direct
 *   `nvidia.ko`: The core driver responsible for resource allocation, power management, and communicating with the hardware.
 *   `nvidia-modeset.ko`: Handles display technologies (mostly irrelevant for headless compute clusters but often loaded).
 *   `nvidia-uvm.ko`: Unified Virtual Memory. Critical for modern AI workloads. This module allows the CPU and GPU to share a unified memory address space, managing page faults and migrating memory pages on demand.
-*   `nvidia-peermem.ko`: Facilitates direct peer-to-peer DMA over PCIe or NVLink without routing through host system memory (vital for multi-GPU training).
+*   `nvidia-peermem.ko`: Enables GPUDirect RDMA by letting RDMA NICs (for example, ConnectX) register GPU memory for direct DMA, without staging through host memory. It matters for multi-node training over InfiniBand/RoCE; GPU-to-GPU traffic over NVLink does not depend on it.
 
 ### 2.2 The User-Mode Driver (UMD) and CUDA Runtime
 
@@ -56,6 +56,7 @@ A classic production issue is the mismatch between the CUDA Toolkit (compiled in
 When a node boots, a sequence of checks confirms the driver layer:
 
 ```bash
+# Illustrative expected results (not captured) are shown in the comments below.
 # 1. Verify PCIe detection
 lspci | grep -i nvidia
 # Expected: 3D controller: NVIDIA Corporation H100 PCIe (rev a1)
@@ -123,7 +124,7 @@ The `nvidia-ctk` CLI is responsible for generating this specification dynamicall
 sudo nvidia-ctk cdi generate --output=/var/run/cdi/nvidia.yaml
 ```
 
-Let's look inside a generated CDI specification (`/var/run/cdi/nvidia.yaml`):
+Illustrative output (not captured; abbreviated, and the real spec differs by driver version and lists many more mounts and device nodes, with the dynamic `nvidia-uvm` major number varying per host) of a generated CDI specification (`/var/run/cdi/nvidia.yaml`):
 
 ```yaml
 cdiVersion: 0.5.0
@@ -155,7 +156,7 @@ devices:
     # Includes all devices and libraries
 ```
 
-When Kubernetes (via containerd) is instructed to run a container with `CDI_DEVICES=nvidia.com/gpu=0`, containerd parses this YAML, natively bind-mounts `/usr/bin/nvidia-smi` and `/usr/lib/x86_64-linux-gnu/libcuda.so.1`, and natively attaches the `/dev/nvidia0` character device. No hooks required.
+When Kubernetes (via containerd) is asked for the fully qualified CDI device name `nvidia.com/gpu=0`, containerd parses this YAML, natively bind-mounts `/usr/bin/nvidia-smi` and `/usr/lib/x86_64-linux-gnu/libcuda.so.1`, and natively attaches the `/dev/nvidia0` character device. No hooks required.
 
 ### 3.4 Containerd Configuration for NVIDIA
 
@@ -215,7 +216,7 @@ flowchart TD
         
         Scheduler -- "5. Bind Pod to Node" ---> Kubelet
         Kubelet -- "6. Allocate (Request Device IDs)" ---> DP
-        DP -- "7. Return CDI Device Names" ---> Kubelet
+        DP -- "7. Return device IDs / env or CDI names" ---> Kubelet
     end
     
     style K8s_Control_Plane fill:#e5e7eb,color:#000
@@ -364,7 +365,7 @@ driver:
 toolkit:
   enabled: true
   env:
-    # Use modern CDI instead of legacy OCI hooks
+    # Tell the toolkit where to patch the containerd config and socket
     - name: CONTAINERD_CONFIG
       value: /etc/containerd/config.toml
     - name: CONTAINERD_SOCKET
@@ -418,7 +419,7 @@ You apply the GPU Operator. The `nvidia-driver-daemonset-xxx` pods are in `Init:
 **Investigation:**
 1. Check the logs of the failed driver pod:
    ```bash
-   kubectl logs -n gpu-operator ds/nvidia-driver-daemonset -c nvidia-driver-init
+   kubectl logs -n gpu-operator ds/nvidia-driver-daemonset -c nvidia-driver-ctr
    ```
 2. Common output: `gcc not found` or `kernel headers not found`.
 
@@ -476,16 +477,13 @@ If you are interviewing for a Senior Platform Engineer or Infrastructure Archite
 
 **Question 2:** "We want to run 10 Jupyter Notebook pods per A100 GPU to save costs. We enabled time-slicing in the Device Plugin. However, users are complaining their notebooks crash randomly. Why is this happening, and what is the architectural alternative?"
 
-> **Strong Answer:** "Time-slicing provides concurrent execution but zero memory isolation. Ten notebooks might fit simultaneously, but if one user loads a massive dataset into pandas/PyTorch that exceeds the physical 40GB/80GB VRAM of the A100, the kernel will trigger an Out-Of-Memory (OOM) kill, often affecting neighboring pods sharing that GPU. 
-> To fix this, we should transition to Multi-Instance GPU (MIG). MIG physically partitions the A100's SMs (Streaming Multiprocessors) and memory controllers. By slicing the A100 into seven 1g.5gb instances, we achieve strict hardware-level fault domain isolation. If one notebook OOMs, the other 6 are completely unaffected."
+> **Strong Answer:** "Time-slicing provides concurrent execution but zero memory isolation. Ten notebooks might fit simultaneously, but if one user allocates GPU memory beyond what is left on the physical 40GB/80GB A100, CUDA allocations fail with out-of-memory errors, and that can hit neighboring pods sharing the GPU too. 
+> To fix this, we should transition to Multi-Instance GPU (MIG). MIG physically partitions the A100's SMs (Streaming Multiprocessors) and memory controllers. By slicing an A100 40GB into seven 1g.5gb instances, we achieve strict hardware-level fault domain isolation. If one notebook OOMs, the other 6 are completely unaffected."
 
 **Question 3:** "A node fails. You replace the physical GPU with a newer architecture (e.g., upgrading a broken V100 to an A100). The node boots, but the device plugin CrashLoopBackOffs. What happened?"
 
 > **Strong Answer:** "The GPU Operator deployed an older driver version that supports the V100 but predates the A100 release, or the CUDA version requested by the container is older than the hardware architecture supports (PTX forward compatibility failure). I would check the hardware support matrix for the currently pinned NVIDIA driver version in the `values.yaml` and upgrade the driver version across the cluster to one that supports Ampere/Hopper architectures."
 
----
-
-*End of Document. Masterclass structure verified against NVIDIA factory standards.*
 
 
 ## 8. Deep Dive: CUDA Forward Compatibility & Enterprise Upgrades
@@ -522,7 +520,7 @@ At this point, the application usually crashes unless it was specifically writte
 
 ---
 
-## 9. Comprehensive Configuration: The 300-Line Values File
+## 9. Comprehensive Configuration: An Annotated Values File
 
 To truly master the GPU Operator, one must understand its exhaustive configuration surface. Below is a heavily annotated, production-ready `values.yaml` designed for a massive scale Kubernetes cluster using Calico, high-performance storage, and full observability.
 
@@ -608,9 +606,9 @@ devicePlugin:
     
   # How the plugin exposes resources to Kubelet
   env:
-    # Pass devices via CDI rather than mounting /dev manually
-    - name: CDIDeviceName
-      value: "nvidia.com/gpu"
+    # Enable CDI device injection (the operator also exposes this as cdi.enabled)
+    - name: DEVICE_LIST_STRATEGY
+      value: "cdi-annotations"
     - name: FAIL_ON_INIT_ERROR
       value: "true"
 
@@ -655,12 +653,7 @@ migManager:
 # GPUDirect Storage (GDS)
 gds:
   enabled: true
-  repository: nvcr.io/nvidia/cloud-native
-  image: gds-driver
-  version: 2.18.3
-  env:
-    - name: MOFED_EN
-      value: "1" # Requires MOFED to be enabled
+  # Pin repository/image/version from the GPU Operator GDS documentation for your release.
 ```
 
 ---
@@ -700,7 +693,7 @@ While we touched upon Time-Slicing and MIG, an architect must know *when* to cho
     *   An OOM in one slice has zero effect on the others.
     *   Error containment (an ECC error in one slice doesn't panic the others).
 *   **Cons**:
-    *   Only supported on Ampere and Hopper architectures (A30, A100, H100).
+    *   Only supported on selected data center GPUs (Ampere A30/A100, Hopper H100/H200, and newer such as Blackwell); check the MIG user guide for your model.
     *   Rigid sizing. You cannot create a "2.5G" slice; you must adhere to the physical partition profiles (e.g., 1g.5gb, 2g.10gb, 3g.20gb).
 *   **Use Case**: Multi-tenant clusters, strict SLA production inference, Kubernetes environments offering GPUs-as-a-Service.
 
@@ -729,6 +722,7 @@ When building Grafana dashboards, these are the critical metrics to alert on:
 ### 11.3 Example Prometheus Output
 
 ```text
+# Illustrative output (not captured)
 # HELP DCGM_FI_DEV_GPU_UTIL GPU utilization (in %).
 # TYPE DCGM_FI_DEV_GPU_UTIL gauge
 DCGM_FI_DEV_GPU_UTIL{gpu="0",UUID="GPU-e461a384-5f4c-7c08-0131-0dfbc6c483b2",device="nvidia0",modelName="NVIDIA A100-SXM4-40GB",Hostname="worker-node-01"} 98
@@ -763,7 +757,7 @@ Understanding software is insufficient if you do not understand the underlying h
 When an architect provisions a new node type, the first command they run is `nvidia-smi topo -m`. This command prints the affinity matrix of the node.
 
 ```bash
-# Example Output for an HGX A100 8-GPU System
+# Illustrative output (not captured) for an HGX A100 8-GPU System
         GPU0    GPU1    GPU2    GPU3    GPU4    GPU5    GPU6    GPU7    NIC0    NIC1    CPU Affinity    NUMA Affinity
 GPU0     X      NV12    NV12    NV12    NV12    NV12    NV12    NV12    PIX     SYS     0-15            0
 GPU1    NV12     X      NV12    NV12    NV12    NV12    NV12    NV12    SYS     PIX     0-15            0
@@ -786,7 +780,7 @@ Non-Uniform Memory Access (NUMA) implies that a CPU has "local" memory (RAM) and
 
 This hardware reality collides with Kubernetes scheduling.
 
-If the Kubernetes Scheduler assigns a Pod to CPU 0, but the Device Plugin allocates GPU 7 (which is local to CPU 1), and the CNI allocates NIC 1 (also local to CPU 1), the workload will suffer a 20-30% performance degradation.
+If the Kubernetes Scheduler assigns a Pod to CPU 0, but the Device Plugin allocates GPU 7 (which is local to CPU 1), and the CNI allocates NIC 1 (also local to CPU 1), the workload will take a measurable performance penalty from cross-NUMA traffic (measure it on your platform).
 
 #### Enabling the Topology Manager
 
@@ -807,7 +801,7 @@ When `single-numa-node` is set, the Kubelet will reject the Pod (Status: `Topolo
 
 The GPU Operator relies heavily on labels applied by NFD. Understanding these labels is critical for creating targeted `nodeSelectors` in your application workloads.
 
-When NFD runs on an NVIDIA GPU node, it applies labels like:
+NFD itself applies the PCI vendor label (`feature.node.kubernetes.io/pci-10de.present`). GPU Feature Discovery (GFD), deployed by the GPU Operator, then adds labels like:
 
 *   `nvidia.com/gpu.present=true`
 *   `nvidia.com/gpu.memory=40960` (40GB)
@@ -830,9 +824,10 @@ spec:
   template:
     spec:
       nodeSelector:
-        # Require an Ampere or newer architecture (Compute capability 8.0+)
+        # nodeSelector matches exact values only. This selects compute capability 8.x
+        # (Ampere) and a GPU with exactly 40960 MiB. For "at least" semantics, use
+        # nodeAffinity with the Gt operator.
         nvidia.com/gpu.compute.major: "8"
-        # Require at least 40GB of VRAM per GPU
         nvidia.com/gpu.memory: "40960"
       containers:
       - name: vllm
@@ -850,12 +845,12 @@ This prevents an LLM that requires BF16 (introduced in Ampere) from accidentally
 
 How do you upgrade the NVIDIA driver on 500 nodes without bringing down the AI factory? 
 
-The GPU Operator handles this via the `upgradePolicy`. 
+The GPU Operator handles this via the `driver.upgradePolicy` Helm values. 
 
 ### 15.1 The Upgrade Policy
 
 ```yaml
-operator:
+driver:
   upgradePolicy:
     autoUpgrade: true
     maxParallelUpgrades: 5
@@ -867,11 +862,11 @@ operator:
 ```
 
 When you update the GPU Operator Helm release with a new `driver.version`:
-1.  The Operator scales down the Driver DaemonSet on `maxParallelUpgrades` nodes.
-2.  Because `drain.enable: true`, the Operator evicts all Pods on that node.
-3.  The node reboots (if kernel module unloading fails) or successfully restarts the driver pod with the new module.
-4.  The node is uncordoned.
-5.  The Operator moves to the next batch.
+1.  The operator's upgrade controller selects up to `maxParallelUpgrades` nodes and cordons them.
+2.  If `drain.enable` is true, it evicts the workloads on each selected node (otherwise it only deletes GPU pods, depending on `podDeletion`).
+3.  The driver pod on that node is replaced with one running the new driver version.
+4.  When the new driver pod is ready, the node is uncordoned.
+5.  The controller moves to the next batch.
 
 ### 15.2 Handling Stale Driver Modules (The Dreaded rmmod Failure)
 
@@ -926,9 +921,9 @@ While we touched upon `dcgm-exporter`, an architect must understand what DCGM (D
 
 ```mermaid
 flowchart TD
-    A[dcgm-exporter (Prometheus)] -->|gRPC/C Bindings| B[nv-hostengine (DCGM Daemon)]
-    C[dcgmprocmgr (Policy Manager)] -->|gRPC| B
-    B -->|NVML C API| D[NVIDIA User-Mode Driver]
+    A["dcgm-exporter (Prometheus)"] -->|"DCGM API (libdcgm)"| B["nv-hostengine (DCGM Daemon)"]
+    C["dcgmi (CLI)"] -->|"DCGM API"| B
+    B -->|"NVML C API"| D["NVIDIA User-Mode Driver"]
     D -->|IOCTL| E[NVIDIA Kernel-Mode Driver]
     E -->|PCIe| F[GPU Hardware]
 ```
@@ -940,13 +935,13 @@ DCGM operates independently of Kubernetes. It can enforce policies, run active d
 When a node misbehaves, relying passively on telemetry is insufficient. DCGM includes the NVIDIA Validation Suite (NVVS). A Senior Architect will run this manually or via a Job to validate the hardware before returning a repaired node to the cluster pool.
 
 ```bash
-# Run a short (few minutes) diagnostic test on all GPUs
+# Run the quick level 1 diagnostic on all GPUs
 dcgmi diag -r 1
 
-# Run a comprehensive (potentially hour-long) diagnostic targeting PCIe and Memory
+# Run the longest level 3 diagnostic (takes considerably longer; run on a drained node)
 dcgmi diag -r 3
 ```
-If `dcgmi diag` fails, the node is hardware-faulty. Do not attempt to fix it with driver re-installations.
+If `dcgmi diag` reports failures, treat the node as suspect: read the failure detail, correlate with Xids, and escalate for hardware service when it is reproducible, rather than reflexively reinstalling drivers.
 
 ### 18.3 Understanding XID Errors
 
@@ -954,7 +949,7 @@ XID errors are hardware/driver exceptions emitted by the NVIDIA driver to the ho
 
 *   **XID 13 (Graphics Engine Exception)**: Usually a software issue. The user's CUDA kernel caused a segfault or out-of-bounds memory access. The application crashes, but the GPU hardware is fine.
 *   **XID 31 (Memory Page Fault)**: Similar to XID 13, often a bad pointer in PyTorch/CUDA C++ code.
-*   **XID 43 (Stopped Processing)**: The GPU stopped responding. Can be caused by a driver bug, overheating, or physical hardware degradation.
+*   **XID 43 (GPU Stopped Processing)**: Often triggered by the application; correlate with other Xids and PCIe AER messages before concluding it is hardware.
 *   **XID 48 (Double-Bit ECC Error)**: Critical hardware failure. Memory corruption occurred that could not be corrected by ECC. The node MUST be cordoned and the GPU replaced.
 *   **XID 79 (Fallen off the Bus)**: The PCIe link was lost. The kernel can no longer communicate with the device. This can be a bad motherboard riser, a loose power cable, or a dead GPU.
 
@@ -985,11 +980,7 @@ If you `exec` into the pod and run `nvidia-smi`, you will see the *same* GPU, bu
 
 Why? Because Linux containers use **PID Namespaces**. The container does not know about host PID `2051234`. Inside the container, the Python process might be PID `1`. 
 
-Historically, `nvidia-smi` inside a container would show the host PID (breaking namespace isolation) or nothing at all. Modern NVIDIA Container Toolkit versions inject the necessary namespace mappings so `nvidia-smi` inside the container shows the correct container-scoped PID.
-
-If a developer asks, "Why can't I see my process in `nvidia-smi` inside my pod?", it is usually because:
-1. They are using an ancient version of `nvidia-docker2`.
-2. They do not have the CAP_SYS_PTRACE capability, which is sometimes required for `nvidia-smi` to traverse the `/proc` filesystem inside the container to map the PIDs.
+Because the container's PID namespace cannot resolve host PIDs, `nvidia-smi` inside a container commonly shows an empty process list (or PIDs that do not match what you see inside the pod), even while the GPU is busy. Use host-level `nvidia-smi`, or DCGM/dcgm-exporter per-pod metrics, for process-to-GPU attribution. Running the pod with `hostPID: true` exposes host PIDs but weakens isolation, so avoid it outside debugging.
 
 ---
 
@@ -998,9 +989,8 @@ If a developer asks, "Why can't I see my process in `nvidia-smi` inside my pod?"
 While we covered the `ConfigMap`, the `nvidia-device-plugin` DaemonSet accepts command-line flags that dramatically alter its behavior.
 
 *   `--fail-on-init-error=true`: (Recommended) If the plugin cannot talk to NVML on startup, it crashes (CrashLoopBackOff). This is *better* than failing silently and reporting 0 GPUs, as an alert will fire for the crashing DaemonSet.
-*   `--pass-device-specs=true`: Required for CDI. This tells the plugin to return CDI device names (e.g., `cdi.k8s.io/nvidia.com/gpu=0`) to the Kubelet during the `Allocate` call, rather than raw `/dev/nvidia0` mount paths.
-*   `--device-discovery-strategy=nvml`: Uses NVML to find GPUs.
-*   `--device-discovery-strategy=tegra`: Used for NVIDIA Jetson (ARM edge devices) where NVML does not exist, and the plugin must use sysfs/tegra APIs instead.
+*   `--pass-device-specs=true`: Makes the plugin return the device node specs (e.g., `/dev/nvidia0`, `/dev/nvidiactl`) to the Kubelet in the `Allocate` response. It is used by setups that need the device nodes passed explicitly (for example with the CPU Manager `static` policy); CDI is controlled separately by the plugin's CDI options (`--cdi-enabled` / `cdi.enabled` in the operator).
+*   `--device-discovery-strategy`: Selects how GPUs are found. `nvml` uses NVML; `tegra` is for Tegra-based (Jetson) systems where NVML is unavailable; `auto` (the default) picks between them.
 
 ### 20.1 Integrating with Virtualization (vGPU)
 

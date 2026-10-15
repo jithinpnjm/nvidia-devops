@@ -68,7 +68,7 @@ flowchart LR
 ### 2.3 Requirements for GPUDirect RDMA
 
 To enable GPUDirect RDMA, you must ensure the following are configured correctly:
-- **Hardware:** ConnectX-5 or newer NICs, NVIDIA Data Center GPUs (Pascal or newer).
+- **Hardware:** A supported ConnectX NIC and NVIDIA data center GPU combination (check the GPUDirect RDMA and driver release notes for your generation).
 - **PCIe Topology:** The NIC and GPU must share a PCIe root complex or switch. If they cross the QPI/UPI interconnect between dual CPUs, performance tanks.
 - **Software:** NVIDIA GPU Driver, MLNX_OFED (or downstream inbox drivers with rdma-core), and the `nvidia-peermem` kernel module.
 
@@ -202,15 +202,19 @@ export NCCL_IB_QPS_PER_CONNECTION=4 # Multi-queue for higher bandwidth
 
 In highly complex or virtualized environments (like SR-IOV VMs), NCCL's auto-detection might fail or see a flattened PCIe hierarchy. You can forcefully inject a topology XML file.
 
+Schematic only: the real schema has more required attributes (CPU arch/vendor/family/model, PCI class and link speed, `<gpu dev=... sm=...>`, `<nic><net name=... dev=... speed=...>`). Generate a valid starting file from a working node with `NCCL_TOPO_DUMP_FILE=/tmp/topo.xml` and edit that instead of writing one from scratch.
+
 ```xml
-<!-- Example custom topology.xml -->
+<!-- Schematic topology.xml; do not use as-is -->
 <system version="1">
   <cpu numaid="0">
     <pci busid="0000:00:00.0">
       <!-- Force NCCL to know that GPU and NIC share a PCIe switch -->
       <pci busid="0000:01:00.0" class="0x060400"> 
-        <gpu pci="0000:02:00.0" sm="80" nvlink="1"/>
-        <nic pci="0000:03:00.0" net="mlx5_0" />
+        <gpu dev="0" sm="80" rank="0" gdr="1"/>
+        <nic>
+          <net name="mlx5_0" dev="0" speed="400000" port="1" gdr="1"/>
+        </nic>
       </pci>
     </pci>
   </cpu>
@@ -238,37 +242,43 @@ The Network Operator deploys several components:
 Here is a hardened, production-ready `values.yaml` for deploying the Network Operator in a DGX/HGX environment.
 
 ```yaml
-# values-network-operator.yaml
+# Illustrative sketch. Helm keys and the NicClusterPolicy schema change between Network
+# Operator releases (for example, nvPeerDriver is being superseded by DOCA-driver and
+# GPU Operator driver.rdma handling). Start from the values.yaml and NicClusterPolicy
+# reference for the exact release you install.
 nfd:
   enabled: true # Node Feature Discovery is required
 
 sriovNetworkOperator:
   enabled: true # Required if using SR-IOV for multi-tenancy
 
+deployCR: true
 ofedDriver:
   deploy: true
-  # Always pin the OFED version to match your kernel and fabric requirements
-  version: "24.01-0.3.3.1"
-  startupProbe:
-    initialDelaySeconds: 30
+  # Always pin the driver version to match your kernel and fabric requirements
+  version: "<pin from the release notes>"
 
-nvPeerMem:
-  deploy: true # Crucial for GPUDirect RDMA
+nvPeerDriver:
+  deploy: true # GPUDirect RDMA peer memory module (release dependent)
 
 rdmaSharedDevicePlugin:
   deploy: true
   resources:
-    - name: rdma_hca_shared
-      vendors: ["15b3"] # Mellanox Vendor ID
+    - name: rdma_shared_device_a
+      vendors: ["15b3"] # Mellanox/NVIDIA vendor ID
 
-multus:
+secondaryNetwork:
   deploy: true
+  multus:
+    deploy: true
 ```
 
 Deploy it:
 ```bash
 helm repo add nvidia https://helm.ngc.nvidia.com/nvidia
-helm install network-operator nvidia/network-operator   -n gpu-operator --create-namespace   -f values-network-operator.yaml
+helm install network-operator nvidia/network-operator \
+  -n nvidia-network-operator --create-namespace \
+  -f values-network-operator.yaml
 ```
 
 ### 5.3 Pod Configuration for RDMA (Multus)
@@ -287,10 +297,10 @@ spec:
       "cniVersion": "0.3.1",
       "name": "rdma-net",
       "type": "macvlan",
-      "master": "eth1", # The host high-speed interface
+      "master": "eth1",
       "mode": "bridge",
       "ipam": {
-        "type": "whereabouts", # Cluster-wide IPAM
+        "type": "whereabouts",
         "range": "192.168.100.0/24"
       }
     }'
@@ -314,8 +324,8 @@ spec:
     resources:
       limits:
         nvidia.com/gpu: 1
-        # Request the RDMA device plugin resource
-        rdma/hca_shared: 1 
+        # Request the RDMA device plugin resource (rdma/<resource name defined in the plugin config>)
+        rdma/rdma_shared_device_a: 1 
 ```
 
 ---
@@ -354,7 +364,8 @@ spec:
   nicSelector:
     vendor: "15b3"
     pfNames: ["enp1s0f0"] # Target physical interface
-  deviceType: netdevice # Creates a standard netdev + RDMA device in the pod
+  deviceType: netdevice # Standard netdev VF
+  isRdma: true          # Also expose the RDMA device to the pod
 ```
 
 Create the Network referencing the SR-IOV policy:
@@ -386,15 +397,15 @@ As a Senior AI Infrastructure Engineer, you must know how to debug the stack whe
 
 ### Scenario A: NCCL is falling back to TCP (Performance is terrible)
 
-**Symptom:** Training is 10x slower than normal. 
+**Symptom:** Training is dramatically slower than the known-good baseline. 
 **Investigation:**
 1. Check NCCL logs by running the job with `NCCL_DEBUG=INFO`.
 2. Look for lines like: `NCCL INFO NET/Socket : Using [0]eth0:10.0.0.5<0>` instead of `NET/IB`.
-3. Look for `NCCL INFO Using Fallback`.
+3. Check the transport lines in the NCCL init output (`NET/IB` versus `NET/Socket`) and any warnings about failing to open IB devices or GDR being disabled.
 
 **Root Causes & Solutions:**
 - `nvidia-peermem` is not loaded. (`lsmod | grep nvidia_peermem`). Fix: Restart nv-peer-mem daemonset.
-- RoCE QoS mismatch. The NIC is sending ECN marked packets, but the switch is dropping them instead of creating PFC pause frames. Fix: Verify switch DSCP/PCP mappings match `NCCL_IB_TC`.
+- RoCE QoS mismatch. If the traffic class set by `NCCL_IB_TC` does not map to the lossless priority on the switches, RDMA traffic lands in a lossy queue and is dropped under congestion. Fix: Verify switch DSCP/PCP mappings and PFC/ECN configuration match `NCCL_IB_TC`.
 - GID mismatch. RoCEv2 requires matching GIDs (IP addresses mapped to InfiniBand GIDs). Run `show_gids` on the host to verify the GID index being used matches `NCCL_IB_GID_INDEX`.
 
 ### Scenario B: SR-IOV VFs are failing to create
@@ -410,10 +421,10 @@ As a Senior AI Infrastructure Engineer, you must know how to debug the stack whe
 
 ### Scenario C: PCIe ACS isolation blocking P2P
 
-**Symptom:** NCCL tests run, but performance is capped at 10-15 GB/s (PCIe Gen3 CPU bottleneck) instead of 50+ GB/s (Gen4/Gen5 P2P).
+**Symptom:** NCCL tests run, but inter-node bandwidth is far below the known-good baseline for the platform.
 **Investigation:**
 1. Run `nvidia-smi topo -m`. Look at the connection between GPU and NIC. 
-2. If it says `SYS` (routing through System RAM/CPU) instead of `PIX` (PCIe Switch) or `PHB` (PCIe Host Bridge), ACS might be isolating the devices.
+2. If it says `SYS` (the path crosses the inter-socket link) instead of `PIX` (PCIe Switch) or `PHB` (PCIe Host Bridge), ACS might be isolating the devices.
 3. Check ACS status: `lspci -vvv | grep -i acs`.
 
 **Root Causes & Solutions:**

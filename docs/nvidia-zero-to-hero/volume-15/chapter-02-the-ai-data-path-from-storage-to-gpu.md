@@ -78,7 +78,7 @@ smartctl -a /dev/sda | grep -E "5 Reallocated_Sector_Ct|199 UDMA_CRC_Error_Count
 iostat -x 1 /dev/nvme0n1 | head -10
 ```
 
-**Real iostat output:**
+**Illustrative iostat output (not captured):**
 ```text
 Device            r/s     w/s     rMB/s     wMB/s   rrqm/s   wrqm/s  %rrqm  %wrqm r_await w_await svctm  %util
 nvme0n1       45230.00 12340.00   890.23   192.11    0.00    5.00   0.00  0.04    1.20    2.50  0.02  100.0
@@ -95,15 +95,13 @@ nvme0n1       45230.00 12340.00   890.23   192.11    0.00    5.00   0.00  0.04  
 
 ```bash
 # On the storage server, check RPC queue depth
-lctl get_param -n osd-*.*.read_cache_hit_ratio
-# or directly:
-cat /proc/sys/sunrpc/tcp_max_slot_table_entries  # Maximum RPC queue depth
+lctl get_param obdfilter.*.brw_stats
 
 # During I/O, monitor server-side service time
 iotop -P -o  # Per-process I/O
 ```
 
-**Sample output with interpretation:**
+**Illustrative output (not captured) with interpretation:**
 ```text
 Cache hit ratio: 87.2%
 Max RPC slots: 256
@@ -125,7 +123,7 @@ iperf3 -c storage-server -t 10 -R  # Reverse: server sends to client
 iperf3 -c storage-server -t 10 -u -b 100G -i 1  # UDP, 100 Gbps, 1-sec intervals
 ```
 
-**Real iperf3 output:**
+**Illustrative iperf3 output (not captured):**
 ```text
 [ ID] Interval           Transfer     Bandwidth       Retr  Cwnd
 [  5]   0.00-1.00   sec  12.4 GBytes   106 Gbps        0   27.4 MBytes
@@ -156,7 +154,7 @@ lctl get_param llite.*.read_ahead_stats 2>/dev/null | head -5
 cat /proc/pressure/memory
 ```
 
-**Real vmstat output during high-concurrency loading:**
+**Illustrative vmstat output during high-concurrency loading (not captured):**
 ```text
 procs -----------memory---------- ---swap-- -----io---- -system-- ------cpu-----
  r  b   swpd   free   buff  cache   si   so    bi    bo   in   cs us sy id wa
@@ -185,7 +183,7 @@ ps -eLo pid,lwp,psr,comm | grep -i loader  # psr = processor (NUMA node)
 numactl -N 0 -m 0 python train.py  # Force node 0 memory and node 0 CPU
 ```
 
-**Real `numactl --hardware` output:**
+**Illustrative `numactl --hardware` output (not captured):**
 ```text
 available: 2 nodes (0-1)
 node 0 cpus: 0 1 2 3 4 5 6 7
@@ -196,7 +194,7 @@ node 1 size: 256000 MB
 node 1 free: 187650 MB
 ```
 
-**Real `nvidia-smi topo -m` output:**
+**Illustrative `nvidia-smi topo -m` output (not captured):**
 ```text
         GPU0    GPU1    CPU Affinity    NUMA Affinity
 GPU0     X      NV2     0-7             N/A
@@ -219,13 +217,11 @@ lspci -vvv | grep -A 5 "NVIDIA\|Tesla"
 nvidia-smi dmon  # Monitor mode, updates every second
 nvidia-smi -i 0 -pm 1  # Persistent mode (prevents power clocks)
 
-# Detailed PCIe utilization
-nvidia-smi pcie -q  # One-time snapshot
-# or repeated:
-watch -n 1 'nvidia-smi pcie -q'
+# PCIe Rx/Tx throughput
+nvidia-smi dmon -s t -c 5
 ```
 
-**Real `nvidia-smi dmon` output:**
+**Illustrative `nvidia-smi dmon` output (not captured):**
 ```text
 #   gpu  mem   sm  mem  dec  enc  jpg  ofa  mclk  pclk    fb  bar1
     0    40   94   31   0    0    0    0   5001  1410  39000   128
@@ -255,7 +251,7 @@ torch.cuda.max_memory_allocated() / 1e9  # Peak GB
 torch.cuda.reset_peak_memory_stats()
 ```
 
-**Real sample:**
+**Illustrative sample (not captured):**
 ```text
 $ nvidia-smi -i 0 -q | grep -E "Used|Total|Free|GPU Memory"
 GPU Memory Usage
@@ -302,7 +298,7 @@ GPU Memory Usage
 
 2. **Check GPU memory copy bandwidth:**
    ```bash
-   nvidia-smi pcie -q
+   nvidia-smi dmon -s t
    # Shows memory copy is running but at 60% utilization instead of 90%
    ```
    This suggests data is arriving in small pieces, not large transfers.

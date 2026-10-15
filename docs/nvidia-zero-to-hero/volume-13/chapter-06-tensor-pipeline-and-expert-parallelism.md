@@ -72,7 +72,7 @@ Then:  C = cat([C_left, C_right])     # Concatenate results
 
 For a 120-layer Transformer with TP=8, this is ~500 collective operations per training step. Each operation must complete before the next layer can proceed. This requires **intra-node NVLink** (900 GB/s) or InfiniBand won't be fast enough.
 
-**Real communication math:**
+**Illustrative communication math (not captured):**
 
 ```
 Per-GPU computation time for one Transformer layer: ~500 ms (estimate for 7B model)
@@ -146,7 +146,7 @@ This requires low-latency **All-to-All** communication, which is harder to optim
 
 Engineer configures: TP=32 (one tensor parallelism group spanning all 32 GPUs)
 
-**Observed behavior:**
+**Illustrative behavior (not captured):**
 
 ```bash
 torchrun --nproc_per_node=16 pretrain.py --tensor-model-parallel-size 32
@@ -205,7 +205,7 @@ torchrun --nproc_per_node=8 pretrain.py \
 Bubble calculation: (8-1) / (128/8 + 8-1) = 7 / 23 ≈ 30%
 ```
 
-**Observed training speed:** 6.2 tokens/sec
+**Illustrative training speed (not captured):** 6.2 tokens/sec
 
 **Expected (with low bubble):** ~10 tokens/sec
 

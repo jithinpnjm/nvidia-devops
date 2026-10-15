@@ -343,7 +343,7 @@ Compile host and device code into one executable.
 nvcc -O2 -std=c++17 vector_add.cu -o vector_add
 ```
 
-#### Expected Output
+#### Expected Output (illustrative, not captured)
 
 A successful compilation may produce no terminal output.
 

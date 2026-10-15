@@ -63,7 +63,7 @@ To train massive models, the 8 GPUs must talk to GPUs in other servers.
 * **Topology:** Every single GPU is physically hardwired via PCIe Gen5 to its own dedicated ConnectX-7 NIC. 
 
 ### The Storage/Management Network (QSFP112)
-* Handled by the 2x BlueField-3 DPUs (400 Gbps total). 
+* Handled by the 2x dual-port QSFP112 BlueField-3 DPUs (confirm per-port speed in the DGX H100 user guide for your SKU). 
 
 ### The In-Band and Out-of-Band (OOB) Management
 * Standard 1GbE / 10GbE ports for SSH access, Kubernetes API traffic, and IPMI (Baseboard Management Controller) remote console access.
@@ -103,7 +103,7 @@ flowchart TD
     GPU0 -.->|GPUDirect RDMA| NIC0
 ```
 
-*Note: In reality, there are 8 GPUs and 8 NICs perfectly mirrored across both CPUs.*
+*Note: This diagram is simplified. In a real DGX H100 there are 8 GPUs and 8 compute NICs, and each GPU/NIC pair sits behind a PCIe switch on the HGX/CPU side rather than attached directly to a CPU root port; GPUs and NICs are split across both CPUs. Use `nvidia-smi topo -m` on the actual system to see the real affinity.*
 
 ## Customer Scenario (Senior Level)
 
@@ -121,6 +121,6 @@ To fix this, you must cable all 8 of the OSFP ConnectX-7 compute ports into a de
 
 ## Interview Preparation
 
-**Conceptual:** Why does a DGX H100 use BlueField-3 DPUs for the storage network instead of just routing storage traffic through the host Intel CPUs? *(Hint: To offload the massive CPU overhead of NVMe-over-Fabrics and network security, leaving the Intel CPUs 100% available to feed the GPUs).*
+**Conceptual:** Why does a DGX H100 use BlueField-3 DPUs for the storage network instead of just routing storage traffic through the host Intel CPUs? *(Hint: To offload the massive CPU overhead of NVMe-over-Fabrics and network security, leaving more Intel CPU capacity available to feed the GPUs).*
 
 **Architecture:** What is the physical connection between GPU 0 and NIC 0 inside a DGX, and why is it important? *(Hint: They are on the exact same PCIe Gen5 switch complex. This allows GPUDirect RDMA—the GPU can talk to the NIC without the data ever crossing the CPU).*

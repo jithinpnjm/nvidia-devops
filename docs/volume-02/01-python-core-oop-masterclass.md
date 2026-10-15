@@ -55,7 +55,7 @@ print("Bytecode for setup_networking:")
 dis.dis(setup_networking)
 ```
 
-**Output Analysis:**
+**Output Analysis (illustrative, not captured; opcodes and offsets vary by Python version):**
 ```text
   4           0 BUILD_MAP                2
               2 LOAD_FAST                0 (vpc_id)
@@ -146,7 +146,7 @@ Infrastructure state is often represented as data structures. Choosing the right
 
 ### 4.1 Lists vs. Sets for Membership Testing
 
-Checking if a resource exists in a list of 100,000 items is $O(N)$. Checking in a set is $O(1)$.
+Checking if a resource exists in a list of 100,000 items is O(N). Checking in a set is O(1) on average.
 
 ```python
 import time
@@ -171,7 +171,7 @@ Always use `set` or `frozenset` for filtering, intersection, and membership test
 
 ### 4.2 Dictionaries and Memory Profiling
 
-Dictionaries are highly optimized hash tables in Python. In Python 3.6+, dictionaries maintain insertion order and are more memory-efficient.
+Dictionaries are highly optimized hash tables in Python. Since Python 3.7, dictionaries are guaranteed to maintain insertion order (an implementation detail of CPython 3.6), and the compact layout used since 3.6 is more memory-efficient than older versions.
 
 However, loading massive JSON responses (e.g., describing all resources in an AWS account) into a dictionary can cause memory bloat.
 
@@ -442,7 +442,7 @@ Use `SecretStr` in Pydantic. Fetch secrets at runtime from AWS Secrets Manager, 
 
 ## 8. Files, Pathlib, Regex, JSON, and YAML
 
-Infrastructure scripts spend 80% of their time interacting with the filesystem, reading configs, and parsing text.
+Infrastructure scripts spend much of their time interacting with the filesystem, reading configs, and parsing text.
 
 ### 8.1 Pathlib over os.path
 
@@ -580,7 +580,7 @@ def process_logs_good(file_path):
 
 **The Problem:** A Python script spawns multiple processes to parallelize API requests. If the main script is interrupted (SIGINT / Ctrl+C), child processes continue running as orphans.
 
-**The Cause:** The `multiprocessing` library does not automatically terminate child processes if the parent dies ungracefully, unless specifically configured or handled via signal trapping.
+**The Cause:** If the parent is killed abruptly (for example `SIGKILL`) or crashes, `multiprocessing` workers are not guaranteed to be cleaned up; they are only terminated automatically on normal interpreter exit (for daemonic processes) or when you shut the pool down. Note that Ctrl+C sends `SIGINT` to the whole foreground process group, so children usually receive it too.
 
 **The Solution:** Use Context Managers (`with Pool() as p:`) or explicitly handle termination in a `try...finally` block.
 
@@ -825,11 +825,10 @@ Often, Python is used to glue together command-line tools like `kubectl`, `terra
 
 ### F.1 Safe Subprocess Execution
 
-Never use `os.system`. Use `subprocess.run` with proper error handling and shell sanitization.
+Avoid `os.system`. Use `subprocess.run` with an argument list and proper error handling.
 
 ```python
 import subprocess
-import shlex
 
 def run_kubectl_get_pods(namespace="default"):
     # Avoid shell=True for security against command injection
@@ -937,28 +936,3 @@ class APIResponse(TypedDict):
 def handle_response(resp: APIResponse):
     print(resp["status_code"])
 ```
-
-
-## Extended Scenario Module 1
-
-### Deep Dive: Memory Profiling Part 1
-Memory issues in Python infrastructure are notoriously hard to debug. In this extended scenario, we look at how to tackle them when parsing extremely large log files or JSON objects. A common mistake is reading the entire file into a dictionary or list, which can lead to Out-Of-Memory (OOM) errors in containerized environments. By adopting streaming approaches or utilizing external libraries like memory_profiler, we can maintain a constant memory footprint.
-
-Here's an illustration of how you might use generators to process streams of data efficiently. This technique ensures that your memory usage remains flat regardless of the input size, allowing infrastructure tooling to scale gracefully.
-
-```python
-# A generator to lazily process items
-def lazy_process_data_stream_part_1(stream):
-    for record in stream:
-        if record.get('status') == 'error':
-            yield record
-
-# Process in chunks to prevent memory blowup
-def consume_data_part_1():
-    data_stream = ({"id": j, "status": "error" if j % 2 == 0 else "ok"} for j in range(10000))
-    for error_record in lazy_process_data_stream_part_1(data_stream):
-        # Do something with the error record
-        pass
-```
-
-Understanding this pattern is crucial for data engineering, logging, and general infrastructure automation. In the context of MLOps or DevOps, data is the foundation, and managing it efficiently is paramount to building reliable systems. The concepts here echo the importance of Python's execution model and memory management, as discussed earlier. Ensure you apply these principles when dealing with APIs that return paginated or massive responses.

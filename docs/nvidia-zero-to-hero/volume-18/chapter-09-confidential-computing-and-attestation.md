@@ -34,7 +34,7 @@ But what if you rent a server from a public cloud (AWS, Azure)?
 Even if you install your own OS, set your own passwords, and encrypt the hard drives, you are running inside a Virtual Machine. The cloud provider owns the Hypervisor beneath the VM. A rogue cloud administrator (or a hacker who breaches the cloud provider) can simply use hypervisor tools to read the raw RAM and VRAM of your VM. They don't need your passwords; they just read the memory chips while the AI model is running, stealing the model weights and the customer prompts in plain text.
 
 **Confidential Computing** solves this. 
-Modern CPUs (AMD SEV-SNP) and modern GPUs (NVIDIA Hopper) have built-in hardware encryption engines. They encrypt the RAM and VRAM *at the silicon level*. 
+Modern CPUs (AMD SEV-SNP) and modern GPUs (NVIDIA Hopper) have built-in hardware encryption engines. The CPUs encrypt RAM at the silicon level, and the GPU protects its memory and encrypts its PCIe traffic with the CPU TEE. 
 Even the cloud provider's Hypervisor cannot read the memory; it looks like garbage. 
 
 But how do you know the cloud provider actually turned this feature on? You use **Attestation**. Before you send your AI model to the cloud, you ask the physical silicon chip to send you a cryptographic math puzzle proving it is secure. You verify the math, and only then do you unlock the model. This allows banks and militaries to safely run classified AI models in public clouds.
@@ -44,10 +44,10 @@ But how do you know the cloud provider actually turned this feature on? You use 
 Confidential Computing uses hardware-level encryption to create a "Secure Enclave" (or Trusted Execution Environment - TEE). 
 
 With NVIDIA Hopper (H100) GPUs and modern CPUs (AMD SEV-SNP, Intel TDX), the architecture changes entirely:
-1.  **Encrypted VRAM:** The data residing in the GPU's VRAM is encrypted by a hardware key stored deep inside the silicon. Even if someone physically removes the VRAM chips and reads them, they only see ciphertext.
-2.  **Encrypted PCIe Bus:** When data moves from the CPU to the GPU over the PCIe bus, it is encrypted in transit using hardware keys negotiated between the CPU and GPU. A logic analyzer plugged into the motherboard cannot read the data.
+1.  **Protected GPU memory:** In confidential computing mode, GPU memory is placed inside a hardware-protected region that the hypervisor and host OS cannot access. Check NVIDIA's confidential computing documentation for the exact threat model, in particular whether physical attacks on the memory itself are in scope for your GPU generation.
+2.  **Encrypted CPU-GPU traffic:** Data moving between the confidential VM and the GPU over PCIe is encrypted (through encrypted bounce buffers) using keys negotiated between the CPU TEE and the GPU. A logic analyzer on the bus cannot read the transfers.
 
-The data is only decrypted inside the actual execution units of the GPU for the exact nanoseconds the math is occurring, and then it is immediately re-encrypted.
+The CPU side requires a TEE (AMD SEV-SNP or Intel TDX); the GPU alone does not make a VM confidential.
 
 ## 2. The Attestation Process
 
@@ -75,9 +75,9 @@ To securely execute classified workloads in a public cloud, we must implement **
 
 We will mandate the use of instances featuring AMD SEV-SNP (or Intel TDX) processors paired with **NVIDIA Hopper (H100) GPUs**. 
 
-We will configure a Confidential Virtual Machine. The CPU will encrypt the system RAM at the hardware level. We will enable NVIDIA Confidential Computing, which utilizes the hardware root of trust within the H100 to encrypt the VRAM and the PCIe bus traffic. 
+We will configure a Confidential Virtual Machine. The CPU will encrypt the system RAM at the hardware level. We will enable NVIDIA Confidential Computing, which utilizes the hardware root of trust within the H100 to protect GPU memory and encrypt the PCIe traffic. 
 
-Before we transmit the decryption keys to the cloud, our on-premises Key Management Server will execute a **Remote Attestation** protocol. It will cryptographically challenge the cloud hardware to prove that the Secure Enclave is active and untampered. Once mathematically verified, we release the keys. Under this architecture, the data remains encrypted in memory, making it mathematically impossible for a rogue cloud administrator or a compromised hypervisor to read our classified model."
+Before we transmit the decryption keys to the cloud, our on-premises Key Management Server will execute a **Remote Attestation** protocol. It will cryptographically challenge the cloud hardware to prove that the Secure Enclave is active and untampered. Once mathematically verified, we release the keys. Under this architecture, the data remains encrypted in memory, preventing a rogue cloud administrator or a compromised hypervisor from reading our classified model through normal software means."
 
 ## Interview Preparation
 
@@ -87,7 +87,7 @@ Before we transmit the decryption keys to the cloud, our on-premises Key Managem
 
 ## Architecture Summary
 
-Confidential Computing is the ultimate defense against compromised hypervisors, rogue cloud administrators, and physical RAM snooping. By utilizing hardware encryption at the CPU (AMD SEV-SNP) and GPU (NVIDIA Hopper) silicon layers, memory is mathematically scrambled before it ever touches the physical RAM chips. Trust is established not by trusting the cloud provider, but by executing cryptographic Remote Attestation protocols to verify the hardware's integrity before releasing decryption keys.
+Confidential Computing is the ultimate defense against compromised hypervisors, rogue cloud administrators, and physical RAM snooping. By utilizing hardware encryption at the CPU (AMD SEV-SNP) and GPU (NVIDIA Hopper) silicon layers, CPU memory is encrypted before it reaches the DRAM chips and GPU memory is access-protected. Trust is established not by trusting the cloud provider, but by executing cryptographic Remote Attestation protocols to verify the hardware's integrity before releasing decryption keys.
 
 ```mermaid
 flowchart TD
@@ -105,7 +105,7 @@ flowchart TD
             
             subgraph SecureEnclave["Secure VM / Enclave"]
                 RAM[Encrypted System RAM]
-                VRAM[Encrypted GPU VRAM]
+                VRAM[Protected GPU memory]
             end
             
             Hypervisor -.x|Reads Garbage| SecureEnclave

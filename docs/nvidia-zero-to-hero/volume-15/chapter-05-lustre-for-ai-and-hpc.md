@@ -67,10 +67,10 @@ lctl get_param -n mdt.*.md_stats 2>/dev/null | head -20
 top -u root | grep mdt_thread  # Check MDS thread count and CPU usage
 
 # Latency of a single metadata operation
-time lfs ls -l /lustre/ | wc -l  # Time a stat on all files in a directory
+time ls -l /lustre/ | wc -l  # Time a stat on all files in a directory
 ```
 
-**Real sample output — healthy metadata:**
+**Illustrative output (not captured) — healthy metadata:**
 ```bash
 $ lctl get_param llite.lustre-1a5c.stats | grep -E "^  open|^  close|^  getattr"
   open:  150000 samples, 800 min, 5400 max, 2100 avg
@@ -84,7 +84,7 @@ $ lctl get_param llite.lustre-1a5c.stats | grep -E "^  open|^  close|^  getattr"
 - Max 5.4 ms — occasional delays but no sustained saturation
 - **Verdict:** Metadata server has headroom.
 
-**Real sample output — metadata saturated:**
+**Illustrative output (not captured) — metadata saturated:**
 ```bash
 $ lctl get_param llite.lustre-1a5c.stats | grep -E "^  open|^  close|^  getattr"
   open:  950000 samples, 1200 min, 65400 max, 45200 avg
@@ -110,7 +110,7 @@ fio --name=read --ioengine=libaio --rw=read --bs=1M --size=10G \
     --filename=/lustre/test-file.bin --iodepth=32 --numjobs=1
 ```
 
-**Real sample output — balanced:**
+**Illustrative output (not captured) — balanced:**
 ```text
 $ lfs df -h
 UUID                       bytes        Used   Available Use%
@@ -130,7 +130,7 @@ Striping distributes a file across multiple OSTs, allowing parallel reads. Too l
 # Check current striping configuration
 lfs getstripe /lustre/test-file.bin
 
-# Output example:
+# Illustrative output (not captured) example:
 #  1048576 stripe_size
 #  2 stripe_count
 #  0 stripe_offset

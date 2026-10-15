@@ -88,8 +88,8 @@ Historically, inference servers waited for a group of requests to finish before 
 **Continuous Batching** constantly injects new user requests into the GPU the exact millisecond another user's request finishes, keeping GPU utilization near 100%.
 
 ### PagedAttention
-Historically, the KV Cache had to be stored in contiguous blocks of memory. Because the server didn't know how long a user's answer would be, it pre-allocated massive blocks of memory just in case, wasting up to 60% of the GPU's VRAM to fragmentation.
-**PagedAttention** (invented by the vLLM project) borrows the concept of "Virtual Memory Paging" from Linux operating systems. It breaks the KV Cache into tiny, non-contiguous blocks. This eliminated memory fragmentation, allowing a single GPU to handle 3x to 4x as many concurrent users without OOM crashing.
+Historically, the KV Cache had to be stored in contiguous blocks of memory. Because the server didn't know how long a user's answer would be, it pre-allocated massive blocks of memory just in case, wasting a large share of KV cache memory to fragmentation and over-reservation (the vLLM paper measured 60-80% waste in prior systems).
+**PagedAttention** (invented by the vLLM project) borrows the concept of "Virtual Memory Paging" from Linux operating systems. It breaks the KV Cache into tiny, non-contiguous blocks. This nearly eliminates fragmentation; the vLLM paper reports 2-4x higher throughput than prior systems at the same latency, depending on model and workload.
 
 ## Customer Scenario (Senior Level)
 

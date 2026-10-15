@@ -144,9 +144,9 @@ A CTO approaches you and says: "We are migrating off our aging cluster of NVIDIA
 **The Senior Architect Response:**
 "Before we spend millions of dollars on H100s, we need to profile your specific application. 
 
-The H100 is an AI powerhouse, heavily optimized for FP8 and FP16 Tensor Core math. While it does possess FP64 capabilities, the ratio of FP64 cores to Tensor Cores has shifted dramatically since the V100 era. NVIDIA diverged their architecture. 
+The H100 is an AI powerhouse, heavily optimized for FP8 and FP16 Tensor Core math. While it does possess FP64 capabilities, NVIDIA's architectural investment has shifted toward low-precision Tensor Core throughput since the V100 era. 
 
-If your code strictly enforces FP64 and cannot be refactored, the H100 will certainly provide a speedup over a V100 due to pure clock speed, massive HBM3 memory bandwidth, and larger L2 caches. However, you will be paying an extreme premium for the Hopper Transformer Engine and FP8 Tensor Cores, which your fluid dynamics code will entirely ignore. We should benchmark your specific FP64 code on a test H100 node first. If it is purely compute-bound on FP64, you might find that older or differently configured architectures offer a better return on investment, or we must investigate refactoring your simulations to use lower-precision mathematical approximations where acceptable."
+If your code strictly enforces FP64 and cannot be refactored, the H100 should still provide a speedup over a V100, because its FP64 throughput, HBM3 memory bandwidth, and L2 cache are all higher than the V100's (verify the exact ratios against the datasheets for your SKUs). However, you will be paying an extreme premium for the Hopper Transformer Engine and FP8 Tensor Cores, which your fluid dynamics code will entirely ignore. We should benchmark your specific FP64 code on a test H100 node first. If it is purely compute-bound on FP64, you might find that older or differently configured architectures offer a better return on investment, or we must investigate refactoring your simulations to use lower-precision mathematical approximations where acceptable."
 
 ## Interview Preparation
 

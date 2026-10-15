@@ -54,8 +54,8 @@ As established in Volume 12, running inference in FP32 (32-bit precision) is arc
 
 You must optimize the math using **Quantization** via TensorRT.
 
-*   **FP16 / BF16:** The industry standard. Halves memory requirements, doubles speed. Almost zero loss in model accuracy.
-*   **INT8 (Post-Training Quantization - PTQ):** Squeezes the model into 8-bit integers. 4x speedup. However, you must "calibrate" the model with sample data during compilation, or the model will become noticeably dumber.
+*   **FP16 / BF16:** The industry standard. Halves memory requirements versus FP32 and typically speeds up Tensor Core math substantially. Usually little loss in model accuracy.
+*   **INT8 (Post-Training Quantization - PTQ):** Squeezes the model into 8-bit integers. Can give a large speedup on supported hardware. However, you must "calibrate" the model with sample data during compilation, or the model will become noticeably dumber.
 *   **INT4 / FP8:** Bleeding edge. Extreme performance, but carries severe risk of model degradation (hallucinations, incorrect math) if not carefully validated.
 
 *Architectural Mandate:* You cannot blindly quantize a model. You must run an automated accuracy evaluation script (e.g., checking the model against a standard benchmark test) after compilation to prove the INT8 model is still legally and ethically safe to deploy.
@@ -66,7 +66,7 @@ For LLMs, the KV Cache is the ultimate bottleneck.
 
 If you are running out of VRAM due to high concurrent users, you have three optimization levers:
 1.  **PagedAttention:** (Mandatory). Eliminates memory fragmentation.
-2.  **KV Cache Quantization:** Storing the KV cache in INT8 instead of FP16. Doubles the number of concurrent users you can support, with minimal impact on text generation quality.
+2.  **KV Cache Quantization:** Storing the KV cache in INT8 instead of FP16. Roughly doubles the KV cache capacity (and so the concurrent users you can support), with typically small impact on text generation quality.
 3.  **Prompt Caching (RadixAttention):** If 1,000 users all send the exact same massive "System Prompt" (e.g., "Act as a helpful customer service agent..."), standard servers recalculate the math for that prompt 1,000 times. Engines like SGLang cache the math for that prefix, completely eliminating the compute overhead for subsequent users.
 
 ## Customer Scenario (Senior Level)
@@ -83,11 +83,11 @@ Before we spend a million dollars on hardware, we must exhaust our software opti
 
 First, we will implement **Prompt Caching** (e.g., via SGLang or vLLM's APC). If the users share a common system prompt, we will cache the KV states. This will instantly eliminate a massive percentage of the required Prefill compute.
 
-Second, if the model weights are currently in FP16, we will compile them down to **INT8 or FP8 (Quantization)** using TensorRT-LLM. This will drastically reduce the memory bandwidth required and allow the Tensor Cores to execute the math at twice the speed.
+Second, if the model weights are currently in FP16, we will compile them down to **INT8 or FP8 (Quantization)** using TensorRT-LLM. This will drastically reduce the memory bandwidth required and reduce memory traffic and can raise Tensor Core throughput.
 
 Third, we will implement strict **Chunked Prefill**. Instead of forcing the GPU to process a massive 10,000-token prompt in a single, blocking operation (which stalls all other users and destroys TTFT), the engine will chunk the prompt into smaller pieces, interleaving the compute with the token generation of other users. 
 
-These three optimizations will likely drop your P99 TTFT from 800ms back down to 150ms under heavy load, rescuing the SLA without buying a single new GPU."
+These optimizations can reduce P99 TTFT under load; re-run the load test after each change to see whether the SLA is met before considering new GPUs."
 
 ## Interview Preparation
 

@@ -26,7 +26,7 @@ sudo systemctl enable grafana-server
 curl -s http://localhost:3000/
 ```
 
-**Expected output:** HTML response indicating Grafana is running.
+**Illustrative output (not captured):** HTML response indicating Grafana is running.
 
 ## Step 2: Add Prometheus Data Source
 
@@ -44,7 +44,7 @@ curl -X POST \
   http://admin:admin@localhost:3000/api/datasources
 ```
 
-**Expected output:**
+**Illustrative output (not captured):**
 
 ```json
 {"id":1,"name":"Prometheus","message":"Datasource added"}

@@ -20,7 +20,7 @@ In standard cloud engineering, you never think about thermodynamics. In AI infra
 
 When you pack thousands of 700-watt GPUs into a confined space, the electrical and thermal density reaches levels unseen in traditional enterprise IT. If a standard web server is a space heater, a DGX H100 rack is a blast furnace. 
 
-If you design the perfect Kubernetes architecture and the perfect InfiniBand network, but you fail to calculate the cooling requirements, your $50 Million cluster will turn on, instantly hit 95°C, thermal-throttle to 10% performance, and trigger emergency physical shutdowns to prevent the silicon from melting.
+If you design the perfect Kubernetes architecture and the perfect InfiniBand network, but you fail to calculate the cooling requirements, your multi-million-dollar cluster will thermal-throttle or trip protective shutdowns under sustained load.
 
 A Senior AI Infrastructure Architect must speak the language of facilities: Kilowatts (kW), three-phase power, and liquid cooling.
 
@@ -44,13 +44,13 @@ Traditional data centers use CRAC (Computer Room Air Conditioning) units to blow
 
 ### Rear Door Heat Exchangers (RDHx)
 To survive a 40kW DGX H100 rack using air, you must attach an RDHx. 
-This is literally a massive car radiator bolted to the back door of the server rack. Chilled water flows through the radiator door. As the 60°C (140°F) exhaust air blasts out the back of the servers, it passes through the radiator door and is instantly cooled back down to room temperature before it enters the data center aisle.
+This is literally a massive car radiator bolted to the back door of the server rack. Chilled water flows through the radiator door. As the hot exhaust air leaves the back of the servers, it passes through the radiator door and is cooled substantially before it enters the data center aisle (the achievable delta depends on water temperature and flow).
 
 ### Direct Liquid Cooling (DLC) - The B200 Era
 With the Blackwell generation (B200), a single GPU consumes over 1,000 Watts. Air cooling, even with an RDHx, has reached the absolute limit of physics.
 The **GB200 NVL72 rack** consumes over **100 kW**. 
 It mandates **Direct Liquid Cooling (DLC)**. 
-Copper cold-plates are bolted directly onto the naked GPU and CPU silicon. A Coolant Distribution Unit (CDU) pumps chilled fluid silently through the servers, capturing the heat directly at the source. There are almost no fans. 
+Copper cold-plates are bolted directly onto the naked GPU and CPU silicon. A Coolant Distribution Unit (CDU) pumps chilled fluid through the servers, capturing most of the heat directly at the source. Fans are still present for the residual air-cooled components. 
 
 ## Architectural Diagram: The Transition to Liquid
 
@@ -62,9 +62,9 @@ flowchart LR
     end
     
     subgraph "RDHx Air Cooling (Up to 50kW)"
-        ServerB[DGX H100] -->|60C Hot Air| RDHx[Radiator Door]
+        ServerB[DGX H100] -->|Hot Air| RDHx[Radiator Door]
         CDU_A[Chilled Water] --> RDHx
-        RDHx -->|25C Cool Air| Room2[Data Center]
+        RDHx -->|Cooled Air| Room2[Data Center]
     end
     
     subgraph "Direct Liquid Cooling (100kW+)"
@@ -91,9 +91,9 @@ A CTO purchased five DGX H100 servers for a new AI initiative. The facilities ma
 
 AI clusters are bound by the strict length limitations of high-speed interconnect cables. To connect these 5 servers, they must all plug into a central InfiniBand or Spectrum-X leaf switch to enable GPUDirect RDMA. 
 
-If we place the servers in different rows, the distance to the central switch will likely exceed 30 meters. The high-speed Active Electrical Cables (AEC) or multi-mode fiber optics required for 400 Gbps NDR InfiniBand simply cannot reliably push signals across those distances without extreme signal degradation or requiring prohibitively expensive long-haul optical transceivers. 
+If we place the servers in different rows, the distance to the central switch can exceed what passive copper (a few meters) and active copper cables support, and you are pushed to optical transceivers and fiber for every link. Optics work at 30 meters and beyond, but they add cost, power, and failure points, and they lengthen the cable runs that every rail of the fabric must follow. 
 
-The AI Factory architecture mandates **High-Density Islands**. The servers must be physically adjacent in the exact same row to keep the InfiniBand cables as short as possible (under 3 meters is ideal). We must upgrade the power delivery to a single row to create this high-density island, rather than scattering the servers and breaking the network topology."
+The AI Factory architecture mandates **High-Density Islands**. The servers must be physically adjacent in the exact same row to keep the InfiniBand cables as short as possible (short enough for copper where possible, with optics only where distance requires them). We must upgrade the power delivery to a single row to create this high-density island, rather than scattering the servers and breaking the network topology."
 
 ## Interview Preparation
 

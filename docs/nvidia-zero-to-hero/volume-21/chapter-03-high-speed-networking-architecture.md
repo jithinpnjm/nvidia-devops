@@ -19,6 +19,9 @@ tags: [networking, collectives, allreduce, topology, infiniband, bandwidth-optim
 
 ---
 
+
+> **Note on figures:** Timings, bandwidth results, and tool output in this chapter are illustrative assumptions used to explain the mechanics, not measurements. Measure your own cluster with nccl-tests (Part 6). Link rates are quoted in Gb/s (a 400 Gb/s NDR port is 50 GB/s).
+
 ## Beginner's Primer: The Communication Tax
 
 In Chapter 2, we built the Mega-Nodes. Now we have to connect them.
@@ -32,7 +35,7 @@ Imagine 1,000 people in a room trying to average their test scores.
 This synchronization is called a **Collective Operation** (like `AllReduce`). 
 NVIDIA's software library that handles this is called **NCCL** (NVIDIA Collective Communication Library).
 
-**The Problem:** Every time the GPUs do an `AllReduce`, they stop doing math and wait for the network. This wait time is called the **Communication Tax**. If your network is slow, or your switches are dropping packets, your Communication Tax goes from 1% to 50%. You are paying $10 Million for GPUs, and they are spending half their time waiting for the network. This chapter teaches you how to design non-blocking networks that keep the tax under 1%.
+**The Problem:** Every time the GPUs do an `AllReduce`, they stop doing math and wait for the network. This wait time is called the **Communication Tax**. If your network is slow, or your switches are dropping packets, your Communication Tax goes from 1% to 50%. You are paying $10 Million for GPUs, and they are spending half their time waiting for the network. This chapter teaches you how to design non-blocking networks that keep the tax as small as the workload allows.
 
 ## PART 1: COLLECTIVE COMMUNICATION FUNDAMENTALS
 
@@ -59,22 +62,19 @@ DISTRIBUTED TRAINING ITERATION TIMELINE
 │    Time depends on topology, not compute    │
 └─────────────────────────────────────────────┘
 
-Example: 64-GPU training on Llama-70B
+Example (assumed values): 64-GPU training on Llama-70B
   Forward: 500 ms
   Backward: 1000 ms
-  AllReduce: depends on collective algorithm
-    - Naive tree: 200 ms (10 hops, each 20 ms)
-    - Ring AllReduce: 5 ms (full ring optimization)
-    - Recursive doubling: 8 ms (balanced tree)
-  
-  Total iteration time: 1500 + T_allreduce
-  
-  Impact on scaling:
-    If AllReduce = 200 ms: Total = 1700 ms, overhead = 11% (poor scaling)
-    If AllReduce = 5 ms: Total = 1505 ms, overhead = 0.3% (linear scaling)
+  AllReduce: depends on collective algorithm, message size, and fabric
+
+  Total iteration time: 1500 ms + exposed AllReduce time
+
+  Impact on scaling (assumed exposed AllReduce times):
+    If exposed AllReduce = 200 ms: total = 1700 ms, overhead = 13% (poor scaling)
+    If exposed AllReduce = 5 ms:   total = 1505 ms, overhead = 0.3% (near-linear scaling)
 ```
 
-The performance difference between naive and optimized collective communication can mean the difference between **linear scaling efficiency (95%+)** and **terrible scaling (60%–70%)** at 64+ GPUs.
+The difference between well-tuned and poorly-tuned collective communication, including how much of it overlaps with compute, can be the difference between near-linear scaling and poor scaling at 64+ GPUs.
 
 ### 1.2 Key Collective Operations
 
@@ -86,9 +86,9 @@ COMMON COLLECTIVES IN DISTRIBUTED TRAINING
    Data volume: Sum of all per-GPU gradients (typically 200 MB–2 GB per GPU)
    
    Algorithm trade-offs:
-     - Naive tree (star topology): O(log N) latency, high peak bandwidth (bad for fat links)
-     - Ring AllReduce: O(N) latency, constant bandwidth per step (scales linearly)
-     - Recursive doubling: O(log N) latency, good for high-latency networks
+     - Tree (NCCL uses pipelined double binary trees): O(log N) latency, good for latency-bound and large-scale cases
+     - Ring AllReduce: O(N) latency but bandwidth-optimal (each GPU sends and receives 2(N-1)/N of the data), best for large messages
+     - Recursive doubling: O(log N) rounds but sends the full buffer each round, suited to small messages
 
 2. ALLGATHER(tensor) — collect tensor from each GPU, scatter to all
    Used in: Model parallel training, inference serving
@@ -150,14 +150,13 @@ Performance Analysis:
              200 MB / 50 GB/s (IB NDR per direction) = 4 ms per step
   Total time: 6 steps × (4 ms + 2 μs overlap) ≈ 24 ms
   
-  Comparison to naive tree:
-    Tree: Broadcast (2 ms) + AllGather (2 ms) = 4 ms (faster for this small, 4-GPU case)
-    But Ring scales better: Linear in N, constant per-link bandwidth
-    Tree scales worse: Exponential bandwidth burst at root (root NIC becomes the bottleneck
-    as N grows, which is why ring wins decisively at 8+ GPUs despite losing this toy comparison)
+  Comparison to a naive star/tree with a single root:
+    The root's links carry traffic from all N-1 peers, so the root becomes the bottleneck as N grows.
+    Ring keeps per-link traffic constant, which is why it is bandwidth-optimal for large messages.
+    (NCCL's tree algorithm pipelines a double binary tree and avoids the single-root problem.)
 ```
 
-**When to use:** Default for multi-node AllReduce (>8 GPUs). Scales linearly from 8 GPUs to 1000 GPUs.
+**When to use:** Large messages, where bandwidth dominates. NCCL chooses between ring, tree, and other algorithms automatically from message size and topology.
 
 ### 2.2 Recursive Doubling (Low-Latency Variant)
 
@@ -180,16 +179,16 @@ Round 2 (distance = 4):
   GPU 0/1/2/3 ↔ GPU 4/5/6/7
 
 Total rounds: log₂(8) = 3 rounds
-Total latency: 3 × (send + reduce) = 3 × 4 ms = 12 ms
 
 Comparison:
-  Ring: 2(N-1) = 14 steps × 4 ms = 56 ms
-  Recursive doubling: 3 steps × 4 ms = 12 ms (4.7x faster!)
-  
-Trade-off: Requires more complex switching; not efficient for heterogeneous bandwidths
+  Ring needs 2(N-1) = 14 steps, each moving 1/N of the buffer (latency-heavy, bandwidth-optimal).
+  Recursive doubling needs 3 rounds, but each round exchanges the full buffer, so it wins
+  for small messages (latency-bound) and loses for large messages (bandwidth-bound).
+
+Trade-off: Requires a power-of-two-friendly layout; not efficient for large messages
 ```
 
-**When to use:** Low-latency requirements (&lt;5ms), &lt;64 GPUs. Becomes unstable at larger scales due to incast congestion.
+**When to use:** Small, latency-sensitive messages. Large messages favor ring or tree.
 
 ### 2.3 Tree AllReduce (Moderate Latency)
 
@@ -217,7 +216,7 @@ Total latency: 2 × (send + reduce) × depth ≈ 2 × 4 ms × 2 = 16 ms
 Bandwidth utilization: Low (not all links used simultaneously)
 ```
 
-**When to use:** Balanced clusters (no stranded slow nodes), 16–128 GPUs.
+**When to use:** Latency-bound collectives at larger rank counts. NCCL's tree algorithm is built on pipelined double binary trees and is selected automatically when it is faster.
 
 ---
 
@@ -229,7 +228,7 @@ Bandwidth utilization: Low (not all links used simultaneously)
 What is NCCL:
   NVIDIA Collective Communications Library
   Handles AllReduce, AllGather, ReduceScatter, Broadcast at GPU scale
-  Open source, installed with CUDA Toolkit
+  Open source, distributed separately from the CUDA Toolkit (packages, containers, or source)
   
 Default behavior:
   NCCL auto-selects algorithm based on:
@@ -238,11 +237,9 @@ Default behavior:
     - Latency profile
     - User hints via NCCL_ALGO env variable
   
-Performance (64-GPU H100 cluster, 1 GB gradient):
-  AllReduce time: 2–5 ms
-  Energy draw: 64 GPU × 350W = 22.4 kW → 22.4 kW × 24h = 537.6 kWh per day
-  Collective overhead: ~3% of total training time
-  
+Performance: measure with nccl-tests (Part 6); results depend on topology, message size,
+  NCCL version, and fabric tuning. Do not rely on rule-of-thumb figures.
+
 NCCL algorithm selection:
   Environment variables:
     NCCL_ALGO=Ring        (restrict to ring)
@@ -252,135 +249,88 @@ NCCL algorithm selection:
     (Forcing an algorithm is a last resort; NCCL selects by topology. Since 2.24, invalid tokens fail.)
     
   Debugging:
-    NCCL_DEBUG=INFO       (see which algorithm chosen)
-    NCCL_DEBUG=TRACE      (detailed timing per step)
-    
-Example output (NCCL_DEBUG=TRACE):
-    ncclDeviceRing.cu:74 [gpu 0] (ring) ReduceScatter 1024MB: 5.234ms
-    ncclDeviceRing.cu:74 [gpu 0] (ring) AllGather 1024MB: 3.872ms
-    ncclDeviceRing.cu:74 [gpu 0] (ring) total AllReduce: 9.106ms
+    NCCL_DEBUG=INFO       (shows the transports, rails, and algorithms NCCL selected)
+    NCCL_DEBUG=TRACE      (very verbose call tracing; use briefly)
 ```
 
-### 3.2 Custom Collective Optimization via NCCL Graphs
+### 3.2 Reducing Launch Overhead with CUDA Graphs
 
-For repeated collectives (e.g., same AllReduce every training iteration), NCCL Graphs avoid re-planning:
-
-```python
-# Standard NCCL AllReduce (re-optimizes every call)
-ncclAllReduce(ptr, ptr, count, ncclFloat, ncclSum, comm, stream)
-
-# NCCL Graph (plan once, reuse)
-# Create graph template
-ncclGraphCreate(comm, graph_ptr)
-ncclGraphAddAllReduce(graph_ptr, ptr, ptr, count, ncclFloat, ncclSum)
-ncclGraphFinalize(graph_ptr)
-
-# Launch graph every iteration (no re-planning overhead)
-ncclGraphLaunch(graph_ptr, stream)
-
-Performance gain:
-  Standard: 2 ms AllReduce + 0.5 ms planning overhead = 2.5 ms per iteration
-  Graph: 2 ms AllReduce + 0 ms overhead = 2 ms per iteration
-  Savings: 0.5 ms per iteration × 10,000 iterations = 1.4 hours per training run (on 64-GPU cluster)
-```
+For repeated collectives (the same AllReduce every training iteration), launch and CPU overhead can be reduced by capturing the work in a CUDA Graph. NCCL supports being captured in CUDA graphs; there is no separate "NCCL Graph" API. Frameworks expose this (for example PyTorch CUDA graph capture, and `torch.compile` modes that use CUDA graphs). Measure with Nsight Systems to see whether CPU launch gaps are actually a bottleneck before adopting it.
 
 ---
 
 ## PART 4: TOPOLOGY-SPECIFIC OPTIMIZATIONS
 
-### 4.1 Single-Rack NVLink Topology Optimization
+### 4.1 Single-Pod NVLink Topology Optimization
 
 ```yaml
 Topology:
-  16 H100 SXM5 nodes, 8 GPU per node, NVLink within-node, IB NDR inter-node
+  16 H100 SXM5 nodes, 8 GPU per node, NVLink within-node, IB NDR rail-optimized between nodes
 
-Within-node AllReduce (8 GPU via NVLink):
-  Bandwidth: 600 GB/s full bisection
-  Latency: <1 microsecond (on-chip)
-  Algorithm: Ring AllReduce (8 steps × 0.1 ms = 0.8 ms total)
-  Overhead: <0.1%
+Within-node (8 GPU via NVLink/NVSwitch):
+  Bandwidth: 900 GB/s per GPU (NVLink 4)
+  Handled by NCCL over NVLink; cost is small relative to inter-node traffic
 
-Inter-node AllReduce (across 16 nodes):
-  Bandwidth: 50 GB/s per GPU uplink (400 Gbps IB NDR per direction)
-  Latency: ~1 microsecond per hop (fabric)
-  Algorithm: Ring AllReduce (16 steps × 4 ms = 64 ms total)
-  Overhead: ~4.3% (64 ms / 1500 ms iteration)
+Inter-node (across 16 nodes):
+  Bandwidth: one 400 Gb/s (50 GB/s) NIC per GPU, i.e. 8 rails per node
+  NCCL builds hierarchical rings/trees automatically: reduce within the node over NVLink
+  first, then communicate across nodes on the rail that matches each GPU's local index
 
 Optimization strategy:
-  1. Use NCCL_ALGO=RING for 64+ GPU AllReduce
-  2. Run 2-level AllReduce:
-       - Level 1: Within-node ring (8 GPU, 0.8 ms, super fast)
-       - Level 2: Between-node ring (16 GPU, 10.7 ms, can overlap with other work)
-  3. Pin NCCL thread to NUMA node with GPU (numactl -l)
-  4. Use NCCL_SOCKET_NTHREADS=4 to parallelize NCCL work across CPU cores
-  
-Result:
-  Single AllReduce on 128 GPU: ~65 ms (0.8 ms within-node + 64 ms inter-node), vs. a naive flat
-  128-GPU ring which would need 2×(128−1) = 254 steps × 4 ms ≈ 1,016 ms — the 2-level hierarchy
-  is what makes this efficient.
-  Training iteration overhead: 65 ms / 1500 ms ≈ 4.3% — above the <3% guideline in the Summary
-  below, which is realistic at 128 GPUs over IB NDR without further optimization. This is why
-  larger clusters push toward higher-radix switches, NVLink-domain scale-up, and the gradient
-  compression techniques in Section 5.1 to bring inter-node AllReduce overhead back down.
+  1. Verify rail alignment: NIC k of every node on leaf switch k, and GPU-NIC pairing correct
+     (check `nvidia-smi topo -m` and NCCL_DEBUG=INFO output for the selected NICs)
+  2. Leave NCCL_ALGO unset unless measurements show a better choice
+  3. Overlap communication with backward compute (Part 5.2) so AllReduce time is hidden
+  4. Where the fabric supports it, evaluate in-network reduction (SHARP) and NVLink SHARP (NVLS)
+  5. Validate with nccl-tests across all nodes and compare against the per-node baseline
+
+Result: measure bus bandwidth with nccl-tests at the message sizes your model produces, and
+express the communication overhead as exposed (non-overlapped) AllReduce time divided by
+iteration time.
 ```
 
 ### 4.2 Multi-Rack Fat-Tree Optimization
 
 ```yaml
-Topology:
-  32 nodes × 8 GPU = 256 GPUs, split across 4 racks (8 nodes per rack)
-  Each rack has IB NDR ToR switch
-  4 ToR switches connect to 2 Aggregation switches
-  2 Agg switches uplink to Core (oversubscribed 2:1)
+Topology (assumed example):
+  32 nodes × 8 GPU = 256 GPUs, 4 racks of 8 nodes
+  Rail-optimized leaf switches per rack, uplinked to a spine tier
+  If the spine uplinks are oversubscribed (for example 2:1), cross-rack bandwidth is
+  half of the aggregate leaf downlink bandwidth
 
-AllReduce optimization challenge:
-  Uplink congestion: Core has only 2×400 Gbps = 800 Gbps = 100 GB/s of aggregate uplink capacity.
-  A flat (non-hierarchical) ring AllReduce across all 256 GPUs would route nearly every
-  GPU's gradient shard through that shared core in the same time window — with 32 nodes
-  (256 GPUs) all needing sub-second AllReduce completion, the required aggregate throughput
-  through the core is on the order of several hundred GB/s, several times the 100 GB/s
-  the 2 core uplinks can provide.
-  
-  Result: Incast congestion, packet loss, NCCL retransmits → AllReduce stalls
+Optimization challenge:
+  Cross-rack collectives share the oversubscribed uplinks. Heavy all-to-all or
+  data-parallel traffic from many jobs can saturate them, causing queueing, ECN/PFC
+  activity on RoCE, and AllReduce stalls.
 
 Resolution:
-  1. Use hierarchical AllReduce:
-       - Level 1: Within-rack ring (8 nodes × 8 GPU, 16 GPU per rack, 3.5 ms)
-       - Level 2: Inter-rack ring (4 racks, 4 steps × 20 ms, 80 ms)
-       (Much slower but avoids core congestion)
-  
-  2. Better: Use AllReduce-aware topology:
-       - Dedicate 2 nodes per rack as "aggregation nodes" (connect directly to Agg switches)
-       - Run 3-level collective: GPUs → rack aggregators → core
-       - Requires custom collective code (harder but 10x better throughput)
-  
-  3. Practical: Oversubscribe links, increase NCCL timeout, use gradient accumulation
-       - Gradient accumulation: Do 4 compute steps locally, then 1 AllReduce for 4× larger gradient
-       - Reduces AllReduce frequency by 4x → uplink saturation drops to manageable 34 GB/s
+  1. Prefer a non-blocking (1:1) fabric for training pods, or place jobs so most traffic
+     stays within a leaf/rack domain (topology-aware scheduling)
+  2. Let NCCL use hierarchical algorithms (intra-node, then inter-node); verify the
+     chosen paths with NCCL_DEBUG=INFO
+  3. Reduce communication volume: gradient accumulation (fewer AllReduce calls per sample),
+     overlap with compute, and sharding strategies that reduce cross-rack traffic
+  4. Monitor link utilization and congestion counters on uplinks
 ```
 
-### 4.3 InfiniBand Specific: Lossless vs Lossy Congestion Handling
+### 4.3 InfiniBand Specific: Lossless Credit-Based Flow Control vs RoCE PFC
 
 ```
-INFINIBAND PRIORITY FLOW CONTROL (PFC)
+InfiniBand uses link-level, credit-based flow control: a sender transmits only when
+the receiver has advertised buffer credits, so InfiniBand fabrics are lossless by design.
+Congestion can still build up (head-of-line blocking, congestion spreading), which shows up
+as higher latency and lower throughput rather than loss.
 
-IB supports lossless switching via Priority Flow Control:
-  If port queue full, IB pauses upstream sender (via PAUSE frame)
-  Sender waits for credit before sending next packet
-  No packet loss, but introduces stalls
-  
-NCCL behavior under congestion:
-  - Small AllReduce (1 GPU × 100 MB): Hits PFC pause, waits, eventually completes
-  - Large AllReduce (64 GPU × 100 MB = 6.4 GB): Multiple simultaneous sends hit PFC
-    Result: "Deadlock" (not true deadlock, but circular wait for credits)
-    
+RoCEv2 (RDMA over Ethernet) is different: it needs Priority Flow Control (PFC) and ECN
+configured correctly to be lossless, and misconfigured PFC can cause pause storms.
+
+Monitoring:
+  InfiniBand: ibqueryerrors, perfquery (PortXmitWait, symbol/link errors), ibdiagnet
+  RoCE/Ethernet: ethtool -S (pause and ECN counters), switch PFC/ECN counters
 Mitigation:
-  1. Use NCCL Timeout = 60 seconds (instead of default 30) to tolerate longer PFC stalls
-  2. Use NCCL buffer allocation strategy to avoid credit exhaustion
-  3. Reduce batch size to reduce gradient tensor size (less data in flight)
-  4. Monitor IB port counters for PAUSE frame bursts
-     Command: ibqueryerrors.pl (query IB switch for port stats)
-     Alert: If PAUSE_TX > 1000 per minute, cluster is over-congested
+  1. Check cabling, optics, and error counters before tuning software
+  2. Use adaptive routing and congestion control features supported by your fabric
+  3. Keep the framework collective timeout bounded; raise it only after the fabric is healthy
 ```
 
 ---
@@ -389,87 +339,30 @@ Mitigation:
 
 ### 5.1 Gradient Compression
 
-```python
-# Standard AllReduce: Full precision (BF16)
-# Gradient tensor: Llama-70B = 70B params × 2 bytes (BF16) = 140 GB
-# Per GPU: 140 GB / 64 GPU = 2.1875 GB
-
-# For 64-GPU AllReduce:
-#   Bandwidth per GPU uplink: 400 Gbps IB NDR = 50 GB/s
-#   Time to send 2.1875 GB: 2.1875 GB / 50 GB/s = 43.75 ms
-
-# Optimization 1: Gradient Quantization (BF16 → INT8)
-# Quantization: Clip gradient to [-1, 1], quantize to [-128, 127]
-# BF16 is 2 bytes, INT8 is 1 byte -> 2x data reduction (not 4x)
-# Result: 140 GB → 70 GB per-model, 2.1875 GB → ~1.09 GB per GPU
-# Time to AllReduce: 1.09 GB / 50 GB/s = 21.9 ms (2x faster than the 43.75 ms baseline)
-# Trade-off: Slight training convergence delay, but recovers over 100–1000 steps
-
-# Optimization 2: Gradient Sparsification (Top-K threshold)
-# Send only top 10% gradients by magnitude (zero out small gradients)
-# Result: 2.1875 GB → 219 MB per GPU
-# Time to AllReduce: 219 MB / 50 GB/s = 4.4 ms (10x faster!)
-# Trade-off: Risk of stale gradients accumulating, need periodic sync
-
-NCCL Integration:
-  NCCL does NOT provide built-in compression (by design; it's a communication library)
-  Compression is user-level responsibility
-  
-  PyTorch integration (via torch.distributed):
-    from torch.distributed import init_process_group
-    from torch.nn.utils import clip_grad_norm_
-    
-    # User-level gradient quantization before AllReduce
-    for param in model.parameters():
-      param.grad.data = torch.quantize_per_tensor(param.grad, scale=0.01, zero_point=0, dtype=torch.quint8)
-    
-    # Then call standard AllReduce
-    dist.all_reduce(param.grad)
-    
-    # Dequantize after AllReduce
-    param.grad.data = torch.dequantize(param.grad)
+```text
+Assume sharded gradients (ZeRO/FSDP), so each of 64 GPUs reduces a 1/64 slice:
+  Llama-70B gradients in BF16 = 70B params × 2 bytes = 140 GB total
+  Per GPU slice: 140 GB / 64 ≈ 2.19 GB
+  At 50 GB/s per NIC (400 Gb/s): 2.19 GB / 50 GB/s ≈ 44 ms (single transfer, ignoring protocol overhead)
 ```
+
+Compression trades communication time for accuracy risk and compute:
+- **Lower-precision gradients** (for example BF16 to FP8) halve the data again but can hurt convergence; validate on your model.
+- **Low-rank or sparsification schemes** (such as PowerSGD or top-K) cut communication more but add compute and convergence risk, and often need error feedback.
+- NCCL does not provide built-in compression. In PyTorch DDP use a communication hook (`register_comm_hook`) with a supported scheme rather than quantizing gradient tensors by hand (NCCL cannot sum arbitrary quantized tensor types, and 8-bit sums overflow).
+
+In many cases the better first step is overlap (Part 5.2), which hides communication behind backward compute without changing the math.
 
 ### 5.2 Communication-Overlap: Computation-Communication Pipelining
 
-```python
-# Naive approach: Compute all gradients, then AllReduce (sequential)
-# Forward: 500 ms
-# Backward: 1000 ms
-# AllReduce: 10 ms
-# Total: 1510 ms
+```text
+Sequential:  [Forward 500 ms][Backward 1000 ms][AllReduce 10 ms] = 1510 ms (assumed values)
 
-# Optimized approach: AllReduce while still computing later gradients (pipelined)
-
-# During backward pass, compute gradients in reverse layer order:
-# Layer 128 (output layer) gradients ready → start AllReduce immediately
-# While Layer 127–1 still computing, send Layer 128 gradients
-
-# Timeline:
-# [Forward: 500ms] [Backward: 1000ms with AllReduce pipelined]
-#                  |---Layers 128 AllReduce (10ms)--|
-#                  |--------Layers 127-1 Compute -------|
-# Total: 1510 ms (same, but AllReduce is "hidden" within compute time)
-
-# If AllReduce fully overlaps: Effective time = 1500 ms (no communication overhead!)
-
-PyTorch implementation:
-  Use `torch.nn.utils.clip_grad_norm_` with gradient accumulation
-  After each layer's backward, immediately launch AllReduce
-  
-  for layer_idx in reversed(range(num_layers)):
-    layer = model.layers[layer_idx]
-    output = layer(input)
-    loss = criterion(output)
-    loss.backward()
-    
-    # Launch AllReduce for this layer's gradients while other layers compute
-    dist.all_reduce(layer.weight.grad, async_op=True)  # Non-blocking
-    
-    # Continue computing next layer (gradient for previous layer broadcasts in background)
-    if layer_idx > 0:
-      input = model.layers[layer_idx - 1](...)
+Overlapped:  AllReduce of earlier layers' gradients runs while later layers' backward
+             compute is still running, so only the tail of the AllReduce is exposed.
 ```
+
+PyTorch DistributedDataParallel does this by default: gradients are grouped into buckets (`bucket_cap_mb`, default 25 MB), and each bucket's AllReduce launches as soon as its gradients are ready during `loss.backward()`. You do not call `all_reduce` per layer by hand. FSDP has analogous prefetching and overlap settings. Use Nsight Systems to confirm that NCCL kernels overlap with backward compute and tune bucket sizes if they do not.
 
 ---
 
@@ -480,23 +373,19 @@ PyTorch implementation:
 ```bash
 # 1. NVIDIA NCCL Tests (benchmark collectives)
 cd /path/to/nccl-tests
-make
-./build/all_reduce_perf -b 1G -e 1G -f 2 -g 64  # 64 GPUs, 1GB gradient, 2 iterations
+make MPI=1 MPI_HOME=/path/to/mpi CUDA_HOME=/usr/local/cuda NCCL_HOME=/path/to/nccl
+# 2 nodes x 8 GPUs, one MPI process per GPU, sweep 8 MB to 8 GB (adapt to your launcher)
+mpirun -np 16 --map-by ppr:8:node ./build/all_reduce_perf -b 8M -e 8G -f 2 -g 1
+# Output columns: size, count, type, redop, root, time (us), algbw (GB/s), busbw (GB/s), #wrong
+# Compare busbw against your cluster baseline; busbw is the figure comparable to link bandwidth
 
-# Expected output:
-# rank  0 - Clock=720MHz Memory=8001MHz Times(msec): Avg=4.231 Min=4.102 Max=4.356
+# 2. NCCL in debug mode (see transport and algorithm selection)
+NCCL_DEBUG=INFO mpirun ... ./build/all_reduce_perf ...
 
-# 2. NCCL in debug mode (see algorithm selection)
-NCCL_DEBUG=INFO ./nccl_test.out
+# 3. Profiling with Nsight Systems
+nsys profile -o profile --trace=cuda,nvtx python train.py
 
-# Output shows:
-# 2024-08-07T12:34:56.789Z rank=0 ncclDeviceRing.cu:123 INFO: Selected Ring AllReduce (2(N-1) = 126 steps)
-# 2024-08-07T12:34:56.890Z rank=0 timing: AllReduce 1GB on 64 GPU = 5.234ms
-
-# 3. Profiling with NVIDIA Nsys (GPU profiling tool)
-nsys profile -w=restart --sample=none --trace=cuda,nvtx -o profile --gpu-metrics=all ./training_script.py
-
-# Produces report with collective timing breakdown
+# The report shows NCCL kernels on the GPU timeline so you can see overlap with compute
 ```
 
 ### 6.2 Tuning NCCL for Your Cluster
@@ -532,13 +421,13 @@ flowchart TD
         
         Q1{"Are the GPUs waiting <br/> on the network?"}
         
-        Q1 -->|Yes, > 3% Time| Trace[Run NCCL_DEBUG=TRACE]
-        Q1 -->|No, < 1% Time| Health[Network is Optimal <br/> Scale linearly]
+        Q1 -->|Yes, large exposed share| Trace[Run NCCL_DEBUG=INFO]
+        Q1 -->|No, small share| Health[Network is Optimal <br/> Scale linearly]
         
         Trace --> Q2{"Are there dropped packets?"}
         
         Q2 -->|Yes| PFC[Check RoCE PFC / ECN <br/> Check InfiniBand IBSTAT <br/> Fix: Tune congestion control]
-        Q2 -->|No| Algo[Check NCCL Algorithm <br/> Fix: Force Tree vs Ring based <br/> on cluster size]
+        Q2 -->|No| Algo[Check NCCL Algorithm <br/> Fix: Measure, then consider <br/> NCCL tuning]
     end
 ```
 
@@ -548,12 +437,12 @@ flowchart TD
 
 Collective communication is the **performance ceiling** for distributed training. Optimizations:
 
-1. **Algorithm selection:** Ring for >8 GPU (linear scaling), Recursive Doubling for &lt;8 GPU (low latency).
-2. **Hardware:** InfiniBand NDR (400G) vs 400GbE Ethernet; IB is 5–10x better for AllReduce.
-3. **Topology:** Single-rack is optimal for 64–128 GPU. Multi-rack requires hierarchical AllReduce to avoid congestion.
-4. **Optimization:** Gradient compression (INT8), communication-overlap (pipelined backward pass), custom collective algorithms for specific topologies.
-5. **Measurement:** Use NCCL tests, NCCL debug traces, and GPU profiling to validate 2–5ms AllReduce on 64+ GPU clusters.
+1. **Algorithm selection:** Let NCCL choose between ring (bandwidth-optimal, large messages) and tree (latency-optimal at scale); force an algorithm only with measurements.
+2. **Hardware:** InfiniBand NDR (400G) and properly tuned RoCE 400GbE can both work; measure collective bandwidth on your fabric rather than assuming a fixed ratio.
+3. **Topology:** Keep traffic local where possible. Multi-rack fabrics need non-blocking (or well-understood oversubscribed) uplinks and hierarchical collectives to avoid congestion.
+4. **Optimization:** Communication-overlap (bucketed backward pass) first, then compression or topology-specific tuning where measurements justify it.
+5. **Measurement:** Use nccl-tests, NCCL debug output, and GPU profiling to validate bus bandwidth against your own baseline.
 
-**Key Takeaway:** Collective communication overhead should be **&lt;1% of total training time**. If it's >3%, your network is a bottleneck; upgrade to IB NDR or reduce batch size.
+**Key Takeaway:** Track exposed (non-overlapped) communication time as a share of iteration time. If it is large, first check overlap, link health, and rail alignment before upgrading the network.
 
 **In Chapter 4:** We move to storage and I/O. Given your training workload, how do you design data pipelines to feed GPUs with data at the required throughput (hundreds of GB/sec)?

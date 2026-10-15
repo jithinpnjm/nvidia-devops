@@ -55,7 +55,7 @@ If Nsight Systems shows that the GPU is 100% active, but the epoch is still taki
 
 *   **NVIDIA Nsight Compute (`ncu`):** This is a microscopic tool. It does not look at the system. It looks at a *single, specific CUDA kernel execution*. 
     *   *How it works:* It replays the specific math operation over and over, analyzing the exact cache hit rates, memory bandwidth utilization, and instruction-level stalls occurring inside the silicon transistors.
-    *   *When to use it:* When you are writing custom C++ CUDA kernels (like Triton or FlashAttention) and need to optimize the micro-architecture execution to hit theoretical maximum FLOPS. (Rarely used by standard PyTorch data scientists).
+    *   *When to use it:* When you are writing custom C++ CUDA kernels (or Triton kernels such as those used by FlashAttention) and need to optimize the micro-architecture execution to hit theoretical maximum FLOPS. (Rarely used by standard PyTorch data scientists).
 
 ## 4. Application-Level Profiling
 
@@ -64,7 +64,7 @@ If Nsight Systems shows that the GPU is 100% active, but the epoch is still taki
 ## Customer Scenario (Senior Level)
 
 **The Situation:**
-A research team is writing a custom Triton C++ kernel for a new type of sparse matrix multiplication. They run the kernel on an H100. The kernel completes, but it is 4x slower than the standard PyTorch implementation. The researchers wrap the execution in `nsys profile` (Nsight Systems). They spend two days looking at the timeline, but they cannot figure out why the kernel is slow. The timeline simply shows one massive, slow blue block on the GPU row.
+A research team is writing a custom Triton (Python DSL) kernel for a new type of sparse matrix multiplication. They run the kernel on an H100. The kernel completes, but it is 4x slower than the standard PyTorch implementation. The researchers wrap the execution in `nsys profile` (Nsight Systems). They spend two days looking at the timeline, but they cannot figure out why the kernel is slow. The timeline simply shows one massive, slow blue block on the GPU row.
 
 **The Senior Architect Response:**
 "The researchers are using an X-Ray machine to diagnose a cellular disease. They have selected the wrong profiling abstraction layer.

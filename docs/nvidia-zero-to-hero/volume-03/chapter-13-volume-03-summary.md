@@ -232,6 +232,8 @@ A CUDA workload is not production-ready until the team can answer:
 **Evidence for the two rows that recur most often across this volume's chapters:**
 
 *No GPU visible* — same-context comparison, from Chapter 12's incident:
+*Illustrative output (not captured):*
+
 ```text
 $ nvidia-smi -L
 GPU 0: NVIDIA A100-SXM4-40GB (UUID: GPU-3f9a1c...)
@@ -241,6 +243,8 @@ Failed to initialize NVML: Unknown Error
 Host healthy, process blind — that gap is always below `nvidia-smi`'s own layer: device injection, `NVIDIA_VISIBLE_DEVICES`, or a Pod spec that never requested `nvidia.com/gpu`.
 
 *Illegal memory access* — `compute-sanitizer` naming the exact line, from Chapter 12:
+*Illustrative output (not captured):*
+
 ```text
 $ compute-sanitizer --tool=memcheck ./inference_engine
 ========= Invalid __global__ write of size 4 bytes

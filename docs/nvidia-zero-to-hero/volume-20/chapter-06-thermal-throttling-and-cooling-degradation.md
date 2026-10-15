@@ -7,6 +7,10 @@ description: "Diagnose thermal throttling events, monitor cooling system health,
 
 # Thermal Throttling and Cooling Degradation
 
+> **Note:** Terminal and log output blocks in this chapter are illustrative (not captured from a real system). Temperatures, clocks, and counters are examples; thermal thresholds differ by GPU model (query yours with `nvidia-smi -q -d TEMPERATURE`).
+
+> **Applicability caveat:** Fan-speed queries apply only to GPUs with an on-board fan. HGX/DGX SXM modules and passively cooled PCIe cards have no GPU-mounted fan (`fan.speed` reports `N/A`); chassis fans are managed by the BMC (see Chapter 08). Heatsink, thermal paste, and module service on data center GPUs is a vendor RMA or field-service action, not an in-rack operator procedure.
+
 ## Beginner's Primer: The Boiling Engine
 
 If you rev a sports car engine in a hot desert, it will eventually overheat. If the engine's computer is smart, it won't let the engine blow up. Instead, it will automatically cut the fuel supply, forcing the car to slow down until it cools off. 
@@ -14,16 +18,16 @@ If you rev a sports car engine in a hot desert, it will eventually overheat. If 
 This is exactly what an NVIDIA GPU does. 
 When an H100 GPU pulls 700 Watts of electricity, it generates an immense amount of heat. If the datacenter air conditioning (HVAC) fails, or the liquid cooling loop gets clogged, the GPU temperature skyrockets. 
 
-At a critical threshold (usually 85°C), the GPU's firmware intervenes to prevent the silicon from melting. It triggers **HW_SLOWDOWN (Thermal Throttling)**. The GPU mathematically halves its clock speed. 
+At its thermal slowdown threshold (which varies by GPU model), the GPU's firmware lowers clocks to protect the silicon. `nvidia-smi` reports this as a thermal slowdown clocks throttle reason, and throughput drops. 
 
 To the Data Scientist, their training job suddenly takes twice as long. They assume their code is broken. 
-To the SRE, this is an infrastructure failure. The SRE must use DCGM telemetry to prove that the GPU hit `85C` and triggered a `THERMAL_SYNC`. The fix is not to rewrite PyTorch; the fix is to call the Datacenter Facilities Manager and ask why the HVAC system is broken in Rack 42.
+To the SRE, this is an infrastructure failure. The SRE must use DCGM telemetry to prove that the GPU reached its thermal slowdown threshold and that a thermal slowdown reason was active. The fix is not to rewrite PyTorch; the fix is to call the Datacenter Facilities Manager and ask why the HVAC system is broken in Rack 42.
 
 ## Symptoms
 
 - GPU clock speed drops from 1980 MHz (H100 SXM5 boost) to 1833 MHz during load
 - Performance degrades 15-30% mid-training without code changes
-- Temperature rises to 85°C (throttle threshold)
+- Temperature rises to the GPU's slowdown threshold (about 85°C in these examples)
 - DCGM reports thermal slowdown events
 - Fan speed maxes at 100% but temperature still rising
 
@@ -49,12 +53,12 @@ flowchart TD
     B -->|Yes| D{"Fan speed < 90%?"}
     B -->|No| E["Not thermal throttling"]
     D -->|Yes| F["Fan can still spin up"]
-    D -->|No| G{"Thermal paste OK?"}
+    D -->|No| G{"Thermal interface OK?"}
     G -->|Yes| H["Airflow or ambient issue"]
-    G -->|No| I["Thermal paste degraded"]
+    G -->|No| I["Thermal interface degraded"]
     F --> J["Check airflow blockage"]
     H --> K["Increase ambient cooling"]
-    I --> L["Replace thermal paste"]
+    I --> L["Request vendor cooling service"]
     J --> M["Verify clock recovery"]
     K --> M
     L --> M
@@ -90,7 +94,7 @@ $ nvidia-smi -i 0 -q -d CLOCK | grep "Current Clocks"
 ```
 
 **Before throttle (from logs):** 1980 MHz
-**During throttle:** 1833 MHz → **7% clock reduction** (small clock drop, but combined with memory-clock derating this produces the larger 15-30% throughput loss seen in the Symptoms section)
+**During throttle:** 1833 MHz → **about 7% clock reduction** in this example (actual throughput loss depends on the workload and on which throttle reasons are active)
 
 Compare against baseline:
 
@@ -106,25 +110,14 @@ $ nvidia-smi -i 0 --query-gpu=clocks.current.graphics --format=csv,noheader
 ### Check Thermal Events in DCGM
 
 ```bash
-$ dcgmi dmon -s etm
-
-# GPU Event:Thermal
-     0 0
-     1 0
-     2 0
-     3 0
+$ nvidia-smi -i 0 -q -d PERFORMANCE | grep -i "slowdown"
+    HW Slowdown                       : Not Active
+    HW Thermal Slowdown               : Active
+    SW Thermal Slowdown               : Not Active
 ```
-
-If event counter > 0, thermal throttling events were recorded. Check detailed history:
-
+For history, chart DCGM_FI_DEV_GPU_TEMP and DCGM_FI_DEV_CLOCK_THROTTLE_REASONS from dcgm-exporter over the incident window, and run `dcgmi diag -r 3` to stress the GPU and capture thermal behavior under load:
 ```bash
-$ dcgmi diag -r 3  # Run diagnostic level 3
-
-GPU 0: Thermal Test
-  Temperature limit: 87°C
-  Current temperature: 85°C
-  Thermal slowdown: Yes
-  Thermal slowdown events: 1247 in last hour
+$ dcgmi diag -r 3 -i 0
 ```
 
 ### Measure Cooling System Health
@@ -135,7 +128,7 @@ $ nvidia-smi -i 0 -q | grep -E "Fan Speed|Temperature|Throttle"
 Fan Speed                           : 100 %
 Temperature                         : 85 C
 GPU Current Temp                    : 85 C
-GPU Thermal Slowdown                : Active
+HW Thermal Slowdown                 : Active
 ```
 
 Check if fan is at maximum:
@@ -157,35 +150,30 @@ All fans at 100% but temperature still 85°C → **cooling system is saturated**
 
 1. **Power down the system immediately** if temperature > 87°C:
    ```bash
-   # Signal graceful job shutdown
-   pkill -SIGTERM python
-   sleep 30
+   # Drain the node so jobs shut down gracefully
+   kubectl cordon <node> && kubectl drain <node> --ignore-daemonsets
    
-   # Then power off GPU if needed
-   sudo nvidia-smi -i 0 --reset
+   # Then power the node off if the temperature keeps climbing
+   sudo shutdown -h now
    ```
 
-2. **Check for thermal paste degradation signs:**
+2. **Check for cooling-path degradation signs:**
    ```bash
    # Query temperature under minimal load
    nvidia-smi -i 0 -q -d TEMPERATURE
    
-   # If idle temp is > 60°C, paste may be degraded
+   # An unusually high idle temperature compared with peer GPUs points to a cooling-path problem
    ```
 
-3. **If paste needs replacement:**
-   - Stop all jobs on affected GPU
-   - Disassemble GPU module
-   - Clean old paste residue with isopropyl alcohol
-   - Apply fresh thermal paste (Crucial/Arctic MX-6 or Thermal Grizzly Kryonaut recommended)
-   - Reassemble and test
+3. **If a degraded thermal interface is suspected:** do not open the GPU or module yourself. Cordon the node, collect the evidence below, and open a vendor RMA or field-service ticket.
 
 ### Step 2: Improve Airflow
 
 1. **Check for physical blockages:**
    ```bash
-   # Visual inspection
-   ls -la /sys/devices/pci0000:00/.../cooling_device*
+   # Visual inspection of filters, blanking panels, and cable routing (physical check),
+   # plus chassis fan status from the BMC
+   ipmitool sdr type Fan
    ```
 
 2. **Verify fan operation:**
@@ -197,13 +185,13 @@ All fans at 100% but temperature still 85°C → **cooling system is saturated**
    ```
 
 3. **Improve ambient cooling:**
-   - Ensure data center CRAC/CRAH maintains &lt; 24°C ambient
+   - Ensure the data center supplies inlet air within the server vendor's specified range
    - Verify no hot-air recirculation around chassis
    - Check for blocked intake vents
 
 ### Step 3: Reduce Power Consumption (Temporary)
 
-If thermal paste replacement isn't immediate, temporarily reduce power draw:
+If vendor service isn't immediate, temporarily reduce power draw:
 
 ```bash
 # Set power limit to 200W (from default 250W)
@@ -217,16 +205,10 @@ $ nvidia-smi -i 0 --query-gpu=power.limit --format=csv,noheader
 
 **Trade-off:** ~15-20% performance loss to avoid thermal throttling.
 
-### Step 4: Disable DVFS If Safe
-
-If ambient is cold and fan is healthy, disable dynamic frequency scaling:
-
+### Step 4: Smooth Out Throttle Oscillation (if safe)
+If temperature oscillates around the slowdown threshold, the GPU alternates between throttling and boosting. A modest power limit or a locked graphics clock below the throttling point gives a stable, slightly lower clock:
 ```bash
-# Check current DVFS state
-$ nvidia-smi -i 0 -q | grep -i dvfs
-
-# Disable DVFS (if available via BIOS/driver)
-# This keeps GPU at constant high frequency, avoiding throttle-induced stalls
+$ sudo nvidia-smi -i 0 -lgc <clock_mhz>   # choose a value below the throttling clock; reset with -rgc
 ```
 
 ## Verification
@@ -260,9 +242,9 @@ $ nvidia-smi -i 0 -q | grep -i dvfs
 
 4. **No thermal throttle events in new monitoring:**
    ```bash
-   dcgmi diag -r 3 | grep "Thermal slowdown"
+   nvidia-smi -i 0 -q -d PERFORMANCE | grep -i "Thermal Slowdown"
    
-   # Expected: Thermal slowdown: No
+   # Expected: Not Active
    ```
 
 5. **Performance back to baseline:**
@@ -278,11 +260,11 @@ $ nvidia-smi -i 0 -q | grep -i dvfs
 
 | Symptom | Evidence | Root Cause | Fix | Verification |
 |---------|----------|-----------|-----|--------------|
-| Clock drops 1980 → 1833 MHz, temp 85°C, fan 100% | DCGM thermal events > 100/min, dmesg shows throttle | Thermal paste degraded or airflow blocked | Replace thermal paste, verify airflow, reduce ambient temp | Temperature &lt; 80°C, clock stable ~1980 MHz, fan 70-80% |
+| Clock drops 1980 → 1833 MHz, temp 85°C, fan 100% | DCGM thermal events > 100/min, dmesg shows throttle | Degraded thermal interface or blocked airflow | Request vendor service, verify airflow, reduce ambient temp | Temperature &lt; 80°C, clock stable ~1980 MHz, fan 70-80% |
 | Temperature rises 2°C/min, plateaus at 87°C | Fan speed 100%, no fluctuation, power draw stable | Cooling capacity exhausted (PSU or facility limits) | Reduce GPU power limit to 200W, enable variable fan control | Temp stabilizes at 75°C with lower throughput |
 | Intermittent thermal throttle (appears daily at 3 PM) | Temperature spike correlated with facility AC cycle | Facility HVAC insufficient or datacenter hot spot | Move GPU to cooler location, request facility temp increase | Throttle disappears when relocated or time of day irrelevant |
-| Thermal paste applied but temp still 85°C | Fan speed increases but temperature doesn't improve | Thermal interface material defective or installation error | Re-apply paste, verify paste coverage with thermal camera | Temp drops to 70-75°C, no recurring high temp |
-| Temperature oscillates 75°C → 87°C → 75°C | DCGM shows alternating thermal slowdown on/off | DVFS causing self-induced oscillation | Disable DVFS in BIOS, use fixed frequency mode | Temperature smooth curve, no oscillation |
+| Temperature stays high after cooling-path service | Fan speed increases but temperature doesn't improve | Defective thermal interface or installation error (vendor service) | Return to the vendor service team for re-work | Temp returns to the peer-GPU range, no recurring high temp |
+| Temperature oscillates 75°C → 87°C → 75°C | DCGM shows alternating thermal slowdown on/off | Boost/throttle cycling around the thermal threshold | Lock the graphics clock slightly below the throttling point (`nvidia-smi -lgc`) or lower the power limit | Temperature smooth curve, no oscillation |
 
 ## Prevention
 
@@ -293,8 +275,7 @@ $ nvidia-smi -i 0 -q | grep -i dvfs
    #!/bin/bash
    echo "=== Weekly Thermal Health Check ==="
    for gpu in {0..7}; do
-     # Run 10 minutes of load
-     timeout 600 cudaEventRecord > /dev/null 2>&1 &
+     # Run 10 minutes of load on this GPU (for example a vendor burn-in or gpu-burn style tool)
      
      # Sample temperature every 10 seconds
      for i in {1..60}; do
@@ -303,17 +284,16 @@ $ nvidia-smi -i 0 -q | grep -i dvfs
        sleep 10
      done
      
-     # Check for throttle events
-     events=$(dcgmi diag -r 3 | grep "Thermal slowdown events" | awk '{print $NF}')
-     if [[ $events -gt 10 ]]; then
-       echo "WARNING: GPU $gpu had $events throttle events in 10 minutes"
+     # Check whether a thermal slowdown reason was active
+     if nvidia-smi -i $gpu -q -d PERFORMANCE | grep -i "Thermal Slowdown" | grep -q "Active"; then
+       echo "WARNING: GPU $gpu reported a thermal slowdown"
      fi
    done
    ```
 
 2. **Monitor thermal trends:**
    ```bash
-   # Prometheus alert rule
+   # Prometheus alert rule (metric names are placeholders; dcgm-exporter exposes DCGM_FI_DEV_GPU_TEMP)
    alert: HighGPUTemperature
    expr: nvidia_smi_temperature_current > 80
    for: 5m
@@ -327,21 +307,21 @@ $ nvidia-smi -i 0 -q | grep -i dvfs
      summary: "GPU {{ $labels.gpu }} experiencing thermal throttle"
    ```
 
-3. **Quarterly thermal paste inspection:**
-   - Log visual inspection date and condition
-   - Schedule replacement every 24 months or sooner if degradation observed
-   - Test thermal contact with thermal imaging camera
+3. **Periodic cooling-path review:**
+   - Check air filters, blanking panels, and rack airflow
+   - Compare per-GPU temperatures against peers under identical load
+   - Follow the vendor's maintenance schedule for any service items
 
 ## Escalation
 
 ### When to Escalate
 
 **Escalate to hardware/facilities if:**
-- Temperature remains > 85°C after thermal paste replacement and airflow optimization
+- Temperature remains at the slowdown threshold after airflow optimization
 - Multiple GPUs in same chassis show identical thermal patterns (facility issue)
 - Throttle events spike at specific times correlated with facility events (HVAC failure)
 - Fan speed doesn't respond to temperature changes (fan failure)
-- Temperature oscillation persists after DVFS disable (hardware feedback loop)
+- Temperature oscillation persists after clock or power-limit tuning (hardware feedback loop)
 
 **Escalation data to collect:**
 
@@ -359,7 +339,7 @@ for i in {1..60}; do
 done
 
 # DCGM events
-dcgmi diag -r 3 >> thermal_escalation.log 2>&1
+dcgmi diag -r 3 -i 0 >> thermal_escalation.log 2>&1
 
 # System info
 uname -a >> thermal_escalation.log
@@ -370,7 +350,7 @@ cat /proc/cpuinfo >> thermal_escalation.log
 
 **Q: "During training, we see GPU clock drop from ~1980 MHz to ~1833 MHz and performance halves. Walk us through your diagnosis."**
 
-A: "The first question is: is this thermal throttling or power throttling? They look similar but have different fixes. I'd immediately check the temperature with `nvidia-smi -q -d TEMPERATURE`. If it's > 80°C, then thermal throttling is happening. Next, I'd check if the fan is already at 100% with `nvidia-smi --query-gpu=fan.speed`. If fan is maxed and we're still throttling, then either the thermal paste is degraded, airflow is blocked, or we've hit the data center's ambient cooling limit. I'd try a quick thermal paste reapplication on a test GPU to see if it helps. If temperature doesn't improve and it's a fleet-wide issue at the same time of day, I'd escalate to facilities — could be HVAC struggling during peak hours."
+A: "The first question is: is this thermal throttling or power throttling? They look similar but have different fixes. I'd immediately check the temperature with `nvidia-smi -q -d TEMPERATURE`. If it's > 80°C, then thermal throttling is happening. Next, I'd check if the fan is already at 100% with `nvidia-smi --query-gpu=fan.speed`. If fan is maxed and we're still throttling, then either the heatsink/thermal interface is degraded, airflow is blocked, or we've hit the data center's ambient cooling limit. I'd compare against peer GPUs and open a vendor service ticket for the cooling path rather than opening hardware myself. If temperature doesn't improve and it's a fleet-wide issue at the same time of day, I'd escalate to facilities — could be HVAC struggling during peak hours."
 
 **Q: "A cluster shows intermittent throttling only during 3-6 PM, but all metrics look fine before and after. What's happening?"**
 
@@ -378,11 +358,11 @@ A: "That timing pattern screams facility issue. The data center probably has pea
 
 **Q: "How would you build a preventive monitoring system to catch thermal degradation before it affects training?"**
 
-A: "I'd set up continuous metrics collection: every 30 seconds, record GPU temperature, fan speed, and clock speed. Then I'd build a Prometheus alert on two things: (1) if temperature > 80°C for > 5 minutes, page on-call to investigate; (2) if throttle events are detected, alert immediately because throttling means we're already losing performance. I'd also run a weekly synthetic load test — schedule a 10-minute constant-load job on each GPU and verify temperature stays &lt; 75°C and clock stays > 1900 MHz. If it doesn't, that GPU is due for thermal paste replacement. This way we catch degradation before it hits production."
+A: "I'd set up continuous metrics collection: every 30 seconds, record GPU temperature, fan speed, and clock speed. Then I'd build a Prometheus alert on two things: (1) if temperature > 80°C for > 5 minutes, page on-call to investigate; (2) if throttle events are detected, alert immediately because throttling means we're already losing performance. I'd also run a weekly synthetic load test — schedule a 10-minute constant-load job on each GPU and verify temperature stays &lt; 75°C and clock stays > 1900 MHz. If it doesn't, that GPU is due for cooling-path service. This way we catch degradation before it hits production."
 
 ## Architecture Summary
 
-When an AI job inexplicably slows down, SREs must immediately rule out Thermal Throttling. A GPU protects itself from melting by dynamically slashing its clock speed when it hits ~85°C. SREs must proactively monitor the DCGM `CLOCK_THROTTLE_REASONS` metric to catch this silent degradation, differentiating between localized hardware failures (e.g., a dead fan or dried thermal paste on one GPU) and environmental failures (e.g., a broken CRAC cooling unit affecting an entire rack).
+When an AI job inexplicably slows down, SREs must immediately rule out Thermal Throttling. A GPU protects itself from melting by dynamically slashing its clock speed when it hits ~85°C. SREs must proactively monitor the DCGM `CLOCK_THROTTLE_REASONS` metric to catch this silent degradation, differentiating between localized hardware failures (e.g., a dead fan or a degraded thermal interface on one GPU) and environmental failures (e.g., a broken CRAC cooling unit affecting an entire rack).
 
 ```mermaid
 flowchart TD
@@ -398,7 +378,7 @@ flowchart TD
         Scope -->|Whole Rack| HVAC[Datacenter Cooling Failure <br/> Escalate to Facilities Mgmt]
         
         Fan -->|No| BrokenFan[Fan Controller / Hardware Failure <br/> Action: RMA]
-        Fan -->|Yes| Paste[Thermal Paste Degraded / Blocked Airflow <br/> Action: Clean/Repaste GPU]
+        Fan -->|Yes| Paste[Degraded Thermal Interface / Blocked Airflow <br/> Action: Clean airflow path, vendor service]
     end
     
     style HVAC fill:#ffcccc,stroke:#cc0000

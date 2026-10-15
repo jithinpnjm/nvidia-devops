@@ -180,7 +180,7 @@ kubectl apply -f training-job.yaml
 # Monitor training
 kubectl logs -f job/fine-tune-llama2-domain-20260807
 
-# Example output:
+# Illustrative output (not captured):
 # [2026-08-07 14:23:00] Starting training...
 # [2026-08-07 14:24:00] Step 100, loss: 2.45, lr: 5e-05
 # [2026-08-07 14:25:00] Step 200, loss: 2.38, lr: 5e-05

@@ -24,7 +24,7 @@ This masterclass progresses from foundational Kubernetes networking to the advan
 
 ### 2.1 The Limits of kube-proxy
 
-Standard Kubernetes clusters rely on `kube-proxy` (usually running in iptables mode) to route traffic to Service endpoints. In a cluster with thousands of services, iptables rules grow linearly, causing exponential degradation in routing performance. When a node processes a packet, it must traverse thousands of rules. 
+Standard Kubernetes clusters rely on `kube-proxy` (usually running in iptables mode) to route traffic to Service endpoints. In a cluster with thousands of services, iptables rules grow linearly with the number of Services and endpoints, so per-packet rule traversal and rule-update time both grow with cluster size. kube-proxy also offers IPVS and nftables modes that scale better than iptables mode.
 
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#76B900'}}}%%
@@ -37,11 +37,11 @@ flowchart TD
     KubeSep --> |DNAT| Pod(Target Pod)
 ```
 
-As clusters grow to thousands of nodes and tens of thousands of pods, this O(N) evaluation time leads to severe latency penalties and kernel overhead, especially in microservices-heavy workloads. For large-scale AI pipelines, `kube-proxy` must be entirely bypassed.
+As clusters grow to thousands of nodes and tens of thousands of pods, this O(N) evaluation time leads to severe latency penalties and kernel overhead, especially in microservices-heavy workloads. For very large clusters, many operators replace kube-proxy with an eBPF dataplane.
 
 ### 2.2 eBPF and Cilium: The Modern Dataplane
 
-To resolve iptables bottlenecks, modern AI platforms replace `kube-proxy` with eBPF-based CNIs like Cilium. eBPF allows sandboxed programs to run directly within the Linux kernel, bypassing the standard network stack.
+To resolve iptables bottlenecks, modern AI platforms replace `kube-proxy` with eBPF-based CNIs like Cilium. eBPF allows sandboxed programs to run directly within the Linux kernel at hooks such as XDP and tc, so Service load balancing can happen early in the packet path without walking iptables chains.
 
 #### eBPF Routing Flow
 
@@ -55,7 +55,7 @@ flowchart TD
     style eBPF fill:#76B900,stroke:#333,stroke-width:2px,color:#fff
 ```
 
-By leveraging eBPF hash tables, packet routing becomes an O(1) operation, regardless of the number of Services.
+Service lookups in eBPF maps are hash-table lookups, so their cost does not grow with the number of Services the way a linear iptables chain does.
 
 #### Example: CiliumNetworkPolicy
 
@@ -98,20 +98,23 @@ This policy strictly limits a training job's egress. It only allows DNS resoluti
 
 ### 2.3 Multus CNI: Multi-Homed Pods for InfiniBand
 
-Deep learning training (e.g., NCCL via MPI) requires extreme bandwidth and microsecond latency. The default Kubernetes CNI network (usually an overlay) cannot provide this. We need to attach Pods directly to high-speed networks like InfiniBand or RoCEv2 via SR-IOV.
+Deep learning training (e.g., NCCL via MPI) requires extreme bandwidth and microsecond latency. The default Kubernetes CNI network (usually an overlay) cannot provide this. We attach Pods to high-speed secondary networks (RoCE over Ethernet, or InfiniBand) via SR-IOV or similar mechanisms.
 
 Multus CNI acts as a "meta-plugin," allowing multiple CNIs to co-exist on a single Pod. The `eth0` interface remains on the standard CNI (Cilium/Calico), while additional interfaces (`net1`, `net2`) are attached to high-speed fabrics.
 
 #### NetworkAttachmentDefinition for Macvlan / SR-IOV
 
-First, we define the secondary network using a `NetworkAttachmentDefinition` CRD.
+First, we define the secondary network using a `NetworkAttachmentDefinition` CRD. This is an illustrative Ethernet/RoCE example; for InfiniBand the NVIDIA Network Operator documentation uses the `ib-sriov` CNI type instead (and VLANs do not apply).
 
 ```yaml
 apiVersion: "k8s.cni.cncf.io/v1"
 kind: NetworkAttachmentDefinition
 metadata:
-  name: ib-sriov-network
+  name: roce-sriov-network
   namespace: default
+  annotations:
+    # Maps this network to the SR-IOV device plugin resource pool
+    k8s.v1.cni.cncf.io/resourceName: nvidia.com/hostdev
 spec:
   config: '{
     "cniVersion": "0.3.1",
@@ -129,8 +132,8 @@ spec:
 ```
 
 **Deep Dive:**
-- `type: sriov`: Uses the SR-IOV CNI plugin. The NVIDIA Network Operator dynamically handles the instantiation of Virtual Functions (VFs) on the ConnectX NICs.
-- `ipam.type: whereabouts`: Whereabouts is a cluster-wide IPAM CNI plugin that allocates IPs across nodes without requiring an external DHCP server. This is crucial for isolated InfiniBand subnets.
+- `type: sriov`: Uses the SR-IOV CNI plugin. The NVIDIA Network Operator can deploy the SR-IOV components (device plugin, CNI, Multus); the VFs themselves are created by the SR-IOV configuration (for example the SR-IOV Network Operator or node configuration).
+- `ipam.type: whereabouts`: Whereabouts is a cluster-wide IPAM CNI plugin that allocates IPs across nodes without requiring an external DHCP server. This is useful for isolated secondary subnets.
 
 #### Pod Spec Utilizing Multus
 
@@ -141,7 +144,7 @@ metadata:
   name: nccl-training-worker-0
   annotations:
     # Comma-separated list of NetworkAttachmentDefinitions
-    k8s.v1.cni.cncf.io/networks: ib-sriov-network, ib-sriov-network
+    k8s.v1.cni.cncf.io/networks: roce-sriov-network, roce-sriov-network
 spec:
   containers:
   - name: training
@@ -157,7 +160,7 @@ spec:
 ```
 
 **Explanation:**
-- The annotation requests *two* attachments to the `ib-sriov-network`, provisioning `net1` and `net2` inside the Pod.
+- The annotation requests *two* attachments to the `roce-sriov-network`, provisioning `net1` and `net2` inside the Pod.
 - `nvidia.com/hostdev`: Requests the actual SR-IOV Virtual Function devices from the kubelet device plugin.
 - `IPC_LOCK`: Required for pinned memory in direct RDMA operations.
 
@@ -214,7 +217,7 @@ kind: ClusterPolicy
 metadata:
   name: restrict-workload-privileges
 spec:
-  validationFailureAction: Enforce
+  validationFailureAction: Enforce   # newer Kyverno releases prefer per-rule failureAction
   background: true
   rules:
   - name: disallow-host-namespaces
@@ -256,7 +259,7 @@ spec:
 
 **Deep Dive:**
 - `validationFailureAction: Enforce`: Blocks the API request synchronously.
-- `pattern`: The `()` syntax indicates that *if* the field exists, it must match the constraint.
+- `pattern`: The `=()` conditional anchor means *if* the field exists, it must match the constraint.
 - When an engineer runs `kubectl apply -f bad-pod.yaml`, the Kube-apiserver forwards the object to Kyverno via a ValidatingWebhookConfiguration. Kyverno evaluates it, and if it fails, returns an error directly to the CLI.
 
 #### Kyverno Policy: Mutating Webhook for GPU Tolerations
@@ -277,7 +280,7 @@ spec:
           kinds: ["Pod"]
     preconditions:
       any:
-      - key: "{{ request.object.spec.containers[].resources.requests.'nvidia.com/gpu' | length(@) }}"
+      - key: '{{ request.object.spec.containers[].resources.limits."nvidia.com/gpu" || `[]` | length(@) }}'
         operator: GreaterThan
         value: 0
     mutate:
@@ -288,20 +291,20 @@ spec:
             operator: "Exists"
             effect: "NoSchedule"
 ```
-**Explanation:** If a Pod requests `nvidia.com/gpu`, Kyverno automatically patches the spec with the required toleration before it is persisted to etcd.
+**Explanation:** Extended resources such as `nvidia.com/gpu` are specified under `limits`. If a Pod requests `nvidia.com/gpu`, Kyverno automatically patches the spec with the required toleration before it is persisted to etcd.
 
 ## 4. Autoscaling, Node Pools, and Capacity
 
-Standard cluster autoscalers evaluate unschedulable pods and incrementally scale up Auto Scaling Groups (ASGs). This is too slow and rigid for complex AI workflows.
+Cluster Autoscaler scales pre-defined node groups (for example ASGs). Karpenter provisions nodes directly and is often a better fit for heterogeneous GPU capacity.
 
 ### 4.1 Karpenter: Just-in-Time Node Provisioning
 
-Karpenter bypasses cloud-provider node groups. It observes unschedulable pods, evaluates their constraints (resource requests, node selectors, affinities), and directly calls the cloud provider's API (e.g., AWS EC2 Fleet) to provision the exact right node instance type in milliseconds.
+Karpenter bypasses cloud-provider node groups. It observes unschedulable pods, evaluates their constraints (resource requests, node selectors, affinities), and directly calls the cloud provider's API (e.g., AWS EC2 Fleet) to provision a matching instance type. Instance launch and node join still take minutes, especially for large GPU instances.
 
-#### Karpenter NodePool for A100/H100 GPUs
+#### Karpenter NodePool for H100 GPUs (illustrative; Karpenter v1 API)
 
 ```yaml
-apiVersion: karpenter.sh/v1beta1
+apiVersion: karpenter.sh/v1
 kind: NodePool
 metadata:
   name: gpu-h100-pool
@@ -319,7 +322,9 @@ spec:
           operator: In
           values: ["us-east-1a"]
       nodeClassRef:
-        name: ubuntu-gpu-al2
+        group: karpenter.k8s.aws
+        kind: EC2NodeClass
+        name: gpu-al2023
       taints:
         - key: nvidia.com/gpu
           value: "true"
@@ -328,12 +333,13 @@ spec:
     consolidationPolicy: WhenEmpty
     consolidateAfter: 10m
 ---
-apiVersion: karpenter.k8s.aws/v1beta1
+apiVersion: karpenter.k8s.aws/v1
 kind: EC2NodeClass
 metadata:
-  name: ubuntu-gpu-al2
+  name: gpu-al2023
 spec:
-  amiFamily: AL2
+  amiSelectorTerms:
+    - alias: al2023@latest   # pin a version in production
   role: "KarpenterNodeRole"
   subnetSelectorTerms:
     - tags:
@@ -385,7 +391,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: 'https://github.com/nvidia-ai-factory/cluster-gitops.git'
+    repoURL: 'https://github.com/example-org/cluster-gitops.git'
     path: bootstrap
     targetRevision: HEAD
   destination:
@@ -398,7 +404,7 @@ spec:
     syncOptions:
       - CreateNamespace=true
 ```
-The `bootstrap` folder in Git contains other `Application` CRDs for CoreDNS, Calico/Cilium, Kyverno, and the NVIDIA GPU Operator.
+The `bootstrap` folder in Git contains other `Application` CRDs for CoreDNS, Cilium, Kyverno, and the NVIDIA GPU Operator.
 
 ### 5.2 Deep Dive: NVIDIA GPU Operator
 
@@ -430,7 +436,7 @@ sequenceDiagram
 
 #### The ClusterPolicy CRD
 
-The behavior of the Operator is entirely controlled by the `ClusterPolicy` CRD.
+The behavior of the Operator is controlled by the `ClusterPolicy` CRD (normally created by the Helm chart from its values). The snippet is illustrative; field availability and the driver version depend on your GPU Operator release.
 
 ```yaml
 apiVersion: nvidia.com/v1
@@ -479,11 +485,11 @@ spec:
 **Symptom:** Pods remain in `ContainerCreating`. `kubectl describe pod` shows:
 `Failed to create pod sandbox: rpc error: code = Unknown desc = failed to setup network for sandbox... no IP addresses available in range set`
 
-**Root Cause:** The cluster was provisioned with a `/24` subnet for pods per node (254 IPs). A massive Ray tuning job created 300 tiny pods on a high-core-count CPU node.
+**Root Cause:** The cluster was provisioned with a `/24` pod subnet per node (about 254 usable IPs), and the node's `maxPods` was raised above that. A massive Ray tuning job created hundreds of tiny pods on a high-core-count CPU node. (With the default `maxPods` of 110, a `/24` normally suffices.)
 
 **Resolution:**
 1.  **Immediate:** Taint the node or reduce the deployment replica count.
-2.  **Long Term (Architecture):** Migrate to an overlay network with a larger CIDR (e.g., `/16` per cluster, `/24` per node) or use cloud-native routing (like AWS VPC CNI) with custom ENI configurations to attach secondary subnets.
+2.  **Long Term (Architecture):** Allocate a larger per-node pod CIDR (for example `/23`), keep `maxPods` consistent with the CIDR size, or use cloud-native routing (like AWS VPC CNI) with custom ENI configurations to attach secondary subnets.
 :::
 
 ### Scenario 2: Mutating Admission Webhook Deadlocks
@@ -543,7 +549,7 @@ flowchart TD
 ```
 
 1.  **GitOps Sync Pause:** Disable automatic sync in ArgoCD.
-2.  **Control Plane Upgrade:** EKS/GKE control plane upgrade (invisible to workloads).
+2.  **Control Plane Upgrade:** Managed (EKS/GKE) control plane upgrade; running pods are normally unaffected, but check API deprecations first.
 3.  **Addon Upgrades:** Update CoreDNS, Kube-Proxy, and the CNI (Cilium) via Helm/GitOps.
 4.  **Operator Upgrades:** Update the GPU Operator and Network Operator. *Wait for DaemonSets to roll out and CRDs to stabilize.*
 5.  **Node Pool Rolling Restart:** 
@@ -565,4 +571,4 @@ spec:
     matchLabels:
       app: distributed-llama-training
 ```
-A PDB with `minAvailable: 100%` ensures that Karpenter or standard autoscalers *cannot* arbitrarily evict nodes running the critical training job. Evictions will block until the job naturally completes and the PDB is removed.
+A PDB with `minAvailable: 100%` ensures that Karpenter or standard autoscalers *cannot* arbitrarily evict nodes running the critical training job. Evictions will block until the job naturally completes and the PDB is removed. Be aware that this also blocks node drains for upgrades and maintenance, so it needs an operational process for lifting it.

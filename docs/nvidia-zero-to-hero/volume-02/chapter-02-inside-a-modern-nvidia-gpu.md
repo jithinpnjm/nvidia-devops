@@ -54,7 +54,7 @@ When the GigaThread Engine assigns a chunk of work, it assigns it to a specific 
 
 Inside a single Hopper SM, you will find:
 * **128 FP32 CUDA Cores:** For standard scalar math.
-* **4 Tensor Cores:** For massive 4x4 matrix multiplications (utilizing the Transformer Engine for FP8).
+* **4 Tensor Cores:** For dense matrix multiply-accumulate operations (on Hopper, supporting FP8 under the Transformer Engine).
 * **4 Texture Units:** (Mostly ignored in AI, used for graphics).
 * **256 KB of L1 Data Cache / Shared Memory:** Ultra-fast memory located mere micrometers from the math cores.
 * **A massive Register File:** (65,536 registers per SM). This is where the actual numbers sit the moment before they are multiplied.

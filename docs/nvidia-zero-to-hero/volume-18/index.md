@@ -7,17 +7,17 @@ Production AI infrastructure must protect models, data, and computational resour
 | Chapter | Topic | Focus |
 |---|---|---|
 | 1 | Threat Modeling | Identify assets, attackers, trust boundaries, attack surfaces |
-| 2 | Hardware & Firmware Trust | Secure Boot, driver signing, GPU firmware, attestation |
-| 3 | Containers & Supply Chain | Image signatures, SBOMs, scanning, NGC trust |
+| 2 | Hardware & Firmware Trust | Secure Boot, firmware trust, BMC isolation |
+| 3 | Containers & Supply Chain | Image signatures, scanning, safetensors, admission policy |
 | 4 | Kubernetes RBAC | Access control, namespace isolation, secret protection |
-| 5 | Pod Security & Network Policies | PSS, capabilities, seccomp, network isolation |
-| 6 | GPU Sharing Security | MIG isolation, time-slicing, vGPU, side-channels |
+| 5 | Pod Security & Network Policies | Pod Security Admission, capabilities, network isolation |
+| 6 | GPU Sharing Security | MIG isolation, time-slicing, vGPU |
 | 7 | DMA, IOMMU, SR-IOV | Device isolation, DMA attacks, virtual functions |
-| 8 | BlueField & DOCA | DPU security, network enforcement, attestation |
-| 9 | Confidential Computing | TEEs, SGX, GPU CCM, remote attestation |
-| 10 | Data & Model Protection | Encryption in motion/at rest, model versioning, signing |
-| 11 | Audit & Compliance | Logging, incident investigation, regulatory evidence |
-| 12 | Incident Response | Playbooks, containment, recovery, lessons learned |
+| 8 | BlueField & DOCA | DPU security boundary, network enforcement |
+| 9 | Confidential Computing | TEEs (SEV-SNP, TDX), GPU confidential computing mode, remote attestation |
+| 10 | Data & Model Protection | Model registry controls, KMS encryption at rest, watermarking |
+| 11 | Audit & Compliance | Centralized logging, lineage, data residency |
+| 12 | Incident Response | Containment, forensics, eradication |
 
 ## Learning Path
 
@@ -33,7 +33,7 @@ Production AI infrastructure must protect models, data, and computational resour
 4. **Trade-offs are explicit:** Security always costs (performance, complexity, cost); document trade-offs clearly.
 5. **Insider threat is real:** Even with external attack prevention, internal access must be controlled and audited.
 
-## Labs
+## Labs (planned, not yet written)
 
 - Lab 1: Validate Secure Boot and Driver State
 - Lab 2: Build and Verify a Signed Container
@@ -59,7 +59,7 @@ Production AI infrastructure must protect models, data, and computational resour
 - [ ] DPU deployed with security policy enforcement (if using BlueField)
 - [ ] Confidential computing enabled for high-value models (if available)
 - [ ] Model artifacts signed and verified before deployment
-- [ ] Audit logging enabled and centralized; retention ≥90 days
+- [ ] Audit logging enabled and centralized; retention per your compliance policy
 - [ ] Incident response playbooks written and tested quarterly
 - [ ] Security assessments completed; compliance evidence collected
 

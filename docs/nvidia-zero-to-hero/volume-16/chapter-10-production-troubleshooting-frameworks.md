@@ -118,7 +118,7 @@ for batch in dl:
     print(f'Batch throughput: {throughput} samples/sec')
     break
 "
-# Output: 150 samples/sec (very slow!)
+# Illustrative output (not captured): 150 samples/sec (very slow!)
 ```
 
 **Root cause found:** Data loader is only achieving 150 samples/sec, but job needs 2500/4 = 625 samples/sec per GPU. Data pipeline is the bottleneck.
@@ -188,7 +188,7 @@ nvidia-smi -l 1
 ps aux | grep python | grep -v grep
 
 # 3. GPU metrics trend (last 5 min)?
-dcgmi dmon -s pucvmet -c 300  # 300 samples at 1Hz = 5 minutes
+nvidia-smi dmon -s pucvmet -c 300  # 300 samples at 1Hz = 5 minutes
 
 # 4. Recent errors in kernel?
 dmesg -T | tail -20

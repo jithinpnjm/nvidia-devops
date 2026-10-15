@@ -22,15 +22,15 @@ This chapter is a comprehensive masterclass taking you from the fundamental Linu
 When a distributed PyTorch training job synchronizes gradients across 1,024 GPUs, it executes a collective communication barrier (`MPI_Allreduce` or `ncclAllReduce`). If a single CPU core on *one* node enters a deep sleep state (C-state), or if a background kernel thread (like `khugepaged`) stalls memory allocation, every single GPU in the entire cluster waits at the barrier. This microsecond-level jitter cascades, reducing cluster-wide GPU utilization from 95% to 60%, wasting millions of dollars in compute time.
 
 ### 1.2 Realistic Production Story
-A Tier-1 cloud provider launched a 4,000-GPU cluster utilizing default Ubuntu 22.04 LTS images. During benchmark testing, the NCCL all-reduce bandwidth fluctuated wildly, peaking at 350 GB/s but regularly dipping to 80 GB/s. Network diagnostics showed zero dropped packets. After a week of debugging, an NVIDIA architect identified two culprits: 
-1. The kernel's `numa_balancing` daemon was periodically unmapping tensor memory to migrate it across CPU sockets, causing massive page fault storms.
-2. The IOMMU was in default translation mode, forcing the CPU to dynamically map physical to virtual addresses for every PCIe RDMA transaction, saturating the CPU interconnect. 
-Applying three GRUB parameters stabilized bandwidth at a deterministic 390 GB/s.
+*Illustrative composite scenario (numbers are not measurements from a specific customer).* A large GPU cluster was launched on default Ubuntu 22.04 LTS images. During benchmark testing, NCCL all-reduce bandwidth fluctuated widely between runs. Network diagnostics showed zero dropped packets. After days of debugging, the team identified two plausible culprits: 
+1. The kernel's `numa_balancing` daemon was periodically unmapping tensor memory to migrate it across CPU sockets, causing page-fault storms.
+2. The IOMMU was in default translation mode, forcing the CPU to dynamically map physical to virtual addresses for every PCIe RDMA transaction, adding per-transaction translation overhead.
+Disabling NUMA balancing and setting the IOMMU to passthrough via kernel parameters made bandwidth stable run to run in this scenario.
 
 ### 1.3 Measurable Learning Objectives
 By the end of this chapter, you will be able to:
 - Trace the complete Linux boot sequence and design a PXE/HTTPBoot provisioning architecture.
-- Author declarative OS configuration files (Kickstart/Preseed/Cloud-init) tailored for NVMe storage layouts in accelerated compute.
+- Author declarative OS configuration files (Kickstart/Autoinstall/Cloud-init) tailored for NVMe storage layouts in accelerated compute.
 - Implement advanced Linux kernel tuning (`sysctl` and GRUB) to eliminate OS jitter and maximize PCIe/DMA throughput.
 - Architect golden image pipelines replacing fragile DKMS driver builds with robust kABI-tracking modules.
 - Enforce CIS hardening benchmarks using Ansible, customized with SELinux/AppArmor profiles that permit high-performance GPU and InfiniBand access.
@@ -103,6 +103,7 @@ In AI, the **Storage Layout** defined in Kickstart is a primary architectural de
 Let's examine a highly optimized Kickstart file for an 8-GPU Hopper system.
 
 ```bash
+# Illustrative Kickstart: adapt device names, sizes, and repos to your hardware.
 # /var/www/html/ks.cfg
 # ---------------------------------------------------------
 # NVIDIA AI Factory Production Kickstart - Rocky Linux 9
@@ -166,9 +167,9 @@ echo "Installation Post-Script Complete."
 ```
 
 #### First-Principles Explanation of the Kickstart:
-1. `firewall --disabled`: Wait, disabling the firewall? Yes. On compute nodes, iptables/nftables connection tracking introduces massive software overhead and latency. Security is handled by physical network isolation (Management VLAN vs. High-Speed Fabric VLAN) and hardware ACLs on the ToR (Top of Rack) switches. We harden the host later, but we do not run stateful software firewalls on RDMA traffic.
+1. `firewall --disabled`: Wait, disabling the firewall? Yes. On compute nodes, a host firewall adds per-packet processing on the TCP/IP path (it does not touch RDMA traffic, which bypasses the kernel network stack), and many sites choose to disable it on the fabric-facing interfaces. Security is then handled by physical network isolation (Management VLAN vs. High-Speed Fabric VLAN) and hardware ACLs on the ToR (Top of Rack) switches. Whether to run firewalld on the management interface is a site policy decision; a safer default is to keep it enabled on the management network and leave only the high-speed fabric interfaces unfiltered.
 2. `selinux --enforcing`: We do not disable SELinux. We will write custom policies to permit GPU and InfiniBand access later in the pipeline.
-3. `noatime`: Every time a file is read, Linux updates its "access time" metadata, causing a disk write. For ML datasets with millions of small images, `atime` causes catastrophic IOPS degradation. `noatime` disables this.
+3. `noatime`: Every time a file is read, Linux updates its "access time" metadata, causing a disk write. For datasets with millions of small files, atime updates add avoidable write I/O. `noatime` disables this (note that modern kernels default to `relatime`, which already reduces the cost).
 
 ---
 
@@ -190,7 +191,7 @@ flowchart TD
         subgraph DriverOptions["NVIDIA Kernel Module Options"]
             OPEN_MOD["Open-Source Kernel Modules
             (nvidia.ko, nvidia-uvm.ko, nvidia-modeset.ko)
-            * Standard for Hopper / Blackwell"]
+            * Required for Blackwell+, recommended for Hopper"]
             
             CLOSED_MOD["Legacy Proprietary Modules
             (Closed Source BLOB)"]
@@ -224,13 +225,13 @@ flowchart TD
 ```
 
 #### Why Production Fleets Ban DKMS
-**DKMS (Dynamic Kernel Module Support)** recompiles the `nvidia.ko` module from source code every time the node boots with a new kernel.
+**DKMS (Dynamic Kernel Module Support)** rebuilds the `nvidia.ko` module from source when a new kernel is installed (via a package hook) or, if the build is missing, at boot on some configurations.
 - **The Trade-Off:** It offers flexibility for workstations.
-- **The Production Reality:** If 4,000 nodes reboot simultaneously after a maintenance window, DKMS causes a massive CPU spike, adding 10 minutes to the boot sequence. Worse, if the `gcc` compiler or `kernel-devel` headers have drifted between nodes, DKMS fails silently. Nodes boot up without GPU drivers, causing Slurm job black-holing.
+- **The Production Reality:** If 4,000 nodes reboot simultaneously after a maintenance window, DKMS can cause a CPU spike and lengthen the boot sequence, since every node compiles the module. Worse, if the `gcc` compiler or `kernel-devel` headers have drifted between nodes, the DKMS build can fail on a subset of nodes and leave them without a driver. Nodes boot up without GPU drivers, causing Slurm job black-holing.
 
 #### The Golden Image / kABI Solution
 We use Packer and Ansible to build a Golden Image where the kernel module is compiled **once** against a locked kernel version (kABI - Kernel Application Binary Interface). 
-We use the NVIDIA open-source GPU kernel modules (`nvidia-open`), which are strictly required for Hopper/Blackwell confidential computing, Heterogeneous Memory Management (HMM), and full NVLink performance. The Golden Image ensures bit-for-bit binary determinism across the fleet.
+We use the NVIDIA open GPU kernel modules (`nvidia-open`). NVIDIA documents them as the recommended choice for Turing and later data center GPUs, and they are required for Blackwell and later (and for Grace Hopper platforms). Check the current NVIDIA driver installation guide for the exact support matrix of your GPU and feature set. The Golden Image ensures bit-for-bit binary determinism across the fleet.
 
 ---
 
@@ -240,13 +241,13 @@ Once the OS is on disk, the default kernel parameters must be aggressively tuned
 
 ### 5.1 Boot-Time Kernel Parameters (`/etc/default/grub`)
 
-These parameters dictate how the kernel boots. Modify `GRUB_CMDLINE_LINUX`, rebuild the GRUB config (`grub2-mkconfig -o /boot/grub2/grub.cfg`), and reboot.
+These parameters dictate how the kernel boots. Modify `GRUB_CMDLINE_LINUX`, rebuild the GRUB config (`grub2-mkconfig -o /boot/grub2/grub.cfg`), and reboot. On RHEL 9 and derivatives, which use Boot Loader Spec entries, `grubby --update-kernel=ALL --args="..."` is the supported way to change arguments of installed kernels. `crashkernel=auto` was removed in RHEL 9; use the distribution's default `crashkernel` value or an explicit size. The block below is an example; keep the `rd.lvm.lv`/`resume` arguments that match your own storage layout.
 
 ```bash
-GRUB_CMDLINE_LINUX="crashkernel=auto resume=/dev/mapper/sysvg-swaplv rd.lvm.lv=sysvg/rootlv rd.lvm.lv=sysvg/swaplv \
+GRUB_CMDLINE_LINUX="crashkernel=<size-per-distro-default> resume=/dev/mapper/sysvg-swaplv rd.lvm.lv=sysvg/rootlv rd.lvm.lv=sysvg/swaplv \
   console=tty0 console=ttyS0,115200n8 \
   iommu=pt \
-  numa_balancing=0 \
+  numa_balancing=disable \
   transparent_hugepage=never \
   processor.max_cstate=1 \
   intel_idle.max_cstate=1 \
@@ -260,23 +261,23 @@ GRUB_CMDLINE_LINUX="crashkernel=auto resume=/dev/mapper/sysvg-swaplv rd.lvm.lv=s
 
 1. **`iommu=pt` (IOMMU Passthrough):**
    - **WHY:** The Input/Output Memory Management Unit (IOMMU) translates device virtual addresses to physical memory addresses, much like an MMU does for CPUs. It also provides isolation.
-   - **WHAT IT DOES:** In default mode, every time a ConnectX-7 NIC or GPU initiates a DMA transfer, the IOMMU must translate the address. At 400Gb/s (RDMA), this translation overhead becomes the primary bottleneck, causing PCIe transaction replays and massive latency.
-   - **HOW:** Setting `iommu=pt` (Passthrough) leaves the IOMMU enabled (required for virtualization/SR-IOV if needed) but creates a 1:1 identity mapping for host devices. Devices DMA directly to physical memory with zero software overhead.
+   - **WHAT IT DOES:** In default mode, every time a ConnectX-7 NIC or GPU initiates a DMA transfer, the IOMMU must translate the address. Translation adds latency and consumes IOMMU/IOTLB resources, which NVIDIA and OS vendors commonly advise avoiding on high-throughput DMA paths; the impact depends on platform and workload, so measure it.
+   - **HOW:** Setting `iommu=pt` (Passthrough) leaves the IOMMU enabled (required for virtualization/SR-IOV if needed) but creates a 1:1 identity mapping for host devices. Host-owned devices DMA using physical addresses without per-mapping translation setup. Check NVIDIA's guidance for your platform: some GPUDirect configurations have their own IOMMU and ACS requirements.
 
-2. **`numa_balancing=0` (Disable Auto-NUMA Balancing):**
+2. **`numa_balancing=disable` (Disable Auto-NUMA Balancing):**
    - **WHY:** Modern servers have 2 or 4 physical CPU sockets (NUMA nodes). Memory attached to Socket 0 is accessed quickly by Socket 0, but slowly by Socket 1 (due to traversal across the UPI/xGMI interconnect).
    - **WHAT IT DOES:** The kernel runs a background thread that intentionally unmaps pages, waits for a CPU to access them (triggering a page fault), and if a different socket accessed it, migrates the memory page to that socket.
    - **HOW:** In AI workloads, MPI and frameworks like PyTorch pin processes and memory directly to the correct NUMA domains (`numactl`). The kernel's guessing game causes massive, unpredictable page faults and migrates memory needlessly. We must explicitly disable it.
 
 3. **`transparent_hugepage=never` (Disable THP):**
    - **WHY:** Standard Linux memory pages are 4KB. AI workloads map hundreds of gigabytes, requiring millions of page table entries. Hugepages use 2MB or 1GB sizes, drastically reducing Translation Lookaside Buffer (TLB) misses.
-   - **WHAT IT DOES:** Transparent Hugepages (THP) tries to dynamically allocate 2MB pages, falling back to 4KB if memory is fragmented. A background daemon (`khugepaged`) then tries to compact those 4KB pages into 2MB pages later. This compaction requires system-wide memory locks.
+   - **WHAT IT DOES:** Transparent Hugepages (THP) tries to dynamically allocate 2MB pages, falling back to 4KB if memory is fragmented. A background daemon (`khugepaged`) then tries to compact those 4KB pages into 2MB pages later. Compaction and defragmentation can stall allocations and add latency jitter.
    - **HOW:** We disable THP (`never`). If a workload (like a DPDK network application or specific database) requires hugepages, we allocate them *statically* at boot (e.g., `hugepagesz=1G hugepages=128`), ensuring deterministic latency.
 
 4. **`intel_idle.max_cstate=1` (Lock CPU Power States):**
    - **WHY:** CPUs save power by shutting down clocks and flushing caches (C-States: C6, C7).
-   - **WHAT IT DOES:** Waking a core from C6 (Deep Sleep) to C0 (Active) takes 100 to 200 microseconds. During an NCCL ring synchronization, if one thread on one core is asleep, the entire ring waits.
-   - **HOW:** We cap the maximum sleep state to C1. The CPU consumes more idle power, but response latency is negligible. (Note: For AMD EPYC, use `processor.max_cstate=1`).
+   - **WHAT IT DOES:** Waking a core from C6 (Deep Sleep) to C0 (Active) can take tens to hundreds of microseconds depending on the CPU and state. During an NCCL ring synchronization, if one thread on one core is asleep, the collective can wait on that thread.
+   - **HOW:** We cap the maximum sleep state to C1. The CPU consumes more idle power, but response latency is negligible. (`processor.max_cstate=1` applies to the ACPI idle driver, which is the path on AMD EPYC; BIOS settings for C-states and power profile are often the more reliable control and should follow your server vendor's guidance.)
 
 ### 5.2 Runtime Kernel Tunables (`sysctl`)
 
@@ -287,7 +288,8 @@ While GRUB dictates boot behavior, `sysctl` modifies runtime kernel memory and n
 # Kernel Runtime Tuning for Distributed AI Workloads
 
 # 1. High-Bandwidth Networking
-# Max socket receive and send buffer sizes (Set to ~2GB for 400G fabrics)
+# Max socket receive and send buffer sizes. These affect TCP/UDP sockets only, not RDMA verbs traffic;
+# tune them for TCP-based storage or management paths and validate values with your vendor.
 net.core.rmem_max = 2147483647
 net.core.wmem_max = 2147483647
 net.core.rmem_default = 67108864
@@ -305,7 +307,7 @@ net.ipv4.tcp_wmem = 4096 65536 2147483647
 # Prevent kernel memory swapping. Swap kills AI training instantly.
 vm.swappiness = 0
 
-# Adjust dirty page flushing. Delay writing to disk to aggregate sequential writes.
+# Adjust dirty page flushing (example values; very high dirty_ratio can cause long write stalls on flush).
 vm.dirty_ratio = 80
 vm.dirty_background_ratio = 5
 
@@ -319,7 +321,7 @@ fs.inotify.max_user_watches = 524288
 ```
 
 #### Detailed Breakdown: Virtual Memory and PyTorch
-The parameter `vm.max_map_count` is notoriously problematic. PyTorch data loaders use multiple worker processes that load data via memory-mapped files or pinned shared memory. The default Linux limit is `65530`. In deep learning, a training run processing thousands of shards will easily exceed this limit, crashing with an `Out of memory (OOM)` error—even if 1TB of physical RAM is completely free. Increasing this to over 1 million prevents artificial constraints on framework memory mappers.
+The parameter `vm.max_map_count` is notoriously problematic. PyTorch data loaders use multiple worker processes that load data via memory-mapped files or pinned shared memory. The default Linux limit is `65530`. In deep learning, a training run processing thousands of shards will easily exceed this limit, failing allocations (`mmap` returns ENOMEM, often surfacing as an out-of-memory error) even when physical RAM is free. Increasing this to over 1 million prevents artificial constraints on framework memory mappers.
 
 ---
 
@@ -332,9 +334,9 @@ Security hardening in an AI cluster presents a classic tension: **Enterprise Com
 | Standard CIS Benchmark Rule | Default CIS Requirement | AI Factory Operational Adjustment | Architectural Justification |
 |---|---|---|---|
 | **Core Dumps** | Disable core dumps (`* hard core 0`). | **Enable core dumps for AI frameworks.** | Distributed training framework bugs (NCCL crashes, PyTorch C++ segfaults) require core dumps with symbol tables for deep debugging. Store in secure `/scratch/cores`. |
-| **Process Ptrace / IPC** | Disable unprivileged `ptrace` (`kernel.yama.ptrace_scope = 2`). | **Set `ptrace_scope = 1` or permit container IPC sharing.** | CUDA Multi-Process Service (MPS) and multi-rank PyTorch processes utilize shared memory (`/dev/shm`) and inter-process signals for intra-node NVLink tensor exchange. |
-| **SSH Host Hardening** | Disable hostbased auth, set `ClientAliveInterval 300`. | **Allow passwordless internal SSH across compute nodes.** | Legacy MPI implementations and distributed job launchers (Slurm, pdsh) require rapid, low-latency inter-node communication over the private Management VLAN. |
-| **Firewall (nftables)** | Default DROP on all interfaces; strict port whitelisting. | **Trust dedicated InfiniBand (`ib*`) completely.** | InfiniBand and RoCE operate via hardware-offloaded queue pairs at microsecond latencies. Software packet inspection breaks RDMA completely. |
+| **Process Ptrace / IPC** | Restrict `ptrace` (`kernel.yama.ptrace_scope` of 1 or higher). | **Keep `ptrace_scope = 1` unless a tool requires more; permit container IPC sharing.** | Intra-node MPI implementations may use cross-memory attach (`process_vm_readv`), which is gated by ptrace permissions, and debuggers/profilers need ptrace on own processes. Multi-rank jobs also share `/dev/shm`. Test your MPI stack before tightening this. |
+| **SSH Host Hardening** | Disable hostbased auth, set `ClientAliveInterval 300`. | **Allow passwordless internal SSH across compute nodes.** | Some launchers (pdsh, mpirun over ssh) need non-interactive SSH between nodes on the private management network. Slurm itself does not require it. Prefer scoped host keys or Slurm's `srun` where possible. |
+| **Firewall (nftables)** | Default DROP on all interfaces; strict port whitelisting. | **Do not filter native InfiniBand traffic; scope RoCE rules carefully.** | Native InfiniBand RDMA bypasses the kernel IP stack, so host firewalls do not see it. RoCE v2 runs over UDP (port 4791) and must be explicitly permitted if a host firewall is active on that interface. |
 
 ### 6.2 Mandatory Access Control (SELinux / AppArmor)
 
@@ -343,17 +345,18 @@ By default, strict SELinux `enforcing` mode on RHEL will block containerized wor
 **Anti-Pattern:** Running `setenforce 0` (Permissive) or disabling SELinux globally. This violates zero-trust architectures and fails compliance audits.
 
 **Production Solution: Type Enforcement Policies**
-Deploy the official NVIDIA SELinux policy package (`nvidia-container-toolkit-selinux`), or compile custom policies that assign specific contexts.
+Use the SELinux support in your container runtime and distribution (for example the container-selinux policy and its device-access booleans), or write a custom policy module after confirming the actual denials with `ausearch -m avc`. Verify against current NVIDIA Container Toolkit documentation, as the supported mechanism varies by version.
 
 ```bash
-# Verify GPU device labeling after proper SELinux configuration
+# Check GPU device labeling. Illustrative output (not captured); the actual type
+# depends on your distribution and policy, and may not be gpu_device_t.
 $ ls -lZ /dev/nvidia*
 crw-rw-rw-. 1 root root system_u:object_r:gpu_device_t:s0 195,   0 Aug 20 10:00 /dev/nvidia0
 crw-rw-rw-. 1 root root system_u:object_r:gpu_device_t:s0 195, 255 Aug 20 10:00 /dev/nvidiactl
 crw-rw-rw-. 1 root root system_u:object_r:gpu_device_t:s0 236,   0 Aug 20 10:00 /dev/nvidia-uvm
 ```
 
-Here, the label `gpu_device_t` tells the SELinux kernel module that this is an accelerator device. The container runtime (Enroot/Docker) executes the workload in the `container_t` domain, and policy booleans are set to allow `container_t` to read/write/mmap `gpu_device_t`.
+Whatever the type is on your system, the policy must allow the domain that runs the workload (for example `container_t` for containers) to read, write, and mmap it. Use `ls -lZ` and `ausearch -m avc` to see the real label and the denials.
 
 ### 6.3 Secure Boot and Kernel Module Signing
 
@@ -363,7 +366,7 @@ If Secure Boot is enabled, **the Linux kernel will refuse to load the `nvidia.ko
 
 **The Workflow for NVIDIA Modules on Secure Boot:**
 1. Generate an X.509 cryptographic key pair (Public/Private) locally on the management node.
-2. Enroll the Public Key into the UEFI Machine Owner Key (MOK) database of every bare-metal node (requires physical presence or BMC redfish automation).
+2. Enroll the public key into the Machine Owner Key (MOK) list of every node (`mokutil --import`, which normally requires a console confirmation at next boot) or into the UEFI db through your platform's key-management process.
 3. Use the `sign-file` utility (provided by the `kernel-devel` package) to sign the `nvidia.ko`, `nvidia-uvm.ko`, and `nvidia-modeset.ko` files using the Private Key.
 4. When the kernel boots, it verifies the module signature against the MOK database and permits the driver to load.
 
@@ -375,12 +378,14 @@ Instead of manual configuration, you apply OS parameters declaratively. Below is
 
 ```yaml
 # roles/os_tuning/tasks/main.yml
+# Note: on RHEL 9 prefer grubby for BLS entries; this lineinfile example replaces the whole
+# cmdline, so include your storage (rd.lvm.lv, resume) arguments too.
 ---
 - name: Ensure critical GRUB kernel parameters are present for AI Workloads
   lineinfile:
     path: /etc/default/grub
     regexp: '^GRUB_CMDLINE_LINUX='
-    line: 'GRUB_CMDLINE_LINUX="crashkernel=auto console=tty0 console=ttyS0,115200n8 iommu=pt numa_balancing=0 transparent_hugepage=never intel_idle.max_cstate=1 processor.max_cstate=1 systemd.unified_cgroup_hierarchy=1 audit=1"'
+    line: 'GRUB_CMDLINE_LINUX="crashkernel=auto console=tty0 console=ttyS0,115200n8 iommu=pt numa_balancing=disable transparent_hugepage=never intel_idle.max_cstate=1 processor.max_cstate=1 systemd.unified_cgroup_hierarchy=1 audit=1"'
     backup: yes
   notify: Rebuild GRUB config
 
@@ -397,7 +402,7 @@ Instead of manual configuration, you apply OS parameters declaratively. Below is
     - { name: 'vm.swappiness', value: '0' }
     - { name: 'vm.max_map_count', value: '1048576' }
 
-- name: Disable and stop firewalld on internal fabric nodes
+- name: Disable and stop firewalld (only if site policy permits; see section 3)
   service:
     name: firewalld
     state: stopped
@@ -409,13 +414,13 @@ Instead of manual configuration, you apply OS parameters declaratively. Below is
 ## 8. Troubleshooting & Production Scenarios
 
 ### 8.1 Scenario: Kernel Panics on GPU Initialization (NVRM)
-**Symptom:** You reboot a node. It comes up on the network, but the moment you type `nvidia-smi`, the SSH session freezes. The BMC console shows a complete kernel panic originating in `NVRM: Xid (PCI:0000:...): 79, GPU has fallen off the bus.`
-**Interpretation:** This is often an IOMMU or PCIe ASPM (Active State Power Management) failure. If ASPM forces a PCIe link to a low-power state and the hardware takes too long to wake, the NVIDIA Resource Manager (NVRM) assumes the GPU is dead and triggers an NMI (Non-Maskable Interrupt), crashing the kernel to prevent memory corruption. 
-**Remedy:** Append `pcie_aspm=off` to the GRUB command line to force PCIe links to stay fully active (L0 state) continuously.
+**Symptom:** You reboot a node. It comes up on the network, but when you run `nvidia-smi` the session hangs, and the kernel log shows `NVRM: Xid (PCI:0000:...): 79, GPU has fallen off the bus.`
+**Interpretation:** Xid 79 means the driver lost communication with the GPU over PCIe. Causes include a PCIe link or riser problem, power or thermal events, firmware issues, and (less often) power-management settings. Treat it as a hardware-first investigation: check `dmesg`, `lspci -vv` link status, BMC event logs, and the NVIDIA Xid documentation.
+**Remedy:** Reseat or replace the suspect hardware and update firmware as indicated. `pcie_aspm=off` is a low-risk experiment that some vendors recommend for specific platforms, but it is not a general fix.
 
 ### 8.2 Scenario: Secure Boot Rejection
 **Symptom:** `nvidia-smi` returns `NVIDIA-SMI has failed because it couldn't communicate with the NVIDIA driver.` Checking `dmesg` reveals: `Lockdown: insmod: unsigned module loading is restricted; see man kernel_lockdown.7`.
-**Interpretation:** UEFI Secure Boot is enabled, but the NVIDIA kernel modules (`kmod-nvidia` or locally built DKMS) were not signed with a recognized MOK key.
+**Interpretation:** UEFI Secure Boot is enabled, but the NVIDIA kernel modules (`kmod-nvidia` or a locally built DKMS module) were not signed with a recognized MOK key.
 **Remedy:** Either disable Secure Boot in the BMC BIOS, or implement the module signing workflow using `sign-file` and `mokutil`. 
 
 ---
@@ -427,17 +432,17 @@ Instead of manual configuration, you apply OS parameters declaratively. Below is
 
 **Candidate Answer:**
 > "A multi-second periodic freeze on compute nodes running large models points directly to **Linux memory management and transparent hugepage compaction**:
-> 1. **Transparent Hugepage (THP) Defragmentation:** If `transparent_hugepage` is set to `always`, the kernel’s background memory defragmentation thread (`khugepaged`) attempts to compact memory into contiguous 2MB pages when processes allocate large GPU staging buffers. Memory compaction takes global spinlocks across CPU cores, stalling all host processes. I verify this via `grep -i compact /proc/vmstat` and immediately set `echo never > /sys/kernel/mm/transparent_hugepage/enabled`.
+> 1. **Transparent Hugepage (THP) Defragmentation:** If `transparent_hugepage` is set to `always`, the kernel’s background memory defragmentation thread (`khugepaged`) attempts to assemble contiguous 2MB pages, and direct compaction during allocation can stall the allocating process. I check `grep -E 'compact_stall|thp_' /proc/vmstat` to see whether compaction is happening. I set `echo never > /sys/kernel/mm/transparent_hugepage/enabled`.
 > 2. **Kernel Swappiness:** I inspect `cat /proc/sys/vm/swappiness`. If swappiness is above 0, the kernel may swap out inactive framework pages or shared libraries to disk under heavy memory pressure. I enforce `vm.swappiness = 0` and verify swap space is completely disabled (`swapoff -a`).
-> 3. **Zone Reclaim / NUMA Balancing:** I verify that `kernel.numa_balancing` is disabled (`sysctl kernel.numa_balancing=0`). If active, the kernel continuously revokes page table entries to observe cross-NUMA access, introducing periodic multi-millisecond page faults during RDMA streaming. Finally, I would ensure Slurm cgroups are correctly mapping tasks to the localized NUMA domains near the respective GPUs."
+> 3. **Zone Reclaim / NUMA Balancing:** I verify that `kernel.numa_balancing` is disabled (`sysctl kernel.numa_balancing=0`). If active, the kernel continuously revokes page table entries to observe cross-NUMA access, adding page-fault overhead to hot memory. Finally, I would ensure Slurm cgroups are correctly mapping tasks to the localized NUMA domains near the respective GPUs."
 
 ### 9.2 Selecting the Driver Packaging Strategy for a 2,000-GPU Cluster
-**Interviewer:** *"You are designing the operating system build pipeline for a new Tier-1 AI supercomputer running Rocky Linux 9. The customer's DevOps lead wants to use DKMS for NVIDIA driver installation so that kernel security patches can be applied automatically via yum-cron. Do you approve this architecture?"*
+**Interviewer:** *"You are designing the operating system build pipeline for a new Tier-1 AI supercomputer running Rocky Linux 9. The customer's DevOps lead wants to use DKMS for NVIDIA driver installation so that kernel security patches can be applied automatically via dnf-automatic (the successor to yum-cron). Do you approve this architecture?"*
 
 **Candidate Answer:**
 > "I strictly advise against DKMS and reject automatic un-gated kernel upgrades for three architectural reasons:
 > 1. **Non-Deterministic Compilation Risk:** DKMS compiles the driver from source directly on the compute node during boot. If compiler headers, GCC minor revisions, or library paths drift across 250+ nodes, compilation will fail silently on a subset of the fleet, causing nodes to boot without a functional `nvidia.ko`.
-> 2. **Boot Storm Delays:** When a 250-node cluster reboots simultaneously after a maintenance window, compiling the driver on every node consumes massive CPU cycles and delays cluster availability by 10 to 15 minutes.
+> 2. **Boot Storm Delays:** When a 250-node cluster reboots simultaneously after a maintenance window, compiling the driver on every node consumes CPU and delays cluster availability.
 > 3. **The Driver/CUDA Qualification Gate:** In an AI supercomputer, you never float the kernel independently. An unannounced kernel erratum can change kernel-module ABI or memory management interfaces that the NVIDIA driver depends on.
 > 
 > **My Recommended Architecture:**
@@ -450,13 +455,13 @@ Instead of manual configuration, you apply OS parameters declaratively. Below is
 The operating system of an AI server is merely a hyper-optimized conduit connecting framework code (PyTorch) to hardware accelerators (GPUs and NICs). 
 
 **Key Takeaways:**
-1. **Kernel Tuning is Non-Negotiable:** Out-of-the-box Linux kernels destroy AI performance. High-throughput distributed training mandates `iommu=pt`, `numa_balancing=0`, `transparent_hugepage=never`, and CPU C-state locking (`intel_idle.max_cstate=1`).
+1. **Kernel Tuning is Non-Negotiable:** Out-of-the-box Linux kernels destroy AI performance. High-throughput distributed training mandates `iommu=pt`, `numa_balancing=disable`, `transparent_hugepage=never`, and CPU C-state locking (`intel_idle.max_cstate=1`).
 2. **Deterministic Provisioning:** Rely on declarative automation (Kickstart, Cloud-init) combined with pre-compiled binary drivers (kABI `kmod-nvidia` or Golden Images). Ban DKMS in production environments.
-3. **Hardware-Aware Security:** Standard enterprise CIS hardening will break high-performance networking and GPU access. Engineer specialized SELinux type enforcements (`gpu_device_t`, `container_gpu_t`) and trust private internal high-speed fabrics.
+3. **Hardware-Aware Security:** Standard enterprise CIS hardening will break high-performance networking and GPU access. Engineer specialized SELinux type enforcements (for example for `/dev/nvidia*` device access) and trust private internal high-speed fabrics.
 4. **Partition for Speed:** Never mirror NVMe scratch storage (`/scratch`). Preserve sequential I/O capabilities for framework caches by mapping scratch disks directly or as striped volumes.
 
 ### Cross-References and Further Reading
-- For deploying these configurations at scale using infrastructure-as-code, proceed to **Chapter 5: Terraform and Ansible for Infrastructure as Code**.
-- To understand how container runtimes leverage the device files created by the OS and drivers, review **Chapter 6: Containerization (Enroot, Docker, and Containerd)**.
+- For deploying these configurations at scale using infrastructure-as-code, proceed to **Chapter 4 (Ansible)** and **Chapter 5 (Terraform)**.
+- To understand how container runtimes leverage the device files created by the OS and drivers, review **Chapter 8: Enroot and Pyxis**.
 - For deep dives into IOMMU and PCI-Express topology, refer to **Volume 2: System Architecture**.
 - **Official NVIDIA Documentation:** Refer to the "NVIDIA Data Center GPU Driver Documentation" and the "NVIDIA Base Command Manager Administrator Guide".

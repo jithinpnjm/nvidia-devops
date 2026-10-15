@@ -5,6 +5,9 @@ sidebar_position: 3
 description: "Reproduce common failure scenarios and execute resolution procedures."
 ---
 
+
+> **Note:** Output blocks, timelines, thresholds, and numbers in this lab are illustrative (not captured from a real system). Thresholds are example values for the exercise; set real ones from your vendor guidance and fleet baselines. Correctable ECC errors are corrected by the hardware; the risk they signal is progressive degradation, and data-integrity risk comes from uncorrectable or uncontained errors (Xid 48/95/94).
+
 ## Objective
 
 Practice resolving GPU failures in realistic scenarios. Learn the sequence of actions, time pressure, and decision-making under incomplete information.
@@ -85,37 +88,33 @@ Practice resolving GPU failures in realistic scenarios. Learn the sequence of ac
 | Time | Event | Action | Reasoning |
 |------|-------|--------|-----------|
 | 09:45 | AllReduce stalls | Check `nvidia-smi` and `dmesg` immediately | Stall detected at iteration 15, need quick triage |
-| 09:47 | Enable NCCL_DEBUG | `export NCCL_DEBUG=TRACE` and attach to hanging process | Collect evidence without restarting (might get lucky) |
-| 09:49 | Analyze trace | Last message: "GPU 2 send timeout" after 5 seconds | GPU 2 is the bottleneck |
+| 09:47 | Collect evidence | Check the NCCL logs if `NCCL_DEBUG=INFO` was already set, and use the RAS tool (`ncclras`, NCCL 2.24+) if available; NCCL_DEBUG cannot be enabled on an already-running process | Collect evidence without restarting (might get lucky) |
+| 09:49 | Analyze trace | Compare per-rank collective op counts; the rank with the lowest count is the one the others are waiting on (assume it is GPU 2 in this scenario) | GPU 2 is the bottleneck |
 | 09:50 | Decision point | Wait 1 more minute, then restart if not progressing | Acknowledge page and buy 60 more seconds to decide |
 | 09:51 | Check GPU 2 metrics | `nvidia-smi -i 2 -q` shows temp 85°C, clock 1200 MHz | GPU 2 is thermal throttled! |
 | 09:52 | Immediate fix | Reduce batch size by 50% to lower temp | Restart with reduced batch size |
-| 09:53 | Restart training | `python train.py --batch-size 128 --gpu 0,1,3 # Skip GPU 2` | Restart without GPU 2 while investigating |
+| 09:53 | Restart training | Relaunch the job on the remaining healthy GPUs (for example by excluding the node or GPU through the scheduler) | Restart without GPU 2 while investigating |
 | 09:55 | Verification | Monitor for progress | Should see normal iteration times now |
-| 10:00 | Root cause diagnosis | Schedule thermal investigation on GPU 2 | Fan, thermal paste, airflow issue |
+| 10:00 | Root cause diagnosis | Schedule thermal investigation on GPU 2 | Cooling path, airflow, or other cause |
 
 **Expected outputs:**
 
 ```bash
-# Step 1: NCCL_DEBUG output
-$ NCCL_DEBUG=TRACE timeout 10 python train.py 2>&1 | head -50
-
-ncclAllReduce: rank=0, nBytes=4MB, time=45us
-ncclAllReduce: rank=1, nBytes=4MB, time=48us
-ncclAllReduce: rank=2, nBytes=4MB, hanging...
-[5 seconds of no output]
-# TIMEOUT OR HANG DETECTED
+# Step 1: NCCL_DEBUG output (message format varies by NCCL version)
+$ NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=COLL python train.py 2>&1 | tee nccl.log
+# Illustrative reading: ranks 0, 1, 3 log opCount N+1; rank 2 is still at opCount N
+# and nothing new is logged for several seconds → rank 2 has not reached the collective
 
 # Step 2: GPU 2 investigation
 $ nvidia-smi -i 2 -q | grep -E "Temperature|Clock|Throttle"
 GPU Current Temp                    : 85 C
 Graphics Clock                      : 1200 MHz  (throttled from 1980!)
-Thermal Slowdown                    : Active
+HW Thermal Slowdown                 : Active
 ```
 
 **Decision flow:**
 - **Should we wait?** Max 60 seconds. After that, restarting is better than burning datacenter resources.
-- **Which evidence to trust?** NCCL trace > nvidia-smi; NCCL shows exactly which GPU is stalled.
+- **Which evidence to trust?** Per-rank NCCL op counts show which rank is late; `nvidia-smi` and DCGM then show why.
 - **Prevention:** Set aggressive temperature alerts (> 75°C); restart jobs preemptively before thermal hang occurs.
 
 ### Exercise 2 Solution: Thermal Throttling Incident
@@ -126,8 +125,8 @@ Thermal Slowdown                    : Active
 |------|-------|-----------------|--------------|
 | 14:30 | 40% perf drop detected | Check temperature: `nvidia-smi -q` | Should show 85°C if thermal |
 | 14:32 | Confirmed thermal | Check if fan responds: run load test, monitor fan % increase | Fan should go to 100% if working |
-| 14:35 | Fan is at 100% but temp not dropping | Hypothesis: fan failure OR thermal paste degraded OR airflow blocked | Inspect GPU physically; listen for fan noise |
-| 14:40 | **Decision point: stop or continue?** | Temp 85°C is at throttle limit; risk of data corruption if stays > 87°C → **STOP job** | No point running if throttled; just burns power |
+| 14:35 | Fan is at 100% but temp not dropping | Hypothesis: fan failure OR degraded thermal interface OR airflow blocked (check BMC fan sensors on chassis-cooled GPUs) | Inspect physically and read BMC fan sensors |
+| 14:40 | **Decision point: stop or continue?** | Temp is at the slowdown threshold with no improvement; if it keeps climbing toward the GPU's shutdown limit, **STOP the job** | A throttled GPU gives degraded throughput and risks protective shutdown |
 | 14:42 | **Mitigation: immediate** | Migrate job to spare GPU or reduce batch size to 25% | Restore training at reduced capacity while investigating |
 | 14:45 | **Diagnosis: which layer failed?** | Run synthetic load on GPU 2 alone (no training data): `gpu-burn 30s` | Measure temperature rise rate |
 | 14:50 | Analysis | Temperature rise rate determines issue: <br/>- 0.05°C/sec = normal, no issue<br/>- 0.25°C/sec = fan stuck or paste degraded<br/>- 0.50°C/sec = severe cooling failure | If rate > 0.2°C/sec → schedule immediate fan/paste replacement |
@@ -151,14 +150,12 @@ Temperature @ start: 55°C
 Temperature @ 10s:   65°C
 Temperature @ 20s:   75°C
 Temperature @ 30s:   83°C
-Rise rate: (83-55)/30 = 0.93°C/sec → **FAN FAILURE**
-
-# Compare to baseline (healthy system):
-# Expected: 0.05°C/sec under same load
+Rise rate: (83-55)/30 = 0.93°C/sec → much faster than a healthy peer GPU would show (illustrative)
+# Compare to baseline from a healthy peer GPU under the same load
 ```
 
 **Decision criteria:**
-- **Temp > 85°C + fan 100% = STOP immediately** (risk > benefit)
+- **Temperature at or above the slowdown threshold with fan at 100% and still rising: stop or drain** (risk > benefit)
 - **After fix:** Verify temperature stabilizes below 80°C before resuming production load
 
 ### Exercise 3 Solution: ECC Error Storm
@@ -169,10 +166,10 @@ Rise rate: (83-55)/30 = 0.93°C/sec → **FAN FAILURE**
 |------|-------|--------|-----------------|
 | 10:15 | 1 ECC error | Monitor and log | Single errors can be cosmic rays; not actionable yet |
 | 10:25 | 50 ECC errors in 10 min | **Alert: escalating rate** | Calculate error rate: 50/10min = 5/min = unsustainable |
-| 10:30 | Accuracy diverges | **STOP job immediately** | ECC errors corrupting training data; continued run will waste compute |
-| 10:31 | Isolate failing module | Run memory test to locate bad address range | `cuda-memtest --stress --stress_iterations 5 -d 2` |
+| 10:30 | Accuracy diverges | **STOP job immediately** | Check for uncorrectable/uncontained ECC (Xid 48/95/94) and other causes; correctable errors alone do not corrupt data, but a storm signals failing memory |
+| 10:31 | Isolate failing module | Run memory test to locate bad address range | `cuda_memtest --stress --device 2` |
 | 10:35 | Memory test results | If errors in specific range, HBM module failing; if scattered, broader issue | Determines if we can work around it |
-| 10:40 | **Decision: salvage or replace?** | If errors in &lt; 5% of HBM, can relocate GPU workload; otherwise replace GPU | Cost-benefit: days to workaround vs. 2-4hr hardware RMA |
+| 10:40 | **Decision: salvage or replace?** | There is no supported way to carve out bad HBM regions at the application level; replace the GPU unless row remapping absorbed the errors | Cost-benefit: days to workaround vs. 2-4hr hardware RMA |
 | 10:45 | **Mitigation: immediate** | Drain GPU from cluster; add to maintenance pool | Prevents cascading failures on other jobs |
 | 11:00 | **Long-term** | Escalate to hardware team for GPU replacement | RMA process and lead time |
 
@@ -180,13 +177,10 @@ Rise rate: (83-55)/30 = 0.93°C/sec → **FAN FAILURE**
 
 ```bash
 # Step 1: Monitor ECC error rate
-$ dcgmi dmon -s emcr -c 5
-
-# Expected output (healthy):
-# ECC Errors: 0, 0, 0, 0, 0
-
-# Expected output (failing):
-# ECC Errors: 1, 5, 12, 21, 35  <- Accelerating rate!
+# Sample the ECC SBE counter field (look up IDs with `dcgmi dmon -l`) or read dcgm-exporter
+$ dcgmi dmon -e <DCGM_FI_DEV_ECC_SBE_VOL_TOTAL id> -c 5
+# Illustrative healthy: 0, 0, 0, 0, 0
+# Illustrative failing: 1, 5, 12, 21, 35  <- Accelerating rate!
 
 # Calculate rate:
 rate = errors[4] - errors[0] = 35 - 1 = 34 errors in 4 samples (≈1 min)
@@ -194,7 +188,7 @@ rate = errors[4] - errors[0] = 35 - 1 = 34 errors in 4 samples (≈1 min)
 # → Unacceptable. Memory is failing rapidly.
 
 # Step 2: Memory test to isolate
-$ cuda-memtest --stress --stress_iterations 5 -d 2 2>&1 | grep -i "error\|fail"
+$ cuda_memtest --stress --device 2 2>&1 | grep -i "error\|fail"
 
 Possible output:
 Test 1 (Write + Read): FAIL @ address 0x12345678
@@ -213,13 +207,12 @@ $ nvidia-smi -i 2 -q | grep -i "memory"
 ```
 
 **Decision criteria:**
-- **Error rate &lt; 1/hour:** Monitor, maybe continue
-- **Error rate 1-10/hour:** Reduce load, plan replacement
-- **Error rate > 10/hour:** **STOP immediately**, escalate
+- Example policy only: low steady rates are monitored; a rising rate triggers a replacement plan; an uncorrectable or uncontained error (Xid 48/95) triggers an immediate drain
+- Derive numeric thresholds from NVIDIA's memory error guidance and your fleet baselines
 
 **Why stop at 50 errors:**
 - 50 errors in 10 minutes = 300/hour
-- At this rate, model accuracy will degrade significantly
+- A rate this high on a single GPU indicates rapidly failing memory
 - Continuing wastes compute and GPU resources
 - Better to stop, diagnose, and restart on healthy GPU
 
@@ -233,5 +226,5 @@ $ nvidia-smi -i 2 -q | grep -i "memory"
 ## Verification Rubric
 
 **Exercise 1:** You identified GPU 2 as the bottleneck (from NCCL_DEBUG trace), recognized thermal throttling as the root cause, and made the decision to restart without GPU 2 ✓
-**Exercise 2:** You correctly measured temperature rise rate (0.2+°C/sec = fan failure), decided to stop the job (safety > performance), and planned for hardware replacement ✓
+**Exercise 2:** You compared the temperature rise rate against healthy peers, decided to stop the job (safety > performance), and planned for vendor service ✓
 **Exercise 3:** You calculated ECC error rate (50/10min = 5/min unsustainable), decided to stop at 50 errors, and escalated for GPU replacement ✓

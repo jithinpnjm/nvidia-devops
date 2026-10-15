@@ -71,7 +71,7 @@ To resolve this critical compliance failure, we must immediately implement **IAM
 We will remove the broad S3 permissions from the underlying EC2 host servers entirely. 
 We will create a highly specific AWS IAM Role that only has access to the exact S3 prefix containing the training data. We will map this AWS IAM Role cryptographically (via OIDC) to a specific Kubernetes **Service Account** (e.g., `medical-training-sa`).
 
-When the data scientists submit their PyTorch job, they must specify `serviceAccountName: medical-training-sa` in their Pod YAML. The Kubernetes API server will inject temporary, tightly scoped AWS credentials directly into that specific Pod. 
+When the data scientists submit their PyTorch job, they must specify `serviceAccountName: medical-training-sa` in their Pod YAML. On EKS, a mutating webhook injects a projected service account token into that Pod, which the AWS SDK exchanges with STS for temporary, tightly scoped credentials. 
 
 If any other pod on the same node attempts to access the S3 bucket, AWS will reject the request. We have effectively decoupled cloud security from the host infrastructure and bound it directly to the identity of the specific AI workload."
 

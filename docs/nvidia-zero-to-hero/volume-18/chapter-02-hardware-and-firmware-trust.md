@@ -59,11 +59,11 @@ Furthermore, updates to this firmware must be strictly controlled. You do not wa
 ## 3. The Baseboard Management Controller (BMC)
 
 The most dangerous component in any enterprise server is the BMC (e.g., Dell iDRAC, HPE iLO).
-The BMC is a tiny, independent computer on the motherboard. It has absolute power. It can power the server on/off, read the physical memory, and intercept network traffic. It operates entirely out-of-band; the Linux OS doesn't even know it's there.
+The BMC is a tiny, independent computer on the motherboard. It has very broad power. It can power the server on/off, provide remote console and virtual media, and update firmware; on some platforms it also has access paths into host resources. It operates entirely out-of-band; the Linux OS doesn't even know it's there.
 
 If a hacker compromises the BMC, the entire server is lost.
 
-*Architectural Mandate:* The BMC network must be strictly air-gapped from the AI training data network. It must reside on an isolated management VLAN with aggressive firewall rules, accessible only via a VPN and MFA (Multi-Factor Authentication) by authorized infrastructure administrators.
+*Architectural Mandate:* The BMC network must be strictly isolated from the AI training data network. It must reside on a dedicated out-of-band management network or VLAN with aggressive firewall rules, accessible only via a VPN and MFA (Multi-Factor Authentication) by authorized infrastructure administrators.
 
 ## Customer Scenario (Senior Level)
 
@@ -79,13 +79,13 @@ To remediate this and pass the audit, we must implement two architectural change
 
 First, we will immediately revoke `sudo` access from all users. We will force all profiling and development tools into unprivileged Kubernetes containers. If a tool requires deep kernel access, it must be approved and deployed centrally by the platform team.
 
-Second, we will engage **Firmware Lockdown**. We will utilize the security features of the NVIDIA hardware to cryptographically lock the firmware update process. We will configure the systems so that firmware updates can only be applied if they are cryptographically signed by the organization's internal Certificate Authority (CA), and we will disable firmware downgrades. This mathematically guarantees that even if an attacker gains root access to the OS, the silicon itself will reject any unauthorized firmware payloads, securing the hardware layer permanently."
+Second, we will engage **Firmware Lockdown**. We will utilize the security features of the NVIDIA hardware to cryptographically lock the firmware update process. Device firmware is signed by the hardware vendor, not by an organization's own CA, so the control we own is access to the update path: only the platform team's change-managed tooling may run firmware updates (`nvfwupd`, `mstflint`, BMC update interfaces), updates are applied only from vendor-signed images obtained from the vendor, and we check the vendor's documentation for anti-rollback support on each device. Root access on a node is no longer available to tenants, so the OS-level route to the firmware is closed. Consult the vendor security documentation for the exact lockdown features available on your platform."
 
 ## Interview Preparation
 
 **Conceptual:** What is the purpose of a Secure Boot chain? *(Hint: It mathematically guarantees that a server is booting a clean, untampered operating system. It starts with an immutable hardware Root of Trust that verifies the cryptographic signature of the BIOS, which verifies the bootloader, which verifies the OS kernel. If a rootkit has infected the boot process, the signature check fails and the server halts).*
 
-**Architecture:** Why is the Baseboard Management Controller (BMC/iDRAC/iLO) considered the most critical security vulnerability in a bare-metal AI cluster? *(Hint: The BMC is an independent microcomputer on the motherboard that has absolute, out-of-band control over the server. It can read RAM, intercept video, and flash firmware, completely bypassing the installed operating system. If the BMC network is not strictly air-gapped and secured, an attacker can completely compromise the physical server without ever touching the OS).*
+**Architecture:** Why is the Baseboard Management Controller (BMC/iDRAC/iLO) considered the most critical security vulnerability in a bare-metal AI cluster? *(Hint: The BMC is an independent microcomputer on the motherboard that has absolute, out-of-band control over the server. It has out-of-band control (power, remote console, virtual media, firmware updates), bypassing the installed operating system. If the BMC network is not strictly isolated and secured, an attacker can completely compromise the physical server without ever touching the OS).*
 
 ## Architecture Summary
 
@@ -105,7 +105,7 @@ flowchart TD
         RoT -->|1. Cryptographically verifies| BIOS
         BIOS -->|2. Verifies signature of| Bootloader
         Bootloader -->|3. Verifies signature of| OS
-        OS -->|4. Verifies driver/firmware| GPU
+        OS -->|4. Loads driver| GPU
         
         subgraph Attack["Firmware Rootkit Attempt"]
             Hacker[Hacker tries to flash <br/> malicious GPU firmware]

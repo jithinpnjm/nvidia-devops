@@ -225,7 +225,7 @@ This ensures we're not wasting money on idle GPUs."
 
 3. **Check other jobs on the cluster:**
    ```bash
-   nvidia-smi process  # What else is running?
+   nvidia-smi pmon -c 1  # What else is running?
    nccl-tests bandwidth  # Measure actual AllReduce bandwidth
    ```
    If another job is running AllReduce simultaneously, links saturate.

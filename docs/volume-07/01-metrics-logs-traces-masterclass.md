@@ -135,17 +135,17 @@ Prometheus stores data as time series: streams of timestamped values belonging t
 `<metric_name>{<label_name>=<label_value>, ...} timestamp value`
 
 Example:
-`dcgm_gpu_utilization{gpu="0", hostname="dgx-01", model="a100"} 1678901234 95.5`
+`DCGM_FI_DEV_GPU_UTIL{gpu="0", Hostname="dgx-01", modelName="NVIDIA A100-SXM4-80GB"} 95.5` (the timestamp is stored with each sample but not shown in query results)
 
 ### 4.2 PromQL Reasoning and Vector Math
 
 PromQL allows you to slice, dice, and aggregate time-series data.
 
 **Instant Vector:** A set of time series containing a single sample for each time series, all sharing the same timestamp.
-`dcgm_gpu_utilization`
+`DCGM_FI_DEV_GPU_UTIL`
 
 **Range Vector:** A set of time series containing a range of data points over time for each time series.
-`dcgm_gpu_utilization[5m]`
+`DCGM_FI_DEV_GPU_UTIL[5m]`
 
 #### Calculating Rates
 
@@ -165,11 +165,11 @@ sum(rate(node_network_receive_bytes_total[5m])) by (instance)
 When performing math between two vectors, Prometheus must match the labels.
 
 ```promql
-# Calculate memory bandwidth utilization percentage
+# Calculate framebuffer (VRAM) used as a percentage of total
 (
-  rate(dcgm_fb_used[5m]) 
-  / 
-  dcgm_fb_total
+  DCGM_FI_DEV_FB_USED
+  /
+  (DCGM_FI_DEV_FB_USED + DCGM_FI_DEV_FB_FREE)
 ) * 100
 ```
 If the labels don't match exactly (e.g., one has a `cluster` label and the other doesn't), you use `ignoring` or `on`.
@@ -180,7 +180,7 @@ metric_a / on(hostname, gpu) metric_b
 
 ### 4.3 Implementing SLO Alerts in PromQL
 
-Alerting on SLOs is done using the Multi-Window, Multi-Burn-Rate alerting technique. You alert if the error budget is being consumed too quickly.
+Alerting on SLOs is done using the Multi-Window, Multi-Burn-Rate alerting technique (see the Google SRE Workbook). You alert if the error budget is being consumed too quickly. The rule below is simplified to a single window; production rules pair a long window with a short window (for example 1h and 5m) to cut false positives.
 
 ```yaml
 groups:
@@ -225,8 +225,9 @@ Use the TSDB status page or these PromQL queries to investigate:
 # Find the metrics with the most time series
 topk(10, count by (__name__) ({__name__=~".+"}))
 
-# Find the labels with the most unique values
-topk(10, count by (label_name) (label_replace({__name__=~".+"}, "label_name", "$1", "__name__", "(.*)")))
+# Find the labels with the most unique values: use the TSDB status page (Status > TSDB Status)
+# or the API, which reports top series counts per metric name, label name, and label value:
+#   curl -s http://localhost:9090/api/v1/status/tsdb
 ```
 
 ### 5.2 Mitigating Cardinality
@@ -236,12 +237,12 @@ topk(10, count by (label_name) (label_replace({__name__=~".+"}, "label_name", "$
 3.  **Relabeling:** Use Prometheus relabel configs to drop labels before they are ingested.
 
 ```yaml
-# Prometheus scrape config to drop a label
+# Prometheus scrape config to drop a label from scraped samples
 scrape_configs:
   - job_name: 'triton'
-    relabel_configs:
-      - source_labels: [client_ip]
-        action: labeldrop
+    metric_relabel_configs:
+      - action: labeldrop
+        regex: client_ip
 ```
 
 ---
@@ -299,7 +300,7 @@ Logs should always be emitted as JSON. Parsing regex out of unstructured text at
 Not all logs are created equal.
 - **Trace/Debug logs:** High volume, low value. Keep for 24 hours or drop entirely unless debugging.
 - **Info/Warning logs:** Keep for 7-14 days.
-- **Error/Fatal/Audit logs:** Keep for 1-7 years (compliance).
+- **Error/Fatal/Audit logs:** Keep for as long as your compliance requirements dictate.
 
 Use an agent like Vector to route logs based on severity to different storage backends (e.g., S3 for long-term archive, OpenSearch for 7-day hot search).
 
@@ -366,12 +367,10 @@ processors:
     limit_mib: 4000
   # Filter out healthcheck traces to save storage
   filter/traces:
+    error_mode: ignore
     traces:
-      exclude:
-        match_type: strict
-        attributes:
-          - key: http.route
-            value: /health
+      span:
+        - 'attributes["http.route"] == "/health"'
 
 exporters:
   prometheus:
@@ -398,8 +397,13 @@ service:
 Triton Inference Server has built-in support for distributed tracing using the OpenTelemetry standard. You must start Triton with tracing enabled to capture the breakdown of queue time, compute time, and framework time.
 
 ```bash
-# Start Triton with OTel tracing enabled
-tritonserver --model-repository=/models   --trace-config rate=100   --trace-config level=TIMESTAMPS   --trace-config mode=opentelemetry   --trace-config opentelemetry,url=http://otel-collector:4317
+# Start Triton with OTel tracing enabled (Triton exports OTLP over HTTP, so point it at the
+# collector's OTLP/HTTP receiver, port 4318 by default, path /v1/traces)
+tritonserver --model-repository=/models \
+  --trace-config rate=100 \
+  --trace-config level=TIMESTAMPS \
+  --trace-config mode=opentelemetry \
+  --trace-config opentelemetry,url=otel-collector:4318/v1/traces
 ```
 
 ---
@@ -421,7 +425,7 @@ DCGM Exporter is mandatory for exposing GPU telemetry to Prometheus. Key metrics
 Network performance dictates training performance. Monitor the Mellanox/NVIDIA switches and HCAs (Host Channel Adapters).
 
 - **Switch Telemetry:** Use UFM (Unified Fabric Manager) Cyber-AI telemetry or sFlow/NetFlow. Look for Port Congestion, Symbol Errors, and Link Flaps.
-- **Node Telemetry (RDMA exporter):** Monitor `ib_port_xmit_data`, `ib_port_rcv_data`, and crucially, `ib_port_xmit_wait` (which indicates network backpressure or congestion).
+- **Node Telemetry:** Collect the per-port InfiniBand counters (`port_xmit_data`, `port_rcv_data`, and crucially `port_xmit_wait`, which indicates network backpressure or congestion) from `/sys/class/infiniband/<dev>/ports/<n>/counters/` using node_exporter's infiniband collector or an RDMA exporter. Metric names depend on the exporter you deploy.
 
 ---
 
@@ -447,7 +451,7 @@ Cardinality explosion is the #1 cause of Prometheus crashes. High cardinality me
 **The Fix:**
 1.  **Immediate:** Update the Prometheus `scrape_config` for the API gateway to use `metric_relabel_configs` to drop the `user_prompt_text` label before ingestion.
 2.  **Code Fix:** Revert the developer's commit and educate the team that unbounded string data belongs in structured logs or trace attributes, never in Prometheus labels.
-3.  **Cleanup:** Use the Prometheus Admin API to delete the high-cardinality time series blocks from disk to free up space and memory permanently: `curl -X POST -g 'http://localhost:9090/api/v1/admin/tsdb/delete_series?match[]=llm_api_request_duration_seconds'`.
+3.  **Cleanup:** Use the Prometheus Admin API to delete the high-cardinality time series blocks from disk to free up space and memory permanently: `curl -X POST -g 'http://localhost:9090/api/v1/admin/tsdb/delete_series?match[]=llm_api_request_duration_seconds'` (this requires Prometheus to run with `--web.enable-admin-api`; follow it with `clean_tombstones` to reclaim disk space).
 
 ### Scenario 2: The "Ghost" Latency in Triton Ensembles
 
@@ -475,7 +479,7 @@ Update the `config.pbtxt` for the post-processing model to increase the instance
 1.  **Verify Instrumentation:** The engineer verifies that all three services have the OpenTelemetry SDK installed and configured to export to the OTel Collector.
 2.  **Inspect Logs:** They look at the debug logs for the HTTP requests flowing between the services.
 3.  **The Discovery:** Service A sends an HTTP request to Service B with the header `traceparent: 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01`. However, Service B makes its HTTP request to Service C *without* any `traceparent` header.
-4.  **Root Cause:** The Go developer for Service B implemented the OpenTelemetry tracing for incoming requests, but failed to use the context-aware HTTP client (`httptrace`) when making the downstream outbound call to Service C. The Go context containing the Trace ID was dropped, causing Service C to generate a brand new Trace ID.
+4.  **Root Cause:** The Go developer for Service B implemented the OpenTelemetry tracing for incoming requests, but failed to use an instrumented HTTP client (for example `otelhttp.NewTransport`) or to inject the propagator headers using the incoming request context when making the downstream outbound call to Service C. The Go context containing the Trace ID was dropped, causing Service C to generate a brand new Trace ID.
 
 **The Fix:**
 Modify the code in Service B to extract the Trace Context from the incoming HTTP request context and inject it into the headers of the outbound HTTP request to Service C.
@@ -515,12 +519,13 @@ In a distributed training job, a single slow GPU (straggler) slows down the enti
 # (e.g., < 80% utilization while the cluster average is > 95%)
 
 (
-  dcgm_fi_dev_gpu_util{job="node-exporter"} < 80
-) 
+  DCGM_FI_DEV_GPU_UTIL < 80
+)
 and on(cluster)
 (
-  avg(dcgm_fi_dev_gpu_util{job="node-exporter"}) by (cluster) > 95
+  avg(DCGM_FI_DEV_GPU_UTIL) by (cluster) > 95
 )
+# Assumes a `cluster` label is attached to the series (for example via relabeling).
 ```
 
 ### 11.2 Memory Bandwidth Bottlenecks
@@ -528,14 +533,12 @@ and on(cluster)
 Compute utilization isn't everything. Many LLM inference workloads are memory-bandwidth bound.
 
 ```promql
-# Calculate the percentage of theoretical maximum memory bandwidth being used.
-# (Assuming an A100 80GB with ~2000 GB/s bandwidth)
+# DCGM_FI_DEV_MEM_COPY_UTIL is already a percentage (a gauge), so do not wrap it in rate().
+avg_over_time(DCGM_FI_DEV_MEM_COPY_UTIL[5m])
 
-(
-  rate(dcgm_fi_dev_mem_copy_util[5m]) 
-)
+# For a ratio of cycles the memory interface was active, enable the profiling field
+# DCGM_FI_PROF_DRAM_ACTIVE in the dcgm-exporter metrics file.
 ```
-*(Note: DCGM exposes mem copy util directly as a percentage in some versions, or raw bytes in others. Always verify the metric unit).*
 
 ### 11.3 NVLink Error Tracking
 
@@ -543,15 +546,16 @@ NVLink errors can cause silent data corruption or performance degradation.
 
 ```promql
 # Alert on any non-zero NVLink CRC errors
-sum by (instance, gpu, link) (
-  rate(dcgm_fi_dev_nvlink_crc_flit_error_count_total[5m])
+sum by (Hostname, gpu) (
+  rate(DCGM_FI_DEV_NVLINK_CRC_FLIT_ERROR_COUNT_TOTAL[5m])
 ) > 0
 ```
 
 ### 11.4 InfiniBand Congestion Detection
 
 ```promql
-# Identify HCAs experiencing significant backpressure (Xmit Wait)
+# Identify HCAs experiencing significant backpressure (Xmit Wait).
+# The metric name depends on your exporter; the threshold is workload specific, so baseline first.
 rate(ib_port_xmit_wait_total[5m]) > 1000
 ```
 
@@ -624,19 +628,19 @@ groups:
     rules:
       # Pre-calculate cluster-wide GPU utilization average
       - record: cluster:gpu_utilization:avg
-        expr: avg(dcgm_fi_dev_gpu_util) by (cluster)
+        expr: avg(DCGM_FI_DEV_GPU_UTIL) by (cluster)
 
       # Pre-calculate total power draw per rack
       - record: rack:gpu_power_usage:sum
-        expr: sum(dcgm_fi_dev_power_usage) by (rack_id, cluster)
+        expr: sum(DCGM_FI_DEV_POWER_USAGE) by (rack_id, cluster)
 
       # Calculate error budgets remaining (complex calculation)
       - record: slo:inference_availability:budget_remaining
         expr: |
           1 - (
-            sum(increase(triton_request_failures_total[30d])) 
-            / 
-            sum(increase(triton_request_count_total[30d]))
+            sum(increase(nv_inference_request_failure[30d]))
+            /
+            (sum(increase(nv_inference_request_success[30d])) + sum(increase(nv_inference_request_failure[30d])))
           ) / 0.001  # Assuming 99.9% SLO (0.1% budget)
 ```
 
@@ -648,13 +652,15 @@ Understanding the underlying JSON structure of a trace span is critical for writ
 
 ### Sample OpenTelemetry Span (JSON Representation)
 
+Illustrative, hand-written span (not captured from Triton); attribute names such as `triton.queue_time_ns` are examples only.
+
 ```json
 {
   "traceId": "5b8aa5a2d2c872e8321cf37308d69df2",
   "spanId": "51074eff6b78fd22",
   "parentSpanId": "9b12a838be23c10a",
   "name": "Predict - ResNet50",
-  "kind": 2, // SPAN_KIND_SERVER
+  "kind": 2,
   "startTimeUnixNano": "1698408000000000000",
   "endTimeUnixNano": "1698408000045000000",
   "attributes": [
@@ -684,7 +690,7 @@ Understanding the underlying JSON structure of a trace span is critical for writ
     }
   ],
   "status": {
-    "code": 1 // STATUS_CODE_OK
+    "code": 1
   },
   "events": [
     {
@@ -700,7 +706,7 @@ Understanding the underlying JSON structure of a trace span is critical for writ
 
 Exemplars are a feature in Prometheus that link a metric to a specific trace ID. This allows you to jump directly from a spike in a Grafana dashboard to the exact trace that caused it.
 
-Prometheus metric with an exemplar:
+Prometheus metric with an exemplar (OpenMetrics exposition format; Prometheus must run with `--enable-feature=exemplar-storage`):
 `http_request_duration_seconds_bucket{le="0.1"} 5 # {trace_id="5b8aa5a2d2c872e8321cf37308d69df2"} 0.045`
 
 ---
@@ -721,7 +727,7 @@ Prometheus metric with an exemplar:
     - Look at CPU utilization: Is `node_cpu_seconds_total{mode="iowait"}` high? This strongly indicates the CPU is blocked waiting for disk I/O.
 4.  **Investigate CPU Bottlenecks (Dataloaders):** PyTorch uses CPU worker processes to load and augment images.
     - Look at `node_cpu_seconds_total`. Are all CPU cores pinned at 100% while GPUs sit idle? If so, the data augmentation (e.g., cropping, rotating images) is the bottleneck, not the GPUs.
-5.  **The Resolution:** If it's a CPU bottleneck, advise the researcher to use DALI (NVIDIA Data Loading Library) to offload JPEG decoding and augmentation to the GPU, freeing up the CPU and saturating the compute cores. If it's a storage bottleneck, verify if they are reading small millions of small files instead of large TFRecords or WebDataset tarballs.
+5.  **The Resolution:** If it's a CPU bottleneck, advise the researcher to use DALI (NVIDIA Data Loading Library) to offload JPEG decoding and augmentation to the GPU, freeing up the CPU and saturating the compute cores. If it's a storage bottleneck, verify if they are reading millions of small files instead of large TFRecords or WebDataset tarballs.
 
 ### Scenario 5: FluentBit Backpressure and Dropped Logs
 
@@ -878,7 +884,7 @@ scrape_configs:
   # Node Exporter for CPU/Mem/Disk
   - job_name: 'node-exporter'
     kubernetes_sd_configs:
-      - role: endpoint
+      - role: endpoints
     relabel_configs:
       - source_labels: [__meta_kubernetes_endpoints_name]
         action: keep
@@ -893,9 +899,10 @@ scrape_configs:
       - source_labels: [__meta_kubernetes_pod_label_app]
         action: keep
         regex: triton-server
-      # Drop highly granular model version labels if cardinality gets too high
-      - source_labels: [model_version]
-        action: labeldrop
+    # Drop highly granular labels from scraped samples if cardinality gets too high
+    metric_relabel_configs:
+      - action: labeldrop
+        regex: model_version
 
   # OTel Collector Metrics
   - job_name: 'otel-collector'

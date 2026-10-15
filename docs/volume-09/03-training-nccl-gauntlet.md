@@ -190,7 +190,7 @@ Draw the Ring All-Reduce. Show how data is chunked and passed in a circle. Then 
 - It then constructs a highly optimized routing graph. If it finds NVLink, it uses it. If it finds InfiniBand, it uses GPU Direct RDMA to bypass the CPU."
 
 :::tip Golden Answer
-Mention **NCCL_TOPO_FILE**. Advanced users can dump the auto-detected topology to an XML file, modify it (e.g., to force a specific routing path avoiding a bad switch), and feed it back to NCCL via an environment variable.
+Mention **NCCL_TOPO_FILE**. Advanced users can dump the auto-detected topology to an XML file (`NCCL_TOPO_DUMP_FILE`), modify it (e.g., to force a specific routing path avoiding a bad switch), and feed it back to NCCL via `NCCL_TOPO_FILE`.
 :::
 
 ### 2. Ring All-Reduce
@@ -239,7 +239,7 @@ graph TD
 5. **NCCL Tests:** Run the official `nccl-tests` (e.g., `all_reduce_perf`) isolated from the training code to prove the hardware fabric is healthy."
 
 :::danger Interview Trap
-Saying "I would check the PyTorch code." If the framework hangs during `loss.backward()` in a distributed setting, 99% of the time it is an infrastructure issue (fabric, driver, hardware defect), not a python code bug. Go straight to infrastructure troubleshooting.
+Saying "I would check the PyTorch code." If the framework hangs during `loss.backward()` in a distributed setting, most of the time it is frequently an infrastructure issue (fabric, driver, hardware defect, a crashed or slow rank) rather than a Python code bug, although mismatched collectives across ranks in user code are another common cause. Rule out infrastructure first with NCCL logs and `nccl-tests`, then look at the code.
 :::
 
 ---
@@ -264,8 +264,8 @@ Draw the OSI model. Show how IB replaces layers 1-4 entirely with a lossless, lo
 **Candidate:**
 "InfiniBand was designed from the ground up for HPC.
 - **Lossless by Design:** It uses credit-based flow control. A sender will not transmit a packet unless it knows the receiver has buffer space. This physically prevents dropped packets at the switch level.
-- **Ultra-Low Latency:** Sub-microsecond latency. The protocol stack is incredibly thin and hardware-offloaded.
-- **Adaptive Routing:** IB switches (like NVIDIA Quantum) can dynamically route packets around congestion on a packet-by-packet basis, achieving near 100% fabric utilization.
+- **Ultra-Low Latency:** Latency on the order of a microsecond end to end. The protocol stack is incredibly thin and hardware-offloaded.
+- **Adaptive Routing:** IB switches (like NVIDIA Quantum) can dynamically route packets around congestion on a packet-by-packet basis, improving fabric utilization.
 - **In-Network Computing:** Switches use SHARP (Scalable Hierarchical Aggregation and Reduction Protocol) to perform the All-Reduce math directly in the switch ASIC, offloading the GPUs.
 - **Management:** Managed centrally via the Subnet Manager (OpenSM or UFM), which provisions paths deterministically."
 
@@ -276,7 +276,7 @@ Draw the OSI model. Show how IB replaces layers 1-4 entirely with a lossless, lo
 **Candidate:**
 "RoCE v2 encapsulates RDMA packets inside standard UDP/IP over Ethernet.
 - **Familiarity & Cost:** Enterprises already have Ethernet expertise, Ethernet switches (Arista, Cisco), and management tools. Ethernet ports are often cheaper.
-- **The Challenge (Lossy Ethernet):** Ethernet is natively lossy (best effort). If a buffer fills, it drops packets. Dropped packets cause TCP/UDP timeouts, which cause NCCL to hang or drastically slow down.
+- **The Challenge (Lossy Ethernet):** Ethernet is natively lossy (best effort). If a buffer fills, it drops packets. Dropped packets force RDMA retransmissions (go-back-N on many NICs), which can stall collectives or drastically slow them down.
 - **The Solution (PFC/ECN):** To make Ethernet lossless, you must configure DCB (Data Center Bridging), specifically PFC (Priority Flow Control) and ECN (Explicit Congestion Notification). 
 - **The Reality:** Tuning PFC across a multi-tier leaf-spine network for 4,000 GPUs is notoriously difficult. Misconfigurations lead to 'PFC Storms' (head-of-line blocking) that can freeze the entire network."
 
@@ -289,8 +289,8 @@ The key differentiator is **Congestion Management**. InfiniBand handles congesti
 **Interviewer:** "So for 4,000 GPUs, what is your recommendation?"
 
 **Candidate:**
-"For a dedicated, high-performance AI cluster of 4,000 GPUs, **InfiniBand is the only responsible choice**. 
-The CapEx savings of Ethernet switches will be rapidly eclipsed by the OpEx nightmare of tuning PFC and the lost revenue from GPUs idling while waiting on network retransmissions. Ethernet is acceptable for smaller scale (e.g., a few racks) or cloud environments where you must integrate with a massive existing IP fabric, but for a greenfield supercomputer, InfiniBand guarantees the predictable, lossless latency NCCL requires at scale."
+"For a dedicated, high-performance AI cluster of 4,000 GPUs, **InfiniBand is my default recommendation**, with a purpose-built Ethernet fabric such as Spectrum-X as the alternative when the customer needs Ethernet and accepts the tuning effort. 
+Any CapEx savings from commodity Ethernet switches can be eroded by the operational effort of tuning PFC/ECN and by GPUs idling on network retransmissions; run a PoC with your own traffic before deciding. A conventional lossless-Ethernet design is acceptable for smaller scale (e.g., a few racks) or cloud environments where you must integrate with a massive existing IP fabric, but for a greenfield supercomputer, InfiniBand guarantees the predictable, lossless latency NCCL requires at scale."
 
 ---
 

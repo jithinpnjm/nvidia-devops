@@ -65,7 +65,7 @@ While functional, `argparse` mixes routing logic with definition logic. For infr
 
 ### 2.2 Advanced CLI Design with `Click`
 
-`Click` is the industry standard for Python CLIs (used by Kubernetes tools, Flask, dbt, etc.). It uses decorators to map CLI commands directly to Python functions, naturally separating concerns.
+`Click` is a widely used third-party library for Python CLIs (Flask and dbt use it, among many others). It uses decorators to map CLI commands directly to Python functions, naturally separating concerns.
 
 #### Click Core Concepts
 * **Commands:** The executable functions.
@@ -113,7 +113,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("fleet-cli")
 
 class FleetContext:
-    \"\"\"Shared context object passed across Click commands.\"\"\"
+    """Shared context object passed across Click commands."""
     def __init__(self):
         self.api_token = None
         self.endpoint = None
@@ -128,7 +128,7 @@ pass_ctx = click.make_pass_decorator(FleetContext, ensure=True)
 @click.option('--debug/--no-debug', default=False, help='Enable debug logging')
 @pass_ctx
 def cli(ctx: FleetContext, endpoint: str, token: str, debug: bool):
-    \"\"\"Fleet Management CLI - Operations for GPU Clusters.\"\"\"
+    """Fleet Management CLI - Operations for GPU Clusters."""
     ctx.api_token = token
     ctx.endpoint = endpoint
     ctx.debug = debug
@@ -139,7 +139,7 @@ def cli(ctx: FleetContext, endpoint: str, token: str, debug: bool):
 
 @cli.group()
 def node():
-    \"\"\"Manage individual compute nodes.\"\"\"
+    """Manage individual compute nodes."""
     pass
 
 @node.command("cordon")
@@ -147,7 +147,7 @@ def node():
 @click.option('--reason', default='Maintenance', help='Audit reason for cordoning.')
 @pass_ctx
 def node_cordon(ctx: FleetContext, node_id: str, reason: str):
-    \"\"\"Mark a node as unschedulable.\"\"\"
+    """Mark a node as unschedulable."""
     logger.info(f"Connecting to {ctx.endpoint} using provided token.")
     # In a real app, this calls your API client
     logger.info(f"Successfully cordoned {node_id}. Reason: {reason}")
@@ -160,7 +160,7 @@ def node_cordon(ctx: FleetContext, node_id: str, reason: str):
 @click.confirmation_option(prompt='Are you sure you want to drain this node? This will evict workloads.')
 @pass_ctx
 def node_drain(ctx: FleetContext, node_id: str, force: bool, grace_period: int):
-    \"\"\"Safely evict all workloads from a node.\"\"\"
+    """Safely evict all workloads from a node."""
     logger.info(f"Initiating drain on {node_id} (Force: {force}, Grace: {grace_period}s)")
     # Logic to drain...
     logger.info("Drain complete.")
@@ -215,11 +215,11 @@ import yaml
 
 @pytest.fixture(scope="function")
 def mock_kubeconfig():
-    \"\"\"
+    """
     Creates a temporary valid kubeconfig file.
     Yields the path to the test.
     Cleans up the file after the test completes, even if it fails.
-    \"\"\"
+    """
     config_data = {
         "apiVersion": "v1",
         "clusters": [{"cluster": {"server": "https://mock.k8s.local"}, "name": "mock-cluster"}],
@@ -341,19 +341,19 @@ Infrastructure scripts cannot assume the network is reliable. They must handle t
 
 ### 4.1 Retries and Backoff with Tenacity
 
-`tenacity` is the premier library for retry logic in Python.
+`tenacity` is a popular third-party library for retry logic in Python.
 
 ```python
 # resilient_client.py
 import requests
 from requests.exceptions import ConnectionError, Timeout, HTTPError
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception
 import logging
 
 logger = logging.getLogger(__name__)
 
 def is_retryable_exception(exception):
-    \"\"\"Determine if we should retry based on the exception type.\"\"\"
+    """Determine if we should retry based on the exception type."""
     if isinstance(exception, (ConnectionError, Timeout)):
         return True
     if isinstance(exception, HTTPError):
@@ -371,8 +371,8 @@ class ResilientAPIClient:
 
     @retry(
         stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=1, min=2, max=10), # 2s, 4s, 8s, 10s...
-        retry=retry_if_exception_type(Exception),
+        wait=wait_exponential(multiplier=1, min=2, max=10), # waits of roughly 2s, 2s, 4s, 8s (capped at 10s)
+        retry=retry_if_exception(is_retryable_exception),
         reraise=True
     )
     def resilient_get(self, path: str) -> dict:
@@ -394,7 +394,7 @@ class ResilientAPIClient:
 **Deep Explanation:**
 
 :::info Networking Reality
-* **Timeouts:** A missing timeout in `requests.get()` defaults to infinity. If the router drops the TCP connection silently, your script hangs forever. We enforce `(3.0, 15.0)` - 3 seconds to establish the TCP connection, 15 seconds waiting for the first byte of data.
+* **Timeouts:** A missing timeout in `requests.get()` defaults to infinity. If the router drops the TCP connection silently, your script hangs forever. We enforce `(3.0, 15.0)` - 3 seconds to establish the TCP connection, and 15 seconds as the read timeout (the maximum time between received bytes, not a limit on total request time).
 * **Exponential Backoff:** `wait_exponential` prevents the "thundering herd" problem. If 1,000 CLI instances retry exactly 1 second after an API goes down, they will DDoS it when it recovers.
 * **Discriminatory Retries:** We do NOT retry on HTTP 401 (Unauthorized) or 404 (Not Found). Retrying a bad password 5 times won't magically make it valid.
 :::
@@ -403,13 +403,13 @@ class ResilientAPIClient:
 
 ## 5. CI/CD: Distributing Python CLIs to Ops Teams
 
-Writing the code is only 50% of the job. Distributing Python tools to operators' laptops or Jenkins workers is notoriously difficult due to dependency conflicts.
+Writing the code is only part of the job. Distributing Python tools to operators' laptops or Jenkins workers is notoriously difficult due to dependency conflicts.
 
 ### 5.1 Packaging Approaches
 
 1.  **PyPI (pip install):** The standard. Requires the user to manage Virtual Environments (venv) or tools like `pipx`.
 2.  **Containerization (Docker):** Wrap the CLI in a lightweight alpine container. Excellent for CI pipelines, cumbersome for local CLI usage.
-3.  **Standalone Binaries (PyInstaller / PEX):** Packages the Python interpreter, your code, and all dependencies into a single executable binary. *This is the gold standard for distributing infra tools to end-users.*
+3.  **Standalone Binaries (PyInstaller / shiv / PEX):** PyInstaller bundles the Python interpreter, your code, and dependencies into a single executable (built per OS and architecture); PEX and shiv produce self-contained archives that still need a compatible interpreter on the target. These remove the need for users to manage virtual environments.
 
 ### 5.2 CI/CD Pipeline Architecture
 
@@ -449,10 +449,10 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python 3.11
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: "3.11"
         cache: 'pip'
@@ -480,8 +480,8 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-python@v4
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
       with:
         python-version: "3.11"
     - name: Build PyInstaller
@@ -489,7 +489,7 @@ jobs:
         pip install pyinstaller -r requirements.txt
         pyinstaller --onefile --name fleet-cli src/main.py
     - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: fleet-cli-linux
         path: dist/fleet-cli
@@ -607,29 +607,23 @@ gpu-diag/
 
 #### The Parser (`src/parsers.py`)
 
-Infrastructure tools often scrape CLI output when APIs aren't available.
+Infrastructure tools often scrape CLI output when APIs aren't available. Do not regex the human-readable `nvidia-smi` table, since its layout changes between driver versions. Use the machine-readable query mode instead: `nvidia-smi --query-gpu=index,memory.used,memory.total --format=csv,noheader,nounits` prints one `index, used, total` line per GPU (values in MiB).
 
 ```python
 # src/parsers.py
-import re
-
-def parse_smi_memory(smi_output: str) -> dict:
-    \"\"\"
-    Extracts memory usage from raw nvidia-smi text.
-    Returns dict mapping GPU ID to memory utilization percentage.
-    \"\"\"
+def parse_smi_memory(csv_output: str) -> dict:
+    """
+    Parses `nvidia-smi --query-gpu=index,memory.used,memory.total --format=csv,noheader,nounits`.
+    Returns dict mapping GPU index to memory utilization percentage.
+    """
     results = {}
-    # Regex to capture GPU ID and Memory Usage (e.g., "0", "4056MiB / 40960MiB")
-    pattern = re.compile(r"GPU\s+(\d+):.*?(\d+)MiB\s+/\s+(\d+)MiB", re.IGNORECASE)
-    
-    for match in pattern.finditer(smi_output):
-        gpu_id = match.group(1)
-        used = float(match.group(2))
-        total = float(match.group(3))
-        
+    for line in csv_output.strip().splitlines():
+        parts = [p.strip() for p in line.split(",")]
+        if len(parts) != 3 or not all(p.replace(".", "", 1).isdigit() for p in parts):
+            continue  # skip malformed lines
+        gpu_id, used, total = parts[0], float(parts[1]), float(parts[2])
         if total > 0:
             results[gpu_id] = (used / total) * 100
-            
     return results
 ```
 
@@ -640,15 +634,12 @@ def parse_smi_memory(smi_output: str) -> dict:
 from src.parsers import parse_smi_memory
 
 def test_parse_smi_memory_standard():
-    mock_output = \"\"\"
-    GPU 0: NVIDIA A100-SXM4-40GB
-    Memory Usage: 4000MiB / 40960MiB
-    GPU 1: NVIDIA A100-SXM4-40GB
-    Memory Usage: 40960MiB / 40960MiB
-    \"\"\"
-    
+    mock_output = """
+0, 4000, 40960
+1, 40960, 40960
+"""
     result = parse_smi_memory(mock_output)
-    
+
     assert "0" in result
     assert result["0"] == (4000 / 40960) * 100
     assert result["1"] == 100.0
@@ -667,9 +658,13 @@ import concurrent.futures
 import subprocess
 import logging
 
+logger = logging.getLogger(__name__)
+
 def run_remote_smi(node: str) -> tuple[str, str]:
-    \"\"\"Runs nvidia-smi via SSH. Returns (node_name, output_or_error).\"\"\"
-    command = ["ssh", "-o", "StrictHostKeyChecking=no", "-o", "BatchMode=yes", node, "nvidia-smi"]
+    """Runs nvidia-smi via SSH. Returns (node_name, output_or_error)."""
+    # accept-new records unknown host keys but still rejects changed ones (never use StrictHostKeyChecking=no in production)
+    command = ["ssh", "-o", "StrictHostKeyChecking=accept-new", "-o", "BatchMode=yes", node,
+               "nvidia-smi", "--query-gpu=index,memory.used,memory.total", "--format=csv,noheader,nounits"]
     try:
         # 10 second timeout per node
         result = subprocess.run(command, capture_output=True, text=True, timeout=10)
@@ -683,7 +678,7 @@ def run_remote_smi(node: str) -> tuple[str, str]:
         return (node, f"EXCEPTION: {str(e)}")
 
 def scan_cluster_gpus(nodes: list[str], max_workers: int = 20) -> dict:
-    \"\"\"Scans a list of nodes concurrently.\"\"\"
+    """Scans a list of nodes concurrently."""
     results = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         # Submit all tasks
@@ -714,14 +709,14 @@ import json
 
 @click.group()
 def cli():
-    \"\"\"GPU Diagnostic Toolkit\"\"\"
+    """GPU Diagnostic Toolkit"""
     pass
 
 @cli.command("health-check")
 @click.option('--endpoint', required=True, help="Inventory API")
 @click.option('--workers', default=10, help="Concurrent SSH sessions")
 def health_check(endpoint: str, workers: int):
-    \"\"\"Run a full cluster GPU health scan.\"\"\"
+    """Run a full cluster GPU health scan."""
     click.echo("1. Fetching inventory...")
     client = ResilientAPIClient(endpoint)
     # Assume this returns {"nodes": ["worker-1", "worker-2"]}
@@ -764,10 +759,10 @@ As a Senior Solutions Architect or Staff SRE, you must debug system-level intera
 ### Scenario 1: The "Zombie" Subprocess Leak
 
 **The Problem:**
-You deployed a Python agent to every Kubernetes worker node. Its job is to periodically run a shell script (`bash /opt/collect_hw_metrics.sh`) using `subprocess.Popen()` and report results. After 48 hours, the node's memory is exhausted, and `ps aux` shows thousands of `<defunct>` zombie processes.
+You deployed a Python agent to every Kubernetes worker node. Its job is to periodically run a shell script (`bash /opt/collect_hw_metrics.sh`) using `subprocess.Popen()` and report results. After 48 hours, the node is close to its PID limit, and `ps aux` shows thousands of `<defunct>` zombie processes.
 
 **The Diagnosis:**
-When using `subprocess.Popen`, if the parent process (your Python agent) does not explicitly read the child's exit status by calling `wait()` or `communicate()`, the operating system keeps the child's process table entry around (a zombie) so the parent *can* eventually check it. If the parent loops endlessly firing off processes without waiting, zombies consume the process table limit (PID exhaustion) and memory.
+When using `subprocess.Popen`, if the parent process (your Python agent) does not explicitly read the child's exit status by calling `wait()` or `communicate()`, the operating system keeps the child's process table entry around (a zombie) so the parent *can* eventually check it. If the parent loops endlessly firing off processes without waiting, zombies consume process-table slots until the PID limit is reached (zombies themselves use almost no memory). CPython lazily reaps finished children of garbage-collected `Popen` objects the next time a `Popen` is created, but relying on that is fragile; zombies pile up when references are kept or when the parent is a long-lived non-Python launcher.
 
 **The Fix:**
 Always use `subprocess.run()` (which implicitly waits) unless you absolutely need non-blocking IO. If you use `Popen`, you must ensure `process.wait()` or `process.communicate()` is called in a `finally` block or context manager.
@@ -812,11 +807,12 @@ Build a generator wrapper around the API client that automatically yields pagina
 
 ```python
 def get_all_instances(api_client):
-    \"\"\"Generator that handles API pagination transparently.\"\"\"
+    """Generator that handles API pagination transparently."""
     url = "/api/v1/instances"
     params = {"limit": 1000}
     
     while True:
+        # Assumes ResilientAPIClient.resilient_get is extended to accept query params
         response = api_client.resilient_get(url, params=params)
         
         # Yield each instance to the caller
@@ -835,6 +831,7 @@ def delete_stale_instances(api_client):
     # This loop will now safely process all 15,000 items
     for instance in get_all_instances(api_client):
         if instance["status"] == "stale":
+            # Assumes a resilient_delete helper analogous to resilient_get
             api_client.resilient_delete(f"/api/v1/instances/{instance['id']}")
 ```
 
@@ -847,7 +844,7 @@ Two cron jobs execute your Python script simultaneously. Both scripts read a loc
 File operations are not inherently atomic. Script A opens the file for writing (truncating it), gets preempted by the OS scheduler, and then Script B tries to read the truncated (empty) file. When B tries to parse empty bytes as JSON, it crashes. Or worse, A and B interleave writes, resulting in garbage bytes.
 
 **The Fix:**
-Use atomic writes via the OS. Write the new data to a temporary file, then use `os.replace()` (which compiles to the atomic POSIX `rename` syscall) to overwrite the target file in one atomic operation. Also, use file locks (`fcntl` on Linux/macOS) for reading.
+Use atomic writes via the OS. Write the new data to a temporary file, then use `os.replace()` (which maps to the atomic POSIX `rename` call on the same filesystem) to overwrite the target file in one atomic operation. Also, use file locks (`fcntl` on Linux/macOS) for reading.
 
 ```python
 import os
@@ -855,7 +852,7 @@ import tempfile
 import json
 
 def atomic_json_write(filepath, data):
-    \"\"\"Writes JSON data atomically to prevent corruption.\"\"\"
+    """Writes JSON data atomically to prevent corruption."""
     # Create a temporary file in the same directory to ensure they are on the same filesystem
     # (Cross-filesystem renames are not atomic)
     dirname = os.path.dirname(filepath)
@@ -960,7 +957,7 @@ In High-Performance Computing (HPC) and GPU clusters, Python agents must have ne
 
 ### 11.1 Understanding the GIL (Global Interpreter Lock)
 
-Python's GIL prevents multiple native threads from executing Python bytecodes at once. This means multithreading in Python provides *zero* performance benefit for CPU-bound tasks (like parsing massive JSON objects or crunching math). 
+Python's GIL prevents multiple native threads from executing Python bytecodes at once. This means multithreading in pure-Python code provides little to no speedup for CPU-bound tasks (like parsing massive JSON objects or crunching math), although C extensions such as NumPy can release the GIL during heavy computation.
 
 **Rule of Thumb:**
 *   **I/O Bound (Network/Disk):** Use Threads (`ThreadPoolExecutor`) or `asyncio`. The GIL is released while waiting for I/O.
@@ -968,7 +965,7 @@ Python's GIL prevents multiple native threads from executing Python bytecodes at
 
 ### 11.2 Profiling Context Switches
 
-High CPU usage isn't the only performance killer. Excessive context switching (the OS constantly swapping threads in and out of the CPU) destroys CPU cache locality.
+High CPU usage isn't the only performance killer. Excessive context switching (the OS constantly swapping threads in and out of the CPU) hurts CPU cache locality.
 
 You can profile this on Linux using `perf`:
 
@@ -1004,7 +1001,7 @@ By treating your scripts as **software**—applying design patterns, robust CI/C
 
 ### Bonus Deep Dive 1: Managing State securely in CLI tools
 When CLI tools need to cache state (e.g., authentication tokens so the user doesn't log in every time), they must do so securely.
-Writing plaintext tokens to `~/.mycli_cache` is a massive security risk in shared jump-hosts or CI/CD pipelines.
+Writing plaintext tokens to `~/.mycli_cache` is a security risk in shared jump-hosts or CI/CD pipelines.
 
 **Best Practices:**
 1. **Use OS Keychains:** On macOS, use the Keychain. On Linux, Secret Service API. Python's `keyring` library abstracts this.
@@ -1031,11 +1028,3 @@ def get_token():
         return token
     return keyring.get_password(SERVICE_NAME, "auth_token")
 ```
-
-SERVICE_NAME = "fleet-cli"
-
-SERVICE_NAME = "fleet-cli"
-
-SERVICE_NAME = "fleet-cli"
-
-SERVICE_NAME = "fleet-cli"

@@ -12,7 +12,7 @@ description: "Solve the data starvation problem. Learn how GPUs bypass the CPU t
 | Difficulty | Advanced |
 | Estimated reading time | 30 minutes |
 | Primary audience | DevOps, SRE, Platform, Cloud and Infrastructure Engineers |
-| Core question | If GPUDirect RDMA connects GPUs to other GPUs, how do we get petabytes of training data off hard drives and into the GPU? |
+| Core question | If GPUDirect RDMA connects GPUs to other GPUs, how do we get large training datasets off storage and into the GPU? |
 
 ## Introduction
 
@@ -20,7 +20,7 @@ In the previous chapter, we solved the problem of GPUs talking to other GPUs acr
 
 But AI models do not just share math. They must ingest immense amounts of raw data—petabytes of text, millions of high-resolution images, and massive model checkpoints. 
 
-Historically, reading a file from a hard drive required the Linux OS. The CPU would read the file from disk, pull it into System RAM (the Page Cache), and then push it down to the GPU. If you have 8 H100 GPUs trying to read data simultaneously, the host CPU will immediately hit 100% utilization, and the GPUs will starve.
+Historically, reading a file from a hard drive required the Linux OS. The CPU would read the file from disk, pull it into System RAM (the Page Cache), and then push it down to the GPU. If you have 8 H100 GPUs trying to read data simultaneously, the host CPU and its memory bandwidth can become the bottleneck, and the GPUs can starve.
 
 NVIDIA solved this with **GPUDirect Storage (GDS)**. 
 
@@ -30,7 +30,7 @@ GDS fundamentally changes the storage paradigm. It uses the exact same concept a
 
 NVIDIA created a new library called `libcufile`. When a Python application uses this library to open a file, it bypasses the standard Linux POSIX storage APIs (like `read()` or `pread()`).
 
-1. The GPU tells the NVMe drive exactly what data it needs.
+1. The application calls `cuFileRead`; the cuFile library and driver set up the I/O (the CPU still issues the NVMe commands, but not the data copy).
 2. The NVMe drive uses Direct Memory Access (DMA) to push the file blocks directly over the PCIe bus into the GPU's HBM.
 3. The Host CPU and the System RAM are completely bypassed. 
 
@@ -45,7 +45,7 @@ If the data is on a remote storage appliance:
 2. The ConnectX Network Interface Card (NIC) receives the data.
 3. The NIC pushes the data directly over the internal PCIe switch into the GPU's HBM.
 
-Again, the Host CPU has no idea the transfer occurred. The GPU pulls data from a remote hard drive across the data center at the exact same speed as if the drive were soldered directly onto the motherboard.
+Again, the Host CPU has no idea the transfer occurred. Remote reads can approach local-drive throughput when the network, storage backend, and PCIe path are all sized for it, but latency is higher than local NVMe.
 
 ## Architectural Diagram: The Evolution of Storage Paths
 
@@ -75,9 +75,9 @@ A self-driving car company is training computer vision models on 10 million dash
 
 Our data scientists are currently using standard Python `open()` and `read()` commands in their PyTorch DataLoaders. These commands invoke the standard Linux POSIX Virtual File System (VFS). 
 
-When you use POSIX APIs, Linux forces the incoming 400G network traffic to buffer into the host CPU's System RAM (the Page Cache) before it can be transferred to the GPU. A dual-socket Intel CPU simply cannot process and copy 200 Gigabytes of data per second. The CPU's memory controllers are saturated, limiting the throughput to 10 GB/s and starving the GPUs.
+When you use POSIX APIs, Linux forces the incoming 400G network traffic to buffer into the host CPU's System RAM (the Page Cache) before it can be transferred to the GPU. Staging 200 GB/s through host memory would consume a large share of the host's memory bandwidth and CPU copy capacity; the 10 GB/s observed is consistent with a CPU- or loader-bound pipeline, which you should confirm with profiling before refactoring.
 
-To unlock the 200 GB/s capability of the WEKA array, we must refactor the PyTorch DataLoaders. We must implement **NVIDIA DALI (Data Loading Library)** with **GPUDirect Storage (GDS)** enabled. DALI will intercept the file reads and issue `cufile` commands. The WEKA array will then use RDMA to blast the video frames directly from the remote NVMe drives into the GPU memory via the ConnectX NICs, bypassing the Linux Kernel completely and feeding the GPUs at line rate."
+To unlock the 200 GB/s capability of the WEKA array, we must refactor the PyTorch DataLoaders. We must implement **NVIDIA DALI (Data Loading Library)** with **GPUDirect Storage (GDS)** enabled. DALI readers that support GDS issue `cufile` reads, and with a GDS-capable WEKA client the data moves by RDMA from the storage servers into GPU memory through the ConnectX NICs without a host-memory bounce copy (the file system client still runs in the kernel/user-space client for control). Video decode may still require NVDEC and its own tuning. Validate with `gdscheck -p` and `gds_stats`."
 
 ## Interview Preparation
 

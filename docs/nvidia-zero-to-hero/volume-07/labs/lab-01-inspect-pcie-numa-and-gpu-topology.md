@@ -67,11 +67,11 @@ flowchart TD
     CPU0 -->|"UPI/QPI cross-socket link<br/>evidence: numactl --hardware shows node distance 0-&gt;1 = 21"| CPU1
     CPU0 -->|"evidence: lscpu -e shows CPU 0-55 bound to NODE 0"| Root0 --> Switch0
     CPU1 -->|"evidence: lscpu -e shows CPU 56-111 bound to NODE 1"| Root1 --> Switch1
-    Switch0 -->|"evidence: LnkSta = 16GT/s, Width x16 (matches LnkCap)"| GPU0
-    Switch0 -->|"evidence: LnkSta = 16GT/s, Width x16"| GPU1
+    Switch0 -->|"evidence: LnkSta = 32GT/s, Width x16 (matches LnkCap)"| GPU0
+    Switch0 -->|"evidence: LnkSta = 32GT/s, Width x16"| GPU1
     Switch0 -->|"evidence: PIX in nvidia-smi topo -m (same switch)"| NIC0
-    Switch1 -->|"evidence: LnkSta = 16GT/s, Width x16"| GPU2
-    Switch1 -.->|"evidence: LnkSta = 16GT/s, Width x4<br/>(expected x16) -&gt; degraded"| Bad
+    Switch1 -->|"evidence: LnkSta = 32GT/s, Width x16"| GPU2
+    Switch1 -.->|"evidence: LnkSta = 32GT/s, Width x4<br/>(expected x16) -&gt; degraded"| Bad
     Bad -.-> GPU3
     Switch1 -->|"evidence: PIX in nvidia-smi topo -m"| NIC1
     Root0 -->|"evidence: /sys/.../numa_node = 0"| NVMe0
@@ -139,7 +139,7 @@ An example of a fully completed row for that reference system:
 | Field | Value |
 |---|---|
 | Server model | NVIDIA DGX H100 |
-| BIOS or firmware release | DGX OS 6.2, BMC 2.15, BIOS 1.4.2 |
+| BIOS or firmware release | (example values) DGX OS 6.2, BMC 2.15, BIOS 1.4.2 |
 | Operating system | Ubuntu 22.04.4 LTS |
 | Kernel | 5.15.0-105-generic |
 | NVIDIA driver | 550.90.07 |
@@ -171,7 +171,7 @@ numactl --hardware | tee "$LAB_DIR/numactl-hardware.txt"
 lscpu -e=CPU,NODE,SOCKET,CORE,ONLINE | tee "$LAB_DIR/lscpu-topology.txt"
 ```
 
-**Expected output** (reference system: dual-socket DGX H100, 56 physical cores/socket, hyperthreading on):
+**Illustrative output (not captured)** (reference system: dual-socket DGX H100, 56 physical cores/socket, hyperthreading on):
 
 ```text
 $ numactl --hardware
@@ -210,7 +210,7 @@ lspci -Dtv | tee "$LAB_DIR/lspci-tree.txt"
 lspci -Dnn | tee "$LAB_DIR/lspci-devices.txt"
 ```
 
-Representative (trimmed) output:
+Illustrative output (not captured), trimmed:
 
 ```text
 $ lspci -Dtv
@@ -251,7 +251,7 @@ nvidia-smi --query-gpu=index,uuid,name,pci.bus_id,driver_version \
   --format=csv | tee "$LAB_DIR/gpu-identities.csv"
 ```
 
-Representative output (8-GPU reference system):
+Illustrative output (not captured), 8-GPU reference system:
 
 ```text
 index, uuid, name, pci.bus_id, driver_version
@@ -277,7 +277,7 @@ nvidia-smi topo -p2p r | tee "$LAB_DIR/p2p-read-capability.txt" 2>&1 || true
 nvidia-smi topo -p2p w | tee "$LAB_DIR/p2p-write-capability.txt" 2>&1 || true
 ```
 
-**Expected output** (8-GPU DGX H100-class node, fully meshed through NVSwitch, one rail-aligned NIC per GPU):
+**Illustrative output (not captured)** (8-GPU DGX H100-class node, fully meshed through NVSwitch; the example lists only four NICs, so GPU4-GPU7 show SYS to all of them, whereas a real system shows one PIX/PXB NIC per GPU):
 
 ```text
 $ nvidia-smi topo -m
@@ -286,10 +286,10 @@ GPU0     X      NV18    NV18    NV18    NV18    NV18    NV18    NV18    PIX     
 GPU1    NV18     X      NV18    NV18    NV18    NV18    NV18    NV18    SYS     PIX     SYS     SYS     0-55,112-167    0
 GPU2    NV18    NV18     X      NV18    NV18    NV18    NV18    NV18    SYS     SYS     PIX     SYS     0-55,112-167    0
 GPU3    NV18    NV18    NV18     X      NV18    NV18    NV18    NV18    SYS     SYS     SYS     PIX     0-55,112-167    0
-GPU4    NV18    NV18    NV18    NV18     X      NV18    NV18    NV18    PIX     SYS     SYS     SYS     56-111,168-223  1
-GPU5    NV18    NV18    NV18    NV18    NV18     X      NV18    NV18    SYS     PIX     SYS     SYS     56-111,168-223  1
-GPU6    NV18    NV18    NV18    NV18    NV18    NV18     X      NV18    SYS     SYS     PIX     SYS     56-111,168-223  1
-GPU7    NV18    NV18    NV18    NV18    NV18    NV18    NV18     X      SYS     SYS     SYS     PIX     56-111,168-223  1
+GPU4    NV18    NV18    NV18    NV18     X      NV18    NV18    NV18    SYS     SYS     SYS     SYS     56-111,168-223  1
+GPU5    NV18    NV18    NV18    NV18    NV18     X      NV18    NV18    SYS     SYS     SYS     SYS     56-111,168-223  1
+GPU6    NV18    NV18    NV18    NV18    NV18    NV18     X      NV18    SYS     SYS     SYS     SYS     56-111,168-223  1
+GPU7    NV18    NV18    NV18    NV18    NV18    NV18    NV18     X      SYS     SYS     SYS     SYS     56-111,168-223  1
 
 Legend:
   X    = Self
@@ -328,7 +328,7 @@ done | tee "$LAB_DIR/device-numa-map.txt"
 
 A value of `-1` means the kernel does not expose a specific NUMA association. Do not automatically treat it as NUMA node 0.
 
-Representative output:
+Illustrative output (not captured):
 
 ```text
 0000:1a:00.0 NUMA=0
@@ -354,7 +354,7 @@ sudo lspci -s "$GPU_BDF" -vv | grep -E 'LnkCap:|LnkSta:' \
   | tee "$LAB_DIR/${GPU_BDF//:/_}-link.txt"
 ```
 
-Representative output — healthy GPU (`GPU0`, PCI BDF `0000:1a:00.0`, matches the `0000:19:00.0` root port in Step 3):
+Illustrative output (not captured) — healthy GPU (`GPU0`, PCI BDF `0000:1a:00.0`, matches the `0000:19:00.0` root port in Step 3):
 
 ```text
 $ sudo lspci -s 0000:1a:00.0 -vv | grep -E 'LnkCap:|LnkSta:'
@@ -364,7 +364,7 @@ $ sudo lspci -s 0000:1a:00.0 -vv | grep -E 'LnkCap:|LnkSta:'
 
 **Healthy interpretation:** `LnkCap` (link capability — the fastest speed/width both ends of the link can support) reads `32GT/s, Width x16`, which is PCIe Gen5 x16. `LnkSta` (link status — what's actually negotiated right now) reads `32GT/s (ok), Width x16 (ok)` — the `(ok)` suffix means the currently-negotiated value equals the capability, i.e., the link came up at full speed and full width. Negotiated speed and width should match the supported platform design for the current power and workload state.
 
-Representative output — the degraded case from Figure 7.L1.1 (`GPU3`, retrained down after a link event):
+Illustrative output (not captured) — the degraded case from Figure 7.L1.1 (`GPU3`, retrained down after a link event):
 
 ```text
 $ sudo lspci -s 0000:5d:00.0 -vv | grep -E 'LnkCap:|LnkSta:'
@@ -388,9 +388,9 @@ for iface in /sys/class/net/*; do
 done | tee "$LAB_DIR/interface-pci-map.txt"
 ```
 
-Use `ethtool -i &lt;interface&gt;` or `ibdev2netdev` where appropriate to map logical interfaces to PCI devices.
+Use `ethtool -i <interface>` or `ibdev2netdev` where appropriate to map logical interfaces to PCI devices.
 
-Representative output:
+Illustrative output (not captured):
 
 ```text
 $ for iface in /sys/class/net/*; do
@@ -498,8 +498,9 @@ Observe latency, throughput, CPU utilization, and consistency. Do not disable li
 
 **Resolution:** Follow the server-vendor runbook. Do not force PCIe settings without platform approval.
 
-**Worked evidence for this exact symptom** — this is precisely the GPU3 case captured in Step 6:
+**Worked evidence for this exact symptom** — this is the illustrative GPU3 case from Step 6 (not captured output):
 
+```text
 $ sudo dmesg -T | grep -i "5d:00.0" | tail -5
 [Wed Aug  6 03:14:22 2026] pcieport 0000:5c:00.0: AER: Corrected error received: 0000:5d:00.0
 [Wed Aug  6 03:14:22 2026] pcieport 0000:5c:00.0: AER: can't find device of ID0500
@@ -514,7 +515,7 @@ $ sudo dmesg -T | grep -i "5d:00.0" | tail -5
 
 **Resolution:** Align CPU workers, memory, GPU, and NIC within the same locality domain where possible.
 
-**Worked evidence for this exact symptom.** Combine the worksheet row from Step 8 with the running process's actual affinity:
+**Worked evidence for this exact symptom (illustrative, not captured).** Combine the worksheet row from Step 8 with the running process's actual affinity:
 
 ```text
 $ taskset -cp 71820

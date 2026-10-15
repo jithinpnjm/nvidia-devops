@@ -312,6 +312,8 @@ Compare the result with the logical element count and inspect the bounds conditi
 
 **Evidence — reproducing the underfill with real numbers:**
 
+*Illustrative output (not captured):*
+
 ```text
 $ python3 -c "
 N = 1_000_003
@@ -340,6 +342,8 @@ The kernel lacks a correct bounds check, or multidimensional coordinates are con
 Validate each dimension before accessing memory and test non-divisible input sizes.
 
 **Evidence — the same array without a bounds check, reproduced:**
+
+*Illustrative output (not captured):*
 
 ```text
 $ ./vector_add-no-bounds 1000003 256

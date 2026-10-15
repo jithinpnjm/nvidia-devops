@@ -98,41 +98,38 @@ If `kubelet` or `containerd` starts before `nvidia-fabricmanager` has successful
 
 When writing or modifying services for GPU nodes, you must manage dependencies strictly. If `kubelet` starts before `nvidia-fabricmanager` is fully ready on an HGX system (NVLink switch topology), the GPUs will not communicate correctly, leading to massive performance degradation or immediate job failure.
 
-Let's examine a robust `nvidia-fabricmanager.service` unit file:
+The Fabric Manager package installs its own unit file (on Linux, under `/lib/systemd/system/nvidia-fabricmanager.service`; the Fabric Manager user guide says to modify that file to change start-up options). Do not hand-write it. The sketch below is a simplified, illustrative example of the shape of such a unit, not the shipped file:
 
 ```ini
-# /usr/lib/systemd/system/nvidia-fabricmanager.service
+# Illustrative sketch only: check the unit shipped by your Fabric Manager package.
 [Unit]
-Description=NVIDIA Fabric Manager Service
-# Ensure we only run after network and syslog are available
-After=network-online.target syslog.target
-Wants=network-online.target
-# Crucial: Ensure the NVIDIA device nodes are created before this starts
-Requires=nvidia-device-plugin.service
-Before=containerd.service kubelet.service
+Description=NVIDIA fabric manager service
+After=network-online.target
+Requires=network-online.target
 
 [Service]
 Type=forking
 ExecStart=/usr/bin/nv-fabricmanager -c /usr/share/nvidia/nvswitch/fabricmanager.cfg
-ExecStop=/usr/bin/systemctl kill -s SIGTERM nvidia-fabricmanager.service
-# Restart logic for high availability
-Restart=always
-RestartSec=15
 LimitCORE=infinity
-# Secure the service
-PrivateTmp=true
-ProtectSystem=full
 
 [Install]
 WantedBy=multi-user.target
 ```
 
+To make containerd and kubelet wait for Fabric Manager, add a drop-in for those units (`systemctl edit containerd.service`) rather than editing the packaged unit:
+
+```ini
+[Unit]
+After=nvidia-fabricmanager.service
+Wants=nvidia-fabricmanager.service
+```
+
 **Key Directives:**
-*   **`Requires=`**: A hard dependency. If `nvidia-device-plugin.service` fails, this service will not start.
-*   **`Wants=`**: A soft dependency. It will try to start `network-online.target`, but if it fails, it proceeds anyway.
-*   **`Before=` / `After=`**: Ordering dependencies. `Requires` does *not* imply ordering. You must specify `Before=kubelet.service` to guarantee Fabric Manager is initialized before Kubernetes schedules pods.
-*   **`Type=forking`**: The process will fork, and the parent will exit. `systemd` tracks the child process.
-*   **`Restart=always`**: Critical daemons must auto-recover.
+*   **`Requires=`**: A hard dependency. If the required unit fails to start, this unit is not started either.
+*   **`Wants=`**: A soft dependency. systemd tries to start the named unit, but proceeds if it fails.
+*   **`Before=` / `After=`**: Ordering dependencies. `Requires`/`Wants` do *not* imply ordering, so pair them with `After=` to guarantee Fabric Manager is initialized before containerd and kubelet start.
+*   **`Type=forking`**: The process forks and the parent exits; `systemd` tracks the child.
+*   **`Restart=`**: Add `Restart=on-failure` (via a drop-in) for daemons that must auto-recover.
 
 ### 2.3 Investigating Boot Times
 
@@ -142,13 +139,14 @@ AI nodes often have massive amounts of RAM (e.g., 2TB+) and PCIe devices, making
 # Analyze the overall boot time
 systemd-analyze
 
-# Output example:
+# Illustrative output (not captured):
 # Startup finished in 35.123s (firmware) + 12.456s (loader) + 8.789s (kernel) + 45.123s (userspace) = 1min 41.491s 
 # multi-user.target reached after 45.100s in userspace.
 
 # Find the specific services taking the longest
 systemd-analyze blame | head -n 10
 
+# Illustrative output (not captured):
 # 15.234s nvidia-fabricmanager.service
 # 10.123s containerd.service
 #  8.456s systemd-networkd-wait-online.service
@@ -162,33 +160,8 @@ systemd-analyze critical-chain kubelet.service
 To truly master systemd, we must understand how it navigates state transitions. Targets in systemd are analogous to runlevels in SysVinit, but far more flexible. 
 When we run `systemctl isolate multi-user.target`, systemd dynamically recalculates the dependency graph.
 
-Consider the output of `systemctl list-dependencies multi-user.target`:
-```text
-multi-user.target
-* ├─auditd.service
-* ├─containerd.service
-* ├─cron.service
-* ├─dbus.service
-* ├─kubelet.service
-* ├─networkd-dispatcher.service
-* ├─nvidia-fabricmanager.service
-* ├─nvidia-persistenced.service
-* ├─rsyslog.service
-* ├─ssh.service
-* ├─systemd-logind.service
-* ├─systemd-resolved.service
-* ├─systemd-update-utmp-runlevel.service
-* ├─basic.target
-* │ ├─-.mount
-* │ ├─tmp.mount
-* │ ├─paths.target
-* │ ├─slices.target
-* │ │ ├─-.slice
-* │ │ └─system.slice
-...
-```
-This hierarchical view shows that `multi-user.target` requires `basic.target`, which in turn requires local mounts and slices.
-Failure in any critical sub-target cascades upward. If `slices.target` fails to materialize due to a cgroup kernel bug, `basic.target` fails, and the system hangs indefinitely.
+Run `systemctl list-dependencies multi-user.target` to print the dependency tree for your node (illustrative shape: `multi-user.target` pulls in `basic.target`, which pulls in mounts, paths, slices, and sockets, plus the enabled services such as containerd, kubelet, and nvidia-persistenced).
+A failed hard dependency (`Requires=`) propagates upward to the units that need it, so inspect failures with `systemctl --failed` and `systemctl list-dependencies --reverse <unit>`.
 
 ### 2.5 Deep Dive: Systemd and Target States (Part 2)
 The configuration of systemd dependencies directly affects the blast radius of failures. When deploying custom drivers or storage daemons (like MOFED for InfiniBand or custom NVMe-oF initiators), these services must hook into the right targets. 
@@ -218,7 +191,7 @@ You can view the current hierarchy using `systemd-cgls`:
 
 ```bash
 systemd-cgls
-# Output snippet:
+# Illustrative output (not captured):
 # Control group /:
 # -.slice
 # ├─user.slice
@@ -249,22 +222,22 @@ Create a drop-in configuration for `system.slice`:
 mkdir -p /etc/systemd/system/system.slice.d/
 cat <<EOF > /etc/systemd/system/system.slice.d/50-resource-limits.conf
 [Slice]
-# Guarantee at least 10% of CPU time to system services during contention
-CPUWeight=100
-# Ensure memory protection for system daemons
+# Relative CPU weight under contention (default 100). Raising it favors system daemons
+# over sibling slices such as kubepods.slice.
+CPUWeight=200
+# Best-effort protection: the kernel avoids reclaiming below this amount
 MemoryLow=2G
-MemoryHigh=16G
-MemoryMax=32G
 EOF
 
 systemctl daemon-reload
-systemctl restart system.slice
 ```
 
+Resource-control properties on a slice are applied by `daemon-reload` (or immediately with `systemctl set-property system.slice CPUWeight=200`); a slice cannot be "restarted". Avoid setting `MemoryHigh`/`MemoryMax` on `system.slice` itself: it contains sshd, kubelet, and containerd, and a hard cap there can make the OOM killer or reclaim throttling hit the very daemons you meant to protect. Kubernetes normally handles this with kubelet `systemReserved`/`kubeReserved` and `kubepods.slice` limits.
+
 **Understanding the Directives (Cgroups v2):**
-*   **`CPUWeight`**: Replaces `CPUShares`. It's a relative weight (default 100). 
+*   **`CPUWeight`**: Replaces `CPUShares`. It's a relative weight (default 100, range 1-10000), not a percentage guarantee.
 *   **`MemoryLow`**: Best-effort memory protection. The kernel will try not to reclaim memory below this threshold.
-*   **`MemoryHigh`**: Throttling limit. Processes are aggressively slowed down and their memory reclaimed when they hit this limit, *before* OOM killing.
+*   **`MemoryHigh`**: Throttling limit. When a unit exceeds it, the kernel throttles the unit and reclaims its memory, *before* any OOM kill.
 *   **`MemoryMax`**: Hard limit. Replaces `MemoryLimit`. Hitting this triggers the OOM killer.
 
 ### 3.3 NUMA Pinning via Systemd
@@ -296,7 +269,7 @@ If the parent process crashes or is killed *without* waiting for the child, the 
 
 ```bash
 # Find all zombie processes
-ps aux | awk '$8=="Z" {print $0}'
+ps aux | awk '$8 ~ /^Z/ {print $0}'
 
 # Find the parent of a zombie (PPID is the 3rd column)
 ps -o ppid= -p <zombie_pid>
@@ -308,7 +281,7 @@ To fix this, container runtimes often inject a lightweight init system (like `ti
 When Kubernetes deletes a pod, it sends `SIGTERM` (15) to PID 1 in the container. The application has a grace period (default 30s) to shut down gracefully. If it doesn't, Kubernetes sends `SIGKILL` (9), which cannot be caught or ignored, instantly terminating the process.
 
 **Why this matters for GPUs:**
-If a PyTorch process holding GPU memory is forcefully killed (`SIGKILL`) while actively performing a DMA transfer, it can leave the NVIDIA driver in a corrupted state, requiring a node reboot.
+If a PyTorch process holding GPU memory is forcefully killed (`SIGKILL`) while actively performing a DMA transfer, it can leave the GPU or driver in a bad state that sometimes requires a GPU reset or node reboot. Handle SIGTERM and checkpoint cleanly where you can.
 
 **Proper Handling in Python:**
 
@@ -345,20 +318,20 @@ Consider this script:
 python3 train.py &
 wait
 ```
-If Kubernetes sends `SIGTERM` to this bash script, bash receives it, but `train.py` never sees it. Bash exits, the container runtime sees PID 1 exit, and immediately sends `SIGKILL` to all remaining processes in the cgroup. `train.py` is violently terminated, potentially corrupting GPU state.
+If Kubernetes sends `SIGTERM` to this bash script, bash does not forward it to `train.py`. Because PID 1 in a PID namespace gets no default signal actions, a script that installs no handler may simply ignore `SIGTERM`; either way `train.py` never sees it, and after the grace period the runtime sends `SIGKILL`. `train.py` is terminated without a chance to checkpoint.
 
 To fix this, we use `exec`:
 ```bash
 exec python3 train.py
 ```
-This replaces the bash process with the python process. Python becomes PID 1 and can catch `SIGTERM`.
+This replaces the bash process with the python process. Python becomes PID 1 and receives `SIGTERM` directly, but as PID 1 it only acts on signals it has installed handlers for (as in the example above), so register a handler or run under an init such as `tini`.
 
 ### 4.4 Deep Dive: Process Mechanics and Signals (Part 2)
-The problem with `exec` is that it assumes the python application is well-behaved. If the python application spawns its own children (using `subprocess` or `multiprocessing`) and then crashes, those children become orphans. Since Python is PID 1, it is now responsible for reaping them. But Python is dead. The orphans are reparented to the container runtime or host init system, depending on namespace configuration. This leads to the zombie apocalypse scenario.
-This is exactly why Kubernetes uses pausing containers (the `pause` image) in the Pod namespace: the pause container is simply a tiny assembly loop that sleeps and calls `wait()` to reap any orphaned zombies within the pod's PID namespace.
+The problem with `exec` is that it assumes the python application is well-behaved. If the python application spawns its own children (using `subprocess` or `multiprocessing`) and then crashes, those children become orphans. Since Python is PID 1, it is now responsible for reaping them. But Python is dead. When the PID 1 of a PID namespace exits, the kernel terminates every remaining process in that namespace, so orphans are not left behind; the practical risk is zombies accumulating while PID 1 is alive but never calls `wait()`.
+The Kubernetes `pause` container is a tiny program that holds the Pod's shared namespaces; when `shareProcessNamespace: true` is set, it also acts as PID 1 and reaps orphaned zombies in the pod's PID namespace.
 
 ### 4.5 Deep Dive: Process Mechanics and Signals (Part 3)
-Another nuanced signal is `SIGUSR1` and `SIGUSR2`. These are user-defined signals. Many high-performance network libraries (like MPI implementations used in deep learning) use these signals for out-of-band communication or profiling triggers. If your application handles `SIGUSR1`, ensure that your container runtime configuration isn't intercepting or blocking these signals at the seccomp or AppArmor layer.
+Another nuanced signal is `SIGUSR1` and `SIGUSR2`. These are user-defined signals. Many high-performance network libraries (like MPI implementations used in deep learning) use these signals for out-of-band communication or profiling triggers. If your application handles `SIGUSR1`, make sure the entrypoint forwards it (use `exec` or an init that forwards signals).
 
 ### 4.6 Deep Dive: Process Mechanics and Signals (Part 4)
 Finally, let's discuss `SIGSTOP` and `SIGCONT`. `SIGSTOP` tells the kernel to freeze the process completely. The process cannot catch or ignore this. This is extremely dangerous in GPU environments because if a process is frozen while holding a global lock in the NVIDIA driver or a NCCL synchronization primitive, the entire cluster of GPUs waiting on that rank will hang indefinitely. Never use `SIGSTOP` on production AI workloads unless you are intentionally debugging a deadlock.
@@ -396,7 +369,7 @@ journalctl -n 100 --no-pager
 
 ### 5.2 Tuning Journald Storage
 
-By default, journald stores logs in memory (`/run/log/journal`). Upon reboot, they are lost. For persistent, reliable logging, edit `/etc/systemd/journald.conf`:
+With the default `Storage=auto`, journald writes to `/var/log/journal` only if that directory exists; otherwise it logs to memory (`/run/log/journal`) and logs are lost on reboot. For persistent, reliable logging, edit `/etc/systemd/journald.conf`:
 
 ```ini
 # /etc/systemd/journald.conf
@@ -423,7 +396,7 @@ Containers are not virtual machines. They do not have their own kernel. A contai
 
 Namespaces limit what a process can *see*. Cgroups limit what a process can *use*.
 
-### 6.1 The 6 Core Namespaces
+### 6.1 The Core Namespaces
 
 ```mermaid
 flowchart LR
@@ -464,7 +437,8 @@ A container is not a Virtual Machine; it has no guest kernel. It is a completely
 3.  **Network (net):** Isolates network interfaces, routing tables, and iptables rules. The container gets its own `eth0`.
 4.  **UTS (UNIX Time-sharing System):** Isolates hostname and domain name.
 5.  **IPC (Inter-Process Communication):** Isolates POSIX message queues and System V IPC objects. Crucial for MPI jobs running on the same node to avoid colliding memory segments.
-6.  **User:** Isolates user and group IDs. User ID 0 (root) inside the container can be mapped to a non-privileged user (ID 1000) on the host. This is a massive security boundary.
+6.  **User:** Isolates user and group IDs. User ID 0 (root) inside the container can be mapped to a non-privileged user (ID 1000) on the host. This is a significant security boundary.
+7.  **Cgroup:** Gives the process a private view of the cgroup hierarchy. (Recent kernels also have a Time namespace.)
 
 ### 6.2 Building a Container by Hand with `unshare`
 
@@ -480,7 +454,7 @@ tar -xzf alpine-minirootfs-3.18.4-x86_64.tar.gz
 ```
 
 **Step 2: Isolate the Environment**
-We will unshare the PID, Mount, and UTS namespaces. We also need to map the user, and fork a new process.
+We will unshare the PID, Mount, and UTS namespaces and fork so the shell becomes PID 1 of the new PID namespace.
 
 ```bash
 sudo unshare --pid --mount --uts --fork --root /tmp/mycontainer /bin/sh
@@ -502,7 +476,7 @@ ps aux
 # Mount the proc filesystem for this specific PID namespace
 mount -t proc proc /proc
 ps aux
-# Output:
+# Illustrative output (not captured):
 # PID   USER     TIME  COMMAND
 #   1   root      0:00 /bin/sh
 #   5   root      0:00 ps aux
@@ -517,7 +491,7 @@ Every process on the host has a directory in `/proc/[PID]/ns/`.
 
 ```bash
 ls -l /proc/$$/ns/
-# Output shows symbolic links to namespace inodes:
+# Illustrative output (not captured): symbolic links to namespace inodes
 # cgroup -> cgroup:[4026531835]
 # ipc -> ipc:[4026531839]
 # mnt -> mnt:[4026531840]
@@ -580,6 +554,7 @@ ls -l /sys/fs/cgroup/
 
 # See what controllers are available in the root
 cat /sys/fs/cgroup/cgroup.controllers
+# Illustrative output (not captured; varies by kernel):
 # cpuset cpu io memory hugetlb pids rdma misc
 ```
 
@@ -613,7 +588,7 @@ Back in terminal A, run a command that allocates memory rapidly, like `stress` o
 python3 -c "x = 'a' * (150 * 1024 * 1024)"
 # Output: Killed
 ```
-The kernel OOM killer immediately terminates the process because it exceeded the `memory.max` of the `my_ai_workload` cgroup, *without* affecting the rest of the host system.
+The kernel OOM killer terminates the process because it exceeded the `memory.max` of the `my_ai_workload` cgroup, *without* affecting the rest of the host system. When finished, remove the test cgroup with `sudo rmdir /sys/fs/cgroup/my_ai_workload`. (If `memory.max` does not exist in the new cgroup, the memory controller is not enabled in the parent: check `cgroup.subtree_control`.)
 
 ### 7.3 Pressure Stall Information (PSI)
 
@@ -622,6 +597,7 @@ A massive advancement in Linux for resource monitoring is PSI. Instead of just s
 Check PSI for memory in our cgroup:
 ```bash
 cat /sys/fs/cgroup/my_ai_workload/memory.pressure
+# Illustrative output (not captured):
 # some avg10=0.00 avg60=0.00 avg300=0.00 total=0
 # full avg10=0.00 avg60=0.00 avg300=0.00 total=0
 ```
@@ -679,7 +655,7 @@ When a container attempts to modify a file that exists in a read-only `LowerDir`
 :::
 
 ### 8.2 Deep Dive: Mounting OverlayFS and Copy-Up Mechanics (Part 1)
-Let's replicate what Docker/containerd does under the hood with even more complexity.
+Let's replicate, in miniature, what Docker/containerd does for image layers.
 
 ```bash
 mkdir -p lower1 lower2 upper work merged
@@ -716,6 +692,7 @@ rm merged/file.txt
 
 # Inspect the upper directory
 ls -l upper/file.txt
+# Illustrative output (not captured):
 # c--------- 1 root root 0, 0 Oct 24 10:00 upper/file.txt
 ```
 This is a whiteout! The container thinks the file is gone, but it is merely masked.
@@ -732,13 +709,13 @@ To give a container access to a GPU, we must:
 2.  Mount the correct user-space driver libraries into the container.
 3.  Ensure the container's glibc version is compatible with the libraries.
 
-The **NVIDIA Container Toolkit** automates this via an OCI-compliant prestart hook.
+The **NVIDIA Container Toolkit** automates this, historically via an OCI prestart hook and in current releases preferably via CDI (below).
 
 ### 9.1 How it Works
 
 When you run `docker run --gpus all ...` or deploy a GPU pod in Kubernetes:
 1.  The container runtime (containerd) sets up the namespaces and cgroups.
-2.  Before the container's PID 1 is started, containerd invokes the `nvidia-container-runtime-hook`.
+2.  Before the container's PID 1 is started, the NVIDIA runtime invokes the `nvidia-container-runtime-hook` (legacy mode; in CDI mode the devices are injected from a CDI spec instead).
 3.  The hook calls `libnvidia-container`, which uses the `nvidia-container-cli` utility.
 4.  `nvidia-container-cli` parses the request (e.g., "give me GPU 0 and 1").
 5.  It injects the device nodes (`/dev/nvidia0`, `/dev/nvidia1`, `/dev/nvidiactl`, `/dev/nvidia-uvm`) into the container's cgroup device permissions.
@@ -750,7 +727,8 @@ Historically, passing GPUs required complex runtime wrappers (like `nvidia-docke
 The modern approach is **CDI (Container Device Interface)**. CDI provides a standard JSON configuration that defines exactly what devices, mounts, and environment variables are required to inject a hardware accelerator.
 
 ```json
-// Example CDI Specification snippet at /var/run/cdi/nvidia.json
+// Illustrative, hand-simplified CDI specification. In practice, generate the real one with
+// `nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml` (specs are read from /etc/cdi or /var/run/cdi).
 {
   "cdiVersion": "0.5.0",
   "kind": "nvidia.com/gpu",
@@ -771,7 +749,7 @@ The modern approach is **CDI (Container Device Interface)**. CDI provides a stan
   ]
 }
 ```
-Containerd natively reads CDI files. You simply request the device `nvidia.com/gpu=0`, and containerd applies the JSON payload, making GPU injection native, standard, and runtime-agnostic.
+Recent containerd (1.7 and later, with CDI enabled in its config) and CRI-O can read CDI specs. You request the device `nvidia.com/gpu=0`, and the runtime applies the spec, making GPU injection standard and runtime-agnostic.
 
 ## 10. Host Readiness for NVIDIA GPU Nodes
 
@@ -779,13 +757,13 @@ A bare-metal node must be perfectly tuned before accepting GPU workloads.
 
 ### 10.1 Kernel Parameters (GRUB)
 
-Edit `/etc/default/grub` and append to `GRUB_CMDLINE_LINUX`:
-*   `iommu=pt`: Sets IOMMU to passthrough mode, critical for avoiding translation overhead in DMA paths.
-*   `pcie_aspm=off`: Disables PCIe Active State Power Management. PCIe links should never go to sleep on an AI node; waking them causes micro-stalls.
-*   `numa_balancing=disable`: Prevents the kernel from automatically moving memory pages between NUMA nodes. In AI workloads, memory pinning is explicitly managed by the application/MPI; the kernel's attempts to "help" usually destroy performance.
+Kernel command-line options commonly considered for GPU nodes (verify each against your platform vendor's guidance; do not apply blindly). Edit `/etc/default/grub` and append to `GRUB_CMDLINE_LINUX`:
+*   `iommu=pt`: IOMMU passthrough mode, which reduces translation overhead for devices that do not need isolation. Note: NVIDIA's GPUDirect Storage documentation says the IOMMU must be disabled for GDS (see 10.4), so this depends on the features you use.
+*   `pcie_aspm=off`: Disables PCIe Active State Power Management so links do not enter low-power states.
+*   `numa_balancing=disable`: Disables automatic NUMA page migration. This can help when memory placement is managed explicitly by the application or scheduler; it is workload-dependent, so measure.
 
 ```bash
-# Apply GRUB changes (Ubuntu/Debian)
+# Apply GRUB changes (Ubuntu/Debian; use grub2-mkconfig on RHEL-family systems)
 sudo update-grub
 ```
 
@@ -795,27 +773,18 @@ The NVIDIA stack relies on several kernel modules. Verify they are loaded:
 
 ```bash
 lsmod | grep nvidia
-# Expected output:
-# nvidia_uvm           1234567  0  (Unified Virtual Memory for CUDA)
-# nvidia_modeset        123456  0  (Display/Modesetting, often idle on servers)
-# nvidia_peermem        123456  0  (Critical for GPUDirect RDMA over InfiniBand)
-# nvidia              12345678  123 nvidia_uvm,nvidia_modeset,nvidia_peermem
+# Illustrative output (not captured; sizes are placeholders). Modules you should expect:
+#   nvidia_uvm       Unified Virtual Memory for CUDA
+#   nvidia_modeset   Display/modesetting, often idle on servers
+#   nvidia_peermem   GPUDirect RDMA peer memory for InfiniBand/RoCE NICs
+#   nvidia           core driver
 ```
 
-If `nvidia_peermem` is missing, InfiniBand NICs cannot read/write directly to GPU memory, forcing data to bounce through system RAM, devastating NCCL all-reduce performance.
+If `nvidia_peermem` is missing, GPUDirect RDMA through the legacy peer-memory path is unavailable (newer stacks can use DMA-BUF instead), and NCCL traffic may bounce through system RAM, which can badly hurt all-reduce performance.
 
 ### 10.3 Udev Rules and Device Nodes
 
-Device nodes in `/dev/` are created dynamically by `udev`. 
-If a node reboots, the `/dev/nvidia*` nodes might not exist until the driver is initialized. `nvidia-persistenced` usually handles this, but robust configurations ensure nodes exist instantly:
-
-```bash
-# /lib/udev/rules.d/71-nvidia.rules
-# Create the device nodes with open permissions for container runtimes
-ACTION=="add", DEVPATH=="/module/nvidia", RUN+="/usr/bin/nvidia-smi"
-ACTION=="add", SUBSYSTEM=="nvidia", CHAR=="195:*", TEST=="[0-9]*", RUN+="/bin/sh -c 'chmod 666 /dev/nvidia*'"
-```
-
+Device nodes in `/dev/` are created at runtime. After a reboot the `/dev/nvidia*` nodes may not exist until the driver is initialized; running `nvidia-smi` or the `nvidia-persistenced` daemon (which keeps the driver loaded and initialized) normally causes them to be created. Check your driver packaging for the udev rules it already ships before writing your own, and avoid blanket `chmod 666 /dev/nvidia*` rules, which let any local user open the GPU devices.
 
 ### 10.4 Deep Dive: GPUDirect Storage (GDS) and Host Configuration
 
@@ -828,38 +797,22 @@ NVMe Disk -> PCIe Bus -> GPU RAM.
 
 To configure the host for GDS, you must:
 1.  Install the `nvidia-fs` kernel module.
-2.  Ensure the NVMe drives are formatted with a GDS-compatible filesystem (e.g., local ext4/xfs, or networked Weka, VAST, DDN).
+2.  Use a supported filesystem (NVIDIA AI Enterprise documents local NVMe with ext4 or XFS, and NFS for remote; other parallel filesystems have vendor-specific support).
 3.  Configure `cufile.json` to enable GDS.
 
 ```bash
 # Verify GDS readiness
 gdscheck -p
 ```
-If `gdscheck` fails, the most common issue is missing kernel parameters. You must ensure `iommu=pt` (passthrough) is set, because strict IOMMU translation will block the direct DMA transfers between the PCIe storage controller and the PCIe GPU.
+`gdscheck -p` reports the platform support status, including IOMMU state. NVIDIA's GDS best-practices guide states the IOMMU must be disabled before installing GDS, so check `/proc/cmdline` and `gdscheck` output rather than assuming `iommu=pt` is sufficient.
 
 ### 10.5 Deep Dive: NVMe-oF and Multipathing for AI
 
 In a true AI factory, you don't use local NVMe drives. You use NVMe-over-Fabrics (NVMe-oF) over RoCEv2 (RDMA over Converged Ethernet) or InfiniBand. This provides local-disk performance across the network.
 
-When configuring the host for NVMe-oF, `systemd` and `multipathd` are critical. If an InfiniBand link fails, the host must instantly failover to the secondary link.
+When configuring the host for NVMe-oF, path failover behavior matters. Linux supports native NVMe multipath (`nvme_core.multipath`) as well as device-mapper multipath; which one you use depends on the storage vendor's guidance, so follow the array vendor's documented configuration instead of copying a generic `multipath.conf`.
 
-```ini
-# /etc/multipath.conf configuration for AI Storage
-devices {
-    device {
-        vendor "NVME"
-        product ".*"
-        path_grouping_policy "group_by_prio"
-        path_checker "none"
-        hardware_handler "0"
-        prio "const"
-        failback "immediate"
-        rr_weight "uniform"
-        no_path_retry "fail"
-    }
-}
-```
-You must ensure the `multipathd.service` is enabled and strictly ordered *before* the `kubelet.service` in systemd. If Kubernetes tries to mount a volume before multipath has assembled the redundant paths, a single link failure will crash the AI workload.
+Whichever mechanism is used, make sure the storage paths are assembled before kubelet starts (for example with an `After=` ordering on the relevant services). If Kubernetes tries to mount a volume before the redundant paths exist, a single link failure can crash the AI workload.
 
 ## 11. Senior Troubleshooting & Interview Scenarios
 
@@ -875,10 +828,10 @@ You must ensure the `multipathd.service` is enabled and strictly ordered *before
     # Find the pod's cgroup
     cat /sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-POD_ID.slice/cpu.stat
     
-    # Output:
+    # Illustrative output (not captured):
     # nr_periods 5000
     # nr_throttled 4800
-    # throttled_time 150000000000 
+    # throttled_usec 150000000
     ```
 
 **Resolution:**
@@ -890,18 +843,18 @@ The pod's CPU `limit` is set too low (e.g., `cpu: 2`). PyTorch data loaders requ
 **Situation:** A pod crashed and was restarted. `nvidia-smi` shows GPU 0 is using 40GB of memory, but no processes are listed. The new pod fails to start with CUDA OOM.
 
 **Investigation:**
-1.  A process is holding the memory, but `nvidia-smi` can't map it to a PID because the process is partially terminated (zombie/uninterruptible sleep) or isolated in a severed namespace.
+1.  A process is holding the memory, but `nvidia-smi` may not list it because the process is in a different PID namespace (common inside containers), or is partially terminated (zombie/uninterruptible sleep).
 2.  Find the PID via `fuser`:
     ```bash
     fuser -v /dev/nvidia0
-    # Output: 
+    # Illustrative output (not captured):
     #          USER        PID ACCESS COMMAND
     # /dev/nvidia0: root   15832 F... python
     ```
 3.  Check the state of PID 15832:
     ```bash
     ps -o stat= -p 15832
-    # Output: D (Uninterruptible Sleep)
+    # Illustrative output (not captured): D (Uninterruptible Sleep)
     ```
 
 **Resolution:**
@@ -917,8 +870,8 @@ The process is stuck in `D` state, likely waiting on hardware I/O (e.g., a hung 
 2.  Check systemd's limit for the containerd service.
 
 **Resolution:**
-Systemd imposes a default file descriptor limit (`LimitNOFILE`) of 1024 on services. A busy Kubernetes node easily exceeds this.
-**Fix:** Edit the `containerd.service` unit file:
+Systemd's default `LimitNOFILE` for services is a soft limit of 1024 with a hard limit of 524288 (systemd 240 and later). The upstream containerd unit sets `LimitNOFILE=infinity`, so this failure typically appears with custom or older units.
+**Fix:** Add a drop-in for `containerd.service`:
 ```ini
 [Service]
 LimitNOFILE=1048576
@@ -950,6 +903,7 @@ Cgroups v2 provides the `io` controller. You can inspect the I/O usage of a spec
 
 ```bash
 cat /sys/fs/cgroup/my_ai_workload/io.stat
+# Illustrative output (not captured):
 # 259:0 rbytes=104857600 wbytes=0 rios=25600 wios=0 dbytes=0 dios=0
 ```
 Here, `259:0` is the major/minor number of the block device (e.g., an NVMe drive).
@@ -972,9 +926,11 @@ nvidia-container-cli --debug=/var/log/nvidia-container-cli.log info
 ```
 If you are debugging a specific container startup failure, you can trace the entire lifecycle:
 ```bash
-nvidia-container-cli --debug=/var/log/nvidia-container-cli.log                      configure                      --pid=12345                      --device=all                      --compute                      --utility                      /var/run/containerd/io.containerd.runtime.v2.task/k8s.io/MY_CONTAINER_ID/rootfs
+nvidia-container-cli --debug=/var/log/nvidia-container-cli.log configure \
+    --pid=12345 --device=all --compute --utility \
+    /var/run/containerd/io.containerd.runtime.v2.task/k8s.io/MY_CONTAINER_ID/rootfs
 ```
-The log file will contain an exhaustive trace of every mount, every `mknod` for device files, and every `ldconfig` check. Look for errors like `libcuda.so.1: no such file or directory` or `mknod: operation not permitted` (usually a cgroup device controller rejection).
+The log file will contain an exhaustive trace of every mount, every `mknod` for device files, and every `ldconfig` check. Look for errors such as a missing `libcuda.so.1` or a failed `mknod`/device-permission step in the trace. (`configure` modifies a real container rootfs and is intended for debugging only.)
 
 ### 11.5 Scenario 5: The "No space left on device" Error with Empty Disk
 
@@ -985,7 +941,7 @@ The log file will contain an exhaustive trace of every mount, every `mknod` for 
 2.  Check the inodes! A filesystem is divided into blocks (for data) and inodes (for metadata/file existence).
     ```bash
     df -i
-    # Output:
+    # Illustrative output (not captured):
     # Filesystem       Inodes   IUsed   IFree IUse% Mounted on
     # /dev/nvme0n1p2  6553600 6553600       0  100% /
     ```
@@ -1020,7 +976,7 @@ This is solved by ensuring the Kubernetes Topology Manager is enabled and config
 # /var/lib/kubelet/config.yaml
 topologyManagerPolicy: single-numa-node
 ```
-When this is enabled, the kubelet consults the NVIDIA Device Plugin to find which NUMA node a GPU is on, and only allocates CPU cores and memory from that same NUMA node, completely eliminating UPI latency.
+When this is enabled, the kubelet consults the NVIDIA Device Plugin to find which NUMA node a GPU is on, and (together with the static CPU Manager policy) aligns CPU cores and devices on the same NUMA node, avoiding the cross-socket path where the node topology allows it.
 
 ### 11.7 Scenario 7: Container Network Namespace Stalls
 
@@ -1059,8 +1015,8 @@ Containers (namespaces + cgroups) provide excellent abstraction. A developer can
 
 In a traditional microservices environment, this cost is negligible. In an AI factory, where every microsecond of latency means expensive GPUs sit idle, abstraction must be carefully managed.
 
-*   **When to use Host IPC (`hostIPC: true`):** Use this for distributed MPI/NCCL jobs that require maximum bandwidth between processes on the same node. Bypassing the IPC namespace removes the isolation boundary but maximizes throughput.
-*   **When to use Host Network (`hostNetwork: true`):** Use this when the overhead of the CNI plugin (encapsulation, iptables NAT) becomes a bottleneck. Deep learning nodes often use host networking for the InfiniBand interfaces to achieve line-rate RDMA, while keeping the standard Ethernet interfaces isolated in the container namespace.
+*   **When to use Host IPC (`hostIPC: true`):** Use this only when processes in different pods must share SysV/POSIX shared memory on the node. It removes the IPC isolation boundary, so it is a security trade-off; processes inside one pod already share an IPC namespace.
+*   **When to use Host Network (`hostNetwork: true`):** Use this when the overhead of the CNI plugin (encapsulation, iptables NAT) becomes a bottleneck. `hostNetwork` applies to the whole pod, so the pod sees all host interfaces. For RDMA, many deployments instead attach secondary RDMA interfaces to pods (SR-IOV or the NVIDIA Network Operator with Multus) so the pod network stays isolated.
 *   **When to bypass OverlayFS:** Never store datasets or model checkpoints inside the container image. Always use volume mounts (`hostPath`, `local`, or CSI drivers) to map block devices directly into the container's mount namespace, bypassing the OverlayFS driver entirely.
 
 By mastering Systemd, Namespaces, and Cgroups, you transition from being a consumer of infrastructure to an architect of high-performance AI environments. You are no longer guessing why a pod failed; you are tracing the system call through the kernel and definitively proving the root cause.

@@ -71,7 +71,7 @@ ai_enterprise_stack:
   
   nemo_and_nim:
     nemo_framework_version: "2.0.0"
-    nim_container_digest: "nvcr.io/nvidia/nim/llama2-7b@sha256:abc123def456"
+    nim_container_digest: "nvcr.io/nim/meta/llama3-8b-instruct@sha256:abc123def456"
     nim_version_tag: "1.0.5"
     base_model_version: "llama2-7b-hf-meta-revision-main"  # Immutable, if pinned
   

@@ -113,7 +113,7 @@ print(f"  p50 latency: {sorted(latencies)[50]:.2f} ms")
 print(f"  p99 latency: {sorted(latencies)[99]:.2f} ms")
 print(f"  Throughput: {1000 / np.mean(latencies):.1f} FPS")
 
-Output:
+Illustrative output (not captured):
 YOLOv8n on Jetson Orin:
   p50 latency: 24.3 ms
   p99 latency: 28.1 ms
@@ -192,7 +192,7 @@ print(f"  Latency p50: {np.percentile(latencies, 50):.2f} ms")
 print(f"  Latency p99: {np.percentile(latencies, 99):.2f} ms")
 ```
 
-Expected output:
+Illustrative output (not captured):
 
 ```
 Streaming camera input to YOLOv8 detection...

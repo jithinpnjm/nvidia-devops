@@ -66,7 +66,7 @@ for size in [512, 1024, 2048, 4096]:
 python matmul.py
 ```
 
-**Expected output (A100):**
+**Illustrative output (not captured) (A100):**
 
 ```
 Matrix Size, Throughput (TFLOP/s), Time (s)
@@ -95,7 +95,7 @@ kill $dmon_pid
 tail -20 gpu_stats.txt
 ```
 
-**Expected output:**
+**Illustrative output (not captured):**
 
 ```
     gpu   pwr  gpu  mem   enc   dec  mclk  pclk   fb    bar1  sbecc dbecc  temp
@@ -140,10 +140,10 @@ print("Done")
 EOF
 
 # Profile with Nsys (part of CUDA)
-nsys profile -t cuda,cudnn --gpu-metrics-device all python simple_kernel.py
+nsys profile -t cuda,nvtx -o report1 --gpu-metrics-device all python simple_kernel.py
 
 # Look at results
-nsys export --type timeline --output export_result report1.nsys-rep
+nsys stats report1.nsys-rep
 ```
 
 ## Step 4: Measure Memory Bandwidth
@@ -189,7 +189,7 @@ measure_memory_bandwidth()
 python measure_bw.py
 ```
 
-**Expected output:**
+**Illustrative output (not captured):**
 
 ```
 Measured bandwidth: 1200.5 GB/s
@@ -256,7 +256,7 @@ memory_bound_kernel(N)
 python bound_comparison.py
 ```
 
-**Expected output:**
+**Illustrative output (not captured):**
 
 ```
 Compute-bound (N=4096): 118.30 TFLOP/s
@@ -316,7 +316,7 @@ print(f"After optimization (TF32): {time_after:.3f}s")
 print(f"Speedup: {time_before / time_after:.2f}x")
 ```
 
-**Expected output:**
+**Illustrative output (not captured):**
 
 ```
 Before optimization (FP32, CUDA core): 0.375s

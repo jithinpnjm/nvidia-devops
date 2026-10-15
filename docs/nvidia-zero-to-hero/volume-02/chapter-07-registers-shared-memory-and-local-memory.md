@@ -70,6 +70,8 @@ flowchart TD
 
 **The compiler report that answers the diagram's branch directly:**
 
+*Illustrative output (not captured):*
+
 ```text
 $ nvcc -O3 -Xptxas=-v kernel.cu -o kernel
 ptxas info    : Function properties for _Z6kernelPKfPfm
@@ -252,6 +254,8 @@ Reduce live ranges, reconsider loop unrolling, split the kernel only when launch
 Possible causes include low reuse, bank conflicts, excessive synchronization, large per-block allocation, or a global-memory path that was already cache-efficient.
 
 **Turning "bank conflicts" into evidence.** A profiler's shared-memory efficiency metric is the direct confirmation, since bank conflicts are invisible in `dmon` or `nvidia-smi` — they're purely an on-chip access-pattern effect:
+
+*Illustrative output (not captured):*
 
 ```text
 $ ncu --metrics l1tex__data_bank_conflicts_pipe_lsu.sum ./kernel

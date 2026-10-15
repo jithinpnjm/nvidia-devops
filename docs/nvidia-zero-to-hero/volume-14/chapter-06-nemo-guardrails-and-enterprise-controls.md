@@ -65,7 +65,7 @@ flowchart LR
 
 Controls add latency, dependencies, and policy maintenance. A real-world cost:
 
-➕ **Latency impact of guardrails layers (measured on typical inference request):**
+**Illustrative latency budget for guardrails layers (hypothetical numbers, not measured):**
 
 ```text
 Base model inference (no guardrails):        45 ms
@@ -211,7 +211,7 @@ kubectl get cm guardrail-policy -o yaml | grep policy_version
 # Compare deployed version with your Git repository's latest policy
 
 # 3. Simulate the exact request with policy
-# Debug endpoint (or in your test environment):
+# Hypothetical in-house debug endpoint (NeMo Guardrails does not ship this; adapt to your own service):
 curl -X POST http://guardrails:8000/debug \
   -H "Content-Type: application/json" \
   -d '{
@@ -219,9 +219,9 @@ curl -X POST http://guardrails:8000/debug \
     "policy_version": "1.2.3",
     "trace_steps": true
   }'
-# Output will show exactly which step rejected it and why
+# Illustrative output (not captured): will show exactly which step rejected it and why
 
-# Example output:
+# Illustrative output (not captured):
 # {
 #   "input_validation": "passed",
 #   "intent_classification": "query_database",

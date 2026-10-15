@@ -50,18 +50,15 @@ The "Bucketing" process is highly configurable. If you use PyTorch DDP or FSDP, 
 *   *If the bucket size is too small (e.g., 1 MB):* NCCL generates thousands of tiny network transfers. The latency overhead of setting up the network connections destroys throughput.
 *   *If the bucket size is too large (e.g., 500 MB):* The GPU has to wait a long time to fill the bucket before it can send it over the network, reducing the ability to overlap communication with the ongoing math.
 
-A Performance Engineer uses `nsys` tracing to view the exact overlap, and tweaks environment variables (like PyTorch's `bucket_cap_mb`) until the red network blocks perfectly align underneath the blue compute blocks.
+A Performance Engineer uses `nsys` tracing to view the exact overlap, and tunes framework settings (like the PyTorch DDP constructor argument `bucket_cap_mb`, default 25 MB) until the red network blocks perfectly align underneath the blue compute blocks.
 
 ## 3. Sharp (Scalable Hierarchical Aggregation and Reduction Protocol)
 
 When running massive jobs on InfiniBand, the `AllReduce` math (averaging the gradients) normally happens on the GPUs.
-1. All GPUs send data to GPU 0.
-2. GPU 0 does the math to average them.
-3. GPU 0 sends the answers back.
+In ring or tree AllReduce algorithms, the GPUs exchange chunks of the gradients with their peers and perform the reduction themselves, so the same data crosses the fabric multiple times.
 
 **NVIDIA SHARP** moves the math *into the network switches*. 
-Instead of the GPUs doing the `AllReduce` math, the ConnectX NICs send the raw gradients to the Quantum InfiniBand switch. The Switch ASIC physically calculates the average as the packets flow through it, and sends the final averaged gradient back down to the GPUs. 
-This cuts the amount of data traversing the network in half and frees the GPUs to focus purely on neural network math.
+Instead of the GPUs doing all of the reduction, the data is sent into the Quantum InfiniBand switches, which perform the reduction as the data flows through the fabric and return the result. This reduces the volume of data that must traverse the network and frees GPU resources for model math. SHARP requires supported switches, the SHARP aggregation manager, and a SHARP-enabled NCCL plugin.
 
 ## Customer Scenario (Senior Level)
 
@@ -75,21 +72,21 @@ When we look at the `nsys` trace, we see a sequential execution pattern. The GPU
 
 We do not need faster switches; we need to instruct the software to pipeline the data. 
 
-We must immediately inspect the PyTorch DDP or FSDP configuration. The **Bucket Size** (`bucket_cap_mb`) is likely misconfigured or completely disabled. 
+We must immediately inspect the PyTorch DDP or FSDP configuration. For DDP, the **Bucket Size** (`bucket_cap_mb`) is likely misconfigured or completely disabled. 
 
-We will tune the bucket size to a mathematically appropriate value (e.g., 25MB or 50MB). This will instruct PyTorch to chunk the gradients as they are calculated during the backward pass. The moment a 25MB bucket is full, the framework will fire it to the NCCL library for asynchronous transmission across the InfiniBand network. 
+We will tune the bucket size empirically (the DDP default is 25 MB; try values such as 50 MB and compare traces). This will instruct PyTorch to chunk the gradients as they are calculated during the backward pass. The moment a 25MB bucket is full, the framework will fire it to the NCCL library for asynchronous transmission across the InfiniBand network. 
 
-Simultaneously, the GPU will continue calculating the gradients for the remaining layers. When we re-run the `nsys` trace, we will see the Red Network blocks slide underneath the Blue Compute blocks. The network latency will be completely hidden behind the GPU math, pushing our MFU back above 50%."
+Simultaneously, the GPU will continue calculating the gradients for the remaining layers. When we re-run the `nsys` trace, we will see the Red Network blocks slide underneath the Blue Compute blocks. The network latency will be completely hidden behind the GPU math, which should raise MFU; confirm with a new trace."
 
 ## Interview Preparation
 
 **Conceptual:** What does it mean to "Overlap Communication with Computation" in distributed training? *(Hint: Instead of waiting for a GPU to finish all its math before sending the results over the network (which causes the GPU to idle during the transfer), the framework chunks the data. As soon as the first chunk of math is done, it is sent over the network asynchronously while the GPU simultaneously begins computing the math for the second chunk, hiding the network latency).*
 
-**Architecture:** Explain how NVIDIA SHARP improves performance on an InfiniBand network. *(Hint: In a standard `AllReduce` operation, the GPUs must send data to each other and perform the averaging math themselves, generating massive network traffic. SHARP offloads the averaging math directly into the InfiniBand Switch ASICs. The switch calculates the average as the data flows through it, halving the network traffic and reducing the latency of collective operations).*
+**Architecture:** Explain how NVIDIA SHARP improves performance on an InfiniBand network. *(Hint: In a standard `AllReduce` operation, the GPUs must send data to each other and perform the averaging math themselves, generating massive network traffic. SHARP offloads the averaging math directly into the InfiniBand Switch ASICs. The switch calculates the average as the data flows through it, reducing the network traffic and the latency of collective operations).*
 
 ## Architecture Summary
 
-Because network latency (InfiniBand/RoCE) is orders of magnitude slower than VRAM access, AI training must never wait synchronously on the network. Performance engineers must tune PyTorch's DDP/FSDP `bucket_cap_mb` to ensure gradients are sent over the network exactly as they are calculated, visually resulting in the "Red" network blocks sliding perfectly underneath the "Blue" compute blocks in an Nsight Systems trace. 
+Because network latency (InfiniBand/RoCE) is orders of magnitude slower than VRAM access, AI training must never wait synchronously on the network. Performance engineers must tune PyTorch's DDP `bucket_cap_mb` (or the equivalent FSDP prefetch and wrapping settings) to ensure gradients are sent over the network exactly as they are calculated, visually resulting in the "Red" network blocks sliding perfectly underneath the "Blue" compute blocks in an Nsight Systems trace. 
 
 ```mermaid
 flowchart TD

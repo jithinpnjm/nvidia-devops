@@ -7,6 +7,8 @@ description: "Diagnose GPU clock instability, frequency scaling failures, and pe
 
 # Clock Instability and Frequency Scaling Problems
 
+> **Note:** Terminal and log output blocks in this chapter are illustrative (not captured from a real system). Clock values and timestamps are examples; supported clocks and P-states differ by GPU model and driver. Data center GPUs manage their own clocks and power states in firmware; there is no BIOS setting that disables GPU DVFS. Operator controls are clock locks (`nvidia-smi -lgc`/`-lmc`, reset with `-rgc`/`-rmc`), power limits, and persistence mode.
+
 ## Beginner's Primer: The Confused Engine
 
 In Chapter 6, we learned that a GPU slows down (throttles its clock speed) when it overheats. 
@@ -16,9 +18,7 @@ This is called **Clock Instability (DVFS Oscillation)**.
 DVFS (Dynamic Voltage and Frequency Scaling) is a feature built into modern GPUs to save electricity. If the GPU thinks it isn't doing any hard work, it downshifts into a lower gear (a lower P-State) to save power. When hard work arrives, it upshifts back to maximum speed.
 
 The problem? AI workloads are bursty. If a PyTorch dataloader is slightly unoptimized, it might feed the GPU a batch of images, pause for 5 milliseconds, and feed it another batch. 
-The GPU sees that 5-millisecond pause and thinks, *"Oh, I'm idle! I'll downshift to save power."* A millisecond later, the next batch arrives, and the GPU frantically tries to upshift. 
-
-The GPU ends up violently shifting gears thousands of times a second. The resulting "gear grinding" destroys performance. SREs must diagnose this using DCGM, and then use `nvidia-smi` to manually lock the GPU into top gear (`-lgc`) to prevent it from ever downshifting.
+Short idle gaps can let the GPU's power management lower clocks, and ramping back up takes time, which can make throughput uneven. Whether this happens depends on the GPU model, driver, and power policy. SREs must diagnose this using DCGM, and then use `nvidia-smi` to lock the graphics clock (`-lgc`) if a stable clock is required.
 
 ## Symptoms
 
@@ -47,7 +47,7 @@ flowchart TD
     A -->|No| C["Clock stable, not frequency scaling issue"]
     B -->|Yes| D{"Temperature or power hitting limit?"}
     B -->|No| E{"Is oscillation predictable?"}
-    D -->|Yes| F["DVFS oscillation - reduce load or disable DVFS"]
+    D -->|Yes| F["DVFS oscillation - reduce load or lock clocks"]
     D -->|No| G["Check DVFS governor settings"]
     E -->|Yes| H{"Stalls at specific frequency?"}
     E -->|No| I["Random stalling - GPU firmware issue"]
@@ -95,15 +95,9 @@ Performance State                   : P2
 Query available power states:
 
 ```bash
-$ nvidia-smi -q -d PERFORMANCE -i 0 | grep -A 20 "Performance States"
-
-# P0: 1980 MHz (max performance, H100 SXM5 boost)
-# P1: 1755 MHz
-# P2: 1590 MHz
-# P3: 1200 MHz
-# P4: 900 MHz
-# ...
-# P8: 300 MHz (min power)
+# P0 is the highest performance state and higher numbers are lower-power states.
+# List the clocks your GPU supports:
+$ nvidia-smi -q -d SUPPORTED_CLOCKS -i 0 | head -30
 ```
 
 If P-state changes rapidly (P0 → P3 → P0), DVFS is aggressively rescaling.
@@ -111,10 +105,10 @@ If P-state changes rapidly (P0 → P3 → P0), DVFS is aggressively rescaling.
 ### Collect Frequency History with DCGM
 
 ```bash
-$ dcgmi dmon -s dcgm
-
-# GPU   Sm Mem  Enc Dec XSM Mxm Fbg Xid Pid Name
-     0 1200 405  0   0   0   0   0   0   - -
+# Sample DCGM clock fields (SM clock and memory clock; look up IDs with `dcgmi dmon -l`)
+$ dcgmi dmon -e <DCGM_FI_DEV_SM_CLOCK id>,<DCGM_FI_DEV_MEM_CLOCK id>
+# GPU   SMCLK  MEMCLK
+     0   1200    405
 
 # Run continuous monitoring
 $ for i in {1..60}; do
@@ -140,20 +134,18 @@ Freq=1980 MHz, Temp=65°C, Power=310W
 ### Check DVFS Governor
 
 ```bash
-$ cat /sys/devices/virtual/dmi/id/board_name
-# Returns: GPU DVFS Governor setting
-
-# Query BIOS power management
-# (method varies by system; typically via BIOS menu or ipmitool)
-ipmitool fru baseboard 2>/dev/null | grep -i "power\|dvfs"
+# GPU clocks are managed by the driver/firmware; check for operator-set locks and policy
+$ nvidia-smi -i 0 -q -d CLOCK,PERFORMANCE | grep -i "clocks\|locked\|reason"
+# Host-side CPU frequency governor (affects launch latency, not GPU DVFS)
+$ cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
 ```
 
 Check driver DVFS settings:
 
 ```bash
-$ nvidia-smi -pm 1  # Check persistence mode
-
-# If persistence mode OFF, driver may be more aggressive about clock scaling
+$ nvidia-smi -i 0 --query-gpu=persistence_mode --format=csv,noheader
+# With persistence mode off, the driver can unload when no client is attached, which adds
+# initialization delay and resets some state; enable it with nvidia-smi -pm 1
 ```
 
 ### Verify Workload Stability
@@ -200,27 +192,18 @@ EOF
 3. **If power throttling:**
    - Reduce power limit or upgrade PSU (see Chapter 09)
 
-### Step 2: Disable DVFS (if safe)
-
-If temperature and power are NOT triggering oscillation, disable DVFS:
-
-1. **Enter BIOS setup:**
-   ```bash
-   # Reboot and enter BIOS (usually Del, F2, or F10 during boot)
-   ```
-
-2. **Find power management settings:**
-   - Look for: "CPU Power Management", "DVFS", "Power State Control"
-   - Set to: "Disabled" or "Maximum Performance"
-
-3. **Reboot and verify:**
+### Step 2: Remove host-side power saving and lock clocks (if safe)
+If temperature and power are NOT triggering oscillation:
+1. **Set host power management to performance:** set the CPU frequency governor to `performance` and, where appropriate, set the BIOS power profile to a performance profile (these are host CPU settings; the GPU's own DVFS is not exposed in BIOS).
+2. **Lock the graphics clock if a stable clock is required** (see Step 4), and make sure no stale lock or low power limit is applied.
+3. **Verify:**
    ```bash
    $ nvidia-smi -i 0 --query-gpu=clocks.current.graphics --format=csv,noheader
    
-   # Expected: Constant 1980 MHz (or max boost for your GPU)
+   # Expected: stable clock at or near the maximum for your GPU
    ```
 
-### Step 3: If Oscillation Persists After DVFS Disable
+### Step 3: If Oscillation Persists After Host Tuning and Clock Lock
 
 Check for firmware issue:
 
@@ -238,7 +221,6 @@ Check for firmware issue:
    # GPU firmware/VBIOS updates ship through the vendor's board
    # management tooling (OEM firmware bundle or fwupd on supported
    # platforms) — there is no generic nvidia-smi firmware-flash flag.
-   fwupdmgr refresh && fwupdmgr update
    ```
 
 3. **If still oscillating, GPU likely has a hardware issue:**
@@ -299,22 +281,21 @@ $ nvidia-smi -i 0 --query-gpu=clocks.current.graphics --format=csv,noheader
    # Expected: Temp 70-80°C, Power 280-320W (stable values)
    ```
 
-4. **DVFS disabled (if confirmed via BIOS):**
+4. **Host power policy confirmed:**
    ```bash
-   # Verify driver sees it
-   cat /sys/devices/virtual/dmi/id/board_name | grep -i "performance\|disable"
+   cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
    
-   # Expected: Output indicates DVFS disabled or Performance mode
+   # Expected: performance
    ```
 
 ### Production Troubleshooting Table
 
 | Symptom | Evidence | Root Cause | Fix | Verification |
 |---------|----------|-----------|-----|--------------|
-| Frequency oscillates 1980 → 1200 MHz every 2 sec, load fixed | Temperature constant 65°C, power oscillates 310W → 150W → 310W | DVFS over-aggressively scaling, no actual thermal/power need | Disable DVFS in BIOS (set to "Maximum Performance" or "Disabled") | Clock stable at 1980 MHz for 5+ minutes |
+| Frequency oscillates 1980 → 1200 MHz every 2 sec, load fixed | Temperature constant 65°C, power oscillates 310W → 150W → 310W | DVFS over-aggressively scaling, no actual thermal/power need | Check throttle reasons first; set CPU governor to performance; lock clocks with `nvidia-smi -lgc` if a stable clock is required | Clock stable at 1980 MHz for 5+ minutes |
 | Clock stalls at 1200 MHz despite cool temp (65°C) and low power (150W) | DVFS enabled, GPU stuck in P4/P5 state, not returning to P0 | DVFS governor stuck or firmware bug | Try `nvidia-smi -rgc` to clear any clock lock, or reboot; if persists, update driver firmware | Clock returns to 1980 MHz after fix |
 | Specific GPU oscillates while identical GPUs stable | One GPU shows erratic clock, others steady | Hardware clock generator failing or power delivery oscillating on one GPU | Check power cable to that GPU; if cable OK, GPU hardware is failing | If cable reseating fixes it, done; otherwise plan GPU replacement |
-| Clock oscillation synchronized across all GPUs in node | All GPUs drop clock in unison at same frequency/timing | System-level DVFS governor (BIOS power management) is aggressive | Disable DVFS in BIOS globally | All GPUs maintain high clock stably |
+| Clock oscillation synchronized across all GPUs in node | All GPUs drop clock in unison at same frequency/timing | System-level DVFS governor (BIOS power management) is aggressive | Check platform power capping and BMC/BIOS power profile; set CPU governor to performance | All GPUs maintain high clock stably |
 | Clock stays low (1000 MHz) even though no thermal/power limit | Frequency locked via nvidia-smi command or driver default | User or automation locked GPU to low frequency | Check if `nvidia-smi -lgc` was called; unlock with `nvidia-smi -rgc` | Clock returns to 1980 MHz after unlock |
 
 ## Prevention
@@ -340,16 +321,15 @@ $ nvidia-smi -i 0 --query-gpu=clocks.current.graphics --format=csv,noheader
    done
    ```
 
-2. **BIOS settings validation:**
+2. **Host power policy validation:**
    ```bash
-   # Periodic check that DVFS is disabled
-   # This would be platform-specific; store expected BIOS settings and compare
-   # Example: Compare against golden image
+   # Periodically compare the CPU governor, BIOS power profile, and nvidia-smi
+   # clock locks/power limits against the golden configuration for the node type
    ```
 
 3. **Frequency stall alerts:**
    ```bash
-   # Prometheus alert: detect if clock locked below max
+   # Prometheus alert (placeholder metric): detect if clock locked below max
    alert: LowClockFrequency
    expr: nvidia_smi_clocks_current_graphics < 1900
    for: 5m
@@ -362,7 +342,7 @@ $ nvidia-smi -i 0 --query-gpu=clocks.current.graphics --format=csv,noheader
 ### When to Escalate
 
 **Escalate to GPU vendor or platform team if:**
-- Clock oscillation persists after disabling DVFS in BIOS
+- Clock oscillation persists after ruling out throttle reasons and applying a clock lock
 - Frequency stalls at low clock despite no thermal or power constraints
 - Multiple GPUs show synchronized clock drops (system-wide issue)
 - Clock frequency doesn't respond to power limit or thermal changes
@@ -380,7 +360,7 @@ for i in {1..240}; do
   sleep 0.5
 done
 
-# BIOS settings
+# Host CPU and platform info
 dmidecode --type 4 >> clock_escalation.log 2>&1
 
 # Driver info
@@ -394,7 +374,7 @@ nvidia-smi | head -10 >> clock_escalation.log
 
 **Q: "GPU clock keeps dropping from 1980 MHz to 1000 MHz and back during training, even though temperature is 65°C and power draw is stable. What's happening?"**
 
-A: "That's textbook DVFS oscillation — the GPU is rescaling itself even though there's no need. Since temperature and power are both healthy, the driver is just being overly aggressive about power saving. I'd check if DVFS is enabled in BIOS. If it is, I'd disable it in the BIOS settings and set power management to 'Maximum Performance' or 'Disabled'. After reboot, the clock should lock at 1980 MHz and stop oscillating. The reason DVFS exists is for power efficiency, but in high-performance computing, we usually want max performance and we don't care about power consumption for training jobs."
+A: "That looks like clock scaling driven by something other than heat or power, so first I'd read the throttle reasons (`nvidia-smi -q -d PERFORMANCE`) to rule out power cap, power brake, and thermal slowdown. If none are active, I'd look at the workload (idle gaps from the data pipeline show up in an Nsight Systems trace) and the host power policy, and if a stable clock is required I'd lock the graphics clock with `nvidia-smi -lgc` and verify it holds. GPU DVFS itself is not something you disable in BIOS."
 
 **Q: "One GPU's clock is stuck at 1200 MHz and won't go higher, but temperature is 60°C and power is well under limit."**
 
@@ -402,11 +382,11 @@ A: "That sounds like the GPU is stuck in a lower P-state and can't transition ba
 
 **Q: "How would you prevent clock instability in a production cluster?"**
 
-A: "First, I'd make sure DVFS is disabled in BIOS on all nodes with production GPUs — set power management to 'Performance' mode consistently. Then I'd monitor: every 30 seconds, sample GPU clock from each GPU and alert if I see > 3 unique clock values in a 5-minute window. If a GPU starts oscillating, I'd drain it from the cluster and investigate. I'd also do monthly BIOS settings audits to make sure some system config change didn't accidentally re-enable DVFS. Finally, I'd stay current on driver updates because clock-related firmware bugs get fixed regularly. The key insight is that oscillation is always a sign of something wrong — either something's protecting the GPU (thermal, power), or something's misconfigured."
+A: "First, I'd standardize host power settings (CPU governor, BIOS power profile) and any GPU clock locks or power limits across nodes through configuration management. Then I'd monitor: every 30 seconds, sample GPU clock from each GPU and alert if I see > 3 unique clock values in a 5-minute window. If a GPU starts oscillating, I'd drain it from the cluster and investigate. I'd also do monthly BIOS settings audits to make sure some system config change didn't accidentally re-enable DVFS. Finally, I'd stay current on driver updates because clock-related firmware bugs get fixed regularly. The key insight is that oscillation is always a sign of something wrong — either something's protecting the GPU (thermal, power), or something's misconfigured."
 
 ## Architecture Summary
 
-Clock Instability occurs when the GPU's power-saving features (DVFS) conflict with the microsecond-level bursty nature of AI workloads. When the GPU rapidly oscillates between high and low clock speeds (P-States), overall throughput collapses. SREs must use DCGM to confirm the oscillation is *not* caused by Thermal/Power limits, and then use `nvidia-smi -lgc` to enforce a rigid hardware clock lock, disabling power-saving features in favor of absolute deterministic performance.
+Clock Instability occurs when the GPU's power-saving features (DVFS) conflict with the bursty nature of AI workloads. When the GPU rapidly oscillates between high and low clock speeds (P-States), overall throughput collapses. SREs must use DCGM to confirm the oscillation is *not* caused by Thermal/Power limits, and then use `nvidia-smi -lgc` to enforce a rigid hardware clock lock, disabling power-saving features in favor of absolute deterministic performance.
 
 ```mermaid
 flowchart TD
@@ -421,7 +401,7 @@ flowchart TD
         
         Check1 -->|None| Check2{Check Workload <br/> via Nsight Systems}
         
-        Check2 -->|Bursty Math| DVFS[DVFS Oscillation: <br/> GPU is trying to save power <br/> during microsecond idle gaps.]
+        Check2 -->|Bursty Math| DVFS[DVFS Oscillation: <br/> GPU is trying to save power <br/> during idle gaps.]
         Check2 -->|Steady Math| Bug[Driver / Firmware Bug <br/> Stuck in low P-State.]
         
         DVFS --> Fix1[Fix: Lock clocks to max using: <br/> nvidia-smi -lgc]

@@ -34,10 +34,10 @@ artifacts:
     quantization: "none (native bfloat16)"
   
   container:
-    image_mutable_tag: "nvcr.io/nvidia/nim/llama2-7b:1.0.5"
+    image_mutable_tag: "nvcr.io/nim/meta/llama3-8b-instruct:1.0.5"
     digest_immutable: "sha256:a1b2c3d4e5f6..."
     # ✅ Always verify digest matches tag:
-    # docker pull nvcr.io/nvidia/nim/llama2-7b:1.0.5
+    # docker pull nvcr.io/nim/meta/llama3-8b-instruct:1.0.5
     # docker image ls --digests | grep llama2
 
 ## SECTION 2: Compatibility Matrix Verification
@@ -92,8 +92,8 @@ artifacts_distribution:
     sync_frequency: "when new version tested in staging"
   
   # ✅ Mirror validation command:
-  # docker pull nvcr.io/nvidia/nim/llama2-7b@sha256:a1b2c3d4e5f6
-  # docker tag nvcr.io/nvidia/nim/llama2-7b@sha256:a1b2c3d4e5f6 \
+  # docker pull nvcr.io/nim/meta/llama3-8b-instruct@sha256:a1b2c3d4e5f6
+  # docker tag nvcr.io/nim/meta/llama3-8b-instruct@sha256:a1b2c3d4e5f6 \
   #   harbor-internal.company.com/llama2-7b:1.0.5
   # docker push harbor-internal.company.com/llama2-7b:1.0.5
 
@@ -115,19 +115,19 @@ secrets:
 ## SECTION 7: Health Probes and Monitoring
 health_and_monitoring:
   liveness_probe:
-    path: "/v1/health"
+    path: "/v1/health/ready"
     initialDelaySeconds: 60
     periodSeconds: 30
     failureThreshold: 3
   
   readiness_probe:
-    path: "/v1/health"
+    path: "/v1/health/ready"
     initialDelaySeconds: 300  # Model may take minutes to load
     periodSeconds: 10
     failureThreshold: 5
   
   startup_probe:
-    path: "/v1/health"
+    path: "/v1/health/ready"
     initialDelaySeconds: 0
     periodSeconds: 10
     failureThreshold: 60  # Allow 10 minutes max
@@ -139,7 +139,7 @@ health_and_monitoring:
   
   # ✅ Probe validation command (after deployment):
   # kubectl logs <pod> | grep -i "readiness check"
-  # curl -s http://service:8000/v1/health | jq .
+  # curl -s http://service:8000/v1/health/ready | jq .
 
 ## SECTION 8: Canary and Rollback Procedure
 deployment_strategy:

@@ -35,7 +35,7 @@ You found two red pixels, but the memory says 1. The data is silently corrupted.
 
 ## 2. The Solution: Atomic Operations
 
-CUDA solves this using **Atomic Operations** implemented directly in the L2 cache and memory controllers.
+CUDA solves this using **Atomic Operations** performed by the GPU's memory system (global-memory atomics are executed at the L2 cache).
 
 An atomic operation guarantees that a read-modify-write sequence completes without any other thread intercepting the variable.
 ```cpp
@@ -79,13 +79,13 @@ When a thread hits `__syncthreads()`, it pauses. The Warp Scheduler swaps to ano
 
 **The Situation:**
 A developer deploys a new CUDA application to calculate financial risk models. They launch a grid with 1,000 Thread Blocks. They proudly state they solved a complex cross-block dependency by putting a `while` loop inside the kernel, forcing Thread Block 100 to loop infinitely until Thread Block 1 writes a flag to global memory. 
-The application works perfectly on their local RTX 4090 desktop GPU, but completely hangs forever when deployed to the production A100 cluster.
+The application passes every test on their local desktop GPU, but hangs forever when deployed to the production A100 cluster.
 
 **The Senior Architect Response:**
 "Your application is deadlocking because it relies on an architectural anti-pattern: inter-block synchronization.
 
 Thread Blocks are independent. The hardware makes absolutely zero guarantees about the order in which Thread Blocks are scheduled. 
-On your desktop GPU, you might only have enough physical SMs to run 50 blocks at a time. The GigaThread engine might schedule Block 100 on the SM, but Block 1 is waiting in the queue. 
+It only worked on your desktop because Block 1 happened to be scheduled before Block 100. A different SM count, other workloads sharing the GPU, or a MIG slice changes which blocks are resident at once, and the GigaThread engine may schedule Block 100 on an SM while Block 1 is waiting in the queue. 
 
 Because Block 100 is executing a `while(true)` loop waiting for Block 1, it never finishes. Because Block 100 never finishes, it never vacates the SM. Because the SM never vacates, Block 1 can never be scheduled to run. You have created an unresolvable hardware deadlock.
 
@@ -93,6 +93,6 @@ To fix this, you must split your work. Break your single kernel into two separat
 
 ## Interview Preparation
 
-**Conceptual:** What is the purpose of `__syncthreads()`? *(Hint: It acts as a barrier, forcing all threads within a Thread Block to wait until everyone reaches that line of code, ensuring that Shared Memory writes are globally visible before reads occur).*
+**Conceptual:** What is the purpose of `__syncthreads()`? *(Hint: It acts as a barrier, forcing all threads within a Thread Block to wait until everyone reaches that line of code, ensuring that Shared Memory and global memory writes made before the barrier are visible to the other threads in the block before reads occur).*
 
 **Troubleshooting:** Why is calling `atomicAdd()` on a single variable across 100,000 threads a terrible idea for performance? *(Hint: Atomic operations force the hardware to serialize memory accesses. Instead of executing 100,000 additions in parallel, the memory controller executes them sequentially, turning the GPU into a single-threaded bottleneck).*

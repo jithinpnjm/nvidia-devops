@@ -33,7 +33,7 @@ To train a frontier AI model, you need to connect thousands of GPUs. To connect 
 A single DGX H100 server pushes **3.2 Terabits per second (Tbps)** of data out of its networking ports. 
 * A standard enterprise server pushes maybe 10 to 25 Gigabits per second (Gbps). 
 
-Moving 3.2 Tbps of data requires an absolutely flawless internal highway system. If a motherboard manufacturer uses slightly substandard copper traces, or positions a PCIe switch an inch too far from the CPU, the electrical signals degrade. The InfiniBand network cards will start dropping packets, initiating TCP/RoCE retransmissions, and grinding the entire 1,000-GPU cluster to a halt.
+Moving 3.2 Tbps of data requires an absolutely flawless internal highway system. If a motherboard manufacturer uses slightly substandard copper traces, or positions a PCIe switch an inch too far from the CPU, the electrical signals degrade. The InfiniBand network cards will start dropping packets, triggering retransmissions and link errors, and grinding the entire 1,000-GPU cluster to a halt.
 
 ## 2. The DGX Philosophy: The Reference Architecture
 
@@ -90,14 +90,14 @@ Because NVIDIA controls the entire hardware and software stack on a DGX, they pr
 ## Customer Scenario (Senior Level)
 
 **The Situation:**
-A Fortune 500 bank wants to build an on-premise AI cluster. Their procurement team insists on buying generic 4U servers from their traditional enterprise vendor and populating them with PCIe-based H100 GPUs, arguing it saves 40% on hardware costs compared to NVIDIA DGX H100s. The Data Science team complains this will ruin their training jobs. You are the consulting Senior Architect.
+A Fortune 500 bank wants to build an on-premise AI cluster. Their procurement team insists on buying generic 4U servers from their traditional enterprise vendor and populating them with PCIe-based H100 GPUs, arguing it saves a large fraction (say 40%, an illustrative figure) of hardware cost compared to NVIDIA DGX H100s. The Data Science team complains this will ruin their training jobs. You are the consulting Senior Architect.
 
 **The Senior Architect Response:**
-"Procurement's 40% savings on capital expenditure will result in a 90% reduction in training throughput, ultimately costing the bank millions in delayed time-to-market.
+"Procurement's 40% savings on capital expenditure can cost far more than it saves in training throughput, ultimately costing the bank millions in delayed time-to-market.
 
 Enterprise PCIe servers lack the NVSwitch baseboard. This means the 8 GPUs inside each server cannot use NVLink to share memory at 900 GB/s. They must communicate over the server's standard PCIe bus at 64 GB/s. 
 
-For the massive Large Language Models the data science team is building, Tensor Parallelism is strictly required. The math demands that all 8 GPUs constantly synchronize their gradients. Forcing this synchronization over a 64 GB/s PCIe bus will cause the GPUs' Tensor Cores to finish their math instantly and spend the majority of their time idling, waiting for data to travel across the motherboard.
+For the massive Large Language Models the data science team is building, Tensor Parallelism is effectively required at that scale. The math demands that all 8 GPUs constantly synchronize their gradients. Forcing this synchronization over a 64 GB/s PCIe bus will cause the GPUs' Tensor Cores to finish their math instantly and spend the majority of their time idling, waiting for data to travel across the motherboard.
 
 Furthermore, generic servers share one or two Network Interface Cards (NICs) across all the GPUs. A DGX H100 provides a dedicated 400 Gbps ConnectX-7 NIC for *every single GPU* (8 compute NICs total), enabling 3.2 Tbps of egress bandwidth. If we use the generic servers, our cross-node training performance will collapse. The DGX is not a premium brand name; it is an uncompromised physical topography necessary to keep the silicon fed."
 

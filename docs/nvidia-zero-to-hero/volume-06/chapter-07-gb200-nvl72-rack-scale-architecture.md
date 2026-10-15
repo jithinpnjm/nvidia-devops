@@ -19,7 +19,7 @@ description: "Transition from the HGX Baseboard to the MGX Rack. Understand the 
 For years, the **HGX Baseboard** was the undisputed king of AI infrastructure. It packed 8 GPUs and 4 NVSwitches into a single 4U server chassis. 
 
 With the release of the **Blackwell (B200)** generation, the math broke.
-A single B200 GPU pulls over 1,000 Watts. An 8-GPU chassis would pull over 15 kW and require impossibly dense liquid cooling manifolds inside a standard server box. Furthermore, Large Language Models (LLMs) like GPT-4 became so massive that 8 GPUs connected via NVLink were no longer enough to hold the model weights efficiently.
+A single B200 GPU is configurable up to 1,000 Watts. Eight of them in one chassis push GPU power alone to 8 kW before CPUs, NICs, and fans, which makes dense liquid cooling inside a standard server box difficult. Furthermore, the largest LLMs became so big that an 8-GPU NVLink domain was increasingly limiting for model-parallel communication.
 
 NVIDIA had to expand the NVLink domain beyond 8 GPUs. But you cannot build an HGX baseboard with 72 GPUs on it; the circuit board would not fit through a data center door. 
 
@@ -44,7 +44,7 @@ In the NVL72 architecture, NVIDIA took the components of the HGX baseboard and s
 
 If the GPUs are in one tray, and the NVSwitches are in another tray, how do they connect?
 
-In a standard data center, you would connect them with fiber optic cables. But fiber optic transceivers (lasers) consume massive amounts of power. Connecting 72 GPUs to switches via fiber would consume 20 kW of electricity just to power the lasers.
+In a standard data center, you would connect them with fiber optic cables. But fiber optic transceivers (lasers) consume massive amounts of power. Connecting 72 GPUs to switches via fiber would add a large power burden for the optics alone (NVIDIA cites roughly 20 kW per rack).
 
 NVIDIA solved this by building a massive **Copper Backplane**. 
 It is a towering grid of passive copper wires that clicks into the rear of the rack. 
@@ -54,7 +54,7 @@ It is a towering grid of passive copper wires that clicks into the rear of the r
 3. As they slide in, their rear connectors blind-mate (snap directly) into the copper backplane.
 
 The copper backplane physically hard-wires the 72 GPUs to the NVSwitches. 
-**The entire rack now operates as a single, massive 72-GPU HGX baseboard.**
+**The entire rack now operates as a single 72-GPU NVLink domain, much as an HGX baseboard does for 8 GPUs.**
 
 ## Architectural Diagram: The NVL72 Rack
 
@@ -69,7 +69,7 @@ flowchart LR
         end
         
         subgraph "The NVLink Copper Backplane"
-            BP[Passive Copper Routing<br>130 TB/s Bandwidth]
+            BP[Passive Copper Routing<br>130 TB/s aggregate NVLink bandwidth]
         end
         
         subgraph "Switch Trays (x9)"
@@ -92,7 +92,7 @@ In the HGX era, Dell or HPE bought the baseboard and built their own custom serv
 
 In the MGX/NVL72 era, the OEM cannot build a custom chassis. The exact physical dimensions of the trays, the liquid cooling manifolds, and the blind-mate connectors must perfectly align with the Copper Backplane. 
 
-OEMs essentially become integrators. They manufacture the trays to NVIDIA's exact MGX specifications, integrate their proprietary BMCs (like iDRAC), and ship fully assembled, 120 kW liquid-cooled racks to the customer. 
+OEMs essentially become integrators. They manufacture the trays to NVIDIA's exact MGX specifications, add their own management and service integration, and ship assembled liquid-cooled racks (on the order of 120 kW) to the customer. How much OEM differentiation NVIDIA permits is defined in the MGX/NVL72 program terms. 
 
 ## Customer Scenario (Senior Level)
 
@@ -100,13 +100,13 @@ OEMs essentially become integrators. They manufacture the trays to NVIDIA's exac
 A Fortune 500 company wants to train a proprietary Trillion-parameter model. They plan to buy 9 standard OEM servers, each containing an 8-GPU HGX Blackwell (B200) baseboard, giving them 72 GPUs total. They will connect them via 400G InfiniBand. 
 
 **The Senior Architect Response:**
-"If you are training a Trillion-parameter model, using 8-GPU HGX servers connected via InfiniBand is an architectural mistake that will drastically inflate your training time.
+"If you are training a Trillion-parameter model, using 8-GPU HGX servers connected via InfiniBand is likely to increase communication overhead significantly for communication-heavy parallelism.
 
 A Trillion-parameter model requires extreme 'All-to-All' communication between the GPUs. 
-In your proposed design, the NVLink domain (the ultra-fast 1.8 TB/s memory sharing) stops at the boundary of each 8-GPU server. When GPU 1 needs to share a massive tensor with GPU 9 (which is in the next server), the data must drop down to the InfiniBand network. While InfiniBand is fast, it relies on network protocols and is drastically slower than NVLink, creating a massive serialization bottleneck. 
+In your proposed design, the NVLink domain (the ultra-fast 1.8 TB/s memory sharing) stops at the boundary of each 8-GPU server. When GPU 1 needs to share a massive tensor with GPU 9 (which is in the next server), the data must drop down to the InfiniBand network. While InfiniBand is fast, it is substantially lower bandwidth than NVLink, so communication-heavy steps become a bottleneck. 
 
 Instead of buying 9 isolated 8-GPU servers, we must purchase a single **GB200 NVL72 Rack**. 
-In the NVL72, the NVLink domain does not stop at the server boundary. The NVSwitch trays and the copper backplane extend the NVLink fabric across all 72 GPUs simultaneously. Any GPU in the rack can read the memory of any other GPU at 1.8 TB/s, creating a single 130 TB/s memory domain. This will allow the Trillion-parameter model to execute its All-to-All communications instantly, slashing your training time by months."
+In the NVL72, the NVLink domain does not stop at the server boundary. The NVSwitch trays and the copper backplane extend the NVLink fabric across all 72 GPUs simultaneously. Any GPU in the rack can read the memory of any other GPU at 1.8 TB/s, giving roughly 130 TB/s of aggregate NVLink bandwidth across one domain. All-to-All traffic that fits inside the rack stays on NVLink, which should reduce communication time substantially (measure with your own model)."
 
 ## Interview Preparation
 

@@ -24,7 +24,7 @@ At the heart of any dense GPU deployment is the question of utilization. A moder
 Time-slicing is the most fundamental form of sharing. It leverages the OS and the NVIDIA driver to context-switch multiple processes on the GPU's compute engines.
 
 #### The Architecture of Time-Slicing
-When multiple processes address the same GPU without hardware partitioning, the GPU scheduler allocates time slots to each process. While one process executes, others are paused. Memory is fundamentally un-isolated from a capacity perspective (though virtually isolated via standard page tables).
+When multiple processes address the same GPU without hardware partitioning, the GPU scheduler allocates time slots to each process. While one process executes, others are paused. Each process keeps its own GPU address space, but there is no memory capacity partitioning: all processes draw from the same physical GPU memory.
 
 ```bash
 # Standard time-slicing does not require complex configuration,
@@ -41,9 +41,10 @@ EOF
 ```
 
 **Pros:** High flexibility, zero hardware configuration, allows oversubscription.
-**Cons:** High context-switching overhead, jitter in latency-sensitive workloads (inference), lack of memory capacity isolation (OOM in one process can impact the entire GPU if not managed via cgroups), zero fault isolation.
+**Cons:** High context-switching overhead, jitter in latency-sensitive workloads (inference), lack of memory capacity isolation (one process can exhaust GPU memory and cause allocation failures for the others; cgroups do not govern GPU memory), no fault isolation.
 
 :::warning Time-Slicing Danger
+Time-slicing gives no memory or fault isolation. With `replicas: 4`, the device plugin advertises four `nvidia.com/gpu` units per physical GPU, but nothing prevents one pod from consuming all of the GPU's memory.
 :::
 
 ### 1.2 MPS (Multi-Process Service)
@@ -75,7 +76,7 @@ echo set_default_active_thread_percentage 20 | nvidia-cuda-mps-control
 MIG, introduced in the Ampere architecture (A100) and refined in Hopper (H100), is the gold standard for secure, hardware-level GPU partitioning. It partitions the GPU into up to 7 fully isolated instances.
 
 #### MIG Hardware Partitioning
-MIG physically divides the GPU's memory controllers, L2 cache, and SMs. Each MIG instance acts as an independent PCIe device to the operating system.
+MIG physically divides the GPU's memory controllers, L2 cache, and SMs. Each MIG device is exposed to workloads as a separate GPU device (addressed by MIG UUID) with its own dedicated memory and compute slices.
 
 ```mermaid
 flowchart TD
@@ -110,10 +111,10 @@ flowchart TD
 ```
 
 #### Configuring MIG via nvidia-smi
-MIG configuration requires placing the GPU into MIG mode, which traditionally requires a reset.
+MIG configuration requires placing the GPU into MIG mode; depending on GPU and driver, this may require a GPU reset or node reboot.
 
 ```bash
-# 1. Enable MIG mode (requires root, may require driver reload or node reboot)
+# 1. Enable MIG mode (requires root; may require a GPU reset or reboot)
 sudo nvidia-smi -i 0 -mig 1
 
 # 2. List available MIG profiles
@@ -124,12 +125,12 @@ nvidia-smi mig -lgip
 sudo nvidia-smi mig -cgi 3g.40gb -i 0
 
 # 4. Create Compute Instances (CI) within the GI
-# Usually, you create one CI per GI for standard partitioning
-sudo nvidia-smi mig -cci -i 0 -gi 1
+# Use the GI ID reported by the previous step (nvidia-smi mig -lgi); it is not always 1.
+# (Passing -C to -cgi creates the default CI automatically.)
+sudo nvidia-smi mig -cci -i 0 -gi <GI_ID>
 ```
 
-:::info NVLink and MIG
-:::
+
 
 ### 1.4 vGPU (Virtual GPU)
 While MIG partitions hardware for bare-metal or containerized workloads, vGPU operates at the hypervisor level. It uses NVIDIA's proprietary driver to mediate access between virtual machines and the physical GPU.
@@ -142,7 +143,7 @@ vGPU is typically used in VDI (Virtual Desktop Infrastructure) or enterprise clo
 Operating a fleet of thousands of GPUs requires granular, real-time observability. The NVIDIA Data Center GPU Manager (DCGM) is the definitive tool for this task.
 
 ### 2.1 DCGM Architecture
-DCGM runs as a daemon (`nv-hostengine`) on the host. It polls the driver and hardware directly, bypassing NVML's higher latency in some fast-path metrics, and exposes APIs for health checking, profiling, and policy management.
+DCGM runs as a daemon (`nv-hostengine`) on the host. It collects GPU telemetry through the driver and exposes APIs for health checking, profiling, and policy management.
 
 ```mermaid
 flowchart LR
@@ -159,7 +160,7 @@ flowchart LR
         
         HW -- "Hardware telemetry" --- Driver
         Driver -- "IOCTL/sysfs" --- Daemon
-        Daemon -- "gRPC/C Bindings" --- Exporter
+        Daemon -- "DCGM API (libdcgm)" --- Exporter
         Daemon -- "Management API" --- CLI
     end
     
@@ -178,14 +179,15 @@ By default, `dcgm-exporter` exports a subset of metrics. In an AI Factory, you n
 
 #### Custom metrics.csv
 ```csv
-# Format: DCGM_FIELD_ID, Prometheus_Name, Prometheus_Type, Description
-DCGM_FI_DEV_SM_CLOCK, dcgm_sm_clock, gauge, SM clock frequency (in MHz).
-DCGM_FI_DEV_MEM_CLOCK, dcgm_memory_clock, gauge, Memory clock frequency (in MHz).
-DCGM_FI_DEV_GPU_TEMP, dcgm_gpu_temp, gauge, GPU temperature (in C).
-DCGM_FI_DEV_POWER_USAGE, dcgm_power_usage, gauge, Power draw (in W).
-DCGM_FI_PROF_PIPE_TENSOR_ACTIVE, dcgm_tensor_core_active, gauge, Ratio of cycles the tensor cores were active.
-DCGM_FI_PROF_NVLINK_TX_BYTES, dcgm_nvlink_tx_bytes, counter, NVLink transmit bytes.
-DCGM_FI_PROF_NVLINK_RX_BYTES, dcgm_nvlink_rx_bytes, counter, NVLink receive bytes.
+# Format: DCGM field name, Prometheus type, help text
+# The Prometheus metric name is the DCGM field name itself.
+DCGM_FI_DEV_SM_CLOCK, gauge, SM clock frequency (in MHz).
+DCGM_FI_DEV_MEM_CLOCK, gauge, Memory clock frequency (in MHz).
+DCGM_FI_DEV_GPU_TEMP, gauge, GPU temperature (in C).
+DCGM_FI_DEV_POWER_USAGE, gauge, Power draw (in W).
+DCGM_FI_PROF_PIPE_TENSOR_ACTIVE, gauge, Ratio of cycles the tensor cores were active.
+DCGM_FI_PROF_NVLINK_TX_BYTES, gauge, NVLink transmit bytes.
+DCGM_FI_PROF_NVLINK_RX_BYTES, gauge, NVLink receive bytes.
 ```
 
 To run DCGM exporter with these metrics in Docker:
@@ -203,7 +205,7 @@ GPUs will fail. Understanding the semantics of these failures is the difference 
 
 #### ECC Errors (SBE vs DBE)
 - **SBE (Single-Bit Error):** Automatically corrected by ECC memory. High rates of SBEs indicate impending hardware failure (often handled via row remapping on Ampere/Hopper).
-- **DBE (Double-Bit Error):** Uncorrectable. Results in application crash (XID 48/62). Requires node isolation and typically GPU replacement if row remapping fails.
+- **DBE (Double-Bit Error):** Uncorrectable. Typically reported as XID 48 and usually terminates the affected application. Requires node isolation and typically GPU replacement if row remapping fails.
 
 **XID 13: Graphics Engine Exception. Often a software bug in the CUDA kernel, out-of-bounds memory access, or an illegal instruction. Rarely a hardware failure.**
 :::tip Automated Remediation for XID 13
@@ -215,7 +217,7 @@ GPUs will fail. Understanding the semantics of these failures is the difference 
 
 **XID 62: Internal micro-controller halt (PMU halt). The Xid Catalog lists `RESET_GPU` as the immediate action and `CONTACT_SUPPORT` as the investigatory action. If it recurs after a reset, escalate. (GSP errors are Xid 119 and 120.)**
 
-**XID 74: NVLink Error. CRC errors on the high-speed fabric. Check NVSwitch telemetry, optical transceivers (if NVLink C2C), or physical board seating.**
+**XID 74: NVLink Error. Reported when an NVLink error is detected on the high-speed fabric. Check `nvidia-smi nvlink` status, NVSwitch/Fabric Manager telemetry, and physical board seating, and consult the Xid Catalog for the decoded fields.**
 
 **XID 94: Contained ECC Error. An uncorrectable error occurred, but the GPU contained it to a specific process without crashing the whole chip (supported in later architectures).**
 
@@ -276,10 +278,9 @@ dcgmi diag -r 3
 ### 5.2 NCCL All-Reduce Bandwidth Test
 Compute is irrelevant if the network is broken. We must validate intra-node NVLink and inter-node InfiniBand.
 ```bash
-# Run NCCL tests to verify 400GB/s NVLink bandwidth intra-node
+# Run NCCL tests to measure intra-node NVLink bandwidth; compare against your own known-good baseline
 mpirun -np 8 --bind-to none \
   -x NCCL_DEBUG=INFO \
-  -x NCCL_ALGO=Ring \
   /opt/nccl-tests/build/all_reduce_perf -b 1G -e 8G -f 2 -g 1
 ```
 
@@ -289,7 +290,7 @@ In this final section, we explore real-world, high-pressure scenarios that Senio
 ### Scenario 1: The Ghost OOM on MPS
 **Context:** Customer runs two inference containers on an A100 using MPS. Container A occasionally crashes with CUDA Out of Memory, but `nvidia-smi` shows only 10GB out of 40GB in use.
 **Architect's Diagnosis:**
-This is a classic memory fragmentation or pinning issue. When MPS is used, memory limits are often enforced virtually. If Container B rapidly allocates and deallocates small chunks of pinned memory, the GPU's virtual memory address space can become fragmented. When Container A requests a contiguous block of memory for a large tensor, the allocation fails, throwing an OOM despite sufficient total free memory. The solution is to migrate these specific, uncooperative workloads to MIG, which provides absolute, physical hardware partitioning, guaranteeing contiguous memory space for each instance.
+Under MPS, GPU memory is shared by all clients unless a limit is set, so `nvidia-smi` showing 10GB used does not rule out the failure. Check whether a per-client limit (`CUDA_MPS_PINNED_DEVICE_MEM_LIMIT`, or the MPS control daemon's `set_default_device_pinned_mem_limit`) is configured below what Container A needs, whether the figure was sampled after the OOM rather than at the peak, and whether Container B spiked. If the workloads need guaranteed, isolated memory, migrate them to MIG, which partitions memory in hardware.
 
 ### Scenario 2: XID 31 Storm on Node 42
 **Context:** Node 42 is suddenly emitting thousands of XID 31 errors per minute. The monitoring system is screaming. What do you do?
@@ -305,15 +306,3 @@ Mastering GPU fleet operations requires deep understanding across the entire sta
 
 ---
 *(End of Masterclass Volume 04)*
-
-## Appendix A: Deep Dive into NVIDIA Architecture Generations
-Understanding the nuanced differences between the Ampere and Hopper architectures is essential for tuning and sharing.
-
-## Appendix B: Comprehensive NVIDIA-SMI Output Analysis
-As an operator, you must read `nvidia-smi` output like the matrix.
-
-## Appendix C: Kubernetes Device Plugin Advanced Configuration
-Deploying GPUs in Kubernetes requires the NVIDIA Device Plugin. However, basic deployment is insufficient for enterprise environments.
-
-## Appendix D: Profiling with Nsight Systems (nsys)
-When DCGM shows poor SM utilization, you must escalate to Nsight Systems for deep profiling.

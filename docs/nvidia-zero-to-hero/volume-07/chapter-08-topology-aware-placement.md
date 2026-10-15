@@ -16,7 +16,7 @@ description: "Master Kubernetes NUMA alignment. Learn how the Topology Manager a
 
 ## Introduction
 
-In Chapter 2, we mapped the physical motherboard layout. We learned that crossing a NUMA boundary (e.g., CPU 0 talking to CPU 1 across the UPI link) destroys AI performance. 
+In Chapter 2, we mapped the physical motherboard layout. We learned that crossing a NUMA boundary (e.g., CPU 0 talking to CPU 1 across the UPI link) can seriously hurt AI performance. 
 
 But there is a massive problem: **Kubernetes does not care about NUMA boundaries by default.**
 
@@ -25,7 +25,7 @@ If you submit a Pod YAML requesting 16 CPU cores, 1 GPU, and 1 Network Card, the
 * GPU 3 (which is wired to CPU 1).
 * NIC 0 (which is wired to CPU 0).
 
-Your application will start successfully. The tests will pass. But because the GPU is physically separated from the CPU cores and the NIC by the UPI link, the workload will run at 30% speed. 
+Your application will start successfully. The tests will pass. But because the GPU is physically separated from the CPU cores and the NIC by the UPI link, the workload will run slower than a NUMA-aligned placement, sometimes by a large factor. 
 
 To fix this, a Senior Architect must reconfigure the deepest, most complex levels of the Kubernetes `kubelet`: The **Topology Manager**.
 
@@ -41,26 +41,23 @@ If you are running an AI inference service, the host CPU must constantly push da
 
 ## 2. The Kubernetes Topology Manager
 
-The **Topology Manager** is a component inside the `kubelet` (the agent running on every worker node) designed to solve this exact problem. It forces the CPU manager, the Device Manager (GPUs), and the CNI (Network Cards) to talk to each other before allowing a Pod to start.
+The **Topology Manager** is a component inside the `kubelet` (the agent running on every worker node) designed to solve this exact problem. It collects NUMA hints from the CPU Manager, the Memory Manager, and the Device Manager (device plugins for GPUs and, if topology-aware, NICs) and uses them to admit or reject a Pod. The Topology Manager only works for pods in the Guaranteed QoS class with integer CPU requests.
 
 ### Topology Policies
 You must explicitly configure the `kubelet` with a topology policy.
 
 1.  `none`: The default. Kubernetes randomly assigns resources. Disastrous for AI.
-2.  `best-effort`: Kubernetes *tries* to put everything on the same NUMA node. If it can't, it starts the pod anyway across multiple nodes. (Dangerous in production, as performance is non-deterministic).
+2.  `best-effort`: Kubernetes *tries* to put everything on the same NUMA node. If it can't, it starts the pod anyway, even if resources span multiple NUMA nodes. (Dangerous in production, as performance is non-deterministic).
 3.  `restricted`: If the resources don't perfectly align, the pod is rejected (TopologyAffinityError). 
 4.  `single-numa-node`: The gold standard for AI. If the requested CPU cores, GPUs, and Network Interfaces cannot be satisfied by a **single, specific NUMA node**, the Pod is strictly rejected and left in a `TopologyAffinityError` state.
 
 ## 3. Configuring the Stack (The NVIDIA GPU Operator)
 
-Enabling `single-numa-node` is not enough. You must ensure the hardware advertises its physical location to Kubernetes.
+Enabling `single-numa-node` is not enough. The device plugins must report each device's NUMA node to the kubelet.
 
-If you are using the **NVIDIA GPU Operator**, this is heavily automated via **NFD (Node Feature Discovery)**. 
-NFD inspects the physical hardware, reads the PCIe topologies, and applies labels to the Kubernetes nodes. 
+If you are using the **NVIDIA GPU Operator**, it deploys the NVIDIA device plugin, which advertises GPUs to the kubelet (and the Device Manager derives topology hints from the NUMA information the plugin reports). The operator also deploys NFD (Node Feature Discovery) and GPU Feature Discovery, which apply node labels for scheduling; those labels describe the hardware but are not what the Topology Manager consumes. Check your device plugin version's documentation for NUMA reporting. 
 
-When deploying the GPU Operator via Helm, you must ensure the `gfd` (GPU Feature Discovery) component is enabled. It maps the exact NUMA affinity of every GPU. 
-
-Furthermore, to align the network cards (e.g., SR-IOV interfaces on ConnectX NICs), you must deploy the **Multus CNI** and the **SR-IOV Network Device Plugin**, which also report their NUMA boundaries to the Topology Manager.
+Furthermore, to align the network cards (e.g., SR-IOV virtual functions on ConnectX NICs), you can deploy the **SR-IOV Network Device Plugin** (with Multus to attach the secondary interface), which reports each VF's NUMA node to the kubelet.
 
 ## Architectural Diagram: Topology Manager Alignment
 
@@ -118,6 +115,6 @@ To fix this, we must precisely profile the CPU overhead of the Triton server. Do
 
 ## Interview Preparation
 
-**Conceptual:** Why does a default Kubernetes installation frequently cause AI workloads to run 50% slower on multi-socket servers? *(Hint: The default scheduler randomly assigns CPU cores, Memory, and GPUs without considering physical motherboard layout. This often forces data to cross the highly congested CPU-to-CPU UPI link).*
+**Conceptual:** Why can a default Kubernetes installation cause AI workloads to run slower on multi-socket servers? *(Hint: The default configuration assigns CPU cores, memory, and GPUs independently without considering physical motherboard layout. This often forces data to cross the highly congested CPU-to-CPU UPI link).*
 
 **Architecture:** What is the difference between the Kubernetes Topology Manager policies `best-effort` and `single-numa-node`? *(Hint: `best-effort` tries to align hardware, but will still start the pod across multiple NUMA nodes if it fails, leading to unpredictable performance. `single-numa-node` acts as a strict guardrail, failing the pod entirely if perfect alignment cannot be achieved, ensuring deterministic high performance).*

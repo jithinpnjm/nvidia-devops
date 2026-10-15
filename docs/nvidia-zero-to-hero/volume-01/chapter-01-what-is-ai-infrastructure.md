@@ -87,7 +87,7 @@ As you progress from a DevOps engineer to a Senior AI Infrastructure Architect, 
 
 ### Bottleneck 1: Memory Bandwidth (The "Memory Wall")
 In Large Language Models (LLMs), generating text is almost entirely bound by **Memory Bandwidth**. 
-Why? Because for every single word generated, the GPU must load the *entire model's weights* from HBM into the computation cores. A top-tier NVIDIA H100 GPU has over 3 Terabytes per second (TB/s) of memory bandwidth, but even at that speed, moving 140GB of model weights for every single word takes time. 
+Why? Because for every single word generated, the GPU must load the *entire model's weights* from HBM into the computation cores. A top-tier NVIDIA H100 GPU has over 3 Terabytes per second (TB/s) of memory bandwidth, but even at that speed, moving the weights (about 140GB for a 70B-parameter model at FP16, spread across several GPUs) for every single token takes time. 
 * **The Trade-off:** Do we use a larger, more accurate model that takes longer to load from memory, or do we use "Quantization" (compressing the model to 8-bit or 4-bit precision) to halve the memory bandwidth requirements at the cost of slight accuracy degradation?
 
 ### Bottleneck 2: Interconnects (PCIe and NVLink)

@@ -13,7 +13,7 @@ sidebar_position: 19
 
 Production operations is where infrastructure meets reality. You've built a GPU cluster, deployed models, and tuned performance. Now you run it. This volume teaches the operational patterns, decision trees, and evidence-based troubleshooting that separate a working system from a *reliable* system.
 
-AI infrastructure operations differ fundamentally from application operations. A single GPU driver upgrade across 200 nodes is a day-long event with specific failure modes. A Pod eviction during training can cost you hours of compute. Network failures that would be tolerable in a web service become visible as degraded model accuracy or hanged training jobs. This volume covers how to make those decisions, coordinate them safely, and recover when things break.
+AI infrastructure operations differ fundamentally from application operations. A single GPU driver upgrade across 200 nodes is a day-long event with specific failure modes. A Pod eviction during training can cost you hours of compute. Network failures that would be tolerable in a web service become visible as degraded model accuracy or hung training jobs. This volume covers how to make those decisions, coordinate them safely, and recover when things break.
 
 ## Chapter Structure
 
@@ -36,7 +36,7 @@ Chapters are self-contained; you can read them in any order.
 - **Chapter 11:** Performance Debugging and Bottleneck Identification
 - **Chapter 12:** On-Call Handoff and Operational Runbooks
 
-## Labs
+## Labs (planned, not yet written)
 
 - **Lab 1:** Upgrade Simulation — Rolling update with canary promotion
 - **Lab 2:** Incident Simulation — Network failure detection and recovery

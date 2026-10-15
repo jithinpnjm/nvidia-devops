@@ -65,7 +65,7 @@ Instead of launching Kernel A, B, and C individually, the programmer tells the C
 ### The Performance Reality
 When a CUDA Graph is launched, the CPU issues *one single command* to the GPU. The GPU takes the entire graph and schedules the execution internally on the silicon, entirely bypassing the CPU for the duration of the workflow.
 
-The 45 microseconds of CPU launch overhead is reduced to 3 microseconds. The GPU executes kernels seamlessly back-to-back.
+In this illustrative example, the 45 microseconds of CPU launch overhead shrinks to a few microseconds of submission cost. The GPU executes kernels seamlessly back-to-back.
 
 ## Customer Scenario (Senior Level)
 

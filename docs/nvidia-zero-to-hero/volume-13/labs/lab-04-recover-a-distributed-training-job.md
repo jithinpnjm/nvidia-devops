@@ -61,7 +61,7 @@ Measure checkpoint save latency (time to write `epoch_3.pt` to disk) and restore
 
 ## 11. Safe Failure Injection
 **Action:** Delete a chunk of the checkpoint file or rename a parameter key in the state dict and attempt to resume.
-**Expected Result:** The process group should hang or crash with an explicit NCCL error.
+**Expected Result:** The resume should fail at load time (for example a `KeyError`, size-mismatch `RuntimeError`, or unpickling error), not hang. Do this on a copy of the checkpoint, never the only copy.
 
 ## 12. Recovery Steps
 Identify the missing shard, restore it from backup storage or a previous epoch, and relaunch the job.

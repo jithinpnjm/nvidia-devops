@@ -37,7 +37,7 @@ Operations placed in *different* Streams can execute simultaneously, in parallel
 
 ### The Default Stream (Stream 0)
 If a developer writes standard CUDA code and calls `cudaMemcpy` or launches a kernel `<<<...>>>`, it goes into the **Default Stream** (Stream 0). 
-The Default Stream is special: it is synchronous. If you put a memory copy in the Default Stream, the CPU will freeze and wait until the copy is 100% complete before moving to the next line of code.
+The Default Stream is special: it synchronizes with other blocking streams, and a plain `cudaMemcpy` blocks the CPU until the copy is complete before moving to the next line of code. Kernel launches return to the CPU immediately but still execute in order behind earlier work in the stream.
 
 ## 2. Custom Streams and Asynchronous Copies
 
@@ -62,7 +62,7 @@ Modern GPUs have multiple independent hardware engines:
 * **The Compute Engine (SMs):** Does the math.
 * **The Copy Engine (DMA Controllers):** Moves data over PCIe.
 
-Because they are physically separate silicon chips, they can run simultaneously. 
+Because they are separate hardware units on the GPU, they can run simultaneously. 
 
 By splitting data into chunks and assigning them to different streams, we can achieve perfect **Copy-Compute Overlap**.
 

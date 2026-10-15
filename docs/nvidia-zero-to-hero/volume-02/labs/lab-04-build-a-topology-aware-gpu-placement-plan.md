@@ -154,7 +154,7 @@ Map logical indices to stable UUIDs and PCI addresses.
 nvidia-smi --query-gpu=index,name,uuid,pci.bus_id,memory.total --format=csv
 ```
 
-#### Expected Output
+#### Expected Output (illustrative, not captured)
 
 ```text
 index, name, uuid, pci.bus_id, memory.total [MiB]

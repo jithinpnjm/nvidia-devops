@@ -47,7 +47,7 @@ GPUDirect RDMA sounds like a pure software feature. It is not. It is governed by
 
 For the NIC to write directly to the GPU's memory, the electrical signals must travel over the PCIe bus. 
 
-*   **The Bad Path:** If the GPU is wired to CPU 0, and the NIC is wired to CPU 1, GPUDirect RDMA is physically impossible. The data would have to cross the Intel UPI link between the CPUs. 
+*   **The Bad Path:** If the GPU is wired to CPU 0, and the NIC is wired to CPU 1, GPUDirect RDMA is generally unsupported or disabled by default (NCCL excludes GDR across a `SYS` path unless `NCCL_NET_GDR_LEVEL` is raised, which is not recommended). The data would have to cross the inter-socket link between the CPUs. 
 *   **The Good Path:** The GPU and the NIC must be plugged into the exact same **PCIe Switch**. This allows the PCIe switch to bounce the data directly from the NIC port to the GPU port internally, without the CPU even knowing a transfer occurred.
 
 ## Architectural Diagram: The Host Bounce Buffer vs GPUDirect
@@ -73,16 +73,16 @@ flowchart TD
 A financial institution buys 4 DGX H100 servers and connects them with a single 400G InfiniBand switch. They run a distributed PyTorch job using NCCL. They notice that the InfiniBand network is only pushing ~50 Gbps of traffic, and the GPUs are spending a significant amount of time waiting. They believe the InfiniBand cables are defective.
 
 **The Senior Architect Response:**
-"The cables are likely fine. Your cluster is suffering from a massive PCIe bottleneck because GPUDirect RDMA is disabled in the BIOS.
+"The cables are likely fine. Your cluster is probably not using GPUDirect RDMA at all, so every transfer is staged through host memory.
 
-When you install a generic Linux OS or configure a server BIOS manually, the 'Large BAR' (Base Address Register) feature is often disabled by default. If Large BAR is disabled, the GPU cannot expose its 80GB of HBM memory to the PCIe bus. 
+Common causes are the `nvidia-peermem` kernel module (the module that lets the NIC driver register GPU memory) not being loaded, PCIe ACS or IOMMU settings that block peer-to-peer traffic, and, on non-DGX hardware, a BIOS without Above 4G Decoding / large-BAR support so the GPU cannot expose enough of its HBM through BAR1. Confirm with `lsmod | grep nvidia_peermem` and `NCCL_DEBUG=INFO` output (look for `GPU Direct RDMA` enabled or disabled on the NET/IB lines).
 
 Because the NIC cannot see the GPU's memory directly, the NCCL library automatically falls back to standard Host-staged transfers. Every piece of data sent across the network is bouncing through the Intel CPUs' System RAM. You are attempting to push 400 Gbps of traffic through the host CPUs' memory controllers and PCIe root complexes, which violently bottlenecks the entire node.
 
-We must reboot the servers, enter the BIOS, enable 'Above 4G Decoding' and 'Resizable BAR'. Once the operating system can map the entire GPU memory space, GPUDirect RDMA will engage, bypassing the CPUs entirely and saturating the 400G InfiniBand links instantly."
+Load `nvidia-peermem` (and persist it), check ACS and IOMMU settings, and on non-DGX servers enable Above 4G Decoding and the large-BAR setting in the BIOS. Re-run with `NCCL_DEBUG=INFO` to confirm GDR is active, then re-measure with `nccl-tests`."
 
 ## Interview Preparation
 
 **Conceptual:** What is the "Host Bounce Buffer," and why does GPUDirect RDMA eliminate it? *(Hint: Without GPUDirect, data from the network must be staged in the CPU's system RAM before being copied to the GPU. GPUDirect RDMA allows the NIC to write directly to the GPU's HBM over the PCIe bus, bypassing the host memory).*
 
-**Architecture:** If you are building a custom AI server, where must you physically plug in the Network Interface Card to enable optimal GPUDirect RDMA performance? *(Hint: The NIC must be plugged into the exact same physical PCIe Switch complex as the GPU it is supporting. If it is plugged into a different root complex or across a NUMA boundary, the direct peer-to-peer PCIe transfer will fail).*
+**Architecture:** If you are building a custom AI server, where must you physically plug in the Network Interface Card to enable optimal GPUDirect RDMA performance? *(Hint: The NIC must be plugged into the exact same physical PCIe Switch complex as the GPU it is supporting. If it is plugged into a different root complex or across a NUMA boundary, the peer-to-peer path is slow or unsupported, and NCCL falls back to host staging).*

@@ -123,7 +123,7 @@ if epoch > 0:
     print(f"Cache hit rate epoch {epoch}: {hit_rate*100:.1f}%")
 ```
 
-**Sample output and interpretation:**
+**Illustrative output (not captured) and interpretation:**
 ```text
 Cache hit rate epoch 1: 0.2%   ← Most data fetched from shared storage
 Cache hit rate epoch 2: 98.3%  ← Local NVMe taking over; excellent

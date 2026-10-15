@@ -100,7 +100,7 @@ nvcc --version
 ncu --version
 ```
 
-### Expected Output
+### Expected Output (illustrative, not captured)
 
 The commands should identify the GPU and driver, the CUDA compiler release, and the Nsight Compute version.
 
@@ -257,7 +257,7 @@ Generate an optimized executable while displaying compiler resource information.
 nvcc -O3 -lineinfo -Xptxas=-v memory_patterns.cu -o memory_patterns
 ```
 
-#### Expected Output
+#### Expected Output (illustrative, not captured)
 
 ```text
 ptxas info    : 0 bytes gmem
@@ -349,16 +349,16 @@ contiguous_copy(...)
   Memory Throughput                    %    91.2
   L2 Hit Rate                          %    34.1
   Achieved Occupancy                   %    87.4
-  l1tex__average_t_sectors_per_request        1.1
+  l1tex__average_t_sectors_per_request        4.0
 
 strided_copy(...)
   Memory Throughput                    %    68.4
   L2 Hit Rate                          %    9.8
   Achieved Occupancy                   %    85.9
-  l1tex__average_t_sectors_per_request        5.7
+  l1tex__average_t_sectors_per_request        23.5
 ```
 
-Reading this pair: `Achieved Occupancy` is nearly identical between the two (87.4% vs 85.9%) — occupancy is not the story here, which rules out register pressure or block-sizing differences as the explanation. `l1tex__average_t_sectors_per_request` at `1.1` for contiguous versus `5.7` for strided is the direct transaction-efficiency evidence — the strided kernel is issuing roughly 5x more memory transactions for the same useful-byte count, consistent with the stride-32 mapping scattering each warp's accesses across widely separated addresses. `L2 Hit Rate` dropping from 34.1% to 9.8% confirms the strided pattern is also defeating cache reuse, not just generating more raw transactions. Together, these three numbers — not the elapsed-time ratio alone — are what justify concluding "this is a coalescing effect," per the branch in this lab's own architecture diagram.
+Reading this pair: `Achieved Occupancy` is nearly identical between the two (87.4% vs 85.9%) — occupancy is not the story here, which rules out register pressure or block-sizing differences as the explanation. `l1tex__average_t_sectors_per_request` at `4.0` for contiguous (the ideal for 4-byte loads: 128 bytes across 32-byte sectors) versus `23.5` for strided is the direct transaction-efficiency evidence — the strided kernel is issuing roughly 6x more memory transactions for the same useful-byte count, consistent with the stride-32 mapping scattering each warp's accesses across widely separated addresses. `L2 Hit Rate` dropping from 34.1% to 9.8% confirms the strided pattern is also defeating cache reuse, not just generating more raw transactions. Together, these three numbers — not the elapsed-time ratio alone — are what justify concluding "this is a coalescing effect," per the branch in this lab's own architecture diagram.
 
 Metric names vary by release and GPU. Look for sections related to:
 
@@ -393,7 +393,7 @@ Build a comparison table using measured values.
 | Memory throughput | 91.2% (illustrative) | 68.4% (illustrative) |
 | Cache behavior (L2 hit rate) | 34.1% (illustrative) | 9.8% (illustrative) |
 | Occupancy | 87.4% (illustrative) | 85.9% (illustrative) |
-| Dominant stall evidence | Low sectors/request (1.1) — efficient | High sectors/request (5.7) — transaction-inefficient |
+| Dominant stall evidence | Low sectors/request (4.0, near ideal) — efficient | High sectors/request (23.5) — transaction-inefficient |
 
 Do not compare metrics from different profiler configurations. The row that actually explains the timing gap here is sectors-per-request, not occupancy — occupancy is nearly identical between the two kernels, which is itself useful evidence: it rules out a residency-based explanation and points the conclusion specifically at memory-access efficiency, matching the profiler extract in Step 9.
 

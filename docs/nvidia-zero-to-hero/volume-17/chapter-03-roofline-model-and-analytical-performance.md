@@ -101,7 +101,7 @@ We will implement **TensorRT Quantization (INT8)**. By shrinking the 32-bit mode
 
 ## Architecture Summary
 
-The Roofline Model mathematically defines the absolute limits of an AI workload on a specific GPU. By calculating a workload's Arithmetic Intensity (FLOPS per Byte) and charting it against the GPU's memory bandwidth (the slanted roof) and compute capabilities (the flat roof), engineers can immediately determine whether optimization efforts should focus on reducing math (e.g., quantization) or reducing memory traffic (e.g., batching or operator fusion).
+The Roofline Model mathematically defines the absolute limits of an AI workload on a specific GPU. By calculating a workload's Arithmetic Intensity (FLOPS per Byte) and charting it against the GPU's memory bandwidth (the slanted roof) and compute capabilities (the flat roof), engineers can immediately determine whether optimization efforts should focus on reducing memory traffic (e.g., quantization, batching, or operator fusion) or on raising compute throughput (e.g., lower-precision Tensor Core math, sparsity, or a faster GPU).
 
 ```mermaid
 flowchart TD

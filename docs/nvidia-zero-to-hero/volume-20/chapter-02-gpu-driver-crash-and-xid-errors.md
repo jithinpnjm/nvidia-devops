@@ -7,6 +7,8 @@ description: "Understand and recover from GPU driver crashes, Xid error codes, a
 
 # GPU Driver Crash and Xid Errors
 
+> **Note:** Terminal and log output blocks in this chapter are illustrative (not captured from a real system). Hostnames, PIDs, UUIDs, counts, and timestamps are examples; commands and flags are real, but exact output formats vary by driver and DCGM version.
+
 ## Beginner's Primer: The Xid Encyclopedia
 
 When a user writes bad Python code and tries to access memory that doesn't exist, the program crashes with a "Segmentation Fault." 
@@ -17,7 +19,7 @@ The physical GPU cannot throw a Python exception. Instead, it sends an emergency
 If a training job crashes and you do not check `dmesg` for Xid errors, you are flying blind. 
 Xid errors are grouped into three categories:
 1. **User Errors (e.g., Xid 13, 31):** The data scientist wrote a bad CUDA kernel that crashed the GPU. Tell them to fix their code.
-2. **Correctable Hardware Errors (e.g., Xid 94):** The GPU detected a minor hardware glitch (like an ECC memory flip) but successfully fixed it on the fly. The job continues. This is a warning sign.
+2. **Memory-Error Signals (e.g., Xid 63, 92):** The GPU corrected or remapped around a memory problem (such as a single-bit ECC flip) without disrupting the job. This is a warning sign. (Xid 94, by contrast, is an uncorrectable error contained to one application, which must be restarted.)
 3. **Unrecoverable Hardware Errors (e.g., Xid 62, 79):** The physical silicon is dead, or the GPU has literally fallen off the PCIe bus. The node must be cordoned, and the GPU must be physically removed from the server (RMA).
 
 This chapter serves as your master reference guide for identifying and reacting to every major Xid error.
@@ -61,13 +63,13 @@ Every Xid diagnosis in this curriculum starts here. An Xid is a driver-reported 
 | 74 | NVLink Error | NVLink link-level error detected | Depends — see Chapter 04 (NVLink Errors and Topology Issues) for the full diagnostic path |
 | 79 | GPU has fallen off the bus | The GPU is no longer enumerable on PCIe — the headline "GPU fell off the bus" symptom | No, without intervention — see Chapter 07 (DMA Engine Failures and PCIe Issues) |
 | 92 | High single-bit ECC error rate | Correctable ECC events occurring at an elevated rate — precursor signal, not yet a failure | Yes for now — monitor trend, plan preventive maintenance if rate keeps rising |
-| 94 | Contained ECC error | A correctable/contained memory error the GPU handled itself without disruption | Yes — no action needed beyond logging; see Chapter 07 for why this is often confused with bus-fall-off codes |
+| 94 | Contained ECC error | An uncorrectable ECC error contained to a single application; per NVIDIA's Xid documentation the affected application must be restarted while other applications are unaffected | Partly — restart the affected application and reset the GPU when convenient; track recurrence; see Chapter 07 for why this is often confused with bus-fall-off codes |
 | 95 | Uncontained ECC error | An ECC error the GPU could **not** contain — data integrity at risk | **No** — treat as an immediate drain-and-diagnose case, same severity tier as Xid 48 |
 
 **How to use this table under pressure:** first classify the code into one of three tiers before doing anything else:
 
-- **Tier 1 — informational/self-healing (63, 92, 94, 45):** GPU keeps running. Log it, track frequency, don't page anyone at 3 AM for a single occurrence.
-- **Tier 2 — process/application-recoverable (13, 31, 32, 43):** likely recoverable at the process level; only escalate to hardware suspicion if the *same GPU* repeats the *same code* across *different, unrelated* applications.
+- **Tier 1 — informational/self-healing (63, 92, 45):** GPU keeps running. Log it, track frequency, don't page anyone at 3 AM for a single occurrence.
+- **Tier 2 — process/application-recoverable (13, 31, 32, 43, 94):** likely recoverable at the process level; only escalate to hardware suspicion if the *same GPU* repeats the *same code* across *different, unrelated* applications.
 - **Tier 3 — GPU-level failure (48, 61, 62, 64, 79, 95):** stop scheduling new work on this GPU immediately; these do not self-heal and false-negative on this tier costs far more than a false-positive drain.
 
 ### Diagnosis flowchart
@@ -75,8 +77,8 @@ Every Xid diagnosis in this curriculum starts here. An Xid is a driver-reported 
 ```mermaid
 flowchart TD
     A["Xid error in dmesg"] --> B{"Which tier?<br/>(see table above)"}
-    B -->|"Tier 1: 45, 63, 92, 94"| C["Log and track rate.<br/>No immediate action."]
-    B -->|"Tier 2: 13, 31, 32, 43"| D{"Same GPU, same code,<br/>across different apps?"}
+    B -->|"Tier 1: 45, 63, 92"| C["Log and track rate.<br/>No immediate action."]
+    B -->|"Tier 2: 13, 31, 32, 43, 94"| D{"Same GPU, same code,<br/>across different apps?"}
     D -->|No, single occurrence<br/>or app-specific| E["Likely application bug.<br/>Check app logs/code."]
     D -->|"Yes, recurring<br/>pattern"| F["Escalate to Tier 3<br/>handling — hardware suspect"]
     B -->|"Tier 3: 48, 61, 62,<br/>64, 79, 95"| G["Drain GPU immediately.<br/>Do not wait for a<br/>second occurrence."]
@@ -95,13 +97,13 @@ flowchart TD
 ```bash
 $ dmesg -T | grep -B5 -A5 "Xid" | tail -60
 
+[Tue Aug  4 14:21:52 2026] NVRM: Xid (PCI:0000:0a:00): 92, pid=48213, name=python, High single-bit ECC error rate
+[Tue Aug  4 14:21:58 2026] NVRM: Xid (PCI:0000:0a:00): 45, pid=48213, name=python, Preemptive cleanup, due to previous errors
 [Tue Aug  4 14:22:03 2026] NVRM: Xid (PCI:0000:0a:00): 79, pid=48213, name=python, GPU has fallen off the bus.
 [Tue Aug  4 14:22:03 2026] NVRM: GPU 0000:0a:00.0: RmInitAdapter failed!
-[Tue Aug  4 14:21:58 2026] NVRM: Xid (PCI:0000:0a:00): 45, pid=48213, name=python, Preemptive cleanup, due to previous errors
-[Tue Aug  4 14:21:52 2026] NVRM: Xid (PCI:0000:0a:00): 92, pid=48213, name=python, High single-bit ECC error rate
 ```
 
-**Reading this in order (oldest first, since dmesg prints newest-first with `-T`):** Xid 92 (Tier 1, informational) fired first, followed six seconds later by Xid 45 (Tier 1, cleanup after "previous errors" — pointing back at the 92), followed five seconds after that by Xid 79 (Tier 3, GPU fell off the bus). **The Xid 92 and 45 were early warning, not noise — in hindsight, the rising ECC rate was a precursor to the bus failure.** This is why Tier 1 codes get tracked for rate trends (Prevention section) rather than ignored outright, even though no single Tier 1 occurrence is actionable by itself.
+**Reading this in order (`dmesg` prints oldest first; `-T` only converts the timestamps):** Xid 92 (Tier 1, informational) fired first, followed six seconds later by Xid 45 (Tier 1, cleanup after "previous errors" — pointing back at the 92), followed five seconds after that by Xid 79 (Tier 3, GPU fell off the bus). **The Xid 92 and 45 were early warning, not noise — in hindsight, the rising ECC rate was a precursor to the bus failure.** This is why Tier 1 codes get tracked for rate trends (Prevention section) rather than ignored outright, even though no single Tier 1 occurrence is actionable by itself.
 
 ```bash
 # Confirm current GPU state matches the Xid 79 diagnosis
@@ -117,9 +119,9 @@ No devices were found
 ```bash
 $ nvidia-smi -i 0 -q -d ECC 2>&1 || echo "GPU unreachable — pull from DCGM historical data instead"
 
-$ dcgmi diag -r 1 --json 2>/dev/null | jq '.tests[] | select(.name=="ECC")'
-# (if GPU is off the bus, query the last-known-good DCGM snapshot instead of live)
-$ dcgmi dmon -e 202 --list-history --gpu 0 --window 24h
+# (if the GPU is off the bus, query historical telemetry instead of live data,
+# for example the Prometheus series for DCGM_FI_DEV_ECC_SBE_AGG_TOTAL and
+# DCGM_FI_DEV_ECC_DBE_AGG_TOTAL from dcgm-exporter)
 Timestamp             DBE_Count   SBE_Count
 2026-08-04 08:00:00       0          12
 2026-08-04 10:00:00       0          31
@@ -164,7 +166,7 @@ $ sudo modprobe nvidia && nvidia-smi -i 0
 # means data integrity was compromised for whatever was in that memory
 # region. Any job that was running needs to be treated as having
 # produced unreliable output, not just "the GPU crashed."
-$ sudo nvidia-smi -i 0 --reset
+$ sudo nvidia-smi -i 0 --gpu-reset
 # Reset is for returning the GPU to a clean state to run diagnostics,
 # not a fix — proceed to Step 3 before returning to the scheduling pool.
 ```
@@ -191,7 +193,7 @@ Successfully ran diagnostic for group.
 +===========================+==================================================+
 | Deployment                | Pass                                            |
 | Integration                | Pass                                            |
-| Hardware (Memory)          | **Fail** - Row remap pending, ECC test failed   |
+| Hardware (Memory)          | **Fail** - illustrative failure row             |
 | Stress                     | Skipped (blocked by Hardware failure)           |
 +---------------------------+------------------------------------------------+
 ```
@@ -216,7 +218,7 @@ A `Hardware` test failure at level 3 is a hard stop — this GPU does not go bac
 
 3. **ECC rate trend confirmed flat, not just currently zero:**
    ```bash
-   dcgmi dmon -e 202 --list-history --gpu 0 --window 24h
+   # Query the DCGM_FI_DEV_ECC_SBE_AGG_TOTAL series over the last 24h in Prometheus
    # Expected: SBE count stable/low, not accelerating like the pre-failure pattern
    ```
 
@@ -239,7 +241,7 @@ A `Hardware` test failure at level 3 is a hard stop — this GPU does not go bac
 |---|---|---|---|---|
 | Xid 79, GPU disappears from `lspci` | GPU missing from PCIe enumeration; `nvidia-smi` reports no devices | GPU fell off the PCIe bus — check preceding dmesg lines for a Tier 1 precursor pattern first | Rescan PCIe bus; if GPU re-enumerates, run `dcgmi diag -r 3` before returning to service; if it doesn't re-enumerate, hardware replacement (Chapter 07) | `lspci` shows GPU at full link width/speed; `dcgmi diag -r 3` passes clean |
 | Xid 48 or 95, GPU still enumerable | dmesg shows double-bit/uncontained ECC; GPU responds to `nvidia-smi` but should not be trusted with new work | Uncontained memory error — any job running at the time may have produced corrupted output | Drain immediately, do not just restart the job on the same GPU; run `dcgmi diag -r 3`; flag any output from the affected job for review | Diagnostic passes clean; affected job's output independently verified or discarded |
-| Xid 92 firing repeatedly over days, no Tier 3 event yet | `dcgmi dmon` shows SBE count trending upward over the trailing week | Progressive memory degradation — Tier 1 today, likely Tier 3 eventually | Schedule preventive maintenance/replacement before it becomes an unplanned Tier 3 incident; do not wait for the double-bit event | SBE rate trend flat or GPU proactively replaced before failure |
+| Xid 92 firing repeatedly over days, no Tier 3 event yet | DCGM ECC SBE counters (for example `DCGM_FI_DEV_ECC_SBE_AGG_TOTAL`) trend upward over the trailing week | Progressive memory degradation — Tier 1 today, likely Tier 3 eventually | Schedule preventive maintenance/replacement before it becomes an unplanned Tier 3 incident; do not wait for the double-bit event | SBE rate trend flat or GPU proactively replaced before failure |
 | Xid 13 or 31 on one GPU, different unrelated apps, days apart | Same GPU, same code, but application logs show no shared bug pattern | Likely a hardware issue masquerading as recurring application-level faults | Escalate to Tier 3 handling despite the code technically being Tier 2 — recurrence across unrelated applications overrides the default tier classification | `dcgmi diag -r 3` run proactively; GPU drained if hardware fault confirmed |
 | Xid 45 seen with nothing else nearby in dmesg | Cleanup event with no obvious preceding fault in the visible log window | The triggering event scrolled out of the visible tail — dmesg buffer wrapped, or log rotation trimmed it | Pull a wider dmesg window or check persistent journal (`journalctl -k`) rather than assuming Xid 45 has no cause | Root cause Xid identified further back in the log; treat 45 as confirmation something else needs investigation, never as self-explanatory |
 
@@ -251,7 +253,7 @@ A `Hardware` test failure at level 3 is a hard stop — this GPU does not go bac
 # Continuous Xid classification and tiered alerting
 #!/bin/bash
 TIER3="48|61|62|64|79|95"
-TIER1="45|63|92|94"
+TIER1="45|63|92"
 
 dmesg -T | grep "Xid" | tail -n 20 | while read -r line; do
   code=$(echo "$line" | grep -oP 'Xid \(PCI:[^)]+\): \K[0-9]+')
@@ -266,19 +268,17 @@ done
 
 ```yaml
 # Prometheus alert rules — tiered by Xid classification, not uniform severity
+# Illustrative: DCGM_FI_DEV_XID_ERRORS reports the most recent Xid code per GPU
 - alert: XidTier3Critical
-  expr: increase(dcgm_xid_errors{xid=~"48|61|62|64|79|95"}[5m]) > 0
+  expr: DCGM_FI_DEV_XID_ERRORS == 48 or DCGM_FI_DEV_XID_ERRORS == 61 or DCGM_FI_DEV_XID_ERRORS == 62 or DCGM_FI_DEV_XID_ERRORS == 64 or DCGM_FI_DEV_XID_ERRORS == 79 or DCGM_FI_DEV_XID_ERRORS == 95
   for: 0m
   labels: {severity: page}
   annotations:
     summary: "GPU {{ $labels.gpu }} Tier 3 Xid {{ $labels.xid }} — drain immediately"
 
-- alert: XidTier1RateRising
-  expr: increase(dcgm_xid_errors{xid=~"63|92|94"}[7d]) > 3 * increase(dcgm_xid_errors{xid=~"63|92|94"}[7d] offset 7d)
-  for: 6h
-  labels: {severity: ticket}
-  annotations:
-    summary: "GPU {{ $labels.gpu }} Tier 1 Xid rate up >3x week-over-week — precursor pattern, schedule preventive check"
+# Tier 1 rate tracking needs per-code event counts. The DCGM field only holds the
+# latest code, so derive counts from kernel logs (for example a log-based metric)
+# and alert on week-over-week growth there.
 ```
 
 ### Weekly Xid trend review
@@ -311,7 +311,7 @@ echo "=== Xid Escalation Data ===" > xid_escalation.log
 journalctl -k --since "-30 days" | grep -i xid >> xid_escalation.log
 
 # ECC/retirement history
-dcgmi dmon -e 202 --list-history --gpu 0 --window 720h >> xid_escalation.log
+nvidia-smi -i 0 -q -d ECC,PAGE_RETIREMENT >> xid_escalation.log
 
 # Full diagnostic run
 dcgmi diag -r 3 -i 0 >> xid_escalation.log 2>&1
@@ -324,11 +324,11 @@ nvidia-smi -i 0 -q | grep -E "GPU UUID|VBIOS|Serial" >> xid_escalation.log
 
 **Q: "What does Xid 79 mean, and how is it different from Xid 94?"**
 
-A: "Xid 79 is 'GPU has fallen off the bus' — the GPU is no longer enumerable on PCIe at all, confirmed by checking `lspci`. Xid 94 is 'Contained ECC error' — a correctable memory error the GPU handled internally without any disruption; the GPU keeps running and doesn't need any recovery action. They're easy to confuse because both can show up in a stream of dmesg output around a GPU incident, but they're not related codes — 79 is a bus/link failure, 94 is a routine, self-healed memory event. I'd never treat a 94 as evidence the GPU is failing on its own; I'd only escalate it if I saw it combined with a rising rate over time or paired with a genuinely disruptive code like 79 or 48."
+A: "Xid 79 is 'GPU has fallen off the bus' — the GPU is no longer enumerable on PCIe at all, confirmed by checking `lspci`. Xid 94 is 'Contained ECC error' — an uncorrectable memory error that the GPU contained to one application, so only that application has to be restarted while the GPU and other applications keep running; NVIDIA recommends resetting the GPU when convenient. They're easy to confuse because both can show up in a stream of dmesg output around a GPU incident, but they're not related codes — 79 is a bus/link failure, 94 is a contained memory error. A single 94 is not a reason to panic, but I'd track recurrence on the same GPU and escalate if it repeats or appears alongside 48, 95, or 64."
 
 **Q: "How do you decide whether to page someone immediately versus just logging an Xid error?"**
 
-A: "I classify by tier, not by treating every Xid as equally urgent. Codes like 48, 61, 62, 64, 79, and 95 are GPU-level failures that don't self-heal — I page and drain immediately for those, no exceptions, because the cost of a false-negative there is much higher than a false-positive drain. Codes like 45, 63, 92, and 94 are informational or self-healing — a single occurrence gets logged, not paged, but I track the rate over time, because I've seen a rising rate of Tier 1 codes be the early-warning signal for a Tier 3 failure hours later. And codes like 13, 31, 32, 43 are usually application-recoverable, but if the same GPU shows the same code across genuinely unrelated applications, that pattern overrides the default classification and I treat it as a hardware suspect worth a proactive diagnostic run."
+A: "I classify by tier, not by treating every Xid as equally urgent. Codes like 48, 61, 62, 64, 79, and 95 are GPU-level failures that don't self-heal — I page and drain immediately for those, no exceptions, because the cost of a false-negative there is much higher than a false-positive drain. Codes like 45, 63, and 92 are informational or self-healing — a single occurrence gets logged, not paged, but I track the rate over time, because I've seen a rising rate of Tier 1 codes be the early-warning signal for a Tier 3 failure hours later. And codes like 13, 31, 32, 43, and 94 are usually application-recoverable, but if the same GPU shows the same code across genuinely unrelated applications, that pattern overrides the default classification and I treat it as a hardware suspect worth a proactive diagnostic run."
 
 **Q: "A GPU shows Xid 92 a few times over a week — do you take it offline?"**
 
@@ -345,8 +345,8 @@ flowchart TD
         
         Log[SRE Detects Xid Error in 'dmesg'] --> Triage{What is the Xid Number?}
         
-        Triage -->|Xid 13 / 31 / 43| User[User / Application Error <br/> e.g., Segfault, Out of Memory]
-        Triage -->|Xid 92 / 94| Warn[Correctable Hardware Error <br/> e.g., Single-bit ECC flip <br/> Action: Monitor trend]
+        Triage -->|Xid 13 / 31 / 43 / 94| User[User / Application Error <br/> e.g., Segfault, Out of Memory]
+        Triage -->|Xid 63 / 92| Warn[Correctable Hardware Error <br/> e.g., Single-bit ECC flip <br/> Action: Monitor trend]
         Triage -->|Xid 48 / 62 / 79| Dead[Unrecoverable Hardware Error <br/> e.g., GPU fell off bus <br/> Action: Cordon & RMA]
         
         User --> Fix1[Fix: Data Scientist must debug <br/> their PyTorch/CUDA code.]

@@ -43,10 +43,10 @@ Serving a trained LLM to users (e.g., ChatGPT) is a completely different physica
 *   **Must-Have Hardware:** 
     *   **Extreme Memory Bandwidth:** HBM3 or HBM3e is heavily favored to reduce Time-Per-Output-Token (TPOT).
     *   **Memory Capacity:** You need enough VRAM to hold the model weights *plus* the massive KV Cache for concurrent users. (e.g., An 80GB H100 is great, but a 141GB H200 allows double the concurrent users).
-    *   **NVLink (Conditional):** If the model is 70B parameters, it requires ~140GB of RAM (at 16-bit). It will not fit on one 80GB GPU. You *must* use Tensor Parallelism across 2 or 4 GPUs. This requires NVLink. 
+    *   **NVLink (Conditional):** If the model is 70B parameters, it requires ~140GB of RAM (at 16-bit). It will not fit on one 80GB GPU, so you must split it with Tensor Parallelism across 2 or 4 GPUs. That puts all-reduce traffic on every layer, so NVLink is strongly preferred. 
 *   **The Hardware Choice:** 
     *   For massive models (>70B): **H100, H200 (SXM or NVL)**.
-    *   For smaller models (7B to 30B): **L40S (PCIe)**. The L40S uses GDDR6a memory (cheaper than HBM but still fast) and lacks NVLink, but for a model that fits entirely on a single card, it offers massive FP8 compute at a fraction of the H100's price.
+    *   For smaller models (7B to 30B): **L40S (PCIe)**. The L40S uses GDDR6 memory (cheaper than HBM but still fast) and lacks NVLink, but for a model that fits entirely on a single card, it offers massive FP8 compute at a fraction of the H100's price.
 
 ## 3. Workload Profile C: Computer Vision & Video Processing
 

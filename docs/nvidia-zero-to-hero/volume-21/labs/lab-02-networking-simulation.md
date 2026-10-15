@@ -7,6 +7,9 @@ tags: [lab, networking, simulation, allreduce]
 
 # Lab 02 — Networking Simulation (90 min)
 
+
+> **Note:** This lab uses a deliberately simple analytic model (latency plus data divided by bandwidth). It illustrates scaling trends, not real NCCL behavior; NCCL uses pipelined rings and double binary trees, and real fabrics have protocol overhead. The printed values below were computed from the code shown, but validate any conclusion with nccl-tests on real hardware.
+
 ## Objective
 
 Simulate AllReduce latency in different network topologies. Predict throughput impact; compare ring, tree, recursive doubling algorithms.
@@ -56,13 +59,13 @@ for N, data_mb, bw in configs:
     latency = ring_allreduce(N, data_mb, bw)
     print(f"N={N}, data={data_mb}MB, bw={bw}Gbps → AllReduce time: {latency:.2f}ms")
 
-# Expected output (verified by running the code above):
+# Output computed from the code above:
 # N=64, data=1000MB, bw=400Gbps → AllReduce time: 51.97ms
 # N=64, data=1000MB, bw=100Gbps → AllReduce time: 170.10ms
 # N=128, data=1000MB, bw=400Gbps → AllReduce time: 65.09ms
 ```
 
-**Rubric:** Simulation matches hand calculations (within ±10%). Explain why N=128 is 2x slower than N=64.
+**Rubric:** Simulation matches hand calculations (within ±10%). Explain why N=128 is only about 1.25x slower than N=64 (the bandwidth term 2(N-1)/N × S/B barely changes with N, while the latency term grows with the 2(N-1) steps).
 
 ## Exercise 2: Tree vs Ring (20 min)
 
@@ -110,13 +113,30 @@ plt.title('AllReduce Latency: Algorithm Comparison')
 plt.grid()
 plt.savefig('allreduce_comparison.png')
 
-# Analysis question:
-#   1. For N=64, ring is fastest. Why?
-#   2. For N=256, which algorithm scales best?
-#   3. At what N does tree become better than ring?
+# Output for a 1000 MB message at 400 Gbps (computed from the code above):
+# N=  8: Ring= 36.40ms, Tree=123.00ms, RD= 60.60ms
+# N= 16: Ring= 40.50ms, Tree=164.00ms, RD= 80.80ms
+# N= 32: Ring= 44.95ms, Tree=205.00ms, RD=101.00ms
+# N= 64: Ring= 51.97ms, Tree=246.00ms, RD=121.20ms
+# N=128: Ring= 65.09ms, Tree=287.00ms, RD=141.40ms
+# N=256: Ring= 90.84ms, Tree=328.00ms, RD=161.60ms
+#
+# Now repeat with a 1 MB message (small, latency-bound):
+# N=  8: Ring=  1.44ms, Tree=  3.12ms, RD=  0.66ms
+# N= 32: Ring=  6.24ms, Tree=  5.20ms, RD=  1.10ms
+# N= 64: Ring= 12.64ms, Tree=  6.24ms, RD=  1.32ms
+# N=256: Ring= 51.04ms, Tree=  8.32ms, RD=  1.76ms
+#
+# Analysis questions:
+#   1. For a 1000 MB message at N=64, ring is fastest. Why? (Hint: this simple tree sends the full
+#      buffer at every level; ring is bandwidth-optimal.)
+#   2. For a 1 MB message, which algorithm scales best as N grows, and why?
+#   3. At what N does this model's tree beat ring for 1 MB messages? (Answer from the numbers: N=32.)
+#   4. NCCL's real tree pipelines the message through a double binary tree, which removes most of
+#      the full-buffer penalty seen here. What does that change in the conclusion?
 ```
 
-**Rubric:** Plot must show correct curves. Explain inflection points (why tree becomes better at large N).
+**Rubric:** Plot must show correct curves for both message sizes. Explain the crossover: for small messages latency (number of steps) dominates and logarithmic-step algorithms win at larger N; for large messages bandwidth dominates and ring wins.
 
 ## Exercise 3: Topology Simulation (30 min)
 
@@ -133,25 +153,22 @@ def simulate_topology_allreduce(topology_name, N_gpu, bandwidth_gbps, data_mb):
     """
     
     if topology_name == 'single_rack':
-        # All N GPU connected to 1 switch
-        # Effectively unlimited bandwidth (full bisection)
-        effective_bw = bandwidth_gbps * 10  # Oversubscription factor
+        # Non-blocking fabric: every GPU gets its full link bandwidth
+        effective_bw = bandwidth_gbps
         latency_ms = ring_allreduce(N_gpu, data_mb, effective_bw)
-    
+
     elif topology_name == 'fat_tree':
-        # Multi-level switching: some links oversubscribed
-        # Bisection bandwidth = bandwidth_gbps × 0.5 (oversubscription)
+        # Multi-level switching with 2:1 oversubscription (assumption)
         effective_bw = bandwidth_gbps * 0.5
         latency_ms = ring_allreduce(N_gpu, data_mb, effective_bw)
-    
+
     elif topology_name == 'multi_rack':
-        # Multiple racks with limited inter-rack bandwidth
-        # Bisection bandwidth = limited to few high-speed links
+        # Hierarchical AllReduce: across 8 racks at full speed, then 8 GPUs sharing a link
+        # whose inter-rack bandwidth is limited to 20% (assumption)
         effective_bw = bandwidth_gbps * 0.2
-        # Hierarchical AllReduce: within-rack + inter-rack
         latency_ms = ring_allreduce(N_gpu // 8, data_mb, bandwidth_gbps) + \
                      ring_allreduce(8, data_mb, effective_bw)
-    
+
     return latency_ms
 
 # Test
@@ -160,79 +177,71 @@ for topo in topologies:
     lat = simulate_topology_allreduce(topo, 64, 400, 1000)
     print(f"{topo:15s}: {lat:6.2f} ms")
 
-# single_rack     :  16.54 ms (best)
+# single_rack     :  51.97 ms (best)
 # fat_tree        :  91.35 ms (oversubscribed)
 # multi_rack      : 212.80 ms (multi-level, slow inter-rack)
 
-# Question: For 256 GPU, which topology is required to keep AllReduce <10ms?
+# Question: With a 1000 MB message at 400 Gbps, the bandwidth term alone is about
+# 2(N-1)/N × 20 ms ≈ 40 ms. Can any topology reach <10 ms at 256 GPUs? What would you
+# change (message size, sharding, overlap) instead?
 ```
 
-**Rubric:** Topology simulation shows realistic oversubscription effects. Justify why multi-rack is slowest.
+**Rubric:** Topology simulation shows oversubscription effects. Justify why the limited inter-rack bandwidth dominates the multi-rack result, and note that these multipliers are assumptions.
 
 ## Exercise 4: Throughput Impact (20 min)
 
 **Task:** Calculate training impact of AllReduce overhead.
 
 ```python
-def training_iteration_time(batch_size, sequence_length, num_gpu, allreduce_latency_ms):
+def training_iteration_time(batch_size, sequence_length, num_gpu, allreduce_latency_ms,
+                            tokens_per_sec_per_gpu=940):
     """
-    Estimate training iteration time.
-    
+    Estimate training iteration time for a data-parallel job with NO compute/communication overlap.
+
     Simplified model:
-      - Forward pass: compute-bound, scales with batch size
-      - Backward pass: compute-bound
-      - AllReduce: communication, same for all batch sizes (only depends on gradient size)
+      - Forward + backward: compute-bound, scales with tokens per GPU
+      - AllReduce: communication, depends on gradient size, not batch size
     """
-    
-    # Throughput per GPU: 500K tokens/sec (from Chapter 8)
-    tokens_per_sec_per_gpu = 500_000
-    
-    # batch_size is the GLOBAL batch size, split across num_gpu GPUs in data
-    # parallelism, so tokens processed PER GPU = (batch_size / num_gpu) * sequence_length.
-    # (Dividing by num_gpu here is what makes this a data-parallel throughput model —
-    # more GPUs must not make each iteration slower.)
+
+    # Llama-70B on H100 at ~40% MFU: 0.40 × 989e12 / (6 × 70e9) ≈ 940 tokens/s per GPU (Chapter 01)
+    # batch_size is the GLOBAL batch size, split across num_gpu GPUs in data parallelism
     tokens_per_gpu_per_iteration = (batch_size / num_gpu) * sequence_length
-    
-    # Forward + backward time (compute-bound)
+
     compute_time_ms = (tokens_per_gpu_per_iteration / tokens_per_sec_per_gpu) * 1000
-    
-    # AllReduce time (communication-bound)
     communication_time_ms = allreduce_latency_ms
-    
-    # Total
     iteration_time_ms = compute_time_ms + communication_time_ms
-    
     return iteration_time_ms, compute_time_ms, communication_time_ms
 
-# Scenario: Llama-70B training
+# Scenario: Llama-70B training. BF16 gradients are ~140,000 MB; use the ring model from Exercise 1.
 num_gpu = 64
 batch_size = 128
 sequence_length = 4096
+grad_mb = 140_000
 
-topologies = {
-    'single_rack': 5.0,
-    'fat_tree': 10.0,
-    'multi_rack': 50.0,
-}
+topologies = {name: simulate_topology_allreduce(name, num_gpu, 400, grad_mb)
+              for name in ['single_rack', 'fat_tree', 'multi_rack']}
 
-print("Training Iteration Time (ms):")
+print("Training Iteration Time (ms), no overlap:")
 print(f"{'Topology':15s} {'Total':>10s} {'Compute':>10s} {'AllReduce':>10s} {'Overhead':>10s}")
-print("-" * 50)
+print("-" * 60)
 
 for topo, allreduce_lat in topologies.items():
     iter_time, compute, allreduce = training_iteration_time(batch_size, sequence_length, num_gpu, allreduce_lat)
     overhead_pct = (allreduce / iter_time) * 100
-    print(f"{topo:15s} {iter_time:10.2f}ms {compute:10.2f}ms {allreduce:10.2f}ms {overhead_pct:9.1f}%")
+    print(f"{topo:15s} {iter_time:10.1f}ms {compute:10.1f}ms {allreduce:10.1f}ms {overhead_pct:9.1f}%")
 
+# Output computed from the code above:
 # Topology        Total     Compute   AllReduce  Overhead
-# single_rack      21.38ms     16.38ms   5.00ms    23.4%
-# fat_tree         26.38ms     16.38ms  10.00ms    37.9%
-# multi_rack       66.38ms     16.38ms  50.00ms    75.3%
+# single_rack    14240.0ms   8714.9ms   5525.1ms      38.8%
+# fat_tree       19752.5ms   8714.9ms  11037.6ms      55.9%
+# multi_rack     38117.7ms   8714.9ms  29402.8ms      77.1%
 
-# Question: What's the training time increase (per epoch) for multi_rack vs single_rack?
-#   Answer: 66.38ms / 21.38ms ≈ 3.1x slower = need ~3.1x more GPU hours = ~3.1x higher cost.
-#   This is why AllReduce overhead dominates decisively at small per-GPU batch sizes and
-#   why topology (single-rack NVLink vs. multi-rack IB) matters so much for training economics.
+# Question: What is the training-time increase for multi_rack vs single_rack?
+#   Answer: 38,117.7 / 14,240.0 ≈ 2.7x slower in this no-overlap, unsharded model.
+#   Real jobs use sharding (FSDP/ZeRO), tensor/pipeline parallelism, and overlap with backward
+#   compute, so the communicated volume per GPU and the exposed time are much smaller. The
+#   lesson is how strongly topology and overlap decide communication overhead for a 70B model,
+#   not the absolute numbers.
 ```
 
 **Rubric:** Calculations correct. Explain why single-rack is cost-optimal despite higher CAPEX.
@@ -251,6 +260,6 @@ for topo, allreduce_lat in topologies.items():
 ## Success Criteria
 
 - [ ] Ring AllReduce simulation matches hand calculations
-- [ ] Plot shows tree becoming better than ring at large N
+- [ ] Results show ring winning for large messages and tree/recursive doubling winning for small messages at larger N
 - [ ] AllReduce overhead quantified for each topology
 - [ ] Topology choice justified by cost-benefit analysis

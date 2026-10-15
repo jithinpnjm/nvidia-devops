@@ -11,6 +11,9 @@ tags: [inference, vllm, serving, latency, throughput, batching]
 
 In Volume 12, we covered the deep technical execution of AI Inference (Prefill vs. Decode, KV Cache, PagedAttention). In this chapter, we apply those concepts to the design of the AI Factory.
 
+
+> **Note on figures:** Decode rates, batch sizes, QPS, and cost figures in this chapter are planning assumptions derived from the first-principles model shown, not benchmark results. Benchmark your model, precision, and serving engine before sizing.
+
 Building an Inference cluster is an exercise in **Economics**. 
 In Training, you just want to finish the job as fast as possible. 
 In Inference, your goal is to process the maximum number of user requests per dollar of hardware (Throughput) *without* breaching the user's patience threshold (Latency SLA).
@@ -23,106 +26,61 @@ Architects use Continuous Batching engines (like vLLM or Triton) to perfectly ba
 
 ### 1.1 Throughput vs. Latency Trade-off
 
+LLM decode is memory-bandwidth bound: every decode step reads all model weights (plus the KV cache) from HBM, and that cost is shared by every sequence in the batch. This is why batching raises throughput almost for free until compute or KV-cache memory becomes the limit.
+
 ```python
-# Production LLM serving: balance latency (user experience) and throughput (cost)
+# First-principles decode model for Llama-3-70B in BF16 on 2x H100 (tensor parallel = 2)
 
-# Scenario: Llama-3-70B inference server, H100 GPU, 2000 QPS peak
+weights_gb = 140                       # 70B params x 2 bytes
+weights_per_gpu_gb = weights_gb / 2    # 70 GB read per decode step per GPU
+hbm_tb_s = 3.35                        # H100 SXM HBM3 bandwidth
 
-# Option A: Large batches (B=256)
-#   Prefill: 256 sequences × 512 avg tokens = 131K tokens
-#   Prefill throughput: 1500 tokens/sec (limited by HBM)
-#   Prefill latency: 131K / 1500 = 87 seconds... NO, wrong calculation
-#   
-#   Actually:
-#   Time per forward pass @ batch=256: 256 sequences × 10ms per seq = 2.56 sec
-#   But that's wrong too. Let me think more carefully.
-#   Per-GPU throughput (decode-bound):
-#     HBM bandwidth: 3.35 TB/s for 1 GPU
-#     Model size: 140 GB
-#     Time to fetch all weights per token: 140 GB / 3.35 TB/s = 41.8 ms
-#     Tokens per second: 1000 ms / 41.8 ms = 23.9 tokens/sec per GPU
-#   With batch=256, concurrency improves:
-#     Effective throughput: 23.9 tokens/sec × 1.5x batching factor = ~36 tokens/sec
-#   Latency to generate 128-token response:
-#     Prefill time: 128 tokens / 100 tokens/sec = 1.28 sec (prefill is compute-bound, faster)
-#     Decode time: 128 tokens × 41.8 ms = 5.35 sec (memory-bandwidth bound)
-#     Total TTFT: 1.28 sec (first token after prefill)
-#     Total time for full response: 1.28 + 5.35 = 6.63 sec p99 (acceptable but high)
+min_step_ms = weights_per_gpu_gb / (hbm_tb_s * 1000) * 1000   # = 20.9 ms lower bound
+step_ms = 30                           # assumed real step time (KV reads, kernels, TP communication)
 
-# Option B: Small batches (B=4)
-#     Prefill time: 512 tokens / 100 tokens/sec ≈ 5 ms (small batch, fast)
-#     Decode time: 128 tokens × 41.8 ms = 5.35 sec
-#     Total response time: 5 ms + 5.35 sec = 5.355 sec p50
-#     p99: ~6 sec (similar due to decode being dominant bottleneck)
-#   Throughput: Only 4 concurrent sequences, if avg response = 6 sec
-#     Throughput: 4 / 6 sec = 0.67 sequences/sec = 67 QPS
+per_sequence_tokens_s = 1000 / step_ms          # ~33 tokens/s per sequence
+batch = 64                                      # concurrent sequences (continuous batching)
+replica_tokens_s = batch * per_sequence_tokens_s  # ~2,100 tokens/s per 2-GPU replica (~1,070 per GPU)
 
-# Option C: Continuous batching (dynamic batch size, 1–64 sequences)
-#   Key insight: Decode tokens are independent of batch size (memory bandwidth is shared)
-#   So: 1 sequence takes ~41.8ms per decode token (single sequence)
-#       64 sequences take ~41.8ms per decode token (shared memory I/O!)
-#   Throughput gain: 64x (for free, via better memory utilization)
-#   Latency impact: Minimal (decode latency same, but prefill overlapped)
-#   p99 TTFT: 50–100 ms (with queue wait)
-#   p99 total response time: 500 ms (good for user experience)
+# KV cache check: ~320 KB per token (Llama-3-70B, BF16); 64 sequences x ~660 tokens = ~14 GB,
+# which fits in the ~20 GB left after weights on two 80 GB GPUs.
+```
 
-print("""
-INFERENCE STRATEGY COMPARISON
+Strategy comparison (same hardware, assumed numbers):
 
-Option A: Large static batches
-  Throughput: 36 tokens/sec per GPU × N GPUs
-  Latency p99 TTFT: 2 seconds (unacceptable for chat)
-  Best for: Batch inference (asynchronous)
+```text
+Static large batches (B=256, wait for the batch to fill):
+  Throughput: high; latency: poor (requests wait for the batch and for the slowest sequence)
+  Best for: offline / batch inference
 
-Option B: Small static batches
-  Throughput: 6.7 tokens/sec per GPU × N GPUs (underutilized)
-  Latency p99 TTFT: 50 ms
-  Cost: High (GPUs underutilized)
+Static small batches (B=4):
+  Latency: good; throughput: poor (GPU memory bandwidth is mostly wasted)
+  Cost per token: high
 
-Option C: Continuous batching (recommended)
-  Throughput: 36 tokens/sec per GPU × N GPUs (same as A, better latency)
-  Latency p99 TTFT: 100 ms (good user experience)
-  Cost: Optimal (full GPU utilization with low latency)
-""")
+Continuous batching (recommended for online serving):
+  New requests join the running batch at every decode step; finished sequences leave immediately.
+  Throughput approaches the large-batch case while TTFT stays near prefill time plus queueing.
+  Limits: KV-cache memory, compute at large batch, and the TTFT/ITL SLO.
 ```
 
 ### 1.2 vLLM Serving Architecture
 
-```python
-# vLLM: Open-source inference engine, optimized for continuous batching
+vLLM implements continuous batching and PagedAttention. For production, run its OpenAI-compatible server (or Triton with the vLLM/TensorRT-LLM backend) rather than calling the offline `LLM` class from a request handler.
 
-from vllm import LLM, SamplingParams
-import asyncio
-
-# Initialize model (auto-loads optimal # of GPUs for tensor parallelism)
-llm = LLM(
-    model="meta-llama/Llama-2-70b-hf",
-    tensor_parallel_size=2,  # Shard model across 2 GPUs (one node)
-    max_num_seqs=64,  # Max concurrent sequences (tuned for KV cache)
-    dtype="float16",  # Use FP16 precision
-)
-
-# Sampling params
-sampling_params = SamplingParams(
-    temperature=0.8,
-    top_p=0.95,
-    max_tokens=512,  # Max output tokens per request
-    frequency_penalty=0.0,
-)
-
-# Inference (streaming + continuous batching)
-async def serve_request(prompt):
-    outputs = llm.generate(prompt, sampling_params)
-    for output in outputs:
-        yield output.outputs[0].text
-
-# Performance expectations (70B model, 2 GPU, continuous batching):
-#   Prefill throughput: 1500 tokens/sec (compute-bound)
-#   Decode throughput: 36 tokens/sec (memory-bandwidth bound)
-#   Max concurrent sequences: 64 (limited by KV cache memory)
-#   p99 TTFT: 100 ms (with 100 ms queue + prefill)
-#   p99 total response: 500 ms (prefill + 128 decode tokens @ 36 tokens/sec)
+```bash
+# Example: Llama-3-70B-Instruct on 2 GPUs (tensor parallel), BF16
+vllm serve meta-llama/Llama-3.1-70B-Instruct \
+  --tensor-parallel-size 2 \
+  --dtype bfloat16 \
+  --max-num-seqs 64 \
+  --gpu-memory-utilization 0.90
+# Flag names and defaults change between vLLM releases; check `vllm serve --help` for your version.
 ```
+
+Planning expectations for this configuration (assumptions from Part 1.1, to be benchmarked):
+- Per-sequence decode rate: roughly 30 tokens/s.
+- Concurrency: up to `max-num-seqs` sequences, limited by KV-cache memory.
+- TTFT: prefill time plus queueing; keep the queue short with admission control.
 
 ---
 
@@ -134,31 +92,24 @@ async def serve_request(prompt):
 SCALING LLAMA-70B INFERENCE
 
 Single H100 (80GB VRAM):
-  Model weights: 140 GB (BF16) → Doesn't fit!
-  Must use quantization (INT8) or model parallel
+  BF16 weights: 140 GB → does not fit.
+  FP8/INT8 weights: ~70 GB → fits, but leaves roughly 10 GB for KV cache and activations,
+  so concurrency is small; quantization quality must be validated for your task.
 
-Option 1: Quantization (INT8)
-  Model size: 70 GB (INT8 quantized)
-  Fits on 1 GPU ✓
-  Throughput: 36 tokens/sec (decode-bound)
-  Quality: <1% perplexity increase on MMLU (acceptable)
+Option 1: Quantization (FP8 or INT8) on 1 GPU
+  Lower cost per replica; limited KV-cache headroom; validate accuracy on your evals.
 
-Option 2: 2-GPU Tensor Parallelism
-  GPU 0: 70 GB weights (sharded)
-  GPU 1: 70 GB weights (sharded)
-  Communication: AllReduce per forward pass (~5 ms overhead)
-  Throughput: 36 tokens/sec + potential 5 ms AllReduce overhead
-  Quality: 100% (no quantization)
+Option 2: 2-GPU Tensor Parallelism (BF16)
+  70 GB of weights per GPU, leaving about 10 GB per GPU for KV cache and activations.
+  Communication: AllReduce on NVLink within the node each layer (small relative to the weight reads).
+  Quality: no quantization loss.
 
-Option 3: 4-GPU Tensor Parallelism (overkill for 70B)
-  Throughput: Still 36 tokens/sec (decode-bounded)
-  AllReduce cost: 4 GPUs × 5 ms = too much overhead
-  Not recommended for 70B (better for 400B+)
+Option 3: 4-GPU or 8-GPU Tensor Parallelism
+  More KV-cache room and lower per-token latency (less weight to read per GPU), at the price of
+  more communication and fewer replicas per node. Worth it for latency-critical or much larger models.
 
-Recommendation for 70B inference:
-  Use 2-GPU tensor parallelism or INT8 quantization
-  INT8 preferable if <1% quality loss is acceptable
-  Tensor parallelism if quality is critical
+Recommendation: start with 2-GPU TP in BF16 (or FP8 on 2 GPUs for more KV room), measure
+latency and throughput, then adjust.
 ```
 
 ### 2.2 Multi-GPU Serving Cluster
@@ -168,48 +119,37 @@ PRODUCTION INFERENCE CLUSTER: 2000 QPS PEAK
 
 Requirement: Serve Llama-70B with p99 TTFT <500ms, 99.9% availability
 
-Scaling calculation:
-  Per-GPU throughput (decode-bound): 36 tokens/sec
-  Avg response: 150 tokens
-  Time per response: 150 / 36 = 4.2 sec per sequence
-  Concurrent sequences per GPU: 64 (vLLM limit)
-  
-  To serve 2000 QPS (single region, no failover headroom):
-    If each GPU holds 64 concurrent sequences for 4.2 sec
-    Sequences per GPU per second: 64 / 4.2 = 15.2 QPS per GPU
-    Naive GPUs needed (ignoring tensor parallelism): 2000 / 15.2 ≈ 132 GPUs
+Scaling calculation (assumptions from Part 1.1):
+  Per-sequence decode rate: ~36 tokens/s (28 ms per step, assumed)
+  Avg response: 150 tokens → ~4.2 s per sequence
+  Concurrent sequences per 2-GPU replica: 64
+  Replica throughput: 64 / 4.2 s ≈ 15.2 QPS per replica (2 GPUs)
 
-  Design target — N+1 regional failover (not full triplication): with 3 active-active
-  regions, any ONE region can fail and the remaining TWO must absorb the full 2000 QPS,
-  i.e. each region must independently support ~1000 QPS (2000 / 2), not 2000 QPS alone.
-  Llama-70B also needs 2-GPU tensor parallelism per replica (doesn't fit serving-optimized
-  on a single H100 at this context length), so each "replica" of 15.2 QPS costs 2 GPUs:
-    GPUs needed per region for 1000 QPS: (1000 / 15.2) × 2 GPUs/replica ≈ 132 GPUs
-    Total GPUs across 3 regions: 132 × 3 = 396 GPUs
-    Inference nodes: 396 / 8 GPU per node ≈ 50 nodes (≈17 nodes/region)
+  Design target — N+1 regional failover: with 3 active-active regions, any ONE region can
+  fail and the remaining TWO must absorb the full 2000 QPS, so each region must support
+  ~1000 QPS on its own:
+    Replicas per region: 1000 / 15.2 ≈ 66; GPUs per region: 66 × 2 ≈ 132
+    Total across 3 regions: ≈ 396 GPUs; with 8 GPUs per node ≈ 17 nodes per region
 
 Deployment:
-  Region 1 (us-west): 17 nodes (136 GPUs), 2-GPU tensor parallelism per model
-    68 model replicas (136 GPU / 2 per replica)
-    Throughput: 68 replicas × 15.2 QPS ≈ 1,034 QPS (comfortably covers the ~1,000 QPS
-    failover requirement for this region)
+  Region 1 (us-west): 17 nodes (136 GPUs), 68 replicas ≈ 1,034 QPS capacity
   Region 2 (us-east): 17 nodes, same setup
-  Region 3 (eu-west): 17 nodes (or 16, to round to ~400 total), same setup
+  Region 3 (eu-west): 17 nodes, same setup
+  Total: 51 nodes, 408 GPUs; ~667 QPS per region in normal operation, ~1,034 QPS of
+  headroom per region during a single-region failover
 
-  Total: ~51 nodes, ~408 GPUs, serving 2000 QPS globally in steady state (each region
-  handles ~667 QPS load-balanced normally, with headroom to ~1,034 QPS during a
-  single-region failover) — this is the correct sizing for N+1 regional redundancy,
-  not the "132 × 3 with full triplication" framing used loosely elsewhere.
-
-Infrastructure cost:
+Infrastructure cost (illustrative):
   Hardware: 408 GPUs × $30K = $12.24M
-  Network: Multi-region bandwidth (roughly GPU-count independent), $2M/year
-  Power: 408 GPU × 350W = 142.8 kW peak, ~70 kW avg = $70K/year electricity (0.07 MW × 8760h × $0.12/kWh ≈ $73.6K/year)
+  Network: multi-region bandwidth, $2M/year (assumed)
+  Power: 408 × 700W = 285.6 kW at maximum TDP; assume ~60% average draw and a 1.35 PUE:
+         285.6 × 0.6 × 1.35 ≈ 231 kW → 231 × 8760 h × $0.12/kWh ≈ $243K/year
   Personnel: 10 SRE/Eng × $150K = $1.5M/year
-  Total 3-year cost: $12.24M + ($2M + $0.074M + $1.5M) × 3 = $12.24M + $10.72M ≈ $22.96M
-  Annual tokens served: 2000 QPS × 86,400 sec/day × 365 days × 150 tokens/seq ≈ 9.46 trillion tokens/year
-  Cost per 1M tokens served (consistent annual/annual): ($22.96M / 3) / (9.46 trillion / 1M) ≈ $7.65M / 9.46M(1M-token units) ≈ $0.81 per 1M tokens
+  Total 3-year cost: $12.24M + ($2M + $0.243M + $1.5M) × 3 ≈ $23.5M
+  Annual tokens served at constant peak load: 2000 QPS × 86,400 × 365 × 150 ≈ 9.46 trillion tokens/year
+  Cost per 1M tokens: ($23.5M / 3) / 9.46M ≈ $0.83 per 1M tokens (real cost is higher at lower average load)
 ```
+
+---
 
 ---
 
@@ -219,9 +159,9 @@ Infrastructure cost:
 |---|---|---|
 | **High tail latency (p99 > 1 sec) while p50 &lt; 100ms** | User experience poor during traffic spikes | Implement queue backpressure; reject requests at 99.95% full capacity instead of queueing indefinitely |
 | **Model inference timeout (>30 sec, triggers client disconnect)** | Requests dropped, user sees error | Implement per-request timeout budget; reject new requests if response cannot complete within SLA |
-| **KV cache fragmentation (memory wasted by incomplete sequences)** | Max concurrent sequences drops 50% over time | Use paged KV cache (like virtual memory); reuse blocks across requests; periodic defragmentation |
+| **KV cache fragmentation (memory wasted by incomplete sequences)** | Max concurrent sequences drops over time | Use a paged KV cache (PagedAttention, as in vLLM), which allocates fixed-size blocks and largely avoids fragmentation; enable prefix caching for shared prompts |
 | **Unbalanced multi-GPU load (one GPU at 100%, others at 40%)** | Worst GPU is bottleneck; others idle | Use load-aware request routing; distribute based on estimated tokens per response |
-| **Quantization quality degradation (model perplexity +5%)** | User-facing output quality worse | Use mixed-precision: INT8 weights, FP8 activation, keep attention in FP16 |
+| **Quantization quality degradation** | User-facing output quality worse | Evaluate quantized models on your own task benchmarks, try a less aggressive format (FP8 instead of INT4), or keep sensitive layers in higher precision |
 
 ## Architecture Summary
 
@@ -259,8 +199,8 @@ flowchart TD
 Inference serving differs fundamentally from training:
 
 1. **Latency SLA:** Target p99 TTFT &lt;500ms, not max throughput.
-2. **Continuous batching:** Dynamic batch size (1–64 sequences) achieves throughput of static large batches with latency of small batches.
-3. **Scaling:** Memory-bandwidth bound (36 tokens/sec per H100 for decode); add GPUs for concurrency, not per-GPU speed.
-4. **Multi-region:** Replicate clusters across regions for 99.9% SLA; cost-optimal at 2000+ QPS.
+2. **Continuous batching:** A dynamic batch (up to the KV-cache and SLO limits) achieves most of the throughput of large static batches with much lower latency.
+3. **Scaling:** Decode is memory-bandwidth bound per step; batching amortizes the weight reads, so add replicas for concurrency and tensor-parallel GPUs for latency and KV-cache room.
+4. **Multi-region:** Replicate clusters across regions for the availability SLA; size each region for the failover case.
 
 **In Chapter 9:** Multi-region deployment and failover mechanisms.

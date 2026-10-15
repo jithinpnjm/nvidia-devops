@@ -36,13 +36,13 @@ If an attacker gains access to your network, they will find your storage array a
 
 **The Defense: Object Lock (WORM)**
 You must configure your Tier 3 backup storage (S3) with Object Lock (Write Once, Read Many). 
-When the training pipeline pushes a checkpoint to S3, the S3 bucket physically prevents the file from being modified or deleted for a specified period (e.g., 30 days). Even if an attacker compromises the AWS root account, they cannot delete or encrypt the backups.
+When the training pipeline pushes a checkpoint to S3, S3 prevents the object version from being overwritten or deleted for a specified retention period (e.g., 30 days). In Compliance mode, not even the root account can shorten or remove the retention; Governance mode can be bypassed by users with special permissions, so choose the mode deliberately.
 
 ## 3. Storage Snapshots vs. Replication
 
 To protect the massive datasets (which are too large to back up nightly), you must rely on native storage array features.
 
-1.  **Storage Snapshots (Local Protection):** The Parallel File System (e.g., Weka/NetApp) takes a momentary, read-only snapshot of the file system pointers. It takes zero seconds and zero bytes of space. If a data scientist runs `rm -rf`, the SRE can instantly revert the file system to the snapshot from 5 minutes ago. 
+1.  **Storage Snapshots (Local Protection):** The Parallel File System (e.g., Weka/NetApp) takes a momentary, read-only snapshot of the file system pointers. Creation is near-instant and initially consumes little space (space is used as data diverges). If a data scientist runs `rm -rf`, the SRE can instantly revert the file system to the snapshot from 5 minutes ago. 
 2.  **Asynchronous Replication (Geographic Protection):** To protect against a data center fire, the storage array quietly mirrors only the *changed* data blocks to a secondary storage array in a different physical location over a dedicated dark fiber link. 
 
 ## Customer Scenario (Senior Level)
@@ -53,11 +53,11 @@ An AI lab is training a foundation model. The active dataset and all checkpoints
 **The Senior Architect Response:**
 "The infrastructure lead has failed to implement basic data resilience because they attempted to apply legacy backup paradigms to hyperscale storage.
 
-It is mathematically true that you cannot perform a full traditional network backup of a 1-Petabyte array every night. However, this does not excuse a lack of data protection. 
+It is true that you cannot perform a full traditional network backup of a 1-Petabyte array every night. However, this does not excuse a lack of data protection. 
 
 The catastrophic loss of the dataset and the training progress could have been entirely prevented by utilizing **Storage-Level Snapshots**. 
 
-High-performance storage arrays (like Weka or modern Lustre implementations) support instantaneous, copy-on-write snapshots. We must immediately configure the storage controller to automatically take a read-only snapshot of the entire namespace every hour. 
+Many high-performance storage systems (such as Weka) support copy-on-write snapshots; Lustre snapshots are only available with ZFS-backed targets, so check what your file system supports. We must immediately configure the storage controller to automatically take a read-only snapshot of the entire namespace every hour. 
 
 Because snapshots only store the delta (the changes in data), they consume negligible space and have zero impact on the massive sequential throughput of the GPUs. 
 
@@ -67,4 +67,4 @@ If this architecture had been in place, when the junior engineer's script corrup
 
 **Conceptual:** Why is standard daily backup software (like Commvault or Veeam) often incapable of protecting a 10-Petabyte AI data lake? *(Hint: The sheer physics of data transfer. Executing a daily full or even differential backup of 10 Petabytes over standard data center networks takes so long that the backup window would exceed 24 hours. The backup software would also generate massive metadata scanning overhead, bottlenecking the storage array and starving the active AI training jobs).*
 
-**Architecture:** Explain how Object Lock (WORM) on an S3 bucket protects a company from ransomware attacks. *(Hint: Ransomware works by encrypting files and demanding payment for the decryption key. Object Lock (Write Once, Read Many) is an immutable configuration on S3 storage. Once a file (like a critical model checkpoint) is written to the bucket, the cloud provider mathematically prohibits any user, application, or even the root administrator from deleting or modifying that file for a predefined retention period. It completely neutralizes the ransomware's ability to encrypt the backups).*
+**Architecture:** Explain how Object Lock (WORM) on an S3 bucket protects a company from ransomware attacks. *(Hint: Ransomware works by encrypting files and demanding payment for the decryption key. Object Lock (Write Once, Read Many) is an immutable configuration on S3 storage. Once a file (like a critical model checkpoint) is written to the bucket, S3 blocks overwrites and deletes of that object version for the retention period (in Compliance mode, even for the root user). Ransomware cannot alter the locked copies).*

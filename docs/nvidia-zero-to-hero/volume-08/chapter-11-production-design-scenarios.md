@@ -114,7 +114,7 @@ flowchart TB
 
 ### Worked sizing: leaf uplinks for a nonblocking 256-GPU design
 
-If each of 16 racks holds 16 GPU nodes (256 total), each with one 400Gb/s-class rail, a leaf serving one rack needs 16 × 400 = 6,400Gb/s of downlink capacity. For a fully nonblocking leaf (1:1), that leaf also needs 6,400Gb/s of uplink capacity — at 400Gb/s per uplink port, that is 16 uplink ports per leaf, meaning the leaf switch needs a 32-port radix just to break even (16 down, 16 up), before accounting for a second rail or redundancy. If the budget only supports a 24-port leaf, the arithmetic forces a choice: either reduce to 8 uplinks (16 down : 8 up = 2:1 oversubscribed, per Chapter 6's formula) or reduce endpoint density per leaf. This is the concrete version of "avoid selecting switch count before calculating communication requirements" — the port-count math, not a vendor's marketing sheet, determines whether "nonblocking" is actually true for this design.
+If each of 16 racks holds 16 single-rail endpoints (256 GPU-attached ports in total, each at 400Gb/s), a leaf serving one rack needs 16 × 400 = 6,400Gb/s of downlink capacity. For a fully nonblocking leaf (1:1), that leaf also needs 6,400Gb/s of uplink capacity — at 400Gb/s per uplink port, that is 16 uplink ports per leaf, meaning the leaf switch needs a 32-port radix just to break even (16 down, 16 up), before accounting for a second rail or redundancy. If the budget only supports a 24-port leaf, the arithmetic forces a choice: either reduce to 8 uplinks (16 down : 8 up = 2:1 oversubscribed, per Chapter 6's formula) or reduce endpoint density per leaf. This is the concrete version of "avoid selecting switch count before calculating communication requirements" — the port-count math, not a vendor's marketing sheet, determines whether "nonblocking" is actually true for this design.
 
 ## Scenario 3: Shared Training and Inference
 
@@ -141,7 +141,7 @@ Training creates large synchronized bursts. Inference requires predictable tail 
 
 Use several controls together. Do not treat P_Keys as performance isolation.
 
-**Evidence for the table above.** The "Service levels and virtual lanes" row's claimed benefit is measurable, not assumed: run a synthetic inference-latency client continuously while a training job saturates the shared fabric, first with all traffic on one default SL/VL, then with training and inference mapped to separate SLs/VLs end to end. A representative before/after on p99 inference latency: **1.8ms (isolated baseline) -> 14.2ms (shared VL, training active) -> 3.1ms (separated VL, training active)**. Separation recovers most, not all, of the regression — the residual 3.1ms versus 1.8ms gap is exactly why the row also says "requires careful tuning and validation": VL separation reduces interference, it does not eliminate shared physical-link capacity.
+**Evidence for the table above.** The "Service levels and virtual lanes" row's claimed benefit is measurable, not assumed: run a synthetic inference-latency client continuously while a training job saturates the shared fabric, first with all traffic on one default SL/VL, then with training and inference mapped to separate SLs/VLs end to end. An illustrative before/after on p99 inference latency (invented numbers, not measurements, to show the shape of the result): **1.8ms (isolated baseline) -> 14.2ms (shared VL, training active) -> 3.1ms (separated VL, training active)**. Separation recovers most, not all, of the regression — the residual 3.1ms versus 1.8ms gap is exactly why the row also says "requires careful tuning and validation": VL separation reduces interference, it does not eliminate shared physical-link capacity.
 
 ## Scenario 4: InfiniBand for Compute and Storage
 
@@ -155,6 +155,7 @@ Use one high-performance fabric for GPU communication and parallel storage.
 - GPUDirect Storage opportunities;
 - simpler rack attachment in some designs.
 
+### Risks
 
 - checkpoint bursts interfere with collectives;
 - storage failure can affect compute traffic;
@@ -307,6 +308,7 @@ A productive workshop should capture:
 - service objectives;
 - budget and procurement constraints.
 
+### Workload
 
 - model size;
 - parallelism strategy;

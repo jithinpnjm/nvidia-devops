@@ -5,6 +5,9 @@ sidebar_position: 1
 description: "Given a symptom, construct the diagnostic queries and evidence collection workflow."
 ---
 
+
+> **Note:** Output blocks and numbers in this lab are illustrative (not captured from a real system). Use them to practice the reasoning, not as reference values.
+
 ## Objective
 
 Practice translating user-reported symptoms into concrete diagnostic evidence collection procedures. Learn the evidence hierarchy and when to use different tools.
@@ -61,17 +64,17 @@ Determine the evidence priority:
 
 2. **Profiling tool recommendation:**
    ```bash
-   # Lightweight: simple Python timing (< 1% overhead)
+   # Lightweight: simple Python timing (lowest overhead)
    import time
    t0 = time.perf_counter()
    forward()
    t1 = time.perf_counter()
    print(f"Forward time: {(t1-t0)*1000:.1f} ms")
    
-   # Medium weight: nvidia-smi monitoring (5-10% overhead)
+   # Medium weight: nvidia-smi polling (each call spawns a process)
    watch -n 0.5 'nvidia-smi --query-gpu=clocks.current.graphics,temperature.gpu,power.draw --format=csv,noheader'
    
-   # Heavyweight: Nsight Systems (30-50% overhead)
+   # Heavyweight: Nsight Systems (highest overhead of the three; measure it)
    nsys profile -o trace -d 60 python train.py
    ```
 
@@ -90,12 +93,13 @@ Determine the evidence priority:
 
 1. **GPU issue vs communication issue:**
    ```bash
-   # Distinguish with NCCL_DEBUG
-   NCCL_DEBUG=TRACE python train.py 2>&1 | grep "ncclAllReduce\|STALLED"
+   # Distinguish with NCCL_DEBUG (message text varies by NCCL version)
+   NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=COLL python train.py 2>&1 | tee nccl.log
    
-   # If output shows: "ncclAllReduce hanging at GPU 2" → GPU issue
-   # If output shows: "ncclAllReduce slow, 5 sec, expected 50 ms" → Network issue
-   # If no output for 30 seconds → Program truly stalled
+   # Compare per-rank collective op counts: a rank stuck at a lower count is the one
+   # not reaching the collective (see Chapter 03)
+   # If every rank is blocked at the same count and nothing progresses → fabric or deadlock
+   # If counts advance but slowly → slow, not hung
    
    # Also try: timeout and check which GPU is waiting
    timeout 10 python train.py 2>&1 | tail -20
@@ -111,8 +115,7 @@ Determine the evidence priority:
      nvidia-smi -i $i --query-gpu=memory.used --format=csv,noheader
    done
    
-   # GPU with much higher memory = the one processing data
-   # GPU with idle memory = stalled waiting
+   # Memory use is only a weak hint; compare SM activity and the per-rank op counts instead
    
    # Method 2: Check clock speed
    for i in {0..3}; do
@@ -126,21 +129,13 @@ Determine the evidence priority:
 
 3. **NCCL_DEBUG output to enable:**
    ```bash
-   export NCCL_DEBUG=TRACE
+   export NCCL_DEBUG=INFO
    export NCCL_DEBUG_SUBSYS=COLL,GRAPH
    python train.py 2>&1 | head -100
    
-   # Expected output (healthy):
-   # ncclAllReduce: rank=0, nBytes=4MB, time=50us
-   # ncclAllReduce: rank=1, nBytes=4MB, time=52us
-   # ncclAllReduce: rank=2, nBytes=4MB, time=49us
-   # ncclAllReduce: rank=3, nBytes=4MB, time=51us
-   
-   # Expected output (stalled):
-   # ncclAllReduce: rank=0, nBytes=4MB, time=50us
-   # ncclAllReduce: rank=1, nBytes=4MB, time=48us
-   # ncclAllReduce: rank=2, nBytes=4MB, hanging...  <- Stalled here
-   # (no output from rank 3)
+   # Healthy: every rank logs the same collective op counts in step
+   # Stalled: one rank's op count stops advancing while the others wait on it
+   # (the log line format differs between NCCL versions; look for the opCount field)
    ```
 
 4. **Differentiate hanging from slow:**
@@ -154,57 +149,31 @@ Determine the evidence priority:
    # No new output for > 60 seconds
    # Timeout hits and program kills
    
-   # Test: run with 10-second timeout
-   timeout 10 python train.py 2>&1
-   # If timeout hits while NCCL is hanging → deadlock
-   # If completes 10 iterations before timeout → slow, not hanging
+   # Watch the log: if op counts keep advancing, it is slow; if they stop for longer than
+   # a full iteration, it is hung
    ```
 
 ### Exercise 3 Solution: Multiple Failure Modes
 
-**Evidence Priority (strongest to weakest):**
+**Evidence priority (highest first):**
 
-1. **Thermal throttling (causes immediate performance loss)** ← Investigate FIRST
-2. **ECC errors (indicate data corruption risk)**
-3. **NCCL hangs (symptom, not root cause)**
+1. **Xid / ECC errors (data-integrity risk):** check `dmesg` for Xid 48/95/64 and `nvidia-smi -q -d ECC`. An uncorrectable error means the GPU should be drained and results from the affected window treated as suspect, whatever else is happening.
+2. **Throttle reasons (performance cause):** `nvidia-smi -q -d PERFORMANCE` shows whether thermal slowdown, power cap, or power brake is active. Thermal throttling slows one rank, which is a plausible reason for collective delays, but it does not by itself cause a permanent hang.
+3. **NCCL hangs (downstream symptom):** a hang usually means a rank is late or dead. Identify the lagging rank (Chapter 03), then ask why it lagged.
 
-**Why this order:**
-- Thermal throttling will cause ALL other failures to seem worse
-- If you fix thermal, NCCL latency improves automatically
-- If you ignore thermal and only investigate NCCL, you'll chase a phantom problem
-
-**Root cause analysis:**
+**Why this order:** integrity risks outrank performance, and symptoms in the communication layer are usually consequences of a problem on one rank.
 
 ```bash
-# Step 1: Check temperature
-nvidia-smi -i 0 -q | grep -A 2 "Temperature"
-# Output: 85°C → confirms thermal throttling
-
-# Step 2: Check for thermal throttle events
-dcgmi diag -r 3 | grep "Thermal slowdown"
-# Output: "Thermal slowdown events: 500 in last hour" → confirmed
-
-# Step 3: Check power/clock correlation
-watch -n 1 'nvidia-smi -i 0 --query-gpu=temperature.gpu,clocks.current.graphics --format=csv,noheader'
-# Output shows: Temp 85°C, Clock 1200 MHz (dropped from 1980) → throttling
-
-# Step 4: Check if NCCL hang is caused by thermal throttle
-# Reduce temperature: improve airflow, reduce power limit
-sudo nvidia-smi -i 0 -pl 200  # Reduce power
-sleep 30
-
-# Re-run training
-python train.py
-
-# Check NCCL performance
-NCCL_DEBUG=TRACE timeout 30 python train.py 2>&1 | grep ncclAllReduce
-# If AllReduce latency decreased by 10x → thermal was the root cause
+# Step 1: integrity evidence
+dmesg -T | grep -i xid
+nvidia-smi -i 0 -q -d ECC,PAGE_RETIREMENT,ROW_REMAPPER
+# Step 2: performance cause
+nvidia-smi -i 0 -q -d TEMPERATURE,PERFORMANCE
+# Step 3: which rank is late
+NCCL_DEBUG=INFO NCCL_DEBUG_SUBSYS=COLL python train.py 2>&1 | tee nccl.log
 ```
 
-**Hypothesis proof:**
-- Before fix: thermal throttle + NCCL slow + ECC errors
-- After reducing temp below 80°C: NCCL latency returns to 50us
-- Conclusion: Thermal throttling was primary, caused cascading failures
+**Hypothesis proof:** change one variable at a time (for example drain and reset the GPU, then fix cooling) and show that the NCCL delay disappears only when the true cause is removed. If an uncorrectable ECC error is present, the GPU leaves the pool regardless of the thermal findings.
 
 ## Expected Outcomes
 
@@ -216,5 +185,5 @@ NCCL_DEBUG=TRACE timeout 30 python train.py 2>&1 | grep ncclAllReduce
 ## Verification Rubric
 
 **Exercise 1:** Your evidence plan includes timing instrumentation AND profiler AND GPU metrics ✓
-**Exercise 2:** Your NCCL_DEBUG analysis correctly identifies GPU 2 stalled; you distinguish hanging (frozen output) vs slow (continues, high latency) ✓
-**Exercise 3:** Your root cause is "thermal → NCCL degradation" and your fix proof shows NCCL improves after cooling ✓
+**Exercise 2:** Your NCCL_DEBUG analysis identifies the rank whose op count lags; you distinguish hanging (op counts frozen) vs slow (op counts advancing, high latency) ✓
+**Exercise 3:** You rank integrity evidence (Xid/ECC) above performance causes (throttling) above downstream symptoms (NCCL), and your proof changes one variable at a time ✓
