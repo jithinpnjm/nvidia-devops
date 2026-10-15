@@ -32,7 +32,7 @@ PG_NAME="llm-cluster-placement-group"
 aws ec2 create-placement-group --group-name $PG_NAME --strategy cluster
 for i in {1..32}; do
   aws ec2 run-instances --image-id ami-0abc1234 --instance-type p5.48xlarge \
-    --subnet-id $SUBNET_ID --placement-group-name $PG_NAME
+    --subnet-id $SUBNET_ID --placement "GroupName=$PG_NAME"
 done
 ```
 

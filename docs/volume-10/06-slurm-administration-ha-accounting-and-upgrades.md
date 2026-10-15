@@ -232,8 +232,8 @@ ConstrainSwapSpace=yes
 AllowedRAMSpace=98
 MaxRAMPercent=100
 
-# Device whitelisting
-AllowedDevicesFile=/etc/slurm/cgroup_allowed_devices_file.conf
+# ConstrainDevices=yes (above) is what restricts device access. Older Slurm releases also read
+# an AllowedDevicesFile; it is not in the current cgroup.conf documentation.
 ```
 
 ### 3.1 The Mechanics of Device Containment
@@ -242,7 +242,7 @@ When `ConstrainDevices=yes` is set, `slurmstepd` creates an eBPF program (in Cgr
 
 By default, the job is denied access to *all* character and block devices. `slurmstepd` then explicitly whitelists only the devices the job requested.
 
-If a user asks for `--gpus=2`, `slurmstepd` identifies that these are `/dev/nvidia0` and `/dev/nvidia1` (along with `/dev/nvidiactl` and `/dev/nvidia-uvm` which are globally whitelisted in `cgroup_allowed_devices_file.conf`). 
+If a user asks for `--gpus=2`, `slurmstepd` identifies that these are `/dev/nvidia0` and `/dev/nvidia1` (the shared control devices such as `/dev/nvidiactl` and `/dev/nvidia-uvm` also have to stay accessible; check how your Slurm release and GRES configuration handle them rather than relying on a legacy allowed-devices file). 
 
 If the user's Python script attempts to open `/dev/nvidia2`, the kernel intercepts the syscall at the VFS layer and returns `EPERM` (Operation not permitted). The user sees a PyTorch or CUDA error stating the device is unavailable. This is the bedrock of multi-tenant security in an AI cluster.
 
